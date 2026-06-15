@@ -1,0 +1,334 @@
+meta:
+  name: decisions
+  version: "1.0.0"
+  description: >-
+    Reasoning trail maintained by resonera. Each deliberation session
+    appends one entry. Decisions are referenced by realisera, optimera,
+    profilera, planera, inspektera, hej, dokumentera, visionera, resonera,
+    and orkestrera for context on why choices were made.
+  artifact_type: agent_facing
+  path: ".agentera/decisions.yaml"
+  producer: resonera
+  consumers:
+    - dokumentera
+    - hej
+    - inspektera
+    - optimera
+    - orkestrera
+    - planera
+    - profilera
+    - realisera
+    - resonera
+    - visionera
+  format: yaml
+
+decisions:
+  - number: 1
+    date: "2026-06-15"
+    question: How does ktx integrate with agent runtimes, and where is the run recorded?
+    context: >-
+      ktx is the boring CLI the agent-native developer adopts — a transparent
+      layer in front of or alongside the agent. Research on lowfat, lean-ctx,
+      headroom, tilth, and go-agent showed two integration patterns: wrappers
+      (lowfat, tilth) that execute the agent process, and sidecars (lean-ctx,
+      headroom) that receive events from an already-running agent. The vision
+      also says one Go binary, no library import, no daemon. Hooks were
+      identified as a third adoption path for TUI agents that cannot use the
+      wrapper (interactive processes). For the wrapper, the agent's
+      stdout/stderr must pass through to the caller — ktx cannot clobber it.
+      Research on lowfat and rtk showed both are transparent proxies: output
+      passes through stdout, analytics are out-of-band. The wrapper, sidecar,
+      and hooks each write a per-session run to the same record store;
+      `ktx bench` aggregates those runs into a headline number that proves
+      the cost savings.
+    alternatives:
+      - name: "Wrapper only"
+        status: rejected
+        description: >-
+          ktx run spawns the agent, captures output, records the run. Simplest
+          but requires non-interactive mode and cannot serve TUI agents.
+      - name: "Sidecar only"
+        status: rejected
+        description: >-
+          ktx record receives events from the runtime. More flexible but
+          heavier integration, no simple adoption path.
+      - name: "Wrapper + write + hooks with transparent proxy output"
+        status: chosen
+        description: >-
+          Three adoption paths writing to one record store. Wrapper for
+          non-interactive (transparent proxy, run summary to stderr). Write
+          (sidecar) for complex integrations. Hooks for TUI agents (silent,
+          run in store only). --quiet suppresses inline run summary.
+          --format json structures it. Run always in store.
+    choice: >-
+      Wrapper (ktx run) + sidecar (ktx write) + hooks (ktx hook install), all
+      writing to the same record store. The wrapper is a transparent proxy:
+      agent stdout passes through untouched, one-line per-session run summary to
+      stderr. Hooks are silent — run in store only. --quiet suppresses the
+      inline run summary. --format json emits structured run summary to stderr instead.
+      Run always written to store regardless of display mode. The run
+      is per-session evidence; `ktx bench` aggregates runs into a headline
+      number that proves the cost savings.
+    reasoning: >-
+      The wrapper matches the vision's boring CLI any agent runtime adopts —
+      zero integration work for the developer. Hooks cover the TUI case that
+      wrappers cannot. The sidecar write command handles complex integrations.
+      All three share one record store, so the inspection surface (get, list)
+      is topology-agnostic. Transparent proxy output ensures pipe-safety. The
+      one-line run summary gives immediate feedback without requiring a follow-up
+      ktx get. Hooks are silent because they run inside TUI agents where
+      inline output would be noise. The run is per-session evidence;
+      `ktx bench` is the headline number. Lowfat-aligned: runs in the record
+      store, headline via bench/stats, no separate artifact noun.
+
+      Design rules (do not relitigate):
+
+      - Three integration paths, three distinct verbs because three distinct operations: wrapper (ktx run) executes the agent and captures output; sidecar (ktx write) receives events from an already-running agent; hook (ktx hook install) wires ktx into the agent's config.
+
+      - Wrapper output: agent stdout untouched; one-line run summary to stderr; --quiet suppresses the run summary line.
+
+      - Hook output: silent, no stdout/stderr; run in store only.
+    confidence: firm
+    feeds_into: M1 implementation, CLI command surface, hook design, run format
+
+  - number: 2
+    date: "2026-06-15"
+    question: What shape should the ktx command tree have, including store vs query layers?
+    context: >-
+      ktx is the boring CLI the agent-native developer adopts. Context
+      engineering is the primary capability, and the `compress`/`decompress` verbs
+      are the user-facing entry to it; the bench namespace produces the
+      headline number that proves the cost savings. Agentera uses namespaces
+      (state plan, check validate). Infrastructure CLIs (git, docker, kubectl)
+      use flat verbs. OpenCode uses flat verbs for primary actions (run,
+      serve, stats) and namespaces for managed resources (agent create, auth
+      login, session list). Pi is even flatter — almost everything is
+      top-level verbs with flags. The CLI needs both mechanical record I/O
+      (record a run, read raw JSON) and human-facing queries (formatted
+      run, aggregated lists). Benchmarking is multi-step (run, report,
+      compare) and needs grouping as a separate namespace because it is the
+      headline, not a per-run artifact.
+    alternatives:
+      - name: "Flat verbs only"
+        status: rejected
+        description: >-
+          Everything flat. ktx run, ktx get, ktx plugin, ktx hook, ktx bench,
+          ktx report, ktx compare. Flags do the work.
+      - name: "Namespaced only"
+        status: rejected
+        description: >-
+          Everything namespaced. ktx call run, ktx call get, ktx bench run,
+          ktx store read, ktx store write.
+      - name: "Hybrid with two-layer store/query separation"
+        status: chosen
+        description: >-
+          Flat verbs for actions (run, write, read, get, list, compress,
+          decompress). Namespaces for managed resources (plugin add/list/remove,
+          hook install/uninstall/list, bench run/report/compare). Store
+          primitives (read/write) always raw JSON. Query commands (get/list)
+          JSON default with --format text.
+    choice: >-
+      Hybrid command tree with two layers. Store primitives: ktx read (raw
+      JSON) and ktx write (create from sidecar events), always raw JSON, no
+      --format flag. Query layer: ktx get, ktx list, and ktx bench — all JSON
+      by default with --format text for human-readable output. Flat verbs for
+      primary actions: run, write, read, get, list, compress, decompress — the
+      `compress`/`decompress` pair is the user-facing entry to context
+      engineering. Namespaces for managed resources: plugin (add/list/remove), hook
+      (install/uninstall/list), bench (run/report/compare) — bench produces
+      the headline number that proves the cost savings. Diagnostics: ktx
+      doctor — read-only health check for the store, config resolution, and
+      ID format.
+    reasoning: >-
+      Both OpenCode and Pi validated the hybrid pattern: flat verbs for things
+      you do, namespaces for things you manage. Matches git, docker, kubectl,
+      and gh conventions. The store/query separation is clean: read/write are
+      store primitives (like file I/O) — mechanical, raw, no formatting.
+      get/list are query commands — derived, aggregated, format-aware. Bench
+      is a multi-step workflow that benefits from namespace grouping — the
+      bench produces the headline number that proves the cost savings, not a
+      per-run artifact.
+
+      Design rules (do not relitigate):
+
+      - Two-layer model: store primitives (ktx read, ktx write) vs query commands (ktx get, ktx list). Store is raw record I/O with no --format; query is derived, aggregated, format-aware.
+
+      - Commands are verbs, not nouns. ktx record was rejected (noun/verb ambiguity — humans type it expecting to see a record, not create one) in favor of ktx write.
+
+      - Hook (install/uninstall) and plugin (add/remove) use different verb forms on purpose: hook is a config change in the agent's runtime (lifecycle); plugin is a registry operation (CRUD). Different operations, different verbs. Do not 'unify' them.
+
+      - --help cross-references near-synonyms and asymmetric pairs so users can discover the right verb without reading the design rationale: `ktx read --help` mentions `ktx get` and vice versa; `ktx plugin --help` mentions `ktx hook` and vice versa. Do not assume the user knows the store/query split or the lifecycle/CRUD distinction.
+
+      - Bench uses subcommands (run, report, compare), not flags, because each is a distinct operation that may be invoked independently. Subcommands make the verb explicit; flags would collapse distinct operations under one verb.
+
+      - compress/decompress are the user-facing entry to context engineering. Input is a record ID (`<id>`). Output is a new record; the new record ID is printed to stdout. No flags — all configurability lives in `ktx.toml`. Reversibility is guaranteed (decompress(compress(x)) == x). The memory stage (D5 rule 2) is a pipeline stage; its operational spec (when it runs, what it reads/writes, sync vs async) is implementation detail.
+    confidence: firm
+    feeds_into: CLI command surface, help text structure, store implementation, query implementation, M3 bench design
+
+  - number: 3
+    date: "2026-06-15"
+    question: How should ktx address recorded calls?
+    context: >-
+      Every recorded call needs a stable identifier for ktx get, ktx compress,
+      ktx decompress, and ktx list. Options include content hash (git-style SHA
+      prefix), sequential integer, UUID, and timestamp. The identity says
+      infrastructure-shaped and empirical.
+    alternatives:
+      - name: "Content hash prefix"
+        status: rejected
+        description: >-
+          Git-style SHA prefix (ktx get a3f2b1c). Deterministic, deduplicates
+          identical calls, but ID changes if run is modified.
+      - name: "Sequential ID"
+        status: rejected
+        description: >-
+          Auto-incrementing integer (ktx get 42). Simple but requires counter
+          store, does not deduplicate.
+      - name: "UUID"
+        status: rejected
+        description: >-
+          Standard UUID (ktx get 550e8400-...). Globally unique but long and
+          not human-memorable.
+      - name: "16-char lowercase alpha nanoid"
+        status: chosen
+        description: >-
+          go-nanoid with a-z alphabet, 16 chars (ktx get abcdefghijklmnop).
+          ~75 bits entropy, collision-safe for billions of records.
+    choice: >-
+      16-character lowercase alphabetic nanoid using github.com/matoous/go-nanoid
+      with custom alphabet a-z. Content hash stored as a separate run field
+      for verification.
+    reasoning: >-
+      26^16 gives ~4.36 x 10^22 unique values. At 10 IDs/sec, ~29 billion IDs
+      before 1% collision probability. Lowercase-only matches infrastructure
+      conventions (docker names, git hex, kubectl resources). No ambiguous
+      characters (0/O, 1/l). Short enough to type and read aloud. Content hash
+      remains available as a separate field for verification without being the
+      primary key.
+    confidence: firm
+    feeds_into: Record store schema, run format, go-nanoid dependency
+
+  - number: 4
+    date: "2026-06-15"
+    question: What output format and global flags should ktx commands use?
+    context: >-
+      ktx is the boring CLI the agent-native developer adopts. Runs are
+      per-session evidence (tokens-in, tokens-out, dollars, content hash)
+      written for every call; `ktx bench` is a separate command that aggregates
+      runs into the headline number that proves the cost savings. Both are
+      JSON by default — empirical-first, the bench as a
+      derived artifact. Numbers not adjectives. Exit codes as truth. The
+      primary consumer is a program, not a human. Traditional CLIs (git,
+      docker, kubectl) default to human-readable text with --format json for
+      machines. Agentera uses --format text|json|yaml + --fields. OpenCode
+      uses --help, --version, --log-level, --pure. rtk uses -u (ultra-compact),
+      -v (verbose). The identity says boring before clever and
+      infrastructure-shaped.
+    alternatives:
+      - name: "Text default with extended flags"
+        status: rejected
+        description: >-
+          Text by default, --format json for machines. Add --verbose, --no-color,
+          --config. Traditional but adds complexity.
+      - name: "JSON default with minimal flags"
+        status: chosen
+        description: >-
+          JSON by default, --format text for humans. Five global flags:
+          --format, --quiet/-q, --store, --help/-h, --version/-v.
+    choice: >-
+      JSON by default for ktx get, ktx list, and ktx bench. --format text for
+      human-readable output. ktx read always returns raw JSON (store primitive,
+      no format flag). Five global flags: --format (text|json, default json),
+      --quiet/-q (suppress stderr run summary), --store path (record store location
+      override; default $XDG_DATA_HOME/ktx/store/), --help/-h, --version/-v.
+    reasoning: >-
+      The empirical-first identity means the primary consumer is a program.
+      JSON default makes ktx pipe-friendly without flags. Humans opt in with
+      --format text. This inverts the traditional convention but matches the
+      product's purpose — ktx is infrastructure, not an interactive tool.
+      Minimal flags cover essential needs: --format for output switch, --quiet
+      for suppressing inline run summaries, --store for CI isolation and testing.
+      No --verbose (diagnostics go through ktx doctor), no --no-color (JSON
+      has no color), no --config (config discovered from project root or XDG
+      paths). The run is per-session evidence; `ktx bench` is a separate
+      command that aggregates runs into the headline number that proves
+      the cost savings.
+
+      Design rules (do not relitigate):
+
+      - Store commands (ktx read, ktx write) always return raw JSON. No --format flag. Mechanical.
+
+      - Default record store lives at $XDG_DATA_HOME/ktx/store/ when --store is not passed. XDG-compliant split: config at $XDG_CONFIG_HOME/ktx/config.toml (D5), data at $XDG_DATA_HOME/ktx/store/. --store path overrides for CI isolation and testing.
+
+      - Query commands (ktx get, ktx list, ktx bench) return JSON by default; --format text for humans.
+
+      - Wrapper (ktx run) passes agent stdout through untouched; one-line run summary to stderr; --quiet suppresses the run summary line.
+
+      - Hooks are silent — no stdout/stderr output. Run in store only.
+
+      - Errors: machine-parseable JSON on stderr for agents; --format text for humans. Exit codes are the truth (0=ok, 1=usage, 2=not-found, 3=conflict, 4=internal).
+    confidence: firm
+    feeds_into: All command output implementations, flag parsing layer
+
+  - number: 5
+    date: "2026-06-15"
+    question: How should users extend ktx compression, and what config format should it use?
+    context: >-
+      ktx is the boring CLI the agent-native developer adopts. Compression is
+      the primary capability, and memory is the technique that makes
+      compression stick across sessions — the TOML pipeline expresses memory
+      as a stage so go-agent can drive async distillation inline with the
+      compression flow. The research showed three extension patterns: lowfat's
+      custom DSL (.lf filter language), headroom's TOML config + learn plugins,
+      lean-ctx's TOML + hooks. The vision says Go stdlib first, no ML deps, no
+      new runtimes, no magic and boring before clever. lowfat defines named
+      macros composed in pipelines. Both TOML and YAML require an external Go
+      dependency. JSON is stdlib but terrible for human-edited config (no
+      comments, verbose).
+    alternatives:
+      - name: "Go plugin interface"
+        status: rejected
+        description: >-
+          Compiled Go shared libraries. Type-safe but requires Go toolchain to
+          write plugins.
+      - name: "Config DSL with named macros (YAML)"
+        status: rejected
+        description: >-
+          YAML config with declarative rules and named macros for reuse. More
+          common in Go/K8s ecosystem but has parsing footguns.
+      - name: "TOML config with inline shell macro arrays and content-type routing"
+        status: chosen
+        description: >-
+          One TOML config file (ktx.toml) with shell macro arrays. Content-type
+          detected from bytes routes to the matching macro pipeline. Inline
+          arrays only, no named macros. External scripts for reuse.
+    choice: >-
+      Single TOML config file (ktx.toml) using github.com/BurntSushi/toml, at
+      project root or ~/.config/ktx/config.toml. Shell macro arrays with
+      content-type routing: each content type maps to an array of shell commands
+      forming a pipeline. Content type detected from bytes (JSON, logs, code,
+      prose). The pipeline can include memory-aware stages (shell macros
+      calling go-agent for async distillation; content-type routing into a
+      `memory` pipeline). Inline arrays only — no named macros in config.
+      External scripts are the reuse mechanism. No custom DSL.
+    reasoning: >-
+      Shell macros require no DSL to learn. Inline arrays handle simple cases
+      (2-3 pipeline stages). External scripts handle complex cases and serve as
+      the reuse mechanism, keeping the config flat. Content-type routing is
+      automatic (detected from bytes, like headroom's ContentRouter). Matches
+      boring before clever — shell is the most universal extension mechanism.
+      TOML is compact for arrays of shell commands and flat routing tables,
+      supports # comments, and has no YAML boolean parsing footguns. Config-file
+      feel matches the infrastructure-shaped identity (Cargo.toml, pyproject.toml,
+      lowfat.toml). One small dependency justified by the usability gain.
+      Memory is the technique that makes compression stick across sessions; the
+      TOML pipeline expresses it as a stage, with go-agent handling async
+      distillation.
+
+      Design rules (do not relitigate):
+
+      - Plugin (add/remove) and hook (install/uninstall) are different abstractions: plugin is a code module ktx loads (registry operation); hook is a config change in the agent's runtime. Do not unify.
+
+      - Memory is a pipeline stage, not a separate command. The TOML pipeline expresses memory as a stage so go-agent drives async distillation inline with compression.
+    confidence: firm
+    feeds_into: M5 implementation, config file schema, content-type detection, BurntSushi/toml dependency

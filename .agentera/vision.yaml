@@ -1,0 +1,26 @@
+project_name: ktx
+north_star: Make every coding agent measurable and cheaper — by being the boring CLI any agent runtime adopts.
+
+personas:
+  - name: The agent-native developer
+    description: Operates through a coding agent day-to-day. Tokens are budget. ktx sits transparently in the agent's runtime, compressing context — memory is the technique that makes compression carry across sessions. Each run is per-session evidence; ktx bench is the headline number.
+
+principles:
+  - name: Runtime-agnostic CLI
+    description: One Go binary, no library import, no daemon. The runtime adopts the CLI as a layer in front of or alongside the agent.
+  - name: Cost is the contract
+    description: Every call publishes tokens-in, tokens-out, dollars, content hash. Meter, budget, dispute it.
+  - name: Reversibility before aggression
+    description: Aggressive compression is only safe when reversal is cheap. Originals are always retrievable on demand; compression second.
+  - name: Boring before clever
+    description: Go stdlib first, no ML deps, no new runtimes, no magic. Predictable beats powerful.
+
+direction: In a year, ktx is the standard benchmark for agent cost. `ktx bench` becomes the citation; "their ktx number" is a phrase. Compression is the demonstrator that makes the benchmark interesting. The CLI is a layer agents run through or alongside. The bench outlives the binary.
+
+identity:
+  personality: precise · empirical · invisible-until-needed
+  voice: Terse, factual, no marketing speak. Numbers not adjectives. Exit codes as truth.
+  emotional_register: Trust. Not delight. "I forgot it was there until I saw the run summary."
+  naming: Short name, infrastructure-shaped, no story needed.
+
+tension: The hardest tension is surface vs. depth. A CLI the runtime adopts as a layer (in front of or alongside the agent) caps how clever any one algorithm can be. We resolve it on purpose — the router wins, the algorithm loses. ktx will never be the best compressor; it will always be the best at dispatching. The price is real; the win is a CLI whose surface stays stable while the algorithm behind it evolves.

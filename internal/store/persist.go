@@ -229,3 +229,46 @@ func (d *DB) GetRecord(id string) (any, error) {
 	}
 	return nil, ErrNotFound
 }
+
+// ListSessions returns all session rows ordered by started_at ascending,
+// then by id ascending as a stable tie-breaker (so two sessions that
+// started at the same instant keep a deterministic display order across
+// invocations). The slice is non-nil but may be empty when no sessions
+// have been recorded — the CLI can json-encode an empty slice as "[]"
+// without a nil check.
+//
+// This is the M1 minimal list: no cost/token filters (M2) and no
+// pagination (post-M1). Ordered by started_at so the table view shows
+// the oldest session first, matching the convention of other log-style
+// tools.
+func (d *DB) ListSessions() ([]Session, error) {
+	rows, err := d.db.Query(
+		`SELECT id,
+		        COALESCE(agent, ''),
+		        COALESCE(started_at, ''),
+		        COALESCE(ended_at, ''),
+		        COALESCE(last_seen_at, ''),
+		        tool_call_count
+		 FROM sessions
+		 ORDER BY started_at ASC, id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list sessions: %w", err)
+	}
+	defer rows.Close()
+
+	sessions := []Session{}
+	for rows.Next() {
+		var s Session
+		if err := rows.Scan(
+			&s.ID, &s.Agent, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
+		); err != nil {
+			return nil, fmt.Errorf("store: scan session: %w", err)
+		}
+		sessions = append(sessions, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate sessions: %w", err)
+	}
+	return sessions, nil
+}

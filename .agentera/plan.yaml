@@ -77,7 +77,7 @@ tasks:
   - number: 5
     name: "ktx run (wrapper: opencode --format json, event parsing, KTX_SESSION_ID, passthrough)"
     depends_on: [3]
-    status: pending
+    status: complete
     acceptance:
       - GIVEN ktx run opencode run --format json "explain closures" WHEN invoked THEN opencode's stdout passes through to the caller untouched
       - GIVEN the wrapper WHEN it parses the JSON event stream THEN each tool event is persisted as a tool_call via the internal store function (not a ktx write subprocess)

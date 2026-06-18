@@ -20,6 +20,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -205,6 +206,31 @@ func (d *DB) canReuse(ppid int, sf *SessionFile, timestamp string) bool {
 // the next invocation can detect PID reuse; it is 0 on non-Linux, where the
 // conservative fallback never compares it.
 func (d *DB) openSession(ppid int, timestamp string) (string, error) {
+	return d.openNamedSession("unknown", ppid, timestamp)
+}
+
+// OpenNamedSession creates a new session with the supplied agent name and
+// writes a ppid-keyed session file (Decision 1 revised). It is the public
+// counterpart to the unexported openSession used by ResolveSessionID, exposed
+// for the wrapper path (ktx run) where the agent binary name is known at
+// session-open time (Tasks 5/6). The hook path defaults agent to "unknown"
+// because the agent name is not known when ktx write runs.
+//
+// ppid is the session-file key. For the wrapper, pass os.Getpid() — the
+// wrapper's own PID, since the child sees the wrapper as its parent. For the
+// hook path, pass os.Getppid() — the agent's PID. timestamp is used as both
+// started_at and last_seen_at.
+func (d *DB) OpenNamedSession(agent string, ppid int, timestamp string) (string, error) {
+	if agent == "" {
+		return "", errors.New("store: open named session: agent is empty")
+	}
+	return d.openNamedSession(agent, ppid, timestamp)
+}
+
+// openNamedSession is the shared implementation for the hook path (default
+// "unknown" agent) and the wrapper path (caller-supplied agent). Splitting
+// it from the public surface keeps the unknown-vs-named choice mechanical.
+func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string, error) {
 	id, err := NewID()
 	if err != nil {
 		return "", fmt.Errorf("store: generate session id: %w", err)
@@ -212,7 +238,7 @@ func (d *DB) openSession(ppid int, timestamp string) (string, error) {
 
 	if err := d.InsertSession(&Session{
 		ID:         id,
-		Agent:      "unknown",
+		Agent:      agent,
 		StartedAt:  timestamp,
 		LastSeenAt: timestamp,
 	}); err != nil {

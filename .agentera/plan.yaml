@@ -100,7 +100,7 @@ tasks:
   - number: 7
     name: ktx get + ktx list (minimal query, JSON default, --format text)
     depends_on: [2]
-    status: pending
+    status: complete
     acceptance:
       - GIVEN a persisted tool_call with ID abcdefghijklmnop WHEN ktx get abcdefghijklmnop is invoked THEN it prints the record as JSON to stdout
       - GIVEN ktx get abcdefghijklmnop --format text WHEN invoked THEN it prints a human-readable summary

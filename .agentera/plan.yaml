@@ -89,7 +89,7 @@ tasks:
   - number: 6
     name: ktx init opencode (TS plugin, tool.execute.after, --project/--uninstall/--show)
     depends_on: [3]
-    status: pending
+    status: complete
     acceptance:
       - GIVEN ktx init opencode WHEN invoked THEN a TS plugin is written to ~/.config/opencode/plugins/ktx.ts
       - GIVEN ktx init opencode --project WHEN invoked THEN the TS plugin is written to .opencode/plugins/ktx.ts

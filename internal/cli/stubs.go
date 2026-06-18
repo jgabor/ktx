@@ -22,7 +22,6 @@ func stubCommandWith(verb string, opts Options, _ io.Writer, stderr io.Writer) i
 }
 
 func runRun(args []string, opts Options) int    { return stubCommand("run", args, opts) }
-func runRead(args []string, opts Options) int   { return stubCommand("read", args, opts) }
 func runGet(args []string, opts Options) int    { return stubCommand("get", args, opts) }
 func runList(args []string, opts Options) int   { return stubCommand("list", args, opts) }
 func runInit(args []string, opts Options) int   { return stubCommand("init", args, opts) }

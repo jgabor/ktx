@@ -49,14 +49,18 @@ type ToolCall struct {
 	Provider  string  `json:"provider,omitempty"`
 }
 
-// Session is a row in the sessions table (Decision 7).
+// Session is a row in the sessions table (Decision 7). The JSON tags mirror
+// the column names so ktx read can marshal a fetched row directly. There is
+// no omitempty: an empty EndedAt is a meaningful signal that the session
+// is still open, and zero ToolCallCount is a real value for an unused
+// session.
 type Session struct {
-	ID            string
-	Agent         string
-	StartedAt     string
-	EndedAt       string
-	LastSeenAt    string
-	ToolCallCount int64
+	ID            string `json:"id"`
+	Agent         string `json:"agent"`
+	StartedAt     string `json:"started_at"`
+	EndedAt       string `json:"ended_at"`
+	LastSeenAt    string `json:"last_seen_at"`
+	ToolCallCount int64  `json:"tool_call_count"`
 }
 
 // SessionExists reports whether a session with the given id exists. An empty
@@ -146,4 +150,82 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 		return fmt.Errorf("store: commit tool_call %q: %w", tc.ID, err)
 	}
 	return nil
+}
+
+// GetToolCall fetches a tool_call row by id. It returns ErrNotFound when no
+// row matches so the CLI layer can map "not found" to exit code 2 (D4).
+// The returned struct carries the persisted shape only — the optional M2
+// fields are absent because the M1 schema has no columns for them (D9).
+func (d *DB) GetToolCall(id string) (*ToolCall, error) {
+	var tc ToolCall
+	err := d.db.QueryRow(
+		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type
+		 FROM tool_calls WHERE id = ?`,
+		id,
+	).Scan(
+		&tc.ID, &tc.SessionID, &tc.Tool, &tc.Input, &tc.Output,
+		&tc.ContentHash, &tc.Timestamp, &tc.EventType,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: get tool_call %q: %w", id, err)
+	}
+	return &tc, nil
+}
+
+// GetSession fetches a session row by id. It returns ErrNotFound when no
+// row matches. Used by `ktx read` to back the cross-table ID lookup; also
+// useful for future query commands (Task 7) and for session inspection in
+// tests.
+//
+// Nullable text columns (agent, started_at, ended_at, last_seen_at) are
+// coalesced to the empty string in SQL so the Session struct can stay
+// string-typed and consistent with how ToolCall represents missing values.
+// An empty EndedAt in the output remains a meaningful signal that the
+// session is still open.
+func (d *DB) GetSession(id string) (*Session, error) {
+	var s Session
+	err := d.db.QueryRow(
+		`SELECT id,
+		        COALESCE(agent, ''),
+		        COALESCE(started_at, ''),
+		        COALESCE(ended_at, ''),
+		        COALESCE(last_seen_at, ''),
+		        tool_call_count
+		 FROM sessions WHERE id = ?`,
+		id,
+	).Scan(
+		&s.ID, &s.Agent, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: get session %q: %w", id, err)
+	}
+	return &s, nil
+}
+
+// GetRecord fetches a record by id from either the tool_calls or sessions
+// table (Decision 7: both tables are addressed by 16-char nanoid ID).
+// tool_calls is checked first because it is the higher-volume table; the
+// CLI layer treats both as records and prints whichever was found.
+//
+// The returned value is a *ToolCall or *Session, both already JSON-tagged,
+// so the CLI can pass it directly to json.NewEncoder. Any error other than
+// ErrNotFound from the underlying table reads is propagated unchanged.
+func (d *DB) GetRecord(id string) (any, error) {
+	if tc, err := d.GetToolCall(id); err == nil {
+		return tc, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return nil, err
+	}
+	if s, err := d.GetSession(id); err == nil {
+		return s, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return nil, err
+	}
+	return nil, ErrNotFound
 }

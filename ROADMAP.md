@@ -14,6 +14,8 @@ An agent call runs through ktx and ktx records the run.
 
 Done when: an agent invocation produces a record in the database that includes the agent identity, the input, and the output.
 
+**Verified 2026-06-18** by task 8 (ktx doctor + end-to-end acceptance run). Full verification log: `.agentera/verification/m1-acceptance.md`. Wrapper path verified end-to-end with a mock agent emitting OpenCode `--format json` events; adapter path verified by inspecting the installed plugin content and piping its payload shape to `ktx write`. Both paths produce Decision-3-conformant record IDs. Two scope-adjacent fixes applied during verification: `ktx run` now always generates a fresh ktx nanoid for tool_call IDs (previously inherited the runtime's callID, which violated Decision 3), and the OpenCode plugin template now generates 16-char lowercase alpha IDs via `crypto.getRandomValues` (previously used a hex `crypto.randomUUID()` slice, also non-conformant).
+
 ## M2 — Cost publication
 
 Per-call cost is published in a verifiable form.

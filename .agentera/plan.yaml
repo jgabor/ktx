@@ -110,7 +110,7 @@ tasks:
   - number: 8
     name: M1 acceptance verification + ktx doctor (basic health)
     depends_on: [1, 2, 3, 4, 5, 6, 7]
-    status: pending
+    status: complete
     acceptance:
       - GIVEN ktx run opencode run --format json "explain closures" WHEN the command completes THEN ktx list shows the session and ktx get <session-id> shows agent identity, input, and output
       - GIVEN ktx init opencode WHEN installed and OpenCode TUI is used with a tool THEN ktx list shows the session with tool_calls persisted via the adapter path

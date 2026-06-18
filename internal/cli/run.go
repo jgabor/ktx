@@ -256,15 +256,17 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *store.DB, sessionID string, 
 }
 
 // buildToolCall materialises a parsed event into the store's ToolCall
-// shape (Decision 9). ID is filled from the event or generated when
-// absent. content_hash is derived from output. timestamp is normalised
-// to RFC3339Nano so downstream readers do not need to disambiguate
+// shape (Decision 9). ID is always generated fresh — Decision 3
+// mandates 16-char lowercase alpha nanoids, and runtime-supplied IDs
+// (e.g., OpenCode's callID) do not necessarily match. Cross-referencing
+// runtime IDs against ktx records is a post-M1 enhancement (Decision 9
+// reserves the callID field shape but M1 does not store it).
+//
+// content_hash is derived from output. timestamp is normalised to
+// RFC3339Nano so downstream readers do not need to disambiguate
 // milliseconds vs seconds vs ISO strings.
 func buildToolCall(ev *parsedEvent, sessionID string) *store.ToolCall {
-	id := ev.ID
-	if id == "" {
-		id, _ = store.NewID()
-	}
+	id, _ := store.NewID()
 	ts := ev.Timestamp
 	if ts == "" {
 		ts = time.Now().UTC().Format(time.RFC3339Nano)

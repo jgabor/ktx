@@ -64,12 +64,26 @@ const ktxPluginFileName = "ktx.ts"
 //     identity by ppid file lookup (Decision 1 revised, hook path).
 //   - `content_hash` is left empty so ktx write can compute it (D3: SHA-256
 //     of output) — the plugin avoids re-implementing hash logic in TS.
+//   - Generates a fresh 16-char lowercase alpha nanoid matching the
+//     alphabet of Decision 3. Uses crypto.getRandomValues for randomness
+//     and indexes into the alphabet; modulo bias (26 vs 256) is accepted
+//     for PoC scope — the entropy is well above the ~75 bits Decision 3
+//     targets. (Bun's crypto.randomUUID produces hex, which violates D3.)
 //
 // Bun's `$` template literal (https://bun.sh/docs/runtime/shell) is the
 // lowest-friction way for an in-process TS plugin to invoke a sibling
 // binary; .stdin() pipes the payload, .quiet() suppresses command echo,
 // .nothrow() keeps the agent alive if ktx is briefly unavailable.
 const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
+
+const KTX_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz"
+const ktxGenerateID = (): string => {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  let id = ""
+  for (let i = 0; i < 16; i++) id += KTX_ID_ALPHABET[bytes[i] % 26]
+  return id
+}
 
 const KtxPlugin: Plugin = async () => {
   return {
@@ -82,7 +96,7 @@ const KtxPlugin: Plugin = async () => {
       const toolOutput = typeof output === "string" ? output : JSON.stringify(output)
 
       const record = {
-        id: crypto.randomUUID().replace(/-/g, "").slice(0, 16),
+        id: ktxGenerateID(),
         session_id: "",
         tool: toolName,
         input: toolInput,

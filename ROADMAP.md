@@ -12,7 +12,7 @@ Done when: VISION.md and ROADMAP.md are committed and the inspirera research is 
 
 An agent call runs through ktx and ktx records the run.
 
-Done when: an agent invocation produces a run in the record store that includes the agent identity, the input, and the output.
+Done when: an agent invocation produces a record in the database that includes the agent identity, the input, and the output.
 
 ## M2 — Cost publication
 

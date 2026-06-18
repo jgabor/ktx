@@ -137,7 +137,7 @@ func selectIDs(db *sql.DB, table string, limit int) ([]string, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
-	rows, err := db.Query("SELECT id FROM " + table + " LIMIT ?", limit)
+	rows, err := db.Query("SELECT id FROM "+table+" LIMIT ?", limit)
 	if err != nil {
 		return nil, fmt.Errorf("select ids: %w", err)
 	}

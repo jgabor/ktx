@@ -27,9 +27,12 @@
 // with --uninstall/--show still scopes the action to that location.
 //
 // Path resolution (global): $HOME/.config/opencode/plugins/ktx.ts
-//   (matches OpenCode's documented plugin directory).
+//
+//	(matches OpenCode's documented plugin directory).
+//
 // Path resolution (project): ./.opencode/plugins/ktx.ts relative to the
-//   invocation's CWD.
+//
+//	invocation's CWD.
 package cli
 
 import (

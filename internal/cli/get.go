@@ -7,10 +7,10 @@
 // output contract:
 //
 //   - ktx read (I/O):   raw JSON, always. The I/O surface is mechanical;
-//                       reversibility demands byte-faithful round-trips.
+//     reversibility demands byte-faithful round-trips.
 //   - ktx get  (query): JSON default with --format text for humans. The
-//                       query layer is allowed to add formatting; this is
-//                       where the agent's "show me" ergonomics live.
+//     query layer is allowed to add formatting; this is
+//     where the agent's "show me" ergonomics live.
 //
 // Today, --format text is a one-line-per-field summary (key: value), which
 // keeps the get-vs-read difference minimal but visible. Future M3/M4 query

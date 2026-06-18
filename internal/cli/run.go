@@ -23,14 +23,15 @@
 //     call.
 //
 // Event parsing:
-//   The agent is expected to emit newline-delimited JSON events on
-//   stdout. Each event is parsed for a tool-call shape; non-tool events
-//   (text, step lifecycle) and non-JSON lines are passed through
-//   without persistence. Parsing is best-effort and schema-flexible: the
-//   OpenCode "tool_use" shape (top.type == "tool_use", part.type ==
-//   "tool", part.state.input/output) is recognised, and a flat fallback
-//   (top-level id/tool/name/input/args/output/result/timestamp/time)
-//   supports other runtimes.
+//
+//	The agent is expected to emit newline-delimited JSON events on
+//	stdout. Each event is parsed for a tool-call shape; non-tool events
+//	(text, step lifecycle) and non-JSON lines are passed through
+//	without persistence. Parsing is best-effort and schema-flexible: the
+//	OpenCode "tool_use" shape (top.type == "tool_use", part.type ==
+//	"tool", part.state.input/output) is recognised, and a flat fallback
+//	(top-level id/tool/name/input/args/output/result/timestamp/time)
+//	supports other runtimes.
 package cli
 
 import (

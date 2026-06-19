@@ -22,6 +22,8 @@ Per-call cost is published in a verifiable form.
 
 Done when: any call to ktx can be inspected and the cost is reconstructable from the published data.
 
+**Verified 2026-06-19** by tasks 2–6 (schema migration, ktx write persistence, OpenCode event extraction, ktx get/list surface, M2 acceptance verification). Cost reconstructable from published data via `cost = (tokens_in * in_price + tokens_out * out_price) / 1_000_000` against `https://models.dev` (D11). M1 regression preserved (11/11 steps). OpenCode 1.17.8 emits `tokens`/`cost`/`model` only on `step_finish`; the wrapper extracts `latency_ms` and `provider`, sidecar is the live M2 acceptance path for the rest. Full verification log: `.agentera/verification/m2-acceptance.md`.
+
 ## M3 — Cost-per-correct benchmark
 
 A cost-per-correct-answer number is published for at least one agent on at least one task.

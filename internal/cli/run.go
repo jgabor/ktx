@@ -46,6 +46,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -64,11 +65,13 @@ func runRun(args []string, opts Options) int {
 // runRunWith is the testable core of `ktx run`. stdout/stderr are injected
 // so the run flow can be exercised without touching os.Stdout/Stderr.
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	var showHelp bool
+	var showHelp, runQuiet bool
 	fs := flag.NewFlagSet("ktx run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we render our own errors and help
 	fs.BoolVar(&showHelp, "help", false, "show help")
 	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
+	fs.BoolVar(&runQuiet, "quiet", false, "suppress run summary")
+	fs.BoolVar(&runQuiet, "q", false, "suppress run summary (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
 		printError(stderr, usageError("ktx run: %v", err), opts.Format)
@@ -78,6 +81,9 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printRunHelp(stdout)
 		return ExitOK
 	}
+	if runQuiet {
+		opts.Quiet = true
+	}
 
 	rest := fs.Args()
 	if len(rest) == 0 {
@@ -86,17 +92,18 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 
 	// The global flag parser stops at the first non-flag (the subcommand
-	// verb), so ktx flags like --quiet that appear AFTER `run` (e.g.,
-	// `ktx run opencode run --format json "..." --quiet`) only reach the
-	// wrapper through filterKtxFlags. Agent flags (anything else) pass
-	// through untouched.
-	quiet, showHelp, agentArgs := filterKtxFlags(rest[1:])
-	if showHelp {
+	// verb), so ktx flags that appear AFTER `run` (e.g., `ktx run
+	// opencode run --format json "..." --quiet`) only reach the wrapper
+	// through filterKtxFlags. Agent flags (anything else) pass through
+	// untouched. The post-agent --quiet is honored alongside the
+	// pre-agent --quiet handled by the run FlagSet above.
+	postAgentQuiet, agentHelp, agentArgs := filterKtxFlags(rest[1:])
+	if postAgentQuiet {
+		opts.Quiet = true
+	}
+	if agentHelp {
 		printRunHelp(stdout)
 		return ExitOK
-	}
-	if quiet {
-		opts.Quiet = true
 	}
 	agent := rest[0]
 
@@ -108,9 +115,15 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // positional arguments pass through to the agent. We intentionally do NOT
 // recognise --format here — --format is a global flag and the wrapper
 // always emits the run summary as JSON regardless of format.
+//
+// Both bare and --flag=value forms are accepted so the post-agent scan
+// behaves like the global parser (stdlib flag.BoolVar). The pre-agent
+// form is consumed by the run FlagSet; this helper is the post-agent
+// fallback for users who type `ktx run <agent> ... --quiet`.
 func filterKtxFlags(args []string) (quiet, showHelp bool, rest []string) {
 	for _, a := range args {
-		switch a {
+		name, _, _ := strings.Cut(a, "=")
+		switch name {
 		case "-q", "--quiet":
 			quiet = true
 		case "-h", "--help":
@@ -175,8 +188,11 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	}
 
 	if err := cmd.Start(); err != nil {
-		printError(stderr, internalError("ktx run: spawn %q: %v", agent, err), opts.Format)
-		return ExitInternal
+		// A missing agent binary is a user error (wrong name) rather than
+		// a ktx internal fault; classify as usage so the exit code matches
+		// the project's exit-code contract (Decision 4: 1 = usage).
+		printError(stderr, usageError("ktx run: spawn %q: %v", agent, err), opts.Format)
+		return ExitUsage
 	}
 
 	// Tee stdout: read line by line, write to caller's stdout

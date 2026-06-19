@@ -236,6 +236,10 @@ func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string,
 		return "", fmt.Errorf("store: generate session id: %w", err)
 	}
 
+	// ToolCallCount is left at the zero value: a fresh session has no
+	// tool_calls yet, and the persist layer treats 0 as a meaningful
+	// value (see the comment on the Session struct in persist.go), not
+	// as missing.
 	if err := d.InsertSession(&Session{
 		ID:         id,
 		Agent:      agent,

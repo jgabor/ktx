@@ -69,14 +69,21 @@ const ktxPluginFileName = "ktx.ts"
 //     of output) — the plugin avoids re-implementing hash logic in TS.
 //   - Generates a fresh 16-char lowercase alpha nanoid matching the
 //     alphabet of Decision 3. Uses crypto.getRandomValues for randomness
-//     and indexes into the alphabet; modulo bias (26 vs 256) is accepted
-//     for PoC scope — the entropy is well above the ~75 bits Decision 3
-//     targets. (Bun's crypto.randomUUID produces hex, which violates D3.)
+//     and indexes into the alphabet. Modulo bias is real (letters w-z
+//     map to 9 byte values each, a-v map to 10) but the entropy cost is
+//     negligible (~0.02 bits per ID below the 75.20-bit ideal) for PoC
+//     scope. (Bun's crypto.randomUUID produces hex, which violates D3.)
 //
 // Bun's `$` template literal (https://bun.sh/docs/runtime/shell) is the
 // lowest-friction way for an in-process TS plugin to invoke a sibling
 // binary; .stdin() pipes the payload, .quiet() suppresses command echo,
 // .nothrow() keeps the agent alive if ktx is briefly unavailable.
+//
+// Presence check (rtk pattern): the plugin factory verifies the ktx
+// binary is in PATH before registering the tool.execute.after hook. If
+// ktx is missing, no hooks are registered and a one-line warn makes
+// the disabled state visible — without this, every tool call would
+// pay a `ktx write` spawn cost and silently drop its payload.
 const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
 
 const KTX_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz"
@@ -88,7 +95,17 @@ const ktxGenerateID = (): string => {
   return id
 }
 
-const KtxPlugin: Plugin = async () => {
+const KtxPlugin: Plugin = async ({ $ }) => {
+  // Verify ktx is in PATH before registering the hook; otherwise every
+  // tool call would pay a ktx write spawn cost and silently noop.
+  // The warn fires once per plugin load, not per event.
+  try {
+    await $` + "`which ktx`" + `.quiet()
+  } catch {
+    console.warn("[ktx] ktx binary not found in PATH \u2014 plugin disabled")
+    return {}
+  }
+
   return {
     "tool.execute.after": async (input: any, output: any) => {
       // Noop when wrapper is active (D10 dedup)

@@ -152,6 +152,7 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 	if err != nil {
 		return fmt.Errorf("store: begin tx: %w", err)
 	}
+	defer tx.Rollback() // Safe, low-overhead no-op if tx.Commit() is called successfully
 
 	_, err = tx.Exec(
 		`INSERT INTO tool_calls (

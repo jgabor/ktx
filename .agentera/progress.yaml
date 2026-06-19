@@ -1,4 +1,130 @@
 cycles:
+  - number: 7
+    timestamp: "2026-06-19 17:10"
+    type: fix
+    phase: build
+    what: |
+      PersistToolCall now defers tx.Rollback() immediately after the
+      tx, err := d.db.Begin() error check, eliminating the path where
+      a panic or an error return that bypasses the explicit
+      tx.Rollback() calls could leak an open transaction. The defer
+      is a safe, low-overhead no-op when tx.Commit() succeeds (Commit
+      clears the deferred rollback); the existing explicit
+      tx.Rollback() calls on the two Exec-error paths are preserved
+      (Commit has not run on those paths, so the explicit rollback
+      is the primary path, and the deferred rollback is the
+      belt-and-suspenders for everything else). Single-line fix
+      requested by the post-M2 review at
+      review_report.md Section 6.1.
+    discovered: |
+      The M2 review surfaced 4 minor issues: 3 doc fixes (decisions
+      typo, ARCHITECTURE paragraph count, ROADMAP milestone stamp)
+      landed in commit fda7a42; this cycle covers only the code fix
+      (transaction safety). The review report remains at
+      ~/git/ktx/review_report.md for full context.
+    verified: |
+      Cycle date: 2026-06-19.
+
+      Files touched:
+      - internal/store/persist.go:155 — new
+        `defer tx.Rollback() // Safe, low-overhead no-op if
+        tx.Commit() is called successfully` inserted between the
+        tx, err := d.db.Begin() error check and the first tx.Exec
+        call. The comment matches the review's recommendation
+        verbatim so future readers see the rationale.
+      - .agentera/progress.yaml — this cycle entry.
+
+      Build: go build ./... OK (exit 0, no output).
+      Vet:   go vet   ./... OK (exit 0, no output).
+      Grep:  grep -n "defer tx.Rollback" internal/store/persist.go
+             → 155: defer tx.Rollback() // Safe, low-overhead
+                no-op if tx.Commit() is called successfully
+             (one match, at the expected line).
+      Sanity test: go test ./... OK (exit 0). All four packages
+        report `[no test files]` as expected for the M1-era PoC
+        (cmd/ktx, internal/cli, internal/store,
+        internal/version). No test files, no test execution,
+        no failures.
+      Smoke (binary load + migration): KTX_DB=/tmp/ktx-rs-smoke.db
+        `go run ./cmd/ktx list` returned `[]` (exit 0). The
+        /tmp/ktx-rs-smoke.db file was created (20480 bytes),
+        and sqlite3 PRAGMA table_info(tool_calls) confirmed all
+        14 columns (8 M1: id, session_id, tool, input, output,
+        content_hash, timestamp, event_type; 6 M2: tokens_in,
+        tokens_out, cost, latency_ms, model, provider) — the
+        migration ran on first open, matching the M2 contract.
+        `ktx write` from /dev/null exited with the expected
+        "no input on stdin" usage error (the CLI checks stdin
+        before opening the DB, so the DB is not created on that
+        path; the `ktx list` smoke above is the authoritative
+        load test).
+
+      No regressions: the change is a single-line addition that
+      only adds a deferred rollback. The two existing explicit
+      tx.Rollback() calls (on the insert-error path at
+      persist.go:166 and the update-rollup-error path at
+      persist.go:174) remain; their behavior is unchanged —
+      Commit has not run on those paths, so the explicit
+      rollback is the primary mechanism and the deferred
+      rollback fires only if a future edit adds a new
+      return-without-rollback path. The defer is the
+      belt-and-suspenders.
+
+      Contract preserved: on the success path, tx.Commit() at
+      persist.go:179 runs and clears the deferred rollback
+      (database/sql's Commit returns ErrTxDone if the
+      transaction is already done; the deferred Rollback after
+      a successful Commit returns ErrTxDone which is discarded
+      — the documented safe pattern in Go's database/sql
+      package). On any error or panic before Commit, the
+      deferred rollback fires and the transaction is closed.
+    next: |
+      M3 plan task 1 (D12 dollar-model decision — the
+      cost-per-correct benchmark needs a chosen dollar
+      model before ktx bench can produce the headline
+      number). The resonera session for that decision is
+      the recommended next cycle; cycle 7 is the
+      post-M2 cleanup commit and does not feed into the
+      M3 plan task list.
+    context:
+      intent: |
+        Apply the single post-M2-review code fix
+        recommended in review_report.md Section 6.1:
+        add a deferred tx.Rollback() to PersistToolCall
+        so transaction leaks from panics or unrolled
+        error paths are impossible. Surgical,
+        mechanical, no design change. The 3 doc fixes
+        from the same review landed in fda7a42; this
+        cycle closes the code half.
+      constraints: |
+        Single-line addition to internal/store/persist.go;
+        comment must match the review verbatim. No
+        changes to the schema, the persistence layer
+        beyond the defer, the wrapper, the inspect
+        surface, or any other file. No new external
+        dependencies. Author and commit message fixed
+        by the orchestrator. Strict scope: only
+        internal/store/persist.go and
+        .agentera/progress.yaml are touched. .agentera/plan.yaml
+        is not touched (this is a maintenance change
+        outside the M3 plan scope).
+      unknowns: |
+        none — the fix is fully specified by the review
+        report. The behavior of the deferred rollback
+        after a successful Commit is the documented
+        database/sql contract (Commit clears the tx;
+        the deferred Rollback is a safe no-op returning
+        ErrTxDone which is ignored).
+      scope: |
+        One Go file: internal/store/persist.go (one
+        line + comment, at line 155). One updated
+        artifact: .agentera/progress.yaml (this entry).
+        No changes to internal/store/store.go,
+        internal/store/rollup.go, internal/cli/*, or
+        any other file. No changes to the schema
+        DDL, the migration, the wrapper, the inspect
+        surface, the ktx init / ktx db / ktx doctor /
+        ktx read paths, or any test.
   - number: 6
     timestamp: "2026-06-19 16:50"
     type: feat

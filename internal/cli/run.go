@@ -241,7 +241,11 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *store.DB, sessionID string, 
 			continue
 		}
 
-		tc := buildToolCall(ev, sessionID)
+		tc, err := buildToolCall(ev, sessionID)
+		if err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: build tool_call: %v\n", err)
+			continue
+		}
 		if err := db.PersistToolCall(tc); err != nil {
 			// Don't fail the run; record the error so the user sees
 			// it. The summary will reflect the partial count.
@@ -266,8 +270,11 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *store.DB, sessionID string, 
 // content_hash is derived from output. timestamp is normalised to
 // RFC3339Nano so downstream readers do not need to disambiguate
 // milliseconds vs seconds vs ISO strings.
-func buildToolCall(ev *parsedEvent, sessionID string) *store.ToolCall {
-	id, _ := store.NewID()
+func buildToolCall(ev *parsedEvent, sessionID string) (*store.ToolCall, error) {
+	id, err := store.NewID()
+	if err != nil {
+		return nil, fmt.Errorf("generate id: %w", err)
+	}
 	ts := ev.Timestamp
 	if ts == "" {
 		ts = time.Now().UTC().Format(time.RFC3339Nano)
@@ -283,7 +290,7 @@ func buildToolCall(ev *parsedEvent, sessionID string) *store.ToolCall {
 		ContentHash: store.ContentHash(ev.Output),
 		Timestamp:   ts,
 		EventType:   "tool_call",
-	}
+	}, nil
 }
 
 // parsedEvent is the result of a successful parseToolEvent.

@@ -127,6 +127,10 @@ func writeToolCall(tc *store.ToolCall, db *store.DB, opts Options, stdout, stder
 	}
 	tc.SessionID = sessionID
 
+	if tc.ContentHash == "" && tc.Output != "" {
+		tc.ContentHash = store.ContentHash(tc.Output)
+	}
+
 	if err := db.PersistToolCall(tc); err != nil {
 		printError(stderr, internalError("ktx write: persist tool_call: %v", err), opts.Format)
 		return ExitInternal

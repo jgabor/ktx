@@ -202,6 +202,16 @@ A session opens on the first tool call and is updated incrementally (roll-up cou
 
 `ktx init` is the top-level verb for runtime adapter installation (rtk pattern: `rtk init -g --opencode`), replacing the former `ktx hook` namespace. Not all runtimes use hooks — OpenCode uses in-process TS plugins, Codex would use AGENTS.md injection — so `init` is broader than `hook install`. PoC targets OpenCode only: `ktx init opencode` writes a TS plugin to `~/.config/opencode/plugins/ktx.ts` (global) or `.opencode/plugins/ktx.ts` (`--project`). The plugin subscribes to `tool.execute.after` only for M1–M3 (passive recording); `tool.execute.before` is deferred to M4 (compression/transform). For M1, the adapter calls `ktx write` directly with the tool_call JSON (D9); the bidirectional `ktx hook` command (stdin JSON → stdout JSON response, D1) is introduced at M4 when ktx needs to return a transformed response. Flags: `--project` (project scope, default global), `--uninstall` (remove adapter), `--show` (verify installation).
 
+### Cost measurement mechanics (Decision 11)
+
+**Token counting source: provider-reported.** ktx extracts `tokens_in`/`tokens_out`/`model`/`provider`/`cost`/`latency_ms` from the runtime's event stream (OpenCode `--format json` or sidecar payload) and persists them as-is; NULL when absent. ktx never re-tokenizes stored strings — "boring before clever" forbids a non-stdlib tokenizer dep and the provider count is what the user is billed.
+
+**Dollar model: https://models.dev.** Same source OpenCode uses, so prices match what the user is billed (no drift). Local cache at `$XDG_DATA_HOME/ktx/prices.json` keyed by `(provider, model)` with input and output USD-per-million-token rates. ktx fetches on cache miss; fetch failure is a soft failure (cost not derived, stored cost still surfaced, no error). Cache TTL and refresh policy are deferred to a future resonera.
+
+**Reconstructability contract.** Cost is reconstructable when `tokens_in`, `tokens_out`, and `model` are all non-NULL against the cached `(provider, model)` price. Formula: `cost = (tokens_in * in_price + tokens_out * out_price) / 1_000_000` in USD. `ktx get` / `ktx list` show stored values verbatim — no derivation at read time. The contract is the *property* "with these three non-NULL, anyone with the cached price can compute cost," not a ktx feature.
+
+**Auto-populate policy.** ktx auto-fills: `id` (D3 nanoid if absent), `session_id` (auto-create bare session per D9), `content_hash` (always recomputed from stored input+output — ktx owns integrity, not the caller), `timestamp` (clock if absent). ktx does **not** auto-fill any M2 field — `tokens_in`/`out`, `cost`, `latency_ms`, `model`, `provider` come from the runtime (wrapper) or the caller (sidecar). NULL is preserved when absent; `0` is preserved when explicitly set (absent vs zero survive the round-trip per plan task 3 acceptance). Auto-compute of cost from tokens+model is deferred to a post-M2 resonera per the plan. `ktx doctor` may flag records where all three of `(tokens_in, tokens_out, model)` are NULL as a normal-severity warning; severity and command scope are a future resonera.
+
 ---
 
 ## Open deliberations
@@ -247,8 +257,8 @@ The items below are **not** architecture yet. They are questions for future reso
 
 ### Measurement and benchmark
 
-- [ ] Token counting source: provider-reported, local tokenizer, or hybrid—and reconstructability requirements for M2.
-- [ ] Dollar model: list prices, user overrides, or provider-agnostic units.
+- [x] Token counting source: provider-reported, local tokenizer, or hybrid—and reconstructability requirements for M2. **Decided**: provider-reported; ktx extracts tokens_in/out from the runtime's event stream (or sidecar payload) and persists as-is; NULL when absent. ktx does not re-tokenize. Reconstructability contract: cost is reconstructable when tokens_in, tokens_out, and model are all non-NULL against the cached (provider, model) price; ktx get/list show stored values verbatim (no derivation at read time). See Decision 11.
+- [x] Dollar model: list prices, user overrides, or provider-agnostic units. **Decided**: https://models.dev (the same source OpenCode uses, so prices match what the user is billed); local cache at $XDG_DATA_HOME/ktx/prices.json; ktx fetches on cache miss; fetch failure is a soft failure. See Decision 11.
 - [ ] Benchmark methodology v1: agent, model, task, ground truth, scoring, and published artifact shape.
 - [ ] How per-layer savings roll into session and benchmark headline numbers without double-counting.
 

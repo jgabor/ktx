@@ -6,8 +6,12 @@
 //     roll-up and close (PersistToolCall's tx, CloseSession).
 //
 // The ToolCall struct carries the full D9 flat JSON shape, including the
-// optional M2 fields. The M1 schema has no columns for the optional fields,
-// so they are accepted in the payload but not stored until M2 adds columns.
+// optional M2 fields (tokens_in, tokens_out, cost, latency_ms, model,
+// provider). The M2 columns live in tool_calls since the in-place ALTER
+// TABLE migration in Open() (Task 2). PersistToolCall writes them; a nil
+// pointer maps to SQL NULL so 'field absent' survives the round-trip;
+// a non-nil pointer to zero persists as 0 so 'field set to zero' is not
+// conflated with 'absent' (Decision 9 reconstructability requirement).
 package store
 
 import (
@@ -24,9 +28,17 @@ var ErrNotFound = errors.New("store: not found")
 //
 // Required fields are persisted to the tool_calls table. The optional M2
 // fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider) are
-// accepted in the payload so callers can include them without erroring, but
-// the M1 schema has no columns for them — they are dropped on persist until
-// M2 adds the columns.
+// persisted when present; absent fields stay NULL.
+//
+// M2 fields use pointer types (*int64, *float64, *string) so the absent-vs-
+// zero distinction survives both the JSON marshal round-trip (nil → null,
+// &0 → 0) and the SQL round-trip (nil → NULL, &0 → 0). Without pointers,
+// Go's zero-value semantics would coerce a caller-supplied 0 into "absent"
+// (because the zero value for the field is indistinguishable from "not
+// set"). The JSON tags deliberately omit `omitempty` so an absent M2
+// field round-trips as JSON `null` rather than being dropped from the
+// output object — ktx read / ktx get (JSON) must surface the absence
+// explicitly so consumers can detect 'absent' from '0'.
 //
 // EventType defaults to "tool_call" when empty; "session_close" selects the
 // close payload shape (just SessionID + Timestamp).
@@ -40,13 +52,15 @@ type ToolCall struct {
 	Timestamp   string `json:"timestamp"`
 	EventType   string `json:"event_type"`
 
-	// Optional M2 fields — accepted but not persisted in M1.
-	TokensIn  int64   `json:"tokens_in,omitempty"`
-	TokensOut int64   `json:"tokens_out,omitempty"`
-	Cost      float64 `json:"cost,omitempty"`
-	LatencyMs int64   `json:"latency_ms,omitempty"`
-	Model     string  `json:"model,omitempty"`
-	Provider  string  `json:"provider,omitempty"`
+	// Optional M2 cost-publication fields (persisted when present;
+	// NULL when absent; pointer types preserve the absent-vs-zero
+	// distinction through JSON and SQL round-trips).
+	TokensIn  *int64   `json:"tokens_in"`
+	TokensOut *int64   `json:"tokens_out"`
+	Cost      *float64 `json:"cost"`
+	LatencyMs *int64   `json:"latency_ms"`
+	Model     *string  `json:"model"`
+	Provider  *string  `json:"provider"`
 }
 
 // Session is a row in the sessions table (Decision 7). The JSON tags mirror
@@ -116,6 +130,17 @@ func (d *DB) CloseSession(id, endedAt string) error {
 // transaction keeps the aggregate consistent with the evidence — a
 // tool_call never exists without its session counters reflecting it.
 //
+// The INSERT writes all 14 columns: the 8 M1 fields (id, session_id, tool,
+// input, output, content_hash, timestamp, event_type) and the 6 M2
+// cost-publication fields (tokens_in, tokens_out, cost, latency_ms, model,
+// provider). M2 fields are passed as the *int64 / *float64 / *string
+// pointer values on the ToolCall struct; a nil pointer round-trips to
+// SQL NULL (database/sql passes a typed nil pointer as NULL), so 'field
+// absent' is preserved. A non-nil pointer to zero persists as 0, so
+// 'field set to zero' is preserved. This is the documented plan choice
+// (Task 3) and the only round-trip-safe shape: Go's zero-value semantics
+// would otherwise coerce 0 → NULL via the field's default.
+//
 // EventType defaults to "tool_call" when empty.
 func (d *DB) PersistToolCall(tc *ToolCall) error {
 	eventType := tc.EventType
@@ -129,8 +154,12 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 	}
 
 	_, err = tx.Exec(
-		`INSERT INTO tool_calls (id, session_id, tool, input, output, content_hash, timestamp, event_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO tool_calls (
+			id, session_id, tool, input, output, content_hash, timestamp, event_type,
+			tokens_in, tokens_out, cost, latency_ms, model, provider
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
+		tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -154,23 +183,63 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 
 // GetToolCall fetches a tool_call row by id. It returns ErrNotFound when no
 // row matches so the CLI layer can map "not found" to exit code 2 (D4).
-// The returned struct carries the persisted shape only — the optional M2
-// fields are absent because the M1 schema has no columns for them (D9).
+// The returned struct carries the persisted shape including the M2
+// cost-publication fields (tokens_in, tokens_out, cost, latency_ms,
+// model, provider). The M2 columns are nullable; the Scan uses
+// sql.NullInt64 / sql.NullFloat64 / sql.NullString intermediates so
+// NULL is converted back to a nil pointer on the ToolCall struct,
+// preserving the 'field absent' distinction. A non-NULL column with
+// value 0 round-trips to a non-nil pointer to 0; callers can detect
+// 'absent' (nil) vs 'set to zero' (&0) without ambiguity.
 func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 	var tc ToolCall
+	var (
+		tokensIn   sql.NullInt64
+		tokensOut  sql.NullInt64
+		cost       sql.NullFloat64
+		latencyMs  sql.NullInt64
+		model      sql.NullString
+		provider   sql.NullString
+	)
 	err := d.db.QueryRow(
-		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type
+		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type,
+		        tokens_in, tokens_out, cost, latency_ms, model, provider
 		 FROM tool_calls WHERE id = ?`,
 		id,
 	).Scan(
 		&tc.ID, &tc.SessionID, &tc.Tool, &tc.Input, &tc.Output,
 		&tc.ContentHash, &tc.Timestamp, &tc.EventType,
+		&tokensIn, &tokensOut, &cost, &latencyMs, &model, &provider,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("store: get tool_call %q: %w", id, err)
+	}
+	if tokensIn.Valid {
+		v := tokensIn.Int64
+		tc.TokensIn = &v
+	}
+	if tokensOut.Valid {
+		v := tokensOut.Int64
+		tc.TokensOut = &v
+	}
+	if cost.Valid {
+		v := cost.Float64
+		tc.Cost = &v
+	}
+	if latencyMs.Valid {
+		v := latencyMs.Int64
+		tc.LatencyMs = &v
+	}
+	if model.Valid {
+		v := model.String
+		tc.Model = &v
+	}
+	if provider.Valid {
+		v := provider.String
+		tc.Provider = &v
 	}
 	return &tc, nil
 }

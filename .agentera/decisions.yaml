@@ -241,6 +241,12 @@ decisions:
       - content_hash is a separate field on each tool_call row (Decision 3); session-level hash is derived on close if needed."
     confidence: firm
     feeds_into: Record store schema, M1 implementation, M2 cost fields, hook design, ktx write input format, ktx read output shape, session identity for hooks
+    satisfaction:
+      state: user_confirmed_satisfied
+      evidence: "M1 closed with ktx write persisting rows to tool_calls via INSERT-only paths (internal/store/persist.go PersistToolCall), and ktx read / ktx get surfacing those rows without any UPDATE or DELETE codepath. M2 landed additive M2 columns (tokens_in, tokens_out, cost, latency_ms, model, provider) via in-place ALTER TABLE inside store.Open; existing rows untouched, NULL for new columns. Migration is idempotent (column-existence check) and forward-fixes partial sets. M2 verification log (.agentera/verification/m2-acceptance.md) confirms existing rows unchanged after migration. No UPDATE or DELETE statements exist in the project against tool_calls or sessions; the append-only contract is enforced by absence."
+      user_confirmation:
+        confirmed_by: Jonathan Gabor
+        confirmed_at: "2026-06-19"
   - number: 8
     date: "2026-06-16"
     question: What persistence terminology and database path CLI should ktx use?
@@ -292,6 +298,12 @@ decisions:
     reasoning: "Flat payload matches lowfat's simple write model and D2's mechanical I/O. Auto-create aligns with D7's session opens on first tool call. Optional fields future-proof without blocking M1. event_type field (default tool_call) adds session_close as a second payload shape without breaking existing callers — a close payload carries just session_id + timestamp, triggering D7's path-specific close for the sidecar path."
     confidence: firm
     feeds_into: M1 implementation, ktx write command, store implementation
+    satisfaction:
+      state: user_confirmed_satisfied
+      evidence: "M1 + M2 both consume and emit the same flat JSON envelope for ktx write (sidecar) and ktx read (raw I/O). M2 added six optional fields (tokens_in, tokens_out, cost, latency_ms, model, provider) without changing the payload shape — they ride on the existing keys, and `omitempty` is intentionally NOT applied to M2 fields so absent vs explicit-zero round-trips correctly. JSON output of ktx read / ktx get is byte-identical between the two paths (both route *store.ToolCall through json.NewEncoder.Encode). End-to-end sidecar round-trip is documented in .agentera/verification/m2-acceptance.md AC2 with absent-vs-zero distinction preserved across all three scenarios."
+      user_confirmation:
+        confirmed_by: Jonathan Gabor
+        confirmed_at: "2026-06-19"
   - number: 10
     date: "2026-06-17"
     question: Which agent runtime should ktx target first for the PoC wrapper, and how should output be captured?

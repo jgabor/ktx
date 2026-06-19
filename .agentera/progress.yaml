@@ -1,4 +1,156 @@
 cycles:
+  - number: 2
+    timestamp: "2026-06-19 14:30"
+    type: feat
+    phase: build
+    what: |
+      ToolCall struct gains pointer types (*int64 / *float64 / *string)
+      on the six M2 cost-publication fields. PersistToolCall writes
+      those columns alongside the eight M1 columns; GetToolCall reads
+      them via sql.NullInt64 / sql.NullFloat64 / sql.NullString and
+      re-allocates pointers only when Valid. A nil pointer round-trips
+      to SQL NULL and JSON null; a non-nil pointer to 0 round-trips
+      to SQL 0 and JSON 0. JSON tags drop omitempty so absent M2 fields
+      surface as null rather than being dropped from the output object.
+    inspiration: |
+      Plan task 3 in .agentera/plan.yaml. Task 2 landed the M2 columns
+      in the schema; the missing piece was the persistence/read side
+      (PersistToolCall wrote 8 columns; GetToolCall read 8 columns; the
+      ToolCall struct used omitempty on the M2 fields). The plan's
+      "design risk" note already accepted that distinguishing 'absent'
+      from 'set to zero' requires a struct-shape change to pointer types
+      — that's the documented plan choice, not a deviation.
+    discovered: |
+      database/sql passes a typed nil pointer (*int64)(nil) as NULL
+      to modernc.org/sqlite, so the PersistToolCall INSERT can hand
+      the pointer field straight to Exec — no sql.NullInt64 wrapper
+      is needed on the write side. The Scan side does need the
+      sql.Null intermediates (a *int64 destination cannot express
+      "column was NULL"; you'd have to declare a separate sentinel).
+      The two round-trips compose correctly: write a nil pointer →
+      NULL in SQLite; read NULL → nil pointer on the Go side; marshal
+      nil pointer → JSON null; unmarshal JSON null → nil pointer.
+      No coercion anywhere, no surprise 0-for-null substitutions.
+    verified: |
+      Cycle date: 2026-06-19.
+
+      Files touched:
+      - internal/store/persist.go — ToolCall struct: M2 fields
+        changed from non-pointer to *int64/*float64/*string with
+        omitempty removed. PersistToolCall: INSERT extended to all
+        14 columns (8 M1 + 6 M2) with the M2 values passed as the
+        pointer fields directly. GetToolCall: SELECT extended to
+        all 14 columns, scanned into sql.Null* intermediates, then
+        re-allocated to pointer fields only when Valid. Doc comments
+        updated to describe the round-trip contract.
+
+      Acceptance criteria (Plan task 3 — 5/5 PASS):
+      - AC1 (M2 fields set → non-NULL columns): PASS.
+        Sidecar write with tokens_in=1234, tokens_out=567,
+        cost=0.0123, latency_ms=420, model="claude-sonnet-4",
+        provider="anthropic". ktx read emits all six fields with
+        values; raw SQLite inspection confirms all six columns
+        are non-NULL with the supplied values.
+      - AC2 (no M2 fields → NULL columns): PASS.
+        Sidecar write without any M2 field. ktx read emits
+        "tokens_in":null,..."provider":null (all six as JSON
+        null); raw SQLite inspection confirms all six columns are
+        Python None (SQL NULL), not 0 / not "".
+      - AC3 (explicit 0 → 0, not NULL): PASS — the highest-risk
+        absent-vs-zero distinction. Sidecar write with
+        tokens_in=0, tokens_out=0, cost=0.0, latency_ms=0,
+        model="", provider="" (all six explicitly zero / empty).
+        Raw SQLite inspection: ('ac3zerosabcdefgh', 0, 0, 0.0, 0,
+        '', '') — all six columns non-NULL with the supplied
+        values; ktx read emits "tokens_in":0,..."provider":""
+        (all six as their supplied values, NOT as null). The
+        round-trip ktx read → ktx write preserves the same shape
+        on both sides.
+      - AC4 (ktx read / ktx get JSON shows M2 fields): PASS.
+        ktx read and ktx get (JSON default) emit M2 fields with
+        the supplied value when present, with null when absent.
+        The two commands share the same json.NewEncoder.Encode
+        path on a *store.ToolCall; both produce the same JSON.
+      - AC5 (ktx get --format text — no M2 section on NULL fields):
+        PASS. printGetText remains M1-shaped (no M2 fields shown
+        at all). For NULL rows there is no M2 section; for rows
+        with values there is also no M2 section (Task 5 scope,
+        per plan). The plan task 3 acceptance criterion is the
+        silent-absence case, satisfied; Task 5 will add the
+        conditional M2 section for non-NULL fields.
+
+      Build: go build -buildvcs=false -o /tmp/ktx ./cmd/ktx OK;
+             go vet    -buildvcs=false ./... OK.
+
+      No new external dependencies. Pure-Go SQLite via the existing
+      modernc.org/sqlite driver. Pointer types on the Go struct are
+      stdlib only.
+
+      No regressions to M1. Re-ran a focused subset of
+      .agentera/verification/m1-acceptance.md (steps 1, 2, 3, 4,
+      5, 6, 7, 8, 9) on a fresh database: every M1 behaviour
+      preserved. The only difference from the M1 verification log
+      is that step 7 (ktx read <tool-call-id>) now also emits the
+      six M2 fields as JSON null — additive behaviour, not a
+      regression. ktx doctor on a healthy DB reports "ok" with
+      the new m2_columns check passing; ktx run with a mock
+      agent still persists tool_calls with M2 fields as null
+      (the run.go buildToolCall does not yet extract M2 fields
+      from OpenCode events — that's Task 4).
+
+      Five-AC scenario walk-through:
+      1. AC1 — PASS (see above).
+      2. AC2 — PASS (see above).
+      3. AC3 — PASS (see above); exact JSON bytes from ktx read
+         for the tokens_in=0 case:
+         {"id":"ac3zerosabcdefgh",..."tokens_in":0,
+          "tokens_out":0,"cost":0,"latency_ms":0,
+          "model":"","provider":""}
+      4. AC4 — PASS; round-trip (ktx read output piped through
+         ktx write with a fresh id) preserves M2 fields on both
+         passes — values stay values, nulls stay nulls.
+      5. AC5 — PASS; ktx get --format text emits M1 fields only;
+         no M2 section is rendered for either NULL or non-NULL
+         M2 fields (Task 5 will gate the section on non-NULL).
+    next: |
+      Tasks 4-6 remain pending: ktx run extracts M2 fields from
+      OpenCode events (Task 4), ktx get/ktx list surface M2
+      fields in text format (Task 5), and end-to-end M2 acceptance
+      verification (Task 6). Task 3's persistence layer is the
+      foundation; Task 4 will populate the pointer fields from
+      OpenCode event payloads, Task 5 will render the conditional
+      M2 section in printGetText and the rollup columns in
+      printListText, Task 6 will re-run the M1 verification log
+      end-to-end and write the M2 acceptance log.
+    context:
+      intent: |
+        Land the M2 persistence side so any tool_call written via
+        ktx write carries its M2 columns through to the database
+        and back out through ktx read / ktx get without losing the
+        absent-vs-zero distinction. Task 2 made the columns exist;
+        Task 3 makes them populated.
+      constraints: |
+        No new external dependencies; pure-Go SQLite
+        (modernc.org/sqlite, already vendored). Pointer types on
+        the ToolCall struct for M2 fields per the plan's documented
+        design choice. JSON tags drop omitempty so absent M2 fields
+        surface as null in the output. No payload-shape change in
+        the input JSON (D9). ktx read stays raw JSON (mechanical
+        I/O, no --format). ktx get --format text remains M1-shaped
+        in Task 3; the conditional M2 section is Task 5 scope.
+      unknowns: |
+        none — the implementation path was fully constrained by
+        Plan Task 3's acceptance criteria and the plan's documented
+        "pointer types on the struct" design risk note.
+      scope: |
+        One Go file: internal/store/persist.go. Doc comments updated
+        to describe the new pointer-based round-trip contract. No
+        changes to the schema DDL (Task 2 already landed that), to
+        the CLI dispatch (D9 / D2 stay raw-JSON for write/read;
+        printGetText stays M1-shaped), to the wrapper (run.go
+        buildToolCall produces a ToolCall with nil M2 pointers
+        which round-trip correctly), or to ktx init / ktx db /
+        ktx doctor (no M2 surface needed).
   - number: 1
     timestamp: "2026-06-19 13:55"
     type: feat
@@ -84,9 +236,9 @@ cycles:
         No new external dependencies; pure-Go SQLite
         (modernc.org/sqlite, already vendored). Nullable M2 columns
         with no DEFAULT — preserves 'field absent' (NULL) vs 'field
-        set to zero' (0). Idempotent migration; no versioned
-        migration framework. ktx doctor reports missing M2 columns
-        as a warning (not a hard error) — M1 records stay queryable.
+        set to zero' (0). Idempotent migration; no versioned migration
+        framework. ktx doctor reports missing M2 columns as a warning
+        (not a hard error) — M1 records stay queryable.
       unknowns: |
         none — the implementation path was fully constrained by
         Plan Task 2's acceptance criteria and Decision D9.

@@ -54,7 +54,7 @@ tasks:
   - number: 3
     name: "ktx write persists M2 fields"
     depends_on: ["2"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN a ktx write payload with tokens_in, tokens_out, cost, latency_ms, model, provider set WHEN ktx write persists it THEN those columns are non-NULL in the tool_calls row"
       - "GIVEN a ktx write payload without M2 fields WHEN ktx write persists it THEN the M2 columns are NULL (not 0, not empty string — NULL preserves 'field absent' for reconstructability)"

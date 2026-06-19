@@ -64,7 +64,7 @@ tasks:
   - number: 4
     name: "ktx run extracts M2 fields from OpenCode events"
     depends_on: ["2", "3"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN an OpenCode --format json tool_use event with token/model data WHEN ktx run opencode run --format json parses it THEN the persisted tool_calls row has the M2 columns populated"
       - "GIVEN an OpenCode event without token/model data WHEN ktx run persists it THEN the M2 columns are NULL (not guessed)"
@@ -94,4 +94,12 @@ tasks:
       - "GIVEN a new verification log at .agentera/verification/m2-acceptance.md WHEN written THEN it documents: M1 regression pass, sidecar-with-M2 round-trip (including the absent vs zero distinction), wrapper-with-OpenCode-events M2 extraction outcome (extraction or documented gap), ktx list cost rollup including the mixed-NULL case, ktx get text M2 section including the silent-absence case, ktx doctor M2 column check on a pre-M2 database"
       - "GIVEN the verification log WHEN complete THEN ROADMAP.md M2 acceptance is satisfied (cost reconstructable from published data)"
 overall_acceptance: "GIVEN any persisted tool_call in the database WHEN inspected via ktx read <id> (JSON) or ktx get <id> (text) THEN the M2 fields appear when present and are NULL/absent otherwise. GIVEN any session with tool_calls WHEN ktx list is invoked THEN session-level cost and token totals are computed from non-NULL M2 fields (never inferred from zero values). GIVEN the M1 evidence WHEN re-inspected via the M2 binary THEN every M1 record still loads (additive migration, no breakage). GIVEN the cost-mechanics decision from task 1 WHEN applied to a known tokens_in/tokens_out/model triple THEN cost is reconstructable (either stored directly or computed from the decision's dollar model)."
-surprises: []
+surprises: |
+  OpenCode --format json emits tokens/cost/model only on step_finish
+  (step-aggregate), not on tool_use (per-tool). Task 4 wrapper
+  therefore populates latency_ms (from part.state.time.{start,end})
+  and provider (defaulted to 'opencode' as the runtime-known single
+  exception) for tool_use rows; tokens_in/out/cost/model remain NULL
+  for OpenCode-emitted tool_calls. The sidecar path (Task 3) and any
+  future OpenCode shape that places them per-tool round-trip via the
+  defensive state.metadata / flat-fallback reads.

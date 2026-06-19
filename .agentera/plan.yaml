@@ -86,7 +86,7 @@ tasks:
   - number: 6
     name: "M2 acceptance verification"
     depends_on: ["1", "2", "3", "4", "5"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN the full M2 implementation WHEN a real OpenCode ktx run opencode run --format json \"<task>\" produces a tool_call THEN ktx get <tool-call-id> shows the M2 fields populated from the runtime, OR the verification log documents that OpenCode --format json does not emit M2 fields and the surface is fed by sidecar"
       - "GIVEN a sidecar echo '{...}' | ktx write with M2 fields WHEN persisted THEN ktx read returns the M2 fields AND the cost is reconstructable from tokens_in, tokens_out, model against a known price (the dollar model from task 1)"

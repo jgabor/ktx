@@ -1,13 +1,18 @@
 // `ktx doctor` — read-only health check for the ktx installation (Decision 2,
-// Task 8). It verifies the three properties that block every other ktx
-// command:
+// Task 8; extended by Task 2 for the M2 schema migration). It verifies the
+// properties that block every other ktx command:
 //
 //  1. The database file exists at the resolved path.
 //  2. The database is openable (sqlite3 file is valid; not a directory,
 //     not a corrupt blob).
-//  3. The schema matches Decision 7: `sessions` and `tool_calls` tables
-//     exist with the expected columns.
-//  4. The ID format is valid: sampled IDs from the database match the
+//  3. The M1 schema matches Decision 7: `sessions` and `tool_calls` tables
+//     exist with the expected M1 columns. Hard requirement — a missing
+//     M1 column is an error because M1 record I/O cannot function.
+//  4. The M2 cost-publication columns are present on `tool_calls` (Task 2).
+//     Soft requirement — a missing M2 column is a warning because the
+//     system still functions; M1 records load, M2 fields stay NULL on
+//     insert. The next ktx invocation applies the in-place migration.
+//  5. The ID format is valid: sampled IDs from the database match the
 //     Decision 3 shape (16-char lowercase alpha).
 //
 // Doctor is read-only. It does not create the database if it is missing —
@@ -16,25 +21,24 @@
 // fix anything; repair commands belong to a future `ktx doctor --fix` or
 // `ktx db prune` (out of M1 scope per Decision 2 revised).
 //
-// Output contract (Decision 2 / 4):
+// Output contract (Decision 2 / 4, extended by Task 2 for "warning"):
 //
 //	{
 //	  "status": "ok|degraded|error",
 //	  "path":   "<resolved database path>",
 //	  "checks": [
-//	    {"name": "...", "status": "ok|error", "detail": "..."},
+//	    {"name": "...", "status": "ok|warning|error", "detail": "..."},
 //	    ...
 //	  ]
 //	}
 //
-// `degraded` is reserved for future use (e.g., warning that the system
-// can still work but is not optimal). For M1 doctor, the top-level
-// status is either "ok" (all checks passed) or "error" (at least one
-// check failed).
+// Top-level status is "degraded" when at least one check is "warning"
+// and no check is "error" (the M2 pre-migration case); "ok" when every
+// check passed; "error" when at least one hard check failed.
 //
 // Exit codes (Decision 4):
 //
-//	0  all checks passed (status == "ok")
+//	0  status: ok or degraded (M1 records still queryable)
 //	1  usage error (invalid flag, unexpected argument)
 //	4  internal error (status == "error")
 //
@@ -49,6 +53,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/jgabor/ktx/internal/store"
 )
@@ -61,11 +66,23 @@ import (
 // invocation once records accumulate.
 const doctorSampleLimit = 100
 
-// doctorStatus values. These are the canonical top-level status values
-// exposed in the JSON output. The cli package accepts only "ok" and
-// "error" in M1; "degraded" is reserved for future use.
+// doctorStatus values. These are the canonical per-check and top-level
+// status values exposed in the JSON output. The M2 schema migration
+// introduces "warning" and "degraded":
+//
+//   - "warning" is a per-check status: the database still functions
+//     (M1 records are queryable), but a soft requirement is unmet (e.g.
+//     M2 columns are missing on a pre-M2 database).
+//   - "degraded" is a top-level status: at least one check is "warning"
+//     and no check is "error". The CLI exits 0 because the system still
+//     works — degraded is informational, not a hard failure.
+//
+// Hard failure ("error" at any check, or any check failing its hard
+// requirement) maps to top-level "error" and the standard ExitInternal
+// (4) exit code.
 const (
 	doctorStatusOK       = "ok"
+	doctorStatusWarning  = "warning"
 	doctorStatusError    = "error"
 	doctorStatusDegraded = "degraded"
 )
@@ -140,13 +157,20 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		}
 	}
 
-	if report.Status != doctorStatusOK {
-		// Any failed check maps to a non-zero exit. The choice between
+	if report.Status == doctorStatusError {
+		// A failing check maps to ExitInternal (4). The choice between
 		// ExitInternal (4) and ExitUsage (1) is between "the system
 		// is broken" and "the user typed something wrong"; a failing
 		// check is the former.
 		return ExitInternal
 	}
+	// "ok" and "degraded" both exit 0: degraded means a soft warning
+	// (e.g. M2 columns missing on a pre-M2 database) that does not
+	// prevent the system from working. M1 records still query, M2
+	// fields stay NULL on insert, and the next ktx invocation applies
+	// the migration. Returning a non-zero exit would break that
+	// "doctor says it works" signal for CI scripts and shell wrappers
+	// that already invoke `ktx run` / `ktx write` to fix the issue.
 	return ExitOK
 }
 
@@ -157,6 +181,18 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // resolution check is the only exception: if we cannot determine where
 // the database should live, the rest of the checks have nothing to
 // inspect, so the report returns early with a single error check.
+//
+// Top-level status precedence (most severe wins):
+//  1. any check "error"    → top-level "error"    (exit ExitInternal)
+//  2. any check "warning"  → top-level "degraded" (exit ExitOK — system still works)
+//  3. all checks "ok"      → top-level "ok"       (exit ExitOK)
+//
+// The "degraded" branch is the M2 schema migration's user-visible
+// surface: a pre-M2 database has every M1 column (so schema_valid is
+// ok) but missing M2 columns (so m2_columns is warning). The system is
+// still functional — M1 records load, M2 fields stay NULL — but the
+// user benefits from a clear signal that the migration has not yet
+// run.
 func buildDoctorReport() *doctorReport {
 	report := &doctorReport{}
 
@@ -201,7 +237,9 @@ func buildDoctorReport() *doctorReport {
 
 	// Check 2: openable. store.Open runs migrations on first open, but
 	// the file already exists at this point so the migrations are
-	// no-ops (CREATE TABLE IF NOT EXISTS is idempotent).
+	// no-ops (CREATE TABLE IF NOT EXISTS is idempotent; the M2
+	// ALTER TABLE step is column-existence-guarded so a re-open is a
+	// pure no-op on a fully migrated database).
 	db, err := store.Open(path)
 	if err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
@@ -219,7 +257,10 @@ func buildDoctorReport() *doctorReport {
 		Detail: fmt.Sprintf("opened %q", path),
 	})
 
-	// Check 3: schema. Expected tables + columns match Decision 7.
+	// Check 3: schema. Expected M1 tables + columns match Decision 7.
+	// This is the hard requirement — a missing M1 column is a hard
+	// error because M1 record I/O cannot function without it. The M2
+	// columns are checked separately in checkM2Columns below.
 	if err := db.CheckSchema(); err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "schema_valid",
@@ -231,8 +272,24 @@ func buildDoctorReport() *doctorReport {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "schema_valid",
 			Status: doctorStatusOK,
-			Detail: "sessions and tool_calls tables present with expected columns",
+			Detail: "sessions and tool_calls tables present with expected M1 columns",
 		})
+	}
+
+	// Check 3b: M2 columns. Soft requirement — a missing M2 column
+	// means the database is pre-M2, not that the system is broken.
+	// M1 records are still queryable; M2 fields stay NULL on insert.
+	// Status: "ok" on migrated DB; "warning" on pre-M2 DB. The
+	// detail lists the absent columns by name so the user can verify
+	// the migration ran, or hand-fix a partial set.
+	if m2Check := checkM2Columns(db); m2Check.Status == doctorStatusError {
+		report.Checks = append(report.Checks, m2Check)
+		report.Status = doctorStatusError
+	} else {
+		report.Checks = append(report.Checks, m2Check)
+		if m2Check.Status == doctorStatusWarning && report.Status != doctorStatusError {
+			report.Status = doctorStatusDegraded
+		}
 	}
 
 	// Check 4: ID format. Sample up to doctorSampleLimit IDs from each
@@ -252,6 +309,43 @@ func buildDoctorReport() *doctorReport {
 		report.Status = doctorStatusOK
 	}
 	return report
+}
+
+// checkM2Columns probes the tool_calls M2 column set via HasM2Columns.
+// Returns:
+//
+//   - "ok" with detail "all M2 columns present: tokens_in, tokens_out,
+//     cost, latency_ms, model, provider" when every m2Schema column
+//     exists on tool_calls (post-migration or fresh DB).
+//   - "warning" with detail naming the missing columns when one or more
+//     are absent (pre-M2 DB or partial set). The detail notes that
+//     M1 records are still queryable so the user understands the
+//     warning is informational, not a hard failure.
+//   - "error" only when the underlying table_info query fails (e.g.,
+//     tool_calls itself is missing — that is a separate M1 hard error
+//     reported in schema_valid, but we surface it here as well so the
+//     per-check trace is complete).
+func checkM2Columns(db *store.DB) doctorCheck {
+	ok, missing, err := db.HasM2Columns()
+	if err != nil {
+		return doctorCheck{
+			Name:   "m2_columns",
+			Status: doctorStatusError,
+			Detail: fmt.Sprintf("%v", err),
+		}
+	}
+	if ok {
+		return doctorCheck{
+			Name:   "m2_columns",
+			Status: doctorStatusOK,
+			Detail: "all M2 columns present on tool_calls: tokens_in, tokens_out, cost, latency_ms, model, provider",
+		}
+	}
+	return doctorCheck{
+		Name:   "m2_columns",
+		Status: doctorStatusWarning,
+		Detail: fmt.Sprintf("missing M2 columns on tool_calls: %s (M1 records still queryable; M2 fields will be NULL on insert — run any ktx command to apply the migration)", strings.Join(missing, ", ")),
+	}
 }
 
 // checkIDFormat samples IDs from sessions and tool_calls and verifies
@@ -305,6 +399,17 @@ func checkIDFormat(db *store.DB) doctorCheck {
 // One line per check plus a status summary. Mirrors the verbose-style
 // of other ktx text outputs (`ktx list --format text`, `ktx get --format
 // text`) so the surface stays consistent.
+//
+// Per-check status markers:
+//
+//   - [OK]    — the check passed
+//   - [WARN]  — a soft requirement is unmet (M2 columns missing on a
+//     pre-M2 database); the system still works
+//   - [FAIL]  — a hard requirement failed; the system cannot continue
+//
+// The top-level status line uses the raw status string ("ok",
+// "degraded", "error") so a glance at the first line tells the user
+// what shape of problem they are looking at.
 func printDoctorText(w io.Writer, report *doctorReport) {
 	fmt.Fprintf(w, "ktx doctor — %s\n", report.Status)
 	if report.Path != "" {
@@ -313,7 +418,10 @@ func printDoctorText(w io.Writer, report *doctorReport) {
 	fmt.Fprintln(w, "checks:")
 	for _, c := range report.Checks {
 		marker := "[OK]"
-		if c.Status != doctorStatusOK {
+		switch c.Status {
+		case doctorStatusWarning:
+			marker = "[WARN]"
+		case doctorStatusError:
 			marker = "[FAIL]"
 		}
 		fmt.Fprintf(w, "  %s %s: %s\n", marker, c.Name, c.Detail)
@@ -330,17 +438,24 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "Runs a read-only health check on the ktx installation. Verifies:")
 	fmt.Fprintln(w, "  - the database file exists at the resolved path")
 	fmt.Fprintln(w, "  - the database is openable")
-	fmt.Fprintln(w, "  - the schema matches Decision 7 (sessions and tool_calls tables)")
+	fmt.Fprintln(w, "  - the M1 schema matches Decision 7 (sessions + tool_calls tables, hard requirement)")
+	fmt.Fprintln(w, "  - the M2 cost-publication columns are present on tool_calls (soft requirement: warning if missing)")
 	fmt.Fprintln(w, "  - sampled IDs match Decision 3 (16-char lowercase alpha)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
 	fmt.Fprintln(w, "  json (default)  structured report on stdout with status + per-check detail")
 	fmt.Fprintln(w, "  text            one-line-per-check summary suitable for terminals")
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Status values:")
+	fmt.Fprintln(w, "  ok        all checks passed")
+	fmt.Fprintln(w, "  degraded  one or more checks are warnings (e.g. M2 columns missing on a")
+	fmt.Fprintln(w, "            pre-M2 database); the system still works")
+	fmt.Fprintln(w, "  error     one or more checks failed; the system cannot continue")
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
-	fmt.Fprintln(w, "  0  all checks passed (status: ok)")
+	fmt.Fprintln(w, "  0  status: ok or degraded (M1 records still queryable)")
 	fmt.Fprintln(w, "  1  usage error (invalid flag, unexpected argument)")
-	fmt.Fprintln(w, "  4  one or more checks failed (status: error)")
+	fmt.Fprintln(w, "  4  status: error (one or more hard checks failed)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 	fmt.Fprintln(w)

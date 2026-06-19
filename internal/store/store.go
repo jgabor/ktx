@@ -44,12 +44,19 @@ const sqliteDriver = "sqlite"
 // schemaStatements creates the ktx tables per Decision 7. The statements are
 // idempotent (CREATE TABLE IF NOT EXISTS), so Open runs them on every call
 // without a migration framework; a versioned migration layer is YAGNI for
-// the two-table M1 schema.
+// the two-table M1/M2 schema.
 //
 // Column definitions match the task contract exactly: NOT NULL and DEFAULT
 // appear only where Decision 7/9 specify them (session_id, tool_call_count,
 // event_type). The tool_calls.session_id REFERENCES sessions(id) clause is
 // enforced because Open enables foreign_keys per connection.
+//
+// The M2 cost-publication columns (tokens_in, tokens_out, cost, latency_ms,
+// model, provider) are part of the CREATE TABLE so fresh databases include
+// them from the start; pre-M2 databases pick them up via the in-place
+// ALTER TABLE step in migrate(). The M2 columns are nullable and have no
+// DEFAULT — NULL is the proper "field absent" marker so cost reconstruction
+// can distinguish "caller did not supply" from "caller supplied zero".
 var schemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS sessions (
 		id              TEXT PRIMARY KEY,
@@ -67,8 +74,44 @@ var schemaStatements = []string{
 		output       TEXT,
 		content_hash TEXT,
 		timestamp    TEXT,
-		event_type   TEXT DEFAULT 'tool_call'
+		event_type   TEXT DEFAULT 'tool_call',
+		tokens_in    INTEGER,
+		tokens_out   INTEGER,
+		cost         REAL,
+		latency_ms   INTEGER,
+		model        TEXT,
+		provider     TEXT
 	)`,
+}
+
+// m2Column enumerates a single M2 cost-publication column on tool_calls.
+// The list is the single source of truth for the migration: it drives both
+// the columns added to the CREATE TABLE statement (above) and the
+// ALTER TABLE ADD COLUMN step in migrate() for pre-M2 databases.
+//
+// Order matters only for deterministic output (doctor reports missing
+// columns in the order they appear here). Types match the D9 flat-JSON
+// payload so callers can persist numbers and strings without a SQLite
+// type-coercion surprise.
+type m2Column struct {
+	Name string
+	Type string
+}
+
+// m2Columns are the M2 cost-publication columns on tool_calls. Each entry
+// pairs the column name with its SQL type for the ALTER TABLE ADD COLUMN
+// statement. Idempotency is handled by checking PRAGMA table_info before
+// altering — SQLite has no IF NOT EXISTS for ADD COLUMN, so a column
+// existence check is the only pure-Go mechanism. PRAGMA table_info runs
+// inside the migration transaction without issue; the query is read-only
+// and the connection's schema view is consistent within a transaction.
+var m2Columns = []m2Column{
+	{Name: "tokens_in", Type: "INTEGER"},
+	{Name: "tokens_out", Type: "INTEGER"},
+	{Name: "cost", Type: "REAL"},
+	{Name: "latency_ms", Type: "INTEGER"},
+	{Name: "model", Type: "TEXT"},
+	{Name: "provider", Type: "TEXT"},
 }
 
 // DefaultPath resolves the default database path per Decision 8:
@@ -123,7 +166,14 @@ func ContentHash(output string) string {
 // meaningful, not decorative (Decision 7).
 //
 // The schema migration is idempotent: CREATE TABLE IF NOT EXISTS runs on
-// every open, so re-opening an existing database is a no-op.
+// every open, so re-opening an existing database is a no-op. The M2
+// in-place migration (ALTER TABLE ADD COLUMN for tokens_in/cost/etc.) is
+// equally idempotent — the column-existence check via PRAGMA table_info
+// makes a second run on a fully migrated database a no-op, and a
+// partial-set database (e.g. only tokens_in added) is forward-fixed on
+// the next open. No versioned migration framework is needed for the
+// additive M2 column set (per the plan: SQLite ALTER TABLE, no custom
+// framework).
 func Open(path string) (*DB, error) {
 	if path == "" {
 		return nil, errors.New("store: open: path is empty")
@@ -155,19 +205,47 @@ func Open(path string) (*DB, error) {
 	return &DB{db: db}, nil
 }
 
-// migrate runs the schema statements in a transaction so the database is
-// never left with a partial schema.
+// migrate runs the schema statements and the M2 in-place column migration
+// inside a single transaction so the database is never left with a partial
+// schema. Fresh databases get the M2 columns from the CREATE TABLE itself;
+// pre-M2 databases pick them up via ALTER TABLE ADD COLUMN. The same
+// transaction also forward-fixes a partial M2 set: any M2 column absent
+// from tool_calls is added; any M2 column already present is skipped. A
+// re-open of a fully migrated database is therefore a pure no-op (all
+// PRAGMA checks find the column, no ALTER runs).
+//
+// The column-existence check uses PRAGMA table_info inside the migration
+// transaction. PRAGMA table_info is a read query that returns one row per
+// column on the connected schema view; running it inside a transaction is
+// safe because the transaction has not yet altered the schema and the
+// connection's schema cache is consistent within the transaction.
 func migrate(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback() // no-op after a successful Commit
+
 	for _, stmt := range schemaStatements {
 		if _, err := tx.Exec(stmt); err != nil {
-			tx.Rollback()
-			return err
+			return fmt.Errorf("store: create schema: %w", err)
 		}
 	}
+
+	have, err := tableColumns(tx, "tool_calls")
+	if err != nil {
+		return fmt.Errorf("store: inspect tool_calls: %w", err)
+	}
+	for _, col := range m2Columns {
+		if _, ok := have[col.Name]; ok {
+			continue
+		}
+		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("store: add m2 column %q: %w", col.Name, err)
+		}
+	}
+
 	return tx.Commit()
 }
 

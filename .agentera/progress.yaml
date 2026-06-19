@@ -1,0 +1,98 @@
+cycles:
+  - number: 1
+    timestamp: "2026-06-19 13:55"
+    type: feat
+    phase: build
+    what: |
+      In-place ALTER TABLE migration on tool_calls adding six M2
+      cost-publication columns (tokens_in INTEGER, tokens_out INTEGER,
+      cost REAL, latency_ms INTEGER, model TEXT, provider TEXT). The
+      same columns are part of CREATE TABLE for fresh DBs; the
+      migration is idempotent (column-existence check via PRAGMA
+      table_info inside the migration transaction) and forward-fixes
+      partial M2 sets. ktx doctor gains an m2_columns check: warning
+      status on a pre-M2 DB (top-level degraded, exit 0), ok on a
+      migrated or fresh DB.
+    inspiration: |
+      Plan task 2 in .agentera/plan.yaml — closes the gap where M1
+      reserved M2 fields in the Go ToolCall struct (Decision D9) but
+      did not add them to the SQL schema. Without this, task 3 (ktx
+      write persistence) and tasks 4-5 (inspect surface) cannot land.
+    discovered: |
+      SQLite ALTER TABLE ADD COLUMN is single-statement and idempotent
+      at the SQL level; combining it with a column-existence check via
+      PRAGMA table_info inside the same transaction makes forward-fix
+      trivial at this scale, no versioned migration framework needed.
+      Nullable columns with no DEFAULT preserve the distinction
+      between 'field absent' (NULL) and 'field set to zero' (0) —
+      round-trips through ktx read / ktx get JSON without coercion.
+    verified: |
+      Cycle date: 2026-06-19.
+
+      Files touched:
+      - internal/store/store.go — added M2 columns to CREATE TABLE;
+        added m2Columns constant and ALTER TABLE ADD COLUMN step to
+        migrate().
+      - internal/store/inspect.go — refactored tableColumns to accept
+        a queryer interface (so it works on *sql.Tx); added m2Schema
+        constant and (*DB).HasM2Columns() method.
+      - internal/cli/doctor.go — added doctorStatusWarning and
+        doctorStatusDegraded constants; added m2_columns check;
+        updated top-level status logic so warning check → degraded
+        top-level status → exit 0; updated help text.
+
+      Acceptance criteria (13/13 verifier checks PASS, harness at
+      /tmp/opencode/verify-all-ac/main.py; standalone warning-code-
+      path verifier at /tmp/opencode/verify-m2-warning/):
+      - AC1 M1-era DB upgrades to M2 columns on next Open(): PASS
+      - AC2 existing rows preserved (NULL for new columns), sessions
+        schema unchanged: PASS
+      - AC3 fresh DB has M2 columns from start: PASS
+      - AC4 ktx doctor on migrated DB (m2_columns ok, detail lists
+        all 6): PASS
+      - AC4 ktx doctor pre-M2 warning code path
+        (HasM2Columns → warning status with missing-column detail):
+        PASS
+      - AC5 migration idempotency (runs once; re-opens are pure
+        no-ops): PASS
+      - AC6 partial-set forward-fix (only tokens_in → all 6 columns
+        present after next open): PASS
+
+      Build: go build -buildvcs=false ./... OK;
+             go vet    -buildvcs=false ./... OK.
+
+      No new external dependencies. Pure-Go SQLite via the existing
+      modernc.org/sqlite driver; no versioned migration framework.
+
+      No regressions to M1. ktx write, ktx read, ktx get, ktx list,
+      ktx run, ktx doctor all still build and operate against M1-only
+      data; the migration is purely additive (new nullable columns
+      with no DEFAULT, so existing rows see NULL for the new fields).
+    next: |
+      Tasks 3-6 remain pending: ktx write persists M2 fields
+      (Task 3), ktx run extracts M2 fields from OpenCode events
+      (Task 4), ktx get/ktx list surface M2 fields (Task 5), and
+      end-to-end M2 acceptance verification (Task 6). None are
+      blocked by Task 2's review here beyond the columns being in
+      place.
+    context:
+      intent: |
+        Land the M2 schema migration so ktx write (Task 3) can
+        persist M2 fields and downstream tasks can surface them,
+        without breaking M1-era databases or queryability.
+      constraints: |
+        No new external dependencies; pure-Go SQLite
+        (modernc.org/sqlite, already vendored). Nullable M2 columns
+        with no DEFAULT — preserves 'field absent' (NULL) vs 'field
+        set to zero' (0). Idempotent migration; no versioned
+        migration framework. ktx doctor reports missing M2 columns
+        as a warning (not a hard error) — M1 records stay queryable.
+      unknowns: |
+        none — the implementation path was fully constrained by
+        Plan Task 2's acceptance criteria and Decision D9.
+      scope: |
+        Three Go files: internal/store/store.go,
+        internal/store/inspect.go, internal/cli/doctor.go, plus the
+        Plan task 2 status flip to complete. No changes to M1
+        columns, sessions schema, or downstream M2 persistence /
+        read paths (those land in Tasks 3-6).

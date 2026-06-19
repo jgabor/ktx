@@ -85,6 +85,19 @@ decisions:
       - compress/decompress are the user-facing entry to context engineering. Input is a record ID (`<id>`). Output is a new record; the new record ID is printed to stdout. No flags — all configurability lives in `ktx.toml`. Reversibility is guaranteed (decompress(compress(x)) == x). The memory stage (D5 rule 2) is a pipeline stage; its operational spec (when it runs, what it reads/writes, sync vs async) is implementation detail."
     confidence: firm
     feeds_into: CLI command surface, help text structure, store implementation, query implementation, M3 bench design
+    satisfaction:
+      state: user_confirmed_satisfied
+      evidence: "M1 + M2 ship ktx read/write/get/list/doctor with the documented split:
+        ktx read and ktx write are store primitives (raw JSON, no --format); ktx get
+        and ktx list are query commands (JSON default, --format text). The hybrid
+        flat-verb + namespace pattern is exercised in the M1 and M2 verification
+        logs (.agentera/verification/m1-acceptance.md, m2-acceptance.md). ktx bench
+        is M3 scope, namespaced per D2 design rule; M3 plan (.agentera/plan.yaml)
+        confirms the bench/run/report/compare shape. --help cross-references between
+        ktx read and ktx get observed in cmd/ktx help output."
+      user_confirmation:
+        confirmed_by: Jonathan Gabor
+        confirmed_at: "2026-06-19"
   - number: 3
     date: "2026-06-15"
     question: How should ktx address recorded calls?

@@ -1,4 +1,239 @@
 cycles:
+  - number: 5
+    timestamp: "2026-06-19 16:18"
+    type: feat
+    phase: build
+    what: |
+      ktx get and ktx list now surface M2 cost-publication fields on
+      the inspect surface. printGetText emits a conditional M2
+      section below the M1 fields when at least one of the six
+      pointer-typed M2 fields is non-nil; the section is silent when
+      every M2 field is NULL (AC4) and renders only the non-nil
+      sub-fields otherwise (preserves the pointer discipline Task 3
+      established). printListText adds TOKENS, COST, and MODEL
+      columns derived from a per-session rollup computed by
+      store.SessionM2Rollups (a single GROUP BY with HAVING filter
+      that excludes sessions with no non-NULL M2 data). The text
+      columns render "-" as the explicit "no data" marker when a
+      session has no M2 data (AC6) or when a sub-rollup is nil
+      within a session that has partial M2 data. The JSON list path
+      adds a top-level m2 object via a local wrapper type that
+      embeds store.Session (so M1 field shape is preserved) and
+      appends *SessionM2 with omitempty (so sessions with no M2
+      data omit the field — AC7 permits either omission or null,
+      omission is the chosen signal).
+    inspiration: |
+      Plan task 5 in .agentera/plan.yaml. Tasks 2/3/4 made the
+      M2 columns persistable from both ingress paths and pointer-
+      typed so the absent-vs-zero distinction survives. Task 5
+      owns the inspect surface: ktx get and ktx list (text + JSON).
+      The plan's design contract required (a) a conditional M2
+      block in printGetText, (b) per-session rollup columns in
+      printListText, and (c) a top-level m2 object in the JSON
+      list output.
+    discovered: |
+      A single GROUP BY query with a HAVING clause is sufficient
+      to filter to sessions with at least one non-NULL M2 field:
+      the SUM/MIN aggregates produce NULL when every input is
+      NULL, so HAVING aggregates-NOT-NULL is the right "did this
+      group see any M2 data?" probe. The strict reading of the
+      spec's "sum of tokens_in + tokens_out per call, summed
+      across the session" yields SUM(tokens_in + tokens_out)
+      which excludes rows with one NULL operand — a row with
+      tokens_in=10, tokens_out=NULL contributes NULL to the
+      per-call sum and is dropped from the aggregate. This is
+      the documented "per-call roll-up of non-NULL values"
+      semantic but is the strictest of the plausible readings;
+      a future post-M2 resonera can revisit if real-world data
+      shows it loses too much.
+    verified: |
+      Cycle date: 2026-06-19.
+
+      Files touched:
+      - internal/store/rollup.go (new) — SessionM2 type with
+        pointer-typed Tokens, Cost, Model fields; SessionM2Rollups
+        method on *DB returns map[sessionID]SessionM2 over a
+        single GROUP BY query.
+      - internal/cli/get.go — printGetText's *store.ToolCall case
+        appends a conditional M2 section with 2-space-indented
+        field name column padded to 12 chars, matching the M1
+        section's visual style. The section is gated on
+        "any M2 pointer non-nil" (the AC3/AC4 contract).
+      - internal/cli/list.go — printListText gains a
+        `rollups map[string]store.SessionM2` parameter; the
+        table is extended with TOKENS, COST, MODEL columns.
+        The JSON list path builds a []sessionListRow wrapper
+        that embeds store.Session and adds *SessionM2 with
+        omitempty; the new local type keeps store.Session
+        (in store/persist.go, off-limits for Task 5) untouched.
+        Package doc updated to note the M2 surface; help text
+        updated to mention the new columns and the "-"
+        marker semantics.
+      - .agentera/plan.yaml — Task 5 status flipped to complete.
+      - .agentera/progress.yaml — this cycle entry.
+
+      Acceptance criteria (Plan task 5 — 7/7 PASS):
+
+      AC1 (full M2 data → TOKENS, COST, MODEL columns with
+      non-"-" values): PASS. Wrote 3 calls with full M2 data
+      via sidecar (tokens_in=100/200/50, tokens_out=50/100/25,
+      cost=0.0050/0.0075/0.0025, model=claude-sonnet-4). ktx
+      list --format text renders:
+        vptmbcaeugwckghq  unknown  ...  3  525  0.0150  claude-sonnet-4
+      — TOKENS=525 (100+50+200+100+50+25=525), COST=0.0150,
+      MODEL=claude-sonnet-4.
+
+      AC2 (mixed NULL + non-NULL → sums non-NULL only): PASS.
+      Wrote 3 calls (cost=0.0100, NULL, cost=0.0200). ktx list
+      --format text renders:
+        burdeolrhckzoezf  ...  3  270  0.0300  claude-sonnet-4
+      — COST=0.0300 (0.01 + 0 + 0.02 = 0.03), not 0.0000 and
+      not 0.03 of {0, 0.01, 0.02}. SQLite's SUM(cost) is the
+      canonical NULL-ignoring aggregate. JSON confirms:
+        "m2":{"tokens":270,"cost":0.03,"model":"claude-sonnet-4"}
+
+      AC3 (full M2 row → M2 section in get text): PASS.
+      ktx get ac2callbbb01bbb --format text renders the M1
+      fields plus a blank line, "M2:" header, and 6
+      2-space-indented rows (tokens_in=50, tokens_out=25,
+      cost=0.0100, latency_ms=100, model=claude-sonnet-4,
+      provider=anthropic).
+
+      AC4 (all-NULL M2 row → no M2 section): PASS. Wrote a
+      call with no M2 fields (ac4callccc01ccc). ktx get
+      ac4callccc01ccc --format text renders only the M1
+      fields — no blank line, no "M2:" header, no
+      sub-fields. Silent absence as required.
+
+      AC5 (JSON get shows M2 fields as null/value): PASS.
+      ktx get ac2callbbb01bbb (JSON) emits all six M2 fields
+      with the supplied values; ktx get ac2callbbb02bbb
+      (the partial-M2 row with only tokens_in/out) emits
+      tokens_in=60, tokens_out=30, cost=null, latency_ms=null,
+      model=null, provider=null. AC5 was wired in Task 3
+      (pointer-typed struct, omitempty removed) and Task 5
+      preserves that contract.
+
+      AC6 (no M2 data → "-" for COST/TOKENS): PASS. Session
+      xoknojcgsxrivrwi (single tool_call with no M2 fields)
+      renders as:
+        xoknojcgsxrivrwi  ...  1  -  -  -
+      The "-" marker is visually distinct from "0" /
+      "0.0000" — verified via the explicit-zero edge case
+      below.
+
+      AC7 (JSON list → top-level m2 object): PASS. The
+      M2-bearing session emits:
+        {"id":"burdeolrhckzoezf",..."m2":{"tokens":270,"cost":0.03,"model":"claude-sonnet-4"}}
+      The no-M2 session emits the same fields but omits the
+      m2 key entirely (omitempty on *SessionM2). Mixed-M2
+      session (some fields, others NULL) emits:
+        {"id":"qabahdlojfhretqu",..."m2":{"tokens":null,"cost":0.6,"model":"claude"}}
+      — the absent sub-rollup is JSON null, the present
+      sub-rollup is the sum.
+
+      Edge case: explicit-zero M2 fields. Wrote a call with
+      tokens_in=0, tokens_out=0, cost=0.0, model="",
+      provider="". ktx list --format text renders
+      "0  0.0000  " (not "-"); ktx list JSON emits
+      "m2":{"tokens":0,"cost":0,"model":""} — the
+      absent-vs-zero distinction is preserved through the
+      inspect surface, matching Task 3's persistence
+      contract. ktx get <id> (JSON) emits the explicit
+      zeros verbatim; ktx get <id> --format text renders
+      the M2 section with "0" / "0.0000" / "" (empty
+      model string).
+
+      Build: go build -buildvcs=false ./... OK (exit 0);
+             go vet    -buildvcs=false ./... OK (exit 0).
+
+      M1+M2+M3+M4 regression: re-ran steps 2-9 of
+      .agentera/verification/m1-acceptance.md against the
+      rebuilt binary on a fresh KTX_DB. Every M1 behaviour
+      preserved: ktx run persists 1 tool_call (the bash call
+      from the OpenCode fixture), ktx list shows the session
+      with tool_call_count=1 and "-" for the M2 columns
+      (the OpenCode tool_use row has no M2 fields per Task 4's
+      empirical finding), ktx get session (text and JSON) emit
+      the M1 fields, ktx read on the tool_call emits the M1
+      fields plus M2 fields (tokens_in/out/cost/model/provider
+      as null, latency_ms=3 and provider=opencode from Task 4),
+      ktx doctor reports ok with the m2_columns check passing.
+      No regressions to the M1 contract; the M2 inspect
+      surface is purely additive (new columns in text, new
+      field in JSON, both gated on data presence).
+
+      Wrapper-path M2 surface: ran the synthetic-with-m2
+      fixture (mock-agent.sh synthetic-with-m2) through
+      ktx run. The wrapper's Task 4 path populates the M2
+      pointers from the fixture's tool_use event; ktx list
+      --format text renders "1801  0.0123
+      anthropic/claude-sonnet-4-20250514" — the rollup
+      works end-to-end with wrapper-emitted M2 data, not
+      just sidecar-fed data.
+    next: |
+      Task 6 (M2 acceptance verification) remains pending.
+      Task 6 will: re-run the M1 regression end-to-end
+      (Task 5 already ran steps 2-9 against the rebuilt
+      binary; Task 6 will write the formal
+      .agentera/verification/m2-acceptance.md log), drive
+      a sidecar-with-M2 round-trip including the
+      absent-vs-zero distinction, run the ktx list cost
+      rollup mixed-NULL case (covered by Task 5's AC2
+      verification), and document the ktx doctor M2
+      column check on a pre-M2 database (Task 2 already
+      covered the warning path; Task 6 will re-run it as
+      part of the M2 acceptance walk-through).
+    context:
+      intent: |
+        Land the M2 inspect surface so any persisted M2
+        field is visible via ktx get (text) and so the
+        per-session M2 cost rollup is visible via ktx list
+        (text and JSON). The surface must preserve the
+        absent-vs-zero distinction Task 3 made
+        round-trip-safe (nil pointer = absent; non-nil
+        pointer to 0 = zero) and must distinguish a
+        session with no M2 data (explicit "-" marker,
+        omitted m2 object) from a session with M2 data
+        that sums to zero (rendered 0/0.0000).
+      constraints: |
+        No new external dependencies. Pointer-typed M2
+        fields on store.SessionM2 match the discipline
+        Task 3 used on store.ToolCall (no omitempty on
+        the inner JSON tags, so absent sub-rollups
+        surface as null). The Session struct in
+        store/persist.go is off-limits (Task 5's scope
+        restriction); the JSON list path uses a local
+        sessionListRow wrapper type that embeds
+        store.Session and appends *SessionM2. No
+        changes to internal/cli/run.go (wrapper parser,
+        off-limits), internal/store/store.go (schema
+        DDL, off-limits), or internal/store/persist.go
+        (persistence layer, off-limits). The rollup
+        query is a single GROUP BY in
+        internal/store/rollup.go (a new file, not in
+        the off-limits list).
+      unknowns: |
+        The strict reading of "tokens_in + tokens_out
+        per call, summed across the session" drops
+        rows where one of the two operands is NULL.
+        A future post-M2 resonera can revisit if the
+        sidecar/wrapper path starts emitting
+        partial-NULL token data in practice; the
+        current implementation is the most faithful
+        to the spec's literal wording.
+      scope: |
+        Three Go files: internal/store/rollup.go (new),
+        internal/cli/get.go (printGetText M2 section),
+        internal/cli/list.go (printListText columns,
+        JSON list wrapper, package doc, help text).
+        Two updated artifacts: .agentera/plan.yaml
+        (Task 5 status flip), .agentera/progress.yaml
+        (this entry). No changes to the schema DDL
+        (Task 2), the persistence layer (Task 3), the
+        wrapper parser (Task 4), or the ktx init / ktx
+        db / ktx doctor / ktx read surfaces (none of
+        which need an M2 surface for Task 5).
   - number: 4
     timestamp: "2026-06-19 16:01"
     type: feat

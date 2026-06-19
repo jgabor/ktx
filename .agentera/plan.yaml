@@ -74,7 +74,7 @@ tasks:
   - number: 5
     name: "Inspect surface — M2 in ktx get and ktx list"
     depends_on: ["2", "3"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN a session with tool_calls that have non-NULL M2 fields WHEN ktx list --format text is invoked THEN the output table includes TOKENS (sum of tokens_in + tokens_out per call, summed across the session), COST, and MODEL columns derived from per-call roll-up of non-NULL values"
       - "GIVEN a session with mixed (some NULL, some non-NULL) M2 fields WHEN ktx list --format text is invoked THEN the rollup sums the non-NULL values only (a session with 3 calls where 1 has NULL cost sums the 2 non-NULL costs, not zero)"

@@ -124,6 +124,14 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // each get a faithful (not generic) text view. Multi-line fields
 // (input, output) are rendered on a single line — the query layer's
 // text format is for skim-reading, not for inspecting large payloads.
+//
+// For tool_call records, an M2 cost-publication section is appended
+// below the M1 fields when at least one M2 pointer is non-nil
+// (Task 5, AC3). The section is silent when all M2 fields are NULL
+// (AC4): no "0" / "n/a" / blank placeholders — absence is signalled
+// by the section's non-existence. Pointer discipline is preserved
+// end-to-end: a nil pointer is not coerced to 0 just because the
+// renderer is rendering a column.
 func printGetText(w io.Writer, record any) {
 	switch r := record.(type) {
 	case *store.ToolCall:
@@ -135,6 +143,33 @@ func printGetText(w io.Writer, record any) {
 		fmt.Fprintf(w, "content_hash: %s\n", r.ContentHash)
 		fmt.Fprintf(w, "timestamp:    %s\n", r.Timestamp)
 		fmt.Fprintf(w, "event_type:   %s\n", r.EventType)
+		// M2 cost-publication section (Task 5). Rendered only when at
+		// least one M2 pointer is non-nil. Field name column is padded
+		// to 12 chars after the 2-space indent, matching the M1
+		// section's visual alignment.
+		if r.TokensIn != nil || r.TokensOut != nil || r.Cost != nil ||
+			r.LatencyMs != nil || r.Model != nil || r.Provider != nil {
+			fmt.Fprintln(w, "")
+			fmt.Fprintln(w, "M2:")
+			if r.TokensIn != nil {
+				fmt.Fprintf(w, "  tokens_in:    %d\n", *r.TokensIn)
+			}
+			if r.TokensOut != nil {
+				fmt.Fprintf(w, "  tokens_out:   %d\n", *r.TokensOut)
+			}
+			if r.Cost != nil {
+				fmt.Fprintf(w, "  cost:         %.4f\n", *r.Cost)
+			}
+			if r.LatencyMs != nil {
+				fmt.Fprintf(w, "  latency_ms:   %d\n", *r.LatencyMs)
+			}
+			if r.Model != nil {
+				fmt.Fprintf(w, "  model:        %s\n", *r.Model)
+			}
+			if r.Provider != nil {
+				fmt.Fprintf(w, "  provider:     %s\n", *r.Provider)
+			}
+		}
 	case *store.Session:
 		fmt.Fprintf(w, "id:              %s\n", r.ID)
 		fmt.Fprintf(w, "agent:           %s\n", r.Agent)

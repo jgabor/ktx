@@ -68,7 +68,7 @@ tasks:
   - number: 3
     name: "Schema migration — bench_runs table"
     depends_on: ["1", "2"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN an M2-era database at the default path WHEN the new binary opens it THEN a new `bench_runs` table exists with columns: `id TEXT PRIMARY KEY` (D3 nanoid), `agent TEXT`, `model TEXT`, `task TEXT`, `score REAL`, `tokens_in INTEGER`, `tokens_out INTEGER`, `cost REAL`, `methodology_version TEXT`, `timestamp INTEGER`"
       - "GIVEN the migration WHEN applied THEN existing `tool_calls` and `sessions` rows are unchanged; existing `bench_runs` rows (if any) are unchanged"

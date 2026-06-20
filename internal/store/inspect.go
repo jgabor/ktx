@@ -17,6 +17,15 @@
 // means the database is pre-M2; M1 records still load, M2 fields just
 // stay NULL on insert). The split keeps the doctor exit code honest: a
 // pre-M2 database is a "warning" / "degraded" state, not a hard error.
+//
+// M3 bench_runs check (plan Task 3): the bench_runs table is a soft
+// requirement for `ktx doctor` (a missing bench_runs table means the
+// database is pre-M3; M1/M2 records are still queryable). The doctor
+// reports a pre-M3 database as a normal-severity warning — degraded,
+// not error — and the next ktx invocation applies the in-place CREATE
+// / ALTER migration. A partial bench_runs schema (some columns missing)
+// is also a warning: the forward-fix path in migrate() adds the missing
+// columns on the next open.
 package store
 
 import (
@@ -76,6 +85,25 @@ var m2Schema = []string{
 	"latency_ms",
 	"model",
 	"provider",
+}
+
+// benchRunsSchema is the expected bench_runs column set per D12's
+// reproducibility contract. HasBenchRunsColumns checks for these
+// columns specifically so the doctor can report a partial bench_runs
+// schema as a soft warning (forward-fix on next open, not a hard
+// error). The order matches benchRunsColumns in store.go so doctor
+// output is deterministic.
+var benchRunsSchema = []string{
+	"id",
+	"agent",
+	"model",
+	"task",
+	"score",
+	"tokens_in",
+	"tokens_out",
+	"cost",
+	"methodology_version",
+	"timestamp",
 }
 
 // CheckSchema verifies the database schema matches the M1 core of
@@ -139,6 +167,63 @@ func (d *DB) HasM2Columns() (bool, []string, error) {
 		return false, missing, nil
 	}
 	return true, nil, nil
+}
+
+// HasBenchRunsTable reports whether the `bench_runs` table exists in the
+// schema. Returns (true, nil) when sqlite_master lists a table with that
+// name, (false, nil) when absent, and (false, err) when the query itself
+// fails (a corrupt schema view or an unreadable database).
+//
+// Unlike HasM2Columns, this is a table-level probe rather than a
+// column-level probe. The bench_runs table is created at the M3
+// milestone; a pre-M3 database has no such table. The doctor uses this
+// probe to distinguish three states:
+//
+//   - Table present + all 10 columns present → "ok"
+//   - Table present + some columns missing → "warning" (forward-fix on next open)
+//   - Table absent entirely → "warning" (pre-M3 database; M1/M2 records
+//     still queryable, the migration creates the table on next open)
+//
+// The split matters because the three states have different remediation
+// messages: forward-fix is automatic on next open for a partial table,
+// while a missing table is a pre-M3 marker that disappears on the very
+// next ktx invocation that opens the database.
+func (d *DB) HasBenchRunsTable() (bool, error) {
+	var name string
+	err := d.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name='bench_runs'`,
+	).Scan(&name)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect sqlite_master for bench_runs: %w", err)
+	}
+	return name == "bench_runs", nil
+}
+
+// HasBenchRunsColumns reports whether the bench_runs table carries every
+// expected column per D12's reproducibility contract. Returns
+// ([], nil) when every benchRunsSchema column is present, ([missing], nil)
+// when one or more are absent, and a non-nil error when the table_info
+// query fails (e.g. the table is missing — which is a separate signal
+// surfaced by HasBenchRunsTable, not conflated here).
+//
+// The missing slice drives the doctor detail string: it lists the
+// absent columns by name so the user can verify the migration ran, or
+// hand-fix a partial set before the next open. An empty slice means
+// every expected column is present.
+func (d *DB) HasBenchRunsColumns() (missing []string, err error) {
+	have, err := tableColumns(d.db, "bench_runs")
+	if err != nil {
+		return nil, fmt.Errorf("inspect bench_runs: %w", err)
+	}
+	for _, want := range benchRunsSchema {
+		if _, ok := have[want]; !ok {
+			missing = append(missing, want)
+		}
+	}
+	return missing, nil
 }
 
 // tableColumns returns the set of column names for table. Empty when

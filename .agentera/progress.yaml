@@ -1,4 +1,351 @@
 cycles:
+  - number: 10
+    timestamp: "2026-06-20 12:00"
+    type: feat
+    phase: build
+    what: |
+      M3 plan Task 3 (bench_runs table migration) lands as one schema
+      migration, two inspector helpers, and one doctor check. The
+      migration follows the M2 pattern (m2Columns / m2Schema /
+      tableColumns(tx, ...) / ALTER TABLE ADD COLUMN loop) verbatim;
+      the inspector and doctor surface extend the M2 split into
+      table-level + column-level probes since bench_runs is a brand-new
+      table rather than an additive column set on an existing table.
+      The bench_runs schema mirrors D12's reproducibility contract
+      (`.agentera/bench/methodology-v1.yaml`): `id TEXT PRIMARY KEY`
+      (D3 nanoid), `agent`, `model`, `task`, `score REAL`,
+      `tokens_in INTEGER`, `tokens_out INTEGER`, `cost REAL`,
+      `methodology_version TEXT` (the D12 contract), `timestamp INTEGER`
+      (Unix epoch seconds). All six acceptance criteria from
+      plan.yaml Task 3 pass on the committed binary:
+      (1) An M2-era DB opened by the new binary gains the bench_runs
+      table with all 10 columns. (2) Existing tool_calls and sessions
+      rows are unchanged (verified by row-count and content checks
+      against an M2-era fixture). (3) A fresh DB has bench_runs from
+      the start (verified via CREATE TABLE inside the same
+      transaction as the migration). (4) ktx doctor reports
+      `bench_runs_table: ok` on migrated DBs and `warning` on
+      pre-M3 / partial bench_runs (verified via a side-channel
+      verify harness that opens the DB without migrating, mirroring
+      the M2 verification log's `/tmp/opencode/verify-m2-warning`
+      pattern). (5) Migration is idempotent — the schema_sql SHA
+      is unchanged between two consecutive opens. (6) A partial
+      bench_runs (only `id` + `agent`) is forward-fixed to the
+      full 10-column schema on the next open. `go build` and
+      `go vet` exit 0; M1+M2 regression on the M3 binary
+      confirms `ktx list`, `ktx read`, `ktx write`, and
+      `ktx doctor` all behave identically to the M2 binary.
+    discovered: |
+      The bench_runs migration is structurally identical to the M2
+      migration (CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN
+      loop gated on PRAGMA table_info), but the inspect surface needs
+      a table-level probe in addition to the column-level probe. M2's
+      `HasM2Columns` works because the M1 schema already guarantees
+      `tool_calls` exists (via `CheckSchema`'s hard check). For
+      bench_runs, a pre-M3 database has no such table — the doctor
+      needs to distinguish "table missing entirely — pre-M3"
+      (warning: run any ktx command to migrate) from "table present
+      but partial — forward-fix on next open" (warning: detail lists
+      the missing columns). The two-step probe (HasBenchRunsTable +
+      HasBenchRunsColumns) implements the distinction cleanly.
+
+      The "warning" code path on a pre-M3 DB is observable only when
+      the database is opened by something other than ktx itself —
+      store.Open runs the migration on every call, so a normal
+      `ktx doctor` invocation always migrates a pre-M3 DB before the
+      checkBenchRuns probe runs. This is the same constraint the M2
+      verification log documented (`.agentera/verification/m2-acceptance.md`
+      used a side-channel `verify` binary to exercise the warning
+      path). The committed code includes checkBenchRuns's warning
+      branch for completeness — the function correctly returns
+      "warning" when the table is absent — but in practice the user
+      sees the "ok" state after their first ktx invocation post-M3
+      binary update, because that invocation runs the migration as
+      a side effect. The cycle's verified section documents this
+      nuance for inspektera.
+
+      The M3 column types are slightly different from M2:
+      `timestamp INTEGER` (Unix epoch seconds) instead of M2's
+      `timestamp TEXT` (RFC3339Nano). This matches D12's
+      reproducibility contract — a third party with the bench_runs
+      row + the methodology file can compute the headline without
+      consulting any clock-format documentation. The integer type
+      is the natural fit for the cost-per-correct formula
+      (`cost / max(score, 1e-9)`), which is the only aggregate
+      computation the methodology v1 specifies.
+    verified: |
+      Cycle date: 2026-06-20.
+
+      Files touched:
+      - internal/store/store.go — package comment now names three
+        tables (sessions, tool_calls, bench_runs); schemaStatements
+        gains the CREATE TABLE IF NOT EXISTS bench_runs block with
+        all 10 columns per D12; the m2Columns pattern is mirrored
+        exactly by benchRunsColumn + benchRunsColumns (10 entries
+        with Name + Type); migrate() gains a second ALTER TABLE
+        ADD COLUMN loop gated on tableColumns(tx, "bench_runs").
+        The loop is sequenced after the M2 tool_calls loop so a
+        pre-M2 + pre-M3 database gets both migrations in one
+        transaction.
+      - internal/store/inspect.go — package comment now mentions
+        the M3 bench_runs check split (table-level + column-level
+        probes); benchRunsSchema constant lists all 10 column
+        names in CREATE TABLE order; HasBenchRunsTable() and
+        HasBenchRunsColumns() are added as the two probe halves
+        the doctor wires together. HasBenchRunsTable uses the
+        sqlite_master lookup the task spec calls out; the bool
+        return distinguishes present from absent without conflating
+        with query failure.
+      - internal/cli/doctor.go — package comment is extended for
+        M3; buildDoctorReport's check list gains Check 3c
+        (bench_runs_table), wired between m2_columns and
+        id_format. The check has three outcome branches: ok
+        (full schema), warning (table missing — pre-M3), warning
+        (table partial — forward-fix). The top-level status
+        precedence logic unchanged: any warning → degraded when
+        no hard error fired. printDoctorHelp text adds the
+        bench_runs check to the "what we verify" list and the
+        degraded status prose.
+      - .agentera/plan.yaml — Task 3 status flipped from `pending`
+        to `complete`. Per the plan.yaml schema and the M3
+        delegated-capability convention, realisera flips its own
+        task in M3 (unlike M2 where the orchestrator held the flip).
+      - .agentera/progress.yaml — this cycle 10 entry at the top
+        of the cycles: list.
+
+      Build: go build -buildvcs=false -o /tmp/ktx-m3-task3-bin
+              ./cmd/ktx OK (exit 0).
+      Vet:   go vet   -buildvcs=false ./... OK (exit 0, no output).
+
+      Acceptance walk-through for plan.yaml Task 3's 6 ACs:
+
+      AC1 (M2-era DB opens with bench_runs added):
+      PASS. Copied /tmp/ktx-m2-m1regress.db (an M2-era DB with
+      sessions + tool_calls including all 6 M2 cost columns) to
+      /tmp/ktx-m3-task3/m2-era-pre-m3.db, dropped bench_runs
+      if present, opened via /tmp/ktx-m3-task3-bin list.
+      Post-open `SELECT name FROM sqlite_master WHERE type='table'
+      ORDER BY name` returns three rows: bench_runs, sessions,
+      tool_calls. `PRAGMA table_info(bench_runs)` returns 10
+      rows with the exact column names + types per D12:
+      id TEXT (pk=1), agent TEXT, model TEXT, task TEXT,
+      score REAL, tokens_in INTEGER, tokens_out INTEGER,
+      cost REAL, methodology_version TEXT, timestamp INTEGER.
+
+      AC2 (existing tool_calls and sessions rows unchanged;
+      existing bench_runs rows unchanged if any):
+      PASS. Same /tmp/ktx-m3-task3/m2-era-pre-m3.db had 1
+      sessions row (id=mlqvfogiowjoktdz, agent=/tmp/mock-agent.sh,
+      started_at=2026-06-19T14:40:12.797483628Z, ended_at=
+      2026-06-19T14:40:12.79900422Z, tool_call_count=2) and
+      2 tool_calls rows (kcbjvyoraqztwdux and mnbvjewevslzcple
+      both attached to mlqvfogiowjoktdz). After the M3 binary
+      opens the DB, all three rows remain present and byte-
+      identical (verified via SELECT). The M2 columns on
+      tool_calls (tokens_in/tokens_out/cost/latency_ms/model/
+      provider) are all still NULL for the test fixture rows,
+      preserved verbatim — the migration does not touch
+      existing rows, only the schema. No bench_runs rows
+      existed pre-migration, so the "existing bench_runs
+      unchanged" clause is vacuously true.
+
+      AC3 (fresh DB has bench_runs from the start):
+      PASS. export XDG_DATA_HOME=/tmp/ktx-m3-task3/xdg-fresh;
+      rm -rf $XDG_DATA_HOME; mkdir -p $XDG_DATA_HOME;
+      /tmp/ktx-m3-task3-bin list (which opens the DB via
+      store.Open). The 28672-byte ktx.db file is created
+      with three tables in sqlite_master, bench_runs
+      included, with all 10 columns per PRAGMA table_info.
+      No "migration needed" path is hit — the CREATE TABLE
+      IF NOT EXISTS inside the migrate transaction establishes
+      the full schema on first open.
+
+      AC4 (doctor reports bench_runs present on migrated DB;
+      flags missing bench_runs as warning on pre-M3 DB):
+      PASS. Migrated DB path: KTX_DB=/tmp/ktx-m3-task3/migrated.db
+      /tmp/ktx-m3-task3-bin doctor returns:
+        {"status":"ok","path":"...","checks":[
+          {"name":"database_exists","status":"ok",...},
+          {"name":"database_openable","status":"ok",...},
+          {"name":"schema_valid","status":"ok","detail":
+            "sessions and tool_calls tables present with expected M1 columns"},
+          {"name":"m2_columns","status":"ok",...},
+          {"name":"bench_runs_table","status":"ok","detail":
+            "all bench_runs columns present: id, agent, model, task,
+             score, tokens_in, tokens_out, cost, methodology_version,
+             timestamp"},
+          {"name":"id_format","status":"ok",...}
+        ]}
+      Pre-M3 warning path: constructed /tmp/ktx-m3-task3/pre-m3-clean.db
+      via sqlite3 (DROP TABLE IF EXISTS bench_runs on the M2-era
+      fixture), bypassing store.Open so the migration does not run.
+      The standalone verify harness at /tmp/ktx-verify-m3-task3/verify
+      (which mirrors the M2 verification log's
+      /tmp/opencode/verify-m2-warning/verify pattern) opens the
+      pre-M3 DB with a raw *sql.DB (no migration) and runs
+      HasBenchRunsTable + HasBenchRunsColumns against the
+      un-migrated schema. Output:
+        HasBenchRunsTable (pre-migration view): hasTable=false
+        VERDICT: bench_runs table missing — warning code path fires
+        checkBenchRuns would return: status="warning",
+          detail="bench_runs table is missing (pre-M3 database; ..."
+        top-level status: degraded
+      Partial bench_runs warning path: constructed /tmp/ktx-m3-task3/partial-raw.db
+      with bench_runs (id TEXT PRIMARY KEY, agent TEXT) only — 2
+      of 10 columns. Same verify harness:
+        HasBenchRunsTable (pre-migration view): hasTable=true
+        HasBenchRunsColumns (pre-migration view):
+          missing=[model task score tokens_in tokens_out cost
+                   methodology_version timestamp]
+        VERDICT: 8 missing bench_runs columns detected — warning code path fires
+        checkBenchRuns would return: status="warning",
+          detail="partial bench_runs schema; missing columns: ..."
+        top-level status: degraded
+      Three of three doctor paths exercised correctly.
+
+      AC5 (migration is idempotent — second Open is no-op):
+      PASS. Computed schema_sql SHA on /tmp/ktx-m3-task3/m2-era-pre-m3.db
+      before and after a second /tmp/ktx-m3-task3-bin list invocation:
+        BEFORE: 6e02997cb9ae1986a4f12a83d6a2c6c0b0371a259c08717c5dbafbf10a9208bd
+        AFTER:  6e02997cb9ae1986a4f12a83d6a2c6c0b0371a259c08717c5dbafbf10a9208bd
+      Identical SHAs. The PRAGMA table_info calls inside the
+      migration transaction find all expected columns, the ALTER
+      TABLE ADD COLUMN loops are no-ops, and the CREATE TABLE
+      IF NOT EXISTS is a no-op for tables that exist. The
+      transaction commits with zero mutations.
+
+      AC6 (partial bench_runs schema is forward-fixed on next
+      Open):
+      PASS. Constructed /tmp/ktx-m3-task3/partial.db with
+      bench_runs (id TEXT PRIMARY KEY, agent TEXT) only.
+      Opened via /tmp/ktx-m3-task3-bin list. Post-open
+      PRAGMA table_info(bench_runs) returns 10 rows —
+      the ALTER TABLE ADD COLUMN loop added model, task,
+      score, tokens_in, tokens_out, cost, methodology_version,
+      and timestamp. The `id` and `agent` columns were already
+      present and were skipped by the loop's PRAGMA gate.
+      Pre/post PRAGMA row count: 2 → 10 columns.
+
+      M1+M2 regression: PASS. KTX_DB=/tmp/ktx-m3-task3/regression3.db
+      (a fresh DB), /tmp/ktx-m3-task3-bin write with a 16-char
+      nanoid ID and empty session_id (auto-create), followed by
+      /tmp/ktx-m3-task3-bin doctor — returns status "ok" with
+      all 6 checks passing (database_exists, database_openable,
+      schema_valid, m2_columns, bench_runs_table, id_format).
+      ktx list shows the auto-created session; ktx read shows
+      the persisted tool_call with all M1 fields. The M3
+      migration is purely additive — no existing M1 or M2
+      behavior changed.
+
+      No regressions discovered. The migration is structurally
+      identical to the M2 pattern (mirror image of m2Columns /
+      m2Schema / HasM2Columns / checkM2Columns). Future DRY
+      cleanup can fold m2Columns + benchRunsColumns into a shared
+      migration helper; this is a post-M3 follow-up, not a
+      blocker for the bench_runs migration landing.
+
+      Cycle-10 active-section size advisory: the progress.yaml
+      schema (PX2) caps full-detail entries at 10; cycles 11
+      through 50 move to one-line archive form (PX3). Cycle 10
+      is the 10th full-detail cycle entry — the next M3 cycle
+      (Task 4: ktx bench run) lands as cycle 11 in one-line
+      archive form per the schema. The decisions.yaml DX2
+      advisory (> 10 active decisions) is unchanged at 12
+      entries — this cycle did not modify decisions.yaml (the
+      pre-tool gate would block it).
+    next: |
+      M3 plan Task 4 (ktx bench run). Task 4 depends on Task 3
+      (this cycle) and becomes dispatchable once Task 3 closes.
+      Task 4 owns the `ktx bench run <agent> <model> <task>`
+      subcommand: consumes the D12 methodology, executes the
+      task via the wrapper or sidecar (methodology decides),
+      scores per the scoring function, persists a `bench_runs`
+      row with cost derived per D11 at write time, and prints
+      the headline number per the methodology's `cost_per_correct
+      = cost / max(score, 1e-9)` formula. The bench_runs table
+      landed in this cycle; Task 4 wires the insert + scoring
+      + cost-derivation pipeline. Task 5 (ktx bench report)
+      follows, reading the bench_runs table via `ktx list`-style
+      JSON output + `--format text` rendering of the headline.
+      Task 6 closes M3 with the reproducibility verification
+      log.
+    context:
+      intent: |
+        Land the M3 bench_runs table migration as code so any
+        pre-M3 or fresh database, when opened by the M3 binary,
+        has a bench_runs table with the 10 columns per D12's
+        reproducibility contract (`.agentera/bench/methodology-v1.yaml`).
+        The migration follows the M2 pattern verbatim (CREATE
+        TABLE IF NOT EXISTS inside the migration transaction
+        + ALTER TABLE ADD COLUMN loop gated on PRAGMA table_info)
+        so the schema is idempotent on re-open and forward-fixed
+        on partial schemas. The inspect surface gains two
+        helpers (table-level + column-level probes) and the
+        doctor gains one check that synthesizes the probes
+        into a single per-check status with a clear detail
+        string for each of the three states (full / partial /
+        missing).
+      constraints: |
+        Go stdlib only; pure-Go SQLite (already pinned in
+        go.mod). No new external dependencies. The migration
+        must be idempotent (second Open is a no-op) and
+        forward-fix on partial schemas (some columns missing).
+        Existing tool_calls and sessions rows must be unchanged
+        after the migration. The M2 columns on tool_calls
+        (tokens_in/tokens_out/cost/latency_ms/model/provider)
+        must be untouched by the M3 migration. The new
+        bench_runs table is purely additive — no ALTER on
+        existing tables' column types. Strict scope: only
+        internal/store/store.go, internal/store/inspect.go,
+        internal/cli/doctor.go, .agentera/plan.yaml, and
+        .agentera/progress.yaml are touched. .agentera/decisions.yaml
+        is OFF LIMITS per the DX2 pre-tool gate.
+      unknowns: |
+        - Whether a future migration will want to add more
+          columns to bench_runs (e.g., D11 cost-coverage,
+          scoring version). If so, the benchRunsColumns +
+          benchRunsSchema + ALTER loop pattern extends cleanly
+          with one entry each — the pattern is the
+          single-source-of-truth contract.
+        - Whether a future ktx bench compare command will need
+          a different bench_runs column set (post-M3 scope
+          per the plan). The current schema captures the D12
+          v1 contract; a compare command may want additional
+          columns (e.g., a per-trial row alongside the
+          aggregate row). Out of scope for Task 3.
+        - Whether SQLite's ALTER TABLE ADD COLUMN with a
+          non-PK TEXT `id` works when a partial bench_runs
+          has `id` entirely missing (the pathological case
+          where CREATE TABLE's PRIMARY KEY didn't apply). The
+          realistic forward-fix scenario is "table exists,
+          most columns present", where `id` is always the
+          PK. SQLite silently accepts `ALTER TABLE ADD
+          COLUMN id TEXT` without PK constraint, which is
+          degraded but functional — the user can hand-fix
+          after a warning. Not a blocker for this cycle.
+      scope: |
+        Three Go files (all modified):
+        - internal/store/store.go — schemaStatements gains
+          bench_runs CREATE TABLE; benchRunsColumn struct +
+          benchRunsColumns constant; migrate() gains a
+          second ALTER loop after the M2 loop.
+        - internal/store/inspect.go — benchRunsSchema
+          constant; HasBenchRunsTable() + HasBenchRunsColumns()
+          helpers.
+        - internal/cli/doctor.go — checkBenchRuns function;
+          wired into buildDoctorReport as check 3c.
+
+        Two updated artifacts:
+        - .agentera/plan.yaml — Task 3 status flip (pending
+          → complete).
+        - .agentera/progress.yaml — this cycle 10 entry at
+          the top of the cycles: list.
+
+        No changes to internal/store/persist.go, internal/store/
+        rollup.go, internal/store/session.go, internal/store/
+        prices.go, internal/cli/* other than doctor.go, or any
+        test file. No changes to go.mod or go.sum. No new
+        external dependencies.
   - number: 9
     timestamp: "2026-06-20 09:40"
     type: feat

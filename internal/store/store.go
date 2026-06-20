@@ -1,12 +1,14 @@
 // Package store owns the ktx database: path resolution, ID generation, and
 // the on-disk SQLite schema.
 //
-// The database is a single SQLite file (Decision 6) with two tables
-// (Decision 7): sessions (aggregate, INSERT on open + UPDATE roll-up) and
-// tool_calls (append-only, INSERT only). IDs are 16-char lowercase alpha
-// nanoids (Decision 3). Content hashes are SHA-256 of the output field,
-// stored as a separate column for verification without being the primary key
-// (Decision 3).
+// The database is a single SQLite file (Decision 6) with three tables
+// (Decision 7 + M3 plan Task 3): sessions (aggregate, INSERT on open +
+// UPDATE roll-up), tool_calls (append-only, INSERT only), and bench_runs
+// (M3 benchmark headline store; one row per `ktx bench run` invocation;
+// same nanoid-keyed shape as the other tables). IDs are 16-char lowercase
+// alpha nanoids (Decision 3). Content hashes are SHA-256 of the output
+// field, stored as a separate column for verification without being the
+// primary key (Decision 3).
 //
 // Dependencies are pinned here so the choice is explicit:
 //
@@ -41,10 +43,11 @@ const (
 // sqliteDriver is the registered name of the modernc.org/sqlite driver.
 const sqliteDriver = "sqlite"
 
-// schemaStatements creates the ktx tables per Decision 7. The statements are
-// idempotent (CREATE TABLE IF NOT EXISTS), so Open runs them on every call
-// without a migration framework; a versioned migration layer is YAGNI for
-// the two-table M1/M2 schema.
+// schemaStatements creates the ktx tables per Decision 7 plus the M3
+// bench_runs table (plan Task 3). The statements are idempotent (CREATE
+// TABLE IF NOT EXISTS), so Open runs them on every call without a migration
+// framework; a versioned migration layer is YAGNI for the three-table
+// M1/M2/M3 schema.
 //
 // Column definitions match the task contract exactly: NOT NULL and DEFAULT
 // appear only where Decision 7/9 specify them (session_id, tool_call_count,
@@ -57,6 +60,19 @@ const sqliteDriver = "sqlite"
 // ALTER TABLE step in migrate(). The M2 columns are nullable and have no
 // DEFAULT — NULL is the proper "field absent" marker so cost reconstruction
 // can distinguish "caller did not supply" from "caller supplied zero".
+//
+// The bench_runs table (M3 plan Task 3) stores one row per `ktx bench run`
+// invocation. Columns mirror D12's methodology_version contract
+// (`methodology_version TEXT` references `.agentera/bench/methodology-v1.yaml`)
+// and D11's reconstructability inputs (tokens_in + tokens_out + cost +
+// model). `id TEXT PRIMARY KEY` matches the nanoid-keyed shape used by
+// sessions and tool_calls (D3). `timestamp INTEGER` is Unix epoch
+// seconds (the integer variant matches D12's reproducibility contract:
+// "a third party reading this file plus the persisted `bench_runs` row
+// can compute `cost_per_correct` exactly"). Every column is nullable
+// except `id` — the bench row is the persisted record, not a normalized
+// accounting row; NULL preserves "field not yet supplied by the runner"
+// without coercing zero values.
 var schemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS sessions (
 		id              TEXT PRIMARY KEY,
@@ -81,6 +97,18 @@ var schemaStatements = []string{
 		latency_ms   INTEGER,
 		model        TEXT,
 		provider     TEXT
+	)`,
+	`CREATE TABLE IF NOT EXISTS bench_runs (
+		id                  TEXT PRIMARY KEY,
+		agent               TEXT,
+		model               TEXT,
+		task                TEXT,
+		score               REAL,
+		tokens_in           INTEGER,
+		tokens_out          INTEGER,
+		cost                REAL,
+		methodology_version TEXT,
+		timestamp           INTEGER
 	)`,
 }
 
@@ -112,6 +140,47 @@ var m2Columns = []m2Column{
 	{Name: "latency_ms", Type: "INTEGER"},
 	{Name: "model", Type: "TEXT"},
 	{Name: "provider", Type: "TEXT"},
+}
+
+// benchRunsColumn enumerates a single bench_runs column. The list is the
+// single source of truth for the migration: it drives the columns in the
+// CREATE TABLE statement (above) and the ALTER TABLE ADD COLUMN step in
+// migrate() for pre-M3 databases (or partial bench_runs schemas). Order
+// matches the CREATE TABLE column order so doctor reports missing columns
+// in the order they appear in the schema.
+//
+// `id TEXT PRIMARY KEY` is in this list for completeness — the CREATE
+// TABLE establishes the PRIMARY KEY, and the ALTER loop only adds `id`
+// when a partial bench_runs is missing the column entirely. SQLite's
+// ALTER TABLE ADD COLUMN cannot add a PRIMARY KEY constraint; in that
+// pathological case the added `id TEXT` is a non-PK column, which is
+// degraded but functional. The realistic forward-fix case is "table
+// exists, some non-PK columns missing", where `id` is already present
+// and the ALTER loop skips it.
+type benchRunsColumn struct {
+	Name string
+	Type string
+}
+
+// benchRunsColumns are the bench_runs columns. The list covers all 10
+// columns per D12's reproducibility contract: `id` (D3 nanoid), `agent`,
+// `model`, `task`, `score`, `tokens_in`, `tokens_out`, `cost`,
+// `methodology_version` (the D12 column), `timestamp` (Unix epoch
+// seconds). Idempotency is handled identically to m2Columns — PRAGMA
+// table_info is consulted before ALTER TABLE ADD COLUMN, so a re-open
+// of a fully migrated database is a no-op and a partial bench_runs
+// schema is forward-fixed on the next open.
+var benchRunsColumns = []benchRunsColumn{
+	{Name: "id", Type: "TEXT"},
+	{Name: "agent", Type: "TEXT"},
+	{Name: "model", Type: "TEXT"},
+	{Name: "task", Type: "TEXT"},
+	{Name: "score", Type: "REAL"},
+	{Name: "tokens_in", Type: "INTEGER"},
+	{Name: "tokens_out", Type: "INTEGER"},
+	{Name: "cost", Type: "REAL"},
+	{Name: "methodology_version", Type: "TEXT"},
+	{Name: "timestamp", Type: "INTEGER"},
 }
 
 // DefaultPath resolves the default database path per Decision 8:
@@ -214,6 +283,16 @@ func Open(path string) (*DB, error) {
 // re-open of a fully migrated database is therefore a pure no-op (all
 // PRAGMA checks find the column, no ALTER runs).
 //
+// The bench_runs migration (M3 plan Task 3) follows the same pattern: the
+// CREATE TABLE statement above establishes the 10-column table on a
+// fresh database or a pre-M3 database (no bench_runs at all); the
+// ALTER TABLE ADD COLUMN loop below forward-fixes a partial bench_runs
+// schema on the next open (e.g. a buggy prior migration created the
+// table with only some columns). The M2 and M3 column loops are
+// independent — a pre-M2 database gets the M2 columns added to
+// tool_calls AND gets bench_runs created; a post-M2 pre-M3 database
+// gets bench_runs created with no work on tool_calls.
+//
 // The column-existence check uses PRAGMA table_info inside the migration
 // transaction. PRAGMA table_info is a read query that returns one row per
 // column on the connected schema view; running it inside a transaction is
@@ -243,6 +322,20 @@ func migrate(db *sql.DB) error {
 		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("store: add m2 column %q: %w", col.Name, err)
+		}
+	}
+
+	haveBR, err := tableColumns(tx, "bench_runs")
+	if err != nil {
+		return fmt.Errorf("store: inspect bench_runs: %w", err)
+	}
+	for _, col := range benchRunsColumns {
+		if _, ok := haveBR[col.Name]; ok {
+			continue
+		}
+		stmt := "ALTER TABLE bench_runs ADD COLUMN " + col.Name + " " + col.Type
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("store: add bench_runs column %q: %w", col.Name, err)
 		}
 	}
 

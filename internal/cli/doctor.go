@@ -1,6 +1,7 @@
 // `ktx doctor` — read-only health check for the ktx installation (Decision 2,
-// Task 8; extended by Task 2 for the M2 schema migration). It verifies the
-// properties that block every other ktx command:
+// Task 8; extended by Task 2 for the M2 schema migration; extended by M3
+// plan Task 3 for the bench_runs table). It verifies the properties that
+// block every other ktx command:
 //
 //  1. The database file exists at the resolved path.
 //  2. The database is openable (sqlite3 file is valid; not a directory,
@@ -12,7 +13,13 @@
 //     Soft requirement — a missing M2 column is a warning because the
 //     system still functions; M1 records load, M2 fields stay NULL on
 //     insert. The next ktx invocation applies the in-place migration.
-//  5. The ID format is valid: sampled IDs from the database match the
+//  5. The `bench_runs` table exists with all 10 expected columns (M3
+//     plan Task 3). Soft requirement — a missing or partial `bench_runs`
+//     is a warning because the system still functions; M1/M2 records
+//     are queryable, M3 `ktx bench run` is the only feature that
+//     requires the table. The next ktx invocation applies the in-place
+//     CREATE / ALTER migration.
+//  6. The ID format is valid: sampled IDs from the database match the
 //     Decision 3 shape (16-char lowercase alpha).
 //
 // Doctor is read-only. It does not create the database if it is missing —
@@ -292,6 +299,23 @@ func buildDoctorReport() *doctorReport {
 		}
 	}
 
+	// Check 3c: bench_runs table + columns (M3 plan Task 3). Soft
+	// requirement — a missing bench_runs table means the database is
+	// pre-M3, not that the system is broken. M1/M2 records are still
+	// queryable; only `ktx bench run` requires the table. Status:
+	// "ok" on migrated DB or fresh DB (all 10 columns present);
+	// "warning" on pre-M3 DB (table absent) or partial bench_runs
+	// (some columns missing — forward-fix on next open).
+	if brCheck := checkBenchRuns(db); brCheck.Status == doctorStatusError {
+		report.Checks = append(report.Checks, brCheck)
+		report.Status = doctorStatusError
+	} else {
+		report.Checks = append(report.Checks, brCheck)
+		if brCheck.Status == doctorStatusWarning && report.Status != doctorStatusError {
+			report.Status = doctorStatusDegraded
+		}
+	}
+
 	// Check 4: ID format. Sample up to doctorSampleLimit IDs from each
 	// table and validate against Decision 3's regex. An empty database
 	// passes vacuously (no IDs to check); a database with malformed
@@ -345,6 +369,66 @@ func checkM2Columns(db *store.DB) doctorCheck {
 		Name:   "m2_columns",
 		Status: doctorStatusWarning,
 		Detail: fmt.Sprintf("missing M2 columns on tool_calls: %s (M1 records still queryable; M2 fields will be NULL on insert — run any ktx command to apply the migration)", strings.Join(missing, ", ")),
+	}
+}
+
+// checkBenchRuns probes the bench_runs table and its columns (M3 plan
+// Task 3) via HasBenchRunsTable + HasBenchRunsColumns. Returns:
+//
+//   - "ok" with detail "all bench_runs columns present: id, agent,
+//     model, task, score, tokens_in, tokens_out, cost,
+//     methodology_version, timestamp" when the table exists and every
+//     expected column is present (post-migration or fresh DB).
+//   - "warning" with detail naming the absent columns when the table
+//     exists but some columns are missing (partial bench_runs — the
+//     migration forward-fixes on next open).
+//   - "warning" with detail noting the missing table when the table is
+//     absent entirely (pre-M3 DB). M1/M2 records are still queryable;
+//     `ktx bench run` is the only feature that requires the table, and
+//     the migration creates it on next open.
+//   - "error" only when the underlying sqlite_master / table_info
+//     queries fail (a corrupt schema view — a separate problem from a
+//     missing or partial bench_runs).
+//
+// The two-step probe (table then columns) lets the detail message
+// distinguish "table missing entirely — pre-M3" from "table present
+// but partial — forward-fix" — they have different remediation paths
+// even though both surface as warnings.
+func checkBenchRuns(db *store.DB) doctorCheck {
+	hasTable, err := db.HasBenchRunsTable()
+	if err != nil {
+		return doctorCheck{
+			Name:   "bench_runs_table",
+			Status: doctorStatusError,
+			Detail: fmt.Sprintf("%v", err),
+		}
+	}
+	if !hasTable {
+		return doctorCheck{
+			Name:   "bench_runs_table",
+			Status: doctorStatusWarning,
+			Detail: "bench_runs table is missing (pre-M3 database; M1/M2 records still queryable — run any ktx command to apply the migration)",
+		}
+	}
+	missing, err := db.HasBenchRunsColumns()
+	if err != nil {
+		return doctorCheck{
+			Name:   "bench_runs_table",
+			Status: doctorStatusError,
+			Detail: fmt.Sprintf("%v", err),
+		}
+	}
+	if len(missing) > 0 {
+		return doctorCheck{
+			Name:   "bench_runs_table",
+			Status: doctorStatusWarning,
+			Detail: fmt.Sprintf("partial bench_runs schema; missing columns: %s (forward-fixed on next open)", strings.Join(missing, ", ")),
+		}
+	}
+	return doctorCheck{
+		Name:   "bench_runs_table",
+		Status: doctorStatusOK,
+		Detail: "all bench_runs columns present: id, agent, model, task, score, tokens_in, tokens_out, cost, methodology_version, timestamp",
 	}
 }
 
@@ -440,6 +524,7 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "  - the database is openable")
 	fmt.Fprintln(w, "  - the M1 schema matches Decision 7 (sessions + tool_calls tables, hard requirement)")
 	fmt.Fprintln(w, "  - the M2 cost-publication columns are present on tool_calls (soft requirement: warning if missing)")
+	fmt.Fprintln(w, "  - the M3 bench_runs table is present with all 10 columns (soft requirement: warning if missing or partial)")
 	fmt.Fprintln(w, "  - sampled IDs match Decision 3 (16-char lowercase alpha)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
@@ -449,7 +534,8 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "Status values:")
 	fmt.Fprintln(w, "  ok        all checks passed")
 	fmt.Fprintln(w, "  degraded  one or more checks are warnings (e.g. M2 columns missing on a")
-	fmt.Fprintln(w, "            pre-M2 database); the system still works")
+	fmt.Fprintln(w, "            pre-M2 database, or bench_runs missing on a pre-M3 database);")
+	fmt.Fprintln(w, "            the system still works")
 	fmt.Fprintln(w, "  error     one or more checks failed; the system cannot continue")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")

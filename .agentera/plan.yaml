@@ -45,7 +45,7 @@ tasks:
   - number: 1
     name: "Resonera — benchmark methodology (D12)"
     depends_on: []
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN the open deliberation 'Benchmark methodology v1' in ARCHITECTURE.md WHEN a resonera session records the choice THEN a new decision entry in `.agentera/decisions.yaml` documents: (a) task shape — identifier, prompt, ground-truth location, single-task minimum for v1; (b) scoring v1 — exact match against a known good output (boring default, deterministic); (c) trial count — N≥1 with methodology-documented handling of non-determinism; (d) methodology versioning — a version string on every `bench_runs` row; (e) `bench report` artifact shape — JSON default with `--format text` rendering the headline number and methodology reference"
       - "GIVEN the decision WHEN recorded THEN ARCHITECTURE.md 'Measurement and benchmark' open-deliberation item 'Benchmark methodology v1' moves to Decided with a short paragraph citing D12"

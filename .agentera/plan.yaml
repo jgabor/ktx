@@ -55,7 +55,7 @@ tasks:
   - number: 2
     name: "D11 implementation — price cache and cost derivation"
     depends_on: []
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN a cold cache (no `$XDG_DATA_HOME/ktx/prices.json`) WHEN ktx needs a price and is invoked THEN ktx GETs https://models.dev, parses the JSON, writes the cache file keyed by `(provider, model)` with input/output USD-per-million-token rates; the parent directory (`$XDG_DATA_HOME/ktx/`) is created if missing"
       - "GIVEN the cache file already exists and is non-empty WHEN ktx needs a price THEN ktx reads the cache and does not refetch; the cache file's content and mtime are preserved (idempotent cache write — second invocation on a warm cache is a no-op on disk)"

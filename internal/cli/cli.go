@@ -57,6 +57,7 @@ var commands = []command{
 	{name: "list", description: "list sessions (formatted)", run: runList},
 	{name: "init", description: "install a runtime adapter", run: runInit},
 	{name: "db", description: "database operations (path, prune)", run: runDB},
+	{name: "prices", description: "price cache operations (update)", run: runPrices},
 	{name: "doctor", description: "check ktx health", run: runDoctor},
 }
 

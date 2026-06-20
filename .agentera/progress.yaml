@@ -1,4 +1,86 @@
 cycles:
+- number: 13
+  timestamp: 2026-06-20 13:15
+  type: docs
+  phase: audit
+  what: "M3 acceptance verification log landed at `.agentera/verification/m3-acceptance.md`.\
+    \ All 7 ACs PASS; M2 regression preserved; reproducibility proven (two independent\
+    \ `ktx bench run` invocations \u2192 same headline 0.000825 USD/correct); offline\
+    \ cost derivation works against a pre-seeded cache; pre-M3 migration self-heals\
+    \ (bench_runs table created on first M3-binary open with all 10 D12 columns in\
+    \ order, M1/M2 records intact)."
+  discovered: "PX3 advisory (cycle 11/12) is in force; this entry\n  is one-line archive\
+    \ form because Task 6 is verification\n  + documentation, not a code-landing cycle.\
+    \ The full\n  walk-through lives in the verification log itself.\n\n  M2 wrapper\
+    \ extraction gap (OpenCode 1.17.8 emits M2\n  fields on step_finish, not tool_use)\
+    \ is preserved as\n  a non-regression \u2014 the M3 bench run path''s custom\n\
+    \  fixture carries M2 fields in tool_use state.metadata\n  so the wrapper extracts\
+    \ them; for real OpenCode\n  1.17.8 runs, D11 derivation still fills cost from\
+    \ the\n  cache when tokens + model are present in\n  SummarizeBenchToolCalls.\
+    \ No product code change.\n\n  DX2 advisory (decisions.yaml > 10) is unchanged\
+    \ at 12\n  entries \u2014 Task 6 does not modify decisions.yaml per\n  the pre-tool\
+    \ gate.\n"
+  verified: "Cycle date: 2026-06-20.\n\nFiles touched:\n- .agentera/verification/m3-acceptance.md\
+    \ \u2014 new file,\n  the M3 acceptance verification log (mirrors M2 log\n  structure:\
+    \ Build / M2 Regression / bench-runs populates\n  / reproducibility / offline\
+    \ derivation / bench report\n  rendering / NULL-cost soft-fail / pre-M3 migration\
+    \ /\n  ROADMAP.md M3 acceptance / FIXES APPLIED /\n  VERIFICATION SUMMARY).\n\
+    - .agentera/plan.yaml \u2014 Task 6 status flip (pending \u2192\n  complete),\
+    \ the realisera self-flip convention.\n- .agentera/progress.yaml \u2014 this cycle\
+    \ 13 entry at the\n  top of the cycles: list.\n\nNo changes to product code, no\
+    \ changes to\n.agentera/decisions.yaml, no changes to\n.agentera/bench/methodology-v1.yaml,\
+    \ no changes to\ngo.mod / go.sum. The verification harness (fake\n`opencode` binary\
+    \ on PATH, bench-fixture.jsonl,\npre-seeded price cache, /tmp/ktx-verify/verifier)\
+    \ is\n/tmp-only.\n\nBuild: go build -buildvcs=false -o /tmp/ktx-m3-acceptance\n\
+    \       ./cmd/ktx OK (exit 0).\nVet:   go vet -buildvcs=false ./... OK (exit 0).\n\
+    \nAcceptance walk-through for plan.yaml Task 6''s 7 ACs:\n\nAC1 (two independent\
+    \ bench run invocations \u2192 same\nheadline): PASS \u2014 RUN #1 headline =\
+    \ 0.000825;\nRUN #2 headline = 0.000825. Identical to six decimals.\n\nAC2 (M2\
+    \ regression preserved): PASS \u2014 all 11 steps\nfrom `.agentera/verification/m2-acceptance.md`\
+    \ re-run\nagainst the M3 binary on fresh DBs. M1 contracts\npreserved; M2 surface\
+    \ additive; M3 surface additive.\n\nAC3 (offline cost derivation): PASS \u2014\
+    \ pre-seeded\n$XDG_DATA_HOME/ktx/prices.json with 101-byte cache\ncontaining only\
+    \ the methodology-pinned entry.\nbench_runs.cost = 0.000825 USD; cache mtime +\
+    \ md5\npreserved (idempotent warm-cache contract).\n\nAC4 (bench run populates\
+    \ bench_runs): PASS \u2014 real\nbench run produces a row with non-NULL tokens_in=150,\n\
+    tokens_out=25, model=claude-sonnet-4-20250514,\ncost=0.000825, methodology_version=v1.\
+    \ All 10 D12\ncolumns populated.\n\nAC5 (pre-M3 database migration): PASS \u2014\
+    \ pre-M3 DB\nbuilt with M2 baseline at cb2859a (no bench_runs).\nM3 binary''s\
+    \ store.Open applies migration on first\nopen (bench_runs created with all 10\
+    \ columns);\nM1/M2 records intact; idempotent; `ktx bench run`\ncompletes transparently\
+    \ on a pre-M3 DB. The warning\npath is observable via the verifier before first\n\
+    M3-binary touch.\n\nAC6 (bench report headline rendering): PASS \u2014 JSON\n\
+    default and --format text both surface methodology\nreference (v1) and headline\
+    \ (0.000825 USD/correct).\nFive modes exercised: list JSON, list text,\nsingle-row\
+    \ JSON, single-row text, --methodology\nfilter. Not-found: exit 2.\n\nAC7 (ROADMAP.md\
+    \ M3 acceptance): PASS \u2014 ROADMAP.md\nM3 acceptance (''the number is reproducible\
+    \ from the\npublished methodology'') is satisfied. Headline\n0.000825 USD/correct\
+    \ for the methodology-pinned\n(opencode, claude-sonnet-4-20250514, addition_v1)\n\
+    triple; reproducible across two independent\ninvocations against the same inputs.\n"
+  next: "M3 close. All 7 ACs PASS; M2 regression preserved;\n  no product code changes.\
+    \ The verification log is\n  the auditable record of the M3 milestone''s proof\n\
+    \  against ROADMAP.md. M4 (Reversible compression) is\n  the next milestone; pre-M4\
+    \ work is M1 acceptance\n  log step 10 payload-drift fix (cosmetic, tracked\n\
+    \  in M2 Surprises \xA71) and D11 `kTX` typo in\n  decisions.yaml (cosmetic, tracked\
+    \ in M3 plan\n  scope.deferred).\n"
+  context:
+    intent: "Close M3 by writing the acceptance verification\n  log against the committed\
+      \ M3 binary (HEAD ab28258).\n  The log is the artifact that disputes or proves\
+      \ the\n  vision''s cost contract (''meter, budget, dispute it'')\n  for the\
+      \ cost-per-correct dimension. Reproducibility\n  (AC1) and offline derivation\
+      \ (AC3) prove the headline\n  outlives the runtime; the pre-M3 migration (AC5)\n\
+      \  proves M3 is additive, not breaking.\n"
+    constraints: "No product code changes (Task 6 is\n  verification + documentation\
+      \ only). No new external\n  deps. No unit tests. Strict scope: NO reads outside\n\
+      \  ~/git/ktx. Do NOT touch\n  .agentera/decisions.yaml (DX2 pre-tool\
+      \ gate).\n  Do NOT touch .agentera/bench/methodology-v1.yaml\n  (D12 reproducibility\
+      \ contract; Task 4 placeholder\n  pins are the final v1 shape).\n"
+    unknowns: "None for Task 6 close. Carry-forward\n  items (cosmetic): M1 acceptance\
+      \ log step 10\n  payload drift fix, D11 kTX typo. Both out of M3\n  scope; tracked\
+      \ as documentation follow-ups.\n"
+    scope: "One new file (.agentera/verification/\n  m3-acceptance.md) + two updated\
+      \ YAML files\n  (.agentera/plan.yaml status flip, .agentera/\n  progress.yaml\
+      \ cycle 13 entry). No source code\n  changes.\n"
 - number: 12
   timestamp: 2026-06-20 13:05
   type: feat
@@ -2145,159 +2227,8 @@ cycles:
       (Tasks 2 and 3 already landed those).
 
       '
-- number: 2
-  timestamp: 2026-06-19 14:30
-  type: feat
-  phase: build
-  what: 'ToolCall struct gains pointer types (*int64 / *float64 / *string)
-
-    on the six M2 cost-publication fields. PersistToolCall writes
-
-    those columns alongside the eight M1 columns; GetToolCall reads
-
-    them via sql.NullInt64 / sql.NullFloat64 / sql.NullString and
-
-    re-allocates pointers only when Valid. A nil pointer round-trips
-
-    to SQL NULL and JSON null; a non-nil pointer to 0 round-trips
-
-    to SQL 0 and JSON 0. JSON tags drop omitempty so absent M2 fields
-
-    surface as null rather than being dropped from the output object.
-
-    '
-  inspiration: "Plan task 3 in .agentera/plan.yaml. Task 2 landed the M2 columns\n\
-    in the schema; the missing piece was the persistence/read side\n(PersistToolCall\
-    \ wrote 8 columns; GetToolCall read 8 columns; the\nToolCall struct used omitempty\
-    \ on the M2 fields). The plan's\n\"design risk\" note already accepted that distinguishing\
-    \ 'absent'\nfrom 'set to zero' requires a struct-shape change to pointer types\n\
-    \u2014 that's the documented plan choice, not a deviation.\n"
-  discovered: "database/sql passes a typed nil pointer (*int64)(nil) as NULL\nto modernc.org/sqlite,\
-    \ so the PersistToolCall INSERT can hand\nthe pointer field straight to Exec \u2014\
-    \ no sql.NullInt64 wrapper\nis needed on the write side. The Scan side does need\
-    \ the\nsql.Null intermediates (a *int64 destination cannot express\n\"column was\
-    \ NULL\"; you'd have to declare a separate sentinel).\nThe two round-trips compose\
-    \ correctly: write a nil pointer \u2192\nNULL in SQLite; read NULL \u2192 nil\
-    \ pointer on the Go side; marshal\nnil pointer \u2192 JSON null; unmarshal JSON\
-    \ null \u2192 nil pointer.\nNo coercion anywhere, no surprise 0-for-null substitutions.\n"
-  verified: "Cycle date: 2026-06-19.\n\nFiles touched:\n- internal/store/persist.go\
-    \ \u2014 ToolCall struct: M2 fields\n  changed from non-pointer to *int64/*float64/*string\
-    \ with\n  omitempty removed. PersistToolCall: INSERT extended to all\n  14 columns\
-    \ (8 M1 + 6 M2) with the M2 values passed as the\n  pointer fields directly. GetToolCall:\
-    \ SELECT extended to\n  all 14 columns, scanned into sql.Null* intermediates,\
-    \ then\n  re-allocated to pointer fields only when Valid. Doc comments\n  updated\
-    \ to describe the round-trip contract.\n\nAcceptance criteria (Plan task 3 \u2014\
-    \ 5/5 PASS):\n- AC1 (M2 fields set \u2192 non-NULL columns): PASS.\n  Sidecar\
-    \ write with tokens_in=1234, tokens_out=567,\n  cost=0.0123, latency_ms=420, model=\"\
-    claude-sonnet-4\",\n  provider=\"anthropic\". ktx read emits all six fields with\n\
-    \  values; raw SQLite inspection confirms all six columns\n  are non-NULL with\
-    \ the supplied values.\n- AC2 (no M2 fields \u2192 NULL columns): PASS.\n  Sidecar\
-    \ write without any M2 field. ktx read emits\n  \"tokens_in\":null,...\"provider\"\
-    :null (all six as JSON\n  null); raw SQLite inspection confirms all six columns\
-    \ are\n  Python None (SQL NULL), not 0 / not \"\".\n- AC3 (explicit 0 \u2192 0,\
-    \ not NULL): PASS \u2014 the highest-risk\n  absent-vs-zero distinction. Sidecar\
-    \ write with\n  tokens_in=0, tokens_out=0, cost=0.0, latency_ms=0,\n  model=\"\
-    \", provider=\"\" (all six explicitly zero / empty).\n  Raw SQLite inspection:\
-    \ ('ac3zerosabcdefgh', 0, 0, 0.0, 0,\n  '', '') \u2014 all six columns non-NULL\
-    \ with the supplied\n  values; ktx read emits \"tokens_in\":0,...\"provider\"\
-    :\"\"\n  (all six as their supplied values, NOT as null). The\n  round-trip ktx\
-    \ read \u2192 ktx write preserves the same shape\n  on both sides.\n- AC4 (ktx\
-    \ read / ktx get JSON shows M2 fields): PASS.\n  ktx read and ktx get (JSON default)\
-    \ emit M2 fields with\n  the supplied value when present, with null when absent.\n\
-    \  The two commands share the same json.NewEncoder.Encode\n  path on a *store.ToolCall;\
-    \ both produce the same JSON.\n- AC5 (ktx get --format text \u2014 no M2 section\
-    \ on NULL fields):\n  PASS. printGetText remains M1-shaped (no M2 fields shown\n\
-    \  at all). For NULL rows there is no M2 section; for rows\n  with values there\
-    \ is also no M2 section (Task 5 scope,\n  per plan). The plan task 3 acceptance\
-    \ criterion is the\n  silent-absence case, satisfied; Task 5 will add the\n  conditional\
-    \ M2 section for non-NULL fields.\n\nBuild: go build -buildvcs=false -o /tmp/ktx\
-    \ ./cmd/ktx OK;\n       go vet    -buildvcs=false ./... OK.\n\nNo new external\
-    \ dependencies. Pure-Go SQLite via the existing\nmodernc.org/sqlite driver. Pointer\
-    \ types on the Go struct are\nstdlib only.\n\nNo regressions to M1. Re-ran a focused\
-    \ subset of\n.agentera/verification/m1-acceptance.md (steps 1, 2, 3, 4,\n5, 6,\
-    \ 7, 8, 9) on a fresh database: every M1 behaviour\npreserved. The only difference\
-    \ from the M1 verification log\nis that step 7 (ktx read <tool-call-id>) now also\
-    \ emits the\nsix M2 fields as JSON null \u2014 additive behaviour, not a\nregression.\
-    \ ktx doctor on a healthy DB reports \"ok\" with\nthe new m2_columns check passing;\
-    \ ktx run with a mock\nagent still persists tool_calls with M2 fields as null\n\
-    (the run.go buildToolCall does not yet extract M2 fields\nfrom OpenCode events\
-    \ \u2014 that's Task 4).\n\nFive-AC scenario walk-through:\n1. AC1 \u2014 PASS\
-    \ (see above).\n2. AC2 \u2014 PASS (see above).\n3. AC3 \u2014 PASS (see above);\
-    \ exact JSON bytes from ktx read\n   for the tokens_in=0 case:\n   {\"id\":\"\
-    ac3zerosabcdefgh\",...\"tokens_in\":0,\n    \"tokens_out\":0,\"cost\":0,\"latency_ms\"\
-    :0,\n    \"model\":\"\",\"provider\":\"\"}\n4. AC4 \u2014 PASS; round-trip (ktx\
-    \ read output piped through\n   ktx write with a fresh id) preserves M2 fields\
-    \ on both\n   passes \u2014 values stay values, nulls stay nulls.\n5. AC5 \u2014\
-    \ PASS; ktx get --format text emits M1 fields only;\n   no M2 section is rendered\
-    \ for either NULL or non-NULL\n   M2 fields (Task 5 will gate the section on non-NULL).\n"
-  next: 'Tasks 4-6 remain pending: ktx run extracts M2 fields from
-
-    OpenCode events (Task 4), ktx get/ktx list surface M2
-
-    fields in text format (Task 5), and end-to-end M2 acceptance
-
-    verification (Task 6). Task 3''s persistence layer is the
-
-    foundation; Task 4 will populate the pointer fields from
-
-    OpenCode event payloads, Task 5 will render the conditional
-
-    M2 section in printGetText and the rollup columns in
-
-    printListText, Task 6 will re-run the M1 verification log
-
-    end-to-end and write the M2 acceptance log.
-
-    '
-  context:
-    intent: 'Land the M2 persistence side so any tool_call written via
-
-      ktx write carries its M2 columns through to the database
-
-      and back out through ktx read / ktx get without losing the
-
-      absent-vs-zero distinction. Task 2 made the columns exist;
-
-      Task 3 makes them populated.
-
-      '
-    constraints: 'No new external dependencies; pure-Go SQLite
-
-      (modernc.org/sqlite, already vendored). Pointer types on
-
-      the ToolCall struct for M2 fields per the plan''s documented
-
-      design choice. JSON tags drop omitempty so absent M2 fields
-
-      surface as null in the output. No payload-shape change in
-
-      the input JSON (D9). ktx read stays raw JSON (mechanical
-
-      I/O, no --format). ktx get --format text remains M1-shaped
-
-      in Task 3; the conditional M2 section is Task 5 scope.
-
-      '
-    unknowns: "none \u2014 the implementation path was fully constrained by\nPlan\
-      \ Task 3's acceptance criteria and the plan's documented\n\"pointer types on\
-      \ the struct\" design risk note.\n"
-    scope: 'One Go file: internal/store/persist.go. Doc comments updated
-
-      to describe the new pointer-based round-trip contract. No
-
-      changes to the schema DDL (Task 2 already landed that), to
-
-      the CLI dispatch (D9 / D2 stay raw-JSON for write/read;
-
-      printGetText stays M1-shaped), to the wrapper (run.go
-
-      buildToolCall produces a ToolCall with nil M2 pointers
-
-      which round-trip correctly), or to ktx init / ktx db /
-
-      ktx doctor (no M2 surface needed).
-
-      '
 archive:
+- summary: 'Cycle 2 (2026-06-19): ToolCall struct gains pointer types (*int64 / *float64
+    / *string) on the six M2 cost-publication...'
 - summary: 'Cycle 1 (2026-06-19): In-place ALTER TABLE migration on tool_calls adding
     six M2 cost-publication columns (tokens_in INTEGER, tokens_out INTEGER,...'

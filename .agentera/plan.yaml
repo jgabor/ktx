@@ -104,7 +104,7 @@ tasks:
   - number: 6
     name: "M3 acceptance verification"
     depends_on: ["1", "2", "3", "4", "5"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN the full M3 implementation WHEN two independent `ktx bench run <agent> <model> <task>` invocations on the same inputs run to completion THEN both produce the same headline number (within methodology-acknowledged non-determinism, which is zero for deterministic agents and exact-match scoring)"
       - "GIVEN the M2 acceptance verification (`.agentera/verification/m2-acceptance.md`) WHEN re-run with the M3 binary THEN all M2 cases still pass (regression check — M3 is additive, not breaking)"

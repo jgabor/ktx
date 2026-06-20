@@ -1,4 +1,251 @@
 cycles:
+  - number: 8
+    timestamp: "2026-06-19 18:55"
+    type: docs
+    phase: build
+    what: |
+      The resonera session closed M3 plan Task 1 by recording Decision
+      12 in `.agentera/decisions.yaml` as the 12th active decision
+      (`confidence: firm`; depends_on D2, D7, D9, D11). D12 commits to
+      eight concrete streams: (a) task shape - identifier + prompt +
+      expected_output colocated, single-task v1; (b) scoring v1 -
+      exact_match against expected_output, score in {0.0, 1.0}; (c)
+      trial count - N=1 with documented temperature>0 non-determinism
+      limitation; (d) methodology versioning - `methodology_version:
+      'v1'` on every `bench_runs` row; (e) `bench report` artifact
+      shape - JSON default + `--format text`, top-level `headline`
+      (number) + `rows` array, `--methodology <version>` filter; (f)
+      methodology file path - `.agentera/bench/methodology-v1.yaml`,
+      committed, offline-readable; (g) reproducibility contract -
+      agent, model, task, scoring, trials, ktx, bench_runs row_id;
+      (h) headline formula - `cost_per_correct = cost_USD /
+      max(score, 1.0e-9)` USD, six decimals (the `cost * (1 - score)`
+      alternative was considered and rejected). Out-of-scope:
+      statistical significance / CIs, `ktx bench compare` (post-M3),
+      compression impact (M4), cache TTL/auto-refresh (D11 deferral),
+      second scoring function.
+    discovered: |
+      D12 commits to exact-match scoring v1, single-trial, methodology
+      versioning, JSON-default + `--format text` `bench report`,
+      methodology file at `.agentera/bench/methodology-v1.yaml`.
+      Headline: `cost_per_correct = cost_USD / max(score, 1e-9)` USD.
+      Active decisions count is 12 (DX2 advisory > 10); matched the
+      team's tolerant pattern from the recent fix-up cycle rather than
+      introducing an archive section. Future-resonera compactor is a
+      small follow-up.
+      M3 plan tasks 2-6 unblocked per dependency graph; next: Task 2
+      (D11 implementation - price cache + cost derivation).
+    verified: |
+      Cycle date: 2026-06-19.
+
+      Files touched in this cycle (the progress entry itself):
+      - .agentera/progress.yaml - this cycle 8 entry (top of the
+        cycles: list).
+
+      Files touched by the resonera commit 6ae3d7e (the deliverable
+      this cycle records):
+      - .agentera/decisions.yaml - D12 entry added as the 12th active
+        decision (confidence: firm). The entry's `alternatives` block
+        enumerates four candidates (Exact-match scoring v1 with
+        committed methodology file - chosen; Flexible ML-judge scoring
+        with inline-only methodology - rejected on three grounds:
+        non-determinism at scoring layer, external service dependency
+        violating local-first, violates 'boring before clever';
+        Multi-trial v1 with median aggregation - rejected because
+        temperature>0 runs are not bit-reproducible and a multi-trial
+        methodology would need a CI/p-value to be citable, which is
+        post-M3 work; External methodology reference - rejected:
+        drifts, requires network access, violates the local-first
+        quality attribute). The entry's `depends_on` cites D2, D7,
+        D9, D11. The `feeds_into` field reads "M3 plan tasks 2-6
+        (price cache, bench_runs migration, bench run, bench report,
+        M3 acceptance verification), bench_runs.methodology_version
+        schema, M4 compression impact on bench". The entry's
+        `out_of_scope` lists: statistical significance / CIs,
+        `ktx bench compare` (post-M3), compression impact on bench
+        (M4), cache TTL/auto-refresh (D11 deferral), second scoring
+        function.
+
+      - .agentera/bench/methodology-v1.yaml (new, 91 lines) - the
+        reproducibility contract. Line 1: `methodology_version: "v1"`.
+        The `scoring` block on lines 37-40 reads:
+          scoring:
+            function: exact_match
+            version: "v1"
+            epsilon: 1.0e-9
+        The `inputs` section (lines 26-53) enumerates the seven
+        reproducibility input categories with explicit field names:
+        `agent` (binary: opencode, version: "1.17.8" - the OpenCode
+        1.17.8 that m2-acceptance.md AC1 captured), `model` (id and
+        provider - placeholders), `task` (identifier, prompt,
+        expected_output - placeholders), `scoring`
+        (function/version/epsilon), `trials` (n=1 with
+        non_determinism_handling prose documenting the temperature>0
+        limitation), `ktx` (binary_version and commit - placeholders
+        for M3 close), `bench_runs` (row_id - placeholder for the
+        real run). M3 task 4 pins the real values by filling the
+        placeholders; v1 ships the shape contract. The `computation`
+        block (lines 61-65) states the headline formula verbatim:
+        `cost_per_correct = cost_USD / max(score, 1.0e-9)`. The
+        `out_of_scope` block (lines 86-90) mirrors the D12 entry's
+        deferral list.
+
+      - ARCHITECTURE.md - new `### Benchmark methodology (Decision
+        12)` heading at line 209 with a single-paragraph Decided
+        entry. The Measurement-and-benchmark section's open-
+        deliberation item "Benchmark methodology v1" (line 260)
+        flipped from `[ ]` to `[x]` with a Decided annotation citing
+        D12. The single-paragraph form follows the M2 review's
+        pattern (the M2 review flagged D11 for the same internal-
+        section-breaks issue; the fix-up cycle 6 documented this
+        pattern).
+
+      Build/vet: `go build ./...` exit 0 (no output); `go vet ./...`
+      exit 0 (no output). No Go files were touched by this cycle or
+      by the resonera commit 6ae3d7e that this cycle records -
+      `git show --stat 6ae3d7e` confirms three files (the two above
+      plus ARCHITECTURE.md).
+
+      Acceptance walk-through for Plan Task 1's 5 ACs:
+
+      AC1 (D12 recorded with all five streams a-e): PASS. The D12
+      entry's `choice` block explicitly enumerates (a) task shape -
+      identifier + prompt + expected_output colocated, single-task
+      minimum for v1; (b) scoring v1 - exact_match against
+      expected_output, score in {0.0, 1.0}; (c) trial count - N=1,
+      single trial's score is the headline numerator, documented
+      temperature>0 non-determinism limitation; (d) methodology
+      versioning - `methodology_version: 'v1'` on every bench_runs
+      row; (e) `bench report` artifact shape - JSON default +
+      `--format text`, top-level `headline` (number) + `rows` array,
+      `--methodology <version>` filter recomputes the headline on
+      the filtered set. All five streams present in the decision
+      entry.
+
+      AC2 (ARCHITECTURE.md "Measurement and benchmark" item moves
+      to Decided): PASS. ARCHITECTURE.md line 260 reads: `- [x]
+      Benchmark methodology v1: agent, model, task, ground truth,
+      scoring, and published artifact shape. **Decided**: exact-
+      match scoring, single-trial (N=1), single-task, methodology
+      file at `.agentera/bench/methodology-v1.yaml`, headline
+      `cost_per_correct = cost / max(score, 1e-9)` USD; `ktx bench
+      report` JSON default + `--format text`. See Decision 12.` The
+      single-paragraph Decided entry at line 209 documents the
+      methodology in one block with no internal section breaks,
+      matching the M2 review fix-up pattern.
+
+      AC3 (methodology file at `.agentera/bench/methodology-v1.yaml`
+      exists, third party can read and follow): PASS. The file is
+      91 lines, committed to the repo (HEAD), and contains the
+      headline formula verbatim, the seven input categories (agent,
+      model, task, scoring, trials, ktx, bench_runs) with explicit
+      field names, and the `out_of_scope` block. A third party with
+      the repo + the persisted `bench_runs` row + the persisted
+      `tool_calls` rows can compute `cost_per_correct` exactly
+      without contacting anything (local-first quality attribute
+      preserved, no network access required).
+
+      AC4 (`confidence: firm`, `feeds_into` lists schema migration +
+      ktx bench run + ktx bench report + M4 compression impact):
+      PASS. The D12 entry's `confidence` field reads `firm`. The
+      `feeds_into` field reads: "M3 plan tasks 2-6 (price cache,
+      bench_runs migration, bench run, bench report, M3 acceptance
+      verification), bench_runs.methodology_version schema, M4
+      compression impact on bench" - all four required categories
+      present (schema migration = plan task 3, ktx bench run = plan
+      task 4, ktx bench report = plan task 5, M4 compression impact
+      on bench = the M4 deferral).
+
+      AC5 (methodology file enumerates every input that produced the
+      headline): PASS. The `inputs` block in
+      `.agentera/bench/methodology-v1.yaml` enumerates all seven
+      categories with explicit field names: `agent` (binary,
+      version), `model` (id, provider), `task` (identifier, prompt,
+      expected_output), `scoring` (function, version, epsilon),
+      `trials` (n, non_determinism_handling prose), `ktx`
+      (binary_version, commit), `bench_runs` (row_id). Direct quotes
+      from the file:
+        - Line 1: `methodology_version: "v1"`
+        - Line 38: `function: exact_match`
+        - Lines 39-40: `version: "v1"` and `epsilon: 1.0e-9`
+        - Line 42: `n: 1`
+        - Line 62: `cost_per_correct = cost_USD / max(score, 1.0e-9)`
+      The file's preamble binds the file to the published headline:
+      "a third party reading this file plus the persisted
+      `bench_runs` row and the persisted `tool_calls` rows can
+      compute `cost_per_correct` exactly." Placeholders are
+      explicit: lines 31-32 (model.id, model.provider), lines 34-36
+      (task identifier/prompt/expected_output), lines 50-53 (ktx
+      binary_version/commit, bench_runs.row_id) - to be pinned by
+      M3 task 4 and at M3 close.
+
+      Cycle-8 active-section size advisory: the progress.yaml schema
+      (PX2) caps full-detail entries at 10; cycles 11 through 50
+      move to one-line archive form (PX3). The decisions.yaml DX2
+      schema rule is similar - keep the 10 most recent in full
+      detail, archive the rest. Active decisions count is currently
+      12 (D1-D12), one above the advisory threshold. The team's
+      recent M2 fix-up cycle addressed a similar size drift in
+      decisions.yaml by adopting a tolerated pattern (no archive
+      section introduced) rather than backfilling compactions;
+      cycle 8 follows the same pattern. A future-resonera compactor
+      session is the small follow-up to formalize an archive section
+      if/when the active count crosses 15. For cycle 8 the active
+      count remains 12 and the progress.yaml PV3 rule
+      (compaction_thresholds) is warning-severity only - no block
+      on writing this entry.
+
+      No regressions to M1 or M2: this cycle made no code changes
+      (no internal/, no cmd/, no go.mod, no go.sum). The resonera
+      commit 6ae3d7e added one new YAML file (the methodology), one
+      new D12 entry, and one new ARCHITECTURE.md subsection - all
+      additive, no existing surface touched. The M2 columns on
+      tool_calls, the M1 schemas, and the wrapper/hook/sidecar
+      ingress paths are unchanged.
+    next: |
+      M3 plan Task 2 (D11 implementation - price cache and cost
+      derivation). Task 2's `depends_on: []` makes it the next
+      dispatchable unit after Task 1 closes; Task 3 (Schema
+      migration - bench_runs table) depends on both Task 1 and Task
+      2 and becomes dispatchable after Task 2 lands. Cycle 8 closes
+      the documentation/decision half of Task 1 - there is no code
+      half; the deliverable is the methodology file itself plus the
+      decision entry that binds `bench_runs.methodology_version` to
+      `'v1'`. The orchestrator flips Task 1's plan.yaml status to
+      `complete` in the resolve step (realisera does not touch
+      plan.yaml).
+    context:
+      intent: |
+        Record the outcome of the resonera session that closed M3
+        plan Task 1. D12 commits the v1 benchmark methodology
+        (exact-match scoring, single-trial, methodology file at
+        `.agentera/bench/methodology-v1.yaml`, headline
+        `cost_per_correct = cost_USD / max(score, 1.0e-9)` USD) and
+        unblocks M3 plan tasks 2-6 per the dependency graph. The
+        cycle entry substantiates the 5 acceptance criteria from
+        the plan's Task 1 with direct quotes from the methodology
+        file and a walk-through of the D12 decision entry's
+        contents; no product code changes.
+      constraints: |
+        No product code changes; this cycle entry closes the
+        documentation/decision half of Task 1.
+      unknowns: |
+        none - the deliverable was a planning artifact (decision
+        entry + methodology file + ARCHITECTURE.md annotation).
+        Empirical questions will arise during M3 task 4 (which pins
+        the (agent, model, task) placeholders) and M3 task 6 (the
+        acceptance verification). The temperature>0 non-
+        reproducibility limitation is documented in the methodology
+        file and the D12 entry; v1 is intentionally narrow.
+      scope: |
+        One updated artifact: .agentera/progress.yaml (this cycle 8
+        entry at the top of the cycles: list). No changes to
+        .agentera/decisions.yaml, .agentera/bench/methodology-v1.yaml,
+        or ARCHITECTURE.md - those are the resonera commit 6ae3d7e's
+        deliverables, untouched by realisera. No changes to
+        .agentera/plan.yaml - orchestrator handles Task 1 to
+        complete in the resolve step. No Go files, no go.mod, no
+        go.sum, no internal/, no cmd/, no test files.
   - number: 7
     timestamp: "2026-06-19 17:10"
     type: fix

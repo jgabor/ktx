@@ -1,0 +1,91 @@
+methodology_version: "v1"
+date: "2026-06-19"
+
+# v1 scope
+#
+# v1 is intentionally narrow: single-task, single-trial, exact-match scoring,
+# JSON-default with --format text. The headline number is `cost_per_correct`
+# USD, computed as `cost / max(score, epsilon)` where `epsilon = 1e-9`. The
+# methodology is deterministic given the inputs below; a third party
+# reproducing the run with the same inputs must produce the same headline
+# number. See .agentera/decisions.yaml Decision 12 for the reasoning and
+# the rejected alternatives.
+scope: |
+  Single-task, single-trial, exact-match scoring. The headline number is
+  `cost_per_correct` USD, computed as `cost / max(score, epsilon)` where
+  `epsilon = 1e-9` to avoid division by zero. The methodology is
+  deterministic given the inputs below; a third party reproducing the
+  run with the same inputs must produce the same headline number.
+
+# Inputs that produced the headline (the reproducibility contract)
+#
+# A third party reading this file plus the persisted `bench_runs` row and
+# the persisted `tool_calls` rows can compute `cost_per_correct` exactly.
+# M3 task 4 pins the real values by filling the placeholders below; v1
+# ships the shape contract.
+inputs:
+  agent:
+    binary: opencode              # OpenCode 1.17.8 (M2 wrapper evidence)
+    version: "1.17.8"
+  model:
+    id: "<specific model — leave as a placeholder; planera/realisera will pin this in task 4>"
+    provider: "<specific provider — placeholder>"
+  task:
+    identifier: "<task identifier — placeholder for v1; M3 task 4 picks one>"
+    prompt: "<the prompt text — placeholder>"
+    expected_output: "<the expected output for exact-match scoring — placeholder>"
+  scoring:
+    function: exact_match
+    version: "v1"
+    epsilon: 1.0e-9
+  trials:
+    n: 1
+    non_determinism_handling: |
+      v1 does not aggregate across trials. A single trial's score is
+      the headline numerator. Documented limitation: temperature>0
+      runs are not bit-reproducible; exact-match scoring against a
+      known good output will reject any token-level variance. Future
+      methodology versions may introduce fuzzy matching.
+  ktx:
+    binary_version: "<ktx version — placeholder; pin at M3 close>"
+    commit: "<commit SHA — placeholder; pin at M3 close>"
+  bench_runs:
+    row_id: "<row id — placeholder; populated when a real run lands>"
+
+# Computation
+#
+# `cost_per_correct` is the headline. The `1e-9` epsilon prevents
+# division by zero when score=0; the resulting large value correctly
+# signals that an incorrect answer is unboundedly expensive per
+# correct (the vision's "cost is the contract" made loud).
+computation: |
+  cost_per_correct = cost_USD / max(score, 1.0e-9)
+  where:
+    cost_USD is the persisted `cost` column on the bench_runs row.
+    score is the persisted `score` column (0.0 or 1.0 for exact-match).
+
+# Output
+#
+# `ktx bench report` is the surface. JSON default with `--format text`
+# for humans; the text rendering surfaces the headline number and the
+# methodology reference (e.g., 'v1'). See Decision 2 (bench namespace
+# shape) and Decision 4 (JSON default + --format text for query commands).
+output:
+  artifact: ktx bench report
+  default_format: json
+  text_format: true
+  fields:
+    - methodology_version
+    - bench_runs (rows array)
+    - headline (cost_per_correct)
+
+# Out of scope for v1 (explicit deferrals)
+#
+# These are NOT in v1 and are documented as future work, not open
+# questions. See .agentera/decisions.yaml Decision 12 for the rationale.
+out_of_scope:
+  - statistical significance / confidence intervals
+  - "ktx bench compare (post-M3)"
+  - compression impact on bench (M4)
+  - cache TTL and auto-refresh (D11 deferral)
+  - second scoring function (LLM-as-judge is the flexible default acknowledged but not implemented)

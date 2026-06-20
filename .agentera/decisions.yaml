@@ -346,3 +346,145 @@ decisions:
     reasoning: "Provider-reported matches 'boring before clever' — no new tokenizer dep, no ML libs, no drift between billed cost and what ktx reports. The empirical gap (OpenCode may or may not emit M2 fields in tool_use events) is a research outcome, not a contract problem; the sidecar path is the documented fallback (plan task 4). models.dev is the right price source because it is the same one OpenCode uses — same model IDs, same prices, no drift. Local cache is essential because the vision is local-first and reconstruction must work offline. The deferred auto-compute is the right deferral: M2 must prove the surface (M2 columns exist, NULL preserved, ktx get/list show what's stored) before introducing derivation logic — derivation would muddy the stored-vs-derived boundary and complicate the audit story ('is this the cost the runtime charged, or ktx's guess?'). Auto-populate policy: ktx owns integrity (content_hash) and identity (id, session_id, timestamp); the runtime/caller owns the cost evidence (M2 fields). ktx is not in the business of inventing measurements — that is the conservative-failure attribute from ARCHITECTURE.md, not a missing feature.\n\nDesign rules (do not relitigate):\n\n- Token source: provider-reported. NULL when the runtime does not emit. ktx does not re-tokenize stored strings.\n- Dollar model: https://models.dev. Local cache at $XDG_DATA_HOME/ktx/prices.json. ktx fetches on cache miss; fetch failure is a soft failure. Cache TTL and refresh policy: future resonera (rebuild on a configurable cadence or on unknown model).\n- Reconstructability contract: cost is reconstructable when tokens_in, tokens_out, and model are all non-NULL against the cached (provider, model) price. ktx get/list show stored values verbatim — no derivation at read time.\n- Auto-populate: ktx auto-fills id, session_id (auto-create if absent), content_hash (recomputed from input+output), timestamp. ktx does NOT auto-fill tokens_in, tokens_out, cost, latency_ms, model, provider. NULL is preserved when absent; 0 is preserved when set.\n- ktx doctor may flag records where all three of (tokens_in, tokens_out, model) are NULL as a normal-severity warning, signaling cost is not reconstructable for that call. Severity and command scope: future resonera."
     confidence: firm
     feeds_into: schema migration, ktx write, ktx run, ktx get, ktx list, M3 benchmark methodology
+  - number: 12
+    date: '2026-06-20'
+    question: "What is the v1 benchmark methodology for ktx bench — task shape, scoring,
+      trial handling, methodology versioning, and the bench report artifact shape?"
+    context: "M3 acceptance (ROADMAP.md) demands 'a cost-per-correct-answer number is
+      published for at least one agent on at least one task; done when the number is
+      reproducible from the published methodology.' Decision 2 chose `ktx bench` as
+      a namespace with run/report/compare subcommands. Decision 7 chose append-only
+      tool_calls as the evidence store with the cost column. Decision 9 chose the
+      flat JSON envelope that `ktx bench run` consumes. Decision 11 chose https://models.dev
+      as the dollar model with tokens_in + tokens_out + model as the cost reconstructability
+      contract (D11.AC5: $0.0123 persisted → $0.012207 reconstructed in m2-acceptance.md).
+      ARCHITECTURE.md names 'Benchmark methodology v1: agent, model, task, ground truth,
+      scoring, and published artifact shape' as an open deliberation in the Measurement
+      and benchmark section; the m3-vision-gap analysis identifies D12 as a prerequisite
+      for M3 code, with eight concrete streams to commit to (task shape, scoring v1,
+      trial count, methodology versioning, bench report artifact shape, methodology
+      file path, reproducibility inputs, headline number formula). The vision mandates
+      'cost is the contract — meter, budget, dispute it' and the bench is the headline
+      number that proves or disputes the cost contract. D12 must be specific enough
+      that `ktx bench run` and `ktx bench report` can be implemented mechanically with
+      no further deliberation; v1 is intentionally narrow (single-task, single-trial,
+      exact-match, JSON-default) and the listed out-of-scope items (statistical significance,
+      bench compare, compression impact, cache TTL, second scoring function) are explicit
+      deferrals, not open questions."
+    alternatives:
+    - name: Exact-match scoring v1 with committed methodology file
+      status: chosen
+      description: "Single-task, single-trial, exact-match scoring against a known good
+        output. Methodology file at `.agentera/bench/methodology-v1.yaml` enumerates
+        every input that produced the headline (the reproducibility contract). `ktx
+        bench report` JSON default with `--format text`. Headline = `cost_per_correct
+        = cost / max(score, 1e-9)` USD, six decimals."
+    - name: Flexible ML-judge scoring with inline-only methodology
+      status: rejected
+      description: "LLM-as-judge scoring for v1 with the methodology text inlined into
+        the bench report output. Rejected on three grounds: introduces non-determinism
+        at the scoring layer (worse than the temperature>0 non-determinism exact-match
+        surfaces cleanly), adds an external service dependency that contradicts the
+        local-first quality attribute, and violates 'boring before clever' (vision:
+        'Go stdlib first, no ML deps, no new runtimes, no magic'). Inline-only methodology
+        is not a readable artifact for offline reproduction."
+    - name: Multi-trial v1 with median aggregation
+      status: rejected
+      description: "N≥3 trials per (agent, model, task) with median score and mean
+        cost. Rejected for v1: temperature>0 runs are not bit-reproducible (OpenCode
+        1.17.8 empirical finding, m2-acceptance.md AC1 'wrapper M2 extraction gap' and
+        `step_finish` evidence), so a multi-trial methodology would need to commit
+        to a confidence interval or p-value to be citable, which is post-M3 work and
+        explicitly out of M3 scope (m3-vision-gap.md §6). v1 is the cheapest reproducible
+        unit (one trial, one headline) and the exact-match scorer rejects token-level
+        variance explicitly, making the methodology deterministic given the inputs."
+    - name: External methodology reference (web URL, signed artifact)
+      status: rejected
+      description: "Methodology lives outside the repo, referenced by a URL or content
+        hash. Rejected: external references drift, require network access for offline
+        reproduction, and violate the local-first quality attribute (ARCHITECTURE.md
+        Quality attributes). The committed file IS the reproducibility contract; a
+        third party with the repo and the database can compute the headline without
+        contacting anything."
+    choice: "v1 = exact-match scoring against a known good output, single-trial (N=1),
+      single-task, methodology file committed at `.agentera/bench/methodology-v1.yaml`
+      referenced by a `methodology_version` string on every `bench_runs` row. Task
+      shape: identifier + prompt + expected_output colocated in the methodology file
+      (single task per v1; M3 task 4 pins the real (agent, model, task) triple by filling
+      the placeholders). Scoring function: `exact_match` — string equality on the
+      agent's final output against `expected_output`. Trial count: N=1; the v1 single
+      trial's score is the headline numerator. Methodology versioning: `methodology_version:
+      'v1'` on every `bench_runs` row, pointing at the methodology file. `ktx bench
+      report`: JSON default with `--format text` (D4, D2); emits a top-level `headline`
+      (number) and a `rows` array; each row carries `id`, `agent`, `model`, `task`,
+      `score`, `cost`, `methodology_version`, `timestamp`. Headline formula: `cost_per_correct
+      = cost_USD / max(score, 1.0e-9)` USD, six decimal places. The `1e-9` epsilon
+      prevents division by zero when score=0; the resulting large value correctly
+      signals that an incorrect answer is unboundedly expensive per correct (the vision's
+      'cost is the contract' made loud). Depends on D2 (bench namespace), D7 (tool_calls
+      evidence + cost column), D9 (flat JSON envelope for bench run input), D11 (models.dev,
+      tokens_in + tokens_out + model, soft-fail on fetch). Out of scope for v1 and
+      explicitly deferred: statistical significance / confidence intervals, `ktx bench
+      compare` (post-M3), compression impact on bench (M4), cache TTL/auto-refresh (D11
+      deferral), second scoring function (LLM-as-judge is the flexible default acknowledged
+      but not implemented)."
+    reasoning: "Exact-match scoring v1 is the boring default: deterministic, audit-friendly,
+      no external judge, no ML dep, no temperature>0 non-determinism amplified by a
+      model-judge. The headline is reproducible from stored data — a third party reading
+      the methodology file plus the persisted `bench_runs` row plus the persisted `tool_calls`
+      rows can compute `cost_per_correct` exactly. The `cost / max(score, 1e-9)` formula
+      is the right semantic for 'cost per correct': when score=1, headline = cost (the
+      answer cost $X); when score=0, headline → ∞ (the answer cost infinite dollars
+      per correct because no correct answer was produced). The epsilon guard is a safety
+      net for the math, not a feature — the headline's behavior at score=0 is the loud
+      signal that an incorrect answer is unboundedly expensive, which is what the vision's
+      'cost is the contract' demands. `cost * (1 - score)` was considered and rejected:
+      it produces a smooth bounded value but loses the cost-per-correct semantic (score=1
+      yields headline=0, which reads as 'free', not 'cost $X'); it measures 'waste',
+      not 'cost per correct'.\n\nSingle-task v1 is the cheapest reproducible unit.
+      Multi-trial v1 (N≥3 with median) was rejected because temperature>0 runs are
+      not bit-reproducible (OpenCode 1.17.8 empirical finding, m2-acceptance.md AC1)
+      and a multi-trial methodology would need to commit to a confidence interval
+      or p-value to be citable, which is post-M3 work and explicitly out of M3 scope
+      (m3-vision-gap.md §6). v1 documents the limitation explicitly: 'temperature>0
+      runs are not bit-reproducible; exact-match scoring against a known good output
+      will reject any token-level variance.' Future methodology versions may introduce
+      fuzzy matching (e.g., Levenshtein-based) and multi-trial aggregation; v1 is
+      the floor.\n\nMethodology file committed to the repo (`.agentera/bench/methodology-v1.yaml`)
+      is the reproducibility contract. External reference (URL, signed artifact) was
+      rejected — drifts, requires network, violates local-first. Inline-only (in the
+      bench report output) was rejected — no readable artifact for offline use. API-fetched
+      (live methodology server) was rejected — offline-required. The committed file
+      lists every input that produced the headline: agent binary/version, model ID,
+      task prompt, expected output, scoring function + version, trial count + non-determinism
+      handling, ktx binary version + commit, `bench_runs` row id. M3 task 4 pins the
+      real values; v1 ships the shape contract.\n\n`ktx bench report` JSON default
+      with `--format text` matches the D4 query surface and D2's bench namespace shape
+      (the report subcommand, not a flag). The JSON output carries the `methodology_version`
+      on every row; the text rendering surfaces the headline with the methodology
+      reference visible. The headline outlives the binary because the methodology
+      file is committed; the `bench_runs` row's `methodology_version` field points
+      at the file so a future reader can resolve the headline's meaning from disk
+      alone.\n\nDesign rules (do not relitigate):\n\n- Scoring v1: `exact_match` against
+      `expected_output`. Score is 0.0 or 1.0.\n- Trial count v1: N=1. Single trial's
+      score is the headline numerator. Documented limitation: temperature>0 runs are
+      not bit-reproducible; exact-match scoring rejects any token-level variance.
+      Future methodology versions may introduce fuzzy matching.\n- Task shape v1:
+      identifier + prompt + expected_output colocated in the methodology file. Single
+      task per v1. M3 task 4 pins the real (agent, model, task) triple.\n- Methodology
+      file path: `.agentera/bench/methodology-v1.yaml`. Committed to the repo; the
+      file IS the reproducibility contract.\n- Headline formula: `cost_per_correct
+      = cost_USD / max(score, 1.0e-9)`. USD, six decimal places.\n- `bench_runs.methodology_version`
+      = `'v1'` (the methodology version string, not the ktx binary version).\n- `ktx
+      bench report`: JSON default (D4); `--format text` for humans. Emits `headline`
+      (number) + `rows` array; each row carries `id`, `agent`, `model`, `task`, `score`,
+      `cost`, `methodology_version`, `timestamp`. `--methodology <version>` filter
+      recomputes the headline on the filtered set.\n- Out of scope for v1: statistical
+      significance / confidence intervals, `ktx bench compare` (post-M3), compression
+      impact on bench (M4), cache TTL/auto-refresh (D11 deferral), second scoring function
+      (LLM-as-judge is the flexible default acknowledged but not implemented)."
+    confidence: firm
+    feeds_into: M3 plan tasks 2–6 (price cache, bench_runs migration, bench run, bench
+      report, M3 acceptance verification), bench_runs.methodology_version schema, M4
+      compression impact on bench
+

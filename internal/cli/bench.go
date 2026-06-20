@@ -11,12 +11,13 @@
 //	    number to stdout plus a one-line summary to stderr (D1 wrapper
 //	    convention).
 //
-//	ktx bench report
+//	ktx bench report [<id>] [--methodology <ver>]
 //	    Reads the bench_runs table and emits the headline number with
 //	    the methodology reference visible (JSON default + --format text).
-//	    Implementation is reserved for plan Task 5; this cycle stubs
-//	    runBenchReport with a "not yet implemented" error so the dispatch
-//	    contract is honest about what is and is not yet built.
+//	    Three invocation modes: list (no <id>, all rows in insertion order);
+//	    single-row (<id>, emits the row directly, not-found → exit 2);
+//	    filtered (--methodology <ver>, recomputes headline on the
+//	    filtered set). Plan Task 5 implements all three.
 //
 // Database path resolution (Decision 8): KTX_DB env > default. The
 // dispatch is the same shape as `ktx prices` and `ktx doctor` — a
@@ -42,6 +43,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -49,6 +51,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/jgabor/ktx/internal/store"
@@ -116,13 +119,372 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 }
 
-// runBenchReport is the plan Task 5 stub. It returns ExitInternal with
-// a usage error so the user knows bench report is reserved for a future
-// cycle. The dispatch contract is honest about what is and is not yet
-// built — same pattern as the M2 cycle when `ktx compress` was a stub.
+// runBenchReport is the plan Task 5 implementation. It replaces the
+// Task 4 "not yet implemented" stub with the headline consumer that
+// surfaces the D12 headline from persisted bench_runs rows. Three
+// invocation modes are supported:
+//
+//	ktx bench report                      — list all rows in insertion
+//	                                       order (oldest first); emit
+//	                                       top-level headline + rows
+//	                                       array (JSON default) or
+//	                                       one-line summary + tabwriter
+//	                                       table (--format text)
+//	ktx bench report <id>                 — single-row lookup by D3
+//	                                       nanoid; JSON default emits
+//	                                       the row directly (no rows
+//	                                       array, no headline envelope);
+//	                                       --format text emits a
+//	                                       one-line-per-field summary
+//	ktx bench report --methodology <ver>  — filter rows by
+//	                                       methodology_version; headline
+//	                                       is recomputed from the
+//	                                       filtered set
+//
+// The function is the dispatcher adapter: it parses --format and
+// --methodology, opens the database, and converts the typed error
+// envelope into an exit code. The spec-signature implementation lives
+// in runBenchReportImpl (stdout, stderr, db, args, format, filter) →
+// error. The split mirrors the runRun/runRunWith pattern elsewhere in
+// the CLI layer (the adapter owns flag.Parse + DB open + exit code;
+// the impl owns the three-mode dispatch + rendering).
+//
+// Exit codes (D4 contract):
+//
+//	0 = ok (including empty bench_runs; an empty benchmark is not an error)
+//	1 = usage error (invalid --format, unknown flag, unexpected arg)
+//	2 = not-found (positional <id> not in DB)
+//	4 = internal (database open / query failure)
 func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
-	printError(stderr, usageError("ktx bench report: not yet implemented (reserved for plan Task 5)"), opts.Format)
-	return ExitUsage
+	// Subcommand-local --format. extractFormat accepts both --format
+	// value and --format=value forms; the subcommand's value takes
+	// precedence over the global opts.Format when both are set.
+	format, rest := extractFormat(args)
+	if format == "" {
+		format = opts.Format
+	}
+	if format != FormatJSON && format != FormatText {
+		printError(stderr, usageError("ktx bench report: invalid --format %q: want %q or %q", format, FormatJSON, FormatText), format)
+		return ExitUsage
+	}
+
+	// Subcommand-local --methodology. The filter is a single string
+	// flag; the empty string is the "no filter" sentinel. A missing
+	// value (--methodology alone, with no following token) is caught
+	// by flag.Parse as a usage error.
+	fs := flag.NewFlagSet("ktx bench report", flag.ContinueOnError)
+	fs.SetOutput(io.Discard) // we render our own errors and help
+	var methodologyFilter string
+	fs.StringVar(&methodologyFilter, "methodology", "", "filter rows by methodology_version (e.g., 'v1')")
+	if err := fs.Parse(rest); err != nil {
+		printError(stderr, usageError("ktx bench report: %v", err), format)
+		return ExitUsage
+	}
+
+	// Open the database. The store.Open call applies the bench_runs
+	// migration if the database is pre-M3 (Task 3 idempotent path).
+	path, err := store.ResolvePath("")
+	if err != nil {
+		printError(stderr, internalError("ktx bench report: resolve database path: %v", err), format)
+		return ExitInternal
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		printError(stderr, internalError("ktx bench report: open database: %v", err), format)
+		return ExitInternal
+	}
+	defer db.Close()
+
+	if err := runBenchReportImpl(stdout, stderr, db, fs.Args(), format, methodologyFilter); err != nil {
+		printError(stderr, err, format)
+		return exitCodeOf(err)
+	}
+	return ExitOK
+}
+
+// runBenchReportImpl is the Task 5 implementation core. Its signature
+// matches the plan Task 5 spec exactly: stdout/stderr injection, a
+// pre-opened *store.DB, the parsed positional args (optional <id>),
+// the resolved format ("" or FormatJSON default to JSON; FormatText for
+// humans), and the methodology filter ("" for no filter). Returns a
+// typed *Error on failure so the dispatcher adapter can map it to an
+// exit code via the D4 contract.
+//
+// The three invocation modes are dispatched on the presence of a
+// positional arg:
+//
+//	[]                   → list mode: all rows (or --methodology-filtered)
+//	[id]                 → single-row mode: QueryBenchRun by id
+//	[id1, id2, ...]      → usage error (single-row only takes one id)
+//
+// Pointer discipline preserved end-to-end: BenchRun.Cost is *float64 so
+// the absent-vs-zero distinction survives JSON round-trips (the
+// existing Task 4 contract). The text renderer maps a nil Cost to "-"
+// (matches M2's ktx list --format text convention for absent M2 fields).
+func runBenchReportImpl(
+	stdout, stderr io.Writer,
+	db *store.DB,
+	args []string,
+	format string,
+	methodologyFilter string,
+) error {
+	_ = stderr // stderr is reserved for the dispatcher adapter's error envelope; unused in the success path.
+
+	// Single-row mode: positional <id>. The plan Task 5 AC3 contract
+	// is "JSON for the row only (no rows array, headline is the row's
+	// value); if no row matches, ktx exits with code 2 (not-found)".
+	if len(args) >= 1 {
+		if len(args) > 1 {
+			return usageError("ktx bench report: unexpected argument %q; report takes a single optional <id>", args[1])
+		}
+		id := args[0]
+		b, err := db.QueryBenchRun(id)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return notFoundError("ktx bench report: no bench_run with id '%s'", id)
+			}
+			return internalError("ktx bench report: query bench_run: %v", err)
+		}
+		return renderBenchRunSingle(stdout, format, b)
+	}
+
+	// List / filtered mode: load all rows in insertion order (D12's
+	// "rows array, oldest first" contract — QueryBenchRuns returns
+	// ORDER BY timestamp ASC, id ASC). Filter in memory when
+	// --methodology is set; the cost of an extra SELECT WHERE on a
+	// ~handful of rows is not worth the extra store method, and an
+	// in-memory filter keeps the headline aggregation in one place.
+	rows, err := db.QueryBenchRuns()
+	if err != nil {
+		return internalError("ktx bench report: query bench_runs: %v", err)
+	}
+	if methodologyFilter != "" {
+		rows = filterByMethodology(rows, methodologyFilter)
+	}
+
+	if format == FormatText {
+		return renderBenchReportText(stdout, rows, methodologyFilter)
+	}
+	return renderBenchReportJSON(stdout, rows, methodologyFilter)
+}
+
+// renderBenchRunSingle writes the single-row output. JSON default
+// emits the BenchRun directly (no headline envelope per AC3); the
+// existing BenchRun JSON tags govern the shape — id, agent, model,
+// task, score, tokens_in, tokens_out, cost, methodology_version,
+// timestamp — with pointer discipline preserved (Cost *float64,
+// tokens_in/out as int64 per the store schema). Text format emits a
+// one-line-per-field summary aligned with the list-mode table.
+func renderBenchRunSingle(stdout io.Writer, format string, b store.BenchRun) error {
+	if format == FormatText {
+		return renderBenchRunSingleText(stdout, b)
+	}
+	return json.NewEncoder(stdout).Encode(b)
+}
+
+// renderBenchRunSingleText writes the key-value summary for a single
+// row. The field set mirrors the spec's single-row text example:
+// id, agent, model, task, score, cost (with "USD" suffix for human
+// readability), methodology_version, timestamp (RFC3339Nano). tokens_in
+// and tokens_out are omitted from the text rendering — the spec's
+// single-row text example shows them absent, and the per-row cost is
+// the headline-relevant number for a single run.
+func renderBenchRunSingleText(w io.Writer, b store.BenchRun) error {
+	fmt.Fprintf(w, "id:                  %s\n", b.ID)
+	fmt.Fprintf(w, "agent:               %s\n", b.Agent)
+	fmt.Fprintf(w, "model:               %s\n", b.Model)
+	fmt.Fprintf(w, "task:                %s\n", b.Task)
+	fmt.Fprintf(w, "score:               %.4f\n", b.Score)
+	if b.Cost != nil {
+		fmt.Fprintf(w, "cost:                %.6f USD\n", *b.Cost)
+	} else {
+		fmt.Fprintln(w, "cost:                -")
+	}
+	fmt.Fprintf(w, "methodology_version: %s\n", b.MethodologyVersion)
+	fmt.Fprintf(w, "timestamp:           %s\n", formatBenchTimestamp(b.Timestamp))
+	return nil
+}
+
+// renderBenchReportJSON writes the list-mode JSON envelope per the
+// plan Task 5 AC1 contract:
+//
+//	{
+//	  "headline": <number|null>,
+//	  "methodology_version": <string|null>,
+//	  "rows": [BenchRun, ...]
+//	}
+//
+// The headline is the multi-row aggregate (SUM(cost) / max(SUM(score),
+// 1e-9), per D12) or null when SUM(cost) is NULL (every row's cost is
+// NULL). methodology_version prefers the first row's value (the data's
+// own statement); when no rows exist, it falls back to the filter
+// string so a `--methodology v1` invocation with zero matching rows
+// still surfaces "we filtered for v1" in the envelope. An empty
+// bench_runs table with no filter renders methodology_version as null
+// (the AC6 contract).
+//
+// The BenchRun struct's JSON tags govern the per-row shape (10
+// fields including tokens_in / tokens_out, cost as *float64 with
+// nil → JSON null). The headline is *float64-aware: a nil pointer
+// emits JSON null via the envelope's map[string]any indirection.
+func renderBenchReportJSON(stdout io.Writer, rows []store.BenchRun, methodologyFilter string) error {
+	headline, ok := computeAggregateHeadline(rows)
+	var headlineVal any = nil
+	if ok {
+		headlineVal = headline
+	}
+	methodologyVersion := envelopeMethodologyVersion(rows, methodologyFilter)
+	envelope := map[string]any{
+		"headline":            headlineVal,
+		"methodology_version": methodologyVersion,
+		"rows":                rows,
+	}
+	return json.NewEncoder(stdout).Encode(envelope)
+}
+
+// renderBenchReportText writes the list-mode text output: a one-line
+// headline summary with the methodology reference visible (per the
+// spec example and AC2), a horizontal rule, and a tabwriter-aligned
+// table of rows in insertion order. An empty bench_runs (or a filter
+// that matches no rows) emits the headline summary only — no rule, no
+// table — so the user sees "no data" cleanly without a half-rendered
+// header.
+func renderBenchReportText(w io.Writer, rows []store.BenchRun, methodologyFilter string) error {
+	headline, ok := computeAggregateHeadline(rows)
+	var headlineStr string
+	if ok {
+		headlineStr = fmt.Sprintf("%.6f", headline)
+	} else {
+		headlineStr = "<no data>"
+	}
+	methodologyVersionStr := envelopeMethodologyVersion(rows, methodologyFilter)
+	if methodologyVersionStr == nil {
+		methodologyVersionStr = "-"
+	}
+	fmt.Fprintf(w, "methodology %s — headline: %s USD/correct (N=%d)\n",
+		methodologyVersionStr, headlineStr, len(rows))
+
+	if len(rows) == 0 {
+		return nil
+	}
+
+	fmt.Fprintln(w, "─────────────────────────────────────────────")
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "id\tagent\ttask\tscore\tcost\tmethod\ttimestamp")
+	for _, b := range rows {
+		cost := "-"
+		if b.Cost != nil {
+			cost = fmt.Sprintf("%.6f", *b.Cost)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%.4f\t%s\t%s\t%s\n",
+			b.ID, b.Agent, b.Task, b.Score, cost, b.MethodologyVersion,
+			formatBenchTimestamp(b.Timestamp))
+	}
+	return tw.Flush()
+}
+
+// envelopeMethodologyVersion returns the envelope's methodology_version
+// field. First-row value takes precedence over the filter (the data's
+// own statement is the source of truth); the filter string is the
+// fallback when no rows exist so a `--methodology v1` invocation with
+// zero matching rows still self-describes. Both sources nil returns
+// nil — JSON renders that as null, the text renderer maps it to "-".
+func envelopeMethodologyVersion(rows []store.BenchRun, methodologyFilter string) any {
+	if len(rows) > 0 {
+		return rows[0].MethodologyVersion
+	}
+	if methodologyFilter != "" {
+		return methodologyFilter
+	}
+	return nil
+}
+
+// filterByMethodology returns a new slice containing only rows whose
+// methodology_version matches version. An empty version returns rows
+// unchanged (the no-filter case is handled by the caller skipping the
+// filter call entirely, but the helper is defensive against accidental
+// empty-string invocations).
+//
+// The filter is in-memory rather than SQL WHERE. Two reasons: (a) the
+// bench_runs table is small (one row per bench run; v1 methodology
+// pins a single (agent, model, task) triple, so the cardinality is
+// bounded by the number of `ktx bench run` invocations); (b) the
+// headline aggregation runs across the filtered set, so keeping the
+// rows in memory lets one pass handle filter + aggregate + render.
+// Adding a QueryBenchRunsByMethodology store method would push the
+// filter into SQL without simplifying the rest of the flow.
+func filterByMethodology(rows []store.BenchRun, version string) []store.BenchRun {
+	if version == "" {
+		return rows
+	}
+	out := make([]store.BenchRun, 0, len(rows))
+	for _, b := range rows {
+		if b.MethodologyVersion == version {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// computeAggregateHeadline computes the multi-row headline per the
+// D12 methodology's `computation:` block:
+//
+//	headline = SUM(cost) / max(SUM(score), 1.0e-9)
+//
+// Returns (headline, ok) where ok=false signals the headline is null
+// (every row's Cost pointer is nil — there is no cost to aggregate,
+// so the headline is meaningless). The 1e-9 epsilon guards against
+// division by zero when SUM(score)=0; the resulting large value
+// correctly signals "an incorrect answer is unboundedly expensive per
+// correct" (the vision's "cost is the contract made loud" — D12
+// reasoning).
+//
+// Per-row score is 0.0 or 1.0 (exact-match v1), so SUM(score) over
+// rows is the count of correct runs; the headline is total_cost /
+// correct_runs, the average cost per correct answer.
+//
+// computeAggregateHeadline does NOT coerce a nil totalCost to 0 —
+// the caller must check the ok flag and render null when ok=false.
+// This preserves the absent-vs-meaningful distinction at the
+// aggregation level: an empty bench_runs table (zero rows, no cost)
+// and a bench_runs table with cost=0.0 on every row (one row × $0)
+// both produce a "null" headline, because the dataset carries no
+// evidence of cost to aggregate.
+func computeAggregateHeadline(rows []store.BenchRun) (float64, bool) {
+	var totalCost *float64
+	var totalScore float64
+	for i := range rows {
+		if rows[i].Cost != nil {
+			if totalCost == nil {
+				v := *rows[i].Cost
+				totalCost = &v
+			} else {
+				*totalCost += *rows[i].Cost
+			}
+		}
+		totalScore += rows[i].Score
+	}
+	if totalCost == nil {
+		return 0, false
+	}
+	denom := totalScore
+	if denom < benchEpsilon {
+		denom = benchEpsilon
+	}
+	return *totalCost / denom, true
+}
+
+// formatBenchTimestamp converts the bench_runs INTEGER Unix epoch
+// seconds column to RFC3339Nano for human-readable text output. The
+// JSON path emits the integer as-is (the D12 reproducibility contract
+// keeps the timestamp machine-readable; RFC3339Nano is for humans).
+// A zero or negative timestamp renders as "-" (matches the cost
+// pointer discipline: nil Cost → "-"; zero timestamp → "-").
+func formatBenchTimestamp(ts int64) string {
+	if ts <= 0 {
+		return "-"
+	}
+	return time.Unix(ts, 0).UTC().Format(time.RFC3339Nano)
 }
 
 // methodology is the parsed subset of the methodology file the bench
@@ -830,9 +1192,13 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      persist a bench_runs row with the headline number, and print")
 	fmt.Fprintln(w, "      the headline to stdout (JSON default) plus a one-line")
 	fmt.Fprintln(w, "      summary to stderr.")
-	fmt.Fprintln(w, "  report")
-	fmt.Fprintln(w, "      Emit the headline from persisted bench_runs rows (reserved")
-	fmt.Fprintln(w, "      for plan Task 5; not yet implemented).")
+	fmt.Fprintln(w, "  report [<id>] [--methodology <version>] [--format text|json]")
+	fmt.Fprintln(w, "      Emit the headline from persisted bench_runs rows.")
+	fmt.Fprintln(w, "      Without <id>: list all rows in insertion order (oldest first);")
+	fmt.Fprintln(w, "        headline is the methodology-defined aggregate across rows.")
+	fmt.Fprintln(w, "      With <id>: emit a single row by D3 nanoid; not-found → exit 2.")
+	fmt.Fprintln(w, "      --methodology filters rows by methodology_version; the")
+	fmt.Fprintln(w, "        headline is recomputed from the filtered set.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Methodology file: .agentera/bench/methodology-v1.yaml (D12). The")
 	fmt.Fprintln(w, "CLI inputs (agent, model, task) must match the methodology's")
@@ -840,14 +1206,16 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "the published methodology (D12 reproducibility contract).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  {headline, rows, methodology_version} envelope")
-	fmt.Fprintln(w, "  text            one-line headline + key-value row summary")
+	fmt.Fprintln(w, "  json (default)  {headline, methodology_version, rows} envelope")
+	fmt.Fprintln(w, "                  (single-row <id> emits the row directly)")
+	fmt.Fprintln(w, "  text            one-line headline + tabwriter-aligned rows")
+	fmt.Fprintln(w, "                  (single-row <id> emits a key-value summary)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
-	fmt.Fprintln(w, "  0  bench run completed")
-	fmt.Fprintln(w, "  1  usage error (wrong number of args, drift from methodology)")
-	fmt.Fprintln(w, "  2  not found (missing methodology file, missing bench_runs)")
-	fmt.Fprintln(w, "  4  internal (database, subprocess, or write failure)")
+	fmt.Fprintln(w, "  0  report printed (may be empty)")
+	fmt.Fprintln(w, "  1  usage error (wrong args, drift from methodology, invalid format)")
+	fmt.Fprintln(w, "  2  not found (missing methodology, <id> not in DB)")
+	fmt.Fprintln(w, "  4  internal (database open / query failure)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 	fmt.Fprintln(w)

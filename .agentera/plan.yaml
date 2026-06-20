@@ -92,7 +92,7 @@ tasks:
   - number: 5
     name: "ktx bench report"
     depends_on: ["4"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN a database with one or more `bench_runs` rows WHEN `ktx bench report` is invoked THEN JSON output includes a top-level headline number (per the D12 methodology's published metric) alongside a rows array; each row carries `id`, `agent`, `model`, `task`, `score`, `cost`, `methodology_version`, `timestamp`"
       - "GIVEN the same conditions WHEN `ktx bench report --format text` is invoked THEN the headline is rendered as a one-line summary with the methodology reference (e.g., 'v1') visible; rows are listed below in insertion order (oldest first)"

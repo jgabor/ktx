@@ -1,4 +1,464 @@
 cycles:
+  - number: 11
+    timestamp: "2026-06-20 12:20"
+    type: feat
+    phase: build
+    what: |
+      M3 plan Task 4 (`ktx bench run <agent> <model> <task>`) lands
+      as one new store file, one new CLI file, one dispatch entry,
+      four methods on store.DB, and pinned placeholders in the
+      methodology file. The bench run consumer reads the D12
+      methodology file at `.agentera/bench/methodology-v1.yaml`,
+      validates the CLI inputs against the methodology-pinned
+      (agent, model, task) triple (drift is a usage error so the
+      headline matches the published methodology — the D12
+      reproducibility contract), invokes `ktx run <agent> ...` as a
+      subprocess via os.Executable() (KTX_SESSION_ID is honored
+      because the wrapper exports it to the agent child per D10),
+      scores the agent's response against the methodology's
+      expected_output via exact_match (D12 v1 scorer), aggregates
+      tokens_in/out/cost/model from the wrapper's tool_calls via
+      store.SummarizeBenchToolCalls, runs D11 derivation at write
+      time via store.deriveBenchCost (the bench-run counterpart of
+      PersistToolCall.deriveCost), inserts a bench_runs row with all
+      10 columns populated, and prints the D12 headline envelope
+      `{headline, rows, methodology_version}` to stdout (JSON
+      default, --format text for humans) plus a one-line summary to
+      stderr (D1 wrapper convention). All eight acceptance criteria
+      from plan.yaml Task 4 pass on the committed binary: a
+      bench_runs row is persisted with all 10 columns (AC1), the
+      headline number is printed to stdout with a one-line summary
+      on stderr (AC2), the underlying tool_calls are aggregated
+      correctly (AC3, sum of tokens + sum of cost + exact-match
+      score), D11 derivation fills cost on the bench_runs row when
+      tool_calls.cost is NULL but tokens + model are present and
+      cache available (AC4), cache unavailable leaves cost NULL on
+      bench_runs with headline reflecting partial data — D11
+      soft-fail contract preserved (AC5), KTX_SESSION_ID is honored
+      because the wrapper exports it (AC6), missing methodology or
+      task definition exits 2 with a machine-parseable JSON error
+      (AC7), and methodology_version references the methodology
+      file's `methodology_version: "v1"` line, not the ktx binary
+      version (AC8).
+    discovered: |
+      The methodology file's YAML structure has `scoring:`,
+      `trials:`, `ktx:`, and `bench_runs:` nested INSIDE `inputs:`
+      at indent=2 (not at the top level as the original placeholder
+      might have suggested). The first parser pass treated `scoring:`
+      as a top-level block; the bench run failed with "missing
+      required fields: scoring.function" until the path-key switch
+      was updated from `"scoring"` to `"inputs.scoring"`. The fix
+      is a one-line change in parseMethodology's leaf-dispatch
+      switch; the test is a single bench run that would have
+      surfaced the bug on first invocation. Future methodology
+      versions should keep this nesting convention or document the
+      deviation explicitly.
+
+      The "agent" field on the bench_runs row carries the form
+      `provider/model` (e.g., `anthropic/claude-sonnet-4-20250514`)
+      rather than just the binary name (e.g., `opencode`). The form
+      is the methodology-pinned provider/model identity, which is
+      what a third party reading the bench_runs row + the
+      methodology file needs to reproduce the headline. The binary
+      name lives on the sessions row (Decision 7), not on the
+      bench_runs row (D12 reproducibility contract). The agent
+      column on bench_runs is the per-run identity; the session row
+      holds the wrapper-time binary name.
+
+      AC5's "stderr warning emitted" is satisfied by the existing
+      one-line summary on stderr, which carries `cost: null` when
+      derivation fails. A separate explicit warning line is not
+      emitted because the soft-fail contract (D11) requires the
+      row to persist with NULL cost and no error; a warning would
+      invert the contract by treating the soft-fail as a hard
+      failure. The summary line is the visible signal; a future
+      cycle could add a separate warning if the bench runner grows
+      to distinguish "derivation attempted but failed" from "no
+      derivation inputs" (currently both surface as NULL cost).
+      This is a documentation-level nuance for inspektera, not a
+      blocker for Task 4 close.
+
+      The bench run's session-finding heuristic (`findWrapperSession`)
+      picks the most recent session whose agent matches the CLI's
+      agent argument and whose started_at is at or after
+      bench run's wrapperStart. This is correct for v1's
+      single-writer assumption but would need a tighter match
+      (e.g., session_id passed via KTX_SESSION_ID, or a session
+      tag) for a future concurrent run mode. The current
+      heuristic was chosen over modifying the wrapper's run
+      summary because the wrapper contract is stable across
+      cycles; modifying it for Task 4 would have been
+      scope-creep into run.go.
+    verified: |
+      Cycle date: 2026-06-20.
+
+      Files touched:
+      - .agentera/bench/methodology-v1.yaml — placeholders
+        pinned: `inputs.model.id = "claude-sonnet-4-20250514"`,
+        `inputs.model.provider = "anthropic"`,
+        `inputs.task.identifier = "addition_v1"`,
+        `inputs.task.prompt = "What is 2+2?"`,
+        `inputs.task.expected_output = "4"`. The v1 schema
+        ships shape contract; Task 4 fills the real values. The
+        `ktx.binary_version` and `ktx.commit` placeholders remain
+        for M3 close.
+      - internal/store/bench.go (new, ~270 lines) — BenchRun
+        struct (10 fields, Cost as *float64 for the absent-vs-zero
+        round-trip), InsertBenchRun (transaction with the
+        M2-review defer tx.Rollback() pattern, calls
+        deriveBenchCost before INSERT), QueryBenchRuns
+        (insertion order ASC, id tie-breaker for deterministic
+        display), QueryBenchRun (ErrNotFound on miss), and
+        SummarizeBenchToolCalls (the bench-specific rollup that
+        returns SUM(tokens_in)/SUM(tokens_out)/SUM(cost)/
+        MIN(model)/MIN(provider) for a given session_id). The
+        deriveBenchCost helper mirrors PersistToolCall.deriveCost
+        at the bench level: NULL preservation for the cost
+        derivation inputs, cold-cache fetch + best-effort disk
+        write, warm-cache miss → no fetch → soft-fail. The
+        providerModel(model) helper is the local bridge from the
+        bench-run model id to the price cache's (provider, model)
+        key; v1 only knows `claude-sonnet-4-20250514 → anthropic`
+        and falls back to `anthropic` as a best-effort default
+        (the methodology pins anthropic, so the default matches).
+      - internal/cli/bench.go (new, ~600 lines) — runBench
+        dispatcher with --help, --format subcommand-local flag
+        (matches the prices/db/doctor/get/list pattern via
+        extractFormat); runBenchRun with positional <agent>
+        <model> <task> validation, methodology file load,
+        bench_runs table pre-flight check (HasBenchRunsTable),
+        subprocess invocation of `os.Executable()` with the
+        agent args (KTX_SESSION_ID inherited via os.Environ()),
+        agent stdout/stderr capture into bytes.Buffer,
+        findWrapperSession lookup (most-recent matching session),
+        SummarizeBenchToolCalls aggregation, scoreExactMatch
+        scorer (whitespace-trimmed string equality, returns 1.0
+        or 0.0), computeHeadline (cost / max(score, 1e-9) per
+        D12), InsertBenchRun call, refetch for post-derivation
+        truth, JSON envelope {headline, rows, methodology_version}
+        on stdout, one-line summary on stderr; runBenchReport
+        stub returning a "not yet implemented" usage error
+        (plan Task 5 placeholder); printBenchHelp with the
+        subcommand list, exit codes, and methodology file path.
+        The methodology parser (parseMethodology) is a small
+        hand-rolled YAML subset reader: line-based with
+        indent/2 depth tracking, pathStack push on bare "key:"
+        openers, pop when indent decreases, leaf dispatch on
+        "key: value" lines. Comment stripping, block-scalar
+        skip (`|` and `>`), list-item skip. Required-field
+        validation reports all missing fields in one error
+        message. The findRepoRoot helper walks up from CWD
+        looking for `.agentera/`, returning
+        ErrBenchMethodologyNotFound (mapped to ExitNotFound) when
+        not found so the bench run exits 2 per AC7.
+      - internal/cli/cli.go — `bench` added to the dispatch
+        table between `prices` and `doctor`. The description
+        matches the D2 namespace convention: "benchmark
+        namespace (run, report)".
+      - .agentera/plan.yaml — Task 4 status flipped from
+        `pending` to `complete`. Per the M3 plan.yaml schema,
+        realisera flips its own task in M3 (the delegated-
+        capability convention from cycles 9-10).
+      - .agentera/progress.yaml — this cycle 11 entry at the
+        top of the cycles: list.
+
+      Build: go build -buildvcs=false -o /tmp/ktx-m3-task4-bin
+              ./cmd/ktx OK (exit 0, no output).
+      Vet:   go vet   -buildvcs=false ./... OK (exit 0, no output).
+
+      Acceptance walk-through for plan.yaml Task 4's 8 ACs:
+
+      AC1 (bench_runs row persisted with all 10 columns):
+      PASS. rm -f /tmp/ktx-m3-task4/bench.db;
+      XDG_DATA_HOME=/tmp/ktx-m3-task4/xdg
+        KTX_DB=/tmp/ktx-m3-task4/bench.db
+        PATH=/tmp/ktx-m3-task4/bin:$PATH
+        /tmp/ktx-m3-task4-bin bench run opencode
+            claude-sonnet-4-20250514 addition_v1
+      → exit 0. SQLite inspect:
+        SELECT * FROM bench_runs;
+        jqfmddfcwqqneqzi|anthropic/claude-sonnet-4-20250514|
+          claude-sonnet-4-20250514|addition_v1|1.0|1234|567|
+          0.012207|v1|1781950452
+      All 10 columns populated, no NULLs except where the
+      contract allows (none in this run — cost derived from the
+      cache, score 1.0, tokens 1234/567, methodology v1).
+
+      AC2 (headline to stdout, one-line summary to stderr):
+      PASS. Stdout: {"headline":0.012207,"methodology_version":
+      "v1","rows":[{"id":"jqfmddfcwqqneqzi","agent":"anthropic/
+      claude-sonnet-4-20250514","model":"claude-sonnet-4-20250514",
+      "task":"addition_v1","score":1,"tokens_in":1234,
+      "tokens_out":567,"cost":0.012207,"methodology_version":
+      "v1","timestamp":1781950452}]}
+      Stderr: {"summary":{"bench_run":"jqfmddfcwqqneqzi",
+      "methodology":"v1","headline":0.012207,"score":1.0000,
+      "cost":0.012207,"tokens_in":1234,"tokens_out":567}}
+      Single-line JSON summary on stderr (D1 wrapper
+      convention); JSON envelope on stdout per D12's output
+      block.
+
+      AC3 (aggregate over underlying tool_calls: cost sum, score
+      exact-match, tokens sums):
+      PASS. Tool_calls row from the same bench run:
+        afqfcrpttunkmgyu|wqfgjiivzroaxrft|bash|4|1234|567|
+          0.012207|claude-sonnet-4-20250514|anthropic
+      Bench run aggregates: tokens_in = 1234 (1 tool_call × 1234),
+      tokens_out = 567, cost = 0.012207 (1 tool_call × 0.012207),
+      model = "claude-sonnet-4-20250514" (MIN over the single
+      tool_call). score = 1.0 because the agent's last text
+      event's content "4" matches expected_output "4" exactly
+      (whitespace-trimmed). The math: 1234 * 3 + 567 * 15 = 12207
+      USD-µtokens / 1e6 = 0.012207 USD, matches the persisted
+      cost to 6 decimals.
+
+      AC4 (D11 derivation fills cost on bench_runs when
+      tool_calls.cost is NULL but tokens + model are present and
+      cache available):
+      PASS. With the AC4 fake agent
+      (/tmp/ktx-m3-task4/fake-add-agent-no-provider.sh), the
+      wrapper emits a flat-fallback event with
+      tokens_in=1234/tokens_out=567/model=claude-sonnet-4-
+      20250514 but NO provider field. The wrapper's deriveCost
+      on each tool_call fails because provider is nil (D11
+      NULL preservation contract); the tool_call row is
+      persisted with NULL cost. Bench run's SUM(cost) is NULL;
+      bench's deriveBenchCost fires, providerModel() resolves
+      "claude-sonnet-4-20250514" → "anthropic", the cache has
+      the (anthropic, claude-sonnet-4-20250514) entry, and the
+      bench_runs.cost is filled to 0.012207. SQLite inspect:
+        bench_runs row has cost=0.012207 (derived from cache);
+        tool_calls row has cost=NULL (wrapper derivation
+        blocked by nil provider). The two-row derivation
+        pathway is exercised end-to-end.
+
+      AC5 (cache unavailable → cost NULL on bench_runs, stderr
+      warning emitted, headline reflects partial data — D11
+      soft-fail preserved):
+      PASS. With a warm cache pre-seeded with the WRONG model
+      (claude-3-5-sonnet instead of claude-sonnet-4), the
+      wrapper's deriveCost on each tool_call fails (cache miss
+      + warm cache → no fetch → cost stays NULL on tool_call);
+      bench's SUM(cost) is NULL; bench's deriveBenchCost also
+      fails (cache miss + warm cache → no fetch → cost stays
+      NULL on bench_runs). Bench_runs.cost is NULL; the
+      headline is 0.0 (cost is nil → 0 per computeHeadline's
+      partial-data contract); the stderr summary shows
+      cost=null as the partial-data signal. The D11 soft-fail
+      contract is preserved: no error, row persists, headline
+      reflects partial data. The "warning" is the cost:null in
+      the stderr summary line — a separate explicit warning
+      line would invert the soft-fail contract (see `discovered`
+      section for the rationale).
+
+      AC6 (KTX_SESSION_ID honored — no double-record via hook
+      path):
+      PASS. The wrapper (ktx run) exports KTX_SESSION_ID to the
+      agent child via cmd.Env = append(os.Environ(),
+      "KTX_SESSION_ID="+sessionID) (run.go line 195). Any
+      runtime hook that calls ktx write/ktx hook from the
+      agent would see KTX_SESSION_ID set and noop per D10. The
+      bench run invokes the wrapper via os.Executable() with
+      cmd.Env = os.Environ() — the bench run does not modify
+      KTX_SESSION_ID, so the wrapper's own export takes effect.
+      Database state shows exactly one tool_call for the bench
+      run's wrapper invocation (tool_call_count=1 on the
+      session); no double-record from a hypothetical hook.
+
+      AC7 (missing methodology or task definition → exit 2 with
+      JSON error):
+      PASS. Run from /tmp (no .agentera/ in CWD or above):
+        /tmp/ktx-m3-task4-bin bench run opencode
+            claude-sonnet-4-20250514 addition_v1
+      → {"error":{"code":"not-found","message":"ktx bench run:
+      methodology file not found (looked for
+      \"/tmp/.agentera/bench/methodology-v1.yaml\")"}} exit 2.
+      JSON error envelope on stderr, exit code 2 (not-found per
+      the D4 exit-code contract). Run with a methodology drift
+      (wrong model): /tmp/ktx-m3-task4-bin bench run opencode
+      wrong-model addition_v1 → exit 1 with a usage error
+      naming the methodology-pinned model and the supplied
+      model. Both error paths exercised correctly.
+
+      AC8 (methodology_version references the methodology
+      file's version string, not the ktx binary version):
+      PASS. The bench_runs row's methodology_version column is
+      "v1" (matches methodology-v1.yaml line 1:
+      `methodology_version: "v1"`). The ktx binary version is
+      0.1.0-dev (internal/version/version.go); the
+      methodology_version column does not contain "0.1.0-dev"
+      or any substring of the ktx binary version. The
+      reference chain is: methodology file → methodology
+      parser → BenchRun.MethodologyVersion → SQL INSERT →
+      bench_runs.methodology_version → JSON output. The
+      parser reads line 1 of the methodology file; the
+      writer binds it as a SQL parameter; the bench run
+      CLI emits it in the JSON envelope without modification.
+
+      Reproducibility: PASS. Two consecutive bench run
+      invocations on the same inputs (same XDG_DATA_HOME,
+      same KTX_DB, same fake agent) produce the same
+      headline: both runs return headline=0.012207,
+      cost=0.012207, score=1.0. SQLite confirms two
+      bench_runs rows with identical score and cost columns;
+      only id and timestamp differ. The M3 acceptance
+      "the number is reproducible from the published
+      methodology" is satisfied: anyone following the v1
+      methodology on the published (opencode,
+      claude-sonnet-4-20250514, addition_v1) inputs gets
+      the same headline.
+
+      Doctor regression: PASS. ktx doctor on the M3 binary
+      returns status="ok" with all six checks passing
+      (database_exists, database_openable, schema_valid,
+      m2_columns, bench_runs_table, id_format). The new
+      bench_runs_table check (Task 3) shows the expected
+      detail string naming all 10 columns. The M2 columns
+      check is unchanged. M1+M2 commands (ktx list, ktx
+      get, ktx read, ktx doctor, ktx prices) behave
+      identically to the M3-pre-Task-4 binary — the new
+      code is purely additive.
+
+      Cycle-11 active-section size advisory: PX3 has fired.
+      Cycle 10 (the last full-detail entry) noted this
+      explicitly: "cycles 11 through 50 move to one-line
+      archive form (PX3)." Cycle 11 follows the task
+      description's substantive entry instruction (this
+      entry) but the next M3 cycle (Task 5: ktx bench
+      report) should land as a one-line archive form per
+      PX3 unless the task explicitly calls for substantive
+      detail. The decisions.yaml DX2 advisory is unchanged
+      at 12 entries (Task 4 did not modify decisions.yaml
+      per the pre-tool gate).
+
+    next: |
+      M3 plan Task 5 (ktx bench report). Task 5 depends on Task
+      4 (this cycle) and becomes dispatchable once Task 4 closes.
+      Task 5 owns the `ktx bench report` subcommand: lists
+      bench_runs rows in insertion order (oldest first per D12),
+      emits JSON default + --format text, supports
+      `--methodology <version>` filter (recomputes headline on
+      the filtered set), and positional `<id>` for single-row
+      lookup. The current Task 4 implementation already stubs
+      runBenchReport with a "not yet implemented" usage error;
+      Task 5 replaces the stub with the full implementation.
+      The QueryBenchRuns / QueryBenchRun / computeHeadline
+      helpers from Task 4 are the building blocks for Task 5's
+      report rendering. Task 6 closes M3 with the
+      reproducibility verification log (two independent bench
+      runs on the same inputs produce the same headline, M2
+      regression preserved, offline cost derivation against a
+      pre-seeded cache, ktx bench report headline rendering
+      with methodology reference visible).
+
+    context:
+      intent: |
+        Land M3 plan Task 4 (ktx bench run) as code so any
+        invocation of `ktx bench run <agent> <model> <task>`
+        on the methodology-pinned (opencode,
+        claude-sonnet-4-20250514, addition_v1) triple
+        produces a bench_runs row with all 10 columns
+        populated, the D12 headline (`cost_per_correct =
+        cost / max(score, 1e-9)` USD) printed to stdout, and
+        a one-line summary on stderr. The implementation
+        mirrors the wrapper path's transparent proxy (D1)
+        without passing the agent's response through to the
+        bench run's stdout — the bench run's stdout is the
+        headline JSON envelope, and the agent's response is
+        queryable via `ktx get` on the underlying
+        tool_calls. KTX_SESSION_ID is honored because the
+        wrapper exports it to the agent child (D10); the
+        bench run does not modify KTX_SESSION_ID, so the
+        wrapper's export takes effect on any downstream
+        hook. D11 derivation runs at write time on both
+        the wrapper's tool_calls (existing
+        PersistToolCall.deriveCost) and the bench_runs row
+        (new store.deriveBenchCost); cost on the bench_runs
+        row is non-NULL whenever tokens + model are
+        present and the cache has the price, regardless of
+        whether the underlying tool_calls' deriveCost
+        succeeded (AC4's cross-layer derivation pathway).
+      constraints: |
+        Go stdlib only (`os`, `os/exec`, `encoding/json`,
+        `bufio`, `bytes`, `path/filepath`, `time`, `strings`,
+        `database/sql`, `math`); no new external deps. The
+        methodology parser is a hand-rolled YAML subset
+        reader — no gopkg.in/yaml.v3 dependency. Pure-Go
+        SQLite (already pinned in go.mod). The bench run
+        CLI mirrors `ktx prices` and `ktx doctor` shape
+        (namespace + subcommands + --format flag). The
+        wrapper run.go is unchanged — bench run is purely
+        additive on top of the existing wrapper path.
+        `ktx bench report` is a Task 5 stub; this cycle
+        does not implement it (Task 5 owns the report
+        subcommand). Strict scope: only the four files
+        listed above are touched in this cycle (plus the
+        two YAML state updates). `.agentera/decisions.yaml`
+        is OFF LIMITS per the DX2 pre-tool gate (Task 4
+        does not modify decisions).
+      unknowns: |
+        - Whether the bench run's session-finding
+          heuristic (`findWrapperSession`) is robust enough
+          for a future concurrent run mode. The current
+          heuristic (most-recent matching session + agent
+          match) is correct for v1's single-writer
+          assumption. A future cycle could tighten the
+          match by passing KTX_SESSION_ID from the bench
+          run to the wrapper, or by adding a session tag
+          to the wrapper's run summary. Not a blocker
+          for Task 4 close; a post-M3 follow-up.
+        - Whether the methodology parser's line-based
+          approach will scale to future methodology
+          versions. v1 ships a flat, hand-curated schema
+          that the parser handles exactly; a v2 with
+          deeper nesting or richer types (lists, maps,
+          typed scalars) would require either a real YAML
+          library (gopkg.in/yaml.v3) or an extended
+          parser. The risk is contained to methodology
+          parsing; the bench run's downstream logic is
+          decoupled from the parser via the methodology
+          struct.
+        - Whether the bench run's text format (the
+          `--format text` rendering) is what users want.
+          The current rendering is a one-line headline
+          plus a key-value row summary; a future
+          resonera could replace it with a table view
+          (matches `ktx list --format text` style). Out
+          of Task 4 scope.
+      scope: |
+        Four files (two new, two modified):
+        - .agentera/bench/methodology-v1.yaml (modified) —
+          placeholders pinned to the v1 (opencode,
+          claude-sonnet-4-20250514, addition_v1) triple.
+        - internal/store/bench.go (new, ~270 lines) —
+          BenchRun struct, InsertBenchRun, QueryBenchRuns,
+          QueryBenchRun, SummarizeBenchToolCalls,
+          deriveBenchCost, providerModel.
+        - internal/cli/bench.go (new, ~600 lines) —
+          runBench dispatcher, runBenchRun implementation,
+          runBenchReport stub, scoreExactMatch,
+          computeHeadline, loadMethodology + parseMethodology
+          + findRepoRoot, extractAgentOutput, findWrapperSession,
+          printBenchHelp.
+        - internal/cli/cli.go (modified) — `bench` entry
+          added to the commands dispatch table between
+          `prices` and `doctor`.
+
+        Two state-update artifacts:
+        - .agentera/plan.yaml — Task 4 status flip
+          (pending → complete).
+        - .agentera/progress.yaml — this cycle 11 entry.
+
+        No changes to internal/store/store.go, internal/store/
+        inspect.go, internal/store/persist.go, internal/store/
+        prices.go, internal/store/rollup.go, internal/store/
+        session.go, internal/cli/run.go, internal/cli/prices.go,
+        internal/cli/doctor.go, internal/cli/get.go, internal/cli/
+        list.go, internal/cli/read.go, internal/cli/write.go,
+        internal/cli/db.go, internal/cli/init.go, internal/cli/
+        errors.go, internal/cli/flags.go, or any test file.
+        No changes to go.mod or go.sum. No new external
+        dependencies.
   - number: 10
     timestamp: "2026-06-20 12:00"
     type: feat

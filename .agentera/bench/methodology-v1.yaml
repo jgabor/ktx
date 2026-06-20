@@ -28,12 +28,12 @@ inputs:
     binary: opencode              # OpenCode 1.17.8 (M2 wrapper evidence)
     version: "1.17.8"
   model:
-    id: "<specific model — leave as a placeholder; planera/realisera will pin this in task 4>"
-    provider: "<specific provider — placeholder>"
+    id: "claude-sonnet-4-20250514"  # Pinned by M3 plan Task 4
+    provider: "anthropic"            # Pinned by M3 plan Task 4
   task:
-    identifier: "<task identifier — placeholder for v1; M3 task 4 picks one>"
-    prompt: "<the prompt text — placeholder>"
-    expected_output: "<the expected output for exact-match scoring — placeholder>"
+    identifier: "addition_v1"        # Pinned by M3 plan Task 4
+    prompt: "What is 2+2?"
+    expected_output: "4"
   scoring:
     function: exact_match
     version: "v1"
@@ -47,10 +47,10 @@ inputs:
       known good output will reject any token-level variance. Future
       methodology versions may introduce fuzzy matching.
   ktx:
-    binary_version: "<ktx version — placeholder; pin at M3 close>"
-    commit: "<commit SHA — placeholder; pin at M3 close>"
+    binary_version: "<ktx version — pinned at M3 close>"
+    commit: "<commit SHA — pinned at M3 close>"
   bench_runs:
-    row_id: "<row id — placeholder; populated when a real run lands>"
+    row_id: "<row id — populated when a real run lands>"
 
 # Computation
 #

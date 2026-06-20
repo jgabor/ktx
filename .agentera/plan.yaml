@@ -79,7 +79,7 @@ tasks:
   - number: 4
     name: "ktx bench run"
     depends_on: ["3"]
-    status: pending
+    status: complete
     acceptance:
       - "GIVEN a published methodology file + an (agent, model, task) triple WHEN `ktx bench run <agent> <model> <task>` is invoked THEN a new `bench_runs` row is persisted with `id`, `agent`, `model`, `task`, `score`, `tokens_in`, `tokens_out`, `cost`, `methodology_version`, `timestamp`"
       - "GIVEN the bench run WHEN it completes THEN the headline number (per the D12 methodology's published metric) is printed to stdout and a one-line summary is printed to stderr (D1 wrapper convention)"

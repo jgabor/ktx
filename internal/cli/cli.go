@@ -58,6 +58,7 @@ var commands = []command{
 	{name: "init", description: "install a runtime adapter", run: runInit},
 	{name: "db", description: "database operations (path, prune)", run: runDB},
 	{name: "prices", description: "price cache operations (update)", run: runPrices},
+	{name: "bench", description: "benchmark namespace (run, report)", run: runBench},
 	{name: "doctor", description: "check ktx health", run: runDoctor},
 }
 

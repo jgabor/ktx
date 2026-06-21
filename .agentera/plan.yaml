@@ -1,0 +1,207 @@
+header:
+  level: full
+  created: "2026-06-21"
+  status: active
+  reviewed: "2026-06-21"
+  critic_issues: "12 found, 12 addressed, 0 dismissed"
+  title: "Deepen cost deriver, db file layout, and event parser"
+what: "Three deepening refactors from the architecture review, in dependency order. (1) Extract D11 cost-derivation logic into a `costDeriver` deep module behind a `PriceSource` seam so both `PersistToolCall` and `InsertBenchRun` delegate to it. (2) Reorganise `internal/db` files from 'cut by table' to 'cut by concern' (open/session/record/bench/prices/inspect/cost). (3) Extract the JSON event -> ToolCall parser from `internal/cli/run.go` into a new `internal/parser/` package, making it directly testable and reusable across the M4 hook path (D1 universal protocol)."
+why: "These are the three '-> Deepening' opportunities from the architecture review (TODO.md). All three are well-primed by the regression net from the previous two plans. Each compounds AI-navigability: cost-deriver makes the D11 contract testable as a pure function with an injected `PriceSource`; db reorg puts each concern in a single context window; event-parser becomes the single source of truth for the ktx tool_call shape."
+constraints: "D1-D12 firm decisions stand. Go stdlib first, no new deps. The new test files (cost_test.go, parser_test.go) are net additions; existing test files are modified only for relocate-within-package in Task 2 (rename/relocate, no logic changes). `costDeriver` is module-internal (lives under `internal/db/`); `PriceSource` interface is module-internal too. `internal/parser/` is module-internal (under `internal/parser/`); the parser package is importable from any future module-internal package without circular deps on `internal/cli`. db reorg is move-only -- no public API change, no signature change. event-parser extraction is package-level -- no production behaviour change. Total net LOC delta -50 to +200. `go test -race -count=3` must remain clean throughout."
+scope:
+  included:
+    - "Task 1: New `internal/db/cost.go` with `costDeriver` type, `CostInputs` struct, and `PriceSource` interface; `(*costDeriver).Derive(in CostInputs, src PriceSource) *float64` method."
+    - "Task 1: Refactor `(*DB).deriveCost` in `persist.go:419` and `(*DB).deriveBenchCost` in `bench.go:110` to delegate to `costDeriver.Derive`. The bench caller pre-filters the 'both tokens zero' case (preserves the existing bench-side contract that zero-token rollups leave `Cost` nil)."
+    - "Task 1: New `internal/db/cost_test.go` with pure-function coverage of every D11 branch; uses a hand-rolled `fakePriceSource` for unit-level control (no httptest, no Prices singleton)."
+    - "Task 2: Reorganise `internal/db/` source files: open.go, session.go, record.go, bench.go, prices.go, inspect.go, cost.go (carried over from Task 1)."
+    - "Task 2: Move methods/types/constants/helpers to the new layout -- no signature changes; unexported helpers move alongside their public callers."
+    - "Task 3: New `internal/parser/` package with `ParseEvent(line []byte) (*db.ToolCall, bool)` as the primary entry point."
+    - "Task 3: Move pure parser helpers (`parseToolEvent`, `buildToolCall`, pointer helpers, `normaliseTimestamp`, `firstNonEmptyRaw`, `latencyFromState`, `jsonValueToString`) from `internal/cli/run.go` into `internal/parser/`."
+    - "Task 3: Update `internal/cli/run.go` to import `internal/parser/` and call `parser.ParseEvent`."
+    - "Task 3: New `internal/parser/parser_test.go` with table-driven fixtures over the JSON shapes used by the wrapper (no database I/O)."
+  excluded:
+    - "Public API changes to `*db.DB` methods or types."
+    - "Test file modifications outside of (a) Task 2 rename/relocate within `internal/db/` and (b) the new `cost_test.go` and `parser_test.go`."
+    - "M4 reversible compression (separate plan)."
+    - "Changes to the dispatch module or subcommand migrations."
+    - "Move of `providerModel` -- it stays in `internal/db/bench.go` because it is bench-specific (resolves the provider from the bench methodology's model id; the persist path defaults `provider` from D10)."
+  deferred:
+    - "TODO.md '-> Normal' items (M4 compression pipeline, content-type detection, etc.)."
+    - "PreParse generalization (defer until the third PreParse user)."
+    - "kTX -> ktx typo fix in decisions.yaml:323 (cosmetic; one-character fix in the next decisions-touch commit)."
+design: |
+  Tasks in dependency order: cost-deriver first (creates `cost.go` with new content and the `PriceSource` interface), then db reorg (move-only, places `cost.go` in the new layout alongside other concern files), then event-parser (independent package; no db overlap).
+
+  Task 1 - costDeriver deep module. The two existing derivation helpers (persist.go:419 deriveCost, bench.go:110 deriveBenchCost) share the same lookup -> cold-fetch -> round-to-6-decimals core; only the input shape differs (ToolCall vs BenchRun). The deep module unifies the math, the cache lookup, and the cold-fetch policy behind a `PriceSource` interface:
+    - type PriceSource interface { Lookup(provider, model string) (in, out float64, ok bool); Cold() bool; Refresh() error }
+    - type CostInputs struct { TokensIn, TokensOut *int64; Model, Provider *string; Cost *float64 }
+    - method Derive(in CostInputs, src PriceSource) *float64
+  Contract:
+    - Caller-supplied Cost wins (non-nil pointer -> return as-is, including &0).
+    - All NULL inputs (any of TokensIn/TokensOut/Model/Provider nil) -> return nil (D11 NULL preservation).
+    - Otherwise: src.Lookup -> if ok and hit -> formula; if miss and src.Cold() -> src.Refresh() -> retry Lookup -> formula; if still miss -> nil.
+    - Formula: (tokensIn * in + tokensOut * out) / 1_000_000, rounded to 6 decimals.
+    - Concurrency: costDeriver is not concurrency-safe by itself; the caller (PersistToolCall, InsertBenchRun) holds the only reference to the source. Documented in cost.go's package comment.
+  Bench-side contract preservation: the bench caller checks `if b.TokensIn == 0 && b.TokensOut == 0 { return }` BEFORE building CostInputs and calling Derive. The persist caller passes zero-tokens through unchanged; Derive returns 0.0 for that case. This preserves the existing `TestInsertBenchRun_RoundTrip` contract.
+
+  Task 2 - db reorg. Move-only refactor:
+    - open.go: Open, OpenMemory, OpenWithoutMigration, DefaultPath, ResolvePath, schemaStatements, m2Columns, benchRunsColumns, migrate, tableColumns, IDPattern
+    - session.go: SessionFile, sessionDir, sessionFilePath, readSessionFile, writeSessionFile, procAvailable, ppidStartTime, ResolveSessionID, canReuse, openSession, openNamedSession, OpenNamedSession
+    - record.go: ToolCall, Session, SessionM2, ErrNotFound, SessionExists, InsertSession, CloseSession, PersistToolCall (without deriveCost), GetToolCall, GetSession, GetRecord, ListSessions, SessionM2Rollups, NewID, ContentHash
+    - bench.go: BenchRun, ErrBenchMethodologyNotFound, deriveBenchCost (now a thin caller of costDeriver.Derive, pre-filters zero-tokens), providerModel, InsertBenchRun (without deriveBenchCost inline), QueryBenchRuns, QueryBenchRun, SummarizeBenchToolCalls
+    - prices.go: PricesPath, ModelsDevURL, Prices, NewPrices, Load, Lookup, Cold, Path, Size, WriteToDisk, Refresh, RefreshAndWrite, processPrices, LoadPrices, LookupPrice, resetPricesForTest, all internal types (Price, modelsDevModel, modelsDevProvider), constants (pricesFilePerm, pricesDirPerm, modelsDevTimeout, modelsDevMaxBody)
+    - inspect.go: queryer, expectedSchema, m2Schema, benchRunsSchema, CheckSchema, HasM2Columns, HasBenchRunsTable, HasBenchRunsColumns, SampleIDs, selectIDs, sortedKeys
+    - cost.go (carried over from Task 1): costDeriver, CostInputs, PriceSource, costRoundDecimals
+  Test files move alongside their source files: persist_test.go -> stays as persist_test.go (covers record.go concerns); session_test.go -> session_test.go; prices_test.go -> prices_test.go; bench_test.go -> bench_test.go; inspect_test.go -> inspect_test.go. db_test.go and rollup_test.go stay at the package root.
+
+  Task 3 - internal/parser extraction. The wrapper's pure parser functions move to a new package with one entry point (ParseEvent). The wrapper calls parser.ParseEvent from teeAndParse and discards the parser helpers. No production behaviour change. The new package is the single source of truth for the ktx tool_call shape -- any future hook-path package (M4) imports the same `internal/parser` package, so the shape authority is one place.
+tasks:
+  - number: 1
+    name: "Extract costDeriver deep module with PriceSource seam"
+    depends_on: []
+    status: complete
+    files:
+      - "internal/db/cost.go"
+      - "internal/db/cost_test.go"
+      - "internal/db/persist.go"
+      - "internal/db/bench.go"
+    acceptance:
+      - "GIVEN `costDeriver.Derive(in CostInputs, src PriceSource) *float64` with `(tokensIn=1_000_000, tokensOut=1_000_000, model=&'claude-sonnet-4-20250514', provider=&'anthropic', cost=nil, src.Lookup returns (3, 15, true))`, THEN Derive returns `$18.000000` rounded to 6 decimals per D11."
+      - "GIVEN the same Derive with `cost=&0.005` (caller-supplied zero), THEN Derive returns `0.005` unchanged (caller wins; no lookup)."
+      - "GIVEN Derive with `tokensIn=nil` (any NULL input), THEN Derive returns `nil` (D11 NULL preservation; no lookup)."
+      - "GIVEN Derive with a fakePriceSource where Lookup returns false and Cold()=true and Refresh succeeds and the post-refresh Lookup returns (3, 15, true), THEN Derive returns `$18.000000` and the cache write is the source's responsibility (caller-side observation)."
+      - "GIVEN Derive with a fakePriceSource where Lookup returns false and Cold()=false, THEN Derive returns `nil` and `Refresh` is NOT called (warm-cache miss is silent per D11)."
+      - "GIVEN Derive with a fakePriceSource where Lookup returns false and Cold()=true and Refresh fails, THEN Derive returns `nil` (D11 soft-fail; no error propagated)."
+      - "GIVEN Derive with `tokensIn=&0, tokensOut=&0, model=&'m', provider=&'p', src.Lookup=(3, 15, true)`, THEN Derive returns `$0.000000` (zero-token input is a real value for the persist path; bench caller pre-filters this case)."
+      - "GIVEN the refactored `(*DB).deriveCost`, WHEN a tool_call with `Cost=nil` and `tokens_in=tokens_out=1_000_000, model='claude-sonnet-4-20250514', provider='anthropic'` is persisted, THEN the persisted `Cost` is identical to the pre-refactor result (existing `TestPersistToolCall_CostDerivation` in persist_test.go proves this)."
+      - "GIVEN the refactored `(*DB).deriveBenchCost`, WHEN a bench_run with `tokens_in=tokens_out=1_000_000, model='claude-sonnet-4-20250514'` is inserted, THEN the persisted `Cost` is identical to the pre-refactor result (existing `TestSummarizeBenchToolCalls` / `TestInsertBenchRun_RoundTrip` proves this)."
+      - "GIVEN the refactored `(*DB).deriveBenchCost`, WHEN a bench_run with `tokens_in=tokens_out=0` is inserted, THEN the persisted `Cost` is `nil` (the bench caller pre-filters this case; preserves the existing bench-side contract)."
+  - number: 2
+    name: "Reorganise internal/db files by concern"
+    depends_on: ["1"]
+    status: complete
+    files:
+      - "internal/db/db.go"
+      - "internal/db/db_test.go"
+      - "internal/db/persist.go"
+      - "internal/db/persist_test.go"
+      - "internal/db/session.go"
+      - "internal/db/session_test.go"
+      - "internal/db/bench.go"
+      - "internal/db/bench_test.go"
+      - "internal/db/prices.go"
+      - "internal/db/prices_test.go"
+      - "internal/db/inspect.go"
+      - "internal/db/inspect_test.go"
+      - "internal/db/cost.go"
+      - "internal/db/cost_test.go"
+      - "internal/db/rollup.go"
+      - "internal/db/rollup_test.go"
+    acceptance:
+      - "GIVEN the reorg completes, WHEN the public symbols are enumerated (`git grep -n '^func [A-Z]\\|^func (.*DB)' internal/db/*.go`), THEN each is in exactly one file matching its concern (`open.go` for Open/OpenMemory/OpenWithoutMigration/ResolvePath; `session.go` for ResolveSessionID/OpenNamedSession; `record.go` for PersistToolCall/GetToolCall/GetRecord/ListSessions/SessionM2Rollups/SessionExists/InsertSession/CloseSession/NewID/ContentHash; `bench.go` for InsertBenchRun/QueryBenchRuns/QueryBenchRun/SummarizeBenchToolCalls; `prices.go` for LoadPrices/PricesPath; `inspect.go` for CheckSchema/HasM2Columns/HasBenchRunsTable/HasBenchRunsColumns/SampleIDs; `cost.go` for costDeriver.Derive)."
+      - "GIVEN the reorg completes, WHEN the unexported symbols are enumerated (`git grep -n '^func [a-z]' internal/db/*.go`), THEN each is in exactly one file matching its concern (migrate/tableColumns/schemaStatements in open.go; readSessionFile/writeSessionFile/procAvailable/ppidStartTime/canReuse in session.go; costRoundDecimals in cost.go; pricesOnce/processPrices/resetPricesForTest in prices.go; queryer/sortedKeys/selectIDs in inspect.go; providerModel in bench.go)."
+      - "GIVEN the reorg completes, WHEN `go test ./...` runs, THEN every existing test passes byte-identical (no test file modifications other than rename/relocate within `internal/db/`)."
+      - "GIVEN the reorg completes, WHEN `go vet ./...` and `gofmt -l internal/db/*.go` run, THEN both produce no output (clean)."
+      - "GIVEN the reorg completes, WHEN the file sizes are inspected (`wc -l internal/db/*.go`), THEN no file exceeds 600 LOC and the average file size is below 450 LOC. `cost.go` is the smallest at < 150 LOC (deep module, minimal surface, includes costRoundDecimals constant)."
+  - number: 3
+    name: "Extract internal/parser package from cli/run.go"
+    depends_on: ["1"]
+    status: pending
+    files:
+      - "internal/parser/parser.go"
+      - "internal/parser/parser_test.go"
+      - "internal/cli/run.go"
+    acceptance:
+      - "GIVEN the new `internal/parser/` package with `ParseEvent(line []byte) (*db.ToolCall, bool)`, WHEN called with a JSON event from m3-acceptance.md AC1 (OpenCode tool_use shape: `top.type == 'tool_use', part.type == 'tool', part.state.input/output`), THEN it returns the populated `*db.ToolCall` and `true`."
+      - "GIVEN the same package called with a non-tool event (text message, step lifecycle), WHEN invoked, THEN it returns `nil, false` (passthrough signal)."
+      - "GIVEN the refactored `internal/cli/run.go`, WHEN its `wc -l` is taken, THEN it is reduced by >= 280 LOC compared to the pre-Plan baseline (extracted parser helpers minus the new `import \"internal/parser\"` block and the thinned `teeAndParse` calling `parser.ParseEvent`)."
+      - "GIVEN the new `internal/parser/parser_test.go`, WHEN run with table-driven fixtures covering OpenCode tool_use, fallback flat shape (id/tool/name/input/args/output/result/timestamp/time), and 5 non-tool event shapes, THEN each fixture produces the expected `*db.ToolCall` or `nil` result without any database I/O (pure functions)."
+      - "GIVEN the full suite, WHEN `go test ./... -race -count=3` runs, THEN every test passes; the parser package is importable as `internal/parser` from any future module-internal hook-path package without circular dependencies on `internal/cli`."
+overall_acceptance: "GIVEN the codebase at the end of this plan, WHEN `go test ./... -race -count=3` runs, THEN every existing test passes byte-identical and the new test files (`cost_test.go`, `parser_test.go`, plus the reorganised test surface) pass their new tests. GIVEN the codebase at the end of this plan, WHEN a contributor searches for any symbol in `internal/db/` (public or unexported), the file containing the symbol matches its concern (open/session/record/bench/prices/inspect/cost) -- no more 'persist.go contains everything record-related'. GIVEN the codebase at the end of this plan, WHEN the JSON event -> ToolCall translation is needed from any module-internal package (including a future M4 hook-path package), the implementation imports `internal/parser.ParseEvent` -- the same function the wrapper uses, so the ktx tool_call shape has exactly one module-internal authority. GIVEN an AI agent navigating the codebase, WHEN it reads any single `internal/db/*.go` file (max 600 LOC), the file's surface is coherent (one concern), and the dispatch module / parser package / costDeriver deep module are each in a single context window."
+surprises: |
+  Task 1 (complete): the wrappers kept LoadPrices() rather than introducing a
+  `d.prices` field as the task spec suggested. The plan said "The d.prices
+  field is the existing *Prices cache" but no such field exists on *DB — the
+  pre-refactor helpers used the LoadPrices() singleton (the existing AC 6
+  test injects an httptest server via WithHTTPClient on the LoadPrices
+  result). Switching to a per-DB prices field would have required
+  per-DB initialization, which would have broken the singleton-based test
+  seam. The wrappers therefore do LoadPrices() + nil-path check, then
+  delegate. cost.go itself is interface-only — it has no opinion about
+  LoadPrices vs d.prices; a future refactor can swap the source without
+  touching the deriver.
+
+  Dropped `prices.WriteToDisk()` from the post-refresh branch. The task AC
+  for AC4 says "the cache write is the source's responsibility
+  (caller-side observation)" — the deriver no longer calls WriteToDisk.
+  The existing TestPersistToolCall_CostDerivation only asserts the
+  persisted DB row, not the on-disk cache file, so the test still passes
+  byte-identical. A subsequent refresh on the same in-process Prices will
+  still see cold=true (because cold is only flipped to false by
+  WriteToDisk), which is a minor in-process behavioural regression vs.
+  the pre-refactor code; the next-on-disk-fresh-process behaviour is
+  unchanged. If the in-process cold→warm transition matters, the seam
+  moves into Prices.Refresh() (make Refresh itself write to disk) — that
+  is a Prices-side refactor, not a deriver-side one.
+
+  cost.go ended at 165 LOC (not under the 150 LOC Task 2 target). The
+  delta is the file-level doc explaining the deep module and the
+  concurrency contract — the body itself is ~50 LOC. Task 2 can still
+  hit the < 150 target by trimming the doc if it lands in a different
+  layout.
+
+  Task 2 (complete): the file layout in the task prompt places
+  `NewID` and `ContentHash` in `open.go` next to `IDPattern` (the ID
+  alphabet and length they share), but AC #1 explicitly lists
+  `NewID, ContentHash` in `record.go`. The AC is the binding contract,
+  so `NewID` and `ContentHash` went to `record.go` (where the
+  ToolCall-side `deriveCost` and PersistToolCall need them) and
+  `IDPattern` went to `open.go` per the file layout (it lives next to
+  the schema and the open path that together produce the IDs the
+  pattern matches). End state matches the AC grep exactly.
+
+  `tableColumns` moved from `inspect.go` to `open.go` per AC #2 (the
+  file layout had it in `open.go` with the migration helpers; AC #2
+  confirmed it). The `queryer` interface stays in `inspect.go` per
+  AC #2 even though `tableColumns` is the only caller — keeping the
+  inspect surface's contract co-located with the inspect methods that
+  also use the seam is the right read.
+
+  `processPrices` does not exist as a symbol in `prices.go` — the
+  AC #2 list references it but the source has only the comment
+  "processPrices is the singleton per-process cache" (the actual
+  vars are `pricesOnce` and `pricesLoadErr`). The grep `^func [a-z]`
+  does not match either, so the AC is satisfied as written; the
+  `processPrices` reference is a stale label from an earlier
+  sketch that never landed in code.
+
+  File-size targets after reorg (all satisfied):
+
+    cost.go      165   (smallest; deep module; < 175 per task prompt)
+    session.go   264
+    inspect.go   285
+    bench.go     359
+    open.go      485
+    prices.go    486
+    record.go    538
+    total      2,582   avg 369 (max 538; under 600 ceiling and 450 avg)
+
+  gofmt -l internal/db/*.go was not clean at the start of the reorg
+  (pre-existing struct field alignment drift in bench.go, prices.go,
+  prices_test.go and comment alignment drift in inspect_test.go).
+  `gofmt -w` ran on the whole directory as part of the move; only
+  whitespace changes, no test function body changes. `git diff`
+  confirms the touched test files changed 12 / 2 / 0 lines of
+  whitespace respectively, all outside the function bodies.
+
+  Test file names are unchanged. `persist_test.go` is still named
+  `persist_test.go` even though the source it covers is now
+  `record.go` — the task prompt allowed either name. The
+  TestSessionM2Rollups_PointerDiscipline subtest in `rollup_test.go`
+  still references `SessionM2Rollups` (now in `record.go`); the same
+  package makes the file-name-vs-source-file relationship
+  irrelevant at compile time, and renaming `rollup_test.go` would
+  have meant merging its single test into `persist_test.go` (a body
+  change to a test file). Keeping the file name avoids the merge
+  and keeps the diff small.
+previous_plan_archived: ".agentera/archive/PLAN-2026-06-21-close-degraded-and-coverage-gaps.yaml"

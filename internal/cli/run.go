@@ -27,26 +27,15 @@
 // Event parsing:
 //
 //	The agent is expected to emit newline-delimited JSON events on
-//	stdout. Each event is parsed for a tool-call shape; non-tool events
-//	(text, step lifecycle) and non-JSON lines are passed through
-//	without persistence. Parsing is best-effort and schema-flexible: the
-//	OpenCode "tool_use" shape (top.type == "tool_use", part.type ==
-//	"tool", part.state.input/output) is recognised, and a flat fallback
-//	(top-level id/tool/name/input/args/output/result/timestamp/time)
-//	supports other runtimes.
-//
-// M2 extraction (Task 4):
-//
-//	The parser populates the M2 pointer fields on the persisted
-//	tool_calls row when the source event carries them. OpenCode's
-//	tool_use event exposes latency via part.state.time.start/end
-//	(-> latency_ms) and identifies the runtime as provider="opencode"
-//	(runtime-known single exception). tokens_in / tokens_out / cost /
-//	model live on the separate step_finish event (a step-aggregate)
-//	and do NOT appear on tool_use; the parser reads them defensively
-//	in state.metadata so a future runtime that places them there
-//	would round-trip. A missing M2 field is not a parse failure —
-//	the persisted row carries NULL and the wrapper moves on.
+//	stdout. Each line is forwarded to internal/parser.ParseEvent,
+//	which is the single source of truth for the ktx tool_call shape.
+//	ParseEvent returns (tool_call, true) for tool-shaped events
+//	(OpenCode tool_use and the flat fallback) and (nil, false) for
+//	non-tool events (text, step lifecycle, malformed JSON, empty lines).
+//	The non-tool signal is passthrough: teeAndParse writes the line
+//	to the caller's stdout and moves on. The parser package is
+//	module-internal and reused by the future M4 hook path
+//	(D1: same JSON payload shape).
 //
 // Task 6 migration: the verb registers via dispatch.Register with
 // NeedsDB=true (dispatcher opens the DB) and PassthroughStdout=true
@@ -71,12 +60,12 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/parser"
 )
 
 // maxAgentLine caps a single emitted JSON line. Agent tool outputs (e.g.,
@@ -367,6 +356,13 @@ func init() {
 // line read errors are logged but do not abort the tee; persist errors
 // are logged per-call but do not abort the tee.
 //
+// The JSON -> tool_call translation lives in internal/parser
+// (parser.ParseEvent). The wrapper adds sessionID after parsing and
+// hands the populated *db.ToolCall to db.PersistToolCall. Non-tool
+// events (text, step lifecycle, malformed JSON, empty lines) are
+// passed through: ParseEvent returns (nil, false) and the wrapper
+// writes the line to stdout without persisting.
+//
 // Persistence is inline (synchronous) so each tool_call is committed
 // before the next line is read. A persist failure is logged to stderr
 // and the next line is processed.
@@ -382,16 +378,15 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, 
 		_, _ = stdout.Write(line)
 		_, _ = stdout.Write([]byte{'\n'})
 
-		ev, ok := parseToolEvent(line)
+		tc, ok := parser.ParseEvent(line)
 		if !ok {
 			continue
 		}
+		// ParseEvent returns a fully-populated *db.ToolCall except for
+		// SessionID, which the parser does not know. The wrapper fills
+		// it before persisting.
+		tc.SessionID = sessionID
 
-		tc, err := buildToolCall(ev, sessionID)
-		if err != nil {
-			fmt.Fprintf(stderr, "ktx: warning: build tool_call: %v\n", err)
-			continue
-		}
 		if err := db.PersistToolCall(tc); err != nil {
 			// Don't fail the run; record the error so the user sees
 			// it. The summary will reflect the partial count.
@@ -404,364 +399,6 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, 
 		fmt.Fprintf(stderr, "ktx: warning: read agent stdout: %v\n", err)
 	}
 	return persisted
-}
-
-// buildToolCall materialises a parsed event into the db's ToolCall
-// shape (Decision 9). ID is always generated fresh — Decision 3
-// mandates 16-char lowercase alpha nanoids, and runtime-supplied IDs
-// (e.g., OpenCode's callID) do not necessarily match. Cross-referencing
-// runtime IDs against ktx records is a post-M1 enhancement (Decision 9
-// reserves the callID field shape but M1 does not store it).
-//
-// content_hash is derived from output. timestamp is normalised to
-// RFC3339Nano so downstream readers do not need to disambiguate
-// milliseconds vs seconds vs ISO strings.
-//
-// The M2 fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider)
-// are pointer-copied from the parsed event: a nil pointer round-trips
-// to SQL NULL / JSON null (field absent in source), a non-nil pointer
-// to zero round-trips to SQL 0 / JSON 0 (source emitted zero). The
-// convention matches the dbpkg.ToolCall shape (Task 3) and preserves
-// the reconstructability requirement from the cost-mechanics decision:
-// 'absent' is not conflated with 'zero'.
-func buildToolCall(ev *parsedEvent, sessionID string) (*dbpkg.ToolCall, error) {
-	id, err := dbpkg.NewID()
-	if err != nil {
-		return nil, fmt.Errorf("generate id: %w", err)
-	}
-	ts := ev.Timestamp
-	if ts == "" {
-		ts = time.Now().UTC().Format(time.RFC3339Nano)
-	} else {
-		ts = normaliseTimestamp(ts)
-	}
-	return &dbpkg.ToolCall{
-		ID:          id,
-		SessionID:   sessionID,
-		Tool:        ev.Tool,
-		Input:       ev.Input,
-		Output:      ev.Output,
-		ContentHash: dbpkg.ContentHash(ev.Output),
-		Timestamp:   ts,
-		EventType:   "tool_call",
-		TokensIn:    ev.TokensIn,
-		TokensOut:   ev.TokensOut,
-		Cost:        ev.Cost,
-		LatencyMs:   ev.LatencyMs,
-		Model:       ev.Model,
-		Provider:    ev.Provider,
-	}, nil
-}
-
-// parsedEvent is the result of a successful parseToolEvent.
-//
-// The M2 fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider)
-// use pointer types so the absent-vs-zero distinction survives into
-// buildToolCall: nil = "field absent in the source event" (round-trips
-// to SQL NULL and JSON null); a non-nil pointer to 0 = "source emitted
-// the field with value zero" (round-trips to SQL 0 and JSON 0).
-//
-// This mirrors the persistence-side convention in dbpkg.ToolCall
-// (Task 3): the parse layer hands buildToolCall pointers that the
-// struct boundary copies straight onto the db shape. A missing M2
-// field in the source event is NOT a parse failure — the wrapper
-// records the tool call with NULL M2 columns and moves on.
-type parsedEvent struct {
-	ID        string
-	Tool      string
-	Input     string
-	Output    string
-	Timestamp string
-
-	// M2 cost-publication fields. nil = absent in the source event.
-	// Populated by parseToolEvent when the event carries the field;
-	// buildToolCall copies the pointer through to the persisted row.
-	TokensIn  *int64
-	TokensOut *int64
-	Cost      *float64
-	LatencyMs *int64
-	Model     *string
-	Provider  *string
-}
-
-// parseToolEvent returns (event, true) if line looks like a tool call,
-// (nil, false) otherwise. Malformed JSON or non-tool events return
-// (nil, false) so the caller can passthrough unchanged.
-//
-// Two schemas are recognised:
-//
-//  1. OpenCode: top.type == "tool_use" and part.type == "tool". The
-//     tool name, input, and output live in part.state. M2 extraction
-//     from this shape:
-//       - latency_ms: computed from part.state.time.end - .start when
-//         both are present (OpenCode always emits both on a completed
-//         state). If only one is present, latency_ms stays nil — a
-//         missing field is not a parse failure.
-//       - provider: defaulted to "opencode" (runtime-known single
-//         exception; the wrapper knows its agent). Documented as the
-//         one place "don't guess" yields to "wrapper knows".
-//       - tokens_in / tokens_out / cost / model: the OpenCode runtime
-//         does NOT emit these on tool_use events; they live on the
-//         separate step_finish event (a step-aggregate, not per-tool).
-//         The parser defensively reads part.state.metadata and the
-//         top-level event for these fields so a future OpenCode shape
-//         or a custom adapter that does emit them would round-trip.
-//         Real OpenCode 1.17.8 events leave these nil — documented in
-//         .agentera/verification/m4-task-4-acceptance.md.
-//
-//  2. Flat fallback: a top-level object with tool/name and (input|args)
-//     and (output|result) fields. Optional id/timestamp/time aliases.
-//     M2 fields are read defensively from the top level so a runtime
-//     that emits M2 fields flat (no nesting) would also round-trip.
-//
-// Unknown event types ("text", "step_start", "step_finish", etc.) are
-// treated as non-tool events and skipped without error.
-func parseToolEvent(line []byte) (*parsedEvent, bool) {
-	if len(line) == 0 {
-		return nil, false
-	}
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal(line, &top); err != nil {
-		return nil, false
-	}
-	if len(top) == 0 {
-		return nil, false
-	}
-
-	var eventType string
-	_ = json.Unmarshal(top["type"], &eventType)
-
-	// OpenCode schema: tool_use events nest the tool details under
-	// "part". Only events with part.type == "tool" are tool calls.
-	if eventType == "tool_use" {
-		var part map[string]json.RawMessage
-		if err := json.Unmarshal(top["part"], &part); err != nil {
-			return nil, false
-		}
-		var partType string
-		_ = json.Unmarshal(part["type"], &partType)
-		if partType != "tool" {
-			return nil, false
-		}
-		ev := &parsedEvent{}
-		_ = json.Unmarshal(part["tool"], &ev.Tool)
-		_ = json.Unmarshal(part["callID"], &ev.ID)
-		if ev.ID == "" {
-			_ = json.Unmarshal(part["id"], &ev.ID)
-		}
-		var state map[string]json.RawMessage
-		if err := json.Unmarshal(part["state"], &state); err == nil {
-			ev.Input = jsonValueToString(state["input"])
-			ev.Output = jsonValueToString(state["output"])
-			ev.LatencyMs = latencyFromState(state["time"])
-			// Defensive M2 reads inside state.metadata. OpenCode's
-			// bash/edit/etc. tools populate state.metadata with tool-
-			// specific output (output, exit, description, truncated)
-			// but not with tokens/cost/model — those live on
-			// step_finish events. The reads below would surface them
-			// if a future runtime or custom adapter adds them.
-			var md map[string]json.RawMessage
-			if err := json.Unmarshal(state["metadata"], &md); err == nil {
-				ev.TokensIn = int64PtrFromRaw(md["tokens_in"], md["tokensIn"], md["input_tokens"])
-				ev.TokensOut = int64PtrFromRaw(md["tokens_out"], md["tokensOut"], md["output_tokens"])
-				ev.Cost = float64PtrFromRaw(md["cost"], md["cost_usd"])
-				ev.Model = stringPtrFromRaw(md["model"], md["model_id"])
-				ev.Provider = stringPtrFromRaw(md["provider"], md["provider_id"])
-			}
-		}
-		_ = json.Unmarshal(top["timestamp"], &ev.Timestamp)
-		// Runtime-known default for the OpenCode adapter: the wrapper
-		// knows its agent. If the event later carries a provider field
-		// (none today), the defensive read above wins.
-		if ev.Provider == nil {
-			s := "opencode"
-			ev.Provider = &s
-		}
-		if ev.Tool == "" {
-			return nil, false
-		}
-		return ev, true
-	}
-
-	// Flat fallback. Treat any JSON object with a tool/name field as a
-	// tool event; recognise optional id/input/args/output/result/time
-	// aliases. Known non-tool event types ("text", "step_start",
-	// "step_finish") are rejected so non-tool noise does not get
-	// recorded.
-	switch eventType {
-	case "text", "step_start", "step_finish", "":
-		// "" allowed: not every runtime emits a type field.
-	default:
-		// Unknown explicit type — refuse to guess.
-		return nil, false
-	}
-
-	var tool string
-	_ = json.Unmarshal(top["tool"], &tool)
-	if tool == "" {
-		_ = json.Unmarshal(top["name"], &tool)
-	}
-	if tool == "" {
-		return nil, false
-	}
-
-	ev := &parsedEvent{Tool: tool}
-	_ = json.Unmarshal(top["id"], &ev.ID)
-	ev.Input = jsonValueToString(firstNonEmptyRaw(top["input"], top["args"], top["parameters"]))
-	ev.Output = jsonValueToString(firstNonEmptyRaw(top["output"], top["result"], top["content"]))
-	_ = json.Unmarshal(top["timestamp"], &ev.Timestamp)
-	if ev.Timestamp == "" {
-		_ = json.Unmarshal(top["time"], &ev.Timestamp)
-	}
-	// Defensive M2 reads on the flat shape so a runtime that emits
-	// M2 fields at the top level (no nesting) round-trips through the
-	// wrapper. Real OpenCode events reach the OpenCode branch above
-	// and never exercise this path; flat-fallback runtimes that do
-	// not emit M2 fields leave the pointers nil.
-	ev.LatencyMs = latencyFromState(firstNonEmptyRaw(top["time"], top["duration"]))
-	ev.TokensIn = int64PtrFromRaw(top["tokens_in"], top["tokensIn"], top["input_tokens"])
-	ev.TokensOut = int64PtrFromRaw(top["tokens_out"], top["tokensOut"], top["output_tokens"])
-	ev.Cost = float64PtrFromRaw(top["cost"], top["cost_usd"])
-	ev.Model = stringPtrFromRaw(top["model"], top["model_id"])
-	ev.Provider = stringPtrFromRaw(top["provider"], top["provider_id"])
-	return ev, true
-}
-
-// firstNonEmptyRaw returns the first non-empty RawMessage in the list.
-func firstNonEmptyRaw(values ...json.RawMessage) json.RawMessage {
-	for _, v := range values {
-		if len(v) > 0 {
-			return v
-		}
-	}
-	return nil
-}
-
-// latencyFromState returns the millisecond delta between state.time.end
-// and state.time.start when both are present and numeric. A missing
-// start or end, a non-numeric value, or an end-before-start returns nil
-// — the wrapper records the tool_call with NULL latency_ms rather than
-// guess. OpenCode's tool_use event always emits both fields on a
-// completed state, so a successful extraction is the common case for
-// real OpenCode events; the nil return is reserved for malformed or
-// partial inputs.
-func latencyFromState(raw json.RawMessage) *int64 {
-	if len(raw) == 0 {
-		return nil
-	}
-	var tm struct {
-		Start int64 `json:"start"`
-		End   int64 `json:"end"`
-	}
-	if err := json.Unmarshal(raw, &tm); err != nil {
-		return nil
-	}
-	if tm.Start == 0 || tm.End == 0 || tm.End < tm.Start {
-		return nil
-	}
-	delta := tm.End - tm.Start
-	return &delta
-}
-
-// int64PtrFromRaw returns the first non-empty RawMessage that parses as
-// a JSON number, as a pointer to int64. Empty input, malformed JSON,
-// or non-numeric content returns nil — the same 'missing field is not
-// a parse failure' rule the wrapper applies to top-level M2 fields.
-func int64PtrFromRaw(values ...json.RawMessage) *int64 {
-	for _, v := range values {
-		if len(v) == 0 {
-			continue
-		}
-		var n int64
-		if err := json.Unmarshal(v, &n); err == nil {
-			return &n
-		}
-		var f float64
-		if err := json.Unmarshal(v, &f); err == nil {
-			i := int64(f)
-			return &i
-		}
-	}
-	return nil
-}
-
-// float64PtrFromRaw mirrors int64PtrFromRaw for floating-point fields.
-func float64PtrFromRaw(values ...json.RawMessage) *float64 {
-	for _, v := range values {
-		if len(v) == 0 {
-			continue
-		}
-		var f float64
-		if err := json.Unmarshal(v, &f); err == nil {
-			return &f
-		}
-		var n int64
-		if err := json.Unmarshal(v, &n); err == nil {
-			val := float64(n)
-			return &val
-		}
-	}
-	return nil
-}
-
-// stringPtrFromRaw returns the first non-empty RawMessage that parses
-// as a non-empty JSON string, as a pointer to string. Empty input,
-// malformed JSON, missing values, or empty strings yield nil — the
-// 'absent vs empty string' distinction matters at the db boundary
-// (an empty string would round-trip as a non-NULL "" column rather
-// than a NULL column).
-func stringPtrFromRaw(values ...json.RawMessage) *string {
-	for _, v := range values {
-		if len(v) == 0 {
-			continue
-		}
-		var s string
-		if err := json.Unmarshal(v, &s); err == nil && s != "" {
-			return &s
-		}
-	}
-	return nil
-}
-
-// jsonValueToString returns a string representation of a JSON value.
-// Strings are returned unquoted; other types (objects, arrays, numbers,
-// booleans) are re-encoded to JSON text. Empty input yields an empty
-// string so callers do not have to guard against nil.
-func jsonValueToString(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		return s
-	}
-	var v any
-	if err := json.Unmarshal(raw, &v); err == nil {
-		if b, err := json.Marshal(v); err == nil {
-			return string(b)
-		}
-	}
-	return string(raw)
-}
-
-// normaliseTimestamp converts an integer Unix timestamp (seconds or
-// milliseconds) to RFC3339Nano. Strings are returned as-is so the caller
-// can supply an ISO-8601 timestamp directly. The seconds-vs-ms
-// disambiguation uses magnitude: anything >= 1e10 is milliseconds
-// (modern Unix ms is ~1.7e12, modern Unix seconds is ~1.7e9; the
-// crossover at year ~2286 in seconds vs ~1970 in milliseconds makes
-// this safe for any realistic runtime).
-func normaliseTimestamp(ts string) string {
-	if ts == "" {
-		return time.Now().UTC().Format(time.RFC3339Nano)
-	}
-	if n, err := strconv.ParseInt(ts, 10, 64); err == nil {
-		if n >= 1e10 {
-			return time.UnixMilli(n).UTC().Format(time.RFC3339Nano)
-		}
-		return time.Unix(n, 0).UTC().Format(time.RFC3339Nano)
-	}
-	return ts
 }
 
 // writeRunSummary emits the one-line run summary to w. The summary uses

@@ -185,9 +185,9 @@ func TestRunRunWith_Dispatch(t *testing.T) {
 		t.Setenv("KTX_DB", os.Getenv("XDG_DATA_HOME")+"/ktx/ktx.db")
 
 		// /bin/sh -c "echo ..." emits one JSONL line
-		// carrying a tool_use event. The wrapper parses
-		// it via parseToolEvent, builds a tool_call, and
-		// persists it.
+		// carrying a tool_use event. The wrapper forwards
+		// the line to parser.ParseEvent, fills in the
+		// session ID, and persists the tool_call.
 		const payload = `{"type":"tool_use","timestamp":"2026-06-18T12:00:00Z","part":{"type":"tool","tool":"bash","callID":"call_001","state":{"input":{"command":"echo hello world"},"output":"hello world\n"}}}`
 		origRunCmd := runCmd
 		t.Cleanup(func() { runCmd = origRunCmd })

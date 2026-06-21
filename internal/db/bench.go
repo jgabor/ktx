@@ -68,16 +68,16 @@ var ErrBenchMethodologyNotFound = errors.New("db: bench methodology file not fou
 // reconstructability contract); the bench report's row view will
 // include them.
 type BenchRun struct {
-	ID                string  `json:"id"`
-	Agent             string  `json:"agent"`
-	Model             string  `json:"model"`
-	Task              string  `json:"task"`
-	Score             float64 `json:"score"`
-	TokensIn          int64   `json:"tokens_in"`
-	TokensOut         int64   `json:"tokens_out"`
-	Cost              *float64 `json:"cost"`
-	MethodologyVersion string `json:"methodology_version"`
-	Timestamp         int64   `json:"timestamp"`
+	ID                 string   `json:"id"`
+	Agent              string   `json:"agent"`
+	Model              string   `json:"model"`
+	Task               string   `json:"task"`
+	Score              float64  `json:"score"`
+	TokensIn           int64    `json:"tokens_in"`
+	TokensOut          int64    `json:"tokens_out"`
+	Cost               *float64 `json:"cost"`
+	MethodologyVersion string   `json:"methodology_version"`
+	Timestamp          int64    `json:"timestamp"`
 }
 
 // deriveBenchCost mirrors PersistToolCall.deriveCost at the bench-run

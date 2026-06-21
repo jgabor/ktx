@@ -280,12 +280,12 @@ func TestIDPattern_Locked(t *testing.T) {
 
 	t.Run("negative cases rejected (anchored, exact length)", func(t *testing.T) {
 		for _, id := range []string{
-			"",                   // empty
-			"abc",                // too short
-			"abcdefghijklmnopq",  // too long
-			"ABCDEFGHIJKLMNOP",   // uppercase
-			"abcdefghijklmno0",   // digit
-			"abcdef ghijklmnop",  // space
+			"",                  // empty
+			"abc",               // too short
+			"abcdefghijklmnopq", // too long
+			"ABCDEFGHIJKLMNOP",  // uppercase
+			"abcdefghijklmno0",  // digit
+			"abcdef ghijklmnop", // space
 		} {
 			if IDPattern.MatchString(id) {
 				t.Errorf("IDPattern matched %q; want no match", id)

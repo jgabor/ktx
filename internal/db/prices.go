@@ -117,9 +117,9 @@ type Price struct {
 // parallel caller (e.g. the wrapper teeAndParse loop is single-goroutine
 // by construction, but defensive locking keeps the type honest).
 type Prices struct {
-	mu    sync.RWMutex
-	raw   map[string]map[string]Price
-	path  string
+	mu   sync.RWMutex
+	raw  map[string]map[string]Price
+	path string
 	// cold reports whether the file did not exist at Load time. When
 	// cold is true, the first lookup miss triggers a fetch + disk
 	// write (AC1). When cold is false (warm cache), lookup misses do

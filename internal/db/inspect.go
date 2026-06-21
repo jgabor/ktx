@@ -31,7 +31,6 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
 	"sort"
 )
 
@@ -226,43 +225,6 @@ func (d *DB) HasBenchRunsColumns() (missing []string, err error) {
 	return missing, nil
 }
 
-// tableColumns returns the set of column names for table. Empty when
-// the table does not exist (PRAGMA table_info returns zero rows for a
-// missing table). The error path is reserved for genuine query/scan
-// failures — the "table absent" case is reported as an empty set so the
-// caller can compose a single, clear error message.
-//
-// The queryer parameter accepts *sql.DB (read-only callers like doctor)
-// or *sql.Tx (the migrate path, which needs the in-transaction schema
-// view to decide which ALTER TABLE statements to emit).
-func tableColumns(q queryer, table string) (map[string]struct{}, error) {
-	rows, err := q.Query("PRAGMA table_info(" + table + ")")
-	if err != nil {
-		return nil, fmt.Errorf("pragma table_info: %w", err)
-	}
-	defer rows.Close()
-
-	cols := map[string]struct{}{}
-	for rows.Next() {
-		var (
-			cid       int
-			name      string
-			ctype     string
-			notnull   int
-			dfltValue sql.NullString
-			pk        int
-		)
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
-			return nil, fmt.Errorf("scan column: %w", err)
-		}
-		cols[name] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate columns: %w", err)
-	}
-	return cols, nil
-}
-
 // SampleIDs returns up to limit IDs from each table, ordered as the
 // rows are stored (insertion order in practice). Used by `ktx doctor`
 // to validate that persisted IDs match Decision 3: 16-char lowercase
@@ -310,11 +272,6 @@ func selectIDs(db *sql.DB, table string, limit int) ([]string, error) {
 	}
 	return ids, nil
 }
-
-// IDPattern is the canonical regex for ktx IDs (Decision 3). Exported so
-// the cli layer can validate sampled IDs without re-encoding the
-// alphabet/length contract.
-var IDPattern = regexp.MustCompile(`^[a-z]{16}$`)
 
 // sortedKeys returns the keys of m in deterministic order. Used to
 // format a clear "expected X, have Y" error message in CheckSchema.

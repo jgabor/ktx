@@ -17,15 +17,12 @@
 package db
 
 import (
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-
-	gonanoid "github.com/matoous/go-nanoid/v2"
+	"regexp"
 
 	// Register the pure-Go SQLite driver as "sqlite". No CGO, matching the
 	// vision's "no new runtimes" principle. Open connects via database/sql
@@ -215,19 +212,12 @@ func ResolvePath(override string) (string, error) {
 	return DefaultPath()
 }
 
-// NewID returns a fresh 16-character lowercase alphabetic nanoid (D3).
-// Collision-safe for billions of records; no ambiguous characters.
-func NewID() (string, error) {
-	return gonanoid.Generate(idAlphabet, idLength)
-}
-
-// ContentHash returns the SHA-256 hex digest of output (Decision 3). The
-// content hash is stored as a separate field on each tool_call row for
-// verification without being the primary key.
-func ContentHash(output string) string {
-	sum := sha256.Sum256([]byte(output))
-	return hex.EncodeToString(sum[:])
-}
+// IDPattern is the canonical regex for ktx IDs (Decision 3). Exported so
+// the cli layer can validate sampled IDs without re-encoding the
+// alphabet/length contract. Lives next to the schema / open helpers
+// because the pattern is the on-the-wire contract for the IDs the
+// schema and the open path produce together.
+var IDPattern = regexp.MustCompile(`^[a-z]{16}$`)
 
 // Open opens (or creates) the ktx database at path and ensures the schema is
 // migrated. The parent directory is created if missing (Decision 6). Foreign
@@ -369,6 +359,45 @@ func OpenMemory() (*DB, error) {
 	}
 
 	return &DB{db: db}, nil
+}
+
+// tableColumns returns the set of column names for table. Empty when
+// the table does not exist (PRAGMA table_info returns zero rows for a
+// missing table). The error path is reserved for genuine query/scan
+// failures — the "table absent" case is reported as an empty set so the
+// caller can compose a single, clear error message.
+//
+// The queryer parameter accepts *sql.DB (read-only callers like doctor)
+// or *sql.Tx (the migrate path, which needs the in-transaction schema
+// view to decide which ALTER TABLE statements to emit). The interface
+// lives in inspect.go so the inspect surface owns its own contract —
+// open.go just borrows the seam for the migration transaction.
+func tableColumns(q queryer, table string) (map[string]struct{}, error) {
+	rows, err := q.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return nil, fmt.Errorf("pragma table_info: %w", err)
+	}
+	defer rows.Close()
+
+	cols := map[string]struct{}{}
+	for rows.Next() {
+		var (
+			cid       int
+			name      string
+			ctype     string
+			notnull   int
+			dfltValue sql.NullString
+			pk        int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return nil, fmt.Errorf("scan column: %w", err)
+		}
+		cols[name] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate columns: %w", err)
+	}
+	return cols, nil
 }
 
 // migrate runs the schema statements and the M2 in-place column migration

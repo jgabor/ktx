@@ -12,7 +12,7 @@
 // pointer maps to SQL NULL so 'field absent' survives the round-trip;
 // a non-nil pointer to zero persists as 0 so 'field set to zero' is not
 // conflated with 'absent' (Decision 9 reconstructability requirement).
-package store
+package db
 
 import (
 	"database/sql"
@@ -23,7 +23,7 @@ import (
 
 // ErrNotFound is returned when a referenced session or record does not exist
 // in the database. The cli layer maps it to a not-found exit code (D4).
-var ErrNotFound = errors.New("store: not found")
+var ErrNotFound = errors.New("db: not found")
 
 // ToolCall is the flat JSON tool_call payload (Decision 9).
 //
@@ -91,7 +91,7 @@ func (d *DB) SessionExists(id string) (bool, error) {
 		return false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("store: check session %q: %w", id, err)
+		return false, fmt.Errorf("db: check session %q: %w", id, err)
 	}
 	return true, nil
 }
@@ -105,7 +105,7 @@ func (d *DB) InsertSession(s *Session) error {
 		s.ID, s.Agent, s.StartedAt, s.EndedAt, s.LastSeenAt, s.ToolCallCount,
 	)
 	if err != nil {
-		return fmt.Errorf("store: insert session %q: %w", s.ID, err)
+		return fmt.Errorf("db: insert session %q: %w", s.ID, err)
 	}
 	return nil
 }
@@ -116,7 +116,7 @@ func (d *DB) InsertSession(s *Session) error {
 func (d *DB) CloseSession(id, endedAt string) error {
 	res, err := d.db.Exec(`UPDATE sessions SET ended_at = ? WHERE id = ?`, endedAt, id)
 	if err != nil {
-		return fmt.Errorf("store: close session %q: %w", id, err)
+		return fmt.Errorf("db: close session %q: %w", id, err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
@@ -171,7 +171,7 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 
 	tx, err := d.db.Begin()
 	if err != nil {
-		return fmt.Errorf("store: begin tx: %w", err)
+		return fmt.Errorf("db: begin tx: %w", err)
 	}
 	defer tx.Rollback() // Safe, low-overhead no-op if tx.Commit() is called successfully
 
@@ -185,7 +185,7 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 	)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("store: insert tool_call %q: %w", tc.ID, err)
+		return fmt.Errorf("db: insert tool_call %q: %w", tc.ID, err)
 	}
 
 	_, err = tx.Exec(
@@ -194,11 +194,11 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 	)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("store: update session roll-up %q: %w", tc.SessionID, err)
+		return fmt.Errorf("db: update session roll-up %q: %w", tc.SessionID, err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit tool_call %q: %w", tc.ID, err)
+		return fmt.Errorf("db: commit tool_call %q: %w", tc.ID, err)
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: get tool_call %q: %w", id, err)
+		return nil, fmt.Errorf("db: get tool_call %q: %w", id, err)
 	}
 	if tokensIn.Valid {
 		v := tokensIn.Int64
@@ -294,7 +294,7 @@ func (d *DB) GetSession(id string) (*Session, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: get session %q: %w", id, err)
+		return nil, fmt.Errorf("db: get session %q: %w", id, err)
 	}
 	return &s, nil
 }
@@ -344,7 +344,7 @@ func (d *DB) ListSessions() ([]Session, error) {
 		 ORDER BY started_at ASC, id ASC`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("store: list sessions: %w", err)
+		return nil, fmt.Errorf("db: list sessions: %w", err)
 	}
 	defer rows.Close()
 
@@ -354,12 +354,12 @@ func (d *DB) ListSessions() ([]Session, error) {
 		if err := rows.Scan(
 			&s.ID, &s.Agent, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
 		); err != nil {
-			return nil, fmt.Errorf("store: scan session: %w", err)
+			return nil, fmt.Errorf("db: scan session: %w", err)
 		}
 		sessions = append(sessions, s)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate sessions: %w", err)
+		return nil, fmt.Errorf("db: iterate sessions: %w", err)
 	}
 	return sessions, nil
 }

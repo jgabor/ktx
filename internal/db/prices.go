@@ -38,7 +38,7 @@
 // Cache TTL and auto-refresh are deferred to a future resonera session
 // (D11 reasoning; M3 plan scope.deferred). The implementation ships
 // fetch-on-first-use with the manual refresh hook.
-package store
+package db
 
 import (
 	"context"
@@ -64,7 +64,7 @@ const pricesDirPerm = 0o755
 // PricesPath resolves the default price cache path per Decision 11:
 // $XDG_DATA_HOME/ktx/prices.json. Falls back to ~/.local/share/ktx/prices.json
 // when XDG_DATA_HOME is unset (XDG Base Directory spec — same fallback
-// as DefaultPath for the database at internal/store/store.go).
+// as DefaultPath — see the package's primary file for the default location.
 func PricesPath() (string, error) {
 	dataHome := os.Getenv("XDG_DATA_HOME")
 	if dataHome == "" {

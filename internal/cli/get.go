@@ -29,7 +29,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 func runGet(args []string, opts Options) int {
@@ -81,12 +81,12 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	id := rest[0]
 
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx get: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		printError(stderr, internalError("ktx get: open database: %v", err), format)
 		return ExitInternal
@@ -95,7 +95,7 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	record, err := db.GetRecord(id)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, dbpkg.ErrNotFound) {
 			printError(stderr, notFoundError("ktx get: record %q not found", id), format)
 			return ExitNotFound
 		}
@@ -107,8 +107,8 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	case FormatText:
 		printGetText(stdout, record)
 	default:
-		// JSON default. The record is either *store.ToolCall or
-		// *store.Session, both already JSON-tagged; pass it through
+		// JSON default. The record is either *dbpkg.ToolCall or
+		// *dbpkg.Session, both already JSON-tagged; pass it through
 		// directly. json.NewEncoder writes a trailing newline, which
 		// keeps stdout pipe-friendly.
 		if err := json.NewEncoder(stdout).Encode(record); err != nil {
@@ -134,7 +134,7 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // renderer is rendering a column.
 func printGetText(w io.Writer, record any) {
 	switch r := record.(type) {
-	case *store.ToolCall:
+	case *dbpkg.ToolCall:
 		fmt.Fprintf(w, "id:           %s\n", r.ID)
 		fmt.Fprintf(w, "session_id:   %s\n", r.SessionID)
 		fmt.Fprintf(w, "tool:         %s\n", r.Tool)
@@ -170,7 +170,7 @@ func printGetText(w io.Writer, record any) {
 				fmt.Fprintf(w, "  provider:     %s\n", *r.Provider)
 			}
 		}
-	case *store.Session:
+	case *dbpkg.Session:
 		fmt.Fprintf(w, "id:              %s\n", r.ID)
 		fmt.Fprintf(w, "agent:           %s\n", r.Agent)
 		fmt.Fprintf(w, "started_at:      %s\n", r.StartedAt)

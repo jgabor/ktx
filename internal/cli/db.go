@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // runDB implements the `ktx db` namespace (Decision 8).
@@ -66,7 +66,7 @@ func runDBWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // stdout so it pipes cleanly; the format flag does not apply to I/O commands
 // (Decision 8: ktx db path reports the path, not a record).
 func dbPath(pathOverride string, opts Options, stdout, stderr io.Writer) int {
-	path, err := store.ResolvePath(pathOverride)
+	path, err := dbpkg.ResolvePath(pathOverride)
 	if err != nil {
 		printError(stderr, internalError("resolve database path: %v", err), opts.Format)
 		return ExitInternal

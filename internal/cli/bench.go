@@ -54,7 +54,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // benchMethodologyRelPath is the path of the methodology file relative
@@ -181,14 +181,14 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
-	// Open the database. The store.Open call applies the bench_runs
+	// Open the database. The dbpkg.Open call applies the bench_runs
 	// migration if the database is pre-M3 (Task 3 idempotent path).
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench report: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		printError(stderr, internalError("ktx bench report: open database: %v", err), format)
 		return ExitInternal
@@ -204,7 +204,7 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 
 // runBenchReportImpl is the Task 5 implementation core. Its signature
 // matches the plan Task 5 spec exactly: stdout/stderr injection, a
-// pre-opened *store.DB, the parsed positional args (optional <id>),
+// pre-opened *dbpkg.DB, the parsed positional args (optional <id>),
 // the resolved format ("" or FormatJSON default to JSON; FormatText for
 // humans), and the methodology filter ("" for no filter). Returns a
 // typed *Error on failure so the dispatcher adapter can map it to an
@@ -223,7 +223,7 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 // (matches M2's ktx list --format text convention for absent M2 fields).
 func runBenchReportImpl(
 	stdout, stderr io.Writer,
-	db *store.DB,
+	db *dbpkg.DB,
 	args []string,
 	format string,
 	methodologyFilter string,
@@ -240,7 +240,7 @@ func runBenchReportImpl(
 		id := args[0]
 		b, err := db.QueryBenchRun(id)
 		if err != nil {
-			if errors.Is(err, store.ErrNotFound) {
+			if errors.Is(err, dbpkg.ErrNotFound) {
 				return notFoundError("ktx bench report: no bench_run with id '%s'", id)
 			}
 			return internalError("ktx bench report: query bench_run: %v", err)
@@ -252,7 +252,7 @@ func runBenchReportImpl(
 	// "rows array, oldest first" contract — QueryBenchRuns returns
 	// ORDER BY timestamp ASC, id ASC). Filter in memory when
 	// --methodology is set; the cost of an extra SELECT WHERE on a
-	// ~handful of rows is not worth the extra store method, and an
+	// ~handful of rows is not worth the extra method on the db package, and an
 	// in-memory filter keeps the headline aggregation in one place.
 	rows, err := db.QueryBenchRuns()
 	if err != nil {
@@ -273,9 +273,9 @@ func runBenchReportImpl(
 // existing BenchRun JSON tags govern the shape — id, agent, model,
 // task, score, tokens_in, tokens_out, cost, methodology_version,
 // timestamp — with pointer discipline preserved (Cost *float64,
-// tokens_in/out as int64 per the store schema). Text format emits a
+// tokens_in/out as int64 per the db schema). Text format emits a
 // one-line-per-field summary aligned with the list-mode table.
-func renderBenchRunSingle(stdout io.Writer, format string, b store.BenchRun) error {
+func renderBenchRunSingle(stdout io.Writer, format string, b dbpkg.BenchRun) error {
 	if format == FormatText {
 		return renderBenchRunSingleText(stdout, b)
 	}
@@ -289,7 +289,7 @@ func renderBenchRunSingle(stdout io.Writer, format string, b store.BenchRun) err
 // and tokens_out are omitted from the text rendering — the spec's
 // single-row text example shows them absent, and the per-row cost is
 // the headline-relevant number for a single run.
-func renderBenchRunSingleText(w io.Writer, b store.BenchRun) error {
+func renderBenchRunSingleText(w io.Writer, b dbpkg.BenchRun) error {
 	fmt.Fprintf(w, "id:                  %s\n", b.ID)
 	fmt.Fprintf(w, "agent:               %s\n", b.Agent)
 	fmt.Fprintf(w, "model:               %s\n", b.Model)
@@ -327,7 +327,7 @@ func renderBenchRunSingleText(w io.Writer, b store.BenchRun) error {
 // fields including tokens_in / tokens_out, cost as *float64 with
 // nil → JSON null). The headline is *float64-aware: a nil pointer
 // emits JSON null via the envelope's map[string]any indirection.
-func renderBenchReportJSON(stdout io.Writer, rows []store.BenchRun, methodologyFilter string) error {
+func renderBenchReportJSON(stdout io.Writer, rows []dbpkg.BenchRun, methodologyFilter string) error {
 	headline, ok := computeAggregateHeadline(rows)
 	var headlineVal any = nil
 	if ok {
@@ -349,7 +349,7 @@ func renderBenchReportJSON(stdout io.Writer, rows []store.BenchRun, methodologyF
 // that matches no rows) emits the headline summary only — no rule, no
 // table — so the user sees "no data" cleanly without a half-rendered
 // header.
-func renderBenchReportText(w io.Writer, rows []store.BenchRun, methodologyFilter string) error {
+func renderBenchReportText(w io.Writer, rows []dbpkg.BenchRun, methodologyFilter string) error {
 	headline, ok := computeAggregateHeadline(rows)
 	var headlineStr string
 	if ok {
@@ -389,7 +389,7 @@ func renderBenchReportText(w io.Writer, rows []store.BenchRun, methodologyFilter
 // fallback when no rows exist so a `--methodology v1` invocation with
 // zero matching rows still self-describes. Both sources nil returns
 // nil — JSON renders that as null, the text renderer maps it to "-".
-func envelopeMethodologyVersion(rows []store.BenchRun, methodologyFilter string) any {
+func envelopeMethodologyVersion(rows []dbpkg.BenchRun, methodologyFilter string) any {
 	if len(rows) > 0 {
 		return rows[0].MethodologyVersion
 	}
@@ -411,13 +411,13 @@ func envelopeMethodologyVersion(rows []store.BenchRun, methodologyFilter string)
 // bounded by the number of `ktx bench run` invocations); (b) the
 // headline aggregation runs across the filtered set, so keeping the
 // rows in memory lets one pass handle filter + aggregate + render.
-// Adding a QueryBenchRunsByMethodology store method would push the
+// Adding a QueryBenchRunsByMethodology method on the db package would push the
 // filter into SQL without simplifying the rest of the flow.
-func filterByMethodology(rows []store.BenchRun, version string) []store.BenchRun {
+func filterByMethodology(rows []dbpkg.BenchRun, version string) []dbpkg.BenchRun {
 	if version == "" {
 		return rows
 	}
-	out := make([]store.BenchRun, 0, len(rows))
+	out := make([]dbpkg.BenchRun, 0, len(rows))
 	for _, b := range rows {
 		if b.MethodologyVersion == version {
 			out = append(out, b)
@@ -450,7 +450,7 @@ func filterByMethodology(rows []store.BenchRun, version string) []store.BenchRun
 // and a bench_runs table with cost=0.0 on every row (one row × $0)
 // both produce a "null" headline, because the dataset carries no
 // evidence of cost to aggregate.
-func computeAggregateHeadline(rows []store.BenchRun) (float64, bool) {
+func computeAggregateHeadline(rows []dbpkg.BenchRun) (float64, bool) {
 	var totalCost *float64
 	var totalScore float64
 	for i := range rows {
@@ -532,7 +532,7 @@ func loadMethodology() (*methodology, string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, path, store.ErrBenchMethodologyNotFound
+			return nil, path, dbpkg.ErrBenchMethodologyNotFound
 		}
 		return nil, path, fmt.Errorf("bench: read methodology %q: %w", path, err)
 	}
@@ -550,7 +550,7 @@ func loadMethodology() (*methodology, string, error) {
 // project checkout, so the walk is one or two levels.
 //
 // Returns the path of the directory containing `.agentera`, or
-// store.ErrBenchMethodologyNotFound when no such directory exists
+// dbpkg.ErrBenchMethodologyNotFound when no such directory exists
 // within the walk boundary. The caller maps the typed error to
 // ExitNotFound (exit 2) per plan Task 4 AC7: missing methodology is
 // a hard failure, not a soft fail.
@@ -567,7 +567,7 @@ func findRepoRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", store.ErrBenchMethodologyNotFound
+			return "", dbpkg.ErrBenchMethodologyNotFound
 		}
 		dir = parent
 	}
@@ -774,7 +774,7 @@ func unquoteYAML(s string) string {
 //     methodology file. A drift is treated as a usage error so the
 //     user knows the headline they would produce does not match the
 //     published one.)
-//  4. Open the database (or fall through to internal store Open),
+//  4. Open the database (or fall through to internal db.Open),
 //     pre-flight check for the bench_runs table presence.
 //  5. Invoke `ktx run <agent> <task.prompt>` as a subprocess. The
 //     subprocess's stdout is captured for scoring; its stderr is
@@ -794,7 +794,7 @@ func unquoteYAML(s string) string {
 //      summary to stderr (D1 wrapper convention).
 //
 // Exit codes: 0 on success, 2 (not-found) on missing methodology or
-// task definition, 4 (internal) on store / subprocess failures.
+// task definition, 4 (internal) on database / subprocess failures.
 func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	format, rest := extractFormat(args)
 	if format == "" {
@@ -840,14 +840,14 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
-	// Open the database. The store.Open call applies the bench_runs
+	// Open the database. The dbpkg.Open call applies the bench_runs
 	// migration if the database is pre-M3 (D11 forward-fix).
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: open database: %v", err), format)
 		return ExitInternal
@@ -948,7 +948,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// SUM(cost) of the underlying tool_calls when present; otherwise
 	// it stays nil and deriveBenchCost fills it from the cache at
 	// write time (D11 AC4).
-	br := &store.BenchRun{
+	br := &dbpkg.BenchRun{
 		ID:                 "", // populated below
 		Agent:              aggProvider + "/" + aggModel, // bench_runs stores provider/model as the agent identifier
 		Model:              aggModel,
@@ -967,7 +967,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		br.Agent = agentArg
 	}
 
-	id, err := store.NewID()
+	id, err := dbpkg.NewID()
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: generate id: %v", err), format)
 		return ExitInternal
@@ -1000,7 +1000,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// multi-row view.
 	envelope := map[string]any{
 		"headline":           headline,
-		"rows":               []store.BenchRun{persisted},
+		"rows":               []dbpkg.BenchRun{persisted},
 		"methodology_version": persisted.MethodologyVersion,
 	}
 
@@ -1049,7 +1049,7 @@ func loadMethodologyOrFail(format string, stderr io.Writer) (string, *methodolog
 	m, path, err := loadMethodology()
 	if err != nil {
 		switch err {
-		case store.ErrBenchMethodologyNotFound:
+		case dbpkg.ErrBenchMethodologyNotFound:
 			printError(stderr, notFoundError("ktx bench run: methodology file not found (looked for %q)", path), format)
 			return path, nil, ExitNotFound
 		default:
@@ -1068,7 +1068,7 @@ func loadMethodologyOrFail(format string, stderr io.Writer) (string, *methodolog
 // A future concurrent-run mode would need a tighter match — the
 // current heuristic assumes single-writer (the wrapper itself) on the
 // bench run's database.
-func findWrapperSession(db *store.DB, agentArg string, wrapperStart time.Time) (sessionID, agentName string, err error) {
+func findWrapperSession(db *dbpkg.DB, agentArg string, wrapperStart time.Time) (sessionID, agentName string, err error) {
 	sessions, err := db.ListSessions()
 	if err != nil {
 		return "", "", err

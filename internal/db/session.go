@@ -16,7 +16,7 @@
 // The session file is a cache of identity; the database is the source of
 // truth. If the file and database ever disagree, the database wins — a file
 // pointing at a non-existent session is treated as stale.
-package store
+package db
 
 import (
 	"encoding/json"
@@ -60,11 +60,11 @@ func readSessionFile(ppid int) (*SessionFile, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("store: read session file for ppid %d: %w", ppid, err)
+		return nil, fmt.Errorf("db: read session file for ppid %d: %w", ppid, err)
 	}
 	var sf SessionFile
 	if err := json.Unmarshal(data, &sf); err != nil {
-		return nil, fmt.Errorf("store: parse session file for ppid %d: %w", ppid, err)
+		return nil, fmt.Errorf("db: parse session file for ppid %d: %w", ppid, err)
 	}
 	return &sf, nil
 }
@@ -80,15 +80,15 @@ func readSessionFile(ppid int) (*SessionFile, error) {
 func writeSessionFile(ppid int, sf *SessionFile) error {
 	dir := sessionDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("store: create session dir %q: %w", dir, err)
+		return fmt.Errorf("db: create session dir %q: %w", dir, err)
 	}
 	data, err := json.Marshal(sf)
 	if err != nil {
-		return fmt.Errorf("store: encode session file: %w", err)
+		return fmt.Errorf("db: encode session file: %w", err)
 	}
 	path := sessionFilePath(ppid)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("store: write session file %q: %w", path, err)
+		return fmt.Errorf("db: write session file %q: %w", path, err)
 	}
 	return nil
 }
@@ -222,7 +222,7 @@ func (d *DB) openSession(ppid int, timestamp string) (string, error) {
 // started_at and last_seen_at.
 func (d *DB) OpenNamedSession(agent string, ppid int, timestamp string) (string, error) {
 	if agent == "" {
-		return "", errors.New("store: open named session: agent is empty")
+		return "", errors.New("db: open named session: agent is empty")
 	}
 	return d.openNamedSession(agent, ppid, timestamp)
 }
@@ -233,7 +233,7 @@ func (d *DB) OpenNamedSession(agent string, ppid int, timestamp string) (string,
 func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string, error) {
 	id, err := NewID()
 	if err != nil {
-		return "", fmt.Errorf("store: generate session id: %w", err)
+		return "", fmt.Errorf("db: generate session id: %w", err)
 	}
 
 	// ToolCallCount is left at the zero value: a fresh session has no

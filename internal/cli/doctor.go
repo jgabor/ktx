@@ -62,7 +62,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // doctorSampleLimit bounds how many IDs doctor inspects. The check is
@@ -203,7 +203,7 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 func buildDoctorReport() *doctorReport {
 	report := &doctorReport{}
 
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		report.Status = doctorStatusError
 		report.Checks = append(report.Checks, doctorCheck{
@@ -215,7 +215,7 @@ func buildDoctorReport() *doctorReport {
 	}
 	report.Path = path
 
-	// Check 1: file exists. Read-only (does not call store.Open which
+	// Check 1: file exists. Read-only (does not call dbpkg.Open which
 	// would create the file as a side effect). A missing file is a
 	// configuration signal — the user has not recorded anything yet,
 	// or KTX_DB points at a non-existent path.
@@ -242,12 +242,12 @@ func buildDoctorReport() *doctorReport {
 		Detail: fmt.Sprintf("file present at %q", path),
 	})
 
-	// Check 2: openable. store.Open runs migrations on first open, but
+	// Check 2: openable. dbpkg.Open runs migrations on first open, but
 	// the file already exists at this point so the migrations are
 	// no-ops (CREATE TABLE IF NOT EXISTS is idempotent; the M2
 	// ALTER TABLE step is column-existence-guarded so a re-open is a
 	// pure no-op on a fully migrated database).
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "database_openable",
@@ -349,7 +349,7 @@ func buildDoctorReport() *doctorReport {
 //     tool_calls itself is missing — that is a separate M1 hard error
 //     reported in schema_valid, but we surface it here as well so the
 //     per-check trace is complete).
-func checkM2Columns(db *store.DB) doctorCheck {
+func checkM2Columns(db *dbpkg.DB) doctorCheck {
 	ok, missing, err := db.HasM2Columns()
 	if err != nil {
 		return doctorCheck{
@@ -394,7 +394,7 @@ func checkM2Columns(db *store.DB) doctorCheck {
 // distinguish "table missing entirely — pre-M3" from "table present
 // but partial — forward-fix" — they have different remediation paths
 // even though both surface as warnings.
-func checkBenchRuns(db *store.DB) doctorCheck {
+func checkBenchRuns(db *dbpkg.DB) doctorCheck {
 	hasTable, err := db.HasBenchRunsTable()
 	if err != nil {
 		return doctorCheck{
@@ -437,7 +437,7 @@ func checkBenchRuns(db *store.DB) doctorCheck {
 // "sampled N+M IDs" when no IDs are present (vacuously true) or when
 // every sampled ID matches the regex. The first malformed ID is
 // surfaced in the detail so the user can grep for it.
-func checkIDFormat(db *store.DB) doctorCheck {
+func checkIDFormat(db *dbpkg.DB) doctorCheck {
 	sessionIDs, toolIDs, err := db.SampleIDs(doctorSampleLimit)
 	if err != nil {
 		return doctorCheck{
@@ -448,7 +448,7 @@ func checkIDFormat(db *store.DB) doctorCheck {
 	}
 	total := len(sessionIDs) + len(toolIDs)
 	for _, id := range sessionIDs {
-		if !store.IDPattern.MatchString(id) {
+		if !dbpkg.IDPattern.MatchString(id) {
 			return doctorCheck{
 				Name:   "id_format",
 				Status: doctorStatusError,
@@ -457,7 +457,7 @@ func checkIDFormat(db *store.DB) doctorCheck {
 		}
 	}
 	for _, id := range toolIDs {
-		if !store.IDPattern.MatchString(id) {
+		if !dbpkg.IDPattern.MatchString(id) {
 			return doctorCheck{
 				Name:   "id_format",
 				Status: doctorStatusError,

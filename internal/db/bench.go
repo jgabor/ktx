@@ -1,7 +1,7 @@
 // Persistence and query methods for `bench_runs` (M3 plan Task 4).
 //
 // bench_runs is the M3 headline store — one row per `ktx bench run`
-// invocation. The schema lives in store.go (D12 reproducibility contract):
+// invocation. The schema lives in db.go (D12 reproducibility contract):
 //
 //	id TEXT PRIMARY KEY          -- D3 16-char nanoid
 //	agent TEXT                   -- the agent binary / model spec
@@ -29,7 +29,7 @@
 // the price, Cost stays nil and the bench row is inserted with cost
 // NULL — D11 soft-fail contract preserved.
 //
-// Pointer discipline mirrors store.ToolCall (Task 3): Cost is *float64
+// Pointer discipline mirrors ToolCall (Task 3): Cost is *float64
 // so the absent-vs-zero distinction survives the SQL round-trip. A
 // nil Cost pointer round-trips to SQL NULL; a non-nil pointer to 0
 // round-trips to SQL 0. The other BenchRun columns are required by
@@ -37,7 +37,7 @@
 // methodology_version, and timestamp), so they use plain types and
 // are surfaced as the empty string / zero value when absent — the
 // caller (the CLI layer) is responsible for populating them.
-package store
+package db
 
 import (
 	"database/sql"
@@ -51,7 +51,7 @@ import (
 // maps this to ExitNotFound (exit 2) per plan Task 4 AC7: missing
 // methodology is a hard failure, not a soft fail — the bench headline
 // has no meaning without the methodology reference.
-var ErrBenchMethodologyNotFound = errors.New("store: bench methodology file not found")
+var ErrBenchMethodologyNotFound = errors.New("db: bench methodology file not found")
 
 // BenchRun is one row of the bench_runs table.
 //
@@ -186,20 +186,20 @@ func providerModel(model string) string {
 //
 // The INSERT covers all 10 columns. Cost is bound through the
 // pointer: nil maps to SQL NULL via database/sql's typed-nil-pointer
-// convention (same as store.ToolCall.Cost).
+// convention (same as ToolCall.Cost).
 func (d *DB) InsertBenchRun(b *BenchRun) error {
 	if b == nil {
-		return errors.New("store: insert bench_run: nil bench run")
+		return errors.New("db: insert bench_run: nil bench run")
 	}
 	if b.ID == "" {
-		return errors.New("store: insert bench_run: id is empty")
+		return errors.New("db: insert bench_run: id is empty")
 	}
 
 	d.deriveBenchCost(b) // write-time D11 derivation; soft-fail
 
 	tx, err := d.db.Begin()
 	if err != nil {
-		return fmt.Errorf("store: begin bench_run tx: %w", err)
+		return fmt.Errorf("db: begin bench_run tx: %w", err)
 	}
 	defer tx.Rollback() // Safe, low-overhead no-op after tx.Commit()
 
@@ -214,11 +214,11 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 		b.MethodologyVersion, b.Timestamp,
 	)
 	if err != nil {
-		return fmt.Errorf("store: insert bench_run %q: %w", b.ID, err)
+		return fmt.Errorf("db: insert bench_run %q: %w", b.ID, err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit bench_run %q: %w", b.ID, err)
+		return fmt.Errorf("db: commit bench_run %q: %w", b.ID, err)
 	}
 	return nil
 }
@@ -244,7 +244,7 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 		 ORDER BY timestamp ASC, id ASC`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("store: query bench_runs: %w", err)
+		return nil, fmt.Errorf("db: query bench_runs: %w", err)
 	}
 	defer rows.Close()
 
@@ -259,7 +259,7 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 			&b.TokensIn, &b.TokensOut, &cost,
 			&b.MethodologyVersion, &b.Timestamp,
 		); err != nil {
-			return nil, fmt.Errorf("store: scan bench_run: %w", err)
+			return nil, fmt.Errorf("db: scan bench_run: %w", err)
 		}
 		if cost.Valid {
 			v := cost.Float64
@@ -268,7 +268,7 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 		out = append(out, b)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate bench_runs: %w", err)
+		return nil, fmt.Errorf("db: iterate bench_runs: %w", err)
 	}
 	return out, nil
 }
@@ -298,7 +298,7 @@ func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
 		return BenchRun{}, ErrNotFound
 	}
 	if err != nil {
-		return BenchRun{}, fmt.Errorf("store: get bench_run %q: %w", id, err)
+		return BenchRun{}, fmt.Errorf("db: get bench_run %q: %w", id, err)
 	}
 	if cost.Valid {
 		v := cost.Float64
@@ -347,7 +347,7 @@ func (d *DB) SummarizeBenchToolCalls(sessionID string) (tokensIn, tokensOut int6
 		sessionID,
 	).Scan(&tokensIn, &tokensOut, &nullCost, &nullModel, &nullProvider)
 	if err != nil {
-		return 0, 0, nil, "", "", fmt.Errorf("store: summarize bench tool_calls %q: %w", sessionID, err)
+		return 0, 0, nil, "", "", fmt.Errorf("db: summarize bench tool_calls %q: %w", sessionID, err)
 	}
 	if nullCost.Valid {
 		v := nullCost.Float64

@@ -9,7 +9,7 @@
 // started_at (oldest first). M2 (Task 5) extends the surface with a
 // per-session M2 rollup: TOKENS (sum of tokens_in + tokens_out per call,
 // summed across the session), COST, and MODEL. The rollup is computed
-// in-store from tool_calls (see store.SessionM2Rollups); the text view
+// in-db from tool_calls (see db.SessionM2Rollups); the text view
 // uses the explicit "-" marker when the session has no non-NULL M2 data
 // (AC6), and the JSON view emits a top-level m2 object with the rollup
 // fields when at least one call has non-NULL M2 data (AC7).
@@ -26,7 +26,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 func runList(args []string, opts Options) int {
@@ -68,12 +68,12 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx list: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		printError(stderr, internalError("ktx list: open database: %v", err), format)
 		return ExitInternal
@@ -102,10 +102,10 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printListText(stdout, sessions, rollups)
 	default:
 		// JSON default. Build a wrapper slice that embeds the
-		// store.Session struct (so its fields are flattened into the
+		// dbpkg.Session struct (so its fields are flattened into the
 		// output object) and adds the optional m2 pointer (Task 5,
 		// AC7). The wrapper avoids touching the Session struct in
-		// store/persist.go (Task 5 scope) while keeping the JSON
+		// internal/db/persist.go (Task 5 scope) while keeping the JSON
 		// output shape exactly the same plus a top-level m2 object
 		// when present. omitempty on M2 means a session with no
 		// non-NULL M2 data does not emit the field at all (AC7
@@ -128,17 +128,17 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 }
 
 // sessionListRow is the JSON encoding shape for a single `ktx list`
-// session row (Task 5, AC7). The store.Session fields are embedded so
+// session row (Task 5, AC7). The dbpkg.Session fields are embedded so
 // the JSON output is a flat object with the M1 fields plus an
 // optional m2 pointer; omitempty on M2 omits the field entirely
 // when the session has no non-NULL M2 data.
 //
 // The wrapper type is local to the cli package so the on-disk
-// store.Session shape (in store/persist.go, off-limits for Task 5)
+// dbpkg.Session shape (in internal/db/persist.go, off-limits for Task 5)
 // is not modified.
 type sessionListRow struct {
-	store.Session
-	M2 *store.SessionM2 `json:"m2,omitempty"`
+	dbpkg.Session
+	M2 *dbpkg.SessionM2 `json:"m2,omitempty"`
 }
 
 // m2NoData is the explicit "no data" marker for the text list view
@@ -157,9 +157,9 @@ const m2NoData = "-"
 // TOOL_CALLS. A session with no non-NULL M2 data shows "-" for all
 // three (AC6). A session with partial M2 data shows the available
 // sub-rollup values and "-" for any sub-rollup where every underlying
-// call's value is NULL. The rollup logic is in store.SessionM2Rollups
+// call's value is NULL. The rollup logic is in db.SessionM2Rollups
 // (Task 5); this renderer is a pure presentation layer.
-func printListText(w io.Writer, sessions []store.Session, rollups map[string]store.SessionM2) {
+func printListText(w io.Writer, sessions []dbpkg.Session, rollups map[string]dbpkg.SessionM2) {
 	if len(sessions) == 0 {
 		fmt.Fprintln(w, "no sessions")
 		return
@@ -193,7 +193,7 @@ func printListText(w io.Writer, sessions []store.Session, rollups map[string]sto
 // A nil pointer (no underlying call had both tokens_in and tokens_out
 // non-NULL) renders as "-" (AC6); a non-nil pointer to 0 renders as
 // "0" to preserve the absent-vs-zero distinction.
-func m2TokensCell(r store.SessionM2) string {
+func m2TokensCell(r dbpkg.SessionM2) string {
 	if r.Tokens == nil {
 		return m2NoData
 	}
@@ -205,7 +205,7 @@ func m2TokensCell(r store.SessionM2) string {
 // and the per-call M2 section in printGetText; a session rollup of
 // zero renders as "0.0000" so the "0" total is visually distinct
 // from "-" (AC6).
-func m2CostCell(r store.SessionM2) string {
+func m2CostCell(r dbpkg.SessionM2) string {
 	if r.Cost == nil {
 		return m2NoData
 	}
@@ -217,7 +217,7 @@ func m2CostCell(r store.SessionM2) string {
 // name verbatim. MIN() over a non-empty set returns a non-NULL
 // model string in the rollup, so the empty-string edge case is
 // not reachable through the normal query path.
-func m2ModelCell(r store.SessionM2) string {
+func m2ModelCell(r dbpkg.SessionM2) string {
 	if r.Model == nil {
 		return m2NoData
 	}

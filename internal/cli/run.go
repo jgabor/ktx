@@ -1,7 +1,7 @@
 // `ktx run` — the wrapper integration path (Decisions 1, 4, 10). Spawns an
 // agent subprocess, captures its stdout, parses newline-delimited JSON
 // events for tool-call shapes, persists each tool event via the internal
-// store function, and transparently passes the agent's stdout through to
+// db.Open function, and transparently passes the agent's stdout through to
 // ktx's stdout.
 //
 // The wrapper is a transparent proxy (D1):
@@ -63,7 +63,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // maxAgentLine caps a single emitted JSON line. Agent tool outputs (e.g.,
@@ -158,12 +158,12 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 
 	// Open session before spawning the child so any early child output
 	// can be associated with the right session_id.
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx run: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		printError(stderr, internalError("ktx run: open database: %v", err), opts.Format)
 		return ExitInternal
@@ -253,7 +253,7 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 // Persistence is inline (synchronous) so each tool_call is committed
 // before the next line is read. A persist failure is logged to stderr
 // and the next line is processed.
-func teeAndParse(r io.Reader, stdout io.Writer, db *store.DB, sessionID string, stderr io.Writer) int {
+func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, stderr io.Writer) int {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), maxAgentLine)
 	var persisted int
@@ -289,7 +289,7 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *store.DB, sessionID string, 
 	return persisted
 }
 
-// buildToolCall materialises a parsed event into the store's ToolCall
+// buildToolCall materialises a parsed event into the db's ToolCall
 // shape (Decision 9). ID is always generated fresh — Decision 3
 // mandates 16-char lowercase alpha nanoids, and runtime-supplied IDs
 // (e.g., OpenCode's callID) do not necessarily match. Cross-referencing
@@ -304,11 +304,11 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *store.DB, sessionID string, 
 // are pointer-copied from the parsed event: a nil pointer round-trips
 // to SQL NULL / JSON null (field absent in source), a non-nil pointer
 // to zero round-trips to SQL 0 / JSON 0 (source emitted zero). The
-// convention matches the store.ToolCall shape (Task 3) and preserves
+// convention matches the dbpkg.ToolCall shape (Task 3) and preserves
 // the reconstructability requirement from the cost-mechanics decision:
 // 'absent' is not conflated with 'zero'.
-func buildToolCall(ev *parsedEvent, sessionID string) (*store.ToolCall, error) {
-	id, err := store.NewID()
+func buildToolCall(ev *parsedEvent, sessionID string) (*dbpkg.ToolCall, error) {
+	id, err := dbpkg.NewID()
 	if err != nil {
 		return nil, fmt.Errorf("generate id: %w", err)
 	}
@@ -318,13 +318,13 @@ func buildToolCall(ev *parsedEvent, sessionID string) (*store.ToolCall, error) {
 	} else {
 		ts = normaliseTimestamp(ts)
 	}
-	return &store.ToolCall{
+	return &dbpkg.ToolCall{
 		ID:          id,
 		SessionID:   sessionID,
 		Tool:        ev.Tool,
 		Input:       ev.Input,
 		Output:      ev.Output,
-		ContentHash: store.ContentHash(ev.Output),
+		ContentHash: dbpkg.ContentHash(ev.Output),
 		Timestamp:   ts,
 		EventType:   "tool_call",
 		TokensIn:    ev.TokensIn,
@@ -344,9 +344,9 @@ func buildToolCall(ev *parsedEvent, sessionID string) (*store.ToolCall, error) {
 // to SQL NULL and JSON null); a non-nil pointer to 0 = "source emitted
 // the field with value zero" (round-trips to SQL 0 and JSON 0).
 //
-// This mirrors the persistence-side convention in store.ToolCall
+// This mirrors the persistence-side convention in dbpkg.ToolCall
 // (Task 3): the parse layer hands buildToolCall pointers that the
-// struct boundary copies straight onto the store shape. A missing M2
+// struct boundary copies straight onto the db shape. A missing M2
 // field in the source event is NOT a parse failure — the wrapper
 // records the tool call with NULL M2 columns and moves on.
 type parsedEvent struct {
@@ -590,7 +590,7 @@ func float64PtrFromRaw(values ...json.RawMessage) *float64 {
 // stringPtrFromRaw returns the first non-empty RawMessage that parses
 // as a non-empty JSON string, as a pointer to string. Empty input,
 // malformed JSON, missing values, or empty strings yield nil — the
-// 'absent vs empty string' distinction matters at the store boundary
+// 'absent vs empty string' distinction matters at the db boundary
 // (an empty string would round-trip as a non-NULL "" column rather
 // than a NULL column).
 func stringPtrFromRaw(values ...json.RawMessage) *string {

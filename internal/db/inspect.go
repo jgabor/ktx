@@ -6,7 +6,7 @@
 // probe returns a plain error (or nil) so the cli can format the detail
 // without coupling to a specific error type.
 //
-// These helpers are read-only — they query but never mutate. `store.Open`
+// These helpers are read-only — they query but never mutate. `db.Open`
 // is the one place that creates the database file and runs migrations;
 // doctor only invokes Open after a pre-flight existence check in cli,
 // so a missing database is reported rather than silently created.
@@ -26,7 +26,7 @@
 // / ALTER migration. A partial bench_runs schema (some columns missing)
 // is also a warning: the forward-fix path in migrate() adds the missing
 // columns on the next open.
-package store
+package db
 
 import (
 	"database/sql"
@@ -76,7 +76,7 @@ var expectedSchema = map[string][]string{
 // m2Schema is the M2 cost-publication column set added to tool_calls by
 // the in-place ALTER TABLE migration. HasM2Columns checks for these
 // columns specifically so the doctor can report a missing set as a
-// soft warning. The order matches m2Columns in store.go so doctor
+// soft warning. The order matches m2Columns in db.go so doctor
 // output is deterministic.
 var m2Schema = []string{
 	"tokens_in",
@@ -91,7 +91,7 @@ var m2Schema = []string{
 // reproducibility contract. HasBenchRunsColumns checks for these
 // columns specifically so the doctor can report a partial bench_runs
 // schema as a soft warning (forward-fix on next open, not a hard
-// error). The order matches benchRunsColumns in store.go so doctor
+// error). The order matches benchRunsColumns in db.go so doctor
 // output is deterministic.
 var benchRunsSchema = []string{
 	"id",

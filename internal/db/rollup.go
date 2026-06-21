@@ -29,14 +29,14 @@
 // Tokens=nil, and the inspect surface renders "-" for the column.
 // The JSON tags deliberately omit omitempty so absent sub-rollups
 // surface as JSON null rather than being dropped from the object
-// — consistent with the pointer discipline used on store.ToolCall
+// — consistent with the pointer discipline used on ToolCall
 // (Task 3).
 //
 // The query uses a HAVING clause to filter to sessions with at
 // least one non-NULL M2 field. Sessions with no M2 data are absent
 // from the result map; the inspect surface treats a missing key as
 // "no data" and renders the explicit "-" marker (AC6).
-package store
+package db
 
 import (
 	"database/sql"
@@ -86,7 +86,7 @@ func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
 		     OR MIN(model) IS NOT NULL`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("store: session m2 rollups: %w", err)
+		return nil, fmt.Errorf("db: session m2 rollups: %w", err)
 	}
 	defer rows.Close()
 
@@ -99,7 +99,7 @@ func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
 			model     sql.NullString
 		)
 		if err := rows.Scan(&sessionID, &tokens, &cost, &model); err != nil {
-			return nil, fmt.Errorf("store: scan m2 rollup: %w", err)
+			return nil, fmt.Errorf("db: scan m2 rollup: %w", err)
 		}
 		roll := SessionM2{}
 		if tokens.Valid {
@@ -117,7 +117,7 @@ func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
 		out[sessionID] = roll
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate m2 rollups: %w", err)
+		return nil, fmt.Errorf("db: iterate m2 rollups: %w", err)
 	}
 	return out, nil
 }

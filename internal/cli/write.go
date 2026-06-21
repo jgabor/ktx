@@ -11,7 +11,7 @@
 //
 // Session resolution when session_id is absent follows Decision 1 revised:
 // ppid file lookup at $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json, with
-// liveness + PID-reuse guards. The resolution logic lives in the store
+// liveness + PID-reuse guards. The resolution logic lives in the db package
 // package; this file owns the I/O (stdin, stdout, errors, dispatch).
 package cli
 
@@ -23,7 +23,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 func runWrite(args []string, opts Options) int {
@@ -60,7 +60,7 @@ func runWriteWith(args []string, opts Options, stdin io.Reader, stdout, stderr i
 		return ExitUsage
 	}
 
-	var tc store.ToolCall
+	var tc dbpkg.ToolCall
 	if err := json.Unmarshal(body, &tc); err != nil {
 		printError(stderr, usageError("ktx write: parse JSON: %v", err), opts.Format)
 		return ExitUsage
@@ -73,12 +73,12 @@ func runWriteWith(args []string, opts Options, stdin io.Reader, stdout, stderr i
 
 	// Database path resolution (Decision 8): KTX_DB env > default. ktx write
 	// does not take a --path flag; per-invocation override lives on `ktx db`.
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx write: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		printError(stderr, internalError("ktx write: open database: %v", err), opts.Format)
 		return ExitInternal
@@ -98,7 +98,7 @@ func runWriteWith(args []string, opts Options, stdin io.Reader, stdout, stderr i
 
 // writeToolCall validates the required fields, resolves the session id, and
 // persists the record. The record ID (tc.ID) is printed as raw JSON.
-func writeToolCall(tc *store.ToolCall, db *store.DB, opts Options, stdout, stderr io.Writer) int {
+func writeToolCall(tc *dbpkg.ToolCall, db *dbpkg.DB, opts Options, stdout, stderr io.Writer) int {
 	// Required structural fields (Decision 9). id, tool, and timestamp are
 	// meaningless if empty; input, output, and content_hash are accepted as
 	// supplied (including empty strings, e.g. a tool with no output).
@@ -118,7 +118,7 @@ func writeToolCall(tc *store.ToolCall, db *store.DB, opts Options, stdout, stder
 	// Resolve session id: caller-provided (sidecar) or ppid-based (adapter).
 	sessionID, err := db.ResolveSessionID(tc.SessionID, tc.Timestamp)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, dbpkg.ErrNotFound) {
 			printError(stderr, notFoundError("ktx write: session %q not found", tc.SessionID), opts.Format)
 			return ExitNotFound
 		}
@@ -128,7 +128,7 @@ func writeToolCall(tc *store.ToolCall, db *store.DB, opts Options, stdout, stder
 	tc.SessionID = sessionID
 
 	if tc.ContentHash == "" && tc.Output != "" {
-		tc.ContentHash = store.ContentHash(tc.Output)
+		tc.ContentHash = dbpkg.ContentHash(tc.Output)
 	}
 
 	if err := db.PersistToolCall(tc); err != nil {
@@ -143,7 +143,7 @@ func writeToolCall(tc *store.ToolCall, db *store.DB, opts Options, stdout, stder
 // writeClose handles the session_close payload (Decision 9): sets ended_at on
 // the session row. The session_id is printed as raw JSON so the caller can
 // confirm which session was closed.
-func writeClose(tc *store.ToolCall, db *store.DB, opts Options, stdout, stderr io.Writer) int {
+func writeClose(tc *dbpkg.ToolCall, db *dbpkg.DB, opts Options, stdout, stderr io.Writer) int {
 	if tc.SessionID == "" {
 		printError(stderr, usageError("ktx write: session_close requires session_id"), opts.Format)
 		return ExitUsage
@@ -154,7 +154,7 @@ func writeClose(tc *store.ToolCall, db *store.DB, opts Options, stdout, stderr i
 	}
 
 	if err := db.CloseSession(tc.SessionID, tc.Timestamp); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, dbpkg.ErrNotFound) {
 			printError(stderr, notFoundError("ktx write: session %q not found", tc.SessionID), opts.Format)
 			return ExitNotFound
 		}

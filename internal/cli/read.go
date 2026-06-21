@@ -23,7 +23,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 func runRead(args []string, opts Options) int {
@@ -64,12 +64,12 @@ func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	// Database path resolution (Decision 8): KTX_DB env > default. ktx read
 	// does not take a --path flag; per-invocation override lives on `ktx db`.
-	path, err := store.ResolvePath("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx read: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := store.Open(path)
+	db, err := dbpkg.Open(path)
 	if err != nil {
 		printError(stderr, internalError("ktx read: open database: %v", err), opts.Format)
 		return ExitInternal
@@ -78,7 +78,7 @@ func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	record, err := db.GetRecord(id)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, dbpkg.ErrNotFound) {
 			printError(stderr, notFoundError("ktx read: record %q not found", id), opts.Format)
 			return ExitNotFound
 		}

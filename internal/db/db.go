@@ -1,4 +1,4 @@
-// Package store owns the ktx database: path resolution, ID generation, and
+// Package db owns the ktx database: path resolution, ID generation, and
 // the on-disk SQLite schema.
 //
 // The database is a single SQLite file (Decision 6) with three tables
@@ -14,7 +14,7 @@
 //
 //   - github.com/matoous/go-nanoid/v2 — 16-char lowercase alpha IDs (D3)
 //   - modernc.org/sqlite              — pure-Go SQLite driver, no CGO (D6)
-package store
+package db
 
 import (
 	"crypto/sha256"
@@ -245,11 +245,11 @@ func ContentHash(output string) string {
 // framework).
 func Open(path string) (*DB, error) {
 	if path == "" {
-		return nil, errors.New("store: open: path is empty")
+		return nil, errors.New("db: open: path is empty")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("store: open: create directory for %q: %w", path, err)
+		return nil, fmt.Errorf("db: open: create directory for %q: %w", path, err)
 	}
 
 	// modernc.org/sqlite reads _pragma query params and applies them per
@@ -259,16 +259,16 @@ func Open(path string) (*DB, error) {
 
 	db, err := sql.Open(sqliteDriver, dsn)
 	if err != nil {
-		return nil, fmt.Errorf("store: open %q: %w", path, err)
+		return nil, fmt.Errorf("db: open %q: %w", path, err)
 	}
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store: open %q: %w", path, err)
+		return nil, fmt.Errorf("db: open %q: %w", path, err)
 	}
 
 	if err := migrate(db); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store: migrate %q: %w", path, err)
+		return nil, fmt.Errorf("db: migrate %q: %w", path, err)
 	}
 
 	return &DB{db: db}, nil
@@ -307,13 +307,13 @@ func migrate(db *sql.DB) error {
 
 	for _, stmt := range schemaStatements {
 		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("store: create schema: %w", err)
+			return fmt.Errorf("db: create schema: %w", err)
 		}
 	}
 
 	have, err := tableColumns(tx, "tool_calls")
 	if err != nil {
-		return fmt.Errorf("store: inspect tool_calls: %w", err)
+		return fmt.Errorf("db: inspect tool_calls: %w", err)
 	}
 	for _, col := range m2Columns {
 		if _, ok := have[col.Name]; ok {
@@ -321,13 +321,13 @@ func migrate(db *sql.DB) error {
 		}
 		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
 		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("store: add m2 column %q: %w", col.Name, err)
+			return fmt.Errorf("db: add m2 column %q: %w", col.Name, err)
 		}
 	}
 
 	haveBR, err := tableColumns(tx, "bench_runs")
 	if err != nil {
-		return fmt.Errorf("store: inspect bench_runs: %w", err)
+		return fmt.Errorf("db: inspect bench_runs: %w", err)
 	}
 	for _, col := range benchRunsColumns {
 		if _, ok := haveBR[col.Name]; ok {
@@ -335,7 +335,7 @@ func migrate(db *sql.DB) error {
 		}
 		stmt := "ALTER TABLE bench_runs ADD COLUMN " + col.Name + " " + col.Type
 		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("store: add bench_runs column %q: %w", col.Name, err)
+			return fmt.Errorf("db: add bench_runs column %q: %w", col.Name, err)
 		}
 	}
 

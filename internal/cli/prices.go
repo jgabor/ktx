@@ -40,7 +40,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/jgabor/ktx/internal/store"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // runPrices dispatches the `ktx prices` namespace.
@@ -114,7 +114,7 @@ func runPricesWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // cache; they let the caller verify the refresh produced a populated
 // file without re-reading the cache.
 func pricesUpdate(opts Options, stdout, stderr io.Writer) int {
-	path, err := store.PricesPath()
+	path, err := dbpkg.PricesPath()
 	if err != nil {
 		printError(stderr, internalError("ktx prices update: resolve cache path: %v", err), opts.Format)
 		return ExitInternal
@@ -128,7 +128,7 @@ func pricesUpdate(opts Options, stdout, stderr io.Writer) int {
 	// is unnecessary here because RefreshAndWrite replaces the
 	// in-memory copy and writes the on-disk file atomically; the
 	// next LoadPrices() call would see the new file on disk.
-	p := store.NewPrices(path)
+	p := dbpkg.NewPrices(path)
 	if err := p.RefreshAndWrite(); err != nil {
 		// Hard error: the user asked for the refresh and got a
 		// failure. ExitInternal (4) maps to the ktx internal-error
@@ -167,7 +167,7 @@ func pricesUpdate(opts Options, stdout, stderr io.Writer) int {
 // `ktx db path` for the database file — useful for scripts that
 // want to inspect or back up the cache.
 func pricesPath(opts Options, stdout, stderr io.Writer) int {
-	path, err := store.PricesPath()
+	path, err := dbpkg.PricesPath()
 	if err != nil {
 		printError(stderr, internalError("ktx prices path: resolve cache path: %v", err), opts.Format)
 		return ExitInternal

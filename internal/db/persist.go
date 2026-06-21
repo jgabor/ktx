@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 )
 
 // ErrNotFound is returned when a referenced session or record does not exist
@@ -364,53 +363,19 @@ func (d *DB) ListSessions() ([]Session, error) {
 	return sessions, nil
 }
 
-// costRoundDecimals is the precision for the D11 derivation. The
-// methodology-v1 headline number is six decimals
-// (`.agentera/bench/methodology-v1.yaml`'s `cost_per_correct = cost /
-// max(score, 1e-9)` plus the D12 `six decimal places` rule); the
-// persisted cost uses the same precision so a future reader does not
-// have to round before dividing.
-const costRoundDecimals = 6
-
 // deriveCost fills tc.Cost from the cached (provider, model) price
-// when the caller omitted it and all four price-derivation inputs are
-// non-NULL (tokens_in, tokens_out, model, provider). The function is
-// silent on every branch that does not derive — there is no error
-// return because the D11 soft-fail contract requires the write path to
-// persist the row with whatever cost the caller supplied (or NULL) on
-// any failure to derive.
+// when the caller omitted it. The function is a thin wrapper around
+// the costDeriver deep module (cost.go): it builds a CostInputs from
+// the ToolCall, hands it to Derive, and assigns the result back to
+// tc.Cost. The math, the NULL-preservation branches, the lookup-and-
+// cold-fetch policy, and the 6-decimal rounding all live in cost.go;
+// this wrapper is only the struct-to-input adapter.
 //
-// Derivation formula:
-//
-//	cost_USD = (tokens_in * in_price + tokens_out * out_price) / 1_000_000
-//
-// rounded to 6 decimals. in_price and out_price are USD per million
-// tokens, the units models.dev uses for its cost.input and
-// cost.output fields; the division by 1_000_000 converts to "USD per
-// token" multiplied by token count.
-//
-// Lookup behaviour (D11 reasoning, AC1-AC7):
-//
-//   - Caller supplied cost → no-op. A non-nil pointer (including a
-//     pointer to 0) round-trips verbatim per Task 3's contract; the
-//     caller owns the cost evidence.
-//   - Any of tokens_in / tokens_out / model NULL → no-op. NULL
-//     preservation: the D11 reconstructability contract requires all
-//     three; a partial set would force ktx to invent the missing
-//     value, which violates "conservative failure" (ARCHITECTURE.md
-//     Quality attributes).
-//   - Provider NULL → no-op. The cache is keyed by (provider, model);
-//     without a provider, the lookup cannot resolve and silently
-//     failing is the safe outcome. The OpenCode wrapper path defaults
-//     provider to "opencode" (D10), so this branch only fires on
-//     sidecar payloads that omit the field.
-//   - Cache hit → derive.
-//   - Cache miss + cold cache → fetch from models.dev. On success,
-//     atomic-write the cache to disk (AC1, AC4) and re-lookup. On
-//     failure, cost stays NULL (AC3, AC6 — soft fail).
-//   - Cache miss + warm cache → no-op. The on-disk cache is the source
-//     of truth between fetches; the user must run `ktx prices update`
-//     to refresh (AC2 — idempotent write path preserves mtime).
+// D11 soft-fail: Derive returns nil on every branch that does not
+// derive. tc.Cost is left untouched in that case (the caller's
+// original value, or nil), and the row persists with whatever cost
+// the caller supplied (or NULL) — same contract as the inline
+// helper it replaced.
 //
 // The mutex-free read on tc is safe because the caller owns the
 // pointer (writeToolCall / teeAndParse build a fresh ToolCall and
@@ -420,50 +385,19 @@ func (d *DB) deriveCost(tc *ToolCall) {
 	if tc == nil {
 		return
 	}
-	// Caller-supplied cost wins. A non-nil pointer (including a
-	// pointer to zero) round-trips verbatim — D11 is about filling
-	// in what the caller omitted, not overwriting what they
-	// supplied.
-	if tc.Cost != nil {
-		return
-	}
-	// NULL preservation: all four derivation inputs must be non-NULL.
-	// Any NULL field short-circuits derivation (AC7).
-	if tc.TokensIn == nil || tc.TokensOut == nil ||
-		tc.Model == nil || tc.Provider == nil {
-		return
-	}
-
-	prices, _ := LoadPrices() // soft-fail: a load error means empty cache
+	// LoadPrices is the process-wide singleton (sync.Once). A nil
+	// *Prices with an empty path means XDG_DATA_HOME resolution
+	// failed — the write path cannot derive against an empty
+	// path, so the early-out mirrors the pre-refactor branch.
+	prices, _ := LoadPrices()
 	if prices == nil || prices.path == "" {
 		return
 	}
-
-	in, out, ok := prices.Lookup(*tc.Provider, *tc.Model)
-	if !ok && prices.Cold() {
-		// Cold cache: try fetching from models.dev and persisting
-		// atomically. Refresh is bounded to 5s and surfaces
-		// failures as a non-nil error; the soft-fail contract
-		// drops the error and leaves cost NULL (AC3, AC6).
-		if err := prices.Refresh(); err == nil {
-			in, out, ok = prices.Lookup(*tc.Provider, *tc.Model)
-			if ok {
-				// Best-effort write to disk. A second-order
-				// failure here (disk full, permission denied)
-				// does not block the in-memory derivation —
-				// the row persists with the derived cost
-				// regardless, and the next cold-cache
-				// invocation will retry the write.
-				_ = prices.WriteToDisk()
-			}
-		}
-	}
-	if !ok {
-		return
-	}
-
-	raw := float64(*tc.TokensIn)*in + float64(*tc.TokensOut)*out
-	raw = raw / 1_000_000
-	rounded := math.Round(raw*math.Pow(10, costRoundDecimals)) / math.Pow(10, costRoundDecimals)
-	tc.Cost = &rounded
+	tc.Cost = (&costDeriver{}).Derive(CostInputs{
+		TokensIn:  tc.TokensIn,
+		TokensOut: tc.TokensOut,
+		Model:     tc.Model,
+		Provider:  tc.Provider,
+		Cost:      tc.Cost,
+	}, prices)
 }

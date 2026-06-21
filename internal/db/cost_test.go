@@ -1,0 +1,364 @@
+// Table-driven unit tests for the costDeriver deep module
+// (cost.go). The tests cover every D11 branch in the Derive
+// contract: caller-supplied cost wins, NULL inputs short-circuit,
+// cold-cache miss triggers a refresh, warm-cache miss is silent,
+// refresh failure is silent, and zero-tokens is a real value for
+// the persist path.
+//
+// The fakePriceSource below is a function-field struct so each
+// test case composes the exact behaviour it needs (a hit, a miss,
+// a counter, an error). No httptest, no Prices singleton, no
+// on-disk file. The cold/warm distinction is a function field, not
+// a side effect of Load — that side effect belongs to the Prices
+// type's tests (prices_test.go), not to the deriver's tests.
+package db
+
+import (
+	"errors"
+	"math"
+	"testing"
+)
+
+// fakePriceSource is a hand-rolled PriceSource for unit tests. The
+// three function fields compose the exact behaviour each test case
+// needs; the three int counters are the "caller-side observation"
+// surface (how many times each method was called). The Refresh
+// function may mutate the Lookup function field to simulate the
+// source's own cache-write side effect (D11 AC4: "the cache write
+// is the source's responsibility").
+type fakePriceSource struct {
+	LookupFn  func(provider, model string) (in, out float64, ok bool)
+	ColdFn    func() bool
+	RefreshFn func() error
+
+	lookupCalls  int
+	coldCalls    int
+	refreshCalls int
+}
+
+func (f *fakePriceSource) Lookup(provider, model string) (in, out float64, ok bool) {
+	f.lookupCalls++
+	if f.LookupFn == nil {
+		return 0, 0, false
+	}
+	return f.LookupFn(provider, model)
+}
+
+func (f *fakePriceSource) Cold() bool {
+	f.coldCalls++
+	if f.ColdFn == nil {
+		return false
+	}
+	return f.ColdFn()
+}
+
+func (f *fakePriceSource) Refresh() error {
+	f.refreshCalls++
+	if f.RefreshFn == nil {
+		return nil
+	}
+	return f.RefreshFn()
+}
+
+// ptrFloat64Cost returns a pointer to v; a tiny helper so table
+// cases can express "value" without a literal-address dance. The
+// name mirrors the persist_test.go helper of the same purpose so
+// the shape is familiar to the existing test surface.
+func ptrFloat64Cost(v float64) *float64 { return &v }
+
+// near reports whether a and b agree within the D11 6-decimal
+// precision (1e-9 is well below the rounding step of 1e-6). The
+// helper exists so the test cases can compare derived values
+// without re-implementing the tolerance check at every row.
+func near(a, b float64) bool { return math.Abs(a-b) <= 1e-9 }
+
+// TestCostDeriver_Derive covers ACs 1 through 7. Each row is one
+// branch of the D11 contract; the table is the regression net for
+// the deep module so a future change to Derive has a single place
+// to update or extend.
+//
+// AC8-AC10 are covered by the existing persist_test.go and
+// bench_test.go tests (TestPersistToolCall_CostDerivation,
+// TestSummarizeBenchToolCalls, TestInsertBenchRun_RoundTrip); this
+// file stays focused on the pure-function surface of the deriver.
+func TestCostDeriver_Derive(t *testing.T) {
+	var (
+		sonnet    = "claude-sonnet-4-20250514"
+		anthropic = "anthropic"
+		m         = "m"
+		p         = "p"
+	)
+	oneM := int64(1_000_000)
+	zero := int64(0)
+
+	// sonnetLookup is the AC1 hit shape: (provider, model) → (3, 15, true).
+	// The closure is shared by the rows that need a hit-on-first-call
+	// (AC1, AC7).
+	sonnetLookup := func(_, _ string) (float64, float64, bool) { return 3, 15, true }
+
+	// The AC4 row needs a LookupFn that returns miss on the first
+	// call and hit on the second. A plain int counter in the test
+	// scope is the cleanest way to model "the source's Refresh
+	// mutates the in-memory cache" without entangling the
+	// fakePriceSource struct with stateful closures.
+	ac4LookupCalls := 0
+	ac4LookupFn := func(_, _ string) (float64, float64, bool) {
+		ac4LookupCalls++
+		if ac4LookupCalls == 1 {
+			return 0, 0, false // pre-refresh: miss
+		}
+		return 3, 15, true // post-refresh: hit (source's "cache write" side effect)
+	}
+
+	// errRefreshFailed is a sentinel for the AC6 row: any non-nil
+	// error makes the point. The value is declared in the test
+	// scope (not as a package var) so the test's failure mode is
+	// local to this function.
+	errRefreshFailed := errors.New("refresh failed in test")
+
+	cases := []struct {
+		name string
+		in   CostInputs
+		src  *fakePriceSource
+		// wantNil says the result must be nil (any non-nil result is a
+		// failure). When wantNil is false, wantValue is compared
+		// against *Derive(...) within the D11 precision.
+		wantNil   bool
+		wantValue float64
+		// wantLookupCalls / wantRefreshCalls constrain the side-effect
+		// counters on the fake source. Defaults are 1 lookup / 0
+		// refresh for a hit-on-first-call case.
+		wantLookupCalls  int
+		wantRefreshCalls int
+	}{
+		{
+			name: "AC1: 1M+1M tokens on claude-sonnet-4 anthropic, hit on first lookup → 18.000000",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: &oneM,
+				Model:     &sonnet,
+				Provider:  &anthropic,
+			},
+			src: &fakePriceSource{
+				LookupFn: sonnetLookup,
+				// Cold() is irrelevant on a hit; the deriver never
+				// reaches the cold-fetch branch. Returning false
+				// documents that intent — and the test asserts the
+				// refresh counter stays at 0.
+				ColdFn: func() bool { return false },
+			},
+			wantValue:       18.0,
+			wantLookupCalls: 1,
+		},
+		{
+			name: "AC2: caller-supplied Cost=0.005 wins; no lookup, no refresh",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: &oneM,
+				Model:     &sonnet,
+				Provider:  &anthropic,
+				Cost:      ptrFloat64Cost(0.005),
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) {
+					// A Lookup call here would mean the deriver
+					// overrode the caller-supplied cost. Fail
+					// loudly inside the test runner so the
+					// regression is reported with a stack, not
+					// just a counter diff.
+					t.Fatal("Lookup called; caller-supplied cost must short-circuit Derive")
+					return 0, 0, false
+				},
+				ColdFn: func() bool { return false },
+				RefreshFn: func() error {
+					t.Fatal("Refresh called; caller-supplied cost must short-circuit Derive")
+					return nil
+				},
+			},
+			wantValue:       0.005,
+			wantLookupCalls: 0,
+		},
+		{
+			name: "AC3a: nil TokensIn short-circuits → nil (NULL preservation, no lookup)",
+			in: CostInputs{
+				TokensIn:  nil,
+				TokensOut: &oneM,
+				Model:     &sonnet,
+				Provider:  &anthropic,
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) {
+					t.Fatal("Lookup called; NULL input must short-circuit Derive")
+					return 0, 0, false
+				},
+				ColdFn: func() bool { return false },
+			},
+			wantNil: true,
+		},
+		{
+			name: "AC3b: nil TokensOut short-circuits → nil (NULL preservation, no lookup)",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: nil,
+				Model:     &sonnet,
+				Provider:  &anthropic,
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) {
+					t.Fatal("Lookup called; NULL input must short-circuit Derive")
+					return 0, 0, false
+				},
+				ColdFn: func() bool { return false },
+			},
+			wantNil: true,
+		},
+		{
+			name: "AC3c: nil Model short-circuits → nil (NULL preservation, no lookup)",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: &oneM,
+				Model:     nil,
+				Provider:  &anthropic,
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) {
+					t.Fatal("Lookup called; NULL input must short-circuit Derive")
+					return 0, 0, false
+				},
+				ColdFn: func() bool { return false },
+			},
+			wantNil: true,
+		},
+		{
+			name: "AC3d: nil Provider short-circuits → nil (NULL preservation, no lookup)",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: &oneM,
+				Model:     &sonnet,
+				Provider:  nil,
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) {
+					t.Fatal("Lookup called; NULL input must short-circuit Derive")
+					return 0, 0, false
+				},
+				ColdFn: func() bool { return false },
+			},
+			wantNil: true,
+		},
+		{
+			name: "AC4: cold-cache miss → Refresh → post-refresh hit → 18.000000; cache write is source's responsibility",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: &oneM,
+				Model:     &sonnet,
+				Provider:  &anthropic,
+			},
+			src: &fakePriceSource{
+				LookupFn: ac4LookupFn,
+				ColdFn:   func() bool { return true },
+				RefreshFn: func() error {
+					// The source's Refresh side effect is
+					// captured by ac4LookupFn (the local
+					// counter; the post-refresh lookup hits).
+					// The deriver's job is to call Refresh and
+					// re-Lookup; it does not write the cache
+					// itself.
+					return nil
+				},
+			},
+			wantValue:        18.0,
+			wantLookupCalls:  2,
+			wantRefreshCalls: 1,
+		},
+		{
+			name: "AC5: warm-cache miss → nil, Refresh NOT called",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: &oneM,
+				Model:     &sonnet,
+				Provider:  &anthropic,
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) { return 0, 0, false },
+				ColdFn:   func() bool { return false },
+				RefreshFn: func() error {
+					t.Fatal("Refresh called; warm-cache miss must not trigger a fetch")
+					return nil
+				},
+			},
+			wantNil:          true,
+			wantLookupCalls:  1,
+			wantRefreshCalls: 0,
+		},
+		{
+			name: "AC6: cold-cache miss + Refresh fails → nil (D11 soft-fail)",
+			in: CostInputs{
+				TokensIn:  &oneM,
+				TokensOut: &oneM,
+				Model:     &sonnet,
+				Provider:  &anthropic,
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) { return 0, 0, false },
+				ColdFn:   func() bool { return true },
+				RefreshFn: func() error {
+					// The specific error is irrelevant to the
+					// soft-fail contract. The deriver must drop
+					// it and surface nil.
+					return errRefreshFailed
+				},
+			},
+			wantNil:          true,
+			wantLookupCalls:  1,
+			wantRefreshCalls: 1,
+		},
+		{
+			name: "AC7: zero tokens (0 in, 0 out) + hit → 0.000000 (zero is a real value)",
+			in: CostInputs{
+				TokensIn:  &zero,
+				TokensOut: &zero,
+				Model:     &m,
+				Provider:  &p,
+			},
+			src: &fakePriceSource{
+				LookupFn: func(_, _ string) (float64, float64, bool) { return 3, 15, true },
+				ColdFn:   func() bool { return false },
+			},
+			wantValue:       0.0,
+			wantLookupCalls: 1,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := (&costDeriver{}).Derive(tc.in, tc.src)
+			if tc.wantNil {
+				if got != nil {
+					t.Errorf("Derive = %v, want nil", *got)
+				}
+			} else {
+				if got == nil {
+					t.Fatal("Derive = nil, want non-nil")
+				}
+				if !near(*got, tc.wantValue) {
+					t.Errorf("Derive = %v, want %v (6-decimal precision)", *got, tc.wantValue)
+				}
+				// 6-decimal precision check: a derived value
+				// must equal its 6-decimal-rounded form (the
+				// methodology-v1 headline precision). Matches
+				// the precision check in TestPersistToolCall_CostDerivation.
+				rounded := math.Round(*got*1e6) / 1e6
+				if rounded != *got {
+					t.Errorf("Derive = %v is not 6-decimal precise (would round to %v)", *got, rounded)
+				}
+			}
+			if tc.src.lookupCalls != tc.wantLookupCalls {
+				t.Errorf("src.Lookup called %d times, want %d", tc.src.lookupCalls, tc.wantLookupCalls)
+			}
+			if tc.src.refreshCalls != tc.wantRefreshCalls {
+				t.Errorf("src.Refresh called %d times, want %d", tc.src.refreshCalls, tc.wantRefreshCalls)
+			}
+		})
+	}
+}

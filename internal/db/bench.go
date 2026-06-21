@@ -43,7 +43,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 )
 
 // ErrBenchMethodologyNotFound is returned by LookupMethodologyVersion
@@ -82,24 +81,23 @@ type BenchRun struct {
 }
 
 // deriveBenchCost mirrors PersistToolCall.deriveCost at the bench-run
-// level. The caller passes a BenchRun whose tokens_in, tokens_out, and
-// model are populated (the bench-run rollup aggregates these from the
-// underlying tool_calls; an empty model means the bench has nothing to
-// price against). When Cost is nil AND TokensIn, TokensOut, and Model
-// are all non-zero-meaningful AND the cache has a price for the
-// (provider, model) tuple, the helper fills Cost from:
+// level. The function is a thin wrapper around the costDeriver deep
+// module (cost.go): it resolves the provider from the bench's model
+// (providerModel, the bench-side adapter for the cache key), builds
+// a CostInputs from the BenchRun, hands it to Derive, and assigns the
+// result back to b.Cost. The math, the NULL-preservation branches,
+// the lookup-and-cold-fetch policy, and the 6-decimal rounding all
+// live in cost.go.
 //
-//	cost = (tokens_in * in_price + tokens_out * out_price) / 1_000_000
-//
-// rounded to 6 decimals (matches the M2 tool_call derivation
-// precision; the methodology-v1 headline number is six decimals).
-//
-// Lookup behaviour is identical to PersistToolCall.deriveCost:
-// cold-cache lookup miss triggers a fetch + best-effort disk write;
-// warm-cache lookup miss is silent (cost stays nil). Any failure
-// leaves Cost nil — the D11 soft-fail contract requires the bench row
-// to be persisted with whatever cost the caller supplied on a
-// derivation failure.
+// Bench-side contract preserved: the zero-tokens pre-filter fires
+// BEFORE the deriver is called. The original inline helper bailed
+// out when both TokensIn and TokensOut were zero, leaving Cost nil;
+// the bench_runs row's Cost is therefore the SQL NULL the bench
+// path expects (TestInsertBenchRun_RoundTrip's "nil Cost round-trips
+// as nil (SQL NULL)" subtest). The deriver itself would happily
+// derive a $0.000000 against a zero-token input (the persist path's
+// semantics — zero is a real value), so the wrapper carries the
+// bench-specific filter instead of leaking it into the deep module.
 //
 // providerModel returns the (provider, model) pair to use for the
 // cache lookup. v1 only knows the (anthropic, claude-sonnet-4-20250514)
@@ -111,16 +109,26 @@ func (d *DB) deriveBenchCost(b *BenchRun) {
 	if b == nil {
 		return
 	}
+	// Caller-supplied cost wins. A non-nil pointer round-trips
+	// verbatim (D11: the caller owns the cost evidence).
 	if b.Cost != nil {
 		return
 	}
-	// D11 NULL preservation: tokens and model must all be present for
-	// derivation to fire. A zero token count on either side is a real
-	// value, not an absent one — cost = 0 is a meaningful signal
-	// (zero-token call), not a missing input.
+	// Bench-side pre-filter: both tokens zero → leave Cost nil.
+	// The bench-run rollup aggregates tokens from underlying
+	// tool_calls; an all-zero rollup is a valid "no measurement"
+	// state (D11 NULL preservation for the bench headline), and
+	// the cost-stays-nil semantic is the contract the bench
+	// report depends on. The deriver's "zero is a real value"
+	// semantic is the persist path's; the bench path overrides
+	// it here.
 	if b.TokensIn == 0 && b.TokensOut == 0 {
 		return
 	}
+	// The bench side does not carry a Provider column on
+	// BenchRun — the provider is resolved from the model id
+	// (providerModel, the only v1 known pair is
+	// (anthropic, claude-sonnet-4-20250514)).
 	if b.Model == "" {
 		return
 	}
@@ -131,23 +139,15 @@ func (d *DB) deriveBenchCost(b *BenchRun) {
 	}
 
 	provider := providerModel(b.Model)
-	in, out, ok := prices.Lookup(provider, b.Model)
-	if !ok && prices.Cold() {
-		if err := prices.Refresh(); err == nil {
-			in, out, ok = prices.Lookup(provider, b.Model)
-			if ok {
-				_ = prices.WriteToDisk()
-			}
-		}
-	}
-	if !ok {
-		return
-	}
-
-	raw := float64(b.TokensIn)*in + float64(b.TokensOut)*out
-	raw = raw / 1_000_000
-	rounded := math.Round(raw*math.Pow(10, costRoundDecimals)) / math.Pow(10, costRoundDecimals)
-	b.Cost = &rounded
+	tokensIn := b.TokensIn
+	tokensOut := b.TokensOut
+	b.Cost = (&costDeriver{}).Derive(CostInputs{
+		TokensIn:  &tokensIn,
+		TokensOut: &tokensOut,
+		Model:     &b.Model,
+		Provider:  &provider,
+		Cost:      b.Cost,
+	}, prices)
 }
 
 // providerModel returns the cache-key provider for a given model id.

@@ -126,13 +126,39 @@ type Prices struct {
 	// not refetch (AC2) — the on-disk file is treated as the source
 	// of truth.
 	cold bool
+	// httpClient is the client used by Refresh to fetch from
+	// models.dev. The default is http.DefaultClient; tests inject
+	// httptest.NewServer clients via WithHTTPClient so the
+	// hard-fail manual-refresh contract is exercisable without a
+	// live network or a manual refresh against production models.dev.
+	httpClient *http.Client
 }
 
 // NewPrices returns a Prices cache bound to path. The cache is empty
 // until Load is called. Callers that want the default path should use
 // LoadPrices() which also resolves the path and loads from disk.
 func NewPrices(path string) *Prices {
-	return &Prices{path: path, raw: map[string]map[string]Price{}}
+	return &Prices{path: path, raw: map[string]map[string]Price{}, httpClient: http.DefaultClient}
+}
+
+// WithHTTPClient returns a *Prices whose Refresh uses the supplied
+// *http.Client instead of http.DefaultClient. The seam exists so tests
+// can substitute an httptest.NewServer (or any other transport) and
+// exercise the manual-refresh hard-fail contract without a live network
+// call. The method mutates the receiver in place AND returns it so
+// callers can chain or assign. The hard-fail contract (a non-2xx
+// status, network error, or malformed JSON returns a non-nil error and
+// leaves the in-memory cache unchanged) is preserved — only the client
+// is swapped.
+//
+// Production callers do not use this method: NewPrices and LoadPrices
+// default to http.DefaultClient. Tests inject a custom client before
+// calling Refresh or RefreshAndWrite.
+func (p *Prices) WithHTTPClient(c *http.Client) *Prices {
+	p.mu.Lock()
+	p.httpClient = c
+	p.mu.Unlock()
+	return p
 }
 
 // Load reads the cache file from disk into memory. A missing file
@@ -324,7 +350,16 @@ func (p *Prices) Refresh() error {
 		return fmt.Errorf("prices: build request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	// httpClient defaults to http.DefaultClient via NewPrices; tests inject
+	// httptest-backed clients via WithHTTPClient to exercise the hard-fail
+	// contract without a live network call. The seam preserves the existing
+	// Refresh semantics (timeout, status check, body cap, parse error) —
+	// only the client is swappable.
+	client := p.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("prices: fetch %q: %w", ModelsDevURL, err)
 	}

@@ -274,6 +274,103 @@ func Open(path string) (*DB, error) {
 	return &DB{db: db}, nil
 }
 
+// OpenWithoutMigration wraps an externally-managed *sql.DB in a *DB
+// without applying the schema migration. The seam exists for two
+// use cases:
+//
+//   - Test fixtures that need to construct a database with a specific
+//     schema (e.g. a pre-M3 fixture missing bench_runs, or a partial
+//     M2 fixture missing one additive column). The dispatch layer's
+//     doctor tests exercise this path: opening a raw *sql.DB with
+//     M1+M2 columns but no bench_runs table, wrapping it in *DB
+//     without a migration, and asserting the doctor reports the
+//     bench_runs check as a warning. Running Open would create
+//     bench_runs via CREATE TABLE IF NOT EXISTS and defeat the
+//     fixture; OpenWithoutMigration preserves the caller's schema
+//     verbatim.
+//
+//   - Future production code paths that need to read or write against
+//     a database whose schema is already established by an out-of-band
+//     process (a sidecar migration tool, a separately-managed
+//     connection pool, a benchmark harness pre-creating the
+//     schema). The seam gives those callers a clean entry point
+//     without exposing the *DB struct's unexported field via
+//     reflection or unsafe.
+//
+// The caller owns three responsibilities that Open handles
+// implicitly:
+//
+//  1. The *sql.DB connection lifecycle: OpenWithoutMigration does
+//     not call sql.Open or Close. The returned *DB's Close closes
+//     the underlying pool — the caller should not also close the
+//     sql.DB handle.
+//  2. The foreign_keys pragma. Open applies _pragma=foreign_keys(1)
+//     via the DSN so the tool_calls -> sessions FK is enforced on
+//     every pooled connection. OpenWithoutMigration does not
+//     override the caller's DSN; if the caller's DSN did not set
+//     the pragma, the FK is not enforced. Tests that depend on FK
+//     enforcement should use `file::memory:?_pragma=foreign_keys(1)`
+//     or run `PRAGMA foreign_keys = ON` on the connection before
+//     wrapping.
+//  3. Schema validity. The returned *DB does not check that the
+//     schema satisfies the M1/M2/M3 contract; methods that read
+//     columns (PersistToolCall, GetToolCall, HasBenchRunsTable,
+//     etc.) surface query errors against an incompatible schema as
+//     ordinary errors.
+//
+// OpenWithoutMigration does not touch the filesystem and does not
+// require a path; the schema lives entirely in the caller's
+// *sql.DB. The function is exported (production-reusable) rather
+// than build-tag-scoped because the seam is small, the contract is
+// documented, and future deepening work (D-side reorganisations,
+// the db file re-cut) can adopt it without an internal fork.
+func OpenWithoutMigration(sqlDB *sql.DB) (*DB, error) {
+	if sqlDB == nil {
+		return nil, errors.New("db: open without migration: sqlDB is nil")
+	}
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("db: open without migration: ping: %w", err)
+	}
+	return &DB{db: sqlDB}, nil
+}
+
+// OpenMemory returns a *DB backed by an in-memory SQLite database with the
+// full schema migrated and foreign_keys=1 enforced. The seam exists for
+// tests (and any future in-process tooling) that need a real ktx DB
+// without touching the filesystem: no path resolution, no MkdirAll, no
+// XDG_DATA_HOME probing. The returned *DB has the same surface as Open
+// (Close, PersistToolCall, GetRecord, etc.) so tests can exercise the
+// full persistence path with bytes.Buffer / httptest isolation rather
+// than a t.TempDir() SQLite file.
+//
+// Each call returns a fresh database: the modernc.org/sqlite driver
+// treats `file::memory:?cache=shared` as connection-scoped, so two
+// OpenMemory calls do not share state. The DSN's _pragma=foreign_keys(1)
+// applies per connection, so foreign_keys=1 holds on every pooled
+// connection — the same FK guarantee Open provides on file-backed DBs.
+//
+// Production code paths do not use this seam; Open remains the only
+// way ktx opens the user's database on disk.
+func OpenMemory() (*DB, error) {
+	dsn := "file::memory:?_pragma=foreign_keys(1)"
+
+	db, err := sql.Open(sqliteDriver, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("db: open memory: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("db: open memory: %w", err)
+	}
+
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("db: migrate memory: %w", err)
+	}
+
+	return &DB{db: db}, nil
+}
+
 // migrate runs the schema statements and the M2 in-place column migration
 // inside a single transaction so the database is never left with a partial
 // schema. Fresh databases get the M2 columns from the CREATE TABLE itself;

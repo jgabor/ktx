@@ -52,6 +52,15 @@
 // Path resolution mirrors the other ktx commands: KTX_DB env > default
 // ($XDG_DATA_HOME/ktx/ktx.db). Per-invocation override lives on
 // `ktx db --path` (Decision 8); doctor does not accept its own --path.
+//
+// Task 7 migration: the verb registers via dispatch.Register with
+// NeedsDB=false (the verb opens its own database via the existing
+// buildDoctorReport helper; the dispatcher's db open is bypassed) and
+// PassthroughStdout=true (the verb writes its structured envelope
+// directly to stdout without any dispatch wrapper). The legacy
+// runDoctorWith remains the test seam (Task 3 surface) and still
+// parses --format; the dispatch wrapper applies doctorLogic and
+// surfaces typed errors when the report status is "error".
 package cli
 
 import (
@@ -111,20 +120,39 @@ type doctorReport struct {
 	Checks []doctorCheck `json:"checks"`
 }
 
-func runDoctor(args []string, opts Options) int {
-	return runDoctorWith(args, opts, os.Stdout, os.Stderr)
+// runDoctorWith is the testable core of `ktx doctor` (Task 3 seam).
+// stdout/stderr are injected so the report can be rendered without
+// touching os.Stdout. The body parses --format, builds the doctor
+// report, renders it, and converts the top-level status into the
+// right exit code (4 for error, 0 for ok/degraded).
+func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
+	_, code := doctorLogic(args, opts.Format, stdout, stderr)
+	return code
 }
 
-// runDoctorWith is the testable core of `ktx doctor`. stdout/stderr are
-// injected so the report can be rendered without touching os.Stdout.
-func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	// Subcommand-local --format (same rationale as get/list): the global
-	// --format only parses from the front of args, so `ktx doctor
-	// --format text` reaches us via extractFormat. Subcommand value
-	// wins over the global one when both are set.
-	format, rest := extractFormat(args)
-	if format == "" {
-		format = opts.Format
+// doctorLogic is the shared core of `ktx doctor`. Both runDoctorWith
+// (the legacy test seam) and the dispatch wrapper doctorCommandFunc
+// call it. Returns (any, exit_code) so the dispatcher can map the
+// top-level status into the right exit code via the dispatcher's
+// typed-error pipeline.
+//
+// The verb's own flag set parses --help/-h. The subcommand-local
+// --format extraction is delegated to extractFormat (the helper also
+// used by ktx get / ktx list / ktx bench) so --format works in
+// either flag position. The verb's body emits the JSON envelope
+// directly to stdout (PassthroughStdout=true on the dispatch
+// registry).
+func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, int) {
+	// Subcommand-local --format. extractFormat accepts both --format
+	// value and --format=value forms; the subcommand's value takes
+	// precedence over the global one when both are set.
+	extracted, rest := extractFormat(args)
+	if extracted != "" {
+		format = extracted
+	}
+	if format != FormatJSON && format != FormatText {
+		printError(stderr, usageError("ktx doctor: invalid --format %q: want %q or %q", format, FormatJSON, FormatText), format)
+		return nil, ExitUsage
 	}
 
 	var showHelp bool
@@ -135,19 +163,15 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx doctor: %v", err), format)
-		return ExitUsage
+		return nil, ExitUsage
 	}
 	if showHelp {
 		printDoctorHelp(stdout)
-		return ExitOK
-	}
-	if format != FormatJSON && format != FormatText {
-		printError(stderr, usageError("ktx doctor: invalid --format %q: want %q or %q", format, FormatJSON, FormatText), format)
-		return ExitUsage
+		return nil, ExitOK
 	}
 	if len(fs.Args()) > 0 {
 		printError(stderr, usageError("ktx doctor: unexpected argument %q", fs.Arg(0)), format)
-		return ExitUsage
+		return nil, ExitUsage
 	}
 
 	report := buildDoctorReport()
@@ -160,7 +184,7 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		// newline so stdout stays pipe-friendly.
 		if err := json.NewEncoder(stdout).Encode(report); err != nil {
 			printError(stderr, internalError("ktx doctor: write JSON: %v", err), format)
-			return ExitInternal
+			return nil, ExitInternal
 		}
 	}
 
@@ -169,7 +193,7 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		// ExitInternal (4) and ExitUsage (1) is between "the system
 		// is broken" and "the user typed something wrong"; a failing
 		// check is the former.
-		return ExitInternal
+		return nil, ExitInternal
 	}
 	// "ok" and "degraded" both exit 0: degraded means a soft warning
 	// (e.g. M2 columns missing on a pre-M2 database) that does not
@@ -178,7 +202,52 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	// the migration. Returning a non-zero exit would break that
 	// "doctor says it works" signal for CI scripts and shell wrappers
 	// that already invoke `ktx run` / `ktx write` to fix the issue.
-	return ExitOK
+	return nil, ExitOK
+}
+
+// doctorCommandFunc is the dispatch wrapper. The dispatcher already
+// parsed --help/-h (via the Help hook) and extracted --format; the
+// verb receives a *DispatchContext carrying a clean positional Args
+// tail and the resolved format. The verb's only responsibility is to
+// apply doctorLogic and surface the appropriate typed error to the
+// dispatcher's exitCodeOf pipeline.
+//
+// PassthroughStdout=true: the verb writes its structured JSON
+// envelope directly to ctx.Stdout (the dispatcher's printError path
+// is for stderr; PassthroughStdout means the dispatcher does not
+// impose any envelope on stdout).
+//
+// NeedsDB=false: the verb opens its own database via the existing
+// buildDoctorReport helper. The dispatcher's dbpkg.ResolvePath +
+// dbpkg.Open calls are skipped — doctor's read-only semantics don't
+// fit the dispatcher's "always open the DB if NeedsDB" pattern
+// because doctor must inspect a database that may not yet exist
+// (the database_exists check is stat-only).
+func doctorCommandFunc(ctx *DispatchContext) (any, error) {
+	_, code := doctorLogic(ctx.Args, ctx.Format, ctx.Stdout, ctx.Stderr)
+	switch code {
+	case ExitOK:
+		return nil, nil
+	case ExitUsage:
+		return nil, usageError("ktx doctor: usage error")
+	case ExitInternal:
+		return nil, internalError("ktx doctor: status is error")
+	default:
+		return nil, internalError("ktx doctor: exit code %d", code)
+	}
+}
+
+// init registers `ktx doctor` with the dispatch module. After init
+// runs, the verb is reachable through runWith (the legacy
+// commandIndex entry in cli.go is removed in Task 7).
+func init() {
+	Register("doctor", RegisterOptions{
+		Description:       "check ktx health",
+		NeedsDB:           false,
+		PassthroughStdout: true,
+		FormatDefault:     FormatJSON,
+		Help:              printDoctorHelp,
+	}, doctorCommandFunc)
 }
 
 // buildDoctorReport runs the checks in order and assembles the

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/jgabor/ktx/internal/version"
 )
@@ -49,18 +50,27 @@ type command struct {
 }
 
 // commands is the dispatch table in the order shown by `ktx --help`.
-var commands = []command{
-	{name: "run", description: "wrap an agent invocation and record the session", run: runRun},
-	{name: "write", description: "persist a tool_call record from sidecar input", run: runWrite},
-	{name: "read", description: "read a raw record by ID", run: runRead},
-	{name: "get", description: "query a record by ID (formatted)", run: runGet},
-	{name: "list", description: "list sessions (formatted)", run: runList},
-	{name: "init", description: "install a runtime adapter", run: runInit},
-	{name: "db", description: "database operations (path, prune)", run: runDB},
-	{name: "prices", description: "price cache operations (update)", run: runPrices},
-	{name: "bench", description: "benchmark namespace (run, report)", run: runBench},
-	{name: "doctor", description: "check ktx health", run: runDoctor},
-}
+//
+// Task 5 migration: `ktx read` and `ktx write` were removed from this
+// table and re-registered through dispatch.Register (see read.go's
+// init() and write.go's init()). They are still routed by runWith,
+// because the dispatch registry is consulted before the legacy
+// commandIndex.
+//
+// Task 6 migration: `ktx get`, `ktx list`, `ktx run`, and `ktx bench`
+// were also removed from this table and re-registered through
+// dispatch.Register (see get.go's init(), list.go's init(),
+// run.go's init(), and bench.go's init()).
+//
+// Task 7 migration: `ktx init`, `ktx db`, `ktx prices`, and
+// `ktx doctor` were the final four verbs to migrate. They are now
+// re-registered through dispatch.Register (see init.go's init(),
+// db.go's init(), prices.go's init(), and doctor.go's init()). The
+// legacy commands slice is now empty — every subcommand lives in the
+// dispatch registry. runWith still consults commandIndex (now empty)
+// as a final fall-through; a verb that lives in both tables would
+// have the registry win, but no current verb does.
+var commands = []command{}
 
 // commandIndex maps command names to their handler for O(1) dispatch.
 var commandIndex = func() map[string]command {
@@ -115,12 +125,29 @@ func runWith(args []string, stdout, stderr io.Writer) int {
 	}
 
 	name := rest[0]
+	verbArgs := rest[1:]
+
+	// New dispatch registry wins: Tasks 5-7 migrate the legacy verbs
+	// onto dispatch.Register; until then, the legacy commandIndex
+	// below covers them. Verbs registered via dispatch.Register (the
+	// Task 4 demo verbs, plus anything new added after this plan)
+	// are picked up here. If a verb lives in both tables the registry
+	// wins — the legacy entry is dead code the moment a verb migrates.
+	//
+	// opts.Quiet is forwarded to the dispatch path so a global
+	// `--quiet` flag (e.g. `ktx --quiet run <agent>`) propagates
+	// through DispatchContext.Quiet, matching the legacy commandIndex
+	// surface that already passes opts.Quiet to runXWith.
+	if _, registered := dispatchRegistry[name]; registered {
+		return runDispatch(name, verbArgs, opts.Quiet, stdout, stderr)
+	}
+
 	cmd, ok := commandIndex[name]
 	if !ok {
 		printError(stderr, usageError("unknown command %q; run 'ktx --help' for the command list", name), opts.Format)
 		return ExitUsage
 	}
-	return cmd.run(rest[1:], opts.Options)
+	return cmd.run(verbArgs, opts.Options)
 }
 
 // parsedFlags holds the global flags plus the help/version switches. help
@@ -170,7 +197,12 @@ func isFlagErr(err error) bool {
 	return err == flag.ErrHelp
 }
 
-// printHelp writes the top-level help, listing every subcommand.
+// printHelp writes the top-level help, listing every subcommand. After
+// Task 7 emptied the legacy commands slice, the help list is sourced
+// from the dispatch registry (RegisteredVerbs). Verbs that registered
+// with a non-empty Description are listed; verbs without a description
+// are still callable but omitted from the help (rare; legacy behaviour
+// was to always list every verb).
 func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx — make every coding agent measurable and cheaper")
 	fmt.Fprintln(w)
@@ -183,8 +215,15 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  --version, -v     show version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
-	for _, c := range commands {
-		fmt.Fprintf(w, "  %-8s %s\n", c.name, c.description)
+	verbs := RegisteredVerbs()
+	// Sort by name for deterministic help output. The dispatch
+	// registry is a map; the order must be stable across runs.
+	sort.Slice(verbs, func(i, j int) bool { return verbs[i].Name < verbs[j].Name })
+	for _, v := range verbs {
+		if v.Description == "" {
+			continue
+		}
+		fmt.Fprintf(w, "  %-8s %s\n", v.Name, v.Description)
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx <command> --help' for command-specific help.")

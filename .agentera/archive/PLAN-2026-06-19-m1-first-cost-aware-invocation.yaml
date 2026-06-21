@@ -1,0 +1,126 @@
+header:
+  level: full
+  created: "2026-06-18"
+  status: active
+  reviewed: "2026-06-18"
+  critic_issues: "5 found, 5 addressed, 0 dismissed"
+  title: M1 — First cost-aware invocation
+what: "Implement M1: an agent call through ktx (wrapper or adapter) produces a database record with agent identity, input, and output. Both non-interactive (ktx run opencode run --format json) and interactive (ktx init opencode + TUI) paths."
+why: "M1 is the measurement contract's first proof. Without a record in the database, there's nothing to measure (M2), benchmark (M3), or compress (M4). This is the foundation everything else builds on."
+constraints: "All firm decisions D1–D10 are hard constraints. Go stdlib first; pure-Go SQLite (no CGO). No cost fields (M2), no compression (M4), no config file (M5), no benchmark (M3). Transparent proxy: agent stdout untouched (D1). No daemon."
+scope:
+  included:
+    - CLI scaffolding with subcommand dispatch and global flags
+    - SQLite database (sessions + tool_calls schema)
+    - ktx write (I/O: flat JSON, event_type, ppid-aware session resolution)
+    - ktx read (I/O: raw JSON by nanoid)
+    - ktx run (wrapper: opencode --format json event parsing, KTX_SESSION_ID, passthrough)
+    - ktx init opencode (adapter: TS plugin, tool.execute.after, --project/--uninstall/--show)
+    - ktx get + ktx list (minimal query, JSON default)
+    - ktx doctor (basic health: database exists, schema valid, ID format valid)
+    - End-to-end M1 acceptance verification
+  excluded:
+    - Token/cost measurement (M2)
+    - Compression/transform, ktx hook command (M4)
+    - ktx.toml config file (M5)
+    - ktx plugin registry (M5)
+    - ktx bench (M3)
+  deferred:
+    - ktx compress/decompress (M4)
+    - ktx db prune (post-M1)
+    - ktx hook bidirectional protocol (M4)
+design: "Single Go binary with subcommand dispatch. Internal packages: internal/store (SQLite + nanoid + session file), internal/cli (dispatch + flags), internal/wrapper (ktx run), internal/adapter (ktx init). The wrapper parses OpenCode's --format json event stream and persists each tool event via the internal store function (not via ktx write subprocess). The adapter writes a TS plugin that shells out to ktx write per tool event. ktx write resolves session identity by ppid file lookup ($XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json) when no session_id is provided — this dual behavior serves both sidecar (auto-create) and adapter (ppid-resolved) paths. Implementation risk: OpenCode --format json event shape is not yet verified; realisera must discover the event schema empirically and map tool events to the D9 tool_call shape."
+tasks:
+  - number: 1
+    name: Project scaffolding + CLI dispatch + global flags + ktx db path
+    depends_on: []
+    status: complete
+    acceptance:
+      - GIVEN a clean checkout WHEN go build ./... succeeds THEN the ktx binary is produced
+      - GIVEN ktx --help WHEN invoked THEN it lists all subcommands (run, write, read, get, list, init, db, doctor)
+      - GIVEN ktx --version WHEN invoked THEN it prints the version
+      - GIVEN ktx db path WHEN invoked THEN it prints the default database path ($XDG_DATA_HOME/ktx/ktx.db)
+      - GIVEN KTX_DB=/tmp/test.db WHEN ktx db path is invoked THEN it prints /tmp/test.db
+      - GIVEN ktx db --path /tmp/test.db path WHEN invoked THEN it prints /tmp/test.db
+      - GIVEN an invalid command WHEN ktx foo is invoked THEN exit code is 1 and stderr is JSON error
+  - number: 2
+    name: SQLite database layer (schema, nanoid, path resolution)
+    depends_on: [1]
+    status: complete
+    acceptance:
+      - GIVEN a new database path WHEN ktx initializes the database THEN sessions and tool_calls tables exist with correct columns
+      - GIVEN the sessions table WHEN inspected THEN it has: id (nanoid PK), agent, started_at, ended_at, last_seen_at, tool_call_count
+      - GIVEN the tool_calls table WHEN inspected THEN it has: id (nanoid PK), session_id (FK), tool, input, output, content_hash, timestamp, event_type
+      - GIVEN nanoid generation WHEN called THEN it produces 16-char lowercase alpha strings
+      - GIVEN a tool_call output WHEN content_hash is computed THEN it is SHA-256 of the output field
+      - GIVEN a missing parent directory WHEN the database is created THEN the directory is created first
+  - number: 3
+    name: ktx write (flat JSON, event_type, ppid-aware session resolution)
+    depends_on: [2]
+    status: complete
+    acceptance:
+      - GIVEN a flat JSON tool_call on stdin with all required fields WHEN ktx write is invoked THEN it persists the record and prints the record ID to stdout
+      - GIVEN a tool_call without session_id WHEN ktx write is invoked AND a valid session file exists at $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json THEN it reuses that session_id
+      - GIVEN a tool_call without session_id WHEN ktx write is invoked AND no session file exists THEN it creates a new session, writes the session file, and uses the new session_id
+      - GIVEN a tool_call without session_id WHEN ktx write is invoked AND the session file's ppid is dead or start-time mismatches THEN it closes the old session and creates a new one
+      - GIVEN event_type=session_close with session_id and timestamp WHEN ktx write is invoked THEN it sets ended_at on the session row
+      - GIVEN a tool_call persist WHEN successful THEN the sessions row is updated (tool_call_count incremented, last_seen_at updated)
+      - GIVEN ktx write output WHEN invoked THEN it is raw JSON with no --format flag
+  - number: 4
+    name: ktx read (raw JSON by nanoid)
+    depends_on: [2]
+    status: complete
+    acceptance:
+      - GIVEN a persisted tool_call with ID abcdefghijklmnop WHEN ktx read abcdefghijklmnop is invoked THEN it prints the raw JSON record to stdout
+      - GIVEN a non-existent ID WHEN ktx read xyz is invoked THEN exit code is 2 (not-found) and stderr is JSON error
+      - GIVEN ktx read WHEN invoked THEN there is no --format flag available
+  - number: 5
+    name: "ktx run (wrapper: opencode --format json, event parsing, KTX_SESSION_ID, passthrough)"
+    depends_on: [3]
+    status: complete
+    acceptance:
+      - GIVEN ktx run opencode run --format json "explain closures" WHEN invoked THEN opencode's stdout passes through to the caller untouched
+      - GIVEN the wrapper WHEN it parses the JSON event stream THEN each tool event is persisted as a tool_call via the internal store function (not a ktx write subprocess)
+      - GIVEN the wrapper WHEN it starts THEN it exports KTX_SESSION_ID into the child environment
+      - GIVEN the wrapper WHEN the child process exits THEN the session is closed immediately (ended_at set)
+      - GIVEN --quiet flag WHEN passed to ktx run THEN no run summary is printed to stderr
+      - GIVEN no --quiet flag WHEN ktx run completes THEN a one-line run summary is printed to stderr
+      - GIVEN ktx run WHEN the child process exits THEN exit code matches the child's exit code
+  - number: 6
+    name: ktx init opencode (TS plugin, tool.execute.after, --project/--uninstall/--show)
+    depends_on: [3]
+    status: complete
+    acceptance:
+      - GIVEN ktx init opencode WHEN invoked THEN a TS plugin is written to ~/.config/opencode/plugins/ktx.ts
+      - GIVEN ktx init opencode --project WHEN invoked THEN the TS plugin is written to .opencode/plugins/ktx.ts
+      - GIVEN the installed plugin WHEN OpenCode runs and a tool executes THEN the plugin subscribes to tool.execute.after and calls ktx write with the tool_call JSON
+      - GIVEN the plugin WHEN KTX_SESSION_ID is present in the environment THEN it noops (does not call ktx write)
+      - GIVEN ktx init opencode --uninstall WHEN invoked THEN the plugin file is removed
+      - GIVEN ktx init opencode --show WHEN invoked THEN it reports whether the plugin is installed and where
+  - number: 7
+    name: ktx get + ktx list (minimal query, JSON default, --format text)
+    depends_on: [2]
+    status: complete
+    acceptance:
+      - GIVEN a persisted tool_call with ID abcdefghijklmnop WHEN ktx get abcdefghijklmnop is invoked THEN it prints the record as JSON to stdout
+      - GIVEN ktx get abcdefghijklmnop --format text WHEN invoked THEN it prints a human-readable summary
+      - GIVEN multiple persisted sessions WHEN ktx list is invoked THEN it prints a JSON array of sessions to stdout
+      - GIVEN ktx list --format text WHEN invoked THEN it prints a human-readable table of sessions
+      - GIVEN a non-existent ID WHEN ktx get xyz is invoked THEN exit code is 2 (not-found)
+  - number: 8
+    name: M1 acceptance verification + ktx doctor (basic health)
+    depends_on: [1, 2, 3, 4, 5, 6, 7]
+    status: complete
+    acceptance:
+      - GIVEN ktx run opencode run --format json "explain closures" WHEN the command completes THEN ktx list shows the session and ktx get <session-id> shows agent identity, input, and output
+      - GIVEN ktx init opencode WHEN installed and OpenCode TUI is used with a tool THEN ktx list shows the session with tool_calls persisted via the adapter path
+      - GIVEN ktx read <tool-call-id> WHEN invoked after either path THEN it returns the raw JSON record with all required fields
+      - GIVEN ktx doctor WHEN invoked THEN it checks database existence, schema validity, and ID format, and reports status as JSON
+      - GIVEN ktx doctor WHEN the database is missing or corrupt THEN it reports the issue and exit code is non-zero
+      - GIVEN the full M1 flow WHEN complete THEN ROADMAP.md M1 acceptance is satisfied: an agent invocation produces a record in the database with agent identity, input, and output
+overall_acceptance:
+  - GIVEN an agent invocation through ktx (wrapper or adapter) WHEN the call completes THEN a record exists in the database with agent identity, input, and output
+  - GIVEN ktx list WHEN invoked after an agent invocation THEN the session and its tool_calls are visible
+  - GIVEN ktx read <id> WHEN invoked with any persisted record ID THEN it returns the raw JSON record
+  - GIVEN both integration paths WHEN exercised THEN both produce records in the same database with the same schema
+surprises: []

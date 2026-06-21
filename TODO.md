@@ -29,6 +29,16 @@ The full architectural deliberation backlog is canonical in [ARCHITECTURE.md —
 - [ ] **Plugin registry vs TOML pipeline** — what a `ktx plugin` is concretely and how it relates to shell-macro pipeline stages → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
 - [x] ~~**`ktx db --path` semantics**~~ · resolved by Decision 8 revised → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
 
+## → Deepening
+
+Codebase-health deepening opportunities surfaced in the 2026-06-21 architecture review. Independent of the active plan (`.agentera/plan.yaml`); each is a single-module deepening that compounds AI-navigability and testability.
+
+The 2026-06-21 plan (`.agentera/plan.yaml` — "Lock in regression net and deepen subcommand dispatch") landed a parallel deepening: the `internal/cli/dispatch.go` deep module now owns subcommand flag-set plumbing, database open/close, error envelope rendering, and exit-code mapping; every one of the 10 subcommands registers via `dispatch.Register(verb, opts, do)` in ≤ 10 LOC of glue; the legacy `commands` slice is empty. The 2026-06-21 cleanup plan (`.agentera/plan.yaml` — "Close Degraded finding and coverage gaps") added `dbpkg.OpenWithoutMigration(*sql.DB) (*DB, error)` as a public seam for test fixtures and any future production callers that need to operate on an externally-managed `*sql.DB` without applying the migration; the dispatch layer's pre-M3 doctor fixture now uses this seam, eliminating the `unsafe.Pointer` struct-layout coupling in `dispatch_namespace_test.go`. The three items below remain valid as future candidates; they target internal/db's cost deriver / file reorg and the JSON event parser, none of which was touched by either plan.
+
+- [ ] **Cost-deriver consolidation** — `deriveCost` (`internal/db/persist.go:419`) and `deriveBenchCost` (`internal/db/bench.go:110`) are near-identical write-time cost derivations; collapse into one `costDeriver` deep module behind a unified `(tokensIn, tokensOut, model, provider)` input so the D11 contract is testable as a pure function and any future rate source changes one place. Locality + leverage.
+- [ ] **`internal/db` file reorganisation** — package files are cut by table (`persist.go` = tool_calls, `bench.go` = bench_runs, `rollup.go` = m2 rollups) rather than by concern; re-cutting along `open.go` / `session.go` / `record.go` / `bench.go` / `prices.go` / `inspect.go` reduces per-file surface and improves locality for adding new record types. Subjective; no functional change. The `OpenWithoutMigration` seam (above) is now available, so the reorg no longer has to preserve an unsafe.Pointer escape hatch for test fixtures.
+- [ ] **Event-parser extraction** — JSON event → ToolCall translation (≈400 LOC of pure functions: `parseToolEvent`, `buildToolCall`, pointer helpers, `normaliseTimestamp`) lives inside `internal/cli/run.go` mixed with subprocess orchestration; extracting `internal/parser/` makes the parser directly testable and reusable across the M4 hook path (D1: `ktx hook` receives the same JSON payload shape). Leverage: parser becomes the single source of truth for "what shape is a ktx tool_call".
+
 ## ⇢ Annoying
 
 - [ ] Multi-agent memory / cross-session carry → [Memory and layer 5](ARCHITECTURE.md#memory-and-layer-5)
@@ -50,6 +60,7 @@ The full architectural deliberation backlog is canonical in [ARCHITECTURE.md —
 | Pipeline and compression      | [link](ARCHITECTURE.md#pipeline-and-compression)      |
 | Memory and layer 5            | [link](ARCHITECTURE.md#memory-and-layer-5)            |
 | Measurement and benchmark     | [link](ARCHITECTURE.md#measurement-and-benchmark)     |
-| CLI surface and ergonomics    | [link](ARCHITECTURE.md#cli-surface-and-ergonomics)    |
+| CLI surface and ergonomics    | [link](ARCHITECTURE.md#cli-surface-and-ergonomics) |
 | Configuration                 | [link](ARCHITECTURE.md#configuration)                 |
 | Security and trust            | [link](ARCHITECTURE.md#security-and-trust)            |
+| Deepening opportunities       | [link](TODO.md#-deepening)                            |

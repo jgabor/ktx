@@ -10,9 +10,17 @@
 // same shape one could re-persist via `ktx write` (where applicable).
 //
 // Like `ktx write`, this is an I/O primitive (Decision 2/8): raw JSON, no
-// --format flag at the subcommand level. The global --format flag is
-// parsed by the dispatcher and passed in via opts.Format but is intentionally
-// ignored here — the I/O surface is mechanical, not format-aware.
+// --format flag at the subcommand level. The dispatcher's extractFormat
+// strips a stray --format before the verb sees it, so `ktx read --format
+// text <id>` is mechanically identical to `ktx read <id>` (the verb always
+// emits raw JSON). The legacy runReadWith still rejects --format at the
+// subcommand flag set when called directly (Tasks 1-3 test seam).
+//
+// Task 5 migration: the verb registers via dispatch.Register with
+// NeedsDB=true (dispatcher opens the DB) and PassthroughStdout=true
+// (verb writes raw JSON, no envelope wrapping). The legacy runReadWith
+// remains the test seam and still opens its own DB so existing Task 3
+// tests pass unchanged.
 package cli
 
 import (
@@ -21,49 +29,16 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-func runRead(args []string, opts Options) int {
-	return runReadWith(args, opts, os.Stdout, os.Stderr)
-}
-
-// runReadWith is the testable core of `ktx read`. stdout/stderr are
-// injected so the read flow can be exercised without touching os.Stdout.
+// runReadWith is the testable core of `ktx read` (Task 1-3 seam).
+// stdout/stderr are injected so the read flow can be exercised without
+// touching os.Stdout. The body opens the database, delegates to
+// readLogic for the actual work, and translates the returned error
+// into an exit-code + stderr envelope.
 func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	var showHelp bool
-	fs := flag.NewFlagSet("ktx read", flag.ContinueOnError)
-	fs.SetOutput(io.Discard) // we render our own errors and help
-	fs.BoolVar(&showHelp, "help", false, "show help")
-	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-
-	if err := fs.Parse(args); err != nil {
-		// This rejects `ktx read --format text <id>` and any other unknown
-		// flag, matching the I/O-primitive rule (Decision 2/8): there is no
-		// --format flag available on this command.
-		printError(stderr, usageError("ktx read: %v", err), opts.Format)
-		return ExitUsage
-	}
-	if showHelp {
-		printReadHelp(stdout)
-		return ExitOK
-	}
-
-	rest := fs.Args()
-	if len(rest) == 0 {
-		printError(stderr, usageError("ktx read: missing required argument: <id>"), opts.Format)
-		return ExitUsage
-	}
-	if len(rest) > 1 {
-		printError(stderr, usageError("ktx read: unexpected argument %q; ktx read takes a single ID", rest[1]), opts.Format)
-		return ExitUsage
-	}
-	id := rest[0]
-
-	// Database path resolution (Decision 8): KTX_DB env > default. ktx read
-	// does not take a --path flag; per-invocation override lives on `ktx db`.
 	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx read: resolve database path: %v", err), opts.Format)
@@ -76,28 +51,101 @@ func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	defer db.Close()
 
-	record, err := db.GetRecord(id)
+	_, err = readLogic(args, db, stdout)
 	if err != nil {
-		if errors.Is(err, dbpkg.ErrNotFound) {
-			printError(stderr, notFoundError("ktx read: record %q not found", id), opts.Format)
-			return ExitNotFound
-		}
-		printError(stderr, internalError("ktx read: get record: %v", err), opts.Format)
-		return ExitInternal
-	}
-
-	// Raw JSON, no --format awareness. json.NewEncoder writes a trailing
-	// newline, which matches the convention used by `ktx write`'s id output
-	// and keeps stdout pipe-friendly.
-	if err := json.NewEncoder(stdout).Encode(record); err != nil {
-		printError(stderr, internalError("ktx read: write JSON: %v", err), opts.Format)
-		return ExitInternal
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
 	}
 	return ExitOK
 }
 
+// readLogic is the shared core of `ktx read`. Both runReadWith (the
+// legacy test seam) and the dispatch wrapper readCommandFunc call it.
+// It assumes the database is already opened and writes raw JSON to
+// stdout. Returns (any, error) so the dispatcher can map the error
+// envelope through its own printError + exitCodeOf pipeline.
+//
+// Step-by-step:
+//  1. Parse --help/-h.
+//  2. If --help, render printReadHelp and return.
+//  3. Validate exactly one positional (the ID).
+//  4. db.GetRecord(id): tool_calls first, then sessions.
+//  5. json.NewEncoder(stdout).Encode(record): raw JSON to stdout.
+//
+// Anything that fails becomes a typed *Error (usage / not-found /
+// internal) so the caller can map it to the right exit code.
+func readLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
+	var showHelp bool
+	fs := flag.NewFlagSet("ktx read", flag.ContinueOnError)
+	fs.SetOutput(io.Discard) // we render our own errors and help
+	fs.BoolVar(&showHelp, "help", false, "show help")
+	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
+
+	if err := fs.Parse(args); err != nil {
+		// This rejects `ktx read --format text <id>` and any other
+		// unknown flag at the subcommand level (Task 3 test seam;
+		// the dispatcher's extractFormat strips --format before the
+		// verb sees it, so this branch only fires on direct test
+		// invocations of runReadWith with --format in args).
+		return nil, usageError("ktx read: %v", err)
+	}
+	if showHelp {
+		printReadHelp(stdout)
+		return nil, nil
+	}
+
+	rest := fs.Args()
+	if len(rest) == 0 {
+		return nil, usageError("ktx read: missing required argument: <id>")
+	}
+	if len(rest) > 1 {
+		return nil, usageError("ktx read: unexpected argument %q; ktx read takes a single ID", rest[1])
+	}
+	id := rest[0]
+
+	record, err := db.GetRecord(id)
+	if err != nil {
+		if errors.Is(err, dbpkg.ErrNotFound) {
+			return nil, notFoundError("ktx read: record %q not found", id)
+		}
+		return nil, internalError("ktx read: get record: %v", err)
+	}
+
+	// Raw JSON, no --format awareness. json.NewEncoder writes a
+	// trailing newline, which matches the convention used by `ktx
+	// write`'s id output and keeps stdout pipe-friendly.
+	if err := json.NewEncoder(stdout).Encode(record); err != nil {
+		return nil, internalError("ktx read: write JSON: %v", err)
+	}
+	return nil, nil
+}
+
+// readCommandFunc is the dispatch wrapper. The dispatcher already
+// opened the DB (NeedsDB=true) and parsed --help/--format; the verb
+// receives a *DispatchContext carrying the populated DB and a clean
+// positional Args tail. The verb's only responsibility is to apply
+// readLogic and surface the typed error to the dispatcher's
+// printError + exitCodeOf pipeline.
+func readCommandFunc(ctx *DispatchContext) (any, error) {
+	return readLogic(ctx.Args, ctx.DB, ctx.Stdout)
+}
+
+// init registers `ktx read` with the dispatch module. After init
+// runs, the verb is reachable through runWith (the legacy
+// commandIndex entry in cli.go is removed in Task 5).
+func init() {
+	Register("read", RegisterOptions{
+		Description:       "fetch a persisted record by ID (raw JSON)",
+		NeedsDB:           true,
+		PassthroughStdout: true,
+		Help:              printReadHelp,
+	}, readCommandFunc)
+}
+
 // printReadHelp writes the `ktx read` help. Mirrors `ktx write --help`
-// style so the two I/O primitives present consistently.
+// style so the two I/O primitives present consistently. Used both as
+// the dispatcher's Help hook (renderHelp invokes it on --help) and
+// from readLogic when runReadWith is invoked directly with --help.
 func printReadHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx read — fetch a persisted record by nanoid ID")
 	fmt.Fprintln(w)

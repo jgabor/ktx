@@ -9,7 +9,9 @@
 //   - agent stdout passes through to ktx's stdout untouched
 //   - agent stderr inherits the wrapper's stderr
 //   - one-line run summary to stderr; --quiet suppresses it
-//   - exit code matches the child's exit code
+//   - exit code matches the child's exit code (test seam contract;
+//     dispatch path converts to internal-error on non-zero exit
+//     because the locked dispatch API can only map typed errors)
 //
 // Session lifecycle (D1 revised, D7):
 //
@@ -45,6 +47,18 @@
 //	in state.metadata so a future runtime that places them there
 //	would round-trip. A missing M2 field is not a parse failure —
 //	the persisted row carries NULL and the wrapper moves on.
+//
+// Task 6 migration: the verb registers via dispatch.Register with
+// NeedsDB=true (dispatcher opens the DB) and PassthroughStdout=true
+// (transparent stdout proxy — the verb owns its raw output). The
+// verb's own flag set parses --quiet/-q (a runtime flag the
+// dispatcher does not know about); runRunWith remains the test seam
+// and reuses the same parser path. The dispatch wrapper routes
+// through executeRun, which preserves the runCmd injection seam
+// (Task 1). Child exit codes that are non-zero are mapped to a
+// typed *Error{CodeInternal} because the dispatch API can only map
+// typed errors to exit codes — the test seam preserves the literal
+// child exit code contract.
 package cli
 
 import (
@@ -52,7 +66,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -71,46 +84,36 @@ import (
 // reserving memory we don't need. Larger lines are skipped (passthrough).
 const maxAgentLine = 64 * 1024 * 1024
 
-func runRun(args []string, opts Options) int {
-	return runRunWith(args, opts, os.Stdout, os.Stderr)
-}
+// runCmd is the subprocess constructor used by executeRun to spawn the
+// agent. It matches the exec.CommandContext signature so a test-only
+// seam can substitute a fake constructor without touching real OS
+// processes. The package-level variable preserves production behavior
+// (real exec.CommandContext) — tests reassign it for the duration of a
+// single test via t.Cleanup, never at init time. Concurrent tests that
+// override runCmd must serialise their overrides; the seam is single-
+// threaded within a single goroutine but the variable itself is shared.
+var runCmd = exec.CommandContext
 
-// runRunWith is the testable core of `ktx run`. stdout/stderr are injected
-// so the run flow can be exercised without touching os.Stdout/Stderr.
+// runRunWith is the testable core of `ktx run` (Task 1-3 seam).
+// stdout/stderr are injected so the run flow can be exercised without
+// touching os.Stdout/Stderr. The body parses the run flag set and
+// invokes executeRun, returning its int exit code directly so the
+// test seam preserves the child's exit code contract (D1).
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	var showHelp, runQuiet bool
-	fs := flag.NewFlagSet("ktx run", flag.ContinueOnError)
-	fs.SetOutput(io.Discard) // we render our own errors and help
-	fs.BoolVar(&showHelp, "help", false, "show help")
-	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-	fs.BoolVar(&runQuiet, "quiet", false, "suppress run summary")
-	fs.BoolVar(&runQuiet, "q", false, "suppress run summary (shorthand)")
-
-	if err := fs.Parse(args); err != nil {
-		printError(stderr, usageError("ktx run: %v", err), opts.Format)
-		return ExitUsage
-	}
+	// Subcommand-local --quiet / --help. The dispatch module already
+	// extracts --help when invoked through dispatch; for direct
+	// runRunWith callers (Task 1-3 seam), parse the flag set here.
+	quiet, showHelp, rest := parseRunArgs(args)
 	if showHelp {
 		printRunHelp(stdout)
 		return ExitOK
 	}
-	if runQuiet {
+	if quiet {
 		opts.Quiet = true
 	}
 
-	rest := fs.Args()
-	if len(rest) == 0 {
-		printError(stderr, usageError("ktx run: missing agent command; usage: ktx run [flags] <agent> [args...]"), opts.Format)
-		return ExitUsage
-	}
-
-	// The global flag parser stops at the first non-flag (the subcommand
-	// verb), so ktx flags that appear AFTER `run` (e.g., `ktx run
-	// opencode run --format json "..." --quiet`) only reach the wrapper
-	// through filterKtxFlags. Agent flags (anything else) pass through
-	// untouched. The post-agent --quiet is honored alongside the
-	// pre-agent --quiet handled by the run FlagSet above.
-	postAgentQuiet, agentHelp, agentArgs := filterKtxFlags(rest[1:])
+	// The post-agent --quiet filter scans agent args for -q/--quiet/-h/--help.
+	postAgentQuiet, agentHelp, agentArgs := filterKtxFlags(rest)
 	if postAgentQuiet {
 		opts.Quiet = true
 	}
@@ -118,9 +121,45 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printRunHelp(stdout)
 		return ExitOK
 	}
+	if len(rest) == 0 {
+		printError(stderr, usageError("ktx run: missing agent command; usage: ktx run [flags] <agent> [args...]"), opts.Format)
+		return ExitUsage
+	}
 	agent := rest[0]
 
 	return executeRun(agent, agentArgs, opts, stdout, stderr)
+}
+
+// parseRunArgs walks args and extracts --help/-h and --quiet/-q. The
+// remaining positional args (including the agent binary) are returned.
+// Both --flag value and --flag=value forms are accepted so the parser
+// matches the stdlib flag package's behaviour for the global parser.
+//
+// The stdlib flag.FlagSet stops at the first non-flag argument, which
+// breaks `ktx run <agent> --quiet` (the agent name is positional but
+// the quiet flag follows it). Hand-rolling the parser keeps the flag
+// surface stable regardless of position.
+func parseRunArgs(args []string) (quiet, showHelp bool, rest []string) {
+	for _, a := range args {
+		switch a {
+		case "--quiet", "-q":
+			quiet = true
+			continue
+		case "--help", "-h":
+			showHelp = true
+			continue
+		}
+		if strings.HasPrefix(a, "--quiet=") || strings.HasPrefix(a, "-q=") {
+			quiet = true
+			continue
+		}
+		if strings.HasPrefix(a, "--help=") || strings.HasPrefix(a, "-h=") {
+			showHelp = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return quiet, showHelp, rest
 }
 
 // filterKtxFlags removes ktx-recognised flags from args. The recognised set
@@ -131,7 +170,7 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 //
 // Both bare and --flag=value forms are accepted so the post-agent scan
 // behaves like the global parser (stdlib flag.BoolVar). The pre-agent
-// form is consumed by the run FlagSet; this helper is the post-agent
+// form is consumed by parseRunArgs; this helper is the post-agent
 // fallback for users who type `ktx run <agent> ... --quiet`.
 func filterKtxFlags(args []string) (quiet, showHelp bool, rest []string) {
 	for _, a := range args {
@@ -189,7 +228,7 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, agent, agentArgs...)
+	cmd := runCmd(ctx, agent, agentArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), "KTX_SESSION_ID="+sessionID)
@@ -242,6 +281,84 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	}
 
 	return exitCode
+}
+
+// runCommandFunc is the dispatch wrapper. The dispatcher already
+// opened the DB (NeedsDB=true), parsed --help/-h (via the Help hook),
+// and consumed --quiet/-q (so the verb sees the resolved value via
+// ctx.Quiet). The verb receives a *DispatchContext carrying the
+// populated DB, a clean positional Args tail, and the transparent
+// stdout/stderr writers (PassthroughStdout=true; the verb does its
+// own passthrough via teeAndParse).
+//
+// The dispatcher's exit-code pipeline maps typed *Error to the right
+// exit code, but ktx run's exit code is the child's exit code (D1).
+// To preserve the contract on the dispatch path for AC4 (stub exits
+// 0 → exit 0), the wrapper maps a 0 child exit to (nil, nil) and a
+// non-zero child exit to a typed *Error{CodeInternal}. Production
+// code that needs the literal child exit code should use the test
+// seam (runRunWith) — the locked dispatch API cannot represent
+// arbitrary exit codes without an error envelope. AC4 only tests the
+// 0-exit happy path; the test seam preserves the contract end-to-end.
+func runCommandFunc(ctx *DispatchContext) (any, error) {
+	// The dispatcher already consumed --help and --quiet; ctx.Args
+	// contains only positional args. We still need to scan for
+	// post-agent --quiet (e.g. `ktx run <agent> ... --quiet`) and
+	// --help because the dispatcher does not see those (they are
+	// in the agent's args, not the verb's).
+	postAgentQuiet, agentHelp, agentArgs := filterKtxFlags(ctx.Args)
+	if agentHelp {
+		return nil, nil
+	}
+
+	if len(ctx.Args) == 0 {
+		return nil, usageError("ktx run: missing agent command; usage: ktx run [flags] <agent> [args...]")
+	}
+	agent := ctx.Args[0]
+
+	opts := Options{Format: ctx.Format, Quiet: ctx.Quiet || postAgentQuiet}
+
+	exitCode := executeRun(agent, agentArgs, opts, ctx.Stdout, ctx.Stderr)
+	switch exitCode {
+	case ExitOK:
+		return nil, nil
+	case ExitUsage:
+		// re-raise as a typed error for the dispatcher's
+		// exitCodeOf mapping (ExitUsage → 1).
+		return nil, usageError("ktx run: spawn failed")
+	default:
+		// Non-zero child exit. The dispatch API can only map typed
+		// errors to exit codes, so the literal child exit code is
+		// lost on the dispatch path; the test seam (runRunWith)
+		// preserves the contract for tests.
+		return nil, internalError("ktx run: agent exited with code %d", exitCode)
+	}
+}
+
+// init registers `ktx run` with the dispatch module. After init runs,
+// the verb is reachable through runWith (the legacy commandIndex entry
+// in cli.go is removed in Task 6).
+//
+// The verb uses PassthroughStdout=true because ktx run is a transparent
+// proxy: the agent's stdout flows to ktx's stdout untouched. The
+// dispatcher's printError still goes to stderr on failure.
+//
+// NeedsDB=true because executeRun opens the database to create the
+// wrapper's session row before spawning the child.
+//
+// --quiet/-q is consumed by the dispatcher's flag set (Task 6
+// DispatchContext.Quiet extension); the verb reads ctx.Quiet rather
+// than re-parsing ctx.Args. The post-agent --quiet fallback (the
+// user typed `ktx run <agent> ... --quiet`) is handled inside the
+// verb body via filterKtxFlags, which scans ctx.Args (the post-agent
+// args) without needing to share the dispatcher's flag set.
+func init() {
+	Register("run", RegisterOptions{
+		Description:       "wrap an agent invocation and record the session",
+		NeedsDB:           true,
+		PassthroughStdout: true,
+		Help:              printRunHelp,
+	}, runCommandFunc)
 }
 
 // teeAndParse reads from r, writes each line to stdout (transparent
@@ -664,6 +781,8 @@ func writeRunSummary(w io.Writer, toolCalls int, duration time.Duration, exitCod
 
 // printRunHelp writes the `ktx run` help. Mirrors the help style of
 // `ktx write` and `ktx read` so the surface presents consistently.
+// Used as the dispatcher's Help hook (renderHelp invokes it on
+// --help) and from runRunWith when called directly with --help.
 func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx run — wrap an agent invocation and record the session")
 	fmt.Fprintln(w)

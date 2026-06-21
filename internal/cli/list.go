@@ -16,6 +16,13 @@
 //
 // Database path resolution (Decision 8): KTX_DB env > default. ktx list
 // does not take a --path flag; per-invocation override lives on `ktx db`.
+//
+// Task 6 migration: the verb registers via dispatch.Register with
+// NeedsDB=true (dispatcher opens the DB) and FormatDefault=FormatJSON.
+// The legacy runListWith remains the test seam (Task 3 surface) and
+// still opens its own DB so existing Task 3 tests pass unchanged.
+// The shared core is listLogic, returning (any, error); the dispatcher
+// routes the typed error through its printError + exitCodeOf pipeline.
 package cli
 
 import (
@@ -23,49 +30,24 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"text/tabwriter"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-func runList(args []string, opts Options) int {
-	return runListWith(args, opts, os.Stdout, os.Stderr)
-}
-
-// runListWith is the testable core of `ktx list`. stdout/stderr are
-// injected so the list flow can be exercised without touching os.Stdout.
+// runListWith is the testable core of `ktx list` (Task 3 seam).
+// stdout/stderr are injected so the list flow can be exercised without
+// touching os.Stdout. The body parses --format, opens the database,
+// delegates to listLogic for the actual work, and translates the
+// returned error into an exit-code + stderr envelope.
 func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	var showHelp bool
-	// Subcommand-local --format. See runGetWith for the rationale: the
-	// global --format only parses from the front of args, so we accept
-	// it here too via extractFormat. The subcommand's value takes
-	// precedence over the global one when both are set.
+	// Subcommand-local --format. The dispatch module's runRegisteredVerb
+	// already extracts --format from the args when the verb is invoked
+	// through dispatch; for direct runListWith callers (Task 3 seam),
+	// extract it here so the call sites have identical semantics.
 	format, rest := extractFormat(args)
 	if format == "" {
 		format = opts.Format
-	}
-
-	fs := flag.NewFlagSet("ktx list", flag.ContinueOnError)
-	fs.SetOutput(io.Discard) // we render our own errors and help
-	fs.BoolVar(&showHelp, "help", false, "show help")
-	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-
-	if err := fs.Parse(rest); err != nil {
-		printError(stderr, usageError("ktx list: %v", err), format)
-		return ExitUsage
-	}
-	if showHelp {
-		printListHelp(stdout)
-		return ExitOK
-	}
-	if format != FormatJSON && format != FormatText {
-		printError(stderr, usageError("ktx list: invalid --format %q: want %q or %q", format, FormatJSON, FormatText), format)
-		return ExitUsage
-	}
-	if len(fs.Args()) > 0 {
-		printError(stderr, usageError("ktx list: unexpected argument %q", fs.Arg(0)), format)
-		return ExitUsage
 	}
 
 	path, err := dbpkg.ResolvePath("")
@@ -80,10 +62,50 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	defer db.Close()
 
+	_, err = listLogic(rest, format, db, stdout)
+	if err != nil {
+		printError(stderr, err, format)
+		return exitCodeOf(err)
+	}
+	return ExitOK
+}
+
+// listLogic is the shared core of `ktx list`. Both runListWith (the
+// legacy test seam) and the dispatch wrapper listCommandFunc call it.
+// The caller has already resolved --format and opened the database.
+//
+// Step-by-step:
+//
+//  1. Parse --help/-h.
+//  2. If --help, render printListHelp and return.
+//  3. Validate --format is json or text.
+//  4. Reject trailing positionals.
+//  5. db.ListSessions() + db.SessionM2Rollups().
+//  6. Switch on format: text → printListText, default → json envelope.
+func listLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (any, error) {
+	var showHelp bool
+	fs := flag.NewFlagSet("ktx list", flag.ContinueOnError)
+	fs.SetOutput(io.Discard) // we render our own errors and help
+	fs.BoolVar(&showHelp, "help", false, "show help")
+	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
+
+	if err := fs.Parse(args); err != nil {
+		return nil, usageError("ktx list: %v", err)
+	}
+	if showHelp {
+		printListHelp(stdout)
+		return nil, nil
+	}
+	if format != FormatJSON && format != FormatText {
+		return nil, usageError("ktx list: invalid --format %q: want %q or %q", format, FormatJSON, FormatText)
+	}
+	if len(fs.Args()) > 0 {
+		return nil, usageError("ktx list: unexpected argument %q", fs.Arg(0))
+	}
+
 	sessions, err := db.ListSessions()
 	if err != nil {
-		printError(stderr, internalError("ktx list: list sessions: %v", err), format)
-		return ExitInternal
+		return nil, internalError("ktx list: list sessions: %v", err)
 	}
 
 	// Per-session M2 rollup (Task 5). Sessions without any non-NULL M2
@@ -93,8 +115,7 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	// a usage error because the schema is fixed and the input is empty.
 	rollups, err := db.SessionM2Rollups()
 	if err != nil {
-		printError(stderr, internalError("ktx list: session m2 rollups: %v", err), format)
-		return ExitInternal
+		return nil, internalError("ktx list: session m2 rollups: %v", err)
 	}
 
 	switch format {
@@ -120,11 +141,10 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 			}
 		}
 		if err := json.NewEncoder(stdout).Encode(rows); err != nil {
-			printError(stderr, internalError("ktx list: write JSON: %v", err), format)
-			return ExitInternal
+			return nil, internalError("ktx list: write JSON: %v", err)
 		}
 	}
-	return ExitOK
+	return nil, nil
 }
 
 // sessionListRow is the JSON encoding shape for a single `ktx list`
@@ -139,6 +159,29 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 type sessionListRow struct {
 	dbpkg.Session
 	M2 *dbpkg.SessionM2 `json:"m2,omitempty"`
+}
+
+// listCommandFunc is the dispatch wrapper. The dispatcher already
+// opened the DB (NeedsDB=true), parsed --help/--format, and resolved
+// the format. The verb receives a *DispatchContext carrying the
+// populated DB, the resolved format, and a clean positional Args
+// tail. The verb's only responsibility is to apply listLogic and
+// surface the typed error to the dispatcher's printError + exitCodeOf
+// pipeline.
+func listCommandFunc(ctx *DispatchContext) (any, error) {
+	return listLogic(ctx.Args, ctx.Format, ctx.DB, ctx.Stdout)
+}
+
+// init registers `ktx list` with the dispatch module. After init
+// runs, the verb is reachable through runWith (the legacy
+// commandIndex entry in cli.go is removed in Task 6).
+func init() {
+	Register("list", RegisterOptions{
+		Description:   "list all sessions",
+		NeedsDB:       true,
+		FormatDefault: FormatJSON,
+		Help:          printListHelp,
+	}, listCommandFunc)
 }
 
 // m2NoData is the explicit "no data" marker for the text list view
@@ -225,7 +268,9 @@ func m2ModelCell(r dbpkg.SessionM2) string {
 }
 
 // printListHelp writes the `ktx list` help. Mirrors `ktx get --help` style
-// so the two query commands present consistently.
+// so the two query commands present consistently. Used both as the
+// dispatcher's Help hook (renderHelp invokes it on --help) and from
+// listLogic when runListWith is invoked directly with --help.
 func printListHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx list — list sessions in the database (formatted)")
 	fmt.Fprintln(w)

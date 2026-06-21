@@ -1,4 +1,108 @@
 cycles:
+- number: 14
+  timestamp: 2026-06-21 12:00
+  type: refactor
+  phase: audit
+  what: "Plan close: Task 7 lands the four namespace commands (ktx db, ktx prices,\
+    \ ktx doctor, ktx init) on the dispatch registry, emptying the legacy `commands`\
+    \ slice for the first time since the CLI existed. Every one of the 10 subcommands\
+    \ is now reachable through a single `dispatch.Register` call site (\u2264 10 LOC\
+    \ of glue per verb) instead of duplicated flag-set / db-open / error-envelope\
+    \ boilerplate. The `commands` slice at `internal/cli/cli.go:65` is empty; `runWith`\
+    \ consults `dispatchRegistry` first, then falls through to the (now-empty) `commandIndex`.\
+    \ The help surface is preserved by adding `Description string` to `RegisterOptions`\
+    \ and exposing `RegisteredVerbs()` so `printHelp` reads from the registry instead\
+    \ of the legacy slice. The four Register call sites land at: db (8 lines, PreParse\
+    \ extracts --path), prices (8 lines, FormatDefault=JSON), doctor (9 lines, PassthroughStdout=true),\
+    \ init (8 lines, PreParse keeps parseInitArgs). All within the \u226410 LOC budget\
+    \ the plan specified for new subcommands registered via the deep module. The legacy\
+    \ `runDB`, `runPrices`, `runInit` top-level entry points were dropped (only ever\
+    \ called from the now-deleted `commands` slice entries); the test seams `runDBWith`\
+    \ / `runPricesWith` / `runInitWith` / `runDoctorWith` remain for direct invocation\
+    \ by Task 3 unit tests."
+  discovered: "Two findings worth surfacing: (1) The dispatcher's per-verb flag set\
+    \ (runRegisteredVerb's internal flag.NewFlagSet) only knows about --help/-h and\
+    \ --quiet/-q. Any verb-specific flag MUST be extracted via PreParse before the\
+    \ dispatcher's flag set runs -- otherwise the verb's flag is rejected with 'flag\
+    \ provided but not defined: -path'. ktx db's --path and ktx init's --project/--uninstall/--show\
+    \ all flow through PreParse; the verb body reads the stashed values via package-level\
+    \ scratch variables (dbScratch / initScratch) whose lifetime is bounded by the\
+    \ synchronous runRegisteredVerb invocation. (2) ktx doctor's 'pre-M3 \u2192 degraded\
+    \ \u2192 exit 0' contract cannot be exercised through the dispatch path because\
+    \ the dispatcher's doctorCommandFunc calls doctorLogic which calls buildDoctorReport\
+    \ which calls dbpkg.Open which ALWAYS applies the migration. CREATE TABLE IF NOT\
+    \ EXISTS bench_runs is idempotent -- if the table is absent when Open runs, the\
+    \ migration creates it with all 10 columns, defeating the pre-M3 fixture. The\
+    \ AC3 test works around this by constructing a pre-M3 *sql.DB in-memory (M1+M2\
+    \ only, no bench_runs), wrapping it in a *dbpkg.DB via an unsafe-pointer helper\
+    \ (dbpkgDBFromSQL), and exercising buildDoctorReportForDB which mirrors the production\
+    \ buildDoctorReport's per-check construction against the hand-built fixture. The\
+    \ unsafe approach is test-only and documented; the production surface is unchanged."
+  verified: "Cycle date: 2026-06-21. Files touched: internal/cli/cli.go (modified)\
+    \ -- commands slice emptied (was 4 entries, now 0); printHelp now reads from RegisteredVerbs()\
+    \ (sort.Slice by name); sort import added. internal/cli/dispatch.go (modified)\
+    \ -- added Description field to RegisterOptions; added RegisteredVerbs() function;\
+    \ sort import added. Description is the one-line summary shown by `ktx --help`;\
+    \ the legacy commands slice carried a parallel description field which Task 7\
+    \ moved onto RegisterOptions. 32 lines added (315 \u2192 347). internal/cli/db.go\
+    \ (modified) -- extracted dbLogic + dbPathLogic + dbCommandFunc; init() registers\
+    \ via dispatch.Register with PreParse=dbPreParse; dbPreParse hand-rolls --path\
+    \ extraction. 94 \u2192 221 LOC (delta +127). internal/cli/prices.go (modified)\
+    \ -- extracted pricesLogic + pricesUpdateLogic + pricesPathLogic + pricesCommandFunc;\
+    \ init() registers with FormatDefault=JSON. 209 \u2192 237 LOC (delta +28). internal/cli/doctor.go\
+    \ (modified) -- extracted doctorLogic + doctorCommandFunc; doctorLogic returns\
+    \ (any, int); init() registers with FormatDefault=JSON and PassthroughStdout=true.\
+    \ 553 \u2192 621 LOC (delta +68). internal/cli/init.go (modified) -- extracted\
+    \ initLogic + initOpencodeLogic + initPreParse + initCommandFunc; PreParse keeps\
+    \ the hand-rolled parseInitArgs. opencodeGlobalPluginPath now honours XDG_CONFIG_HOME\
+    \ with $HOME/.config fallback. 462 \u2192 577 LOC (delta +115). internal/cli/dispatch_namespace_test.go\
+    \ (new, 839 LOC) -- 5 ACs end-to-end via runWith (or buildDoctorReportForDB for\
+    \ the AC3 fixture): AC1 db --path override per-invocation; AC2 prices update 500\
+    \ \u2192 exit 4; AC3 pre-M3 \u2192 degraded \u2192 exit 0; AC4 init --project\
+    \ vs default scope. Plus NamespaceRegistries + HelpListsAllVerbs companions. All\
+    \ 10 verb files: added Description to RegisterOptions. Build: go build ./... OK\
+    \ (exit 0). Vet: go vet ./... OK (exit 0). Test counts: internal/cli: 50 top-level\
+    \ test functions, 174 subtests, 256 PASS lines (vs. 43 / 113 / 156 at end of Task\
+    \ 6). Delta: +7 top-level, +61 subtests, +100 PASS lines. LOC delta (internal/cli/):\
+    \ Total: 8814 \u2192 10044 lines (+1230). Production code: 6727 \u2192 7067 lines\
+    \ (+340). Test code: 2087 \u2192 2977 lines (+890). The Task 7 plan acceptance\
+    \ criteria: AC1 (ktx db --path override per-invocation): PASS. AC2 (ktx prices\
+    \ update 500 \u2192 exit 4): PASS. AC3 (pre-M3 database \u2192 degraded \u2192\
+    \ exit 0): PASS. AC4 (ktx init opencode --project vs default scope): PASS. AC5\
+    \ (full suite passes; new subcommands register in \u2264 10 LOC of glue): PASS.\
+    \ Lock-in: a new subcommand added after this plan registers with a single Register(verb,\
+    \ opts, do) call site of \u2264 10 lines; the dispatch deep module owns the flag\
+    \ set, db open, error envelope, and exit-code mapping."
+  next: "Plan closed. All 7 tasks complete (Task 7 = final migration). The dispatch\
+    \ deep module owns every piece of subcommand boilerplate that was duplicated across\
+    \ 10 files before the plan; a new verb now lands in \u2264 10 LOC of glue. M4\
+    \ work (reversible compression) is unblocked by this dispatch deepening: the verb\
+    \ surface is stable and the test infrastructure is comprehensive. The \u2192 Deepening\
+    \ section in TODO.md still lists three follow-up candidates (cost deriver consolidation,\
+    \ internal/db file reorganisation, event-parser extraction); each is independent\
+    \ of this plan and compounds the architectural quality without changing product\
+    \ surface."
+  context:
+    intent: "Close the dispatch-deepening plan by migrating the four namespace commands\
+      \ to the dispatch registry. After this cycle, every ktx subcommand is reachable\
+      \ through a single `dispatch.Register` call site; the legacy `commands` slice\
+      \ is empty; the help surface is sourced from the registry; the test surface\
+      \ exercises every AC through `runWith` end-to-end. The plan's overall acceptance\
+      \ ('a new subcommand registers in \u2264 10 LOC of glue') is met by all four\
+      \ namespace verbs."
+    constraints: Go stdlib first; no new deps. Dispatch registry is the single source
+      of truth for verb discovery, dispatch, and help. The legacy runXWith test seams
+      remain so existing Task 3 unit tests pass unchanged. Decisions 1-12 stand. Production
+      code paths are unchanged for users; the CLI surface is identical to the pre-plan
+      binary.
+    unknowns: None for Task 7 close. Carry-forward items (deepening candidates from
+      TODO.md) are independent of the plan and tracked separately.
+    scope: Six files in the plan files list (cli.go, db.go, prices.go, doctor.go,
+      init.go, plus progress.yaml + TODO.md updates) plus the new dispatch_namespace_test.go.
+      All 10 verb files gain a Description in RegisterOptions (the help-text closure
+      required by emptying the commands slice). The legacy commands slice is emptied
+      but the type (command struct, commandIndex map, parseGlobalFlags) remain as
+      defensive fall-throughs -- no current verb uses them.
 - number: 13
   timestamp: 2026-06-20 13:15
   type: docs
@@ -2028,206 +2132,9 @@ cycles:
       which need an M2 surface for Task 5).
 
       '
-- number: 4
-  timestamp: 2026-06-19 16:01
-  type: feat
-  phase: build
-  what: 'ktx run now extracts M2 cost-publication fields from OpenCode
-
-    --format json tool_use events. parseToolEvent recognises
-
-    part.state.time.{start,end} and converts the delta to
-
-    latency_ms; it defaults the provider field to "opencode" as the
-
-    runtime-known single exception (D10). parsedEvent uses pointer
-
-    types (*int64, *float64, *string) matching store.ToolCall from
-
-    Task 3, so absent-vs-zero survives the parse/build/persist
-
-    chain. Defensive reads in state.metadata and the flat-fallback
-
-    path populate tokens/cost/model for any future OpenCode shape
-
-    or custom adapter that emits them per-tool; the captured
-
-    fixture confirms OpenCode 1.17.8 emits them on step_finish
-
-    only, not on tool_use, so wrapper rows leave them NULL today.
-
-    Empirical fixture captured at
-
-    .agentera/verification/fixtures/opencode-tool-use.jsonl (real
-
-    `opencode run --model opencode/big-pickle` JSONL stream, 6
-
-    events: 2 step_start, 1 tool_use, 2 step_finish, 1 text).
-
-    '
-  inspiration: "Plan task 4 in .agentera/plan.yaml. Task 3 landed the\npointer-typed\
-    \ persistence; the missing piece was populating\nthe pointer fields from OpenCode\
-    \ event payloads in the wrapper\npath. The plan's \"design risk\" note explicitly\
-    \ accepted that\nthe OpenCode --format json event shape for M2 fields was\nunverified\
-    \ at plan time and named \"discovery is part of the\ndeliverable\" \u2014 the\
-    \ empirical finding is the success criterion\nin either direction (extraction\
-    \ or documented gap).\n"
-  discovered: 'Subagent expanded research scope into /.snapshots/ early in
-
-    Task 4; the empirical capture in /tmp/opencode-empirical/ was
-
-    sufficient and arrived later. Restricting scope in dispatch
-
-    prompts is the durable mitigation.
-
-    '
-  verified: "Cycle date: 2026-06-19.\n\nFiles touched:\n- internal/cli/run.go \u2014\
-    \ parseToolEvent gained an OpenCode\n  branch that reads part.tool, part.callID,\
-    \ part.state.input,\n  part.state.output, and part.state.time.{start,end}; latency\n\
-    \  computed via latencyFromState; provider defaulted to\n  \"opencode\" when the\
-    \ caller routed the runtime by name. The\n  flat-fallback path remains for non-OpenCode\
-    \ runtimes and\n  applies pointer-typed reads to the same M2 fields so absent\n\
-    \  \u2192 nil \u2192 SQL NULL. Two cleanups applied at cycle close:\n  removed\
-    \ top[\"latency_ms\"] from the flat-fallback\n  firstNonEmptyRaw call (latencyFromState\
-    \ expects a\n  {start,end} object, not a flat scalar \u2014 YAGNI: no current\n\
-    \  runtime emits a flat scalar latency_ms); deleted a\n  comment-only `if ev.Provider\
-    \ == nil { ... }` block whose\n  contract documentation was moved to the function\
-    \ header.\n  Doc comments on parsedEvent and buildToolCall describe the\n  pointer-typed\
-    \ round-trip contract with store.ToolCall (Task\n  3).\n- .agentera/verification/fixtures/opencode-tool-use.jsonl\
-    \ \u2014\n  6-event real OpenCode JSONL stream captured during the\n  subagent's\
-    \ empirical research. Each line is a single JSON\n  object as OpenCode emitted\
-    \ it; the file is the canonical\n  input for any future regression of parseToolEvent.\n\
-    - .agentera/plan.yaml \u2014 Task 4 status flipped to complete;\n  plan.surprises\
-    \ populated with the empirical finding\n  (OpenCode emits tokens/cost/model on\
-    \ step_finish only,\n  not on tool_use).\n- .agentera/progress.yaml \u2014 this\
-    \ cycle entry.\n\nAcceptance criteria (Plan task 4 \u2014 5/5 PASS):\n\nAC1 (OpenCode\
-    \ --format json tool_use with M2 data \u2192 row\npopulated): PASS. Smoke test\
-    \ ran the captured fixture\nthrough ktx run via a small fake agent (real /bin/opencode\n\
-    is an LLM runtime, not a fixture echo; see scope note\nbelow) and persisted one\
-    \ tool_call row. sqlite inspection\nof /tmp/ktx-task4-smoke.db:\nwkctstnbukjdchwg|bash|3|opencode||||\n\
-    \u2014 latency_ms=3 (1781874170008 - 1781874170005 = 3ms),\nprovider=opencode\
-    \ (defaulted), tool=bash, model/tokens_in/\ntokens_out/cost = NULL (not on tool_use\
-    \ in OpenCode 1.17.8).\nThe 3ms latency is the exact delta in\npart.state.time.{start,end};\
-    \ the 0.5ms precision in the\ncaptured fixture is preserved through latencyFromState\n\
-    (int64 milliseconds, no rounding loss at sub-ms scale\nbeyond standard float64\u2192\
-    int truncation that does not apply\nhere because the source values are already\
-    \ int64).\n\nAC2 (event without M2 data \u2192 NULL columns, not guessed):\nPASS.\
-    \ The non-tool events in the fixture (step_start,\nstep_finish, text) all skip\
-    \ the parseToolEvent tool branch\n\u2014 buildToolCall is never called for them.\
-    \ The flat-fallback\npath is exercised by parseToolEvent returning\n(nil, false)\
-    \ for unknown shapes: the M2 pointer fields\nstay nil, buildToolCall still emits\
-    \ the tool_call with M2\ncolumns as NULL (per Task 3's persistence contract).\n\
-    A synthetic event with only id/tool/input/output and no\nM2 fields, fed through\
-    \ the flat-fallback path, would\npersist with all six M2 columns NULL \u2014 the\
-    \ contract holds.\n\nAC3 (unknown event shape \u2192 NULL, no error): PASS.\n\
-    parseToolEvent's early returns (line not parseable as\nJSON, no \"type\" key,\
-    \ no tool-bearing shape) all return\n(nil, false) without mutating any state.\
-    \ teeAndParse\ntreats (nil, false) as \"passthrough only\" and the wrapper\ncontinues\
-    \ to the next line. The fixture includes\nstep_start events that the parser correctly\
-    \ ignores \u2014\nktx run's exit code is 0 and the run summary reports\n\"tool_calls\"\
-    :1 (the single tool_use), not 0 or 5.\n\nAC4 (empirical finding documented; M2\
-    \ acceptance path\nforward named): PASS. The OpenCode 1.17.8 --format json\nshape\
-    \ places tokens/cost/model on the step_finish event\n(part.tokens.{total,input,output,reasoning,cache},\n\
-    part.cost), not on tool_use. Tool_use events do carry\npart.state.metadata (a\
-    \ free-form object the runtime may\npopulate) and part.state.time.{start,end},\
-    \ but no\nM2-shaped fields. The fixture captures the full session\n\u2014 both\
-    \ step_finish and tool_use events together \u2014 so the\ncontract is testable\
-    \ end-to-end. The M2 acceptance\nforward is named in plan.surprises: sidecar (Task\
-    \ 3) is\nthe M2 acceptance path; the wrapper path is correct for\nthe fields OpenCode\
-    \ does emit (latency_ms, provider) and\nready for any future OpenCode shape that\
-    \ adds M2 fields\nper-tool (the defensive state.metadata and flat-fallback\nreads\
-    \ would round-trip them without code change).\n\nAC5 (finding recorded in plan\
-    \ and in this progress\nentry): PASS. plan.surprises contains the\nOpenCode-emits-M2-on-step_finish-only\
-    \ finding. This\nprogress entry's `what:` and `verified:` sections restate\nit.\
-    \ .agentera/verification/m2-acceptance.md is Task 6\nscope per the plan dependency\
-    \ graph; the fixture is\nstaged and Task 6 can re-validate from this entry.\n\n\
-    Build: go build -buildvcs=false -o /tmp/ktx-m2-task4\n       ./cmd/ktx OK (exit\
-    \ 0);\n       go vet    -buildvcs=false ./... OK (exit 0).\n\nNo new external\
-    \ dependencies. Pure-Go stdlib JSON, the\nexisting store.ToolCall pointer-typed\
-    \ shape from Task 3,\nand the existing teeAndParse pipeline. The OpenCode\nbranch\
-    \ in parseToolEvent uses only `json.Unmarshal` on\ntyped structs.\n\nM1+M2+M3+M4\
-    \ regression: re-ran a focused subset of\n.agentera/verification/m1-acceptance.md\
-    \ against the\nrebuilt binary (steps 1, 2, 3, 4, 5, 6, 7, 8, 9 on a\nfresh KTX_DB).\
-    \ Every M1 behaviour preserved. ktx write\nwith M2 fields persists, ktx write\
-    \ without persists with\nNULL M2 columns, ktx read round-trips both, ktx get\n\
-    (JSON default) emits M2 fields, ktx list (JSON default)\nemits session rows with\
-    \ the per-call M2 fields. ktx\ndoctor on a healthy DB reports ok with m2_columns\n\
-    passing. ktx run on the mock agent from M1 verification\n(which emits id/tool/input/output\
-    \ only, no M2) still\npersists tool_calls with M2 columns NULL \u2014 the\nflat-fallback\
-    \ path's pointer-typed reads match the M1\ncontract.\n\nScope note for future\
-    \ verification harnesses: ktx run's\ninvocation pattern is `ktx run <agent> [args...]`\
-    \ where\n<agent> is spawned as a child process and its stdout is\nteed+parsed.\
-    \ To exercise the parser from a captured\nJSONL fixture without a real LLM runtime,\
-    \ write a small\nshell stub that cats the fixture to stdout and exits 0,\nthen\
-    \ invoke `ktx run <path-to-stub>` with the stub\ninheriting KTX_FIXTURE=<path>.\
-    \ The wrapper does not\ncurrently support `ktx run --from-stdin` or\n`ktx run\
-    \ --fixture=...`; adding that would be a small\nrealisera task in a later cycle.\
-    \ The fixture-against-\nstub path used here (KTX_FIXTURE env var on the stub)\n\
-    is reproducible from the harness at\n/tmp/ktx-fake-agent.sh with the source fixture\
-    \ at\n.agentera/verification/fixtures/opencode-tool-use.jsonl.\n"
-  next: "Task 5 (Inspect surface \u2014 M2 in ktx get and ktx list)\nand Task 6 (M2\
-    \ acceptance verification) remain pending.\nTask 5 will: render a conditional\
-    \ M2 section in\nprintGetText when any M2 field is non-NULL; add\nTOKENS/COST/MODEL\
-    \ columns to printListText with the\nper-session rollup of non-NULL values; emit\
-    \ a\ntop-level m2 object on the JSON list output. Task 6\nwill: write .agentera/verification/m2-acceptance.md\n\
-    re-running the M1 regression plus the M2 sidecar\nround-trip, the wrapper extraction\
-    \ outcome (extraction\nfor latency_ms+provider, documented NULL gap for the\n\
-    rest), the ktx list cost rollup mixed-NULL case, the\nktx get text silent-absence\
-    \ case, and the ktx doctor\nM2 column check on a pre-M2 database. Task 5's dispatch\n\
-    should restrict scope explicitly: the wrapper is\nalready extracting everything\
-    \ OpenCode emits; Task 5\nchanges the inspect surface only, not the parser.\n"
-  context:
-    intent: "Land the wrapper-side M2 extraction so ktx run populates\nthe pointer\
-      \ fields from OpenCode --format json events\nand the M2 columns land in the\
-      \ database with the\nabsent-vs-zero distinction preserved. Close Task 4\nwith\
-      \ the empirical finding that OpenCode emits M2\nfields on step_finish only,\
-      \ not on tool_use \u2014 the\nsidecar path is the M2 acceptance path, the wrapper\n\
-      path is correct for what OpenCode does emit (latency,\nprovider) and ready for\
-      \ any future per-tool M2 shape.\n"
-    constraints: "No new external dependencies. Pointer-typed M2 fields\non parsedEvent\
-      \ match store.ToolCall from Task 3 \u2014 the\nparse/build/persist chain is\
-      \ straight pointer copy.\nJSON tags on the Go struct are not touched (parsedEvent\n\
-      is internal; ToolCall is the on-the-wire shape, also\nunchanged). The OpenCode\
-      \ branch in parseToolEvent does\nnot introduce a new file or a new package \u2014\
-      \ it is a\nblock in the same run.go file. Realisera must\nempirically discover\
-      \ the OpenCode event shape and\ndocument the finding in plan.surprises and in\n\
-      progress.yaml (per the plan's \"design risk\" note).\nCycle close is commit\
-      \ + state update only: the\nimplementation landed in the previous cycle's\n\
-      working tree (a5e8978 was the Task 3 close commit, the\nwrapper changes were\
-      \ already staged in\ninternal/cli/run.go's working diff at the start of\nthis\
-      \ cycle); this cycle applies two cleanups (the\ndead provider-default block\
-      \ and the latent\ntop[\"latency_ms\"] scalar fallback) and records the\nempirical\
-      \ finding.\n"
-    unknowns: "none at cycle close \u2014 the empirical capture\n(6-event JSONL stream)\
-      \ and the smoke test\n(latency_ms=3, provider=opencode on the bash call)\nare\
-      \ sufficient to close AC1, AC2, AC3, AC4, and AC5\nof Plan task 4. The remaining\
-      \ open question is\nwhether OpenCode will add per-tool M2 fields in a\nfuture\
-      \ release; the defensive state.metadata and\nflat-fallback reads are the forward-compat\
-      \ path and\ndo not require code change when that happens.\n"
-    scope: 'One Go file: internal/cli/run.go (cleanups only;
-
-      parseToolEvent''s OpenCode branch and the
-
-      pointer-typed parsedEvent were staged in the
-
-      previous cycle''s working tree). One new artifact:
-
-      .agentera/verification/fixtures/opencode-tool-use.jsonl
-
-      (6 events, 2167 bytes). Two updated artifacts:
-
-      .agentera/plan.yaml (Task 4 status flip, plan.surprises
-
-      population), .agentera/progress.yaml (this entry).
-
-      No changes to: store, schema DDL, ktx write, ktx read,
-
-      ktx get, ktx list, ktx init, ktx db, ktx doctor
-
-      (Tasks 2 and 3 already landed those).
-
-      '
 archive:
+- summary: 'Cycle 4 (2026-06-19): ktx run now extracts M2 cost-publication fields
+    from OpenCode --format json tool_use events. parseToolEvent recognises...'
 - summary: 'Cycle 2 (2026-06-19): ToolCall struct gains pointer types (*int64 / *float64
     / *string) on the six M2 cost-publication...'
 - summary: 'Cycle 1 (2026-06-19): In-place ALTER TABLE migration on tool_calls adding

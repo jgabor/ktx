@@ -19,6 +19,13 @@
 //
 // Database path resolution (Decision 8): KTX_DB env > default. ktx get
 // does not take a --path flag; per-invocation override lives on `ktx db`.
+//
+// Task 6 migration: the verb registers via dispatch.Register with
+// NeedsDB=true (dispatcher opens the DB) and FormatDefault=FormatJSON.
+// The legacy runGetWith remains the test seam (Task 3 surface) and
+// still opens its own DB so existing Task 3 tests pass unchanged.
+// The shared core is getLogic, returning (any, error); the dispatcher
+// routes the typed error through its printError + exitCodeOf pipeline.
 package cli
 
 import (
@@ -27,59 +34,24 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-func runGet(args []string, opts Options) int {
-	return runGetWith(args, opts, os.Stdout, os.Stderr)
-}
-
-// runGetWith is the testable core of `ktx get`. stdout/stderr are
-// injected so the get flow can be exercised without touching os.Stdout.
+// runGetWith is the testable core of `ktx get` (Task 3 seam).
+// stdout/stderr are injected so the get flow can be exercised without
+// touching os.Stdout. The body parses --format, opens the database,
+// delegates to getLogic for the actual work, and translates the
+// returned error into an exit-code + stderr envelope.
 func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	var showHelp bool
-	// Subcommand-local --format. The global --format is already in
-	// opts.Format (parsed by the dispatcher from the front of args), but
-	// the stdlib flag package stops at the first non-flag, so flags
-	// appearing AFTER a positional (e.g. `ktx get <id> --format text`)
-	// are not seen by the global parser. extractFormat pulls --format
-	// out of the args (in either position); the subcommand's value
-	// takes precedence over the global one when both are set.
+	// Subcommand-local --format. The dispatch module's runRegisteredVerb
+	// already extracts --format from the args when the verb is invoked
+	// through dispatch; for direct runGetWith callers (Task 3 seam),
+	// extract it here so the call sites have identical semantics.
 	format, rest := extractFormat(args)
 	if format == "" {
 		format = opts.Format
 	}
-
-	fs := flag.NewFlagSet("ktx get", flag.ContinueOnError)
-	fs.SetOutput(io.Discard) // we render our own errors and help
-	fs.BoolVar(&showHelp, "help", false, "show help")
-	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-
-	if err := fs.Parse(rest); err != nil {
-		printError(stderr, usageError("ktx get: %v", err), format)
-		return ExitUsage
-	}
-	if showHelp {
-		printGetHelp(stdout)
-		return ExitOK
-	}
-	if format != FormatJSON && format != FormatText {
-		printError(stderr, usageError("ktx get: invalid --format %q: want %q or %q", format, FormatJSON, FormatText), format)
-		return ExitUsage
-	}
-
-	rest = fs.Args()
-	if len(rest) == 0 {
-		printError(stderr, usageError("ktx get: missing required argument: <id>"), format)
-		return ExitUsage
-	}
-	if len(rest) > 1 {
-		printError(stderr, usageError("ktx get: unexpected argument %q; ktx get takes a single ID", rest[1]), format)
-		return ExitUsage
-	}
-	id := rest[0]
 
 	path, err := dbpkg.ResolvePath("")
 	if err != nil {
@@ -93,14 +65,65 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	defer db.Close()
 
+	_, err = getLogic(rest, format, db, stdout)
+	if err != nil {
+		printError(stderr, err, format)
+		return exitCodeOf(err)
+	}
+	return ExitOK
+}
+
+// getLogic is the shared core of `ktx get`. Both runGetWith (the legacy
+// test seam) and the dispatch wrapper getCommandFunc call it. The
+// caller has already resolved --format and opened the database.
+//
+// Step-by-step:
+//
+//  1. Parse --help/-h.
+//  2. If --help, render printGetHelp and return.
+//  3. Validate --format is json or text (the dispatch module already
+//     validates when invoked through dispatch; this branch covers the
+//     legacy direct-call seam where format may have been supplied
+//     arbitrarily).
+//  4. Validate exactly one positional (the ID).
+//  5. db.GetRecord(id): tool_calls first, then sessions.
+//  6. Switch on format: text → printGetText, default → json.Encode.
+//
+// Anything that fails becomes a typed *Error (usage / not-found /
+// internal) so the caller can map it to the right exit code.
+func getLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (any, error) {
+	var showHelp bool
+	fs := flag.NewFlagSet("ktx get", flag.ContinueOnError)
+	fs.SetOutput(io.Discard) // we render our own errors and help
+	fs.BoolVar(&showHelp, "help", false, "show help")
+	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
+
+	if err := fs.Parse(args); err != nil {
+		return nil, usageError("ktx get: %v", err)
+	}
+	if showHelp {
+		printGetHelp(stdout)
+		return nil, nil
+	}
+	if format != FormatJSON && format != FormatText {
+		return nil, usageError("ktx get: invalid --format %q: want %q or %q", format, FormatJSON, FormatText)
+	}
+
+	rest := fs.Args()
+	if len(rest) == 0 {
+		return nil, usageError("ktx get: missing required argument: <id>")
+	}
+	if len(rest) > 1 {
+		return nil, usageError("ktx get: unexpected argument %q; ktx get takes a single ID", rest[1])
+	}
+	id := rest[0]
+
 	record, err := db.GetRecord(id)
 	if err != nil {
 		if errors.Is(err, dbpkg.ErrNotFound) {
-			printError(stderr, notFoundError("ktx get: record %q not found", id), format)
-			return ExitNotFound
+			return nil, notFoundError("ktx get: record %q not found", id)
 		}
-		printError(stderr, internalError("ktx get: get record: %v", err), format)
-		return ExitInternal
+		return nil, internalError("ktx get: get record: %v", err)
 	}
 
 	switch format {
@@ -112,11 +135,32 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		// directly. json.NewEncoder writes a trailing newline, which
 		// keeps stdout pipe-friendly.
 		if err := json.NewEncoder(stdout).Encode(record); err != nil {
-			printError(stderr, internalError("ktx get: write JSON: %v", err), format)
-			return ExitInternal
+			return nil, internalError("ktx get: write JSON: %v", err)
 		}
 	}
-	return ExitOK
+	return nil, nil
+}
+
+// getCommandFunc is the dispatch wrapper. The dispatcher already opened
+// the DB (NeedsDB=true), parsed --help/--format, and resolved the
+// format. The verb receives a *DispatchContext carrying the populated
+// DB, the resolved format, and a clean positional Args tail. The verb's
+// only responsibility is to apply getLogic and surface the typed
+// error to the dispatcher's printError + exitCodeOf pipeline.
+func getCommandFunc(ctx *DispatchContext) (any, error) {
+	return getLogic(ctx.Args, ctx.Format, ctx.DB, ctx.Stdout)
+}
+
+// init registers `ktx get` with the dispatch module. After init runs,
+// the verb is reachable through runWith (the legacy commandIndex entry
+// in cli.go is removed in Task 6).
+func init() {
+	Register("get", RegisterOptions{
+		Description:   "query a record by ID (formatted)",
+		NeedsDB:       true,
+		FormatDefault: FormatJSON,
+		Help:          printGetHelp,
+	}, getCommandFunc)
 }
 
 // printGetText writes a one-line-per-field summary of the record. The
@@ -186,7 +230,9 @@ func printGetText(w io.Writer, record any) {
 }
 
 // printGetHelp writes the `ktx get` help. Mirrors `ktx read --help` style
-// so the two related commands present consistently.
+// so the two related commands present consistently. Used both as the
+// dispatcher's Help hook (renderHelp invokes it on --help) and from
+// getLogic when runGetWith is invoked directly with --help.
 func printGetHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx get — query a record by ID (formatted)")
 	fmt.Fprintln(w)

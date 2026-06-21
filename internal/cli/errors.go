@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // Exit codes are the truth (Decision 4):
@@ -100,6 +102,14 @@ func toKtxError(err error) *Error {
 	var ktxErr *Error
 	if errors.As(err, &ktxErr) {
 		return ktxErr
+	}
+	// dbpkg.ErrNotFound is the canonical "absent" sentinel: it carries no
+	// context, so we wrap it with the standard not-found message rather
+	// than dumping the bare sentinel into the envelope. errors.Is is used
+	// (not ==) so wrapped errors (errors.Join, fmt.Errorf("%w", ...)) map
+	// the same way.
+	if errors.Is(err, dbpkg.ErrNotFound) {
+		return notFoundError("%v", err)
 	}
 	return internalError("%v", err)
 }

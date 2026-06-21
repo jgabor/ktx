@@ -31,6 +31,15 @@
 //	                     KTX_PRICES env > $XDG_DATA_HOME/ktx/prices.json)
 //	ktx prices show      print the cache contents (debug; deferred
 //	                     to a future cycle if needed)
+//
+// Task 7 migration: the verb registers via dispatch.Register with
+// NeedsDB=false (it only touches the price-cache file, not the ktx
+// database) and FormatDefault=FormatJSON (the manual-refresh output
+// is machine-parseable by default). The legacy runPricesWith remains
+// the test seam (Task 3 surface) and still parses its own flags; the
+// dispatch wrapper applies pricesLogic and surfaces typed errors.
+// The hard-fail contract (manual refresh on a 500 response → exit 4)
+// is preserved by both call sites because they share pricesLogic.
 package cli
 
 import (
@@ -38,30 +47,29 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runPrices dispatches the `ktx prices` namespace.
-//
-//	ktx prices                  -> ktx prices update (default; matches
-//	                              the explicit-update semantic — the
-//	                              namespace is most often used to
-//	                              force a refresh)
-//	ktx prices update           -> fetch from models.dev and atomically
-//	                              rewrite the cache file
-//	ktx prices path             -> print the cache file path
-//
-// Future subcommands (ktx prices show, ktx prices lookup) are out of
-// scope for the M3 plan and would land in a future cycle. The
-// namespace shape is reserved by the D2 design rule (namespaces for
-// managed resources; v1 ships only the manual refresh hook).
-func runPrices(args []string, opts Options) int {
-	return runPricesWith(args, opts, os.Stdout, os.Stderr)
+// runPricesWith is the testable core of `ktx prices` (Task 3 seam).
+// stdout/stderr are injected so the manual-refresh flow can be
+// exercised without touching os.Stdout. The body parses the
+// subcommand's flags and dispatches on the subcommand name
+// (update -> pricesUpdateLogic; path -> pricesPathLogic).
+func runPricesWith(args []string, opts Options, stdout, stderr io.Writer) int {
+	_, err := pricesLogic(args, opts.Format, stdout, stderr)
+	if err != nil {
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
+	}
+	return ExitOK
 }
 
-func runPricesWith(args []string, opts Options, stdout, stderr io.Writer) int {
+// pricesLogic is the shared core of `ktx prices`. Both runPricesWith
+// (the legacy test seam) and the dispatch wrapper pricesCommandFunc
+// call it. Returns (any, error) so the dispatcher can map the typed
+// error envelope through its own printError + exitCodeOf pipeline.
+func pricesLogic(args []string, format string, stdout, stderr io.Writer) (any, error) {
 	var showHelp bool
 	fs := flag.NewFlagSet("ktx prices", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -69,12 +77,11 @@ func runPricesWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
-		printError(stderr, usageError("ktx prices: %v", err), opts.Format)
-		return ExitUsage
+		return nil, usageError("ktx prices: %v", err)
 	}
 	if showHelp {
 		printPricesHelp(stdout)
-		return ExitOK
+		return nil, nil
 	}
 
 	rest := fs.Args()
@@ -91,20 +98,20 @@ func runPricesWith(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	switch sub {
 	case "update":
-		return pricesUpdate(opts, stdout, stderr)
+		return pricesUpdateLogic(format, stdout, stderr)
 	case "path":
-		return pricesPath(opts, stdout, stderr)
+		return pricesPathLogic(stdout)
 	default:
-		printError(stderr, usageError("ktx prices: unknown subcommand %q; run 'ktx prices --help'", sub), opts.Format)
-		return ExitUsage
+		return nil, usageError("ktx prices: unknown subcommand %q; run 'ktx prices --help'", sub)
 	}
 }
 
-// pricesUpdate forces a refetch from https://models.dev/api.json and
-// atomically rewrites the cache file at $XDG_DATA_HOME/ktx/prices.json
-// (plan Task 2 AC8). The fetch failure contract is hard error (exit 4)
-// because the user explicitly requested the refresh — a silent
-// no-op would defeat the purpose of the manual hook.
+// pricesUpdateLogic forces a refetch from https://models.dev/api.json
+// and atomically rewrites the cache file at
+// $XDG_DATA_HOME/ktx/prices.json (plan Task 2 AC8). The fetch
+// failure contract is hard error (exit 4) because the user
+// explicitly requested the refresh — a silent no-op would defeat
+// the purpose of the manual hook.
 //
 // Output contract: JSON default with --format text for humans.
 //
@@ -113,11 +120,10 @@ func runPricesWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // The `providers` and `models` counts are the size of the just-written
 // cache; they let the caller verify the refresh produced a populated
 // file without re-reading the cache.
-func pricesUpdate(opts Options, stdout, stderr io.Writer) int {
+func pricesUpdateLogic(format string, stdout, stderr io.Writer) (any, error) {
 	path, err := dbpkg.PricesPath()
 	if err != nil {
-		printError(stderr, internalError("ktx prices update: resolve cache path: %v", err), opts.Format)
-		return ExitInternal
+		return nil, internalError("ktx prices update: resolve cache path: %v", err)
 	}
 
 	// Build a fresh Prices bound to the default path. We bypass
@@ -136,12 +142,11 @@ func pricesUpdate(opts Options, stdout, stderr io.Writer) int {
 		// because the user explicitly chose to depend on the
 		// network (AC8: "a fetch failure on the update command is
 		// a hard error").
-		printError(stderr, internalError("ktx prices update: %v", err), opts.Format)
-		return ExitInternal
+		return nil, internalError("ktx prices update: %v", err)
 	}
 
 	providers, models := p.Size()
-	switch opts.Format {
+	switch format {
 	case FormatText:
 		fmt.Fprintf(stdout, "ktx prices update — refreshed\n")
 		fmt.Fprintf(stdout, "path:      %s\n", path)
@@ -156,24 +161,48 @@ func pricesUpdate(opts Options, stdout, stderr io.Writer) int {
 			"path":      path,
 		}
 		if err := json.NewEncoder(stdout).Encode(out); err != nil {
-			printError(stderr, internalError("ktx prices update: write JSON: %v", err), opts.Format)
-			return ExitInternal
+			return nil, internalError("ktx prices update: write JSON: %v", err)
 		}
 	}
-	return ExitOK
+	return nil, nil
 }
 
-// pricesPath prints the resolved cache file path. Mirrors
+// pricesPathLogic prints the resolved cache file path. Mirrors
 // `ktx db path` for the database file — useful for scripts that
 // want to inspect or back up the cache.
-func pricesPath(opts Options, stdout, stderr io.Writer) int {
+func pricesPathLogic(stdout io.Writer) (any, error) {
 	path, err := dbpkg.PricesPath()
 	if err != nil {
-		printError(stderr, internalError("ktx prices path: resolve cache path: %v", err), opts.Format)
-		return ExitInternal
+		return nil, internalError("ktx prices path: resolve cache path: %v", err)
 	}
 	fmt.Fprintln(stdout, path)
-	return ExitOK
+	return nil, nil
+}
+
+// pricesCommandFunc is the dispatch wrapper. The dispatcher already
+// parsed --help/-h (via the Help hook) and --format; the verb
+// receives a *DispatchContext carrying a clean positional Args tail
+// and the resolved format. The verb's only responsibility is to
+// apply pricesLogic and surface the typed error to the dispatcher's
+// printError + exitCodeOf pipeline.
+//
+// NeedsDB=false: ktx prices never touches the ktx database — it
+// only touches the price-cache file. The dispatcher's
+// dbpkg.ResolvePath + dbpkg.Open calls are skipped.
+func pricesCommandFunc(ctx *DispatchContext) (any, error) {
+	return pricesLogic(ctx.Args, ctx.Format, ctx.Stdout, ctx.Stderr)
+}
+
+// init registers `ktx prices` with the dispatch module. After init
+// runs, the verb is reachable through runWith (the legacy
+// commandIndex entry in cli.go is removed in Task 7).
+func init() {
+	Register("prices", RegisterOptions{
+		Description:   "price cache operations (update)",
+		NeedsDB:       false,
+		FormatDefault: FormatJSON,
+		Help:          printPricesHelp,
+	}, pricesCommandFunc)
 }
 
 // printPricesHelp writes the `ktx prices --help` text. Mirrors the

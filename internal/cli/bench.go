@@ -70,19 +70,11 @@ const benchMethodologyRelPath = ".agentera/bench/methodology-v1.yaml"
 // unboundedly expensive per correct.
 const benchEpsilon = 1.0e-9
 
-// runBench dispatches the `ktx bench` namespace.
-//
-//	ktx bench                -> ktx bench --help (default)
-//	ktx bench run <a> <m> <t> -> run a benchmark (Task 4)
-//	ktx bench report         -> emit the headline (Task 5 stub)
-//
-// Future subcommands (ktx bench compare) are out of scope for the M3
-// plan and would land in a post-M3 cycle per the D2 subcommand-surface
-// decision (bench namespace shape: run/report/compare).
-func runBench(args []string, opts Options) int {
-	return runBenchWith(args, opts, os.Stdout, os.Stderr)
-}
-
+// runBenchWith is the testable core of `ktx bench` (Task 3 seam).
+// stdout/stderr are injected so the namespace dispatch flow can be
+// exercised without touching os.Stdout/Stderr. The body parses the
+// top-level bench flag set and dispatches to runBenchReport or
+// runBenchRun, returning the sub-handler's exit code directly.
 func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	var showHelp bool
 	fs := flag.NewFlagSet("ktx bench", flag.ContinueOnError)
@@ -117,6 +109,125 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub), opts.Format)
 		return ExitUsage
 	}
+}
+
+// benchCommandFunc is the dispatch wrapper for the bench namespace.
+// The dispatcher already parsed --help/-h; the verb's job is to look
+// at the positional tail and route to runBenchReport or runBenchRun,
+// converting their int exit code into the dispatcher's (any, error)
+// shape.
+//
+// Per the plan Task 6 hard constraint, runBenchReport and
+// runBenchReportImpl remain direct test seams — they open their own
+// database and parse their own flags. The top-level namespace
+// dispatcher is the only piece that registers via dispatch.Register;
+// the inner adapters stay callable directly so existing Task 3 tests
+// pass unchanged.
+//
+// Exit-code mapping: 0 → (nil, nil); non-zero → typed error. The
+// dispatcher's exitCodeOf recognises CodeUsage (1), CodeNotFound (2),
+// and CodeInternal (4) so the not-found envelope from bench report
+// (which is constructed via notFoundError inside runBenchReportImpl)
+// reaches the user with exit 2 instead of being collapsed to exit 4.
+func benchCommandFunc(ctx *DispatchContext) (any, error) {
+	// Re-parse --help/-h from ctx.Args. The dispatcher already
+	// consumed --help via the Help hook (renderHelp → printBenchHelp
+	// → exit 0) before invoking the verb, so this branch is
+	// defensive: it covers the rare case where the dispatcher's
+	// flag set ever stops consuming --help before the verb.
+	showHelp, rest := scanBenchHelp(ctx.Args)
+	if showHelp {
+		printBenchHelp(ctx.Stdout)
+		return nil, nil
+	}
+
+	if len(rest) == 0 {
+		printBenchHelp(ctx.Stdout)
+		return nil, nil
+	}
+
+	sub := rest[0]
+	tail := rest[1:]
+	opts := Options{Format: ctx.Format}
+
+	switch sub {
+	case "run":
+		return benchSubToErr("ktx bench run", runBenchRun(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "report":
+		return benchSubToErr("ktx bench report", runBenchReport(tail, opts, ctx.Stdout, ctx.Stderr))
+	default:
+		return nil, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub)
+	}
+}
+
+// scanBenchHelp strips --help/-h from args. The hand-rolled scan
+// matches the stdlib flag package's stop-at-first-non-flag behavior
+// for the top-level bench dispatch (so `ktx bench report --help`
+// routes --help to bench report, not to the bench namespace).
+func scanBenchHelp(args []string) (showHelp bool, rest []string) {
+	for _, a := range args {
+		switch a {
+		case "--help", "-h":
+			showHelp = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return showHelp, rest
+}
+
+// benchSubToErr converts an int exit code from a bench sub-handler
+// into the dispatcher's (any, error) shape. The mapping mirrors
+// runBenchReportImpl's typed-error contract: a usage error from
+// bench report surfaces as a typed *Error{CodeUsage} so the
+// dispatcher's exitCodeOf maps it to exit 1; not-found surfaces as
+// *Error{CodeNotFound} (exit 2); internal surfaces as
+// *Error{CodeInternal} (exit 4).
+//
+// Note on envelope rendering: the sub-handlers (runBenchReport,
+// runBenchRun) print their own error envelopes to stderr and return
+// the int exit code. The dispatcher's exitCodeOf only sees the
+// typed error returned here, so the dispatcher's printError is NOT
+// invoked on the dispatch path — the sub-handler's envelope is the
+// one that reaches the user. The sub-handler returns int not error,
+// so the dispatcher's printError path is bypassed entirely; only
+// exitCodeOf is consulted (via the typed error returned here). For
+// AC5 (empty bench_runs → exit 0), no envelope is printed; the
+// dispatcher's success path applies.
+func benchSubToErr(prefix string, code int) (any, error) {
+	switch code {
+	case ExitOK:
+		return nil, nil
+	case ExitUsage:
+		return nil, usageError("%s: usage error", prefix)
+	case ExitNotFound:
+		return nil, notFoundError("%s: not found", prefix)
+	case ExitInternal:
+		return nil, internalError("%s: internal error", prefix)
+	default:
+		return nil, internalError("%s: exit code %d", prefix, code)
+	}
+}
+
+// init registers `ktx bench` with the dispatch module. After init
+// runs, the verb is reachable through runWith (the legacy
+// commandIndex entry in cli.go is removed in Task 6).
+//
+// NeedsDB=false: the bench namespace dispatcher itself does not
+// touch the database; runBenchReport and runBenchRun each open
+// their own *dbpkg.DB via their existing dispatch adapter paths.
+// The inner functions remain direct test seams (runBenchReportImpl
+// takes a pre-opened DB; runBenchReport opens the DB on call).
+//
+// FormatDefault=FormatJSON: matches the plan Task 6 contract for
+// `ktx bench report`'s JSON default with --format text for humans.
+func init() {
+	Register("bench", RegisterOptions{
+		Description:   "benchmark namespace (run, report)",
+		NeedsDB:       false,
+		FormatDefault: FormatJSON,
+		Help:          printBenchHelp,
+	}, benchCommandFunc)
 }
 
 // runBenchReport is the plan Task 5 implementation. It replaces the

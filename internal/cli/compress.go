@@ -1,0 +1,302 @@
+// `ktx compress` — the M4 explicit-verb compression entry point
+// (Decisions 2, 8, 14 / ROADMAP M4). Reads a source tool_call by id,
+// runs the configured pipeline (identity when no ktx.toml is
+// present — D14 default), and persists a new row in the `compressed`
+// reversibility-layer table whose `source_id` references the
+// original tool_calls.id. Prints the new compressed id to stdout as
+// raw JSON (the I/O-primitive contract: no --format flag, raw JSON,
+// matching `ktx write` / `ktx read`).
+//
+// Flow:
+//
+//  1. Load ktx.toml (config.Load — precedence project-root > user-level >
+//     identity; the D14 no-config default yields an empty pipeline).
+//  2. Fetch the source tool_call by id (db.GetToolCall). Source-not-found
+//     maps to exit 2 (ErrNotFound → CodeNotFound).
+//  3. Build the pipeline Runner: RegisterBuiltins on a fresh Registry
+//     + the config's stage list + Warn=stderr (so unknown-stage
+//     skips surface to the user).
+//  4. runner.Run([]byte(source.Output)) — applies the linear pipeline
+//     with the three D14 conservative-on-failure invariants enforced
+//     at runtime (empty-output guard, stage-error passthrough,
+//     unknown-stage skip). Identity pipeline → output == input.
+//  5. Compute content_hash = db.ContentHash(compressedOutput) (D9
+//     integrity rule: hash the artifact that was stored, NOT the
+//     source output — so a downstream integrity check compares the
+//     hash of the persisted output against the persisted hash).
+//  6. Build pipeline JSON = pipeline.EncodePipelineJSON(res.Ran) — a
+//     record of what stages ran (D14).
+//  7. Generate a fresh 16-char nanoid for the compressed row (D3).
+//  8. db.InsertCompressed — the source_id FK is enforced
+//     (foreign_keys=1); a miss (should not happen here since step 2
+//     fetched the source) maps to ErrSourceNotFound → exit 2.
+//  9. Print the compressed id as raw JSON to stdout.
+//
+// Reversibility is captured at the pipeline BOUNDARY, not per stage
+// (D14): `ktx decompress <compressed-id>` resolves source_id and
+// returns the source's original output bytes verbatim regardless of
+// how many lossy stages ran. So compress(source) != source is
+// possible (a lossy stage changed the bytes) AND
+// decompress(compress(source)) == source holds (the original is
+// retained in tool_calls).
+//
+// Task 6 migration: the verb registers via dispatch.Register with
+// NeedsDB=true (dispatcher opens the DB) and PassthroughStdout=true
+// (verb writes raw JSON, no envelope wrapping). The legacy
+// runCompressWith remains the test seam and still opens its own DB
+// so the existing Task 1-5 tests' shape is preserved.
+package cli
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/jgabor/ktx/internal/config"
+	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/pipeline"
+	"github.com/jgabor/ktx/internal/pipeline/stages"
+)
+
+// runCompressWith is the testable core of `ktx compress` (Task 6
+// seam). stdout/stderr are injected so the compress flow can be
+// exercised without touching os.Stdout or os.Stderr. The body
+// opens the database, delegates to compressLogic with a nil
+// Registry (use the default built-in registry), and translates the
+// returned error into an exit-code + stderr envelope.
+func runCompressWith(args []string, opts Options, stdout, stderr io.Writer) int {
+	path, err := dbpkg.ResolvePath("")
+	if err != nil {
+		printError(stderr, internalError("ktx compress: resolve database path: %v", err), opts.Format)
+		return ExitInternal
+	}
+	db, err := dbpkg.Open(path)
+	if err != nil {
+		printError(stderr, internalError("ktx compress: open database: %v", err), opts.Format)
+		return ExitInternal
+	}
+	defer db.Close()
+
+	_, err = compressLogic(args, nil, db, stdout, stderr)
+	if err != nil {
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
+	}
+	return ExitOK
+}
+
+// compressLogic is the shared core of `ktx compress`. Both
+// runCompressWith (the test seam) and the dispatch wrapper
+// compressCommandFunc call it. The caller has already opened the
+// database.
+//
+// reg is the pipeline.Registry to resolve stage names against. A
+// nil reg means "build the default built-in registry" (RegisterBuiltins
+// on a fresh Registry). Tests inject a custom Registry to exercise
+// the conservative-on-failure invariants: a stage that errors, a
+// stage that panics, an unknown stage name. The dispatch path and
+// runCompressWith both pass nil; only the test-only direct calls
+// pass a non-nil reg.
+//
+// Returns (any, error) so the dispatcher can map the error envelope
+// through its own printError + exitCodeOf pipeline. The success
+// value is always nil today (the verb writes its own raw JSON to
+// stdout); the slot is reserved for future envelope-rendering verbs.
+func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, stderr io.Writer) (any, error) {
+	var showHelp bool
+	fs := flag.NewFlagSet("ktx compress", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.BoolVar(&showHelp, "help", false, "show help")
+	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
+
+	if err := fs.Parse(args); err != nil {
+		return nil, usageError("ktx compress: %v", err)
+	}
+	if showHelp {
+		printCompressHelp(stdout)
+		return nil, nil
+	}
+
+	rest := fs.Args()
+	if len(rest) == 0 {
+		return nil, usageError("ktx compress: missing required argument: <id>")
+	}
+	if len(rest) > 1 {
+		return nil, usageError("ktx compress: unexpected argument %q; ktx compress takes a single source id", rest[1])
+	}
+	sourceID := rest[0]
+
+	// Fetch the source tool_call. A session id resolves to
+	// ErrNotFound here (we use GetToolCall, not GetRecord) — the
+	// source MUST be a tool_call, since `compressed.source_id`
+	// REFERENCES tool_calls.id.
+	source, err := db.GetToolCall(sourceID)
+	if err != nil {
+		if errors.Is(err, dbpkg.ErrNotFound) {
+			return nil, notFoundError("ktx compress: source tool_call %q not found", sourceID)
+		}
+		return nil, internalError("ktx compress: get source: %v", err)
+	}
+
+	// Load ktx.toml. A missing config is the D14 identity default
+	// (empty stage list); a *ParseError maps to a usage error.
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, usageError("ktx compress: %v", err)
+	}
+
+	// Build the runner. A nil reg from the caller means "use the
+	// default built-in registry"; tests inject a custom reg to
+	// exercise the conservative-on-failure invariants.
+	runner := buildCompressRunner(reg, cfg, stderr)
+
+	// Run the pipeline. The runner owns the three D14 invariants;
+	// the result's Ran slice records which stages successfully
+	// executed (the compressed row's pipeline JSON).
+	res := runner.Run([]byte(source.Output))
+	compressedOutput := string(res.Out)
+
+	// Recompute content_hash from the COMPRESSED output (D9
+	// integrity rule: hash what was stored, not the source).
+	hash := dbpkg.ContentHash(compressedOutput)
+
+	// pipeline JSON — a record of what stages ran (D14).
+	pipeJSON := pipeline.EncodePipelineJSON(res.Ran)
+
+	// Generate a fresh nanoid for the compressed row (D3).
+	cid, err := dbpkg.NewID()
+	if err != nil {
+		return nil, internalError("ktx compress: generate id: %v", err)
+	}
+
+	c := &dbpkg.Compressed{
+		ID:          cid,
+		SourceID:    sourceID,
+		Output:      compressedOutput,
+		ContentHash: hash,
+		Pipeline:    pipeJSON,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if err := db.InsertCompressed(c); err != nil {
+		// ErrSourceNotFound wraps ErrNotFound and maps to exit 2.
+		// Should not normally fire here (we fetched the source in
+		// step 2), but a race between fetch and insert is
+		// theoretically possible on a connection without the FK
+		// pre-check; the typed error keeps the exit code honest.
+		if errors.Is(err, dbpkg.ErrSourceNotFound) {
+			return nil, notFoundError("ktx compress: source tool_call %q not found", sourceID)
+		}
+		return nil, internalError("ktx compress: persist compressed: %v", err)
+	}
+
+	// Print the new compressed id as raw JSON (I/O-primitive
+	// contract: no --format flag, raw JSON string on stdout).
+	printID(stdout, cid)
+	return nil, nil
+}
+
+// buildCompressRunner constructs the pipeline.Runner for `ktx compress`.
+// A nil reg builds a fresh Registry with the five built-in stages
+// registered (the D14 "OFF by default" contract: the stages exist
+// but do not run unless named in the config). A non-nil reg (test
+// injection) is used as-is so tests can substitute fake stages
+// without re-wiring the built-in registration. The runner's Warn
+// writer is set to stderr so unknown-stage skips and stage-error
+// pass-throughs surface to the user (the runner owns the warning
+// text; the verb just provides the sink).
+func buildCompressRunner(reg *pipeline.Registry, cfg *config.Config, stderr io.Writer) *pipeline.Runner {
+	if reg == nil {
+		reg = pipeline.NewRegistry()
+		stages.RegisterBuiltins(reg)
+	}
+	pipelineStages := []string{}
+	if cfg != nil {
+		pipelineStages = cfg.PipelineDefault
+	}
+	return &pipeline.Runner{
+		Registry: reg,
+		Pipeline: pipelineStages,
+		Warn:     stderr,
+	}
+}
+
+// compressCommandFunc is the dispatch wrapper. The dispatcher already
+// opened the DB (NeedsDB=true), parsed --help/--format, and exposed a
+// clean positional Args tail. The verb's only responsibility is to
+// apply compressLogic (with a nil Registry — the default built-in
+// stages) and surface the typed error to the dispatcher's printError
+// + exitCodeOf pipeline.
+func compressCommandFunc(ctx *DispatchContext) (any, error) {
+	return compressLogic(ctx.Args, nil, ctx.DB, ctx.Stdout, ctx.Stderr)
+}
+
+// init registers `ktx compress` with the dispatch module. After
+// init runs, the verb is reachable through runWith (the legacy
+// commandIndex in cli.go is empty; the dispatch registry is the
+// single source of truth).
+//
+// NeedsDB=true: compress reads a source tool_call and writes a
+// compressed row in one invocation.
+// PassthroughStdout=true: the verb writes the compressed id as raw
+// JSON (I/O primitive, D2/8). The dispatcher's printError still
+// goes to stderr on failure.
+func init() {
+	Register("compress", RegisterOptions{
+		Description:       "compress a tool_call's output (reversible via ktx decompress)",
+		NeedsDB:           true,
+		PassthroughStdout: true,
+		Help:              printCompressHelp,
+	}, compressCommandFunc)
+}
+
+// printCompressHelp writes the `ktx compress` help. Mirrors
+// `ktx write --help` / `ktx read --help` style so the I/O
+// primitives present consistently. Cross-references `ktx decompress`
+// (the reversal primitive) so users can discover the pair without
+// reading the design rationale (D2's --help cross-reference rule).
+func printCompressHelp(w io.Writer) {
+	fmt.Fprintln(w, "ktx compress — compress a tool_call's output (reversible)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Usage: ktx compress <id>")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Reads the source tool_call by id, runs the configured compression")
+	fmt.Fprintln(w, "pipeline (identity when no ktx.toml is present — the D14 default), and")
+	fmt.Fprintln(w, "persists a new row in the `compressed` table whose source_id references")
+	fmt.Fprintln(w, "the original. Prints the new compressed id to stdout as raw JSON.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Reversibility: ktx decompress <compressed-id> resolves source_id and")
+	fmt.Fprintln(w, "returns the source's original output bytes verbatim. Reversal is")
+	fmt.Fprintln(w, "out-of-band by id (D14), not per-stage; the original is retained in")
+	fmt.Fprintln(w, "tool_calls (append-only, D7+D9+D3). compress(source) may differ from")
+	fmt.Fprintln(w, "source when a lossy stage runs, but decompress(compress(x)) == x holds.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Pipeline configuration: ktx.toml at the project root or")
+	fmt.Fprintln(w, "$XDG_CONFIG_HOME/ktx/config.toml. Minimal shape:")
+	fmt.Fprintln(w, "  [pipeline.default]")
+	fmt.Fprintln(w, "  stages = [\"strip-ansi\", \"head:100\"]")
+	fmt.Fprintln(w, "Empty/missing config → identity pipeline (output == source.output).")
+	fmt.Fprintln(w, "Built-in stages: strip-ansi, dedup-blank, head (head:N), truncate")
+	fmt.Fprintln(w, "(truncate:N), normalize. Each OFF unless configured (D14).")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Conservative-on-failure (D14, runtime-enforced by the runner):")
+	fmt.Fprintln(w, "  - empty-output guard: a stage emptying non-empty output is discarded")
+	fmt.Fprintln(w, "  - stage-error passthrough: an errored or panicking stage passes input through")
+	fmt.Fprintln(w, "  - unknown-stage skip: an unresolved stage name is skipped with a warning")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Exit codes:")
+	fmt.Fprintln(w, "  0  compressed row persisted; id printed")
+	fmt.Fprintln(w, "  1  usage error (missing/invalid id, malformed ktx.toml)")
+	fmt.Fprintln(w, "  2  source tool_call not found")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Output: raw JSON (the new compressed id). No --format flag.")
+	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Related commands:")
+	fmt.Fprintln(w, "  ktx decompress  reverse a compression (return source output verbatim)")
+	fmt.Fprintln(w, "  ktx write        persist a tool_call record from sidecar input")
+	fmt.Fprintln(w, "  ktx read         fetch a persisted record by ID (raw JSON)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
+}

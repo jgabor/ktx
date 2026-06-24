@@ -1,14 +1,26 @@
 // Package db owns the ktx database: path resolution, ID generation, and
 // the on-disk SQLite schema.
 //
-// The database is a single SQLite file (Decision 6) with three tables
-// (Decision 7 + M3 plan Task 3): sessions (aggregate, INSERT on open +
-// UPDATE roll-up), tool_calls (append-only, INSERT only), and bench_runs
-// (M3 benchmark headline store; one row per `ktx bench run` invocation;
-// same nanoid-keyed shape as the other tables). IDs are 16-char lowercase
-// alpha nanoids (Decision 3). Content hashes are SHA-256 of the output
-// field, stored as a separate column for verification without being the
-// primary key (Decision 3).
+// The database is a single SQLite file (Decision 6) with four tables
+// (Decision 7 + M3 plan Task 3 + M4 plan Task 1): sessions (aggregate,
+// INSERT on open + UPDATE roll-up), tool_calls (append-only, INSERT
+// only), bench_runs (M3 benchmark headline store; one row per `ktx
+// bench run` invocation; same nanoid-keyed shape as the other tables),
+// and compressed (M4 reversibility layer; one row per `ktx compress`
+// invocation; references tool_calls.id via source_id FK). IDs are
+// 16-char lowercase alpha nanoids (Decision 3). Content hashes are
+// SHA-256 of the output field, stored as a separate column for
+// verification without being the primary key (Decision 3).
+//
+// The compressed table is the reversibility layer (Decision 14): it
+// holds compressed artifacts SEPARATE from tool_calls (which M3 bench
+// cost-aggregates — injecting zero-cost non-evidence rows would
+// corrupt the cost-summed evidence set). compressed.source_id
+// REFERENCES tool_calls(id); with foreign_keys=1 enforced by Open's
+// DSN, a compressed row cannot point at a non-existent tool_call.
+// `ktx decompress <id>` resolves source_id and returns the source's
+// original output bytes verbatim — reversal via retained originals at
+// the pipeline boundary, not per-stage inversion (D14).
 //
 // Dependencies are pinned here so the choice is explicit:
 //
@@ -107,6 +119,29 @@ var schemaStatements = []string{
 		methodology_version TEXT,
 		timestamp           INTEGER
 	)`,
+	// compressed (D14 reversibility layer): one row per `ktx compress`
+	// invocation. Holds compressed artifacts SEPARATE from tool_calls
+	// (M3 bench cost-aggregates tool_calls; injecting zero-cost
+	// non-evidence rows would corrupt the cost-summed evidence set).
+	// source_id REFERENCES tool_calls(id); foreign_keys=1 (enforced by
+	// Open's DSN) makes the FK meaningful. pipeline is a JSON array of
+	// stage names that ran (D14: "a record of what stages ran") — JSON
+	// is inspectable and trivially stored as TEXT. The 6-column shape
+	// mirrors the M4 plan Task 1 acceptance: id, source_id, output,
+	// content_hash, pipeline, timestamp.
+	`CREATE TABLE IF NOT EXISTS compressed (
+		id           TEXT PRIMARY KEY,
+		source_id    TEXT NOT NULL REFERENCES tool_calls(id),
+		output       TEXT,
+		content_hash TEXT,
+		pipeline     TEXT,
+		timestamp    TEXT
+	)`,
+	// compressed_source_id_idx accelerates `ktx decompress <id>`'s
+	// source_id lookup (the reversal primitive GetSourceOutput). The
+	// index is created idempotently alongside the table; re-open is a
+	// no-op via CREATE INDEX IF NOT EXISTS.
+	`CREATE INDEX IF NOT EXISTS compressed_source_id_idx ON compressed(source_id)`,
 }
 
 // m2Column enumerates a single M2 cost-publication column on tool_calls.
@@ -178,6 +213,43 @@ var benchRunsColumns = []benchRunsColumn{
 	{Name: "cost", Type: "REAL"},
 	{Name: "methodology_version", Type: "TEXT"},
 	{Name: "timestamp", Type: "INTEGER"},
+}
+
+// compressedColumn enumerates a single `compressed` table column. The
+// list drives both the CREATE TABLE above and the ALTER TABLE ADD
+// COLUMN loop in migrate() for pre-M4 databases (or partial compressed
+// schemas). Order matches the CREATE TABLE column order so doctor and
+// the partial-forward-fix path report missing columns in the order
+// they appear in the schema.
+//
+// `id TEXT PRIMARY KEY` is in this list for completeness — the CREATE
+// TABLE establishes the PRIMARY KEY, and the ALTER loop only adds `id`
+// when a partial compressed is missing the column entirely. SQLite's
+// ALTER TABLE ADD COLUMN cannot add a PRIMARY KEY constraint; in the
+// pathological case the added `id TEXT` is a non-PK column, degraded
+// but functional. The realistic forward-fix case is "table exists,
+// some non-PK columns missing", where `id` is already present and the
+// ALTER loop skips it — same contract as benchRunsColumns.
+type compressedColumn struct {
+	Name string
+	Type string
+}
+
+// compressedColumns are the 6 columns of the `compressed` table per
+// D14 / M4 plan Task 1: id (D3 nanoid), source_id (FK → tool_calls.id),
+// output (the compressed bytes), content_hash (SHA-256 of compressed
+// output, recomputed per D9 integrity rule), pipeline (JSON array of
+// stage names that ran), timestamp. Idempotency mirrors m2Columns and
+// benchRunsColumns — PRAGMA table_info is consulted before ALTER TABLE
+// ADD COLUMN, so a re-open of a fully migrated database is a no-op
+// and a partial compressed schema is forward-fixed on the next open.
+var compressedColumns = []compressedColumn{
+	{Name: "id", Type: "TEXT"},
+	{Name: "source_id", Type: "TEXT"},
+	{Name: "output", Type: "TEXT"},
+	{Name: "content_hash", Type: "TEXT"},
+	{Name: "pipeline", Type: "TEXT"},
+	{Name: "timestamp", Type: "TEXT"},
 }
 
 // DefaultPath resolves the default database path per Decision 8:
@@ -419,6 +491,16 @@ func tableColumns(q queryer, table string) (map[string]struct{}, error) {
 // tool_calls AND gets bench_runs created; a post-M2 pre-M3 database
 // gets bench_runs created with no work on tool_calls.
 //
+// The compressed migration (M4 plan Task 1) follows the same pattern
+// for the reversibility-layer table: the CREATE TABLE statement above
+// establishes the 6-column table on a fresh database or a pre-M4
+// database (no compressed at all); the ALTER TABLE ADD COLUMN loop
+// below forward-fixes a partial compressed schema on the next open.
+// The compressed loop is independent of the M2 and M3 loops — a pre-M4
+// database gets compressed created alongside whatever M2/M3 work the
+// same migrate call performs. A re-open of a fully migrated database
+// is a pure no-op.
+//
 // The column-existence check uses PRAGMA table_info inside the migration
 // transaction. PRAGMA table_info is a read query that returns one row per
 // column on the connected schema view; running it inside a transaction is
@@ -465,6 +547,20 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	haveComp, err := tableColumns(tx, "compressed")
+	if err != nil {
+		return fmt.Errorf("db: inspect compressed: %w", err)
+	}
+	for _, col := range compressedColumns {
+		if _, ok := haveComp[col.Name]; ok {
+			continue
+		}
+		stmt := "ALTER TABLE compressed ADD COLUMN " + col.Name + " " + col.Type
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("db: add compressed column %q: %w", col.Name, err)
+		}
+	}
+
 	return tx.Commit()
 }
 
@@ -482,4 +578,19 @@ func (d *DB) Close() error {
 		return nil
 	}
 	return d.db.Close()
+}
+
+// DB returns the underlying *sql.DB handle. Production callers should
+// prefer the typed methods on *DB (GetToolCall, PersistToolCall,
+// InsertCompressed, …); this escape hatch exists for failure-mode
+// tests that need to simulate out-of-band corruption (e.g. deleting a
+// source tool_call row with FKs temporarily disabled to verify the
+// compressed-row not-found path — D7 violation simulation). The
+// returned handle is the live pool; callers must not Close it (use
+// Close on the enclosing *DB instead).
+func (d *DB) DB() *sql.DB {
+	if d == nil {
+		return nil
+	}
+	return d.db
 }

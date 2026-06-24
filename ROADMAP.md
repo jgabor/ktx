@@ -30,11 +30,15 @@ A cost-per-correct-answer number is published for at least one agent on at least
 
 Done when: the number is reproducible from the published methodology.
 
+**Verified 2026-06-20** by tasks 1-6 (D12 methodology, bench_runs migration, ktx bench run, ktx bench report, M3 acceptance verification). Headline 0.000825 USD/correct for the methodology-pinned (opencode, claude-sonnet-4-20250514, addition_v1) triple; reproducible across two independent invocations. Pre-M3 databases self-heal (bench_runs created with all 10 columns on first M3-binary open). M2 regression preserved. Full verification log: `.agentera/verification/m3-acceptance.md`.
+
 ## M4 — Reversible compression
 
 Compressed outputs are always reversible to the original on demand.
 
 Done when: a compressed output can be retrieved as the original bytes via the public surface.
+
+**Verified 2026-06-24** by tasks 1-7 (compressed table migration, db persistence layer, pipeline runner + 5 built-in stages, hand-rolled TOML config loader, ktx compress + ktx decompress verbs, M4 acceptance verification). Identity path (no ktx.toml) verified end-to-end; configured-stage path (`head:5`) proves compress(source) != source AND decompress(compress(source)) == source verbatim. D14 conservative-on-failure invariants (empty-output guard, stage-error passthrough incl. panic recovery, unknown-stage skip) runtime-enforced by the pipeline runner. `ktx hook` bidirectional transform deferred to M5 (D14 explicit deferral); explicit-verb path alone satisfies the ROADMAP M4 acceptance criterion. M3 regression preserved (additive schema + verbs; no change to tool_calls/sessions/bench_runs shape or cost path). Full verification log: `.agentera/verification/m4-acceptance.md`.
 
 ## M5 — User-extensible compression
 

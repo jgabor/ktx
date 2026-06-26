@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/pipeline"
+	"github.com/jgabor/ktx/internal/pipeline/stages"
 )
 
 // compressTestDB opens a per-test KTX_DB database. Mirrors
@@ -71,6 +73,34 @@ func seedSource(t *testing.T, d *dbpkg.DB, toolCallID, sessionID, output string)
 		t.Fatalf("PersistToolCall: %v", err)
 	}
 }
+
+func seedSourceWithFailure(t *testing.T, d *dbpkg.DB, toolCallID, sessionID, output string, isError *bool, exitCode *int64) {
+	t.Helper()
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "test-agent",
+		StartedAt:  "2026-06-24T12:00:00Z",
+		LastSeenAt: "2026-06-24T12:00:00Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+	if err := d.PersistToolCall(&dbpkg.ToolCall{
+		ID:          toolCallID,
+		SessionID:   sessionID,
+		Tool:        "bash",
+		Input:       "ls",
+		Output:      output,
+		ContentHash: dbpkg.ContentHash(output),
+		Timestamp:   "2026-06-24T12:00:00Z",
+		EventType:   "tool_call",
+		IsError:     isError,
+		ExitCode:    exitCode,
+	}); err != nil {
+		t.Fatalf("PersistToolCall: %v", err)
+	}
+}
+
+func ptrBool(v bool) *bool { return &v }
 
 // noConfigEnv chdirs to a fresh tempdir and points XDG_CONFIG_HOME at
 // another fresh tempdir, so config.Load() resolves to the D14
@@ -397,5 +427,137 @@ func TestRunDecompressWith_Help(t *testing.T) {
 		if stderr.Len() != 0 {
 			t.Errorf("args=%v stderr should be empty, got %q", args, stderr.String())
 		}
+	}
+}
+
+// TestCompressLogic_SourceFailureGate covers D15 AC5: is_error=true with a
+// configured pipeline writes an identity row, stderr warning, prints id,
+// and decompress returns source output verbatim.
+func TestCompressLogic_SourceFailureGate(t *testing.T) {
+	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+	d := compressTestDB(t)
+	restore := chdir(t, t.TempDir())
+	defer restore()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeProjectConfig(t, `["head:5"]`)
+
+	const sourceOutput = "failed tool output\nline two\n"
+	seedSourceWithFailure(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput, ptrBool(true), nil)
+
+	var stdout, stderr bytes.Buffer
+	_, err := compressLogic([]string{"abcdefghijklmnop"}, nil, d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("compressLogic: %v", err)
+	}
+	if !strings.Contains(stderr.String(), sourceFailureWarning) {
+		t.Errorf("stderr missing source-failure warning: %q", stderr.String())
+	}
+	compressedID := decodeID(t, &stdout)
+
+	comp, err := d.GetCompressed(compressedID)
+	if err != nil {
+		t.Fatalf("GetCompressed: %v", err)
+	}
+	if comp.Output != sourceOutput {
+		t.Errorf("Output = %q, want identity %q", comp.Output, sourceOutput)
+	}
+	if comp.Pipeline != "[]" {
+		t.Errorf("Pipeline = %q, want \"[]\" (gate skipped pipeline)", comp.Pipeline)
+	}
+
+	var dstdout, dstderr bytes.Buffer
+	code := runDecompressWith([]string{compressedID}, Options{Format: FormatJSON}, &dstdout, &dstderr)
+	if code != ExitOK {
+		t.Fatalf("decompress exit = %d (stderr=%q)", code, dstderr.String())
+	}
+	if dstdout.String() != sourceOutput {
+		t.Errorf("decompress = %q, want source verbatim", dstdout.String())
+	}
+}
+
+// TestCompressLogic_SourceFailureGate_NoFire covers D15 AC6: nil or &false
+// is_error lets the pipeline run; no source-failure warning.
+func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
+	cases := []struct {
+		name    string
+		isError *bool
+	}{
+		{name: "absent nil", isError: nil},
+		{name: "explicit false", isError: ptrBool(false)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+			d := compressTestDB(t)
+			restore := chdir(t, t.TempDir())
+			defer restore()
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			writeProjectConfig(t, `["head:1"]`)
+
+			const sourceOutput = "line one\nline two\n"
+			seedSourceWithFailure(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput, tc.isError, nil)
+
+			var stdout, stderr bytes.Buffer
+			_, err := compressLogic([]string{"abcdefghijklmnop"}, nil, d, &stdout, &stderr)
+			if err != nil {
+				t.Fatalf("compressLogic: %v", err)
+			}
+			if strings.Contains(stderr.String(), sourceFailureWarning) {
+				t.Errorf("stderr must not contain source-failure warning: %q", stderr.String())
+			}
+			compressedID := decodeID(t, &stdout)
+			comp, err := d.GetCompressed(compressedID)
+			if err != nil {
+				t.Fatalf("GetCompressed: %v", err)
+			}
+			if comp.Output == sourceOutput {
+				t.Errorf("Output unchanged; head:1 should have truncated to one line")
+			}
+			if comp.Pipeline == "[]" {
+				t.Errorf("Pipeline = \"[]\"; stages should have run")
+			}
+		})
+	}
+}
+
+// TestCompressLogic_GateDistinctFromStageError covers D15 AC7: nil is_error
+// with a stage that errors exercises D14 passthrough, not the D15 gate.
+func TestCompressLogic_GateDistinctFromStageError(t *testing.T) {
+	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+	d := compressTestDB(t)
+	restore := chdir(t, t.TempDir())
+	defer restore()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeProjectConfig(t, `["head:0", "head:1"]`)
+
+	const sourceOutput = "line one\nline two\n"
+	seedSource(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput)
+
+	reg := pipeline.NewRegistry()
+	stages.RegisterBuiltins(reg)
+
+	var stdout, stderr bytes.Buffer
+	_, err := compressLogic([]string{"abcdefghijklmnop"}, reg, d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("compressLogic: %v", err)
+	}
+	if strings.Contains(stderr.String(), sourceFailureWarning) {
+		t.Errorf("D15 gate must not fire when is_error is nil: %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "head:0") {
+		t.Errorf("stderr missing D14 stage-error warning for head:0: %q", stderr.String())
+	}
+	compressedID := decodeID(t, &stdout)
+	comp, err := d.GetCompressed(compressedID)
+	if err != nil {
+		t.Fatalf("GetCompressed: %v", err)
+	}
+	want := "line one\n"
+	if comp.Output != want {
+		t.Errorf("Output = %q, want %q (head:1 ran after head:0 passthrough)", comp.Output, want)
+	}
+	if !strings.Contains(comp.Pipeline, "head:1") {
+		t.Errorf("Pipeline = %q, want head:1 recorded", comp.Pipeline)
 	}
 }

@@ -92,6 +92,8 @@ func buildToolCall(ev *parsedEvent) (*dbpkg.ToolCall, error) {
 		LatencyMs:   ev.LatencyMs,
 		Model:       ev.Model,
 		Provider:    ev.Provider,
+		ExitCode:    ev.ExitCode,
+		IsError:     ev.IsError,
 	}, nil
 }
 
@@ -124,6 +126,10 @@ type parsedEvent struct {
 	LatencyMs *int64
 	Model     *string
 	Provider  *string
+
+	// D15 failure-signal fields. nil = absent in the source event.
+	ExitCode *int64
+	IsError  *bool
 }
 
 // parseToolEvent returns (event, true) if line looks like a tool call,
@@ -209,6 +215,8 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 				ev.Cost = float64PtrFromRaw(md["cost"], md["cost_usd"])
 				ev.Model = stringPtrFromRaw(md["model"], md["model_id"])
 				ev.Provider = stringPtrFromRaw(md["provider"], md["provider_id"])
+				ev.ExitCode = int64PtrFromRaw(md["exit"])
+				ev.IsError = isErrorFromExitCode(ev.ExitCode)
 			}
 		}
 		_ = json.Unmarshal(top["timestamp"], &ev.Timestamp)
@@ -266,6 +274,11 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 	ev.Cost = float64PtrFromRaw(top["cost"], top["cost_usd"])
 	ev.Model = stringPtrFromRaw(top["model"], top["model_id"])
 	ev.Provider = stringPtrFromRaw(top["provider"], top["provider_id"])
+	ev.ExitCode = int64PtrFromRaw(top["exit_code"], top["exit"], top["code"])
+	ev.IsError = boolPtrFromRaw(top["is_error"], top["error"])
+	if ev.IsError == nil && ev.ExitCode != nil {
+		ev.IsError = isErrorFromExitCode(ev.ExitCode)
+	}
 	return ev, true
 }
 
@@ -344,6 +357,34 @@ func float64PtrFromRaw(values ...json.RawMessage) *float64 {
 		}
 	}
 	return nil
+}
+
+// boolPtrFromRaw returns the first non-empty RawMessage that parses as
+// a JSON boolean, as a pointer to bool. Empty input or non-boolean
+// content returns nil — the same 'missing field is not a parse
+// failure' rule as the other defensive reads.
+func boolPtrFromRaw(values ...json.RawMessage) *bool {
+	for _, v := range values {
+		if len(v) == 0 {
+			continue
+		}
+		var b bool
+		if err := json.Unmarshal(v, &b); err == nil {
+			return &b
+		}
+	}
+	return nil
+}
+
+// isErrorFromExitCode derives is_error from exit_code at parse time
+// (Decision 15 OpenCode mapping): present non-zero → &true, present
+// zero → &false, absent exit_code → nil.
+func isErrorFromExitCode(exitCode *int64) *bool {
+	if exitCode == nil {
+		return nil
+	}
+	b := *exitCode != 0
+	return &b
 }
 
 // stringPtrFromRaw returns the first non-empty RawMessage that parses

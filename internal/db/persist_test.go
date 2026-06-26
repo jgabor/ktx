@@ -889,6 +889,95 @@ func TestPersistMethods_EdgeCases(t *testing.T) {
 	})
 }
 
+// TestPersistToolCall_FailureSignalRoundTrip covers D15 AC2: exit_code
+// and is_error nullable pointers round-trip through PersistToolCall +
+// GetToolCall and JSON marshal with null/true/false/number semantics.
+func TestPersistToolCall_FailureSignalRoundTrip(t *testing.T) {
+	cases := []struct {
+		name     string
+		exitCode *int64
+		isError  *bool
+	}{
+		{name: "present nonzero failure", exitCode: ptrInt64(1), isError: ptrBool(true)},
+		{name: "present zero success", exitCode: ptrInt64(0), isError: ptrBool(false)},
+		{name: "absent both", exitCode: nil, isError: nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := OpenMemory()
+			if err != nil {
+				t.Fatalf("OpenMemory: %v", err)
+			}
+			t.Cleanup(func() { _ = d.Close() })
+
+			sessionID := mustNewID(t)
+			if err := d.InsertSession(&Session{
+				ID: sessionID, Agent: "test", StartedAt: "2026-06-26T00:00:00Z",
+				LastSeenAt: "2026-06-26T00:00:00Z",
+			}); err != nil {
+				t.Fatalf("InsertSession: %v", err)
+			}
+
+			tcID := mustNewID(t)
+			in := &ToolCall{
+				ID: tcID, SessionID: sessionID, Tool: "bash",
+				Input: "x", Output: "y", ContentHash: ContentHash("y"),
+				Timestamp: "2026-06-26T00:00:01Z", EventType: "tool_call",
+				ExitCode: tc.exitCode, IsError: tc.isError,
+			}
+			if err := d.PersistToolCall(in); err != nil {
+				t.Fatalf("PersistToolCall: %v", err)
+			}
+
+			got, err := d.GetToolCall(tcID)
+			if err != nil {
+				t.Fatalf("GetToolCall: %v", err)
+			}
+			if !int64PtrEqual(got.ExitCode, tc.exitCode) {
+				t.Errorf("ExitCode = %v, want %v", got.ExitCode, tc.exitCode)
+			}
+			if !boolPtrEqual(got.IsError, tc.isError) {
+				t.Errorf("IsError = %v, want %v", got.IsError, tc.isError)
+			}
+
+			b, err := json.Marshal(got)
+			if err != nil {
+				t.Fatalf("json.Marshal: %v", err)
+			}
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(b, &wire); err != nil {
+				t.Fatalf("json.Unmarshal wire: %v", err)
+			}
+			for _, key := range []string{"exit_code", "is_error"} {
+				if _, ok := wire[key]; !ok {
+					t.Errorf("JSON missing key %q (fields must not be omitted)", key)
+				}
+			}
+		})
+	}
+}
+
+func int64PtrEqual(a, b *int64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+func boolPtrEqual(a, b *bool) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 // --- test helpers ---
 
 // mustNewID is a t.Helper wrapper around NewID that calls t.Fatal on
@@ -909,6 +998,9 @@ func ptrInt64(v int64) *int64 { return &v }
 
 // ptrFloat64 returns a pointer to v.
 func ptrFloat64(v float64) *float64 { return &v }
+
+// ptrBool returns a pointer to v.
+func ptrBool(v bool) *bool { return &v }
 
 // ptrString returns a pointer to v.
 func ptrString(v string) *string { return &v }

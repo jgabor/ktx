@@ -60,6 +60,10 @@ import (
 	"github.com/jgabor/ktx/internal/pipeline/stages"
 )
 
+// sourceFailureWarning is emitted when the D15 pre-pipeline gate skips
+// compression because is_error is true on the source tool_call.
+const sourceFailureWarning = "ktx: warning: source tool_call indicates failure, compression skipped\n"
+
 // runCompressWith is the testable core of `ktx compress` (Task 6
 // seam). stdout/stderr are injected so the compress flow can be
 // exercised without touching os.Stdout or os.Stderr. The body
@@ -152,18 +156,29 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 	// exercise the conservative-on-failure invariants.
 	runner := buildCompressRunner(reg, cfg, stderr)
 
-	// Run the pipeline. The runner owns the three D14 invariants;
-	// the result's Ran slice records which stages successfully
-	// executed (the compressed row's pipeline JSON).
-	res := runner.Run([]byte(source.Output))
-	compressedOutput := string(res.Out)
+	var compressedOutput string
+	var pipeJSON string
+
+	// D15 pre-pipeline gate: when is_error is true, skip runner.Run
+	// and write an identity compressed row. Distinct from D14's
+	// in-pipeline invariants (empty-output guard, stage-error
+	// passthrough, unknown-stage skip).
+	if source.IsError != nil && *source.IsError {
+		fmt.Fprint(stderr, sourceFailureWarning)
+		compressedOutput = source.Output
+		pipeJSON = "[]"
+	} else {
+		// Run the pipeline. The runner owns the three D14 invariants;
+		// the result's Ran slice records which stages successfully
+		// executed (the compressed row's pipeline JSON).
+		res := runner.Run([]byte(source.Output))
+		compressedOutput = string(res.Out)
+		pipeJSON = pipeline.EncodePipelineJSON(res.Ran)
+	}
 
 	// Recompute content_hash from the COMPRESSED output (D9
 	// integrity rule: hash what was stored, not the source).
 	hash := dbpkg.ContentHash(compressedOutput)
-
-	// pipeline JSON — a record of what stages ran (D14).
-	pipeJSON := pipeline.EncodePipelineJSON(res.Ran)
 
 	// Generate a fresh nanoid for the compressed row (D3).
 	cid, err := dbpkg.NewID()

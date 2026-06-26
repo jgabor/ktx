@@ -240,7 +240,9 @@ func TestOpenWithoutMigration_PreM3Fixture(t *testing.T) {
 			cost         REAL,
 			latency_ms   INTEGER,
 			model        TEXT,
-			provider     TEXT
+			provider     TEXT,
+			exit_code    INTEGER,
+			is_error     INTEGER
 		)`); err != nil {
 			t.Fatalf("create tool_calls: %v", err)
 		}

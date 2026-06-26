@@ -487,3 +487,88 @@ func TestParseEvent_TimestampNormalisation(t *testing.T) {
 		}
 	})
 }
+
+// TestParseEvent_FailureSignal covers D15 AC3 (OpenCode metadata.exit)
+// and AC4 (flat-fallback defensive reads + derivation).
+func TestParseEvent_FailureSignal(t *testing.T) {
+	t.Run("AC3 OpenCode exit=1 → ExitCode=&1 IsError=&true", func(t *testing.T) {
+		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"err\n","metadata":{"exit":1}}}}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok {
+			t.Fatalf("ParseEvent returned (nil, false)")
+		}
+		if tc.ExitCode == nil || *tc.ExitCode != 1 {
+			t.Errorf("ExitCode = %v, want pointer to 1", tc.ExitCode)
+		}
+		if tc.IsError == nil || *tc.IsError != true {
+			t.Errorf("IsError = %v, want pointer to true", tc.IsError)
+		}
+	})
+
+	t.Run("AC3 OpenCode exit=0 → ExitCode=&0 IsError=&false", func(t *testing.T) {
+		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"ok\n","metadata":{"exit":0}}}}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok {
+			t.Fatalf("ParseEvent returned (nil, false)")
+		}
+		if tc.ExitCode == nil || *tc.ExitCode != 0 {
+			t.Errorf("ExitCode = %v, want pointer to 0", tc.ExitCode)
+		}
+		if tc.IsError == nil || *tc.IsError != false {
+			t.Errorf("IsError = %v, want pointer to false", tc.IsError)
+		}
+	})
+
+	t.Run("AC3 OpenCode no metadata.exit → both nil", func(t *testing.T) {
+		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"ok\n"}}}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok {
+			t.Fatalf("ParseEvent returned (nil, false)")
+		}
+		if tc.ExitCode != nil {
+			t.Errorf("ExitCode = %v, want nil", tc.ExitCode)
+		}
+		if tc.IsError != nil {
+			t.Errorf("IsError = %v, want nil", tc.IsError)
+		}
+	})
+
+	t.Run("AC4 flat exit_code=2 → ExitCode=&2 IsError=&true", func(t *testing.T) {
+		const payload = `{"tool":"bash","input":"x","output":"y","exit_code":2}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok {
+			t.Fatalf("ParseEvent returned (nil, false)")
+		}
+		if tc.ExitCode == nil || *tc.ExitCode != 2 {
+			t.Errorf("ExitCode = %v, want pointer to 2", tc.ExitCode)
+		}
+		if tc.IsError == nil || *tc.IsError != true {
+			t.Errorf("IsError = %v, want pointer to true", tc.IsError)
+		}
+	})
+
+	t.Run("AC4 flat is_error=true no exit_code → IsError=&true ExitCode=nil", func(t *testing.T) {
+		const payload = `{"tool":"bash","input":"x","output":"y","is_error":true}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok {
+			t.Fatalf("ParseEvent returned (nil, false)")
+		}
+		if tc.IsError == nil || *tc.IsError != true {
+			t.Errorf("IsError = %v, want pointer to true", tc.IsError)
+		}
+		if tc.ExitCode != nil {
+			t.Errorf("ExitCode = %v, want nil", tc.ExitCode)
+		}
+	})
+
+	t.Run("AC4 flat neither field → both nil", func(t *testing.T) {
+		const payload = `{"tool":"bash","input":"x","output":"y"}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok {
+			t.Fatalf("ParseEvent returned (nil, false)")
+		}
+		if tc.ExitCode != nil || tc.IsError != nil {
+			t.Errorf("ExitCode=%v IsError=%v, want nil nil", tc.ExitCode, tc.IsError)
+		}
+	})
+}

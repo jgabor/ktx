@@ -70,6 +70,14 @@ type ToolCall struct {
 	LatencyMs *int64   `json:"latency_ms"`
 	Model     *string  `json:"model"`
 	Provider  *string  `json:"provider"`
+
+	// Optional D15 failure-signal fields (persisted when present;
+	// NULL when absent; pointer types preserve the absent-vs-zero
+	// distinction through JSON and SQL round-trips). is_error is
+	// canonical for the compress pre-pipeline gate; exit_code is
+	// diagnostic only (Decision 15).
+	ExitCode *int64 `json:"exit_code"`
+	IsError  *bool  `json:"is_error"`
 }
 
 // Session is a row in the sessions table (Decision 7). The JSON tags mirror
@@ -211,10 +219,12 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 	_, err = tx.Exec(
 		`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
-			tokens_in, tokens_out, cost, latency_ms, model, provider
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			tokens_in, tokens_out, cost, latency_ms, model, provider,
+			exit_code, is_error
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
 		tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
+		tc.ExitCode, isErrorSQL(tc.IsError),
 	)
 	if err != nil {
 		tx.Rollback()
@@ -255,16 +265,20 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		latencyMs sql.NullInt64
 		model     sql.NullString
 		provider  sql.NullString
+		exitCode  sql.NullInt64
+		isError   sql.NullInt64
 	)
 	err := d.db.QueryRow(
 		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type,
-		        tokens_in, tokens_out, cost, latency_ms, model, provider
+		        tokens_in, tokens_out, cost, latency_ms, model, provider,
+		        exit_code, is_error
 		 FROM tool_calls WHERE id = ?`,
 		id,
 	).Scan(
 		&tc.ID, &tc.SessionID, &tc.Tool, &tc.Input, &tc.Output,
 		&tc.ContentHash, &tc.Timestamp, &tc.EventType,
 		&tokensIn, &tokensOut, &cost, &latencyMs, &model, &provider,
+		&exitCode, &isError,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -296,7 +310,27 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		v := provider.String
 		tc.Provider = &v
 	}
+	if exitCode.Valid {
+		v := exitCode.Int64
+		tc.ExitCode = &v
+	}
+	if isError.Valid {
+		v := isError.Int64 != 0
+		tc.IsError = &v
+	}
 	return &tc, nil
+}
+
+// isErrorSQL maps a nullable *bool to the INTEGER column value SQLite
+// expects: nil → SQL NULL, &false → 0, &true → 1 (Decision 15).
+func isErrorSQL(b *bool) any {
+	if b == nil {
+		return nil
+	}
+	if *b {
+		return int64(1)
+	}
+	return int64(0)
 }
 
 // GetSession fetches a session row by id. It returns ErrNotFound when no

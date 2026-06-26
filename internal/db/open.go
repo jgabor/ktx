@@ -105,7 +105,9 @@ var schemaStatements = []string{
 		cost         REAL,
 		latency_ms   INTEGER,
 		model        TEXT,
-		provider     TEXT
+		provider     TEXT,
+		exit_code    INTEGER,
+		is_error     INTEGER
 	)`,
 	`CREATE TABLE IF NOT EXISTS bench_runs (
 		id                  TEXT PRIMARY KEY,
@@ -172,6 +174,15 @@ var m2Columns = []m2Column{
 	{Name: "latency_ms", Type: "INTEGER"},
 	{Name: "model", Type: "TEXT"},
 	{Name: "provider", Type: "TEXT"},
+}
+
+// failureSignalColumns are the D15 failure-signal columns on
+// tool_calls (Decision 15). exit_code is diagnostic; is_error is the
+// canonical gating signal stored as INTEGER 0/1/NULL and converted to
+// *bool in GetToolCall. Idempotency mirrors m2Columns.
+var failureSignalColumns = []m2Column{
+	{Name: "exit_code", Type: "INTEGER"},
+	{Name: "is_error", Type: "INTEGER"},
 }
 
 // benchRunsColumn enumerates a single bench_runs column. The list is the
@@ -530,6 +541,16 @@ func migrate(db *sql.DB) error {
 		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("db: add m2 column %q: %w", col.Name, err)
+		}
+	}
+
+	for _, col := range failureSignalColumns {
+		if _, ok := have[col.Name]; ok {
+			continue
+		}
+		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("db: add failure-signal column %q: %w", col.Name, err)
 		}
 	}
 

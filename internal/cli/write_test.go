@@ -251,6 +251,61 @@ func TestRunWriteWith_SessionClose(t *testing.T) {
 	})
 }
 
+// TestRunWriteWith_FailureSignalFields covers D15 AC8: ktx write persists
+// exit_code and is_error from the sidecar payload; absent fields round-trip
+// as nil.
+func TestRunWriteWith_FailureSignalFields(t *testing.T) {
+	t.Run("is_error=true exit_code=127 round-trip", func(t *testing.T) {
+		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+		d, _ := writeTestDB(t)
+		preSeedSession(t, d, "zyxwvutsrqponmlk")
+
+		payload := `{"id":"abcdefghijklmnop","session_id":"zyxwvutsrqponmlk","tool":"bash","input":"x","output":"y","content_hash":"` +
+			dbpkg.ContentHash("y") + `","timestamp":"2026-06-26T12:00:00Z","event_type":"tool_call","is_error":true,"exit_code":127}`
+		stdin := bytes.NewBufferString(payload)
+		var stdout, stderr bytes.Buffer
+		code := runWriteWith(nil, Options{Format: FormatJSON}, stdin, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("exit = %d (stderr=%q)", code, stderr.String())
+		}
+
+		got, err := d.GetToolCall("abcdefghijklmnop")
+		if err != nil {
+			t.Fatalf("GetToolCall: %v", err)
+		}
+		if got.IsError == nil || *got.IsError != true {
+			t.Errorf("IsError = %v, want pointer to true", got.IsError)
+		}
+		if got.ExitCode == nil || *got.ExitCode != 127 {
+			t.Errorf("ExitCode = %v, want pointer to 127", got.ExitCode)
+		}
+	})
+
+	t.Run("without is_error or exit_code → nil nil", func(t *testing.T) {
+		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+		d, _ := writeTestDB(t)
+		preSeedSession(t, d, "zyxwvutsrqponmlk")
+
+		stdin := bytes.NewBufferString(validToolCallPayload(t))
+		var stdout, stderr bytes.Buffer
+		code := runWriteWith(nil, Options{Format: FormatJSON}, stdin, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("exit = %d (stderr=%q)", code, stderr.String())
+		}
+
+		got, err := d.GetToolCall("abcdefghijklmnop")
+		if err != nil {
+			t.Fatalf("GetToolCall: %v", err)
+		}
+		if got.IsError != nil {
+			t.Errorf("IsError = %v, want nil", got.IsError)
+		}
+		if got.ExitCode != nil {
+			t.Errorf("ExitCode = %v, want nil", got.ExitCode)
+		}
+	})
+}
+
 // TestRunWriteWith_Help covers the I/O-primitive's --help branch:
 // the subcommand-local flag set accepts -h/--help and exits 0.
 func TestRunWriteWith_Help(t *testing.T) {

@@ -58,11 +58,22 @@ import (
 	parserpkg "github.com/jgabor/ktx/internal/parser"
 )
 
-// benchMethodologyRelPath is the path of the methodology file relative
+// benchMethodologyRelPath is the path of the v1 methodology file relative
 // to the repo root (D12 path commitment). Bench run resolves the repo
 // root by walking up from CWD looking for `.agentera/`, then joins
-// this relative path.
+// this relative path. A --methodology flag on bench run selects a
+// different version via methodologyPathForVersion.
 const benchMethodologyRelPath = ".agentera/bench/methodology-v1.yaml"
+
+// methodologyPathForVersion returns the methodology file path for the
+// given version string. Empty version defaults to v1. A non-empty
+// version constructs .agentera/bench/methodology-<version>.yaml.
+func methodologyPathForVersion(version string) string {
+	if version == "" || version == "v1" {
+		return benchMethodologyRelPath
+	}
+	return fmt.Sprintf(".agentera/bench/methodology-%s.yaml", version)
+}
 
 // benchEpsilon is the division-by-zero guard from the methodology
 // formula (D12: `cost_per_correct = cost_USD / max(score, 1.0e-9)`).
@@ -628,7 +639,7 @@ type methodology struct {
 // shallow enough that a hand-rolled parser is more honest than pulling
 // in a YAML dependency (the M3 plan's "Go stdlib first, no new external
 // deps" rule).
-func loadMethodology() (*methodology, string, error) {
+func loadMethodology(version string) (*methodology, string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, "", fmt.Errorf("bench: getwd: %w", err)
@@ -637,10 +648,11 @@ func loadMethodology() (*methodology, string, error) {
 	if err != nil {
 		// The repo root is not found — surface the expected path so
 		// the user knows where ktx looked.
-		expected := filepath.Join(cwd, benchMethodologyRelPath)
+		expected := filepath.Join(cwd, methodologyPathForVersion(version))
 		return nil, expected, err
 	}
-	path := filepath.Join(root, benchMethodologyRelPath)
+	relPath := methodologyPathForVersion(version)
+	path := filepath.Join(root, relPath)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -920,7 +932,9 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var replaySessionID string
+	var methodologyVersion string
 	fs.StringVar(&replaySessionID, "replay", "", "replay a recorded session by session-id (D13 Tier 1 / D20); makes (agent, model, task) optional")
+	fs.StringVar(&methodologyVersion, "methodology", "", "methodology version (e.g., 'v1', 'v2-tooluse'); defaults to v1")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench run: %v", err), format)
 		return ExitUsage
@@ -945,7 +959,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	agentArg, modelArg, taskArg := rest[0], rest[1], rest[2]
 
-	_, m, exitCode := loadMethodologyOrFail(format, stderr)
+	_, m, exitCode := loadMethodologyOrFail(format, methodologyVersion, stderr)
 	if exitCode != ExitOK {
 		return exitCode
 	}
@@ -1224,8 +1238,8 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 // loadMethodologyOrFail wraps loadMethodology with the CLI error
 // envelope. Returns (path, methodology, exit_code). The exit code is
 // non-zero when load fails; the caller propagates it.
-func loadMethodologyOrFail(format string, stderr io.Writer) (string, *methodology, int) {
-	m, path, err := loadMethodology()
+func loadMethodologyOrFail(format, version string, stderr io.Writer) (string, *methodology, int) {
+	m, path, err := loadMethodology(version)
 	if err != nil {
 		switch err {
 		case dbpkg.ErrBenchMethodologyNotFound:

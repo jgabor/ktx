@@ -201,6 +201,27 @@ func (d *DB) HasBenchRunsTable() (bool, error) {
 	return name == "bench_runs", nil
 }
 
+// HasRecordedStreamsTable reports whether the recorded_streams table
+// exists in the database (D20 recording contract). Mirrors
+// HasBenchRunsTable's pattern: a missing table is NOT an error (it
+// signals a pre-D20 database that will self-heal on the next Open
+// via CREATE TABLE IF NOT EXISTS). The caller (runBenchReplay) maps
+// false → ExitNotFound with a 'pre-D20 database; run any ktx command
+// to apply the migration' message.
+func (d *DB) HasRecordedStreamsTable() (bool, error) {
+	var name string
+	err := d.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name='recorded_streams'`,
+	).Scan(&name)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect sqlite_master for recorded_streams: %w", err)
+	}
+	return name == "recorded_streams", nil
+}
+
 // HasBenchRunsColumns reports whether the bench_runs table carries every
 // expected column per D12's reproducibility contract. Returns
 // ([], nil) when every benchRunsSchema column is present, ([missing], nil)

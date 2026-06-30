@@ -55,6 +55,7 @@ import (
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	parserpkg "github.com/jgabor/ktx/internal/parser"
 )
 
 // benchMethodologyRelPath is the path of the methodology file relative
@@ -918,11 +919,26 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	fs := flag.NewFlagSet("ktx bench run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
+	var replaySessionID string
+	fs.StringVar(&replaySessionID, "replay", "", "replay a recorded session by session-id (D13 Tier 1 / D20); makes (agent, model, task) optional")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench run: %v", err), format)
 		return ExitUsage
 	}
 	rest = fs.Args()
+
+	// D20: --replay dispatches to the replay path before positional-arg
+	// validation. The flag REPLACES the positional-args source — the
+	// (agent, model, task) triple is read from the referenced
+	// bench_runs row, not from the CLI.
+	if replaySessionID != "" {
+		if len(rest) > 0 {
+			printError(stderr, usageError("ktx bench run --replay does not accept positional args; the (agent, model, task) triple is read from the referenced bench_runs row"), format)
+			return ExitUsage
+		}
+		return runBenchReplay(replaySessionID, opts, stdout, stderr, format)
+	}
+
 	if len(rest) != 3 {
 		printError(stderr, usageError("ktx bench run: usage: ktx bench run <agent> <model> <task>"), format)
 		return ExitUsage
@@ -1138,6 +1154,18 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: refetch bench_run: %v", err), format)
 		return ExitInternal
+	}
+
+	// D20 recording contract: persist the captured JSONL stream so
+	// `ktx bench run --replay <session-id>` can re-parse it later
+	// without re-invoking the agent. The capture is non-fatal: if it
+	// fails (e.g. FK rejection, disk full), a stderr warning is
+	// emitted and the bench run still exits 0 with the headline —
+	// --replay simply won't be available for this session.
+	// agentStdoutBytes was snapshotted at line 1049 before any
+	// scanner consumed the buffer; sessionID is from findWrapperSession.
+	if err := captureStreamForBenchRun(db, sessionID, persisted.ID, agentStdoutBytes); err != nil {
+		fmt.Fprintf(stderr, "ktx: warning: failed to record stream for --replay: %v\n", err)
 	}
 
 	// Compute the headline (D12). cost_per_correct = cost_USD /
@@ -1487,6 +1515,205 @@ func computeHeadline(cost *float64, score float64) float64 {
 	return *cost / denom
 }
 
+// runBenchReplay implements `ktx bench run --replay <session-id>` (D20
+// recording contract / D13 Tier 1). It loads the recorded JSONL stream
+// from recorded_streams by session_id, re-parses it through
+// parser.ParseEvent (parser_regression check), re-aggregates tokens/cost
+// via extractStreamMetrics (cost_drift check), and emits a JSON
+// consistency envelope comparing replay-derived metrics to the original
+// bench_runs row — with ZERO agent calls.
+//
+// Exit codes: 0 on PASS or DRIFT (drift is informational); 2 on
+// not-found (session-id has no recorded_streams row); 4 on internal
+// failure (FAIL consistency or database error).
+func runBenchReplay(sessionID string, opts Options, stdout, stderr io.Writer, format string) int {
+	path, err := dbpkg.ResolvePath("")
+	if err != nil {
+		printError(stderr, internalError("ktx bench run --replay: resolve database path: %v", err), format)
+		return ExitInternal
+	}
+	db, err := dbpkg.Open(path)
+	if err != nil {
+		printError(stderr, internalError("ktx bench run --replay: open database: %v", err), format)
+		return ExitInternal
+	}
+	defer db.Close()
+	return runBenchReplayImpl(db, sessionID, stdout, stderr, format)
+}
+
+// runBenchReplayImpl is the testable core of runBenchReplay. It takes
+// a pre-opened *dbpkg.DB so integration tests can seed an in-memory DB
+// and invoke the replay logic directly without filesystem or subprocess
+// overhead. The public runBenchReplay opens the DB and delegates here.
+func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer, format string) int {
+
+	// Pre-flight: verify recorded_streams table exists. A missing table
+	// signals a pre-D20 database; the user should run any ktx command to
+	// trigger the migration.
+	hasTable, err := db.HasRecordedStreamsTable()
+	if err != nil {
+		printError(stderr, internalError("ktx bench run --replay: recorded_streams check: %v", err), format)
+		return ExitInternal
+	}
+	if !hasTable {
+		printError(stderr, notFoundError("ktx bench run --replay: recorded_streams table is missing (pre-D20 database; run any ktx command to apply the migration)"), format)
+		return ExitNotFound
+	}
+
+	// Load the recorded stream by session_id (D13's public --replay arg).
+	rs, err := db.GetRecordedStreamBySession(sessionID)
+	if err != nil {
+		if errors.Is(err, dbpkg.ErrNotFound) {
+			printError(stderr, notFoundError("ktx bench run --replay: no recorded stream for session %q", sessionID), format)
+			return ExitNotFound
+		}
+		printError(stderr, internalError("ktx bench run --replay: load recorded stream: %v", err), format)
+		return ExitInternal
+	}
+
+	// Load the original session for tool_call_count (parser_regression
+	// check) and the original bench_runs row for comparison.
+	session, err := db.GetSession(rs.SessionID)
+	if err != nil {
+		printError(stderr, internalError("ktx bench run --replay: load session: %v", err), format)
+		return ExitInternal
+	}
+	originalBR, err := db.QueryBenchRun(rs.BenchRunID)
+	if err != nil {
+		printError(stderr, internalError("ktx bench run --replay: load bench_run: %v", err), format)
+		return ExitInternal
+	}
+
+	// (a) Stream integrity: recompute content_hash and compare.
+	recomputedHash := dbpkg.ContentHash(rs.StreamText)
+	integrityPass := recomputedHash == rs.ContentHash
+
+	// (b) Parser regression: re-parse stream_text through parser.ParseEvent
+	// and count tool_use events; compare to the original session's
+	// tool_call_count. Since parser.ParseEvent is pure and content_hash
+	// guarantees byte-identity, a mismatch can ONLY mean a parser code
+	// change between capture and replay.
+	replayedToolUseCount := 0
+	for _, line := range bytes.Split([]byte(rs.StreamText), []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		tc, ok := parserpkg.ParseEvent(line)
+		if ok && tc != nil {
+			replayedToolUseCount++
+		}
+	}
+	parserRegressionPass := int64(replayedToolUseCount) == session.ToolCallCount
+
+	// (c) Cost drift: re-aggregate tokens/cost via extractStreamMetrics
+	// and compare to the original bench_runs row.
+	streamMetrics := extractStreamMetrics([]byte(rs.StreamText))
+	costDriftDetected := false
+	var replayCost *float64
+	var replayTokensIn, replayTokensOut int64
+	if streamMetrics.hasData {
+		replayTokensIn = streamMetrics.tokensIn
+		replayTokensOut = streamMetrics.tokensOut
+		if streamMetrics.cost != nil {
+			v := *streamMetrics.cost
+			replayCost = &v
+		}
+	}
+	if originalBR.Cost != nil && replayCost != nil {
+		costDriftDetected = *originalBR.Cost != *replayCost
+	} else if originalBR.Cost != nil && replayCost == nil {
+		costDriftDetected = true
+	}
+
+	// Determine overall consistency.
+	consistency := "PASS"
+	if !integrityPass || !parserRegressionPass {
+		consistency = "FAIL"
+	} else if costDriftDetected {
+		consistency = "DRIFT"
+	}
+
+	// Build the output envelope.
+	envelope := map[string]any{
+		"replay": map[string]any{
+			"session_id":    rs.SessionID,
+			"bench_run_id":  rs.BenchRunID,
+			"stream_format": rs.StreamFormat,
+			"captured_at":   rs.CapturedAt,
+		},
+		"integrity":          map[string]any{"pass": integrityPass, "recomputed_hash": recomputedHash, "stored_hash": rs.ContentHash},
+		"parser_regression":  map[string]any{"pass": parserRegressionPass, "replayed_tool_use_count": replayedToolUseCount, "original_tool_call_count": session.ToolCallCount},
+		"original_bench_run": originalBR,
+		"consistency":        consistency,
+	}
+
+	if costDriftDetected {
+		delta := 0.0
+		if replayCost != nil && originalBR.Cost != nil {
+			delta = *replayCost - *originalBR.Cost
+		}
+		costDrift := map[string]any{
+			"detected":           true,
+			"replay_tokens_in":   replayTokensIn,
+			"original_tokens_in": originalBR.TokensIn,
+			"replay_tokens_out":   replayTokensOut,
+			"original_tokens_out": originalBR.TokensOut,
+			"replay_cost":         replayCost,
+			"original_cost":        originalBR.Cost,
+			"delta":                delta,
+		}
+		envelope["cost_drift"] = costDrift
+	} else {
+		envelope["cost_drift"] = map[string]any{"detected": false}
+	}
+
+	switch format {
+	case FormatText:
+		fmt.Fprintf(stdout, "replay: %s (integrity=%v, parser=%v, cost_drift=%v)\n",
+			consistency, integrityPass, parserRegressionPass, costDriftDetected)
+		fmt.Fprintf(stdout, "session_id: %s\n", rs.SessionID)
+		fmt.Fprintf(stdout, "bench_run_id: %s\n", rs.BenchRunID)
+		fmt.Fprintf(stdout, "replayed_tool_use_count: %d\n", replayedToolUseCount)
+		fmt.Fprintf(stdout, "original_tool_call_count: %d\n", session.ToolCallCount)
+	default:
+		if err := json.NewEncoder(stdout).Encode(envelope); err != nil {
+			printError(stderr, internalError("ktx bench run --replay: write JSON: %v", err), format)
+			return ExitInternal
+		}
+	}
+
+	if consistency == "FAIL" {
+		printError(stderr, internalError("ktx bench run --replay: consistency=FAIL (integrity=%v, parser_regression=%v)", integrityPass, parserRegressionPass), format)
+		return ExitInternal
+	}
+	return ExitOK
+}
+
+// captureStreamForBenchRun persists the captured JSONL stream into the
+// recorded_streams table (D20 recording contract). Called by runBenchRun
+// after InsertBenchRun and QueryBenchRun succeed, so bench_run_id and
+// session_id are both known-valid. The streamBytes are the agent's stdout
+// captured by runBenchRun (snapshotted before any scanner consumed the
+// buffer). Returns nil on success; the caller soft-fails on error (stderr
+// warning, bench run still exits 0).
+func captureStreamForBenchRun(db *dbpkg.DB, sessionID, benchRunID string, streamBytes []byte) error {
+	rsID, err := dbpkg.NewID()
+	if err != nil {
+		return fmt.Errorf("generate recorded_stream id: %w", err)
+	}
+	streamText := string(streamBytes)
+	rs := &dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   benchRunID,
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	return db.InsertRecordedStream(rs)
+}
+
 // printBenchHelp writes the `ktx bench --help` text. Mirrors the
 // help style of `ktx prices --help` and `ktx doctor --help`.
 func printBenchHelp(w io.Writer) {
@@ -1500,6 +1727,13 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      persist a bench_runs row with the headline number, and print")
 	fmt.Fprintln(w, "      the headline to stdout (JSON default) plus a one-line")
 	fmt.Fprintln(w, "      summary to stderr.")
+	fmt.Fprintln(w, "  run --replay <session-id>")
+	fmt.Fprintln(w, "      Replay a recorded session (D20 / D13 Tier 1): re-parse the")
+	fmt.Fprintln(w, "      recorded JSONL stream, re-aggregate tokens/cost, and emit a")
+	fmt.Fprintln(w, "      consistency headline comparing replay-derived metrics to the")
+	fmt.Fprintln(w, "      original bench_runs row. Zero agent calls (fast, free,")
+	fmt.Fprintln(w, "      deterministic). The session-id is queryable via")
+	fmt.Fprintln(w, "      `ktx list` or `ktx get <bench_run_id>`.")
 	fmt.Fprintln(w, "  report [<id>] [--methodology <version>] [--format text|json]")
 	fmt.Fprintln(w, "      Emit the headline from persisted bench_runs rows.")
 	fmt.Fprintln(w, "      Without <id>: list all rows in insertion order (oldest first);")

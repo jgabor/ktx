@@ -1,16 +1,20 @@
 // Package db owns the ktx database: path resolution, ID generation, and
 // the on-disk SQLite schema.
 //
-// The database is a single SQLite file (Decision 6) with four tables
-// (Decision 7 + M3 plan Task 3 + M4 plan Task 1): sessions (aggregate,
-// INSERT on open + UPDATE roll-up), tool_calls (append-only, INSERT
-// only), bench_runs (M3 benchmark headline store; one row per `ktx
-// bench run` invocation; same nanoid-keyed shape as the other tables),
-// and compressed (M4 reversibility layer; one row per `ktx compress`
-// invocation; references tool_calls.id via source_id FK). IDs are
-// 16-char lowercase alpha nanoids (Decision 3). Content hashes are
-// SHA-256 of the output field, stored as a separate column for
-// verification without being the primary key (Decision 3).
+// The database is a single SQLite file (Decision 6) with five tables
+// (Decision 7 + M3 plan Task 3 + M4 plan Task 1 + D20 recording
+// contract): sessions (aggregate, INSERT on open + UPDATE roll-up),
+// tool_calls (append-only, INSERT only), bench_runs (M3 benchmark
+// headline store; one row per `ktx bench run` invocation; same
+// nanoid-keyed shape as the other tables), compressed (M4
+// reversibility layer; one row per `ktx compress` invocation;
+// references tool_calls.id via source_id FK), and recorded_streams (D20
+// recording contract; one row per `ktx bench run` invocation; holds the
+// verbatim JSONL stream the agent emitted — the authoritative cost
+// evidence per D17; references sessions.id and bench_runs.id via two
+// NOT NULL FKs). IDs are 16-char lowercase alpha nanoids (Decision 3).
+// Content hashes are SHA-256 of the output field, stored as a separate
+// column for verification without being the primary key (Decision 3).
 //
 // The compressed table is the reversibility layer (Decision 14): it
 // holds compressed artifacts SEPARATE from tool_calls (which M3 bench
@@ -53,10 +57,11 @@ const (
 const sqliteDriver = "sqlite"
 
 // schemaStatements creates the ktx tables per Decision 7 plus the M3
-// bench_runs table (plan Task 3). The statements are idempotent (CREATE
-// TABLE IF NOT EXISTS), so Open runs them on every call without a migration
-// framework; a versioned migration layer is YAGNI for the three-table
-// M1/M2/M3 schema.
+// bench_runs table (plan Task 3), the M4 compressed table (plan Task 1),
+// and the D20 recorded_streams table. The statements are idempotent
+// (CREATE TABLE IF NOT EXISTS), so Open runs them on every call without
+// a migration framework; a versioned migration layer is YAGNI for the
+// five-table M1/M2/M3/M4/D20 schema.
 //
 // Column definitions match the task contract exactly: NOT NULL and DEFAULT
 // appear only where Decision 7/9 specify them (session_id, tool_call_count,
@@ -82,6 +87,19 @@ const sqliteDriver = "sqlite"
 // except `id` — the bench row is the persisted record, not a normalized
 // accounting row; NULL preserves "field not yet supplied by the runner"
 // without coercing zero values.
+//
+// The recorded_streams table (D20) stores one row per `ktx bench run`
+// invocation, paired 1:1 with a bench_runs row. It holds the verbatim
+// JSONL stream the agent emitted (the authoritative cost evidence per
+// D17 — OpenCode 1.17.8 emits tokens/cost/model on step_finish events
+// that the wrapper pipes through stdout but does NOT persist as
+// tool_call rows). session_id and bench_run_id are both NOT NULL FKs;
+// the table is the first persistent session-to-bench_run linkage
+// (bench_runs has no session_id column). No ALTER TABLE column add —
+// the CREATE TABLE IF NOT EXISTS alone handles the fresh-DB and pre-D20
+// self-heal paths (resolved judgment call 1: no partial-column-forward-
+// fix ALTER loop, per the user's decision to read D20's "no ALTER
+// TABLE" clause literally).
 var schemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS sessions (
 		id              TEXT PRIMARY KEY,
@@ -144,6 +162,37 @@ var schemaStatements = []string{
 	// index is created idempotently alongside the table; re-open is a
 	// no-op via CREATE INDEX IF NOT EXISTS.
 	`CREATE INDEX IF NOT EXISTS compressed_source_id_idx ON compressed(source_id)`,
+	// recorded_streams (D20 recording contract): one row per captured
+	// `ktx bench run` invocation. Holds the verbatim JSONL stream
+	// the agent emitted (the authoritative cost evidence per D17 —
+	// OpenCode 1.17.8 emits tokens/cost/model on step_finish events
+	// that the wrapper pipes through stdout but does NOT persist as
+	// tool_call rows). session_id and bench_run_id are both NOT NULL
+	// FKs; the table is the first persistent session-to-bench_run
+	// linkage (bench_runs has no session_id column). The 7-column
+	// shape follows the D14 compressed table template: id (D3
+	// nanoid), session_id FK, bench_run_id FK, stream_text (the
+	// verbatim JSONL), content_hash (D9 SHA-256 of stream_text),
+	// stream_format (metadata, e.g. 'opencode-jsonl-1'),
+	// captured_at (RFC3339Nano). Capture trigger is `ktx bench run`
+	// ONLY (runBenchRun); `ktx run` stays a D1 transparent proxy and
+	// does NOT persist the stream.
+	`CREATE TABLE IF NOT EXISTS recorded_streams (
+		id           TEXT PRIMARY KEY,
+		session_id   TEXT NOT NULL REFERENCES sessions(id),
+		bench_run_id TEXT NOT NULL REFERENCES bench_runs(id),
+		stream_text  TEXT,
+		content_hash TEXT,
+		stream_format TEXT,
+		captured_at  TEXT
+	)`,
+	// recorded_streams_session_id_idx accelerates the --replay
+	// <session-id> lookup (the D13 Tier 1 public arg per D20).
+	`CREATE INDEX IF NOT EXISTS recorded_streams_session_id_idx ON recorded_streams(session_id)`,
+	// recorded_streams_bench_run_id_idx accelerates the internal FK
+	// JOIN to bench_runs (used by --replay to load the original
+	// comparison row).
+	`CREATE INDEX IF NOT EXISTS recorded_streams_bench_run_id_idx ON recorded_streams(bench_run_id)`,
 }
 
 // m2Column enumerates a single M2 cost-publication column on tool_calls.
@@ -510,6 +559,16 @@ func tableColumns(q queryer, table string) (map[string]struct{}, error) {
 // The compressed loop is independent of the M2 and M3 loops — a pre-M4
 // database gets compressed created alongside whatever M2/M3 work the
 // same migrate call performs. A re-open of a fully migrated database
+// is a pure no-op.
+//
+// The recorded_streams migration (D20) follows the leaner pattern: the
+// CREATE TABLE IF NOT EXISTS statement above establishes the 7-column
+// table on a fresh database or a pre-D20 database (no recorded_streams
+// at all). No ALTER TABLE ADD COLUMN loop — per the resolved judgment
+// call 1, D20's "no ALTER TABLE" clause is read literally. The CREATE
+// TABLE IF NOT EXISTS alone handles the fresh-DB and pre-D20 self-heal
+// paths; a partial-recorded_streams schema is too pathological to
+// warrant defense-in-depth. A re-open of a fully migrated database
 // is a pure no-op.
 //
 // The column-existence check uses PRAGMA table_info inside the migration

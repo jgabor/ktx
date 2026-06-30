@@ -286,3 +286,207 @@ func TestRunBenchWith_Dispatch(t *testing.T) {
 		}
 	})
 }
+
+// TestCaptureStreamForBenchRun covers the D20 recording contract's
+// capture helper (plan Task 3). The helper persists a RecordedStream row
+// linked to a session + bench_run, with content_hash recomputed from
+// stream_text. The test seeds an in-memory DB with a session + bench_run,
+// calls the helper directly (no subprocess), and verifies the row
+// round-trips with all 7 columns populated and content_hash integrity.
+func TestCaptureStreamForBenchRun(t *testing.T) {
+	t.Run("persists recorded_streams row with correct content_hash", func(t *testing.T) {
+		d := benchTestDB(t)
+
+		// Seed session + bench_run so the FKs have valid targets.
+		sessionID := mustNewIDBench(t)
+		if err := d.InsertSession(&dbpkg.Session{
+			ID:         sessionID,
+			Agent:      "opencode",
+			StartedAt:  "2026-06-30T00:00:00Z",
+			LastSeenAt: "2026-06-30T00:00:00Z",
+		}); err != nil {
+			t.Fatalf("InsertSession: %v", err)
+		}
+		benchID := mustNewIDBench(t)
+		if err := d.InsertBenchRun(&dbpkg.BenchRun{
+			ID:                 benchID,
+			Agent:              "opencode",
+			Model:              "test-model",
+			Task:               "test-task",
+			Score:              1.0,
+			MethodologyVersion: "v1",
+			Timestamp:          1782834992,
+		}); err != nil {
+			t.Fatalf("InsertBenchRun: %v", err)
+		}
+
+		streamBytes := []byte(`{"type":"text","part":{"text":"4"}}`)
+		if err := captureStreamForBenchRun(d, sessionID, benchID, streamBytes); err != nil {
+			t.Fatalf("captureStreamForBenchRun: %v", err)
+		}
+
+		// Re-read via GetRecordedStreamBySession and verify all fields.
+		got, err := d.GetRecordedStreamBySession(sessionID)
+		if err != nil {
+			t.Fatalf("GetRecordedStreamBySession: %v", err)
+		}
+		if got.SessionID != sessionID {
+			t.Errorf("SessionID = %q, want %q", got.SessionID, sessionID)
+		}
+		if got.BenchRunID != benchID {
+			t.Errorf("BenchRunID = %q, want %q", got.BenchRunID, benchID)
+		}
+		if got.StreamText != string(streamBytes) {
+			t.Errorf("StreamText = %q, want %q", got.StreamText, string(streamBytes))
+		}
+		// content_hash must equal SHA-256 of stream_text (D9 integrity).
+		recomputed := dbpkg.ContentHash(got.StreamText)
+		if got.ContentHash != recomputed {
+			t.Errorf("ContentHash mismatch: persisted %q, recomputed %q", got.ContentHash, recomputed)
+		}
+		if got.StreamFormat != "opencode-jsonl-1" {
+			t.Errorf("StreamFormat = %q, want opencode-jsonl-1", got.StreamFormat)
+		}
+		if got.CapturedAt == "" {
+			t.Error("CapturedAt is empty; want RFC3339Nano timestamp")
+		}
+	})
+}
+
+// mustNewIDBench is the bench_test.go equivalent of mustNewID in
+// internal/db/persist_test.go — generates a D3 nanoid for test fixtures.
+func mustNewIDBench(t *testing.T) string {
+	t.Helper()
+	id, err := dbpkg.NewID()
+	if err != nil {
+		t.Fatalf("NewID: %v", err)
+	}
+	return id
+}
+
+// TestRunBenchReplay_Integration covers the D20 --replay codepath (plan
+// Tasks 4+5). Seeds an in-memory DB with a session + bench_runs row +
+// recorded_streams row whose stream_text is a known-good JSONL fixture,
+// then invokes runBenchReplay directly (NOT the runBenchRun wrapper;
+// the wrapper would spawn a subprocess). Asserts:
+//   - integrity=PASS (content_hash matches)
+//   - parser_regression=PASS (replayed tool_use count == seeded session.tool_call_count)
+//   - ZERO subprocess calls
+//   - exit code 0 on PASS
+func TestRunBenchReplay_Integration(t *testing.T) {
+	d := benchTestDB(t)
+
+	// Seed a session with tool_call_count=0 (the D16 fixture had 0
+	// tools — the model answered "4" without invoking any tools).
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "opencode",
+		StartedAt:  "2026-06-30T15:55:51Z",
+		LastSeenAt: "2026-06-30T15:55:51Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	// Seed a bench_runs row with the D16-evidence metrics.
+	benchID := mustNewIDBench(t)
+	originalCost := 0.002597825
+	if err := d.InsertBenchRun(&dbpkg.BenchRun{
+		ID:                 benchID,
+		Agent:              "neuralwatt/glm-5.2-short-fast-flex",
+		Model:              "glm-5.2-short-fast-flex",
+		Task:               "addition_v1",
+		Score:              1.0,
+		TokensIn:           41,
+		TokensOut:          2,
+		Cost:               &originalCost,
+		MethodologyVersion: "v1",
+		Timestamp:          1782834992,
+	}); err != nil {
+		t.Fatalf("InsertBenchRun: %v", err)
+	}
+
+	// Seed a recorded_streams row with a known-good JSONL stream.
+	// The stream has no tool_use events (the model answered directly).
+	streamText := `{"type":"step_start","part":{}}
+{"type":"text","part":{"text":"4"}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2},"cost":0.002597825,"model":"glm-5.2-short-fast-flex","provider":"neuralwatt"}}`
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   benchID,
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-06-30T15:56:32Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	// Call runBenchReplay directly via a test wrapper that accepts
+	// a pre-opened *dbpkg.DB. The public runBenchReplay opens its
+	// own DB from the path, so we test the replay LOGIC via a
+	// direct invocation pattern.
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+
+	// Decode the JSON consistency envelope.
+	var env struct {
+		Replay           map[string]any `json:"replay"`
+		Integrity        map[string]any `json:"integrity"`
+		ParserRegression map[string]any `json:"parser_regression"`
+		CostDrift        map[string]any `json:"cost_drift"`
+		Consistency      string         `json:"consistency"`
+	 OriginalBenchRun  json.RawMessage `json:"original_bench_run"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
+	}
+
+	// integrity=PASS: content_hash of stream_text matches stored hash.
+	integrityPass, _ := env.Integrity["pass"].(bool)
+	if !integrityPass {
+		t.Errorf("integrity.pass = false, want true; stored_hash=%v recomputed_hash=%v",
+			env.Integrity["stored_hash"], env.Integrity["recomputed_hash"])
+	}
+
+	// parser_regression=PASS: re-parsed tool_use count (0) matches
+	// the session's tool_call_count (0).
+	parserPass, _ := env.ParserRegression["pass"].(bool)
+	if !parserPass {
+		t.Errorf("parser_regression.pass = false, want true; replayed=%v original=%v",
+			env.ParserRegression["replayed_tool_use_count"],
+			env.ParserRegression["original_tool_call_count"])
+	}
+
+	// cost_drift: should be NONE (no drift) since the stream's
+	// step_finish.cost matches the original bench_runs.cost.
+	driftDetected, _ := env.CostDrift["detected"].(bool)
+	if driftDetected {
+		t.Errorf("cost_drift.detected = true, want false (stream cost matches original)")
+	}
+
+	// consistency=PASS.
+	if env.Consistency != "PASS" {
+		t.Errorf("consistency = %q, want PASS", env.Consistency)
+	}
+}
+
+// TestRunBenchReplay_NotFound covers the D4 not-found contract:
+// --replay with a session-id that has no recorded_streams row exits 2.
+func TestRunBenchReplay_NotFound(t *testing.T) {
+	d := benchTestDB(t)
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, "zzzzzzzzzzzzzzzz", &stdout, &stderr, FormatJSON)
+	if code != ExitNotFound {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitNotFound, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "not found") && !strings.Contains(stderr.String(), "no recorded stream") {
+		t.Errorf("stderr missing not-found message: %q", stderr.String())
+	}
+}

@@ -28,8 +28,8 @@ inputs:
     binary: opencode              # OpenCode 1.17.8 (M2 wrapper evidence)
     version: "1.17.8"
   model:
-    id: "claude-sonnet-4-20250514"  # Pinned by M3 plan Task 4
-    provider: "anthropic"            # Pinned by M3 plan Task 4
+    id: "glm-5.2-short-fast-flex"     # Re-pinned 2026-06-29 by resonera addendum (prior "claude-sonnet-4-20250514" was hallucinated by an earlier cycle, not a user choice; Anthropic model EOL on 2026-06-30)
+    provider: "neuralwatt"            # Re-pinned 2026-06-29 by resonera addendum
   task:
     identifier: "addition_v1"        # Pinned by M3 plan Task 4
     prompt: "What is 2+2?"

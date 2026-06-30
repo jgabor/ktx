@@ -392,6 +392,42 @@ func TestDispatch_FormatExtraction(t *testing.T) {
 			t.Errorf("ctx.Format = %v, want empty", captured)
 		}
 	})
+
+	// PassthroughStdout verbs (the run verb) forward --format to the
+	// child agent unchanged. The dispatcher must NOT steal --format from
+	// the verb's arg list. Regression for Decision 18: D16's invocation
+	// `ktx run opencode run --format json -m <m> <prompt>` failed end-to-
+	// end because extractFormat (flags.go:34) was consuming `--format
+	// json` from the verb's args before the agent saw it; this test
+	// asserts the fix (skip extractFormat when PassthroughStdout=true).
+	t.Run("PassthroughStdout preserves --format in ctx.Args", func(t *testing.T) {
+		var captured *DispatchContext
+		registerFor(t, "fmt_passthrough", RegisterOptions{PassthroughStdout: true},
+			captureVerb(t, "fmt_passthrough", RegisterOptions{PassthroughStdout: true}, &captured))
+		var stdout, stderr bytes.Buffer
+		args := []string{"opencode", "run", "--format", "json", "-m", "neuralwatt/glm-5.2-short-fast-flex", "What is 2+2?"}
+		code := runDispatch("fmt_passthrough", args, false, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+		}
+		if captured == nil {
+			t.Fatal("verb was not invoked")
+		}
+		// ctx.Args should match the input verbatim: --format is preserved.
+		want := args
+		if len(captured.Args) != len(want) {
+			t.Fatalf("ctx.Args length = %d, want %d (args=%v)", len(captured.Args), len(want), captured.Args)
+		}
+		for i, a := range want {
+			if captured.Args[i] != a {
+				t.Errorf("ctx.Args[%d] = %q, want %q", i, captured.Args[i], a)
+			}
+		}
+		// ctx.Format stays "" because extractFormat did not run.
+		if captured.Format != "" {
+			t.Errorf("ctx.Format = %q, want \"\" (extractFormat must be skipped for PassthroughStdout)", captured.Format)
+		}
+	})
 }
 
 // TestDispatch_PreParseError covers the PreParse failure path: a hook

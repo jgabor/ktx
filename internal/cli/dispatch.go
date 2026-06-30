@@ -232,7 +232,11 @@ func runDispatch(verb string, args []string, globalQuiet bool, stdout, stderr io
 // The pipeline is:
 //
 //  1. PreParse (optional) — verb-specific arg filter.
-//  2. extractFormat       — pull --format out of the remaining args.
+//  2. extractFormat       — pull --format out of the remaining args;
+//                           SKIPPED for verbs with PassthroughStdout=true
+//                           (the run verb): a passthrough verb forwards its
+//                           args including flags to a child agent, so
+//                           --format there belongs to the agent, not ktx.
 //  3. flag set            — --help/-h and --quiet/-q; everything else
 //                           is an error. --quiet/-q is consumed so
 //                           ctx.Args never sees it; the resolved
@@ -256,11 +260,19 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 		rest = parsed
 	}
 
-	// 2. extractFormat: pull --format out of rest.
+	// 2. extractFormat: pull --format out of rest. Skipped for verbs
+	// with PassthroughStdout=true (the run verb). A passthrough verb
+	// forwards its args to a child binary that owns its own --format
+	// (e.g. `opencode run --format json ...`); ktx must not steal it.
+	// For query verbs (get, list, bench, doctor) --format is ktx's own
+	// query-render flag and extractFormat continues to handle it in
+	// either position (per get_test.go:9, list_test.go:5).
 	formatStr := reg.opts.FormatDefault
-	if extracted, afterFormat := extractFormat(rest); extracted != "" {
-		formatStr = extracted
-		rest = afterFormat
+	if !reg.opts.PassthroughStdout {
+		if extracted, afterFormat := extractFormat(rest); extracted != "" {
+			formatStr = extracted
+			rest = afterFormat
+		}
 	}
 	if formatStr != "" && formatStr != FormatJSON && formatStr != FormatText {
 		printError(stderr, usageError("invalid --format %q: want %q or %q", formatStr, FormatJSON, FormatText), FormatJSON)

@@ -993,7 +993,8 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx bench run: resolve ktx binary: %v", err), format)
 		return ExitInternal
 	}
-	cmd := exec.Command(exe, "run", agentArg, m.TaskPrompt)
+	modelSpec := m.ModelProvider + "/" + m.ModelID
+	cmd := exec.Command(exe, "run", agentArg, "run", "--format", "json", "-m", modelSpec, m.TaskPrompt)
 	var agentStdout, agentStderr bytes.Buffer
 	cmd.Stdout = &agentStdout
 	cmd.Stderr = &agentStderr
@@ -1039,20 +1040,59 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx bench run: aggregate tool_calls: %v", err), format)
 		return ExitInternal
 	}
+	// Snapshot the agent's stdout BEFORE any scanner reads it.
+	// extractAgentOutput and extractStreamMetrics both consume the
+	// bytes via bufio.Scanner; a *bytes.Buffer's read offset advances
+	// to EOF on the first scan, so the second scanner would see
+	// no bytes. Snapshotting once keeps both extractions faithful to
+	// the captured stream.
+	agentStdoutBytes := agentStdout.Bytes()
+	streamMetrics := extractStreamMetrics(agentStdoutBytes)
+	// Per D17: OpenCode 1.17.8 step_finish carries tokens/cost on the
+	// stream's step-aggregate event, NOT on the tool_call rows the
+	// wrapper persists from tool_use events. SummarizeBenchToolCalls
+	// returns zeros / NULL in that gap; streamMetrics — when it has
+	// seen any step_finish events — is the authoritative fallback
+	// for filling the bench_runs row's tokens/cost fields.
+	if streamMetrics.hasData {
+		if tokensIn == 0 && streamMetrics.tokensIn > 0 {
+			tokensIn = streamMetrics.tokensIn
+		}
+		if tokensOut == 0 && streamMetrics.tokensOut > 0 {
+			tokensOut = streamMetrics.tokensOut
+		}
+		// streamMetrics.cost is the provider-reported cost on the
+		// stream (D17 L3 branch (a)); it wins over SummarizeBenchToolCalls'
+		// nil result. A non-nil provider cost does NOT override a
+		// non-nil tool_calls-aggregated cost — the per-row evidence
+		// is the stronger signal when present.
+		if sumCost == nil && streamMetrics.cost != nil {
+			v := *streamMetrics.cost
+			sumCost = &v
+		}
+	}
 	// Prefer the wrapper's tool_calls values when non-empty; fall
 	// back to the methodology-pinned model and the user-supplied
 	// agent name. The bench_runs row is the headline record, not a
 	// re-summary of the tool_calls.
 	if aggModel == "" {
-		aggModel = m.ModelID
+		if streamMetrics.model != "" {
+			aggModel = streamMetrics.model
+		} else {
+			aggModel = m.ModelID
+		}
 	}
 	if aggProvider == "" {
-		aggProvider = m.ModelProvider
+		if streamMetrics.provider != "" {
+			aggProvider = streamMetrics.provider
+		} else {
+			aggProvider = m.ModelProvider
+		}
 	}
 	_ = agentName // agentName is the wrapper's session.agent; not needed for the bench row.
 
 	// Score the agent's output. v1 = exact_match against expected.
-	actualOutput := extractAgentOutput(&agentStdout)
+	actualOutput := extractAgentOutput(agentStdoutBytes)
 	score := scoreExactMatch(actualOutput, m.TaskExpectedOutput)
 
 	// Build the BenchRun. The Cost pointer is populated from the
@@ -1220,14 +1260,26 @@ func findWrapperSession(db *dbpkg.DB, agentArg string, wrapperStart time.Time) (
 // The extractor handles two shapes:
 //
 //  1. JSONL events: each line is a JSON object with a "type" field.
-//     The last `text` event's "content" is the agent's response.
+//     For OpenCode 1.17.8 the answer lives at part.text on the final
+//     `text` event (see .agentera/verification/fixtures/opencode-tool-use.jsonl
+//     line 5: {"type":"text",...,"part":{"type":"text","text":...}}).
+//     The earlier top-level `content` alias is preserved as a
+//     fallback for the flat-fallback shape and for tests that
+//     pre-date the OpenCode fixture.
 //  2. Plain text: each line is just text. The last non-empty line
 //     is the agent's response.
 //
 // The agent's response is then compared against the methodology's
 // expected_output via exact_match scoring (v1).
-func extractAgentOutput(stdout *bytes.Buffer) string {
-	scanner := bufio.NewScanner(stdout)
+//
+// The input is a []byte snapshot taken before any scanner reads
+// the buffer; once a bufio.Scanner has advanced a *bytes.Buffer's
+// read offset to EOF, a second pass over the same buffer would see
+// no bytes. The caller therefore snapshots agentStdout.Bytes() once
+// and passes the snapshot to both extractAgentOutput and
+// extractStreamMetrics so neither call invalidates the other.
+func extractAgentOutput(stdout []byte) string {
+	scanner := bufio.NewScanner(bytes.NewReader(stdout))
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	var lastText string
 	var lastNonEmpty string
@@ -1244,8 +1296,25 @@ func extractAgentOutput(stdout *bytes.Buffer) string {
 			var eventType string
 			_ = json.Unmarshal(probe["type"], &eventType)
 			if eventType == "text" {
+				// OpenCode nests the answer under part.text;
+				// the flat-fallback shape uses top-level content.
 				var content string
-				if err := json.Unmarshal(probe["content"], &content); err == nil {
+				if raw := probe["content"]; len(raw) > 0 {
+					_ = json.Unmarshal(raw, &content)
+				}
+				if content == "" && len(probe["part"]) > 0 {
+					var part map[string]json.RawMessage
+					if err := json.Unmarshal(probe["part"], &part); err == nil {
+						for _, k := range []string{"text", "content"} {
+							if raw := part[k]; len(raw) > 0 {
+								if err := json.Unmarshal(raw, &content); err == nil && content != "" {
+									break
+								}
+							}
+						}
+					}
+				}
+				if content != "" {
 					lastText = content
 				}
 			}
@@ -1269,6 +1338,134 @@ func scoreExactMatch(actual, expected string) float64 {
 		return 1.0
 	}
 	return 0.0
+}
+
+// streamMetrics carries per-step-enrichment evidence extracted from
+// the captured JSONL stream that `ktx run` teed to bench run's
+// captured agent stdout. Per Decision 17: OpenCode 1.17.8 emits
+// tokens_in/tokens_out/cost/model on the step_finish event (a
+// step-aggregate), not on tool_use (per-tool). The wrapper persists
+// only tool_use events as tool_call rows, so those rows are
+// NULL-by-design against real OpenCode (see parser.go:150-158 and
+// .agentera/verification/m2-acceptance.md §3 'Surprises'). This
+// struct surfaces the stream-side evidence the D17-amended L2/L3
+// contract produced; bench run uses it to populate bench_runs row
+// fields that would otherwise stay 0/NULL via SummarizeBenchToolCalls.
+type streamMetrics struct {
+	tokensIn  int64
+	tokensOut int64
+	cost      *float64
+	model     string
+	provider  string
+	hasData   bool
+}
+
+// extractStreamMetrics parses the captured JSONL stream looking for
+// step_finish events (the OpenCode 1.17.8 step-aggregate). Returns
+// a streamMetrics populated with the SUM of tokens_in / tokens_out
+// over all step_finish lines; cost is the MAX provider-reported
+// part.cost across step_finish lines (matches the provider-cost
+// branch (a) of D17-amended L3); model is the methodology-pinned
+// model id when the stream does not carry a model identifier (the
+// step_finish event has no model field today, only part.cost and
+// part.tokens). provider is derived per the OpenCode runtime-known
+// default ("opencode") unless explicitly present on a step_finish
+// event (the parser also defaults to "opencode" for the same reason;
+// see parser.go:226-229).
+//
+// When the stream carries no step_finish events (e.g., a flat-
+// fallback runtime that emits only tool calls with tokens on
+// each), streamMetrics.hasData=false and the caller falls through
+// to the tool_calls-based aggregation path.
+//
+// The input is a []byte snapshot taken before any scanner reads the
+// buffer (see extractAgentOutput's doc for why — once a bufio.
+// Scanner consumes a *bytes.Buffer, the read offset is at EOF).
+func extractStreamMetrics(stdout []byte) streamMetrics {
+	var sm streamMetrics
+	scanner := bufio.NewScanner(bytes.NewReader(stdout))
+	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var top map[string]json.RawMessage
+		if err := json.Unmarshal(line, &top); err != nil {
+			continue
+		}
+		var eventType string
+		_ = json.Unmarshal(top["type"], &eventType)
+		if eventType != "step_finish" {
+			continue
+		}
+		// part.tokens.input / .output is the OpenCode 1.17.8 shape.
+		var part map[string]json.RawMessage
+		if err := json.Unmarshal(top["part"], &part); err != nil {
+			continue
+		}
+		sm.hasData = true
+		var tk struct {
+			Input  json.RawMessage `json:"input"`
+			Output json.RawMessage `json:"output"`
+		}
+		_ = json.Unmarshal(part["tokens"], &tk)
+		if n, ok := jsonNumberToInt64(tk.Input); ok {
+			sm.tokensIn += n
+		}
+		if n, ok := jsonNumberToInt64(tk.Output); ok {
+			sm.tokensOut += n
+		}
+		// part.cost: provider-reported cost in the stream (D17 L3 branch (a)).
+		// MAX across events keeps the largest reported cost (the
+		// last step_finish usually carries the total). cost=0 is a
+		// valid provider-reported value (e.g., cache hits) and is
+		// not an absent value; absent stays nil.
+		if raw := part["cost"]; len(raw) > 0 {
+			var c float64
+			if err := json.Unmarshal(raw, &c); err == nil {
+				if sm.cost == nil || c > *sm.cost {
+					v := c
+					sm.cost = &v
+				}
+			}
+		}
+		if raw := part["model"]; len(raw) > 0 {
+			var m string
+			if err := json.Unmarshal(raw, &m); err == nil && m != "" && sm.model == "" {
+				sm.model = m
+			}
+		}
+		if raw := part["provider"]; len(raw) > 0 {
+			var p string
+			if err := json.Unmarshal(raw, &p); err == nil && p != "" && sm.provider == "" {
+				sm.provider = p
+			}
+		}
+	}
+	return sm
+}
+
+// jsonNumberToInt64 coerces a json.RawMessage that's expected to be
+// numeric into an int64. JSON numbers can decode as float64 via the
+// default UnmarshalJSON; int64 values from OpenCode step_finish
+// tokens round-trip cleanly when the source emits them without
+// a fractional component (real OpenCode 1.17.8 emits integer
+// token counts). Returns (0, false) on parsing failure or non-
+// numeric input; the caller treats false as 'field absent'.
+func jsonNumberToInt64(raw json.RawMessage) (int64, bool) {
+	if len(raw) == 0 {
+		return 0, false
+	}
+	var i int64
+	if err := json.Unmarshal(raw, &i); err == nil {
+		return i, true
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err == nil {
+		return int64(f), true
+	}
+	return 0, false
 }
 
 // computeHeadline computes the D12 headline number:

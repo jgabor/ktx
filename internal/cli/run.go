@@ -217,7 +217,23 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	cmd := runCmd(ctx, agent, agentArgs...)
+	// runCommandFunc / runRunWith pass agentArgs that still includes the
+	// agent binary name at position 0 (filterKtxFlags returns ctx.Args
+	// unchanged when no quiet/help flags are present). exec.CommandContext
+	// already uses `agent` as argv[0]; if we also pass agentArgs[0] ==
+	// agent as the first variadic arg, Go's exec appends it as argv[1]
+	// and the child process receives a doubled agent name at the front
+	// of its argv. That broke `ktx run opencode run --format json ...`:
+	// opencode saw argv=[opencode, opencode, run, ...], treated the
+	// doubled "opencode" as the default `[project]` positional, and
+	// emitted its top-level help instead of running the `run` subcommand.
+	// Strip the leading agent name defensively so executeRun works
+	// regardless of which caller hands it the args slice.
+	agentArgsTail := agentArgs
+	if len(agentArgsTail) > 0 && agentArgsTail[0] == agent {
+		agentArgsTail = agentArgsTail[1:]
+	}
+	cmd := runCmd(ctx, agent, agentArgsTail...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), "KTX_SESSION_ID="+sessionID)

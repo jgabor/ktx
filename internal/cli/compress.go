@@ -132,58 +132,57 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 	}
 	sourceID := rest[0]
 
-	// Fetch the source tool_call. A session id resolves to
-	// ErrNotFound here (we use GetToolCall, not GetRecord) — the
-	// source MUST be a tool_call, since `compressed.source_id`
-	// REFERENCES tool_calls.id.
+	cid, _, _, err := compressCore(sourceID, reg, db, stderr)
+	if err != nil {
+		return nil, err
+	}
+	printID(stdout, cid)
+	return nil, nil
+}
+
+// compressCore is the shared pipeline+persist core used by both
+// `ktx compress` (via compressLogic) and `ktx hook` (via hookLogic).
+// It fetches the source tool_call by id, loads ktx.toml, runs the
+// D14 pipeline (with D15 pre-pipeline gate), persists a compressed
+// row, and returns the compressed id, output bytes, pipeline JSON,
+// and any error. The caller decides what to do with the return
+// values: `ktx compress` prints the id to stdout; `ktx hook`
+// formats them into the JSON envelope.
+//
+// reg is the pipeline.Registry to resolve stage names against. A
+// nil reg means "build the default built-in registry" (RegisterBuiltins
+// on a fresh Registry + external plugins from config).
+func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr io.Writer) (compressedID, compressedOutput, pipelineJSON string, err error) {
 	source, err := db.GetToolCall(sourceID)
 	if err != nil {
 		if errors.Is(err, dbpkg.ErrNotFound) {
-			return nil, notFoundError("ktx compress: source tool_call %q not found", sourceID)
+			return "", "", "", notFoundError("source tool_call %q not found", sourceID)
 		}
-		return nil, internalError("ktx compress: get source: %v", err)
+		return "", "", "", internalError("get source: %v", err)
 	}
 
-	// Load ktx.toml. A missing config is the D14 identity default
-	// (empty stage list); a *ParseError maps to a usage error.
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, usageError("ktx compress: %v", err)
+		return "", "", "", usageError("%v", err)
 	}
 
-	// Build the runner. A nil reg from the caller means "use the
-	// default built-in registry"; tests inject a custom reg to
-	// exercise the conservative-on-failure invariants.
 	runner := buildCompressRunner(reg, cfg, stderr)
 
-	var compressedOutput string
-	var pipeJSON string
-
-	// D15 pre-pipeline gate: when is_error is true, skip runner.Run
-	// and write an identity compressed row. Distinct from D14's
-	// in-pipeline invariants (empty-output guard, stage-error
-	// passthrough, unknown-stage skip).
 	if source.IsError != nil && *source.IsError {
 		fmt.Fprint(stderr, sourceFailureWarning)
 		compressedOutput = source.Output
-		pipeJSON = "[]"
+		pipelineJSON = "[]"
 	} else {
-		// Run the pipeline. The runner owns the three D14 invariants;
-		// the result's Ran slice records which stages successfully
-		// executed (the compressed row's pipeline JSON).
 		res := runner.Run([]byte(source.Output))
 		compressedOutput = string(res.Out)
-		pipeJSON = pipeline.EncodePipelineJSON(res.Ran)
+		pipelineJSON = pipeline.EncodePipelineJSON(res.Ran)
 	}
 
-	// Recompute content_hash from the COMPRESSED output (D9
-	// integrity rule: hash what was stored, not the source).
 	hash := dbpkg.ContentHash(compressedOutput)
 
-	// Generate a fresh nanoid for the compressed row (D3).
 	cid, err := dbpkg.NewID()
 	if err != nil {
-		return nil, internalError("ktx compress: generate id: %v", err)
+		return "", "", "", internalError("generate id: %v", err)
 	}
 
 	c := &dbpkg.Compressed{
@@ -191,25 +190,17 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 		SourceID:    sourceID,
 		Output:      compressedOutput,
 		ContentHash: hash,
-		Pipeline:    pipeJSON,
+		Pipeline:    pipelineJSON,
 		Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	if err := db.InsertCompressed(c); err != nil {
-		// ErrSourceNotFound wraps ErrNotFound and maps to exit 2.
-		// Should not normally fire here (we fetched the source in
-		// step 2), but a race between fetch and insert is
-		// theoretically possible on a connection without the FK
-		// pre-check; the typed error keeps the exit code honest.
 		if errors.Is(err, dbpkg.ErrSourceNotFound) {
-			return nil, notFoundError("ktx compress: source tool_call %q not found", sourceID)
+			return "", "", "", notFoundError("source tool_call %q not found", sourceID)
 		}
-		return nil, internalError("ktx compress: persist compressed: %v", err)
+		return "", "", "", internalError("persist compressed: %v", err)
 	}
 
-	// Print the new compressed id as raw JSON (I/O-primitive
-	// contract: no --format flag, raw JSON string on stdout).
-	printID(stdout, cid)
-	return nil, nil
+	return cid, compressedOutput, pipelineJSON, nil
 }
 
 // buildCompressRunner constructs the pipeline.Runner for `ktx compress`.

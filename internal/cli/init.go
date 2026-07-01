@@ -90,34 +90,31 @@ func initScratchReset() {
 // platforms; the version bump on the Go side automatically refreshes
 // the installed file when users re-run `ktx init opencode`.
 //
-// Behaviour:
-//   - Listens on `tool.execute.after` (the only event in scope for M1–M3;
-//     `tool.execute.before` is deferred to M4 for compression).
-//   - Noops when KTX_SESSION_ID is present (D10 dedup): when the user is
-//     also running the agent under `ktx run`, the wrapper owns persistence
-//     and the plugin would otherwise double-record.
-//   - Pipes a flat JSON tool_call payload (D9) to `ktx write` via
-//     Bun.spawn with a ReadableStream stdin. The earlier version used
-//     Bun's `$` template literal with .stdin(), but that method does
-//     not exist on ShellPromise in Bun 1.3.x. Bun.spawn with a
-//     ReadableStream is the reliable cross-version way to pipe JSON
-//     into a sibling binary's stdin.
-//   - `session_id` is left empty so ktx write resolves session
-//     identity by ppid file lookup (Decision 1 revised, hook path).
-//   - `content_hash` is left empty so ktx write can compute it (D3: SHA-256
-//     of output) — the plugin avoids re-implementing hash logic in TS.
+// Behaviour (D22, firm):
+//   - Listens on `tool.execute.after` and calls `ktx hook` (not `ktx
+//     write`) via Bun.spawn with stdin = D9 flat JSON tool_call.
+//   - `ktx hook` persists the original and returns a JSON envelope:
+//     {"output": string, "compressed_id": string|null, "source_id": string}.
+//   - The plugin mutates `output.output` to the envelope's `output`
+//     field (the compressed bytes the agent sees). Empirically confirmed
+//     (2026-07-01): output.output mutation propagates to the agent context.
+//   - On any ktx hook failure (non-zero exit, unparseable stdout,
+//     ktx-not-in-PATH), the plugin leaves output.output unchanged —
+//     D14 conservative failure at the plugin level.
+//   - Noops when KTX_SESSION_ID is present (D10 dedup): when the user
+//     is also running the agent under `ktx run`, the wrapper owns
+//     persistence and the plugin would otherwise double-record.
+//   - `session_id` is left empty so ktx hook resolves session identity
+//     by ppid file lookup (Decision 1 revised, hook path).
+//   - `content_hash` is left empty so ktx hook can compute it (D3).
 //   - Generates a fresh 16-char lowercase alpha nanoid matching the
-//     alphabet of Decision 3. Uses crypto.getRandomValues for randomness
-//     and indexes into the alphabet. Modulo bias is real (letters w-z
-//     map to 9 byte values each, a-v map to 10) but the entropy cost is
-//     negligible (~0.02 bits per ID below the 75.20-bit ideal) for PoC
-//     scope. (Bun's crypto.randomUUID produces hex, which violates D3.)
+//     alphabet of Decision 3.
 //
 // Presence check (rtk pattern): the plugin factory verifies the ktx
 // binary is in PATH before registering the tool.execute.after hook. If
 // ktx is missing, no hooks are registered and a one-line warn makes
 // the disabled state visible — without this, every tool call would
-// pay a `ktx write` spawn cost and silently drop its payload.
+// pay a `ktx hook` spawn cost and silently drop its payload.
 const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
 
 const KTX_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz"
@@ -129,25 +126,44 @@ const ktxGenerateID = (): string => {
   return id
 }
 
-const ktxWrite = async (payload: string): Promise<void> => {
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode(payload))
-      controller.close()
-    },
-  })
-  const proc = Bun.spawn(["ktx", "write"], {
-    stdin: stream,
-    stdout: "ignore",
-    stderr: "ignore",
-  })
-  await proc.exited
+interface KtxEnvelope {
+  output: string
+  compressed_id: string | null
+  source_id: string
+}
+
+const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
+  try {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(payload))
+        controller.close()
+      },
+    })
+    const proc = Bun.spawn(["ktx", "hook"], {
+      stdin: stream,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    if (exitCode !== 0) {
+      console.error("[ktx] hook failed (exit " + exitCode + "): " + stderr.trim())
+      return null
+    }
+    return JSON.parse(stdout) as KtxEnvelope
+  } catch (e) {
+    console.error("[ktx] hook error: " + String(e))
+    return null
+  }
 }
 
 const KtxPlugin: Plugin = async ({ $ }) => {
   // Verify ktx is in PATH before registering the hook; otherwise every
-  // tool call would pay a ktx write spawn cost and silently noop.
-  // The warn fires once per plugin load, not per event.
+  // tool call would pay a ktx hook spawn cost and silently noop.
   try {
     await $` + "`which ktx`" + `.quiet()
   } catch {
@@ -162,7 +178,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 
       const toolName = input.tool || "unknown"
       const toolInput = JSON.stringify(input.args || {})
-      const toolOutput = typeof output === "string" ? output : JSON.stringify(output)
+      const toolOutput = typeof output === "string" ? output : (output?.output ?? JSON.stringify(output))
 
       const record = {
         id: ktxGenerateID(),
@@ -174,7 +190,16 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         timestamp: new Date().toISOString(),
       }
 
-      await ktxWrite(JSON.stringify(record))
+      const envelope = await ktxHook(JSON.stringify(record))
+      if (envelope) {
+        // Mutate output.output to the compressed bytes (D22).
+        // The agent sees the compressed output instead of the original.
+        if (output && typeof output === "object" && "output" in output) {
+          output.output = envelope.output
+        }
+      }
+      // On failure (envelope === null), output is left unchanged.
+      // The agent sees the original tool output (D14 conservative failure).
     },
   }
 }

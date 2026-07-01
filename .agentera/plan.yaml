@@ -1,103 +1,76 @@
 header:
   level: full
   created: "2026-07-01"
-  status: active
+  status: complete
   reviewed: "2026-07-01"
-  critic_issues: "7 found, 7 addressed, 0 dismissed"
-  title: "M5 — User-extensible compression: ktx plugin + ktx config show + external Builder (D21)"
-what: "Implement M5 per D21. (1) Replace internal/config's hand-rolled M4 reader with BurntSushi/toml (the D5-approved dep config.go:38-46 anticipates for M5); add [[plugin]] array-of-tables with name/command/description. (2) Add external shell-macro Stage Builder to internal/pipeline: spawns configured command with stdin/stdout bytes; D14 invariants extend to subprocess stages. (3) New ktx plugin add/list/remove verbs (structured editor over ktx.toml [[plugin]] blocks; unified list view of builtins + user plugins). (4) New ktx config show --json verb (active-pipeline read separated from plugin CRUD per SOLID). (5) M5 acceptance verification. (6) Documentation sync per AGENTS.md."
-why: "M5 ROADMAP acceptance: 'a user can supply a configuration that extends or replaces the default compression behavior, and the extension takes effect without code changes.' D21 reframed the registry as agent-native CLI discipline — agents call --json, never author TOML by hand, avoiding hallucinations and malformed arrays. Realises AGENTS.md agent-native CLI principles (structured bounded I/O, self-correcting usability, schema-first) without violating D5 single-source-of-truth or D2 CRUD-vs-init verb split. M4 left every seam: config.go:38-46 anticipates BurntSushi; pipeline.go:143 RegisterBuilder is process-agnostic; stages.go:36 names the ktx plugin add path; cli.go:130-143 dispatch.Register is the verb seam."
-constraints: "All firm decisions stand (D1, D2, D5, D7, D9, D11, D14, D15, D20). BurntSushi/toml is the one D5-approved new dep. Pure-Go SQLite (pinned). D14 conservative-on-failure invariants extend to external subprocess stages: empty-output guard, stage-error passthrough (non-zero exit, segfault recovered), unknown-stage skip; timeout deferred. D5 prohibitions: no compiled Go plugins, no DSL, no ML in core (ML compression stays behind the router as a user-configured shell-macro plugin per AGENTS.md 'router wins, algorithm loses'). D15 pre-pipeline identity-row gate fires for M5 external-stage pipelines as in M4. M4 regression byte-identical: no ktx.toml = identity; built-in-only stages produce m4-acceptance.md-identical bytes."
+  critic_issues: "4 found, 4 addressed, 0 dismissed"
+  title: "ktx hook — in-flight compression plumbing verification (D22 Phase 1)"
+what: "Implement ktx hook as a new flat verb that reads a D9 flat JSON tool_call from stdin, persists the original via the shared internal/db.PersistToolCall code path, runs the D14 compression pipeline (reusing the existing compressLogic flow), and writes a JSON envelope on stdout with output, compressed_id, and source_id fields. Then update the OpenCode plugin template to call ktx hook instead of ktx write, parse the envelope, and mutate output.output to the compressed bytes. Phase 1 verifies the full loop end-to-end with built-in stages (strip-ansi, head) with no LLM summarizer plugin yet."
+why: "D22 (firm) closes the runtime-token-cost gap: M1-M5 compress stored data post-hoc, but the agent already saw the full output. ktx hook persists the original (reversibility via ktx decompress) and returns the compressed bytes to the agent context via tool.execute.after output mutation (empirically confirmed 2026-07-01). Phase 1 proves the plumbing with conservative built-in stages before adding real compression intelligence (Phase 2: user-configured LLM summarizer plugin)."
+constraints: "D22 (firm) design rules: single subprocess (no nested subprocess, DRY via shared PersistToolCall); envelope with output, compressed_id, source_id on stdout; compressed row created ONLY when pipeline transforms (identity/D15-skip returns source.output with compressed_id=null); two-layer conservative failure (D14 invariants inside ktx hook, plugin-level pass-through on any ktx failure); sync compression (block tool result); critical-path timeout (30s default); D10 noop preserved (KTX_SESSION_ID means plugin skips). D14 D15 invariants unchanged. D9 flat JSON input shape unchanged. M1-M5 regression byte-identical. No new dependencies."
 scope:
   included:
-    - "Task 1: BurntSushi/toml in internal/config; Config struct gains Plugins []Plugin; [[plugin]] syntax; M4 [pipeline.default].stages unchanged."
-    - "Task 2: External shell-macro Builder in internal/pipeline; spawns command (argv=[command, arg?] where arg from name:arg token); stdin=input bytes, stdout=output, non-zero exit=stage-error passthrough; precedence last-writer-wins (user plugin named 'head' overrides built-in)."
-    - "Task 3: ktx plugin add/list/remove in new internal/cli/plugin.go via dispatch.Register; NeedsDB=false; FormatDefault=FormatJSON; subcommands add/list/remove; unified list with builtin/removable flags; self-correcting remove usage errors."
-    - "Task 4: ktx config show --json in new internal/cli/config_cli.go via dispatch.Register; NeedsDB=false; FormatDefault=FormatJSON; returns {profiles:{<name>:{stages:[...]}}} for all configured profiles."
-    - "Task 5: End-to-end acceptance + integration tests; .agentera/verification/m5-acceptance.md log."
-    - "Task 6: ARCHITECTURE.md/ROADMAP.md/TODO.md sync per AGENTS.md maintenance workflow."
+    - "Task 1: Refactor compressLogic to return (compressedID, compressedOutput string, pipelineJSON string, error) as values instead of printing the id to stdout, so both ktx compress and ktx hook consume the shared pipeline+persist code."
+    - "Task 2: Implement ktx hook verb in new internal/cli/hook.go via dispatch.Register (NeedsDB=true, NeedsStdin=true, PassthroughStdout=true). Reads D9 JSON from stdin, persists original via PersistToolCall, runs pipeline, writes envelope to stdout. Compressed row only when pipeline transforms."
+    - "Task 3: Update OpenCode plugin template in internal/cli/init.go to call ktx hook instead of ktx write, parse the JSON envelope, and set output.output = envelope.output."
+    - "Task 4: Integration tests + acceptance verification (.agentera/verification/hook-acceptance.md)."
+    - "Task 5: Documentation sync (ARCHITECTURE.md, TODO.md, ROADMAP.md if needed)."
   excluded:
-    - "ktx init integration (D2 distinction preserved; init=runtime adapter install, plugin=registry CRUD)."
-    - "Per-plugin content_type routing (TODO:40 owns this)."
+    - "LLM summarizer plugin (Phase 2)."
+    - "Content-type routing (TODO:40)."
     - "Per-stage timeout override (D14 territory)."
-    - "enabled=false toggle (YAGNI)."
-    - "Install-from-URL or directory scanning (user-declined YAGNI in D21)."
-    - "ktx hook bidirectional transform (D14 explicit deferral)."
+    - "ktx hook --help (manual; follows existing verb help patterns)."
   deferred:
-    - "Content-type detection (TODO:40)."
+    - "Real compression intelligence (Phase 2: user-configured [[plugin]] calling an external LLM)."
     - "Aggressiveness tiers (TODO:59)."
-    - "Wrapper-side step_finish enrichment (TODO:29, not blocking)."
-design: "Six tasks in dependency order. Task 1 (config) first: both Builder (Task 2) and ktx plugin (Task 3) consume Plugins []Plugin. Task 2 (Builder) depends on Task 1; registers external Builders AFTER RegisterBuiltins so last-writer-wins (pipeline.go:132-134) honors user-override-of-builtin; registry rebuilt per-invocation (no persistent state between runs). Task 3 (ktx plugin) depends on Task 2: list view needs Builder registry surface to enumerate valid stages. Task 4 (ktx config show) depends on Task 1 only. Task 5 (acceptance) depends on Tasks 2, 3, 4. Task 6 (docs sync) depends on 3, 4, 5. dispatch.Register seam takes NeedsDB=false for both new verbs (matches ktx db path / ktx prices pattern). BurntSushi/toml is the only new dep; hand-rolled reader is removed (documented as throwaway in config.go:44-46)."
+    - "Wrapper-side step_finish enrichment (TODO:29)."
+design: "Five tasks in dependency order. Task 1 (compressLogic refactor) is the prerequisite: today compressLogic prints the compressed id to stdout and returns (nil, error); both ktx compress and ktx hook need the compressed id and output as return values. The refactor splits compressLogic into a core function returning (compressedID, compressedOutput string, pipelineJSON string, error) and a thin wrapper that prints the id for ktx compress. Task 2 (ktx hook verb) depends on Task 1: reads D9 JSON from stdin, parses into ToolCall, calls db.PersistToolCall (the same code ktx write calls, DRY), then calls the refactored compressLogic core (the same code ktx compress calls, DRY) to run the pipeline and persist a compressed row when transformed. Writes the envelope to stdout. Task 3 (plugin update) depends on Task 2: the OpenCode plugin template changes from calling ktx write to calling ktx hook, parsing the JSON envelope, and setting output.output. Task 4 (integration tests) depends on Tasks 2, 3. Task 5 (docs) depends on 2, 3, 4."
 tasks:
   - number: 1
-    name: "BurntSushi/toml adoption + [[plugin]] block support"
+    name: "Refactor compressLogic to return values instead of printing to stdout"
     depends_on: []
     status: complete
     acceptance:
-      - "GIVEN internal/config/config.go is rewritten to use github.com/BurntSushi/toml WHEN go test ./internal/config/ runs THEN every existing config_test.go subtest that asserts parse-error EXISTENCE passes (canonical error-message text may differ from hand-rolled reader; only the existence of *ParseError on malformed TOML is preserved)."
-      - "GIVEN a ktx.toml with one or more [[plugin]] blocks (name, command, optional description) WHEN config.Load parses it THEN Config.Plugins contains one entry per block in document order with all fields populated (description = empty string when absent)."
-      - "GIVEN a ktx.toml with both [pipeline.default].stages AND [[plugin]] blocks WHEN config.Load parses THEN both Stages and Plugins are populated; the M4 [pipeline.default].stages-only case yields the same Config.Stages value as before."
-      - "GIVEN a ktx.toml with no [[plugin]] blocks (M4 shape) WHEN config.Load parses THEN Config.Plugins is nil/empty; no error; m4-acceptance.md identity-path regression byte-identical."
-      - "GIVEN a malformed [[plugin]] block (missing required name or command) WHEN config.Load parses THEN Load returns *ParseError."
-      - "GIVEN D5 file precedence (project-root > user-level) WHEN both files exist THEN config.Load uses project-root (BurntSushi adoption does not change file discovery)."
+      - "GIVEN compressLogic is refactored to return (compressedID, compressedOutput string, pipelineJSON string, error) WHEN ktx compress <id> runs THEN the compressed id is printed to stdout as raw JSON (identical to current behavior); M4 acceptance tests pass byte-identical."
+      - "GIVEN the refactored core compress function WHEN called by ktx hook THEN it returns the compressedID, compressedOutput, and pipelineJSON as values (not via stdout) so ktx hook can format them into the envelope."
+      - "GIVEN the refactored compressLogic WHEN no ktx.toml exists (identity pipeline) THEN compressedOutput equals source.Output and pipelineJSON is [] (identity, unchanged from M4)."
+      - "GIVEN go test ./... runs THEN every M1-M5 test passes (no regression from the refactor)."
   - number: 2
-    name: "External shell-macro Stage Builder in internal/pipeline"
+    name: "Implement ktx hook verb in internal/cli/hook.go"
     depends_on: ["1"]
     status: complete
     acceptance:
-      - "GIVEN a new RegisterExternalBuilder(name, command) on *pipeline.Registry WHEN Lookup resolves a token whose name matches a registered external builder THEN the runner spawns command with stage input bytes on stdin and captures stdout as output; argv is [command] for bare-name or [command, arg] for 'name:arg' (existing pipeline.go:100 first-colon-split contract)."
-      - "GIVEN an external script exits 0 with non-empty stdout WHEN the runner invokes it THEN captured stdout becomes the stage's output (input to next stage or compressed output)."
-      - "GIVEN an external script exits non-zero (exit 1, segfault) WHEN the runner invokes it THEN D14 invariant 2 (stage-error passthrough) applies: stage's INPUT passes through unchanged to next stage; one-line stderr warning; pipeline continues. Matches existing built-in-stage panic behavior."
-      - "GIVEN an external script exits 0 with EMPTY stdout from non-empty stdin WHEN the runner invokes it THEN D14 invariant 1 (empty-output guard): stage's output discarded, INPUT passes through unchanged. Matches existing built-in-stage empty-output guard."
-      - "GIVEN a deferred timeout WHEN this M5 implementation runs THEN no timeout enforced (deferred per plan scope); scripts run to natural completion. Task 5 explicitly does not test timeout."
-      - "GIVEN config.Load returns Plugins non-empty WHEN compress verb builds its Registry THEN each plugin name is registered via RegisterExternalBuilder AFTER RegisterBuiltins (user plugin named 'head' overrides builtin head; pipeline.go:132-134 last-writer-wins). Removing the user plugin from ktx.toml and re-running restores the builtin — registry rebuilt per-invocation."
-      - "GIVEN ktx.toml with [[plugin]] name='mycat' command='/bin/cat' AND [pipeline.default].stages=['mycat'] WHEN ktx compress <id> runs THEN compressed output equals source's output bytes (cat is identity); ktx decompress <compressed-id> returns source verbatim (D14 reversibility preserved)."
+      - "GIVEN a new internal/cli/hook.go calls dispatch.Register('hook', RegisterOptions with NeedsDB=true, NeedsStdin=true, PassthroughStdout=true, Help:printHookHelp) in init() WHEN dispatcher receives 'hook' THEN it routes to the handler with stdin exposed."
+      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN no ktx.toml exists (identity) THEN the original is persisted to tool_calls, the envelope with output=source_output, compressed_id=null, source_id=tool_call_id is written to stdout, and exit code is 0."
+      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN ktx.toml has [pipeline.default].stages with strip-ansi and head:5 THEN the original is persisted to tool_calls, a compressed row is created, and the envelope with output=compressed_output, compressed_id=compressed_id, source_id=tool_call_id is written to stdout."
+      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHERE is_error=true WHEN ktx.toml has compression stages configured THEN the D15 gate fires: original is persisted, envelope returns source.output with compressed_id=null (no compressed row created), and a stderr warning is emitted."
+      - "GIVEN ktx hook failing to persist (DB error, malformed JSON) WHEN the error occurs THEN exit code maps to the error class (usage=1 for malformed JSON, internal=4 for DB error) and no envelope is written to stdout."
+      - "GIVEN ktx decompress <compressed_id> for a compressed row created by ktx hook WHEN invoked THEN the original tool_call output is returned verbatim (D14 reversibility preserved)."
   - number: 3
-    name: "ktx plugin add/list/remove in internal/cli/plugin.go"
+    name: "Update OpenCode plugin template to call ktx hook"
     depends_on: ["2"]
     status: complete
     acceptance:
-      - "GIVEN a new internal/cli/plugin.go calls dispatch.Register('plugin', RegisterOptions{Description:'manage compression plugins', NeedsDB:false, FormatDefault:FormatJSON, Help:printPluginHelp}, ...) in init() WHEN dispatcher receives 'plugin' THEN it routes to the handler with remaining args as subcommand."
-      - "GIVEN `ktx plugin add <name> <command> [--description <text>]` WHEN no ktx.toml exists at project root or user level THEN a new ./ktx.toml is created with one [[plugin]] block; JSON envelope {plugin:{name,command,description}} to stdout; exit 0. If $PWD unwritable, exit 1 naming the unwritable path."
-      - "GIVEN `ktx plugin add <name> <command> [--description <text>]` WHEN an existing ktx.toml is at project root THEN a new [[plugin]] block is appended; existing [pipeline.default].stages and prior [[plugin]] blocks preserved; exit 0 with confirmation envelope."
-      - "GIVEN `ktx plugin list --json` WHEN ktx.toml has zero user [[plugin]] blocks THEN output is {plugins:[{name:'strip-ansi',builtin:true,removable:false,...}, ...]} enumerating all five M4 builtins; no user entries."
-      - "GIVEN `ktx plugin list --json` WHEN ktx.toml has one or more [[plugin]] blocks THEN plugins array contains all five builtins (builtin=true, removable=false) AND all user plugins (builtin=false, removable=true, name/command/description populated); user entries after builtins in document order."
-      - "GIVEN `ktx plugin remove <name>` where name is a user [[plugin]] block WHEN invoked THEN the matching [[plugin]] block is deleted from ktx.toml; JSON envelope {removed:{name,command,description}} to stdout; exit 0. If name refers to a builtin WITH a user override (a [[plugin]] block named 'head'), the user override is removed AND the builtin head re-emerges on next ktx plugin list."
-      - "GIVEN `ktx plugin remove <name>` where name is a builtin WITHOUT user override (e.g. `ktx plugin remove head`) WHEN invoked THEN exit 1 (ExitUsage) with self-correcting JSON error: {error:{code:'usage', message:'cannot remove built-in stage \"head\"; removable plugins: <list or (none)>', valid_examples:['ktx plugin remove <user-plugin-name>']}}."
-      - "GIVEN `ktx plugin --help` WHEN rendered THEN lists 'add', 'list', 'remove' subcommands with one-line descriptions AND a cross-reference to `ktx init` (D2 distinction) AND a one-line example per subcommand."
+      - "GIVEN the updated ktxOpencodePluginTemplate in internal/cli/init.go WHEN ktx init opencode installs the plugin THEN the plugin tool.execute.after spawns ktx hook (not ktx write) via Bun.spawn with stdin = D9 JSON tool_call."
+      - "GIVEN the plugin tool.execute.after calls ktx hook WHEN ktx hook returns the envelope on stdout THEN the plugin parses the JSON envelope and sets output.output = envelope.output (the compressed bytes replace the original in the agent context)."
+      - "GIVEN any ktx hook failure (non-zero exit, unparseable stdout, ktx not in PATH) WHEN the plugin catches the error THEN output.output is left unchanged (the agent sees the original tool output, D14 conservative failure at the plugin level)."
+      - "GIVEN KTX_SESSION_ID is set in the environment WHEN the plugin tool.execute.after fires THEN the plugin skips the ktx hook call entirely (D10 dedup, wrapper owns persistence)."
+      - "GIVEN go test ./internal/cli/ -run TestInit runs THEN all existing init tests pass (the template is a string constant; the test verifies it writes to the expected path)."
   - number: 4
-    name: "ktx config show in internal/cli/config_cli.go"
-    depends_on: ["1"]
+    name: "Integration tests + acceptance verification"
+    depends_on: ["2", "3"]
     status: complete
     acceptance:
-      - "GIVEN a new internal/cli/config_cli.go (CLI verb distinct from internal/config/config.go loader; naming follows run.go/cli.go split) calls dispatch.Register('config', RegisterOptions{Description:'inspect active pipeline configuration', NeedsDB:false, FormatDefault:FormatJSON, Help:printConfigHelp}, ...) in init() WHEN dispatcher receives 'config' THEN it routes to the handler."
-      - "GIVEN `ktx config show --json` WHEN no ktx.toml exists THEN output is {profiles:{default:{stages:[]}}} or {profiles:{}} (choice documented in m5-acceptance.md; M4 identity path represented consistently)."
-      - "GIVEN `ktx config show --json` WHEN ktx.toml has [pipeline.default].stages=['strip-ansi','head:5'] only THEN output is {profiles:{default:{stages:['strip-ansi','head:5']}}} — structured read of parsed Config."
-      - "GIVEN `ktx config show --json` WHEN ktx.toml has multiple profiles ([pipeline.default], [pipeline.json], [pipeline.logs]) THEN profiles map contains one entry per profile, each with its stages array. (M5 does not route by content type yet — TODO:40 — but read surface is forward-compatible.)"
-      - "GIVEN `ktx config show` (text format, no --json) WHEN ktx.toml exists THEN output is a human-readable table: one row per profile showing name and comma-separated stages list; matches D1 one-line summary convention."
-      - "GIVEN `ktx config --help` WHEN rendered THEN lists 'show' subcommand AND a cross-reference to `ktx plugin list` (registry CRUD vs runtime inspection) AND a one-line example."
+      - "GIVEN ktx hook is invoked from the command line with a valid D9 JSON payload on stdin WHEN ktx.toml has [pipeline.default].stages with head:5 AND the input has 20 lines of output THEN the envelope output field contains only 5 lines; ktx decompress <compressed_id> returns the original 20 lines."
+      - "GIVEN an OpenCode session with the ktx plugin installed AND ktx.toml has [pipeline.default].stages with head:3 WHEN the agent runs a tool that produces 10 lines of output THEN the agent context receives only 3 lines (the compressed output); the original 10 lines are in ktx database (ktx decompress returns them)."
+      - "GIVEN go test ./... runs THEN every M1-M5 test passes AND every new hook test in internal/cli/hook_test.go passes."
+      - "GIVEN the acceptance log at .agentera/verification/hook-acceptance.md WHEN a reviewer reads it THEN it contains Build / Regression / Hook Acceptance (end-to-end identity + configured pipeline + D15 gate + reversibility + plugin mutation) / VERIFICATION SUMMARY."
   - number: 5
-    name: "M5 acceptance verification + integration tests"
+    name: "Documentation sync"
     depends_on: ["2", "3", "4"]
     status: complete
     acceptance:
-      - "GIVEN a ktx.toml with [[plugin]] name='myecho' command='/bin/echo' AND [pipeline.default].stages=['myecho'] AND a seeded source tool_call whose output is 'hello' WHEN ktx compress <source-id> runs THEN compressed output is 'hello\\n' (echo adds newline); ktx decompress <compressed-id> returns 'hello' verbatim (D14 reversibility preserved)."
-      - "GIVEN `ktx plugin list --json` in the same scenario WHEN invoked THEN plugins array contains all five builtins (builtin=true, removable=false) AND one user entry (name:'myecho', command:'/bin/echo', builtin=false, removable=true)."
-      - "GIVEN `ktx config show --json` in the same scenario WHEN invoked THEN output is {profiles:{default:{stages:['myecho']}}} — user plugin appears in active pipeline."
-      - "GIVEN an external script that prints nothing (/bin/true) is configured as [[plugin]] stage WHEN ktx compress runs through it THEN D14 invariant 1 (empty-output guard): stage's input passes through unchanged; final compressed output equals source; no error."
-      - "GIVEN an external script that exits non-zero (/bin/false) is configured as [[plugin]] stage WHEN ktx compress runs through it THEN D14 invariant 2 (stage-error passthrough): stage's input passes through unchanged; one-line stderr warning; exit 0."
-      - "GIVEN the D15 pre-pipeline identity-row gate WHEN a source tool_call has is_error=true AND a ktx.toml with external [[plugin]] stages is configured THEN compression is skipped; identity-row persisted in compressed table; sourceFailureWarning on stderr. M4 D15 gate fires unchanged for M5 external-stage pipelines."
-      - "GIVEN M5 changes landed WHEN `go test ./...` runs THEN every M1-M4 test passes byte-identical (identity path, configured built-in path, compressed migration, D15 gate, D20 replay — all green) AND every new M5 test in internal/config/config_test.go, internal/pipeline/pipeline_test.go, internal/cli/plugin_test.go, internal/cli/config_cli_test.go passes."
-      - "GIVEN the M5 acceptance log at .agentera/verification/m5-acceptance.md WHEN a reviewer reads it THEN it contains: Build / M4 Regression / M5 Acceptance (end-to-end plugin + config show + reversibility + D14 external invariants + D15 gate) / FIXES APPLIED / VERIFICATION SUMMARY, mirroring m4-acceptance.md structure."
-  - number: 6
-    name: "Documentation sync — ARCHITECTURE.md, ROADMAP.md, TODO.md"
-    depends_on: ["3", "4", "5"]
-    status: complete
-    acceptance:
-      - "GIVEN Tasks 3, 4 landed AND Task 5 verified WHEN ROADMAP.md M5 section is updated THEN M5 acceptance is marked Verified 2026-07-01 with pointer to .agentera/verification/m5-acceptance.md; D20 Pre-shipped line and D21 implementation line both present."
-      - "GIVEN D21 landed in prior resonera session WHEN ARCHITECTURE.md Pipeline-and-compression entry is inspected THEN 'Relationship between the user extension registry and configured pipeline stages' is marked [x] Decided (Decision 21) — Task 6 verifies presence; adds if absent (defense against edit conflict)."
-      - "GIVEN TODO.md:42 (ktx config show --json) WHEN Task 6 runs THEN entry is marked [x] complete with pointer to .agentera/verification/m5-acceptance.md; entry text names implementation location (internal/cli/config_cli.go) and dispatch.Register pattern used."
-      - "GIVEN TODO.md:29 (wrapper-side step_finish enrichment) WHEN Task 6 runs THEN entry left unchanged (still open); explicitly NOT M5 scope per plan deferrals; optional inline note 'still deferred; not M5'."
-      - "GIVEN AGENTS.md maintenance workflow ('do not leave duplicate open items') WHEN Task 6 inspects TODO.md THEN no duplicate open items remain: D21 closed TODO:41; new TODO:42 (ktx config show) closed by Task 4 landing; no ARCHITECTURE.md open-deliberations duplication."
-overall_acceptance: "GIVEN all M5 changes landed WHEN a user authors a ktx.toml with a [[plugin]] block AND runs ktx compress <id> THEN the user-defined shell-macro stage runs (extension takes effect without code changes); ROADMAP M5 acceptance criterion satisfied. GIVEN M5 lands WHEN go test ./... runs THEN every M1-M4 regression test stays green AND every new M5 test passes; m4-acceptance.md reproducible byte-identical. GIVEN an agent needs to discover and compose valid pipelines WHEN it calls ktx plugin list --json THEN it receives a unified schema-enforced view of all valid stage names (builtins + user plugins) with builtin/removable flags; ktx config show --json returns the active pipeline per profile. GIVEN a user removes a built-in name from [[plugin]] registry WHEN next ktx compress runs THEN the built-in stage is restored (registry rebuilt per-invocation)."
+      - "GIVEN Tasks 2, 3 landed AND Task 4 verified WHEN ARCHITECTURE.md is inspected THEN the In-flight compression hook (D22) section reflects the implemented verb, envelope shape, and plugin mutation contract."
+      - "GIVEN ktx hook is implemented WHEN TODO.md is updated THEN any existing hook-related TODO is marked complete; no duplicate open items."
+overall_acceptance: "GIVEN ktx hook is implemented and the OpenCode plugin updated WHEN an OpenCode session runs with a ktx.toml that configures compression stages THEN the agent sees compressed tool_call output (fewer tokens in context), the original is in ktx database (ktx decompress returns it verbatim), and with no ktx.toml the agent sees the original unchanged (identity, zero behavioral change)."
 surprises: "[]"

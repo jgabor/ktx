@@ -96,8 +96,13 @@ func initScratchReset() {
 //   - Noops when KTX_SESSION_ID is present (D10 dedup): when the user is
 //     also running the agent under `ktx run`, the wrapper owns persistence
 //     and the plugin would otherwise double-record.
-//   - Pipes a flat JSON tool_call payload (D9) to `ktx write` via Bun's $
-//     shell API. `session_id` is left empty so ktx write resolves session
+//   - Pipes a flat JSON tool_call payload (D9) to `ktx write` via
+//     Bun.spawn with a ReadableStream stdin. The earlier version used
+//     Bun's `$` template literal with .stdin(), but that method does
+//     not exist on ShellPromise in Bun 1.3.x. Bun.spawn with a
+//     ReadableStream is the reliable cross-version way to pipe JSON
+//     into a sibling binary's stdin.
+//   - `session_id` is left empty so ktx write resolves session
 //     identity by ppid file lookup (Decision 1 revised, hook path).
 //   - `content_hash` is left empty so ktx write can compute it (D3: SHA-256
 //     of output) — the plugin avoids re-implementing hash logic in TS.
@@ -107,11 +112,6 @@ func initScratchReset() {
 //     map to 9 byte values each, a-v map to 10) but the entropy cost is
 //     negligible (~0.02 bits per ID below the 75.20-bit ideal) for PoC
 //     scope. (Bun's crypto.randomUUID produces hex, which violates D3.)
-//
-// Bun's `$` template literal (https://bun.sh/docs/runtime/shell) is the
-// lowest-friction way for an in-process TS plugin to invoke a sibling
-// binary; .stdin() pipes the payload, .quiet() suppresses command echo,
-// .nothrow() keeps the agent alive if ktx is briefly unavailable.
 //
 // Presence check (rtk pattern): the plugin factory verifies the ktx
 // binary is in PATH before registering the tool.execute.after hook. If
@@ -127,6 +127,21 @@ const ktxGenerateID = (): string => {
   let id = ""
   for (let i = 0; i < 16; i++) id += KTX_ID_ALPHABET[bytes[i] % 26]
   return id
+}
+
+const ktxWrite = async (payload: string): Promise<void> => {
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(payload))
+      controller.close()
+    },
+  })
+  const proc = Bun.spawn(["ktx", "write"], {
+    stdin: stream,
+    stdout: "ignore",
+    stderr: "ignore",
+  })
+  await proc.exited
 }
 
 const KtxPlugin: Plugin = async ({ $ }) => {
@@ -159,8 +174,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         timestamp: new Date().toISOString(),
       }
 
-      // Call ktx write via Bun shell
-      await $` + "`ktx write`" + `.stdin(JSON.stringify(record)).quiet().nothrow()
+      await ktxWrite(JSON.stringify(record))
     },
   }
 }

@@ -140,14 +140,92 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 	return nil, nil
 }
 
-// compressCore is the shared pipeline+persist core used by both
-// `ktx compress` (via compressLogic) and `ktx hook` (via hookLogic).
-// It fetches the source tool_call by id, loads ktx.toml, runs the
-// D14 pipeline (with D15 pre-pipeline gate), persists a compressed
-// row, and returns the compressed id, output bytes, pipeline JSON,
-// and any error. The caller decides what to do with the return
-// values: `ktx compress` prints the id to stdout; `ktx hook`
-// formats them into the JSON envelope.
+// compressPipeline is the shared D15-gate + D14-pipeline core used by
+// both `ktx compress` (via compressCore) and `ktx hook` (via hookLogic).
+// It loads ktx.toml, builds the runner, applies the D15 pre-pipeline
+// gate (is_error → skip), runs the D14 pipeline (with D14
+// conservative-on-failure invariants enforced by the runner), and
+// returns the compressed output, pipeline JSON, whether the pipeline
+// actually transformed the output, and any config error.
+//
+// The caller owns the INSERT decision: `ktx compress` always inserts a
+// compressed row (the user explicitly invoked it); `ktx hook` inserts
+// only when transformed == true (identity / D15-skip → no row). This is
+// the DRY split — the pipeline logic is shared, the persistence policy
+// is caller-owned.
+//
+// reg is the pipeline.Registry to resolve stage names against. A nil reg
+// means "build the default built-in registry" (RegisterBuiltins on a
+// fresh Registry + external plugins from config). Tests inject a custom
+// Registry to exercise the conservative-on-failure invariants.
+//
+// timeout is the critical-path deadline for the pipeline run. A duration
+// of 0 means no timeout (used by `ktx compress`, which is off-line and
+// can be Ctrl-C'd). A positive timeout (used by `ktx hook`, which is on
+// the agent's critical path) cancels the pipeline on expiry and returns
+// source.output unchanged with a stderr warning (D22). The goroutine
+// running the pipeline is fire-and-forget on timeout — built-in stages
+// complete near-instantly; a future LLM summarizer plugin that hangs
+// will leak until the external process exits. Proper context cancellation
+// through the pipeline runner is a Phase 2 concern.
+func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.Writer, timeout time.Duration) (compressedOutput, pipelineJSON string, transformed bool, err error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return "", "", false, usageError("%v", err)
+	}
+
+	runner := buildCompressRunner(reg, cfg, stderr)
+
+	// D15 pre-pipeline gate: skip compression for failed tool calls.
+	if source.IsError != nil && *source.IsError {
+		fmt.Fprint(stderr, sourceFailureWarning)
+		return source.Output, "[]", false, nil
+	}
+
+	// Identity: no stages configured → source returned unchanged.
+	if len(runner.Pipeline) == 0 {
+		return source.Output, "[]", false, nil
+	}
+
+	// Run the pipeline. When a timeout is set, race the pipeline against
+	// a timer; on timeout, return source.output unchanged (D22).
+	type runResult struct{ res pipeline.Result }
+	ch := make(chan runResult, 1)
+	go func() {
+		ch <- runResult{res: runner.Run([]byte(source.Output))}
+	}()
+
+	var res pipeline.Result
+	if timeout > 0 {
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+		select {
+		case r := <-ch:
+			res = r.res
+		case <-timer.C:
+			fmt.Fprintf(stderr, "ktx: warning: pipeline timeout after %s, returning original\n", timeout)
+			return source.Output, "[]", false, nil
+		}
+	} else {
+		res = (<-ch).res
+	}
+
+	compressedOutput = string(res.Out)
+	pipelineJSON = pipeline.EncodePipelineJSON(res.Ran)
+	transformed = compressedOutput != source.Output || pipelineJSON != "[]"
+	return compressedOutput, pipelineJSON, transformed, nil
+}
+
+// compressCore is the shared pipeline+persist core used by `ktx compress`
+// (via compressLogic). It fetches the source tool_call by id, delegates
+// to compressPipeline for the D15 gate + D14 pipeline, ALWAYS persists a
+// compressed row (the user explicitly invoked compress), and returns the
+// compressed id, output bytes, pipeline JSON, and any error.
+//
+// `ktx hook` does NOT call compressCore — it calls compressPipeline
+// directly because hook owns the insert-when-transformed policy (hook
+// creates a row ONLY when the pipeline transforms; compress always
+// creates one).
 //
 // reg is the pipeline.Registry to resolve stage names against. A
 // nil reg means "build the default built-in registry" (RegisterBuiltins
@@ -161,21 +239,9 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 		return "", "", "", internalError("get source: %v", err)
 	}
 
-	cfg, err := config.Load()
+	compressedOutput, pipelineJSON, _, err = compressPipeline(source, reg, stderr, 0)
 	if err != nil {
-		return "", "", "", usageError("%v", err)
-	}
-
-	runner := buildCompressRunner(reg, cfg, stderr)
-
-	if source.IsError != nil && *source.IsError {
-		fmt.Fprint(stderr, sourceFailureWarning)
-		compressedOutput = source.Output
-		pipelineJSON = "[]"
-	} else {
-		res := runner.Run([]byte(source.Output))
-		compressedOutput = string(res.Out)
-		pipelineJSON = pipeline.EncodePipelineJSON(res.Ran)
+		return "", "", "", err
 	}
 
 	hash := dbpkg.ContentHash(compressedOutput)

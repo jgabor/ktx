@@ -1715,10 +1715,9 @@ decisions:
 
     - `ktx hook` is a flat verb registered via dispatch with NeedsDB=true and PassthroughStdout=true.
 
-    - compressLogic refactor prerequisite: return (compressedID, compressedOutput string, error) as values so both ktx compress and ktx hook consume the shared pipeline+persist code.'
+    - compressLogic refactor prerequisite: return (compressedID, compressedOutput string, error) as values so both ktx compress and ktx hook consume the shared pipeline+persist code. Implemented as compressPipeline — the shared D15-gate + D14-pipeline core (returns compressedOutput, pipelineJSON, transformed bool, error); compressCore wraps it (always inserts); hookLogic wraps it (inserts only when transformed, passes 30s timeout).'
   confidence: firm
-  feeds_into: implementation of `ktx hook` verb (internal/cli/hook.go — new; dispatch Register with NeedsDB=true, PassthroughStdout=true); compressLogic refactor (internal/cli/compress.go:111 — return (compressedID,
-    compressedOutput string, error) as values); updated OpenCode plugin template (internal/cli/init.go ktxOpencodePluginTemplate — tool.execute.after spawns `ktx hook` via Bun.spawn, sets output.output
-    = envelope.output, preserves KTX_SESSION_ID noop); envelope parser in the plugin; pipeline timeout (ktx hook owns a critical-path timeout that `ktx compress` does not); migration of existing installed
+  feeds_into: implementation of `ktx hook` verb (internal/cli/hook.go — new; dispatch Register with NeedsDB=true, PassthroughStdout=true); compressPipeline (internal/cli/compress.go — shared D15+D14 pipeline core; compressCore wraps with always-insert; hookLogic wraps with insert-when-transformed + 30s timeout); updated OpenCode plugin template (internal/cli/init.go ktxOpencodePluginTemplate — tool.execute.after spawns `ktx hook` via Bun.spawn, sets output.output
+    = envelope.output, preserves KTX_SESSION_ID noop); envelope parser in the plugin; pipeline timeout (hookPipelineTimeout=30s hardcoded in hook.go; ktx.toml configurability deferred to Phase 2); migration of existing installed
     plugins (ktx init opencode --show detects old ktx-write template and suggests re-init); ARCHITECTURE.md Decided subsection (In-flight compression hook / D22); the open 'foreground proxy mode' deliberation
     stays open (D22 closes the hook+mutation path; proxy mode remains the daemon-based alternative)

@@ -6,10 +6,17 @@ import (
 	"io"
 	"time"
 
-	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
-	"github.com/jgabor/ktx/internal/pipeline"
 )
+
+// hookPipelineTimeout is the critical-path deadline for the pipeline
+// run inside `ktx hook` (D22). `ktx hook` is on the agent's critical
+// path (the agent waits for the tool result), so a hanging pipeline
+// stage (e.g., a future LLM summarizer plugin that hangs) must not
+// block indefinitely. On timeout, the source.output is returned
+// unchanged with a stderr warning. `ktx compress` (off-line) passes
+// timeout=0 (no timeout) because the developer can Ctrl-C.
+const hookPipelineTimeout = 30 * time.Second
 
 // hookEnvelope is the JSON response written by `ktx hook` to stdout.
 // The plugin parses this and sets output.output = Output (the
@@ -28,13 +35,14 @@ type hookEnvelope struct {
 func hookCommandFunc(ctx *DispatchContext) (any, error) {
 	return hookLogic(ctx.Stdin, ctx.DB, ctx.Stdout, ctx.Stderr)
 }
+
 // hookLogic reads a D9 flat JSON tool_call from stdin, persists the
 // original via the shared PersistToolCall code path (DRY, same code
-// ktx write calls), then runs the D14 compression pipeline (DRY,
-// same code ktx compress calls). A compressed row is created ONLY
-// when the pipeline actually transforms the output; identity (no
-// ktx.toml) and D15-skip (is_error=true) return the source output
-// unchanged with compressed_id=null.
+// ktx write calls), then delegates to compressPipeline for the D15
+// gate + D14 pipeline (DRY, same code ktx compress calls). A
+// compressed row is created ONLY when the pipeline actually transforms
+// the output; identity (no ktx.toml) and D15-skip (is_error=true)
+// return the source output unchanged with compressed_id=null.
 //
 // The JSON envelope is written to stdout as a single line. On any
 // error, no envelope is written; the exit code and stderr error
@@ -81,48 +89,30 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	sourceID := tc.ID
 
-	cfg, err := config.Load()
+	compressedOutput, pipeJSON, transformed, err := compressPipeline(&tc, nil, stderr, hookPipelineTimeout)
 	if err != nil {
-		return nil, usageError("ktx hook: %v", err)
+		return nil, err
 	}
 
-	runner := buildCompressRunner(nil, cfg, stderr)
-
-	var compressedOutput string
-	var pipeJSON string
 	var compressedID *string
-
-	if tc.IsError != nil && *tc.IsError {
-		fmt.Fprint(stderr, sourceFailureWarning)
-		compressedOutput = tc.Output
-		pipeJSON = "[]"
-	} else if len(runner.Pipeline) == 0 {
-		compressedOutput = tc.Output
-		pipeJSON = "[]"
-	} else {
-		res := runner.Run([]byte(tc.Output))
-		compressedOutput = string(res.Out)
-		pipeJSON = pipeline.EncodePipelineJSON(res.Ran)
-
-		if compressedOutput != tc.Output || pipeJSON != "[]" {
-			hash := dbpkg.ContentHash(compressedOutput)
-			cid, err := dbpkg.NewID()
-			if err != nil {
-				return nil, internalError("ktx hook: generate compressed id: %v", err)
-			}
-			c := &dbpkg.Compressed{
-				ID:          cid,
-				SourceID:    sourceID,
-				Output:      compressedOutput,
-				ContentHash: hash,
-				Pipeline:    pipeJSON,
-				Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
-			}
-			if err := db.InsertCompressed(c); err != nil {
-				return nil, internalError("ktx hook: persist compressed: %v", err)
-			}
-			compressedID = &cid
+	if transformed {
+		hash := dbpkg.ContentHash(compressedOutput)
+		cid, err := dbpkg.NewID()
+		if err != nil {
+			return nil, internalError("ktx hook: generate compressed id: %v", err)
 		}
+		c := &dbpkg.Compressed{
+			ID:          cid,
+			SourceID:    sourceID,
+			Output:      compressedOutput,
+			ContentHash: hash,
+			Pipeline:    pipeJSON,
+			Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
+		}
+		if err := db.InsertCompressed(c); err != nil {
+			return nil, internalError("ktx hook: persist compressed: %v", err)
+		}
+		compressedID = &cid
 	}
 
 	envelope := hookEnvelope{
@@ -161,6 +151,9 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "The agent sees the compressed output.output; the original is retrievable via")
 	fmt.Fprintln(w, "`ktx decompress <compressed_id>`. When no ktx.toml exists (identity default),")
 	fmt.Fprintln(w, "the original is returned unchanged with compressed_id=null.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "A 30s pipeline timeout is enforced (D22 critical-path contract); on timeout")
+	fmt.Fprintln(w, "the original is returned unchanged with a stderr warning.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This verb is called by the OpenCode plugin's tool.execute.after hook (installed")
 	fmt.Fprintln(w, "via `ktx init opencode`). It is not typically invoked directly by users.")

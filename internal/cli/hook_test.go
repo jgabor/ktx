@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/pipeline"
 )
 
 func hookTestDB(t *testing.T) *dbpkg.DB {
@@ -234,5 +236,79 @@ func TestHook_NoInput(t *testing.T) {
 	_, err := hookLogic(strings.NewReader(""), d, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("hookLogic succeeded; want usage error for empty stdin")
+	}
+}
+
+func TestCompressPipeline_Timeout(t *testing.T) {
+	hookChdirTemp(t)
+	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+stages = ["slow"]
+`)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	source := &dbpkg.ToolCall{
+		ID:        "timeout01",
+		Tool:      "bash",
+		Output:    "line 1\nline 2\nline 3\n",
+		Timestamp: "2026-07-01T12:00:00Z",
+	}
+
+	reg := pipeline.NewRegistry()
+	reg.Register("slow", pipeline.StageFunc(func(input []byte) ([]byte, error) {
+		time.Sleep(500 * time.Millisecond)
+		return input, nil
+	}))
+
+	var stderr bytes.Buffer
+	out, _, transformed, err := compressPipeline(source, reg, &stderr, 10*time.Millisecond)
+	if err != nil {
+		t.Fatalf("compressPipeline: %v", err)
+	}
+	if transformed {
+		t.Error("transformed = true; want false (timeout returns source unchanged)")
+	}
+	if out != source.Output {
+		t.Errorf("output = %q; want %q (source unchanged on timeout)", out, source.Output)
+	}
+	if !strings.Contains(stderr.String(), "timeout") {
+		t.Errorf("stderr should contain timeout warning: %q", stderr.String())
+	}
+}
+
+func TestCompressPipeline_TimeoutNotHit(t *testing.T) {
+	hookChdirTemp(t)
+	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+stages = ["fast"]
+`)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	source := &dbpkg.ToolCall{
+		ID:        "timeout02",
+		Tool:      "bash",
+		Output:    "line 1\nline 2\nline 3\nline 4\nline 5\n",
+		Timestamp: "2026-07-01T12:00:00Z",
+	}
+
+	reg := pipeline.NewRegistry()
+	reg.Register("fast", pipeline.StageFunc(func(input []byte) ([]byte, error) {
+		return []byte("line 1\nline 2\nline 3\n"), nil
+	}))
+
+	var stderr bytes.Buffer
+	out, pj, transformed, err := compressPipeline(source, reg, &stderr, 5*time.Second)
+	if err != nil {
+		t.Fatalf("compressPipeline: %v", err)
+	}
+	if !transformed {
+		t.Error("transformed = false; want true (pipeline should have run)")
+	}
+	if out != "line 1\nline 2\nline 3\n" {
+		t.Errorf("output = %q; want 3 lines", out)
+	}
+	if pj == "[]" {
+		t.Error("pipelineJSON = []; want non-empty (stage ran)")
+	}
+	if strings.Contains(stderr.String(), "timeout") {
+		t.Errorf("stderr should NOT contain timeout: %q", stderr.String())
 	}
 }

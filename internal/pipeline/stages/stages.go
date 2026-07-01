@@ -47,6 +47,25 @@ import (
 	"github.com/jgabor/ktx/internal/pipeline"
 )
 
+// builtinStageNames is the ordered list of built-in stage names,
+// matching the registration order in RegisterBuiltins. Used by
+// `ktx plugin list` to enumerate built-in stages alongside
+// user-defined plugins.
+var builtinStageNames = []string{
+	"strip-ansi",
+	"dedup-blank",
+	"normalize",
+	"head",
+	"truncate",
+}
+
+// BuiltinStageNames returns the names of all built-in pipeline stages
+// in registration order. The caller may use this to present a unified
+// view of valid stage names (builtins + user plugins) to agents.
+func BuiltinStageNames() []string {
+	return builtinStageNames
+}
+
 // RegisterBuiltins registers all five built-in stages on reg. A nil
 // reg is a no-op (defensive; the caller passes a fresh
 // pipeline.NewRegistry() in normal use).

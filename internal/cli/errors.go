@@ -56,6 +56,10 @@ func (c ErrorCode) ExitCode() int {
 type Error struct {
 	Code    ErrorCode
 	Message string
+	// Extra carries optional fields merged into the JSON error envelope
+	// (e.g. valid_examples for self-correcting usage errors). Nil is
+	// the common case — most errors carry only code + message.
+	Extra map[string]any
 }
 
 func (e *Error) Error() string { return e.Message }
@@ -89,11 +93,15 @@ func printError(w io.Writer, err error, format string) {
 		return
 	}
 	// Default: JSON envelope on stderr for agents.
+	errObj := map[string]any{
+		"code":    string(ktxErr.Code),
+		"message": ktxErr.Message,
+	}
+	for k, v := range ktxErr.Extra {
+		errObj[k] = v
+	}
 	envelope := map[string]any{
-		"error": map[string]any{
-			"code":    string(ktxErr.Code),
-			"message": ktxErr.Message,
-		},
+		"error": errObj,
 	}
 	_ = json.NewEncoder(w).Encode(envelope)
 }

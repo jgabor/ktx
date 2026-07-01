@@ -3,6 +3,7 @@ module github.com/jgabor/ktx
 go 1.26.4
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	modernc.org/sqlite v1.52.0
 )

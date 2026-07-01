@@ -221,10 +221,21 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 // writer is set to stderr so unknown-stage skips and stage-error
 // pass-throughs surface to the user (the runner owns the warning
 // text; the verb just provides the sink).
+//
+// M5: when cfg has Plugins (from [[plugin]] blocks), each is registered
+// via RegisterExternalBuilder AFTER RegisterBuiltins so
+// last-writer-wins lets a user plugin shadow a built-in of the same
+// name (D21). The registry is rebuilt per-invocation — removing the
+// [[plugin]] block from ktx.toml and re-running restores the built-in.
 func buildCompressRunner(reg *pipeline.Registry, cfg *config.Config, stderr io.Writer) *pipeline.Runner {
 	if reg == nil {
 		reg = pipeline.NewRegistry()
 		stages.RegisterBuiltins(reg)
+		if cfg != nil {
+			for _, p := range cfg.Plugins {
+				reg.RegisterExternalBuilder(p.Name, p.Command)
+			}
+		}
 	}
 	pipelineStages := []string{}
 	if cfg != nil {

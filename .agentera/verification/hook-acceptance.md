@@ -72,7 +72,7 @@ ktx: warning: source tool_call indicates failure, compression skipped
 {"output":"Error: failed","compressed_id":null,"source_id":"testhook03"}
 exit: 0
 
-RESULT: PASS — D15 gate fired, identity returned, no compressed row.
+RESULT: PASS — D15 gate fired, passthrough returned, no compressed row.
 
 --- AC5: Malformed JSON ---
 
@@ -202,7 +202,7 @@ shared by compressCore + hookLogic), the 30s critical-path timeout, and
 the real-session evidence close all three gaps identified in the code
 review.
 
-With no ktx.toml, the agent sees the original unchanged (identity, zero
+With no ktx.toml, the agent sees the original unchanged (passthrough, zero
 behavioral change). With head:3, the agent sees only 3 lines — the
 original 10 are in ktx's database, retrievable via ktx decompress.
 ```

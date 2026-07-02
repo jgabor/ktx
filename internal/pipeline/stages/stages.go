@@ -57,6 +57,11 @@ var builtinStageNames = []string{
 	"normalize",
 	"head",
 	"truncate",
+	// D22 Phase 2 deterministic compression stages.
+	"keep-ends",
+	"grep",
+	"grep-v",
+	"token-budget",
 }
 
 // BuiltinStageNames returns the names of all built-in pipeline stages
@@ -94,6 +99,16 @@ func RegisterBuiltins(reg *pipeline.Registry) {
 	// Behavior depends on the arg.
 	reg.RegisterBuilder("head", headBuilder)
 	reg.RegisterBuilder("truncate", truncateBuilder)
+
+	// D22 Phase 2 deterministic compression stages. Each is a pure
+	// function over bytes (no ML, no new deps). keep-ends:N:M,
+	// grep:pattern, grep-v:pattern, and token-budget:N all reuse the
+	// existing StageFunc / Builder contract; the anti-worsening gate
+	// and the three D14 invariants apply to them unchanged.
+	reg.RegisterBuilder("keep-ends", keepEndsBuilder)
+	reg.RegisterBuilder("grep", func(arg string) (pipeline.Stage, error) { return grepBuilder(arg, true) })
+	reg.RegisterBuilder("grep-v", func(arg string) (pipeline.Stage, error) { return grepBuilder(arg, false) })
+	reg.RegisterBuilder("token-budget", tokenBudgetBuilder)
 }
 
 // ParseNameArg splits a `name[:arg]` stage-name token into its name

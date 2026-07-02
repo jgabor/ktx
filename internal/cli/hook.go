@@ -6,16 +6,18 @@ import (
 	"io"
 	"time"
 
+	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// hookPipelineTimeout is the critical-path deadline for the pipeline
-// run inside `ktx hook` (D22). `ktx hook` is on the agent's critical
-// path (the agent waits for the tool result), so a hanging pipeline
-// stage (e.g., a future LLM summarizer plugin that hangs) must not
-// block indefinitely. On timeout, the source.output is returned
-// unchanged with a stderr warning. `ktx compress` (off-line) passes
-// timeout=0 (no timeout) because the developer can Ctrl-C.
+// hookPipelineTimeout is the legacy default critical-path deadline for the
+// pipeline run inside `ktx hook` (D22). It is retained as the backward-
+// compatible default; Phase 2 makes the timeout configurable via the
+// [pipeline.default] timeout field in ktx.toml (config.DefaultPipelineTimeout
+// is the value when the field is omitted). hookLogic now reads
+// cfg.PipelineTimeout and passes it to compressPipeline, so this constant
+// is the fallback only. `ktx compress` (off-line) passes timeout=0 (no
+// timeout) because the developer can Ctrl-C.
 const hookPipelineTimeout = 30 * time.Second
 
 // hookEnvelope is the JSON response written by `ktx hook` to stdout.
@@ -41,7 +43,7 @@ func hookCommandFunc(ctx *DispatchContext) (any, error) {
 // ktx write calls), then delegates to compressPipeline for the D15
 // gate + D14 pipeline (DRY, same code ktx compress calls). A
 // compressed row is created ONLY when the pipeline actually transforms
-// the output; identity (no ktx.toml) and D15-skip (is_error=true)
+// the output; passthrough (no ktx.toml) and D15-skip (is_error=true)
 // return the source output unchanged with compressed_id=null.
 //
 // The JSON envelope is written to stdout as a single line. On any
@@ -89,7 +91,22 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	sourceID := tc.ID
 
-	compressedOutput, pipeJSON, transformed, err := compressPipeline(&tc, nil, stderr, hookPipelineTimeout)
+	// Read the configurable pipeline timeout (D22 Phase 2). ktx.toml's
+	// [pipeline.default] timeout field (Go duration string, default 30s
+	// when omitted) is the critical-path deadline. config.Load always
+	// returns a non-zero PipelineTimeout (DefaultPipelineTimeout on the
+	// passthrough path), so the fallback below is defensive only. A broken
+	// ktx.toml surfaces as a usage error here — the original is already
+	// persisted, and a non-zero exit makes the plugin leave output.output
+	// unchanged (D14 conservative failure at the plugin level).
+	timeout := config.DefaultPipelineTimeout
+	if cfg, err := config.Load(); err != nil {
+		return nil, usageError("%v", err)
+	} else if cfg.PipelineTimeout > 0 {
+		timeout = cfg.PipelineTimeout
+	}
+
+	compressedOutput, pipeJSON, transformed, err := compressPipeline(&tc, nil, stderr, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -149,11 +166,13 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, `  {"output": "<compressed>", "compressed_id": "<id>|null", "source_id": "<id>"}`)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The agent sees the compressed output.output; the original is retrievable via")
-	fmt.Fprintln(w, "`ktx decompress <compressed_id>`. When no ktx.toml exists (identity default),")
+	fmt.Fprintln(w, "`ktx decompress <compressed_id>`. When no ktx.toml exists (passthrough default),")
 	fmt.Fprintln(w, "the original is returned unchanged with compressed_id=null.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "A 30s pipeline timeout is enforced (D22 critical-path contract); on timeout")
-	fmt.Fprintln(w, "the original is returned unchanged with a stderr warning.")
+	fmt.Fprintln(w, "A pipeline timeout is enforced (D22 critical-path contract); the default")
+	fmt.Fprintln(w, "is 30s, configurable via [pipeline.default] timeout in ktx.toml (e.g.")
+	fmt.Fprintln(w, "`timeout = \"10s\"`). On timeout the original is returned unchanged with a")
+	fmt.Fprintln(w, "stderr warning.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This verb is called by the OpenCode plugin's tool.execute.after hook (installed")
 	fmt.Fprintln(w, "via `ktx init opencode`). It is not typically invoked directly by users.")

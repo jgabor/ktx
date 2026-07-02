@@ -2,7 +2,7 @@
 // plugin support via BurntSushi/toml).
 //
 // Coverage per the plan's acceptance:
-//   - missing config → empty list + no error (identity default)
+//   - missing config → empty list + no error (passthrough default)
 //   - project-root ktx.toml parses
 //   - user-level fallback used when project-root absent
 //   - precedence: project-root wins when both exist
@@ -19,10 +19,12 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // writeFile writes content to path, creating parent dirs.
@@ -193,6 +195,117 @@ stages = ["normalize"]
 	})
 }
 
+// TestLoad_PipelineTimeout covers the D22 Phase 2 configurable pipeline
+// timeout: [pipeline.default] timeout parses as a Go duration string,
+// defaults to 30s when omitted or when no ktx.toml exists, and a
+// garbage/non-positive value is a *ParseError at config-load time.
+func TestLoad_PipelineTimeout(t *testing.T) {
+	t.Run("timeout='10s' parses to 10s (configurable)", func(t *testing.T) {
+		chdirTemp(t)
+		writeFile(t, "ktx.toml", `[pipeline.default]
+stages = ["head:3"]
+timeout = "10s"
+`)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.PipelineTimeout != 10*time.Second {
+			t.Errorf("PipelineTimeout = %v, want 10s", cfg.PipelineTimeout)
+		}
+	})
+
+	t.Run("no timeout field → default 30s (backward compatible)", func(t *testing.T) {
+		chdirTemp(t)
+		writeFile(t, "ktx.toml", `[pipeline.default]
+stages = ["head:3"]
+`)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.PipelineTimeout != DefaultPipelineTimeout {
+			t.Errorf("PipelineTimeout = %v, want %v (default 30s)", cfg.PipelineTimeout, DefaultPipelineTimeout)
+		}
+	})
+
+	t.Run("no ktx.toml → default 30s (passthrough path)", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.PipelineTimeout != DefaultPipelineTimeout {
+			t.Errorf("PipelineTimeout = %v, want %v (default on passthrough path)", cfg.PipelineTimeout, DefaultPipelineTimeout)
+		}
+	})
+
+	t.Run("garbage timeout → *ParseError", func(t *testing.T) {
+		chdirTemp(t)
+		writeFile(t, "ktx.toml", `[pipeline.default]
+stages = ["head:3"]
+timeout = "garbage"
+`)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load succeeded; want *ParseError for garbage timeout")
+		}
+		pe, ok := err.(*ParseError)
+		if !ok {
+			t.Fatalf("error = %T, want *ParseError", err)
+		}
+		if !strings.Contains(pe.Msg, "timeout") {
+			t.Errorf("ParseError.Msg = %q, want it to mention 'timeout'", pe.Msg)
+		}
+	})
+
+	t.Run("non-positive timeout → *ParseError", func(t *testing.T) {
+		for _, bad := range []string{"0s", "-5s", "0"} {
+			t.Run(bad, func(t *testing.T) {
+				chdirTemp(t)
+				writeFile(t, "ktx.toml", fmt.Sprintf(`[pipeline.default]
+stages = ["head:3"]
+timeout = %q
+`, bad))
+				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+				_, err := Load()
+				if err == nil {
+					t.Fatalf("Load(%q) succeeded; want *ParseError", bad)
+				}
+				if _, ok := err.(*ParseError); !ok {
+					t.Errorf("error = %T, want *ParseError for %q", err, bad)
+				}
+			})
+		}
+	})
+
+	t.Run("duration with minutes parses (2m)", func(t *testing.T) {
+		chdirTemp(t)
+		writeFile(t, "ktx.toml", `[pipeline.default]
+stages = ["head:3"]
+timeout = "2m"
+`)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.PipelineTimeout != 2*time.Minute {
+			t.Errorf("PipelineTimeout = %v, want 2m", cfg.PipelineTimeout)
+		}
+	})
+}
+
 // TestLoad_Malformed covers the syntax-error path: a malformed
 // ktx.toml returns *ParseError so the CLI layer can map it to exit 1.
 // BurntSushi/toml's error messages differ from the M4 hand-rolled
@@ -358,7 +471,7 @@ stages = ["mycat"]
 [[plugin]]
 name = "mycat"
 command = "/bin/cat"
-description = "identity passthrough"
+description = "passthrough"
 `)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
@@ -376,8 +489,8 @@ description = "identity passthrough"
 		if p.Command != "/bin/cat" {
 			t.Errorf("Plugins[0].Command = %q, want %q", p.Command, "/bin/cat")
 		}
-		if p.Description != "identity passthrough" {
-			t.Errorf("Plugins[0].Description = %q, want %q", p.Description, "identity passthrough")
+		if p.Description != "passthrough" {
+			t.Errorf("Plugins[0].Description = %q, want %q", p.Description, "passthrough")
 		}
 	})
 

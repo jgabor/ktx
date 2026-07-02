@@ -650,11 +650,11 @@ decisions:
   alternatives:
   - name: Passthrough default (compress nothing by default without configuration)
     status: chosen
-    description: 'With no ktx.toml present, the default pipeline is identity: `ktx compress <id>` produces a new compressed record whose output equals the source''s output, referencing the source by id.
+    description: 'With no ktx.toml present, the default pipeline is passthrough: `ktx compress <id>` produces a new compressed record whose output equals the source''s output, referencing the source by id.
       Built-in Go stages exist (strip-ansi, dedup-blank, head, truncate, normalize) but are OFF unless configured in ktx.toml. The M4 acceptance test configures at least one stage to prove compress(input)
       ≠ input AND `ktx decompress <compressed-id>` returns the exact original bytes. headroom''s opt-out posture (compress aggressively by default) and lowfat''s opt-in 6-commands posture both rejected:
       headroom violates ''reversibility before aggression'' (aggression before reversal is proven in production) and requires ML fallback; lowfat''s command-name model does not apply to tool_call output.'
-    win_condition: 'M4 acceptance: a configured-stage compressed output is retrievable as the exact original bytes via `ktx decompress <compressed-id>`; no-config invocation is identity.'
+    win_condition: 'M4 acceptance: a configured-stage compressed output is retrievable as the exact original bytes via `ktx decompress <compressed-id>`; no-config invocation is passthrough.'
   - name: Always-on lossless-ish builtins (strip-ansi, dedup-blank, normalize)
     status: rejected
     description: 'Ship a small set of ''safe'' stages always on. Rejected on three grounds: (1) these stages are lossy, not lossless — strip-ansi removes ANSI escape sequences, dedup-blank removes blank
@@ -799,7 +799,7 @@ decisions:
       vs byte-detected), the caller may not know or may lie, and D5 already committed to byte-level detection. MAY be accepted as a HINT field in a future D9 extension (byte-detection wins on conflict),
       but D14 does not extend D9.'
     win_condition: Would be chosen if D5 had not already committed to byte-level detection, or if caller-declared types proved empirically more accurate than byte heuristics in M5.
-  choice: 'M4 default compression pipeline = passthrough (identity) when no ktx.toml is present: `ktx compress <id>` produces a new row in a new `compressed` table whose output equals the source''s output
+  choice: 'M4 default compression pipeline = passthrough when no ktx.toml is present: `ktx compress <id>` produces a new row in a new `compressed` table whose output equals the source''s output
     and whose source_id references the original tool_calls.id; `ktx decompress <compressed-id>` resolves source_id and returns the source''s original output bytes verbatim — this is the public-surface reversal
     that satisfies M4 acceptance. Built-in Go stages (strip-ansi, dedup-blank, head, truncate, normalize) exist but are OFF unless configured in ktx.toml (D5). The reversibility layer IS the database: the
     tool_calls table holds append-only originals (D7, D9 content_hash for integrity), never deletes them, and is nanoid-addressable (D3); compressed artifacts live in a separate `compressed` table (not
@@ -836,7 +836,7 @@ decisions:
     Design rules (do not relitigate):
 
 
-    - Default pipeline (no ktx.toml) = passthrough (identity). `ktx compress <id>` with no config produces a new compressed record whose output equals the source''s output. Built-in stages (strip-ansi,
+    - Default pipeline (no ktx.toml) = passthrough. `ktx compress <id>` with no config produces a new compressed record whose output equals the source''s output. Built-in stages (strip-ansi,
     dedup-blank, head, truncate, normalize) exist but are OFF unless configured. Always-on builtins and full-pipeline-by-default are both rejected.
 
 
@@ -900,7 +900,7 @@ decisions:
     compressed artifacts live in a separate ''compressed'' table with a source_id reference; ktx decompress <id> returns the source''s original output verbatim. The schema migration pattern (internal/db/open.go)
     is idempotent ALTER TABLE ADD COLUMN via PRAGMA table_info checks — the same pattern used for M2, bench_runs, and compressed columns.'
   alternatives:
-  - name: Dual nullable fields (exit_code + is_error) with pre-pipeline identity-row gate and runtime-specific mapping
+  - name: Dual nullable fields (exit_code + is_error) with pre-pipeline passthrough-row gate and runtime-specific mapping
     status: chosen
     description: 'Three sub-decisions, one comprehensive choice. (1) Field shape: add ExitCode *int64 (diagnostic) and IsError *bool (canonical gating signal) to the ToolCall struct, both nullable pointers
       with no omitempty — nil = absent = no failure signal = treated as success; &false = explicitly successful; &true = failed; &0 = explicitly exited zero; &nonzero = exit-code-based failure. is_error
@@ -929,9 +929,9 @@ decisions:
   - name: Refuse to compress on source-tool failure (no compressed row)
     status: rejected
     description: When is_error is true, compressLogic writes no compressed row and returns a non-fatal 'refused' signal to the caller. The caller (hook path or explicit verb) handles the refusal.
-    win_condition: 'Would be chosen if identity rows polluted the compressed table or if the passthrough semantic were unsafe. Rejected: an identity row is a valid artifact (the D14 no-config default already
-      produces identity for all tools); refusing changes the CLI surface (sometimes no id printed); the hook path would need a fallback path that returns the source output directly — the same semantic as
-      an identity row but with extra complexity. The conservative-on-failure contract says ''pass through unchanged and record that fact'' — identity is the pass-through.'
+    win_condition: 'Would be chosen if passthrough rows polluted the compressed table or if the passthrough semantic were unsafe. Rejected: a passthrough row is a valid artifact (the D14 no-config default already
+      produces passthrough for all tools); refusing changes the CLI surface (sometimes no id printed); the hook path would need a fallback path that returns the source output directly — the same semantic as
+      a passthrough row but with extra complexity. The conservative-on-failure contract says ''pass through unchanged and record that fact'' — passthrough is the pass-through.'
   - name: OpenCode is_error from an explicit error field in state (not metadata.exit)
     status: rejected
     description: Read an explicit 'error' or 'is_error' field from part.state (not metadata.exit) as the failure signal. Would capture tools that throw without an exit code at parse time.
@@ -959,9 +959,9 @@ decisions:
     already proven in the codebase — no new pattern, no new type, no derivation logic at gate time (is_error is a direct check, not exit_code != 0). Deriving is_error from exit_code at gate time was rejected
     because it would require the gate to understand exit_code semantics (what counts as failure?) and would lose the ''tool that throws'' case (no exit code). Storing both means the parse layer derives
     is_error once (from exit_code for OpenCode) and the gate checks a single boolean — the derivation is at the parse boundary, the gating is at the compress boundary, and neither re-derives. (2) ''Reversibility
-    before aggression'' favors the identity-row gate: a failed tool''s output passes through unchanged to the compressed artifact, so decompress(compress(failed-source)) == source.output holds. Refusing
+    before aggression'' favors the passthrough-row gate: a failed tool''s output passes through unchanged to the compressed artifact, so decompress(compress(failed-source)) == source.output holds. Refusing
     to compress was rejected because it changes the CLI surface (sometimes no id printed) and forces the hook path to maintain a fallback that returns the source output directly — the same semantic as an
-    identity row but with extra complexity. The identity row is consistent with D14''s no-config default (identity for all tools) and with the conservative-on-failure contract''s ''pass through unchanged
+    passthrough row but with extra complexity. The passthrough row is consistent with D14''s no-config default (passthrough for all tools) and with the conservative-on-failure contract''s ''pass through unchanged
     and record that fact'' — the fact is recorded via stderr warning + pipeline=''[]'' + output==source.output (all inspectable). (3) ''The router wins, the algorithm loses'' favors a stable CLI surface:
     ktx compress always prints an id, regardless of whether compression ran or was skipped. The decision to skip happens behind the surface; the caller (hook or explicit verb) sees the same shape.
 
@@ -981,10 +981,10 @@ decisions:
     - is_error is canonical for gating. The pipeline runner / compressLogic checks is_error only. exit_code is NEVER used for gating — it is diagnostic evidence persisted for inspection (ktx get surfaces
     it).
 
-    - Absent is_error (nil) = no failure signal = treated as success (compression proceeds). &false = explicitly successful (compression proceeds). &true = failed (compression skipped, identity row written).
+    - Absent is_error (nil) = no failure signal = treated as success (compression proceeds). &false = explicitly successful (compression proceeds). &true = failed (compression skipped, passthrough row written).
     The nil-vs-&false distinction is preserved by the pointer discipline, matching M2''s absent-vs-zero distinction.
 
-    - Source-tool-failure gate: when is_error is true, compressLogic writes an identity compressed row (output == source.output, pipeline == ''[]'', stderr warning). This is a PRE-PIPELINE gate, distinct
+    - Source-tool-failure gate: when is_error is true, compressLogic writes an passthrough compressed row (output == source.output, pipeline == ''[]'', stderr warning). This is a PRE-PIPELINE gate, distinct
     from D14''s three IN-PIPELINE invariants. The gate fires before runner.Run; the invariants fire during execution.
 
     - OpenCode mapping: exit_code from part.state.metadata.exit; is_error derived at parse time (exit_code != 0 when present, nil when absent). Tools without an exit field → both nil (success).
@@ -1027,7 +1027,7 @@ decisions:
     - id: AC5
       given: a source tool_call with IsError=&true
       when: ktx compress <source-id> is invoked with a configured pipeline (e.g. head:5)
-      then: an identity compressed row is written (output == source.output, pipeline == '[]'); a warning is written to stderr; decompress(compressed-id) returns the source's original output verbatim; the
+      then: an passthrough compressed row is written (output == source.output, pipeline == '[]'); a warning is written to stderr; decompress(compressed-id) returns the source's original output verbatim; the
         compressed id is printed to stdout (stable surface)
     - id: AC6
       given: a source tool_call with IsError=nil (absent — backward-compatible existing row) or IsError=&false (explicitly successful)
@@ -1657,10 +1657,10 @@ decisions:
     status: chosen
     description: 'A new flat verb `ktx hook` registered via dispatch (NeedsDB=true, PassthroughStdout=true). The plugin''s `tool.execute.after` spawns `ktx hook` via Bun.spawn with stdin = D9 flat JSON
       tool_call envelope. In one process: (1) parse stdin into ToolCall; (2) persist original via shared PersistToolCall (DRY); (3) load ktx.toml; (4) apply D15 gate; (5) run pipeline or return source unchanged
-      (identity/D15-skip); (6) write JSON envelope on stdout: {"output": string, "compressed_id": string|null, "source_id": string}. Plugin parses envelope, sets output.output = envelope.output. On any
+      (passthrough/D15-skip); (6) write JSON envelope on stdout: {"output": string, "compressed_id": string|null, "source_id": string}. Plugin parses envelope, sets output.output = envelope.output. On any
       ktx failure, plugin leaves output.output unchanged (D14 conservative failure). KTX_SESSION_ID noop preserved (D10).'
     win_condition: With ktx.toml configuring stages, a real opencode tool_call produces a persisted original AND a compressed row, and the agent's context receives the compressed output; with no ktx.toml,
-      identical to ktx write (identity, zero behavioral change). Mutation-test CONFIRMED output.output propagation (2026-07-01).
+      identical to ktx write (passthrough, zero behavioral change). Mutation-test CONFIRMED output.output propagation (2026-07-01).
   - name: Plugin chains `ktx write` + `ktx compress` + `ktx read`
     status: rejected
     description: No new verb. Plugin calls ktx write, then ktx compress, then ktx read, parses JSON in TypeScript.
@@ -1686,7 +1686,7 @@ decisions:
     `output.output = envelope.output`. Single subprocess; DRY (in-process persistence via the shared `internal/db.PersistToolCall` — the same code `ktx write` calls — plus in-process compression via the
     shared `internal/pipeline` runner that `ktx compress` uses). The envelope `{"output": string, "compressed_id": string|null, "source_id": string}` carries the bytes the agent should see plus IDs for
     developer-side reversibility (`ktx decompress <compressed_id>` returns the original); the IDs NEVER reach the agent context (invisibility). `ktx hook` creates a compressed row ONLY when the pipeline
-    actually transforms (no compressed row on identity / D15-skip). When no ktx.toml is present (identity default per D14), `ktx hook` persists the original and returns it unchanged with `compressed_id:
+    actually transforms (no compressed row on passthrough / D15-skip). When no ktx.toml is present (passthrough default per D14), `ktx hook` persists the original and returns it unchanged with `compressed_id:
     null` — zero pipeline latency, identical behavioral outcome to today''s `ktx write` path.'
   reasoning: 'D1 is firm and already committed the design — D22 fills in the concrete protocol, plugin contract, and latency policy. The ''shells out to ktx write'' phrase is honored as ''delegates to the
     write code path'' (via shared PersistToolCall, in-process — strictly faster and DRY). D14 conservative-on-failure governs both layers: INSIDE ktx hook (D14 invariants + D15 gate); OUTSIDE at plugin

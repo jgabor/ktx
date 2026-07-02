@@ -62,7 +62,7 @@ func TestInsertCompressed(t *testing.T) {
 		// Recompute content_hash from the COMPRESSED output (D9
 		// integrity rule: hash the artifact that was stored). Here
 		// the compressed output happens to equal the source output
-		// (identity pipeline), so the hash matches the source's
+		// (passthrough pipeline), so the hash matches the source's
 		// content_hash — but the contract is "hash what you stored".
 		compressedOutput := "hi\n"
 		hash := ContentHash(compressedOutput)
@@ -72,7 +72,7 @@ func TestInsertCompressed(t *testing.T) {
 			SourceID:    sourceID,
 			Output:      compressedOutput,
 			ContentHash: hash,
-			Pipeline:    "[]", // empty pipeline = identity (D14 default)
+			Pipeline:    "[]", // empty pipeline = passthrough (D14 default)
 			Timestamp:   "2026-06-24T00:00:02Z",
 		}
 		if err := d.InsertCompressed(c); err != nil {

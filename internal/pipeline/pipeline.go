@@ -19,6 +19,17 @@
 //     is skipped with a stderr warning ("ktx: warning: unknown
 //     pipeline stage %q, skipped") and the pipeline continues.
 //
+//  4. Anti-worsening gate (D22 Phase 2): after all stages run, if the
+//     pipeline result is NOT smaller than the input (len(out) >=
+//     len(in)) AND the input was non-empty, the entire pipeline result
+//     is discarded and the input is returned unchanged (with Ran
+//     cleared). A pipeline that grows output — or merely rewrites it
+//     at equal length — did not reduce the agent's context cost, so it
+//     is treated as passthrough (no compressed row). This fires on the
+//     pipeline RESULT, not per-stage; invariants 1–3 still fire
+//     per-stage during the loop. (rtk guard.rs never_worse; lowfat
+//     lib.rs 10% gate.)
+//
 // Reversibility is captured at the pipeline BOUNDARY, not per stage
 // (D14): the database holds the original (tool_calls) and a
 // compressed artifact references it by id (`ktx decompress <id>`
@@ -205,14 +216,14 @@ func splitToken(token string) (name, arg string) {
 type Runner struct {
 	// Registry resolves stage names to Stage implementations. A nil
 	// Registry is treated as an empty registry: every stage name is
-	// unknown, and the pipeline is identity (every stage skipped
+	// unknown, and the pipeline is passthrough (every stage skipped
 	// with a warning). This matches the D14 no-ktx.toml default for
 	// a degenerate case and keeps the runner safe against a
 	// misconfigured caller.
 	Registry *Registry
 
 	// Pipeline is the ordered list of stage names to apply. An empty
-	// slice is identity (D14: no-ktx.toml → empty pipeline → input
+	// slice is passthrough (D14: no-ktx.toml → empty pipeline → input
 	// returned unchanged; the compressed.output equals source.output
 	// and the pipeline JSON is "[]").
 	Pipeline []string
@@ -274,7 +285,7 @@ type Result struct {
 // rely on aliasing either way — it passes whatever the previous stage
 // returned to the next stage.)
 //
-// An empty Pipeline (zero stages) is identity: the input is returned
+// An empty Pipeline (zero stages) is passthrough: the input is returned
 // unchanged and Ran is empty (the D14 no-ktx.toml default).
 //
 // Stage tokens may carry an arg via `name:arg` (e.g. `head:100`).
@@ -317,6 +328,33 @@ func (r *Runner) Run(input []byte) Result {
 		current = out
 	}
 	res.Out = current
+
+	// Anti-worsening gate — the fourth conservative-on-failure
+	// invariant (D14-adjacent, fires on the pipeline RESULT, not
+	// per-stage). When the input was non-empty and the pipeline's
+	// net output is NOT smaller than the input (len(out) >=
+	// len(in)), the pipeline did not help: a stage that grows output
+	// is worse than no stage (rtk guard.rs:6-12 never_worse; lowfat
+	// lib.rs:46-55 gate). The gate discards the pipeline's work and
+	// returns the input unchanged. Equal length is treated as "not
+	// better" — a stage that only rewrites bytes at the same length
+	// has not reduced the agent's context cost.
+	//
+	// Clearing Ran is intentional: the pipeline's net effect was
+	// nullified, so the compressed-row's `pipeline` JSON array (the
+	// D14 "record of what stages ran") is empty — this makes
+	// compressPipeline's `transformed` computation yield false
+	// (output == input AND pipeline JSON == "[]"), so NO compressed
+	// row is created for a result that did not shrink the input
+	// (D22: a transform that does not help returns the original
+	// with compressed_id=null). The three per-stage D14 invariants
+	// (empty-output guard, stage-error passthrough, unknown-stage
+	// skip) still fired during the loop above; the gate is a
+	// post-hoc result-level discard, not a replacement.
+	if len(input) > 0 && len(res.Out) >= len(input) {
+		res.Out = input
+		res.Ran = nil
+	}
 	return res
 }
 

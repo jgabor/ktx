@@ -396,7 +396,7 @@ func printPluginHelp(w io.Writer) {
 	fmt.Fprintln(w, "(stdin=input bytes, stdout=output bytes).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
-	fmt.Fprintln(w, "  ktx plugin add mycat /bin/cat --description \"identity passthrough\"")
+	fmt.Fprintln(w, "  ktx plugin add mycat /bin/cat --description \"passthrough\"")
 	fmt.Fprintln(w, "  ktx plugin list --json")
 	fmt.Fprintln(w, "  ktx plugin remove mycat")
 	fmt.Fprintln(w)

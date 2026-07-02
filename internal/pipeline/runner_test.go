@@ -10,7 +10,7 @@
 //  3. Unknown-stage skip: unresolved name → skipped with a stderr
 //     warning, pipeline continues, NOT fatal.
 //
-// Plus: empty pipeline = identity (D14 no-ktx.toml default); Ran
+// Plus: empty pipeline = passthrough (D14 no-ktx.toml default); Ran
 // records only successfully-executed stages.
 //
 // All subtests use fake StageFunc stages (closures capturing their
@@ -56,7 +56,7 @@ func TestRun_EmptyPipelineIsIdentity(t *testing.T) {
 	input := []byte("hello world")
 	res := r.Run(input)
 	if !bytes.Equal(res.Out, input) {
-		t.Errorf("empty pipeline output = %q, want %q (identity)", res.Out, input)
+		t.Errorf("empty pipeline output = %q, want %q (passthrough)", res.Out, input)
 	}
 	if len(res.Ran) != 0 {
 		t.Errorf("empty pipeline Ran = %v, want empty", res.Ran)
@@ -271,13 +271,16 @@ func TestRun_Invariant3_UnknownStageSkip(t *testing.T) {
 			Pipeline: []string{"unknown", "known"},
 			Warn:     &warn,
 		}
-		res := r.Run([]byte("input"))
+		// Input is longer than "KNOWN" so the anti-worsening gate
+		// (D22 Phase 2) does not discard the known stage's output.
+		input := []byte("the input value")
+		res := r.Run(input)
 
-		// The known stage still ran and saw "input" (the unknown
-		// stage was skipped, so the pipeline continued with the
-		// input unchanged).
-		if string(known.seen) != "input" {
-			t.Errorf("known stage saw %q, want input (unknown was skipped)", known.seen)
+		// The known stage still ran and saw "the input value" (the
+		// unknown stage was skipped, so the pipeline continued with
+		// the input unchanged).
+		if string(known.seen) != "the input value" {
+			t.Errorf("known stage saw %q, want the input value (unknown was skipped)", known.seen)
 		}
 		// Final output is the known stage's output.
 		if string(res.Out) != "KNOWN" {
@@ -305,24 +308,146 @@ func TestRun_Invariant3_UnknownStageSkip(t *testing.T) {
 		r := &Runner{Registry: reg, Pipeline: []string{"unknown"}}
 		res := r.Run([]byte("input"))
 		if string(res.Out) != "input" {
-			t.Errorf("output = %q, want input (identity, unknown skipped)", res.Out)
+			t.Errorf("output = %q, want input (passthrough, unknown skipped)", res.Out)
 		}
 		if len(res.Ran) != 0 {
 			t.Errorf("Ran = %v, want empty", res.Ran)
 		}
 	})
 
-	t.Run("nil Registry: every name unknown, identity", func(t *testing.T) {
+	t.Run("nil Registry: every name unknown, passthrough", func(t *testing.T) {
 		// A misconfigured caller with a nil Registry degrades
-		// to identity (every stage skipped). This is the
+		// to passthrough (every stage skipped). This is the
 		// safe-failure mode — better than a nil-pointer panic.
 		r := &Runner{Pipeline: []string{"a", "b", "c"}}
 		res := r.Run([]byte("input"))
 		if string(res.Out) != "input" {
-			t.Errorf("output = %q, want input (nil Registry → identity)", res.Out)
+			t.Errorf("output = %q, want input (nil Registry → passthrough)", res.Out)
 		}
 		if len(res.Ran) != 0 {
 			t.Errorf("Ran = %v, want empty", res.Ran)
+		}
+	})
+}
+
+// TestRun_AntiWorseningGate covers the D22 Phase 2 fourth
+// conservative-on-failure invariant: a pipeline whose result is not
+// smaller than its input (len(out) >= len(in), input non-empty) has
+// its result discarded — the input is returned unchanged and Ran is
+// cleared (so the result reads as passthrough: no compressed row).
+//
+// The gate fires on the pipeline RESULT, not per-stage; the three
+// per-stage invariants (1–3) still fire during the loop. rtk calls
+// this never_worse (guard.rs:6-12); lowfat calls it the 10% gate
+// (lib.rs:46-55). Phase 2 ships the rtk variant (output >= input →
+// discard) as the simpler contract.
+func TestRun_AntiWorseningGate(t *testing.T) {
+	t.Run("pipeline grows output → gate discards, input returned", func(t *testing.T) {
+		// A "repeater" stage that doubles every byte: output is
+		// larger than input, so the gate fires.
+		reg := NewRegistry()
+		reg.Register("grow", StageFunc(func(in []byte) ([]byte, error) {
+			out := make([]byte, 0, len(in)*2)
+			for _, b := range in {
+				out = append(out, b, b)
+			}
+			return out, nil
+		}))
+		r := &Runner{Registry: reg, Pipeline: []string{"grow"}}
+		input := []byte("abc")
+		res := r.Run(input)
+
+		if string(res.Out) != "abc" {
+			t.Errorf("output = %q, want %q (gate discarded grown output)", res.Out, input)
+		}
+		if len(res.Ran) != 0 {
+			t.Errorf("Ran = %v, want empty (gate cleared Ran; result discarded)", res.Ran)
+		}
+	})
+
+	t.Run("pipeline shrinks output → gate does NOT fire, compressed returned", func(t *testing.T) {
+		reg := NewRegistry()
+		reg.Register("shrink", StageFunc(func(in []byte) ([]byte, error) {
+			return []byte("X"), nil // 1 byte, smaller than any non-empty input of len>1
+		}))
+		r := &Runner{Registry: reg, Pipeline: []string{"shrink"}}
+		input := []byte("some longer input that shrinks to X")
+		res := r.Run(input)
+
+		if string(res.Out) != "X" {
+			t.Errorf("output = %q, want X (gate did not fire; pipeline helped)", res.Out)
+		}
+		if len(res.Ran) != 1 || res.Ran[0] != "shrink" {
+			t.Errorf("Ran = %v, want [shrink] (gate preserved Ran)", res.Ran)
+		}
+	})
+
+	t.Run("equal length output → gate fires (equal is 'not better')", func(t *testing.T) {
+		// A stage that rewrites bytes at the same length (e.g. an
+		// uppercase stage on already-uppercase input). Equal length
+		// is treated as "not better", so the gate fires.
+		reg := NewRegistry()
+		reg.Register("noop", StageFunc(func(in []byte) ([]byte, error) {
+			out := make([]byte, len(in))
+			copy(out, in) // same length, same content
+			return out, nil
+		}))
+		r := &Runner{Registry: reg, Pipeline: []string{"noop"}}
+		input := []byte("unchanged")
+		res := r.Run(input)
+
+		if string(res.Out) != "unchanged" {
+			t.Errorf("output = %q, want %q (gate fired on equal length)", res.Out, input)
+		}
+		if len(res.Ran) != 0 {
+			t.Errorf("Ran = %v, want empty (equal length → gate discarded)", res.Ran)
+		}
+	})
+
+	t.Run("empty input → gate does NOT fire", func(t *testing.T) {
+		// Empty input → empty/larger output is a legitimate result;
+		// the gate's len(input) > 0 guard prevents firing.
+		reg := NewRegistry()
+		reg.Register("grow", StageFunc(func(in []byte) ([]byte, error) {
+			return []byte("GROWN"), nil // 5 bytes > 0 (empty input)
+		}))
+		r := &Runner{Registry: reg, Pipeline: []string{"grow"}}
+		res := r.Run([]byte(""))
+
+		if string(res.Out) != "GROWN" {
+			t.Errorf("output = %q, want GROWN (gate must not fire on empty input)", res.Out)
+		}
+		if len(res.Ran) != 1 || res.Ran[0] != "grow" {
+			t.Errorf("Ran = %v, want [grow] (empty input → no gate)", res.Ran)
+		}
+	})
+
+	t.Run("multi-stage net shrink → gate does NOT fire", func(t *testing.T) {
+		// A chain that grows then shrinks: net result smaller than
+		// input → gate does not fire. Verifies the gate compares
+		// against the ORIGINAL input, not stage intermediates.
+		reg := NewRegistry()
+		reg.Register("double", StageFunc(func(in []byte) ([]byte, error) {
+			out := make([]byte, 0, len(in)*2)
+			out = append(out, in...)
+			out = append(out, in...)
+			return out, nil
+		}))
+		reg.Register("take1", StageFunc(func(in []byte) ([]byte, error) {
+			if len(in) == 0 {
+				return nil, nil
+			}
+			return in[:1], nil
+		}))
+		r := &Runner{Registry: reg, Pipeline: []string{"double", "take1"}}
+		input := []byte("hello") // 5 bytes; double→10; take1→1; net shrink
+		res := r.Run(input)
+
+		if string(res.Out) != "h" {
+			t.Errorf("output = %q, want h (net shrink; gate did not fire)", res.Out)
+		}
+		if len(res.Ran) != 2 {
+			t.Errorf("Ran = %v, want [double take1] (net shrink preserved)", res.Ran)
 		}
 	})
 }

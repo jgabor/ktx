@@ -37,3 +37,32 @@ When adding a new open question, add it to [ARCHITECTURE.md — Open deliberatio
 - **Router wins, algorithm loses** — stable CLI surface; dispatch and measurement beat owning the best compressor in every category.
 - **Do not relitigate** choices marked firm in `.agentera/decisions.yaml` unless the user explicitly requests a revisit.
 - Deliberation outcomes belong in `.agentera/decisions.yaml`, not only in chat or commit messages.
+
+## Testing
+
+### Hook validation
+
+`scripts/validate-hook.sh` runs a real OpenCode session with the ktx plugin, a configurable pipeline, and a pinned model, then queries the DB for A/B compression numbers.
+
+```bash
+# Default pipeline (strip-ansi + grep-v + keep-ends + token-budget)
+scripts/validate-hook.sh
+
+# Custom model and prompt
+scripts/validate-hook.sh --model neuralwatt/glm-5.2-short-fast --prompt "Run: seq 1 500"
+
+# Keep workdir for inspection
+scripts/validate-hook.sh --keep-workdir
+
+# Custom pipeline stages
+scripts/validate-hook.sh --pipeline "strip-ansi,keep-ends:50:20,token-budget:2000"
+
+# Use a pre-written ktx.toml
+scripts/validate-hook.sh --ktx-toml path/to/ktx.toml
+```
+
+**Model policy:** use `neuralwatt/*` models only. Never use `github-copilot/*` models — they are on an enterprise plan and not permitted for this repo.
+
+### Benchmark validation
+
+`scripts/validate-bench.sh` validates wrapper capture against real opencode (D16/D17 five-layer gate). See the script header for usage.

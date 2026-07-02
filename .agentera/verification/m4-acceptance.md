@@ -26,7 +26,7 @@ Driving harness:
   Seeded source.output sha256 = `7dc9ac2ff955369c68f6d8af2f4415b5985de825c1161d410dc5e0f4c72aa6cc`.
 - Config fixtures in t.TempDir()-equivalents under
   `/tmp/ktx-m4-verify/cwd-lossy/ktx.toml` (loses 5 of 20 lines via
-  `head:5`); identity case has no ktx.toml on disk or in env.
+  `head:5`); passthrough case has no ktx.toml on disk or in env.
 - Programmatic verification (Python sqlite3) for content_hash equality
   to avoid shell trailing-newline noise that fooled the first run of
   the hash check (sqlite3 CLI prints a trailing newline; `jq -r` adds
@@ -64,7 +64,7 @@ PASS — fresh-DB has compressed with all 6 columns; pre-M4 (M3-era) DB
 $ go test ./internal/pipeline/ -v
 PASS — Invariant1 (empty-output guard), Invariant2 (stage-error
         passthrough incl. panic recovery), Invariant3 (unknown-stage
-        skip with stderr warning) all PASS. Empty pipeline == identity.
+        skip with stderr warning) all PASS. Empty pipeline = passthrough.
 
 $ go test ./internal/cli/ -run "TestRunCompress|TestRunDecompress" -v
 PASS — IdentityRoundTrip, PipelineModifiesOutput, SourceNotFound
@@ -82,13 +82,13 @@ exit: 0
   source.output sha256          : 7dc9ac2ff955369c68f6d8af2f4415b5985de825c1161d410dc5e0f4c72aa6cc
   source.content_hash (DB)      : 7dc9ac2ff955369c68f6d8af2f4415b5985de825c1161d410dc5e0f4c72aa6cc
   pipeline (DB)                 : []
-  compressed.output == source.output : True (identity — D14 default)
+  compressed.output == source.output : True (passthrough — D14 default)
 
-RESULT: PASS — identity path holds. compressed.output is byte-for-byte
+RESULT: PASS — passthrough path holds. compressed.output is byte-for-byte
   equal to source.output; both hashes match; pipeline JSON is the
   empty array `[]` (no stages ran); content_hash is recomputed from
   the compressed output per D9 (not copied from source.content_hash —
-  they happen to be identical only because the pipeline is identity).
+  they happen to be identical only because the pipeline passthrough).
 
 ===========================================================================
 AC2 — CONFIGURED-STAGE CASE (ktx.toml with head:5)
@@ -145,7 +145,7 @@ at stage-author convention):
     PASS — a stage name the Registry cannot resolve is skipped with
            a stderr warning (`ktx: warning: unknown pipeline stage
            %q, skipped`); the pipeline continues; exit 0. A nil
-           Registry is treated as "every name unknown" → identity.
+           Registry is treated as "every name unknown" → passthrough.
 
   Empty pipeline:
     PASS — Runner.Run on zero stages returns input unchanged (the
@@ -242,7 +242,7 @@ original bytes via the public surface."
     ktx compress <source-id>     → writes compressed row referencing source
     ktx decompress <compressed-id> → returns source.output bytes verbatim
 
-  AC1 (identity) + AC2 (lossy stage) both prove decompress(compress(x)) == x.
+  AC1 (passthrough) + AC2 (lossy stage) both prove decompress(compress(x)) == x.
   AC3 proves the invariants that protect x even when a stage is buggy.
   AC6 proves M3 evidence survives (M4 is additive).
   AC7 proves pre-M4 databases upgrade cleanly.
@@ -291,7 +291,7 @@ zero-external-deps streak outside of modernc.org/sqlite and
 production-only gonanoid).
 
 D14 design rules confirmed at runtime:
-- Passthrough default (no ktx.toml = identity)                     ✓ AC1
+- Passthrough default (no ktx.toml = passthrough)                     ✓ AC1
 - Reversibility = the database (source.output survives intact)       ✓ AC1, AC2
 - Three conservative-on-failure invariants runtime-enforced         ✓ AC3
 - Conservative-on-failure is a runtime guarantee, not convention     ✓ AC3

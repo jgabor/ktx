@@ -13,7 +13,7 @@ Decisions referenced:
 - D14 (compression pipeline — conservative-on-failure invariants
   extend to external subprocess stages: empty-output guard,
   stage-error passthrough, unknown-stage skip)
-- D15 (pre-pipeline identity-row gate fires for is_error=true sources)
+- D15 (pre-pipeline passthrough-row gate fires for is_error=true sources)
 - D21 (structured editor over [[plugin]] blocks; agents call --json,
   never author TOML by hand)
 
@@ -37,9 +37,9 @@ ok      github.com/jgabor/ktx/internal/pipeline      0.004s
 ok      github.com/jgabor/ktx/internal/pipeline/stages 0.001s
 
 ===========================================================================
-M4 REGRESSION (byte-identical identity path)
+M4 REGRESSION (byte-identical passthrough path)
 ===========================================================================
-M4 tests remain green: identity path, configured built-in path,
+M4 tests remain green: passthrough path, configured built-in path,
 compressed migration, D15 gate, D20 replay — all pass with -count=1.
 No M4 test was modified to accommodate M5. The config_test.go
 malformed-test assertions were loosened (substring → existence) per
@@ -127,7 +127,7 @@ exit: 0
   compressed.output = "Error: something went wrong" (source verbatim)
   pipeline (DB)     : []
 
-RESULT: PASS — D15 gate fires for M5 external-stage pipelines; identity
+RESULT: PASS — D15 gate fires for M5 external-stage pipelines; passthrough
   row persisted; pipeline JSON is [].
 
 --- AC: ktx plugin list --json ---
@@ -154,24 +154,24 @@ $ ktx config show
 {"profiles":{"default":{"stages":["myecho:hello"]}}}
 exit: 0
 
-Without ktx.toml (identity path):
+Without ktx.toml (passthrough path):
 
 $ ktx config show
 {"profiles":{"default":{"stages":[]}}}
 exit: 0
 
 RESULT: PASS — active pipeline shown per profile; no-config case shows
-  empty stages (D14 identity).
+  empty stages (D14 passthrough).
 
 --- AC: ktx plugin add (creates new ktx.toml) ---
 
 No ktx.toml exists.
 
-$ ktx plugin add mycat /bin/cat --description "identity"
-{"plugin":{"command":"/bin/cat","description":"identity","name":"mycat"}}
+$ ktx plugin add mycat /bin/cat --description "passthrough"
+{"plugin":{"command":"/bin/cat","description":"passthrough","name":"mycat"}}
 exit: 0
 
-  ktx.toml: [[plugin]] block with name="mycat" command="/bin/cat" description="identity"
+  ktx.toml: [[plugin]] block with name="mycat" command="/bin/cat" description="passthrough"
 
 RESULT: PASS — new ./ktx.toml created with one [[plugin]] block.
 
@@ -190,7 +190,7 @@ RESULT: PASS — existing content preserved, new block appended.
 --- AC: ktx plugin remove (user plugin) ---
 
 $ ktx plugin remove mycat
-{"removed":{"command":"/bin/cat","description":"identity","name":"mycat"}}
+{"removed":{"command":"/bin/cat","description":"passthrough","name":"mycat"}}
 exit: 0
 
   ktx.toml: [[plugin]] block deleted
@@ -234,7 +234,7 @@ M5 acceptance: ALL PASS
   7. ktx config show --json (with/without config) .............. PASS
   8. ktx plugin add (create + append) ........................... PASS
   9. ktx plugin remove (user + builtin + override) ............. PASS
- 10. M4 regression (byte-identical identity path) ............... PASS
+ 10. M4 regression (byte-identical passthrough path) ............... PASS
  11. go test ./... -count=1 (all packages green) ................ PASS
  12. go vet ./... (clean) ...................................... PASS
 

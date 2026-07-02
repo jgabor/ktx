@@ -3,74 +3,177 @@ header:
   created: "2026-07-01"
   status: complete
   reviewed: "2026-07-01"
-  critic_issues: "4 found, 4 addressed, 0 dismissed"
-  title: "ktx hook — in-flight compression plumbing verification (D22 Phase 1)"
-what: "Implement ktx hook as a new flat verb that reads a D9 flat JSON tool_call from stdin, persists the original via the shared internal/db.PersistToolCall code path, runs the D14 compression pipeline via the shared compressPipeline core (D15 gate + D14 invariants; DRY — same code ktx compress calls), and writes a JSON envelope on stdout with output, compressed_id, and source_id fields. Then update the OpenCode plugin template to call ktx hook instead of ktx write, parse the envelope, and mutate output.output to the compressed bytes. Phase 1 verifies the full loop end-to-end with built-in stages (strip-ansi, head) with no LLM summarizer plugin yet."
-why: "D22 (firm) closes the runtime-token-cost gap: M1-M5 compress stored data post-hoc, but the agent already saw the full output. ktx hook persists the original (reversibility via ktx decompress) and returns the compressed bytes to the agent context via tool.execute.after output mutation (empirically confirmed 2026-07-01). Phase 1 proves the plumbing with conservative built-in stages before adding real compression intelligence (Phase 2: user-configured LLM summarizer plugin)."
-constraints: "D22 (firm) design rules: single subprocess (no nested subprocess, DRY via shared PersistToolCall); envelope with output, compressed_id, source_id on stdout; compressed row created ONLY when pipeline transforms (identity/D15-skip returns source.output with compressed_id=null); two-layer conservative failure (D14 invariants inside ktx hook, plugin-level pass-through on any ktx failure); sync compression (block tool result); critical-path timeout (30s default); D10 noop preserved (KTX_SESSION_ID means plugin skips). D14 D15 invariants unchanged. D9 flat JSON input shape unchanged. M1-M5 regression byte-identical. No new dependencies."
+  critic_issues: "1 found, 1 addressed, 0 dismissed"
+  title: "D22 Phase 2 — deterministic compression stages + savings measurement"
+what: "Phase 1 proved the plumbing: head:3 truncation flows through ktx hook → plugin mutation → agent context, with reversibility via ktx decompress. Phase 2 ships MEANINGFUL deterministic compression: four new built-in pipeline stages (keep-ends, grep, grep-v, token-budget) and an anti-worsening gate (if the pipeline makes output longer, return the original). All four stages are proven in two production codebases (rtk: ~/git/rtk, lowfat: ~/git/lowfat) that achieve 60–90% token reduction with zero ML. Phase 2 also makes the 30s hardcoded timeout configurable via ktx.toml, extends ktx bench run --replay with A/B byte-count measurement (baseline vs compressed, zero agent calls), and proves it end-to-end in a real OpenCode session with a real-world pipeline."
+why: "Phase 1's head:3 proves the wire protocol but saves no meaningful tokens — line truncation is a toy. The project's stated goal is 'makes coding agents measurable and cheaper.' Phase 2 delivers the 'cheaper' part with deterministic stages that are proven in production: rtk's keep-head-and-tail preserves error messages at the bottom of build logs (head:N alone loses them); grep/grep-v enables content-aware filtering (strip debug lines, keep only errors); token-budget is line-safe truncation (no mid-line cuts). The anti-worsening gate is called out by BOTH rtk (never_worse in guard.rs) and lowfat (<10% savings → passthrough in lib.rs) as the single most important invariant — never make output worse. ktx ships dispatch + measurement + reversibility, not compression intelligence (AGENTS.md: 'router wins, algorithm loses'); the stages are deterministic Go code, not an LLM call."
+constraints: |
+  D22 (firm) design rules unchanged: single subprocess, envelope shape, compressed-row-only-when-transformed, two-layer conservative failure, sync compression, D10 noop.
+  D14 conservative-on-failure invariants unchanged: empty-output guard, stage-error passthrough, unknown-stage skip. The new stages are subject to all three. The anti-worsening gate is a FOURTH runner-level invariant: if len(output) >= len(input) AND input was non-empty, return input (a stage that grows output is worse than no stage). This is D14-adjacent, not a D14 override — the three existing invariants fire per-stage; the gate fires on the pipeline result.
+  AGENTS.md: "boring before clever — stdlib first, no ML deps." All new stages are pure Go stdlib (regexp, strings, bytes). No new dependencies.
+  AGENTS.md: "router wins, algorithm loses." ktx ships the stages and the runner; the user configures which stages to use in ktx.toml. No content-type routing (YAGNI for Phase 2 — single [pipeline.default] is sufficient). No aggressiveness tiers (YAGNI — lowfat's lite/full/ultra is a design choice, not a copy-paste; ktx's stages are parameterised by N, not by level).
+  Research basis: rtk (~/git/rtk, ~17K LOC Rust, 63 TOML filters, 60-90% token reduction) and lowfat (~/git/lowfat, ~3K LOC Rust, DSL-based pipelines). Both are production codebases solving ktx's exact problem with zero ML. The four stages selected are the intersection of both codebases' highest-leverage, lowest-risk additions.
+  No content-type routing (Phase 3). No aggressiveness tiers (Phase 3). No in-process LLM call (violates D22 single-subprocess rule).
 scope:
   included:
-    - "Task 1: Refactor compressLogic to return (compressedID, compressedOutput string, pipelineJSON string, error) as values instead of printing the id to stdout, so both ktx compress and ktx hook consume the shared pipeline+persist code."
-    - "Task 2: Implement ktx hook verb in new internal/cli/hook.go via dispatch.Register (NeedsDB=true, NeedsStdin=true, PassthroughStdout=true). Reads D9 JSON from stdin, persists original via PersistToolCall, runs pipeline, writes envelope to stdout. Compressed row only when pipeline transforms."
-    - "Task 3: Update OpenCode plugin template in internal/cli/init.go to call ktx hook instead of ktx write, parse the JSON envelope, and set output.output = envelope.output."
-    - "Task 4: Integration tests + acceptance verification (.agentera/verification/hook-acceptance.md)."
-    - "Task 5: Documentation sync (ARCHITECTURE.md, TODO.md, ROADMAP.md if needed)."
+    - "Task 1: Configurable pipeline timeout — add [pipeline.default] timeout = '30s' to ktx.toml; config.Load returns it; hookLogic reads it instead of the hardcoded hookPipelineTimeout constant. Default 30s when omitted (backward compatible)."
+    - "Task 2: Anti-worsening gate in the pipeline Runner — after all stages complete, if len(output) >= len(input) AND input was non-empty, return input unchanged. The gate fires on the pipeline result, not per-stage (D14's three invariants remain per-stage). Adds a fourth conservative-on-failure invariant: 'a pipeline that grows output is discarded.' rtk: guard.rs:6-12 (never_worse). lowfat: lib.rs:46-55 (<10% savings → passthrough)."
+    - "Task 3: Four new built-in pipeline stages in internal/pipeline/stages/, each ~10-25 LOC, all deterministic, all bytes-in/bytes-out, all subject to D14 invariants: keep-ends:N:M (head N + tail M with [... N lines omitted ...] marker), grep:pattern (keep lines matching regex, invalid regex → passthrough), grep-v:pattern (reject lines matching regex, invalid regex → passthrough), token-budget:N (truncate to ~N tokens via chars/4, snap back to last newline, append marker)."
+    - "Task 4: A/B compression measurement in ktx bench run --replay — iterate recorded tool_use events through compressPipeline (timeout=0, off-line), emit baseline_bytes, compressed_bytes, ratio, bytes_saved, pipeline in the replay envelope. Zero agent calls (reuses D20 recorded stream)."
+    - "Task 5: Real-session end-to-end with a deterministic pipeline — install plugin, configure a real-world pipeline (strip-ansi + grep-v + keep-ends + token-budget), run a real OpenCode session with verbose tool output. Verify: agent sees compressed output; original in DB; decompress returns verbatim; replay shows ratio < 1.0."
+    - "Task 6: Documentation sync (ARCHITECTURE.md, TODO.md, ROADMAP.md, acceptance log)."
   excluded:
-    - "LLM summarizer plugin (Phase 2)."
-    - "Content-type routing (TODO:40)."
+    - "Content-type routing / multi-profile pipeline selection (Phase 3 / YAGNI)."
+    - "Aggressiveness tiers — lite/full/ultra (Phase 3 / YAGNI; lowfat's Level enum is a design choice, not a copy-paste)."
+    - "Match-output short-circuit with unless guard (rtk Finding 3; valuable but more complex than the four selected stages; Phase 3 candidate)."
+    - "Log normalize + dedup with counts (rtk Finding 4; ~220 LOC, higher complexity; Phase 3 candidate)."
+    - "JSON schema extraction (rtk Finding 7; medium complexity, niche use case; Phase 3 candidate)."
+    - "Code comment-strip + body collapse (lowfat Finding 2; ~370 LOC, needs language detection; Phase 3 candidate)."
+    - "Secret redaction engine (lowfat Finding 13; ~170 LOC; important but orthogonal to compression; separate TODO)."
     - "Per-stage timeout override (D14 territory)."
-    - "ktx hook --help (manual; follows existing verb help patterns)."
+    - "USD cost estimation in replay (bytes, not tokens — D11 says provider-reported; a replay has no provider)."
   deferred:
-    - "Real compression intelligence (Phase 2: user-configured [[plugin]] calling an external LLM)."
-    - "Aggressiveness tiers (TODO:59)."
-    - "Wrapper-side step_finish enrichment (TODO:29)."
-design: "Five tasks in dependency order. Task 1 (compressLogic refactor) is the prerequisite: today compressLogic prints the compressed id to stdout and returns (nil, error); both ktx compress and ktx hook need the compressed id and output as return values. The refactor splits compressLogic into a core function returning (compressedID, compressedOutput string, pipelineJSON string, error) and a thin wrapper that prints the id for ktx compress. Task 2 (ktx hook verb) depends on Task 1: reads D9 JSON from stdin, parses into ToolCall, calls db.PersistToolCall (the same code ktx write calls, DRY), then calls the refactored compressLogic core (the same code ktx compress calls, DRY) to run the pipeline and persist a compressed row when transformed. Writes the envelope to stdout. Task 3 (plugin update) depends on Task 2: the OpenCode plugin template changes from calling ktx write to calling ktx hook, parsing the JSON envelope, and setting output.output. Task 4 (integration tests) depends on Tasks 2, 3. Task 5 (docs) depends on 2, 3, 4."
+    - "Content-type detection heuristics (ARCHITECTURE.md open deliberation; Phase 3)."
+    - "Match-output short-circuit + unless guard (rtk src/core/toml_filter.rs:464-478; Phase 3)."
+    - "Log normalize + dedup with counts (rtk src/cmds/system/log_cmd.rs:71-236; Phase 3)."
+    - "Density-tuned caps (rtk's CAP_ERRORS=20 / CAP_WARNINGS=10; Phase 3, needs content-type awareness)."
+design: |
+  Six tasks in dependency order.
+
+  Task 1 (configurable timeout) is mechanical: add a Timeout field to the
+  tomlConfig pipeline struct, parse as a Go duration string ("30s", "2m"),
+  default 30s when omitted. hookLogic reads cfg.PipelineTimeout instead of
+  the hookPipelineTimeout constant. compressPipeline's signature is unchanged
+  (already takes time.Duration).
+
+  Task 2 (anti-worsening gate) is a runner-level change in pipeline.go. After
+  the existing stage loop in Runner.Run completes, before returning res, add:
+    if len(input) > 0 && len(res.Out) >= len(input) {
+        res.Out = input  // pipeline grew output; discard
+    }
+  This is the fourth conservative-on-failure invariant, alongside the existing
+  three (empty-output guard, stage-error passthrough, unknown-stage skip). It
+  fires on the pipeline RESULT, not per-stage — a stage that grows output is
+  caught by D14's empty-output guard only when it empties; the gate catches the
+  more common case where stages ADD bytes (e.g. a replace stage that expands,
+  or a chain that produces markers but no net reduction). rtk calls this
+  never_worse (guard.rs:6-12); lowfat calls it the 10% gate (lib.rs:46-55).
+  Phase 2 ships the rtk variant (output >= input → discard) as the simpler
+  contract; the 10% threshold variant is a Phase 3 tuning option.
+
+  Task 3 (four new stages) adds to internal/pipeline/stages/stages.go and
+  registers via RegisterBuiltins. Each stage is a pure function over bytes:
+
+  keep-ends:N:M — keep first N + last M lines, insert [... (X lines
+  omitted) ...] between. When input has <= N+M lines, return unchanged.
+  Ports: rtk toml_filter.rs:496-515, lowfat text.rs:27-48. ~25 LOC.
+
+  grep:pattern — keep only lines matching the regex. Invalid regex →
+  return input unchanged (passthrough, like lowfat's proc_grep at
+  pipeline.rs:327-336). The pattern is the full token arg after the first
+  colon. ~10 LOC.
+
+  grep-v:pattern — reject lines matching the regex (inverse of grep).
+  Same passthrough on invalid regex. ~10 LOC.
+
+  token-budget:N — estimate tokens as (len+3)/4; if over budget, truncate
+  to target_chars, snap back to last newline, append "... (truncated to ~N
+  tokens from M)". Input under budget → unchanged. Ports: lowfat
+  pipeline.rs:254-271. ~20 LOC.
+
+  All four use the existing StageFunc / Stage interface and the existing
+  RegisterBuilder pattern (head:N already uses Builder for its arg). The
+  keep-ends stage needs two args (N:M) — the existing splitToken splits at
+  the first colon only, so keep-ends:50:20 splits as name="keep-ends",
+  arg="50:20"; the Builder parses "50:20" into two ints. This is the same
+  pattern head:100 uses (name="head", arg="100").
+
+  Task 4 (A/B measurement) extends runBenchReplayImpl in bench.go. After
+  the existing integrity/parser/cost checks, iterate the re-parsed tool_use
+  events, run each output through compressPipeline (timeout=0, off-line),
+  aggregate baseline_bytes (sum len original), compressed_bytes (sum len
+  compressed), ratio = compressed/baseline, bytes_saved = baseline-compressed.
+  The compression section is additive to the existing replay envelope;
+  existing fields unchanged. D15-gated calls (is_error=true) are counted in
+  baseline_bytes only (compressed_bytes = original for those calls). This
+  reuses compressPipeline (DRY) and the D20 recorded stream (zero agent calls).
+
+  Task 5 (real-session evidence) depends on Tasks 1+2+3. It configures a
+  real-world pipeline in ktx.toml:
+    [pipeline.default]
+    stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
+  and runs a real OpenCode session with a tool that produces verbose output.
+  The agent sees the compressed output; the original is in the DB; decompress
+  returns it verbatim; the anti-worsening gate ensures no regression on short
+  outputs (if the pipeline doesn't help, the original is returned). The session
+  is then replayed via ktx bench run --replay to produce A/B numbers.
+
+  Task 6 (docs) depends on all.
 tasks:
   - number: 1
-    name: "Refactor compressLogic to return values instead of printing to stdout"
+    name: "Configurable pipeline timeout via ktx.toml"
     depends_on: []
-    status: complete
+    status: pending
     acceptance:
-      - "GIVEN compressLogic is refactored to return (compressedID, compressedOutput string, pipelineJSON string, error) WHEN ktx compress <id> runs THEN the compressed id is printed to stdout as raw JSON (identical to current behavior); M4 acceptance tests pass byte-identical."
-      - "GIVEN the refactored core compress function WHEN called by ktx hook THEN it returns the compressedID, compressedOutput, and pipelineJSON as values (not via stdout) so ktx hook can format them into the envelope."
-      - "GIVEN the refactored compressLogic WHEN no ktx.toml exists (identity pipeline) THEN compressedOutput equals source.Output and pipelineJSON is [] (identity, unchanged from M4)."
-      - "GIVEN go test ./... runs THEN every M1-M5 test passes (no regression from the refactor)."
+      - "GIVEN ktx.toml has [pipeline.default] timeout = '10s' WHEN ktx hook runs a slow pipeline stage THEN the 10s timeout (not the hardcoded 30s) fires and returns source.output unchanged with a stderr warning."
+      - "GIVEN ktx.toml has no timeout field WHEN ktx hook runs THEN the default 30s timeout applies (backward compatible with Phase 1)."
+      - "GIVEN ktx.toml has timeout = 'garbage' WHEN config.Load runs THEN a ParseError is returned (invalid duration string)."
+      - "GIVEN no ktx.toml exists WHEN ktx hook runs THEN the default 30s timeout applies (passthrough path, unchanged from Phase 1)."
+      - "GIVEN go test ./... runs THEN every M1-M5 + Phase 1 test passes (no regression)."
   - number: 2
-    name: "Implement ktx hook verb in internal/cli/hook.go"
-    depends_on: ["1"]
-    status: complete
+    name: "Anti-worsening gate in the pipeline Runner"
+    depends_on: []
+    status: pending
     acceptance:
-      - "GIVEN a new internal/cli/hook.go calls dispatch.Register('hook', RegisterOptions with NeedsDB=true, NeedsStdin=true, PassthroughStdout=true, Help:printHookHelp) in init() WHEN dispatcher receives 'hook' THEN it routes to the handler with stdin exposed."
-      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN no ktx.toml exists (identity) THEN the original is persisted to tool_calls, the envelope with output=source_output, compressed_id=null, source_id=tool_call_id is written to stdout, and exit code is 0."
-      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN ktx.toml has [pipeline.default].stages with strip-ansi and head:5 THEN the original is persisted to tool_calls, a compressed row is created, and the envelope with output=compressed_output, compressed_id=compressed_id, source_id=tool_call_id is written to stdout."
-      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHERE is_error=true WHEN ktx.toml has compression stages configured THEN the D15 gate fires: original is persisted, envelope returns source.output with compressed_id=null (no compressed row created), and a stderr warning is emitted."
-      - "GIVEN ktx hook failing to persist (DB error, malformed JSON) WHEN the error occurs THEN exit code maps to the error class (usage=1 for malformed JSON, internal=4 for DB error) and no envelope is written to stdout."
-      - "GIVEN ktx decompress <compressed_id> for a compressed row created by ktx hook WHEN invoked THEN the original tool_call output is returned verbatim (D14 reversibility preserved)."
+      - "GIVEN a pipeline that produces output LARGER than input (e.g. a replace stage that expands every line) WHEN Runner.Run completes THEN the gate fires: input is returned unchanged and the output is NOT the expanded version."
+      - "GIVEN a pipeline that produces output SMALLER than input WHEN Runner.Run completes THEN the gate does NOT fire: the compressed output is returned (the pipeline helped)."
+      - "GIVEN a pipeline that produces output equal in length to input (e.g. strip-ansi on input with no ANSI codes) WHEN Runner.Run completes THEN the gate fires: input is returned unchanged (equal length is treated as 'not better')."
+      - "GIVEN empty input WHEN Runner.Run completes THEN the gate does NOT fire (empty input → empty output is a legitimate result; D14 invariant 1 already handles non-empty→empty)."
+      - "GIVEN the existing three D14 invariants (empty-output guard, stage-error passthrough, unknown-stage skip) WHEN the gate is added THEN all three still fire per-stage as before; the gate is a pipeline-result-level invariant, not a replacement."
+      - "GIVEN go test ./... runs THEN every existing pipeline test passes (the gate only fires when output >= input; existing tests that produce smaller output are unaffected)."
   - number: 3
-    name: "Update OpenCode plugin template to call ktx hook"
-    depends_on: ["2"]
-    status: complete
+    name: "Four new built-in pipeline stages"
+    depends_on: []
+    status: pending
     acceptance:
-      - "GIVEN the updated ktxOpencodePluginTemplate in internal/cli/init.go WHEN ktx init opencode installs the plugin THEN the plugin tool.execute.after spawns ktx hook (not ktx write) via Bun.spawn with stdin = D9 JSON tool_call."
-      - "GIVEN the plugin tool.execute.after calls ktx hook WHEN ktx hook returns the envelope on stdout THEN the plugin parses the JSON envelope and sets output.output = envelope.output (the compressed bytes replace the original in the agent context)."
-      - "GIVEN any ktx hook failure (non-zero exit, unparseable stdout, ktx not in PATH) WHEN the plugin catches the error THEN output.output is left unchanged (the agent sees the original tool output, D14 conservative failure at the plugin level)."
-      - "GIVEN KTX_SESSION_ID is set in the environment WHEN the plugin tool.execute.after fires THEN the plugin skips the ktx hook call entirely (D10 dedup, wrapper owns persistence)."
-      - "GIVEN go test ./internal/cli/ -run TestInit runs THEN all existing init tests pass (the template is a string constant; the test verifies it writes to the expected path)."
+      - "GIVEN keep-ends:50:20 is in [pipeline.default].stages WHEN input has 100 lines THEN output has first 50 + last 20 lines with [... (30 lines omitted) ...] between; total 71 lines (50+1+20)."
+      - "GIVEN keep-ends:50:20 is configured WHEN input has 60 lines THEN output has all 60 lines unchanged (60 <= 50+20, no truncation needed)."
+      - "GIVEN grep:(?i)error|fail|panic is in stages WHEN input is a build log with 50 lines of which 3 contain 'error' or 'fail' THEN output has only those 3 lines."
+      - "GIVEN grep:[invalid is configured (malformed regex) WHEN the stage runs THEN input is returned unchanged (passthrough on invalid regex, matching lowfat's proc_grep behavior)."
+      - "GIVEN grep-v:^debug: is in stages WHEN input has debug lines (prefixed with 'debug:') and info lines THEN output has only non-debug lines (debug lines rejected)."
+      - "GIVEN token-budget:100 is in stages WHEN input is 2000 chars (~500 tokens) THEN output is ~400 chars (~100 tokens) with a '... (truncated to ~100 tokens from 500)' marker, snapped back to the last newline before the target char count."
+      - "GIVEN token-budget:2000 is in stages WHEN input is 500 chars (~125 tokens) THEN input is returned unchanged (under budget)."
+      - "GIVEN all four stages are registered via RegisterBuiltins WHEN ktx plugin list --json runs THEN all four appear with builtin=true, removable=false (same as strip-ansi, head, etc.)."
+      - "GIVEN all four stages WHEN ktx config show --json runs THEN stages referencing these names appear in the active pipeline.profiles.default.stages array."
+      - "GIVEN go test ./internal/pipeline/stages/ -v runs THEN each new stage has table-driven tests covering: normal case, edge case (short input), error case (invalid arg), and D14 invariant interaction (empty-output guard, stage-error passthrough)."
   - number: 4
-    name: "Integration tests + acceptance verification"
-    depends_on: ["2", "3"]
-    status: complete
+    name: "A/B compression measurement in --replay"
+    depends_on: ["3"]
+    status: pending
     acceptance:
-      - "GIVEN ktx hook is invoked from the command line with a valid D9 JSON payload on stdin WHEN ktx.toml has [pipeline.default].stages with head:5 AND the input has 20 lines of output THEN the envelope output field contains only 5 lines; ktx decompress <compressed_id> returns the original 20 lines."
-      - "GIVEN an OpenCode session with the ktx plugin installed AND ktx.toml has [pipeline.default].stages with head:3 WHEN the agent runs a tool that produces 10 lines of output THEN the agent context receives only 3 lines (the compressed output); the original 10 lines are in ktx database (ktx decompress returns them)."
-      - "GIVEN go test ./... runs THEN every M1-M5 test passes AND every new hook test in internal/cli/hook_test.go passes."
-      - "GIVEN the acceptance log at .agentera/verification/hook-acceptance.md WHEN a reviewer reads it THEN it contains Build / Regression / Hook Acceptance (end-to-end identity + configured pipeline + D15 gate + reversibility + plugin mutation) / VERIFICATION SUMMARY."
+      - "GIVEN a recorded session with tool_use events in the D20 recorded_streams table WHEN ktx bench run --replay <session-id> runs with a ktx.toml that configures compression stages THEN the replay envelope includes a 'compression' section with baseline_bytes, compressed_bytes, ratio, bytes_saved, and pipeline fields."
+      - "GIVEN the same recorded session WHEN ktx bench run --replay runs with no ktx.toml (passthrough) THEN the compression section reports ratio=1.0 and bytes_saved=0 (baseline == compressed; the anti-worsening gate ensures passthrough is never worse)."
+      - "GIVEN the replay's compression measurement WHEN it runs THEN it uses compressPipeline with timeout=0 (off-line; the developer can Ctrl-C a hanging stage)."
+      - "GIVEN a recorded session where some tool_calls have is_error=true WHEN the replay measures compression THEN D15-gated calls are not compressed (counted in baseline_bytes only; compressed_bytes for those calls equals original)."
+      - "GIVEN the anti-worsening gate (Task 2) is in the runner WHEN a stage in the replay's A/B measurement grows output THEN the gate fires and compressed_bytes = original_bytes for that call (the pipeline didn't help)."
+      - "GIVEN go test ./... runs THEN every existing D20 replay test passes (the compression section is additive to the existing envelope; existing fields unchanged)."
   - number: 5
-    name: "Documentation sync"
-    depends_on: ["2", "3", "4"]
-    status: complete
+    name: "Real-session end-to-end with deterministic pipeline"
+    depends_on: ["1", "2", "3"]
+    status: pending
     acceptance:
-      - "GIVEN Tasks 2, 3 landed AND Task 4 verified WHEN ARCHITECTURE.md is inspected THEN the In-flight compression hook (D22) section reflects the implemented verb, envelope shape, and plugin mutation contract."
-      - "GIVEN ktx hook is implemented WHEN TODO.md is updated THEN any existing hook-related TODO is marked complete; no duplicate open items."
-overall_acceptance: "GIVEN ktx hook is implemented and the OpenCode plugin updated WHEN an OpenCode session runs with a ktx.toml that configures compression stages THEN the agent sees compressed tool_call output (fewer tokens in context), the original is in ktx database (ktx decompress returns it verbatim), and with no ktx.toml the agent sees the original unchanged (identity, zero behavioral change)."
-surprises: "[]"
+      - "GIVEN an OpenCode session with the ktx plugin installed AND ktx.toml configures [pipeline.default].stages = [\"strip-ansi\", \"grep-v:^debug:\", \"keep-ends:50:20\", \"token-budget:2000\"] WHEN the agent runs a tool that produces verbose output (e.g. 'cat README.md' on a 500-line file, or a build command with 200 lines of output) THEN the agent's context receives the compressed output (fewer bytes than original); the original is in ktx's database (ktx decompress returns it verbatim)."
+      - "GIVEN the same session's session-id WHEN ktx bench run --replay <session-id> runs THEN the compression section reports ratio < 1.0 and bytes_saved > 0 (the pipeline actually reduced context)."
+      - "GIVEN a pipeline that does not help on a particular tool_call (e.g. input is already short) WHEN ktx hook runs THEN the anti-worsening gate returns the original unchanged with compressed_id=null (no compressed row created)."
+      - "GIVEN the D15 gate (is_error=true) WHEN a tool_call fails THEN the original error output is returned unchanged (no compression attempted; the agent sees the full error)."
+  - number: 6
+    name: "Documentation sync"
+    depends_on: ["1", "2", "3", "4", "5"]
+    status: pending
+    acceptance:
+      - "GIVEN Tasks 1-5 landed WHEN ARCHITECTURE.md is inspected THEN the In-flight compression hook (D22) section is updated to reflect Phase 2: configurable timeout, anti-worsening gate as fourth D14 invariant, four new built-in stages, A/B measurement surface."
+      - "GIVEN Phase 2 is complete WHEN TODO.md is updated THEN any Phase 2-related TODOs are marked complete; no duplicate open items."
+      - "GIVEN Phase 2 is complete WHEN ROADMAP.md is inspected THEN a Phase 2 note is added under the M5 section indicating that in-flight compression is now meaningful (deterministic stages, not just head:3) and measurable (--replay A/B)."
+      - "GIVEN the acceptance log at .agentera/verification/phase2-acceptance.md WHEN a reviewer reads it THEN it contains Build / Regression / Timeout AC / Anti-Worsening Gate AC / New Stages AC / A/B Measurement AC / Real-Session AC / VERIFICATION SUMMARY."
+overall_acceptance: "GIVEN ktx hook is configured with a real-world deterministic pipeline (strip-ansi + grep-v + keep-ends + token-budget) AND an OpenCode session runs with verbose tool output WHEN the agent calls a tool THEN the agent sees compressed output (fewer bytes; errors preserved at the bottom via keep-ends; debug noise stripped via grep-v; no mid-line cuts via token-budget), the original is in ktx's database (ktx decompress returns it verbatim), the anti-worsening gate ensures no regression on short outputs, and ktx bench run --replay quantifies the savings (ratio < 1.0, bytes_saved > 0). With no ktx.toml, the agent sees the original unchanged (passthrough, zero behavioral change)."
+surprises: "Task 2 AC6 assumed all existing runner tests produce smaller output; TestRun_Invariant3 (output KNOWN > input) and 3 external-stage tests (cat-is-passthrough, empty-output-guard, last-writer-wins) produced equal-or-larger output, triggering the new gate. Fixtures adjusted minimally to preserve each test's original intent: lengthened inputs so real shrinks stay under the gate (last-writer-wins, invariant3); added a downstream shrinking stage to observe the empty-output guard's pass-through past the gate; acknowledged passthrough-discard for cat (the 'stage ran' intent is covered by EchoWithArg). The plan under-specified how the gate yields compressed_id=null (Task 5 AC3): resolved by clearing res.Ran when the gate fires (a discarded result records no stages that ran), so compressPipeline's transformed=false via the existing output==input AND pipeline-JSON=='[]' logic — a Runner-only change; compressPipeline's signature is unchanged as the plan requires. grep/grep-v invalid-regex uses a Builder error (D14 invariant-2 passthrough with a warning) rather than lowfat's silent passthrough; observable output (input unchanged) matches the AC."

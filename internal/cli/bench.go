@@ -56,6 +56,8 @@ import (
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	parserpkg "github.com/jgabor/ktx/internal/parser"
+
+	"github.com/jgabor/ktx/internal/config"
 )
 
 // benchMethodologyRelPath is the path of the v1 methodology file relative
@@ -915,7 +917,7 @@ func unquoteYAML(s string) string {
 //     has the price (AC4).
 //  9. Insert the bench_runs row with all 10 columns populated.
 //  10. Print the headline JSON envelope to stdout and a one-line
-//      summary to stderr (D1 wrapper convention).
+//     summary to stderr (D1 wrapper convention).
 //
 // Exit codes: 0 on success, 2 (not-found) on missing methodology or
 // task definition, 4 (internal) on database / subprocess failures.
@@ -1130,7 +1132,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// it stays nil and deriveBenchCost fills it from the cache at
 	// write time (D11 AC4).
 	br := &dbpkg.BenchRun{
-		ID:                 "", // populated below
+		ID:                 "",                           // populated below
 		Agent:              aggProvider + "/" + aggModel, // bench_runs stores provider/model as the agent identifier
 		Model:              aggModel,
 		Task:               m.TaskIdentifier,
@@ -1192,8 +1194,8 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// bench_run); `rows` is an array for `bench report`'s
 	// multi-row view.
 	envelope := map[string]any{
-		"headline":           headline,
-		"rows":               []dbpkg.BenchRun{persisted},
+		"headline":            headline,
+		"rows":                []dbpkg.BenchRun{persisted},
 		"methodology_version": persisted.MethodologyVersion,
 	}
 
@@ -1605,9 +1607,14 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	// (b) Parser regression: re-parse stream_text through parser.ParseEvent
 	// and count tool_use events; compare to the original session's
 	// tool_call_count. Since parser.ParseEvent is pure and content_hash
-	// guarantees byte-identity, a mismatch can ONLY mean a parser code
+	// guarantees byte-passthrough, a mismatch can ONLY mean a parser code
 	// change between capture and replay.
+	//
+	// The parsed tool_calls are also collected (Task 4): the A/B
+	// compression measurement reuses them below — zero agent calls,
+	// the stream is already in memory.
 	replayedToolUseCount := 0
+	var parsedToolCalls []*dbpkg.ToolCall
 	for _, line := range bytes.Split([]byte(rs.StreamText), []byte("\n")) {
 		if len(line) == 0 {
 			continue
@@ -1615,6 +1622,7 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		tc, ok := parserpkg.ParseEvent(line)
 		if ok && tc != nil {
 			replayedToolUseCount++
+			parsedToolCalls = append(parsedToolCalls, tc)
 		}
 	}
 	parserRegressionPass := int64(replayedToolUseCount) == session.ToolCallCount
@@ -1647,6 +1655,17 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		consistency = "DRIFT"
 	}
 
+	// (d) A/B compression measurement (Task 4): run each recorded
+	// tool_use output through compressPipeline (timeout=0, off-line)
+	// and aggregate baseline_bytes (sum len original) vs
+	// compressed_bytes (sum len compressed). Reuses compressPipeline
+	// (DRY) so the D15 gate, the anti-worsening gate, and the D14
+	// invariants all apply identically to the live hook path. D15-
+	// gated calls (is_error=true) count toward baseline_bytes only
+	// (compressPipeline returns the original for them). Zero agent
+	// calls — the recorded D20 stream is already parsed above.
+	compressionSection := measureReplayCompression(parsedToolCalls)
+
 	// Build the output envelope.
 	envelope := map[string]any{
 		"replay": map[string]any{
@@ -1658,6 +1677,7 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		"integrity":          map[string]any{"pass": integrityPass, "recomputed_hash": recomputedHash, "stored_hash": rs.ContentHash},
 		"parser_regression":  map[string]any{"pass": parserRegressionPass, "replayed_tool_use_count": replayedToolUseCount, "original_tool_call_count": session.ToolCallCount},
 		"original_bench_run": originalBR,
+		"compression":        compressionSection,
 		"consistency":        consistency,
 	}
 
@@ -1667,14 +1687,14 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 			delta = *replayCost - *originalBR.Cost
 		}
 		costDrift := map[string]any{
-			"detected":           true,
-			"replay_tokens_in":   replayTokensIn,
-			"original_tokens_in": originalBR.TokensIn,
+			"detected":            true,
+			"replay_tokens_in":    replayTokensIn,
+			"original_tokens_in":  originalBR.TokensIn,
 			"replay_tokens_out":   replayTokensOut,
 			"original_tokens_out": originalBR.TokensOut,
 			"replay_cost":         replayCost,
-			"original_cost":        originalBR.Cost,
-			"delta":                delta,
+			"original_cost":       originalBR.Cost,
+			"delta":               delta,
 		}
 		envelope["cost_drift"] = costDrift
 	} else {
@@ -1689,6 +1709,14 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		fmt.Fprintf(stdout, "bench_run_id: %s\n", rs.BenchRunID)
 		fmt.Fprintf(stdout, "replayed_tool_use_count: %d\n", replayedToolUseCount)
 		fmt.Fprintf(stdout, "original_tool_call_count: %d\n", session.ToolCallCount)
+		// A/B compression summary (Task 4).
+		if baseline, ok := compressionSection["baseline_bytes"].(int64); ok {
+			compressed, _ := compressionSection["compressed_bytes"].(int64)
+			ratio, _ := compressionSection["ratio"].(float64)
+			saved, _ := compressionSection["bytes_saved"].(int64)
+			fmt.Fprintf(stdout, "compression: baseline=%d compressed=%d ratio=%.4f saved=%d bytes\n",
+				baseline, compressed, ratio, saved)
+		}
 	default:
 		if err := json.NewEncoder(stdout).Encode(envelope); err != nil {
 			printError(stderr, internalError("ktx bench run --replay: write JSON: %v", err), format)
@@ -1701,6 +1729,64 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		return ExitInternal
 	}
 	return ExitOK
+}
+
+// measureReplayCompression runs each recorded tool_use output through
+// compressPipeline (timeout=0, off-line) and aggregates an A/B
+// comparison: baseline_bytes (sum of original output lengths) vs
+// compressed_bytes (sum of compressed output lengths), plus the
+// ratio (compressed/baseline), bytes_saved (baseline-compressed), and
+// the configured pipeline (cfg.PipelineDefault as a []string).
+//
+// D15-gated calls (is_error=true on the tool_call) are counted in
+// baseline_bytes only — compressPipeline returns the original output
+// for them (the D15 pre-pipeline gate skips compression on failure), so
+// their compressed_bytes contribution equals the original length (the
+// pipeline did not help). The anti-worsening gate (Task 2) ensures
+// compressed_bytes <= baseline per call, so the aggregate ratio is in
+// [0.0, 1.0]. Zero agent calls: the measurement reuses the D20 recorded
+// stream's parsed tool_calls and compressPipeline's off-line path.
+//
+// stderr is io.Discard so stage warnings do not pollute the replay
+// envelope — the numbers are the data; diagnostics belong to a direct
+// `ktx compress` invocation. A broken ktx.toml surfaces per-call as a
+// compressPipeline error; the call is counted as passthrough (no
+// compression) so the measurement still completes.
+func measureReplayCompression(toolCalls []*dbpkg.ToolCall) map[string]any {
+	var baseline, compressed int64
+	for _, tc := range toolCalls {
+		baseline += int64(len(tc.Output))
+		out, _, _, err := compressPipeline(tc, nil, io.Discard, 0)
+		if err != nil {
+			// compressPipeline could not run (e.g. a broken
+			// ktx.toml); count the original length — no
+			// compression. The measurement still completes.
+			compressed += int64(len(tc.Output))
+			continue
+		}
+		compressed += int64(len(out))
+	}
+
+	ratio := 1.0
+	if baseline > 0 {
+		ratio = float64(compressed) / float64(baseline)
+	}
+
+	// The configured pipeline (what stages are in play). Empty when
+	// no ktx.toml exists (the passthrough path) — matches the AC's
+	// ratio=1.0, bytes_saved=0, pipeline=[] for the passthrough case.
+	pipeline := []string{}
+	if cfg, err := config.Load(); err == nil && cfg != nil && len(cfg.PipelineDefault) > 0 {
+		pipeline = cfg.PipelineDefault
+	}
+
+	return map[string]any{
+		"baseline_bytes":   baseline,
+		"compressed_bytes": compressed,
+		"ratio":            ratio,
+		"bytes_saved":      baseline - compressed,
+		"pipeline":         pipeline,
+	}
 }
 
 // captureStreamForBenchRun persists the captured JSONL stream into the

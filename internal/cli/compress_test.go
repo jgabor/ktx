@@ -4,7 +4,7 @@
 // original output bytes verbatim, regardless of how many lossy stages
 // ran between them. Coverage:
 //
-//   - identity pipeline (no ktx.toml): compress → decompress round-trip
+//   - passthrough pipeline (no ktx.toml): compress → decompress round-trip
 //   - parameterised pipeline (strip-ansi + head:N): compress differs
 //     from source; decompress still returns the source bytes verbatim
 //   - source not found → exit 2 (not-found envelope on stderr)
@@ -104,7 +104,7 @@ func ptrBool(v bool) *bool { return &v }
 
 // noConfigEnv chdirs to a fresh tempdir and points XDG_CONFIG_HOME at
 // another fresh tempdir, so config.Load() resolves to the D14
-// identity default (no ktx.toml anywhere). Returns a restore func.
+// passthrough default (no ktx.toml anywhere). Returns a restore func.
 // The chdir is essential because Load() looks for ktx.toml in the
 // cwd before checking XDG.
 func noConfigEnv(t *testing.T) func() {
@@ -142,7 +142,7 @@ func decodeID(t *testing.T, stdout *bytes.Buffer) string {
 }
 
 // TestRunCompressWith_IdentityRoundTrip covers the canonical M4
-// acceptance path: a ktx with NO ktx.toml runs the D14 identity
+// acceptance path: a ktx with NO ktx.toml runs the D14 passthrough
 // pipeline, compress(source) persists a compressed row whose
 // output equals the source, and decompress(compressedID) returns
 // the source bytes verbatim.
@@ -164,7 +164,7 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	compressedID := decodeID(t, &stdout)
 
 	// Verify the persisted compressed row records what D14 mandates:
-	// output equals source.output (identity pipeline), content_hash
+	// output equals source.output (passthrough pipeline), content_hash
 	// matches db.ContentHash(output), pipeline is "[]", source_id
 	// references the source tool_call.
 	comp, err := d.GetCompressed(compressedID)
@@ -175,7 +175,7 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 		t.Errorf("SourceID = %q, want abcdefghijklmnop", comp.SourceID)
 	}
 	if comp.Output != sourceOutput {
-		t.Errorf("Output = %q, want %q (identity pipeline should preserve source)", comp.Output, sourceOutput)
+		t.Errorf("Output = %q, want %q (passthrough pipeline should preserve source)", comp.Output, sourceOutput)
 	}
 	if comp.ContentHash != dbpkg.ContentHash(sourceOutput) {
 		t.Errorf("ContentHash = %q, want %q", comp.ContentHash, dbpkg.ContentHash(sourceOutput))
@@ -431,7 +431,7 @@ func TestRunDecompressWith_Help(t *testing.T) {
 }
 
 // TestCompressLogic_SourceFailureGate covers D15 AC5: is_error=true with a
-// configured pipeline writes an identity row, stderr warning, prints id,
+// configured pipeline writes an passthrough row, stderr warning, prints id,
 // and decompress returns source output verbatim.
 func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
@@ -459,7 +459,7 @@ func TestCompressLogic_SourceFailureGate(t *testing.T) {
 		t.Fatalf("GetCompressed: %v", err)
 	}
 	if comp.Output != sourceOutput {
-		t.Errorf("Output = %q, want identity %q", comp.Output, sourceOutput)
+		t.Errorf("Output = %q, want passthrough %q", comp.Output, sourceOutput)
 	}
 	if comp.Pipeline != "[]" {
 		t.Errorf("Pipeline = %q, want \"[]\" (gate skipped pipeline)", comp.Pipeline)

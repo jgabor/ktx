@@ -85,6 +85,36 @@ stages = ["strip-ansi", "head:5"]
 	}
 }
 
+// TestConfigShow_JSON_Phase2Stages covers Task 3 AC 9: a ktx.toml
+// referencing the four Phase 2 stages surfaces them in the active
+// pipeline.profiles.default.stages array via `ktx config show --json`.
+func TestConfigShow_JSON_Phase2Stages(t *testing.T) {
+	configTestEnv(t)
+	os.WriteFile("ktx.toml", []byte(`[pipeline.default]
+stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
+`), 0o644)
+
+	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr)
+	}
+
+	var env map[string]any
+	json.Unmarshal([]byte(stdout), &env)
+	profiles := env["profiles"].(map[string]any)
+	def := profiles["default"].(map[string]any)
+	stages := def["stages"].([]any)
+	if len(stages) != 4 {
+		t.Fatalf("stages = %v, want 4 (Phase 2 pipeline)", stages)
+	}
+	want := []string{"strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"}
+	for i, w := range want {
+		if stages[i] != w {
+			t.Errorf("stages[%d] = %v, want %q", i, stages[i], w)
+		}
+	}
+}
+
 func TestConfigShow_JSON_MultipleProfiles(t *testing.T) {
 	configTestEnv(t)
 	os.WriteFile("ktx.toml", []byte(`[pipeline.default]

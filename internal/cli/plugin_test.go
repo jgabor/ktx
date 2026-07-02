@@ -50,7 +50,7 @@ func decodePluginEnvelope(t *testing.T, stdout string) map[string]any {
 func TestPluginAdd_CreatesNewKtxToml(t *testing.T) {
 	pluginTestEnv(t)
 
-	code, stdout, stderr := runPluginDispatch(t, []string{"add", "mycat", "/bin/cat", "--description", "identity"})
+	code, stdout, stderr := runPluginDispatch(t, []string{"add", "mycat", "/bin/cat", "--description", "passthrough"})
 	if code != ExitOK {
 		t.Fatalf("exit=%d stderr=%q", code, stderr)
 	}
@@ -67,8 +67,8 @@ func TestPluginAdd_CreatesNewKtxToml(t *testing.T) {
 	if p["command"] != "/bin/cat" {
 		t.Errorf("command = %v, want /bin/cat", p["command"])
 	}
-	if p["description"] != "identity" {
-		t.Errorf("description = %v, want identity", p["description"])
+	if p["description"] != "passthrough" {
+		t.Errorf("description = %v, want passthrough", p["description"])
 	}
 
 	// Verify ktx.toml was created.
@@ -86,7 +86,7 @@ func TestPluginAdd_CreatesNewKtxToml(t *testing.T) {
 	if !strings.Contains(content, `command = "/bin/cat"`) {
 		t.Errorf("ktx.toml missing command field:\n%s", content)
 	}
-	if !strings.Contains(content, `description = "identity"`) {
+	if !strings.Contains(content, `description = "passthrough"`) {
 		t.Errorf("ktx.toml missing description field:\n%s", content)
 	}
 }
@@ -157,8 +157,8 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 	if !ok {
 		t.Fatalf("envelope missing 'plugins' array: %v", env)
 	}
-	if len(plugins) != 5 {
-		t.Fatalf("plugins count = %d, want 5 (builtins only)", len(plugins))
+	if len(plugins) != 9 {
+		t.Fatalf("plugins count = %d, want 9 (5 Phase 1 builtins + 4 Phase 2 builtins)", len(plugins))
 	}
 	// Verify first entry is a builtin.
 	first := plugins[0].(map[string]any)
@@ -168,12 +168,12 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 	if first["removable"] != false {
 		t.Errorf("first plugin removable = %v, want false", first["removable"])
 	}
-	// Verify built-in names are present.
+	// Verify built-in names are present (Phase 1 + Phase 2).
 	names := make([]string, 0, len(plugins))
 	for _, p := range plugins {
 		names = append(names, p.(map[string]any)["name"].(string))
 	}
-	for _, want := range []string{"strip-ansi", "dedup-blank", "normalize", "head", "truncate"} {
+	for _, want := range []string{"strip-ansi", "dedup-blank", "normalize", "head", "truncate", "keep-ends", "grep", "grep-v", "token-budget"} {
 		found := false
 		for _, n := range names {
 			if n == want {
@@ -183,6 +183,16 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("builtin %q not found in plugin list: %v", want, names)
+		}
+	}
+	// All built-ins must report builtin=true, removable=false.
+	for _, p := range plugins {
+		entry := p.(map[string]any)
+		if entry["builtin"] != true {
+			t.Errorf("builtin stage %q has builtin=%v, want true", entry["name"], entry["builtin"])
+		}
+		if entry["removable"] != false {
+			t.Errorf("builtin stage %q has removable=%v, want false", entry["name"], entry["removable"])
 		}
 	}
 }
@@ -199,12 +209,12 @@ func TestPluginList_WithUserPlugins(t *testing.T) {
 
 	env := decodePluginEnvelope(t, stdout)
 	plugins := env["plugins"].([]any)
-	if len(plugins) != 6 {
-		t.Fatalf("plugins count = %d, want 6 (5 builtins + 1 user)", len(plugins))
+	if len(plugins) != 10 {
+		t.Fatalf("plugins count = %d, want 10 (9 builtins + 1 user)", len(plugins))
 	}
 
 	// User plugin should be the last entry.
-	last := plugins[5].(map[string]any)
+	last := plugins[9].(map[string]any)
 	if last["name"] != "mycat" {
 		t.Errorf("user plugin name = %v, want mycat", last["name"])
 	}

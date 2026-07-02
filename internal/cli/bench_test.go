@@ -18,6 +18,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -488,5 +489,353 @@ func TestRunBenchReplay_NotFound(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "not found") && !strings.Contains(stderr.String(), "no recorded stream") {
 		t.Errorf("stderr missing not-found message: %q", stderr.String())
+	}
+}
+
+// seedReplayForCompression seeds an in-memory DB with a minimal
+// session + bench_run + recorded_stream carrying a single tool_use
+// event whose output is the given string and whose exit code makes
+// is_error the given value. Returns the session-id. The caller
+// controls cwd (for ktx.toml) and XDG_CONFIG_HOME.
+//
+// The OpenCode tool_use event is built via json.Marshal so all JSON
+// escaping is correct (including ANSI ESC control chars, which must
+// be \u001b-escaped, and embedded newlines). The parser's OpenCode
+// branch derives is_error from state.metadata.exit.
+func seedReplayForCompression(t *testing.T, d *dbpkg.DB, output string, isErr bool) string {
+	t.Helper()
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:             sessionID,
+		Agent:          "opencode",
+		StartedAt:      "2026-07-01T12:00:00Z",
+		LastSeenAt:     "2026-07-01T12:00:00Z",
+		ToolCallCount:  1,
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+	benchID := mustNewIDBench(t)
+	if err := d.InsertBenchRun(&dbpkg.BenchRun{
+		ID:                 benchID,
+		Agent:              "opencode",
+		Model:              "test-model",
+		Task:               "compression_v1",
+		Score:              1.0,
+		MethodologyVersion: "v1",
+		Timestamp:          1782834992,
+	}); err != nil {
+		t.Fatalf("InsertBenchRun: %v", err)
+	}
+	exit := 0
+	if isErr {
+		exit = 1
+	}
+	// Build the OpenCode tool_use event via json.Marshal so \n, ESC,
+	// quotes, and backslashes are all escaped correctly. The parser
+	// re-reads output/state.metadata.exit from this shape.
+	event := map[string]any{
+		"type": "tool_use",
+		"part": map[string]any{
+			"type":   "tool",
+			"tool":   "bash",
+			"callID": "call1",
+			"state": map[string]any{
+				"input":  "echo",
+				"output": output,
+				"time":   map[string]any{"start": 1, "end": 2},
+				"metadata": map[string]any{"exit": exit},
+			},
+		},
+		"timestamp": "2026-07-01T12:00:00Z",
+	}
+	b, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("marshal tool_use event: %v", err)
+	}
+	streamText := string(b)
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   benchID,
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-07-01T12:01:00Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+	return sessionID
+}
+
+// itoa wraps strconv.Itoa for the bench_test fixture (also used by
+// hook_test.go's TestHook_RealSessionEndToEnd within the cli test
+// package).
+func itoa(n int) string { return strconv.Itoa(n) }
+
+// TestRunBenchReplay_Compression covers Task 4 AC 1: a ktx.toml that
+// configures compression stages makes the replay envelope include a
+// 'compression' section with baseline_bytes, compressed_bytes, ratio,
+// bytes_saved, and pipeline. The pipeline shrinks the tool_use output,
+// so ratio < 1.0 and bytes_saved > 0.
+func TestRunBenchReplay_Compression(t *testing.T) {
+	d := benchTestDB(t)
+	hookChdirTemp(t)
+	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+stages = ["head:2"]
+`)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	output := "line 1\nline 2\nline 3\nline 4\nline 5\n" // 5 lines, head:2 → 2 lines
+	sessionID := seedReplayForCompression(t, d, output, false)
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	}
+
+	var env struct {
+		Compression map[string]any `json:"compression"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("decode JSON: %v\nstdout=%s", err, stdout.String())
+	}
+	if env.Compression == nil {
+		t.Fatal("compression section missing from envelope")
+	}
+	baseline, _ := env.Compression["baseline_bytes"].(float64)
+	compressed, _ := env.Compression["compressed_bytes"].(float64)
+	ratio, _ := env.Compression["ratio"].(float64)
+	saved, _ := env.Compression["bytes_saved"].(float64)
+	pipeline, _ := env.Compression["pipeline"].([]any)
+
+	if baseline != float64(len(output)) {
+		t.Errorf("baseline_bytes = %v, want %d", baseline, len(output))
+	}
+	if compressed >= baseline || compressed <= 0 {
+		t.Errorf("compressed_bytes = %v, want 0 < compressed < %v", compressed, baseline)
+	}
+	if ratio >= 1.0 || ratio <= 0 {
+		t.Errorf("ratio = %v, want 0 < ratio < 1.0 (pipeline shrinks)", ratio)
+	}
+	if saved <= 0 {
+		t.Errorf("bytes_saved = %v, want > 0", saved)
+	}
+	if len(pipeline) != 1 || pipeline[0] != "head:2" {
+		t.Errorf("pipeline = %v, want [head:2]", pipeline)
+	}
+}
+
+// TestRunBenchReplay_CompressionIdentity covers Task 4 AC 2: with no
+// ktx.toml (passthrough), the compression section reports ratio=1.0,
+// bytes_saved=0, and an empty pipeline.
+func TestRunBenchReplay_CompressionIdentity(t *testing.T) {
+	d := benchTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	output := "line 1\nline 2\nline 3\nline 4\nline 5\n"
+	sessionID := seedReplayForCompression(t, d, output, false)
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	}
+
+	var env struct {
+		Compression map[string]any `json:"compression"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("decode JSON: %v\nstdout=%s", err, stdout.String())
+	}
+	baseline, _ := env.Compression["baseline_bytes"].(float64)
+	compressed, _ := env.Compression["compressed_bytes"].(float64)
+	ratio, _ := env.Compression["ratio"].(float64)
+	saved, _ := env.Compression["bytes_saved"].(float64)
+	pipeline, _ := env.Compression["pipeline"].([]any)
+
+	if baseline != float64(len(output)) {
+		t.Errorf("baseline_bytes = %v, want %d", baseline, len(output))
+	}
+	if compressed != baseline {
+		t.Errorf("compressed_bytes = %v, want %v (passthrough: compressed == baseline)", compressed, baseline)
+	}
+	if ratio != 1.0 {
+		t.Errorf("ratio = %v, want 1.0 (passthrough)", ratio)
+	}
+	if saved != 0 {
+		t.Errorf("bytes_saved = %v, want 0 (passthrough)", saved)
+	}
+	if len(pipeline) != 0 {
+		t.Errorf("pipeline = %v, want [] (passthrough)", pipeline)
+	}
+}
+
+// TestRunBenchReplay_CompressionD15Gate covers Task 4 AC 4: a recorded
+// tool_call with is_error=true is NOT compressed (D15 gate); its
+// compressed_bytes contribution equals the original, so the aggregate
+// ratio is 1.0 even when a compression pipeline is configured.
+func TestRunBenchReplay_CompressionD15Gate(t *testing.T) {
+	d := benchTestDB(t)
+	hookChdirTemp(t)
+	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+stages = ["head:2"]
+`)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	output := "line 1\nline 2\nline 3\nline 4\nline 5\n"
+	sessionID := seedReplayForCompression(t, d, output, true) // is_error=true
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	}
+
+	var env struct {
+		Compression map[string]any `json:"compression"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("decode JSON: %v\nstdout=%s", err, stdout.String())
+	}
+	baseline, _ := env.Compression["baseline_bytes"].(float64)
+	compressed, _ := env.Compression["compressed_bytes"].(float64)
+	ratio, _ := env.Compression["ratio"].(float64)
+
+	if baseline != float64(len(output)) {
+		t.Errorf("baseline_bytes = %v, want %d", baseline, len(output))
+	}
+	if compressed != baseline {
+		t.Errorf("compressed_bytes = %v, want %v (D15 gate: is_error → original, not compressed)", compressed, baseline)
+	}
+	if ratio != 1.0 {
+		t.Errorf("ratio = %v, want 1.0 (D15 gate skips compression)", ratio)
+	}
+}
+
+// TestRunBenchReplay_RealWorldPipeline covers Task 5 AC 2: a recorded
+// session replayed with the real-world Phase 2 pipeline configured
+// reports ratio < 1.0 and bytes_saved > 0 (the pipeline actually
+// reduced context). Companion to TestHook_RealSessionEndToEnd, which
+// exercises the live hook path; this proves the A/B measurement
+// quantifies the same savings off-line.
+func TestRunBenchReplay_RealWorldPipeline(t *testing.T) {
+	d := benchTestDB(t)
+	hookChdirTemp(t)
+	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
+`)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// A verbose build-log-style output: ANSI codes, debug noise, many
+	// lines, over the token budget. JSON-escaping is handled by
+	// seedReplayForCompression (it replaces real \n with \n escapes).
+	var sb strings.Builder
+	sb.WriteString("\x1b[31merror\x1b[0m: build started\n")
+	for i := 0; i < 100; i++ {
+		sb.WriteString("debug: tracing step ")
+		sb.WriteString(strconv.Itoa(i))
+		sb.WriteByte('\n')
+	}
+	for i := 0; i < 40; i++ {
+		sb.WriteString("compile: unit ")
+		sb.WriteString(strconv.Itoa(i))
+		sb.WriteString(" ok\n")
+	}
+	sb.WriteString("\x1b[31mfatal\x1b[0m: linker error at end\n")
+	verbose := sb.String()
+
+	sessionID := seedReplayForCompression(t, d, verbose, false)
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	}
+
+	var env struct {
+		Compression map[string]any `json:"compression"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("decode JSON: %v\nstdout=%s", err, stdout.String())
+	}
+	baseline, _ := env.Compression["baseline_bytes"].(float64)
+	compressed, _ := env.Compression["compressed_bytes"].(float64)
+	ratio, _ := env.Compression["ratio"].(float64)
+	saved, _ := env.Compression["bytes_saved"].(float64)
+
+	if baseline != float64(len(verbose)) {
+		t.Errorf("baseline_bytes = %v, want %d", baseline, len(verbose))
+	}
+	if ratio >= 1.0 {
+		t.Errorf("ratio = %v, want < 1.0 (real-world pipeline should reduce context)", ratio)
+	}
+	if saved <= 0 {
+		t.Errorf("bytes_saved = %v, want > 0", saved)
+	}
+	if compressed >= baseline {
+		t.Errorf("compressed_bytes = %v, want < %v (baseline)", compressed, baseline)
+	}
+}
+
+// TestRunBenchReplay_CompressionEmptyStream covers the edge: a recorded
+// stream with no tool_use events yields baseline=0, compressed=0,
+// ratio=1.0 (the baseline==0 guard), pipeline=[].
+func TestRunBenchReplay_CompressionEmptyStream(t *testing.T) {
+	d := benchTestDB(t)
+	hookChdirTemp(t)
+	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+stages = ["head:2"]
+`)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// A stream with no tool_use events (text + step_finish only).
+	streamText := `{"type":"step_start","part":{}}
+{"type":"text","part":{"text":"4"}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2}}}`
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID: sessionID, Agent: "opencode", StartedAt: "2026-07-01T12:00:00Z",
+		LastSeenAt: "2026-07-01T12:00:00Z", ToolCallCount: 0,
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+	benchID := mustNewIDBench(t)
+	if err := d.InsertBenchRun(&dbpkg.BenchRun{
+		ID: benchID, Agent: "opencode", Model: "m", Task: "t", Score: 1.0,
+		MethodologyVersion: "v1", Timestamp: 1782834992,
+	}); err != nil {
+		t.Fatalf("InsertBenchRun: %v", err)
+	}
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID: rsID, SessionID: sessionID, BenchRunID: benchID,
+		StreamText: streamText, ContentHash: dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1", CapturedAt: "2026-07-01T12:01:00Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	}
+
+	var env struct {
+		Compression map[string]any `json:"compression"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("decode JSON: %v", err)
+	}
+	baseline, _ := env.Compression["baseline_bytes"].(float64)
+	ratio, _ := env.Compression["ratio"].(float64)
+	if baseline != 0 {
+		t.Errorf("baseline_bytes = %v, want 0 (no tool_use events)", baseline)
+	}
+	if ratio != 1.0 {
+		t.Errorf("ratio = %v, want 1.0 (empty stream guard)", ratio)
 	}
 }

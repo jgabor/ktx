@@ -1,0 +1,75 @@
+header:
+  level: full
+  created: "2026-07-01"
+  status: complete
+  reviewed: "2026-07-01"
+  critic_issues: "4 found, 4 addressed, 0 dismissed"
+  title: "ktx hook — in-flight compression plumbing verification (D22 Phase 1)"
+what: "Implement ktx hook as a new flat verb that reads a D9 flat JSON tool_call from stdin, persists the original via the shared internal/db.PersistToolCall code path, runs the D14 compression pipeline via the shared compressPipeline core (D15 gate + D14 invariants; DRY — same code ktx compress calls), and writes a JSON envelope on stdout with output, compressed_id, and source_id fields. Then update the OpenCode plugin template to call ktx hook instead of ktx write, parse the envelope, and mutate output.output to the compressed bytes. Phase 1 verifies the full loop end-to-end with built-in stages (strip-ansi, head)."
+why: "D22 (firm) closes the runtime-token-cost gap: M1-M5 compress stored data post-hoc, but the agent already saw the full output. ktx hook persists the original (reversibility via ktx decompress) and returns the compressed bytes to the agent context via tool.execute.after output mutation (empirically confirmed 2026-07-01). Phase 1 proves the plumbing with conservative built-in stages before adding real compression intelligence (Phase 2: deterministic compression stages)."
+constraints: "D22 (firm) design rules: single subprocess (no nested subprocess, DRY via shared PersistToolCall); envelope with output, compressed_id, source_id on stdout; compressed row created ONLY when pipeline transforms (passthrough/D15-skip returns source.output with compressed_id=null); two-layer conservative failure (D14 invariants inside ktx hook, plugin-level pass-through on any ktx failure); sync compression (block tool result); critical-path timeout (30s default); D10 noop preserved (KTX_SESSION_ID means plugin skips). D14 D15 invariants unchanged. D9 flat JSON input shape unchanged. M1-M5 regression byte-identical. No new dependencies."
+scope:
+  included:
+    - "Task 1: Refactor compressLogic to return (compressedID, compressedOutput string, pipelineJSON string, error) as values instead of printing the id to stdout, so both ktx compress and ktx hook consume the shared pipeline+persist code."
+    - "Task 2: Implement ktx hook verb in new internal/cli/hook.go via dispatch.Register (NeedsDB=true, NeedsStdin=true, PassthroughStdout=true). Reads D9 JSON from stdin, persists original via PersistToolCall, runs pipeline, writes envelope to stdout. Compressed row only when pipeline transforms."
+    - "Task 3: Update OpenCode plugin template in internal/cli/init.go to call ktx hook instead of ktx write, parse the JSON envelope, and set output.output = envelope.output."
+    - "Task 4: Integration tests + acceptance verification (.agentera/verification/hook-acceptance.md)."
+    - "Task 5: Documentation sync (ARCHITECTURE.md, TODO.md, ROADMAP.md if needed)."
+  excluded:
+    - "Real compression intelligence (Phase 2: deterministic compression stages)."
+    - "Content-type routing (TODO:40)."
+    - "Per-stage timeout override (D14 territory)."
+    - "ktx hook --help (manual; follows existing verb help patterns)."
+  deferred:
+    - "Aggressiveness tiers (TODO:59)."
+    - "Wrapper-side step_finish enrichment (TODO:29)."
+design: "Five tasks in dependency order. Task 1 (compressLogic refactor) is the prerequisite: today compressLogic prints the compressed id to stdout and returns (nil, error); both ktx compress and ktx hook need the compressed id and output as return values. The refactor splits compressLogic into a core function returning (compressedID, compressedOutput string, pipelineJSON string, error) and a thin wrapper that prints the id for ktx compress. Task 2 (ktx hook verb) depends on Task 1: reads D9 JSON from stdin, parses into ToolCall, calls db.PersistToolCall (the same code ktx write calls, DRY), then calls the refactored compressLogic core (the same code ktx compress calls, DRY) to run the pipeline and persist a compressed row when transformed. Writes the envelope to stdout. Task 3 (plugin update) depends on Task 2: the OpenCode plugin template changes from calling ktx write to calling ktx hook, parsing the JSON envelope, and setting output.output. Task 4 (integration tests) depends on Tasks 2, 3. Task 5 (docs) depends on 2, 3, 4."
+tasks:
+  - number: 1
+    name: "Refactor compressLogic to return values instead of printing to stdout"
+    depends_on: []
+    status: complete
+    acceptance:
+      - "GIVEN compressLogic is refactored to return (compressedID, compressedOutput string, pipelineJSON string, error) WHEN ktx compress <id> runs THEN the compressed id is printed to stdout as raw JSON (identical to current behavior); M4 acceptance tests pass byte-identical."
+      - "GIVEN the refactored core compress function WHEN called by ktx hook THEN it returns the compressedID, compressedOutput, and pipelineJSON as values (not via stdout) so ktx hook can format them into the envelope."
+      - "GIVEN the refactored compressLogic WHEN no ktx.toml exists (passthrough pipeline) THEN compressedOutput equals source.Output and pipelineJSON is [] (passthrough, unchanged from M4)."
+      - "GIVEN go test ./... runs THEN every M1-M5 test passes (no regression from the refactor)."
+  - number: 2
+    name: "Implement ktx hook verb in internal/cli/hook.go"
+    depends_on: ["1"]
+    status: complete
+    acceptance:
+      - "GIVEN a new internal/cli/hook.go calls dispatch.Register('hook', RegisterOptions with NeedsDB=true, NeedsStdin=true, PassthroughStdout=true, Help:printHookHelp) in init() WHEN dispatcher receives 'hook' THEN it routes to the handler with stdin exposed."
+      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN no ktx.toml exists (passthrough) THEN the original is persisted to tool_calls, the envelope with output=source_output, compressed_id=null, source_id=tool_call_id is written to stdout, and exit code is 0."
+      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN ktx.toml has [pipeline.default].stages with strip-ansi and head:5 THEN the original is persisted to tool_calls, a compressed row is created, and the envelope with output=compressed_output, compressed_id=compressed_id, source_id=tool_call_id is written to stdout."
+      - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHERE is_error=true WHEN ktx.toml has compression stages configured THEN the D15 gate fires: original is persisted, envelope returns source.output with compressed_id=null (no compressed row created), and a stderr warning is emitted."
+      - "GIVEN ktx hook failing to persist (DB error, malformed JSON) WHEN the error occurs THEN exit code maps to the error class (usage=1 for malformed JSON, internal=4 for DB error) and no envelope is written to stdout."
+      - "GIVEN ktx decompress <compressed_id> for a compressed row created by ktx hook WHEN invoked THEN the original tool_call output is returned verbatim (D14 reversibility preserved)."
+  - number: 3
+    name: "Update OpenCode plugin template to call ktx hook"
+    depends_on: ["2"]
+    status: complete
+    acceptance:
+      - "GIVEN the updated ktxOpencodePluginTemplate in internal/cli/init.go WHEN ktx init opencode installs the plugin THEN the plugin tool.execute.after spawns ktx hook (not ktx write) via Bun.spawn with stdin = D9 JSON tool_call."
+      - "GIVEN the plugin tool.execute.after calls ktx hook WHEN ktx hook returns the envelope on stdout THEN the plugin parses the JSON envelope and sets output.output = envelope.output (the compressed bytes replace the original in the agent context)."
+      - "GIVEN any ktx hook failure (non-zero exit, unparseable stdout, ktx not in PATH) WHEN the plugin catches the error THEN output.output is left unchanged (the agent sees the original tool output, D14 conservative failure at the plugin level)."
+      - "GIVEN KTX_SESSION_ID is set in the environment WHEN the plugin tool.execute.after fires THEN the plugin skips the ktx hook call entirely (D10 dedup, wrapper owns persistence)."
+      - "GIVEN go test ./internal/cli/ -run TestInit runs THEN all existing init tests pass (the template is a string constant; the test verifies it writes to the expected path)."
+  - number: 4
+    name: "Integration tests + acceptance verification"
+    depends_on: ["2", "3"]
+    status: complete
+    acceptance:
+      - "GIVEN ktx hook is invoked from the command line with a valid D9 JSON payload on stdin WHEN ktx.toml has [pipeline.default].stages with head:5 AND the input has 20 lines of output THEN the envelope output field contains only 5 lines; ktx decompress <compressed_id> returns the original 20 lines."
+      - "GIVEN an OpenCode session with the ktx plugin installed AND ktx.toml has [pipeline.default].stages with head:3 WHEN the agent runs a tool that produces 10 lines of output THEN the agent context receives only 3 lines (the compressed output); the original 10 lines are in ktx database (ktx decompress returns them)."
+      - "GIVEN go test ./... runs THEN every M1-M5 test passes AND every new hook test in internal/cli/hook_test.go passes."
+      - "GIVEN the acceptance log at .agentera/verification/hook-acceptance.md WHEN a reviewer reads it THEN it contains Build / Regression / Hook Acceptance (end-to-end passthrough + configured pipeline + D15 gate + reversibility + plugin mutation) / VERIFICATION SUMMARY."
+  - number: 5
+    name: "Documentation sync"
+    depends_on: ["2", "3", "4"]
+    status: complete
+    acceptance:
+      - "GIVEN Tasks 2, 3 landed AND Task 4 verified WHEN ARCHITECTURE.md is inspected THEN the In-flight compression hook (D22) section reflects the implemented verb, envelope shape, and plugin mutation contract."
+      - "GIVEN ktx hook is implemented WHEN TODO.md is updated THEN any existing hook-related TODO is marked complete; no duplicate open items."
+overall_acceptance: "GIVEN ktx hook is implemented and the OpenCode plugin updated WHEN an OpenCode session runs with a ktx.toml that configures compression stages THEN the agent sees compressed tool_call output (fewer tokens in context), the original is in ktx database (ktx decompress returns it verbatim), and with no ktx.toml the agent sees the original unchanged (passthrough, zero behavioral change)."
+surprises: "[]"

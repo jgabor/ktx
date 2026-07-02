@@ -1,6 +1,6 @@
 // `ktx compress` — the M4 explicit-verb compression entry point
 // (Decisions 2, 8, 14 / ROADMAP M4). Reads a source tool_call by id,
-// runs the configured pipeline (identity when no ktx.toml is
+// runs the configured pipeline (passthrough when no ktx.toml is
 // present — D14 default), and persists a new row in the `compressed`
 // reversibility-layer table whose `source_id` references the
 // original tool_calls.id. Prints the new compressed id to stdout as
@@ -10,7 +10,7 @@
 // Flow:
 //
 //  1. Load ktx.toml (config.Load — precedence project-root > user-level >
-//     identity; the D14 no-config default yields an empty pipeline).
+//     passthrough; the D14 no-config default yields an empty pipeline).
 //  2. Fetch the source tool_call by id (db.GetToolCall). Source-not-found
 //     maps to exit 2 (ErrNotFound → CodeNotFound).
 //  3. Build the pipeline Runner: RegisterBuiltins on a fresh Registry
@@ -150,7 +150,7 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 //
 // The caller owns the INSERT decision: `ktx compress` always inserts a
 // compressed row (the user explicitly invoked it); `ktx hook` inserts
-// only when transformed == true (identity / D15-skip → no row). This is
+// only when transformed == true (passthrough / D15-skip → no row). This is
 // the DRY split — the pipeline logic is shared, the persistence policy
 // is caller-owned.
 //
@@ -270,14 +270,16 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 }
 
 // buildCompressRunner constructs the pipeline.Runner for `ktx compress`.
-// A nil reg builds a fresh Registry with the five built-in stages
-// registered (the D14 "OFF by default" contract: the stages exist
-// but do not run unless named in the config). A non-nil reg (test
-// injection) is used as-is so tests can substitute fake stages
-// without re-wiring the built-in registration. The runner's Warn
-// writer is set to stderr so unknown-stage skips and stage-error
-// pass-throughs surface to the user (the runner owns the warning
-// text; the verb just provides the sink).
+// A nil reg builds a fresh Registry with the built-in stages registered
+// (the D14 "OFF by default" contract: the stages exist but do not run
+// unless named in the config) — strip-ansi, dedup-blank, normalize,
+// head, truncate plus the Phase 2 deterministic stages keep-ends, grep,
+// grep-v, token-budget. A non-nil reg (test injection) is used as-is so
+// tests can substitute fake stages without re-wiring the built-in
+// registration. The runner's Warn writer is set to stderr so
+// unknown-stage skips and stage-error pass-throughs surface to the
+// user (the runner owns the warning text; the verb just provides the
+// sink).
 //
 // M5: when cfg has Plugins (from [[plugin]] blocks), each is registered
 // via RegisterExternalBuilder AFTER RegisterBuiltins so
@@ -345,7 +347,7 @@ func printCompressHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage: ktx compress <id>")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Reads the source tool_call by id, runs the configured compression")
-	fmt.Fprintln(w, "pipeline (identity when no ktx.toml is present — the D14 default), and")
+	fmt.Fprintln(w, "pipeline (passthrough when no ktx.toml is present — the D14 default), and")
 	fmt.Fprintln(w, "persists a new row in the `compressed` table whose source_id references")
 	fmt.Fprintln(w, "the original. Prints the new compressed id to stdout as raw JSON.")
 	fmt.Fprintln(w)
@@ -359,14 +361,17 @@ func printCompressHelp(w io.Writer) {
 	fmt.Fprintln(w, "$XDG_CONFIG_HOME/ktx/config.toml. Minimal shape:")
 	fmt.Fprintln(w, "  [pipeline.default]")
 	fmt.Fprintln(w, "  stages = [\"strip-ansi\", \"head:100\"]")
-	fmt.Fprintln(w, "Empty/missing config → identity pipeline (output == source.output).")
+	fmt.Fprintln(w, "Empty/missing config → passthrough pipeline (output == source.output).")
 	fmt.Fprintln(w, "Built-in stages: strip-ansi, dedup-blank, head (head:N), truncate")
-	fmt.Fprintln(w, "(truncate:N), normalize. Each OFF unless configured (D14).")
+	fmt.Fprintln(w, "(truncate:N), normalize; Phase 2 deterministic stages: keep-ends (keep-ends:N:M),")
+	fmt.Fprintln(w, "grep (grep:pattern), grep-v (grep-v:pattern), token-budget (token-budget:N).")
+	fmt.Fprintln(w, "Each OFF unless named in [pipeline.default].stages (D14).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Conservative-on-failure (D14, runtime-enforced by the runner):")
 	fmt.Fprintln(w, "  - empty-output guard: a stage emptying non-empty output is discarded")
 	fmt.Fprintln(w, "  - stage-error passthrough: an errored or panicking stage passes input through")
 	fmt.Fprintln(w, "  - unknown-stage skip: an unresolved stage name is skipped with a warning")
+	fmt.Fprintln(w, "  - anti-worsening gate (Phase 2): a pipeline result not smaller than input is discarded")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
 	fmt.Fprintln(w, "  0  compressed row persisted; id printed")

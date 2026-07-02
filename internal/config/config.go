@@ -10,12 +10,12 @@
 //	[[plugin]]
 //	name = "mycat"
 //	command = "/bin/cat"
-//	description = "identity passthrough"
+//	description = "passthrough"
 //
 // Missing / empty config → empty stages, nil plugins (the D14 no-config
-// default; `ktx compress` runs the identity pipeline). Precedence:
+// default; `ktx compress` runs the passthrough pipeline). Precedence:
 // project root wins; when only the user-level file exists it is used;
-// when neither exists, identity. Per-invocation only — no caching
+// when neither exists, passthrough. Per-invocation only — no caching
 // across processes (no global state; each `ktx compress` invocation
 // calls Load once).
 //
@@ -27,7 +27,7 @@
 // richer syntax BurntSushi handles natively (inline tables, nested
 // arrays, escapes). The D5-approved BurntSushi/toml replaces the
 // hand-rolled reader so ktx does not maintain its own parser. The
-// Load contract (file discovery, ParseError envelope, identity default)
+// Load contract (file discovery, ParseError envelope, passthrough default)
 // is unchanged — only the parsing internals swap.
 package config
 
@@ -37,9 +37,18 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
+
+// DefaultPipelineTimeout is the critical-path deadline for the pipeline
+// run inside `ktx hook` (D22) when ktx.toml omits the timeout field.
+// `ktx hook` is on the agent's critical path (the agent waits for the
+// tool result), so a hanging stage must not block indefinitely. The
+// default matches the Phase 1 hardcoded constant (hookPipelineTimeout)
+// so omitting the field is backward compatible.
+const DefaultPipelineTimeout = 30 * time.Second
 
 // projectConfigName is the project-root config filename. ktx looks
 // for this in the current working directory (the project root for
@@ -72,7 +81,7 @@ type Config struct {
 	// PipelineDefault is the ordered list of stage-name tokens for
 	// the default pipeline (e.g. ["strip-ansi", "head:100"]). Empty
 	// when ktx.toml is absent or when [pipeline.default] has no
-	// stages key — both map to the D14 identity default.
+	// stages key — both map to the D14 passthrough default.
 	PipelineDefault []string
 
 	// Plugins holds user-defined external stages from [[plugin]]
@@ -90,6 +99,18 @@ type Config struct {
 	// not route by content type yet (TODO:40) but the read surface
 	// is ready for it.
 	Profiles map[string][]string
+
+	// PipelineTimeout is the configured pipeline deadline for the
+	// [pipeline.default] table's `timeout` field, parsed as a Go
+	// duration string (e.g. "30s", "2m"). Default 30s when the field
+	// is absent (D22 backward compatibility with Phase 1). `ktx hook`
+	// reads this instead of the hardcoded constant so a user can tune
+	// the critical-path deadline per project. `ktx compress` ignores
+	// it (off-line, timeout=0, developer can Ctrl-C). A non-positive or
+	// unparseable value is a *ParseError at config-load time (D22).
+	// Only the "default" profile's timeout is read in Phase 2; per-
+	// profile timeouts are YAGNI until content-type routing lands.
+	PipelineTimeout time.Duration
 }
 
 // ParseError is returned by Load when a discovered ktx.toml contains
@@ -108,7 +129,7 @@ func (e *ParseError) Error() string {
 }
 
 // Load resolves and parses the ktx.toml per the precedence:
-// project-root ktx.toml > $XDG_CONFIG_HOME/ktx/config.toml > identity.
+// project-root ktx.toml > $XDG_CONFIG_HOME/ktx/config.toml > passthrough.
 // Returns a Config with empty stages and nil plugins when no file
 // exists (the D14 no-config default). A discovered file with a syntax
 // error or missing required field returns a *ParseError; the CLI layer
@@ -152,13 +173,13 @@ func Load() (*Config, error) {
 	// 2. User-level $XDG_CONFIG_HOME/ktx/config.toml.
 	userPath, err := userConfigFile()
 	if err != nil {
-		return &Config{}, nil
+		return &Config{PipelineTimeout: DefaultPipelineTimeout}, nil
 	}
 	if _, ok := fileExists(userPath); ok {
 		return loadFile(userPath)
 	}
-	// 3. No config found → identity (D14 default).
-	return &Config{}, nil
+	// 3. No config found → passthrough (D14 default).
+	return &Config{PipelineTimeout: DefaultPipelineTimeout}, nil
 }
 
 // userConfigFile resolves the user-level config path per D5:
@@ -201,7 +222,7 @@ func fileExists(path string) (string, bool) {
 // errors or missing required [[plugin]] fields so the CLI's toKtxError
 // path can surface a usage exit (1) with a stable message. An empty
 // file is a valid Config with empty stages and nil plugins (the D14
-// identity default).
+// passthrough default).
 func loadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -226,7 +247,8 @@ func loadFile(path string) (*Config, error) {
 // forward-compatible even though M5 does not route by content type.
 type tomlConfig struct {
 	Pipeline map[string]struct {
-		Stages []string `toml:"stages"`
+		Stages  []string `toml:"stages"`
+		Timeout string   `toml:"timeout"`
 	} `toml:"pipeline"`
 	Plugin []tomlPlugin `toml:"plugin"`
 }
@@ -271,6 +293,31 @@ func parse(data []byte) (*Config, error) {
 	cfg := &Config{
 		PipelineDefault: profiles["default"],
 		Profiles:        profiles,
+	}
+
+	// Parse the configurable pipeline timeout (D22 Phase 2). Stored as
+	// a raw string in TOML and parsed here via time.ParseDuration so an
+	// invalid duration surfaces as a *ParseError at config-load time
+	// (not deferred to hook runtime). Empty → DefaultPipelineTimeout
+	// (30s, backward compatible with Phase 1). Only the "default"
+	// profile's timeout is read; per-profile timeouts are YAGNI until
+	// content-type routing lands (Phase 3).
+	cfg.PipelineTimeout = DefaultPipelineTimeout
+	if def, ok := decoded.Pipeline["default"]; ok && def.Timeout != "" {
+		d, err := time.ParseDuration(def.Timeout)
+		if err != nil {
+			return nil, &ParseError{
+				Line: 0,
+				Msg:  fmt.Sprintf("[pipeline.default] timeout: invalid duration %q: %v", def.Timeout, err),
+			}
+		}
+		if d <= 0 {
+			return nil, &ParseError{
+				Line: 0,
+				Msg:  fmt.Sprintf("[pipeline.default] timeout: must be positive, got %q", def.Timeout),
+			}
+		}
+		cfg.PipelineTimeout = d
 	}
 
 	for i, p := range decoded.Plugin {

@@ -9,10 +9,9 @@ ktx is a runtime-agnostic CLI that makes coding agents measurable and cheaper. O
 | `[.agentera/vision.yaml](.agentera/vision.yaml)`       | North star, principles, identity                            |
 | `[.agentera/decisions.yaml](.agentera/decisions.yaml)` | Recorded deliberation outcomes (reasoning trail)            |
 | `[ARCHITECTURE.md](ARCHITECTURE.md)`                   | Aspirational architecture; open deliberations backlog       |
-| `[ROADMAP.md](ROADMAP.md)`                             | Milestone sequencing (M0–M5)                                |
 | `[TODO.md](TODO.md)`                                   | PoC/MVP blockers cross-linked to architecture deliberations |
 
-**Read order for new work:** vision → architecture (intent) → decisions (what is already chosen) → roadmap → todo.
+**Read order for new work:** vision → architecture (intent) → decisions (what is already chosen) → todo.
 
 `ARCHITECTURE.md` is the map of intent, not the blueprint. `.agentera/decisions.yaml` holds choices made in resonera. Do not treat aspirational architecture prose as settled design.
 
@@ -21,9 +20,8 @@ ktx is a runtime-agnostic CLI that makes coding agents measurable and cheaper. O
 When an open deliberation item is resolved (in resonera or equivalent structured discussion):
 
 1. **Record the choice** in `[.agentera/decisions.yaml](.agentera/decisions.yaml)` — append a decision entry with question, alternatives, choice, reasoning, and confidence.
-2. **Update `[ARCHITECTURE.md](ARCHITECTURE.md)`** — remove the item from [Open deliberations](ARCHITECTURE.md#open-deliberations); add a short entry under a **Decided** subsection (one paragraph per decision). Keep implementation detail out of ARCHITECTURE unless the decision _is_ the implementation contract.
-3. **Update `[ROADMAP.md](ROADMAP.md)`** — adjust milestone acceptance criteria if the decision changes scope or definition of done.
-4. **Update `[TODO.md](TODO.md)`** — mark matching blockers complete; do not leave duplicate open items when the architecture backlog and todo list describe the same question.
+2. **Update `[ARCHITECTURE.md](ARCHITECTURE.md)`** — remove the item from [Open deliberations](ARCHITECTURE.md#open-deliberations). No "Decided" entry is added; `decisions.yaml` is the single source of resolved reasoning. Only amend the conceptual sections above the Open-deliberations backlog when the decision changes the architectural map itself.
+3. **Update `[TODO.md](TODO.md)`** — mark matching blockers complete; do not leave duplicate open items when the architecture backlog and todo list describe the same question.
 
 When implementing before a deliberation is recorded, prefer opening a resonera session over encoding guesses in code comments or architecture prose.
 

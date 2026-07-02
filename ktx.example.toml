@@ -1,0 +1,90 @@
+# ktx.example.toml
+#
+# Copy to $XDG_CONFIG_HOME/ktx/config.toml (or ./ktx.toml for project scope)
+# and uncomment/edit the stages you want.
+#
+# When no ktx.toml is found, ktx runs the passthrough pipeline (output ==
+# input, no compression). All stages are OFF by default — you opt in by
+# listing them here.
+#
+# Stages run in order; each receives the previous stage's output.
+# Conservative-on-failure invariants (D14) are enforced by the pipeline
+# runner, not by stage authors:
+#   1. Empty-output guard — a stage that empties non-empty input is discarded
+#   2. Stage-error passthrough — an errored or panicking stage passes input through
+#   3. Unknown-stage skip — an unresolved stage name is skipped with a warning
+#   4. Anti-worsening gate — if the pipeline result is not smaller than input,
+#      the original is returned unchanged (no compressed row created)
+
+[pipeline.default]
+
+# Pipeline timeout for ktx hook (the agent's critical path). ktx compress
+# (off-line) ignores this. Default 30s when omitted.
+timeout = "30s"
+
+# Built-in stages (stdlib, no extra dependencies):
+#
+#   strip-ansi          Strip ANSI escape sequences (colors, cursor moves)
+#
+#   dedup-blank         Collapse 2+ consecutive blank lines to one
+#
+#   normalize           Convert \r\n and \r to \n; trim trailing whitespace
+#                       per line; strip leading/trailing blank lines
+#
+#   head:N               Keep first N lines (default N=10)
+#
+#   truncate:N          Keep first N bytes (default N=4096); appends
+#                       "[ktx: truncated N of M bytes]" marker when
+#                       truncation occurred
+#
+#   keep-ends:N:M       Keep first N + last M lines with
+#                       "[... (X lines omitted) ...] marker in the
+#                       middle. Preserves bottom-of-log errors that
+#                       head:N alone would lose
+#
+#   grep:pattern        Keep only lines matching the regex. Invalid
+#                       regex → passthrough (input unchanged)
+#
+#   grep-v:pattern      Reject lines matching the regex (inverse of
+#                       grep). Invalid regex → passthrough
+#
+#   token-budget:N      Truncate to ~N tokens (chars/4 estimate);
+#                       snaps back to last newline (no mid-line
+#                       cuts); appends "... (truncated to ~N tokens
+#                       from M)" marker. Input under budget → unchanged
+#
+# Example pipelines (uncomment one):
+#
+# # Minimal: strip noise, keep it short
+# stages = ["strip-ansi", "head:100"]
+#
+# # Build logs: strip ANSI, drop debug lines, keep head+tail, cap tokens
+# stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
+#
+# # Verbose output: strip ANSI, dedup blanks, normalize, cap to 8K
+# stages = ["strip-ansi", "dedup-blank", "normalize", "truncate:8192"]
+#
+# # Everything except the kitchen sink
+# stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:80:30", "token-budget:4000"]
+
+# Default: passthrough (no stages — ktx hook persists + returns output unchanged)
+stages = []
+
+# ── External plugin stages ───────────────────────────────────────────
+#
+# User-defined stages backed by external scripts. The script receives
+# the stage's input on stdin and writes its output to stdout. A non-zero
+# exit code triggers D14 invariant 2 (stage-error passthrough).
+#
+# [[plugin]]
+# name = "my-summary"
+# command = "/home/user/scripts/summarize.sh"
+# description = "custom summarizer script"
+#
+# [[plugin]]
+# name = "redact-secrets"
+# command = "/home/user/scripts/redact.sh"
+# description = "strip API keys and tokens from output"
+#
+# Reference the plugin name in your pipeline stages:
+# stages = ["strip-ansi", "redact-secrets", "keep-ends:50:20"]

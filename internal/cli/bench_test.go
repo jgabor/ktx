@@ -492,6 +492,116 @@ func TestRunBenchReplay_NotFound(t *testing.T) {
 	}
 }
 
+// TestRunBenchReplay_KtxRunSession covers --replay on a session
+// captured via `ktx run --record-stream` (bench_run_id is NULL). The
+// replay must process without a panic, skip the bench_run lookup, and
+// emit a reduced report with capture_source="ktx_run" and
+// original_bench_run=null. The A/B compression, integrity, and
+// parser_regression checks still run normally.
+func TestRunBenchReplay_KtxRunSession(t *testing.T) {
+	d := benchTestDB(t)
+
+	// Seed a session with one tool_use event in the stream (so
+	// parser_regression and the compression A/B have something to
+	// measure). tool_call_count=1 must match the stream's tool_use
+	// count for parser_regression=PASS.
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:             sessionID,
+		Agent:          "opencode",
+		StartedAt:      "2026-07-08T12:00:00Z",
+		LastSeenAt:     "2026-07-08T12:00:00Z",
+		ToolCallCount:  1,
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	// Seed a recorded_streams row with bench_run_id="" (NULL — the
+	// ktx-run --record-stream path). The stream carries one
+	// tool_use event with a compressible output.
+	streamText := `{"type":"tool_use","timestamp":"2026-07-08T12:00:01Z","part":{"type":"tool","tool":"bash","callID":"call_001","state":{"input":{"command":"echo hello world"},"output":"hello world\n"}}}`
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   "", // NULL — ktx-run capture
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-07-08T12:00:02Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	// Re-read to verify the NULL round-tripped.
+	got, err := d.GetRecordedStreamBySession(sessionID)
+	if err != nil {
+		t.Fatalf("GetRecordedStreamBySession: %v", err)
+	}
+	if got.BenchRunID != "" {
+		t.Fatalf("BenchRunID = %q, want empty (NULL round-trip)", got.BenchRunID)
+	}
+
+	// Run the replay — must not panic on the NULL bench_run_id.
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+
+	// Decode the JSON envelope.
+	var env struct {
+		Replay           map[string]any `json:"replay"`
+		Integrity        map[string]any `json:"integrity"`
+		ParserRegression map[string]any `json:"parser_regression"`
+		CostDrift        map[string]any `json:"cost_drift"`
+		Consistency      string         `json:"consistency"`
+		OriginalBenchRun *json.RawMessage `json:"original_bench_run"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
+	}
+
+	// capture_source must be "ktx_run" (not "bench_run").
+	captureSource, _ := env.Replay["capture_source"].(string)
+	if captureSource != "ktx_run" {
+		t.Errorf("replay.capture_source = %q, want \"ktx_run\"", captureSource)
+	}
+
+	// original_bench_run must be null (no bench_runs row).
+	if env.OriginalBenchRun != nil && string(*env.OriginalBenchRun) != "null" {
+		t.Errorf("original_bench_run = %s, want null", string(*env.OriginalBenchRun))
+	}
+
+	// cost_drift must report comparison="unavailable" (no original
+	// to compare against).
+	comparison, _ := env.CostDrift["comparison"].(string)
+	if comparison != "unavailable" {
+		t.Errorf("cost_drift.comparison = %q, want \"unavailable\"", comparison)
+	}
+
+	// integrity=PASS: content_hash matches.
+	integrityPass, _ := env.Integrity["pass"].(bool)
+	if !integrityPass {
+		t.Errorf("integrity.pass = false, want true")
+	}
+
+	// parser_regression=PASS: re-parsed tool_use count (1) matches
+	// the session's tool_call_count (1).
+	parserPass, _ := env.ParserRegression["pass"].(bool)
+	if !parserPass {
+		t.Errorf("parser_regression.pass = false, want true; replayed=%v original=%v",
+			env.ParserRegression["replayed_tool_use_count"],
+			env.ParserRegression["original_tool_call_count"])
+	}
+
+	// consistency must be PASS (integrity and parser_regression
+	// both pass, and cost_drift is "unavailable" not "detected").
+	if env.Consistency != "PASS" {
+		t.Errorf("consistency = %q, want PASS", env.Consistency)
+	}
+}
+
 // seedReplayForCompression seeds an in-memory DB with a minimal
 // session + bench_run + recorded_stream carrying a single tool_use
 // event whose output is the given string and whose exit code makes

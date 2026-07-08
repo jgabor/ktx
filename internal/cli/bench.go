@@ -1594,10 +1594,22 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		printError(stderr, internalError("ktx bench run --replay: load session: %v", err), format)
 		return ExitInternal
 	}
-	originalBR, err := db.QueryBenchRun(rs.BenchRunID)
-	if err != nil {
-		printError(stderr, internalError("ktx bench run --replay: load bench_run: %v", err), format)
-		return ExitInternal
+
+	// When bench_run_id is empty (NULL — the stream was captured via
+	// `ktx run --record-stream`, which has no bench_runs parent),
+	// skip the original bench_run load and the cost-drift comparison.
+	// The replay still runs integrity + parser_regression + A/B
+	// compression, but the envelope carries null for
+	// original_bench_run and a capture_source marker so consumers can
+	// tell the two capture paths apart.
+	var originalBR *dbpkg.BenchRun
+	if rs.BenchRunID != "" {
+		br, err := db.QueryBenchRun(rs.BenchRunID)
+		if err != nil {
+			printError(stderr, internalError("ktx bench run --replay: load bench_run: %v", err), format)
+			return ExitInternal
+		}
+		originalBR = &br
 	}
 
 	// (a) Stream integrity: recompute content_hash and compare.
@@ -1628,7 +1640,11 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	parserRegressionPass := int64(replayedToolUseCount) == session.ToolCallCount
 
 	// (c) Cost drift: re-aggregate tokens/cost via extractStreamMetrics
-	// and compare to the original bench_runs row.
+	// and compare to the original bench_runs row. Skipped entirely when
+	// the stream has no bench_run parent (ktx-run --record-stream
+	// captures) — there is no original cost to compare against, so
+	// costDriftDetected stays false and the cost_drift envelope reports
+	// the reduced "no original bench_run to compare against" shape.
 	streamMetrics := extractStreamMetrics([]byte(rs.StreamText))
 	costDriftDetected := false
 	var replayCost *float64
@@ -1641,10 +1657,12 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 			replayCost = &v
 		}
 	}
-	if originalBR.Cost != nil && replayCost != nil {
-		costDriftDetected = *originalBR.Cost != *replayCost
-	} else if originalBR.Cost != nil && replayCost == nil {
-		costDriftDetected = true
+	if originalBR != nil {
+		if originalBR.Cost != nil && replayCost != nil {
+			costDriftDetected = *originalBR.Cost != *replayCost
+		} else if originalBR.Cost != nil && replayCost == nil {
+			costDriftDetected = true
+		}
 	}
 
 	// Determine overall consistency.
@@ -1666,13 +1684,21 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	// calls — the recorded D20 stream is already parsed above.
 	compressionSection := measureReplayCompression(parsedToolCalls)
 
-	// Build the output envelope.
+	// Build the output envelope. capture_source distinguishes the
+	// two capture paths: "bench_run" (ktx bench run, originalBR is
+	// non-nil) and "ktx_run" (ktx run --record-stream, originalBR is
+	// nil — no bench_runs row to compare against).
+	captureSource := "ktx_run"
+	if originalBR != nil {
+		captureSource = "bench_run"
+	}
 	envelope := map[string]any{
 		"replay": map[string]any{
-			"session_id":    rs.SessionID,
-			"bench_run_id":  rs.BenchRunID,
-			"stream_format": rs.StreamFormat,
-			"captured_at":   rs.CapturedAt,
+			"session_id":     rs.SessionID,
+			"bench_run_id":   rs.BenchRunID,
+			"stream_format":  rs.StreamFormat,
+			"captured_at":    rs.CapturedAt,
+			"capture_source": captureSource,
 		},
 		"integrity":          map[string]any{"pass": integrityPass, "recomputed_hash": recomputedHash, "stored_hash": rs.ContentHash},
 		"parser_regression":  map[string]any{"pass": parserRegressionPass, "replayed_tool_use_count": replayedToolUseCount, "original_tool_call_count": session.ToolCallCount},
@@ -1681,7 +1707,19 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		"consistency":        consistency,
 	}
 
-	if costDriftDetected {
+	if originalBR == nil {
+		// No bench_run to compare against — the stream was captured
+		// via `ktx run --record-stream`. Report replay-derived
+		// tokens/cost (if any) without an original to compare.
+		envelope["cost_drift"] = map[string]any{
+			"detected":          false,
+			"comparison":       "unavailable",
+			"reason":            "no original bench_run to compare against — session captured via ktx run --record-stream",
+			"replay_tokens_in":  replayTokensIn,
+			"replay_tokens_out": replayTokensOut,
+			"replay_cost":       replayCost,
+		}
+	} else if costDriftDetected {
 		delta := 0.0
 		if replayCost != nil && originalBR.Cost != nil {
 			delta = *replayCost - *originalBR.Cost

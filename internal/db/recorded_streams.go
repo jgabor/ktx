@@ -13,17 +13,22 @@
 // return), following D14's artifact-to-table precedent.
 //
 // Each row references its session via session_id (REFERENCES
-// sessions(id)) and its bench_run via bench_run_id (REFERENCES
-// bench_runs(id)); with foreign_keys=1 (enforced by Open's DSN), a
-// recorded_streams row cannot point at a non-existent session or
-// bench_run. The table is the first persistent session-to-bench_run
-// linkage (bench_runs has no session_id column).
+// sessions(id), NOT NULL) and its bench_run via bench_run_id (REFERENCES
+// bench_runs(id), NULLABLE — NULL when the stream was captured via
+// `ktx run --record-stream` with no bench_runs parent); with
+// foreign_keys=1 (enforced by Open's DSN), a recorded_streams row
+// cannot point at a non-existent session. The table is the first
+// persistent session-to-bench_run linkage (bench_runs has no
+// session_id column).
 //
 // Three methods form the D20 persistence contract:
 //
 //   - InsertRecordedStream       — writes one row, mapping missing
-//     session_id or bench_run_id to ErrNotFound (the FK rejection
-//     surfaces as ErrNotFound so the CLI layer maps it to exit 2).
+//     session_id or a non-empty-but-unknown bench_run_id to
+//     ErrNotFound (the FK rejection surfaces as ErrNotFound so the CLI
+//     layer maps it to exit 2). An empty BenchRunID inserts SQL NULL
+//     (the ktx-run --record-stream path) and skips the bench_run
+//     pre-check.
 //   - GetRecordedStreamBySession — fetches a row by session_id (the
 //     public --replay arg per D13); ErrNotFound on miss (exit 2
 //     surface).
@@ -55,16 +60,22 @@ import (
 // and captured_at fields are contractual. Matches the Compressed /
 // ToolCall convention used by ktx get / ktx list.
 //
-// SessionID references sessions.id; BenchRunID references bench_runs.id;
-// InsertRecordedStream enforces both FKs (foreign_keys=1). StreamText
-// is the verbatim JSONL stream exactly as the agent emitted it (the
-// wrapper pipes every line to stdout via teeAndParse, and runBenchRun
-// captures that stdout into a bytes.Buffer). ContentHash is the
-// SHA-256 hex digest of StreamText (recomputed per D9 integrity rule).
-// StreamFormat is metadata recording what was captured (e.g.
-// 'opencode-jsonl-1'); no parser dispatch exists today, but the
-// column future-proofs against silently mis-parsing a non-OpenCode
-// stream. CapturedAt is RFC3339Nano, supplied by the caller.
+// SessionID references sessions.id (NOT NULL FK); BenchRunID references
+// bench_runs.id and is NULLABLE — empty string in Go corresponds to SQL
+// NULL. A NULL BenchRunID marks a stream captured via `ktx run
+// --record-stream` (no bench_runs parent); a non-empty BenchRunID marks
+// a stream captured via `ktx bench run` (1:1 with a bench_runs row).
+// InsertRecordedStream enforces the session_id FK (foreign_keys=1) and
+// only pre-checks the bench_run when BenchRunID is non-empty.
+// StreamText is the verbatim JSONL stream exactly as the agent emitted
+// it (the wrapper pipes every line to stdout via teeAndParse, and both
+// runBenchRun and executeRun-with---record-stream capture that stdout
+// into a bytes.Buffer). ContentHash is the SHA-256 hex digest of
+// StreamText (recomputed per D9 integrity rule). StreamFormat is
+// metadata recording what was captured (e.g. 'opencode-jsonl-1'); no
+// parser dispatch exists today, but the column future-proofs against
+// silently mis-parsing a non-OpenCode stream. CapturedAt is
+// RFC3339Nano, supplied by the caller.
 type RecordedStream struct {
 	ID           string `json:"id"`
 	SessionID    string `json:"session_id"`
@@ -92,13 +103,19 @@ var ErrRecordedStreamSourceNotFound = fmt.Errorf("db: recorded_stream source not
 // via ContentHash(streamText) (D9 integrity rule, recomputed from the
 // stream text), and supplying stream_format and captured_at.
 //
-// A session_id or bench_run_id that does not exist is rejected by the
-// FK constraint and surfaced as ErrRecordedStreamSourceNotFound (which
-// wraps ErrNotFound so the CLI maps it to exit 2). The FK rejection is
-// a generic sqlite error without a stable sentinel; we detect it by
-// pre-checking both source rows exist BEFORE the insert (two indexed
-// SELECTs) so the error class is deterministic regardless of driver
-// error-string drift.
+// A session_id that does not exist is rejected by the FK constraint and
+// surfaced as ErrRecordedStreamSourceNotFound (which wraps ErrNotFound
+// so the CLI maps it to exit 2). The FK rejection is a generic sqlite
+// error without a stable sentinel; we detect it by pre-checking the
+// session row exists BEFORE the insert (an indexed SELECT) so the error
+// class is deterministic regardless of driver error-string drift.
+//
+// BenchRunID is NULLABLE: an empty string inserts SQL NULL (the
+// `ktx run --record-stream` path, where no bench_runs row exists). A
+// non-empty BenchRunID is pre-checked against bench_runs the same way
+// session_id is, so a reference to a non-existent bench_run surfaces as
+// ErrRecordedStreamSourceNotFound. The NULL path skips the bench_run
+// pre-check entirely — there is nothing to validate.
 func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 	if rs == nil {
 		return errors.New("db: insert recorded_stream: nil recorded_stream")
@@ -108,9 +125,6 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 	}
 	if rs.SessionID == "" {
 		return errors.New("db: insert recorded_stream: session_id is empty")
-	}
-	if rs.BenchRunID == "" {
-		return errors.New("db: insert recorded_stream: bench_run_id is empty")
 	}
 
 	// Pre-check the session exists so the not-found case maps to a
@@ -124,13 +138,26 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 		return fmt.Errorf("db: insert recorded_stream %q: check session %q: %w", rs.ID, rs.SessionID, err)
 	}
 
-	// Pre-check the bench_run exists.
-	err = d.db.QueryRow(`SELECT 1 FROM bench_runs WHERE id = ? LIMIT 1`, rs.BenchRunID).Scan(&one)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("db: insert recorded_stream %q: %w", rs.ID, ErrRecordedStreamSourceNotFound)
+	// Pre-check the bench_run exists ONLY when BenchRunID is non-empty.
+	// An empty BenchRunID inserts SQL NULL (the ktx-run --record-stream
+	// path); there is no bench_run to validate.
+	if rs.BenchRunID != "" {
+		err = d.db.QueryRow(`SELECT 1 FROM bench_runs WHERE id = ? LIMIT 1`, rs.BenchRunID).Scan(&one)
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("db: insert recorded_stream %q: %w", rs.ID, ErrRecordedStreamSourceNotFound)
+		}
+		if err != nil {
+			return fmt.Errorf("db: insert recorded_stream %q: check bench_run %q: %w", rs.ID, rs.BenchRunID, err)
+		}
 	}
-	if err != nil {
-		return fmt.Errorf("db: insert recorded_stream %q: check bench_run %q: %w", rs.ID, rs.BenchRunID, err)
+
+	// Map an empty BenchRunID to SQL NULL via sql.NullString so the
+	// nullable bench_run_id column receives NULL rather than the empty
+	// string (keeps the FK contract honest: NULL is "no bench parent",
+	// '' would reference nothing without being NULL).
+	benchRunID := sql.NullString{String: rs.BenchRunID}
+	if rs.BenchRunID != "" {
+		benchRunID.Valid = true
 	}
 
 	tx, err := d.db.Begin()
@@ -142,7 +169,7 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 	_, err = tx.Exec(
 		`INSERT INTO recorded_streams (id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		rs.ID, rs.SessionID, rs.BenchRunID, rs.StreamText, rs.ContentHash, rs.StreamFormat, rs.CapturedAt,
+		rs.ID, rs.SessionID, benchRunID, rs.StreamText, rs.ContentHash, rs.StreamFormat, rs.CapturedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("db: insert recorded_stream %q: %w", rs.ID, err)
@@ -159,14 +186,22 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 // when no row matches so the CLI layer maps a missing session_id to
 // exit 2 (the `ktx bench run --replay` not-found path). Uses the
 // recorded_streams_session_id_idx index for O(log n) lookup.
+//
+// bench_run_id is scanned via sql.NullString so a NULL column (a
+// ktx-run --record-stream capture with no bench parent) round-trips
+// to the empty string in Go rather than panicking on a NULL-to-string
+// scan error.
 func (d *DB) GetRecordedStreamBySession(sessionID string) (*RecordedStream, error) {
-	var rs RecordedStream
+	var (
+		rs         RecordedStream
+		benchRunID sql.NullString
+	)
 	err := d.db.QueryRow(
 		`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at
 		 FROM recorded_streams WHERE session_id = ?`,
 		sessionID,
 	).Scan(
-		&rs.ID, &rs.SessionID, &rs.BenchRunID, &rs.StreamText, &rs.ContentHash, &rs.StreamFormat, &rs.CapturedAt,
+		&rs.ID, &rs.SessionID, &benchRunID, &rs.StreamText, &rs.ContentHash, &rs.StreamFormat, &rs.CapturedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -174,6 +209,7 @@ func (d *DB) GetRecordedStreamBySession(sessionID string) (*RecordedStream, erro
 	if err != nil {
 		return nil, fmt.Errorf("db: get recorded_stream by session %q: %w", sessionID, err)
 	}
+	rs.BenchRunID = benchRunID.String
 	return &rs, nil
 }
 
@@ -181,14 +217,23 @@ func (d *DB) GetRecordedStreamBySession(sessionID string) (*RecordedStream, erro
 // bench_run_id (internal FK lookup; bench_run_id is NOT a public
 // --replay arg per D13/D20). Returns ErrNotFound when no row matches.
 // Uses the recorded_streams_bench_run_id_idx index for O(log n) lookup.
+//
+// bench_run_id is scanned via sql.NullString for consistency with
+// GetRecordedStreamBySession; a NULL bench_run_id would not match this
+// lookup (IS NULL is the only predicate that matches NULL), so the
+// NullString is always Valid on the hit path, but the scan shape stays
+// uniform across both getters.
 func (d *DB) GetRecordedStreamByBenchRun(benchRunID string) (*RecordedStream, error) {
-	var rs RecordedStream
+	var (
+		rs    RecordedStream
+		brID  sql.NullString
+	)
 	err := d.db.QueryRow(
 		`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at
 		 FROM recorded_streams WHERE bench_run_id = ?`,
 		benchRunID,
 	).Scan(
-		&rs.ID, &rs.SessionID, &rs.BenchRunID, &rs.StreamText, &rs.ContentHash, &rs.StreamFormat, &rs.CapturedAt,
+		&rs.ID, &rs.SessionID, &brID, &rs.StreamText, &rs.ContentHash, &rs.StreamFormat, &rs.CapturedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -196,5 +241,6 @@ func (d *DB) GetRecordedStreamByBenchRun(benchRunID string) (*RecordedStream, er
 	if err != nil {
 		return nil, fmt.Errorf("db: get recorded_stream by bench_run %q: %w", benchRunID, err)
 	}
+	rs.BenchRunID = brID.String
 	return &rs, nil
 }

@@ -38,6 +38,12 @@ const (
 type Options struct {
 	Format string
 	Quiet  bool
+	// RecordStream is set by `ktx run --record-stream` (opt-in stream
+	// capture for the wrapper path). It is a verb-local flag threaded
+	// through Options so executeRun can branch on it without growing
+	// its parameter list. Zero value (false) preserves the D1
+	// transparent-proxy default (ktx run does not persist the stream).
+	RecordStream bool
 }
 
 // command describes a top-level ktx verb. run executes the command with the

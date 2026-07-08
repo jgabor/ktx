@@ -4,6 +4,7 @@
 //   - InsertRecordedStream happy path + 7-column assertion
 //   - InsertRecordedStream with unknown session_id → ErrRecordedStreamSourceNotFound (FK)
 //   - InsertRecordedStream with unknown bench_run_id → ErrRecordedStreamSourceNotFound (FK)
+//   - InsertRecordedStream with empty bench_run_id → inserts NULL (ktx-run --record-stream path)
 //   - GetRecordedStreamBySession hit + miss (ErrNotFound)
 //   - GetRecordedStreamByBenchRun hit + miss (ErrNotFound)
 //   - content_hash round-trip: insert with hash of stream_text; read back;
@@ -193,7 +194,12 @@ func TestInsertRecordedStream(t *testing.T) {
 		}
 	})
 
-	t.Run("empty bench_run_id is a programmer error", func(t *testing.T) {
+	t.Run("empty bench_run_id inserts NULL (ktx-run --record-stream path)", func(t *testing.T) {
+		// When bench_run_id is empty, InsertRecordedStream inserts SQL
+		// NULL (the `ktx run --record-stream` path, where no
+		// bench_runs row exists). The session FK is still enforced;
+		// the bench_run FK is skipped because NULL FKs satisfy the
+		// nullable column without a parent row.
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
@@ -202,11 +208,43 @@ func TestInsertRecordedStream(t *testing.T) {
 		sessionID, _ := seedSessionAndBenchRun(t, d)
 
 		rsID := mustNewID(t)
+		streamText := `{"type":"text","part":{"text":"hi"}}`
 		if err := d.InsertRecordedStream(&RecordedStream{
-			ID: rsID, SessionID: sessionID, BenchRunID: "",
-			CapturedAt: "2026-06-30T12:00:00Z",
-		}); err == nil {
-			t.Fatal("InsertRecordedStream with empty bench_run_id succeeded; want programmer error")
+			ID:           rsID,
+			SessionID:    sessionID,
+			BenchRunID:   "",
+			StreamText:   streamText,
+			ContentHash:  ContentHash(streamText),
+			StreamFormat: "opencode-jsonl-1",
+			CapturedAt:   "2026-06-30T12:00:00Z",
+		}); err != nil {
+			t.Fatalf("InsertRecordedStream with empty bench_run_id: %v", err)
+		}
+
+		// Re-read: the empty bench_run_id (NULL in the DB) must
+		// round-trip as the empty string in Go (sql.NullString scan).
+		got, err := d.GetRecordedStreamBySession(sessionID)
+		if err != nil {
+			t.Fatalf("GetRecordedStreamBySession: %v", err)
+		}
+		if got.BenchRunID != "" {
+			t.Errorf("BenchRunID = %q, want empty string (NULL round-trip)", got.BenchRunID)
+		}
+		if got.StreamText != streamText {
+			t.Errorf("StreamText = %q, want %q", got.StreamText, streamText)
+		}
+
+		// Verify the column is actually NULL at the SQL level (not
+		// an empty string stored in a NOT NULL column).
+		var isNull int
+		if err := d.db.QueryRow(
+			`SELECT COUNT(*) FROM recorded_streams WHERE id = ? AND bench_run_id IS NULL`,
+			rsID,
+		).Scan(&isNull); err != nil {
+			t.Fatalf("query NULL bench_run_id: %v", err)
+		}
+		if isNull != 1 {
+			t.Errorf("bench_run_id IS NULL count = %d, want 1 (the column must be NULL, not an empty string)", isNull)
 		}
 	})
 }

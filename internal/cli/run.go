@@ -52,6 +52,7 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -89,10 +90,10 @@ var runCmd = exec.CommandContext
 // invokes executeRun, returning its int exit code directly so the
 // test seam preserves the child's exit code contract (D1).
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	// Subcommand-local --quiet / --help. The dispatch module already
-	// extracts --help when invoked through dispatch; for direct
-	// runRunWith callers (Task 1-3 seam), parse the flag set here.
-	quiet, showHelp, rest := parseRunArgs(args)
+	// Subcommand-local --quiet / --help / --record-stream. The dispatch
+	// module already extracts --help when invoked through dispatch; for
+	// direct runRunWith callers (Task 1-3 seam), parse the flag set here.
+	quiet, showHelp, preRecordStream, rest := parseRunArgs(args)
 	if showHelp {
 		printRunHelp(stdout)
 		return ExitOK
@@ -100,11 +101,18 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	if quiet {
 		opts.Quiet = true
 	}
+	if preRecordStream {
+		opts.RecordStream = true
+	}
 
-	// The post-agent --quiet filter scans agent args for -q/--quiet/-h/--help.
-	postAgentQuiet, agentHelp, agentArgs := filterKtxFlags(rest)
+	// The post-agent --quiet / --record-stream filter scans agent args
+	// for -q/--quiet/-h/--help/--record-stream.
+	postAgentQuiet, agentHelp, postAgentRecordStream, agentArgs := filterKtxFlags(rest)
 	if postAgentQuiet {
 		opts.Quiet = true
+	}
+	if postAgentRecordStream {
+		opts.RecordStream = true
 	}
 	if agentHelp {
 		printRunHelp(stdout)
@@ -119,16 +127,21 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return executeRun(agent, agentArgs, opts, stdout, stderr)
 }
 
-// parseRunArgs walks args and extracts --help/-h and --quiet/-q. The
-// remaining positional args (including the agent binary) are returned.
-// Both --flag value and --flag=value forms are accepted so the parser
-// matches the stdlib flag package's behaviour for the global parser.
+// parseRunArgs walks args and extracts --help/-h, --quiet/-q, and
+// --record-stream. The remaining positional args (including the agent
+// binary) are returned. Both --flag value and --flag=value forms are
+// accepted so the parser matches the stdlib flag package's behaviour
+// for the global parser.
 //
 // The stdlib flag.FlagSet stops at the first non-flag argument, which
 // breaks `ktx run <agent> --quiet` (the agent name is positional but
 // the quiet flag follows it). Hand-rolling the parser keeps the flag
 // surface stable regardless of position.
-func parseRunArgs(args []string) (quiet, showHelp bool, rest []string) {
+//
+// --record-stream is a boolean (no value); --record-stream=true /
+// --record-stream=false are also accepted so users can explicitly
+// disable recording after a shell alias that enables it.
+func parseRunArgs(args []string) (quiet, showHelp, recordStream bool, rest []string) {
 	for _, a := range args {
 		switch a {
 		case "--quiet", "-q":
@@ -136,6 +149,9 @@ func parseRunArgs(args []string) (quiet, showHelp bool, rest []string) {
 			continue
 		case "--help", "-h":
 			showHelp = true
+			continue
+		case "--record-stream":
+			recordStream = true
 			continue
 		}
 		if strings.HasPrefix(a, "--quiet=") || strings.HasPrefix(a, "-q=") {
@@ -146,22 +162,57 @@ func parseRunArgs(args []string) (quiet, showHelp bool, rest []string) {
 			showHelp = true
 			continue
 		}
+		if val, ok := matchRecordStreamFlag(a); ok {
+			recordStream = val
+			continue
+		}
 		rest = append(rest, a)
 	}
-	return quiet, showHelp, rest
+	return quiet, showHelp, recordStream, rest
+}
+
+// matchRecordStreamFlag parses the --record-stream[=value] form and
+// returns (value, true) when the flag matches. The bare form
+// (--record-stream) is handled by the caller's switch; this helper
+// only covers the =value form so the caller can stay a simple switch
+// for the bare flags. Returns (false, false) when the arg is not a
+// --record-stream flag.
+func matchRecordStreamFlag(a string) (bool, bool) {
+	const prefix = "--record-stream="
+	if !strings.HasPrefix(a, prefix) {
+		return false, false
+	}
+	val := strings.TrimPrefix(a, prefix)
+	switch val {
+	case "true", "1", "":
+		return true, true
+	case "false", "0":
+		return false, true
+	default:
+		// An invalid value is treated as true so the flag is
+		// not silently passed through to the agent; the user
+		// clearly intended recording. A stricter contract would
+		// error, but ktx run is a passthrough and should not
+		// block the agent on a flag-value quibble.
+		return true, true
+	}
 }
 
 // filterKtxFlags removes ktx-recognised flags from args. The recognised set
-// is small and stable: --quiet/-q and --help/-h. Other flags and all
-// positional arguments pass through to the agent. We intentionally do NOT
-// recognise --format here — --format is a global flag and the wrapper
-// always emits the run summary as JSON regardless of format.
+// is small and stable: --quiet/-q, --help/-h, and --record-stream. Other
+// flags and all positional arguments pass through to the agent. We
+// intentionally do NOT recognise --format here — --format is a global
+// flag and the wrapper always emits the run summary as JSON regardless
+// of format.
 //
 // Both bare and --flag=value forms are accepted so the post-agent scan
 // behaves like the global parser (stdlib flag.BoolVar). The pre-agent
 // form is consumed by parseRunArgs; this helper is the post-agent
 // fallback for users who type `ktx run <agent> ... --quiet`.
-func filterKtxFlags(args []string) (quiet, showHelp bool, rest []string) {
+//
+// Returns (quiet, showHelp, recordStream, rest) so the caller can OR
+// the pre-agent and post-agent values together.
+func filterKtxFlags(args []string) (quiet, showHelp, recordStream bool, rest []string) {
 	for _, a := range args {
 		name, _, _ := strings.Cut(a, "=")
 		switch name {
@@ -169,7 +220,13 @@ func filterKtxFlags(args []string) (quiet, showHelp bool, rest []string) {
 			quiet = true
 		case "-h", "--help":
 			showHelp = true
+		case "--record-stream":
+			recordStream = true
 		default:
+			if val, ok := matchRecordStreamFlag(a); ok {
+				recordStream = val
+				continue
+			}
 			rest = append(rest, a)
 		}
 	}
@@ -181,6 +238,17 @@ func filterKtxFlags(args []string) (quiet, showHelp bool, rest []string) {
 // session, and emits the run summary. It returns the exit code that ktx
 // run itself should report (the child's exit code, or an internal error
 // code if session open fails).
+//
+// When opts.RecordStream is set (the --record-stream opt-in), the
+// wrapper captures the agent's stdout into a bytes.Buffer alongside the
+// transparent passthrough (io.MultiWriter), and persists the captured
+// JSONL into the recorded_streams table after the session closes —
+// with an empty (NULL) bench_run_id, since ktx run has no bench_runs
+// parent. The capture reuses the same tee path as bench's
+// captureStreamForBenchRun (D20 recording contract); --replay can then
+// re-parse the session without re-invoking the agent. The capture is
+// soft-fail: a persist error is logged as a warning and the run still
+// exits with the child's exit code (the agent already ran).
 func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr io.Writer) int {
 	start := time.Now()
 
@@ -256,7 +324,16 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	// (passthrough), parse each line for tool events. Persistence is
 	// inline so each tool_call is committed before the next line is
 	// parsed — partial runs are crash-safe.
-	toolCalls := teeAndParse(stdoutR, stdout, db, sessionID, stderr)
+	//
+	// When --record-stream is set, the tee also writes to a
+	// bytes.Buffer (via io.MultiWriter) so the full JSONL stream is
+	// captured for the recorded_streams persist after session close.
+	var streamBuf bytes.Buffer
+	teeOut := stdout
+	if opts.RecordStream {
+		teeOut = io.MultiWriter(stdout, &streamBuf)
+	}
+	toolCalls := teeAndParse(stdoutR, teeOut, db, sessionID, stderr)
 
 	waitErr := cmd.Wait()
 
@@ -267,6 +344,19 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	endedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	if err := db.CloseSession(sessionID, endedAt); err != nil {
 		fmt.Fprintf(stderr, "ktx: warning: close session %q: %v\n", sessionID, err)
+	}
+
+	// Persist the captured stream into recorded_streams when
+	// --record-stream was passed (D20 recording contract, opt-in for
+	// the wrapper path). bench_run_id is empty (SQL NULL) because ktx
+	// run has no bench_runs parent — the bench path
+	// (captureStreamForBenchRun) is the only caller that supplies a
+	// non-empty bench_run_id. Soft-fail: a persist error is logged as a
+	// warning and the run still exits with the child's exit code.
+	if opts.RecordStream {
+		if err := captureStreamForRun(db, sessionID, streamBuf.Bytes()); err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: record stream: %v\n", err)
+		}
 	}
 
 	exitCode := 0
@@ -286,6 +376,32 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	}
 
 	return exitCode
+}
+
+// captureStreamForRun persists the captured JSONL stream into the
+// recorded_streams table for a `ktx run --record-stream` invocation
+// (D20 recording contract, opt-in wrapper path). Mirrors
+// captureStreamForBenchRun but passes an empty bench_run_id (which
+// InsertRecordedStream maps to SQL NULL) since ktx run has no
+// bench_runs parent. The captured stream enables `ktx bench run
+// --replay <session-id>` on a wrapper-captured session without
+// re-invoking the agent.
+func captureStreamForRun(db *dbpkg.DB, sessionID string, streamBytes []byte) error {
+	rsID, err := dbpkg.NewID()
+	if err != nil {
+		return fmt.Errorf("generate recorded_stream id: %w", err)
+	}
+	streamText := string(streamBytes)
+	rs := &dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   "",
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	return db.InsertRecordedStream(rs)
 }
 
 // runCommandFunc is the dispatch wrapper. The dispatcher already
@@ -308,10 +424,10 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 func runCommandFunc(ctx *DispatchContext) (any, error) {
 	// The dispatcher already consumed --help and --quiet; ctx.Args
 	// contains only positional args. We still need to scan for
-	// post-agent --quiet (e.g. `ktx run <agent> ... --quiet`) and
-	// --help because the dispatcher does not see those (they are
-	// in the agent's args, not the verb's).
-	postAgentQuiet, agentHelp, agentArgs := filterKtxFlags(ctx.Args)
+	// post-agent --quiet (e.g. `ktx run <agent> ... --quiet`),
+	// --record-stream, and --help because the dispatcher does not see
+	// those (they are in the agent's args, not the verb's).
+	postAgentQuiet, agentHelp, postAgentRecordStream, agentArgs := filterKtxFlags(ctx.Args)
 	if agentHelp {
 		return nil, nil
 	}
@@ -321,7 +437,11 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 	}
 	agent := ctx.Args[0]
 
-	opts := Options{Format: ctx.Format, Quiet: ctx.Quiet || postAgentQuiet}
+	opts := Options{
+		Format:        ctx.Format,
+		Quiet:         ctx.Quiet || postAgentQuiet,
+		RecordStream:  runScratch.recordStream || postAgentRecordStream,
+	}
 
 	exitCode := executeRun(agent, agentArgs, opts, ctx.Stdout, ctx.Stderr)
 	switch exitCode {
@@ -357,13 +477,74 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 // user typed `ktx run <agent> ... --quiet`) is handled inside the
 // verb body via filterKtxFlags, which scans ctx.Args (the post-agent
 // args) without needing to share the dispatcher's flag set.
+//
+// --record-stream is consumed by the runPreParse hook (the dispatcher's
+// flag set only knows --help/-h and --quiet/-q; a pre-agent
+// --record-stream would be rejected as an unknown flag without the
+// hook). The post-agent form is handled by filterKtxFlags inside the
+// verb body. The resolved value lives in runScratch (pre-agent) and
+// is OR'd with filterKtxFlags's return (post-agent).
 func init() {
 	Register("run", RegisterOptions{
 		Description:       "wrap an agent invocation and record the session",
 		NeedsDB:           true,
 		PassthroughStdout: true,
+		PreParse:          runPreParse,
 		Help:              printRunHelp,
 	}, runCommandFunc)
+}
+
+// runScratchValue holds the PreParse result for `ktx run`. The
+// dispatch module's PreParse signature is `(args) (rest, err)`;
+// --record-stream is a boolean, so a package-level scratch variable
+// bridges the gap (same pattern as dbScratch for `ktx db`). Safe
+// because runRegisteredVerb is synchronous — the PreParse hook runs,
+// then the flag set, then the verb body, with no interleaving.
+type runScratchValue struct {
+	recordStream bool
+}
+
+// runScratch is the package-level bridge between runPreParse (which
+// runs before the dispatcher's flag set) and runCommandFunc (the verb
+// body). runPreParseReset zeroes it so a stale value from a prior
+// invocation cannot leak into the current one.
+var runScratch runScratchValue
+
+// runPreParse is the dispatcher's PreParse hook for `ktx run`. It
+// extracts the verb-specific --record-stream flag from the pre-agent
+// args (before the dispatcher's flag set runs, which only knows
+// --help/-h and --quiet/-q) and stashes the boolean in runScratch.
+//
+// Without this hook, `ktx run --record-stream <agent> ...` would hit
+// the dispatcher's flag set, which would reject --record-stream as an
+// undefined flag ("flag provided but not defined: -record-stream").
+// The hook removes --record-stream from the arg list so the flag set
+// sees only the agent positionals; the verb body reads the stashed
+// value via runScratch.recordStream and OR's it with the post-agent
+// scan from filterKtxFlags.
+//
+// Hand-rolled rather than stdlib flag: the dispatcher's flag set
+// already handles --help/-h, --quiet/-q; the PreParse hook must pass
+// those through unchanged. stdlib flag.NewFlagSet would reject unknown
+// flags (including --help if --help is not registered on this set),
+// so a hand-rolled walk is simpler. Mirrors dbPreParse's pattern.
+func runPreParse(args []string) ([]string, error) {
+	runScratch = runScratchValue{}
+	var recordStream bool
+	rest := make([]string, 0, len(args))
+	for _, a := range args {
+		if a == "--record-stream" {
+			recordStream = true
+			continue
+		}
+		if val, ok := matchRecordStreamFlag(a); ok {
+			recordStream = val
+			continue
+		}
+		rest = append(rest, a)
+	}
+	runScratch.recordStream = recordStream
+	return rest, nil
 }
 
 // teeAndParse reads from r, writes each line to stdout (transparent
@@ -452,10 +633,13 @@ func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  -q, --quiet    suppress the one-line run summary on stderr")
 	fmt.Fprintln(w, "  -h, --help     show this help")
+	fmt.Fprintln(w, "      --record-stream  persist the agent's JSONL stdout into the")
+	fmt.Fprintln(w, "                        recorded_streams table (enables")
+	fmt.Fprintln(w, "                        `ktx bench run --replay <session-id>`)")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Note: --quiet/-q may also appear after the agent command; the wrapper")
-	fmt.Fprintln(w, "recognises it anywhere on its command line. Other flags pass through")
-	fmt.Fprintln(w, "to the agent.")
+	fmt.Fprintln(w, "Note: --quiet/-q and --record-stream may also appear after the agent")
+	fmt.Fprintln(w, "command; the wrapper recognises them anywhere on its command line.")
+	fmt.Fprintln(w, "Other flags pass through to the agent.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Example:")
 	fmt.Fprintln(w, "  ktx run opencode run --format json \"explain closures in JavaScript\"")

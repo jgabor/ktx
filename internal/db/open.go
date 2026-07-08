@@ -9,10 +9,12 @@
 // nanoid-keyed shape as the other tables), compressed (M4
 // reversibility layer; one row per `ktx compress` invocation;
 // references tool_calls.id via source_id FK), and recorded_streams (D20
-// recording contract; one row per `ktx bench run` invocation; holds the
-// verbatim JSONL stream the agent emitted — the authoritative cost
-// evidence per D17; references sessions.id and bench_runs.id via two
-// NOT NULL FKs). IDs are 16-char lowercase alpha nanoids (Decision 3).
+// recording contract; one row per `ktx bench run` invocation, or per
+// opt-in `ktx run --record-stream`; holds the verbatim JSONL stream the
+// agent emitted — the authoritative cost evidence per D17; references
+// sessions.id via a NOT NULL FK and bench_runs.id via a NULLABLE FK so a
+// ktx-run-captured stream can carry no bench parent). IDs are 16-char
+// lowercase alpha nanoids (Decision 3).
 // Content hashes are SHA-256 of the output field, stored as a separate
 // column for verification without being the primary key (Decision 3).
 //
@@ -89,17 +91,21 @@ const sqliteDriver = "sqlite"
 // without coercing zero values.
 //
 // The recorded_streams table (D20) stores one row per `ktx bench run`
-// invocation, paired 1:1 with a bench_runs row. It holds the verbatim
-// JSONL stream the agent emitted (the authoritative cost evidence per
-// D17 — OpenCode 1.17.8 emits tokens/cost/model on step_finish events
-// that the wrapper pipes through stdout but does NOT persist as
-// tool_call rows). session_id and bench_run_id are both NOT NULL FKs;
-// the table is the first persistent session-to-bench_run linkage
-// (bench_runs has no session_id column). No ALTER TABLE column add —
-// the CREATE TABLE IF NOT EXISTS alone handles the fresh-DB and pre-D20
-// self-heal paths (resolved judgment call 1: no partial-column-forward-
-// fix ALTER loop, per the user's decision to read D20's "no ALTER
-// TABLE" clause literally).
+// invocation (paired 1:1 with a bench_runs row), or per opt-in
+// `ktx run --record-stream` (in which case bench_run_id is NULL — the
+// stream was captured outside a bench context, so no bench_runs row
+// exists to reference). It holds the verbatim JSONL stream the agent
+// emitted (the authoritative cost evidence per D17 — OpenCode 1.17.8
+// emits tokens/cost/model on step_finish events that the wrapper pipes
+// through stdout but does NOT persist as tool_call rows). session_id is
+// NOT NULL FK; bench_run_id is a NULLABLE FK so the ktx-run path can
+// persist a stream without fabricating a bench_runs parent. The table
+// is the first persistent session-to-bench_run linkage (bench_runs has
+// no session_id column). No ALTER TABLE column add — the CREATE TABLE
+// IF NOT EXISTS alone handles the fresh-DB and pre-D20 self-heal paths
+// (resolved judgment call 1: no partial-column-forward-fix ALTER loop,
+// per the user's decision to read D20's "no ALTER TABLE" clause
+// literally).
 var schemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS sessions (
 		id              TEXT PRIMARY KEY,
@@ -163,24 +169,29 @@ var schemaStatements = []string{
 	// no-op via CREATE INDEX IF NOT EXISTS.
 	`CREATE INDEX IF NOT EXISTS compressed_source_id_idx ON compressed(source_id)`,
 	// recorded_streams (D20 recording contract): one row per captured
-	// `ktx bench run` invocation. Holds the verbatim JSONL stream
-	// the agent emitted (the authoritative cost evidence per D17 —
-	// OpenCode 1.17.8 emits tokens/cost/model on step_finish events
-	// that the wrapper pipes through stdout but does NOT persist as
-	// tool_call rows). session_id and bench_run_id are both NOT NULL
-	// FKs; the table is the first persistent session-to-bench_run
-	// linkage (bench_runs has no session_id column). The 7-column
-	// shape follows the D14 compressed table template: id (D3
-	// nanoid), session_id FK, bench_run_id FK, stream_text (the
-	// verbatim JSONL), content_hash (D9 SHA-256 of stream_text),
-	// stream_format (metadata, e.g. 'opencode-jsonl-1'),
-	// captured_at (RFC3339Nano). Capture trigger is `ktx bench run`
-	// ONLY (runBenchRun); `ktx run` stays a D1 transparent proxy and
-	// does NOT persist the stream.
+	// `ktx bench run` invocation (or `ktx run --record-stream`, which
+	// opts in to the same recording without a bench_runs parent). Holds
+	// the verbatim JSONL stream the agent emitted (the authoritative
+	// cost evidence per D17 — OpenCode 1.17.8 emits tokens/cost/model
+	// on step_finish events that the wrapper pipes through stdout but
+	// does NOT persist as tool_call rows). session_id is NOT NULL FK;
+	// bench_run_id is a NULLABLE FK (NULL when the stream was captured
+	// via `ktx run --record-stream` outside a bench context, so no
+	// bench_runs row exists to reference). The table is the first
+	// persistent session-to-bench_run linkage (bench_runs has no
+	// session_id column). The 7-column shape follows the D14 compressed
+	// table template: id (D3 nanoid), session_id FK, bench_run_id FK
+	// (nullable), stream_text (the verbatim JSONL), content_hash (D9
+	// SHA-256 of stream_text), stream_format (metadata, e.g.
+	// 'opencode-jsonl-1'), captured_at (RFC3339Nano). Default capture
+	// trigger is `ktx bench run` (runBenchRun); `ktx run` is a D1
+	// transparent proxy by default and only persists the stream when
+	// --record-stream is explicitly passed (opt-in, off by default to
+	// honour D20's "bench-run-only" rule for the default case).
 	`CREATE TABLE IF NOT EXISTS recorded_streams (
 		id           TEXT PRIMARY KEY,
 		session_id   TEXT NOT NULL REFERENCES sessions(id),
-		bench_run_id TEXT NOT NULL REFERENCES bench_runs(id),
+		bench_run_id TEXT REFERENCES bench_runs(id),
 		stream_text  TEXT,
 		content_hash TEXT,
 		stream_format TEXT,
@@ -377,7 +388,7 @@ func Open(path string) (*DB, error) {
 	// modernc.org/sqlite reads _pragma query params and applies them per
 	// connection. foreign_keys(1) enforces the tool_calls -> sessions FK on
 	// every pooled connection, not just the first.
-	dsn := "file:" + path + "?_pragma=foreign_keys(1)"
+	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
 
 	db, err := sql.Open(sqliteDriver, dsn)
 	if err != nil {

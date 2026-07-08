@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"reflect"
@@ -240,6 +241,183 @@ func TestRunRunWith_Dispatch(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("no persisted tool_call has tool=bash; toolIDs=%v", toolIDs)
+		}
+	})
+
+	t.Run("--record-stream persists recorded_streams row with NULL bench_run_id", func(t *testing.T) {
+		// ktx run --record-stream captures the agent's JSONL stdout
+		// into the recorded_streams table alongside the transparent
+		// passthrough. The row's bench_run_id is NULL (ktx run has
+		// no bench_runs parent). The captured stream is re-readable
+		// via GetRecordedStreamBySession so --replay can exercise it.
+		testutil.WithTempXDG(t)
+		t.Setenv("KTX_DB", os.Getenv("XDG_DATA_HOME")+"/ktx/ktx.db")
+
+		// The fake agent emits one tool_use event and one text event
+		// — the same shape the existing tool_use test uses. The
+		// stream must round-trip with the exact bytes the agent
+		// emitted (teeAndParse writes each line + \n).
+		const payload = `{"type":"tool_use","timestamp":"2026-06-18T12:00:00Z","part":{"type":"tool","tool":"bash","callID":"call_001","state":{"input":{"command":"echo hi"},"output":"hi\n"}}}` + "\n" +
+			`{"type":"text","part":{"text":"done"}}`
+		origRunCmd := runCmd
+		t.Cleanup(func() { runCmd = origRunCmd })
+		runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, "/bin/sh", "-c", "printf '%s\n' '"+payload+"'")
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := runRunWith([]string{"--record-stream", "fake-agent"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+		}
+
+		// The agent's stdout must still pass through (D1
+		// transparent proxy) — --record-stream captures an extra
+		// copy but does not suppress passthrough.
+		if !strings.Contains(stdout.String(), `"tool_use"`) {
+			t.Errorf("stdout missing tool_use passthrough: %q", stdout.String())
+		}
+
+		// Open the DB and verify a recorded_streams row exists for
+		// the session.
+		d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+		if err != nil {
+			t.Fatalf("open db: %v", err)
+		}
+		t.Cleanup(func() { d.Close() })
+
+		// Find the session created by executeRun (it uses
+		// OpenNamedSession with agent="fake-agent").
+		sessions, err := d.ListSessions()
+		if err != nil {
+			t.Fatalf("ListSessions: %v", err)
+		}
+		var sessionID string
+		for _, s := range sessions {
+			if s.Agent == "fake-agent" {
+				sessionID = s.ID
+				break
+			}
+		}
+		if sessionID == "" {
+			t.Fatalf("no session with agent=fake-agent found; sessions=%v", sessions)
+		}
+
+		// The recorded_stream must exist and have a NULL bench_run_id.
+		rs, err := d.GetRecordedStreamBySession(sessionID)
+		if err != nil {
+			t.Fatalf("GetRecordedStreamBySession: %v", err)
+		}
+		if rs.BenchRunID != "" {
+			t.Errorf("BenchRunID = %q, want empty (NULL — ktx run has no bench_runs parent)", rs.BenchRunID)
+		}
+		if rs.StreamFormat != "opencode-jsonl-1" {
+			t.Errorf("StreamFormat = %q, want opencode-jsonl-1", rs.StreamFormat)
+		}
+		if rs.CapturedAt == "" {
+			t.Error("CapturedAt is empty; want RFC3339Nano timestamp")
+		}
+
+		// content_hash must match SHA-256 of the captured stream.
+		recomputed := dbpkg.ContentHash(rs.StreamText)
+		if recomputed != rs.ContentHash {
+			t.Errorf("content_hash mismatch: persisted %q, recomputed %q", rs.ContentHash, recomputed)
+		}
+
+		// The captured stream must contain both events (the tool_use
+		// and the text).
+		if !strings.Contains(rs.StreamText, `"tool_use"`) {
+			t.Errorf("StreamText missing tool_use event: %q", rs.StreamText)
+		}
+		if !strings.Contains(rs.StreamText, `"text"`) {
+			t.Errorf("StreamText missing text event: %q", rs.StreamText)
+		}
+	})
+
+	t.Run("--record-stream after agent command also captures", func(t *testing.T) {
+		// The post-agent --record-stream form (ktx run <agent>
+		// --record-stream) must work just like the pre-agent form.
+		testutil.WithTempXDG(t)
+		t.Setenv("KTX_DB", os.Getenv("XDG_DATA_HOME")+"/ktx/ktx.db")
+
+		origRunCmd := runCmd
+		t.Cleanup(func() { runCmd = origRunCmd })
+		runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, "/bin/echo", "ok")
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := runRunWith([]string{"fake-agent", "--record-stream"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+		}
+
+		// Verify a recorded_streams row exists.
+		d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+		if err != nil {
+			t.Fatalf("open db: %v", err)
+		}
+		t.Cleanup(func() { d.Close() })
+
+		sessions, err := d.ListSessions()
+		if err != nil {
+			t.Fatalf("ListSessions: %v", err)
+		}
+		for _, s := range sessions {
+			if s.Agent == "fake-agent" {
+				rs, err := d.GetRecordedStreamBySession(s.ID)
+				if err != nil {
+					t.Fatalf("GetRecordedStreamBySession: %v", err)
+				}
+				if rs.BenchRunID != "" {
+					t.Errorf("BenchRunID = %q, want empty", rs.BenchRunID)
+				}
+				return
+			}
+		}
+		t.Fatal("no recorded_streams row found for fake-agent session")
+	})
+
+	t.Run("--record-stream=false does not capture", func(t *testing.T) {
+		// The --record-stream=false form must explicitly disable
+		// recording, so no recorded_streams row is persisted.
+		testutil.WithTempXDG(t)
+		t.Setenv("KTX_DB", os.Getenv("XDG_DATA_HOME")+"/ktx/ktx.db")
+
+		origRunCmd := runCmd
+		t.Cleanup(func() { runCmd = origRunCmd })
+		runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, "/bin/echo", "ok")
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := runRunWith([]string{"--record-stream=false", "fake-agent"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+		}
+
+		// Verify no recorded_streams row exists.
+		d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+		if err != nil {
+			t.Fatalf("open db: %v", err)
+		}
+		t.Cleanup(func() { d.Close() })
+
+		sessions, err := d.ListSessions()
+		if err != nil {
+			t.Fatalf("ListSessions: %v", err)
+		}
+		for _, s := range sessions {
+			if s.Agent == "fake-agent" {
+				_, err := d.GetRecordedStreamBySession(s.ID)
+				if err == nil {
+					t.Fatal("GetRecordedStreamBySession succeeded; want ErrNotFound (--record-stream=false should not capture)")
+				}
+				if !errors.Is(err, dbpkg.ErrNotFound) {
+					t.Fatalf("GetRecordedStreamBySession: %v, want ErrNotFound", err)
+				}
+				return
+			}
 		}
 	})
 }

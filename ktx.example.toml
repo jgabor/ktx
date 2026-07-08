@@ -1,7 +1,7 @@
 # ktx.example.toml
 #
 # Copy to $XDG_CONFIG_HOME/ktx/config.toml (or ./ktx.toml for project scope)
-# and uncomment/edit the stages you want.
+# and edit the stages you want.
 #
 # When no ktx.toml is found, ktx runs the passthrough pipeline (output ==
 # input, no compression). All stages are OFF by default — you opt in by
@@ -15,6 +15,11 @@
 #   3. Unknown-stage skip — an unresolved stage name is skipped with a warning
 #   4. Anti-worsening gate — if the pipeline result is not smaller than input,
 #      the original is returned unchanged (no compressed row created)
+#
+# Source-tool-failure gate (D15) runs BEFORE the pipeline: if the tool_call
+# has is_error=true, compression is skipped entirely and a passthrough row
+# is written. This is a pre-pipeline gate, distinct from the in-pipeline
+# invariants above.
 
 [pipeline.default]
 
@@ -22,7 +27,13 @@
 # (off-line) ignores this. Default 30s when omitted.
 timeout = "30s"
 
-# Built-in stages (stdlib, no extra dependencies):
+# ── Stage safety tiers ───────────────────────────────────────────────
+#
+# Stages fall into two tiers. Pick stages from tier 1 for a safe default
+# that can only remove noise, never content. Add tier 2 stages when you
+# accept content loss for more aggressive compression.
+#
+# Tier 1 — cleanup (noise removal, no content loss):
 #
 #   strip-ansi          Strip ANSI escape sequences (colors, cursor moves)
 #
@@ -31,6 +42,13 @@ timeout = "30s"
 #   normalize           Convert \r\n and \r to \n; trim trailing whitespace
 #                       per line; strip leading/trailing blank lines
 #
+# Tier 1 stages can only make output smaller or identical. If the input
+# has no noise (e.g. clean markdown), the anti-worsening gate passes it
+# through unchanged — no risk of quality drop-off. These are the stages
+# lowfat, headroom, and rtk all agree are universally safe.
+#
+# Tier 2 — truncation (content loss, needs per-tool consideration):
+#
 #   head:N               Keep first N lines (default N=10)
 #
 #   truncate:N          Keep first N bytes (default N=4096); appends
@@ -38,7 +56,7 @@ timeout = "30s"
 #                       truncation occurred
 #
 #   keep-ends:N:M       Keep first N + last M lines with
-#                       "[... (X lines omitted) ...] marker in the
+#                       "[... (X lines omitted) ...]" marker in the
 #                       middle. Preserves bottom-of-log errors that
 #                       head:N alone would lose
 #
@@ -52,29 +70,23 @@ timeout = "30s"
 #                       snaps back to last newline (no mid-line
 #                       cuts); appends "... (truncated to ~N tokens
 #                       from M)" marker. Input under budget → unchanged
-#
-# Example pipelines (uncomment one):
-#
-# # Minimal: strip noise, keep it short
-# stages = ["strip-ansi", "head:100"]
-#
-# # Build logs: strip ANSI, drop debug lines, keep head+tail, cap tokens
-# stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
-#
-# # Verbose output: strip ANSI, dedup blanks, normalize, cap to 8K
-# stages = ["strip-ansi", "dedup-blank", "normalize", "truncate:8192"]
-#
-# # Everything except the kitchen sink
-# stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:80:30", "token-budget:4000"]
-#
-# # Conservative, reversibility-safe tail retention (tested: 80-88% reduction)
-# stages = ["strip-ansi", "dedup-blank", "keep-ends:50:20", "token-budget:2000"]
-#
-# # Aggressive head-only (tested: 87-97% reduction)
-# stages = ["strip-ansi", "dedup-blank", "head:30"]
 
-# Default: passthrough (no stages — ktx hook persists + returns output unchanged)
-stages = []
+# Default: tier 1 cleanup (safe — noise removal only, no content loss)
+stages = ["strip-ansi", "dedup-blank", "normalize"]
+
+# ── Example pipelines ────────────────────────────────────────────────
+#
+# # Cleanup only (safe default, no content loss)
+# stages = ["strip-ansi", "dedup-blank", "normalize"]
+#
+# # Cleanup + conservative tail retention (tested: 80-88% reduction)
+# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]
+#
+# # Cleanup + aggressive head-only (tested: 87-97% reduction)
+# stages = ["strip-ansi", "dedup-blank", "normalize", "head:30"]
+#
+# # Build logs: strip noise, drop debug lines, keep head+tail, cap tokens
+# stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
 
 # ── External plugin stages ───────────────────────────────────────────
 #

@@ -1,0 +1,72 @@
+methodology_version: "v3"
+date: "2026-07-08"
+
+# v3 scope
+#
+# Tool-rich variant of v1/v2: same single-task, single-trial, exact-match
+# scoring, but the task prompt is designed to trigger a large file read
+# via the read tool so the captured tool_call output is substantial.
+# v2-tooluse's bash `echo 4` produces a 2-byte output; v1's "What is 2+2?"
+# triggers zero tool calls. Both existing D20 fixtures are useless for
+# compression testing (D22 Phase 2 A/B measurement needs real payload
+# bytes to exercise the compressPipeline path meaningfully). v3's task
+# reads ~/git/ktx/ARCHITECTURE.md (~22 KB) through the read
+# tool, so the recorded_stream carries a tool_use event whose output is
+# thousands of bytes — enough to make the --replay compression section
+# show a non-trivial baseline_bytes and a real compressed_bytes ratio.
+scope: |
+  Tool-rich variant of v1/v2: single-task, single-trial, exact-match
+  scoring. The task prompt triggers a read-tool file read of
+  ARCHITECTURE.md so the captured tool_call output is substantial
+  enough for the D22 Phase 2 A/B compression measurement exercised by
+  --replay's compression section.
+
+inputs:
+  agent:
+    binary: opencode
+    version: "1.17.8"
+  model:
+    id: "glm-5.2-short-fast-flex"
+    provider: "neuralwatt"
+  task:
+    identifier: "read_summary_v1"
+    prompt: "Use the read tool to read the file ~/git/ktx/ARCHITECTURE.md. After reading it, respond with only the word: done"
+    expected_output: "done"
+  scoring:
+    function: exact_match
+    version: "v1"
+    epsilon: 1.0e-9
+  trials:
+    n: 1
+    non_determinism_handling: |
+      v3, like v1/v2, does not aggregate across trials. A single trial's
+      score is the headline numerator. Exact-match scoring against "done"
+      rejects any additional model prose; temperature>0 runs are not
+      bit-reproducible.
+  ktx:
+    binary_version: "<ktx version — pinned at close>"
+    commit: "<commit SHA — pinned at close>"
+  bench_runs:
+    row_id: "<row id — populated when a real run lands>"
+
+computation: |
+  cost_per_correct = cost_USD / max(score, 1.0e-9)
+  where:
+    cost_USD is the persisted `cost` column on the bench_runs row.
+    score is the persisted `score` column (0.0 or 1.0 for exact-match).
+
+output:
+  artifact: ktx bench report
+  default_format: json
+  text_format: true
+  fields:
+    - methodology_version
+    - bench_runs (rows array)
+    - headline (cost_per_correct)
+
+out_of_scope:
+  - statistical significance / confidence intervals
+  - "ktx bench compare (post-M3)"
+  - compression impact on bench (M4)
+  - cache TTL and auto-refresh (D11 deferral)
+  - second scoring function (LLM-as-judge is the flexible default acknowledged but not implemented)

@@ -66,6 +66,12 @@ timeout = "30s"
 #
 # # Everything except the kitchen sink
 # stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:80:30", "token-budget:4000"]
+#
+# # Conservative, reversibility-safe tail retention (tested: 80-88% reduction)
+# stages = ["strip-ansi", "dedup-blank", "keep-ends:50:20", "token-budget:2000"]
+#
+# # Aggressive head-only (tested: 87-97% reduction)
+# stages = ["strip-ansi", "dedup-blank", "head:30"]
 
 # Default: passthrough (no stages — ktx hook persists + returns output unchanged)
 stages = []

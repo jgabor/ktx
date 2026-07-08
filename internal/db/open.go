@@ -652,6 +652,53 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// recorded_streams bench_run_id NULL relaxation (post-D20): the
+	// original D20 schema created bench_run_id as NOT NULL. The
+	// --record-stream feature (ktx run) needs to persist streams
+	// without a bench_runs parent (NULL bench_run_id). New databases
+	// get the nullable column from the CREATE TABLE above; existing
+	// databases with the old NOT NULL constraint need a table rebuild.
+	// SQLite has no ALTER COLUMN; the standard approach is rename +
+	// create + copy + drop.
+	haveRS, err := tableColumns(tx, "recorded_streams")
+	if err != nil {
+		return fmt.Errorf("db: inspect recorded_streams: %w", err)
+	}
+	if _, ok := haveRS["bench_run_id"]; ok {
+		// Check if bench_run_id is NOT NULL by inspecting PRAGMA
+		// table_info. The notnull field is column index 3 in the
+		// PRAGMA output (cid, name, type, notnull, dflt_value, pk).
+		var notNull int
+		err := tx.QueryRow(`SELECT "notnull" FROM pragma_table_info('recorded_streams') WHERE name = 'bench_run_id'`).Scan(&notNull)
+		if err == nil && notNull == 1 {
+			// Rebuild the table with a nullable bench_run_id.
+			// SQLite's table rebuild: rename old, create new, copy,
+			// drop old. Done inside the migration transaction.
+			rebuild := []string{
+				`ALTER TABLE recorded_streams RENAME TO recorded_streams_old`,
+				`CREATE TABLE recorded_streams (
+					id           TEXT PRIMARY KEY,
+					session_id   TEXT NOT NULL REFERENCES sessions(id),
+					bench_run_id TEXT REFERENCES bench_runs(id),
+					stream_text  TEXT,
+					content_hash TEXT,
+					stream_format TEXT,
+					captured_at  TEXT
+				)`,
+				`INSERT INTO recorded_streams (id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at)
+				 SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at FROM recorded_streams_old`,
+				`DROP TABLE recorded_streams_old`,
+				`CREATE INDEX IF NOT EXISTS recorded_streams_session_id_idx ON recorded_streams(session_id)`,
+				`CREATE INDEX IF NOT EXISTS recorded_streams_bench_run_id_idx ON recorded_streams(bench_run_id)`,
+			}
+			for _, stmt := range rebuild {
+				if _, err := tx.Exec(stmt); err != nil {
+					return fmt.Errorf("db: rebuild recorded_streams for nullable bench_run_id: %w", err)
+				}
+			}
+		}
+	}
+
 	return tx.Commit()
 }
 

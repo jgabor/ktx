@@ -1,6 +1,4 @@
-# ktx TODO
-
-Action-oriented blockers for PoC and MVP delivery.
+# TODO
 
 The full architectural deliberation backlog is canonical in [ARCHITECTURE.md — Open deliberations](ARCHITECTURE.md#open-deliberations). Items below cross-link there; resolve via the workflow in [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
@@ -12,36 +10,35 @@ _None — reserved for future critical items._
 
 _None — reserved for future degraded items._
 
-## → Normal
+## → Normal — Compression benchmarking
 
+The immediate goal is to measure, compare, and rank compression pipelines using ktx's own infrastructure. The corpus, tools, and A/B comparison already exist; the work below turns them into a repeatable methodology.
+
+- [ ] **Phase 2 A/B verification with configured pipeline** · The existing `--replay` on session `wwyxmfiiwkmgpmvx` shows `ratio: 1.0, pipeline: []` (passthrough — no ktx.toml was active during capture). Run `ktx bench run --replay wwyxmfiiwkmgpmvx` with a ktx.toml configured (e.g., `strip-ansi,dedup-blank,keep-ends:50:20,token-budget:2000`); confirm `pipeline` is non-empty and `ratio < 1.0`. This is a smoke test, not a full benchmark.
+- [ ] **Corpus expansion: capture 3-5 tool-rich replay fixtures** · The current D20 fixture has 1 `read` tool call (23.7KB). Need diverse fixtures: multi-file reads, verbose bash output, large diffs, mixed content types. Capture via `ktx bench run --methodology v3 opencode <model> <task>` with tasks designed to trigger different tool patterns. Each fixture must have a `recorded_streams` companion (D20). Existing hook-path sessions with large output are not replay-eligible (no recorded_streams) unless re-captured with `ktx run --record-stream`. Not blocking the comparison script (can start with the one fixture), but needed for meaningful conclusions.
+- [ ] **Multi-pipeline comparison script** · A script that runs `ktx bench run --replay <session-id>` with N different ktx.toml configurations against the same recorded session and tabulates the results: pipeline name, baseline_bytes, compressed_bytes, ratio, bytes_saved, reversibility (decompress == original). Output as JSON and text table. Reuses existing `--replay` A/B comparison (D22 Phase 2); the script automates the N-run loop and formats the output. No new Go code needed — shell + jq suffices for v1. Can start with the one fixture; blocked on corpus expansion for diverse content.
+- [ ] **Pipeline configurations for evaluation** · Define and document a set of pipeline configurations to test. Known from compression testing on real data: Pipeline A (`strip-ansi,dedup-blank,keep-ends:50:20,token-budget:2000`) gives 80-88% reduction; Pipeline B (`strip-ansi,dedup-blank,head:30`) gives 87-97% reduction. Need intermediate configs (e.g., `keep-ends:100:50` without token-budget) and per-tool-type configs (different treatment for `read` vs `bash` output). Document in `ktx.toml.example` or a new `docs/pipelines.md`.
+- [ ] **Live A/B cost comparison: compression vs passthrough** · `ktx bench run opencode <model> <task>` with `ktx init opencode` installed and a ktx.toml configured produces a session where tool_call outputs are compressed in-flight (D22). The agent sees compressed context, reducing tokens_in on subsequent LLM calls. Compare `ktx bench report` cost between a baseline run (no ktx.toml, passthrough) and a compression-configured run. This is the real "does compression save money" test. Non-deterministic (temperature>0 — D12 documented limitation), so report as a range or delta, not an exact number. Blocked on: corpus expansion (need a task that uses enough tools for the cost delta to be measurable above noise).
+- [ ] **Replay fixture portability** · `ktx bench export <session-id>` writes the recorded stream + original bench_runs metrics to a portable `.jsonl` file; `ktx bench run --replay <file>` reads the fixture directly without the capture machine's ktx.db. Needed for CI gates and sharing fixtures across machines. Deferred per D20/YAGNI; build when CI or cross-machine comparison demands it, not before. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
+
+## → Normal — Architecture and platform
+
+- [ ] **Content-type detection heuristics** — JSON vs logs vs code vs prose from bytes; ambiguity fallback order. Prerequisite for per-content-type pipeline profiles (M5 routing). Single default profile works for initial benchmarking; this enables the next stage of comparison. → [Router and classification](ARCHITECTURE.md#router-and-classification)
 - [ ] **Wrapper-side step_finish enrichment (deferred follow-up from D17)** · OpenCode 1.17.8 emits tokens/cost/model on `step_finish` (step-aggregate), not on `tool_use` (per-tool); the wrapper persists only `tool_use` rows, so M2 cost fields stay NULL per-row. `--replay` bypasses this (re-parses the stream), so this is NOT blocking — revisit only if a future use case needs per-tool_call cost rows (e.g., cost-by-tool breakdown, per-tool compression savings). → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [ ] **openeval ktx-impact scenario** · Per Decision 13 Tier 2: openeval runs live agent scenarios with with/without-ktx variation arms. Start with shipped example-fixtures (hello-verify, edit-file), upgrade to real SWE tasks later. External: openeval is a separate project at `~/git/openeval`; depends on the user check-in for openeval's variation-arm API. Not started. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [ ] **CI wiring: per-commit replay gate + scheduled openeval** · Per-commit deterministic gate runs `ktx bench run --replay <session-id>`. Scheduled CI (nightly or pre-release) runs the openeval live agent scenario. Blocked on: openeval scenario TODO and portability (`ktx bench export` + `--replay <file>` for CI runners — currently ktx.db-local only per D20). Not started. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [ ] **openeval telemetry check for ktx compression metrics** · Check openeval's telemetry for ktx-compression-specific metrics (compression ratio, per-layer savings); file feature requests at the openeval repo if missing. External: blocked on the openeval scenario TODO landing. Not started. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [ ] **Content-type detection heuristics** — JSON vs logs vs code vs prose from bytes; ambiguity fallback order → [Router and classification](ARCHITECTURE.md#router-and-classification)
-
-## → Deepening
-
-Codebase-health deepening opportunities. The 2026-06-21 architecture review's three items are resolved (see ✓ Resolved). Remaining candidates from the post-deepening inspektera audit:
-
-- [ ] Extract `internal/methodology/` from `internal/cli/bench.go` (240 LOC of hand-rolled YAML parsing)
-- [ ] Generalise `extractFormat` to `extractFlag` and collapse the three hand-rolled flag walkers (`parseInitArgs`, `dbPreParse`, `parseRunArgs` + `filterKtxFlags`)
-
-See `.agentera/decisions.yaml` for the next plan's scope.
+- [ ] **CI wiring: per-commit replay gate** · Per-commit deterministic gate runs `ktx bench run --replay <session-id>` against a committed fixture. Blocked on replay fixture portability (above). → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
 
 ## ⇢ Annoying
 
-- [ ] Multi-agent memory / cross-session carry → [Memory and layer 5](ARCHITECTURE.md#memory-and-layer-5)
+- [ ] Extract `internal/methodology/` from `internal/cli/bench.go` (240 LOC of hand-rolled YAML parsing)
+- [ ] Generalise `extractFormat` to `extractFlag` and collapse the three hand-rolled flag walkers (`parseInitArgs`, `dbPreParse`, `parseRunArgs` + `filterKtxFlags`)
 - [ ] Audit ledger or hash-chain beyond per-record content hash → [Security and trust](ARCHITECTURE.md#security-and-trust)
 - [ ] Provider-specific adapters
 - [ ] `ktx doctor` diagnostic depth → [CLI surface and ergonomics](ARCHITECTURE.md#cli-surface-and-ergonomics)
 - [ ] Foreground proxy mode (wire-level compression) → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
-- [ ] Commit `VISION.md` at project root (`.agentera/vision.yaml` exists)
 - [ ] Satisfy review on recorded decisions 1–10
+- [ ] Multi-agent memory / cross-session carry → [Memory and layer 5](ARCHITECTURE.md#memory-and-layer-5)
 
 ## ✓ Resolved
-
-Resolved items live in `decisions.yaml` (reasoning) and `.agentera/verification/*` (evidence). Listed here as breadcrumbs; see git history for full detail.
 
 - [x] ~~Database on-disk layout~~ · Decision 6, superseded by D8 → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
 - [x] ~~Run record schema~~ · Decision 7 → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
@@ -69,17 +66,3 @@ Resolved items live in `decisions.yaml` (reasoning) and `.agentera/verification/
 - [x] ~~Cost-deriver consolidation~~ · plan `.agentera/archive/PLAN-2026-06-21-deepen-cost-db-parser.yaml`
 - [x] ~~`internal/db` file reorganisation~~ · plan `.agentera/archive/PLAN-2026-06-21-deepen-cost-db-parser.yaml`
 - [x] ~~Event-parser extraction~~ · plan `.agentera/archive/PLAN-2026-06-21-deepen-cost-db-parser.yaml`
-
-## Full deliberation index
-
-| Section                       | ARCHITECTURE.md                                       |
-| ----------------------------- | ----------------------------------------------------- |
-| Ingress and session lifecycle | [link](ARCHITECTURE.md#ingress-and-session-lifecycle) |
-| Record model and persistence  | [link](ARCHITECTURE.md#record-model-and-persistence)  |
-| Router and classification     | [link](ARCHITECTURE.md#router-and-classification)     |
-| Pipeline and compression      | [link](ARCHITECTURE.md#pipeline-and-compression)      |
-| Memory and layer 5            | [link](ARCHITECTURE.md#memory-and-layer-5)            |
-| Measurement and benchmark     | [link](ARCHITECTURE.md#measurement-and-benchmark)     |
-| CLI surface and ergonomics    | [link](ARCHITECTURE.md#cli-surface-and-ergonomics)    |
-| Configuration                 | [link](ARCHITECTURE.md#configuration)                 |
-| Security and trust            | [link](ARCHITECTURE.md#security-and-trust)            |

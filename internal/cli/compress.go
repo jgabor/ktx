@@ -8,7 +8,7 @@
 //
 // Flow:
 //
-//  1. Load ktx.toml (config.Load — precedence project-root > user-level >
+//  1. Load ktx.toml (config.Load — user-level $XDG_CONFIG_HOME/ktx/ktx.toml;
 //     passthrough; the no-config default yields an empty pipeline).
 //  2. Fetch the source tool_call by id (db.GetToolCall). Source-not-found
 //     maps to exit 2 (ErrNotFound → CodeNotFound).
@@ -356,8 +356,7 @@ func printCompressHelp(w io.Writer) {
 	fmt.Fprintln(w, "nanoid addressability). compress(source) may differ from")
 	fmt.Fprintln(w, "source when a lossy stage runs, but decompress(compress(x)) == x holds.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Pipeline configuration: ktx.toml at the project root or")
-	fmt.Fprintln(w, "$XDG_CONFIG_HOME/ktx/config.toml. Minimal shape:")
+	fmt.Fprintln(w, "Pipeline configuration: $XDG_CONFIG_HOME/ktx/ktx.toml. Minimal shape:")
 	fmt.Fprintln(w, "  [pipeline.default]")
 	fmt.Fprintln(w, "  stages = [\"strip-ansi\", \"head:100\"]")
 	fmt.Fprintln(w, "Empty/missing config → passthrough pipeline (output == source.output).")

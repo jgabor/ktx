@@ -1,7 +1,6 @@
 # ktx.example.toml
 #
-# Copy to $XDG_CONFIG_HOME/ktx/config.toml (or ./ktx.toml for project scope)
-# and edit the stages you want.
+# Copy to $XDG_CONFIG_HOME/ktx/ktx.toml and edit the stages you want.
 #
 # When no ktx.toml is found, ktx runs the passthrough pipeline (output ==
 # input, no compression). All stages are OFF by default — you opt in by
@@ -26,6 +25,36 @@
 # Pipeline timeout for ktx hook (the agent's critical path). ktx compress
 # (off-line) ignores this. Default 30s when omitted.
 timeout = "30s"
+
+# ── Recovery footer ──────────────────────────────────────────────────
+#
+# recover_footer surfaces the source_id back into the agent's context
+# so the agent can self-recover the original output. Default false (off):
+# no footer is appended and source_id stays developer-facing only (in
+# the hook envelope's source_id field, never injected into output).
+#
+# When true, ktx hook appends a recovery footer to the compressed
+# output the agent sees. The footer carries:
+#   - source_id (verbatim, for `ktx read <source_id>`)
+#   - original and compressed byte sizes
+#   - reduction ratio (percent)
+#   - recovery command: `ktx read <source_id>`
+#
+# Safety gates (footer does not worsen output):
+#   1. The pipeline must actually transform (anti-worsening gate inside
+#      the pipeline runner fires first); passthrough and failure-gate
+#      skips never emit a footer.
+#   2. A footer-aware second gate checks len(compressed)+len(footer)
+#      against the original. When the footer would erase the gain
+#      (compressed+footer >= original), the transform is suppressed:
+#      the original is returned unchanged, no footer, no compressed
+#      row is persisted.
+#
+# The stored compressed row stays content-only — the footer lives in
+# the agent-visible envelope.Output, NOT in the persisted Compressed.
+# Output. This keeps `ktx decompress <compressed_id>` byte-identical
+# to the bare compressed bytes.
+recover_footer = false
 
 # ── Stage safety tiers ───────────────────────────────────────────────
 #

@@ -4,9 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// userConfigPath returns the user-level config path
+// ($XDG_CONFIG_HOME/ktx/ktx.toml). Requires XDG_CONFIG_HOME to be
+// set (pluginTestEnv sets it).
+func userConfigPath(t *testing.T) string {
+	t.Helper()
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+	if xdg == "" {
+		t.Fatal("XDG_CONFIG_HOME not set")
+	}
+	return filepath.Join(xdg, "ktx", "ktx.toml")
+}
 
 // pluginTestEnv isolates cwd and XDG_CONFIG_HOME for plugin tests.
 // Returns a cleanup function that restores the original cwd.
@@ -72,7 +85,7 @@ func TestPluginAdd_CreatesNewKtxToml(t *testing.T) {
 	}
 
 	// Verify ktx.toml was created.
-	data, err := os.ReadFile("ktx.toml")
+	data, err := os.ReadFile(userConfigPath(t))
 	if err != nil {
 		t.Fatalf("read ktx.toml: %v", err)
 	}
@@ -95,9 +108,9 @@ func TestPluginAdd_AppendsToExistingKtxToml(t *testing.T) {
 	pluginTestEnv(t)
 
 	// Create an existing ktx.toml with a pipeline.
-	os.WriteFile("ktx.toml", []byte(`[pipeline.default]
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "head:100"]
-`), 0o644)
+`)
 
 	code, stdout, stderr := runPluginDispatch(t, []string{"add", "myecho", "/bin/echo"})
 	if code != ExitOK {
@@ -112,7 +125,7 @@ stages = ["strip-ansi", "head:100"]
 	}
 
 	// Verify ktx.toml preserves existing content AND has new plugin.
-	data, _ := os.ReadFile("ktx.toml")
+	data, _ := os.ReadFile(userConfigPath(t))
 	content := string(data)
 	if !strings.Contains(content, "[pipeline.default]") {
 		t.Errorf("existing [pipeline.default] lost:\n%s", content)
@@ -131,7 +144,7 @@ stages = ["strip-ansi", "head:100"]
 func TestPluginAdd_DuplicateNameRejected(t *testing.T) {
 	pluginTestEnv(t)
 
-	os.WriteFile("ktx.toml", []byte("[[plugin]]\nname = \"mycat\"\ncommand = \"/bin/cat\"\n"), 0o644)
+	hookWriteUserConfig(t, "[[plugin]]\nname = \"mycat\"\ncommand = \"/bin/cat\"\n")
 
 	code, _, stderr := runPluginDispatch(t, []string{"add", "mycat", "/bin/echo"})
 
@@ -200,7 +213,7 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 func TestPluginList_WithUserPlugins(t *testing.T) {
 	pluginTestEnv(t)
 
-	os.WriteFile("ktx.toml", []byte("[[plugin]]\nname = \"mycat\"\ncommand = \"/bin/cat\"\ndescription = \"test\"\n"), 0o644)
+	hookWriteUserConfig(t, "[[plugin]]\nname = \"mycat\"\ncommand = \"/bin/cat\"\ndescription = \"test\"\n")
 
 	code, stdout, stderr := runPluginDispatch(t, []string{"list"})
 	if code != ExitOK {
@@ -232,14 +245,14 @@ func TestPluginList_WithUserPlugins(t *testing.T) {
 func TestPluginRemove_UserPlugin(t *testing.T) {
 	pluginTestEnv(t)
 
-	os.WriteFile("ktx.toml", []byte(`[pipeline.default]
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["mycat"]
 
 [[plugin]]
 name = "mycat"
 command = "/bin/cat"
 description = "test"
-`), 0o644)
+`)
 
 	code, stdout, stderr := runPluginDispatch(t, []string{"remove", "mycat"})
 	if code != ExitOK {
@@ -257,7 +270,7 @@ description = "test"
 	}
 
 	// Verify ktx.toml no longer has the [[plugin]] block.
-	data, _ := os.ReadFile("ktx.toml")
+	data, _ := os.ReadFile(userConfigPath(t))
 	content := string(data)
 	if strings.Contains(content, "[[plugin]]") {
 		t.Errorf("ktx.toml still has [[plugin]] block:\n%s", content)
@@ -306,7 +319,7 @@ func TestPluginRemove_BuiltinWithOverride(t *testing.T) {
 	pluginTestEnv(t)
 
 	// User has a [[plugin]] named "head" (overrides builtin).
-	os.WriteFile("ktx.toml", []byte("[[plugin]]\nname = \"head\"\ncommand = \"/bin/cat\"\n"), 0o644)
+	hookWriteUserConfig(t, "[[plugin]]\nname = \"head\"\ncommand = \"/bin/cat\"\n")
 
 	code, stdout, stderr := runPluginDispatch(t, []string{"remove", "head"})
 	if code != ExitOK {
@@ -321,7 +334,7 @@ func TestPluginRemove_BuiltinWithOverride(t *testing.T) {
 	}
 
 	// Verify ktx.toml no longer has the override.
-	data, _ := os.ReadFile("ktx.toml")
+	data, _ := os.ReadFile(userConfigPath(t))
 	content := string(data)
 	if strings.Contains(content, "[[plugin]]") {
 		t.Errorf("ktx.toml still has [[plugin]] block:\n%s", content)

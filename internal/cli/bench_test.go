@@ -690,10 +690,10 @@ func itoa(n int) string { return strconv.Itoa(n) }
 func TestRunBenchReplay_Compression(t *testing.T) {
 	d := benchTestDB(t)
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:2"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	output := "line 1\nline 2\nline 3\nline 4\nline 5\n" // 5 lines, head:2 → 2 lines
 	sessionID := seedReplayForCompression(t, d, output, false)
@@ -789,10 +789,10 @@ func TestRunBenchReplay_CompressionIdentity(t *testing.T) {
 func TestRunBenchReplay_CompressionFailureGate(t *testing.T) {
 	d := benchTestDB(t)
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:2"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	output := "line 1\nline 2\nline 3\nline 4\nline 5\n"
 	sessionID := seedReplayForCompression(t, d, output, true) // is_error=true
@@ -833,10 +833,10 @@ stages = ["head:2"]
 func TestRunBenchReplay_RealWorldPipeline(t *testing.T) {
 	d := benchTestDB(t)
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// A verbose build-log-style output: ANSI codes, debug noise, many
 	// lines, over the token budget. JSON-escaping is handled by
@@ -895,10 +895,10 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 func TestRunBenchReplay_CompressionEmptyStream(t *testing.T) {
 	d := benchTestDB(t)
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:2"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// A stream with no tool_use events (text + step_finish only).
 	streamText := `{"type":"step_start","part":{}}

@@ -55,8 +55,9 @@ func pluginCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // pluginAdd appends a new [[plugin]] block to ktx.toml. When no
-// ktx.toml exists at the project root, a new ./ktx.toml is created.
-// When one exists, the block is appended preserving existing content.
+// ktx.toml exists, a new one is created at the user-level config
+// path ($XDG_CONFIG_HOME/ktx/ktx.toml). When one exists, the block
+// is appended preserving existing content.
 // A duplicate name is rejected with a conflict error.
 func pluginAdd(args []string, stdout io.Writer) (any, error) {
 	description, rest := extractDescription(args)
@@ -76,10 +77,14 @@ func pluginAdd(args []string, stdout io.Writer) (any, error) {
 		}
 	}
 
-	// Resolve the target file: project-root ktx.toml (create if absent).
+	// Resolve the target file: existing config, or create at user-level path.
 	path, exists := config.ConfigPath()
 	if !exists {
-		path = config.ProjectConfigPath()
+		var err error
+		path, err = config.UserConfigPath()
+		if err != nil {
+			return nil, internalError("ktx plugin add: resolve config path: %v", err)
+		}
 	}
 
 	// Read existing content (empty when creating new file).

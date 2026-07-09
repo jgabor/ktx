@@ -13,9 +13,9 @@
 //	description = "passthrough"
 //
 // Missing / empty config → empty stages, nil plugins (the no-config
-// default; `ktx compress` runs the passthrough pipeline). Precedence:
-// project root wins; when only the user-level file exists it is used;
-// when neither exists, passthrough. Per-invocation only — no caching
+// default; `ktx compress` runs the passthrough pipeline). Single
+// scope: user-level $XDG_CONFIG_HOME/ktx/ktx.toml; passthrough when
+// absent. Per-invocation only — no caching
 // across processes (no global state; each `ktx compress` invocation
 // calls Load once).
 //
@@ -50,17 +50,10 @@ import (
 // so omitting the field is backward compatible.
 const DefaultPipelineTimeout = 30 * time.Second
 
-// projectConfigName is the project-root config filename. ktx looks
-// for this in the current working directory (the project root for
-// ktx invocations). The cwd-as-project-root convention matches
-// Cargo.toml / pyproject.toml — the file is colocated with the
-// codebase under test/developed.
-const projectConfigName = "ktx.toml"
-
 // userConfigPath is the user-level config path relative to
 // $XDG_CONFIG_HOME. Resolves to
-// $XDG_CONFIG_HOME/ktx/config.toml.
-const userConfigPath = "ktx/config.toml"
+// $XDG_CONFIG_HOME/ktx/ktx.toml.
+const userConfigPath = "ktx/ktx.toml"
 
 // Plugin is a user-defined external compression stage registered via
 // a [[plugin]] block in ktx.toml. The name is the stage-name token
@@ -111,6 +104,14 @@ type Config struct {
 	// Only the "default" profile's timeout is read; per-profile
 	// timeouts are YAGNI until content-type routing lands.
 	PipelineTimeout time.Duration
+
+	// RecoverFooter is the [pipeline.default].recover_footer flag.
+	// Defaults to false (the field's zero value): when false, hook
+	// output is unchanged from prior behavior — no footer and no
+	// source_id in agent context. When true, the hook emits a recovery
+	// footer. Only the "default" profile's value is read; per-profile
+	// toggles are YAGNI until content-type routing lands.
+	RecoverFooter bool
 }
 
 // ParseError is returned by Load when a discovered ktx.toml contains
@@ -128,20 +129,17 @@ func (e *ParseError) Error() string {
 	return fmt.Sprintf("ktx.toml %s:%d: %s", e.Path, e.Line, e.Msg)
 }
 
-// Load resolves and parses the ktx.toml per the precedence:
-// project-root ktx.toml > $XDG_CONFIG_HOME/ktx/config.toml > passthrough.
-// Returns a Config with empty stages and nil plugins when no file
-// exists (the no-config default). A discovered file with a syntax
-// error or missing required field returns a *ParseError; the CLI layer
-// maps it to exit 1.
+// Load resolves and parses the ktx.toml from the user-level config
+// path ($XDG_CONFIG_HOME/ktx/ktx.toml, with ~/.config/ktx/ktx.toml
+// fallback per the XDG spec). Returns a Config with empty stages and
+// nil plugins when no file exists (the no-config default). A discovered
+// file with a syntax error or missing required field returns a
+// *ParseError; the CLI layer maps it to exit 1.
 //
 // ConfigPath returns the resolved path to the ktx.toml that Load()
 // would use, and whether it exists. Used by `ktx plugin` to know
 // which file to edit. When no config file exists, returns ("", false).
 func ConfigPath() (string, bool) {
-	if projPath, ok := fileExists(projectConfigName); ok {
-		return projPath, true
-	}
 	userPath, err := userConfigFile()
 	if err != nil {
 		return "", false
@@ -152,25 +150,24 @@ func ConfigPath() (string, bool) {
 	return "", false
 }
 
-// ProjectConfigPath returns the project-root config path (always
-// ./ktx.toml resolved to absolute). Used by `ktx plugin add` when
-// creating a new config file at the project root.
-func ProjectConfigPath() string {
-	abs, err := filepath.Abs(projectConfigName)
+// UserConfigPath returns the user-level config path, creating the
+// parent directory if needed. Used by `ktx plugin add` when creating
+// a new config file.
+func UserConfigPath() (string, error) {
+	userPath, err := userConfigFile()
 	if err != nil {
-		return projectConfigName
+		return "", err
 	}
-	return abs
+	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
+		return "", fmt.Errorf("create config directory: %w", err)
+	}
+	return userPath, nil
 }
 
 // Load is per-invocation only: it does not cache across processes
 // (no global state).
 func Load() (*Config, error) {
-	// 1. Project-root ktx.toml (cwd).
-	if projPath, ok := fileExists(projectConfigName); ok {
-		return loadFile(projPath)
-	}
-	// 2. User-level $XDG_CONFIG_HOME/ktx/config.toml.
+	// User-level $XDG_CONFIG_HOME/ktx/ktx.toml.
 	userPath, err := userConfigFile()
 	if err != nil {
 		return &Config{PipelineTimeout: DefaultPipelineTimeout}, nil
@@ -178,13 +175,13 @@ func Load() (*Config, error) {
 	if _, ok := fileExists(userPath); ok {
 		return loadFile(userPath)
 	}
-	// 3. No config found → passthrough default.
+	// No config found → passthrough default.
 	return &Config{PipelineTimeout: DefaultPipelineTimeout}, nil
 }
 
 // userConfigFile resolves the user-level config path:
-// $XDG_CONFIG_HOME/ktx/config.toml, with the XDG spec's
-// ~/.config/ktx/config.toml fallback when XDG_CONFIG_HOME is unset.
+// $XDG_CONFIG_HOME/ktx/ktx.toml, with the XDG spec's
+// ~/.config/ktx/ktx.toml fallback when XDG_CONFIG_HOME is unset.
 func userConfigFile() (string, error) {
 	xdgConfig := os.Getenv("XDG_CONFIG_HOME")
 	if xdgConfig == "" {
@@ -247,8 +244,9 @@ func loadFile(path string) (*Config, error) {
 // forward-compatible even though ktx does not route by content type.
 type tomlConfig struct {
 	Pipeline map[string]struct {
-		Stages  []string `toml:"stages"`
-		Timeout string   `toml:"timeout"`
+		Stages        []string `toml:"stages"`
+		Timeout       string   `toml:"timeout"`
+		RecoverFooter bool     `toml:"recover_footer"`
 	} `toml:"pipeline"`
 	Plugin []tomlPlugin `toml:"plugin"`
 }
@@ -318,6 +316,16 @@ func parse(data []byte) (*Config, error) {
 			}
 		}
 		cfg.PipelineTimeout = d
+	}
+
+	// recover_footer is a bool knob surfaced on the config read
+	// surface. Defaults to false (the Config zero value): when false,
+	// hook behavior is byte-for-byte identical to prior output (no
+	// footer, no source_id in agent context). Only the "default"
+	// profile's value is read. A non-bool value surfaces as a
+	// *ParseError via BurntSushi's decode error (handled above).
+	if def, ok := decoded.Pipeline["default"]; ok {
+		cfg.RecoverFooter = def.RecoverFooter
 	}
 
 	for i, p := range decoded.Plugin {

@@ -52,6 +52,18 @@ func hookWriteFile(t *testing.T, path, content string) {
 	}
 }
 
+// hookWriteUserConfig writes content to the user-level config path
+// ($XDG_CONFIG_HOME/ktx/ktx.toml). Requires XDG_CONFIG_HOME to be set
+// (tests set it via t.Setenv before calling this helper).
+func hookWriteUserConfig(t *testing.T, content string) {
+	t.Helper()
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+	if xdg == "" {
+		t.Fatal("XDG_CONFIG_HOME not set")
+	}
+	hookWriteFile(t, filepath.Join(xdg, "ktx", "ktx.toml"), content)
+}
+
 func TestHook_Identity(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
@@ -91,10 +103,10 @@ func TestHook_Identity(t *testing.T) {
 func TestHook_WithPipeline(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	payload := `{"id":"hookpipe01","tool":"bash","input":"echo hello","output":"line 1\nline 2\nline 3\nline 4\nline 5\n","content_hash":"","timestamp":"2026-07-01T12:00:00Z"}`
 
@@ -128,10 +140,10 @@ stages = ["head:3"]
 func TestHook_FailureGate(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	payload := `{"id":"hookerr001","tool":"bash","input":"false","output":"Error: failed","content_hash":"","timestamp":"2026-07-01T12:00:00Z","is_error":true}`
 
@@ -203,10 +215,10 @@ func TestHook_MissingFields(t *testing.T) {
 func TestHook_Reversibility(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:2"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	payload := `{"id":"hookrev001","tool":"bash","input":"echo","output":"line 1\nline 2\nline 3\nline 4\n","content_hash":"","timestamp":"2026-07-01T12:00:00Z"}`
 
@@ -242,10 +254,10 @@ func TestHook_NoInput(t *testing.T) {
 
 func TestCompressPipeline_Timeout(t *testing.T) {
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["slow"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	source := &dbpkg.ToolCall{
 		ID:        "timeout01",
@@ -278,10 +290,10 @@ stages = ["slow"]
 
 func TestCompressPipeline_TimeoutNotHit(t *testing.T) {
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["fast"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	source := &dbpkg.ToolCall{
 		ID:        "timeout02",
@@ -323,11 +335,11 @@ stages = ["fast"]
 // end-to-end minus the envelope write.
 func TestHook_ConfigurableTimeout(t *testing.T) {
 	hookChdirTemp(t)
-	hookWriteFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["slow"]
 timeout = "5ms"
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -407,8 +419,8 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 	t.Run("verbose output → agent sees compressed; original in DB; decompress verbatim", func(t *testing.T) {
 		d := hookTestDB(t)
 		hookChdirTemp(t)
-		hookWriteFile(t, "ktx.toml", pipeline)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		hookWriteUserConfig(t, pipeline)
 
 		original := buildVerboseOutput()
 		tc := dbpkg.ToolCall{
@@ -480,8 +492,8 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 	t.Run("short input → anti-worsening gate returns original, compressed_id=null", func(t *testing.T) {
 		d := hookTestDB(t)
 		hookChdirTemp(t)
-		hookWriteFile(t, "ktx.toml", pipeline)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		hookWriteUserConfig(t, pipeline)
 
 		// A short input: the pipeline cannot shrink it (strip-ansi is a
 		// no-op, grep-v keeps all, keep-ends keeps all, token-budget is
@@ -514,8 +526,8 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 	t.Run("is_error=true → failure gate returns original unchanged", func(t *testing.T) {
 		d := hookTestDB(t)
 		hookChdirTemp(t)
-		hookWriteFile(t, "ktx.toml", pipeline)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		hookWriteUserConfig(t, pipeline)
 
 		errOutput := "\x1b[31mError: build failed with 47 errors\x1b[0m\nsee log for details\n"
 		isErr := true
@@ -554,10 +566,10 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 func TestHook_DefaultTimeoutWhenOmitted(t *testing.T) {
 	t.Run("ktx.toml without timeout → 30s default", func(t *testing.T) {
 		hookChdirTemp(t)
-		hookWriteFile(t, "ktx.toml", `[pipeline.default]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := config.Load()
 		if err != nil {

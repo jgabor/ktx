@@ -60,9 +60,9 @@ func TestConfigShow_JSON_NoKtxToml(t *testing.T) {
 
 func TestConfigShow_JSON_WithStages(t *testing.T) {
 	configTestEnv(t)
-	os.WriteFile("ktx.toml", []byte(`[pipeline.default]
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "head:5"]
-`), 0o644)
+`)
 
 	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
 	if code != ExitOK {
@@ -90,9 +90,9 @@ stages = ["strip-ansi", "head:5"]
 // pipeline.profiles.default.stages array via `ktx config show --json`.
 func TestConfigShow_JSON_DeterministicStages(t *testing.T) {
 	configTestEnv(t)
-	os.WriteFile("ktx.toml", []byte(`[pipeline.default]
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
-`), 0o644)
+`)
 
 	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
 	if code != ExitOK {
@@ -117,7 +117,7 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 
 func TestConfigShow_JSON_MultipleProfiles(t *testing.T) {
 	configTestEnv(t)
-	os.WriteFile("ktx.toml", []byte(`[pipeline.default]
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi"]
 
 [pipeline.json]
@@ -125,7 +125,7 @@ stages = ["normalize"]
 
 [pipeline.logs]
 stages = ["dedup-blank", "truncate:2048"]
-`), 0o644)
+`)
 
 	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
 	if code != ExitOK {
@@ -147,9 +147,9 @@ stages = ["dedup-blank", "truncate:2048"]
 
 func TestConfigShow_Text(t *testing.T) {
 	configTestEnv(t)
-	os.WriteFile("ktx.toml", []byte(`[pipeline.default]
+	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "head:5"]
-`), 0o644)
+`)
 
 	code, stdout, stderr := runConfigDispatch(t, []string{"show", "--format", "text"})
 	if code != ExitOK {

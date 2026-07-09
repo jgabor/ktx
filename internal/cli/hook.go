@@ -91,24 +91,41 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	sourceID := tc.ID
 
-	// Read the configurable pipeline timeout. ktx.toml's
-	// [pipeline.default] timeout field (Go duration string, default 30s
-	// when omitted) is the critical-path deadline. config.Load always
-	// returns a non-zero PipelineTimeout (DefaultPipelineTimeout on the
-	// passthrough path), so the fallback below is defensive only. A broken
-	// ktx.toml surfaces as a usage error here — the original is already
-	// persisted, and a non-zero exit makes the plugin leave output.output
-	// unchanged (conservative failure at the plugin level).
-	timeout := config.DefaultPipelineTimeout
-	if cfg, err := config.Load(); err != nil {
+	cfg, err := config.Load()
+	if err != nil {
 		return nil, usageError("%v", err)
-	} else if cfg.PipelineTimeout > 0 {
+	}
+	timeout := config.DefaultPipelineTimeout
+	if cfg.PipelineTimeout > 0 {
 		timeout = cfg.PipelineTimeout
 	}
 
 	compressedOutput, pipeJSON, transformed, err := compressPipeline(&tc, nil, stderr, timeout)
 	if err != nil {
 		return nil, err
+	}
+
+	// Footer-aware second gate. Fires only when recover_footer is
+	// enabled and the pipeline actually transformed the output. The
+	// pipeline Runner's byte-gate already fired inside compressPipeline
+	// (it discards results not smaller than the input). This second
+	// gate accounts for the footer's own byte overhead: when
+	// len(compressed)+len(footer) >= len(original), the transform is
+	// suppressed — source returned unchanged, no footer, no compressed
+	// row. The footer lives only in the agent-visible envelope.Output;
+	// the persisted Compressed.Output stays content-only.
+	var footer string
+	envelopeOutput := compressedOutput
+	if cfg.RecoverFooter && transformed {
+		footer = buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
+		if len(compressedOutput)+len(footer) >= len(tc.Output) {
+			transformed = false
+			footer = ""
+			envelopeOutput = tc.Output
+			compressedOutput = tc.Output
+		} else {
+			envelopeOutput = compressedOutput + footer
+		}
 	}
 
 	var compressedID *string
@@ -133,7 +150,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	}
 
 	envelope := hookEnvelope{
-		Output:       compressedOutput,
+		Output:       envelopeOutput,
 		CompressedID: compressedID,
 		SourceID:     sourceID,
 	}
@@ -143,6 +160,26 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		return nil, internalError("ktx hook: write envelope: %v", err)
 	}
 	return nil, nil
+}
+
+// buildRecoveryFooter produces a compact, agent-parseable recovery
+// footer appended to the compressed output in the hook envelope. The
+// footer is NOT persisted in the compressed table row — it lives only
+// in the agent-visible envelope.Output so the agent can recover the
+// original via `ktx read <source_id>`.
+//
+// The footer contains: the source_id verbatim, original size, compressed
+// size, the reduction ratio (percent), and the recovery command
+// `ktx read <source_id>`.
+func buildRecoveryFooter(sourceID string, originalBytes, compressedBytes int) string {
+	reduction := 0
+	if originalBytes > 0 && compressedBytes < originalBytes {
+		reduction = (originalBytes - compressedBytes) * 100 / originalBytes
+	}
+	return fmt.Sprintf(
+		"\n--- ktx recovery ---\nsource_id: %s\noriginal: %d bytes -> compressed: %d bytes (%d%% reduction)\nrecover: ktx read %s\n",
+		sourceID, originalBytes, compressedBytes, reduction, sourceID,
+	)
 }
 
 func init() {
@@ -173,6 +210,13 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "is 30s, configurable via [pipeline.default] timeout in ktx.toml (e.g.")
 	fmt.Fprintln(w, "`timeout = \"10s\"`). On timeout the original is returned unchanged with a")
 	fmt.Fprintln(w, "stderr warning.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Set [pipeline.default] recover_footer = true in ktx.toml (default false) to")
+	fmt.Fprintln(w, "append a recovery footer to the compressed output the agent sees. The footer")
+	fmt.Fprintln(w, "carries the source_id, original and compressed sizes, the reduction ratio, and")
+	fmt.Fprintln(w, "the recovery command `ktx read <source_id>`. A footer-aware anti-worsening")
+	fmt.Fprintln(w, "gate suppresses the transform (and the footer) when compressed+footer would")
+	fmt.Fprintln(w, "not be smaller than the original; the stored compressed row stays content-only.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This verb is called by the OpenCode plugin's tool.execute.after hook (installed")
 	fmt.Fprintln(w, "via `ktx init opencode`). It is not typically invoked directly by users.")

@@ -3,15 +3,16 @@
 //
 // Coverage per the plan's acceptance:
 //   - missing config → empty list + no error (passthrough default)
-//   - project-root ktx.toml parses
-//   - user-level fallback used when project-root absent
-//   - precedence: project-root wins when both exist
+//   - user-level ktx.toml parses
+//   - user-level config loads from $XDG_CONFIG_HOME/ktx/ktx.toml
 //   - malformed TOML → *ParseError
 //   - unknown stage names preserved verbatim (resolution at runner
 //     invocation time, not config-load time)
 //   - [[plugin]] blocks parse into Config.Plugins
 //   - missing required plugin fields → *ParseError
 //   - stages-only shape → Plugins nil, no error (regression)
+//   - recover_footer: false default (absent + no-config), true/false
+//     explicit, non-bool value → *ParseError naming the field
 //
 // All subtests use t.TempDir()-based fixtures and t.Setenv for
 // XDG_CONFIG_HOME so no test mutates the user's real config dir.
@@ -27,21 +28,29 @@ import (
 	"time"
 )
 
-// writeFile writes content to path, creating parent dirs.
-func writeFile(t *testing.T, path, content string) {
+// writeUserConfig writes content to the user-level config path
+// ($XDG_CONFIG_HOME/ktx/ktx.toml). Requires XDG_CONFIG_HOME to be set
+// (tests set it via t.Setenv before calling this helper).
+func writeUserConfig(t *testing.T, content string) {
 	t.Helper()
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+	if xdg == "" {
+		t.Fatal("XDG_CONFIG_HOME not set")
+	}
+	path := filepath.Join(xdg, "ktx", "ktx.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+		t.Fatalf("mkdir: %v", err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
 
-// chdirTemp changes the test's working directory to a fresh tmpdir
-// so the project-root ktx.toml lookup runs against an isolated cwd.
-// The previous cwd is restored on cleanup. The fresh tmpdir is
-// returned so the test can write its own ktx.toml into it.
+// chdirTemp changes the test's working directory to a fresh tmpdir so
+// the repo's own ktx.toml (or example config) is not picked up from
+// cwd during test runs inside the ktx repo. The previous cwd is
+// restored on cleanup. The fresh tmpdir is returned so the test can
+// write fixtures into it if needed.
 func chdirTemp(t *testing.T) string {
 	t.Helper()
 	prev, err := os.Getwd()
@@ -58,12 +67,12 @@ func chdirTemp(t *testing.T) string {
 	return dir
 }
 
-// TestLoad_MissingConfig covers the no-config default: when
-// neither a project-root ktx.toml nor a user-level config exists,
-// Load returns an empty stage list and a nil error.
+// TestLoad_MissingConfig covers the no-config default: when no
+// user-level ktx.toml exists, Load returns an empty stage list and a
+// nil error.
 func TestLoad_MissingConfig(t *testing.T) {
-	t.Run("no project or user config → empty stage list, no error", func(t *testing.T) {
-		// Isolate cwd so no parent ktx.toml is found.
+	t.Run("no user config → empty stage list, no error", func(t *testing.T) {
+		// Isolate cwd so no repo ktx.toml is found.
 		chdirTemp(t)
 		// Isolate XDG_CONFIG_HOME so no user config is found.
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -81,19 +90,16 @@ func TestLoad_MissingConfig(t *testing.T) {
 	})
 }
 
-// TestLoad_ProjectRoot covers the project-root path: a ktx.toml in
-// the cwd is parsed, the stages array populates PipelineDefault,
-// and the order is preserved.
-func TestLoad_ProjectRoot(t *testing.T) {
-	t.Run("project-root ktx.toml parses with ordered stages", func(t *testing.T) {
-		chdirTemp(t)
-		writeFile(t, "ktx.toml", `# ktx.toml — stage-list fixture
+// TestLoad_UserConfig covers the user-level path: a ktx.toml at
+// $XDG_CONFIG_HOME/ktx/ktx.toml is parsed, the stages array
+// populates PipelineDefault, and the order is preserved.
+func TestLoad_UserConfig(t *testing.T) {
+	t.Run("user-level ktx.toml parses with ordered stages", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `# ktx.toml — stage-list fixture
 [pipeline.default]
 stages = ["strip-ansi", "head:100"]
 `)
-		// Isolate XDG so the user-level fallback does not
-		// interfere with the precedence test.
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := Load()
 		if err != nil {
@@ -111,9 +117,8 @@ stages = ["strip-ansi", "head:100"]
 	})
 
 	t.Run("empty stages array → empty list, no error", func(t *testing.T) {
-		chdirTemp(t)
-		writeFile(t, "ktx.toml", "[pipeline.default]\nstages = []\n")
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, "[pipeline.default]\nstages = []\n")
 
 		cfg, err := Load()
 		if err != nil {
@@ -131,8 +136,8 @@ stages = ["strip-ansi", "head:100"]
 // forward-compatible with the loader contract.
 func TestLoad_ProjectRootStagesAbsentQuoted(t *testing.T) {
 	chdirTemp(t)
-	writeFile(t, "ktx.toml", "[ui]\ntheme = \"dark\"\n")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeUserConfig(t, "[ui]\ntheme = \"dark\"\n")
 
 	cfg, err := Load()
 	if err != nil {
@@ -143,18 +148,16 @@ func TestLoad_ProjectRootStagesAbsentQuoted(t *testing.T) {
 	}
 }
 
-// TestLoad_UserLevelFallback covers the user-level path: when no
-// project-root ktx.toml exists but $XDG_CONFIG_HOME/ktx/config.toml
-// does, Load uses it.
-func TestLoad_UserLevelFallback(t *testing.T) {
-	t.Run("user-level config used when project-root absent", func(t *testing.T) {
-		chdirTemp(t) // no project-root ktx.toml
+// TestLoad_UserConfigPath covers the user-level config path: a
+// ktx.toml at $XDG_CONFIG_HOME/ktx/ktx.toml is loaded by Load.
+func TestLoad_UserConfigPath(t *testing.T) {
+	t.Run("user-level config is loaded", func(t *testing.T) {
+		chdirTemp(t)
 
-		xdg := t.TempDir()
-		writeFile(t, filepath.Join(xdg, "ktx", "config.toml"), `[pipeline.default]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
 stages = ["normalize"]
 `)
-		t.Setenv("XDG_CONFIG_HOME", xdg)
 
 		cfg, err := Load()
 		if err != nil {
@@ -166,35 +169,6 @@ stages = ["normalize"]
 	})
 }
 
-// TestLoad_Precedence covers the precedence rule: when both a
-// project-root ktx.toml and a user-level config exist, the
-// project-root wins.
-func TestLoad_Precedence(t *testing.T) {
-	t.Run("project-root wins when both exist", func(t *testing.T) {
-		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[pipeline.default]
-stages = ["head:5"]
-`)
-
-		xdg := t.TempDir()
-		writeFile(t, filepath.Join(xdg, "ktx", "config.toml"), `[pipeline.default]
-stages = ["normalize"]
-`)
-		t.Setenv("XDG_CONFIG_HOME", xdg)
-
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load: %v", err)
-		}
-		// The project-root "head:5" must win; the user-level
-		// "normalize" must NOT appear.
-		if len(cfg.PipelineDefault) != 1 || cfg.PipelineDefault[0] != "head:5" {
-			t.Errorf("PipelineDefault = %v, want [head:5] (project-root wins)",
-				cfg.PipelineDefault)
-		}
-	})
-}
-
 // TestLoad_PipelineTimeout covers the configurable pipeline
 // timeout: [pipeline.default] timeout parses as a Go duration string,
 // defaults to 30s when omitted or when no ktx.toml exists, and a
@@ -202,11 +176,11 @@ stages = ["normalize"]
 func TestLoad_PipelineTimeout(t *testing.T) {
 	t.Run("timeout='10s' parses to 10s (configurable)", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[pipeline.default]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
 timeout = "10s"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := Load()
 		if err != nil {
@@ -219,10 +193,10 @@ timeout = "10s"
 
 	t.Run("no timeout field → default 30s (backward compatible)", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[pipeline.default]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := Load()
 		if err != nil {
@@ -248,11 +222,11 @@ stages = ["head:3"]
 
 	t.Run("garbage timeout → *ParseError", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[pipeline.default]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
 timeout = "garbage"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		_, err := Load()
 		if err == nil {
@@ -271,11 +245,11 @@ timeout = "garbage"
 		for _, bad := range []string{"0s", "-5s", "0"} {
 			t.Run(bad, func(t *testing.T) {
 				chdirTemp(t)
-				writeFile(t, "ktx.toml", fmt.Sprintf(`[pipeline.default]
+				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+				writeUserConfig(t, fmt.Sprintf(`[pipeline.default]
 stages = ["head:3"]
 timeout = %q
 `, bad))
-				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 				_, err := Load()
 				if err == nil {
@@ -290,11 +264,11 @@ timeout = %q
 
 	t.Run("duration with minutes parses (2m)", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[pipeline.default]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
 timeout = "2m"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := Load()
 		if err != nil {
@@ -302,6 +276,100 @@ timeout = "2m"
 		}
 		if cfg.PipelineTimeout != 2*time.Minute {
 			t.Errorf("PipelineTimeout = %v, want 2m", cfg.PipelineTimeout)
+		}
+	})
+}
+
+// TestLoad_RecoverFooter covers the recover_footer config surface on
+// [pipeline.default]. The flag defaults to false (the Config zero
+// value): when absent or explicitly false, hook behavior is
+// byte-for-byte identical to prior output (no footer, no source_id in
+// agent context). A non-bool value is a *ParseError naming the field.
+func TestLoad_RecoverFooter(t *testing.T) {
+	t.Run("no ktx.toml → false (passthrough default)", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = true, want false (no-config default)")
+		}
+	})
+
+	t.Run("stages-only config (no recover_footer key) → false", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi", "head:100"]
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = true, want false (absent key defaults to false)")
+		}
+	})
+
+	t.Run("recover_footer = true → true", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+recover_footer = true
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if !cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = false, want true")
+		}
+	})
+
+	t.Run("recover_footer = false → false (explicit off)", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+recover_footer = false
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = true, want false (explicit off)")
+		}
+	})
+
+	t.Run("recover_footer = \"yes\" (non-bool) → *ParseError naming the field", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+recover_footer = "yes"
+`)
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load succeeded; want *ParseError for non-bool recover_footer")
+		}
+		var pe *ParseError
+		if !errors.As(err, &pe) {
+			t.Fatalf("error = %T, want *ParseError", err)
+		}
+		if !strings.Contains(pe.Msg, "recover_footer") {
+			t.Errorf("ParseError.Msg = %q, want it to name the field 'recover_footer'", pe.Msg)
+		}
+		if !strings.Contains(pe.Path, "ktx.toml") {
+			t.Errorf("ParseError.Path = %q, want it to name ktx.toml", pe.Path)
 		}
 	})
 }
@@ -335,8 +403,8 @@ func TestLoad_Malformed(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			chdirTemp(t)
-			writeFile(t, "ktx.toml", tc.content)
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			writeUserConfig(t, tc.content)
 
 			_, err := Load()
 			if err == nil {
@@ -362,10 +430,10 @@ func TestLoad_Malformed(t *testing.T) {
 // unknown-stage invariant (3) handles them at runtime.
 func TestLoad_UnknownStageNamesPreserved(t *testing.T) {
 	chdirTemp(t)
-	writeFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "frobnicate", "head:5", "bogus:name"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, err := Load()
 	if err != nil {
@@ -391,13 +459,13 @@ stages = ["strip-ansi", "frobnicate", "head:5", "bogus:name"]
 // ktx.toml that a user formatted for readability.
 func TestLoad_MultiLineArray(t *testing.T) {
 	chdirTemp(t)
-	writeFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeUserConfig(t, `[pipeline.default]
 stages = [
   "strip-ansi",
   "head:100",
 ]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, err := Load()
 	if err != nil {
@@ -421,10 +489,10 @@ stages = [
 // stray single-quote does not break Load.
 func TestLoad_SingleQuotedElements(t *testing.T) {
 	chdirTemp(t)
-	writeFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeUserConfig(t, `[pipeline.default]
 stages = ['strip-ansi', 'head:100']
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, err := Load()
 	if err != nil {
@@ -442,11 +510,11 @@ stages = ['strip-ansi', 'head:100']
 // but the reader must not silently corrupt a config that uses them.
 func TestLoad_EscapedStringElement(t *testing.T) {
 	chdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	// A stage name containing a literal quoted-char via escape.
-	writeFile(t, "ktx.toml", `[pipeline.default]
+	writeUserConfig(t, `[pipeline.default]
 stages = ["a\"b"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, err := Load()
 	if err != nil {
@@ -465,7 +533,8 @@ stages = ["a\"b"]
 func TestLoad_PluginBlocks(t *testing.T) {
 	t.Run("single plugin with all fields", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[pipeline.default]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
 stages = ["mycat"]
 
 [[plugin]]
@@ -473,7 +542,6 @@ name = "mycat"
 command = "/bin/cat"
 description = "passthrough"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := Load()
 		if err != nil {
@@ -496,7 +564,8 @@ description = "passthrough"
 
 	t.Run("multiple plugins in document order", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[[plugin]]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[[plugin]]
 name = "first"
 command = "/bin/echo"
 
@@ -505,7 +574,6 @@ name = "second"
 command = "/bin/cat"
 description = "line two"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := Load()
 		if err != nil {
@@ -524,11 +592,11 @@ description = "line two"
 
 	t.Run("description absent → empty string", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[[plugin]]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[[plugin]]
 name = "nodesc"
 command = "/bin/true"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		cfg, err := Load()
 		if err != nil {
@@ -548,14 +616,14 @@ command = "/bin/true"
 // Config.Stages and Config.Plugins.
 func TestLoad_PluginsAndStagesCoexist(t *testing.T) {
 	chdirTemp(t)
-	writeFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "mycat", "head:100"]
 
 [[plugin]]
 name = "mycat"
 command = "/bin/cat"
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, err := Load()
 	if err != nil {
@@ -580,10 +648,10 @@ command = "/bin/cat"
 // error — the regression byte-identical contract.
 func TestLoad_NoPluginsStagesOnlyShape(t *testing.T) {
 	chdirTemp(t)
-	writeFile(t, "ktx.toml", `[pipeline.default]
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeUserConfig(t, `[pipeline.default]
 stages = ["strip-ansi", "head:100"]
 `)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, err := Load()
 	if err != nil {
@@ -602,10 +670,10 @@ stages = ["strip-ansi", "head:100"]
 func TestLoad_PluginMissingRequiredField(t *testing.T) {
 	t.Run("missing name", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[[plugin]]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[[plugin]]
 command = "/bin/cat"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		_, err := Load()
 		if err == nil {
@@ -625,10 +693,10 @@ command = "/bin/cat"
 
 	t.Run("missing command", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `[[plugin]]
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[[plugin]]
 name = "nocmd"
 `)
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 		_, err := Load()
 		if err == nil {

@@ -1,4 +1,29 @@
 cycles:
+- number: 16
+  timestamp: 2026-07-09 16:14
+  type: feat
+  phase: build
+  what: 'D23 ships: ktx hook composes an opt-in recovery footer (source_id + original/compressed sizes
+    + reduction ratio + `ktx read <source_id>` command) appended to the agent-visible compressed output,
+    with a footer-aware anti-worsening gate that suppresses the transform when compressed+footer would
+    not beat the original size. Off by default (recover_footer=false in ktx.toml); stored compressed rows
+    stay content-only (decompress returns pure compressed); the footer lives only in envelope.Output.'
+  discovered: 'The plugin template (init.go) needed NO change -- it already assigns output.output = envelope.output
+    verbatim, so the footer-bearing envelope propagates untouched. The two-gate structure is essential:
+    the pipeline runner''s byte-gate fires first (inside compressPipeline), then the footer-aware second
+    gate accounts for footer overhead and suppresses wins too small to clear it. The amended D22 invisibility
+    clause is conditional: source_id surfaces only when recovery is opted in; compressed_id stays dev-facing
+    forever.'
+  verified: 'Build: go build -buildvcs=false ./cmd/ktx exit 0. vet/tests: go test ./... exit 0 (all packages
+    pass). Config flag default-false verified (config_test.go TestLoad_RecoverFooter covers absent/default/explicit-on/explicit-off/non-bool).
+    Footer composition + footer-aware gate + content-only DB row + envelope wiring verified in hook_footer_test.go
+    (ACs for default-off byte-identity, footer-when-enabled, gate-suppression, content-only persistence,
+    plugin-template-unchanged). Documentation: ktx.example.toml documents recover_footer with safety-gate
+    explanation; printHookHelp mentions the footer, gate, and content-only storage. All D23 plan acceptance
+    criteria met.'
+  next: D23 implementation complete; provisional satisfaction recorded in decisions.yaml pending user
+    confirmation. The user confirms final satisfaction -- until then the satisfaction state is provisional_satisfied
+    with review_needed=true. No carry-forward code work; D23 is feature-complete.
 - number: 15
   timestamp: 2026-06-24 14:00
   type: feat

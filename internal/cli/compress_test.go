@@ -105,8 +105,6 @@ func ptrBool(v bool) *bool { return &v }
 // noConfigEnv chdirs to a fresh tempdir and points XDG_CONFIG_HOME at
 // another fresh tempdir, so config.Load() resolves to the passthrough
 // default (no ktx.toml anywhere). Returns a restore func.
-// The chdir is essential because Load() looks for ktx.toml in the
-// cwd before checking XDG.
 func noConfigEnv(t *testing.T) func() {
 	t.Helper()
 	restore := chdir(t, t.TempDir())
@@ -114,13 +112,19 @@ func noConfigEnv(t *testing.T) func() {
 	return restore
 }
 
-// writeProjectConfig writes a ktx.toml containing the named pipeline
-// stages into the cwd (the test's chdirTemp target). Returns the
-// path. The file is small so it is written inline via the standard
-// library.
-func writeProjectConfig(t *testing.T, stages string) {
+// writeUserConfig writes a ktx.toml containing the named pipeline
+// stages into the user-level config path
+// ($XDG_CONFIG_HOME/ktx/ktx.toml). Requires XDG_CONFIG_HOME to be set.
+func writeUserConfig(t *testing.T, stages string) {
 	t.Helper()
-	path := filepath.Join(".", "ktx.toml")
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+	if xdg == "" {
+		t.Fatal("XDG_CONFIG_HOME not set")
+	}
+	path := filepath.Join(xdg, "ktx", "ktx.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
 	if err := os.WriteFile(path, []byte("[pipeline.default]\nstages = "+stages+"\n"), 0o600); err != nil {
 		t.Fatalf("write ktx.toml: %v", err)
 	}
@@ -207,7 +211,7 @@ func TestRunCompressWith_PipelineModifiesOutput(t *testing.T) {
 	// strip-ansi removes the escape codes; head:1 keeps only the
 	// first line. Together they should make the compressed output
 	// strictly shorter than the source.
-	writeProjectConfig(t, `["strip-ansi", "head:1"]`)
+	writeUserConfig(t, `["strip-ansi", "head:1"]`)
 
 	const sourceOutput = "\x1b[31mred line\x1b[0m\nsecond line\nthird line\n"
 	seedSource(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput)
@@ -438,7 +442,7 @@ func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	restore := chdir(t, t.TempDir())
 	defer restore()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	writeProjectConfig(t, `["head:5"]`)
+	writeUserConfig(t, `["head:5"]`)
 
 	const sourceOutput = "failed tool output\nline two\n"
 	seedSourceWithFailure(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput, ptrBool(true), nil)
@@ -493,7 +497,7 @@ func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
 			restore := chdir(t, t.TempDir())
 			defer restore()
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-			writeProjectConfig(t, `["head:1"]`)
+			writeUserConfig(t, `["head:1"]`)
 
 			const sourceOutput = "line one\nline two\n"
 			seedSourceWithFailure(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput, tc.isError, nil)
@@ -530,7 +534,7 @@ func TestCompressLogic_GateDistinctFromStageError(t *testing.T) {
 	restore := chdir(t, t.TempDir())
 	defer restore()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	writeProjectConfig(t, `["head:0", "head:1"]`)
+	writeUserConfig(t, `["head:0", "head:1"]`)
 
 	const sourceOutput = "line one\nline two\n"
 	seedSource(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput)

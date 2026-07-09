@@ -285,7 +285,6 @@ The items below are **not** architecture yet. They are questions for future reso
 
 ### Configuration
 
-- [ ] Config file format, search path, and precedence between project and user scope.
 - [ ] How pipeline definitions reference built-in stages versus external scripts.
 - [ ] Whether all compress/decompress behavior lives in config with zero per-invocation flags—confirm or revise.
 

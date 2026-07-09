@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1
+#
+# Reproducible benchmark vehicle for ktx compression A/B testing.
+#
+# Builds a self-contained image with a pinned OpenCode version and the
+# ktx binary + OpenCode plugin pre-installed. No host plugins, config,
+# or dotfiles leak into the container — only auth and a ktx.toml are
+# bind-mounted at run time.
+#
+# Build:
+#   docker build -f Dockerfile.benchmark -t ktx-bench .
+#
+# Baseline (passthrough — plugin records but does not compress):
+#   docker run --rm \
+#     -v ~/.local/share/opencode/auth.json:/home/node/.local/share/opencode/auth.json:ro \
+#     -v /path/to/ktx.toml:/home/node/.config/ktx/config.toml:ro \
+#     -v /path/to/target/repo:/work:rw \
+#     ktx-bench \
+#     -m neuralwatt/glm-5.2-short-fast-flex \
+#     "Read /work/README.md and respond: done"
+#
+# Treatment (compression): same command, different ktx.toml mount.
+# Toggle between arms by swapping the config file — same image, same
+# plugin, same agent version. The only variable is the pipeline config.
+#
+# ktx.db persists to a host bind mount so recorded sessions survive
+# container exit:
+#   -v /path/to/ktx-data:/home/node/.local/share/ktx:rw
+
+ARG GO_VERSION=1.26
+ARG NODE_VARIANT=22-bookworm-slim
+ARG OPENCODE_VERSION=1.17.15
+
+FROM golang:${GO_VERSION}-bookworm AS ktx-build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -trimpath -ldflags='-s -w' -o /out/ktx ./cmd/ktx
+
+FROM node:${NODE_VARIANT}
+ARG OPENCODE_VERSION
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates jq \
+  && rm -rf /var/lib/apt/lists/*
+RUN npm install -g opencode-ai@${OPENCODE_VERSION}
+COPY --from=ktx-build /out/ktx /usr/local/bin/ktx
+COPY tools/bench/ktx-runner /usr/local/bin/ktx-runner
+RUN mkdir -p \
+      /home/node/.local/share/opencode \
+      /home/node/.local/share/ktx \
+      /home/node/.config/ktx \
+      /home/node/.config/opencode/plugins \
+  && chown -R node:node /home/node/.local /home/node/.config \
+  && chmod 0755 /usr/local/bin/ktx-runner
+# Install the ktx OpenCode plugin into the container's plugin dir.
+# This is the ONLY plugin — no host plugins leak in.
+RUN ktx init opencode
+USER node
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/ktx-runner"]

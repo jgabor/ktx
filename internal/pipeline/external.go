@@ -1,4 +1,4 @@
-// External subprocess-backed pipeline stages (M5 / D21).
+// External subprocess-backed pipeline stages.
 //
 // A user-defined [[plugin]] block in ktx.toml maps to an external
 // Stage: the runner spawns the configured command, feeds the stage's
@@ -7,7 +7,7 @@
 // argument so a plugin like `myecho:hello` runs `command hello` with
 // stdin=pipeline-input.
 //
-// D14 conservative-on-failure invariants are enforced by the Runner,
+// The conservative-on-failure invariants are enforced by the Runner,
 // NOT by the external stage itself:
 //
 //  1. Empty-output guard: exit 0 + empty stdout from non-empty stdin
@@ -17,7 +17,7 @@
 //  3. Unknown-stage skip: handled by Registry.Lookup before the
 //     external Stage is constructed.
 //
-// No timeout is enforced (deferred per M5 scope). Scripts run to
+// No timeout is enforced (deferred). Scripts run to
 // natural completion. The registry is rebuilt per-invocation, so
 // removing a [[plugin]] block from ktx.toml and re-running restores
 // the built-in stage (no persistent state between runs).
@@ -51,7 +51,7 @@ func (r *Registry) RegisterExternalBuilder(name, command string) *Registry {
 // externalStage spawns a subprocess to transform pipeline bytes. The
 // command receives the stage's input on stdin and its stdout becomes
 // the stage's output. A non-zero exit returns an error so the runner
-// applies D14 invariant 2 (stage-error passthrough).
+// applies invariant 2 (stage-error passthrough).
 type externalStage struct {
 	command string
 	arg     string
@@ -63,7 +63,7 @@ type externalStage struct {
 // stage-error-passthrough invariant fires. An exit 0 with empty
 // stdout returns (empty, nil) so the runner's empty-output guard
 // fires — the external stage does NOT replicate the guard logic
-// (the runner owns all three D14 invariants).
+// (the runner owns all three invariants).
 func (s *externalStage) Apply(input []byte) ([]byte, error) {
 	var args []string
 	if s.arg != "" {

@@ -1,16 +1,16 @@
-// Persistence methods for the `recorded_streams` table (D20 recording
+// Persistence methods for the `recorded_streams` table (the recording
 // contract).
 //
 // The recorded_streams table holds the verbatim JSONL stream that
 // `ktx bench run` captured from the agent's stdout — the authoritative
-// cost evidence per D17. OpenCode 1.17.8 emits tokens/cost/model on
+// cost evidence. OpenCode 1.17.8 emits tokens/cost/model on
 // step_finish events (step-aggregate), not on per-tool tool_use
 // events; the wrapper persists only tool_use rows as tool_call rows,
 // so those rows are NULL-by-design for tokens/cost/model. The captured
 // stream is the single source of truth for the bench_run's cost
-// evidence, and D20 settles that it lives in the database (not a
-// sibling repo file, not an in-memory buffer discarded on function
-// return), following D14's artifact-to-table precedent.
+// evidence, and the recording contract settles that it lives in the
+// database (not a sibling repo file, not an in-memory buffer discarded
+// on function return), following the artifact-to-table precedent.
 //
 // Each row references its session via session_id (REFERENCES
 // sessions(id), NOT NULL) and its bench_run via bench_run_id (REFERENCES
@@ -21,7 +21,7 @@
 // persistent session-to-bench_run linkage (bench_runs has no
 // session_id column).
 //
-// Three methods form the D20 persistence contract:
+// Three methods form the persistence contract:
 //
 //   - InsertRecordedStream       — writes one row, mapping missing
 //     session_id or a non-empty-but-unknown bench_run_id to
@@ -30,12 +30,12 @@
 //     (the ktx-run --record-stream path) and skips the bench_run
 //     pre-check.
 //   - GetRecordedStreamBySession — fetches a row by session_id (the
-//     public --replay arg per D13); ErrNotFound on miss (exit 2
+//     public --replay arg); ErrNotFound on miss (exit 2
 //     surface).
 //   - GetRecordedStreamByBenchRun — fetches a row by bench_run_id
 //     (internal FK lookup); ErrNotFound on miss.
 //
-// RecordedStream.content_hash is recomputed from stream_text per D9's
+// RecordedStream.content_hash is recomputed from stream_text per the
 // integrity rule — the caller passes the already-hashed value via
 // db.ContentHash(streamText). This keeps the hash faithful to what was
 // stored, so a downstream --replay consistency check (stream integrity)
@@ -49,7 +49,7 @@ import (
 	"fmt"
 )
 
-// RecordedStream is one row of the `recorded_streams` table (D20
+// RecordedStream is one row of the `recorded_streams` table (the
 // recording contract).
 //
 // JSON tags follow the column names so the CLI layer can marshal
@@ -71,7 +71,7 @@ import (
 // it (the wrapper pipes every line to stdout via teeAndParse, and both
 // runBenchRun and executeRun-with---record-stream capture that stdout
 // into a bytes.Buffer). ContentHash is the SHA-256 hex digest of
-// StreamText (recomputed per D9 integrity rule). StreamFormat is
+// StreamText (recomputed per the integrity rule). StreamFormat is
 // metadata recording what was captured (e.g. 'opencode-jsonl-1'); no
 // parser dispatch exists today, but the column future-proofs against
 // silently mis-parsing a non-OpenCode stream. CapturedAt is
@@ -95,12 +95,12 @@ type RecordedStream struct {
 // id miss.
 var ErrRecordedStreamSourceNotFound = fmt.Errorf("db: recorded_stream source not found: %w", ErrNotFound)
 
-// InsertRecordedStream persists one `recorded_streams` row (D20
+// InsertRecordedStream persists one `recorded_streams` row (the
 // recording contract). The transaction follows the same BEGIN/Commit +
 // defer Rollback idempotency pattern as InsertCompressed and
 // InsertBenchRun. The INSERT writes all 7 columns; the caller is
-// responsible for generating id via NewID (D3), computing ContentHash
-// via ContentHash(streamText) (D9 integrity rule, recomputed from the
+// responsible for generating id via NewID, computing ContentHash
+// via ContentHash(streamText) (the integrity rule, recomputed from the
 // stream text), and supplying stream_format and captured_at.
 //
 // A session_id that does not exist is rejected by the FK constraint and
@@ -182,7 +182,7 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 }
 
 // GetRecordedStreamBySession fetches a `recorded_streams` row by
-// session_id (D20 / D13's public --replay arg). Returns ErrNotFound
+// session_id (the public --replay arg). Returns ErrNotFound
 // when no row matches so the CLI layer maps a missing session_id to
 // exit 2 (the `ktx bench run --replay` not-found path). Uses the
 // recorded_streams_session_id_idx index for O(log n) lookup.
@@ -215,7 +215,7 @@ func (d *DB) GetRecordedStreamBySession(sessionID string) (*RecordedStream, erro
 
 // GetRecordedStreamByBenchRun fetches a `recorded_streams` row by
 // bench_run_id (internal FK lookup; bench_run_id is NOT a public
-// --replay arg per D13/D20). Returns ErrNotFound when no row matches.
+// --replay arg). Returns ErrNotFound when no row matches.
 // Uses the recorded_streams_bench_run_id_idx index for O(log n) lookup.
 //
 // bench_run_id is scanned via sql.NullString for consistency with

@@ -1,5 +1,5 @@
 // dedup-blank stage: collapses runs of 2+ consecutive blank lines to a
-// single blank line (M4 plan Task 4 / D14).
+// single blank line.
 //
 // A "blank line" is a line whose trimmed content is empty — that is,
 // the line is either empty (just "\n") or contains only whitespace

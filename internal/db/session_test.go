@@ -1,12 +1,12 @@
-// Table-driven unit tests for internal/db/session.go (Task 2).
+// Table-driven unit tests for internal/db/session.go.
 //
 // Acceptance coverage:
 //
-//   - AC 4 (non-existent hint returns ErrNotFound with no side effect):
+//   - non-existent hint returns ErrNotFound with no side effect:
 //     TestResolveSessionID_NonExistentHint
 //
 // The session-file path (empty hint, ppid-keyed lookup) is covered
-// indirectly via the OpenNamedSession round-trip below; the AC only
+// indirectly via the OpenNamedSession round-trip below; the contract only
 // requires the sidecar-path failure mode. Each subtest uses stdlib
 // testing only.
 package db
@@ -20,7 +20,7 @@ import (
 	"github.com/jgabor/ktx/internal/cli/testutil"
 )
 
-// TestResolveSessionID_NonExistentHint covers AC 4: ResolveSessionID
+// TestResolveSessionID_NonExistentHint covers the contract: ResolveSessionID
 // with a non-empty hint that does not name an existing session row
 // must return ErrNotFound. The contract has two parts:
 //
@@ -31,7 +31,7 @@ import (
 //     $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json — the file is the
 //     hook-path cache, not the sidecar path's responsibility.
 //
-// The D9 envelope + D1 revised session identity contract rely on
+// The session identity contract relies on
 // this exact behaviour: a sidecar caller that supplies a
 // non-existent session_id must NOT silently create a new session,
 // because the caller is asserting an identity it expects to find.
@@ -176,8 +176,8 @@ func TestResolveSessionID_NonExistentHint(t *testing.T) {
 
 	t.Run("empty hint + stale ppid file opens a fresh session (closes the old)", func(t *testing.T) {
 		// The hook path's "stale file → close old, create new"
-		// branch is the path-specific close behaviour from D1
-		// revised. We seed a session file with a non-existent
+		// branch is the path-specific close behaviour.
+		// We seed a session file with a non-existent
 		// session_id; canReuse must return false (SessionExists
 		// false), and openSession must allocate a fresh id without
 		// touching the stale entry.

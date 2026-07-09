@@ -1,9 +1,9 @@
 // `ktx get` — the QUERY command that fetches a persisted record by nanoid
-// ID and prints it in a human-friendly form (Decisions 2, 4, 7, 8).
+// ID and prints it in a human-readable form.
 //
 // `ktx get` is the query-layer counterpart to the I/O primitive `ktx read`:
 // both address the same records by the same 16-char nanoid (tool_calls
-// checked first, sessions second; Decision 7). The difference is the
+// checked first, sessions second). The difference is the
 // output contract:
 //
 //   - ktx read (I/O):   raw JSON, always. The I/O surface is mechanical;
@@ -13,17 +13,17 @@
 //     where the agent's "show me" ergonomics live.
 //
 // Today, --format text is a one-line-per-field summary (key: value), which
-// keeps the get-vs-read difference minimal but visible. Future M3/M4 query
+// keeps the get-vs-read difference minimal but visible. Future query
 // commands (ktx bench, ktx compress) can layer richer formatting on the
 // same `text` convention without changing the I/O surface.
 //
-// Database path resolution (Decision 8): KTX_DB env > default. ktx get
+// Database path resolution: KTX_DB env > default. ktx get
 // does not take a --path flag; per-invocation override lives on `ktx db`.
 //
-// Task 6 migration: the verb registers via dispatch.Register with
+// The verb registers via dispatch.Register with
 // NeedsDB=true (dispatcher opens the DB) and FormatDefault=FormatJSON.
-// The legacy runGetWith remains the test seam (Task 3 surface) and
-// still opens its own DB so existing Task 3 tests pass unchanged.
+// The legacy runGetWith remains the test seam and
+// still opens its own DB so existing direct-call tests pass unchanged.
 // The shared core is getLogic, returning (any, error); the dispatcher
 // routes the typed error through its printError + exitCodeOf pipeline.
 package cli
@@ -38,7 +38,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runGetWith is the testable core of `ktx get` (Task 3 seam).
+// runGetWith is the testable core of `ktx get`.
 // stdout/stderr are injected so the get flow can be exercised without
 // touching os.Stdout. The body parses --format, opens the database,
 // delegates to getLogic for the actual work, and translates the
@@ -46,7 +46,7 @@ import (
 func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	// Subcommand-local --format. The dispatch module's runRegisteredVerb
 	// already extracts --format from the args when the verb is invoked
-	// through dispatch; for direct runGetWith callers (Task 3 seam),
+	// through dispatch; for direct runGetWith callers,
 	// extract it here so the call sites have identical semantics.
 	format, rest := extractFormat(args)
 	if format == "" {
@@ -152,8 +152,7 @@ func getCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // init registers `ktx get` with the dispatch module. After init runs,
-// the verb is reachable through runWith (the legacy commandIndex entry
-// in cli.go is removed in Task 6).
+// the verb is reachable through runWith.
 func init() {
 	Register("get", RegisterOptions{
 		Description:   "query a record by ID (formatted)",
@@ -169,10 +168,10 @@ func init() {
 // (input, output) are rendered on a single line — the query layer's
 // text format is for skim-reading, not for inspecting large payloads.
 //
-// For tool_call records, an M2 cost-publication section is appended
-// below the M1 fields when at least one M2 pointer is non-nil
-// (Task 5, AC3). The section is silent when all M2 fields are NULL
-// (AC4): no "0" / "n/a" / blank placeholders — absence is signalled
+// For tool_call records, a cost-publication section is appended
+// below the main fields when at least one cost pointer is non-nil.
+// The section is silent when all cost fields are NULL:
+// no "0" / "n/a" / blank placeholders — absence is signalled
 // by the section's non-existence. Pointer discipline is preserved
 // end-to-end: a nil pointer is not coerced to 0 just because the
 // renderer is rendering a column.
@@ -187,14 +186,14 @@ func printGetText(w io.Writer, record any) {
 		fmt.Fprintf(w, "content_hash: %s\n", r.ContentHash)
 		fmt.Fprintf(w, "timestamp:    %s\n", r.Timestamp)
 		fmt.Fprintf(w, "event_type:   %s\n", r.EventType)
-		// M2 cost-publication section (Task 5). Rendered only when at
-		// least one M2 pointer is non-nil. Field name column is padded
-		// to 12 chars after the 2-space indent, matching the M1
+		// Cost-publication section. Rendered only when at
+		// least one cost pointer is non-nil. Field name column is padded
+		// to 12 chars after the 2-space indent, matching the main
 		// section's visual alignment.
 		if r.TokensIn != nil || r.TokensOut != nil || r.Cost != nil ||
 			r.LatencyMs != nil || r.Model != nil || r.Provider != nil {
 			fmt.Fprintln(w, "")
-			fmt.Fprintln(w, "M2:")
+			fmt.Fprintln(w, "Costs:")
 			if r.TokensIn != nil {
 				fmt.Fprintf(w, "  tokens_in:    %d\n", *r.TokensIn)
 			}
@@ -240,7 +239,7 @@ func printGetHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Fetches a record (tool_call or session) from the database by its 16-char")
 	fmt.Fprintln(w, "nanoid ID. tool_calls are checked first; sessions are checked second")
-	fmt.Fprintln(w, "(Decision 7: both tables are addressed by nanoid ID).")
+	fmt.Fprintln(w, "(both tables are addressed by nanoid ID).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
 	fmt.Fprintln(w, "  json (default)  the record as stored, one JSON object on stdout")

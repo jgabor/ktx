@@ -8,8 +8,7 @@ date: "2026-06-19"
 # USD, computed as `cost / max(score, epsilon)` where `epsilon = 1e-9`. The
 # methodology is deterministic given the inputs below; a third party
 # reproducing the run with the same inputs must produce the same headline
-# number. See .agentera/decisions.yaml Decision 12 for the reasoning and
-# the rejected alternatives.
+# number.
 scope: |
   Single-task, single-trial, exact-match scoring. The headline number is
   `cost_per_correct` USD, computed as `cost / max(score, epsilon)` where
@@ -21,17 +20,17 @@ scope: |
 #
 # A third party reading this file plus the persisted `bench_runs` row and
 # the persisted `tool_calls` rows can compute `cost_per_correct` exactly.
-# M3 task 4 pins the real values by filling the placeholders below; v1
-# ships the shape contract.
+# Real values fill the placeholders below once a run lands; v1 ships the
+# shape contract.
 inputs:
   agent:
-    binary: opencode              # OpenCode 1.17.8 (M2 wrapper evidence)
+    binary: opencode              # OpenCode 1.17.8 (wrapper evidence)
     version: "1.17.8"
   model:
     id: "glm-5.2-short-fast-flex"     # Re-pinned 2026-06-29 by resonera addendum (prior "claude-sonnet-4-20250514" was hallucinated by an earlier cycle, not a user choice; Anthropic model EOL on 2026-06-30)
     provider: "neuralwatt"            # Re-pinned 2026-06-29 by resonera addendum
   task:
-    identifier: "addition_v1"        # Pinned by M3 plan Task 4
+    identifier: "addition_v1"        # Pinned
     prompt: "What is 2+2?"
     expected_output: "4"
   scoring:
@@ -47,8 +46,8 @@ inputs:
       known good output will reject any token-level variance. Future
       methodology versions may introduce fuzzy matching.
   ktx:
-    binary_version: "<ktx version — pinned at M3 close>"
-    commit: "<commit SHA — pinned at M3 close>"
+    binary_version: "<ktx version — populated at first real run>"
+    commit: "<commit SHA — populated at first real run>"
   bench_runs:
     row_id: "<row id — populated when a real run lands>"
 

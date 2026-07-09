@@ -1,4 +1,4 @@
-// head stage: keeps the first N lines of input (M4 plan Task 4 / D14).
+// head stage: keeps the first N lines of input.
 //
 // Default N is 10 (matching the Unix `head` tool's default). Configurable
 // via the `head:N` token form (e.g. `head:100`). Input shorter than N

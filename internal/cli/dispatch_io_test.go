@@ -1,6 +1,6 @@
 // End-to-end dispatch tests for the I/O verbs (ktx read, ktx write).
 //
-// Task 5 migration: these verbs now register via dispatch.Register
+// These verbs register via dispatch.Register
 // (read.go:init, write.go:init) instead of being entries in the legacy
 // commands slice. The regression net for that move is this file: every
 // test here invokes the binary through runWith (the production entry
@@ -53,7 +53,7 @@ func injectStdin(t *testing.T, payload string) {
 	})
 }
 
-// TestRunWith_ReadDispatched covers the AC of the Task 5 plan: a
+// TestRunWith_ReadDispatched covers: a
 // persisted record fetched via `ktx read <id>` (dispatch path) emits
 // the raw JSON record on stdout and exits 0; a missing record exits 2
 // with a not-found envelope; --help exits 0 and renders help.
@@ -138,7 +138,7 @@ func TestRunWith_ReadDispatched(t *testing.T) {
 	})
 }
 
-// TestRunWith_WriteDispatched covers the AC of the Task 5 plan for
+// TestRunWith_WriteDispatched covers
 // `ktx write`: a tool_call envelope on stdin persists the record and
 // prints the record ID as raw JSON; a session_close envelope updates
 // the session's ended_at and prints the session_id as raw JSON.
@@ -220,7 +220,7 @@ func TestRunWith_WriteDispatched(t *testing.T) {
 		writeTestDB(t)
 
 		// Missing the "id" field — the most-strict required field
-		// per Decision 9 (it is the persisted primary key).
+		// (it is the persisted primary key).
 		injectStdin(t, `{"tool":"bash","timestamp":"2026-06-18T12:00:00Z","input":"x","output":"y"}`)
 
 		var stdout, stderr bytes.Buffer

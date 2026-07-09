@@ -8,10 +8,10 @@ import (
 
 // TestExternalStage_CatIsIdentity verifies that /bin/cat configured
 // as an external stage returns its stdin verbatim (exit 0, stdout =
-// stdin). This is the core M5 acceptance: a user plugin named via
+// stdin). This is the core acceptance: a user plugin named via
 // [[plugin]] runs as a pipeline stage.
 //
-// D22 Phase 2 note: cat is passthrough, so the anti-worsening gate fires
+// Note: cat is passthrough, so the anti-worsening gate fires
 // (output not smaller than input) and discards the result — res.Out is
 // the input (unchanged) and Ran is empty. The output==input assertion
 // still holds (the gate returns the input verbatim). The fact that the
@@ -53,11 +53,11 @@ func TestExternalStage_EchoWithArg(t *testing.T) {
 	}
 }
 
-// TestExternalStage_EmptyOutputGuard verifies D14 invariant 1: /bin/true
+// TestExternalStage_EmptyOutputGuard verifies invariant 1: /bin/true
 // exits 0 but produces empty stdout. The runner's empty-output guard
 // discards the empty output and passes the input through unchanged.
 //
-// D22 Phase 2 note: a downstream shrinking stage ("shrink") is appended
+// Note: a downstream shrinking stage ("shrink") is appended
 // so the pipeline RESULT is smaller than the input — otherwise the
 // anti-worsening gate would discard the passthrough result and clear Ran,
 // hiding the guard's pass-through. The shrink stage receives the
@@ -92,7 +92,7 @@ func TestExternalStage_EmptyOutputGuard(t *testing.T) {
 	}
 }
 
-// TestExternalStage_NonZeroExitPassthrough verifies D14 invariant 2:
+// TestExternalStage_NonZeroExitPassthrough verifies invariant 2:
 // /bin/false exits non-zero. The runner treats this as a
 // stage-execution-error and passes the input through unchanged. A
 // warning is written to the Warn writer.
@@ -132,7 +132,7 @@ func TestExternalStage_NonZeroExitPassthrough(t *testing.T) {
 // external subprocess runs instead of the Go stage.
 //
 // The input is intentionally longer than either stage's output so the
-// anti-worsening gate (D22 Phase 2) does not discard the result: a
+// anti-worsening gate does not discard the result: a
 // pipeline whose output is not smaller than its input is treated as
 // passthrough. The override contract is observable only when the gate
 // lets the external stage's output through.

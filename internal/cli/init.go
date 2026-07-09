@@ -1,19 +1,19 @@
-// `ktx init` — the runtime adapter installer (Decisions 1 revised, 2 revised).
+// `ktx init` — the runtime adapter installer.
 // It writes a thin adapter that an agent runtime loads natively, so events
 // flow into the ktx store without requiring the user to wrap the agent.
 //
-// Three integration paths share one store (D1 revised): the wrapper
+// Three integration paths share one store: the wrapper
 // (`ktx run`) parses --format json, the sidecar (`ktx write`) accepts
 // caller-supplied payloads, and adapters (`ktx init`) install native
-// hook points in the agent runtime. Not all runtimes use hooks (D2
-// revised) — OpenCode uses in-process TS plugins, Codex would use
+// hook points in the agent runtime. Not all runtimes use hooks —
+// OpenCode uses in-process TS plugins, Codex would use
 // AGENTS.md injection — so `init` is broader than the former `hook
 // install` namespace it replaces.
 //
-// PoC scope (Decision 1 revised, OpenCode focus): only `ktx init opencode`
+// PoC scope (OpenCode focus): only `ktx init opencode`
 // is implemented. The plugin subscribes to `tool.execute.after` and calls
-// `ktx write` per event (Decision 9 flat JSON). The plugin noops when
-// KTX_SESSION_ID is set (Decision 10) so the wrapper path remains the
+// `ktx write` per event (flat JSON). The plugin noops when
+// KTX_SESSION_ID is set so the wrapper path remains the
 // single source of truth — both paths active means one of them wins.
 //
 // Flags:
@@ -34,12 +34,12 @@
 // Path resolution (project): ./.opencode/plugins/ktx.ts relative to the
 // invocation's CWD.
 //
-// Task 7 migration: the verb registers via dispatch.Register with
+// The verb registers via dispatch.Register with
 // NeedsDB=false (no ktx database involvement) and a PreParse hook that
 // delegates to the hand-rolled parseInitArgs. The hook stashes the
 // parsed initFlags + runtime into a package-level scratch variable;
 // the verb body reads the scratch and dispatches. The hook keeps
-// parseInitArgs intact (Task 1-3 seam); the verb's only
+// parseInitArgs intact (test seam); the verb's only
 // responsibility after PreParse is to invoke the action and surface
 // typed errors to the dispatcher's printError + exitCodeOf pipeline.
 package cli
@@ -90,9 +90,9 @@ func initScratchReset() {
 // platforms; the version bump on the Go side automatically refreshes
 // the installed file when users re-run `ktx init opencode`.
 //
-// Behaviour (D22, firm):
+// Behaviour:
 //   - Listens on `tool.execute.after` and calls `ktx hook` (not `ktx
-//     write`) via Bun.spawn with stdin = D9 flat JSON tool_call.
+//     write`) via Bun.spawn with stdin = flat JSON tool_call.
 //   - `ktx hook` persists the original and returns a JSON envelope:
 //     {"output": string, "compressed_id": string|null, "source_id": string}.
 //   - The plugin mutates `output.output` to the envelope's `output`
@@ -100,15 +100,15 @@ func initScratchReset() {
 //     (2026-07-01): output.output mutation propagates to the agent context.
 //   - On any ktx hook failure (non-zero exit, unparseable stdout,
 //     ktx-not-in-PATH), the plugin leaves output.output unchanged —
-//     D14 conservative failure at the plugin level.
-//   - Noops when KTX_SESSION_ID is present (D10 dedup): when the user
+//     conservative failure at the plugin level.
+//   - Noops when KTX_SESSION_ID is present: when the user
 //     is also running the agent under `ktx run`, the wrapper owns
 //     persistence and the plugin would otherwise double-record.
 //   - `session_id` is left empty so ktx hook resolves session identity
-//     by ppid file lookup (Decision 1 revised, hook path).
-//   - `content_hash` is left empty so ktx hook can compute it (D3).
+//     by ppid file lookup.
+//   - `content_hash` is left empty so ktx hook can compute it.
 //   - Generates a fresh 16-char lowercase alpha nanoid matching the
-//     alphabet of Decision 3.
+//     alphabet.
 //
 // Presence check (rtk pattern): the plugin factory verifies the ktx
 // binary is in PATH before registering the tool.execute.after hook. If
@@ -173,7 +173,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 
   return {
     "tool.execute.after": async (input: any, output: any) => {
-      // Noop when wrapper is active (D10 dedup)
+      // Noop when wrapper is active
       if (process.env.KTX_SESSION_ID) return
 
       const toolName = input.tool || "unknown"
@@ -192,14 +192,14 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 
       const envelope = await ktxHook(JSON.stringify(record))
       if (envelope) {
-        // Mutate output.output to the compressed bytes (D22).
+        // Mutate output.output to the compressed bytes.
         // The agent sees the compressed output instead of the original.
         if (output && typeof output === "object" && "output" in output) {
           output.output = envelope.output
         }
       }
       // On failure (envelope === null), output is left unchanged.
-      // The agent sees the original tool output (D14 conservative failure).
+      // The agent sees the original tool output (conservative failure).
     },
   }
 }
@@ -217,7 +217,7 @@ type initFlags struct {
 	showHelp  bool
 }
 
-// runInitWith is the testable core of `ktx init` (Task 3 seam).
+// runInitWith is the testable core of `ktx init` (test seam).
 // stdout/stderr are injected so the install/uninstall/show flow can
 // be exercised without touching os.Stdout/Stderr or the real home
 // directory. The body calls parseInitArgs (hand-rolled flag walker),
@@ -321,7 +321,7 @@ func opencodeGlobalPluginPath() (string, error) {
 // opencodeProjectPluginPath returns the project-scoped plugin path,
 // always relative to the current working directory. The CWD is captured
 // at call time (not process start) so the path is correct even after a
-// future chdir; for M1 the wrapper never chdirs.
+// future chdir; the wrapper never chdirs.
 func opencodeProjectPluginPath() string {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -383,7 +383,7 @@ func initOpencodeUninstall(globalPath, projectPath, format string, stdout, stder
 // user should know about.
 //
 // Exit codes: 0 when at least one location has the file, 2 when neither
-// has it. The 2 exit code is the standard "not-found" class (D4) so
+// has it. The 2 exit code is the standard "not-found" class so
 // scripts can branch on it.
 func initOpencodeShow(globalPath, projectPath, format string, stdout, stderr io.Writer) error {
 	hasGlobal := fileExists(globalPath)
@@ -534,8 +534,7 @@ func initCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // init registers `ktx init` with the dispatch module. After init runs,
-// the verb is reachable through runWith (the legacy commandIndex entry
-// in cli.go is removed in Task 7).
+// the verb is reachable through runWith.
 func init() {
 	Register("init", RegisterOptions{
 		Description: "install a runtime adapter",
@@ -583,7 +582,7 @@ func parseInitArgs(args []string) (initFlags, string, error) {
 // dispatcher's action contract: --project scopes, --uninstall removes,
 // --show reports.
 func printInitHelp(w io.Writer) {
-	fmt.Fprintln(w, "ktx init — install a runtime adapter (Decision 2 revised)")
+	fmt.Fprintln(w, "ktx init — install a runtime adapter")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx init <runtime> [flags]")
 	fmt.Fprintln(w)
@@ -603,8 +602,8 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  2  not found (--show found nothing, --uninstall found nothing)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The installed plugin subscribes to tool.execute.after and shells out to")
-	fmt.Fprintln(w, "`ktx write` for each event (Decision 9 flat JSON). When KTX_SESSION_ID is")
-	fmt.Fprintln(w, "set in the environment (Decision 10), the plugin noops so the wrapper")
+	fmt.Fprintln(w, "`ktx write` for each event. When KTX_SESSION_ID is")
+	fmt.Fprintln(w, "set in the environment, the plugin noops so the wrapper")
 	fmt.Fprintln(w, "path remains the single source of truth.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")

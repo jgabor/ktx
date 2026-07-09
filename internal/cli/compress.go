@@ -1,50 +1,48 @@
-// `ktx compress` — the M4 explicit-verb compression entry point
-// (Decisions 2, 8, 14 / ROADMAP M4). Reads a source tool_call by id,
-// runs the configured pipeline (passthrough when no ktx.toml is
-// present — D14 default), and persists a new row in the `compressed`
-// reversibility-layer table whose `source_id` references the
-// original tool_calls.id. Prints the new compressed id to stdout as
-// raw JSON (the I/O-primitive contract: no --format flag, raw JSON,
-// matching `ktx write` / `ktx read`).
+// `ktx compress` — the explicit-verb compression entry point. Reads a
+// source tool_call by id, runs the configured pipeline (passthrough
+// when no ktx.toml is present — the no-config default), and persists
+// a new row in the `compressed` reversibility-layer table whose
+// `source_id` references the original tool_calls.id. Prints the new
+// compressed id to stdout as raw JSON (the I/O-primitive contract: no
+// --format flag, raw JSON, matching `ktx write` / `ktx read`).
 //
 // Flow:
 //
 //  1. Load ktx.toml (config.Load — precedence project-root > user-level >
-//     passthrough; the D14 no-config default yields an empty pipeline).
+//     passthrough; the no-config default yields an empty pipeline).
 //  2. Fetch the source tool_call by id (db.GetToolCall). Source-not-found
 //     maps to exit 2 (ErrNotFound → CodeNotFound).
 //  3. Build the pipeline Runner: RegisterBuiltins on a fresh Registry
 //     + the config's stage list + Warn=stderr (so unknown-stage
 //     skips surface to the user).
 //  4. runner.Run([]byte(source.Output)) — applies the linear pipeline
-//     with the three D14 conservative-on-failure invariants enforced
+//     with the three conservative-on-failure invariants enforced
 //     at runtime (empty-output guard, stage-error passthrough,
 //     unknown-stage skip). Identity pipeline → output == input.
-//  5. Compute content_hash = db.ContentHash(compressedOutput) (D9
-//     integrity rule: hash the artifact that was stored, NOT the
-//     source output — so a downstream integrity check compares the
-//     hash of the persisted output against the persisted hash).
+//  5. Compute content_hash = db.ContentHash(compressedOutput) — hash
+//     the artifact that was stored, NOT the source output, so a
+//     downstream integrity check compares the hash of the persisted
+//     output against the persisted hash.
 //  6. Build pipeline JSON = pipeline.EncodePipelineJSON(res.Ran) — a
-//     record of what stages ran (D14).
-//  7. Generate a fresh 16-char nanoid for the compressed row (D3).
+//     record of what stages ran.
+//  7. Generate a fresh 16-char nanoid for the compressed row.
 //  8. db.InsertCompressed — the source_id FK is enforced
 //     (foreign_keys=1); a miss (should not happen here since step 2
 //     fetched the source) maps to ErrSourceNotFound → exit 2.
 //  9. Print the compressed id as raw JSON to stdout.
 //
-// Reversibility is captured at the pipeline BOUNDARY, not per stage
-// (D14): `ktx decompress <compressed-id>` resolves source_id and
-// returns the source's original output bytes verbatim regardless of
-// how many lossy stages ran. So compress(source) != source is
-// possible (a lossy stage changed the bytes) AND
-// decompress(compress(source)) == source holds (the original is
-// retained in tool_calls).
+// Reversibility is captured at the pipeline BOUNDARY, not per stage:
+// `ktx decompress <compressed-id>` resolves source_id and returns the
+// source's original output bytes verbatim regardless of how many lossy
+// stages ran. So compress(source) != source is possible (a lossy stage
+// changed the bytes) AND decompress(compress(source)) == source holds
+// (the original is retained in tool_calls).
 //
-// Task 6 migration: the verb registers via dispatch.Register with
-// NeedsDB=true (dispatcher opens the DB) and PassthroughStdout=true
-// (verb writes raw JSON, no envelope wrapping). The legacy
-// runCompressWith remains the test seam and still opens its own DB
-// so the existing Task 1-5 tests' shape is preserved.
+// The verb registers via dispatch.Register with NeedsDB=true
+// (dispatcher opens the DB) and PassthroughStdout=true (verb writes
+// raw JSON, no envelope wrapping). The legacy runCompressWith remains
+// the test seam and still opens its own DB so the existing tests'
+// shape is preserved.
 package cli
 
 import (
@@ -60,16 +58,16 @@ import (
 	"github.com/jgabor/ktx/internal/pipeline/stages"
 )
 
-// sourceFailureWarning is emitted when the D15 pre-pipeline gate skips
-// compression because is_error is true on the source tool_call.
+// sourceFailureWarning is emitted when the pre-pipeline failure gate
+// skips compression because is_error is true on the source tool_call.
 const sourceFailureWarning = "ktx: warning: source tool_call indicates failure, compression skipped\n"
 
-// runCompressWith is the testable core of `ktx compress` (Task 6
-// seam). stdout/stderr are injected so the compress flow can be
-// exercised without touching os.Stdout or os.Stderr. The body
-// opens the database, delegates to compressLogic with a nil
-// Registry (use the default built-in registry), and translates the
-// returned error into an exit-code + stderr envelope.
+// runCompressWith is the testable core of `ktx compress`. stdout/stderr
+// are injected so the compress flow can be exercised without touching
+// os.Stdout or os.Stderr. The body opens the database, delegates to
+// compressLogic with a nil Registry (use the default built-in
+// registry), and translates the returned error into an exit-code +
+// stderr envelope.
 func runCompressWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	path, err := dbpkg.ResolvePath("")
 	if err != nil {
@@ -140,19 +138,19 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 	return nil, nil
 }
 
-// compressPipeline is the shared D15-gate + D14-pipeline core used by
+// compressPipeline is the shared failure-gate + pipeline core used by
 // both `ktx compress` (via compressCore) and `ktx hook` (via hookLogic).
-// It loads ktx.toml, builds the runner, applies the D15 pre-pipeline
-// gate (is_error → skip), runs the D14 pipeline (with D14
+// It loads ktx.toml, builds the runner, applies the pre-pipeline
+// failure gate (is_error → skip), runs the pipeline (with the
 // conservative-on-failure invariants enforced by the runner), and
 // returns the compressed output, pipeline JSON, whether the pipeline
 // actually transformed the output, and any config error.
 //
 // The caller owns the INSERT decision: `ktx compress` always inserts a
 // compressed row (the user explicitly invoked it); `ktx hook` inserts
-// only when transformed == true (passthrough / D15-skip → no row). This is
-// the DRY split — the pipeline logic is shared, the persistence policy
-// is caller-owned.
+// only when transformed == true (passthrough / failure-gate skip → no
+// row). This is the DRY split — the pipeline logic is shared, the
+// persistence policy is caller-owned.
 //
 // reg is the pipeline.Registry to resolve stage names against. A nil reg
 // means "build the default built-in registry" (RegisterBuiltins on a
@@ -163,11 +161,11 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 // of 0 means no timeout (used by `ktx compress`, which is off-line and
 // can be Ctrl-C'd). A positive timeout (used by `ktx hook`, which is on
 // the agent's critical path) cancels the pipeline on expiry and returns
-// source.output unchanged with a stderr warning (D22). The goroutine
-// running the pipeline is fire-and-forget on timeout — built-in stages
-// complete near-instantly; a future LLM summarizer plugin that hangs
-// will leak until the external process exits. Proper context cancellation
-// through the pipeline runner is a Phase 2 concern.
+// source.output unchanged with a stderr warning. The goroutine running
+// the pipeline is fire-and-forget on timeout — built-in stages complete
+// near-instantly; a future LLM summarizer plugin that hangs will leak
+// until the external process exits. Proper context cancellation through
+// the pipeline runner is a future concern.
 func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.Writer, timeout time.Duration) (compressedOutput, pipelineJSON string, transformed bool, err error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -176,7 +174,7 @@ func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.
 
 	runner := buildCompressRunner(reg, cfg, stderr)
 
-	// D15 pre-pipeline gate: skip compression for failed tool calls.
+	// Pre-pipeline failure gate: skip compression for failed tool calls.
 	if source.IsError != nil && *source.IsError {
 		fmt.Fprint(stderr, sourceFailureWarning)
 		return source.Output, "[]", false, nil
@@ -188,7 +186,7 @@ func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.
 	}
 
 	// Run the pipeline. When a timeout is set, race the pipeline against
-	// a timer; on timeout, return source.output unchanged (D22).
+	// a timer; on timeout, return source.output unchanged.
 	type runResult struct{ res pipeline.Result }
 	ch := make(chan runResult, 1)
 	go func() {
@@ -218,7 +216,7 @@ func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.
 
 // compressCore is the shared pipeline+persist core used by `ktx compress`
 // (via compressLogic). It fetches the source tool_call by id, delegates
-// to compressPipeline for the D15 gate + D14 pipeline, ALWAYS persists a
+// to compressPipeline for the failure gate + pipeline, ALWAYS persists a
 // compressed row (the user explicitly invoked compress), and returns the
 // compressed id, output bytes, pipeline JSON, and any error.
 //
@@ -271,9 +269,9 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 
 // buildCompressRunner constructs the pipeline.Runner for `ktx compress`.
 // A nil reg builds a fresh Registry with the built-in stages registered
-// (the D14 "OFF by default" contract: the stages exist but do not run
+// (the "OFF by default" contract: the stages exist but do not run
 // unless named in the config) — strip-ansi, dedup-blank, normalize,
-// head, truncate plus the Phase 2 deterministic stages keep-ends, grep,
+// head, truncate plus the deterministic stages keep-ends, grep,
 // grep-v, token-budget. A non-nil reg (test injection) is used as-is so
 // tests can substitute fake stages without re-wiring the built-in
 // registration. The runner's Warn writer is set to stderr so
@@ -281,10 +279,10 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 // user (the runner owns the warning text; the verb just provides the
 // sink).
 //
-// M5: when cfg has Plugins (from [[plugin]] blocks), each is registered
+// When cfg has Plugins (from [[plugin]] blocks), each is registered
 // via RegisterExternalBuilder AFTER RegisterBuiltins so
 // last-writer-wins lets a user plugin shadow a built-in of the same
-// name (D21). The registry is rebuilt per-invocation — removing the
+// name. The registry is rebuilt per-invocation — removing the
 // [[plugin]] block from ktx.toml and re-running restores the built-in.
 func buildCompressRunner(reg *pipeline.Registry, cfg *config.Config, stderr io.Writer) *pipeline.Runner {
 	if reg == nil {
@@ -325,7 +323,7 @@ func compressCommandFunc(ctx *DispatchContext) (any, error) {
 // NeedsDB=true: compress reads a source tool_call and writes a
 // compressed row in one invocation.
 // PassthroughStdout=true: the verb writes the compressed id as raw
-// JSON (I/O primitive, D2/8). The dispatcher's printError still
+// JSON (I/O primitive). The dispatcher's printError still
 // goes to stderr on failure.
 func init() {
 	Register("compress", RegisterOptions{
@@ -340,21 +338,22 @@ func init() {
 // `ktx write --help` / `ktx read --help` style so the I/O
 // primitives present consistently. Cross-references `ktx decompress`
 // (the reversal primitive) so users can discover the pair without
-// reading the design rationale (D2's --help cross-reference rule).
+// reading the design rationale (the --help cross-reference rule).
 func printCompressHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx compress — compress a tool_call's output (reversible)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx compress <id>")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Reads the source tool_call by id, runs the configured compression")
-	fmt.Fprintln(w, "pipeline (passthrough when no ktx.toml is present — the D14 default), and")
+	fmt.Fprintln(w, "pipeline (passthrough when no ktx.toml is present — the no-config default), and")
 	fmt.Fprintln(w, "persists a new row in the `compressed` table whose source_id references")
 	fmt.Fprintln(w, "the original. Prints the new compressed id to stdout as raw JSON.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Reversibility: ktx decompress <compressed-id> resolves source_id and")
 	fmt.Fprintln(w, "returns the source's original output bytes verbatim. Reversal is")
-	fmt.Fprintln(w, "out-of-band by id (D14), not per-stage; the original is retained in")
-	fmt.Fprintln(w, "tool_calls (append-only, D7+D9+D3). compress(source) may differ from")
+	fmt.Fprintln(w, "out-of-band by id, not per-stage; the original is retained in")
+	fmt.Fprintln(w, "tool_calls (append-only originals with content_hash for integrity and")
+	fmt.Fprintln(w, "nanoid addressability). compress(source) may differ from")
 	fmt.Fprintln(w, "source when a lossy stage runs, but decompress(compress(x)) == x holds.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Pipeline configuration: ktx.toml at the project root or")
@@ -363,15 +362,15 @@ func printCompressHelp(w io.Writer) {
 	fmt.Fprintln(w, "  stages = [\"strip-ansi\", \"head:100\"]")
 	fmt.Fprintln(w, "Empty/missing config → passthrough pipeline (output == source.output).")
 	fmt.Fprintln(w, "Built-in stages: strip-ansi, dedup-blank, head (head:N), truncate")
-	fmt.Fprintln(w, "(truncate:N), normalize; Phase 2 deterministic stages: keep-ends (keep-ends:N:M),")
+	fmt.Fprintln(w, "(truncate:N), normalize; deterministic stages: keep-ends (keep-ends:N:M),")
 	fmt.Fprintln(w, "grep (grep:pattern), grep-v (grep-v:pattern), token-budget (token-budget:N).")
-	fmt.Fprintln(w, "Each OFF unless named in [pipeline.default].stages (D14).")
+	fmt.Fprintln(w, "Each OFF unless named in [pipeline.default].stages.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Conservative-on-failure (D14, runtime-enforced by the runner):")
+	fmt.Fprintln(w, "Conservative-on-failure (runtime-enforced by the runner):")
 	fmt.Fprintln(w, "  - empty-output guard: a stage emptying non-empty output is discarded")
 	fmt.Fprintln(w, "  - stage-error passthrough: an errored or panicking stage passes input through")
 	fmt.Fprintln(w, "  - unknown-stage skip: an unresolved stage name is skipped with a warning")
-	fmt.Fprintln(w, "  - anti-worsening gate (Phase 2): a pipeline result not smaller than input is discarded")
+	fmt.Fprintln(w, "  - anti-worsening gate: a pipeline result not smaller than input is discarded")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
 	fmt.Fprintln(w, "  0  compressed row persisted; id printed")

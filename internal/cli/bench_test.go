@@ -1,13 +1,13 @@
 // Table-driven tests for `ktx bench` (internal/cli/bench.go).
 //
-// Acceptance coverage:
+// Coverage:
 //
-//   - AC 5 (Task 3): an empty bench_runs table queried via
-//     runBenchReportImpl emits a JSON envelope on stdout where
-//     `headline` is null and `rows` is []. The test calls the impl
-//     directly (not the runBenchReport wrapper) per the spec: the
-//     wrapper adds the database-open + format-arg parsing, but the
-//     envelope shape is the impl's responsibility.
+//   - An empty bench_runs table queried via runBenchReportImpl emits
+//     a JSON envelope on stdout where `headline` is null and `rows`
+//     is []. The test calls the impl directly (not the runBenchReport
+//     wrapper) per the spec: the wrapper adds the database-open +
+//     format-arg parsing, but the envelope shape is the impl's
+//     responsibility.
 //
 // Companion cases assert: list mode with a single row carries a
 // non-null headline and a one-element rows array; single-row mode
@@ -38,7 +38,7 @@ func benchTestDB(t *testing.T) *dbpkg.DB {
 	return d
 }
 
-// TestRunBenchReportImpl_EmptyEnvelope covers AC 5: an empty
+// TestRunBenchReportImpl_EmptyEnvelope covers: an empty
 // bench_runs table produces a JSON envelope with `headline: null`
 // and `rows: []`. The envelope is the only output on stdout; the
 // implementation does not write to stderr on success.
@@ -48,7 +48,7 @@ func benchTestDB(t *testing.T) *dbpkg.DB {
 // without the runBenchReport wrapper's database-open + flag-parse
 // surface.
 func TestRunBenchReportImpl_EmptyEnvelope(t *testing.T) {
-	t.Run("AC5: empty bench_runs → headline=null, rows=[]", func(t *testing.T) {
+	t.Run("empty bench_runs → headline=null, rows=[]", func(t *testing.T) {
 		d := benchTestDB(t)
 		var stdout, stderr bytes.Buffer
 
@@ -58,9 +58,9 @@ func TestRunBenchReportImpl_EmptyEnvelope(t *testing.T) {
 		}
 
 		// Decode the JSON envelope. The shape is the
-		// plan-spec contract: {headline, methodology_version,
+		// contract: {headline, methodology_version,
 		// rows}. The headline for an empty table with no
-		// filter is null (the AC6 contract).
+		// filter is null (the absence-marker contract).
 		var env struct {
 			Headline           *float64  `json:"headline"`
 			MethodologyVersion *string   `json:"methodology_version"`
@@ -79,8 +79,8 @@ func TestRunBenchReportImpl_EmptyEnvelope(t *testing.T) {
 			t.Errorf("rows = %d, want 0", len(env.Rows))
 		}
 		// methodology_version for an empty table with no
-		// filter is null (the AC6 contract: "the absence
-		// marker").
+		// filter is null (the absence-marker contract:
+		// "the absence marker").
 		if env.MethodologyVersion != nil {
 			t.Errorf("methodology_version = %v, want null", *env.MethodologyVersion)
 		}
@@ -90,7 +90,7 @@ func TestRunBenchReportImpl_EmptyEnvelope(t *testing.T) {
 		}
 	})
 
-	t.Run("AC5 companion: filter on empty table → rows=[], filter surfaces in envelope", func(t *testing.T) {
+	t.Run("companion: filter on empty table → rows=[], filter surfaces in envelope", func(t *testing.T) {
 		// When --methodology is set against an empty table,
 		// methodology_version falls back to the filter
 		// string (per the spec).
@@ -123,9 +123,9 @@ func TestRunBenchReportImpl_EmptyEnvelope(t *testing.T) {
 }
 
 // TestRunBenchReportImpl_NonEmpty covers the list-mode shape with
-// data. Companion to AC 5: a single row's headline is the
-// row's cost / max(score, 1e-9), the rows array carries the row
-// directly, methodology_version is the row's value.
+// data. Companion to the empty-table case: a single row's headline
+// is the row's cost / max(score, 1e-9), the rows array carries the
+// row directly, methodology_version is the row's value.
 func TestRunBenchReportImpl_NonEmpty(t *testing.T) {
 	t.Run("list mode with one row → headline=row's value, rows=[B]", func(t *testing.T) {
 		d := benchTestDB(t)
@@ -251,7 +251,7 @@ func TestRunBenchReportImpl_NonEmpty(t *testing.T) {
 // TestRunBenchWith_Dispatch covers the bench subcommand dispatcher
 // surface: --help, unknown subcommand, no subcommand. The bench
 // run/report specific paths are covered by runBenchReportImpl
-// (above) and the runBenchRun flow (not in scope for Task 3 —
+// (above) and the runBenchRun flow (out of scope here —
 // bench run requires a methodology file and an agent binary).
 func TestRunBenchWith_Dispatch(t *testing.T) {
 	t.Run("no args prints help and exits 0", func(t *testing.T) {
@@ -288,8 +288,8 @@ func TestRunBenchWith_Dispatch(t *testing.T) {
 	})
 }
 
-// TestCaptureStreamForBenchRun covers the D20 recording contract's
-// capture helper (plan Task 3). The helper persists a RecordedStream row
+// TestCaptureStreamForBenchRun covers the recording contract's
+// capture helper. The helper persists a RecordedStream row
 // linked to a session + bench_run, with content_hash recomputed from
 // stream_text. The test seeds an in-memory DB with a session + bench_run,
 // calls the helper directly (no subprocess), and verifies the row
@@ -340,7 +340,7 @@ func TestCaptureStreamForBenchRun(t *testing.T) {
 		if got.StreamText != string(streamBytes) {
 			t.Errorf("StreamText = %q, want %q", got.StreamText, string(streamBytes))
 		}
-		// content_hash must equal SHA-256 of stream_text (D9 integrity).
+		// content_hash must equal SHA-256 of stream_text (integrity).
 		recomputed := dbpkg.ContentHash(got.StreamText)
 		if got.ContentHash != recomputed {
 			t.Errorf("ContentHash mismatch: persisted %q, recomputed %q", got.ContentHash, recomputed)
@@ -355,7 +355,7 @@ func TestCaptureStreamForBenchRun(t *testing.T) {
 }
 
 // mustNewIDBench is the bench_test.go equivalent of mustNewID in
-// internal/db/persist_test.go — generates a D3 nanoid for test fixtures.
+// internal/db/persist_test.go — generates a nanoid for test fixtures.
 func mustNewIDBench(t *testing.T) string {
 	t.Helper()
 	id, err := dbpkg.NewID()
@@ -365,8 +365,7 @@ func mustNewIDBench(t *testing.T) string {
 	return id
 }
 
-// TestRunBenchReplay_Integration covers the D20 --replay codepath (plan
-// Tasks 4+5). Seeds an in-memory DB with a session + bench_runs row +
+// TestRunBenchReplay_Integration covers the --replay codepath. Seeds an in-memory DB with a session + bench_runs row +
 // recorded_streams row whose stream_text is a known-good JSONL fixture,
 // then invokes runBenchReplay directly (NOT the runBenchRun wrapper;
 // the wrapper would spawn a subprocess). Asserts:
@@ -377,7 +376,7 @@ func mustNewIDBench(t *testing.T) string {
 func TestRunBenchReplay_Integration(t *testing.T) {
 	d := benchTestDB(t)
 
-	// Seed a session with tool_call_count=0 (the D16 fixture had 0
+	// Seed a session with tool_call_count=0 (the fixture had 0
 	// tools — the model answered "4" without invoking any tools).
 	sessionID := mustNewIDBench(t)
 	if err := d.InsertSession(&dbpkg.Session{
@@ -389,7 +388,7 @@ func TestRunBenchReplay_Integration(t *testing.T) {
 		t.Fatalf("InsertSession: %v", err)
 	}
 
-	// Seed a bench_runs row with the D16-evidence metrics.
+	// Seed a bench_runs row with the evidence metrics.
 	benchID := mustNewIDBench(t)
 	originalCost := 0.002597825
 	if err := d.InsertBenchRun(&dbpkg.BenchRun{
@@ -477,7 +476,7 @@ func TestRunBenchReplay_Integration(t *testing.T) {
 	}
 }
 
-// TestRunBenchReplay_NotFound covers the D4 not-found contract:
+// TestRunBenchReplay_NotFound covers the not-found contract:
 // --replay with a session-id that has no recorded_streams row exits 2.
 func TestRunBenchReplay_NotFound(t *testing.T) {
 	d := benchTestDB(t)
@@ -683,7 +682,7 @@ func seedReplayForCompression(t *testing.T, d *dbpkg.DB, output string, isErr bo
 // package).
 func itoa(n int) string { return strconv.Itoa(n) }
 
-// TestRunBenchReplay_Compression covers Task 4 AC 1: a ktx.toml that
+// TestRunBenchReplay_Compression covers: a ktx.toml that
 // configures compression stages makes the replay envelope include a
 // 'compression' section with baseline_bytes, compressed_bytes, ratio,
 // bytes_saved, and pipeline. The pipeline shrinks the tool_use output,
@@ -737,7 +736,7 @@ stages = ["head:2"]
 	}
 }
 
-// TestRunBenchReplay_CompressionIdentity covers Task 4 AC 2: with no
+// TestRunBenchReplay_CompressionIdentity covers: with no
 // ktx.toml (passthrough), the compression section reports ratio=1.0,
 // bytes_saved=0, and an empty pipeline.
 func TestRunBenchReplay_CompressionIdentity(t *testing.T) {
@@ -783,11 +782,11 @@ func TestRunBenchReplay_CompressionIdentity(t *testing.T) {
 	}
 }
 
-// TestRunBenchReplay_CompressionD15Gate covers Task 4 AC 4: a recorded
-// tool_call with is_error=true is NOT compressed (D15 gate); its
+// TestRunBenchReplay_CompressionFailureGate covers: a recorded
+// tool_call with is_error=true is NOT compressed (failure gate); its
 // compressed_bytes contribution equals the original, so the aggregate
 // ratio is 1.0 even when a compression pipeline is configured.
-func TestRunBenchReplay_CompressionD15Gate(t *testing.T) {
+func TestRunBenchReplay_CompressionFailureGate(t *testing.T) {
 	d := benchTestDB(t)
 	hookChdirTemp(t)
 	hookWriteFile(t, "ktx.toml", `[pipeline.default]
@@ -818,15 +817,15 @@ stages = ["head:2"]
 		t.Errorf("baseline_bytes = %v, want %d", baseline, len(output))
 	}
 	if compressed != baseline {
-		t.Errorf("compressed_bytes = %v, want %v (D15 gate: is_error → original, not compressed)", compressed, baseline)
+		t.Errorf("compressed_bytes = %v, want %v (failure gate: is_error → original, not compressed)", compressed, baseline)
 	}
 	if ratio != 1.0 {
-		t.Errorf("ratio = %v, want 1.0 (D15 gate skips compression)", ratio)
+		t.Errorf("ratio = %v, want 1.0 (failure gate skips compression)", ratio)
 	}
 }
 
-// TestRunBenchReplay_RealWorldPipeline covers Task 5 AC 2: a recorded
-// session replayed with the real-world Phase 2 pipeline configured
+// TestRunBenchReplay_RealWorldPipeline covers: a recorded
+// session replayed with the real-world pipeline configured
 // reports ratio < 1.0 and bytes_saved > 0 (the pipeline actually
 // reduced context). Companion to TestHook_RealSessionEndToEnd, which
 // exercises the live hook path; this proves the A/B measurement

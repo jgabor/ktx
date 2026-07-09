@@ -1,5 +1,5 @@
 // normalize stage: normalizes mixed line endings and trims trailing
-// whitespace from each line (M4 plan Task 4 / D14).
+// whitespace from each line.
 //
 // Behavior:
 //   - \r\n (Windows CRLF) → \n (Unix LF)

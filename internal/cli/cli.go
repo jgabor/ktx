@@ -1,19 +1,19 @@
 // Package cli implements ktx's command tree: global flag parsing, subcommand
 // dispatch, the error envelope, and the help/version surfaces.
 //
-// Task 1 wires the dispatch and the `ktx db path` path-resolution contract
-// (Decision 8). All other subcommands (run, write, read, get, list, init,
+// The dispatch and the `ktx db path` path-resolution contract
+// live here. All other subcommands (run, write, read, get, list, init,
 // doctor) are stubbed and exit 1 with a usage error so the surface is
 // honest about what is not yet built.
 //
-// Global flags (Decision 4 as superseded by Decision 8 — --store dropped):
+// Global flags (--store dropped):
 //
 //	--format string   text|json (default json)
 //	--quiet, -q       suppress run summary
 //	--help, -h        show help
 //	--version, -v     show version
 //
-// Exit codes (Decision 4):
+// Exit codes:
 //
 //	0 = ok, 1 = usage, 2 = not-found, 3 = conflict, 4 = internal
 package cli
@@ -41,7 +41,7 @@ type Options struct {
 	// RecordStream is set by `ktx run --record-stream` (opt-in stream
 	// capture for the wrapper path). It is a verb-local flag threaded
 	// through Options so executeRun can branch on it without growing
-	// its parameter list. Zero value (false) preserves the D1
+	// its parameter list. Zero value (false) preserves the
 	// transparent-proxy default (ktx run does not persist the stream).
 	RecordStream bool
 }
@@ -57,18 +57,18 @@ type command struct {
 
 // commands is the dispatch table in the order shown by `ktx --help`.
 //
-// Task 5 migration: `ktx read` and `ktx write` were removed from this
+// `ktx read` and `ktx write` were removed from this
 // table and re-registered through dispatch.Register (see read.go's
 // init() and write.go's init()). They are still routed by runWith,
 // because the dispatch registry is consulted before the legacy
 // commandIndex.
 //
-// Task 6 migration: `ktx get`, `ktx list`, `ktx run`, and `ktx bench`
+// `ktx get`, `ktx list`, `ktx run`, and `ktx bench`
 // were also removed from this table and re-registered through
 // dispatch.Register (see get.go's init(), list.go's init(),
 // run.go's init(), and bench.go's init()).
 //
-// Task 7 migration: `ktx init`, `ktx db`, `ktx prices`, and
+// `ktx init`, `ktx db`, `ktx prices`, and
 // `ktx doctor` were the final four verbs to migrate. They are now
 // re-registered through dispatch.Register (see init.go's init(),
 // db.go's init(), prices.go's init(), and doctor.go's init()). The
@@ -133,10 +133,10 @@ func runWith(args []string, stdout, stderr io.Writer) int {
 	name := rest[0]
 	verbArgs := rest[1:]
 
-	// New dispatch registry wins: Tasks 5-7 migrate the legacy verbs
-	// onto dispatch.Register; until then, the legacy commandIndex
-	// below covers them. Verbs registered via dispatch.Register (the
-	// Task 4 demo verbs, plus anything new added after this plan)
+	// New dispatch registry wins: the legacy verbs are migrated onto
+	// dispatch.Register; the legacy commandIndex
+	// below covers any not yet migrated. Verbs registered via dispatch.Register
+	// (demo verbs, plus anything new added after this plan)
 	// are picked up here. If a verb lives in both tables the registry
 	// wins — the legacy entry is dead code the moment a verb migrates.
 	//
@@ -204,7 +204,7 @@ func isFlagErr(err error) bool {
 }
 
 // printHelp writes the top-level help, listing every subcommand. After
-// Task 7 emptied the legacy commands slice, the help list is sourced
+// the legacy commands slice was emptied, the help list is sourced
 // from the dispatch registry (RegisteredVerbs). Verbs that registered
 // with a non-empty Description are listed; verbs without a description
 // are still callable but omitted from the help (rare; legacy behaviour

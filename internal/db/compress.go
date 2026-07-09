@@ -1,14 +1,13 @@
-// Persistence methods for the `compressed` reversibility-layer table
-// (M4 plan Task 2 / Decision 14).
+// Persistence methods for the `compressed` reversibility-layer table.
 //
 // The compressed table holds compressed artifacts SEPARATE from
-// tool_calls (M3 bench cost-aggregates tool_calls; injecting zero-cost
+// tool_calls (bench cost-aggregates tool_calls; injecting zero-cost
 // non-evidence rows would corrupt the cost-summed evidence set). Each
 // row references its source via source_id, which REFERENCES
 // tool_calls(id); with foreign_keys=1 (enforced by Open's DSN), a
 // compressed row cannot point at a non-existent tool_call.
 //
-// Three methods form the M4 persistence contract:
+// Three methods form the persistence contract:
 //
 //   - InsertCompressed  — writes one row, mapping a missing source_id
 //     to ErrNotFound (the FK rejection surfaces as ErrNotFound so the
@@ -21,14 +20,14 @@
 //     the source's original output bytes verbatim. ErrNotFound on miss.
 //
 // Compressed.content_hash is recomputed from the compressed OUTPUT
-// (not the source output) per D9's integrity rule — the caller passes
+// (not the source output) per the integrity rule — the caller passes
 // the already-hashed value via db.ContentHash(compressedOutput). This
 // keeps the hash faithful to what was stored, so a downstream
 // integrity check (ktx doctor / future verification) compares the
 // hash of the persisted output against the persisted hash.
 //
 // Compressed.pipeline is a JSON array of stage names that ran
-// (D14: "a record of what stages ran"). It is passed as a marshalled
+// ("a record of what stages ran"). It is passed as a marshalled
 // string by the caller; the runner records the names of stages that
 // successfully ran, and the caller passes that JSON through verbatim.
 // Storing it as TEXT with the JSON shape keeps it inspectable without
@@ -42,8 +41,8 @@ import (
 	"fmt"
 )
 
-// Compressed is one row of the `compressed` table (D14 reversibility
-// layer / M4 plan Task 1).
+// Compressed is one row of the `compressed` table (the reversibility
+// layer).
 //
 // JSON tags follow the column names so the CLI layer can marshal
 // directly without an intermediate struct (the row IS the JSON shape
@@ -84,12 +83,12 @@ type Compressed struct {
 // a compressed-id miss.
 var ErrSourceNotFound = fmt.Errorf("db: compressed source_id not found: %w", ErrNotFound)
 
-// InsertCompressed persists one `compressed` row (M4 plan Task 2).
+// InsertCompressed persists one `compressed` row.
 // The transaction follows the same BEGIN/Commit + defer Rollback
 // idempotency pattern as PersistToolCall and InsertBenchRun. The
 // INSERT writes all 6 columns; the caller is responsible for
-// generating id via NewID (D3), computing ContentHash via
-// ContentHash(compressedOutput) (D9 integrity rule, recomputed from
+// generating id via NewID, computing ContentHash via
+// ContentHash(compressedOutput) (the integrity rule, recomputed from
 // the compressed output), and marshalling Pipeline as a JSON array.
 //
 // A source_id that does not exist in tool_calls is rejected by the
@@ -147,7 +146,7 @@ func (d *DB) InsertCompressed(c *Compressed) error {
 	return nil
 }
 
-// GetCompressed fetches a `compressed` row by id (M4 plan Task 2).
+// GetCompressed fetches a `compressed` row by id.
 // Returns ErrNotFound when no row matches so the CLI layer maps a
 // missing compressed id to exit 2 (the `ktx decompress` not-found
 // path). The returned struct mirrors the persisted row's JSON shape.
@@ -169,24 +168,23 @@ func (d *DB) GetCompressed(id string) (*Compressed, error) {
 	return &c, nil
 }
 
-// GetSourceOutput is the reversal primitive `ktx decompress` invokes
-// (M4 plan Task 2 / D14). Given a source tool_call id (the
+// GetSourceOutput is the reversal primitive `ktx decompress` invokes.
+// Given a source tool_call id (the
 // compressed.source_id), it returns the source's original output
-// bytes verbatim — the public-surface reversal satisfying ROADMAP
-// M4 acceptance: "a compressed output can be retrieved as the
-// original bytes via the public surface."
+// bytes verbatim — the public-surface reversal: "a compressed
+// output can be retrieved as the original bytes via the public surface."
 //
-// The reversal is OUT-OF-BAND by id (D14): there is no per-stage
+// The reversal is OUT-OF-BAND by id: there is no per-stage
 // inverse, no in-band hash marker, no CCR hash store. The
-// tool_calls table holds append-only originals (D7 INSERT-only,
-// D9 content_hash for integrity, D3 nanoid addressability); the
+// tool_calls table holds append-only originals (INSERT-only,
+// content_hash for integrity, nanoid addressability); the
 // compressed row records what compressed it (source_id + pipeline
 // JSON), and decompression is a single indexed SELECT against
 // tool_calls.output.
 //
 // Returns ErrNotFound when the source row does not exist (exit 2
 // surface). A source id is always a tool_call id — there is no
-// session-source compressed artifact in M4; the reversal primitive
+// session-source compressed artifact; the reversal primitive
 // is scoped to tool_calls only.
 func (d *DB) GetSourceOutput(sourceID string) (string, error) {
 	var output string

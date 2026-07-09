@@ -1,22 +1,22 @@
-// Persistence and query methods for `bench_runs` (M3 plan Task 4).
+// Persistence and query methods for `bench_runs`.
 //
-// bench_runs is the M3 headline store — one row per `ktx bench run`
-// invocation. The schema lives in db.go (D12 reproducibility contract):
+// bench_runs is the headline bench store — one row per `ktx bench run`
+// invocation. The schema lives in db.go (reproducibility contract):
 //
-//	id TEXT PRIMARY KEY          -- D3 16-char nanoid
+//	id TEXT PRIMARY KEY          -- 16-char nanoid
 //	agent TEXT                   -- the agent binary / model spec
 //	model TEXT                   -- the model id
 //	task TEXT                    -- the task identifier
 //	score REAL                   -- exact-match: 1.0 or 0.0
 //	tokens_in INTEGER            -- SUM of underlying tool_calls
 //	tokens_out INTEGER           -- SUM of underlying tool_calls
-//	cost REAL                    -- SUM of underlying tool_calls (D11
+//	cost REAL                    -- SUM of underlying tool_calls (cost
 //	                               derivation when the sum is NULL)
-//	methodology_version TEXT     -- D12: references
-//	                               .agentera/bench/methodology-v1.yaml
+//	methodology_version TEXT     -- references
+//	                               tools/bench/methodology-v1.yaml
 //	timestamp INTEGER            -- Unix epoch seconds
 //
-// Cost derivation (Decision 11) follows the same write-time soft-fail
+// Cost derivation follows the same write-time soft-fail
 // pattern as PersistToolCall.deriveCost: when the caller passes a
 // BenchRun with a nil Cost pointer AND non-nil TokensIn, TokensOut,
 // and Model, the helper looks up the cached (provider-derived, model)
@@ -27,13 +27,13 @@
 // pinned model is claude-sonnet-4-20250514; the methodology file
 // names it as `provider: anthropic`). When the cache does not have
 // the price, Cost stays nil and the bench row is inserted with cost
-// NULL — D11 soft-fail contract preserved.
+// NULL — soft-fail contract preserved.
 //
-// Pointer discipline mirrors ToolCall (Task 3): Cost is *float64
+// Pointer discipline mirrors ToolCall: Cost is *float64
 // so the absent-vs-zero distinction survives the SQL round-trip. A
 // nil Cost pointer round-trips to SQL NULL; a non-nil pointer to 0
 // round-trips to SQL 0. The other BenchRun columns are required by
-// the D12 contract (every bench row carries an id, agent, model, task,
+// the bench contract (every bench row carries an id, agent, model, task,
 // methodology_version, and timestamp), so they use plain types and
 // are surfaced as the empty string / zero value when absent — the
 // caller (the CLI layer) is responsible for populating them.
@@ -47,7 +47,7 @@ import (
 
 // ErrBenchMethodologyNotFound is returned by LookupMethodologyVersion
 // when the methodology file is absent or unreadable. The CLI layer
-// maps this to ExitNotFound (exit 2) per plan Task 4 AC7: missing
+// maps this to ExitNotFound (exit 2): missing
 // methodology is a hard failure, not a soft fail — the bench headline
 // has no meaning without the methodology reference.
 var ErrBenchMethodologyNotFound = errors.New("db: bench methodology file not found")
@@ -59,12 +59,12 @@ var ErrBenchMethodologyNotFound = errors.New("db: bench methodology file not fou
 // NOT applied to the pointer fields: nil Cost and the zero-value
 // optional fields must round-trip through JSON as `null` (the absent-
 // vs-zero distinction is the same round-trip contract the bench_runs
-// schema inherits from tool_calls, D9).
+// schema inherits from tool_calls).
 //
 // The JSON shape mirrors what `ktx bench report` emits in its `rows`
-// array (D12: each row carries id, agent, model, task, score, cost,
+// array (each row carries id, agent, model, task, score, cost,
 // methodology_version, timestamp). Tokens_in and tokens_out are
-// surfaced too because they are the inputs to the cost (D11
+// surfaced too because they are the inputs to the cost (the
 // reconstructability contract); the bench report's row view will
 // include them.
 type BenchRun struct {
@@ -110,14 +110,14 @@ func (d *DB) deriveBenchCost(b *BenchRun) {
 		return
 	}
 	// Caller-supplied cost wins. A non-nil pointer round-trips
-	// verbatim (D11: the caller owns the cost evidence).
+	// verbatim (the caller owns the cost evidence).
 	if b.Cost != nil {
 		return
 	}
 	// Bench-side pre-filter: both tokens zero → leave Cost nil.
 	// The bench-run rollup aggregates tokens from underlying
 	// tool_calls; an all-zero rollup is a valid "no measurement"
-	// state (D11 NULL preservation for the bench headline), and
+	// state (NULL preservation for the bench headline), and
 	// the cost-stays-nil semantic is the contract the bench
 	// report depends on. The deriver's "zero is a real value"
 	// semantic is the persist path's; the bench path overrides
@@ -170,14 +170,14 @@ func providerModel(model string) string {
 		// non-Anthropic models will replace this with a table-driven
 		// lookup. For v1 this branch only fires on typos or future
 		// models added before this switch is extended — both of which
-		// are out-of-scope failures (D11 soft-fail: cost stays nil).
+		// are out-of-scope failures (soft-fail: cost stays nil).
 		return "anthropic"
 	}
 }
 
-// InsertBenchRun persists a single bench_runs row (M3 plan Task 4).
+// InsertBenchRun persists a single bench_runs row.
 // The transaction is the same idempotency pattern as PersistToolCall:
-// the BEGIN/Commit pair with defer tx.Rollback() matches the M2 review
+// the BEGIN/Commit pair with defer tx.Rollback() matches the review
 // fix-up pattern (tx.Rollback is a no-op after a successful Commit).
 //
 // deriveBenchCost runs before the transaction begins; the in-memory
@@ -195,7 +195,7 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 		return errors.New("db: insert bench_run: id is empty")
 	}
 
-	d.deriveBenchCost(b) // write-time D11 derivation; soft-fail
+	d.deriveBenchCost(b) // write-time cost derivation; soft-fail
 
 	tx, err := d.db.Begin()
 	if err != nil {
@@ -224,7 +224,7 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 }
 
 // QueryBenchRuns returns all bench_runs rows ordered by timestamp
-// ascending, with id as the stable tie-breaker. D12's contract is
+// ascending, with id as the stable tie-breaker. The bench contract is
 // "rows array, oldest first" — the CLI's `bench report` output
 // renders rows in this order so the table view is chronological.
 //
@@ -275,7 +275,7 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 
 // QueryBenchRun fetches a single bench_runs row by id. Returns
 // ErrNotFound when no row matches, so the CLI layer can map a
-// missing id to ExitNotFound (exit 2, D4 contract). The same
+// missing id to ExitNotFound (exit 2). The same
 // pointer-discipline rules apply as QueryBenchRuns (nil Cost when
 // the column is NULL).
 func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
@@ -328,7 +328,7 @@ func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
 //
 // The sessionID parameter scopes the aggregation to a single wrapper
 // invocation's session — bench run opens a fresh session per
-// invocation (D1), so all tool_calls belonging to the bench run's
+// invocation, so all tool_calls belonging to the bench run's
 // underlying agent invocation share that session_id.
 func (d *DB) SummarizeBenchToolCalls(sessionID string) (tokensIn, tokensOut int64, cost *float64, model, provider string, err error) {
 	var (

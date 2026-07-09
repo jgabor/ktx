@@ -2,12 +2,12 @@
 #
 # scripts/validate-bench.sh
 #
-# Wrapper Capture Validation Gate (Decision 16, amended by Decision 17).
+# Wrapper Capture Validation Gate.
 #
-# Reads the methodology-pinned inputs from .agentera/bench/methodology-v1.yaml,
+# Reads the methodology-pinned inputs from tools/bench/methodology-v1.yaml,
 # invokes `ktx run opencode run --format json -m <provider/id> <prompt>`
 # against real opencode, then emits five per-layer [PASS]/[FAIL] verdicts
-# per the D17-amended contract:
+# per the contract:
 #
 #   L1 session-capture      ktx list shows a session whose agent == 'opencode'
 #                            and whose started_at is within +/- 60s of the
@@ -16,27 +16,26 @@
 #
 #   L2 stream-token-        on the captured JSONL stream that `ktx run` teed
 #       evidence             to the script's stdout, at least one line with
-#       (D17-amended)        type=step_finish has part.tokens.input > 0 AND
+#                            type=step_finish has part.tokens.input > 0 AND
 #                            part.tokens.output > 0.
 #                            Does NOT assert tokens reached tool_call rows
 #                            (NULL-by-design for OpenCode 1.17.8 tool_use
 #                            events; see internal/parser/parser.go:150-158
-#                            and .agentera/verification/m2-acceptance.md §3
 #                            'Surprises').
 #                            Evidence source: captured stdout.
 #
 #   L3 stream-cost-         on the same captured stream, either:
 #       evidence              (a) at least one type=step_finish line carries
-#       (D17-amended)            part.cost as a number (provider-reported
+#                               part.cost as a number (provider-reported
 #                                 cost non-NULL in the stream), OR
-#                            (b) D11 derivation is reconstructable from the
+#                            (b) derived cost is reconstructable from the
 #                                 captured step_finish tokens plus the
 #                                 methodology-pinned model identifier
 #                                 against the ktx prices cache
 #                                 ($XDG_DATA_HOME/ktx/prices.json), with
 #                                 script-computed derived cost > 0.
 #                                 Cache-miss is treated as a real L3 FAIL
-#                                 per D11 environmental-failure policy.
+#                                 under the environmental-failure policy.
 #                            Evidence source: captured stdout + ktx prices cache.
 #
 #   L4 parser-1-to-1        the count of type=tool_use lines in the captured
@@ -57,21 +56,21 @@
 #   1   any-FAIL  (final stderr line: 'validation=FAIL [<comma-separated failing layers>]')
 #   2   usage error
 #
-# Constraints (D16): must NOT modify ktx source under internal/ or cmd/;
+# Constraints: must NOT modify ktx source under internal/ or cmd/;
 #   only this script file is created. ktx.db is accessed ONLY via the public
 #   `ktx list` / `ktx get` CLI surface; no direct SQLite access.
 #
 # Prerequisites assumed present (the script does NOT validate them): opencode
 #   binary on PATH; neuralwatt API credentials for opencode with the pinned
 #   model reachable; `ktx prices` cache populated for the pinned model (else
-#   L3 will FAIL on cache-miss per D11 environmental-failure policy, which
-#   is the actionable signal D17 wants the gate to surface — not bypassed).
+#   L3 will FAIL on cache-miss per the environmental-failure policy, which
+#   is the actionable signal the gate is meant to surface — not bypassed).
 #
 # Usage:
 #   scripts/validate-bench.sh [--methodology <path>]
 #
 # Defaults:
-#   --methodology  .agentera/bench/methodology-v1.yaml
+#   --methodology  tools/bench/methodology-v1.yaml
 #
 # Test mode (no API call):
 #   KTX_VALIDATE_DRY_RUN=1 scripts/validate-bench.sh
@@ -81,7 +80,7 @@
 
 set -uo pipefail
 
-METHODOLOGY_PATH=".agentera/bench/methodology-v1.yaml"
+METHODOLOGY_PATH="tools/bench/methodology-v1.yaml"
 while [ $# -gt 0 ]; do
     case "$1" in
         --methodology)
@@ -161,7 +160,7 @@ log "wall_start_utc=$WALL_START_ISO"
 # ---------------------------------------------------------------------------
 # Invoke ktx run, capturing stdout and stderr. The wrapper's run summary
 # also lands on stderr (ktx run convention) so we don't interfere.
-# Timeout 5 minutes per D16 overall acceptance criterion AC1.
+# Timeout 5 minutes (overall acceptance criterion).
 # ---------------------------------------------------------------------------
 if [ "${KTX_VALIDATE_DRY_RUN:-0}" != "1" ]; then
     log "invoking: ktx run opencode run --format json -m $MODEL_SPEC '$TASK_PROMPT'"
@@ -170,7 +169,7 @@ if [ "${KTX_VALIDATE_DRY_RUN:-0}" != "1" ]; then
         RC=$?
         log "ktx run exited non-zero (rc=$RC); stderr head:"
         head -5 "$STDERR_LOG" >&2 || true
-        # The run failed; per D16 any environmental failure is reported as a
+        # The run failed; any environmental failure is reported as a
         # [FAIL] verdict for affected layers, then the same VALIDATION=FAIL
         # envelope and exit 1 — no silent success on partial data.
         emit "[FAIL]" "L1 session-capture: ktx run failed (rc=$RC) before a session row could be queried"
@@ -237,7 +236,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Layer 2: stream-token-evidence (D17-amended)
+# Layer 2: stream-token-evidence
 #   At least one type=step_finish line has part.tokens.input > 0 AND
 #   part.tokens.output > 0.
 # ---------------------------------------------------------------------------
@@ -285,14 +284,14 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Layer 3: stream-cost-evidence (D17-amended)
+# Layer 3: stream-cost-evidence
 #   Either:
 #     (a) at least one type=step_finish line carries part.cost as a number,
 #   OR
-#     (b) D11 derivation reconstructable: derived_cost =
+#     (b) derived cost reconstructable: derived_cost =
 #         (sum_tokens_in * in_price + sum_tokens_out * out_price) / 1e6 > 0
-#   against the ktx prices cache. Cache-miss treated as real L3 FAIL per
-#   D11 environmental-failure policy.
+#   against the ktx prices cache. Cache-miss treated as a real L3 FAIL
+#   under the environmental-failure policy.
 # ---------------------------------------------------------------------------
 L3_INFO="$(python3 - "$STDOUT_LOG" "$MODEL_PROVIDER" "$MODEL_ID" <<'PY'
 import sys, json, os
@@ -386,9 +385,9 @@ L3_NSF=$(printf    '%s' "$L3_INFO" | jq -r '.n_step_finish    // 0')
 if [ "$L3A_PRESENT" = "true" ]; then
     emit "[PASS]" "L3 stream-cost-evidence: branch (a) — step_finish.part.cost present as number (value=$L3A_VAL) on captured stream; $L3_NSF step_finish lines; sum_tokens_in=$L3_SUMIN sum_tokens_out=$L3_SUMOUT; cache=$L3_CACHE"
 elif [ "$L3B_VAL" != "null" ] && [ "$L3B_VAL" != "none" ] && python3 -c 'import sys; sys.exit(0 if float(sys.argv[1])>0 else 1)' "$L3B_VAL" 2>/dev/null; then
-    emit "[PASS]" "L3 stream-cost-evidence: branch (b) — D11-derived cost=$L3B_VAL from stream tokens_in=$L3_SUMIN tokens_out=$L3_SUMOUT model=$MODEL_SPEC (cache=$L3_CACHE)"
+    emit "[PASS]" "L3 stream-cost-evidence: branch (b) — derived cost=$L3B_VAL from stream tokens_in=$L3_SUMIN tokens_out=$L3_SUMOUT model=$MODEL_SPEC (cache=$L3_CACHE)"
 else
-    emit "[FAIL]" "L3 stream-cost-evidence: branch (a) absent (no step_finish.part.cost as number) AND branch (b) failed (derived=$L3B_VAL, $L3_NSF step_finish lines, sum_tokens_in=$L3_SUMIN sum_tokens_out=$L3_SUMOUT, cache=$L3_CACHE) — cache-miss is treated as a real L3 FAIL per D11 environmental-failure policy"
+    emit "[FAIL]" "L3 stream-cost-evidence: branch (a) absent (no step_finish.part.cost as number) AND branch (b) failed (derived=$L3B_VAL, $L3_NSF step_finish lines, sum_tokens_in=$L3_SUMIN sum_tokens_out=$L3_SUMOUT, cache=$L3_CACHE) — cache-miss is treated as a real L3 FAIL under the environmental-failure policy"
 fi
 
 # ---------------------------------------------------------------------------
@@ -409,8 +408,8 @@ with open(sys.argv[1]) as f:
         except Exception:
             continue
         if o.get('type') == 'text':
-            # OpenCode nests the answer under part.text (see .agentera/
-            # verification/fixtures/opencode-tool-use.jsonl line 5). The
+            # OpenCode nests the answer under part.text (see
+            # tools/bench/fixtures/opencode-tool-use.jsonl line 5). The
             # flat-fallback path also accepts a top-level 'content' field.
             part = o.get('part') or {}
             txt = (part.get('text')

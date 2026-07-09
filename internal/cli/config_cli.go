@@ -1,4 +1,4 @@
-// `ktx config` — inspect active pipeline configuration (D21 / M5).
+// `ktx config` — inspect active pipeline configuration.
 //
 // Reads-only verb that returns the parsed ktx.toml's pipeline
 // configuration. Pair with `ktx plugin list` (which shows the
@@ -51,7 +51,7 @@ func configShow(format string, stdout io.Writer) (any, error) {
 		profiles = map[string][]string{}
 	}
 	// Always include "default" even when the ktx.toml has no
-	// [pipeline.default] table — the D14 passthrough path.
+	// [pipeline.default] table — the passthrough path.
 	if _, ok := profiles["default"]; !ok {
 		profiles["default"] = nil
 	}
@@ -132,7 +132,7 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage: ktx config show [--format json|text]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Shows the pipeline stages configured in ktx.toml, per profile.")
-	fmt.Fprintln(w, "The 'default' profile is always present (the D14 passthrough path when no")
+	fmt.Fprintln(w, "The 'default' profile is always present (the passthrough path when no")
 	fmt.Fprintln(w, "ktx.toml exists).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Format:")

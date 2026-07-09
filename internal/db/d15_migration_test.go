@@ -1,4 +1,5 @@
-// D15 failure-signal schema migration tests (Decision 15 AC1).
+// Failure-signal schema migration tests (the failure-signal columns
+// added to tool_calls).
 package db
 
 import (
@@ -6,12 +7,12 @@ import (
 	"testing"
 )
 
-// TestOpen_D15FailureSignalMigration covers AC1: a pre-D15 database
-// (tool_calls without exit_code/is_error) picks up the columns on open,
+// TestOpen_FailureSignalMigration covers the contract: an older
+// database without exit_code/is_error picks up the columns on open,
 // existing rows have NULL for both, and a second migrate is a no-op.
-func TestOpen_D15FailureSignalMigration(t *testing.T) {
-	t.Run("pre-D15 schema gains exit_code and is_error idempotently", func(t *testing.T) {
-		path := t.TempDir() + "/pre-d15.db"
+func TestOpen_FailureSignalMigration(t *testing.T) {
+	t.Run("unmigrated schema gains exit_code and is_error idempotently", func(t *testing.T) {
+		path := t.TempDir() + "/pre-failure-signal.db"
 		raw, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=foreign_keys(1)")
 		if err != nil {
 			t.Fatalf("open raw sqlite: %v", err)
@@ -66,7 +67,7 @@ func TestOpen_D15FailureSignalMigration(t *testing.T) {
 
 		d, err := Open(path)
 		if err != nil {
-			t.Fatalf("Open pre-D15 db: %v", err)
+			t.Fatalf("Open older db: %v", err)
 		}
 		t.Cleanup(func() { _ = d.Close() })
 
@@ -79,13 +80,13 @@ func TestOpen_D15FailureSignalMigration(t *testing.T) {
 				t.Fatalf("pragma_table_info tool_calls.%s: %v", col.Name, err)
 			}
 			if present != 1 {
-				t.Fatalf("tool_calls column %q missing after D15 migration", col.Name)
+				t.Fatalf("tool_calls column %q missing after failure-signal migration", col.Name)
 			}
 		}
 
 		got, err := d.GetToolCall(tcID)
 		if err != nil {
-			t.Fatalf("GetToolCall pre-D15 row: %v", err)
+			t.Fatalf("GetToolCall older-schema row: %v", err)
 		}
 		if got.ExitCode != nil {
 			t.Errorf("ExitCode = %v, want nil (existing row NULL = absent)", got.ExitCode)

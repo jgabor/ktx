@@ -1,4 +1,4 @@
-// `ktx prices` — the price-cache namespace (Decision 11 / plan Task 2).
+// `ktx prices` — the price-cache namespace.
 //
 // The price cache at $XDG_DATA_HOME/ktx/prices.json is normally managed
 // by the write path (PersistToolCall's deriveCost helper fetches on
@@ -9,14 +9,14 @@
 //     (model was added to models.dev after the cache was written);
 //   - the cache is corrupt or stale and the user wants a clean
 //     refetch without writing a tool_call to trigger it;
-//   - the cache TTL policy (deferred per D11 reasoning) is eventually
+//   - the cache TTL policy (deferred) is eventually
 //     driven by a future `ktx prices refresh` cron; the manual hook
 //     is the PoC substitute.
 //
 // The command's exit-code contract differs from the write path's
 // soft-fail contract: the user explicitly invoked `prices update`,
-// so a fetch failure is a hard error (ExitInternal = 4, plan Task 2
-// AC8). The write path's soft-fail (cost stays NULL, no error
+// so a fetch failure is a hard error (ExitInternal = 4).
+// The write path's soft-fail (cost stays NULL, no error
 // returned) is the right behavior for an agent-driven tool_call
 // because the agent is not waiting on a manual decision; the manual
 // hook's hard-fail is the right behavior here because the user IS
@@ -32,11 +32,11 @@
 //	ktx prices show      print the cache contents (debug; deferred
 //	                     to a future cycle if needed)
 //
-// Task 7 migration: the verb registers via dispatch.Register with
+// The verb registers via dispatch.Register with
 // NeedsDB=false (it only touches the price-cache file, not the ktx
 // database) and FormatDefault=FormatJSON (the manual-refresh output
 // is machine-parseable by default). The legacy runPricesWith remains
-// the test seam (Task 3 surface) and still parses its own flags; the
+// the test seam and still parses its own flags; the
 // dispatch wrapper applies pricesLogic and surfaces typed errors.
 // The hard-fail contract (manual refresh on a 500 response → exit 4)
 // is preserved by both call sites because they share pricesLogic.
@@ -51,7 +51,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runPricesWith is the testable core of `ktx prices` (Task 3 seam).
+// runPricesWith is the testable core of `ktx prices` (test seam).
 // stdout/stderr are injected so the manual-refresh flow can be
 // exercised without touching os.Stdout. The body parses the
 // subcommand's flags and dispatches on the subcommand name
@@ -88,7 +88,7 @@ func pricesLogic(args []string, format string, stdout, stderr io.Writer) (any, e
 	// Default subcommand is `update`. The namespace exists primarily
 	// to host the manual refresh hook; defaulting to update means
 	// `ktx prices` and `ktx prices update` are interchangeable, which
-	// matches the D2 "no flag-only intent" pattern (D2 subcommands,
+	// matches the "no flag-only intent" pattern (subcommands,
 	// not flags).
 	sub := "update"
 	if len(rest) > 0 {
@@ -108,7 +108,7 @@ func pricesLogic(args []string, format string, stdout, stderr io.Writer) (any, e
 
 // pricesUpdateLogic forces a refetch from https://models.dev/api.json
 // and atomically rewrites the cache file at
-// $XDG_DATA_HOME/ktx/prices.json (plan Task 2 AC8). The fetch
+// $XDG_DATA_HOME/ktx/prices.json. The fetch
 // failure contract is hard error (exit 4) because the user
 // explicitly requested the refresh — a silent no-op would defeat
 // the purpose of the manual hook.
@@ -140,7 +140,7 @@ func pricesUpdateLogic(format string, stdout, stderr io.Writer) (any, error) {
 		// failure. ExitInternal (4) maps to the ktx internal-error
 		// envelope; a network error is a 4-class failure here
 		// because the user explicitly chose to depend on the
-		// network (AC8: "a fetch failure on the update command is
+		// network ("a fetch failure on the update command is
 		// a hard error").
 		return nil, internalError("ktx prices update: %v", err)
 	}
@@ -153,7 +153,7 @@ func pricesUpdateLogic(format string, stdout, stderr io.Writer) (any, error) {
 		fmt.Fprintf(stdout, "providers: %d\n", providers)
 		fmt.Fprintf(stdout, "models:    %d\n", models)
 	default:
-		// JSON default (Decision 4): machine-parseable, pipe-friendly.
+		// JSON default: machine-parseable, pipe-friendly.
 		out := map[string]any{
 			"refreshed": true,
 			"providers": providers,
@@ -194,8 +194,7 @@ func pricesCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // init registers `ktx prices` with the dispatch module. After init
-// runs, the verb is reachable through runWith (the legacy
-// commandIndex entry in cli.go is removed in Task 7).
+// runs, the verb is reachable through runWith.
 func init() {
 	Register("prices", RegisterOptions{
 		Description:   "price cache operations (update)",

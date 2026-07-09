@@ -1,6 +1,6 @@
-// Table-driven unit tests for internal/db/recorded_streams.go (D20 plan Task 2).
+// Table-driven unit tests for internal/db/recorded_streams.go.
 //
-// Acceptance coverage (per the plan's acceptance bullets):
+// Acceptance coverage:
 //   - InsertRecordedStream happy path + 7-column assertion
 //   - InsertRecordedStream with unknown session_id → ErrRecordedStreamSourceNotFound (FK)
 //   - InsertRecordedStream with unknown bench_run_id → ErrRecordedStreamSourceNotFound (FK)
@@ -12,8 +12,8 @@
 //   - empty stream_text round-trip: a session that emitted no events still
 //     gets captured; content_hash = ContentHash('') (SHA-256 of empty string)
 //
-// All subtests use OpenMemory() (the existing in-memory seam) per the
-// plan's test_approach — no filesystem fixtures required.
+// All subtests use OpenMemory() (the existing in-memory seam) — no
+// filesystem fixtures required.
 package db
 
 import (
@@ -51,7 +51,7 @@ func seedSessionAndBenchRun(t *testing.T, d *DB) (sessionID, benchRunID string) 
 }
 
 // TestInsertRecordedStream covers the happy path + FK rejection legs of
-// plan Task 2's acceptance.
+// the acceptance contract.
 func TestInsertRecordedStream(t *testing.T) {
 	t.Run("happy path persists all 7 columns", func(t *testing.T) {
 		d, err := OpenMemory()
@@ -250,7 +250,7 @@ func TestInsertRecordedStream(t *testing.T) {
 }
 
 // TestGetRecordedStreamBySession covers the session-id lookup leg of
-// plan Task 2's acceptance (the public --replay arg per D13/D20).
+// the acceptance contract (the public --replay arg).
 func TestGetRecordedStreamBySession(t *testing.T) {
 	t.Run("hit returns full struct", func(t *testing.T) {
 		d, err := OpenMemory()
@@ -340,7 +340,8 @@ func TestGetRecordedStreamByBenchRun(t *testing.T) {
 	})
 }
 
-// TestRecordedStream_ContentHashRoundTrip covers plan Task 2 AC5: the
+// TestRecordedStream_ContentHashRoundTrip covers the content_hash
+// acceptance: the
 // content_hash on a RecordedStream row, when computed by the caller via
 // db.ContentHash(streamText), is the SHA-256 of the stream_text.
 // Re-reading the row and re-hashing the stored stream_text must yield
@@ -381,7 +382,8 @@ func TestRecordedStream_ContentHashRoundTrip(t *testing.T) {
 	}
 }
 
-// TestRecordedStream_EmptyStreamText covers plan Task 2 AC6: empty
+// TestRecordedStream_EmptyStreamText covers the empty-stream
+// acceptance: empty
 // stream_text is a valid stream (a session that emitted no events still
 // gets captured). content_hash = ContentHash('') — SHA-256 of the
 // empty string, a real value. The absence-vs-empty distinction is

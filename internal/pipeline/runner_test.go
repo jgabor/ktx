@@ -1,6 +1,6 @@
-// Table-driven tests for the pipeline Runner (M4 plan Task 3).
+// Table-driven tests for the pipeline Runner.
 //
-// Coverage of the three D14 conservative-on-failure invariants:
+// Coverage of the three conservative-on-failure invariants:
 //
 //  1. Empty-output guard: non-empty input → empty output (len 0)
 //     → runner discards empty output, passes input through.
@@ -10,11 +10,11 @@
 //  3. Unknown-stage skip: unresolved name → skipped with a stderr
 //     warning, pipeline continues, NOT fatal.
 //
-// Plus: empty pipeline = passthrough (D14 no-ktx.toml default); Ran
+// Plus: empty pipeline = passthrough (the no-ktx.toml default); Ran
 // records only successfully-executed stages.
 //
 // All subtests use fake StageFunc stages (closures capturing their
-// input) per the plan's test_approach. No DB, no filesystem.
+// input) per the test approach. No DB, no filesystem.
 package pipeline
 
 import (
@@ -48,7 +48,7 @@ type panickyStage struct{ v any }
 
 func (p panickyStage) Apply([]byte) ([]byte, error) { panic(p.v) }
 
-// TestRun_EmptyPipelineIsIdentity covers the D14 no-ktx.toml default:
+// TestRun_EmptyPipelineIsIdentity covers the no-ktx.toml default:
 // an empty Pipeline (zero stages) returns the input unchanged, Ran
 // is empty (nothing ran).
 func TestRun_EmptyPipelineIsIdentity(t *testing.T) {
@@ -100,7 +100,7 @@ func TestRun_LinearChaining(t *testing.T) {
 	}
 }
 
-// TestRun_Invariant1_EmptyOutputGuard covers D14 invariant (1): a
+// TestRun_Invariant1_EmptyOutputGuard covers invariant (1): a
 // stage producing empty output from non-empty input discards the
 // empty output and passes the input through. Plus the edge: empty
 // input → empty output preserves the empty output.
@@ -167,7 +167,7 @@ func TestRun_Invariant1_EmptyOutputGuard(t *testing.T) {
 	})
 }
 
-// TestRun_Invariant2_StageErrorPassthrough covers D14 invariant (2):
+// TestRun_Invariant2_StageErrorPassthrough covers invariant (2):
 // a stage returning a non-nil error passes its input through
 // unchanged to the next stage. The error is NOT fatal to the
 // pipeline.
@@ -226,7 +226,7 @@ func TestRun_Invariant2_StageErrorPassthrough(t *testing.T) {
 		// first stage ran (saw input, produced "A"), middle stage
 		// errored (pass-through of "A"), last stage ran (saw "A",
 		// produced "ABC"). The pipeline MUST continue past the
-		// erroring stage (D14: "the error is not fatal to the
+		// erroring stage ("the error is not fatal to the
 		// pipeline").
 		reg := NewRegistry()
 		first := &stageRecorder{out: []byte("A")}
@@ -255,7 +255,7 @@ func TestRun_Invariant2_StageErrorPassthrough(t *testing.T) {
 	})
 }
 
-// TestRun_Invariant3_UnknownStageSkip covers D14 invariant (3): an
+// TestRun_Invariant3_UnknownStageSkip covers invariant (3): an
 // unresolved stage name is skipped with a stderr warning, the
 // pipeline continues, the run is NOT a fatal error.
 func TestRun_Invariant3_UnknownStageSkip(t *testing.T) {
@@ -272,7 +272,7 @@ func TestRun_Invariant3_UnknownStageSkip(t *testing.T) {
 			Warn:     &warn,
 		}
 		// Input is longer than "KNOWN" so the anti-worsening gate
-		// (D22 Phase 2) does not discard the known stage's output.
+		// does not discard the known stage's output.
 		input := []byte("the input value")
 		res := r.Run(input)
 
@@ -330,7 +330,7 @@ func TestRun_Invariant3_UnknownStageSkip(t *testing.T) {
 	})
 }
 
-// TestRun_AntiWorseningGate covers the D22 Phase 2 fourth
+// TestRun_AntiWorseningGate covers the fourth
 // conservative-on-failure invariant: a pipeline whose result is not
 // smaller than its input (len(out) >= len(in), input non-empty) has
 // its result discarded — the input is returned unchanged and Ran is
@@ -339,8 +339,8 @@ func TestRun_Invariant3_UnknownStageSkip(t *testing.T) {
 // The gate fires on the pipeline RESULT, not per-stage; the three
 // per-stage invariants (1–3) still fire during the loop. rtk calls
 // this never_worse (guard.rs:6-12); lowfat calls it the 10% gate
-// (lib.rs:46-55). Phase 2 ships the rtk variant (output >= input →
-// discard) as the simpler contract.
+// (lib.rs:46-55). The rtk variant (output >= input →
+// discard) is the simpler contract.
 func TestRun_AntiWorseningGate(t *testing.T) {
 	t.Run("pipeline grows output → gate discards, input returned", func(t *testing.T) {
 		// A "repeater" stage that doubles every byte: output is

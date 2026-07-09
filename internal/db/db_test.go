@@ -56,7 +56,7 @@ func TestOpenMemory_BackendAndForeignKeys(t *testing.T) {
 
 		// Verify each table exists and has at least its PRIMARY KEY
 		// column. We do not assert the full column list here — that
-		// is covered by TestOpenMemory_M2Columns below. Three tables
+		// is covered by TestOpenMemory_CostColumns below. Three tables
 		// with their PKs proves the schemaStatements ran.
 		for _, table := range []string{"sessions", "tool_calls", "bench_runs"} {
 			row := d.db.QueryRow(
@@ -140,19 +140,19 @@ func TestOpenMemory_BackendAndForeignKeys(t *testing.T) {
 	})
 }
 
-// TestOpenMemory_M2Columns covers the M2 + M3 column migration: OpenMemory
-// must produce a database with every additive column from the m2Columns
-// and benchRunsColumns lists. The migrate() loop is the only place those
-// columns are added; if migrate is skipped or the lists diverge from the
-// CREATE TABLE, M2/M3 round-trips silently lose data.
-func TestOpenMemory_M2Columns(t *testing.T) {
+// TestOpenMemory_CostColumns covers the cost-publication + bench_runs column migration:
+// OpenMemory must produce a database with every additive column from the
+// costColumns and benchRunsColumns lists. The migrate() loop is the only
+// place those columns are added; if migrate is skipped or the lists
+// diverge from the CREATE TABLE, the round-trips silently lose data.
+func TestOpenMemory_CostColumns(t *testing.T) {
 	d, err := OpenMemory()
 	if err != nil {
 		t.Fatalf("OpenMemory: %v", err)
 	}
 	t.Cleanup(func() { d.Close() })
 
-	for _, col := range m2Columns {
+	for _, col := range costColumns {
 		var present int
 		if err := d.db.QueryRow(
 			"SELECT COUNT(*) FROM pragma_table_info('tool_calls') WHERE name = ?",
@@ -193,23 +193,25 @@ func tableRowCount(t *testing.T, db *sql.DB, table string) int {
 	return n
 }
 
-// TestOpenWithoutMigration_PreM3Fixture covers AC1: the seam returns
-// a *DB over an externally-managed *sql.DB without applying the
-// migration. The test builds a pre-M3 schema (M1+M2 columns, no
-// bench_runs table) directly, wraps it in *DB via OpenWithoutMigration,
-// inserts a tool_call, and asserts HasBenchRunsTable reports false —
-// proving the migration did NOT create bench_runs.
+// TestOpenWithoutMigration_PreM3Fixture covers the contract: the seam
+// returns a *DB over an externally-managed *sql.DB without applying the
+// migration. The test builds an older schema (core + cost-publication
+// columns, no bench_runs table) directly, wraps it in *DB via
+// OpenWithoutMigration, inserts a tool_call, and asserts
+// HasBenchRunsTable reports false — proving the migration did NOT
+// create bench_runs.
 //
 // The seam is also exercised by the dispatch layer's doctor tests
 // (see internal/cli/dispatch_namespace_test.go), where the
-// pre-M3 fixture drives the doctor's degraded status. This unit test
-// pins down the seam's contract at the db package boundary.
+// unmigrated fixture drives the doctor's degraded status. This unit
+// test pins down the seam's contract at the db package boundary.
 func TestOpenWithoutMigration_PreM3Fixture(t *testing.T) {
-	t.Run("wraps pre-M3 schema and leaves bench_runs absent", func(t *testing.T) {
-		// Build the pre-M3 schema directly: M1 sessions + M1+M2
-		// tool_calls. Intentionally skip bench_runs so the
-		// migration, if it ran, would create the table and the
-		// AC's HasBenchRunsTable() == false assertion would fail.
+	t.Run("wraps older schema and leaves bench_runs absent", func(t *testing.T) {
+		// Build the older schema directly: core sessions +
+		// core + cost-publication tool_calls. Intentionally skip
+		// bench_runs so the migration, if it ran, would create the
+		// table and the HasBenchRunsTable() == false assertion would
+		// fail.
 		raw, err := sql.Open(sqliteDriver, "file::memory:?_pragma=foreign_keys(1)")
 		if err != nil {
 			t.Fatalf("open raw sqlite: %v", err)
@@ -253,7 +255,7 @@ func TestOpenWithoutMigration_PreM3Fixture(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = d.Close() })
 
-		// AC1: HasBenchRunsTable reports false on a pre-M3 fixture.
+		// HasBenchRunsTable reports false on an unmigrated fixture.
 		has, err := d.HasBenchRunsTable()
 		if err != nil {
 			t.Fatalf("HasBenchRunsTable: %v", err)
@@ -262,7 +264,7 @@ func TestOpenWithoutMigration_PreM3Fixture(t *testing.T) {
 			t.Error("HasBenchRunsTable = true; want false (migration should not have run)")
 		}
 
-		// Insert a tool_call against the pre-M3 schema. The seam
+		// Insert a tool_call against the older schema. The seam
 		// must accept writes against the caller's existing schema
 		// without bootstrapping missing tables. The FK on
 		// tool_calls.session_id requires the parent session row to
@@ -279,7 +281,7 @@ func TestOpenWithoutMigration_PreM3Fixture(t *testing.T) {
 			ID: tcID, SessionID: sessionID, Tool: "Bash",
 			Input: "in", Output: "out", Timestamp: "2026-06-21T00:00:01Z",
 		}); err != nil {
-			t.Fatalf("PersistToolCall against pre-M3 schema: %v", err)
+			t.Fatalf("PersistToolCall against older schema: %v", err)
 		}
 
 		// The tool_call row round-trips; the seam operates on the

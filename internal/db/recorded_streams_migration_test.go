@@ -1,17 +1,17 @@
-// Schema migration tests for the `recorded_streams` table (D20 plan Task 1).
+// Schema migration tests for the `recorded_streams` table.
 //
-// Covers the D20 plan Task 1 acceptance:
+// Covers the migration acceptance:
 //   - fresh-DB has `recorded_streams` with all 7 columns
-//   - pre-D20 DB (M3+M4 era) gains `recorded_streams` on next open
+//   - older DB gains `recorded_streams` on next open
 //   - re-open is a no-op (idempotency)
 //   - FK enforcement: inserting a recorded_streams row with a valid
 //     session_id + bench_run_id succeeds; inserting one referencing a
 //     missing session or bench_run fails (foreign_keys=1 enforced by
 //     Open's DSN)
 //
-// No ALTER TABLE column-add loop test — D20's "no ALTER TABLE" clause
-// is read literally per resolved judgment call 1. The CREATE TABLE IF
-// NOT EXISTS alone handles the fresh-DB and pre-D20 self-heal paths.
+// No ALTER TABLE column-add loop test — the "no ALTER TABLE" clause
+// for recorded_streams is read literally. The CREATE TABLE IF
+// NOT EXISTS alone handles the fresh-DB and unmigrated self-heal paths.
 //
 // The tests use the existing in-memory seams (OpenMemory,
 // OpenWithoutMigration, raw *sql.DB) so no filesystem fixture is
@@ -33,7 +33,7 @@ var expectedRecordedStreamsColumns = []string{
 }
 
 // TestRecordedStreamsMigration_FreshDB covers the "fresh database
-// created by the D20 binary" leg: OpenMemory runs migrate() which
+// created by the current binary" leg: OpenMemory runs migrate() which
 // includes the `CREATE TABLE IF NOT EXISTS recorded_streams` statement,
 // so the table and all 7 columns must be present from the start (no
 // ALTER needed).
@@ -104,23 +104,25 @@ func TestRecordedStreamsMigration_FreshDB(t *testing.T) {
 	})
 }
 
-// TestRecordedStreamsMigration_PreD20Database covers the "M3+M4-era
-// database opened by the D20 binary gains recorded_streams" leg. We
-// build a pre-D20 fixture exactly as M1+M2+M3+M4 would have left it
-// (sessions, tool_calls with all M2+D15 columns, bench_runs,
+// TestRecordedStreamsMigration_PreRecordedStreams covers the "older
+// database opened by the current binary gains recorded_streams" leg. We
+// build an unmigrated fixture exactly as the prior schema would have
+// left it (sessions, tool_calls with all cost-publication + failure-signal
+// columns, bench_runs,
 // compressed), then run migrate() against it. The recorded_streams
 // table must appear with all 7 columns and existing tables/rows must
 // be untouched.
-func TestRecordedStreamsMigration_PreD20Database(t *testing.T) {
-	t.Run("M3+M4-era DB gains recorded_streams table with all 7 columns", func(t *testing.T) {
+func TestRecordedStreamsMigration_PreRecordedStreams(t *testing.T) {
+	t.Run("unmigrated DB gains recorded_streams table with all 7 columns", func(t *testing.T) {
 		raw, err := sql.Open(sqliteDriver, "file::memory:?_pragma=foreign_keys(1)")
 		if err != nil {
 			t.Fatalf("open raw sqlite: %v", err)
 		}
 		t.Cleanup(func() { _ = raw.Close() })
 
-		// Build the pre-D20 schema exactly as M1+M2+M3+M4 would have:
-		// sessions, tool_calls (with M2 + D15 columns inlined),
+		// Build the older schema exactly as the prior version would have:
+		// sessions, tool_calls (with cost-publication + failure-signal columns
+		// inlined),
 		// bench_runs, compressed. No recorded_streams table — that
 		// is what migrate() must add.
 		for _, stmt := range []string{
@@ -172,7 +174,7 @@ func TestRecordedStreamsMigration_PreD20Database(t *testing.T) {
 			)`,
 		} {
 			if _, err := raw.Exec(stmt); err != nil {
-				t.Fatalf("create pre-D20 table: %v", err)
+				t.Fatalf("create older-schema table: %v", err)
 			}
 		}
 
@@ -203,10 +205,10 @@ func TestRecordedStreamsMigration_PreD20Database(t *testing.T) {
 			t.Fatalf("seed bench_runs: %v", err)
 		}
 
-		// Run migrate() against the pre-D20 fixture. This is the
-		// "D20 binary opens an M3+M4-era database" path.
+		// Run migrate() against the unmigrated fixture. This is the
+		// "current binary opens an older database" path.
 		if err := migrate(raw); err != nil {
-			t.Fatalf("migrate pre-D20 DB: %v", err)
+			t.Fatalf("migrate unmigrated DB: %v", err)
 		}
 
 		// recorded_streams must now exist with all 7 columns.

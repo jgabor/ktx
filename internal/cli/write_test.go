@@ -1,10 +1,10 @@
 // Table-driven tests for `ktx write` (internal/cli/write.go).
 //
-// Acceptance coverage:
+// Coverage:
 //
-//   - AC 1 (m1-acceptance.md): a tool_call JSON envelope piped through
-//     runWriteWith produces the persisted record ID as JSON on stdout,
-//     and the record is queryable via db.GetRecord.
+//   - a tool_call JSON envelope piped through runWriteWith produces
+//     the persisted record ID as JSON on stdout, and the record is
+//     queryable via db.GetRecord.
 //   - Companion negative cases: missing required field, empty stdin,
 //     session_close with a known session updates ended_at, and the
 //     unknown event_type branch.
@@ -21,10 +21,10 @@ import (
 )
 
 // validToolCallPayload returns a JSON-encoded tool_call matching the
-// m1-acceptance.md AC1 shape: a record with id, tool, input, output,
-// timestamp, event_type, and an explicit session_id (so the test does
-// not depend on the ppid-based session resolution path, which is
-// non-deterministic in unit tests).
+// canonical shape: a record with id, tool, input, output, timestamp,
+// event_type, and an explicit session_id (so the test does not depend
+// on the ppid-based session resolution path, which is non-deterministic
+// in unit tests).
 func validToolCallPayload(t *testing.T) string {
 	t.Helper()
 	tc := map[string]any{
@@ -48,7 +48,7 @@ func validToolCallPayload(t *testing.T) string {
 // database in a per-test temp dir, plus the file path (for cleanup
 // assertions). The on-disk path is required so the write flow can
 // exercise dbpkg.Open's parent-dir-creation + idempotent migration
-// contract (AC 2 of Task 3).
+// contract.
 //
 // The test must set KTX_DB before calling writeTestDB so the helper
 // uses the same path as runWriteWith (which resolves via
@@ -69,8 +69,8 @@ func writeTestDB(t *testing.T) (*dbpkg.DB, string) {
 
 // preSeedSession inserts a session row with id and returns nothing;
 // called when a test payload carries a session_id that must already
-// exist in the database (Decision 7: tool_calls.session_id FK
-// references sessions.id).
+// exist in the database (tool_calls.session_id FK references
+// sessions.id).
 func preSeedSession(t *testing.T, d *dbpkg.DB, id string) {
 	t.Helper()
 	if err := d.InsertSession(&dbpkg.Session{
@@ -83,13 +83,13 @@ func preSeedSession(t *testing.T, d *dbpkg.DB, id string) {
 	}
 }
 
-// TestRunWriteWith_PersistsRecord covers AC 1 of Task 3: a tool_call
-// JSON envelope on stdin → stdout is the persisted record ID as JSON,
-// and the record is queryable via db.GetRecord. The companion negative
-// case asserts that a missing required field (id) returns a usage
-// error envelope and exit 1.
+// TestRunWriteWith_PersistsRecord covers: a tool_call JSON envelope on
+// stdin → stdout is the persisted record ID as JSON, and the record is
+// queryable via db.GetRecord. The companion negative case asserts that
+// a missing required field (id) returns a usage error envelope and
+// exit 1.
 func TestRunWriteWith_PersistsRecord(t *testing.T) {
-	t.Run("AC1: tool_call envelope persists and is queryable", func(t *testing.T) {
+	t.Run("tool_call envelope persists and is queryable", func(t *testing.T) {
 		// Isolate the database to a per-test file so we do not
 		// touch the user's real production database.
 		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
@@ -145,7 +145,7 @@ func TestRunWriteWith_PersistsRecord(t *testing.T) {
 		writeTestDB(t)
 
 		// Tool_call payload missing the "id" field. Required
-		// fields per Decision 9 are id, tool, timestamp; id is
+		// fields are id, tool, timestamp; id is
 		// the most-strict — it is the persisted primary key.
 		payload := `{"tool":"bash","timestamp":"2026-06-18T12:00:00Z","input":"x","output":"y"}`
 		stdin := bytes.NewBufferString(payload)
@@ -199,10 +199,10 @@ func TestRunWriteWith_PersistsRecord(t *testing.T) {
 	})
 }
 
-// TestRunWriteWith_SessionClose covers the Decision 9 second payload
-// shape: a session_close event_type updates ended_at on the session
-// row. The companion negative case asserts that a session_close for a
-// non-existent session returns ExitNotFound (exit 2, D4 contract).
+// TestRunWriteWith_SessionClose covers the second payload shape:
+// a session_close event_type updates ended_at on the session row. The
+// companion negative case asserts that a session_close for a
+// non-existent session returns ExitNotFound (exit 2, not-found contract).
 func TestRunWriteWith_SessionClose(t *testing.T) {
 	t.Run("session_close updates ended_at and prints session_id", func(t *testing.T) {
 		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
@@ -251,7 +251,7 @@ func TestRunWriteWith_SessionClose(t *testing.T) {
 	})
 }
 
-// TestRunWriteWith_FailureSignalFields covers D15 AC8: ktx write persists
+// TestRunWriteWith_FailureSignalFields covers: ktx write persists
 // exit_code and is_error from the sidecar payload; absent fields round-trip
 // as nil.
 func TestRunWriteWith_FailureSignalFields(t *testing.T) {

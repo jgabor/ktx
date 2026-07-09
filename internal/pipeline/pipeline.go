@@ -1,8 +1,8 @@
-// Package pipeline executes ktx's compression pipeline (D14).
+// Package pipeline executes ktx's compression pipeline.
 //
 // The pipeline is a linear ordered slice of bytes-in/bytes-out stages.
 // Each stage implements the Stage interface; the Runner applies stages
-// in order and enforces Decision 14's three conservative-on-failure
+// in order and enforces the three conservative-on-failure
 // invariants at runtime (NOT as a stage-author convention — the lowfat
 // failure mode is explicitly rejected):
 //
@@ -19,7 +19,7 @@
 //     is skipped with a stderr warning ("ktx: warning: unknown
 //     pipeline stage %q, skipped") and the pipeline continues.
 //
-//  4. Anti-worsening gate (D22 Phase 2): after all stages run, if the
+//  4. Anti-worsening gate: after all stages run, if the
 //     pipeline result is NOT smaller than the input (len(out) >=
 //     len(in)) AND the input was non-empty, the entire pipeline result
 //     is discarded and the input is returned unchanged (with Ran
@@ -31,16 +31,16 @@
 //     lib.rs 10% gate.)
 //
 // Reversibility is captured at the pipeline BOUNDARY, not per stage
-// (D14): the database holds the original (tool_calls) and a
+// (the database holds the original (tool_calls) and a
 // compressed artifact references it by id (`ktx decompress <id>`
 // resolves source_id and returns the source's original output
 // verbatim — no stage-inverse runs). The runner records the names of
 // stages that successfully ran so the compressed row's `pipeline`
-// JSON array reflects what actually executed (the D14 "a record of
+// JSON array reflects what actually executed (the "a record of
 // what stages ran" contract).
 //
 // The Stage interface is deliberately narrow (bytes-in, bytes-out,
-// error-or-nil) so M5 shell-macro stages slot in unchanged: a
+// error-or-nil) so shell-macro stages slot in unchanged: a
 // process-backed Stage is just another Apply. The runner owns panic
 // recovery so a buggy built-in stage cannot crash the compress verb.
 package pipeline
@@ -51,21 +51,21 @@ import (
 	"io"
 )
 
-// Stage is the per-stage contract (D14). Each stage receives the
+// Stage is the per-stage contract. Each stage receives the
 // previous stage's output (or the source bytes for the first stage)
 // and returns the transformed bytes plus an error-or-nil.
 //
 // The interface is narrow by design: bytes-in, bytes-out, error-or-nil.
 // Stage metadata, ordering guarantees, and terminal-vs-continuable
-// semantics are M4 implementation details decided at the runner level,
+// semantics are implementation details decided at the runner level,
 // not encoded in the interface (the ARCHITECTURE.md open deliberation
 // "Pipeline stage contract" deliberately defers the full interface to
-// implementation). M5 shell-macro stages implement the same interface
+// implementation). Shell-macro stages implement the same interface
 // against an external process; the runner does not distinguish them
 // from built-in Go stages.
 //
 // A Stage MUST be safe to invoke from a single goroutine (the runner
-// applies stages sequentially; no concurrency in M4). Stages that
+// applies stages sequentially; no concurrency). Stages that
 // carry mutable state should document their concurrency contract; the
 // built-in Go stages in internal/pipeline/stages are pure functions
 // over bytes and trivially satisfy single-goroutine safety.
@@ -87,12 +87,12 @@ type StageFunc func(input []byte) ([]byte, error)
 // Apply delegates to the underlying function.
 func (f StageFunc) Apply(input []byte) ([]byte, error) { return f(input) }
 
-// Registry maps stage names to Stage implementations. The M4
+// Registry maps stage names to Stage implementations. The
 // resolution model is name → Stage: a ktx.toml's
 // `[pipeline.default].stages` array is a list of stage-name tokens,
 // and the runner resolves each token against a Registry at invocation
 // time. An unknown name fires invariant (3) — the stage is skipped
-// with a stderr warning, NOT a fatal error (D14).
+// with a stderr warning, NOT a fatal error.
 //
 // Two registration shapes coexist:
 //
@@ -114,8 +114,8 @@ func (f StageFunc) Apply(input []byte) ([]byte, error) { return f(input) }
 // the split is single-pass so future stages are not constrained).
 //
 // The Registry is populated at package init by the built-in Go stages
-// (internal/pipeline/stages) and will be extended in M5 by the
-// `ktx plugin` registry (TODO:30); for M4 the single default profile
+// (internal/pipeline/stages) and will be extended by the
+// `ktx plugin` registry (TODO:30); the single default profile
 // is the only consumer.
 type Registry struct {
 	builders map[string]Builder
@@ -131,9 +131,9 @@ type Registry struct {
 type Builder func(arg string) (Stage, error)
 
 // NewRegistry returns an empty Registry. Built-in stages are
-// registered via Register / RegisterBuilder; M5 will add a
-// `ktx plugin` path that shells out to an external process and
-// registers the result as a stage under a user-chosen name.
+// registered via Register / RegisterBuilder; a future
+// `ktx plugin` path will shell out to an external process and
+// register the result as a stage under a user-chosen name.
 func NewRegistry() *Registry {
 	return &Registry{builders: make(map[string]Builder)}
 }
@@ -217,15 +217,15 @@ type Runner struct {
 	// Registry resolves stage names to Stage implementations. A nil
 	// Registry is treated as an empty registry: every stage name is
 	// unknown, and the pipeline is passthrough (every stage skipped
-	// with a warning). This matches the D14 no-ktx.toml default for
+	// with a warning). This matches the no-ktx.toml default for
 	// a degenerate case and keeps the runner safe against a
 	// misconfigured caller.
 	Registry *Registry
 
 	// Pipeline is the ordered list of stage names to apply. An empty
-	// slice is passthrough (D14: no-ktx.toml → empty pipeline → input
+	// slice is passthrough: no-ktx.toml → empty pipeline → input
 	// returned unchanged; the compressed.output equals source.output
-	// and the pipeline JSON is "[]").
+	// and the pipeline JSON is "[]".
 	Pipeline []string
 
 	// Warn is where invariant (3) — the unknown-stage skip
@@ -252,7 +252,7 @@ func (r *Runner) warnf(format string, args ...any) {
 // Result is the runner's output: the transformed bytes plus the list
 // of stage names that successfully ran. The Ran slice is what the
 // caller persists as the compressed row's `pipeline` JSON array
-// (D14: "a record of what stages ran"). Stages that errored, were
+// ("a record of what stages ran"). Stages that errored, were
 // skipped (unknown name), or panicked are NOT in Ran — only stages
 // whose Apply returned a non-nil error are absent; stage names that
 // were skipped due to invariant (1) (empty-output guard) ARE in Ran
@@ -286,7 +286,7 @@ type Result struct {
 // returned to the next stage.)
 //
 // An empty Pipeline (zero stages) is passthrough: the input is returned
-// unchanged and Ran is empty (the D14 no-ktx.toml default).
+// unchanged and Ran is empty (the no-ktx.toml default).
 //
 // Stage tokens may carry an arg via `name:arg` (e.g. `head:100`).
 // The registry splits the token and resolves the bare name; a
@@ -330,7 +330,7 @@ func (r *Runner) Run(input []byte) Result {
 	res.Out = current
 
 	// Anti-worsening gate — the fourth conservative-on-failure
-	// invariant (D14-adjacent, fires on the pipeline RESULT, not
+	// invariant (fires on the pipeline RESULT, not
 	// per-stage). When the input was non-empty and the pipeline's
 	// net output is NOT smaller than the input (len(out) >=
 	// len(in)), the pipeline did not help: a stage that grows output
@@ -342,12 +342,12 @@ func (r *Runner) Run(input []byte) Result {
 	//
 	// Clearing Ran is intentional: the pipeline's net effect was
 	// nullified, so the compressed-row's `pipeline` JSON array (the
-	// D14 "record of what stages ran") is empty — this makes
+	// "record of what stages ran") is empty — this makes
 	// compressPipeline's `transformed` computation yield false
 	// (output == input AND pipeline JSON == "[]"), so NO compressed
 	// row is created for a result that did not shrink the input
-	// (D22: a transform that does not help returns the original
-	// with compressed_id=null). The three per-stage D14 invariants
+	// (a transform that does not help returns the original
+	// with compressed_id=null). The three per-stage invariants
 	// (empty-output guard, stage-error passthrough, unknown-stage
 	// skip) still fired during the loop above; the gate is a
 	// post-hoc result-level discard, not a replacement.
@@ -424,7 +424,7 @@ func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output 
 // EncodePipelineJSON renders the stage-names slice as a JSON array
 // string, e.g. `["strip-ansi","head:5"]` or `[]` for an empty slice.
 // The compressed row's `pipeline` column stores this string so the
-// D14 "a record of what stages ran" contract has an inspectable,
+// "a record of what stages ran" contract has an inspectable,
 // deterministically-encoded representation (a profile-hash would
 // require readers to resolve the hash against a registry ktx does
 // not yet have).

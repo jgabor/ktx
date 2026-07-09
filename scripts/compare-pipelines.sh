@@ -8,7 +8,7 @@
 #
 # This measures per-tool-call compression ratio only. It does NOT measure
 # downstream effects on agent behavior (extra tool calls, wrong answers).
-# For that, run the live A/B cost comparison (see TODO.md).
+# For that, run the live A/B cost comparison (scripts/live-ab.sh).
 #
 # Usage:
 #   scripts/compare-pipelines.sh <session-id> [--json | --text]

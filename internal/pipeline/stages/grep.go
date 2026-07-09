@@ -1,5 +1,5 @@
 // grep and grep-v stages: keep (grep) or reject (grep-v) lines
-// matching a regular expression (D22 Phase 2 / D14).
+// matching a regular expression.
 //
 // Content-aware filtering lets a pipeline strip debug noise
 // (grep-v:^debug:) or keep only errors (grep:(?i)error|fail|panic).
@@ -7,7 +7,7 @@
 // Builder, which the runner treats as a stage-execution-error
 // (invariant (2)): the input passes through unchanged (lowfat's
 // proc_grep passthrough behavior, pipeline.rs:327-336). A warning is
-// emitted so the user sees the bad pattern — this is D14-consistent
+// emitted so the user sees the bad pattern — this is consistent
 // (invariant 2 warns on stage errors) rather than lowfat's silent
 // passthrough, but the observable output (input unchanged) matches.
 //

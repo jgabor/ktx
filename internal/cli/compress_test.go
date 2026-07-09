@@ -1,8 +1,8 @@
-// Table-driven tests for `ktx compress` and `ktx decompress` (M4 plan
-// Task 6 / D14). The pair's primary acceptance contract is the
-// round-trip: decompress(compress(source)) returns the source's
-// original output bytes verbatim, regardless of how many lossy stages
-// ran between them. Coverage:
+// Table-driven tests for `ktx compress` and `ktx decompress`. The
+// pair's primary acceptance contract is the round-trip:
+// decompress(compress(source)) returns the source's original output
+// bytes verbatim, regardless of how many lossy stages ran between
+// them. Coverage:
 //
 //   - passthrough pipeline (no ktx.toml): compress → decompress round-trip
 //   - parameterised pipeline (strip-ansi + head:N): compress differs
@@ -103,8 +103,8 @@ func seedSourceWithFailure(t *testing.T, d *dbpkg.DB, toolCallID, sessionID, out
 func ptrBool(v bool) *bool { return &v }
 
 // noConfigEnv chdirs to a fresh tempdir and points XDG_CONFIG_HOME at
-// another fresh tempdir, so config.Load() resolves to the D14
-// passthrough default (no ktx.toml anywhere). Returns a restore func.
+// another fresh tempdir, so config.Load() resolves to the passthrough
+// default (no ktx.toml anywhere). Returns a restore func.
 // The chdir is essential because Load() looks for ktx.toml in the
 // cwd before checking XDG.
 func noConfigEnv(t *testing.T) func() {
@@ -141,11 +141,10 @@ func decodeID(t *testing.T, stdout *bytes.Buffer) string {
 	return id
 }
 
-// TestRunCompressWith_IdentityRoundTrip covers the canonical M4
-// acceptance path: a ktx with NO ktx.toml runs the D14 passthrough
-// pipeline, compress(source) persists a compressed row whose
-// output equals the source, and decompress(compressedID) returns
-// the source bytes verbatim.
+// TestRunCompressWith_IdentityRoundTrip covers the canonical round-trip
+// acceptance path: a ktx with NO ktx.toml runs the passthrough pipeline,
+// compress(source) persists a compressed row whose output equals the
+// source, and decompress(compressedID) returns the source bytes verbatim.
 func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 	d := compressTestDB(t)
@@ -163,10 +162,10 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	}
 	compressedID := decodeID(t, &stdout)
 
-	// Verify the persisted compressed row records what D14 mandates:
-	// output equals source.output (passthrough pipeline), content_hash
-	// matches db.ContentHash(output), pipeline is "[]", source_id
-	// references the source tool_call.
+	// Verify the persisted compressed row records what the contract
+	// mandates: output equals source.output (passthrough pipeline),
+	// content_hash matches db.ContentHash(output), pipeline is "[]",
+	// source_id references the source tool_call.
 	comp, err := d.GetCompressed(compressedID)
 	if err != nil {
 		t.Fatalf("GetCompressed(%q): %v", compressedID, err)
@@ -195,10 +194,10 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	}
 }
 
-// TestRunCompressWith_PipelineModifiesOutput covers the D14 case
-// where lossy stages run: compress(source).output differs from
-// source.output, but decompress(compressedID) STILL returns the
-// source bytes (reversibility is by id, not per-stage inverse).
+// TestRunCompressWith_PipelineModifiesOutput covers the case where lossy
+// stages run: compress(source).output differs from source.output, but
+// decompress(compressedID) STILL returns the source bytes (reversibility
+// is by id, not per-stage inverse).
 func TestRunCompressWith_PipelineModifiesOutput(t *testing.T) {
 	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 	d := compressTestDB(t)
@@ -233,7 +232,7 @@ func TestRunCompressWith_PipelineModifiesOutput(t *testing.T) {
 	if comp.ContentHash != dbpkg.ContentHash(comp.Output) {
 		t.Errorf("ContentHash = %q, want hash of compressed output %q", comp.ContentHash, comp.Output)
 	}
-	// pipeline records what ran (D14 "a record of what stages ran").
+	// pipeline records what ran (a record of what stages ran).
 	if !strings.Contains(comp.Pipeline, "strip-ansi") || !strings.Contains(comp.Pipeline, "head:1") {
 		t.Errorf("Pipeline = %q, expected both stage names", comp.Pipeline)
 	}
@@ -273,8 +272,8 @@ func TestRunCompressWith_SourceNotFound(t *testing.T) {
 // TestRunDecompressWith_NotFound covers both not-found cases for
 // `ktx decompress`: a missing compressed id (exit 2) and a missing
 // source (the compressed row's source_id points at a tool_call that
-// was deleted, violating D7's append-only — exit 2 as well because
-// the typed ErrSourceNotFound wraps ErrNotFound).
+// was deleted, violating the append-only contract — exit 2 as well
+// because the typed ErrSourceNotFound wraps ErrNotFound).
 func TestRunDecompressWith_NotFound(t *testing.T) {
 	t.Run("missing compressed id → exit 2", func(t *testing.T) {
 		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
@@ -290,7 +289,7 @@ func TestRunDecompressWith_NotFound(t *testing.T) {
 		}
 	})
 
-	t.Run("missing source (D7 violation) → exit 2", func(t *testing.T) {
+	t.Run("missing source (append-only violation) → exit 2", func(t *testing.T) {
 		// Synthesize a dangling compressed row by inserting one
 		// whose source_id has no tool_call row. db.InsertCompressed
 		// pre-checks the FK and would reject, so we use a raw
@@ -313,9 +312,9 @@ func TestRunDecompressWith_NotFound(t *testing.T) {
 		if err := d.InsertCompressed(c); err != nil {
 			t.Fatalf("InsertCompressed: %v", err)
 		}
-		// Manually delete the source row to violate D7. The FK
-		// on compressed.source_id is ON DELETE NO ACTION by
-		// default in SQLite, so we use a raw delete with FKs
+		// Manually delete the source row to violate the append-only
+		// contract. The FK on compressed.source_id is ON DELETE NO
+		// ACTION by default in SQLite, so we use a raw delete with FKs
 		// temporarily disabled (PRAGMA foreign_keys=OFF scoped
 		// to this connection).
 		_, err := d.DB().Exec("PRAGMA foreign_keys=OFF; DELETE FROM tool_calls WHERE id = ?; PRAGMA foreign_keys=ON;", "abcdefghijklmnop")
@@ -430,9 +429,9 @@ func TestRunDecompressWith_Help(t *testing.T) {
 	}
 }
 
-// TestCompressLogic_SourceFailureGate covers D15 AC5: is_error=true with a
-// configured pipeline writes an passthrough row, stderr warning, prints id,
-// and decompress returns source output verbatim.
+// TestCompressLogic_SourceFailureGate covers the failure gate: is_error=true
+// with a configured pipeline writes a passthrough row, stderr warning,
+// prints id, and decompress returns source output verbatim.
 func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 	d := compressTestDB(t)
@@ -475,8 +474,9 @@ func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	}
 }
 
-// TestCompressLogic_SourceFailureGate_NoFire covers D15 AC6: nil or &false
-// is_error lets the pipeline run; no source-failure warning.
+// TestCompressLogic_SourceFailureGate_NoFire covers the failure gate's
+// no-fire case: nil or &false is_error lets the pipeline run; no
+// source-failure warning.
 func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -521,8 +521,9 @@ func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
 	}
 }
 
-// TestCompressLogic_GateDistinctFromStageError covers D15 AC7: nil is_error
-// with a stage that errors exercises D14 passthrough, not the D15 gate.
+// TestCompressLogic_GateDistinctFromStageError covers the gate/passthrough
+// distinction: nil is_error with a stage that errors exercises stage-error
+// passthrough, not the failure gate.
 func TestCompressLogic_GateDistinctFromStageError(t *testing.T) {
 	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 	d := compressTestDB(t)
@@ -543,10 +544,10 @@ func TestCompressLogic_GateDistinctFromStageError(t *testing.T) {
 		t.Fatalf("compressLogic: %v", err)
 	}
 	if strings.Contains(stderr.String(), sourceFailureWarning) {
-		t.Errorf("D15 gate must not fire when is_error is nil: %q", stderr.String())
+		t.Errorf("failure gate must not fire when is_error is nil: %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "head:0") {
-		t.Errorf("stderr missing D14 stage-error warning for head:0: %q", stderr.String())
+		t.Errorf("stderr missing stage-error warning for head:0: %q", stderr.String())
 	}
 	compressedID := decodeID(t, &stdout)
 	comp, err := d.GetCompressed(compressedID)

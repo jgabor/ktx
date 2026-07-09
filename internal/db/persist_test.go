@@ -1,13 +1,13 @@
-// Table-driven unit tests for internal/db/persist.go (Task 2).
+// Table-driven unit tests for internal/db/persist.go.
 //
 // Acceptance coverage:
 //
-//   - AC 1 (NewID format + collision-free): TestNewID_MatchesAndUnique
-//   - AC 2 (M2 pointer round-trip when set): TestPersistToolCall_M2RoundTrip
-//   - AC 3 (nil M2 pointers → SQL NULL):    TestPersistToolCall_NilM2RoundTrip
-//   - AC 6 (cost derivation at write time):  TestPersistToolCall_CostDerivation
+//   - NewID format + collision-free: TestNewID_MatchesAndUnique
+//   - cost-publication pointer round-trip when set: TestPersistToolCall_CostRoundTrip
+//   - nil cost-publication pointers → SQL NULL:    TestPersistToolCall_NilCostRoundTrip
+//   - cost derivation at write time:  TestPersistToolCall_CostDerivation
 //
-// Test proportionality (plan Task 2): one pass + one fail per testable unit;
+// Test proportionality: one pass + one fail per testable unit;
 // ~20 test cases total. All subtests use stdlib testing only.
 package db
 
@@ -76,18 +76,19 @@ func TestNewID_MatchesAndUnique(t *testing.T) {
 	})
 }
 
-// TestPersistToolCall_M2RoundTrip covers AC 2: every M2 pointer field set
+// TestPersistToolCall_CostRoundTrip covers the round-trip contract: every
+// cost-publication pointer field set
 // on the input round-trips byte-identical through PersistToolCall +
 // GetToolCall. "Byte-identical" means the re-fetched ToolCall carries
 // non-nil pointers to the same values; the JSON marshaling is also
 // compared to confirm the on-wire shape survives.
 //
-// The M2 fields use pointer types precisely to preserve the absent-vs-
-// zero distinction (Decision 9 reconstructability contract). A non-nil
-// pointer to 0 must persist as 0 (not NULL); a non-nil pointer to a
-// non-zero value must persist verbatim.
-func TestPersistToolCall_M2RoundTrip(t *testing.T) {
-	t.Run("populated M2 pointers round-trip byte-identical", func(t *testing.T) {
+// The cost-publication fields use pointer types precisely to preserve
+// the absent-vs- zero distinction (the reconstructability contract).
+// A non-nil pointer to 0 must persist as 0 (not NULL); a non-nil
+// pointer to a non-zero value must persist verbatim.
+func TestPersistToolCall_CostRoundTrip(t *testing.T) {
+	t.Run("populated cost-publication pointers round-trip byte-identical", func(t *testing.T) {
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
@@ -95,7 +96,7 @@ func TestPersistToolCall_M2RoundTrip(t *testing.T) {
 		t.Cleanup(func() { d.Close() })
 
 		// Insert the parent session row so the FK on tool_calls is
-		// satisfied (foreign_keys=1 is enforced per AC 1 of Task 1).
+		// satisfied (foreign_keys=1 is enforced per the open contract).
 		sessionID := mustNewID(t)
 		if err := d.InsertSession(&Session{
 			ID:         sessionID,
@@ -120,7 +121,7 @@ func TestPersistToolCall_M2RoundTrip(t *testing.T) {
 			EventType:   "tool_call",
 			// Non-nil pointers to non-zero values across the board.
 			// Cost is set to a known value so the test also confirms
-			// the caller-supplied cost wins (D11: deriveCost is a
+			// the caller-supplied cost wins (deriveCost is a
 			// no-op when tc.Cost != nil) and the cost cache is not
 			// consulted for this row.
 			TokensIn:  ptrInt64(1234),
@@ -140,8 +141,8 @@ func TestPersistToolCall_M2RoundTrip(t *testing.T) {
 			t.Fatalf("GetToolCall: %v", err)
 		}
 
-		// Pointer-equality checks: every M2 pointer on got must be
-		// non-nil AND equal to the value set on tc.
+		// Pointer-equality checks: every cost-publication pointer on
+		// got must be non-nil AND equal to the value set on tc.
 		if got.TokensIn == nil || *got.TokensIn != *tc.TokensIn {
 			t.Errorf("TokensIn: got %v, want %v", got.TokensIn, *tc.TokensIn)
 		}
@@ -178,8 +179,8 @@ func TestPersistToolCall_M2RoundTrip(t *testing.T) {
 	})
 
 	t.Run("non-nil pointer to zero persists as 0 (not NULL)", func(t *testing.T) {
-		// The absent-vs-zero distinction (Decision 9): a caller that
-		// explicitly sets tokens_in=0 must observe 0 on read, not NULL.
+		// The absent-vs-zero distinction: a caller that explicitly
+		// sets tokens_in=0 must observe 0 on read, not NULL.
 		// Without pointer types, the zero value of int64 would coerce
 		// 0 → NULL via the field default — the contract is precisely
 		// that the pointer shape preserves the distinction.
@@ -236,17 +237,18 @@ func TestPersistToolCall_M2RoundTrip(t *testing.T) {
 	})
 }
 
-// TestPersistToolCall_NilM2RoundTrip covers AC 3: when the M2 pointers
-// on the input are nil, the persisted columns read back as SQL NULL
-// (the re-fetched ToolCall has nil pointers for those fields).
+// TestPersistToolCall_NilCostRoundTrip covers the nil-input case: when
+// the cost-publication pointers on the input are nil, the persisted
+// columns read back as SQL NULL (the re-fetched ToolCall has nil
+// pointers for those fields).
 //
-// The absent-vs-zero distinction is the same contract from AC 2 but
-// seen from the opposite direction: nil pointers must NOT be coerced
-// to zero on read. A test that round-trips nil and observes 0 would
-// be indistinguishable from "caller supplied zero" — the pointer
-// shape is what makes the two cases observable downstream.
-func TestPersistToolCall_NilM2RoundTrip(t *testing.T) {
-	t.Run("nil M2 pointers round-trip as nil (SQL NULL)", func(t *testing.T) {
+// The absent-vs-zero distinction is the same round-trip contract seen
+// from the opposite direction: nil pointers must NOT be coerced to
+// zero on read. A test that round-trips nil and observes 0 would be
+// indistinguishable from "caller supplied zero" — the pointer shape
+// is what makes the two cases observable downstream.
+func TestPersistToolCall_NilCostRoundTrip(t *testing.T) {
+	t.Run("nil cost-publication pointers round-trip as nil (SQL NULL)", func(t *testing.T) {
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
@@ -268,7 +270,7 @@ func TestPersistToolCall_NilM2RoundTrip(t *testing.T) {
 			Input:     "in",
 			Output:    "out",
 			Timestamp: "2026-06-21T00:00:00Z",
-			// All M2 pointers left nil — caller did not supply.
+			// All cost-publication pointers left nil — caller did not supply.
 		}
 		if err := d.PersistToolCall(tc); err != nil {
 			t.Fatalf("PersistToolCall: %v", err)
@@ -298,11 +300,11 @@ func TestPersistToolCall_NilM2RoundTrip(t *testing.T) {
 		}
 	})
 
-	t.Run("nil M2 fields marshal to JSON null (no omitempty)", func(t *testing.T) {
-		// The JSON tags deliberately omit `omitempty` (Decision 9
-		// round-trip contract) so a nil M2 field appears as JSON
-		// `null` rather than being dropped. A reader must be able
-		// to detect 'absent' from 'set to zero' without
+	t.Run("nil cost-publication fields marshal to JSON null (no omitempty)", func(t *testing.T) {
+		// The JSON tags deliberately omit `omitempty` (the
+		// round-trip contract) so a nil cost-publication field appears
+		// as JSON `null` rather than being dropped. A reader must be
+		// able to detect 'absent' from 'set to zero' without
 		// inspecting the schema — `null` vs `0` is the wire signal.
 		d, err := OpenMemory()
 		if err != nil {
@@ -333,8 +335,8 @@ func TestPersistToolCall_NilM2RoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal: %v", err)
 		}
-		// Each M2 key must appear with literal `null`. A missing
-		// key (omitempty) would fail this check.
+		// Each cost-publication key must appear with literal `null`.
+		// A missing key (omitempty) would fail this check.
 		for _, key := range []string{
 			`"tokens_in":null`,
 			`"tokens_out":null`,
@@ -350,10 +352,10 @@ func TestPersistToolCall_NilM2RoundTrip(t *testing.T) {
 	})
 }
 
-// TestPersistToolCall_CostDerivation covers AC 6: when Cost is nil
-// and tokens+model+provider are all supplied AND the price cache has
-// a price for (provider, model), PersistToolCall fills Cost from the
-// D11 formula:
+// TestPersistToolCall_CostDerivation covers cost derivation: when
+// Cost is nil and tokens+model+provider are all supplied AND the
+// price cache has a price for (provider, model), PersistToolCall fills
+// Cost from the cost-derivation formula:
 //
 //	cost = (tokens_in * in_price + tokens_out * out_price) / 1_000_000
 //
@@ -363,8 +365,8 @@ func TestPersistToolCall_NilM2RoundTrip(t *testing.T) {
 //
 // The cache is loaded via the singleton LoadPrices (PersistToolCall
 // uses LoadPrices internally), with WithHTTPClient injected to point
-// at an httptest.NewServer. The seam is the Task 1 hook; this test
-// is the AC 6 verification that the seam hooks into the write path.
+// at an httptest.NewServer. The seam is the open hook; this test
+// verifies that the seam hooks into the write path.
 func TestPersistToolCall_CostDerivation(t *testing.T) {
 	t.Run("Cost=nil + tokens+model+provider → derived 18.000000", func(t *testing.T) {
 		// Isolate the Prices singleton: resetPricesForTest ensures
@@ -411,7 +413,7 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 		}
 		p.WithHTTPClient(&http.Client{Transport: redirectTransport{target: srv.URL}})
 
-		// Open an in-memory ktx DB. OpenMemory is the Task 1 seam.
+		// Open an in-memory ktx DB. OpenMemory is the open seam.
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
@@ -435,7 +437,7 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 			Input:     "in",
 			Output:    "out",
 			Timestamp: "2026-06-21T00:00:00Z",
-			// Cost left nil on purpose — D11 derives.
+			// Cost left nil on purpose — derivable.
 			TokensIn:  ptrInt64(1_000_000),
 			TokensOut: ptrInt64(1_000_000),
 			Model:     &model,
@@ -452,7 +454,7 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 		if got.Cost == nil {
 			t.Fatal("Cost: nil after PersistToolCall; expected derived value")
 		}
-		// AC 6: expected 18.000000 USD, rounded to 6 decimals.
+		// Expected 18.000000 USD, rounded to 6 decimals.
 		const want = 18.0
 		if math.Abs(*got.Cost-want) > 1e-9 {
 			t.Errorf("Cost = %v, want %v (6-decimal precision)", *got.Cost, want)
@@ -466,7 +468,7 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 	})
 
 	t.Run("Cost derivation is a no-op when Cost is supplied", func(t *testing.T) {
-		// D11 contract: caller-supplied cost wins. The cache is not
+		// Contract: caller-supplied cost wins. The cache is not
 		// consulted; the persisted value is exactly what the caller
 		// passed. The test seeds a cold cache with an httptest server
 		// returning a price, then persists a ToolCall with a non-nil
@@ -530,10 +532,10 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 	})
 
 	t.Run("Cost derivation is a no-op when ANY of tokens/model/provider is nil", func(t *testing.T) {
-		// D11 NULL preservation (AC7 of D11): any of tokens_in /
-		// tokens_out / model NULL blocks derivation even when the
-		// cache has a price. The contract is conservative failure —
-		// ktx does not invent the missing value.
+		// NULL preservation: any of tokens_in / tokens_out / model
+		// NULL blocks derivation even when the cache has a price.
+		// The contract is conservative failure — ktx does not invent
+		// the missing value.
 		resetPricesForTest()
 		t.Cleanup(resetPricesForTest)
 
@@ -552,7 +554,7 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 
 		// Three rows, each missing one derivation input. Cost stays
 		// NULL on every row; the cache price is never consulted
-		// (the cache has the price, but D11 short-circuits on NULL).
+		// (the cache has the price, but derivation short-circuits on NULL).
 		cases := []struct {
 			name string
 			tc   *ToolCall
@@ -628,10 +630,10 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 	})
 
 	t.Run("Cost derivation soft-fails on cache miss + fetch failure", func(t *testing.T) {
-		// D11 AC3 + AC6: when the cache cannot supply a price AND the
-		// fetch fails, Cost stays NULL and no error is returned from
-		// PersistToolCall. The httptest server returns 500; Refresh
-		// errors; deriveCost short-circuits.
+		// Derivation soft-fail: when the cache cannot supply a price
+		// AND the fetch fails, Cost stays NULL and no error is returned
+		// from PersistToolCall. The httptest server returns 500;
+		// Refresh errors; deriveCost short-circuits.
 		resetPricesForTest()
 		t.Cleanup(resetPricesForTest)
 
@@ -683,10 +685,10 @@ func TestPersistToolCall_CostDerivation(t *testing.T) {
 }
 
 // TestGetRecord_ToolCallVsSession is a sanity check that GetRecord
-// covers both D7 tables: a tool_call id resolves to a *ToolCall,
+// covers both record tables: a tool_call id resolves to a *ToolCall,
 // a session id resolves to a *Session, and an unknown id returns
-// ErrNotFound. This is not in the AC list but is a natural unit
-// to exercise alongside the round-trip tests.
+// ErrNotFound. This is a natural unit to exercise alongside the
+// round-trip tests.
 func TestGetRecord_ToolCallVsSession(t *testing.T) {
 	d, err := OpenMemory()
 	if err != nil {
@@ -737,9 +739,9 @@ func TestGetRecord_ToolCallVsSession(t *testing.T) {
 	})
 }
 
-// TestPersistMethods_EdgeCases covers AC4 of the cleanup plan: five
-// method-level tests on the public *DB surface, each pinning down
-// the documented contract on a single edge case. The tests are
+// TestPersistMethods_EdgeCases covers the method-level edge cases:
+// five method-level tests on the public *DB surface, each pinning
+// down the documented contract on a single edge case. The tests are
 // deliberately minimal (one assertion per case) so a regression in
 // any one method surfaces as a single failing subtest rather than a
 // cascade.
@@ -752,14 +754,14 @@ func TestGetRecord_ToolCallVsSession(t *testing.T) {
 //     caller relies on this to detect double-open on the same
 //     session id.
 //   - GetToolCall("missing"): returns (nil, ErrNotFound) so the
-//     CLI layer can map "not found" to the documented exit code 2.
+//     CLI layer can map "not found" to the documented not-found exit.
 //   - GetSession("missing"): same contract as GetToolCall.
 //   - ListSessions() on empty DB: returns a non-nil empty slice so
 //     the CLI can json-encode "[]" without a nil check.
 //
-// The five cases are pinned in the plan (overall_acceptance, AC4);
-// no fixtures are shared between them — each is a fresh OpenMemory
-// so the test order does not matter.
+// The five cases are pinned as overall acceptance; no fixtures are
+// shared between them — each is a fresh OpenMemory so the test order
+// does not matter.
 func TestPersistMethods_EdgeCases(t *testing.T) {
 	t.Run("SessionExists(\"\") returns false, nil", func(t *testing.T) {
 		// The empty-id branch is documented at persist.go:84-87:
@@ -812,8 +814,8 @@ func TestPersistMethods_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("GetToolCall(\"missing\") returns nil, ErrNotFound", func(t *testing.T) {
-		// The CLI layer (ktx get / ktx read) maps ErrNotFound to
-		// exit code 2 (D4). The contract is (nil, ErrNotFound); a
+		// The CLI layer (ktx get / ktx read) maps ErrNotFound to the
+		// not-found exit. The contract is (nil, ErrNotFound); a
 		// different error would force the CLI layer to special-case
 		// "not found" off the SQL driver's ErrNoRows — a layering
 		// violation that hides the contract from the CLI.
@@ -889,9 +891,10 @@ func TestPersistMethods_EdgeCases(t *testing.T) {
 	})
 }
 
-// TestPersistToolCall_FailureSignalRoundTrip covers D15 AC2: exit_code
-// and is_error nullable pointers round-trip through PersistToolCall +
-// GetToolCall and JSON marshal with null/true/false/number semantics.
+// TestPersistToolCall_FailureSignalRoundTrip covers the failure-signal
+// round-trip: exit_code and is_error nullable pointers round-trip
+// through PersistToolCall + GetToolCall and JSON marshal with
+// null/true/false/number semantics.
 func TestPersistToolCall_FailureSignalRoundTrip(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -992,8 +995,8 @@ func mustNewID(t *testing.T) string {
 	return id
 }
 
-// ptrInt64 returns a pointer to v. Used for filling the M2 pointer
-// fields concisely in test inputs.
+// ptrInt64 returns a pointer to v. Used for filling the cost-publication
+// pointer fields concisely in test inputs.
 func ptrInt64(v int64) *int64 { return &v }
 
 // ptrFloat64 returns a pointer to v.

@@ -158,7 +158,7 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 		t.Fatalf("envelope missing 'plugins' array: %v", env)
 	}
 	if len(plugins) != 9 {
-		t.Fatalf("plugins count = %d, want 9 (5 Phase 1 builtins + 4 Phase 2 builtins)", len(plugins))
+		t.Fatalf("plugins count = %d, want 9 builtins", len(plugins))
 	}
 	// Verify first entry is a builtin.
 	first := plugins[0].(map[string]any)
@@ -168,7 +168,7 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 	if first["removable"] != false {
 		t.Errorf("first plugin removable = %v, want false", first["removable"])
 	}
-	// Verify built-in names are present (Phase 1 + Phase 2).
+	// Verify built-in names are present.
 	names := make([]string, 0, len(plugins))
 	for _, p := range plugins {
 		names = append(names, p.(map[string]any)["name"].(string))

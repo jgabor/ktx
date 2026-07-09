@@ -1,4 +1,4 @@
-// Table-driven unit tests for internal/db/bench.go (Task 2).
+// Table-driven unit tests for internal/db/bench.go.
 //
 // Coverage:
 //
@@ -8,11 +8,12 @@
 //   - SummarizeBenchToolCalls aggregation (tokens, cost, model, provider)
 //
 // Bench tests do not exercise cost derivation here — that contract
-// is covered in persist_test.go (Task 2 AC 6) against the same
+// is covered in persist_test.go against the same
 // deriveCost shape with the ToolCall inputs. SummarizeBenchToolCalls
 // reads existing tool_calls rows verbatim; InsertBenchRun's
 // deriveBenchCost uses the same price-cache singleton and would
-// require the same XDG_DATA_HOME isolation as AC 6, which is already
+// require the same XDG_DATA_HOME isolation as the
+// cost derivation tests, which is already
 // covered. This file stays focused on the bench_runs row shape and
 // the session-aggregation helper.
 package db
@@ -26,7 +27,7 @@ import (
 // TestInsertBenchRun_RoundTrip covers the row-shape contract: every
 // bench_runs column is written and read back verbatim, including the
 // pointer-type Cost that carries the absent-vs-zero distinction
-// (Decision 9 contract inherited from tool_calls).
+// (the reconstructability contract inherited from tool_calls).
 func TestInsertBenchRun_RoundTrip(t *testing.T) {
 	t.Run("populated BenchRun round-trips byte-identical", func(t *testing.T) {
 		d, err := OpenMemory()
@@ -124,7 +125,7 @@ func TestInsertBenchRun_RoundTrip(t *testing.T) {
 }
 
 // TestQueryBenchRuns_OrderedByTimestamp covers the "rows array, oldest
-// first" contract from D12: QueryBenchRuns returns rows ordered by
+// first" contract: QueryBenchRuns returns rows ordered by
 // timestamp ASC, with id ASC as the deterministic tie-breaker.
 func TestQueryBenchRuns_OrderedByTimestamp(t *testing.T) {
 	d, err := OpenMemory()
@@ -167,7 +168,7 @@ func TestQueryBenchRuns_OrderedByTimestamp(t *testing.T) {
 
 // TestQueryBenchRun_NotFound covers the not-found contract on
 // QueryBenchRun: an unknown id returns ErrNotFound so the CLI layer
-// can map it to exit code 2 (D4). Mirrors the GetToolCall /
+// can map it to exit code 2. Mirrors the GetToolCall /
 // GetSession behaviour.
 func TestQueryBenchRun_NotFound(t *testing.T) {
 	d, err := OpenMemory()
@@ -186,7 +187,7 @@ func TestQueryBenchRun_NotFound(t *testing.T) {
 // the bench-run CLI to roll a session's tool_calls up into a
 // bench_runs row. The helper computes tokens_in/tokens_out/cost/
 // model/provider from the underlying tool_calls; NULL preservation
-// (D11) means the rollup fields stay at zero/empty when every input
+// means the rollup fields stay at zero/empty when every input
 // is NULL.
 func TestSummarizeBenchToolCalls(t *testing.T) {
 	t.Run("aggregates tokens + cost + model across tool_calls", func(t *testing.T) {
@@ -258,7 +259,7 @@ func TestSummarizeBenchToolCalls(t *testing.T) {
 	})
 
 	t.Run("empty session returns zero/empty/NULL rollup", func(t *testing.T) {
-		// NULL preservation (D11): when there are no tool_calls
+		// NULL preservation: when there are no tool_calls
 		// for the session, SUM(cost) is NULL and MIN(model) is
 		// NULL — the helper surfaces cost=nil, model="",
 		// provider="". The bench-run layer treats an empty

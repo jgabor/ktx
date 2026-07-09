@@ -11,8 +11,8 @@ import (
 )
 
 // hookPipelineTimeout is the legacy default critical-path deadline for the
-// pipeline run inside `ktx hook` (D22). It is retained as the backward-
-// compatible default; Phase 2 makes the timeout configurable via the
+// pipeline run inside `ktx hook`. It is retained as the backward-
+// compatible default; the timeout is configurable via the
 // [pipeline.default] timeout field in ktx.toml (config.DefaultPipelineTimeout
 // is the value when the field is omitted). hookLogic now reads
 // cfg.PipelineTimeout and passes it to compressPipeline, so this constant
@@ -24,7 +24,7 @@ const hookPipelineTimeout = 30 * time.Second
 // The plugin parses this and sets output.output = Output (the
 // compressed bytes the agent sees). CompressedID and SourceID are
 // developer-facing (for reversibility via `ktx decompress`) and are
-// never injected into the agent's context (invisibility — D22).
+// never injected into the agent's context (invisibility).
 type hookEnvelope struct {
 	Output       string `json:"output"`
 	CompressedID *string `json:"compressed_id"`
@@ -38,19 +38,19 @@ func hookCommandFunc(ctx *DispatchContext) (any, error) {
 	return hookLogic(ctx.Stdin, ctx.DB, ctx.Stdout, ctx.Stderr)
 }
 
-// hookLogic reads a D9 flat JSON tool_call from stdin, persists the
+// hookLogic reads a flat JSON tool_call from stdin, persists the
 // original via the shared PersistToolCall code path (DRY, same code
-// ktx write calls), then delegates to compressPipeline for the D15
-// gate + D14 pipeline (DRY, same code ktx compress calls). A
+// ktx write calls), then delegates to compressPipeline for the failure
+// gate + pipeline (DRY, same code ktx compress calls). A
 // compressed row is created ONLY when the pipeline actually transforms
-// the output; passthrough (no ktx.toml) and D15-skip (is_error=true)
+// the output; passthrough (no ktx.toml) and failure-gate-skip (is_error=true)
 // return the source output unchanged with compressed_id=null.
 //
 // The JSON envelope is written to stdout as a single line. On any
 // error, no envelope is written; the exit code and stderr error
 // envelope are the dispatcher's responsibility. The plugin level
 // (tool.execute.after) catches non-zero exit and leaves output.output
-// unchanged (D14 conservative failure at the plugin level).
+// unchanged (conservative failure at the plugin level).
 func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, error) {
 	body, err := io.ReadAll(stdin)
 	if err != nil {
@@ -91,14 +91,14 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	sourceID := tc.ID
 
-	// Read the configurable pipeline timeout (D22 Phase 2). ktx.toml's
+	// Read the configurable pipeline timeout. ktx.toml's
 	// [pipeline.default] timeout field (Go duration string, default 30s
 	// when omitted) is the critical-path deadline. config.Load always
 	// returns a non-zero PipelineTimeout (DefaultPipelineTimeout on the
 	// passthrough path), so the fallback below is defensive only. A broken
 	// ktx.toml surfaces as a usage error here — the original is already
 	// persisted, and a non-zero exit makes the plugin leave output.output
-	// unchanged (D14 conservative failure at the plugin level).
+	// unchanged (conservative failure at the plugin level).
 	timeout := config.DefaultPipelineTimeout
 	if cfg, err := config.Load(); err != nil {
 		return nil, usageError("%v", err)
@@ -156,11 +156,11 @@ func init() {
 }
 
 func printHookHelp(w io.Writer) {
-	fmt.Fprintln(w, "ktx hook — in-flight tool_call compression (D22)")
+	fmt.Fprintln(w, "ktx hook — in-flight tool_call compression")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx hook < tool_call.json")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Reads a D9 flat JSON tool_call from stdin, persists the original to the")
+	fmt.Fprintln(w, "Reads a flat JSON tool_call from stdin, persists the original to the")
 	fmt.Fprintln(w, "database, runs the configured compression pipeline, and writes a JSON")
 	fmt.Fprintln(w, "envelope to stdout:")
 	fmt.Fprintln(w, `  {"output": "<compressed>", "compressed_id": "<id>|null", "source_id": "<id>"}`)
@@ -169,7 +169,7 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "`ktx decompress <compressed_id>`. When no ktx.toml exists (passthrough default),")
 	fmt.Fprintln(w, "the original is returned unchanged with compressed_id=null.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "A pipeline timeout is enforced (D22 critical-path contract); the default")
+	fmt.Fprintln(w, "A pipeline timeout is enforced (critical-path contract); the default")
 	fmt.Fprintln(w, "is 30s, configurable via [pipeline.default] timeout in ktx.toml (e.g.")
 	fmt.Fprintln(w, "`timeout = \"10s\"`). On timeout the original is returned unchanged with a")
 	fmt.Fprintln(w, "stderr warning.")

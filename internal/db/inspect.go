@@ -1,6 +1,6 @@
-// Database inspection helpers for `ktx doctor` (Task 8).
+// Database inspection helpers for `ktx doctor`.
 //
-// The doctor command is a read-only health check (Decision 2). The store
+// The doctor command is a read-only health check. The store
 // exposes schema and ID-format probes here so the cli layer can render a
 // structured report without reaching into the unexported *sql.DB. Each
 // probe returns a plain error (or nil) so the cli can format the detail
@@ -11,17 +11,21 @@
 // doctor only invokes Open after a pre-flight existence check in cli,
 // so a missing database is reported rather than silently created.
 //
-// M1 vs M2 schema checks (Task 2): the M1 columns are a hard requirement
-// for `ktx doctor` (a missing M1 column means the database cannot be
-// loaded), while the M2 columns are a soft check (a missing M2 column
-// means the database is pre-M2; M1 records still load, M2 fields just
-// stay NULL on insert). The split keeps the doctor exit code honest: a
-// pre-M2 database is a "warning" / "degraded" state, not a hard error.
+// Core vs cost-publication schema checks: the core columns are a hard
+// requirement for `ktx doctor` (a missing core column means the
+// database cannot be loaded), while the cost-publication columns are a
+// soft check (a missing cost-publication column means the database has
+// not yet been migrated to the cost-publication schema; core records
+// still load, the cost-publication fields just stay NULL on insert).
+// The split keeps the doctor exit code honest: an
+// unmigrated database is a "warning" / "degraded" state, not a hard
+// error.
 //
-// M3 bench_runs check (plan Task 3): the bench_runs table is a soft
+// bench_runs table check: the bench_runs table is a soft
 // requirement for `ktx doctor` (a missing bench_runs table means the
-// database is pre-M3; M1/M2 records are still queryable). The doctor
-// reports a pre-M3 database as a normal-severity warning — degraded,
+// database predates the bench_runs schema; core + cost-publication
+// records are still queryable). The doctor reports an
+// unmigrated database as a normal-severity warning — degraded,
 // not error — and the next ktx invocation applies the in-place CREATE
 // / ALTER migration. A partial bench_runs schema (some columns missing)
 // is also a warning: the forward-fix path in migrate() adds the missing
@@ -43,14 +47,14 @@ type queryer interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
-// expectedSchema mirrors the M1 two-table schema from Decision 7. Each
-// table lists the columns ktx requires for M1 record I/O to function;
+// expectedSchema mirrors the core two-table schema. Each
+// table lists the columns ktx requires for core record I/O to function;
 // the doctor schema check verifies every expected column is present.
-// Extra columns are tolerated (forward-compatible with M2 cost fields).
+// Extra columns are tolerated (forward-compatible with cost-publication fields).
 //
-// The M2 columns live in m2Schema below; they are checked separately by
-// HasM2Columns so a pre-M2 database is reported as a warning rather than
-// a hard error. See CheckSchema / HasM2Columns.
+// The cost-publication columns live in costSchema below; they are checked
+// separately by HasCostColumns so an unmigrated database is reported as a
+// warning rather than a hard error. See CheckSchema / HasCostColumns.
 var expectedSchema = map[string][]string{
 	"sessions": {
 		"id",
@@ -72,12 +76,12 @@ var expectedSchema = map[string][]string{
 	},
 }
 
-// m2Schema is the M2 cost-publication column set added to tool_calls by
-// the in-place ALTER TABLE migration. HasM2Columns checks for these
+// costSchema is the cost-publication column set added to tool_calls by
+// the in-place ALTER TABLE migration. HasCostColumns checks for these
 // columns specifically so the doctor can report a missing set as a
-// soft warning. The order matches m2Columns in db.go so doctor
+// soft warning. The order matches costColumns in db.go so doctor
 // output is deterministic.
-var m2Schema = []string{
+var costSchema = []string{
 	"tokens_in",
 	"tokens_out",
 	"cost",
@@ -86,7 +90,7 @@ var m2Schema = []string{
 	"provider",
 }
 
-// benchRunsSchema is the expected bench_runs column set per D12's
+// benchRunsSchema is the expected bench_runs column set per the
 // reproducibility contract. HasBenchRunsColumns checks for these
 // columns specifically so the doctor can report a partial bench_runs
 // schema as a soft warning (forward-fix on next open, not a hard
@@ -105,15 +109,16 @@ var benchRunsSchema = []string{
 	"timestamp",
 }
 
-// CheckSchema verifies the database schema matches the M1 core of
-// Decision 7: the `sessions` and `tool_calls` tables exist and carry the
+// CheckSchema verifies the database schema matches the core schema
+// of: the `sessions` and `tool_calls` tables exist and carry the
 // expected columns. Extra columns are ignored (forward-compatible with
-// M2 cost fields). It returns nil on a healthy M1 schema, or an error
-// naming the first missing table or column. Used by `ktx doctor` for
-// the hard schema requirement.
+// cost-publication fields). It returns nil on a healthy schema, or an
+// error naming the first missing table or column. Used by `ktx doctor`
+// for the hard schema requirement.
 //
-// M2 columns are intentionally NOT checked here — see HasM2Columns for
-// the soft (warning-level) check that the doctor invokes separately.
+// Cost-publication columns are intentionally NOT checked here — see
+// HasCostColumns for the soft (warning-level) check that the doctor
+// invokes separately.
 //
 // Implementation notes:
 //   - PRAGMA table_info(<table>) is the standard SQLite introspection.
@@ -140,24 +145,24 @@ func (d *DB) CheckSchema() error {
 	return nil
 }
 
-// HasM2Columns reports whether the tool_calls table carries every M2
-// cost-publication column. Returns (true, nil, nil) when every m2Schema
+// HasCostColumns reports whether the tool_calls table carries every
+// cost-publication column. Returns (true, nil, nil) when every costSchema
 // column is present, (false, [missing], nil) when one or more are
 // absent, and a non-nil error only when the table_info query itself
 // fails (e.g. the table is missing — which is a separate error from a
-// missing column and belongs in the M1 hard check).
+// missing column and belongs in the core hard check).
 //
 // The boolean drives the doctor's m2_columns check status (ok / warning);
 // the missing slice drives the detail string (lists the absent columns
 // by name so the user can verify the migration ran, or hand-fix a
 // partial set before the next open).
-func (d *DB) HasM2Columns() (bool, []string, error) {
+func (d *DB) HasCostColumns() (bool, []string, error) {
 	have, err := tableColumns(d.db, "tool_calls")
 	if err != nil {
 		return false, nil, fmt.Errorf("inspect tool_calls: %w", err)
 	}
 	var missing []string
-	for _, want := range m2Schema {
+	for _, want := range costSchema {
 		if _, ok := have[want]; !ok {
 			missing = append(missing, want)
 		}
@@ -173,20 +178,21 @@ func (d *DB) HasM2Columns() (bool, []string, error) {
 // name, (false, nil) when absent, and (false, err) when the query itself
 // fails (a corrupt schema view or an unreadable database).
 //
-// Unlike HasM2Columns, this is a table-level probe rather than a
-// column-level probe. The bench_runs table is created at the M3
-// milestone; a pre-M3 database has no such table. The doctor uses this
+// Unlike HasCostColumns, this is a table-level probe rather than a
+// column-level probe. The bench_runs table is created when the
+// database is first migrated to include it; a database that has not
+// yet been migrated has no such table. The doctor uses this
 // probe to distinguish three states:
 //
 //   - Table present + all 10 columns present → "ok"
 //   - Table present + some columns missing → "warning" (forward-fix on next open)
-//   - Table absent entirely → "warning" (pre-M3 database; M1/M2 records
+//   - Table absent entirely → "warning" (unmigrated database; core and cost-publication records
 //     still queryable, the migration creates the table on next open)
 //
 // The split matters because the three states have different remediation
 // messages: forward-fix is automatic on next open for a partial table,
-// while a missing table is a pre-M3 marker that disappears on the very
-// next ktx invocation that opens the database.
+// while a missing table is an unmigrated marker that disappears on the
+// very next ktx invocation that opens the database.
 func (d *DB) HasBenchRunsTable() (bool, error) {
 	var name string
 	err := d.db.QueryRow(
@@ -202,12 +208,12 @@ func (d *DB) HasBenchRunsTable() (bool, error) {
 }
 
 // HasRecordedStreamsTable reports whether the recorded_streams table
-// exists in the database (D20 recording contract). Mirrors
+// exists in the database (the recording contract). Mirrors
 // HasBenchRunsTable's pattern: a missing table is NOT an error (it
-// signals a pre-D20 database that will self-heal on the next Open
+// signals an unmigrated database that will self-heal on the next Open
 // via CREATE TABLE IF NOT EXISTS). The caller (runBenchReplay) maps
-// false → ExitNotFound with a 'pre-D20 database; run any ktx command
-// to apply the migration' message.
+// false → ExitNotFound with an 'unmigrated database; run any ktx
+// command to apply the migration' message.
 func (d *DB) HasRecordedStreamsTable() (bool, error) {
 	var name string
 	err := d.db.QueryRow(
@@ -223,7 +229,7 @@ func (d *DB) HasRecordedStreamsTable() (bool, error) {
 }
 
 // HasBenchRunsColumns reports whether the bench_runs table carries every
-// expected column per D12's reproducibility contract. Returns
+// expected column per the reproducibility contract. Returns
 // ([], nil) when every benchRunsSchema column is present, ([missing], nil)
 // when one or more are absent, and a non-nil error when the table_info
 // query fails (e.g. the table is missing — which is a separate signal

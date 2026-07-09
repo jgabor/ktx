@@ -159,9 +159,9 @@ func TestRunRunWith_Dispatch(t *testing.T) {
 
 	t.Run("non-zero agent exit propagates as ktx run exit code", func(t *testing.T) {
 		// /bin/false exits 1; the wrapper's exit code matches
-		// the child's (D1: "exit code matches the child's
-		// exit code"). The run summary still prints (D1
-		// wrapper convention) because --quiet is not set.
+		// the child's ("exit code matches the child's exit
+		// code"). The run summary still prints (wrapper
+		// convention) because --quiet is not set.
 		testutil.WithTempXDG(t)
 
 		origRunCmd := runCmd
@@ -178,7 +178,7 @@ func TestRunRunWith_Dispatch(t *testing.T) {
 	})
 
 	t.Run("tool_use event persisted to tool_calls table", func(t *testing.T) {
-		// AC 1 of Task 1 (runCmd seam) plus a higher-level
+		// runCmd seam acceptance plus a higher-level
 		// integration check: an agent emitting one tool_use
 		// JSONL event causes a tool_call row to be persisted
 		// in the database, queryable via db.GetRecord.
@@ -203,14 +203,14 @@ func TestRunRunWith_Dispatch(t *testing.T) {
 		}
 
 		// The tool_use line should be passed through
-		// verbatim (D1 transparent proxy) and a tool_call
+		// verbatim (transparent proxy) and a tool_call
 		// row should be persisted in the database.
 		if !strings.Contains(stdout.String(), `"tool_use"`) {
 			t.Errorf("stdout missing tool_use passthrough: %q", stdout.String())
 		}
 
 		// Open the database and look for any tool_call
-		// row. The wrapper generates a fresh D3 nanoid so
+		// row. The wrapper generates a fresh nanoid so
 		// we cannot hardcode the ID; instead, list and
 		// count.
 		d, err := dbpkg.Open(os.Getenv("KTX_DB"))
@@ -271,8 +271,8 @@ func TestRunRunWith_Dispatch(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
 
-		// The agent's stdout must still pass through (D1
-		// transparent proxy) — --record-stream captures an extra
+		// The agent's stdout must still pass through
+		// (transparent proxy) — --record-stream captures an extra
 		// copy but does not suppress passthrough.
 		if !strings.Contains(stdout.String(), `"tool_use"`) {
 			t.Errorf("stdout missing tool_use passthrough: %q", stdout.String())

@@ -1,5 +1,5 @@
 // truncate stage: keeps the first N bytes of input and appends a
-// marker line when truncation occurred (M4 plan Task 4 / D14).
+// marker line when truncation occurred.
 //
 // Default N is 4096 bytes. Configurable via the `truncate:N` token
 // form (e.g. `truncate:8192`). Input shorter than N bytes is returned

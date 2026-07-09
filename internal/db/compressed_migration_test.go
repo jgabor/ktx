@@ -1,8 +1,8 @@
-// Schema migration tests for the `compressed` table (M4 plan Task 1).
+// Schema migration tests for the `compressed` table.
 //
-// Covers the M4 plan Task 1 acceptance:
+// Covers the migration acceptance:
 //   - fresh-DB has `compressed` with all 6 columns
-//   - M3-era DB gains `compressed` on next open
+//   - older DB gains `compressed` on next open
 //   - re-open is a no-op (idempotency)
 //   - partial-column forward-fix (hand-built fixture via
 //     OpenWithoutMigration with only `id` + `source_id`)
@@ -30,7 +30,7 @@ var expectedCompressedColumns = []string{
 }
 
 // TestCompressedMigration_FreshDB covers the "fresh database created by
-// the M4 binary" leg: OpenMemory runs migrate() which includes the
+// the current binary" leg: OpenMemory runs migrate() which includes the
 // `CREATE TABLE IF NOT EXISTS compressed` statement, so the table and
 // all 6 columns must be present from the start (no ALTER needed).
 func TestCompressedMigration_FreshDB(t *testing.T) {
@@ -83,22 +83,23 @@ func TestCompressedMigration_FreshDB(t *testing.T) {
 	})
 }
 
-// TestCompressedMigration_PreM4Database covers the "M3-era database
-// opened by the M4 binary gains compressed" leg. We build a pre-M4
-// fixture exactly as M1+M2+M3 would have left it (sessions,
-// tool_calls with all M2 columns, bench_runs), then run migrate()
+// TestCompressedMigration_PreM4Database covers the "older database
+// opened by the current binary gains compressed" leg. We build an
+// unmigrated fixture exactly as the older schema would have left it
+// (sessions, tool_calls with all cost-publication columns, bench_runs),
+// then run migrate()
 // against it. The compressed table must appear with all 6 columns
 // and existing tables/rows must be untouched.
 func TestCompressedMigration_PreM4Database(t *testing.T) {
-	t.Run("M3-era DB gains compressed table with all 6 columns", func(t *testing.T) {
+	t.Run("unmigrated DB gains compressed table with all 6 columns", func(t *testing.T) {
 		raw, err := sql.Open(sqliteDriver, "file::memory:?_pragma=foreign_keys(1)")
 		if err != nil {
 			t.Fatalf("open raw sqlite: %v", err)
 		}
 		t.Cleanup(func() { _ = raw.Close() })
 
-		// Build the pre-M4 schema exactly as M1+M2+M3 would have:
-		// sessions, tool_calls (with M2 columns inlined), bench_runs.
+		// Build the older schema exactly as the prior version would have:
+		// sessions, tool_calls (with cost-publication columns inlined), bench_runs.
 		// No compressed table — that is what migrate() must add.
 		for _, stmt := range []string{
 			`CREATE TABLE sessions (
@@ -139,7 +140,7 @@ func TestCompressedMigration_PreM4Database(t *testing.T) {
 			)`,
 		} {
 			if _, err := raw.Exec(stmt); err != nil {
-				t.Fatalf("create pre-M4 table: %v", err)
+				t.Fatalf("create older-schema table: %v", err)
 			}
 		}
 
@@ -170,10 +171,10 @@ func TestCompressedMigration_PreM4Database(t *testing.T) {
 			t.Fatalf("seed bench_runs: %v", err)
 		}
 
-		// Run migrate() against the pre-M4 fixture. This is the
-		// "M4 binary opens an M3-era database" path.
+		// Run migrate() against the unmigrated fixture. This is the
+		// "current binary opens an older database" path.
 		if err := migrate(raw); err != nil {
-			t.Fatalf("migrate pre-M4 DB: %v", err)
+			t.Fatalf("migrate unmigrated DB: %v", err)
 		}
 
 		// compressed must now exist with all 6 columns.
@@ -233,7 +234,7 @@ func TestCompressedMigration_PreM4Database(t *testing.T) {
 // forward-fix path: a `compressed` table exists with only `id` and
 // `source_id` (the pathological "buggy prior migration created a
 // partial table" case). migrate() must add the other 4 columns on the
-// next open via ALTER TABLE ADD COLUMN, matching the M2/M3
+// next open via ALTER TABLE ADD COLUMN, matching the
 // partial-forward-fix contract.
 func TestCompressedMigration_PartialForwardFix(t *testing.T) {
 	raw, err := sql.Open(sqliteDriver, "file::memory:?_pragma=foreign_keys(1)")
@@ -319,7 +320,7 @@ func TestCompressedMigration_PartialForwardFix(t *testing.T) {
 }
 
 // TestCompressedMigration_ForeignKeyEnforcement covers the FK leg of
-// Task 1 AC6: with foreign_keys=1 (enforced by Open's DSN), a
+// the contract: with foreign_keys=1 (enforced by Open's DSN), a
 // compressed row cannot point at a non-existent tool_call.
 func TestCompressedMigration_ForeignKeyEnforcement(t *testing.T) {
 	d, err := OpenMemory()

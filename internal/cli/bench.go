@@ -1,14 +1,14 @@
-// `ktx bench` — the M3 benchmark namespace (Decision 2, Decision 12).
+// `ktx bench` — the benchmark namespace.
 //
 // bench owns the headline number that proves or disputes the cost
 // contract. The v1 surface ships two subcommands:
 //
 //	ktx bench run <agent> <model> <task>
-//	    Consumes the D12 methodology, runs the agent via the existing
+//	    Consumes the methodology, runs the agent via the existing
 //	    wrapper path (ktx run <agent> ...), scores per the methodology's
 //	    scoring function (v1 = exact_match), persists a bench_runs row
-//	    with cost derived per D11 at write time, and prints the headline
-//	    number to stdout plus a one-line summary to stderr (D1 wrapper
+//	    with cost derived at write time, and prints the headline
+//	    number to stdout plus a one-line summary to stderr (wrapper
 //	    convention).
 //
 //	ktx bench report [<id>] [--methodology <ver>]
@@ -17,21 +17,20 @@
 //	    Three invocation modes: list (no <id>, all rows in insertion order);
 //	    single-row (<id>, emits the row directly, not-found → exit 2);
 //	    filtered (--methodology <ver>, recomputes headline on the
-//	    filtered set). Plan Task 5 implements all three.
+//	    filtered set).
 //
-// Database path resolution (Decision 8): KTX_DB env > default. The
-// dispatch is the same shape as `ktx prices` and `ktx doctor` — a
-// namespace with subcommands, no flags of its own (v1).
+// Database path resolution: KTX_DB env > default. The dispatch is the
+// same shape as `ktx prices` and `ktx doctor` — a namespace with
+// subcommands, no flags of its own (v1).
 //
-// Methodology file location: `.agentera/bench/methodology-v1.yaml`,
+// Methodology file location: `tools/bench/methodology-v1.yaml`,
 // resolved by walking up from the current working directory looking
-// for `.agentera/`. The methodology file is the reproducibility
-// contract (D12) — every input that produced the headline number is
-// enumerated there. Plan Task 4 AC7 (missing methodology → exit 2,
-// JSON error) is enforced by runBenchRun before any wrapper
-// invocation.
+// for `tools/bench/`. The methodology file is the reproducibility
+// contract — every input that produced the headline number is
+// enumerated there. Missing methodology → exit 2, JSON error, is
+// enforced by runBenchRun before any wrapper invocation.
 //
-// Output contract (D12): JSON default with --format text for humans.
+// Output contract: JSON default with --format text for humans.
 // The headline number is `cost_per_correct = cost_USD / max(score,
 // 1e-9)` USD, six decimal places. The JSON envelope carries the
 // headline, the rows array (one element for the just-inserted row in
@@ -61,30 +60,30 @@ import (
 )
 
 // benchMethodologyRelPath is the path of the v1 methodology file relative
-// to the repo root (D12 path commitment). Bench run resolves the repo
-// root by walking up from CWD looking for `.agentera/`, then joins
-// this relative path. A --methodology flag on bench run selects a
-// different version via methodologyPathForVersion.
-const benchMethodologyRelPath = ".agentera/bench/methodology-v1.yaml"
+// to the repo root. Bench run resolves the repo root by walking up from
+// CWD looking for `tools/bench/`, then joins this relative path. A
+// --methodology flag on bench run selects a different version via
+// methodologyPathForVersion.
+const benchMethodologyRelPath = "tools/bench/methodology-v1.yaml"
 
 // methodologyPathForVersion returns the methodology file path for the
 // given version string. Empty version defaults to v1. A non-empty
-// version constructs .agentera/bench/methodology-<version>.yaml.
+// version constructs tools/bench/methodology-<version>.yaml.
 func methodologyPathForVersion(version string) string {
 	if version == "" || version == "v1" {
 		return benchMethodologyRelPath
 	}
-	return fmt.Sprintf(".agentera/bench/methodology-%s.yaml", version)
+	return fmt.Sprintf("tools/bench/methodology-%s.yaml", version)
 }
 
 // benchEpsilon is the division-by-zero guard from the methodology
-// formula (D12: `cost_per_correct = cost_USD / max(score, 1.0e-9)`).
+// formula (`cost_per_correct = cost_USD / max(score, 1.0e-9)`).
 // score=0 produces a very large headline number — the vision's "cost
 // is the contract made loud" — signalling that an incorrect answer is
 // unboundedly expensive per correct.
 const benchEpsilon = 1.0e-9
 
-// runBenchWith is the testable core of `ktx bench` (Task 3 seam).
+// runBenchWith is the testable core of `ktx bench`.
 // stdout/stderr are injected so the namespace dispatch flow can be
 // exercised without touching os.Stdout/Stderr. The body parses the
 // top-level bench flag set and dispatches to runBenchReport or
@@ -131,12 +130,12 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // converting their int exit code into the dispatcher's (any, error)
 // shape.
 //
-// Per the plan Task 6 hard constraint, runBenchReport and
+// Per the hard constraint, runBenchReport and
 // runBenchReportImpl remain direct test seams — they open their own
 // database and parse their own flags. The top-level namespace
 // dispatcher is the only piece that registers via dispatch.Register;
-// the inner adapters stay callable directly so existing Task 3 tests
-// pass unchanged.
+// the inner adapters stay callable directly so existing tests pass
+// unchanged.
 //
 // Exit-code mapping: 0 → (nil, nil); non-zero → typed error. The
 // dispatcher's exitCodeOf recognises CodeUsage (1), CodeNotFound (2),
@@ -206,7 +205,7 @@ func scanBenchHelp(args []string) (showHelp bool, rest []string) {
 // one that reaches the user. The sub-handler returns int not error,
 // so the dispatcher's printError path is bypassed entirely; only
 // exitCodeOf is consulted (via the typed error returned here). For
-// AC5 (empty bench_runs → exit 0), no envelope is printed; the
+// an empty bench_runs table (→ exit 0), no envelope is printed; the
 // dispatcher's success path applies.
 func benchSubToErr(prefix string, code int) (any, error) {
 	switch code {
@@ -225,7 +224,7 @@ func benchSubToErr(prefix string, code int) (any, error) {
 
 // init registers `ktx bench` with the dispatch module. After init
 // runs, the verb is reachable through runWith (the legacy
-// commandIndex entry in cli.go is removed in Task 6).
+// commandIndex entry in cli.go is removed).
 //
 // NeedsDB=false: the bench namespace dispatcher itself does not
 // touch the database; runBenchReport and runBenchRun each open
@@ -233,7 +232,7 @@ func benchSubToErr(prefix string, code int) (any, error) {
 // The inner functions remain direct test seams (runBenchReportImpl
 // takes a pre-opened DB; runBenchReport opens the DB on call).
 //
-// FormatDefault=FormatJSON: matches the plan Task 6 contract for
+// FormatDefault=FormatJSON: matches the contract for
 // `ktx bench report`'s JSON default with --format text for humans.
 func init() {
 	Register("bench", RegisterOptions{
@@ -244,10 +243,10 @@ func init() {
 	}, benchCommandFunc)
 }
 
-// runBenchReport is the plan Task 5 implementation. It replaces the
-// Task 4 "not yet implemented" stub with the headline consumer that
-// surfaces the D12 headline from persisted bench_runs rows. Three
-// invocation modes are supported:
+// runBenchReport is the implementation. It replaces the "not yet
+// implemented" stub with the headline consumer that surfaces the
+// headline from persisted bench_runs rows. Three invocation modes are
+// supported:
 //
 //	ktx bench report                      — list all rows in insertion
 //	                                       order (oldest first); emit
@@ -255,7 +254,7 @@ func init() {
 //	                                       array (JSON default) or
 //	                                       one-line summary + tabwriter
 //	                                       table (--format text)
-//	ktx bench report <id>                 — single-row lookup by D3
+//	ktx bench report <id>                 — single-row lookup by
 //	                                       nanoid; JSON default emits
 //	                                       the row directly (no rows
 //	                                       array, no headline envelope);
@@ -274,7 +273,7 @@ func init() {
 // the CLI layer (the adapter owns flag.Parse + DB open + exit code;
 // the impl owns the three-mode dispatch + rendering).
 //
-// Exit codes (D4 contract):
+// Exit codes:
 //
 //	0 = ok (including empty bench_runs; an empty benchmark is not an error)
 //	1 = usage error (invalid --format, unknown flag, unexpected arg)
@@ -307,7 +306,7 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 
 	// Open the database. The dbpkg.Open call applies the bench_runs
-	// migration if the database is pre-M3 (Task 3 idempotent path).
+	// migration if the database is old (idempotent path).
 	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench report: resolve database path: %v", err), format)
@@ -327,13 +326,13 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// runBenchReportImpl is the Task 5 implementation core. Its signature
-// matches the plan Task 5 spec exactly: stdout/stderr injection, a
+// runBenchReportImpl is the implementation core. Its signature
+// matches the spec exactly: stdout/stderr injection, a
 // pre-opened *dbpkg.DB, the parsed positional args (optional <id>),
 // the resolved format ("" or FormatJSON default to JSON; FormatText for
 // humans), and the methodology filter ("" for no filter). Returns a
 // typed *Error on failure so the dispatcher adapter can map it to an
-// exit code via the D4 contract.
+// exit code.
 //
 // The three invocation modes are dispatched on the presence of a
 // positional arg:
@@ -343,9 +342,9 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 //	[id1, id2, ...]      → usage error (single-row only takes one id)
 //
 // Pointer discipline preserved end-to-end: BenchRun.Cost is *float64 so
-// the absent-vs-zero distinction survives JSON round-trips (the
-// existing Task 4 contract). The text renderer maps a nil Cost to "-"
-// (matches M2's ktx list --format text convention for absent M2 fields).
+// the absent-vs-zero distinction survives JSON round-trips. The text
+// renderer maps a nil Cost to "-" (matches the ktx list --format text
+// convention for absent fields).
 func runBenchReportImpl(
 	stdout, stderr io.Writer,
 	db *dbpkg.DB,
@@ -355,7 +354,7 @@ func runBenchReportImpl(
 ) error {
 	_ = stderr // stderr is reserved for the dispatcher adapter's error envelope; unused in the success path.
 
-	// Single-row mode: positional <id>. The plan Task 5 AC3 contract
+	// Single-row mode: positional <id>. The contract
 	// is "JSON for the row only (no rows array, headline is the row's
 	// value); if no row matches, ktx exits with code 2 (not-found)".
 	if len(args) >= 1 {
@@ -373,7 +372,7 @@ func runBenchReportImpl(
 		return renderBenchRunSingle(stdout, format, b)
 	}
 
-	// List / filtered mode: load all rows in insertion order (D12's
+	// List / filtered mode: load all rows in insertion order (the
 	// "rows array, oldest first" contract — QueryBenchRuns returns
 	// ORDER BY timestamp ASC, id ASC). Filter in memory when
 	// --methodology is set; the cost of an extra SELECT WHERE on a
@@ -394,7 +393,7 @@ func runBenchReportImpl(
 }
 
 // renderBenchRunSingle writes the single-row output. JSON default
-// emits the BenchRun directly (no headline envelope per AC3); the
+// emits the BenchRun directly (no headline envelope); the
 // existing BenchRun JSON tags govern the shape — id, agent, model,
 // task, score, tokens_in, tokens_out, cost, methodology_version,
 // timestamp — with pointer discipline preserved (Cost *float64,
@@ -431,7 +430,7 @@ func renderBenchRunSingleText(w io.Writer, b dbpkg.BenchRun) error {
 }
 
 // renderBenchReportJSON writes the list-mode JSON envelope per the
-// plan Task 5 AC1 contract:
+// contract:
 //
 //	{
 //	  "headline": <number|null>,
@@ -440,13 +439,13 @@ func renderBenchRunSingleText(w io.Writer, b dbpkg.BenchRun) error {
 //	}
 //
 // The headline is the multi-row aggregate (SUM(cost) / max(SUM(score),
-// 1e-9), per D12) or null when SUM(cost) is NULL (every row's cost is
+// 1e-9)) or null when SUM(cost) is NULL (every row's cost is
 // NULL). methodology_version prefers the first row's value (the data's
 // own statement); when no rows exist, it falls back to the filter
 // string so a `--methodology v1` invocation with zero matching rows
 // still surfaces "we filtered for v1" in the envelope. An empty
 // bench_runs table with no filter renders methodology_version as null
-// (the AC6 contract).
+// (the absence-marker contract).
 //
 // The BenchRun struct's JSON tags govern the per-row shape (10
 // fields including tokens_in / tokens_out, cost as *float64 with
@@ -469,7 +468,7 @@ func renderBenchReportJSON(stdout io.Writer, rows []dbpkg.BenchRun, methodologyF
 
 // renderBenchReportText writes the list-mode text output: a one-line
 // headline summary with the methodology reference visible (per the
-// spec example and AC2), a horizontal rule, and a tabwriter-aligned
+// spec example), a horizontal rule, and a tabwriter-aligned
 // table of rows in insertion order. An empty bench_runs (or a filter
 // that matches no rows) emits the headline summary only — no rule, no
 // table — so the user sees "no data" cleanly without a half-rendered
@@ -552,7 +551,7 @@ func filterByMethodology(rows []dbpkg.BenchRun, version string) []dbpkg.BenchRun
 }
 
 // computeAggregateHeadline computes the multi-row headline per the
-// D12 methodology's `computation:` block:
+// methodology's `computation:` block:
 //
 //	headline = SUM(cost) / max(SUM(score), 1.0e-9)
 //
@@ -561,8 +560,7 @@ func filterByMethodology(rows []dbpkg.BenchRun, version string) []dbpkg.BenchRun
 // so the headline is meaningless). The 1e-9 epsilon guards against
 // division by zero when SUM(score)=0; the resulting large value
 // correctly signals "an incorrect answer is unboundedly expensive per
-// correct" (the vision's "cost is the contract made loud" — D12
-// reasoning).
+// correct" (the vision's "cost is the contract made loud" reasoning).
 //
 // Per-row score is 0.0 or 1.0 (exact-match v1), so SUM(score) over
 // rows is the count of correct runs; the headline is total_cost /
@@ -601,7 +599,7 @@ func computeAggregateHeadline(rows []dbpkg.BenchRun) (float64, bool) {
 
 // formatBenchTimestamp converts the bench_runs INTEGER Unix epoch
 // seconds column to RFC3339Nano for human-readable text output. The
-// JSON path emits the integer as-is (the D12 reproducibility contract
+// JSON path emits the integer as-is (the reproducibility contract
 // keeps the timestamp machine-readable; RFC3339Nano is for humans).
 // A zero or negative timestamp renders as "-" (matches the cost
 // pointer discipline: nil Cost → "-"; zero timestamp → "-").
@@ -631,15 +629,15 @@ type methodology struct {
 
 // loadMethodology reads the v1 methodology file from the repo root and
 // returns its parsed subset. The repo root is resolved by walking up
-// from CWD looking for the `.agentera` directory; the methodology file
-// lives at `.agentera/bench/methodology-v1.yaml` per D12.
+// from CWD looking for the `tools/bench` directory; the methodology file
+// lives at `tools/bench/methodology-v1.yaml`.
 //
 // Returns ErrBenchMethodologyNotFound (mapped to ExitNotFound by the
 // caller) when the file is absent, and a parse error (mapped to
 // ExitInternal) when the file is malformed. The parser is a small
 // line-based subset reader — the methodology file's v1 schema is
 // shallow enough that a hand-rolled parser is more honest than pulling
-// in a YAML dependency (the M3 plan's "Go stdlib first, no new external
+// in a YAML dependency (the "Go stdlib first, no new external
 // deps" rule).
 func loadMethodology(version string) (*methodology, string, error) {
 	cwd, err := os.Getwd()
@@ -670,16 +668,16 @@ func loadMethodology(version string) (*methodology, string, error) {
 }
 
 // findRepoRoot walks up from CWD looking for a directory containing
-// `.agentera`. The methodology file lives there. The walk is bounded
+// `tools/bench`. The methodology file lives there. The walk is bounded
 // to the filesystem root (stop-at /) so a runaway traversal cannot
 // exceed a reasonable depth; in practice ktx is invoked from a
 // project checkout, so the walk is one or two levels.
 //
-// Returns the path of the directory containing `.agentera`, or
+// Returns the path of the directory containing `tools/bench`, or
 // dbpkg.ErrBenchMethodologyNotFound when no such directory exists
 // within the walk boundary. The caller maps the typed error to
-// ExitNotFound (exit 2) per plan Task 4 AC7: missing methodology is
-// a hard failure, not a soft fail.
+// ExitNotFound (exit 2): missing methodology is a hard failure, not
+// a soft fail.
 func findRepoRoot() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -687,7 +685,7 @@ func findRepoRoot() (string, error) {
 	}
 	dir := cwd
 	for {
-		candidate := filepath.Join(dir, ".agentera")
+		candidate := filepath.Join(dir, "tools", "bench")
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 			return dir, nil
 		}
@@ -886,17 +884,16 @@ func unquoteYAML(s string) string {
 	return s
 }
 
-// runBenchRun is the M3 plan Task 4 implementation: the headline
-// producer. The flow:
+// runBenchRun is the headline producer. The flow:
 //
 //  1. Parse positional args (agent, model, task).
-//  2. Load the methodology file; bail with ExitNotFound (AC7) on
+//  2. Load the methodology file; bail with ExitNotFound on
 //     missing or unreadable file.
 //  3. Validate that the supplied (agent, model, task) match the
 //     methodology's pinned inputs. The methodology file IS the
 //     reproducibility contract — the CLI rejects a run whose inputs
 //     drift from the published methodology. (v1 ships single-task;
-//     M3 plan Task 4 pins the (agent, model, task) triple in the
+//     the (agent, model, task) triple is pinned in the
 //     methodology file. A drift is treated as a usage error so the
 //     user knows the headline they would produce does not match the
 //     published one.)
@@ -905,19 +902,19 @@ func unquoteYAML(s string) string {
 //  5. Invoke `ktx run <agent> <task.prompt>` as a subprocess. The
 //     subprocess's stdout is captured for scoring; its stderr is
 //     captured for the wrapper run summary. KTX_SESSION_ID is
-//     exported so any runtime hook noops (D1/D10).
+//     exported so any runtime hook noops.
 //  6. Score the agent's output (last text event's content, falling
 //     back to the last non-empty line of stdout) against
 //     task.expected_output.
 //  7. Find the wrapper's session in the database (most recent session
 //     whose agent matches and is not older than the wrapper's start
 //     time), aggregate tokens/cost/model from tool_calls.
-//  8. D11 derivation fills bench_runs.cost when the tool_calls'
+//  8. Derivation fills bench_runs.cost when the tool_calls'
 //     SUM(cost) is NULL but tokens + model are present and the cache
-//     has the price (AC4).
+//     has the price.
 //  9. Insert the bench_runs row with all 10 columns populated.
 //  10. Print the headline JSON envelope to stdout and a one-line
-//     summary to stderr (D1 wrapper convention).
+//     summary to stderr (wrapper convention).
 //
 // Exit codes: 0 on success, 2 (not-found) on missing methodology or
 // task definition, 4 (internal) on database / subprocess failures.
@@ -935,7 +932,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard)
 	var replaySessionID string
 	var methodologyVersion string
-	fs.StringVar(&replaySessionID, "replay", "", "replay a recorded session by session-id (D13 Tier 1 / D20); makes (agent, model, task) optional")
+	fs.StringVar(&replaySessionID, "replay", "", "replay a recorded session by session-id; makes (agent, model, task) optional")
 	fs.StringVar(&methodologyVersion, "methodology", "", "methodology version (e.g., 'v1', 'v2-tooluse'); defaults to v1")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench run: %v", err), format)
@@ -943,7 +940,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	rest = fs.Args()
 
-	// D20: --replay dispatches to the replay path before positional-arg
+	// --replay dispatches to the replay path before positional-arg
 	// validation. The flag REPLACES the positional-args source — the
 	// (agent, model, task) triple is read from the referenced
 	// bench_runs row, not from the CLI.
@@ -968,8 +965,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	// Validate the CLI inputs against the methodology's pinned triple.
 	// A drift is a usage error so the user sees the headline does not
-	// match the published methodology (Task 4 AC7 / D12 reproducibility
-	// contract).
+	// match the published methodology (reproducibility contract).
 	if agentArg != "opencode" { // v1: agent is the binary name; methodology pins opencode 1.17.8
 		printError(stderr, usageError("ktx bench run: agent %q does not match methodology pinned agent %q", agentArg, "opencode"), format)
 		return ExitUsage
@@ -984,7 +980,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 
 	// Open the database. The dbpkg.Open call applies the bench_runs
-	// migration if the database is pre-M3 (D11 forward-fix).
+	// migration if the database predates the bench_runs table (forward-fix).
 	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: resolve database path: %v", err), format)
@@ -999,20 +995,20 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	// Pre-flight: verify the bench_runs table exists. Doctor would
 	// surface this as a warning; bench run surfaces it as a hard error
-	// because the run cannot proceed without the table. Plan Task 4
-	// AC7 treats missing inputs as a hard failure.
+	// because the run cannot proceed without the table. Missing inputs
+	// are a hard failure.
 	hasTable, err := db.HasBenchRunsTable()
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: bench_runs check: %v", err), format)
 		return ExitInternal
 	}
 	if !hasTable {
-		printError(stderr, notFoundError("ktx bench run: bench_runs table is missing (pre-M3 database; run any ktx command to apply the migration)"), format)
+		printError(stderr, notFoundError("ktx bench run: bench_runs table is missing (old database; run any ktx command to apply the migration)"), format)
 		return ExitNotFound
 	}
 
 	// Invoke the wrapper subprocess. The wrapper's stdout (agent's
-	// output, per D1 transparent proxy) is captured for scoring; its
+	// output, transparent proxy) is captured for scoring; its
 	// stderr (the run summary) is captured for diagnostics. We do NOT
 	// pass the wrapper's stdout through to bench run's stdout —
 	// bench run's stdout is the headline JSON envelope, and the
@@ -1030,7 +1026,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	var agentStdout, agentStderr bytes.Buffer
 	cmd.Stdout = &agentStdout
 	cmd.Stderr = &agentStderr
-	cmd.Env = os.Environ() // KTX_SESSION_ID is exported by the wrapper itself (D10).
+	cmd.Env = os.Environ() // KTX_SESSION_ID is exported by the wrapper itself.
 	if err := cmd.Run(); err != nil {
 		// A non-zero exit from the wrapper is informational, not a
 		// bench run failure — the agent may have failed to run but
@@ -1080,7 +1076,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// the captured stream.
 	agentStdoutBytes := agentStdout.Bytes()
 	streamMetrics := extractStreamMetrics(agentStdoutBytes)
-	// Per D17: OpenCode 1.17.8 step_finish carries tokens/cost on the
+	// OpenCode 1.17.8 step_finish carries tokens/cost on the
 	// stream's step-aggregate event, NOT on the tool_call rows the
 	// wrapper persists from tool_use events. SummarizeBenchToolCalls
 	// returns zeros / NULL in that gap; streamMetrics — when it has
@@ -1094,7 +1090,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 			tokensOut = streamMetrics.tokensOut
 		}
 		// streamMetrics.cost is the provider-reported cost on the
-		// stream (D17 L3 branch (a)); it wins over SummarizeBenchToolCalls'
+		// stream (provider-cost branch); it wins over SummarizeBenchToolCalls'
 		// nil result. A non-nil provider cost does NOT override a
 		// non-nil tool_calls-aggregated cost — the per-row evidence
 		// is the stronger signal when present.
@@ -1130,7 +1126,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// Build the BenchRun. The Cost pointer is populated from the
 	// SUM(cost) of the underlying tool_calls when present; otherwise
 	// it stays nil and deriveBenchCost fills it from the cache at
-	// write time (D11 AC4).
+	// write time.
 	br := &dbpkg.BenchRun{
 		ID:                 "",                           // populated below
 		Agent:              aggProvider + "/" + aggModel, // bench_runs stores provider/model as the agent identifier
@@ -1172,7 +1168,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitInternal
 	}
 
-	// D20 recording contract: persist the captured JSONL stream so
+	// Recording contract: persist the captured JSONL stream so
 	// `ktx bench run --replay <session-id>` can re-parse it later
 	// without re-invoking the agent. The capture is non-fatal: if it
 	// fails (e.g. FK rejection, disk full), a stderr warning is
@@ -1184,12 +1180,12 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "ktx: warning: failed to record stream for --replay: %v\n", err)
 	}
 
-	// Compute the headline (D12). cost_per_correct = cost_USD /
+	// Compute the headline. cost_per_correct = cost_USD /
 	// max(score, 1e-9). When score=0 the headline is a very large
 	// number — the "cost is the contract made loud" signal.
 	headline := computeHeadline(persisted.Cost, persisted.Score)
 
-	// JSON envelope per D12's output block: {headline, rows,
+	// JSON envelope per the output block: {headline, rows,
 	// methodology_version}. One row for `bench run` (the just-inserted
 	// bench_run); `rows` is an array for `bench report`'s
 	// multi-row view.
@@ -1217,14 +1213,14 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "tokens_in: %d\n", persisted.TokensIn)
 		fmt.Fprintf(stdout, "tokens_out: %d\n", persisted.TokensOut)
 	default:
-		// JSON default (D4). The envelope is the D12 output shape.
+		// JSON default. The envelope is the output shape.
 		if err := json.NewEncoder(stdout).Encode(envelope); err != nil {
 			printError(stderr, internalError("ktx bench run: write JSON: %v", err), format)
 			return ExitInternal
 		}
 	}
 
-	// D1 wrapper convention: one-line summary to stderr. The summary
+	// Wrapper convention: one-line summary to stderr. The summary
 	// carries the headline and methodology reference so a glance at
 	// stderr surfaces the headline without parsing JSON.
 	costStr := "null"
@@ -1299,13 +1295,13 @@ func findWrapperSession(db *dbpkg.DB, agentArg string, wrapperStart time.Time) (
 
 // extractAgentOutput returns the agent's final response from the
 // captured stdout. The wrapper's stdout is the agent's verbatim
-// output (D1 transparent proxy); bench run captures it for scoring.
+// output (transparent proxy); bench run captures it for scoring.
 //
 // The extractor handles two shapes:
 //
 //  1. JSONL events: each line is a JSON object with a "type" field.
 //     For OpenCode 1.17.8 the answer lives at part.text on the final
-//     `text` event (see .agentera/verification/fixtures/opencode-tool-use.jsonl
+//     `text` event (see tools/bench/fixtures/opencode-tool-use.jsonl
 //     line 5: {"type":"text",...,"part":{"type":"text","text":...}}).
 //     The earlier top-level `content` alias is preserved as a
 //     fallback for the flat-fallback shape and for tests that
@@ -1370,7 +1366,7 @@ func extractAgentOutput(stdout []byte) string {
 	return lastNonEmpty
 }
 
-// scoreExactMatch is the v1 scorer (D12: scoring.function = exact_match).
+// scoreExactMatch is the v1 scorer (scoring.function = exact_match).
 // Returns 1.0 when actual equals expected after whitespace trimming,
 // 0.0 otherwise. The comparison is byte-exact post-trim; the v1
 // methodology documents that "temperature>0 runs are not bit-
@@ -1386,15 +1382,14 @@ func scoreExactMatch(actual, expected string) float64 {
 
 // streamMetrics carries per-step-enrichment evidence extracted from
 // the captured JSONL stream that `ktx run` teed to bench run's
-// captured agent stdout. Per Decision 17: OpenCode 1.17.8 emits
+// captured agent stdout. OpenCode 1.17.8 emits
 // tokens_in/tokens_out/cost/model on the step_finish event (a
 // step-aggregate), not on tool_use (per-tool). The wrapper persists
 // only tool_use events as tool_call rows, so those rows are
-// NULL-by-design against real OpenCode (see parser.go:150-158 and
-// .agentera/verification/m2-acceptance.md §3 'Surprises'). This
-// struct surfaces the stream-side evidence the D17-amended L2/L3
-// contract produced; bench run uses it to populate bench_runs row
-// fields that would otherwise stay 0/NULL via SummarizeBenchToolCalls.
+// NULL-by-design against real OpenCode (see parser.go:150-158). This
+// struct surfaces the stream-side evidence; bench run uses it to
+// populate bench_runs row fields that would otherwise stay 0/NULL via
+// SummarizeBenchToolCalls.
 type streamMetrics struct {
 	tokensIn  int64
 	tokensOut int64
@@ -1409,7 +1404,7 @@ type streamMetrics struct {
 // a streamMetrics populated with the SUM of tokens_in / tokens_out
 // over all step_finish lines; cost is the MAX provider-reported
 // part.cost across step_finish lines (matches the provider-cost
-// branch (a) of D17-amended L3); model is the methodology-pinned
+// branch of the stream contract); model is the methodology-pinned
 // model id when the stream does not carry a model identifier (the
 // step_finish event has no model field today, only part.cost and
 // part.tokens). provider is derived per the OpenCode runtime-known
@@ -1460,7 +1455,7 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 		if n, ok := jsonNumberToInt64(tk.Output); ok {
 			sm.tokensOut += n
 		}
-		// part.cost: provider-reported cost in the stream (D17 L3 branch (a)).
+		// part.cost: provider-reported cost in the stream (provider-cost branch).
 		// MAX across events keeps the largest reported cost (the
 		// last step_finish usually carries the total). cost=0 is a
 		// valid provider-reported value (e.g., cache hits) and is
@@ -1512,14 +1507,14 @@ func jsonNumberToInt64(raw json.RawMessage) (int64, bool) {
 	return 0, false
 }
 
-// computeHeadline computes the D12 headline number:
+// computeHeadline computes the headline number:
 //
 //	cost_per_correct = cost_USD / max(score, 1e-9)
 //
 // The epsilon prevents division by zero when score=0. The 1e-9
-// guard is documented in methodology-v1.yaml and the D12 entry.
+// guard is documented in methodology-v1.yaml.
 // Returns 0 when cost is nil (the bench row's NULL cost path — the
-// headline reflects partial data, AC5 soft-fail).
+// headline reflects partial data, soft-fail).
 func computeHeadline(cost *float64, score float64) float64 {
 	if cost == nil {
 		return 0
@@ -1531,8 +1526,8 @@ func computeHeadline(cost *float64, score float64) float64 {
 	return *cost / denom
 }
 
-// runBenchReplay implements `ktx bench run --replay <session-id>` (D20
-// recording contract / D13 Tier 1). It loads the recorded JSONL stream
+// runBenchReplay implements `ktx bench run --replay <session-id>`. It
+// loads the recorded JSONL stream
 // from recorded_streams by session_id, re-parses it through
 // parser.ParseEvent (parser_regression check), re-aggregates tokens/cost
 // via extractStreamMetrics (cost_drift check), and emits a JSON
@@ -1564,7 +1559,7 @@ func runBenchReplay(sessionID string, opts Options, stdout, stderr io.Writer, fo
 func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer, format string) int {
 
 	// Pre-flight: verify recorded_streams table exists. A missing table
-	// signals a pre-D20 database; the user should run any ktx command to
+	// signals an old database; the user should run any ktx command to
 	// trigger the migration.
 	hasTable, err := db.HasRecordedStreamsTable()
 	if err != nil {
@@ -1572,11 +1567,11 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		return ExitInternal
 	}
 	if !hasTable {
-		printError(stderr, notFoundError("ktx bench run --replay: recorded_streams table is missing (pre-D20 database; run any ktx command to apply the migration)"), format)
+		printError(stderr, notFoundError("ktx bench run --replay: recorded_streams table is missing (old database; run any ktx command to apply the migration)"), format)
 		return ExitNotFound
 	}
 
-	// Load the recorded stream by session_id (D13's public --replay arg).
+	// Load the recorded stream by session_id (the public --replay arg).
 	rs, err := db.GetRecordedStreamBySession(sessionID)
 	if err != nil {
 		if errors.Is(err, dbpkg.ErrNotFound) {
@@ -1622,7 +1617,7 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	// guarantees byte-passthrough, a mismatch can ONLY mean a parser code
 	// change between capture and replay.
 	//
-	// The parsed tool_calls are also collected (Task 4): the A/B
+	// The parsed tool_calls are also collected: the A/B
 	// compression measurement reuses them below — zero agent calls,
 	// the stream is already in memory.
 	replayedToolUseCount := 0
@@ -1673,15 +1668,16 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		consistency = "DRIFT"
 	}
 
-	// (d) A/B compression measurement (Task 4): run each recorded
+	// (d) A/B compression measurement: run each recorded
 	// tool_use output through compressPipeline (timeout=0, off-line)
 	// and aggregate baseline_bytes (sum len original) vs
 	// compressed_bytes (sum len compressed). Reuses compressPipeline
-	// (DRY) so the D15 gate, the anti-worsening gate, and the D14
-	// invariants all apply identically to the live hook path. D15-
-	// gated calls (is_error=true) count toward baseline_bytes only
+	// (DRY) so the failure gate, the anti-worsening gate, and the
+	// conservative-on-failure invariants all apply identically to
+	// the live hook path. Failure-gated
+	// calls (is_error=true) count toward baseline_bytes only
 	// (compressPipeline returns the original for them). Zero agent
-	// calls — the recorded D20 stream is already parsed above.
+	// calls — the recorded stream is already parsed above.
 	compressionSection := measureReplayCompression(parsedToolCalls)
 
 	// Build the output envelope. capture_source distinguishes the
@@ -1747,7 +1743,7 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		fmt.Fprintf(stdout, "bench_run_id: %s\n", rs.BenchRunID)
 		fmt.Fprintf(stdout, "replayed_tool_use_count: %d\n", replayedToolUseCount)
 		fmt.Fprintf(stdout, "original_tool_call_count: %d\n", session.ToolCallCount)
-		// A/B compression summary (Task 4).
+		// A/B compression summary.
 		if baseline, ok := compressionSection["baseline_bytes"].(int64); ok {
 			compressed, _ := compressionSection["compressed_bytes"].(int64)
 			ratio, _ := compressionSection["ratio"].(float64)
@@ -1776,13 +1772,13 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 // ratio (compressed/baseline), bytes_saved (baseline-compressed), and
 // the configured pipeline (cfg.PipelineDefault as a []string).
 //
-// D15-gated calls (is_error=true on the tool_call) are counted in
+// Failure-gated calls (is_error=true on the tool_call) are counted in
 // baseline_bytes only — compressPipeline returns the original output
-// for them (the D15 pre-pipeline gate skips compression on failure), so
+// for them (the pre-pipeline gate skips compression on failure), so
 // their compressed_bytes contribution equals the original length (the
-// pipeline did not help). The anti-worsening gate (Task 2) ensures
+// pipeline did not help). The anti-worsening gate ensures
 // compressed_bytes <= baseline per call, so the aggregate ratio is in
-// [0.0, 1.0]. Zero agent calls: the measurement reuses the D20 recorded
+// [0.0, 1.0]. Zero agent calls: the measurement reuses the recorded
 // stream's parsed tool_calls and compressPipeline's off-line path.
 //
 // stderr is io.Discard so stage warnings do not pollute the replay
@@ -1828,7 +1824,7 @@ func measureReplayCompression(toolCalls []*dbpkg.ToolCall) map[string]any {
 }
 
 // captureStreamForBenchRun persists the captured JSONL stream into the
-// recorded_streams table (D20 recording contract). Called by runBenchRun
+// recorded_streams table (recording contract). Called by runBenchRun
 // after InsertBenchRun and QueryBenchRun succeed, so bench_run_id and
 // session_id are both known-valid. The streamBytes are the agent's stdout
 // captured by runBenchRun (snapshotted before any scanner consumed the
@@ -1855,7 +1851,7 @@ func captureStreamForBenchRun(db *dbpkg.DB, sessionID, benchRunID string, stream
 // printBenchHelp writes the `ktx bench --help` text. Mirrors the
 // help style of `ktx prices --help` and `ktx doctor --help`.
 func printBenchHelp(w io.Writer) {
-	fmt.Fprintln(w, "ktx bench — benchmark namespace (M3)")
+	fmt.Fprintln(w, "ktx bench — benchmark namespace")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx bench <subcommand> [args]")
 	fmt.Fprintln(w)
@@ -1866,7 +1862,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      the headline to stdout (JSON default) plus a one-line")
 	fmt.Fprintln(w, "      summary to stderr.")
 	fmt.Fprintln(w, "  run --replay <session-id>")
-	fmt.Fprintln(w, "      Replay a recorded session (D20 / D13 Tier 1): re-parse the")
+	fmt.Fprintln(w, "      Replay a recorded session: re-parse the")
 	fmt.Fprintln(w, "      recorded JSONL stream, re-aggregate tokens/cost, and emit a")
 	fmt.Fprintln(w, "      consistency headline comparing replay-derived metrics to the")
 	fmt.Fprintln(w, "      original bench_runs row. Zero agent calls (fast, free,")
@@ -1876,14 +1872,14 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Emit the headline from persisted bench_runs rows.")
 	fmt.Fprintln(w, "      Without <id>: list all rows in insertion order (oldest first);")
 	fmt.Fprintln(w, "        headline is the methodology-defined aggregate across rows.")
-	fmt.Fprintln(w, "      With <id>: emit a single row by D3 nanoid; not-found → exit 2.")
+	fmt.Fprintln(w, "      With <id>: emit a single row by nanoid; not-found → exit 2.")
 	fmt.Fprintln(w, "      --methodology filters rows by methodology_version; the")
 	fmt.Fprintln(w, "        headline is recomputed from the filtered set.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Methodology file: .agentera/bench/methodology-v1.yaml (D12). The")
+	fmt.Fprintln(w, "Methodology file: tools/bench/methodology-v1.yaml. The")
 	fmt.Fprintln(w, "CLI inputs (agent, model, task) must match the methodology's")
 	fmt.Fprintln(w, "pinned triple; a drift is a usage error so the headline matches")
-	fmt.Fprintln(w, "the published methodology (D12 reproducibility contract).")
+	fmt.Fprintln(w, "the published methodology (reproducibility contract).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
 	fmt.Fprintln(w, "  json (default)  {headline, methodology_version, rows} envelope")

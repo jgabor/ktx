@@ -8,7 +8,7 @@
 # listing them here.
 #
 # Stages run in order; each receives the previous stage's output.
-# Conservative-on-failure invariants (D14) are enforced by the pipeline
+# Conservative-on-failure invariants are enforced by the pipeline
 # runner, not by stage authors:
 #   1. Empty-output guard — a stage that empties non-empty input is discarded
 #   2. Stage-error passthrough — an errored or panicking stage passes input through
@@ -16,7 +16,7 @@
 #   4. Anti-worsening gate — if the pipeline result is not smaller than input,
 #      the original is returned unchanged (no compressed row created)
 #
-# Source-tool-failure gate (D15) runs BEFORE the pipeline: if the tool_call
+# Source-tool-failure gate runs BEFORE the pipeline: if the tool_call
 # has is_error=true, compression is skipped entirely and a passthrough row
 # is written. This is a pre-pipeline gate, distinct from the in-pipeline
 # invariants above.
@@ -92,7 +92,7 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 #
 # User-defined stages backed by external scripts. The script receives
 # the stage's input on stdin and writes its output to stdout. A non-zero
-# exit code triggers D14 invariant 2 (stage-error passthrough).
+# exit code triggers the stage-error-passthrough invariant.
 #
 # [[plugin]]
 # name = "my-summary"

@@ -1,11 +1,10 @@
 // Table-driven tests for the dispatch deep module (internal/cli/dispatch.go).
 //
-// The plan's Task 4 acceptance criteria are the spine of this file. Each AC
-// is a subtest with a name that matches the spec (AC1..AC6) so the regression
-// surface is enumerable. Companion cases cover the boundary conditions the
-// plan calls out as edge cases (--help, unknown flag, format validation) and
-// the runWith integration that proves the new registry is actually wired
-// into the dispatcher (not just a side table).
+// The dispatch contract is the spine of this file. Each requirement
+// is a subtest so the regression surface is enumerable. Companion
+// cases cover the boundary conditions (--help, unknown flag, format
+// validation) and the runWith integration that proves the new
+// registry is actually wired into the dispatcher (not just a side table).
 //
 // Test isolation: dispatchRegistry is package-level state. Every test uses
 // the registerFor helper which both calls dispatch.Register and schedules a
@@ -52,10 +51,10 @@ func captureVerb(t *testing.T, verb string, opts RegisterOptions, captured **Dis
 	}
 }
 
-// TestDispatch_AC1_OkNoOutput covers AC1: a registered verb that returns
+// TestDispatch_OkNoOutput covers: a registered verb that returns
 // (nil, nil) produces exit 0 and writes nothing to stdout. The verb is a
 // no-op closure so the only observable outputs are the dispatcher's.
-func TestDispatch_AC1_OkNoOutput(t *testing.T) {
+func TestDispatch_OkNoOutput(t *testing.T) {
 	registerFor(t, "ac1_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		return nil, nil
 	})
@@ -73,18 +72,18 @@ func TestDispatch_AC1_OkNoOutput(t *testing.T) {
 	}
 }
 
-// TestDispatch_AC2_NotFoundEnvelope covers AC2: a verb that returns
+// TestDispatch_NotFoundEnvelope covers: a verb that returns
 // dbpkg.ErrNotFound produces exit 2 and a stderr envelope whose code is
 // "not-found". The error sentinel is the contract that ties the dispatch
 // layer to the persistence layer: any code that returns dbpkg.ErrNotFound
 // must surface as exit 2, never as the internal-error fallback.
-func TestDispatch_AC2_NotFoundEnvelope(t *testing.T) {
+func TestDispatch_NotFoundEnvelope(t *testing.T) {
 	var captured *DispatchContext
 	registerFor(t, "ac2_foo", RegisterOptions{}, captureVerb(t, "ac2_foo", RegisterOptions{}, &captured))
 
 	// Replace the no-op logic with one that returns ErrNotFound. The
 	// previous registration gets overwritten by the second Register,
-	// which is exactly the surface AC2 exercises: the verb returns
+	// which is exactly the surface this case exercises: the verb returns
 	// the sentinel at dispatch time.
 	Register("ac2_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		captured = ctx
@@ -107,11 +106,11 @@ func TestDispatch_AC2_NotFoundEnvelope(t *testing.T) {
 	}
 }
 
-// TestDispatch_AC3_UsageError covers AC3: a verb that returns a usage
+// TestDispatch_UsageError covers: a verb that returns a usage
 // error produces exit 1 and a stderr envelope whose code is "usage".
 // usageError is the standard constructor; the test exercises the
 // printing + exit-code path.
-func TestDispatch_AC3_UsageError(t *testing.T) {
+func TestDispatch_UsageError(t *testing.T) {
 	registerFor(t, "ac3_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		return nil, usageError("bad input: %s", "missing-id")
 	})
@@ -132,12 +131,12 @@ func TestDispatch_AC3_UsageError(t *testing.T) {
 	}
 }
 
-// TestDispatch_AC4_PassthroughStdout covers AC4: a verb with
+// TestDispatch_PassthroughStdout covers: a verb with
 // PassthroughStdout=true writes its own raw JSON envelope to stdout and
 // the dispatcher does not wrap, double-encode, or modify it. The verb
 // emits a fixed JSON object; the test decodes what actually arrived on
 // stdout and checks byte-equality with the verb's literal.
-func TestDispatch_AC4_PassthroughStdout(t *testing.T) {
+func TestDispatch_PassthroughStdout(t *testing.T) {
 	handRolled := map[string]any{
 		"id":   "raw-abc123",
 		"kind": "tool_call",
@@ -176,7 +175,7 @@ func TestDispatch_AC4_PassthroughStdout(t *testing.T) {
 	}
 }
 
-// TestDispatch_AC5_NoDB covers AC5: a verb with NeedsDB=false never
+// TestDispatch_NoDB covers: a verb with NeedsDB=false never
 // touches the database, so an unreadable database file at the resolved
 // path is irrelevant. The verb runs and exits 0; the dispatcher's
 // dbpkg.ResolvePath + dbpkg.Open calls are not made.
@@ -184,8 +183,8 @@ func TestDispatch_AC4_PassthroughStdout(t *testing.T) {
 // The fixture points XDG_DATA_HOME at a directory containing a chmod 0
 // db file so dbpkg.Open would fail if the dispatcher called it. This
 // is the strongest possible negative: a permissions failure (not just a
-// missing file) is the kind of unreadable the AC is defending against.
-func TestDispatch_AC5_NoDB(t *testing.T) {
+// missing file) is the kind of unreadable the test is defending against.
+func TestDispatch_NoDB(t *testing.T) {
 	tmp := t.TempDir()
 	dataHome := filepath.Join(tmp, "share")
 	if err := os.MkdirAll(dataHome, 0o755); err != nil {
@@ -204,7 +203,7 @@ func TestDispatch_AC5_NoDB(t *testing.T) {
 	}
 	// As root (the only case where chmod 0o000 doesn't bite) the test
 	// is weakened but not invalidated: the verb still runs and exits 0
-	// because NeedsDB=false, which is the contract AC5 cares about.
+	// because NeedsDB=false, which is the contract under test.
 	t.Cleanup(func() { _ = os.Chmod(dbPath, 0o644) })
 	t.Setenv("XDG_DATA_HOME", dataHome)
 
@@ -222,12 +221,12 @@ func TestDispatch_AC5_NoDB(t *testing.T) {
 	}
 }
 
-// TestDispatch_AC6_PreParse covers AC6: a verb with a PreParse hook
+// TestDispatch_PreParse covers: a verb with a PreParse hook
 // receives ctx.Args set to whatever the hook returned. The hook is the
 // ktx init shape: hand-rolled arg parsing before the flag set sees
 // anything. The test installs a hook that returns ['a','b'] verbatim
 // (with no flags) and asserts ctx.Args matches.
-func TestDispatch_AC6_PreParse(t *testing.T) {
+func TestDispatch_PreParse(t *testing.T) {
 	var captured *DispatchContext
 	registerFor(t, "ac6_foo", RegisterOptions{
 		PreParse: func(args []string) ([]string, error) {
@@ -395,8 +394,8 @@ func TestDispatch_FormatExtraction(t *testing.T) {
 
 	// PassthroughStdout verbs (the run verb) forward --format to the
 	// child agent unchanged. The dispatcher must NOT steal --format from
-	// the verb's arg list. Regression for Decision 18: D16's invocation
-	// `ktx run opencode run --format json -m <m> <prompt>` failed end-to-
+	// the verb's arg list. The `ktx run opencode run --format json -m
+	// <m> <prompt>` invocation failed end-to-
 	// end because extractFormat (flags.go:34) was consuming `--format
 	// json` from the verb's args before the agent saw it; this test
 	// asserts the fix (skip extractFormat when PassthroughStdout=true).
@@ -454,7 +453,7 @@ func TestDispatch_PreParseError(t *testing.T) {
 	}
 }
 
-// TestDispatch_PassthroughWithDB covers the AC4 + NeedsDB combination:
+// TestDispatch_PassthroughWithDB covers the passthrough + NeedsDB combination:
 // a verb that needs the database and writes its own raw output. The
 // dispatcher opens the DB (NeedsDB=true) but does not wrap stdout
 // (PassthroughStdout=true). The test asserts ctx.DB is non-nil and the
@@ -521,9 +520,9 @@ func TestDispatch_PassthroughFlag(t *testing.T) {
 	}
 }
 
-// TestDispatch_NeedsDBFalse covers the negative of AC5 at the context
+// TestDispatch_NeedsDBFalse covers the negative of the NeedsDB case at the context
 // level: a verb with NeedsDB=false sees ctx.DB == nil. The check is
-// redundant with the AC5 case (which proves the dispatcher never opens
+// redundant with the earlier case (which proves the dispatcher never opens
 // the DB) but it documents the contract the verb can rely on.
 func TestDispatch_NeedsDBFalse(t *testing.T) {
 	var captured *DispatchContext
@@ -639,7 +638,7 @@ func TestDispatch_Integration(t *testing.T) {
 
 // sliceEq reports whether two []string have identical content. The
 // stdlib reflect.DeepEqual works but allocates; this is the test-only
-// helper that keeps the AC6 assertion obvious on the failure line.
+// helper that keeps the assertion obvious on the failure line.
 func sliceEq(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

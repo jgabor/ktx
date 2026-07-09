@@ -1,10 +1,9 @@
-// `ktx run` — the wrapper integration path (Decisions 1, 4, 10). Spawns an
-// agent subprocess, captures its stdout, parses newline-delimited JSON
-// events for tool-call shapes, persists each tool event via the internal
-// db.Open function, and transparently passes the agent's stdout through to
-// ktx's stdout.
+// `ktx run` — the wrapper integration path. Spawns an agent subprocess,
+// captures its stdout, parses newline-delimited JSON events for tool-call
+// shapes, persists each tool event via the internal db.Open function, and
+// transparently passes the agent's stdout through to ktx's stdout.
 //
-// The wrapper is a transparent proxy (D1):
+// The wrapper is a transparent proxy:
 //
 //   - agent stdout passes through to ktx's stdout untouched
 //   - agent stderr inherits the wrapper's stderr
@@ -13,14 +12,14 @@
 //     dispatch path converts to internal-error on non-zero exit
 //     because the locked dispatch API can only map typed errors)
 //
-// Session lifecycle (D1 revised, D7):
+// Session lifecycle:
 //
 //   - Open: wrapper creates a session row before spawning the child,
 //     setting agent = first positional arg (the binary name, e.g.
 //     "opencode"). This overrides the hook path's "unknown" default.
-//   - Identity: KTX_SESSION_ID exported into the child env (D10) so any
+//   - Identity: KTX_SESSION_ID exported into the child env so any
 //     runtime hook noops and the child does not double-record.
-//   - Close: immediate, on child process exit (D1 revised). Wrapper sets
+//   - Close: immediate, on child process exit. Wrapper sets
 //     ended_at and releases the session file's invariant for the next
 //     call.
 //
@@ -34,17 +33,17 @@
 //	non-tool events (text, step lifecycle, malformed JSON, empty lines).
 //	The non-tool signal is passthrough: teeAndParse writes the line
 //	to the caller's stdout and moves on. The parser package is
-//	module-internal and reused by the future M4 hook path
-//	(D1: same JSON payload shape).
+//	module-internal and reused by the future hook path
+//	(same JSON payload shape).
 //
-// Task 6 migration: the verb registers via dispatch.Register with
-// NeedsDB=true (dispatcher opens the DB) and PassthroughStdout=true
-// (transparent stdout proxy — the verb owns its raw output). The
-// verb's own flag set parses --quiet/-q (a runtime flag the
-// dispatcher does not know about); runRunWith remains the test seam
-// and reuses the same parser path. The dispatch wrapper routes
-// through executeRun, which preserves the runCmd injection seam
-// (Task 1). Child exit codes that are non-zero are mapped to a
+// The verb registers via dispatch.Register with NeedsDB=true
+// (dispatcher opens the DB) and PassthroughStdout=true (transparent
+// stdout proxy — the verb owns its raw output). The verb's own flag
+// set parses --quiet/-q (a runtime flag the dispatcher does not know
+// about); runRunWith remains the test seam and reuses the same parser
+// path. The dispatch wrapper routes through executeRun, which
+// preserves the runCmd injection seam. Child exit codes that are
+// non-zero are mapped to a
 // typed *Error{CodeInternal} because the dispatch API can only map
 // typed errors to exit codes — the test seam preserves the literal
 // child exit code contract.
@@ -84,15 +83,15 @@ const maxAgentLine = 64 * 1024 * 1024
 // threaded within a single goroutine but the variable itself is shared.
 var runCmd = exec.CommandContext
 
-// runRunWith is the testable core of `ktx run` (Task 1-3 seam).
+// runRunWith is the testable core of `ktx run` (test seam).
 // stdout/stderr are injected so the run flow can be exercised without
 // touching os.Stdout/Stderr. The body parses the run flag set and
 // invokes executeRun, returning its int exit code directly so the
-// test seam preserves the child's exit code contract (D1).
+// test seam preserves the child's exit code contract.
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	// Subcommand-local --quiet / --help / --record-stream. The dispatch
 	// module already extracts --help when invoked through dispatch; for
-	// direct runRunWith callers (Task 1-3 seam), parse the flag set here.
+	// direct runRunWith callers (test seam), parse the flag set here.
 	quiet, showHelp, preRecordStream, rest := parseRunArgs(args)
 	if showHelp {
 		printRunHelp(stdout)
@@ -245,7 +244,7 @@ func filterKtxFlags(args []string) (quiet, showHelp, recordStream bool, rest []s
 // JSONL into the recorded_streams table after the session closes —
 // with an empty (NULL) bench_run_id, since ktx run has no bench_runs
 // parent. The capture reuses the same tee path as bench's
-// captureStreamForBenchRun (D20 recording contract); --replay can then
+// captureStreamForBenchRun (recording contract); --replay can then
 // re-parse the session without re-invoking the agent. The capture is
 // soft-fail: a persist error is logged as a warning and the run still
 // exits with the child's exit code (the agent already ran).
@@ -267,17 +266,16 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	defer db.Close()
 
 	startedAt := start.UTC().Format(time.RFC3339Nano)
-	// The session-file key is the wrapper's own PID (Decision 1 revised
-	// inverted for the wrapper path): the child sees ktx run as its
-	// parent, so a future hook on the child would look up the wrapper by
-	// its ppid. KTX_SESSION_ID makes the hook noop in any case (D10).
+	// The session-file key is the wrapper's own PID: the child sees ktx
+	// run as its parent, so a future hook on the child would look up the
+	// wrapper by its ppid. KTX_SESSION_ID makes the hook noop in any case.
 	sessionID, err := db.OpenNamedSession(agent, os.Getpid(), startedAt)
 	if err != nil {
 		printError(stderr, internalError("ktx run: open session: %v", err), opts.Format)
 		return ExitInternal
 	}
 
-	// Spawn the child with KTX_SESSION_ID exported (D10). The child
+	// Spawn the child with KTX_SESSION_ID exported. The child
 	// inherits the wrapper's stdin and stderr (the agent can read input
 	// and write diagnostics directly); only stdout is intercepted for
 	// tee + parse. Signal forwarding: SIGINT/SIGTERM received by the
@@ -315,7 +313,7 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	if err := cmd.Start(); err != nil {
 		// A missing agent binary is a user error (wrong name) rather than
 		// a ktx internal fault; classify as usage so the exit code matches
-		// the project's exit-code contract (Decision 4: 1 = usage).
+		// the project's exit-code contract (1 = usage).
 		printError(stderr, usageError("ktx run: spawn %q: %v", agent, err), opts.Format)
 		return ExitUsage
 	}
@@ -337,8 +335,8 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 
 	waitErr := cmd.Wait()
 
-	// Close the session immediately on child process exit (D1 revised:
-	// wrapper closes immediately on child process exit). Close failure
+	// Close the session immediately on child process exit
+	// (wrapper closes immediately on child process exit). Close failure
 	// is logged but does not fail the user's command — the agent ran,
 	// and the user gets its exit code.
 	endedAt := time.Now().UTC().Format(time.RFC3339Nano)
@@ -347,7 +345,7 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 	}
 
 	// Persist the captured stream into recorded_streams when
-	// --record-stream was passed (D20 recording contract, opt-in for
+	// --record-stream was passed (recording contract, opt-in for
 	// the wrapper path). bench_run_id is empty (SQL NULL) because ktx
 	// run has no bench_runs parent — the bench path
 	// (captureStreamForBenchRun) is the only caller that supplies a
@@ -380,7 +378,7 @@ func executeRun(agent string, agentArgs []string, opts Options, stdout, stderr i
 
 // captureStreamForRun persists the captured JSONL stream into the
 // recorded_streams table for a `ktx run --record-stream` invocation
-// (D20 recording contract, opt-in wrapper path). Mirrors
+// (recording contract, opt-in wrapper path). Mirrors
 // captureStreamForBenchRun but passes an empty bench_run_id (which
 // InsertRecordedStream maps to SQL NULL) since ktx run has no
 // bench_runs parent. The captured stream enables `ktx bench run
@@ -413,13 +411,13 @@ func captureStreamForRun(db *dbpkg.DB, sessionID string, streamBytes []byte) err
 // own passthrough via teeAndParse).
 //
 // The dispatcher's exit-code pipeline maps typed *Error to the right
-// exit code, but ktx run's exit code is the child's exit code (D1).
-// To preserve the contract on the dispatch path for AC4 (stub exits
+// exit code, but ktx run's exit code is the child's exit code.
+// To preserve the contract on the dispatch path (stub exits
 // 0 → exit 0), the wrapper maps a 0 child exit to (nil, nil) and a
 // non-zero child exit to a typed *Error{CodeInternal}. Production
 // code that needs the literal child exit code should use the test
 // seam (runRunWith) — the locked dispatch API cannot represent
-// arbitrary exit codes without an error envelope. AC4 only tests the
+// arbitrary exit codes without an error envelope. The happy-path case
 // 0-exit happy path; the test seam preserves the contract end-to-end.
 func runCommandFunc(ctx *DispatchContext) (any, error) {
 	// The dispatcher already consumed --help and --quiet; ctx.Args
@@ -461,8 +459,7 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // init registers `ktx run` with the dispatch module. After init runs,
-// the verb is reachable through runWith (the legacy commandIndex entry
-// in cli.go is removed in Task 6).
+// the verb is reachable through runWith.
 //
 // The verb uses PassthroughStdout=true because ktx run is a transparent
 // proxy: the agent's stdout flows to ktx's stdout untouched. The
@@ -471,8 +468,8 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 // NeedsDB=true because executeRun opens the database to create the
 // wrapper's session row before spawning the child.
 //
-// --quiet/-q is consumed by the dispatcher's flag set (Task 6
-// DispatchContext.Quiet extension); the verb reads ctx.Quiet rather
+// --quiet/-q is consumed by the dispatcher's flag set
+// (DispatchContext.Quiet extension); the verb reads ctx.Quiet rather
 // than re-parsing ctx.Args. The post-agent --quiet fallback (the
 // user typed `ktx run <agent> ... --quiet`) is handled inside the
 // verb body via filterKtxFlags, which scans ctx.Args (the post-agent
@@ -625,7 +622,7 @@ func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w, "Spawns <agent> as a child process with KTX_SESSION_ID exported into")
 	fmt.Fprintln(w, "the environment. The agent's stdout passes through to ktx's stdout")
 	fmt.Fprintln(w, "untouched. Each newline-delimited JSON event is parsed; tool events")
-	fmt.Fprintln(w, "are persisted to the database as tool_calls (Decision 10).")
+	fmt.Fprintln(w, "are persisted to the database as tool_calls.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "When the child exits, the session is closed immediately (ended_at set).")
 	fmt.Fprintln(w, "ktx run's exit code matches the child's exit code.")

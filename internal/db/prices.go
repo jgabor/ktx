@@ -1,11 +1,11 @@
-// Price cache for the D11 cost-measurement mechanics (Decision 11).
+// Price cache for the cost-measurement mechanics.
 //
 // The cache lives at $XDG_DATA_HOME/ktx/prices.json and is the local source
 // of truth for per-token pricing across runs. ktx fetches from
 // https://models.dev/api.json on cache miss and caches the parsed result
 // in memory; the on-disk file is the long-lived source of truth between
 // fetches. Fetch failures are soft: the write path surfaces stored cost
-// when the cache cannot supply a price, with no error returned (D11
+// when the cache cannot supply a price, with no error returned (the
 // soft-fail contract).
 //
 // File format (JSON, two-level map keyed by (provider, model)):
@@ -20,23 +20,23 @@
 // for its `cost.input` and `cost.output` fields. The format is a faithful
 // projection of models.dev's per-model pricing — a third party can read
 // the file without ktx and reconstruct the per-call cost the same way
-// ktx does (the D11 reconstructability contract).
+// ktx does (the reconstructability contract).
 //
-// Lifecycle (Decision 11 + plan Task 2 acceptance):
+// Lifecycle:
 //
 //   - Cold cache (file does not exist at Load time): the first derivation
 //     attempt triggers a fetch from models.dev and an atomic write of the
 //     cache file. Parent directory created with 0o755 if missing.
 //   - Warm cache (file exists at Load time): the in-memory copy is the
 //     only source consulted. No refetch from the write path; cost stays
-//     NULL on lookup miss. Mtime preserved (AC2 — idempotent write path).
+//     NULL on lookup miss. Mtime preserved (idempotent write path).
 //   - Manual refresh (`ktx prices update`): forces a refetch regardless
 //     of cache state and rewrites the cache atomically. A fetch failure
 //     here is a hard error (exit code 4) because the user explicitly
-//     requested the refresh (AC8).
+//     requested the refresh.
 //
-// Cache TTL and auto-refresh are deferred to a future resonera session
-// (D11 reasoning; M3 plan scope.deferred). The implementation ships
+// Cache TTL and auto-refresh are deferred to a future design session.
+// The implementation ships
 // fetch-on-first-use with the manual refresh hook.
 package db
 
@@ -77,8 +77,8 @@ func PricesPath() (string, error) {
 	return filepath.Join(dataHome, "ktx", "prices.json"), nil
 }
 
-// ModelsDevURL is the canonical models.dev JSON endpoint. The plan.yaml
-// Task 2 acceptance contract requires a fetch from this URL; the
+// ModelsDevURL is the canonical models.dev JSON endpoint. The
+// cost contract requires a fetch from this URL; the
 // conventional endpoint is /api.json (confirmed by HTTP/2 200 +
 // content-type: application/json from `curl -I https://models.dev/api.json`).
 const ModelsDevURL = "https://models.dev/api.json"
@@ -122,8 +122,8 @@ type Prices struct {
 	path string
 	// cold reports whether the file did not exist at Load time. When
 	// cold is true, the first lookup miss triggers a fetch + disk
-	// write (AC1). When cold is false (warm cache), lookup misses do
-	// not refetch (AC2) — the on-disk file is treated as the source
+	// write. When cold is false (warm cache), lookup misses do
+	// not refetch — the on-disk file is treated as the source
 	// of truth.
 	cold bool
 	// httpClient is the client used by Refresh to fetch from
@@ -163,7 +163,7 @@ func (p *Prices) WithHTTPClient(c *http.Client) *Prices {
 
 // Load reads the cache file from disk into memory. A missing file
 // returns an empty cache, cold=true, and a nil error — the "cold cache"
-// case (AC1: first invocation triggers fetch + write). A malformed
+// case (first invocation triggers fetch + write). A malformed
 // file returns the parse error and an empty cache; the caller can
 // choose to refresh without ambiguity. Per the soft-fail contract, the
 // write path (PersistToolCall) does NOT propagate parse errors; only
@@ -253,8 +253,8 @@ func (p *Prices) Size() (providers, models int) {
 
 // WriteToDisk atomically writes the in-memory cache to disk. The write
 // is write-to-temp + fsync + rename so a partial cache file cannot be
-// observed by a concurrent reader (AC3: atomic cache write). Parent
-// directory is created with 0o755 permissions if missing (AC4).
+// observed by a concurrent reader (atomic cache write). Parent
+// directory is created with 0o755 permissions if missing.
 //
 // The format is the JSON shape documented at the top of this file:
 // map[provider]map[model]{input, output}. json.MarshalIndent produces
@@ -339,8 +339,8 @@ type modelsDevProvider struct {
 //
 // Used by the write path (PersistToolCall) on cold-cache lookup miss
 // and by the manual refresh command. The write path's caller
-// soft-fails on error (cost stays NULL, AC3 + AC6); the manual refresh
-// command's caller surfaces the error as a hard failure (AC8).
+// soft-fails on error (cost stays NULL); the manual refresh
+// command's caller surfaces the error as a hard failure.
 func (p *Prices) Refresh() error {
 	ctx, cancel := context.WithTimeout(context.Background(), modelsDevTimeout)
 	defer cancel()
@@ -405,7 +405,7 @@ func (p *Prices) Refresh() error {
 // RefreshAndWrite fetches from models.dev and atomically writes the
 // result to disk. A non-nil error leaves the on-disk cache unchanged.
 // Used by `ktx prices update` — the manual refresh hook forces a
-// refetch regardless of cache state (AC8).
+// refetch regardless of cache state.
 func (p *Prices) RefreshAndWrite() error {
 	if err := p.Refresh(); err != nil {
 		return err
@@ -417,7 +417,7 @@ func (p *Prices) RefreshAndWrite() error {
 // a single Load per process; LoadPrices is the public entry point used
 // by PersistToolCall and `ktx prices update`. The error from Load is
 // stored for diagnostic visibility but is not propagated — soft-fail
-// contract (AC3, AC6).
+// contract.
 var (
 	pricesOnce     sync.Once
 	pricesInstance *Prices

@@ -1,26 +1,25 @@
 // `ktx read` — the I/O command that fetches a persisted record by nanoid ID
-// and prints the raw JSON to stdout (Decisions 2, 7, 8). It is the
-// mechanical counterpart to `ktx write`: one ID in, one record's JSON out.
+// and prints the raw JSON to stdout. It is the mechanical counterpart to
+// `ktx write`: one ID in, one record's JSON out.
 //
-// Both the tool_calls and sessions tables are addressed by 16-char nanoid
-// (Decision 7); `ktx read` checks tool_calls first (the higher-volume
-// table) and falls back to sessions. Either result is printed verbatim
-// using the JSON shape of the row — no field transformation, no
-// pretty-printing. Reversibility: a record fetched by `ktx read` is the
-// same shape one could re-persist via `ktx write` (where applicable).
+// Both the tool_calls and sessions tables are addressed by 16-char nanoid;
+// `ktx read` checks tool_calls first (the higher-volume table) and falls
+// back to sessions. Either result is printed verbatim using the JSON shape
+// of the row — no field transformation, no pretty-printing. Reversibility:
+// a record fetched by `ktx read` is the same shape one could re-persist
+// via `ktx write` (where applicable).
 //
-// Like `ktx write`, this is an I/O primitive (Decision 2/8): raw JSON, no
-// --format flag at the subcommand level. The dispatcher's extractFormat
-// strips a stray --format before the verb sees it, so `ktx read --format
-// text <id>` is mechanically identical to `ktx read <id>` (the verb always
-// emits raw JSON). The legacy runReadWith still rejects --format at the
-// subcommand flag set when called directly (Tasks 1-3 test seam).
+// Like `ktx write`, this is an I/O primitive: raw JSON, no --format flag at
+// the subcommand level. The dispatcher's extractFormat strips a stray
+// --format before the verb sees it, so `ktx read --format text <id>` is
+// mechanically identical to `ktx read <id>` (the verb always emits raw
+// JSON). The legacy runReadWith still rejects --format at the subcommand
+// flag set when called directly (test seam).
 //
-// Task 5 migration: the verb registers via dispatch.Register with
-// NeedsDB=true (dispatcher opens the DB) and PassthroughStdout=true
-// (verb writes raw JSON, no envelope wrapping). The legacy runReadWith
-// remains the test seam and still opens its own DB so existing Task 3
-// tests pass unchanged.
+// The verb registers via dispatch.Register with NeedsDB=true (dispatcher
+// opens the DB) and PassthroughStdout=true (verb writes raw JSON, no
+// envelope wrapping). The legacy runReadWith remains the test seam and
+// still opens its own DB so existing tests pass unchanged.
 package cli
 
 import (
@@ -33,7 +32,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runReadWith is the testable core of `ktx read` (Task 1-3 seam).
+// runReadWith is the testable core of `ktx read` (test seam).
 // stdout/stderr are injected so the read flow can be exercised without
 // touching os.Stdout. The body opens the database, delegates to
 // readLogic for the actual work, and translates the returned error
@@ -83,7 +82,7 @@ func readLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
 
 	if err := fs.Parse(args); err != nil {
 		// This rejects `ktx read --format text <id>` and any other
-		// unknown flag at the subcommand level (Task 3 test seam;
+		// unknown flag at the subcommand level (test seam;
 		// the dispatcher's extractFormat strips --format before the
 		// verb sees it, so this branch only fires on direct test
 		// invocations of runReadWith with --format in args).
@@ -131,8 +130,7 @@ func readCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // init registers `ktx read` with the dispatch module. After init
-// runs, the verb is reachable through runWith (the legacy
-// commandIndex entry in cli.go is removed in Task 5).
+// runs, the verb is reachable through runWith.
 func init() {
 	Register("read", RegisterOptions{
 		Description:       "fetch a persisted record by ID (raw JSON)",
@@ -153,7 +151,7 @@ func printReadHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Fetches a record (tool_call or session) from the database by its 16-char")
 	fmt.Fprintln(w, "nanoid ID and prints the raw JSON representation to stdout. tool_calls")
-	fmt.Fprintln(w, "are checked first; sessions are checked second (Decision 7: both tables")
+	fmt.Fprintln(w, "are checked first; sessions are checked second (both tables")
 	fmt.Fprintln(w, "are addressed by nanoid ID).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")

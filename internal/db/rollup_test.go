@@ -1,23 +1,23 @@
-// Table-driven unit tests for internal/db/rollup.go (SessionM2Rollups).
+// Table-driven unit tests for internal/db/rollup.go (SessionCostsRollups).
 //
 // Acceptance coverage:
 //
-//   - AC: pointer discipline (nil for absent aggregates, non-nil pointer
+//   - pointer discipline (nil for absent aggregates, non-nil pointer
 //     to zero for present-but-zero aggregates) is preserved through
 //     every edge case the inspect surface relies on:
 //
 //   - empty DB: no sessions, no tool_calls → empty result map
 //
 //   - mixed-NULL aggregates: a session whose tool_calls have a mix of
-//     NULL and non-NULL M2 fields; SUM ignores NULL row contributions
+//     NULL and non-NULL cost-publication fields; SUM ignores NULL row contributions
 //     so the aggregate is the sum of the non-NULL contributions
 //
 //   - zero aggregates: a session whose every contribution is non-NULL
 //     but sums to 0 (e.g. tokens_in=0 + tokens_out=0). The pointer
 //     must be non-nil AND dereference to 0 — the absent-vs-zero
-//     distinction is the entire reason SessionM2 fields are pointers
+//     distinction is the entire reason SessionCosts fields are pointers
 //
-//   - single partial M2 call: a session with exactly one tool_call
+//   - single partial call: a session with exactly one tool_call
 //     carrying a non-NULL model but NULL tokens/cost. MIN(model) is
 //     the only aggregate that is non-NULL; the session IS in the
 //     result map (HAVING clause) with Tokens=nil, Cost=nil,
@@ -40,24 +40,26 @@
 // The test uses OpenMemory + InsertSession + PersistToolCall to
 // build the scenarios. PersistToolCall increments tool_call_count
 // on the session and writes all 14 columns; the rollup query reads
-// only the M2 columns, so the count column is irrelevant to the
-// assertions.
+// only the cost-publication columns, so the count column is
+// irrelevant to the assertions.
 package db
 
 import "testing"
 
-// TestSessionM2Rollups_PointerDiscipline covers the four edge cases
-// that pin down the absent-vs-zero pointer contract on SessionM2.
-// Each subtest builds a session with controlled tool_call M2 field
-// presence and asserts the resulting map's pointer discipline.
+// TestSessionCostsRollups_PointerDiscipline covers the four edge cases
+// that pin down the absent-vs-zero pointer contract on SessionCosts.
+// Each subtest builds a session with controlled tool_call
+// cost-publication field presence and asserts the resulting map's
+// pointer discipline.
 //
 // The map is keyed by session_id; sessions absent from the map
-// represent "no M2 data" per the rollup's HAVING clause. The
+// represent "no cost-publication data" per the rollup's HAVING
+// clause. The
 // pointer discipline on a present entry is: nil for "every
 // contribution to this aggregate was NULL", non-nil pointer to 0
 // for "contributions existed and summed to 0", non-nil pointer to
 // a value otherwise.
-func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
+func TestSessionCostsRollups_PointerDiscipline(t *testing.T) {
 	t.Run("empty DB: no sessions → empty map", func(t *testing.T) {
 		// No InsertSession, no PersistToolCall. The rollup query
 		// runs against an empty tool_calls table; the result map
@@ -68,9 +70,9 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 		}
 		t.Cleanup(func() { d.Close() })
 
-		rolls, err := d.SessionM2Rollups()
+		rolls, err := d.SessionCostsRollups()
 		if err != nil {
-			t.Fatalf("SessionM2Rollups: %v", err)
+			t.Fatalf("SessionCostsRollups: %v", err)
 		}
 		if len(rolls) != 0 {
 			t.Errorf("rollup map size = %d, want 0 (empty DB)", len(rolls))
@@ -80,7 +82,7 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 	t.Run("mixed-NULL aggregates: non-NULL contributions sum", func(t *testing.T) {
 		// Three tool_calls in one session:
 		//   row A: tokens_in=10, tokens_out=5,  cost=0.10, model="m1"
-		//   row B: all M2 NULL                       (absent)
+		//   row B: all cost-publication fields NULL  (absent)
 		//   row C: tokens_in=20, tokens_out=NULL, cost=0.20, model=NULL
 		//
 		// Per-row tokens_in + tokens_out: A=15, B=NULL, C=NULL.
@@ -122,7 +124,7 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 			SessionID: sessionID,
 			Tool:      "Bash", Input: "b", Output: "o",
 			Timestamp: "2026-06-21T00:00:02Z",
-			// All M2 NULL.
+			// All cost-publication fields NULL.
 		}); err != nil {
 			t.Fatalf("PersistToolCall B: %v", err)
 		}
@@ -137,9 +139,9 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 			t.Fatalf("PersistToolCall C: %v", err)
 		}
 
-		rolls, err := d.SessionM2Rollups()
+		rolls, err := d.SessionCostsRollups()
 		if err != nil {
-			t.Fatalf("SessionM2Rollups: %v", err)
+			t.Fatalf("SessionCostsRollups: %v", err)
 		}
 		roll, ok := rolls[sessionID]
 		if !ok {
@@ -206,9 +208,9 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 			t.Fatalf("PersistToolCall: %v", err)
 		}
 
-		rolls, err := d.SessionM2Rollups()
+		rolls, err := d.SessionCostsRollups()
 		if err != nil {
-			t.Fatalf("SessionM2Rollups: %v", err)
+			t.Fatalf("SessionCostsRollups: %v", err)
 		}
 		roll, ok := rolls[sessionID]
 		if !ok {
@@ -231,9 +233,9 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 		}
 	})
 
-	t.Run("single partial M2 call: model only, tokens/cost NULL", func(t *testing.T) {
-		// One tool_call with model="gpt-4o" and every other M2
-		// field NULL. The aggregate values:
+	t.Run("single partial call: model only, tokens/cost NULL", func(t *testing.T) {
+		// One tool_call with model="gpt-4o" and every other
+		// cost-publication field NULL. The aggregate values:
 		//   SUM(tokens_in + tokens_out) = NULL
 		//   SUM(cost) = NULL
 		//   MIN(model) = "gpt-4o"
@@ -263,15 +265,15 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 			Timestamp: "2026-06-21T00:00:01Z",
 			// Only Model is set; TokensIn/TokensOut/Cost stay nil.
 			// Provider is also nil so deriveCost is a no-op even
-			// if a price is loaded — D11 NULL preservation.
+			// if a price is loaded — NULL preservation.
 			Model: ptrString("gpt-4o"),
 		}); err != nil {
 			t.Fatalf("PersistToolCall: %v", err)
 		}
 
-		rolls, err := d.SessionM2Rollups()
+		rolls, err := d.SessionCostsRollups()
 		if err != nil {
-			t.Fatalf("SessionM2Rollups: %v", err)
+			t.Fatalf("SessionCostsRollups: %v", err)
 		}
 		roll, ok := rolls[sessionID]
 		if !ok {
@@ -290,11 +292,11 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 		}
 	})
 
-	t.Run("session with all-NULL M2 across every call is absent from map", func(t *testing.T) {
+	t.Run("session with all-NULL cost-publication fields across every call is absent from map", func(t *testing.T) {
 		// The negative side of the HAVING clause: a session whose
-		// every tool_call has all M2 fields NULL must NOT appear
+		// every tool_call has all cost-publication fields NULL must NOT appear
 		// in the rollup map. The inspect surface treats a missing
-		// key as "no M2 data" and renders every column as "-".
+		// key as "no cost-publication data" and renders every column as "-".
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
@@ -310,7 +312,7 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("InsertSession: %v", err)
 		}
-		// Two tool_calls; both with every M2 field nil.
+		// Two tool_calls; both with every cost-publication field nil.
 		for i := 0; i < 2; i++ {
 			if err := d.PersistToolCall(&ToolCall{
 				ID: mustNewID(t), SessionID: sessionID,
@@ -321,12 +323,12 @@ func TestSessionM2Rollups_PointerDiscipline(t *testing.T) {
 			}
 		}
 
-		rolls, err := d.SessionM2Rollups()
+		rolls, err := d.SessionCostsRollups()
 		if err != nil {
-			t.Fatalf("SessionM2Rollups: %v", err)
+			t.Fatalf("SessionCostsRollups: %v", err)
 		}
 		if _, ok := rolls[sessionID]; ok {
-			t.Errorf("rollup map contains session %q; want absent (all-NULL M2 → HAVING excludes)", sessionID)
+			t.Errorf("rollup map contains session %q; want absent (all-NULL cost-publication fields → HAVING excludes)", sessionID)
 		}
 	})
 }

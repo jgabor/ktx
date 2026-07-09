@@ -220,7 +220,7 @@ func TestPrices_LoadMalformedKeepsWarmCache(t *testing.T) {
 
 		// A lookup against the empty in-memory map returns ok=false.
 		// The write path will treat this as "warm + miss → no
-		// refetch → cost stays NULL", per D11 AC2.
+		// refetch → cost stays NULL" per the soft-fail contract.
 		if _, _, ok := p.Lookup("anthropic", "anything"); ok {
 			t.Error("Lookup returned ok=true against an empty in-memory map")
 		}

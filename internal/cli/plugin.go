@@ -1,4 +1,4 @@
-// `ktx plugin` — manage compression plugins (D21 / M5).
+// `ktx plugin` — manage compression plugins.
 //
 // A structured editor over [[plugin]] blocks in ktx.toml. The user
 // (or agent) never authors TOML by hand — `ktx plugin add/remove`
@@ -11,8 +11,8 @@
 //	ktx plugin list [--json]
 //	ktx plugin remove <name>
 //
-// D21 choice: structured editor over ktx.toml (single source of truth,
-// D5 honored). Block fields: name (required), command (required),
+// Choice: structured editor over ktx.toml (single source of truth).
+// Block fields: name (required), command (required),
 // description (optional). Unified list returns builtins
 // (builtin=true, removable=false) + user plugins (builtin=false,
 // removable=true). Precedence: RegisterExternalBuilder last-writer-wins

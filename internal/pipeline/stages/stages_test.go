@@ -1,4 +1,4 @@
-// Table-driven tests for the built-in Go stages (M4 plan Task 4).
+// Table-driven tests for the built-in Go stages.
 //
 // One subtest block per stage. Each subtest asserts both the
 // positive transform AND the empty-input edge (empty → empty preserves
@@ -470,7 +470,7 @@ func TestNormalize(t *testing.T) {
 }
 
 // TestKeepEnds covers the keep-ends stage across normal, edge, and
-// error cases (D22 Phase 2).
+// error cases.
 func TestKeepEnds(t *testing.T) {
 	// Build a 100-line input: "line00\n" ... "line99\n".
 	lines := make([]string, 100)
@@ -845,13 +845,13 @@ func TestTokenBudget(t *testing.T) {
 	})
 }
 
-// TestPhase2Pipeline_EndToEnd wires the real-world Phase 2 pipeline
+// TestPipeline_EndToEnd wires the real-world default pipeline
 // (strip-ansi + grep-v + keep-ends + token-budget) through a fresh
 // registry and asserts it meaningfully shrinks a verbose build-log-
-// style input. This is the deterministic compression the Phase 2 plan
+// style input. This is the deterministic compression the pipeline
 // promises: zero ML, pure stdlib, the anti-worsening gate lets the
 // result through because the net output is smaller than the input.
-func TestPhase2Pipeline_EndToEnd(t *testing.T) {
+func TestPipeline_EndToEnd(t *testing.T) {
 	reg := pipeline.NewRegistry()
 	RegisterBuiltins(reg)
 
@@ -888,7 +888,7 @@ func TestPhase2Pipeline_EndToEnd(t *testing.T) {
 	// The anti-worsening gate did NOT fire (result smaller than input),
 	// so Ran records the stages that ran.
 	if len(res.Ran) == 0 {
-		t.Errorf("Ran empty; want the Phase 2 stages recorded (gate should not fire on a shrink)")
+		t.Errorf("Ran empty; want the stages recorded (gate should not fire on a shrink)")
 	}
 	// debug lines must be gone (grep-v).
 	if bytes.Contains(res.Out, []byte("debug:")) {
@@ -943,7 +943,7 @@ func TestRegisterBuiltins(t *testing.T) {
 		}
 	})
 
-	t.Run("BuiltinStageNames includes the four Phase 2 stages", func(t *testing.T) {
+	t.Run("BuiltinStageNames includes the four deterministic stages", func(t *testing.T) {
 		want := map[string]bool{
 			"keep-ends":    true,
 			"grep":          true,

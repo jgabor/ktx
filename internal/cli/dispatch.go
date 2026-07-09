@@ -13,13 +13,13 @@
 // name. The verb owns whatever it writes to ctx.Stdout; the module owns
 // the flag set, the DB, the error envelope, and the exit code.
 //
-// Tasks 5-7 migrate the existing 10 subcommands onto this module. Until
-// then the legacy commandIndex in cli.go continues to dispatch the
-// existing verbs; runWith falls through to this registry for any verb
-// the legacy table does not recognise, which is what the Task 4 demo
-// verbs use to prove the integration end-to-end.
+// The existing subcommands migrate onto this module. The legacy
+// commandIndex in cli.go continues to dispatch the existing verbs;
+// runWith falls through to this registry for any verb the legacy table
+// does not recognise, which is what the demo verbs use to prove the
+// integration end-to-end.
 //
-// Module owns (Decision 2 / Decision 4 surface):
+// Module owns:
 //
 //   - flag.NewFlagSet + SetOutput(io.Discard) + --help/-h
 //   - subcommand-local --format extraction (via flags.extractFormat)
@@ -58,14 +58,14 @@ import (
 // declaration of what the verb needs; the dispatcher reads them to decide
 // whether to open the DB, capture stdin, validate --format, and render
 // the help block. A zero-value RegisterOptions is a valid verb that does
-// nothing and writes nothing — the AC1 baseline.
+// nothing and writes nothing — the baseline.
 type RegisterOptions struct {
 	// Description is the one-line summary shown by `ktx --help`.
 	// Optional; when empty the verb is omitted from the help list
 	// (the verb is still callable, just not advertised). The legacy
 	// commands slice carried a parallel description field; moving
 	// descriptions onto RegisterOptions keeps the help surface
-	// working after the legacy slice is emptied in Task 7.
+	// working after the legacy slice is emptied.
 	Description string
 
 	// NeedsDB asks the dispatcher to open the ktx database before
@@ -82,8 +82,8 @@ type RegisterOptions struct {
 	NeedsStdin bool
 
 	// PassthroughStdout signals that the verb writes its own raw
-	// output (the I/O half of Decision 2: ktx read / ktx write emit
-	// raw JSON without an envelope; ktx run is a transparent proxy).
+	// output (raw JSON without an envelope for ktx read / ktx write;
+	// ktx run is a transparent proxy).
 	// The dispatcher still renders errors to stderr but does not
 	// impose any envelope on stdout.
 	PassthroughStdout bool
@@ -188,7 +188,7 @@ func Register(verb string, opts RegisterOptions, do CommandFunc) int {
 // RegisteredVerbs returns a snapshot of (name, description) pairs for
 // every verb in the dispatch registry. The slice is sorted by name so
 // the help output is deterministic. The dispatcher uses this in
-// place of the legacy commands slice (Task 7 emptied it) so
+// place of the legacy commands slice (now emptied) so
 // `ktx --help` still lists every registered verb.
 func RegisteredVerbs() []struct {
 	Name        string
@@ -246,7 +246,7 @@ func runDispatch(verb string, args []string, globalQuiet bool, stdout, stderr io
 //  6. Invoke the verb     — pass *DispatchContext.
 //  7. Render + exit       — printError + exitCodeOf on err.
 //
-// Each step is conditional so a verb that needs nothing (the AC1
+// Each step is conditional so a verb that needs nothing (the
 // baseline) does no I/O.
 func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdout, stderr io.Writer) int {
 	// 1. PreParse: optional verb-specific arg filter.
@@ -281,8 +281,8 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 
 	// 3. Flag set: --help/-h and --quiet/-q. The dispatcher
 	// consumes --quiet so the verb does not see it as an unknown
-	// flag (Task 6 run verb) and exposes the resolved value via
-	// ctx.Quiet (Task 6 DispatchContext extension).
+	// flag (e.g. the run verb) and exposes the resolved value via
+	// ctx.Quiet.
 	fs := flag.NewFlagSet("ktx", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var showHelp bool

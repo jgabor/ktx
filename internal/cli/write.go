@@ -1,25 +1,24 @@
 // `ktx write` — the I/O command that persists a tool_call record to the
-// database (Decisions 1, 2, 7, 8, 9). It reads a flat JSON tool_call from
-// stdin, resolves the session identity (caller-provided or ppid-based), and
-// persists the record. Output is the persisted record ID as raw JSON on
-// stdout — no --format flag (I/O primitive, Decision 2/8).
+// database. It reads a flat JSON tool_call from stdin, resolves the
+// session identity (caller-provided or ppid-based), and persists the
+// record. Output is the persisted record ID as raw JSON on stdout — no
+// --format flag (I/O primitive).
 //
-// Two payload shapes share one command via event_type (Decision 9):
+// Two payload shapes share one command via event_type:
 //   - tool_call (default): a full flat tool_call record.
 //   - session_close: just session_id + timestamp; sets ended_at on the
-//     session row (sidecar close path, D1 revised).
+//     session row (sidecar close path).
 //
-// Session resolution when session_id is absent follows Decision 1 revised:
-// ppid file lookup at $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json, with
-// liveness + PID-reuse guards. The resolution logic lives in the db package
-// package; this file owns the I/O (stdin, stdout, errors, dispatch).
+// Session resolution when session_id is absent: ppid file lookup at
+// $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json, with liveness + PID-reuse
+// guards. The resolution logic lives in the db package package; this file
+// owns the I/O (stdin, stdout, errors, dispatch).
 //
-// Task 5 migration: the verb registers via dispatch.Register with
-// NeedsDB=true (dispatcher opens the DB), NeedsStdin=true (dispatcher
-// exposes os.Stdin via ctx.Stdin), and PassthroughStdout=true (verb
-// writes raw JSON, no envelope wrapping). The legacy runWriteWith
-// remains the test seam and still opens its own DB so existing Task 3
-// tests pass unchanged.
+// The verb registers via dispatch.Register with NeedsDB=true (dispatcher
+// opens the DB), NeedsStdin=true (dispatcher exposes os.Stdin via
+// ctx.Stdin), and PassthroughStdout=true (verb writes raw JSON, no
+// envelope wrapping). The legacy runWriteWith remains the test seam and
+// still opens its own DB so existing tests pass unchanged.
 package cli
 
 import (
@@ -32,7 +31,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runWriteWith is the testable core of `ktx write` (Task 1-3 seam).
+// runWriteWith is the testable core of `ktx write` (test seam).
 // stdin/stdout/stderr are injected so the write flow can be exercised
 // without touching os.Stdin or os.Stdout. The body opens the database,
 // delegates to writeLogic for the actual work, and translates the
@@ -121,7 +120,7 @@ func writeLogic(args []string, stdin io.Reader, db *dbpkg.DB, stdout io.Writer) 
 // missing, and persists the record via db.PersistToolCall. The record
 // ID (tc.ID) is printed as raw JSON.
 func writeToolCallLogic(tc *dbpkg.ToolCall, db *dbpkg.DB, stdout io.Writer) (any, error) {
-	// Required structural fields (Decision 9). id, tool, and timestamp are
+	// Required structural fields. id, tool, and timestamp are
 	// meaningless if empty; input, output, and content_hash are accepted as
 	// supplied (including empty strings, e.g. a tool with no output).
 	if tc.ID == "" {
@@ -156,7 +155,7 @@ func writeToolCallLogic(tc *dbpkg.ToolCall, db *dbpkg.DB, stdout io.Writer) (any
 	return nil, nil
 }
 
-// writeCloseLogic handles the session_close payload (Decision 9):
+// writeCloseLogic handles the session_close payload:
 // sets ended_at on the session row via db.CloseSession. The
 // session_id is printed as raw JSON so the caller can confirm which
 // session was closed.
@@ -191,8 +190,7 @@ func writeCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // init registers `ktx write` with the dispatch module. After init
-// runs, the verb is reachable through runWith (the legacy
-// commandIndex entry in cli.go is removed in Task 5).
+// runs, the verb is reachable through runWith.
 func init() {
 	Register("write", RegisterOptions{
 		Description:       "persist a tool_call record from sidecar input",
@@ -204,8 +202,8 @@ func init() {
 }
 
 // printID writes the record ID as raw JSON (a JSON string) to stdout. ktx
-// write is an I/O primitive (Decision 2/8): the output is always raw JSON,
-// never text-formatted, regardless of --format.
+// write is an I/O primitive: the output is always raw JSON, never
+// text-formatted, regardless of --format.
 func printID(w io.Writer, id string) {
 	_ = json.NewEncoder(w).Encode(id)
 }
@@ -221,7 +219,7 @@ func printWriteHelp(w io.Writer) {
 	fmt.Fprintln(w, "Reads a flat JSON tool_call from stdin and persists it to the database.")
 	fmt.Fprintln(w, "Prints the persisted record ID as raw JSON to stdout.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Input fields (Decision 9):")
+	fmt.Fprintln(w, "Input fields:")
 	fmt.Fprintln(w, "  Required:")
 	fmt.Fprintln(w, "    id            record ID (16-char lowercase alpha nanoid)")
 	fmt.Fprintln(w, "    session_id    session ID (auto-created via ppid lookup if absent)")
@@ -231,7 +229,7 @@ func printWriteHelp(w io.Writer) {
 	fmt.Fprintln(w, "    content_hash  SHA-256 of output")
 	fmt.Fprintln(w, "    timestamp     event timestamp (caller-supplied string)")
 	fmt.Fprintln(w, "  Optional:")
-	fmt.Fprintln(w, "    tokens_in, tokens_out, cost, latency_ms, model, provider (M2)")
+	fmt.Fprintln(w, "    tokens_in, tokens_out, cost, latency_ms, model, provider")
 	fmt.Fprintln(w, "    event_type    \"tool_call\" (default) or \"session_close\"")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "When session_id is absent, ktx resolves the session by ppid file lookup")

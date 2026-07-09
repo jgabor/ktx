@@ -1,6 +1,6 @@
-// Table-driven unit tests for internal/db/compress.go (M4 plan Task 2).
+// Table-driven unit tests for internal/db/compress.go.
 //
-// Acceptance coverage (per the plan's acceptance bullets):
+// Acceptance coverage:
 //   - InsertCompressed happy path + 6-column assertion
 //   - InsertCompressed with unknown source_id → ErrSourceNotFound (FK)
 //   - GetCompressed hit + miss (ErrNotFound)
@@ -8,8 +8,8 @@
 //   - content_hash round-trip: insert with hash of output B; read back;
 //     hash of stored output B equals the inserted hash
 //
-// All subtests use OpenMemory() (the existing in-memory seam) per the
-// plan's test_approach — no filesystem fixtures required.
+// All subtests use OpenMemory() (the existing in-memory seam) — no
+// filesystem fixtures required.
 package db
 
 import (
@@ -21,7 +21,7 @@ import (
 // seedToolCallForCompress inserts a session + tool_call so the
 // compressed.source_id FK has a valid target. Returns the tool_call id.
 // Mirrors the seed pattern used by persist_test.go's seed helpers but
-// keeps the M4 fixture self-contained.
+// keeps the compress fixture self-contained.
 func seedToolCallForCompress(t *testing.T, d *DB) string {
 	t.Helper()
 	sessionID := mustNewID(t)
@@ -48,7 +48,7 @@ func seedToolCallForCompress(t *testing.T, d *DB) string {
 }
 
 // TestInsertCompressed covers the happy path + FK rejection leg of
-// plan Task 2's acceptance.
+// the acceptance contract.
 func TestInsertCompressed(t *testing.T) {
 	t.Run("happy path persists all 6 columns", func(t *testing.T) {
 		d, err := OpenMemory()
@@ -59,7 +59,7 @@ func TestInsertCompressed(t *testing.T) {
 
 		sourceID := seedToolCallForCompress(t, d)
 
-		// Recompute content_hash from the COMPRESSED output (D9
+		// Recompute content_hash from the COMPRESSED output (the
 		// integrity rule: hash the artifact that was stored). Here
 		// the compressed output happens to equal the source output
 		// (passthrough pipeline), so the hash matches the source's
@@ -72,7 +72,7 @@ func TestInsertCompressed(t *testing.T) {
 			SourceID:    sourceID,
 			Output:      compressedOutput,
 			ContentHash: hash,
-			Pipeline:    "[]", // empty pipeline = passthrough (D14 default)
+			Pipeline:    "[]", // empty pipeline = passthrough (default)
 			Timestamp:   "2026-06-24T00:00:02Z",
 		}
 		if err := d.InsertCompressed(c); err != nil {
@@ -165,7 +165,7 @@ func TestInsertCompressed(t *testing.T) {
 	})
 }
 
-// TestGetCompressed covers the lookup leg of plan Task 2's acceptance.
+// TestGetCompressed covers the lookup leg of the acceptance contract.
 func TestGetCompressed(t *testing.T) {
 	t.Run("hit returns full struct", func(t *testing.T) {
 		d, err := OpenMemory()
@@ -208,9 +208,9 @@ func TestGetCompressed(t *testing.T) {
 	})
 }
 
-// TestGetSourceOutput covers the reversal primitive (plan Task 2 AC4 +
-// the M4 ROADMAP acceptance "a compressed output can be retrieved as
-// the original bytes via the public surface").
+// TestGetSourceOutput covers the reversal primitive (the public-surface
+// acceptance "a compressed output can be retrieved as the original
+// bytes via the public surface").
 func TestGetSourceOutput(t *testing.T) {
 	t.Run("hit returns source output verbatim", func(t *testing.T) {
 		d, err := OpenMemory()
@@ -259,7 +259,8 @@ func TestGetSourceOutput(t *testing.T) {
 	})
 }
 
-// TestCompressed_ContentHashRoundTrip covers plan Task 2 AC5: the
+// TestCompressed_ContentHashRoundTrip covers the content_hash
+// acceptance: the
 // content_hash on a Compressed row, when computed by the caller via
 // db.ContentHash(compressedOutput), is the SHA-256 of the COMPRESSED
 // output (not the source output). Re-reading the row and re-hashing
@@ -306,6 +307,6 @@ func TestCompressed_ContentHashRoundTrip(t *testing.T) {
 	// source) — for "hi\n" vs "h" the SHA-256 digests differ.
 	sourceHash := ContentHash("hi\n")
 	if got.ContentHash == sourceHash {
-		t.Errorf("content_hash equals source-output hash; D9 integrity rule says hash the stored artifact")
+		t.Errorf("content_hash equals source-output hash; the integrity rule says hash the stored artifact")
 	}
 }

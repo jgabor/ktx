@@ -1,35 +1,35 @@
 // End-to-end dispatch tests for the namespace verbs (ktx db, ktx prices,
 // ktx doctor, ktx init).
 //
-// Task 7 migration: these verbs now register via dispatch.Register
+// These verbs register via dispatch.Register
 // (db.go:init, prices.go:init, doctor.go:init, init.go:init) instead
 // of being entries in the legacy commands slice. The regression net
-// for that move is this file: every AC the plan enumerates is
+// for that move is this file: every case is
 // exercised end-to-end via runWith (the production entry point),
 // which routes through parseGlobalFlags → dispatchRegistry →
 // runRegisteredVerb → the verb's CommandFunc.
 //
-// AC coverage:
+// Coverage:
 //
-//   - AC1: ktx db --path override is per-invocation only (the next
+//   - ktx db --path override is per-invocation only (the next
 //     invocation without --path falls back to the default).
-//   - AC2: ktx prices update hard-fails with exit 4 on a 500
-//     response (the manual-refresh hard-fail contract, D11 AC8,
+//   - ktx prices update hard-fails with exit 4 on a 500
+//     response (the manual-refresh hard-fail contract
 //     preserves the typed-error exit-code mapping through
 //     dispatch.Register).
-//   - AC3: ktx doctor on a pre-M3 database emits a JSON envelope
+//   - ktx doctor on a database without bench_runs emits a JSON envelope
 //     whose top-level status is "degraded" (the bench_runs check
 //     surfaces as warning; all other checks are ok) and exits 0.
-//     The fixture constructs a pre-M3 schema by opening a fresh
-//     sql.Open("sqlite", ":memory:") with M1+M2 columns but no
-//     bench_runs table — exactly the AC's pre-condition.
-//   - AC4: ktx init opencode --project writes the plugin to
+//     The fixture constructs such a schema by opening a fresh
+//     sql.Open("sqlite", ":memory:") with base and cost columns but no
+//     bench_runs table — exactly the pre-condition.
+//   - ktx init opencode --project writes the plugin to
 //     <cwd>/.opencode/plugins/ktx.ts; without --project, the
 //     install lands at $XDG_CONFIG_HOME/opencode/plugins/ktx.ts
 //     (the XDG Base Directory spec path; the fallback when
 //     XDG_CONFIG_HOME is unset is $HOME/.config/...).
 //
-// Fail companions per AC prove the positive assertion is wired
+// Fail companions prove the positive assertion is wired
 // (asserts on a value that must NOT be present after the verb
 // runs).
 package cli
@@ -50,9 +50,9 @@ import (
 )
 
 // dbpkgDBFromSQL wraps a pre-opened *sql.DB in a *dbpkg.DB without
-// running the migration. Used by AC3 to construct a pre-M3 fixture
-// (M1+M2 columns but no bench_runs table); running the migration
-// would create the bench_runs table and the AC's "warning" check
+// running the migration. Used to construct a fixture without
+// bench_runs (base and cost columns but no bench_runs table); running the migration
+// would create the bench_runs table and the "warning" check
 // would never fire. The seam is dbpkg.OpenWithoutMigration — a
 // public helper that constructs *DB over an externally-managed
 // *sql.DB without touching the schema. This helper is test-only;
@@ -66,15 +66,15 @@ func dbpkgDBFromSQL(sqlDB *sql.DB) *dbpkg.DB {
 	return d
 }
 
-// TestRunWith_DBDispatched covers AC1: `ktx db --path <tmp>/foo.db
+// TestRunWith_DBDispatched covers: `ktx db --path <tmp>/foo.db
 // path` prints the override on stdout; the next invocation without
 // --path falls back to the default (the override is per-invocation
-// only, Decision 8).
+// only).
 //
 // Fail companion: assert against a path that the override did NOT
 // produce, proving the override assertion is meaningful.
 func TestRunWith_DBDispatched(t *testing.T) {
-	t.Run("AC1: --path override prints the override verbatim", func(t *testing.T) {
+	t.Run("--path override prints the override verbatim", func(t *testing.T) {
 		// WithTempXDG returns the base temp dir; we set up
 		// the override as a path inside the XDG_DATA_HOME
 		// directory so the override path is deterministic.
@@ -89,14 +89,14 @@ func TestRunWith_DBDispatched(t *testing.T) {
 		}
 		got := strings.TrimSpace(stdout.String())
 		if got != override {
-			t.Errorf("stdout = %q, want %q (AC1 override)", got, override)
+			t.Errorf("stdout = %q, want %q", got, override)
 		}
 		if stderr.Len() != 0 {
 			t.Errorf("stderr should be empty on success, got %q", stderr.String())
 		}
 	})
 
-	t.Run("AC1: second invocation without --path falls back to default", func(t *testing.T) {
+	t.Run("second invocation without --path falls back to default", func(t *testing.T) {
 		// Both override and default are under the same XDG
 		// base so the test is deterministic. The override
 		// path differs from the default path; the second
@@ -132,7 +132,7 @@ func TestRunWith_DBDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC1 fail companion: override must not be persisted across runs", func(t *testing.T) {
+	t.Run("fail companion: override must not be persisted across runs", func(t *testing.T) {
 		// Fail companion: prove the "not persisted" assertion
 		// is meaningful by inverting the predicate. The second
 		// call's stdout must NOT equal the first call's override.
@@ -179,9 +179,9 @@ func TestRunWith_DBDispatched(t *testing.T) {
 	})
 }
 
-// TestRunWith_PricesDispatched covers AC2: `ktx prices update` with
+// TestRunWith_PricesDispatched covers: `ktx prices update` with
 // Prices.WithHTTPClient bound to a server returning 500 surfaces
-// exit 4 (the manual-refresh hard-fail contract, D11 AC8). The
+// exit 4 (the manual-refresh hard-fail contract). The
 // dispatch path routes through pricesCommandFunc → pricesLogic →
 // pricesUpdateLogic; the typed error envelope is rendered by the
 // dispatcher's printError and exitCodeOf maps it to exit 4.
@@ -189,12 +189,12 @@ func TestRunWith_DBDispatched(t *testing.T) {
 // The companion case is the success path: a 200 response with
 // models.dev-shaped JSON exits 0 and emits the JSON envelope.
 func TestRunWith_PricesDispatched(t *testing.T) {
-	t.Run("AC2: prices update 500 → exit 4 via dispatch registry", func(t *testing.T) {
+	t.Run("prices update 500 → exit 4 via dispatch registry", func(t *testing.T) {
 		testutil.WithTempXDG(t)
 
 		// Stub http.DefaultTransport to return 500. The Prices
 		// type's httpClient field defaults to http.DefaultClient
-		// (Task 1 WithHTTPClient seam); the dispatch path's
+		// (the WithHTTPClient seam); the dispatch path's
 		// pricesUpdateLogic calls p.RefreshAndWrite which goes
 		// through the seam.
 		origTransport := http.DefaultTransport
@@ -218,7 +218,7 @@ func TestRunWith_PricesDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC2 fail companion: 200 → exit 0, JSON envelope on stdout", func(t *testing.T) {
+	t.Run("fail companion: 200 → exit 0, JSON envelope on stdout", func(t *testing.T) {
 		// Fail companion: the hard-fail contract is meaningful
 		// when the success path also works. A 200 response with
 		// models.dev-shaped JSON exits 0 and emits the JSON
@@ -243,7 +243,7 @@ func TestRunWith_PricesDispatched(t *testing.T) {
 			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
 		}
 		if env["refreshed"] != true {
-			t.Errorf("refreshed = %v, want true (AC2 success envelope)", env["refreshed"])
+			t.Errorf("refreshed = %v, want true", env["refreshed"])
 		}
 		if stderr.Len() != 0 {
 			t.Errorf("stderr should be empty on success, got %q", stderr.String())
@@ -262,16 +262,16 @@ func TestRunWith_PricesDispatched(t *testing.T) {
 	})
 }
 
-// TestRunWith_DoctorDispatched covers AC3: `ktx doctor` on a
-// pre-M3 database (M1+M2 columns, no bench_runs table) emits a
+// TestRunWith_DoctorDispatched covers: `ktx doctor` on a
+// database without bench_runs (base + cost columns, no bench_runs table) emits a
 // JSON envelope whose top-level status is "degraded" (the
 // bench_runs check surfaces as warning; all other checks are ok)
-// and exits 0 (D4: degraded is informational, not a hard
+// and exits 0 (degraded is informational, not a hard
 // failure).
 //
-// The fixture constructs a pre-M3 schema by opening a fresh
-// sql.Open("sqlite", ":memory:") with M1+M2 columns but no
-// bench_runs table — exactly the AC's pre-condition. We then
+// The fixture constructs such a schema by opening a fresh
+// sql.Open("sqlite", ":memory:") with base + cost columns but no
+// bench_runs table — exactly the pre-condition. We then
 // wrap the *sql.DB in a *dbpkg.DB via dbpkg.OpenWithoutMigration
 // (the public seam) so the migration is skipped; the doctor
 // checks the underlying schema state directly.
@@ -280,8 +280,8 @@ func TestRunWith_PricesDispatched(t *testing.T) {
 // doctorCommandFunc → doctorLogic → buildDoctorReport opens
 // the database via dbpkg.Open which applies the migration. The
 // migration's CREATE TABLE IF NOT EXISTS bench_runs creates
-// the table on first M3-binary open, defeating the
-// pre-M3 fixture. The AC's intent is to verify the
+// the table on first open, defeating the
+// fixture. The intent is to verify the
 // "degraded → exit 0" behavior, which buildDoctorReport
 // provides directly. We exercise buildDoctorReport through
 // the legacy runDoctorWith seam (the same code path
@@ -289,8 +289,8 @@ func TestRunWith_PricesDispatched(t *testing.T) {
 // covers the production logic without the migration
 // interference.
 func TestRunWith_DoctorDispatched(t *testing.T) {
-	t.Run("AC3: pre-M3 database → bench_runs warning, top-level degraded, exit 0", func(t *testing.T) {
-		// Construct a pre-M3 database: M1+M2 columns but no
+	t.Run("database without bench_runs → bench_runs warning, top-level degraded, exit 0", func(t *testing.T) {
+		// Construct a database without bench_runs: base + cost columns but no
 		// bench_runs table. The migration is skipped (we
 		// wrap a pre-built *sql.DB in *dbpkg.DB without
 		// running it). doctor sees no bench_runs → "warning".
@@ -304,7 +304,7 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = raw.Close() })
 
-		// M1 sessions table.
+		// Sessions table.
 		if _, err := raw.Exec(`CREATE TABLE sessions (
 			id              TEXT PRIMARY KEY,
 			agent           TEXT,
@@ -315,8 +315,8 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		)`); err != nil {
 			t.Fatalf("create sessions: %v", err)
 		}
-		// M1+M2 tool_calls table — M1 columns plus the M2
-		// columns (so m2_columns check is "ok", proving the
+		// tool_calls table — base columns plus the cost
+		// columns (so the m2_columns check is "ok", proving the
 		// degraded status comes from bench_runs alone).
 		if _, err := raw.Exec(`CREATE TABLE tool_calls (
 			id           TEXT PRIMARY KEY,
@@ -341,16 +341,16 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 
 		d := dbpkgDBFromSQL(raw)
 
-		// Build the report from the pre-M3 fixture. The
+		// Build the report from the fixture. The
 		// buildDoctorReportForDB helper mirrors the production
 		// buildDoctorReport's per-check construction
-		// (CheckSchema → checkM2Columns → checkBenchRuns →
-		// checkIDFormat) so the AC3 contract is verified
+		// (CheckSchema → checkCostColumns → checkBenchRuns →
+		// checkIDFormat) so the contract is verified
 		// against the same production logic that runs in
 		// the dispatch path.
 		report := buildDoctorReportForDB(t, d)
 		if report.Status != "degraded" {
-			t.Errorf("report.status = %q, want degraded (AC3)", report.Status)
+			t.Errorf("report.status = %q, want degraded", report.Status)
 		}
 
 		// Verify the dispatch path's exit-code mapping:
@@ -358,7 +358,7 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		// status is "ok" or "degraded", which the dispatcher
 		// translates to ExitOK (0). A status of "error" would
 		// return (nil, internalError) → ExitInternal (4). The
-		// degraded contract → exit 0 is the AC3 observable.
+		// degraded contract → exit 0 is the observable.
 		var code int
 		var errOut error
 		// Use a small inline dispatch helper that mirrors
@@ -375,10 +375,10 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 			errOut = internalError("ktx doctor: unknown status %q", report.Status)
 		}
 		if code != ExitOK {
-			t.Errorf("dispatch exit code = %d, want %d (AC3 degraded → exit 0)", code, ExitOK)
+			t.Errorf("dispatch exit code = %d, want %d (degraded → exit 0)", code, ExitOK)
 		}
 		if errOut != nil {
-			t.Errorf("dispatch err = %v, want nil (AC3 degraded → no error)", errOut)
+			t.Errorf("dispatch err = %v, want nil", errOut)
 		}
 
 		// Find the bench_runs check. With no bench_runs
@@ -400,7 +400,7 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 			case "bench_runs_table":
 				brCheck.Status = c.Status
 				brCheck.Detail = c.Detail
-			case "m2_columns":
+			case "cost_columns":
 				m2Check.Status = c.Status
 			case "schema_valid":
 				schemaCheck.Status = c.Status
@@ -411,10 +411,10 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 			}
 		}
 		if brCheck.Status != "warning" {
-			t.Errorf("bench_runs_table status = %q, want warning (AC3); detail=%q", brCheck.Status, brCheck.Detail)
+			t.Errorf("bench_runs_table status = %q, want warning; detail=%q", brCheck.Status, brCheck.Detail)
 		}
 		if m2Check.Status != "ok" {
-			t.Errorf("m2_columns status = %q, want ok (pre-M3 has M2 columns; degraded must come from bench_runs)", m2Check.Status)
+			t.Errorf("m2_columns status = %q, want ok (fixture has cost columns; degraded must come from bench_runs)", m2Check.Status)
 		}
 		if schemaCheck.Status != "ok" {
 			t.Errorf("schema_valid status = %q, want ok", schemaCheck.Status)
@@ -427,9 +427,9 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC3 fail companion: top-level status must be degraded, not ok", func(t *testing.T) {
+	t.Run("fail companion: top-level status must be degraded, not ok", func(t *testing.T) {
 		// Fail companion: assert that the top-level status is
-		// NOT "ok" (the pre-M3 fixture should produce
+		// NOT "ok" (the fixture without bench_runs should produce
 		// "degraded"). If the migration somehow fully
 		// migrated the database, the status would be "ok" —
 		// the inversion probe catches that.
@@ -457,7 +457,7 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		d := dbpkgDBFromSQL(raw)
 		report := buildDoctorReportForDB(t, d)
 		if report.Status == "ok" {
-			t.Errorf("report.status = ok, want degraded (AC3 fail probe — migration should NOT have run)")
+			t.Errorf("report.status = ok, want degraded (migration should NOT have run)")
 		}
 	})
 
@@ -477,7 +477,7 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 // production buildDoctorReport with a pre-built *dbpkg.DB
 // fixture. The production buildDoctorReport calls
 // dbpkg.ResolvePath + dbpkg.Open on the KTX_DB env, which
-// runs the migration; for the pre-M3 AC we need the report
+// runs the migration; for the no-bench_runs case we need the report
 // built from a database whose schema is exactly what we
 // constructed (no migration). The helper exists because
 // buildDoctorReport does not accept a *dbpkg.DB parameter —
@@ -489,18 +489,18 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 //
 // Actually the helper is simpler: it calls buildDoctorReport
 // after setting KTX_DB to a path that the migration would
-// produce a fully-migrated schema for. The pre-M3 fixture
+// produce a fully-migrated schema for. The fixture without bench_runs
 // only matters when buildDoctorReport reads the underlying
 // schema state. Since we already have a pre-built *dbpkg.DB
 // (via dbpkgDBFromSQL), we cannot use buildDoctorReport
 // directly.
 //
 // The helper exists to document this constraint and route the
-// AC3 test to the proper place. The actual report construction
+// test to the proper place. The actual report construction
 // is in the test body.
 func buildDoctorReportForDB(t *testing.T, d *dbpkg.DB) *doctorReport {
 	t.Helper()
-	// The pre-M3 fixture is constructed via dbpkgDBFromSQL;
+	// The fixture without bench_runs is constructed via dbpkgDBFromSQL;
 	// we cannot route through buildDoctorReport because it
 	// opens a fresh DB. Instead, construct the report from
 	// scratch using the inspect helpers on the test fixture.
@@ -521,7 +521,7 @@ func buildDoctorReportForDB(t *testing.T, d *dbpkg.DB) *doctorReport {
 		Detail: "in-memory test fixture",
 	})
 
-	// Check: schema_valid (M1 columns present).
+	// Check: schema_valid (base columns present).
 	if err := d.CheckSchema(); err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "schema_valid",
@@ -533,12 +533,12 @@ func buildDoctorReportForDB(t *testing.T, d *dbpkg.DB) *doctorReport {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "schema_valid",
 			Status: doctorStatusOK,
-			Detail: "sessions and tool_calls tables present with expected M1 columns",
+			Detail: "sessions and tool_calls tables present with expected base columns",
 		})
 	}
 
-	// Check: m2_columns (M2 columns present).
-	if m2Check := checkM2Columns(d); m2Check.Status == doctorStatusError {
+	// Check: m2_columns (cost columns present).
+	if m2Check := checkCostColumns(d); m2Check.Status == doctorStatusError {
 		report.Checks = append(report.Checks, m2Check)
 		report.Status = doctorStatusError
 	} else {
@@ -548,7 +548,7 @@ func buildDoctorReportForDB(t *testing.T, d *dbpkg.DB) *doctorReport {
 		}
 	}
 
-	// Check: bench_runs_table (absent in pre-M3).
+	// Check: bench_runs_table (absent in the fixture).
 	if brCheck := checkBenchRuns(d); brCheck.Status == doctorStatusError {
 		report.Checks = append(report.Checks, brCheck)
 		report.Status = doctorStatusError
@@ -575,7 +575,7 @@ func buildDoctorReportForDB(t *testing.T, d *dbpkg.DB) *doctorReport {
 	return report
 }
 
-// TestRunWith_InitDispatched covers AC4: `ktx init opencode` with
+// TestRunWith_InitDispatched covers: `ktx init opencode` with
 // and without --project writes the plugin to the right path under
 // the XDG-aware path resolution. With --project: <cwd>/.opencode/
 // plugins/ktx.ts. Without --project: $XDG_CONFIG_HOME/opencode/
@@ -586,7 +586,7 @@ func buildDoctorReportForDB(t *testing.T, d *dbpkg.DB) *doctorReport {
 // produced (i.e., project install must NOT write to the global
 // path, and vice versa).
 func TestRunWith_InitDispatched(t *testing.T) {
-	t.Run("AC4: --project writes plugin to <cwd>/.opencode/plugins/ktx.ts", func(t *testing.T) {
+	t.Run("--project writes plugin to <cwd>/.opencode/plugins/ktx.ts", func(t *testing.T) {
 		// Isolate HOME so we can detect any accidental writes
 		// to the global path.
 		home := t.TempDir()
@@ -608,7 +608,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 
 		wantPath := filepath.Join(projectRoot, ".opencode", "plugins", ktxPluginFileName)
 		if _, err := os.Stat(wantPath); err != nil {
-			t.Errorf("plugin file %q not present: %v (AC4 project install)", wantPath, err)
+			t.Errorf("plugin file %q not present: %v (project install)", wantPath, err)
 		}
 		// Verify the JSON envelope confirms the project path.
 		var env map[string]any
@@ -623,7 +623,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 		}
 
 		// Belt-and-braces: the global path must NOT have been
-		// written. AC4 says --project scopes to <cwd>; the
+		// written. --project scopes to <cwd>; the
 		// global path is reserved for the default scope.
 		globalPath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
 		if _, err := os.Stat(globalPath); !os.IsNotExist(err) {
@@ -631,7 +631,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4: without --project writes to $XDG_CONFIG_HOME/opencode/...", func(t *testing.T) {
+	t.Run("without --project writes to $XDG_CONFIG_HOME/opencode/...", func(t *testing.T) {
 		// The global path uses $XDG_CONFIG_HOME when set, and
 		// falls back to $HOME/.config when unset. We test both:
 		// the fallback (HOME set, XDG_CONFIG_HOME unset) — the
@@ -649,7 +649,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 
 		wantPath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
 		if _, err := os.Stat(wantPath); err != nil {
-			t.Errorf("plugin file %q not present: %v (AC4 default scope)", wantPath, err)
+			t.Errorf("plugin file %q not present: %v (default scope)", wantPath, err)
 		}
 		var env map[string]any
 		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
@@ -668,7 +668,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4: $XDG_CONFIG_HOME set → global path uses it", func(t *testing.T) {
+	t.Run("$XDG_CONFIG_HOME set → global path uses it", func(t *testing.T) {
 		// Companion: when XDG_CONFIG_HOME is set, the global
 		// path uses it directly (no $HOME/.config fallback).
 		home := t.TempDir()
@@ -685,7 +685,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 
 		wantPath := filepath.Join(configHome, "opencode", "plugins", ktxPluginFileName)
 		if _, err := os.Stat(wantPath); err != nil {
-			t.Errorf("plugin file %q not present: %v (AC4 XDG_CONFIG_HOME path)", wantPath, err)
+			t.Errorf("plugin file %q not present: %v (XDG_CONFIG_HOME path)", wantPath, err)
 		}
 		// The HOME-based fallback must NOT have been written.
 		homePath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
@@ -694,7 +694,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4 fail companion: project install must not write to global path", func(t *testing.T) {
+	t.Run("fail companion: project install must not write to global path", func(t *testing.T) {
 		// Fail companion: prove the project-install assertion
 		// is meaningful by inverting the predicate. The
 		// project install must NOT write the global path.
@@ -711,7 +711,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 
 		globalPath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
 		if _, err := os.Stat(globalPath); err == nil {
-			t.Errorf("global path %q was written during project install (AC4 fail probe)", globalPath)
+			t.Errorf("global path %q was written during project install", globalPath)
 		}
 	})
 
@@ -749,7 +749,7 @@ func TestRunWith_InitDispatched(t *testing.T) {
 // TestRunWith_NamespaceRegistries checks that the four namespace
 // verbs (db, prices, doctor, init) are all reachable through the
 // dispatch registry on the production entry path. The legacy
-// commandIndex is empty (Task 7 emptied it); the registry is the
+// commandIndex is empty; the registry is the
 // single source of truth for these verbs.
 //
 // Fail companion: invoking any namespace verb that is NOT
@@ -811,7 +811,7 @@ func TestRunWith_NamespaceRegistries(t *testing.T) {
 
 // TestRunWith_HelpListsAllVerbs checks that `ktx --help` lists
 // every registered verb (the dispatch registry is the source of
-// truth after Task 7 emptied the legacy commands slice).
+// truth; the legacy commands slice is empty).
 func TestRunWith_HelpListsAllVerbs(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runWith([]string{"--help"}, &stdout, &stderr)

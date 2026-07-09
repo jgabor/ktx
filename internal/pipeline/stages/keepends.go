@@ -1,6 +1,5 @@
 // keep-ends stage: keeps the first N lines plus the last M lines of
-// input, inserting a [... (X lines omitted) ...] marker between them
-// (D22 Phase 2 / D14).
+// input, inserting a [... (X lines omitted) ...] marker between them.
 //
 // rtk's toml_filter.rs:496-515 and lowfat's text.rs:27-48 both
 // implement head-and-tail because head:N alone loses the bottom of a
@@ -33,7 +32,7 @@ import (
 
 // keepEndsDefaultHead is the default N when the bare-name form
 // `keep-ends` (no colon, no arg) is used. Matches the canonical
-// real-world pipeline value (Phase 2 plan: keep-ends:50:20).
+// real-world pipeline value (keep-ends:50:20).
 const keepEndsDefaultHead = 50
 
 // keepEndsDefaultTail is the default M when the bare-name form is used.

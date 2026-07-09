@@ -1,4 +1,4 @@
-// Cost derivation (Decision 11) is a deep module: a small interface
+// Cost derivation is a deep module: a small interface
 // (PriceSource) hides the cache lookup and the cold-fetch policy; a
 // tiny struct (costDeriver) holds the math and the NULL-preservation
 // branches; a single shape (CostInputs) is the cross-struct adapter
@@ -13,8 +13,8 @@
 // Inlining the helper in each file kept the duplication hidden
 // behind identical function bodies. The deep module unifies the
 // math and the policy behind a small interface so a future third
-// caller (the M4 hook path, the bench-replay rewriter, the audit
-// report) imports the same D11 contract with the same rounding
+// caller (the compress hook path, the bench-replay rewriter, the audit
+// report) imports the same cost-derivation contract with the same rounding
 // precision without copying the lookup-then-cold-fetch-then-round
 // sequence.
 //
@@ -29,7 +29,7 @@
 // single-goroutine by construction (the wrapper's teeAndParse loop
 // is sequential), so the contract holds in practice.
 //
-// Soft-fail (D11): Derive never returns an error. Every branch that
+// Soft-fail: Derive never returns an error. Every branch that
 // cannot derive returns nil — caller-supplied wins, NULL inputs
 // short-circuit, warm-cache miss is silent, cold-cache miss + refresh
 // failure is silent. The write path persists the row with whatever
@@ -38,14 +38,14 @@ package db
 
 import "math"
 
-// costRoundDecimals is the precision for the D11 derivation. The
+// costRoundDecimals is the precision for the cost derivation. The
 // methodology-v1 headline number is six decimals
-// (`.agentera/bench/methodology-v1.yaml`'s `cost_per_correct = cost /
-// max(score, 1e-9)` plus the D12 `six decimal places` rule); the
+// (`tools/bench/methodology-v1.yaml`'s `cost_per_correct = cost /
+// max(score, 1e-9)` plus the reproducibility `six decimal places` rule); the
 // persisted cost uses the same precision so a future reader does
 // not have to round before dividing.
 //
-// Moved from persist.go:419 in plan Task 1 — both write-time
+// Moved from persist.go:419 — both write-time
 // callers (PersistToolCall, InsertBenchRun) now reach the constant
 // through the costDeriver, not directly.
 const costRoundDecimals = 6
@@ -71,7 +71,7 @@ type PriceSource interface {
 
 // CostInputs is the cross-shape input the two write-time callers
 // build before delegating to Derive. The pointer types preserve the
-// D9 absent-vs-zero distinction: a nil pointer means "field absent"
+// absent-vs-zero distinction: a nil pointer means "field absent"
 // (Derive returns nil), a non-nil pointer to zero means "field set
 // to zero" (Derive uses 0 as a real value).
 type CostInputs struct {
@@ -80,7 +80,7 @@ type CostInputs struct {
 	Cost                *float64
 }
 
-// costDeriver is the D11 deep module. The instance is stateless
+// costDeriver is the deep cost module. The instance is stateless
 // after construction; the type exists to give Derive a home and
 // to make the lookup-and-cold-fetch sequence one symbol. One
 // instance per process is enough; the literal `&costDeriver{}` is
@@ -94,17 +94,17 @@ type costDeriver struct{}
 // caller can assign it to the same field on the input struct
 // without copying (ToolCall.Cost, BenchRun.Cost).
 //
-// Contract (D11):
+// Contract:
 //
 //   - Caller-supplied Cost wins: a non-nil pointer (including &0)
 //     round-trips verbatim. No lookup, no refresh, no math. The
 //     caller owns the cost evidence.
 //
 //   - Any NULL input (any of TokensIn / TokensOut / Model /
-//     Provider nil) → return nil. NULL preservation (D11): a
+//     Provider nil) → return nil. NULL preservation: a
 //     partial set would force the deriver to invent the missing
-//     value, which violates "conservative failure" (ARCHITECTURE.md
-//     Quality attributes).
+//     value, which violates the conservative-failure quality
+//     attribute.
 //
 //   - Otherwise: src.Lookup(provider, model) → if ok → formula.
 //
@@ -113,7 +113,7 @@ type costDeriver struct{}
 //   - Lookup miss + !Cold() → return nil (warm-cache miss is silent;
 //     the on-disk cache is the source of truth between fetches).
 //
-//   - Lookup miss + Cold + Refresh fails → return nil (D11 soft-fail;
+//   - Lookup miss + Cold + Refresh fails → return nil (soft-fail;
 //     no error propagates from Derive).
 //
 //   - Formula:
@@ -127,7 +127,7 @@ type costDeriver struct{}
 //     count.
 func (cd *costDeriver) Derive(in CostInputs, src PriceSource) *float64 {
 	// Caller-supplied cost wins. A non-nil pointer (including a
-	// pointer to zero) round-trips verbatim — D11 is about
+	// pointer to zero) round-trips verbatim — derivation is about
 	// filling in what the caller omitted, not overwriting what
 	// they supplied.
 	if in.Cost != nil {
@@ -142,8 +142,8 @@ func (cd *costDeriver) Derive(in CostInputs, src PriceSource) *float64 {
 	}
 
 	inPrice, outPrice, ok := src.Lookup(*in.Provider, *in.Model)
-	// Cold-cache lookup miss triggers a fetch (D11 AC1, AC4).
-	// Warm-cache lookup miss is silent (D11 AC2): the on-disk
+	// Cold-cache lookup miss triggers a fetch.
+	// Warm-cache lookup miss is silent: the on-disk
 	// cache is the source of truth between fetches; the user
 	// must run `ktx prices update` to refresh.
 	if !ok && src.Cold() {

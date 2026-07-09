@@ -1,8 +1,8 @@
 // Table-driven tests for `ktx get` (internal/cli/get.go).
 //
-// Acceptance coverage:
+// Coverage:
 //
-//   - AC 4 (Task 3): --format text in either flag position triggers
+//   - --format text in either flag position triggers
 //     text rendering; absent --format falls back to JSON default. The
 //     "either position" surface is the main testable contract: the
 //     global --format (parsed by the dispatcher) and the subcommand
@@ -25,8 +25,8 @@ import (
 )
 
 // seedToolCallForGet is a thin wrapper that inserts a session and
-// tool_call row with an M2 cost-publication pointer set, so the text
-// renderer exercises the M2 section path.
+// tool_call row with a cost-publication pointer set, so the text
+// renderer exercises the cost-section path.
 func seedToolCallForGet(t *testing.T, d *dbpkg.DB) {
 	t.Helper()
 	if err := d.InsertSession(&dbpkg.Session{
@@ -68,7 +68,7 @@ func getTestDB(t *testing.T) *dbpkg.DB {
 	return d
 }
 
-// TestRunGetWith_FormatAcceptance covers AC 4: --format text triggers
+// TestRunGetWith_FormatAcceptance covers --format text triggering
 // the text renderer in either flag position. The subcommand-local
 // --format takes precedence over the global opts.Format; absent
 // --format falls back to JSON default.
@@ -113,9 +113,9 @@ func TestRunGetWith_FormatAcceptance(t *testing.T) {
 		}
 
 		// Text renderer emits a key-value line per field plus
-		// the M2 section. The exact format is documented in
-		// printGetText; we assert the presence of the M1
-		// fields and the M2 marker.
+		// the cost section. The exact format is documented in
+		// printGetText; we assert the presence of the fields
+		// and the cost marker.
 		out := stdout.String()
 		if !strings.Contains(out, "id:") || !strings.Contains(out, "abcdefghijklmnop") {
 			t.Errorf("text output missing id field: %q", out)
@@ -123,18 +123,18 @@ func TestRunGetWith_FormatAcceptance(t *testing.T) {
 		if !strings.Contains(out, "tool:") || !strings.Contains(out, "bash") {
 			t.Errorf("text output missing tool field: %q", out)
 		}
-		if !strings.Contains(out, "M2:") {
-			t.Errorf("text output missing M2 section (cost was non-nil): %q", out)
+		if !strings.Contains(out, "Costs:") {
+			t.Errorf("text output missing Costs section (cost was non-nil): %q", out)
 		}
 		if !strings.Contains(out, "cost:") {
-			t.Errorf("text output missing M2 cost: %q", out)
+			t.Errorf("text output missing Costs cost: %q", out)
 		}
 	})
 
 	t.Run("--format text after id emits text renderer", func(t *testing.T) {
 		// subcommand-local --format AFTER the positional id.
 		// extractFormat pulls it out of the args regardless of
-		// position; this is the AC 4 "either flag position"
+		// position; this is the "either flag position"
 		// contract.
 		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 		seedToolCallForGet(t, getTestDB(t))
@@ -144,8 +144,8 @@ func TestRunGetWith_FormatAcceptance(t *testing.T) {
 		if code != ExitOK {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
-		if !strings.Contains(stdout.String(), "M2:") {
-			t.Errorf("text output missing M2 section: %q", stdout.String())
+		if !strings.Contains(stdout.String(), "Costs:") {
+			t.Errorf("text output missing Costs section: %q", stdout.String())
 		}
 	})
 
@@ -162,8 +162,8 @@ func TestRunGetWith_FormatAcceptance(t *testing.T) {
 		if code != ExitOK {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
-		if !strings.Contains(stdout.String(), "M2:") {
-			t.Errorf("text output missing M2 section: %q", stdout.String())
+		if !strings.Contains(stdout.String(), "Costs:") {
+			t.Errorf("text output missing Costs section: %q", stdout.String())
 		}
 	})
 

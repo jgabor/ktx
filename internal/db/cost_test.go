@@ -1,5 +1,5 @@
 // Table-driven unit tests for the costDeriver deep module
-// (cost.go). The tests cover every D11 branch in the Derive
+// (cost.go). The tests cover every branch in the Derive
 // contract: caller-supplied cost wins, NULL inputs short-circuit,
 // cold-cache miss triggers a refresh, warm-cache miss is silent,
 // refresh failure is silent, and zero-tokens is a real value for
@@ -24,7 +24,7 @@ import (
 // needs; the three int counters are the "caller-side observation"
 // surface (how many times each method was called). The Refresh
 // function may mutate the Lookup function field to simulate the
-// source's own cache-write side effect (D11 AC4: "the cache write
+// source's own cache-write side effect ("the cache write
 // is the source's responsibility").
 type fakePriceSource struct {
 	LookupFn  func(provider, model string) (in, out float64, ok bool)
@@ -66,18 +66,19 @@ func (f *fakePriceSource) Refresh() error {
 // the shape is familiar to the existing test surface.
 func ptrFloat64Cost(v float64) *float64 { return &v }
 
-// near reports whether a and b agree within the D11 6-decimal
+// near reports whether a and b agree within the cost-derivation 6-decimal
 // precision (1e-9 is well below the rounding step of 1e-6). The
 // helper exists so the test cases can compare derived values
 // without re-implementing the tolerance check at every row.
 func near(a, b float64) bool { return math.Abs(a-b) <= 1e-9 }
 
-// TestCostDeriver_Derive covers ACs 1 through 7. Each row is one
-// branch of the D11 contract; the table is the regression net for
+// TestCostDeriver_Derive covers branches 1 through 7 of the contract.
+// Each row is one
+// branch of the contract; the table is the regression net for
 // the deep module so a future change to Derive has a single place
 // to update or extend.
 //
-// AC8-AC10 are covered by the existing persist_test.go and
+// The later branches are covered by the existing persist_test.go and
 // bench_test.go tests (TestPersistToolCall_CostDerivation,
 // TestSummarizeBenchToolCalls, TestInsertBenchRun_RoundTrip); this
 // file stays focused on the pure-function surface of the deriver.
@@ -91,12 +92,11 @@ func TestCostDeriver_Derive(t *testing.T) {
 	oneM := int64(1_000_000)
 	zero := int64(0)
 
-	// sonnetLookup is the AC1 hit shape: (provider, model) → (3, 15, true).
-	// The closure is shared by the rows that need a hit-on-first-call
-	// (AC1, AC7).
+	// sonnetLookup is the hit shape: (provider, model) → (3, 15, true).
+	// The closure is shared by the rows that need a hit-on-first-call.
 	sonnetLookup := func(_, _ string) (float64, float64, bool) { return 3, 15, true }
 
-	// The AC4 row needs a LookupFn that returns miss on the first
+	// The cold-miss row needs a LookupFn that returns miss on the first
 	// call and hit on the second. A plain int counter in the test
 	// scope is the cleanest way to model "the source's Refresh
 	// mutates the in-memory cache" without entangling the
@@ -110,7 +110,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 		return 3, 15, true // post-refresh: hit (source's "cache write" side effect)
 	}
 
-	// errRefreshFailed is a sentinel for the AC6 row: any non-nil
+	// errRefreshFailed is a sentinel for the refresh-failure row: any non-nil
 	// error makes the point. The value is declared in the test
 	// scope (not as a package var) so the test's failure mode is
 	// local to this function.
@@ -122,7 +122,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 		src  *fakePriceSource
 		// wantNil says the result must be nil (any non-nil result is a
 		// failure). When wantNil is false, wantValue is compared
-		// against *Derive(...) within the D11 precision.
+		// against *Derive(...) within the cost-derivation precision.
 		wantNil   bool
 		wantValue float64
 		// wantLookupCalls / wantRefreshCalls constrain the side-effect
@@ -132,7 +132,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 		wantRefreshCalls int
 	}{
 		{
-			name: "AC1: 1M+1M tokens on claude-sonnet-4 anthropic, hit on first lookup → 18.000000",
+			name: "1M+1M tokens on claude-sonnet-4 anthropic, hit on first lookup → 18.000000",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: &oneM,
@@ -151,7 +151,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantLookupCalls: 1,
 		},
 		{
-			name: "AC2: caller-supplied Cost=0.005 wins; no lookup, no refresh",
+			name: "caller-supplied Cost=0.005 wins; no lookup, no refresh",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: &oneM,
@@ -179,7 +179,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantLookupCalls: 0,
 		},
 		{
-			name: "AC3a: nil TokensIn short-circuits → nil (NULL preservation, no lookup)",
+			name: "nil TokensIn short-circuits → nil (NULL preservation, no lookup)",
 			in: CostInputs{
 				TokensIn:  nil,
 				TokensOut: &oneM,
@@ -196,7 +196,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "AC3b: nil TokensOut short-circuits → nil (NULL preservation, no lookup)",
+			name: "nil TokensOut short-circuits → nil (NULL preservation, no lookup)",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: nil,
@@ -213,7 +213,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "AC3c: nil Model short-circuits → nil (NULL preservation, no lookup)",
+			name: "nil Model short-circuits → nil (NULL preservation, no lookup)",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: &oneM,
@@ -230,7 +230,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "AC3d: nil Provider short-circuits → nil (NULL preservation, no lookup)",
+			name: "nil Provider short-circuits → nil (NULL preservation, no lookup)",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: &oneM,
@@ -247,7 +247,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "AC4: cold-cache miss → Refresh → post-refresh hit → 18.000000; cache write is source's responsibility",
+			name: "cold-cache miss → Refresh → post-refresh hit → 18.000000; cache write is source's responsibility",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: &oneM,
@@ -272,7 +272,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantRefreshCalls: 1,
 		},
 		{
-			name: "AC5: warm-cache miss → nil, Refresh NOT called",
+			name: "warm-cache miss → nil, Refresh NOT called",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: &oneM,
@@ -292,7 +292,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantRefreshCalls: 0,
 		},
 		{
-			name: "AC6: cold-cache miss + Refresh fails → nil (D11 soft-fail)",
+			name: "cold-cache miss + Refresh fails → nil (soft-fail)",
 			in: CostInputs{
 				TokensIn:  &oneM,
 				TokensOut: &oneM,
@@ -314,7 +314,7 @@ func TestCostDeriver_Derive(t *testing.T) {
 			wantRefreshCalls: 1,
 		},
 		{
-			name: "AC7: zero tokens (0 in, 0 out) + hit → 0.000000 (zero is a real value)",
+			name: "zero tokens (0 in, 0 out) + hit → 0.000000 (zero is a real value)",
 			in: CostInputs{
 				TokensIn:  &zero,
 				TokensOut: &zero,

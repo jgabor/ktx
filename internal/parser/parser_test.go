@@ -1,7 +1,7 @@
 // Pure-function coverage of parser.ParseEvent. Every fixture is a byte
 // slice — no database I/O, no subprocess, no fs. The tests are the
-// regression net for AC1 (OpenCode tool_use), AC2 (passthrough), and
-// AC4 (table-driven coverage of the recognised and rejected shapes).
+// regression net for the OpenCode tool_use shape, passthrough, and
+// table-driven coverage of the recognised and rejected shapes.
 package parser
 
 import (
@@ -18,19 +18,19 @@ import (
 // (nil, false) (for non-tool events). No database is opened.
 //
 // Tool-name/Output/Provider checks use struct equality for the simple
-// cases and targeted pointer checks for the M2 fields so a regression
+// cases and targeted pointer checks for the cost fields so a regression
 // in absent-vs-zero round-trip is observable.
 func TestParseEvent(t *testing.T) {
-	t.Run("OpenCode tool_use with full M2 envelope", func(t *testing.T) {
-		// AC1: OpenCode tool_use shape — top.type == "tool_use",
+	t.Run("OpenCode tool_use with full cost envelope", func(t *testing.T) {
+		// OpenCode tool_use shape — top.type == "tool_use",
 		// part.type == "tool", part.state.input/output. This is the
-		// canonical M3 acceptance fixture shape (m3-acceptance.md AC1
-		// and the wrapper's primary recognition path).
+		// canonical acceptance fixture shape and the wrapper's
+		// primary recognition path.
 		//
 		// Note on timestamp: the parser's `_ = json.Unmarshal(top["timestamp"],
 		// &ev.Timestamp)` only extracts string-typed timestamp values; a
 		// JSON number is silently dropped and the parser falls back to
-		// time.Now(). The M3 fixture uses a number timestamp
+		// time.Now(). The acceptance fixture uses a number timestamp
 		// (1781874170009), so the asserted Timestamp here is a string
 		// form (preserved behaviour; see parser.go's "no production
 		// behaviour change" contract). The Surprises entry records
@@ -84,7 +84,7 @@ func TestParseEvent(t *testing.T) {
 		if tc.SessionID != "" {
 			t.Errorf("SessionID = %q, want empty (caller sets)", tc.SessionID)
 		}
-		// ID is a fresh D3 nanoid: 16 lowercase alpha chars.
+		// ID is a fresh nanoid: 16 lowercase alpha chars.
 		if len(tc.ID) != 16 {
 			t.Errorf("ID length = %d, want 16", len(tc.ID))
 		}
@@ -106,9 +106,9 @@ func TestParseEvent(t *testing.T) {
 		}
 	})
 
-	t.Run("OpenCode tool_use with M2 fields in state.metadata (defensive path)", func(t *testing.T) {
+	t.Run("OpenCode tool_use with cost fields in state.metadata (defensive path)", func(t *testing.T) {
 		// A future OpenCode shape (or a custom adapter) that places
-		// M2 fields inside state.metadata. The parser's defensive
+		// the cost fields inside state.metadata. The parser's defensive
 		// reads surface them so they round-trip into the persisted
 		// tool_call row.
 		const payload = `{"type":"tool_use","timestamp":1781874170009,"part":{"type":"tool","tool":"bash","callID":"call_001","state":{"input":{"command":"echo"},"output":"hello\n","metadata":{"tokens_in":150,"tokens_out":25,"cost":0.001234,"model":"claude-sonnet-4-20250514","provider":"anthropic","exit":0}}}}`
@@ -178,10 +178,10 @@ func TestParseEvent(t *testing.T) {
 	})
 
 	t.Run("flat shape with id/tool/name/input/args/output/result/timestamp/time", func(t *testing.T) {
-		// AC4: fallback flat shape. Top-level id/tool/name and the
+		// Fallback flat shape. Top-level id/tool/name and the
 		// input/args/output/result aliases must all round-trip. The
 		// flat-fallback path is the safety net for runtimes that emit
-		// M2 fields flat (no part.state nesting).
+		// the cost fields flat (no part.state nesting).
 		const payload = `{"id":"call_flat_001","tool":"read","name":"read","input":"README.md","args":null,"output":"# ktx\n","result":null,"timestamp":"2026-06-18T12:00:00Z","time":1700000000,"tokens_in":200,"tokens_out":50,"cost":0.005,"model":"claude-sonnet-4-20250514","provider":"anthropic"}`
 
 		tc, ok := ParseEvent([]byte(payload))
@@ -281,13 +281,13 @@ func TestParseEvent(t *testing.T) {
 	})
 
 	t.Run("text message passthrough (non-tool event)", func(t *testing.T) {
-		// AC2: text events are not tool events. Passthrough.
+		// Text events are not tool events. Passthrough.
 		const payload = `{"type":"text","timestamp":1781874172216,"sessionID":"ses_12005f840ffe3UdMoswMamfi93","part":{"id":"prt_edffa1ebb001zdageT5jSV6mI8","sessionID":"ses_12005f840ffe3UdMoswMamfi93","type":"text","text":"hello world","time":{"start":1781874171579,"end":1781874171642}}}`
 		assertPassthrough(t, []byte(payload))
 	})
 
 	t.Run("step_finish passthrough (non-tool event)", func(t *testing.T) {
-		// AC2: step_finish events are step-aggregates (tokens, cost),
+		// step_finish events are step-aggregates (tokens, cost),
 		// not per-tool events. The wrapper persists them as session
 		// rollups via CloseSession, not as tool_calls.
 		const payload = `{"type":"step_finish","timestamp":1781874170047,"sessionID":"ses_12005f840ffe3UdMoswMamfi93","part":{"id":"prt_edffa18b8001bnh8K0YHAXB3Gs","reason":"tool-calls","sessionID":"ses_12005f840ffe3UdMoswMamfi93","type":"step-finish","tokens":{"total":15333,"input":15256,"output":63},"cost":0}}`
@@ -295,7 +295,7 @@ func TestParseEvent(t *testing.T) {
 	})
 
 	t.Run("step_start passthrough (non-tool event)", func(t *testing.T) {
-		// AC2: step_start events mark the start of a step. No tool
+		// step_start events mark the start of a step. No tool
 		// data. Passthrough.
 		const payload = `{"type":"step_start","timestamp":1781874168571,"sessionID":"ses_12005f840ffe3UdMoswMamfi93","part":{"id":"prt_edffa12f9001taHmXc9OUVjrbB","sessionID":"ses_12005f840ffe3UdMoswMamfi93","type":"step-start"}}`
 		assertPassthrough(t, []byte(payload))
@@ -341,7 +341,7 @@ func assertPassthrough(t *testing.T, line []byte) {
 	}
 }
 
-// TestParseEvent_AbsentVsZero verifies the M2 pointer discipline at the
+// TestParseEvent_AbsentVsZero verifies the cost pointer discipline at the
 // parser boundary. A field that is absent in the source event must
 // produce a nil pointer in the returned *db.ToolCall (round-trips to
 // SQL NULL / JSON null), and a field that is present with a zero value
@@ -349,9 +349,9 @@ func assertPassthrough(t *testing.T, line []byte) {
 // JSON 0). The convention matches the db side and preserves the
 // reconstructability requirement from the cost-mechanics decision.
 func TestParseEvent_AbsentVsZero(t *testing.T) {
-	t.Run("OpenCode tool_use: absent M2 fields stay nil", func(t *testing.T) {
-		// Real OpenCode 1.17.8 tool_use events have no M2 fields
-		// (tokens/cost/model are on step_finish). All M2 pointers
+	t.Run("OpenCode tool_use: absent cost fields stay nil", func(t *testing.T) {
+		// Real OpenCode 1.17.8 tool_use events have no cost fields
+		// (tokens/cost/model are on step_finish). All cost pointers
 		// must be nil.
 		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"x"}}}`
 		tc, ok := ParseEvent([]byte(payload))
@@ -379,7 +379,7 @@ func TestParseEvent_AbsentVsZero(t *testing.T) {
 		}
 	})
 
-	t.Run("flat shape: zero-valued M2 fields stay non-nil pointers", func(t *testing.T) {
+	t.Run("flat shape: zero-valued cost fields stay non-nil pointers", func(t *testing.T) {
 		// tokens_in=0, tokens_out=0, cost=0 on a flat event. The
 		// parser must produce non-nil pointers to 0 (NOT nil), so the
 		// caller can distinguish "field present, value zero" from
@@ -409,7 +409,7 @@ func TestParseEvent_AbsentVsZero(t *testing.T) {
 }
 
 // TestParseEvent_ContentHash is a regression check that the parser
-// populates ContentHash from Output (Decision 3) — every persisted row
+// populates ContentHash from Output — every persisted row
 // must carry the SHA-256 of its Output. The db layer uses this hash
 // to detect duplicate writes; if the parser skips it, the db layer's
 // duplicate detection breaks silently.
@@ -488,10 +488,10 @@ func TestParseEvent_TimestampNormalisation(t *testing.T) {
 	})
 }
 
-// TestParseEvent_FailureSignal covers D15 AC3 (OpenCode metadata.exit)
-// and AC4 (flat-fallback defensive reads + derivation).
+// TestParseEvent_FailureSignal covers the OpenCode metadata.exit
+// shape and the flat-fallback defensive reads + derivation.
 func TestParseEvent_FailureSignal(t *testing.T) {
-	t.Run("AC3 OpenCode exit=1 → ExitCode=&1 IsError=&true", func(t *testing.T) {
+	t.Run("OpenCode exit=1 → ExitCode=&1 IsError=&true", func(t *testing.T) {
 		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"err\n","metadata":{"exit":1}}}}`
 		tc, ok := ParseEvent([]byte(payload))
 		if !ok {
@@ -505,7 +505,7 @@ func TestParseEvent_FailureSignal(t *testing.T) {
 		}
 	})
 
-	t.Run("AC3 OpenCode exit=0 → ExitCode=&0 IsError=&false", func(t *testing.T) {
+	t.Run("OpenCode exit=0 → ExitCode=&0 IsError=&false", func(t *testing.T) {
 		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"ok\n","metadata":{"exit":0}}}}`
 		tc, ok := ParseEvent([]byte(payload))
 		if !ok {
@@ -519,7 +519,7 @@ func TestParseEvent_FailureSignal(t *testing.T) {
 		}
 	})
 
-	t.Run("AC3 OpenCode no metadata.exit → both nil", func(t *testing.T) {
+	t.Run("OpenCode no metadata.exit → both nil", func(t *testing.T) {
 		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"ok\n"}}}`
 		tc, ok := ParseEvent([]byte(payload))
 		if !ok {
@@ -533,7 +533,7 @@ func TestParseEvent_FailureSignal(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4 flat exit_code=2 → ExitCode=&2 IsError=&true", func(t *testing.T) {
+	t.Run("flat exit_code=2 → ExitCode=&2 IsError=&true", func(t *testing.T) {
 		const payload = `{"tool":"bash","input":"x","output":"y","exit_code":2}`
 		tc, ok := ParseEvent([]byte(payload))
 		if !ok {
@@ -547,7 +547,7 @@ func TestParseEvent_FailureSignal(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4 flat is_error=true no exit_code → IsError=&true ExitCode=nil", func(t *testing.T) {
+	t.Run("flat is_error=true no exit_code → IsError=&true ExitCode=nil", func(t *testing.T) {
 		const payload = `{"tool":"bash","input":"x","output":"y","is_error":true}`
 		tc, ok := ParseEvent([]byte(payload))
 		if !ok {
@@ -561,7 +561,7 @@ func TestParseEvent_FailureSignal(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4 flat neither field → both nil", func(t *testing.T) {
+	t.Run("flat neither field → both nil", func(t *testing.T) {
 		const payload = `{"tool":"bash","input":"x","output":"y"}`
 		tc, ok := ParseEvent([]byte(payload))
 		if !ok {

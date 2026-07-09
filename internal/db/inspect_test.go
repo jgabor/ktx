@@ -1,13 +1,13 @@
-// Table-driven unit tests for internal/db/inspect.go (Task 2).
+// Table-driven unit tests for internal/db/inspect.go.
 //
 // Coverage:
 //
 //   - CheckSchema: passes on a fresh migrated DB; missing column
 //     surfaced as an error
-//   - HasM2Columns: passes on a fresh DB; the missing-column branch
+//   - HasCostColumns: passes on a fresh DB; the missing-column branch
 //     lists the absent column by name
 //   - HasBenchRunsTable + HasBenchRunsColumns: passes on a fresh DB
-//   - SampleIDs: returns D3-compliant IDs; empty DB returns empty
+//   - SampleIDs: returns canonical IDs; empty DB returns empty
 //     slices without error
 //
 // The inspect helpers are read-only — `ktx doctor` relies on them
@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-// TestCheckSchema covers the M1 hard schema check: a freshly
+// TestCheckSchema covers the core hard schema check: a freshly
 // migrated DB has every expected column on sessions and tool_calls,
 // and CheckSchema returns nil. The negative branch is also exercised:
 // dropping a column surfaces a clear error naming the missing column.
@@ -34,12 +34,12 @@ func TestCheckSchema(t *testing.T) {
 		t.Cleanup(func() { d.Close() })
 
 		if err := d.CheckSchema(); err != nil {
-			t.Errorf("CheckSchema: %v (fresh migrated DB must satisfy M1 schema)", err)
+			t.Errorf("CheckSchema: %v (fresh migrated DB must satisfy the core schema)", err)
 		}
 	})
 
 	t.Run("missing column surfaces a clear error", func(t *testing.T) {
-		// Construct a degraded DB by dropping a known M1 column.
+		// Construct a degraded DB by dropping a known core column.
 		// CheckSchema must report the missing column by name; the
 		// doctor uses this signal to produce a degraded-status
 		// line item.
@@ -63,32 +63,32 @@ func TestCheckSchema(t *testing.T) {
 	})
 }
 
-// TestHasM2Columns covers the M2 soft check: a fresh DB reports
-// (true, nil, nil); a DB missing one M2 column reports
+// TestHasCostColumns covers the cost-publication soft check: a fresh DB reports
+// (true, nil, nil); a DB missing one cost-publication column reports
 // (false, [missing], nil) with the missing column named.
-func TestHasM2Columns(t *testing.T) {
-	t.Run("fresh DB: HasM2Columns reports true with no missing", func(t *testing.T) {
+func TestHasCostColumns(t *testing.T) {
+	t.Run("fresh DB: HasCostColumns reports true with no missing", func(t *testing.T) {
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
 		}
 		t.Cleanup(func() { d.Close() })
 
-		ok, missing, err := d.HasM2Columns()
+		ok, missing, err := d.HasCostColumns()
 		if err != nil {
-			t.Fatalf("HasM2Columns: %v", err)
+			t.Fatalf("HasCostColumns: %v", err)
 		}
 		if !ok {
-			t.Errorf("HasM2Columns returned ok=false; want true (fresh DB has every M2 column)")
+			t.Errorf("HasCostColumns returned ok=false; want true (fresh DB has every cost-publication column)")
 		}
 		if len(missing) != 0 {
-			t.Errorf("HasM2Columns returned missing=%v; want []", missing)
+			t.Errorf("HasCostColumns returned missing=%v; want []", missing)
 		}
 	})
 
-	t.Run("missing M2 column surfaces in the missing slice", func(t *testing.T) {
-		// Drop one M2 column to simulate a pre-M2 DB that was not
-		// migrated (or a partial migration). HasM2Columns must
+	t.Run("missing cost-publication column surfaces in the missing slice", func(t *testing.T) {
+		// Drop one cost-publication column to simulate an unmigrated DB that was not
+		// migrated (or a partial migration). HasCostColumns must
 		// report the absent column so the doctor can name it in
 		// the degraded-status detail.
 		d, err := OpenMemory()
@@ -97,19 +97,19 @@ func TestHasM2Columns(t *testing.T) {
 		}
 		t.Cleanup(func() { d.Close() })
 
-		// Drop one M2 column. SQLite does not allow DROP COLUMN on
+		// Drop one cost-publication column. SQLite does not allow DROP COLUMN on
 		// every column (it refuses indexes / primary keys), but
 		// `tokens_in` is a plain nullable column with no index.
 		if _, err := d.db.Exec(`ALTER TABLE tool_calls DROP COLUMN tokens_in`); err != nil {
 			t.Skipf("DROP COLUMN tokens_in not supported by this SQLite build: %v", err)
 		}
 
-		ok, missing, err := d.HasM2Columns()
+		ok, missing, err := d.HasCostColumns()
 		if err != nil {
-			t.Fatalf("HasM2Columns: %v", err)
+			t.Fatalf("HasCostColumns: %v", err)
 		}
 		if ok {
-			t.Error("HasM2Columns returned ok=true after dropping tokens_in; want false")
+			t.Error("HasCostColumns returned ok=true after dropping tokens_in; want false")
 		}
 		// "tokens_in" must be in the missing slice; other columns
 		// may or may not be (the test does not assert a complete
@@ -122,14 +122,14 @@ func TestHasM2Columns(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Errorf("HasM2Columns missing slice %v does not contain tokens_in", missing)
+			t.Errorf("HasCostColumns missing slice %v does not contain tokens_in", missing)
 		}
 	})
 }
 
 // TestHasBenchRunsTable covers the table-level probe. A fresh DB
 // has the bench_runs table (migrate runs CREATE TABLE IF NOT EXISTS
-// as part of OpenMemory); a pre-M3 DB would not.
+// as part of OpenMemory); an unmigrated DB would not.
 func TestHasBenchRunsTable(t *testing.T) {
 	t.Run("fresh DB: HasBenchRunsTable reports true", func(t *testing.T) {
 		d, err := OpenMemory()

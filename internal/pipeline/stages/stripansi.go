@@ -1,5 +1,5 @@
 // strip-ansi stage: removes ANSI escape sequences so colored terminal
-// transcripts become plain text (M4 plan Task 4 / D14).
+// transcripts become plain text.
 //
 // The stage handles the CSI (Control Sequence Introducer) form:
 // `ESC [ ... letter`, where `...` is a sequence of parameter bytes

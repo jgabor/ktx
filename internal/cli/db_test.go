@@ -1,15 +1,15 @@
 // Table-driven tests for `ktx db` (internal/cli/db.go).
 //
-// Acceptance coverage:
+// Coverage:
 //
-//   - AC 3 (Task 3): KTX_DB='' and no --path → stdout is the resolved
+//   - KTX_DB='' and no --path → stdout is the resolved
 //     path under the test XDG_DATA_HOME. The default resolution is
-//     $XDG_DATA_HOME/ktx/ktx.db (Decision 8).
-//   - AC 2 (Task 3, partial): a missing database file at
+//     $XDG_DATA_HOME/ktx/ktx.db.
+//   - A missing database file at
 //     t.TempDir()/ktx.db is created (parent dir + migration) by
 //     runDB path resolution + a subsequent dbpkg.Open; the second
-//     open is a no-op. We exercise AC 2 through the integration with
-//     the db path (the full AC 2 is covered end-to-end via the
+//     open is a no-op. This is exercised through the integration with
+//     the db path (the full flow is covered end-to-end via the
 //     write_test.go and list_test.go flows that also call dbpkg.Open
 //     against a fresh KTX_DB).
 //
@@ -28,10 +28,10 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// TestRunDBWith_PathResolution covers AC 3 (Task 3): `ktx db path`
+// TestRunDBWith_PathResolution covers `ktx db path`
 // with no --path override and no KTX_DB env → the path printed on
 // stdout is the resolved default under the test XDG_DATA_HOME. The
-// default is $XDG_DATA_HOME/ktx/ktx.db per Decision 8.
+// default is $XDG_DATA_HOME/ktx/ktx.db.
 //
 // Companion cases assert:
 //   - --path override prints the override verbatim (per-invocation, not
@@ -41,7 +41,7 @@ import (
 //   - unknown subcommand returns usage exit 1.
 //   - --help exits 0 with help on stdout.
 func TestRunDBWith_PathResolution(t *testing.T) {
-	t.Run("AC3: KTX_DB='' and no --path prints XDG_DATA_HOME default", func(t *testing.T) {
+	t.Run("KTX_DB='' and no --path prints XDG_DATA_HOME default", func(t *testing.T) {
 		// Isolate the XDG path so the test does not observe or
 		// clobber the user's real XDG_DATA_HOME.
 		tmp := testutil.WithTempXDG(t)
@@ -62,8 +62,8 @@ func TestRunDBWith_PathResolution(t *testing.T) {
 		}
 	})
 
-	t.Run("AC3 companion: --path override prints override verbatim", func(t *testing.T) {
-		// The --path flag is per-invocation only (Decision 8):
+	t.Run("--path override prints override verbatim", func(t *testing.T) {
+		// The --path flag is per-invocation only:
 		// nothing is persisted. A subsequent invocation without
 		// --path must still print the default, not the override.
 		tmp := testutil.WithTempXDG(t)
@@ -123,7 +123,7 @@ func TestRunDBWith_PathResolution(t *testing.T) {
 	})
 
 	t.Run("prune subcommand is stubbed exits 1 (usage)", func(t *testing.T) {
-		// Decision 8 reserves `ktx db prune` for future
+		// `ktx db prune` is reserved for future
 		// orphaned-session cleanup. The stub is intentionally
 		// unimplemented (exits 1 with a usage error) so the
 		// CLI surface reserves the verb without claiming
@@ -156,8 +156,8 @@ func TestRunDBWith_PathResolution(t *testing.T) {
 	})
 }
 
-// TestRunDBWith_AcceptanceCompanion_DBOpen covers AC 2 (Task 3, dbpkg
-// seam path): a missing database file at t.TempDir()/ktx.db is
+// TestRunDBWith_AcceptanceCompanion_DBOpen covers the dbpkg
+// seam path: a missing database file at t.TempDir()/ktx.db is
 // created (parent directory + schema migration) by the first
 // dbpkg.Open; the second open is a no-op (no error, no schema drift).
 //
@@ -168,7 +168,7 @@ func TestRunDBWith_PathResolution(t *testing.T) {
 // because the subcommand-level test would also be valid but the
 // dbpkg seam is the single source of truth.
 func TestRunDBWith_AcceptanceCompanion_DBOpen(t *testing.T) {
-	t.Run("AC2: missing DB → parent created, schema migrated, re-open no-op", func(t *testing.T) {
+	t.Run("missing DB → parent created, schema migrated, re-open no-op", func(t *testing.T) {
 		// Stage: t.TempDir()/<parent>/ktx.db where <parent> does
 		// NOT exist yet. The path resolver (dbpkg.Open) is
 		// responsible for creating the parent.

@@ -1,7 +1,7 @@
 // Package parser converts agent-runtime event bytes into ktx tool_call
 // records. It is the single source of truth for the ktx tool_call shape:
-// both the wrapper (internal/cli/run.go) and the future M4 hook path
-// (D1: ktx hook receives the same JSON payload shape) use ParseEvent.
+// both the wrapper (internal/cli/run.go) and the future hook path
+// use ParseEvent.
 //
 // The package is pure: no I/O, no database, no global state. Tests
 // exercise it directly with byte slices.
@@ -26,9 +26,9 @@ import (
 //
 // The returned *db.ToolCall is fully populated except for SessionID,
 // which the caller fills in (the parser does not know which session
-// the event belongs to). ID is a fresh 16-char nanoid (D3), ContentHash
-// is the SHA-256 of Output (D3), and Timestamp is normalised to
-// RFC3339Nano. The M2 pointer fields (TokensIn, TokensOut, Cost,
+// the event belongs to). ID is a fresh 16-char nanoid, ContentHash
+// is the SHA-256 of Output, and Timestamp is normalised to
+// RFC3339Nano. The cost pointer fields (TokensIn, TokensOut, Cost,
 // LatencyMs, Model, Provider) round-trip a nil source field to a nil
 // pointer (SQL NULL / JSON null) and a non-nil source value to a
 // non-nil pointer (SQL value / JSON value), preserving the
@@ -50,21 +50,20 @@ func ParseEvent(line []byte) (*dbpkg.ToolCall, bool) {
 }
 
 // buildToolCall materialises a parsed event into the db's ToolCall
-// shape (Decision 9). ID is always generated fresh — Decision 3
-// mandates 16-char lowercase alpha nanoids, and runtime-supplied IDs
-// (e.g., OpenCode's callID) do not necessarily match. Cross-referencing
-// runtime IDs against ktx records is a post-M1 enhancement (Decision 9
-// reserves the callID field shape but M1 does not store it).
+// shape. ID is always generated fresh — 16-char lowercase alpha
+// nanoids are mandated, and runtime-supplied IDs (e.g., OpenCode's
+// callID) do not necessarily match. Cross-referencing runtime IDs
+// against ktx records is a future enhancement.
 //
 // content_hash is derived from output. timestamp is normalised to
 // RFC3339Nano so downstream readers do not need to disambiguate
 // milliseconds vs seconds vs ISO strings.
 //
-// The M2 fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider)
+// The cost fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider)
 // are pointer-copied from the parsed event: a nil pointer round-trips
 // to SQL NULL / JSON null (field absent in source), a non-nil pointer
 // to zero round-trips to SQL 0 / JSON 0 (source emitted zero). The
-// convention matches the dbpkg.ToolCall shape (Task 3) and preserves
+// convention matches the dbpkg.ToolCall shape and preserves
 // the reconstructability requirement from the cost-mechanics decision:
 // 'absent' is not conflated with 'zero'.
 func buildToolCall(ev *parsedEvent) (*dbpkg.ToolCall, error) {
@@ -99,17 +98,17 @@ func buildToolCall(ev *parsedEvent) (*dbpkg.ToolCall, error) {
 
 // parsedEvent is the result of a successful parseToolEvent.
 //
-// The M2 fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider)
+// The cost fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider)
 // use pointer types so the absent-vs-zero distinction survives into
 // buildToolCall: nil = "field absent in the source event" (round-trips
 // to SQL NULL and JSON null); a non-nil pointer to 0 = "source emitted
 // the field with value zero" (round-trips to SQL 0 and JSON 0).
 //
-// This mirrors the persistence-side convention in dbpkg.ToolCall
-// (Task 3): the parse layer hands buildToolCall pointers that the
-// struct boundary copies straight onto the db shape. A missing M2
-// field in the source event is NOT a parse failure — the wrapper
-// records the tool call with NULL M2 columns and moves on.
+// This mirrors the persistence-side convention in dbpkg.ToolCall:
+// the parse layer hands buildToolCall pointers that the struct
+// boundary copies straight onto the db shape. A missing cost field
+// in the source event is NOT a parse failure — the wrapper records
+// the tool call with NULL cost columns and moves on.
 type parsedEvent struct {
 	ID        string
 	Tool      string
@@ -117,7 +116,7 @@ type parsedEvent struct {
 	Output    string
 	Timestamp string
 
-	// M2 cost-publication fields. nil = absent in the source event.
+	// Cost-publication fields. nil = absent in the source event.
 	// Populated by parseToolEvent when the event carries the field;
 	// buildToolCall copies the pointer through to the persisted row.
 	TokensIn  *int64
@@ -127,7 +126,7 @@ type parsedEvent struct {
 	Model     *string
 	Provider  *string
 
-	// D15 failure-signal fields. nil = absent in the source event.
+	// Failure-signal fields. nil = absent in the source event.
 	ExitCode *int64
 	IsError  *bool
 }
@@ -139,7 +138,7 @@ type parsedEvent struct {
 // Two schemas are recognised:
 //
 //  1. OpenCode: top.type == "tool_use" and part.type == "tool". The
-//     tool name, input, and output live in part.state. M2 extraction
+//     tool name, input, and output live in part.state. Cost extraction
 //     from this shape:
 //     - latency_ms: computed from part.state.time.end - .start when
 //     both are present (OpenCode always emits both on a completed
@@ -154,13 +153,12 @@ type parsedEvent struct {
 //     The parser defensively reads part.state.metadata and the
 //     top-level event for these fields so a future OpenCode shape
 //     or a custom adapter that does emit them would round-trip.
-//     Real OpenCode 1.17.8 events leave these nil — documented in
-//     .agentera/verification/m4-task-4-acceptance.md.
+//     Real OpenCode 1.17.8 events leave these nil.
 //
 //  2. Flat fallback: a top-level object with tool/name and (input|args)
 //     and (output|result) fields. Optional id/timestamp/time aliases.
-//     M2 fields are read defensively from the top level so a runtime
-//     that emits M2 fields flat (no nesting) would also round-trip.
+//     Cost fields are read defensively from the top level so a runtime
+//     that emits them flat (no nesting) would also round-trip.
 //
 // Unknown event types ("text", "step_start", "step_finish", etc.) are
 // treated as non-tool events and skipped without error.
@@ -202,7 +200,7 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 			ev.Input = jsonValueToString(state["input"])
 			ev.Output = jsonValueToString(state["output"])
 			ev.LatencyMs = latencyFromState(state["time"])
-			// Defensive M2 reads inside state.metadata. OpenCode's
+			// Defensive cost reads inside state.metadata. OpenCode's
 			// bash/edit/etc. tools populate state.metadata with tool-
 			// specific output (output, exit, description, truncated)
 			// but not with tokens/cost/model — those live on
@@ -263,11 +261,11 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 	if ev.Timestamp == "" {
 		_ = json.Unmarshal(top["time"], &ev.Timestamp)
 	}
-	// Defensive M2 reads on the flat shape so a runtime that emits
-	// M2 fields at the top level (no nesting) round-trips through the
-	// wrapper. Real OpenCode events reach the OpenCode branch above
+	// Defensive cost reads on the flat shape so a runtime that emits
+	// the cost fields at the top level (no nesting) round-trips through
+	// the wrapper. Real OpenCode events reach the OpenCode branch above
 	// and never exercise this path; flat-fallback runtimes that do
-	// not emit M2 fields leave the pointers nil.
+	// not emit cost fields leave the pointers nil.
 	ev.LatencyMs = latencyFromState(firstNonEmptyRaw(top["time"], top["duration"]))
 	ev.TokensIn = int64PtrFromRaw(top["tokens_in"], top["tokensIn"], top["input_tokens"])
 	ev.TokensOut = int64PtrFromRaw(top["tokens_out"], top["tokensOut"], top["output_tokens"])
@@ -321,7 +319,7 @@ func latencyFromState(raw json.RawMessage) *int64 {
 // int64PtrFromRaw returns the first non-empty RawMessage that parses as
 // a JSON number, as a pointer to int64. Empty input, malformed JSON,
 // or non-numeric content returns nil — the same 'missing field is not
-// a parse failure' rule the wrapper applies to top-level M2 fields.
+// a parse failure' rule the wrapper applies to top-level cost fields.
 func int64PtrFromRaw(values ...json.RawMessage) *int64 {
 	for _, v := range values {
 		if len(v) == 0 {
@@ -377,7 +375,7 @@ func boolPtrFromRaw(values ...json.RawMessage) *bool {
 }
 
 // isErrorFromExitCode derives is_error from exit_code at parse time
-// (Decision 15 OpenCode mapping): present non-zero → &true, present
+// (OpenCode mapping): present non-zero → &true, present
 // zero → &false, absent exit_code → nil.
 func isErrorFromExitCode(exitCode *int64) *bool {
 	if exitCode == nil {

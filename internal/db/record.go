@@ -1,22 +1,22 @@
-// Persistence methods for the ktx database (Decision 7).
+// Persistence methods for the ktx database.
 //
 // Two-table model:
 //   - tool_calls: append-only. INSERT only (PersistToolCall).
 //   - sessions: aggregate. INSERT on open (InsertSession), UPDATE on
 //     roll-up and close (PersistToolCall's tx, CloseSession).
 //
-// The ToolCall struct carries the full D9 flat JSON shape, including the
-// optional M2 fields (tokens_in, tokens_out, cost, latency_ms, model,
-// provider). The M2 columns live in tool_calls since the in-place ALTER
-// TABLE migration in Open() (Task 2). PersistToolCall writes them; a nil
-// pointer maps to SQL NULL so 'field absent' survives the round-trip;
-// a non-nil pointer to zero persists as 0 so 'field set to zero' is not
-// conflated with 'absent' (Decision 9 reconstructability requirement).
+// The ToolCall struct carries the full flat JSON shape, including the
+// optional cost-publication fields (tokens_in, tokens_out, cost, latency_ms,
+// model, provider). The cost-publication columns live in tool_calls since
+// the in-place ALTER TABLE migration in Open(). PersistToolCall writes
+// them; a nil pointer maps to SQL NULL so 'field absent' survives the
+// round-trip; a non-nil pointer to zero persists as 0 so 'field set to
+// zero' is not conflated with 'absent' (the reconstructability requirement).
 //
-// SessionM2 and SessionM2Rollups were carried over from rollup.go during
-// the file-reorg (Task 2 of the deepening plan): the per-session M2
-// cost-publication rollup is part of the record-side read surface, so
-// the type and its query live here alongside the other record methods.
+// SessionCosts and SessionCostsRollups were carried over from rollup.go during
+// the file-reorg: the per-session cost-publication rollup is part of the
+// record-side read surface, so the type and its query live here alongside
+// the other record methods.
 package db
 
 import (
@@ -30,21 +30,21 @@ import (
 )
 
 // ErrNotFound is returned when a referenced session or record does not exist
-// in the database. The cli layer maps it to a not-found exit code (D4).
+// in the database. The cli layer maps it to a not-found exit code.
 var ErrNotFound = errors.New("db: not found")
 
-// ToolCall is the flat JSON tool_call payload (Decision 9).
+// ToolCall is the flat JSON tool_call payload.
 //
-// Required fields are persisted to the tool_calls table. The optional M2
-// fields (TokensIn, TokensOut, Cost, LatencyMs, Model, Provider) are
-// persisted when present; absent fields stay NULL.
+// Required fields are persisted to the tool_calls table. The optional
+// cost-publication fields (TokensIn, TokensOut, Cost, LatencyMs, Model,
+// Provider) are persisted when present; absent fields stay NULL.
 //
-// M2 fields use pointer types (*int64, *float64, *string) so the absent-vs-
+// These fields use pointer types (*int64, *float64, *string) so the absent-vs-
 // zero distinction survives both the JSON marshal round-trip (nil → null,
 // &0 → 0) and the SQL round-trip (nil → NULL, &0 → 0). Without pointers,
 // Go's zero-value semantics would coerce a caller-supplied 0 into "absent"
 // (because the zero value for the field is indistinguishable from "not
-// set"). The JSON tags deliberately omit `omitempty` so an absent M2
+// set"). The JSON tags deliberately omit `omitempty` so an absent cost-
 // field round-trips as JSON `null` rather than being dropped from the
 // output object — ktx read / ktx get (JSON) must surface the absence
 // explicitly so consumers can detect 'absent' from '0'.
@@ -61,7 +61,7 @@ type ToolCall struct {
 	Timestamp   string `json:"timestamp"`
 	EventType   string `json:"event_type"`
 
-	// Optional M2 cost-publication fields (persisted when present;
+	// Optional cost-publication fields (persisted when present;
 	// NULL when absent; pointer types preserve the absent-vs-zero
 	// distinction through JSON and SQL round-trips).
 	TokensIn  *int64   `json:"tokens_in"`
@@ -71,11 +71,11 @@ type ToolCall struct {
 	Model     *string  `json:"model"`
 	Provider  *string  `json:"provider"`
 
-	// Optional D15 failure-signal fields (persisted when present;
+	// Optional failure-signal fields (persisted when present;
 	// NULL when absent; pointer types preserve the absent-vs-zero
 	// distinction through JSON and SQL round-trips). is_error is
 	// canonical for the compress pre-pipeline gate; exit_code is
-	// diagnostic only (Decision 15).
+	// diagnostic only.
 	ExitCode *int64 `json:"exit_code"`
 	IsError  *bool  `json:"is_error"`
 }
@@ -94,13 +94,13 @@ type Session struct {
 	ToolCallCount int64  `json:"tool_call_count"`
 }
 
-// NewID returns a fresh 16-character lowercase alphabetic nanoid (D3).
+// NewID returns a fresh 16-character lowercase alphabetic nanoid.
 // Collision-safe for billions of records; no ambiguous characters.
 func NewID() (string, error) {
 	return gonanoid.Generate(idAlphabet, idLength)
 }
 
-// ContentHash returns the SHA-256 hex digest of output (Decision 3). The
+// ContentHash returns the SHA-256 hex digest of output. The
 // content hash is stored as a separate field on each tool_call row for
 // verification without being the primary key.
 func ContentHash(output string) string {
@@ -108,12 +108,12 @@ func ContentHash(output string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// SessionM2 is the per-session M2 cost-publication rollup surfaced by
+// SessionCosts is the per-session cost-publication rollup surfaced by
 // `ktx list`. Each field is a pointer so the absent-vs-zero
 // distinction survives the JSON output: a session with no underlying
 // call contributing to a field has a nil pointer; a session where
 // the non-NULL contributions sum to zero has a non-nil pointer to 0.
-type SessionM2 struct {
+type SessionCosts struct {
 	Tokens *int64   `json:"tokens"`
 	Cost   *float64 `json:"cost"`
 	Model  *string  `json:"model"`
@@ -137,7 +137,7 @@ func (d *DB) SessionExists(id string) (bool, error) {
 	return true, nil
 }
 
-// InsertSession creates a new session row (Decision 7: INSERT on open). The
+// InsertSession creates a new session row (INSERT on open). The
 // caller is responsible for generating the id via NewID and for writing the
 // ppid session file when this is part of the adapter/hook open path.
 func (d *DB) InsertSession(s *Session) error {
@@ -151,7 +151,7 @@ func (d *DB) InsertSession(s *Session) error {
 	return nil
 }
 
-// CloseSession sets ended_at on the session row (Decision 7: UPDATE on
+// CloseSession sets ended_at on the session row (UPDATE on
 // close). It returns ErrNotFound when no session matches id, so the close
 // path surfaces a clear not-found rather than a silent no-op.
 func (d *DB) CloseSession(id, endedAt string) error {
@@ -168,22 +168,22 @@ func (d *DB) CloseSession(id, endedAt string) error {
 
 // PersistToolCall inserts the tool_call row and updates the session roll-up
 // (tool_call_count + 1, last_seen_at = tc.Timestamp) in one transaction
-// (Decision 7: tool_calls INSERT only, sessions UPDATE roll-up). The
+// (tool_calls INSERT only, sessions UPDATE roll-up). The
 // transaction keeps the aggregate consistent with the evidence — a
 // tool_call never exists without its session counters reflecting it.
 //
-// The INSERT writes all 14 columns: the 8 M1 fields (id, session_id, tool,
-// input, output, content_hash, timestamp, event_type) and the 6 M2
+// The INSERT writes all 14 columns: the 8 core fields (id, session_id, tool,
+// input, output, content_hash, timestamp, event_type) and the 6
 // cost-publication fields (tokens_in, tokens_out, cost, latency_ms, model,
-// provider). M2 fields are passed as the *int64 / *float64 / *string
+// provider). These fields are passed as the *int64 / *float64 / *string
 // pointer values on the ToolCall struct; a nil pointer round-trips to
 // SQL NULL (database/sql passes a typed nil pointer as NULL), so 'field
 // absent' is preserved. A non-nil pointer to zero persists as 0, so
 // 'field set to zero' is preserved. This is the documented plan choice
-// (Task 3) and the only round-trip-safe shape: Go's zero-value semantics
+// and the only round-trip-safe shape: Go's zero-value semantics
 // would otherwise coerce 0 → NULL via the field's default.
 //
-// Cost derivation (Decision 11) runs at write time, before the INSERT:
+// Cost derivation runs at write time, before the INSERT:
 // when the caller omitted `cost` (nil pointer) AND tokens_in, tokens_out,
 // model, and provider are all non-NULL AND the cache has a price for the
 // (provider, model) tuple, the function fills `cost` from
@@ -193,13 +193,13 @@ func (d *DB) CloseSession(id, endedAt string) error {
 // rounded to 6 decimal places (the methodology-v1 headline precision).
 // The derivation runs ONCE per write; subsequent reads (GetToolCall,
 // ktx read, ktx get) surface the persisted value verbatim — no
-// re-derivation at read time (the reconstructability contract, AC5).
+// re-derivation at read time (the reconstructability contract).
 // Cache miss + warm cache → cost stays NULL (no refetch from the write
-// path; the on-disk cache is the source of truth between fetches,
-// AC2). Cache miss + cold cache → fetch + atomic write to disk, then
-// derivation. Fetch failure → cost stays NULL, no error returned (AC3,
-// AC6). NULL preservation: any of tokens_in / tokens_out / model NULL
-// blocks derivation even when the cache has a price (AC7).
+// path; the on-disk cache is the source of truth between fetches).
+// Cache miss + cold cache → fetch + atomic write to disk, then
+// derivation. Fetch failure → cost stays NULL, no error returned.
+// NULL preservation: any of tokens_in / tokens_out / model NULL
+// blocks derivation even when the cache has a price.
 //
 // EventType defaults to "tool_call" when empty.
 func (d *DB) PersistToolCall(tc *ToolCall) error {
@@ -208,7 +208,7 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 		eventType = "tool_call"
 	}
 
-	d.deriveCost(tc) // write-time D11 derivation; soft-fail, see helper
+	d.deriveCost(tc) // write-time cost derivation; soft-fail, see helper
 
 	tx, err := d.db.Begin()
 	if err != nil {
@@ -247,10 +247,10 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 }
 
 // GetToolCall fetches a tool_call row by id. It returns ErrNotFound when no
-// row matches so the CLI layer can map "not found" to exit code 2 (D4).
-// The returned struct carries the persisted shape including the M2
+// row matches so the CLI layer can map "not found" to exit code 2.
+// The returned struct carries the persisted shape including the
 // cost-publication fields (tokens_in, tokens_out, cost, latency_ms,
-// model, provider). The M2 columns are nullable; the Scan uses
+// model, provider). The columns are nullable; the Scan uses
 // sql.NullInt64 / sql.NullFloat64 / sql.NullString intermediates so
 // NULL is converted back to a nil pointer on the ToolCall struct,
 // preserving the 'field absent' distinction. A non-NULL column with
@@ -322,7 +322,7 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 }
 
 // isErrorSQL maps a nullable *bool to the INTEGER column value SQLite
-// expects: nil → SQL NULL, &false → 0, &true → 1 (Decision 15).
+// expects: nil → SQL NULL, &false → 0, &true → 1.
 func isErrorSQL(b *bool) any {
 	if b == nil {
 		return nil
@@ -335,7 +335,7 @@ func isErrorSQL(b *bool) any {
 
 // GetSession fetches a session row by id. It returns ErrNotFound when no
 // row matches. Used by `ktx read` to back the cross-table ID lookup; also
-// useful for future query commands (Task 7) and for session inspection in
+// useful for future query commands and for session inspection in
 // tests.
 //
 // Nullable text columns (agent, started_at, ended_at, last_seen_at) are
@@ -395,8 +395,8 @@ func (d *DB) GetRecord(id string) (any, error) {
 // have been recorded — the CLI can json-encode an empty slice as "[]"
 // without a nil check.
 //
-// This is the M1 minimal list: no cost/token filters (M2) and no
-// pagination (post-M1). Ordered by started_at so the table view shows
+// This is the minimal list: no cost/token filters and no
+// pagination. Ordered by started_at so the table view shows
 // the oldest session first, matching the convention of other log-style
 // tools.
 func (d *DB) ListSessions() ([]Session, error) {
@@ -431,11 +431,11 @@ func (d *DB) ListSessions() ([]Session, error) {
 	return sessions, nil
 }
 
-// SessionM2Rollups returns the M2 cost-publication rollup for every
-// session that has at least one tool_call with a non-NULL M2 field.
-// Sessions without any non-NULL M2 data are absent from the result
-// map — a missing key means "no M2 data", which the inspect surface
-// renders as the explicit "-" marker (AC6).
+// SessionCostsRollups returns the cost-publication rollup for every
+// session that has at least one tool_call with a non-NULL cost-publication field.
+// Sessions without any non-NULL cost-publication data are absent from the result
+// map — a missing key means "no cost-publication data", which the inspect surface
+// renders as the explicit "-" marker.
 //
 // Implementation: a single GROUP BY over tool_calls filtered with
 // a HAVING clause that excludes groups where every aggregate is
@@ -443,7 +443,7 @@ func (d *DB) ListSessions() ([]Session, error) {
 // ignores NULL operands (so a row with tokens_in=NULL contributes
 // NULL to the per-call sum and is excluded), and MIN returns NULL
 // only when every input is NULL. The HAVING clause is therefore a
-// faithful "did this group see any non-NULL M2 data?" check.
+// faithful "did this group see any non-NULL cost-publication data?" check.
 //
 // The query is read-only and uses a single index-friendly
 // aggregate; for the expected session counts (thousands, not
@@ -458,8 +458,8 @@ func (d *DB) ListSessions() ([]Session, error) {
 // non-NULL values" — the per-call pairing of tokens_in +
 // tokens_out is the unit of the rollup.
 //
-// Cost: SUM(cost) over the session's tool_calls. AC2's mixed-NULL
-// case (1 NULL + 2 non-NULL) sums only the non-NULL values.
+// Cost: SUM(cost) over the session's tool_calls. The mixed-NULL case
+// (1 NULL + 2 non-NULL) sums only the non-NULL values.
 //
 // Model: MIN(model) over the session's tool_calls. SQLite's MIN
 // is deterministic and returns NULL when every value is NULL.
@@ -476,14 +476,13 @@ func (d *DB) ListSessions() ([]Session, error) {
 // Tokens=nil, and the inspect surface renders "-" for the column.
 // The JSON tags deliberately omit omitempty so absent sub-rollups
 // surface as JSON null rather than being dropped from the object
-// — consistent with the pointer discipline used on ToolCall
-// (Task 3).
+// — consistent with the pointer discipline used on ToolCall.
 //
 // The query uses a HAVING clause to filter to sessions with at
-// least one non-NULL M2 field. Sessions with no M2 data are absent
+// least one non-NULL cost-publication field. Sessions with no cost-publication data are absent
 // from the result map; the inspect surface treats a missing key as
-// "no data" and renders the explicit "-" marker (AC6).
-func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
+// "no data" and renders the explicit "-" marker.
+func (d *DB) SessionCostsRollups() (map[string]SessionCosts, error) {
 	rows, err := d.db.Query(
 		`SELECT session_id,
 		        SUM(tokens_in + tokens_out),
@@ -496,11 +495,11 @@ func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
 		     OR MIN(model) IS NOT NULL`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("db: session m2 rollups: %w", err)
+		return nil, fmt.Errorf("db: session cost rollups: %w", err)
 	}
 	defer rows.Close()
 
-	out := make(map[string]SessionM2)
+	out := make(map[string]SessionCosts)
 	for rows.Next() {
 		var (
 			sessionID string
@@ -509,9 +508,9 @@ func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
 			model     sql.NullString
 		)
 		if err := rows.Scan(&sessionID, &tokens, &cost, &model); err != nil {
-			return nil, fmt.Errorf("db: scan m2 rollup: %w", err)
+			return nil, fmt.Errorf("db: scan cost rollup: %w", err)
 		}
-		roll := SessionM2{}
+		roll := SessionCosts{}
 		if tokens.Valid {
 			v := tokens.Int64
 			roll.Tokens = &v
@@ -527,7 +526,7 @@ func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
 		out[sessionID] = roll
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db: iterate m2 rollups: %w", err)
+		return nil, fmt.Errorf("db: iterate cost rollups: %w", err)
 	}
 	return out, nil
 }
@@ -540,7 +539,7 @@ func (d *DB) SessionM2Rollups() (map[string]SessionM2, error) {
 // cold-fetch policy, and the 6-decimal rounding all live in cost.go;
 // this wrapper is only the struct-to-input adapter.
 //
-// D11 soft-fail: Derive returns nil on every branch that does not
+// Soft-fail: Derive returns nil on every branch that does not
 // derive. tc.Cost is left untouched in that case (the caller's
 // original value, or nil), and the row persists with whatever cost
 // the caller supplied (or NULL) — same contract as the inline

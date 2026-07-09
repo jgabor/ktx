@@ -1,17 +1,17 @@
-// `ktx db` — the database namespace (Decision 8).
+// `ktx db` — the database namespace.
 //
 //	ktx db                    -> ktx db path (print current database path)
 //	ktx db path               -> print current database path
 //	ktx db --path <file> path -> print <file> (per-invocation override)
-//	ktx db prune              -> stubbed (Task 1: not implemented)
+//	ktx db prune              -> stubbed (not implemented)
 //
 // The --path flag is per-invocation only; nothing is persisted. Path
-// precedence (Decision 8): --path flag > KTX_DB env > $XDG_DATA_HOME/ktx/ktx.db.
+// precedence: --path flag > KTX_DB env > $XDG_DATA_HOME/ktx/ktx.db.
 //
-// Task 7 migration: the verb registers via dispatch.Register with
+// The verb registers via dispatch.Register with
 // NeedsDB=false (it only resolves and prints the path — the verb does
 // not touch the database). The legacy runDBWith remains the test
-// seam (Task 3 surface) and still parses its own flags; the dispatch
+// seam and still parses its own flags; the dispatch
 // wrapper extracts --path via a stdlib flag.NewFlagSet inside the
 // shared dbLogic core so both call sites have identical semantics.
 // The dispatch registry is consulted before the legacy commandIndex
@@ -28,7 +28,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runDBWith is the testable core of `ktx db` (Task 3 seam).
+// runDBWith is the testable core of `ktx db`.
 // stdout/stderr are injected so the path-resolution flow can be
 // exercised without touching os.Stdout. The body parses the
 // subcommand's --path flag and dispatches on the subcommand name
@@ -74,7 +74,7 @@ func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error
 	}
 
 	rest := fs.Args()
-	// `ktx db` without a subcommand defaults to `ktx db path` (Decision 8).
+	// `ktx db` without a subcommand defaults to `ktx db path`.
 	sub := "path"
 	if len(rest) > 0 {
 		sub = rest[0]
@@ -85,8 +85,8 @@ func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error
 	case "path":
 		return dbPathLogic(pathOverride, stdout)
 	case "prune":
-		// Future orphaned-session cleanup (D1 revised). Stubbed
-		// for Task 1; preserved as a usage error so the CLI
+		// Future orphaned-session cleanup. Stubbed
+		// (not implemented); preserved as a usage error so the CLI
 		// surface reserves the verb without claiming behavior
 		// that does not exist yet.
 		return nil, usageError("ktx db prune: not implemented")
@@ -95,10 +95,10 @@ func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error
 	}
 }
 
-// dbPathLogic resolves the database path (Decision 8 precedence:
+// dbPathLogic resolves the database path (precedence:
 // --path flag > KTX_DB env > $XDG_DATA_HOME/ktx/ktx.db) and prints it
 // on stdout. Output is the bare path so it pipes cleanly; the format
-// flag does not apply to I/O commands (Decision 8: ktx db path
+// flag does not apply to I/O commands (ktx db path
 // reports the path, not a record).
 func dbPathLogic(pathOverride string, stdout io.Writer) (any, error) {
 	path, err := dbpkg.ResolvePath(pathOverride)
@@ -139,7 +139,7 @@ func dbCommandFunc(ctx *DispatchContext) (any, error) {
 
 // dbPreParse is the dispatcher's PreParse hook for `ktx db`. It
 // extracts the verb-specific --path flag (per-invocation path
-// override, Decision 8) and stashes the value in dbScratch. The
+// override) and stashes the value in dbScratch. The
 // dispatcher consumes --path because the per-verb flag set in
 // runRegisteredVerb only knows about --help and --quiet; if we
 // let the verb parse --path directly, the dispatcher's flag set
@@ -192,8 +192,7 @@ func dbScratchReset() {
 }
 
 // init registers `ktx db` with the dispatch module. After init runs,
-// the verb is reachable through runWith (the legacy commandIndex
-// entry in cli.go is removed in Task 7).
+// the verb is reachable through runWith.
 func init() {
 	Register("db", RegisterOptions{
 		Description: "database operations (path, prune)",

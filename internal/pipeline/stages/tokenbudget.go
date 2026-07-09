@@ -1,5 +1,5 @@
 // token-budget stage: line-safe truncation to an approximate token
-// budget (D22 Phase 2 / D14).
+// budget.
 //
 // lowfat's pipeline.rs:254-271 estimates tokens as (len+3)/4 (the
 // common 4-chars-per-token heuristic) and truncates to a target char
@@ -37,7 +37,7 @@ import (
 
 // tokenBudgetDefault is the default N when the bare-name form
 // `token-budget` (no colon, no arg) is used. Matches the canonical
-// real-world pipeline value (Phase 2 plan: token-budget:2000).
+// real-world pipeline value (token-budget:2000).
 const tokenBudgetDefault = 2000
 
 // tokenBudgetBuilder is the parameterised Builder for the token-budget

@@ -1,4 +1,4 @@
-// Session identity resolution for the adapter/hook path (Decision 1 revised).
+// Session identity resolution for the adapter/hook path.
 //
 // When a tool_call arrives without a session_id, ktx resolves the session by
 // ppid file lookup. The ktx subprocess is a direct child of the agent process,
@@ -7,7 +7,7 @@
 // session_id, ppid, and ppid_start_time so subsequent invocations reuse the
 // same session without caller-side coordination.
 //
-// Staleness contract (D1 revised): a session file is stale when the ppid is
+// Staleness contract: a session file is stale when the ppid is
 // dead OR the recorded ppid_start_time no longer matches (PID reuse by a
 // different process). A stale file triggers close-old + create-new on the
 // next call. On non-Linux (no /proc), the liveness/start-time check is
@@ -28,14 +28,14 @@ import (
 	"strings"
 )
 
-// SessionFile is the ppid-keyed session identity cache (Decision 1 revised).
+// SessionFile is the ppid-keyed session identity cache.
 type SessionFile struct {
 	SessionID     string `json:"session_id"`
 	PPID          int    `json:"ppid"`
 	PPIDStartTime int64  `json:"ppid_start_time"`
 }
 
-// sessionDir resolves the session-file directory (Decision 1 revised):
+// sessionDir resolves the session-file directory:
 // $XDG_RUNTIME_DIR/ktx/sessions, falling back to os.TempDir()/ktx/sessions
 // when XDG_RUNTIME_DIR is unset (some CI shells and non-launchd macOS setups
 // do not set it). The fallback is adequate for PoC; the spec mandates
@@ -75,7 +75,7 @@ func readSessionFile(ppid int) (*SessionFile, error) {
 //
 // Concurrent ktx invocations (parallel tool calls) may race on file
 // creation: both see no file, both open sessions, last writer wins. The
-// orphaned session is reconciled by a future `ktx db prune` (D1 revised).
+// orphaned session is reconciled by a future `ktx db prune`.
 // File locking would be clever, not boring — out of scope for PoC.
 func writeSessionFile(ppid int, sf *SessionFile) error {
 	dir := sessionDir()
@@ -132,11 +132,10 @@ func ppidStartTime(pid int) (int64, bool) {
 	return n, true
 }
 
-// ResolveSessionID resolves the session id for a tool_call (Decision 1
-// revised). When hint is non-empty, the caller provided a session_id (sidecar
-// path, D9); ktx trusts it and verifies the session exists, returning
+// ResolveSessionID resolves the session id for a tool_call. When hint is non-empty, the caller provided a session_id (sidecar
+// path); ktx trusts it and verifies the session exists, returning
 // ErrNotFound if not. When hint is empty, ktx resolves by ppid file lookup
-// (adapter/hook path, D1 revised):
+// (adapter/hook path):
 //
 //  1. Read $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json.
 //  2. File exists + ppid alive + start-time matches + session in DB → reuse.
@@ -147,7 +146,7 @@ func ppidStartTime(pid int) (int64, bool) {
 // timestamp is used as started_at and last_seen_at for newly created sessions
 // and as ended_at for sessions closed by the staleness path.
 func (d *DB) ResolveSessionID(hint, timestamp string) (string, error) {
-	// Caller-provided session_id (sidecar path, D9): trust and verify.
+	// Caller-provided session_id (sidecar path): trust and verify.
 	if hint != "" {
 		exists, err := d.SessionExists(hint)
 		if err != nil {
@@ -159,7 +158,7 @@ func (d *DB) ResolveSessionID(hint, timestamp string) (string, error) {
 		return hint, nil
 	}
 
-	// ppid-based resolution (adapter/hook path, D1 revised).
+	// ppid-based resolution (adapter/hook path).
 	ppid := os.Getppid()
 	sf, err := readSessionFile(ppid)
 	if err != nil {

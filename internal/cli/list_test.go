@@ -2,7 +2,7 @@
 //
 // Acceptance coverage:
 //
-//   - AC 4 (Task 3): --format text in either flag position triggers
+//   - --format text in either flag position triggers
 //     text rendering; absent --format falls back to JSON default.
 //
 // Companion cases: empty database (no sessions), invalid --format
@@ -51,10 +51,10 @@ func seedListSession(t *testing.T, d *dbpkg.DB) {
 	}
 }
 
-// TestRunListWith_FormatAcceptance covers AC 4 (list version): the
+// TestRunListWith_FormatAcceptance covers the list version: the
 // list subcommand accepts --format in either position. The JSON
-// default emits a `[]sessionListRow` array (Decision 4 default; M2
-// rollup on the m2 field when at least one tool_call has M2 data).
+// default emits a `[]sessionListRow` array; the costs field carries the
+// cost rollup when at least one tool_call has cost data.
 // The text default emits a tabwriter-aligned table.
 func TestRunListWith_FormatAcceptance(t *testing.T) {
 	t.Run("absent --format emits JSON array of sessionListRow", func(t *testing.T) {
@@ -85,10 +85,10 @@ func TestRunListWith_FormatAcceptance(t *testing.T) {
 		if row["agent"] != "test-agent" {
 			t.Errorf("row.agent = %v, want test-agent", row["agent"])
 		}
-		// No tool_call has M2 data → the m2 field is
+		// No tool_call has cost data → the costs field is
 		// omitted (omitempty on the wrapper).
-		if _, ok := row["m2"]; ok {
-			t.Errorf("row.m2 = %v, want absent (no M2 data)", row["m2"])
+		if _, ok := row["costs"]; ok {
+			t.Errorf("row.costs = %v, want absent (no cost data)", row["costs"])
 		}
 	})
 
@@ -112,9 +112,9 @@ func TestRunListWith_FormatAcceptance(t *testing.T) {
 		if !strings.Contains(out, "zyxwvutsrqponmlk") || !strings.Contains(out, "test-agent") {
 			t.Errorf("text output missing session data: %q", out)
 		}
-		// No M2 data → the M2 columns render "-" (AC6).
+		// No cost data → the cost columns render "-".
 		if !strings.Contains(out, " - ") {
-			t.Errorf("text output missing '-' for no-M2 columns: %q", out)
+			t.Errorf("text output missing '-' for no-cost columns: %q", out)
 		}
 	})
 

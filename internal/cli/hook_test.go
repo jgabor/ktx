@@ -125,7 +125,7 @@ stages = ["head:3"]
 
 }
 
-func TestHook_D15Gate(t *testing.T) {
+func TestHook_FailureGate(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
 	hookWriteFile(t, "ktx.toml", `[pipeline.default]
@@ -150,10 +150,10 @@ stages = ["head:3"]
 		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
 	}
 	if env.Output != "Error: failed" {
-		t.Errorf("output = %q, want original (D15 gate skips compression)", env.Output)
+		t.Errorf("output = %q, want original (failure gate skips compression)", env.Output)
 	}
 	if env.CompressedID != nil {
-		t.Errorf("compressed_id = %v, want null (D15 gate, no compressed row)", env.CompressedID)
+		t.Errorf("compressed_id = %v, want null (failure gate, no compressed row)", env.CompressedID)
 	}
 }
 
@@ -314,13 +314,13 @@ stages = ["fast"]
 	}
 }
 
-// TestHook_ConfigurableTimeout covers D22 Phase 2 Task 1 AC 1: a
-// ktx.toml with [pipeline.default] timeout = "5ms" makes the config
-// surface a 5ms PipelineTimeout, which compressPipeline honours (a slow
-// stage racing a 5ms timer fires the CONFIGURED timeout, not the
-// legacy 30s). hookLogic forwards cfg.PipelineTimeout to
-// compressPipeline, so proving config→timeout→fire exercises the
-// configurable-timeout contract end-to-end minus the envelope write.
+// TestHook_ConfigurableTimeout covers: a ktx.toml with
+// [pipeline.default] timeout = "5ms" makes the config surface a 5ms
+// PipelineTimeout, which compressPipeline honours (a slow stage racing
+// a 5ms timer fires the CONFIGURED timeout, not the legacy 30s).
+// hookLogic forwards cfg.PipelineTimeout to compressPipeline, so proving
+// config→timeout→fire exercises the configurable-timeout contract
+// end-to-end minus the envelope write.
 func TestHook_ConfigurableTimeout(t *testing.T) {
 	hookChdirTemp(t)
 	hookWriteFile(t, "ktx.toml", `[pipeline.default]
@@ -365,19 +365,19 @@ timeout = "5ms"
 	}
 }
 
-// TestHook_DefaultTimeoutWhenOmitted covers Task 1 AC 2 + AC 4: a
-// ktx.toml with no timeout field (and the no-ktx.toml passthrough path)
-// surfaces the 30s default so hookLogic's fallback is backward
-// compatible with Phase 1.
-// TestHook_RealSessionEndToEnd covers Task 5's real-session path through
-// the actual code the OpenCode plugin's tool.execute.after hook calls
+// TestHook_DefaultTimeoutWhenOmitted covers: a ktx.toml with no
+// timeout field (and the no-ktx.toml passthrough path) surfaces the 30s
+// default so hookLogic's fallback is backward compatible with the
+// default.
+// TestHook_RealSessionEndToEnd covers the real-session path through the
+// actual code the OpenCode plugin's tool.execute.after hook calls
 // (hookLogic → DB → decompress). A live interactive OpenCode agent is
 // not available in this build environment, but hookLogic IS the plugin's
 // entry point, so this exercises the identical in-flight compression
-// path a real session would take. AC 2 (replay ratio < 1.0) lives in
+// path a real session would take. Replay-ratio coverage lives in
 // bench_test.go (TestRunBenchReplay_RealWorldPipeline).
 func TestHook_RealSessionEndToEnd(t *testing.T) {
-	// The real-world Phase 2 pipeline (Task 5 plan): strip ANSI, drop
+	// The real-world pipeline: strip ANSI, drop
 	// debug noise, keep head+tail (errors at the bottom survive),
 	// line-safe token truncation.
 	const pipeline = `[pipeline.default]
@@ -404,7 +404,7 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 		return sb.String()
 	}
 
-	t.Run("AC1: verbose output → agent sees compressed; original in DB; decompress verbatim", func(t *testing.T) {
+	t.Run("verbose output → agent sees compressed; original in DB; decompress verbatim", func(t *testing.T) {
 		d := hookTestDB(t)
 		hookChdirTemp(t)
 		hookWriteFile(t, "ktx.toml", pipeline)
@@ -455,7 +455,7 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 			t.Errorf("compressed output lost the bottom-of-log error (keep-ends should preserve the tail)")
 		}
 
-		// The original is in the DB verbatim (reversibility — D14).
+		// The original is in the DB verbatim (reversibility).
 		comp, err := d.GetCompressed(*env.CompressedID)
 		if err != nil {
 			t.Fatalf("GetCompressed(%q): %v", *env.CompressedID, err)
@@ -467,7 +467,7 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 		if sourceOutput != original {
 			t.Errorf("decompress(source) = %q, want original verbatim (reversibility)", sourceOutput)
 		}
-		// The persisted source equals the input (D7 append-only).
+		// The persisted source equals the input (append-only).
 		source, err := d.GetToolCall("e2eac1")
 		if err != nil {
 			t.Fatalf("GetToolCall: %v", err)
@@ -477,7 +477,7 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 		}
 	})
 
-	t.Run("AC3: short input → anti-worsening gate returns original, compressed_id=null", func(t *testing.T) {
+	t.Run("short input → anti-worsening gate returns original, compressed_id=null", func(t *testing.T) {
 		d := hookTestDB(t)
 		hookChdirTemp(t)
 		hookWriteFile(t, "ktx.toml", pipeline)
@@ -511,7 +511,7 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 		}
 	})
 
-	t.Run("AC4: is_error=true → D15 gate returns original unchanged", func(t *testing.T) {
+	t.Run("is_error=true → failure gate returns original unchanged", func(t *testing.T) {
 		d := hookTestDB(t)
 		hookChdirTemp(t)
 		hookWriteFile(t, "ktx.toml", pipeline)
@@ -535,15 +535,15 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 		}
 		var env hookEnvelope
 		json.Unmarshal(stdout.Bytes(), &env)
-		// The agent sees the ORIGINAL error output unchanged (D15 gate
-		// skips compression on failure so the full error reaches the
+		// The agent sees the ORIGINAL error output unchanged
+		// (the failure gate skips compression so the full error reaches the
 		// agent). Note: the original includes the ANSI codes — they are
 		// NOT stripped because compression did not run.
 		if env.Output != errOutput {
-			t.Errorf("output = %q, want %q (D15 gate: original error unchanged)", env.Output, errOutput)
+			t.Errorf("output = %q, want %q (failure gate: original error unchanged)", env.Output, errOutput)
 		}
 		if env.CompressedID != nil {
-			t.Errorf("compressed_id = %v, want null (D15 gate; no compression attempted)", env.CompressedID)
+			t.Errorf("compressed_id = %v, want null (failure gate; no compression attempted)", env.CompressedID)
 		}
 		if !strings.Contains(stderr.String(), "failure") {
 			t.Errorf("stderr should note the failure-skipped warning: %q", stderr.String())

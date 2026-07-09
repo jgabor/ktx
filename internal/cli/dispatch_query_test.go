@@ -1,17 +1,17 @@
 // End-to-end dispatch tests for the query + complex-flow verbs
 // (ktx get, ktx list, ktx run, ktx bench).
 //
-// Task 6 migration: these verbs now register via dispatch.Register
+// These verbs register via dispatch.Register
 // (get.go:init, list.go:init, run.go:init, bench.go:init) instead of
 // being entries in the legacy commands slice. The regression net for
-// that move is this file: every AC the plan enumerates is exercised
+// that move is this file: every case is exercised
 // end-to-end via runWith (the production entry point), which routes
 // through parseGlobalFlags → dispatchRegistry → runRegisteredVerb →
 // the verb's CommandFunc.
 //
 // stdin injection uses os.Pipe + os.Stdin swap because the dispatch
 // module's runRegisteredVerb reads from os.Stdin when NeedsStdin=true
-// (Tasks 5-7 sibling pattern). runCmd injection (Task 1 seam) is
+// (sibling pattern). runCmd injection (the test seam) is
 // preserved: the dispatch path's ktx run uses the same package-level
 // runCmd that the legacy test seam uses, so a single t.Cleanup
 // override is observable by both call sites within the same test.
@@ -43,7 +43,7 @@ func queryDispatchTestDB(t *testing.T) string {
 }
 
 // seedToolCallForDispatch inserts a session and a tool_call row with
-// the M2 cost-publication pointer set. Mirrors the seedToolCallForGet
+// the cost-publication pointer set. Mirrors the seedToolCallForGet
 // helper in get_test.go but exposes the *dbpkg.DB so the dispatch test
 // can read it back through the same DB the verb opened (proves the
 // dispatcher took the same path as the legacy seam).
@@ -79,8 +79,8 @@ func seedToolCallForDispatch(t *testing.T, path string) *dbpkg.DB {
 	return d
 }
 
-// seedListSessionForDispatch inserts a single session row with no M2
-// tool_calls so the AC3 path (text view with no M2 data) renders the
+// seedListSessionForDispatch inserts a single session row with no
+// tool_calls so the text-view path (with no cost data) renders the
 // explicit "-" markers.
 func seedListSessionForDispatch(t *testing.T, path string) *dbpkg.DB {
 	t.Helper()
@@ -101,17 +101,17 @@ func seedListSessionForDispatch(t *testing.T, path string) *dbpkg.DB {
 	return d
 }
 
-// TestRunWith_GetDispatched covers AC 1: `ktx get <id> --format text`
-// emits the one-line-per-field text view with the optional M2
-// section when at least one M2 pointer is non-nil. The dispatch path
+// TestRunWith_GetDispatched covers: `ktx get <id> --format text`
+// emits the one-line-per-field text view with the optional cost
+// section when at least one cost pointer is non-nil. The dispatch path
 // routes through the registered getCommandFunc; --format is extracted
 // by the dispatcher (not the verb) and surfaces via ctx.Format.
 //
-// Fail companion: a wrong tool name (the test asserts the M1 field is
+// Fail companion: a wrong tool name (the test asserts the field is
 // present, so flipping it to a typo proves the assertion is
 // meaningful — not a no-op pass).
 func TestRunWith_GetDispatched(t *testing.T) {
-	t.Run("AC1: get --format text emits text view with M2 section", func(t *testing.T) {
+	t.Run("get --format text emits text view with cost section", func(t *testing.T) {
 		path := queryDispatchTestDB(t)
 		seedToolCallForDispatch(t, path)
 
@@ -122,7 +122,7 @@ func TestRunWith_GetDispatched(t *testing.T) {
 		}
 
 		out := stdout.String()
-		// M1 fields must be present.
+		// Core fields must be present.
 		if !strings.Contains(out, "id:") || !strings.Contains(out, "abcdefghijklmnop") {
 			t.Errorf("text output missing id field: %q", out)
 		}
@@ -132,21 +132,21 @@ func TestRunWith_GetDispatched(t *testing.T) {
 		if !strings.Contains(out, "session_id:") || !strings.Contains(out, "zyxwvutsrqponmlk") {
 			t.Errorf("text output missing session_id field: %q", out)
 		}
-		// M2 section: at least one M2 pointer was set (Cost=0.0123),
+		// Cost section: at least one cost pointer was set (Cost=0.0123),
 		// so the section must be present and contain the cost line.
-		if !strings.Contains(out, "M2:") {
-			t.Errorf("text output missing M2 section header: %q", out)
+		if !strings.Contains(out, "Costs:") {
+			t.Errorf("text output missing cost section header: %q", out)
 		}
 		if !strings.Contains(out, "cost:") {
-			t.Errorf("text output missing M2 cost line: %q", out)
+			t.Errorf("text output missing cost line: %q", out)
 		}
 		if stderr.Len() != 0 {
 			t.Errorf("stderr should be empty on success, got %q", stderr.String())
 		}
 	})
 
-	t.Run("AC1 fail companion: assert correct tool name to prove the assertion is wired", func(t *testing.T) {
-		// Fail companion: the M1 field probe must be specific enough
+	t.Run("fail companion: assert correct tool name to prove the assertion is wired", func(t *testing.T) {
+		// Fail companion: the field probe must be specific enough
 		// to detect a wrong value. Asserting on a name that does NOT
 		// exist in the seeded row proves the test's positive
 		// assertion isn't a tautology.
@@ -188,18 +188,18 @@ func TestRunWith_GetDispatched(t *testing.T) {
 	})
 }
 
-// TestRunWith_ListDispatched covers AC 2 and AC 3.
+// TestRunWith_ListDispatched covers the JSON and text list modes.
 //
-// AC 2: `ktx list` in JSON mode with a populated session set emits
-// stdout as the array of sessionListRow with optional m2 object.
+// JSON mode: `ktx list` with a populated session set emits
+// stdout as the array of sessionListRow with optional costs object.
 //
-// AC 3: `ktx list --format text` with sessions lacking M2 data shows
-// "-" for the M2 columns.
+// The text view with sessions lacking cost data shows
+// "-" for the cost columns.
 //
 // Fail companion: asserts on a wrong column header to prove the
 // text-view assertion is meaningful.
 func TestRunWith_ListDispatched(t *testing.T) {
-	t.Run("AC2: list JSON mode emits sessionListRow array with optional m2", func(t *testing.T) {
+	t.Run("list JSON mode emits sessionListRow array with optional costs", func(t *testing.T) {
 		path := queryDispatchTestDB(t)
 		seedListSessionForDispatch(t, path)
 
@@ -210,9 +210,9 @@ func TestRunWith_ListDispatched(t *testing.T) {
 		}
 
 		// Decode as a generic list of maps to confirm the array
-		// shape and the session fields. The m2 field is omitted
-		// (omitempty on the wrapper) because no tool_call has M2
-		// data — AC2 permits omission OR null; omission is the
+		// shape and the session fields. The costs field is omitted
+		// (omitempty on the wrapper) because no tool_call has cost
+		// data — omission OR null is permitted; omission is the
 		// chosen signal.
 		var rows []map[string]any
 		if err := json.Unmarshal(stdout.Bytes(), &rows); err != nil {
@@ -228,17 +228,17 @@ func TestRunWith_ListDispatched(t *testing.T) {
 		if row["agent"] != "test-agent" {
 			t.Errorf("row.agent = %v, want test-agent", row["agent"])
 		}
-		// AC2: the m2 object is optional. With no M2 data it is
+		// The costs object is optional. With no cost data it is
 		// absent (omitempty on the wrapper).
-		if _, ok := row["m2"]; ok {
-			t.Errorf("row.m2 = %v, want absent (no M2 data)", row["m2"])
+		if _, ok := row["costs"]; ok {
+			t.Errorf("row.costs = %v, want absent (no cost data)", row["costs"])
 		}
 		if stderr.Len() != 0 {
 			t.Errorf("stderr should be empty on success, got %q", stderr.String())
 		}
 	})
 
-	t.Run("AC3: list --format text with no M2 data shows '-' for M2 columns", func(t *testing.T) {
+	t.Run("list --format text with no cost data shows '-' for cost columns", func(t *testing.T) {
 		path := queryDispatchTestDB(t)
 		seedListSessionForDispatch(t, path)
 
@@ -251,27 +251,27 @@ func TestRunWith_ListDispatched(t *testing.T) {
 		out := stdout.String()
 		// The tabwriter-aligned table emits a row per session
 		// with columns ID AGENT STARTED ENDED TOOL_CALLS TOKENS
-		// COST MODEL. With no M2 data, the M2 columns show "-".
+		// COST MODEL. With no cost data, the cost columns show "-".
 		if !strings.Contains(out, "zyxwvutsrqponmlk") {
 			t.Errorf("text output missing session ID: %q", out)
 		}
 		if !strings.Contains(out, "test-agent") {
 			t.Errorf("text output missing session agent: %q", out)
 		}
-		// tabwriter pads cells with spaces; the M2 columns
+		// tabwriter pads cells with spaces; the cost columns
 		// (TOKENS, COST, MODEL) emit "-" separated by padded
-		// spaces when no M2 data is present. Probe the data
+		// spaces when no cost data is present. Probe the data
 		// row's tail (TOOL_CALLS=3 followed by three "-"
 		// columns) to prove the markers are present.
 		if !strings.Contains(out, "3           -       -     -") {
-			t.Errorf("text output missing the three consecutive '-' M2 markers after tool_calls=3: %q", out)
+			t.Errorf("text output missing the three consecutive '-' cost markers after tool_calls=3: %q", out)
 		}
 		if stderr.Len() != 0 {
 			t.Errorf("stderr should be empty on success, got %q", stderr.String())
 		}
 	})
 
-	t.Run("AC3 fail companion: assert the rendered row actually has data", func(t *testing.T) {
+	t.Run("fail companion: assert the rendered row actually has data", func(t *testing.T) {
 		// Fail companion: assert against a string that is NOT
 		// in the rendered table (the rendered row carries
 		// 'test-agent' and tool_call_count=3; the probe looks for
@@ -302,13 +302,13 @@ func TestRunWith_ListDispatched(t *testing.T) {
 	})
 }
 
-// TestRunWith_RunDispatched covers AC 4: `ktx run <agent> --quiet`
+// TestRunWith_RunDispatched covers: `ktx run <agent> --quiet`
 // with runCmd returning a stub exiting 0 — no run summary is written
 // to stderr and the exit code matches the stub.
 //
 // The dispatch path uses runCmd via executeRun; substituting the
 // package-level seam with a stub that runs /bin/echo ok proves the
-// agent's stdout passes through (D1 transparent proxy) and the
+// agent's stdout passes through (transparent proxy) and the
 // exit code is 0. --quiet suppresses the one-line JSON summary
 // that the wrapper writes to stderr on success.
 //
@@ -317,7 +317,7 @@ func TestRunWith_ListDispatched(t *testing.T) {
 // pipeline; the literal child code is preserved only on the test
 // seam).
 func TestRunWith_RunDispatched(t *testing.T) {
-	t.Run("AC4: run --quiet with stub exiting 0 → no summary, exit 0", func(t *testing.T) {
+	t.Run("run --quiet with stub exiting 0 → no summary, exit 0", func(t *testing.T) {
 		// Isolate filesystem state: testutil sets XDG_DATA_HOME so
 		// dbpkg.DefaultPath resolves to a per-test file.
 		testutil.WithTempXDG(t)
@@ -353,7 +353,7 @@ func TestRunWith_RunDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4 fail companion: without --quiet the summary is written", func(t *testing.T) {
+	t.Run("fail companion: without --quiet the summary is written", func(t *testing.T) {
 		// Fail companion: when --quiet is NOT set, the wrapper
 		// writes the one-line summary to stderr. Proves the
 		// --quiet assertion above is meaningful (the summary is
@@ -376,7 +376,7 @@ func TestRunWith_RunDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC4 fail companion: stub exiting non-zero yields non-zero exit code", func(t *testing.T) {
+	t.Run("fail companion: stub exiting non-zero yields non-zero exit code", func(t *testing.T) {
 		// Fail companion: when the stub exits non-zero, the
 		// wrapper's exit code must reflect that. The dispatch
 		// path maps the literal child exit code to internal (4)
@@ -411,7 +411,7 @@ func TestRunWith_RunDispatched(t *testing.T) {
 	})
 }
 
-// TestRunWith_BenchReportDispatched covers AC 5: `ktx bench report`
+// TestRunWith_BenchReportDispatched covers: `ktx bench report`
 // with an empty bench_runs table emits a JSON envelope on stdout
 // where headline is null and rows is [].
 //
@@ -427,7 +427,7 @@ func TestRunWith_RunDispatched(t *testing.T) {
 // so probing for rows.length > 0 in the empty case proves the
 // assertion is wired.
 func TestRunWith_BenchReportDispatched(t *testing.T) {
-	t.Run("AC5: bench report with empty bench_runs → headline=null, rows=[]", func(t *testing.T) {
+	t.Run("bench report with empty bench_runs → headline=null, rows=[]", func(t *testing.T) {
 		// Seed the database with the schema migrated (no bench_runs
 		// rows). The dispatch path opens the DB on its own.
 		path := t.TempDir() + "/ktx.db"
@@ -444,7 +444,7 @@ func TestRunWith_BenchReportDispatched(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
 
-		// Decode the envelope shape from AC 5:
+		// Decode the envelope shape:
 		// {headline, methodology_version, rows}.
 		var env struct {
 			Headline           *float64  `json:"headline"`
@@ -455,17 +455,17 @@ func TestRunWith_BenchReportDispatched(t *testing.T) {
 			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
 		}
 		if env.Headline != nil {
-			t.Errorf("headline = %v, want null (AC5)", *env.Headline)
+			t.Errorf("headline = %v, want null", *env.Headline)
 		}
 		if env.Rows == nil {
-			t.Errorf("rows = nil, want [] (AC5)")
+			t.Errorf("rows = nil, want []")
 		}
 		if len(env.Rows) != 0 {
-			t.Errorf("rows = %d, want 0 (AC5)", len(env.Rows))
+			t.Errorf("rows = %d, want 0", len(env.Rows))
 		}
 		// methodology_version for an empty table with no
-		// --methodology filter is null (the AC6 contract:
-		// "the absence marker").
+		// --methodology filter is null (the absence-marker
+		// contract).
 		if env.MethodologyVersion != nil {
 			t.Errorf("methodology_version = %v, want null", *env.MethodologyVersion)
 		}
@@ -474,7 +474,7 @@ func TestRunWith_BenchReportDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("AC5 fail companion: rows must NOT be populated for an empty table", func(t *testing.T) {
+	t.Run("fail companion: rows must NOT be populated for an empty table", func(t *testing.T) {
 		// Fail companion: prove the rows=[] assertion is
 		// meaningful by inverting it. An empty bench_runs must
 		// produce rows.length == 0; asserting rows.length > 0
@@ -499,7 +499,7 @@ func TestRunWith_BenchReportDispatched(t *testing.T) {
 			t.Fatalf("stdout is not valid JSON: %v", err)
 		}
 		if len(env.Rows) > 0 {
-			t.Errorf("rows.length = %d, want 0 (AC5 fail probe)", len(env.Rows))
+			t.Errorf("rows.length = %d, want 0", len(env.Rows))
 		}
 	})
 

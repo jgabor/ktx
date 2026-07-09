@@ -1,15 +1,14 @@
-// Package stages holds ktx's built-in compression pipeline stages
-// (M4 plan Task 4 / D14).
+// Package stages holds ktx's built-in compression pipeline stages.
 //
 // Each stage is a pure function over bytes ([]byte → []byte, error-or-nil)
 // implementing the pipeline.Stage interface. Stages carry NO database
 // access, NO filesystem access, and NO global state — the runner
 // applies them in sequence and the conservative-on-failure invariants
 // (empty-output guard, stage-error passthrough, unknown-stage skip)
-// live in the runner, NOT in the stage author's convention (D14
+// live in the runner, NOT in the stage author's convention (ktx
 // explicitly rejects the lowfat failure mode).
 //
-// The five built-in stages for M4:
+// The five built-in stages:
 //
 //   - strip-ansi  : removes ANSI escape sequences (CSI … m, cursor
 //                   moves, etc.) so colored terminal transcripts
@@ -29,11 +28,11 @@
 //                   and trims trailing whitespace from each line;
 //                   leading whitespace is preserved.
 //
-// All five stages are OFF by default (D14): only stages named in a
+// All five stages are OFF by default: only stages named in a
 // ktx.toml's `[pipeline.default].stages` array run. RegisterBuiltins
 // populates a registry at package init so the CLI's compress verb
 // can resolve names without a separate plugin loader; the plugin
-// registry (TODO:30, M5) will add a `ktx plugin add` path that
+// registry (TODO:30) will add a `ktx plugin add` path that
 // registers additional names via external processes.
 //
 // Stage-name tokens: `head`, `truncate`, and (future) any
@@ -57,7 +56,7 @@ var builtinStageNames = []string{
 	"normalize",
 	"head",
 	"truncate",
-	// D22 Phase 2 deterministic compression stages.
+	// Deterministic compression stages.
 	"keep-ends",
 	"grep",
 	"grep-v",
@@ -81,10 +80,10 @@ func BuiltinStageNames() []string {
 // truncate) are registered via RegisterBuilder — they parse the arg
 // via strconv.Atoi to configure how many lines/bytes to keep.
 //
-// Stages registered here are the ONLY built-in stages ktx ships with
-// in M4; the ktx.toml `[pipeline.default].stages` array names which
+// Stages registered here are the ONLY built-in stages ktx ships with;
+// the ktx.toml `[pipeline.default].stages` array names which
 // of them run (a stage registered here but not named in the config
-// does NOT run — D14's "OFF by default" contract).
+// does NOT run — ktx's "OFF by default" contract).
 func RegisterBuiltins(reg *pipeline.Registry) {
 	if reg == nil {
 		return
@@ -100,11 +99,11 @@ func RegisterBuiltins(reg *pipeline.Registry) {
 	reg.RegisterBuilder("head", headBuilder)
 	reg.RegisterBuilder("truncate", truncateBuilder)
 
-	// D22 Phase 2 deterministic compression stages. Each is a pure
+	// Deterministic compression stages. Each is a pure
 	// function over bytes (no ML, no new deps). keep-ends:N:M,
 	// grep:pattern, grep-v:pattern, and token-budget:N all reuse the
 	// existing StageFunc / Builder contract; the anti-worsening gate
-	// and the three D14 invariants apply to them unchanged.
+	// and the three conservative-on-failure invariants apply to them unchanged.
 	reg.RegisterBuilder("keep-ends", keepEndsBuilder)
 	reg.RegisterBuilder("grep", func(arg string) (pipeline.Stage, error) { return grepBuilder(arg, true) })
 	reg.RegisterBuilder("grep-v", func(arg string) (pipeline.Stage, error) { return grepBuilder(arg, false) })
@@ -121,7 +120,7 @@ func RegisterBuiltins(reg *pipeline.Registry) {
 //
 // Exported for tests that want to exercise the split directly
 // without going through the Registry's Lookup. Stage names are
-// lowercase ASCII plus hyphen — matching the D5 built-in stage
+// lowercase ASCII plus hyphen — matching the built-in stage
 // vocabulary.
 func ParseNameArg(token string) (name, arg string) {
 	for i := 0; i < len(token); i++ {

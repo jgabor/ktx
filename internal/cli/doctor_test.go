@@ -1,14 +1,14 @@
 // Table-driven tests for `ktx doctor` (internal/cli/doctor.go).
 //
-// Doctor is a read-only health check (Decision 2 / Task 8). It does
+// Doctor is a read-only health check. It does
 // NOT create the database — a missing file is a configuration signal,
-// not a fault. The doctor flow exercises the full M1 + M2 + M3 schema
+// not a fault. The doctor flow exercises the full schema
 // surface: database_exists, database_openable, schema_valid,
 // m2_columns, bench_runs_table, id_format.
 //
 // Coverage:
 //   - missing DB → status=error, exit 4
-//   - healthy DB (M1+M2+bench_runs migrated) → status=ok, exit 0
+//   - healthy DB (fully migrated) → status=ok, exit 0
 //   - text mode → tabwriter-style summary, exit 0
 //   - unexpected positional arg → exit 1
 //   - invalid --format → exit 1
@@ -41,12 +41,11 @@ func doctorTestDB(t *testing.T) *dbpkg.DB {
 }
 
 // TestRunDoctorWith_HealthCheck covers the doctor subcommand's
-// pass/fail surface: a healthy M3-migrated database emits a
+// pass/fail surface: a healthy migrated database emits a
 // status=ok JSON envelope on stdout and exits 0; a missing database
-// file produces a status=error envelope and exits 4 (internal error,
-// D4 contract).
+// file produces a status=error envelope and exits 4 (internal error).
 func TestRunDoctorWith_HealthCheck(t *testing.T) {
-	t.Run("healthy M3 DB → status=ok, exit 0", func(t *testing.T) {
+	t.Run("healthy DB → status=ok, exit 0", func(t *testing.T) {
 		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 		doctorTestDB(t) // Open creates the file with full schema
 
@@ -78,14 +77,14 @@ func TestRunDoctorWith_HealthCheck(t *testing.T) {
 		if report.Path == "" {
 			t.Errorf("report.path is empty")
 		}
-		// Every check should be "ok" on a fresh M3 database.
-		// The expected check set is the union of M1 + M2 + M3
+		// Every check should be "ok" on a fresh database.
+		// The expected check set is the union of all
 		// probes.
 		wantChecks := map[string]bool{
 			"database_exists":   false,
 			"database_openable": false,
 			"schema_valid":      false,
-			"m2_columns":        false,
+			"cost_columns":        false,
 			"bench_runs_table":  false,
 			"id_format":         false,
 		}

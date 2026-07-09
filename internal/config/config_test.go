@@ -1,5 +1,5 @@
-// Table-driven tests for the ktx.toml loader (M4 plan Task 5 + M5
-// plugin support via BurntSushi/toml).
+// Table-driven tests for the ktx.toml loader (stage-list + plugin
+// support via BurntSushi/toml).
 //
 // Coverage per the plan's acceptance:
 //   - missing config → empty list + no error (passthrough default)
@@ -9,9 +9,9 @@
 //   - malformed TOML → *ParseError
 //   - unknown stage names preserved verbatim (resolution at runner
 //     invocation time, not config-load time)
-//   - [[plugin]] blocks parse into Config.Plugins (M5)
-//   - missing required plugin fields → *ParseError (M5)
-//   - M4 stages-only shape → Plugins nil, no error (M5 regression)
+//   - [[plugin]] blocks parse into Config.Plugins
+//   - missing required plugin fields → *ParseError
+//   - stages-only shape → Plugins nil, no error (regression)
 //
 // All subtests use t.TempDir()-based fixtures and t.Setenv for
 // XDG_CONFIG_HOME so no test mutates the user's real config dir.
@@ -58,7 +58,7 @@ func chdirTemp(t *testing.T) string {
 	return dir
 }
 
-// TestLoad_MissingConfig covers the D14 no-config default: when
+// TestLoad_MissingConfig covers the no-config default: when
 // neither a project-root ktx.toml nor a user-level config exists,
 // Load returns an empty stage list and a nil error.
 func TestLoad_MissingConfig(t *testing.T) {
@@ -87,7 +87,7 @@ func TestLoad_MissingConfig(t *testing.T) {
 func TestLoad_ProjectRoot(t *testing.T) {
 	t.Run("project-root ktx.toml parses with ordered stages", func(t *testing.T) {
 		chdirTemp(t)
-		writeFile(t, "ktx.toml", `# ktx.toml — M4 fixture
+		writeFile(t, "ktx.toml", `# ktx.toml — stage-list fixture
 [pipeline.default]
 stages = ["strip-ansi", "head:100"]
 `)
@@ -195,7 +195,7 @@ stages = ["normalize"]
 	})
 }
 
-// TestLoad_PipelineTimeout covers the D22 Phase 2 configurable pipeline
+// TestLoad_PipelineTimeout covers the configurable pipeline
 // timeout: [pipeline.default] timeout parses as a Go duration string,
 // defaults to 30s when omitted or when no ktx.toml exists, and a
 // garbage/non-positive value is a *ParseError at config-load time.
@@ -308,7 +308,7 @@ timeout = "2m"
 
 // TestLoad_Malformed covers the syntax-error path: a malformed
 // ktx.toml returns *ParseError so the CLI layer can map it to exit 1.
-// BurntSushi/toml's error messages differ from the M4 hand-rolled
+// BurntSushi/toml's error messages differ from the prior hand-rolled
 // reader's wording; we assert ParseError existence, a non-empty
 // message, and the file path — not specific substrings.
 func TestLoad_Malformed(t *testing.T) {
@@ -356,8 +356,8 @@ func TestLoad_Malformed(t *testing.T) {
 	}
 }
 
-// TestLoad_UnknownStageNamesPreserved covers AC4: unknown stage
-// names in the array are returned as-is. Resolution to the Registry
+// TestLoad_UnknownStageNamesPreserved covers the unknown-stage
+// invariant: unknown stage names in the array are returned as-is. Resolution to the Registry
 // happens at runner invocation time, not at config load — the
 // unknown-stage invariant (3) handles them at runtime.
 func TestLoad_UnknownStageNamesPreserved(t *testing.T) {
@@ -437,7 +437,7 @@ stages = ['strip-ansi', 'head:100']
 }
 
 // TestLoad_EscapedStringElement covers basic-string escape decoding
-// in array elements: `\"` `\\` `\n` `\t`. M4 stage names will not
+// in array elements: `\"` `\\` `\n` `\t`. Stage names will not
 // contain these (they are lowercase identifiers with hyphens/colons),
 // but the reader must not silently corrupt a config that uses them.
 func TestLoad_EscapedStringElement(t *testing.T) {
@@ -457,7 +457,7 @@ stages = ["a\"b"]
 	}
 }
 
-// === M5 plugin tests ===
+// === Plugin tests ===
 
 // TestLoad_PluginBlocks parses one [[plugin]] block with all fields
 // populated. Config.Plugins should contain one entry with matching
@@ -575,10 +575,10 @@ command = "/bin/cat"
 	}
 }
 
-// TestLoad_NoPluginsM4Shape verifies that an M4-shape ktx.toml
+// TestLoad_NoPluginsStagesOnlyShape verifies that a stages-only ktx.toml
 // (stages only, no [[plugin]] blocks) yields nil Plugins and no
-// error — the M4 regression byte-identical contract.
-func TestLoad_NoPluginsM4Shape(t *testing.T) {
+// error — the regression byte-identical contract.
+func TestLoad_NoPluginsStagesOnlyShape(t *testing.T) {
 	chdirTemp(t)
 	writeFile(t, "ktx.toml", `[pipeline.default]
 stages = ["strip-ansi", "head:100"]

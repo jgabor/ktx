@@ -1,9 +1,9 @@
-// Package config loads ktx's ktx.toml configuration (D5 / M4+M5).
+// Package config loads ktx's ktx.toml configuration.
 //
 // ktx.toml is the single source of truth for the compression pipeline
 // and user-defined plugins. The file shape:
 //
-//	# ktx.toml — M5 shape
+//	# ktx.toml
 //	[pipeline.default]
 //	stages = ["strip-ansi", "head:100"]
 //
@@ -12,23 +12,23 @@
 //	command = "/bin/cat"
 //	description = "passthrough"
 //
-// Missing / empty config → empty stages, nil plugins (the D14 no-config
+// Missing / empty config → empty stages, nil plugins (the no-config
 // default; `ktx compress` runs the passthrough pipeline). Precedence:
 // project root wins; when only the user-level file exists it is used;
 // when neither exists, passthrough. Per-invocation only — no caching
 // across processes (no global state; each `ktx compress` invocation
 // calls Load once).
 //
-// === Dependency (D5) ===
+// === Dependency ===
 //
-// M4 used a hand-rolled minimal TOML reader (~150 LOC) because the
-// config shape was one table with one string array — a full TOML
-// parser was YAGNI. M5 needs [[plugin]] array-of-tables and the
+// ktx previously used a hand-rolled minimal TOML reader (~150 LOC)
+// because the config shape was one table with one string array — a
+// full TOML parser was YAGNI. [[plugin]] array-of-tables and the
 // richer syntax BurntSushi handles natively (inline tables, nested
-// arrays, escapes). The D5-approved BurntSushi/toml replaces the
+// arrays, escapes) outgrew it. BurntSushi/toml replaces the
 // hand-rolled reader so ktx does not maintain its own parser. The
-// Load contract (file discovery, ParseError envelope, passthrough default)
-// is unchanged — only the parsing internals swap.
+// Load contract (file discovery, ParseError envelope, passthrough
+// default) is unchanged — only the parsing internals swap.
 package config
 
 import (
@@ -43,10 +43,10 @@ import (
 )
 
 // DefaultPipelineTimeout is the critical-path deadline for the pipeline
-// run inside `ktx hook` (D22) when ktx.toml omits the timeout field.
+// run inside `ktx hook` when ktx.toml omits the timeout field.
 // `ktx hook` is on the agent's critical path (the agent waits for the
 // tool result), so a hanging stage must not block indefinitely. The
-// default matches the Phase 1 hardcoded constant (hookPipelineTimeout)
+// default matches the prior hardcoded constant (hookPipelineTimeout)
 // so omitting the field is backward compatible.
 const DefaultPipelineTimeout = 30 * time.Second
 
@@ -58,7 +58,7 @@ const DefaultPipelineTimeout = 30 * time.Second
 const projectConfigName = "ktx.toml"
 
 // userConfigPath is the user-level config path relative to
-// $XDG_CONFIG_HOME. Matches D5's
+// $XDG_CONFIG_HOME. Resolves to
 // $XDG_CONFIG_HOME/ktx/config.toml.
 const userConfigPath = "ktx/config.toml"
 
@@ -73,7 +73,7 @@ type Plugin struct {
 	Description string
 }
 
-// Config is the parsed ktx.toml representation. For M4+M5 it carries
+// Config is the parsed ktx.toml representation. It carries
 // the default pipeline's stage list and any user-defined plugins. The
 // Load signature is additive: new fields can be added without
 // breaking callers (struct growth).
@@ -81,21 +81,21 @@ type Config struct {
 	// PipelineDefault is the ordered list of stage-name tokens for
 	// the default pipeline (e.g. ["strip-ansi", "head:100"]). Empty
 	// when ktx.toml is absent or when [pipeline.default] has no
-	// stages key — both map to the D14 passthrough default.
+	// stages key — both map to the passthrough default.
 	PipelineDefault []string
 
 	// Plugins holds user-defined external stages from [[plugin]]
 	// blocks, in document order. Nil when no [[plugin]] blocks exist
-	// (the M4 no-plugin case). The pipeline runner registers each as
+	// (the no-plugin case). The pipeline runner registers each as
 	// an external Builder after the built-in stages so
 	// last-writer-wins allows user plugins to override built-ins by
-	// name (D21).
+	// name.
 	Plugins []Plugin
 
 	// Profiles holds all discovered pipeline profiles from the
 	// [pipeline.<name>] tables (e.g. default, json, logs). The
 	// "default" key is always present (it maps to PipelineDefault).
-	// Forward-compatible read surface for `ktx config show`; M5 does
+	// Forward-compatible read surface for `ktx config show`; ktx does
 	// not route by content type yet (TODO:40) but the read surface
 	// is ready for it.
 	Profiles map[string][]string
@@ -103,13 +103,13 @@ type Config struct {
 	// PipelineTimeout is the configured pipeline deadline for the
 	// [pipeline.default] table's `timeout` field, parsed as a Go
 	// duration string (e.g. "30s", "2m"). Default 30s when the field
-	// is absent (D22 backward compatibility with Phase 1). `ktx hook`
+	// is absent (backward compatibility with the prior default). `ktx hook`
 	// reads this instead of the hardcoded constant so a user can tune
 	// the critical-path deadline per project. `ktx compress` ignores
 	// it (off-line, timeout=0, developer can Ctrl-C). A non-positive or
-	// unparseable value is a *ParseError at config-load time (D22).
-	// Only the "default" profile's timeout is read in Phase 2; per-
-	// profile timeouts are YAGNI until content-type routing lands.
+	// unparseable value is a *ParseError at config-load time.
+	// Only the "default" profile's timeout is read; per-profile
+	// timeouts are YAGNI until content-type routing lands.
 	PipelineTimeout time.Duration
 }
 
@@ -131,7 +131,7 @@ func (e *ParseError) Error() string {
 // Load resolves and parses the ktx.toml per the precedence:
 // project-root ktx.toml > $XDG_CONFIG_HOME/ktx/config.toml > passthrough.
 // Returns a Config with empty stages and nil plugins when no file
-// exists (the D14 no-config default). A discovered file with a syntax
+// exists (the no-config default). A discovered file with a syntax
 // error or missing required field returns a *ParseError; the CLI layer
 // maps it to exit 1.
 //
@@ -178,11 +178,11 @@ func Load() (*Config, error) {
 	if _, ok := fileExists(userPath); ok {
 		return loadFile(userPath)
 	}
-	// 3. No config found → passthrough (D14 default).
+	// 3. No config found → passthrough default.
 	return &Config{PipelineTimeout: DefaultPipelineTimeout}, nil
 }
 
-// userConfigFile resolves the user-level config path per D5:
+// userConfigFile resolves the user-level config path:
 // $XDG_CONFIG_HOME/ktx/config.toml, with the XDG spec's
 // ~/.config/ktx/config.toml fallback when XDG_CONFIG_HOME is unset.
 func userConfigFile() (string, error) {
@@ -221,7 +221,7 @@ func fileExists(path string) (string, bool) {
 // loadFile reads and parses path. Returns a *ParseError on syntax
 // errors or missing required [[plugin]] fields so the CLI's toKtxError
 // path can surface a usage exit (1) with a stable message. An empty
-// file is a valid Config with empty stages and nil plugins (the D14
+// file is a valid Config with empty stages and nil plugins (the
 // passthrough default).
 func loadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -244,7 +244,7 @@ func loadFile(path string) (*Config, error) {
 // parse maps it to the public Config. Pipeline is decoded as a map
 // so arbitrary future profiles ([pipeline.json], [pipeline.logs])
 // are captured without struct changes — the read surface is
-// forward-compatible even though M5 does not route by content type.
+// forward-compatible even though ktx does not route by content type.
 type tomlConfig struct {
 	Pipeline map[string]struct {
 		Stages  []string `toml:"stages"`
@@ -295,13 +295,13 @@ func parse(data []byte) (*Config, error) {
 		Profiles:        profiles,
 	}
 
-	// Parse the configurable pipeline timeout (D22 Phase 2). Stored as
-	// a raw string in TOML and parsed here via time.ParseDuration so an
+	// Parse the configurable pipeline timeout. Stored as a raw
+	// string in TOML and parsed here via time.ParseDuration so an
 	// invalid duration surfaces as a *ParseError at config-load time
 	// (not deferred to hook runtime). Empty → DefaultPipelineTimeout
-	// (30s, backward compatible with Phase 1). Only the "default"
-	// profile's timeout is read; per-profile timeouts are YAGNI until
-	// content-type routing lands (Phase 3).
+	// (30s, backward compatible with the prior default). Only the
+	// "default" profile's timeout is read; per-profile timeouts are
+	// YAGNI until content-type routing lands.
 	cfg.PipelineTimeout = DefaultPipelineTimeout
 	if def, ok := decoded.Pipeline["default"]; ok && def.Timeout != "" {
 		d, err := time.ParseDuration(def.Timeout)

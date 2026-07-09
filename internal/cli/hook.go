@@ -162,23 +162,26 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	return nil, nil
 }
 
-// buildRecoveryFooter produces a compact, agent-parseable recovery
-// footer appended to the compressed output in the hook envelope. The
-// footer is NOT persisted in the compressed table row — it lives only
-// in the agent-visible envelope.Output so the agent can recover the
-// original via `ktx read <source_id>`.
-//
-// The footer contains: the source_id verbatim, original size, compressed
-// size, the reduction ratio (percent), and the recovery command
+// buildRecoveryFooter produces a single-line recovery footer appended to
+// the compressed output in the hook envelope. The footer is NOT persisted
+// in the compressed table row — it lives only in the agent-visible
+// envelope.Output so the agent can recover the original via
 // `ktx read <source_id>`.
+//
+// The footer carries the source_id verbatim (as the argument to
+// `ktx read`), the compressed size in bytes, the reduction ratio
+// (percent), and the recovery command prefixed by an instructional cue
+// that names the action. The original byte count is omitted; the
+// reduction percent alone conveys the loss magnitude at lower token
+// cost than carrying both sizes.
 func buildRecoveryFooter(sourceID string, originalBytes, compressedBytes int) string {
 	reduction := 0
 	if originalBytes > 0 && compressedBytes < originalBytes {
 		reduction = (originalBytes - compressedBytes) * 100 / originalBytes
 	}
 	return fmt.Sprintf(
-		"\n--- ktx recovery ---\nsource_id: %s\noriginal: %d bytes -> compressed: %d bytes (%d%% reduction)\nrecover: ktx read %s\n",
-		sourceID, originalBytes, compressedBytes, reduction, sourceID,
+		"\n[ktx] output compressed: %d bytes (%d%% reduction) • get full output with `ktx read %s`\n",
+		compressedBytes, reduction, sourceID,
 	)
 }
 
@@ -213,10 +216,10 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Set [pipeline.default] recover_footer = true in ktx.toml (default false) to")
 	fmt.Fprintln(w, "append a recovery footer to the compressed output the agent sees. The footer")
-	fmt.Fprintln(w, "carries the source_id, original and compressed sizes, the reduction ratio, and")
-	fmt.Fprintln(w, "the recovery command `ktx read <source_id>`. A footer-aware anti-worsening")
-	fmt.Fprintln(w, "gate suppresses the transform (and the footer) when compressed+footer would")
-	fmt.Fprintln(w, "not be smaller than the original; the stored compressed row stays content-only.")
+	fmt.Fprintln(w, "carries the source_id, the compressed size, the reduction ratio, and the recovery")
+	fmt.Fprintln(w, "command `ktx read <source_id>` prefixed by an instructional cue. A footer-aware")
+	fmt.Fprintln(w, "anti-worsening gate suppresses the transform (and the footer) when compressed+footer")
+	fmt.Fprintln(w, "would not be smaller than the original; the stored compressed row stays content-only.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This verb is called by the OpenCode plugin's tool.execute.after hook (installed")
 	fmt.Fprintln(w, "via `ktx init opencode`). It is not typically invoked directly by users.")

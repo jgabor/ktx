@@ -33,12 +33,15 @@ timeout = "30s"
 # no footer is appended and source_id stays developer-facing only (in
 # the hook envelope's source_id field, never injected into output).
 #
-# When true, ktx hook appends a recovery footer to the compressed
-# output the agent sees. The footer carries:
-#   - source_id (verbatim, for `ktx read <source_id>`)
-#   - original and compressed byte sizes
+# When true, ktx hook appends a single-line recovery footer to the
+# compressed output the agent sees. The footer carries:
+#   - source_id (verbatim, as the argument to `ktx read <source_id>`)
+#   - compressed byte size
 #   - reduction ratio (percent)
-#   - recovery command: `ktx read <source_id>`
+#   - recovery command prefixed by an instructional cue
+#     ("get full output with `ktx read <source_id>`")
+# The original byte count is intentionally omitted; the reduction
+# percent alone conveys the loss magnitude at lower token cost.
 #
 # Safety gates (footer does not worsen output):
 #   1. The pipeline must actually transform (anti-worsening gate inside

@@ -17,16 +17,16 @@ func TestBuildRecoveryFooter_ContainsSourceID(t *testing.T) {
 	}
 }
 
-func TestBuildRecoveryFooter_SizesAndRatio(t *testing.T) {
+func TestBuildRecoveryFooter_CompressedSizeAndRatio(t *testing.T) {
 	footer := buildRecoveryFooter("srcid", 50000, 2000)
-	if !strings.Contains(footer, "original: 50000 bytes") {
-		t.Errorf("footer missing original size: %q", footer)
-	}
 	if !strings.Contains(footer, "compressed: 2000 bytes") {
 		t.Errorf("footer missing compressed size: %q", footer)
 	}
 	if !strings.Contains(footer, "96%") {
 		t.Errorf("footer missing reduction ratio 96%%: %q", footer)
+	}
+	if strings.Contains(footer, "50000") {
+		t.Errorf("footer should not surface the original byte count: %q", footer)
 	}
 }
 
@@ -72,7 +72,7 @@ recover_footer = true
 	if env.CompressedID != nil {
 		t.Errorf("compressed_id = %v, want null (suppressed; no compressed row)", env.CompressedID)
 	}
-	if strings.Contains(env.Output, "ktx recovery") {
+	if strings.Contains(env.Output, "[ktx]") {
 		t.Errorf("output should NOT contain footer (suppressed): %q", env.Output)
 	}
 }
@@ -114,7 +114,7 @@ recover_footer = true
 	if env.CompressedID == nil {
 		t.Fatal("compressed_id is null; want a compressed row (footer gate kept)")
 	}
-	if !strings.Contains(env.Output, "ktx recovery") {
+	if !strings.Contains(env.Output, "[ktx]") {
 		t.Errorf("envelope output should contain the footer: %q", env.Output)
 	}
 	if !strings.HasPrefix(env.Output, "line 0") {
@@ -125,7 +125,7 @@ recover_footer = true
 	if err != nil {
 		t.Fatalf("GetCompressed: %v", err)
 	}
-	if strings.Contains(comp.Output, "ktx recovery") {
+	if strings.Contains(comp.Output, "[ktx]") {
 		t.Errorf("DB row should NOT contain the footer: %q", comp.Output)
 	}
 
@@ -175,7 +175,7 @@ stages = ["head:3"]
 	if env.CompressedID == nil {
 		t.Fatal("compressed_id is null; want a compressed row (pipeline transformed)")
 	}
-	if strings.Contains(env.Output, "ktx recovery") {
+	if strings.Contains(env.Output, "[ktx]") {
 		t.Errorf("output should NOT contain footer (recover_footer disabled): %q", env.Output)
 	}
 	if !strings.HasPrefix(env.Output, "line 0") {
@@ -222,7 +222,7 @@ recover_footer = true
 	if env.CompressedID != nil {
 		t.Errorf("compressed_id = %v, want null (no transform)", env.CompressedID)
 	}
-	if strings.Contains(env.Output, "ktx recovery") {
+	if strings.Contains(env.Output, "[ktx]") {
 		t.Errorf("output should NOT contain footer (no transform): %q", env.Output)
 	}
 }
@@ -277,10 +277,10 @@ recover_footer = true
 		t.Errorf("compressed content must be a prefix of envelope output; Index=%d want 0", contentIdx)
 	}
 	// env.Output = compressedContent + footer, where footer begins with
-	// "\n--- ktx recovery ---". Assert the footer starts exactly where the
-	// compressed content ends: the content is a prefix and the bytes right
-	// after it are the footer marker.
-	footerMarker := "\n--- ktx recovery ---"
+	// "\n[ktx]". Assert the footer starts exactly where the compressed
+	// content ends: the content is a prefix and the bytes right after it
+	// are the footer marker.
+	footerMarker := "\n[ktx]"
 	if !strings.HasPrefix(env.Output, comp.Output) {
 		t.Fatalf("envelope output must start with the content-only DB row content: %q", env.Output)
 	}
@@ -298,7 +298,7 @@ func TestPluginTemplate_PropagatesEnvelopeUnchanged(t *testing.T) {
 	if !strings.Contains(ktxOpencodePluginTemplate, "output.output = envelope.output") {
 		t.Errorf("plugin template must set output.output = envelope.output to propagate the footer-bearing envelope verbatim")
 	}
-	for _, probe := range []string{"footer", "ktx recovery", "buildRecoveryFooter", "recover_footer"} {
+	for _, probe := range []string{"footer", "output compressed:", "get full output with", "buildRecoveryFooter", "recover_footer"} {
 		if strings.Contains(ktxOpencodePluginTemplate, probe) {
 			t.Errorf("plugin template must not contain footer logic (%q found); the footer lives only in envelope.Output", probe)
 		}

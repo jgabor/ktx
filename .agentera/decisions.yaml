@@ -98,6 +98,12 @@ decisions:
     before close was triggered.'
   confidence: firm
   feeds_into: M1 implementation, CLI command surface, hook design, run format
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 2
   date: '2026-06-15'
   question: What shape should the ktx command tree have, including store vs query layers?
@@ -200,6 +206,12 @@ decisions:
     key.
   confidence: firm
   feeds_into: Record store schema, run format, go-nanoid dependency
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 4
   date: '2026-06-15'
   question: What output format and global flags should ktx commands use?
@@ -247,6 +259,12 @@ decisions:
     2=not-found, 3=conflict, 4=internal).'
   confidence: firm
   feeds_into: All command output implementations, flag parsing layer
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 5
   date: '2026-06-15'
   question: How should users extend ktx compression, and what config format should it use?
@@ -292,6 +310,12 @@ decisions:
     \ and user scope' open deliberation in ARCHITECTURE.md is resolved: single user-level scope, no precedence to resolve."
   confidence: firm
   feeds_into: M5 implementation, config file schema, content-type detection, BurntSushi/toml dependency
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 6
   date: '2026-06-16'
   question: What on-disk format should the record store use?
@@ -335,6 +359,12 @@ decisions:
     - ktx read/write: mechanical store I/O; read emits raw JSON serialization of the stored run record.'
   confidence: firm
   feeds_into: Record store schema, store implementation, M1 implementation, M3 bench design, --store flag semantics, ktx doctor
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 7
   date: '2026-06-16'
   question: What SQLite schema should store sessions, tool calls, and per-call metrics?
@@ -452,6 +482,12 @@ decisions:
   confidence: firm
   feeds_into: CLI command surface, help text, flag parsing, ARCHITECTURE.md Decided section, ktx doctor, CI path override
     semantics
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 9
   date: '2026-06-17'
   question: What JSON shape should ktx write accept?
@@ -524,6 +560,12 @@ decisions:
     Per-event storage aligns with D7. Interactive and non-interactive use wrapper and hook respectively, matching D1''s model.'
   confidence: firm
   feeds_into: M1 implementation, CLI command surface, OpenCode plugin design, ktx run behavior
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 11
   date: '2026-06-19'
   question: Cost measurement mechanics for M2 — token source, dollar model, reconstructability, and auto-populate policy
@@ -597,6 +639,12 @@ decisions:
     signaling cost is not reconstructable for that call. Severity and command scope: future resonera.'
   confidence: firm
   feeds_into: schema migration, ktx write, ktx run, ktx get, ktx list, M3 benchmark methodology
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 12
   date: '2026-06-20'
   question: What is the v1 benchmark methodology for ktx bench — task shape, scoring, trial handling, methodology versioning,
@@ -721,6 +769,12 @@ decisions:
   confidence: firm
   feeds_into: M3 plan tasks 2–6 (price cache, bench_runs migration, bench run, bench report, M3 acceptance verification),
     bench_runs.methodology_version schema, M4 compression impact on bench
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 13
   date: '2026-06-22'
   question: How should ktx benchmark itself accurately, automatically, and reliably — the execution harness and comparison
@@ -1180,6 +1234,12 @@ decisions:
     is_error field for source-tool-failure protection), post-M5 content-type detection deliberation (TODO.md:29), post-M4
     aggressiveness deliberation (TODO.md:47), M5 plugin registry deliberation (TODO.md:30), ARCHITECTURE.md Pipeline-and-compression
     and Reversibility-layer Decided sections
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: '2026-07-09'
+
 - number: 15
   date: '2026-06-26'
   question: D9 failure-signal extension — what fields capture tool-call failure on the flat JSON payload, how does the pipeline
@@ -2461,7 +2521,7 @@ decisions:
     bypass and recovery surfacing" open deliberation added in this session — resolved by D23); TODO.md (implementation work
     entry)
   satisfaction:
-    state: provisional_satisfied
+    state: provisionally_satisfied
     evidence: 'Config flag recover_footer added to [pipeline.default] with default false (internal/config/config.go: RecoverFooter
       bool field, parsed in Load; config_test.go TestLoad_RecoverFooter covers absent-key->false, explicit true/false, and
       non-bool -> *ParseError). Footer composition: buildRecoveryFooter (internal/cli/hook.go:174) emits source_id verbatim,
@@ -2477,4 +2537,99 @@ decisions:
       Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test ./... exit 0 (all packages pass). D22 amendment honored:
       source_id visibility is config-gated (surfaces only when recover_footer enabled); compressed_id stays dev-facing and
       is never in the footer.'
-    review_needed: true
+- number: 24
+  date: '2026-07-09'
+  amendment_to: 23
+  question: 'D23 shipped a multi-line recovery footer (a header line plus source_id plus original and compressed sizes
+    plus the recovery command). The D23 plan flagged "empirical observation of agent recovery behavior" as the unvalidated
+    assumption behind its provisional satisfaction. The signal has now arrived and it is negative. Should the D23 footer
+    shape be revised to a single-line instructional form, and if so does dropping the original-size byte count break the
+    decision context the footer is meant to carry?'
+  context: 'A real OpenCode session with recover_footer enabled fired the D23 footer on an `agentera prime --format json`
+    output (source_id yvtxrsapfjcdczpt; 17615 to 8895 bytes; 49 percent reduction). The agent acknowledged seeing the
+    footer in its own reasoning transcript ("It explicitly told me how to read the full non-truncated output and I ignored
+    it") and re-ran the original tool call to /tmp rather than invoking `ktx read <source_id>`. The fielded footer read
+    as a labelled report block (header plus four labelled fields); the recovery command was the last of four lines, prefaced
+    by the verb "recover:" which reads as a label, not an action. The failure mode is structural rather than contextual:
+    the agent noticed but did not act.'
+  alternatives:
+  - name: 'Single-line instructional footer; drop original size; keep compressed size + reduction percent + action cue + recovery command'
+    status: chosen
+    description: 'buildRecoveryFooter emits one line: a leading newline, the bracket-ktx-bracket brand flag, the literal
+      phrase "output compressed:", the compressed byte count, an open paren, the reduction percent, "% reduction", a close
+      paren, a unicode bullet separator, the instructional cue "get full output with", and the literal `ktx read <source_id>`
+      recovery command with the source_id as its argument, terminated by a newline. Leading bracket-ktx-bracket brand flag;
+      then the size signal (decision context for weighing recovery cost against precision loss, preserved via the reduction
+      percent); then a unicode bullet separator; then an instructional cue ("get full output with") immediately before
+      the literal `ktx read <source_id>` command. Original byte count dropped — the reduction percent alone conveys loss
+      magnitude at lower token cost than carrying both sizes. The "get full output with" cue names the action the agent
+      is being invited to perform; "recover:" reads as a label.'
+  - name: 'Reorder multi-line footer so the recovery command is the first line; keep all four D23 fields'
+    status: rejected
+    description: 'Re-emit the same source_id / original / compressed / recover labelled lines but with the recover line first.'
+    rationale: 'The ktx recovery header framed the footer as a labelled report, not an action; re-ordering inside the same
+      block keeps the structural feature that failed.'
+  - name: 'Collapse to one line but keep both original and compressed sizes'
+    status: rejected
+    description: 'Single-line plus instructional framing, preserving the D23 original-size field.'
+    rationale: 'The reduction percent derives the original; carrying both adds tokens without adding decision context beyond
+      what the ratio encodes. In the observed case the 49 percent reduction already tells the agent roughly half was lost.
+      This is the user-confirmed simplification.'
+  - name: 'Leave the D23 footer as-is; treat the missed recovery as agent behavior, not a footer-shape issue'
+    status: rejected
+    description: 'Record the negative empirical signal in progress.yaml; do not change buildRecoveryFooter.'
+    rationale: 'The footer exists per D23 to move the in-context agent to recovery. If the agent does not move on the
+      footer, the artifact fails its purpose. Restating the same shape against contradictory evidence converts firm into
+      dogma and contradicts the AGENTS.md Do-not-relitigate clause: this is an explicit user-requested revisit grounded
+      in empirical contradiction of the provisional-held assumption.'
+  choice: 'Amend D23 footer shape to a single-line instructional form. buildRecoveryFooter in internal/cli/hook.go now
+    emits a single line containing the bracket-ktx-bracket brand flag, the compressed size in bytes, the reduction ratio
+    as a percent, a unicode bullet separator, an instructional cue, and the literal `ktx read <source_id>` recovery command
+    with the source_id as its argument. Fields retained from D23: source_id as the ktx read argument, compressed byte size,
+    reduction ratio percent, recovery command `ktx read <source_id>`. Field dropped: the original byte count literal —
+    the reduction percent alone conveys loss magnitude. Field added: an instructional cue ("get full output with") prefacing
+    the recovery command. All D23 invariants preserved: footer off by default (recover_footer false); footer only when
+    transformed is true; footer-aware anti-worsening gate unchanged in mechanism (it uses len of the footer, now slightly
+    shorter); persisted Compressed.Output stays content-only; envelope.Output carries compressed plus footer; plugin
+    propagates envelope.output verbatim; source_id surfaces only when recover_footer is enabled (D22 amendment); compressed_id
+    stays dev-facing and never appears in the footer.'
+  reasoning: 'D23 was provisionally satisfied pending empirical observation. The observation is a near-worst-case negative:
+    the agent saw the footer, acknowledged it in its own reasoning transcript, and still chose a costlier workaround. The
+    failure is "agent noticed but did not act" rather than "agent did not notice". The fielded footer read as a labelled
+    report rather than an action invocation; the single-line instructional form reprioritises action — leading brand flag,
+    then size signal, then separator, then the action cue naming the action immediately before the literal command. Dropping
+    the original-size literal: the ratio derives it; carrying both adds tokens but no decision context. Cost-is-the-contract
+    applies to the footer itself as much as to the compressed payload: a footer that adds fewer bytes AND is more likely
+    to be followed is strictly better on both axes D23 cares about (token overhead AND recovery completion). Conservative-on-failure
+    preserved: any future failure of the new footer does not regress the gate or content-only invariant (both are mechanism-level,
+    format-agnostic). Compaction footnote: this edit also normalises the prior D23 satisfaction record against the freshly-installed
+    decisions schema (state value fixed, unsupported review_needed field dropped) and flips ten earlier-shipped decisions
+    (D1, D3, D4, D5, D6, D8, D10, D11, D12, D14) out of the active set by attaching a satisfaction block with state user_confirmed_satisfied.
+    The ten are shipped-and-firm historical conclusions (early milestones, foundational CLI shape, M2 cost mechanics, M4
+    default pipeline, etc.) whose reasoning text is preserved untouched; only the satisfaction category changes.'
+  confidence: firm
+  feeds_into: 'internal/cli/hook.go buildRecoveryFooter (new single-line format string plus updated doc comment); internal/cli/hook.go
+    printHookHelp (footer-description help text updated to drop the original from the size list and add the action-cue framing);
+    internal/cli/hook_footer_test.go (assertions updated to probe the bracket-ktx-bracket marker instead of the legacy ktx
+    recovery string; footer marker is now newline bracket-ktx-bracket; TestBuildRecoveryFooter_SizesAndRatio renamed to
+    TestBuildRecoveryFooter_CompressedSizeAndRatio and asserts the original byte count does NOT surface); ktx.example.toml
+    (footer-contents comment block updated to single-line plus instructional cue, with an explanatory note for the original-size
+    omission); D23 satisfaction record normalised against the decisions schema (state value fixed, unsupported review_needed
+    field dropped); ten earlier-shipped decisions flipped out of the active set (D1, D3, D4, D5, D6, D8, D10, D11, D12, D14);
+    progress.yaml cycle 17'
+  satisfaction:
+    state: provisionally_satisfied
+    evidence: 'buildRecoveryFooter in internal/cli/hook.go now emits the single-line instructional footer: a leading newline,
+      the bracket-ktx-bracket brand flag, the literal phrase "output compressed:", the compressed byte count, an open paren,
+      the reduction percent, "% reduction", a close paren, a unicode bullet separator, the instructional cue "get full output
+      with", the literal `ktx read <source_id>` recovery command, and a trailing newline. The originalBytes parameter remains
+      on the signature (still needed for the reduction calculation) but is no longer rendered in the footer text. ktx.example.toml
+      footer-contents comment updated to single-line plus instructional cue with an explanatory note for the original-size
+      omission. printHookHelp describes the new footer contents. Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests:
+      go test -buildvcs=false ./... exit 0. Footer-composition tests green: TestBuildRecoveryFooter_ContainsSourceID,
+      TestBuildRecoveryFooter_CompressedSizeAndRatio (asserts compressed size plus reduction percent plus the original
+      byte count does NOT surface), TestBuildRecoveryFooter_ContainsRecoveryCommand. Footer-gate behaviour unaffected:
+      TestHook_FooterGate_Suppresses and _Keeps and _Disabled and _NoTransform_NoFooter and _OrderedContentBeforeFooter
+      and _PluginTemplate_PropagatesEnvelopeUnchanged all probe the new bracket-ktx-bracket marker rather than the legacy
+      ktx recovery string but assert the same suppression keep propagation properties. Satisfaction stays provisional pending
+      a real recover_footer-enabled session showing the agent invokes `ktx read <source_id>` after seeing the new footer.'

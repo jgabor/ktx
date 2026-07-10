@@ -35,7 +35,7 @@ Compression is the demonstrator. Measurement is the contract. The benchmark is t
 
 At the highest level, ktx is a loop:
 
-```
+```text
 observe → classify → transform → measure → persist → report
 ```
 
@@ -89,7 +89,7 @@ flowchart LR
     L2["L2 Tool — large tool and MCP payloads"]
     L3["L3 Code — file reads, diffs, dumps"]
     L4["L4 Instructions — rules, skills, agent docs"]
-    L5["L5 Session and memory — history, cross-session carry"]
+    L5["L5 Memory — history, cross-session carry"]
   end
 
   C["Router<br/>classifies content,<br/>selects one profile"]
@@ -162,13 +162,13 @@ Architecturally, these are **ingress variants**, not separate products. Inspecti
 
 Context waste appears at different stages of an agent session. ktx aims to address all of them through one dispatch model—not five separate tools.
 
-| Layer                      | What it targets                                      | Architectural intent                                                                                           |
-| -------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **1 — Shell**              | Command-line stdout and stderr                       | Filter noise before tool results enter context. Highest volume, lowest semantic risk when done conservatively. |
-| **2 — Tool**               | Large structured tool and MCP payloads               | Compact or sandbox bulky results; retrieve detail only when the agent asks.                                    |
-| **3 — Code**               | File reads, diffs, exploration dumps                 | Prefer outlines and targeted excerpts over full-file dumps.                                                    |
-| **4 — Instructions**       | Always-on project memory (rules, skills, agent docs) | Shrink static context loaded every session without dropping safety-critical constraints.                       |
-| **5 — Session and memory** | Conversation history and cross-session carry         | Distill what persists across turns and sessions so compression compounds over time.                            |
+| Layer                | What it targets                                      | Architectural intent                                                                                           |
+| -------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **1 — Shell**        | Command-line stdout and stderr                       | Filter noise before tool results enter context. Highest volume, lowest semantic risk when done conservatively. |
+| **2 — Tool**         | Large structured tool and MCP payloads               | Compact or sandbox bulky results; retrieve detail only when the agent asks.                                    |
+| **3 — Code**         | File reads, diffs, exploration dumps                 | Prefer outlines and targeted excerpts over full-file dumps.                                                    |
+| **4 — Instructions** | Always-on project memory (rules, skills, agent docs) | Shrink static context loaded every session without dropping safety-critical constraints.                       |
+| **5 — Memory**       | Conversation history and cross-session carry         | Distill what persists across turns and sessions so compression compounds over time.                            |
 
 Each layer maps to a **pipeline profile** selected by classification—not to a separate binary or long-running service. Built-in behavior provides defaults; user extension refines or replaces stages without forking the CLI surface.
 
@@ -281,12 +281,7 @@ The items below are **not** architecture yet. They are questions for future reso
 
 ### CLI surface and ergonomics
 
-- [ ] Diagnostics command scope: `ktx doctor` basic scope settled (read-only health check for database, config resolution, ID format — Decision 2). Extended scope open: `--fix` for orphaned session reconciliation (Decision 1 revised), `ktx db --prune` for cleanup, pipeline sanity checks. Non-blocking for M1–M3.
-
-### Configuration
-
-- [ ] How pipeline definitions reference built-in stages versus external scripts.
-- [ ] Whether all compress/decompress behavior lives in config with zero per-invocation flags—confirm or revise.
+- [ ] Extended diagnostics scope: `ktx doctor --fix` for orphaned session reconciliation (Decision 1 revised), `ktx db --prune` for cleanup, pipeline sanity checks. Basic scope settled per Decision 2; non-blocking.
 
 ### Security and trust
 

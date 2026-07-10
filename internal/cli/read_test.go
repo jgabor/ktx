@@ -26,7 +26,7 @@ import (
 )
 
 // seedToolCall inserts a session and a tool_call row so the test can
-// read them back. The IDs follow Decision 3 (16-char lowercase alpha).
+// read them back. IDs use the stored 16-character lowercase format.
 func seedToolCall(t *testing.T, d *dbpkg.DB, toolCallID, sessionID string) {
 	t.Helper()
 	if err := d.InsertSession(&dbpkg.Session{
@@ -163,7 +163,7 @@ func TestRunReadWith_RoundTrip(t *testing.T) {
 	})
 
 	t.Run("read with --format flag exits 1 (I/O primitive)", func(t *testing.T) {
-		// ktx read is an I/O primitive per Decision 2/8: it has no
+		// ktx read is a raw I/O primitive: it has no
 		// --format flag at the subcommand level. The global --format
 		// from the dispatcher is parsed but the subcommand does not
 		// accept it; passing it as a subcommand arg is a usage

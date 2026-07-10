@@ -228,7 +228,7 @@ recover_footer = true
 	}
 }
 
-// AC1: when the footer gate keeps the transform, the envelope output
+// When the footer gate keeps the transform, the envelope output
 // is exactly the compressed content followed by the footer — the
 // compressed content must appear before the footer.
 func TestHook_FooterGate_OrderedContentBeforeFooter(t *testing.T) {
@@ -291,7 +291,7 @@ recover_footer = true
 	}
 }
 
-// AC5: the OpenCode plugin template must set output.output = envelope.output
+// The OpenCode plugin template must set output.output = envelope.output
 // verbatim — the footer propagates through envelope.Output without any
 // plugin-side footer logic. This guards against accidental footer wiring
 // leaking into the template.

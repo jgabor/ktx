@@ -200,8 +200,8 @@ func (d *DB) canReuse(ppid int, sf *SessionFile, timestamp string) bool {
 }
 
 // openSession creates a new session row and writes the ppid session file. The
-// agent is set to "unknown" (Decision 1: the adapter/wrapper overrides this
-// in Tasks 5/6). The ppid_start_time is captured from /proc when available so
+// agent is set to "unknown"; wrappers override it when the agent name is
+// available. The ppid_start_time is captured from /proc when available so
 // the next invocation can detect PID reuse; it is 0 on non-Linux, where the
 // conservative fallback never compares it.
 func (d *DB) openSession(ppid int, timestamp string) (string, error) {
@@ -209,10 +209,10 @@ func (d *DB) openSession(ppid int, timestamp string) (string, error) {
 }
 
 // OpenNamedSession creates a new session with the supplied agent name and
-// writes a ppid-keyed session file (Decision 1 revised). It is the public
+// writes a parent-process-keyed session file. It is the public
 // counterpart to the unexported openSession used by ResolveSessionID, exposed
 // for the wrapper path (ktx run) where the agent binary name is known at
-// session-open time (Tasks 5/6). The hook path defaults agent to "unknown"
+// session-open time. The hook path defaults agent to "unknown"
 // because the agent name is not known when ktx write runs.
 //
 // ppid is the session-file key. For the wrapper, pass os.Getpid() — the
@@ -237,7 +237,7 @@ func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string,
 
 	// ToolCallCount is left at the zero value: a fresh session has no
 	// tool_calls yet, and the persist layer treats 0 as a meaningful
-	// value (see the comment on the Session struct in persist.go), not
+	// value (see the comment on the Session struct in records.go), not
 	// as missing.
 	if err := d.InsertSession(&Session{
 		ID:         id,

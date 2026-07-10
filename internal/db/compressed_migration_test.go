@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-// expectedCompressedColumns mirrors compressedColumns in open.go (by name)
+// expectedCompressedColumns mirrors compressedColumns in schema.go (by name)
 // so the schema-vs-intent check is one source of truth away from the CREATE
 // TABLE. Order matches the CREATE TABLE column order; doctor and the
 // partial-forward-fix path both rely on the order being deterministic.

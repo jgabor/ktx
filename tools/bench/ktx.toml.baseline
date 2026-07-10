@@ -1,7 +1,0 @@
-# ktx.toml for benchmark baseline (passthrough — no compression)
-#
-# Matches tools/bench/pipelines/passthrough.toml from the evaluation
-# matrix (docs/pipelines.md). Override with live-ab --baseline-config.
-
-[pipeline.default]
-stages = []

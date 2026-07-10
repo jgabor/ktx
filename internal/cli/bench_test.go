@@ -62,9 +62,9 @@ func TestRunBenchReportImpl_EmptyEnvelope(t *testing.T) {
 		// rows}. The headline for an empty table with no
 		// filter is null (the absence-marker contract).
 		var env struct {
-			Headline           *float64  `json:"headline"`
-			MethodologyVersion *string   `json:"methodology_version"`
-			Rows               []any     `json:"rows"`
+			Headline           *float64 `json:"headline"`
+			MethodologyVersion *string  `json:"methodology_version"`
+			Rows               []any    `json:"rows"`
 		}
 		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
@@ -152,8 +152,8 @@ func TestRunBenchReportImpl_NonEmpty(t *testing.T) {
 		}
 
 		var env struct {
-			Headline           *float64  `json:"headline"`
-			MethodologyVersion *string   `json:"methodology_version"`
+			Headline           *float64         `json:"headline"`
+			MethodologyVersion *string          `json:"methodology_version"`
 			Rows               []map[string]any `json:"rows"`
 		}
 		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
@@ -204,9 +204,9 @@ func TestRunBenchReportImpl_NonEmpty(t *testing.T) {
 		// Single-row mode emits the BenchRun directly
 		// (no rows array, no headline envelope).
 		var row struct {
-			ID                string  `json:"id"`
-			Cost              *float64 `json:"cost"`
-			MethodologyVersion string  `json:"methodology_version"`
+			ID                 string   `json:"id"`
+			Cost               *float64 `json:"cost"`
+			MethodologyVersion string   `json:"methodology_version"`
 		}
 		if err := json.Unmarshal(stdout.Bytes(), &row); err != nil {
 			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
@@ -252,7 +252,7 @@ func TestRunBenchReportImpl_NonEmpty(t *testing.T) {
 // surface: --help, unknown subcommand, no subcommand. The bench
 // run/report specific paths are covered by runBenchReportImpl
 // (above) and the runBenchRun flow (out of scope here —
-// bench run requires a methodology file and an agent binary).
+// bench run requires a published methodology and an agent binary).
 func TestRunBenchWith_Dispatch(t *testing.T) {
 	t.Run("no args prints help and exits 0", func(t *testing.T) {
 		var stdout, stderr bytes.Buffer
@@ -436,12 +436,12 @@ func TestRunBenchReplay_Integration(t *testing.T) {
 
 	// Decode the JSON consistency envelope.
 	var env struct {
-		Replay           map[string]any `json:"replay"`
-		Integrity        map[string]any `json:"integrity"`
-		ParserRegression map[string]any `json:"parser_regression"`
-		CostDrift        map[string]any `json:"cost_drift"`
-		Consistency      string         `json:"consistency"`
-	 OriginalBenchRun  json.RawMessage `json:"original_bench_run"`
+		Replay           map[string]any  `json:"replay"`
+		Integrity        map[string]any  `json:"integrity"`
+		ParserRegression map[string]any  `json:"parser_regression"`
+		CostDrift        map[string]any  `json:"cost_drift"`
+		Consistency      string          `json:"consistency"`
+		OriginalBenchRun json.RawMessage `json:"original_bench_run"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
@@ -506,11 +506,11 @@ func TestRunBenchReplay_KtxRunSession(t *testing.T) {
 	// count for parser_regression=PASS.
 	sessionID := mustNewIDBench(t)
 	if err := d.InsertSession(&dbpkg.Session{
-		ID:             sessionID,
-		Agent:          "opencode",
-		StartedAt:      "2026-07-08T12:00:00Z",
-		LastSeenAt:     "2026-07-08T12:00:00Z",
-		ToolCallCount:  1,
+		ID:            sessionID,
+		Agent:         "opencode",
+		StartedAt:     "2026-07-08T12:00:00Z",
+		LastSeenAt:    "2026-07-08T12:00:00Z",
+		ToolCallCount: 1,
 	}); err != nil {
 		t.Fatalf("InsertSession: %v", err)
 	}
@@ -550,11 +550,11 @@ func TestRunBenchReplay_KtxRunSession(t *testing.T) {
 
 	// Decode the JSON envelope.
 	var env struct {
-		Replay           map[string]any `json:"replay"`
-		Integrity        map[string]any `json:"integrity"`
-		ParserRegression map[string]any `json:"parser_regression"`
-		CostDrift        map[string]any `json:"cost_drift"`
-		Consistency      string         `json:"consistency"`
+		Replay           map[string]any   `json:"replay"`
+		Integrity        map[string]any   `json:"integrity"`
+		ParserRegression map[string]any   `json:"parser_regression"`
+		CostDrift        map[string]any   `json:"cost_drift"`
+		Consistency      string           `json:"consistency"`
 		OriginalBenchRun *json.RawMessage `json:"original_bench_run"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
@@ -615,11 +615,11 @@ func seedReplayForCompression(t *testing.T, d *dbpkg.DB, output string, isErr bo
 	t.Helper()
 	sessionID := mustNewIDBench(t)
 	if err := d.InsertSession(&dbpkg.Session{
-		ID:             sessionID,
-		Agent:          "opencode",
-		StartedAt:      "2026-07-01T12:00:00Z",
-		LastSeenAt:     "2026-07-01T12:00:00Z",
-		ToolCallCount:  1,
+		ID:            sessionID,
+		Agent:         "opencode",
+		StartedAt:     "2026-07-01T12:00:00Z",
+		LastSeenAt:    "2026-07-01T12:00:00Z",
+		ToolCallCount: 1,
 	}); err != nil {
 		t.Fatalf("InsertSession: %v", err)
 	}
@@ -649,9 +649,9 @@ func seedReplayForCompression(t *testing.T, d *dbpkg.DB, output string, isErr bo
 			"tool":   "bash",
 			"callID": "call1",
 			"state": map[string]any{
-				"input":  "echo",
-				"output": output,
-				"time":   map[string]any{"start": 1, "end": 2},
+				"input":    "echo",
+				"output":   output,
+				"time":     map[string]any{"start": 1, "end": 2},
 				"metadata": map[string]any{"exit": exit},
 			},
 		},

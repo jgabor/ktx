@@ -93,7 +93,9 @@ def write_build_log(path: Path, facts: dict[str, str], target_chars: int) -> dic
     while sum(len(line) + 1 for line in lines) < target_chars - 300:
         idx = len(lines)
         level = "debug" if idx % 17 else "info"
-        lines.append(f"[{level}] step={idx} ok hash={hashlib.md5(str(idx).encode()).hexdigest()[:8]}")
+        lines.append(
+            f"[{level}] step={idx} ok hash={hashlib.md5(str(idx).encode()).hexdigest()[:8]}"
+        )
     lines.append("[error] build failed in package gamma")
     lines.append(f"[error] {facts['tail_error']}")
     lines.append("[error] exit_code=1")

@@ -1,10 +1,7 @@
 // Package cli implements ktx's command tree: global flag parsing, subcommand
 // dispatch, the error envelope, and the help/version surfaces.
 //
-// The dispatch and the `ktx db path` path-resolution contract
-// live here. All other subcommands (run, write, read, get, list, init,
-// doctor) are stubbed and exit 1 with a usage error so the surface is
-// honest about what is not yet built.
+// Commands register with the shared dispatcher in their implementation files.
 //
 // Global flags (--store dropped):
 //
@@ -38,54 +35,7 @@ const (
 type Options struct {
 	Format string
 	Quiet  bool
-	// RecordStream is set by `ktx run --record-stream` (opt-in stream
-	// capture for the wrapper path). It is a verb-local flag threaded
-	// through Options so executeRun can branch on it without growing
-	// its parameter list. Zero value (false) preserves the
-	// transparent-proxy default (ktx run does not persist the stream).
-	RecordStream bool
 }
-
-// command describes a top-level ktx verb. run executes the command with the
-// args left after global flag parsing and the parsed Options; it returns the
-// process exit code.
-type command struct {
-	name        string
-	description string
-	run         func(args []string, opts Options) int
-}
-
-// commands is the dispatch table in the order shown by `ktx --help`.
-//
-// `ktx read` and `ktx write` were removed from this
-// table and re-registered through dispatch.Register (see read.go's
-// init() and write.go's init()). They are still routed by runWith,
-// because the dispatch registry is consulted before the legacy
-// commandIndex.
-//
-// `ktx get`, `ktx list`, `ktx run`, and `ktx bench`
-// were also removed from this table and re-registered through
-// dispatch.Register (see get.go's init(), list.go's init(),
-// run.go's init(), and bench.go's init()).
-//
-// `ktx init`, `ktx db`, `ktx prices`, and
-// `ktx doctor` were the final four verbs to migrate. They are now
-// re-registered through dispatch.Register (see init.go's init(),
-// db.go's init(), prices.go's init(), and doctor.go's init()). The
-// legacy commands slice is now empty — every subcommand lives in the
-// dispatch registry. runWith still consults commandIndex (now empty)
-// as a final fall-through; a verb that lives in both tables would
-// have the registry win, but no current verb does.
-var commands = []command{}
-
-// commandIndex maps command names to their handler for O(1) dispatch.
-var commandIndex = func() map[string]command {
-	m := make(map[string]command, len(commands))
-	for _, c := range commands {
-		m[c.name] = c
-	}
-	return m
-}()
 
 // Run is the ktx entrypoint. It parses global flags, dispatches to the
 // matched subcommand, and returns the process exit code.
@@ -133,27 +83,12 @@ func runWith(args []string, stdout, stderr io.Writer) int {
 	name := rest[0]
 	verbArgs := rest[1:]
 
-	// New dispatch registry wins: the legacy verbs are migrated onto
-	// dispatch.Register; the legacy commandIndex
-	// below covers any not yet migrated. Verbs registered via dispatch.Register
-	// (demo verbs, plus anything new added after this plan)
-	// are picked up here. If a verb lives in both tables the registry
-	// wins — the legacy entry is dead code the moment a verb migrates.
-	//
-	// opts.Quiet is forwarded to the dispatch path so a global
-	// `--quiet` flag (e.g. `ktx --quiet run <agent>`) propagates
-	// through DispatchContext.Quiet, matching the legacy commandIndex
-	// surface that already passes opts.Quiet to runXWith.
+	// Forward global quiet state through the shared dispatch context.
 	if _, registered := dispatchRegistry[name]; registered {
 		return runDispatch(name, verbArgs, opts.Quiet, stdout, stderr)
 	}
-
-	cmd, ok := commandIndex[name]
-	if !ok {
-		printError(stderr, usageError("unknown command %q; run 'ktx --help' for the command list", name), opts.Format)
-		return ExitUsage
-	}
-	return cmd.run(verbArgs, opts.Options)
+	printError(stderr, usageError("unknown command %q; run 'ktx --help' for the command list", name), opts.Format)
+	return ExitUsage
 }
 
 // parsedFlags holds the global flags plus the help/version switches. help
@@ -203,12 +138,7 @@ func isFlagErr(err error) bool {
 	return err == flag.ErrHelp
 }
 
-// printHelp writes the top-level help, listing every subcommand. After
-// the legacy commands slice was emptied, the help list is sourced
-// from the dispatch registry (RegisteredVerbs). Verbs that registered
-// with a non-empty Description are listed; verbs without a description
-// are still callable but omitted from the help (rare; legacy behaviour
-// was to always list every verb).
+// printHelp writes the top-level help from the command registry.
 func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx — make every coding agent measurable and cheaper")
 	fmt.Fprintln(w)

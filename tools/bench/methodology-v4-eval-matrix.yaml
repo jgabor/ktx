@@ -1,17 +1,7 @@
 methodology_version: "v4-eval-matrix"
 date: "2026-07-10"
 
-# v4 evaluation matrix
-#
-# Extends the v1 cost-per-correct contract with:
-# - a named pipeline matrix (tools/bench/pipelines/)
-# - a multi-skill task suite with planted-fact corpus
-# - multi-fact fractional scoring (k of n)
-# - geometric expected cost using full_pass_rate
-#
-# Product CLI defaults are unchanged. This methodology governs evaluation
-# harness runs (live-ab, compare-pipelines) documented in docs/pipelines.md.
-
+# Evaluation methodology for comparing named compression pipelines.
 scope: |
   Rank named compression pipelines on tool-rich agent tasks using
   deterministic multi-fact scoring and cost-per-correct ranking.
@@ -82,4 +72,4 @@ out_of_scope:
   - LLM-as-judge scoring
   - statistical significance / confidence intervals
   - content-type router productization
-  - changing shipped default pipeline (still passthrough without ktx.toml)
+  - changing shipped default pipeline

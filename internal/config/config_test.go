@@ -285,11 +285,11 @@ timeout = "2m"
 }
 
 // TestLoad_RecoverFooter covers the recover_footer config surface on
-// [pipeline.default]. The flag defaults to true when absent or no
-// ktx.toml exists. Explicit false suppresses the recovery footer.
+// [pipeline.default]. The flag defaults to false when absent or no
+// ktx.toml exists. Explicit true enables the recovery footer.
 // A non-bool value is a *ParseError naming the field.
 func TestLoad_RecoverFooter(t *testing.T) {
-	t.Run("no ktx.toml → true (default on)", func(t *testing.T) {
+	t.Run("no ktx.toml → false (default off)", func(t *testing.T) {
 		chdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
@@ -297,12 +297,12 @@ func TestLoad_RecoverFooter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if !cfg.RecoverFooter {
-			t.Errorf("RecoverFooter = false, want true (no-config default)")
+		if cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = true, want false (no-config default)")
 		}
 	})
 
-	t.Run("stages-only config (no recover_footer key) → true", func(t *testing.T) {
+	t.Run("stages-only config (no recover_footer key) → false", func(t *testing.T) {
 		chdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 		writeUserConfig(t, `[pipeline.default]
@@ -313,8 +313,8 @@ stages = ["strip-ansi", "head:100"]
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if !cfg.RecoverFooter {
-			t.Errorf("RecoverFooter = false, want true (absent key defaults to true)")
+		if cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = true, want false (absent key defaults to false)")
 		}
 	})
 
@@ -375,6 +375,44 @@ recover_footer = "yes"
 			t.Errorf("ParseError.Path = %q, want it to name ktx.toml", pe.Path)
 		}
 	})
+}
+
+func TestNamedBenchmarkPipelines(t *testing.T) {
+	t.Parallel()
+	files, err := filepath.Glob(filepath.Join("..", "..", "tools", "bench", "pipelines", "*.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no named benchmark pipelines found")
+	}
+
+	expectedRecovery := map[string]bool{
+		"conservative-a-recover": true,
+	}
+	for _, file := range files {
+		file := file
+		t.Run(strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)), func(t *testing.T) {
+			data, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := parse(data)
+			if err != nil {
+				t.Fatalf("parse %s: %v", file, err)
+			}
+			name := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+			if cfg.RecoverFooter != expectedRecovery[name] {
+				t.Errorf("RecoverFooter = %v, want %v", cfg.RecoverFooter, expectedRecovery[name])
+			}
+			if cfg.PipelineTimeout != DefaultPipelineTimeout {
+				t.Errorf("PipelineTimeout = %v, want %v", cfg.PipelineTimeout, DefaultPipelineTimeout)
+			}
+			if cfg.PipelineDefault == nil {
+				t.Error("PipelineDefault is nil; named pipelines must declare stages")
+			}
+		})
+	}
 }
 
 // TestLoad_Malformed covers the syntax-error path: a malformed

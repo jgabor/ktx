@@ -9,7 +9,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// Exit codes are the truth (Decision 4):
+// Exit codes are stable process-level outcomes:
 //
 //	0 = ok
 //	1 = usage
@@ -52,7 +52,7 @@ func (c ErrorCode) ExitCode() int {
 }
 
 // Error is the ktx error envelope. It renders as JSON on stderr for agents
-// and as a one-line message for humans (Decision 4).
+// and as a one-line message for humans.
 type Error struct {
 	Code    ErrorCode
 	Message string
@@ -61,6 +61,16 @@ type Error struct {
 	// the common case — most errors carry only code + message.
 	Extra map[string]any
 }
+
+// commandExit carries a process status for commands that already rendered any
+// necessary diagnostics or are forwarding a child process exit code.
+type commandExit struct {
+	code int
+}
+
+func (e *commandExit) Error() string { return fmt.Sprintf("command exited with status %d", e.code) }
+
+func exitWith(code int) error { return &commandExit{code: code} }
 
 func (e *Error) Error() string { return e.Message }
 

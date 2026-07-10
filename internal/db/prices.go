@@ -61,7 +61,7 @@ const pricesFilePerm = 0o644
 // XDG_DATA_HOME subtree mode.
 const pricesDirPerm = 0o755
 
-// PricesPath resolves the default price cache path per Decision 11:
+// PricesPath resolves the default price cache path:
 // $XDG_DATA_HOME/ktx/prices.json. Falls back to ~/.local/share/ktx/prices.json
 // when XDG_DATA_HOME is unset (XDG Base Directory spec — same fallback
 // as DefaultPath — see the package's primary file for the default location.
@@ -97,7 +97,7 @@ const modelsDevTimeout = 5 * time.Second
 const modelsDevMaxBody = 64 * 1024 * 1024
 
 // Price is the per-(provider, model) price record persisted to disk.
-// USD per million tokens for input and output (Decision 11). The JSON
+// USD per million tokens for input and output. The JSON
 // tags are the canonical field names so a third party reading the
 // cache file directly sees the same shape ktx uses internally.
 type Price struct {

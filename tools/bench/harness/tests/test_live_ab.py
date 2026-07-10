@@ -10,8 +10,8 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
-MODULE_PATH = ROOT / "scripts" / "live_ab.py"
+ROOT = Path(__file__).resolve().parents[4]
+MODULE_PATH = Path(__file__).resolve().parents[1] / "live_ab.py"
 SPEC = importlib.util.spec_from_file_location("live_ab", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"could not load {MODULE_PATH}")
@@ -162,7 +162,9 @@ class LiveABHarnessTest(unittest.TestCase):
             root = Path(directory)
             corpus = root / "tools" / "bench" / "corpus"
             corpus.mkdir(parents=True)
-            (corpus / "src_alpha.txt").write_text("FACT_ALPHA_MID=alpha-mid-4b18e0d7\n", encoding="utf-8")
+            (corpus / "src_alpha.txt").write_text(
+                "FACT_ALPHA_MID=alpha-mid-4b18e0d7\n", encoding="utf-8"
+            )
             (corpus / "MANIFEST.json").write_text('{"leak": true}\n', encoding="utf-8")
             workspace = root / "workspace"
             meta = LIVE_AB.prepare_attempt_workspace(
@@ -190,7 +192,9 @@ class LiveABHarnessTest(unittest.TestCase):
             (corpus / "src_alpha.txt").write_text("body\n", encoding="utf-8")
             (corpus / "MANIFEST.json").write_text("{}\n", encoding="utf-8")
             (tasks / "crossfile-nav-v1.toml").write_text('id="x"\n', encoding="utf-8")
-            (root / "tools" / "bench" / "generate_corpus.py").write_text("print(1)\n", encoding="utf-8")
+            (root / "tools" / "bench" / "generate_corpus.py").write_text(
+                "print(1)\n", encoding="utf-8"
+            )
             docs = root / "docs"
             docs.mkdir()
             (docs / "pipelines.md").write_text("facts\n", encoding="utf-8")
@@ -346,7 +350,9 @@ class LiveABHarnessTest(unittest.TestCase):
         }
 
         self.assertTrue(LIVE_AB.attempt_is_counted(complete, 2))
-        self.assertFalse(LIVE_AB.attempt_is_counted({**complete, "answer_matches_expected": False}, 2))
+        self.assertFalse(
+            LIVE_AB.attempt_is_counted({**complete, "answer_matches_expected": False}, 2)
+        )
         self.assertFalse(LIVE_AB.attempt_is_counted({**complete, "tool_call_count": 1}, 2))
 
     def test_harness_records_session_linked_alternating_attempts(self):
@@ -422,7 +428,7 @@ else:
             }
             command = [
                 sys.executable,
-                str(ROOT / "scripts" / "live_ab.py"),
+                str(MODULE_PATH),
                 "--model",
                 "neuralwatt/fake",
                 "--prompt",
@@ -455,7 +461,9 @@ else:
             self.assertEqual(summary["pipelines"]["candidate"]["valid_count"], 2)
             attempt_records = [
                 json.loads(line)
-                for line in (data_dir / "run" / "attempts.jsonl").read_text(encoding="utf-8").splitlines()
+                for line in (data_dir / "run" / "attempts.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
             ]
             self.assertEqual(
                 [record["side"] for record in attempt_records],
@@ -466,17 +474,23 @@ else:
                 ["baseline", "candidate", "candidate", "baseline"],
             )
             manifest = json.loads((data_dir / "run" / "manifest.json").read_text(encoding="utf-8"))
-            self.assertTrue((data_dir / "run" / manifest["repository"]["snapshot"]["path"]).is_dir())
+            self.assertTrue(
+                (data_dir / "run" / manifest["repository"]["snapshot"]["path"]).is_dir()
+            )
             self.assertTrue((data_dir / "run" / "configs" / "ktx.toml.baseline").is_file())
             self.assertNotIn("agent-created", [path.name for path in ROOT.iterdir()])
             for record in attempt_records:
-                self.assertTrue((data_dir / "run" / record["artifacts"]["workspace"] / "agent-created").is_file())
+                self.assertTrue(
+                    (
+                        data_dir / "run" / record["artifacts"]["workspace"] / "agent-created"
+                    ).is_file()
+                )
 
             summary_before = (data_dir / "run" / "summary.json").read_bytes()
             regenerate = subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "scripts" / "live_ab.py"),
+                    str(MODULE_PATH),
                     "--summarize",
                     str(data_dir / "run"),
                 ],
@@ -511,8 +525,12 @@ else:
             )
             self.assertEqual(exhausted.returncode, 1)
             exhausted_summary = json.loads(exhausted.stdout)
-            self.assertEqual(exhausted_summary["pipelines"]["baseline"]["status_counts"]["failed"], 1)
-            self.assertEqual(exhausted_summary["pipelines"]["candidate"]["status_counts"]["failed"], 1)
+            self.assertEqual(
+                exhausted_summary["pipelines"]["baseline"]["status_counts"]["failed"], 1
+            )
+            self.assertEqual(
+                exhausted_summary["pipelines"]["candidate"]["status_counts"]["failed"], 1
+            )
 
             retry_command = command.copy()
             for option, value in (
@@ -543,7 +561,7 @@ else:
             config_root = workspace / "config"
             config_path = config_root / "ktx" / "ktx.toml"
             config_path.parent.mkdir(parents=True)
-            config_path.write_text("[pipeline.default]\nstages = [\"head:2\"]\n", encoding="utf-8")
+            config_path.write_text('[pipeline.default]\nstages = ["head:2"]\n', encoding="utf-8")
             auth = workspace / "auth.json"
             auth.write_text("{}", encoding="utf-8")
             invoked = workspace / "opencode-invoked"

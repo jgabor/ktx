@@ -10,8 +10,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-LIVE_AB = ROOT / "scripts" / "live_ab.py"
+ROOT = Path(__file__).resolve().parents[3]
+LIVE_AB = Path(__file__).with_name("live_ab.py")
 PIPELINES = ROOT / "tools" / "bench" / "pipelines"
 
 
@@ -245,6 +245,7 @@ def render_ranking(ranking: dict) -> str:
         f"{'----':>4}  {'--------':<24}  {'----':>6}  {'----':>6}  {'------':>10}  {'----':>10}  {'---------':>10}  {'-----':>6}  {'----':>6}",
     ]
     for row in ranking["ranking"]:
+
         def fmt(value, digits=4):
             if value is None:
                 return "-"
@@ -267,9 +268,7 @@ def main(argv=None):
     if not args.model.startswith("neuralwatt/"):
         raise SystemExit("model must use the neuralwatt/ provider")
     data_dir = (
-        Path(args.data_dir).resolve()
-        if args.data_dir
-        else Path(ROOT / ".bench-data").resolve()
+        Path(args.data_dir).resolve() if args.data_dir else Path(ROOT / ".bench-data").resolve()
     )
     campaign_id = args.campaign_id or f"rank-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
     campaign_dir = data_dir / campaign_id

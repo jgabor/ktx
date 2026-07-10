@@ -90,7 +90,7 @@ type Config struct {
 	// [pipeline.<name>] tables (e.g. default, json, logs). The
 	// "default" key is always present (it maps to PipelineDefault).
 	// Forward-compatible read surface for `ktx config show`; ktx does
-	// not route by content type yet (TODO:40) but the read surface
+	// not route by content type yet, but the read surface
 	// is ready for it.
 	Profiles map[string][]string
 
@@ -106,10 +106,9 @@ type Config struct {
 	PipelineTimeout time.Duration
 
 	// RecoverFooter is the [pipeline.default].recover_footer flag.
-	// Defaults to true when the field is absent or no ktx.toml exists:
-	// lossy compression surfaces a recovery cue so agents can
-	// `ktx read <source_id>`. Set recover_footer = false to suppress
-	// the footer. Only the "default" profile's value is read;
+	// Defaults to false when the field is absent or no ktx.toml exists.
+	// Set recover_footer = true to surface a `ktx read <source_id>` cue.
+	// Only the "default" profile's value is read;
 	// per-profile toggles are YAGNI until content-type routing lands.
 	RecoverFooter bool
 }
@@ -180,11 +179,11 @@ func Load() (*Config, error) {
 }
 
 // defaultConfig is the no-file / load-error-safe baseline: empty stages
-// (passthrough), 2s pipeline timeout, recover_footer on.
+// (passthrough), 2s pipeline timeout, recover_footer off.
 func defaultConfig() *Config {
 	return &Config{
 		PipelineTimeout: DefaultPipelineTimeout,
-		RecoverFooter:   true,
+		RecoverFooter:   false,
 	}
 }
 
@@ -255,7 +254,7 @@ type tomlConfig struct {
 	Pipeline map[string]struct {
 		Stages        []string `toml:"stages"`
 		Timeout       string   `toml:"timeout"`
-		RecoverFooter *bool    `toml:"recover_footer"` // nil = default true
+		RecoverFooter *bool    `toml:"recover_footer"` // nil = default false
 	} `toml:"pipeline"`
 	Plugin []tomlPlugin `toml:"plugin"`
 }
@@ -326,11 +325,11 @@ func parse(data []byte) (*Config, error) {
 		cfg.PipelineTimeout = d
 	}
 
-	// recover_footer defaults to true. A *bool decode distinguishes
-	// "key absent" (nil → true) from explicit false. Only the
+	// recover_footer defaults to false. A *bool decode distinguishes
+	// "key absent" from an explicit value. Only the
 	// "default" profile's value is read. A non-bool value surfaces as
 	// a *ParseError via BurntSushi's decode error (handled above).
-	cfg.RecoverFooter = true
+	cfg.RecoverFooter = false
 	if def, ok := decoded.Pipeline["default"]; ok && def.RecoverFooter != nil {
 		cfg.RecoverFooter = *def.RecoverFooter
 	}

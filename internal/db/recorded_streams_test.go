@@ -10,7 +10,7 @@
 //   - content_hash round-trip: insert with hash of stream_text; read back;
 //     hash of stored stream_text equals the inserted hash
 //   - empty stream_text round-trip: a session that emitted no events still
-//     gets captured; content_hash = ContentHash('') (SHA-256 of empty string)
+//     gets captured; content_hash = ContentHash(”) (SHA-256 of empty string)
 //
 // All subtests use OpenMemory() (the existing in-memory seam) — no
 // filesystem fixtures required.
@@ -385,7 +385,7 @@ func TestRecordedStream_ContentHashRoundTrip(t *testing.T) {
 // TestRecordedStream_EmptyStreamText covers the empty-stream
 // acceptance: empty
 // stream_text is a valid stream (a session that emitted no events still
-// gets captured). content_hash = ContentHash('') — SHA-256 of the
+// gets captured). content_hash = ContentHash(”) — SHA-256 of the
 // empty string, a real value. The absence-vs-empty distinction is
 // preserved; no silent skip on empty stream.
 func TestRecordedStream_EmptyStreamText(t *testing.T) {

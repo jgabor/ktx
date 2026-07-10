@@ -26,7 +26,7 @@ import (
 )
 
 // expectedRecordedStreamsColumns mirrors the CREATE TABLE column order
-// in open.go so the schema-vs-intent check is one source of truth away
+// in schema.go so the schema-vs-intent check is one source of truth away
 // from the definition.
 var expectedRecordedStreamsColumns = []string{
 	"id", "session_id", "bench_run_id", "stream_text", "content_hash", "stream_format", "captured_at",

@@ -2,7 +2,7 @@
 //
 // Coverage:
 //
-//   - KTX_DB='' and no --path → stdout is the resolved
+//   - KTX_DB=” and no --path → stdout is the resolved
 //     path under the test XDG_DATA_HOME. The default resolution is
 //     $XDG_DATA_HOME/ktx/ktx.db.
 //   - A missing database file at

@@ -84,7 +84,7 @@ func TestRunDoctorWith_HealthCheck(t *testing.T) {
 			"database_exists":   false,
 			"database_openable": false,
 			"schema_valid":      false,
-			"cost_columns":        false,
+			"cost_columns":      false,
 			"bench_runs_table":  false,
 			"id_format":         false,
 		}

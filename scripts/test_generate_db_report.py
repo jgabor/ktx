@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT_PATH = Path(__file__).with_name("generate-db-report.py")
+SCRIPT_PATH = Path(__file__).with_name("generate_db_report.py")
 SPEC = importlib.util.spec_from_file_location("generate_db_report", SCRIPT_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"could not load {SCRIPT_PATH}")
@@ -87,7 +87,14 @@ class GenerateDatabaseReportTest(unittest.TestCase):
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             [
-                ("s1", "unknown", "2026-07-01T00:00:00Z", "2026-07-01T00:01:00Z", "2026-07-01T00:01:00Z", 2),
+                (
+                    "s1",
+                    "unknown",
+                    "2026-07-01T00:00:00Z",
+                    "2026-07-01T00:01:00Z",
+                    "2026-07-01T00:01:00Z",
+                    2,
+                ),
                 ("s2", "opencode", "2026-07-02T00:00:00Z", None, "2026-07-02T00:00:01Z", 1),
             ],
         )
@@ -100,9 +107,57 @@ class GenerateDatabaseReportTest(unittest.TestCase):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                ("t1", "s1", "bash", "x", "héllo", content_hash("héllo"), "2026-07-01T00:00:01Z", 10, 2, 0.25, 10, "model-a", "provider-a", 0, 0),
-                ("t2", "s1", "bash", "y", "ERROR", content_hash("ERROR"), "2026-07-01T00:00:02Z", None, None, None, 30, None, None, 1, 1),
-                ("t3", "s2", "read", "z", "data", content_hash("data"), "2026-07-02T00:00:01Z", None, None, None, None, None, "provider-b", None, None),
+                (
+                    "t1",
+                    "s1",
+                    "bash",
+                    "x",
+                    "héllo",
+                    content_hash("héllo"),
+                    "2026-07-01T00:00:01Z",
+                    10,
+                    2,
+                    0.25,
+                    10,
+                    "model-a",
+                    "provider-a",
+                    0,
+                    0,
+                ),
+                (
+                    "t2",
+                    "s1",
+                    "bash",
+                    "y",
+                    "ERROR",
+                    content_hash("ERROR"),
+                    "2026-07-01T00:00:02Z",
+                    None,
+                    None,
+                    None,
+                    30,
+                    None,
+                    None,
+                    1,
+                    1,
+                ),
+                (
+                    "t3",
+                    "s2",
+                    "read",
+                    "z",
+                    "data",
+                    content_hash("data"),
+                    "2026-07-02T00:00:01Z",
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    "provider-b",
+                    None,
+                    None,
+                ),
             ],
         )
         connection.executemany(
@@ -123,7 +178,14 @@ class GenerateDatabaseReportTest(unittest.TestCase):
                 (id, session_id, stream_text, content_hash, stream_format, captured_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            ("r1", "s1", '{"event":"done"}\n', content_hash('{"event":"done"}\n'), "jsonl-1", "2026-07-01T00:01:00Z"),
+            (
+                "r1",
+                "s1",
+                '{"event":"done"}\n',
+                content_hash('{"event":"done"}\n'),
+                "jsonl-1",
+                "2026-07-01T00:01:00Z",
+            ),
         )
         connection.execute("INSERT INTO bench_runs (id, score) VALUES ('b1', 1)")
         connection.commit()

@@ -3,8 +3,7 @@
 //
 // These verbs register via dispatch.Register
 // (get.go:init, list.go:init, run.go:init, bench.go:init) instead of
-// being entries in the legacy commands slice. The regression net for
-// that move is this file: every case is exercised
+// through the shared command registry. Every case is exercised
 // end-to-end via runWith (the production entry point), which routes
 // through parseGlobalFlags → dispatchRegistry → runRegisteredVerb →
 // the verb's CommandFunc.
@@ -312,10 +311,7 @@ func TestRunWith_ListDispatched(t *testing.T) {
 // exit code is 0. --quiet suppresses the one-line JSON summary
 // that the wrapper writes to stderr on success.
 //
-// Fail companion: a non-zero-exit stub should produce a non-zero
-// exit code (mapped to internal via the dispatcher's typed-error
-// pipeline; the literal child code is preserved only on the test
-// seam).
+// A non-zero child status is forwarded unchanged.
 func TestRunWith_RunDispatched(t *testing.T) {
 	t.Run("run --quiet with stub exiting 0 → no summary, exit 0", func(t *testing.T) {
 		// Isolate filesystem state: testutil sets XDG_DATA_HOME so
@@ -376,26 +372,22 @@ func TestRunWith_RunDispatched(t *testing.T) {
 		}
 	})
 
-	t.Run("fail companion: stub exiting non-zero yields non-zero exit code", func(t *testing.T) {
-		// Fail companion: when the stub exits non-zero, the
-		// wrapper's exit code must reflect that. The dispatch
-		// path maps the literal child exit code to internal (4)
-		// because the locked dispatch API can only represent
-		// typed errors; the test seam preserves the literal code.
-		// This test asserts the dispatch path's behaviour:
-		// a non-zero stub still produces a non-zero exit.
+	t.Run("child exit status is preserved", func(t *testing.T) {
 		testutil.WithTempXDG(t)
 
 		origRunCmd := runCmd
 		t.Cleanup(func() { runCmd = origRunCmd })
 		runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
-			return exec.CommandContext(ctx, "/bin/false")
+			return exec.CommandContext(ctx, "/bin/sh", "-c", "exit 7")
 		}
 
 		var stdout, stderr bytes.Buffer
 		code := runWith([]string{"run", "--quiet", "fake-agent"}, &stdout, &stderr)
-		if code == ExitOK {
-			t.Errorf("exit code = %d, want non-zero (stub exited 1)", code)
+		if code != 7 {
+			t.Errorf("exit code = %d, want 7", code)
+		}
+		if strings.Contains(stderr.String(), `"code":"internal"`) {
+			t.Errorf("child status should not render an internal error: %q", stderr.String())
 		}
 	})
 
@@ -447,9 +439,9 @@ func TestRunWith_BenchReportDispatched(t *testing.T) {
 		// Decode the envelope shape:
 		// {headline, methodology_version, rows}.
 		var env struct {
-			Headline           *float64  `json:"headline"`
-			MethodologyVersion *string   `json:"methodology_version"`
-			Rows               []any     `json:"rows"`
+			Headline           *float64 `json:"headline"`
+			MethodologyVersion *string  `json:"methodology_version"`
+			Rows               []any    `json:"rows"`
 		}
 		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())

@@ -27,8 +27,8 @@ inputs:
     binary: opencode              # OpenCode 1.17.8 (wrapper evidence)
     version: "1.17.8"
   model:
-    id: "glm-5.2-short-fast-flex"     # Re-pinned 2026-06-29 by resonera addendum (prior "claude-sonnet-4-20250514" was hallucinated by an earlier cycle, not a user choice; Anthropic model EOL on 2026-06-30)
-    provider: "neuralwatt"            # Re-pinned 2026-06-29 by resonera addendum
+    id: "glm-5.2-short-fast-flex"
+    provider: "neuralwatt"
   task:
     identifier: "addition_v1"        # Pinned
     prompt: "What is 2+2?"
@@ -67,8 +67,7 @@ computation: |
 #
 # `ktx bench report` is the surface. JSON default with `--format text`
 # for humans; the text rendering surfaces the headline number and the
-# methodology reference (e.g., 'v1'). See Decision 2 (bench namespace
-# shape) and Decision 4 (JSON default + --format text for query commands).
+# methodology reference (e.g., 'v1').
 output:
   artifact: ktx bench report
   default_format: json
@@ -80,11 +79,10 @@ output:
 
 # Out of scope for v1 (explicit deferrals)
 #
-# These are NOT in v1 and are documented as future work, not open
-# questions. See .agentera/decisions.yaml Decision 12 for the rationale.
+# These are not part of the narrow product benchmark methodology.
 out_of_scope:
   - statistical significance / confidence intervals
-  - "ktx bench compare (post-M3)"
-  - compression impact on bench (M4)
-  - cache TTL and auto-refresh (D11 deferral)
+  - multi-pipeline comparison
+  - compression impact on benchmark results
+  - cache TTL and auto-refresh
   - second scoring function (LLM-as-judge is the flexible default acknowledged but not implemented)

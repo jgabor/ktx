@@ -5,38 +5,36 @@
 // access, NO filesystem access, and NO global state — the runner
 // applies them in sequence and the conservative-on-failure invariants
 // (empty-output guard, stage-error passthrough, unknown-stage skip)
-// live in the runner, NOT in the stage author's convention (ktx
-// explicitly rejects the lowfat failure mode).
+// live in the runner, not in stage-author convention.
 //
 // The five built-in stages:
 //
 //   - strip-ansi  : removes ANSI escape sequences (CSI … m, cursor
-//                   moves, etc.) so colored terminal transcripts
-//                   become plain text.
+//     moves, etc.) so colored terminal transcripts
+//     become plain text.
 //   - dedup-blank : collapses runs of 2+ consecutive blank lines to
-//                   a single blank line; single blank lines and
-//                   non-blank content are byte-identical.
+//     a single blank line; single blank lines and
+//     non-blank content are byte-identical.
 //   - head        : keeps the first N lines (default N=10; configurable
-//                   via `head:100`). Input shorter than N is returned
-//                   unchanged; trailing newline preserved.
+//     via `head:100`). Input shorter than N is returned
+//     unchanged; trailing newline preserved.
 //   - truncate    : keeps the first N bytes (default N=4096;
-//                   configurable via `truncate:4096`) and appends a
-//                   marker line `[ktx: truncated N of M bytes]` when
-//                   truncation occurred. Input shorter than N is
-//                   returned unchanged.
+//     configurable via `truncate:4096`) and appends a
+//     marker line `[ktx: truncated N of M bytes]` when
+//     truncation occurred. Input shorter than N is
+//     returned unchanged.
 //   - normalize   : normalizes mixed line endings (\r\n, \r) to \n
-//                   and trims trailing whitespace from each line;
-//                   leading whitespace is preserved.
+//     and trims trailing whitespace from each line;
+//     leading whitespace is preserved.
 //
-// All five stages are OFF by default: only stages named in a
+// All built-in stages are off by default: only stages named in a
 // ktx.toml's `[pipeline.default].stages` array run. RegisterBuiltins
 // populates a registry at package init so the CLI's compress verb
 // can resolve names without a separate plugin loader; the plugin
-// registry (TODO:30) will add a `ktx plugin add` path that
+// registry adds external stages through `ktx plugin add` and
 // registers additional names via external processes.
 //
-// Stage-name tokens: `head`, `truncate`, and (future) any
-// parameterised stage use a `name:arg` token form. The Registry's
+// Parameterized stages use a `name:arg` token form. The Registry's
 // Lookup splits the token at the first colon; the Builder receives
 // the arg (or "" for the bare-name form) and returns a Stage whose
 // configured Behavior depends on the arg.

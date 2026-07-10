@@ -1,10 +1,7 @@
 // End-to-end dispatch tests for the namespace verbs (ktx db, ktx prices,
 // ktx doctor, ktx init).
 //
-// These verbs register via dispatch.Register
-// (db.go:init, prices.go:init, doctor.go:init, init.go:init) instead
-// of being entries in the legacy commands slice. The regression net
-// for that move is this file: every case is
+// These verbs register through the shared command registry. Every case is
 // exercised end-to-end via runWith (the production entry point),
 // which routes through parseGlobalFlags → dispatchRegistry →
 // runRegisteredVerb → the verb's CommandFunc.
@@ -748,14 +745,10 @@ func TestRunWith_InitDispatched(t *testing.T) {
 
 // TestRunWith_NamespaceRegistries checks that the four namespace
 // verbs (db, prices, doctor, init) are all reachable through the
-// dispatch registry on the production entry path. The legacy
-// commandIndex is empty; the registry is the
-// single source of truth for these verbs.
+// dispatch registry on the production entry path.
 //
 // Fail companion: invoking any namespace verb that is NOT
-// registered must produce a usage error (the registry-first
-// dispatch + legacy fall-through surface the unknown-command
-// error envelope).
+// registered must produce a usage error.
 func TestRunWith_NamespaceRegistries(t *testing.T) {
 	t.Run("all four namespace verbs are reachable via runWith", func(t *testing.T) {
 		testutil.WithTempXDG(t)
@@ -811,7 +804,7 @@ func TestRunWith_NamespaceRegistries(t *testing.T) {
 
 // TestRunWith_HelpListsAllVerbs checks that `ktx --help` lists
 // every registered verb (the dispatch registry is the source of
-// truth; the legacy commands slice is empty).
+// truth).
 func TestRunWith_HelpListsAllVerbs(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runWith([]string{"--help"}, &stdout, &stderr)

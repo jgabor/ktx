@@ -58,7 +58,7 @@ output:
 
 out_of_scope:
   - statistical significance / confidence intervals
-  - "ktx bench compare (post-M3)"
-  - compression impact on bench (M4)
-  - cache TTL and auto-refresh (D11 deferral)
+  - multi-pipeline comparison
+  - compression impact on benchmark results
+  - cache TTL and auto-refresh
   - second scoring function (LLM-as-judge is the flexible default acknowledged but not implemented)

@@ -6,7 +6,7 @@ Reports the sessions, tool_calls, compressed, and recorded_streams tables.
 Benchmark runs are intentionally excluded.
 
 Usage:
-    scripts/generate-db-report.py [--db <path>] [--output <path>|-]
+    scripts/generate_db_report.py [--db <path>] [--output <path>|-]
 
 Defaults:
     --db      $KTX_DB or $XDG_DATA_HOME/ktx/ktx.db or ~/.local/share/ktx/ktx.db
@@ -28,22 +28,13 @@ from pathlib import Path
 
 DEFAULT_DB = os.environ.get(
     "KTX_DB",
-    os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "ktx", "ktx.db"),
+    os.path.join(
+        os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "ktx", "ktx.db"
+    ),
 )
 DEFAULT_OUTPUT = "docs/notes/ktx-database-analysis.json"
 REPORT_SCHEMA_VERSION = 2
 REPORT_TABLES = ("sessions", "tool_calls", "compressed", "recorded_streams")
-
-PIPELINE_LABELS = {
-    '["strip-ansi","dedup-blank","normalize","keep-ends:50:20","token-budget:2000"]': "Conservative A",
-    '["strip-ansi","dedup-blank","normalize","keep-ends:200:100","token-budget:8000"]': "Conservative B",
-    '["strip-ansi","dedup-blank","normalize"]': "Lossless-ish",
-    '["strip-ansi","dedup-blank"]': "Minimal",
-    '["strip-ansi","dedup-blank","head:30"]': "Aggressive Head",
-    '["strip-ansi","dedup-blank","keep-ends:50:20","token-budget:2000"]': "Conservative A (no normalize)",
-    '["strip-ansi","dedup-blank","normalize","token-budget:8000"]': "Token-budget 8K",
-    "[]": "Passthrough",
-}
 
 
 @contextmanager
@@ -120,8 +111,14 @@ def distribution(values):
 def pipeline_label(pipeline):
     if pipeline is None:
         return None
-    if pipeline in PIPELINE_LABELS:
-        return PIPELINE_LABELS[pipeline]
+    try:
+        stages = json.loads(pipeline)
+    except (TypeError, json.JSONDecodeError):
+        stages = None
+    if stages == []:
+        return "passthrough"
+    if isinstance(stages, list) and all(isinstance(stage, str) for stage in stages):
+        return " → ".join(stages)
     return pipeline[:40] + "..." if len(pipeline) > 40 else pipeline
 
 
@@ -145,30 +142,41 @@ def extract_schema(conn):
 
 
 def extract_overview(conn):
-    sessions = query_one(conn, """
+    sessions = query_one(
+        conn,
+        """
         SELECT COUNT(*) AS total_sessions,
                COALESCE(SUM(CASE WHEN ended_at IS NULL OR ended_at = '' THEN 1 ELSE 0 END), 0) AS open_sessions,
                COALESCE(SUM(CASE WHEN ended_at IS NOT NULL AND ended_at <> '' THEN 1 ELSE 0 END), 0) AS closed_sessions
         FROM sessions
-    """)
-    calls = query_one(conn, """
+    """,
+    )
+    calls = query_one(
+        conn,
+        """
         SELECT COUNT(*) AS total_tool_calls,
                COALESCE(SUM(length(CAST(input AS BLOB))), 0) AS total_input_bytes,
                COALESCE(SUM(length(CAST(output AS BLOB))), 0) AS total_output_bytes,
                COUNT(DISTINCT session_id) AS sessions_with_tool_calls
         FROM tool_calls
-    """)
-    streams = query_one(conn, """
+    """,
+    )
+    streams = query_one(
+        conn,
+        """
         SELECT COUNT(*) AS total_recorded_streams,
                COALESCE(SUM(length(CAST(stream_text AS BLOB))), 0) AS total_stream_bytes,
                COUNT(DISTINCT session_id) AS sessions_with_recorded_streams
         FROM recorded_streams
-    """)
+    """,
+    )
     return {**sessions, **calls, **streams}
 
 
 def extract_measurement_coverage(conn):
-    metrics = query_one(conn, """
+    metrics = query_one(
+        conn,
+        """
         SELECT COUNT(*) AS total_tool_calls,
                COUNT(tokens_in) AS calls_with_tokens_in,
                COUNT(tokens_out) AS calls_with_tokens_out,
@@ -182,7 +190,8 @@ def extract_measurement_coverage(conn):
                SUM(tokens_out) AS total_tokens_out,
                SUM(cost) AS total_cost
         FROM tool_calls
-    """)
+    """,
+    )
     total = metrics.pop("total_tool_calls")
     coverage = {}
     for name in (
@@ -210,7 +219,9 @@ def extract_measurement_coverage(conn):
         "coverage": coverage,
         "totals": metrics,
         "latency_ms_distribution": distribution(latency_values),
-        "models": query_json(conn, """
+        "models": query_json(
+            conn,
+            """
             SELECT model, COUNT(*) AS call_count,
                    SUM(tokens_in) AS tokens_in,
                    SUM(tokens_out) AS tokens_out,
@@ -219,8 +230,11 @@ def extract_measurement_coverage(conn):
             WHERE model IS NOT NULL
             GROUP BY model
             ORDER BY call_count DESC, model
-        """),
-        "providers": query_json(conn, """
+        """,
+        ),
+        "providers": query_json(
+            conn,
+            """
             SELECT provider, COUNT(*) AS call_count,
                    SUM(tokens_in) AS tokens_in,
                    SUM(tokens_out) AS tokens_out,
@@ -229,31 +243,40 @@ def extract_measurement_coverage(conn):
             WHERE provider IS NOT NULL
             GROUP BY provider
             ORDER BY call_count DESC, provider
-        """),
+        """,
+        ),
     }
 
 
 def extract_failure_metrics(conn):
-    statuses = query_one(conn, """
+    statuses = query_one(
+        conn,
+        """
         SELECT COALESCE(SUM(CASE WHEN is_error = 1 THEN 1 ELSE 0 END), 0) AS error_calls,
                COALESCE(SUM(CASE WHEN is_error = 0 THEN 1 ELSE 0 END), 0) AS successful_calls,
                COALESCE(SUM(CASE WHEN is_error IS NULL THEN 1 ELSE 0 END), 0) AS unknown_status_calls
         FROM tool_calls
-    """)
+    """,
+    )
     known = statuses["error_calls"] + statuses["successful_calls"]
     statuses["error_rate_pct_of_known"] = percentage(statuses["error_calls"], known)
-    statuses["exit_codes"] = query_json(conn, """
+    statuses["exit_codes"] = query_json(
+        conn,
+        """
         SELECT exit_code, COUNT(*) AS call_count
         FROM tool_calls
         WHERE exit_code IS NOT NULL
         GROUP BY exit_code
         ORDER BY call_count DESC, exit_code
-    """)
+    """,
+    )
     return statuses
 
 
 def extract_tool_metrics(conn):
-    return query_json(conn, """
+    return query_json(
+        conn,
+        """
         SELECT tool,
                COUNT(*) AS call_count,
                COUNT(DISTINCT session_id) AS session_count,
@@ -268,11 +291,14 @@ def extract_tool_metrics(conn):
         FROM tool_calls
         GROUP BY tool
         ORDER BY call_count DESC, tool
-    """)
+    """,
+    )
 
 
 def extract_agent_metrics(conn):
-    return query_json(conn, """
+    return query_json(
+        conn,
+        """
         WITH session_counts AS (
             SELECT agent, COUNT(*) AS session_count
             FROM sessions
@@ -298,7 +324,8 @@ def extract_agent_metrics(conn):
         FROM session_counts sc
         JOIN call_counts cc ON sc.agent IS cc.agent
         ORDER BY cc.tool_call_count DESC, sc.agent
-    """)
+    """,
+    )
 
 
 def compression_group(rows, key):
@@ -312,8 +339,7 @@ def compression_group(rows, key):
         compressed_bytes = sum(row["compressed_bytes"] for row in artifacts)
         savings = [row["original_bytes"] - row["compressed_bytes"] for row in artifacts]
         ratios = [
-            reduction_pct(row["original_bytes"], row["compressed_bytes"])
-            for row in artifacts
+            reduction_pct(row["original_bytes"], row["compressed_bytes"]) for row in artifacts
         ]
         item = {
             key: group_key,
@@ -336,7 +362,9 @@ def compression_group(rows, key):
 
 
 def extract_compression_metrics(conn, total_tool_calls, include_identifiers):
-    rows = query_json(conn, """
+    rows = query_json(
+        conn,
+        """
         SELECT c.id, c.source_id, c.pipeline, c.timestamp,
                tc.tool, tc.session_id, s.agent, s.started_at,
                COALESCE(length(CAST(tc.output AS BLOB)), 0) AS original_bytes,
@@ -345,7 +373,8 @@ def extract_compression_metrics(conn, total_tool_calls, include_identifiers):
         JOIN tool_calls tc ON tc.id = c.source_id
         JOIN sessions s ON s.id = tc.session_id
         ORDER BY c.timestamp, c.id
-    """)
+    """,
+    )
     source_counts = defaultdict(int)
     for row in rows:
         source_counts[row["source_id"]] += 1
@@ -353,19 +382,20 @@ def extract_compression_metrics(conn, total_tool_calls, include_identifiers):
     original_bytes = sum(row["original_bytes"] for row in rows)
     compressed_bytes = sum(row["compressed_bytes"] for row in rows)
     unique_sources = len(source_counts)
-    unique_source_bytes = sum({
-        row["source_id"]: row["original_bytes"] for row in rows
-    }.values())
+    unique_source_bytes = sum({row["source_id"]: row["original_bytes"] for row in rows}.values())
     savings = [row["original_bytes"] - row["compressed_bytes"] for row in rows]
 
     session_groups = compression_group(rows, "session_id")
     session_call_stats = {}
-    for row in query_json(conn, """
+    for row in query_json(
+        conn,
+        """
             SELECT tc.session_id, COUNT(*) AS tool_call_count,
                    COALESCE(SUM(length(CAST(tc.output AS BLOB))), 0) AS total_output_bytes
             FROM tool_calls tc
             GROUP BY tc.session_id
-        """):
+        """,
+    ):
         session_call_stats[row.pop("session_id")] = row
     session_metadata = {}
     for row in rows:
@@ -401,10 +431,9 @@ def extract_compression_metrics(conn, total_tool_calls, include_identifiers):
             "passthrough_artifacts": sum(value == 0 for value in savings),
             "worsened_artifacts": sum(value < 0 for value in savings),
             "bytes_saved_distribution": distribution(savings),
-            "reduction_pct_distribution": distribution([
-                reduction_pct(row["original_bytes"], row["compressed_bytes"])
-                for row in rows
-            ]),
+            "reduction_pct_distribution": distribution(
+                [reduction_pct(row["original_bytes"], row["compressed_bytes"]) for row in rows]
+            ),
         },
         "by_tool": compression_group(rows, "tool"),
         "by_pipeline": compression_group(rows, "pipeline"),
@@ -413,7 +442,9 @@ def extract_compression_metrics(conn, total_tool_calls, include_identifiers):
 
 
 def extract_session_lifecycle(conn, include_identifiers):
-    rows = query_json(conn, """
+    rows = query_json(
+        conn,
+        """
         SELECT s.id, s.tool_call_count AS recorded_tool_call_count,
                COUNT(tc.id) AS actual_tool_call_count,
                s.started_at, s.ended_at, s.last_seen_at,
@@ -425,7 +456,8 @@ def extract_session_lifecycle(conn, include_identifiers):
         LEFT JOIN tool_calls tc ON tc.session_id = s.id
         GROUP BY s.id
         ORDER BY s.id
-    """)
+    """,
+    )
     durations = []
     mismatches = []
     for row in rows:
@@ -453,26 +485,34 @@ def extract_session_lifecycle(conn, include_identifiers):
 
 
 def extract_recorded_stream_metrics(conn):
-    overview = query_one(conn, """
+    overview = query_one(
+        conn,
+        """
         SELECT COUNT(*) AS stream_count,
                COUNT(DISTINCT session_id) AS session_count,
                COALESCE(SUM(length(CAST(stream_text AS BLOB))), 0) AS stream_bytes,
                MIN(captured_at) AS first_captured_at,
                MAX(captured_at) AS last_captured_at
         FROM recorded_streams
-    """)
-    overview["formats"] = query_json(conn, """
+    """,
+    )
+    overview["formats"] = query_json(
+        conn,
+        """
         SELECT stream_format, COUNT(*) AS stream_count,
                COALESCE(SUM(length(CAST(stream_text AS BLOB))), 0) AS stream_bytes
         FROM recorded_streams
         GROUP BY stream_format
         ORDER BY stream_count DESC, stream_format
-    """)
+    """,
+    )
     return overview
 
 
 def extract_daily_activity(conn):
-    rows = query_json(conn, """
+    rows = query_json(
+        conn,
+        """
         WITH dates AS (
             SELECT DATE(started_at) AS date FROM sessions
             UNION
@@ -539,7 +579,8 @@ def extract_daily_activity(conn):
         LEFT JOIN stream_daily rs ON rs.date = d.date
         WHERE d.date IS NOT NULL
         ORDER BY d.date
-    """)
+    """,
+    )
     for row in rows:
         row["compression_reduction_pct"] = reduction_pct(
             row["compression_source_bytes"], row["compressed_bytes"]
@@ -561,9 +602,7 @@ def extract_integrity(conn):
             "mismatch_count": 0,
             "missing_hash_count": 0,
         }
-        cursor = conn.execute(
-            f"SELECT content_hash, CAST({content_column} AS BLOB) FROM {table}"
-        )
+        cursor = conn.execute(f"SELECT content_hash, CAST({content_column} AS BLOB) FROM {table}")
         for stored_hash, content in cursor:
             counts["row_count"] += 1
             if not stored_hash:

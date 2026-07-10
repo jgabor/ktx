@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Python tooling
+        run: pipx install ruff
+      - name: Check formatting
+        run: |
+          test -z "$(gofmt -l cmd internal tools/bench/data.go)"
+          ruff format --check scripts tools/bench
+      - name: Test and lint
+        run: make go-test python-test lint shell-check

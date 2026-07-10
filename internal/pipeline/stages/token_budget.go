@@ -1,8 +1,8 @@
 // token-budget stage: line-safe truncation to an approximate token
 // budget.
 //
-// lowfat's pipeline.rs:254-271 estimates tokens as (len+3)/4 (the
-// common 4-chars-per-token heuristic) and truncates to a target char
+// The stage estimates tokens with the common four-characters-per-token
+// heuristic and truncates to a target character
 // count, snapping back to the last newline so no line is cut mid-way.
 // This is the deterministic, ML-free truncation that keeps verbose
 // tool output within a context budget without losing line structure.

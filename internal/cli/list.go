@@ -125,7 +125,7 @@ func listLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (an
 		// dbpkg.Session struct (so its fields are flattened into the
 		// output object) and adds the optional costs pointer.
 		// The wrapper avoids touching the Session struct in
-		// internal/db/persist.go while keeping the JSON
+		// internal/db/records.go while keeping the JSON
 		// output shape exactly the same plus a top-level costs object
 		// when present. omitempty on the Costs field means a session with no
 		// non-NULL cost data does not emit the field at all; omission is
@@ -152,7 +152,7 @@ func listLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (an
 // when the session has no non-NULL cost data.
 //
 // The wrapper type is local to the cli package so the on-disk
-// dbpkg.Session shape (in internal/db/persist.go, off-limits)
+// dbpkg.Session shape (in internal/db/records.go)
 // is not modified.
 type sessionListRow struct {
 	dbpkg.Session

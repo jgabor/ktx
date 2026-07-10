@@ -8,15 +8,7 @@
 // The --path flag is per-invocation only; nothing is persisted. Path
 // precedence: --path flag > KTX_DB env > $XDG_DATA_HOME/ktx/ktx.db.
 //
-// The verb registers via dispatch.Register with
-// NeedsDB=false (it only resolves and prints the path — the verb does
-// not touch the database). The legacy runDBWith remains the test
-// seam and still parses its own flags; the dispatch
-// wrapper extracts --path via a stdlib flag.NewFlagSet inside the
-// shared dbLogic core so both call sites have identical semantics.
-// The dispatch registry is consulted before the legacy commandIndex
-// (cli.go), so the registered verb shadows the legacy entry as soon
-// as init() runs.
+// The command resolves and prints paths without opening the database.
 package cli
 
 import (
@@ -111,56 +103,34 @@ func dbPathLogic(pathOverride string, stdout io.Writer) (any, error) {
 
 // dbCommandFunc is the dispatch wrapper. The dispatcher already
 // parsed --help/-h (via the Help hook) and --format; the verb
-// receives a *DispatchContext carrying a clean positional Args tail
-// (the dbPreParse hook extracted --path before the dispatcher flag
-// set ran, and the value lives in dbScratch.pathOverride). The
-// verb's only responsibility is to apply dbLogic with the
-// stashed --path override and surface the typed error to the
-// dispatcher's printError + exitCodeOf pipeline.
+// receives a context carrying a clean positional tail and parsed path override.
 //
 // NeedsDB=false: ktx db never touches the database — it only
 // resolves and prints the path. The dispatcher's dbpkg.ResolvePath
 // + dbpkg.Open calls are skipped, so a missing or unreadable
-// database file does not block this verb (the AC contract that
-// `ktx db path` works without an existing database).
+// database file does not block this verb.
 func dbCommandFunc(ctx *DispatchContext) (any, error) {
-	// Rebuild the args from dbScratch.pathOverride + ctx.Args
-	// so dbLogic's own flag set can re-parse --path
-	// consistently. dbLogic uses the same flag set on both
-	// call sites (legacy seam and dispatch wrapper), so the
-	// dispatch path's behavior is identical to the legacy
-	// seam's.
+	parsed, ok := ctx.ParsedArgs.(dbParsedArgs)
+	if !ok {
+		return nil, internalError("ktx db: command arguments were not parsed")
+	}
+	// Rebuild the args so dbLogic remains the single path-resolution module.
 	args := ctx.Args
-	if dbScratch.pathOverride != "" {
-		args = append([]string{"--path", dbScratch.pathOverride}, args...)
+	if parsed.pathOverride != "" {
+		args = append([]string{"--path", parsed.pathOverride}, args...)
 	}
 	return dbLogic(args, ctx.Format, ctx.Stdout, ctx.Stderr)
 }
 
-// dbPreParse is the dispatcher's PreParse hook for `ktx db`. It
-// extracts the verb-specific --path flag (per-invocation path
-// override) and stashes the value in dbScratch. The
-// dispatcher consumes --path because the per-verb flag set in
-// runRegisteredVerb only knows about --help and --quiet; if we
-// let the verb parse --path directly, the dispatcher's flag set
-// would reject it ("flag provided but not defined: -path"). The
-// PreParse hook extracts --path before the dispatcher's flag set
-// runs and returns the remaining args (so --path is consumed).
-//
-// Hand-rolled rather than stdlib flag: the dispatcher's flag set
-// already handles --help/-h, --quiet/-q; the PreParse hook must
-// pass those through unchanged. stdlib flag.NewFlagSet would
-// reject unknown flags (including --help if --help is not
-// registered on this set), so a hand-rolled walk is simpler.
-func dbPreParse(args []string) ([]string, error) {
-	dbScratchReset()
+// parseDBDispatchArgs extracts the per-invocation path override.
+func parseDBDispatchArgs(args []string) ([]string, any, error) {
 	var pathOverride string
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--path" {
 			if i+1 >= len(args) {
-				return nil, fmt.Errorf("--path requires a value")
+				return nil, nil, fmt.Errorf("--path requires a value")
 			}
 			pathOverride = args[i+1]
 			i++ // skip the value
@@ -172,23 +142,12 @@ func dbPreParse(args []string) ([]string, error) {
 		}
 		rest = append(rest, a)
 	}
-	dbScratch.pathOverride = pathOverride
-	return rest, nil
+	return rest, dbParsedArgs{pathOverride: pathOverride}, nil
 }
 
-// dbScratch holds the PreParse result for ktx db. The dispatch
-// module's PreParse signature is `(args) (rest, err)`; db needs
-// to surface (pathOverride) to the verb body. A package-level
-// scratch variable bridges the gap; safe because
-// runRegisteredVerb is synchronous.
-type dbScratchValue struct {
+// dbParsedArgs carries command-specific flags to dbCommandFunc.
+type dbParsedArgs struct {
 	pathOverride string
-}
-
-var dbScratch dbScratchValue
-
-func dbScratchReset() {
-	dbScratch = dbScratchValue{}
 }
 
 // init registers `ktx db` with the dispatch module. After init runs,
@@ -197,7 +156,7 @@ func init() {
 	Register("db", RegisterOptions{
 		Description: "database operations (path, prune)",
 		NeedsDB:     false,
-		PreParse:    dbPreParse,
+		ParseArgs:   parseDBDispatchArgs,
 		Help:        printDBHelp,
 	}, dbCommandFunc)
 }

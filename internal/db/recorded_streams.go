@@ -225,8 +225,8 @@ func (d *DB) GetRecordedStreamBySession(sessionID string) (*RecordedStream, erro
 // uniform across both getters.
 func (d *DB) GetRecordedStreamByBenchRun(benchRunID string) (*RecordedStream, error) {
 	var (
-		rs    RecordedStream
-		brID  sql.NullString
+		rs   RecordedStream
+		brID sql.NullString
 	)
 	err := d.db.QueryRow(
 		`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at

@@ -16,6 +16,7 @@ import (
 
 func hookTestDB(t *testing.T) *dbpkg.DB {
 	t.Helper()
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	path := os.Getenv("KTX_DB")
 	if path == "" {
 		path = t.TempDir() + "/ktx.db"

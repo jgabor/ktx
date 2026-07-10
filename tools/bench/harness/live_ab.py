@@ -110,12 +110,16 @@ def parser():
     result.add_argument("--auth")
     result.add_argument("--repo-root")
     result.add_argument(
+        "--methodology",
+        help="evaluation methodology (default: tools/bench/methodology-v4-eval-matrix.yaml)",
+    )
+    result.add_argument(
         "--baseline-config",
-        help="ktx.toml for baseline pipeline (default: tools/bench/ktx.toml.baseline)",
+        help="ktx.toml for baseline pipeline (default: tools/bench/pipelines/passthrough.toml)",
     )
     result.add_argument(
         "--candidate-config",
-        help="ktx.toml for candidate pipeline (default: tools/bench/ktx.toml.candidate)",
+        help="ktx.toml for candidate pipeline (default: tools/bench/pipelines/conservative-a.toml)",
     )
     result.add_argument(
         "--workspace-mode",
@@ -143,6 +147,21 @@ def config_metadata(path):
         "sha256": sha256_file(path),
         "stages": stages,
     }
+
+
+def methodology_metadata(path):
+    path = Path(path).resolve()
+    if not path.is_file():
+        raise RuntimeError(f"methodology not found: {path}")
+    version = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        key, separator, value = line.partition(":")
+        if separator and key.strip() == "methodology_version":
+            version = value.strip().strip("\"'")
+            break
+    if not version:
+        raise RuntimeError(f"methodology_version missing from {path}")
+    return {"version": version, "path": str(path), "sha256": sha256_file(path)}
 
 
 def directory_sha256(path):
@@ -232,15 +251,11 @@ def prepare_repo_workspace(repository_root, workspace):
                 continue
             relative = (directory_path / name).relative_to(repository_root).as_posix()
             # Task specs and generator embed planted facts; keep them out of agent view.
-            if (
-                relative
-                in {
-                    "tools/bench/generate_corpus.py",
-                    "docs/pipelines.md",
-                    "tools/bench/tasks",
-                }
-                or relative.startswith("tools/bench/tasks/")
-            ):
+            if relative in {
+                "tools/bench/generate_corpus.py",
+                "docs/pipelines.md",
+                "tools/bench/tasks",
+            } or relative.startswith("tools/bench/tasks/"):
                 ignored.add(name)
             if name == "MANIFEST.json" and relative.startswith("tools/bench/corpus/"):
                 ignored.add(name)
@@ -303,7 +318,11 @@ def load_task_file(path):
     if not isinstance(minimum_tool_calls, int) or minimum_tool_calls < 0:
         raise RuntimeError(f"task file has invalid minimum_tool_calls: {path}")
     if kind == "multi_fact_fractional":
-        if not isinstance(facts, list) or not facts or not all(isinstance(item, str) for item in facts):
+        if (
+            not isinstance(facts, list)
+            or not facts
+            or not all(isinstance(item, str) for item in facts)
+        ):
             raise RuntimeError(f"task file needs scoring.facts string list: {path}")
         expected_output = None
         expected_facts = list(facts)
@@ -315,7 +334,9 @@ def load_task_file(path):
     else:
         raise RuntimeError(f"unsupported scoring.kind {kind!r} in {path}")
     corpus_files = parsed.get("corpus_files") or []
-    if not isinstance(corpus_files, list) or not all(isinstance(item, str) for item in corpus_files):
+    if not isinstance(corpus_files, list) or not all(
+        isinstance(item, str) for item in corpus_files
+    ):
         raise RuntimeError(f"task file corpus_files must be a string list: {path}")
     workspace_mode = parsed.get("workspace_mode")
     if workspace_mode is None:
@@ -386,9 +407,7 @@ def repository_metadata(repo_root):
 
 
 def docker_image_id(docker_bin, image):
-    return command_output(
-        [docker_bin, "image", "inspect", image, "--format", "{{.Id}}"]
-    ).strip()
+    return command_output([docker_bin, "image", "inspect", image, "--format", "{{.Id}}"]).strip()
 
 
 def docker_identity(docker_bin, image, config_path):
@@ -498,7 +517,9 @@ def exclusion_reason(record, minimum_tool_calls):
 
 def build_summary(manifest, attempts):
     minimum_tool_calls = manifest["task"]["minimum_tool_calls"]
-    grouped = {side: [record for record in attempts if record.get("side") == side] for side in SIDES}
+    grouped = {
+        side: [record for record in attempts if record.get("side") == side] for side in SIDES
+    }
     pipelines = {}
     exclusions = []
     for side in SIDES:
@@ -506,9 +527,7 @@ def build_summary(manifest, attempts):
         evaluated = [
             record for record in records if attempt_is_evaluated(record, minimum_tool_calls)
         ]
-        counted = [
-            record for record in records if attempt_is_full_pass(record, minimum_tool_calls)
-        ]
+        counted = [record for record in records if attempt_is_full_pass(record, minimum_tool_calls)]
         status_counts = {status: 0 for status in ATTEMPT_STATUSES}
         for record in records:
             status = record.get("status")
@@ -577,9 +596,7 @@ def build_summary(manifest, attempts):
             else pipelines["candidate"][field]
         )
         deltas[field] = (
-            baseline - candidate
-            if baseline is not None and candidate is not None
-            else None
+            baseline - candidate if baseline is not None and candidate is not None else None
         )
     baseline_tools = pipelines["baseline"]["tool_call_count"]["mean"]
     candidate_tools = pipelines["candidate"]["tool_call_count"]["mean"]
@@ -590,7 +607,7 @@ def build_summary(manifest, attempts):
     )
     return {
         "schema_version": 1,
-        "methodology_version": "v4-eval-matrix",
+        "methodology_version": manifest.get("methodology", {}).get("version", "v4-eval-matrix"),
         "experiment_id": manifest["experiment_id"],
         "target_valid_per_pipeline": manifest["target_valid_per_pipeline"],
         "minimum_tool_calls": minimum_tool_calls,
@@ -615,12 +632,8 @@ def write_summary(experiment_dir):
 
 
 def render_summary(summary):
-    rows = [
-        "side       full  eval  attempts  avg tokens in  avg cost    fact score  $/correct"
-    ]
-    rows.append(
-        "---------  ----  ----  --------  -------------  ----------  ----------  ---------"
-    )
+    rows = ["side       full  eval  attempts  avg tokens in  avg cost    fact score  $/correct"]
+    rows.append("---------  ----  ----  --------  -------------  ----------  ----------  ---------")
     for side in SIDES:
         details = summary["pipelines"][side]
         tokens = details["tokens_in"]["mean"]
@@ -821,9 +834,10 @@ def run_attempt(args, manifest, experiment_dir, side, cycle, ordinal, docker_bin
         args.model,
         args.prompt,
     ]
-    with stream.open("w", encoding="utf-8") as stdout_handle, stderr.open(
-        "w", encoding="utf-8"
-    ) as stderr_handle:
+    with (
+        stream.open("w", encoding="utf-8") as stdout_handle,
+        stderr.open("w", encoding="utf-8") as stderr_handle,
+    ):
         result = subprocess.run(command, stdout=stdout_handle, stderr=stderr_handle)
     ended_at = utc_now()
     workspace_metadata = {
@@ -876,8 +890,12 @@ def run_attempt(args, manifest, experiment_dir, side, cycle, ordinal, docker_bin
             "stream": str(stream.relative_to(experiment_dir)),
             "stderr": str(stderr.relative_to(experiment_dir)),
             "workspace": str(workspace.relative_to(experiment_dir)),
-            "sessions_before": str((attempt_dir / "sessions-before.json").relative_to(experiment_dir)),
-            "sessions_after": str((attempt_dir / "sessions-after.json").relative_to(experiment_dir)),
+            "sessions_before": str(
+                (attempt_dir / "sessions-before.json").relative_to(experiment_dir)
+            ),
+            "sessions_after": str(
+                (attempt_dir / "sessions-after.json").relative_to(experiment_dir)
+            ),
         },
         "content_hashes": {
             "stream": sha256_file(stream),
@@ -911,9 +929,7 @@ def create_manifest(args, experiment_dir, docker_bin, configs, snapshot_metadata
             "expected_output": args.expected_output,
             "expected_facts": getattr(args, "expected_facts", None),
             "scoring_kind": (
-                "multi_fact_fractional"
-                if getattr(args, "expected_facts", None)
-                else "exact_match"
+                "multi_fact_fractional" if getattr(args, "expected_facts", None) else "exact_match"
             ),
             "minimum_tool_calls": args.min_tool_calls,
             "task_file": getattr(args, "task_file", None),
@@ -945,6 +961,7 @@ def create_manifest(args, experiment_dir, docker_bin, configs, snapshot_metadata
         },
         "identities": docker_identity(docker_bin, args.image, configs["baseline"]["path"]),
         "pipelines": configs,
+        "methodology": args.methodology,
     }
     (experiment_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
@@ -1029,20 +1046,39 @@ def main(argv=None):
             print(render_summary(summary))
         return 0
 
-    repo_root = Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parent.parent
+    repo_root = (
+        Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parents[3]
+    )
     args.repo_root = repo_root
+    args.methodology = methodology_metadata(
+        Path(args.methodology).resolve()
+        if args.methodology
+        else repo_root / "tools" / "bench" / "methodology-v4-eval-matrix.yaml"
+    )
     args.data_dir = (
         Path(args.data_dir).resolve()
         if args.data_dir
         else Path(os.environ.get("KTX_BENCH_DATA", repo_root / ".bench-data")).resolve()
     )
-    args.auth = Path(args.auth).expanduser().resolve() if args.auth else Path.home() / ".local/share/opencode/auth.json"
+    args.auth = (
+        Path(args.auth).expanduser().resolve()
+        if args.auth
+        else Path.home() / ".local/share/opencode/auth.json"
+    )
     validate_run_arguments(args)
     docker_bin = command_path("docker")
     ktx_bin = command_path("ktx", repo_root / "ktx")
     if args.build:
         subprocess.run(
-            [docker_bin, "build", "-f", str(repo_root / "Dockerfile.benchmark"), "-t", args.image, str(repo_root)],
+            [
+                docker_bin,
+                "build",
+                "-f",
+                str(repo_root / "Dockerfile.benchmark"),
+                "-t",
+                args.image,
+                str(repo_root),
+            ],
             check=True,
         )
     docker_image_id(docker_bin, args.image)
@@ -1064,12 +1100,12 @@ def main(argv=None):
     baseline_config = (
         Path(args.baseline_config).resolve()
         if args.baseline_config
-        else repo_root / "tools" / "bench" / "ktx.toml.baseline"
+        else repo_root / "tools" / "bench" / "pipelines" / "passthrough.toml"
     )
     candidate_config = (
         Path(args.candidate_config).resolve()
         if args.candidate_config
-        else repo_root / "tools" / "bench" / "ktx.toml.candidate"
+        else repo_root / "tools" / "bench" / "pipelines" / "conservative-a.toml"
     )
     configs = snapshot_configs(
         experiment_dir,

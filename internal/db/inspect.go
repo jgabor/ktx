@@ -254,7 +254,7 @@ func (d *DB) HasBenchRunsColumns() (missing []string, err error) {
 
 // SampleIDs returns up to limit IDs from each table, ordered as the
 // rows are stored (insertion order in practice). Used by `ktx doctor`
-// to validate that persisted IDs match Decision 3: 16-char lowercase
+// to validate that persisted IDs use the 16-character lowercase
 // alphabetic. Empty databases return empty slices with a nil error —
 // the caller treats "no samples" as a vacuously-true ID format check.
 //

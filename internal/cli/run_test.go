@@ -48,7 +48,7 @@ func TestExecuteRun_RunCmdInjection(t *testing.T) {
 		}
 
 		var stdout, stderr bytes.Buffer
-		code := executeRun("fake-agent", []string{"ignored"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		code := executeRun("fake-agent", []string{"ignored"}, runOptions{Format: FormatJSON}, &stdout, &stderr)
 
 		if code != 0 {
 			t.Fatalf("exit code = %d, want 0 (stderr=%q)", code, stderr.String())

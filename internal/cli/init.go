@@ -34,14 +34,7 @@
 // Path resolution (project): ./.opencode/plugins/ktx.ts relative to the
 // invocation's CWD.
 //
-// The verb registers via dispatch.Register with
-// NeedsDB=false (no ktx database involvement) and a PreParse hook that
-// delegates to the hand-rolled parseInitArgs. The hook stashes the
-// parsed initFlags + runtime into a package-level scratch variable;
-// the verb body reads the scratch and dispatches. The hook keeps
-// parseInitArgs intact (test seam); the verb's only
-// responsibility after PreParse is to invoke the action and surface
-// typed errors to the dispatcher's printError + exitCodeOf pipeline.
+// The command parses its runtime and action flags without opening the database.
 package cli
 
 import (
@@ -59,29 +52,10 @@ import (
 // loader; a .js sibling would not be loaded by the same code path.
 const ktxPluginFileName = "ktx.ts"
 
-// initScratch holds the parseInitArgs result across the PreParse →
-// verb body hop. The dispatch module's PreParse hook signature is
-// `(args) (rest, err)`; init needs to surface (initFlags, runtime)
-// to the verb body, but the hook API has no side channel. A
-// package-level scratch variable is the simplest bridge; it is safe
-// because runRegisteredVerb is synchronous (the verb body reads
-// initScratch before the next invocation starts).
-type initScratchValue struct {
+// initParsedArgs carries command-specific arguments to initCommandFunc.
+type initParsedArgs struct {
 	flags   initFlags
 	runtime string
-}
-
-// initScratch is the package-level scratch variable used to pass
-// parseInitArgs results from the PreParse hook to the verb body.
-// Reset to the zero value at the start of each invocation via
-// initScratchReset so a previous invocation's state cannot leak
-// into the next one.
-var initScratch initScratchValue
-
-// initScratchReset clears the scratch variable. Called at the start
-// of every init invocation to ensure clean state.
-func initScratchReset() {
-	initScratch = initScratchValue{}
 }
 
 // ktxOpencodePluginTemplate is the TypeScript source written to the
@@ -110,7 +84,7 @@ func initScratchReset() {
 //   - Generates a fresh 16-char lowercase alpha nanoid matching the
 //     alphabet.
 //
-// Presence check (rtk pattern): the plugin factory verifies the ktx
+// Presence check: the plugin factory verifies the ktx
 // binary is in PATH before registering the tool.execute.after hook. If
 // ktx is missing, no hooks are registered and a one-line warn makes
 // the disabled state visible — without this, every tool call would
@@ -239,8 +213,7 @@ func runInitWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // The parseInitArgs call is the hand-rolled walker that handles
 // `ktx init opencode --show` correctly (the runtime name is
 // positional, so stdlib flag would stop at it). The walker is
-// called from both runInitWith and the PreParse hook (which sets
-// the package-level initScratch); the verb body reads initScratch.
+// called from both runInitWith and the dispatch argument parser.
 func initLogic(args []string, format string, stdout, stderr io.Writer) (any, error) {
 	f, runtime, err := parseInitArgs(args)
 	if err != nil {
@@ -472,42 +445,27 @@ func writeShowReport(w io.Writer, primary string, also []string, format string) 
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-// initPreParse is the dispatcher's PreParse hook for `ktx init`. It
-// calls parseInitArgs (the hand-rolled walker that handles
-// `ktx init opencode --show` correctly — the runtime name is
-// positional so stdlib flag would stop at it) and stashes the
-// result in the package-level initScratch variable. The verb body
-// reads initScratch to dispatch on the runtime + action flags.
-//
-// The hook returns (nil, err) on parse failure (the dispatcher
-// surfaces the error as a usage envelope); an empty rest slice
-// (parseInitArgs consumed everything) and a nil error on success.
-// The dispatcher's flag set sees an empty rest, so --help/-h
-// fall through to the dispatcher's Help hook (which renders
-// printInitHelp via the registry).
-func initPreParse(args []string) ([]string, error) {
-	initScratchReset()
+// parseInitDispatchArgs consumes the runtime positional and init flags.
+func parseInitDispatchArgs(args []string) ([]string, any, error) {
 	f, runtime, err := parseInitArgs(args)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	initScratch.flags = f
-	initScratch.runtime = runtime
-	return nil, nil
+	return nil, initParsedArgs{flags: f, runtime: runtime}, nil
 }
 
 // initCommandFunc is the dispatch wrapper. The dispatcher already
-// parsed the args via the initPreParse hook; the verb body reads
-// the parsed values from initScratch and dispatches on the
-// runtime + action flags. The verb's only responsibility is to
-// invoke the action and surface the appropriate typed error to
-// the dispatcher's printError + exitCodeOf pipeline.
+// parsed the init-specific arguments and carries them on the context.
 //
 // NeedsDB=false: ktx init never touches the ktx database — it
 // only writes/reads/removes plugin files on disk.
 func initCommandFunc(ctx *DispatchContext) (any, error) {
-	f := initScratch.flags
-	runtime := initScratch.runtime
+	parsed, ok := ctx.ParsedArgs.(initParsedArgs)
+	if !ok {
+		return nil, internalError("ktx init: command arguments were not parsed")
+	}
+	f := parsed.flags
+	runtime := parsed.runtime
 
 	if f.showHelp {
 		printInitHelp(ctx.Stdout)
@@ -539,7 +497,7 @@ func init() {
 	Register("init", RegisterOptions{
 		Description: "install a runtime adapter",
 		NeedsDB:     false,
-		PreParse:    initPreParse,
+		ParseArgs:   parseInitDispatchArgs,
 		Help:        printInitHelp,
 	}, initCommandFunc)
 }

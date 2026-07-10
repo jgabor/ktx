@@ -1,7 +1,0 @@
-# ktx.toml for benchmark candidate (default live-ab candidate pipeline)
-#
-# Matches tools/bench/pipelines/conservative-a.toml from the evaluation
-# matrix (docs/pipelines.md). Override with live-ab --candidate-config.
-
-[pipeline.default]
-stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]

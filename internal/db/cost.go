@@ -1,39 +1,5 @@
-// Cost derivation is a deep module: a small interface
-// (PriceSource) hides the cache lookup and the cold-fetch policy; a
-// tiny struct (costDeriver) holds the math and the NULL-preservation
-// branches; a single shape (CostInputs) is the cross-struct adapter
-// the two write-time callers (PersistToolCall and InsertBenchRun) use
-// to delegate. The two callers become thin wrappers that build
-// CostInputs and call Derive.
-//
-// Why a deep module here (vs. the previous two inline helpers):
-// the two write-time paths shared the same math, the same cache
-// policy, the same rounding precision, and the same NULL-preservation
-// contract; only the input shape differed (ToolCall vs BenchRun).
-// Inlining the helper in each file kept the duplication hidden
-// behind identical function bodies. The deep module unifies the
-// math and the policy behind a small interface so a future third
-// caller (the compress hook path, the bench-replay rewriter, the audit
-// report) imports the same cost-derivation contract with the same rounding
-// precision without copying the lookup-then-cold-fetch-then-round
-// sequence.
-//
-// Concurrency: costDeriver is not concurrency-safe by itself. The
-// instance is meant to be created per call site (a single
-// `&costDeriver{}` literal is enough), and the caller (PersistToolCall,
-// InsertBenchRun) holds the only reference to the PriceSource. The
-// *Prices implementation of PriceSource is itself concurrency-safe
-// (sync.RWMutex inside prices.go); the deriver adds no shared state
-// to the lookup path, so the contract is "one goroutine per
-// (deriver, source) pair". The two existing write-time callers are
-// single-goroutine by construction (the wrapper's teeAndParse loop
-// is sequential), so the contract holds in practice.
-//
-// Soft-fail: Derive never returns an error. Every branch that
-// cannot derive returns nil — caller-supplied wins, NULL inputs
-// short-circuit, warm-cache miss is silent, cold-cache miss + refresh
-// failure is silent. The write path persists the row with whatever
-// cost the caller supplied (or NULL) on any failure to derive.
+// Cost derivation centralizes price lookup, soft-failure behavior, null
+// preservation, and rounding for every persisted record type.
 package db
 
 import "math"
@@ -45,9 +11,7 @@ import "math"
 // persisted cost uses the same precision so a future reader does
 // not have to round before dividing.
 //
-// Moved from persist.go:419 — both write-time
-// callers (PersistToolCall, InsertBenchRun) now reach the constant
-// through the costDeriver, not directly.
+// Both write-time callers use the same persisted precision.
 const costRoundDecimals = 6
 
 // PriceSource abstracts the cache lookup and the cold-fetch for

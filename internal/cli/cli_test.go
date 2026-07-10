@@ -2,7 +2,7 @@
 //
 // The dispatcher (Run / runWith) owns three responsibilities:
 //  1. Global flag parsing (--format, --quiet, --help, --version).
-//  2. Subcommand lookup against the commandIndex table.
+//  2. Subcommand lookup against the command registry.
 //  3. Error envelope rendering and exit-code mapping for dispatcher-level
 //     failures (unknown subcommand, bad --format, no subcommand).
 //

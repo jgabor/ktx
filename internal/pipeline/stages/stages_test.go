@@ -946,8 +946,8 @@ func TestRegisterBuiltins(t *testing.T) {
 	t.Run("BuiltinStageNames includes the four deterministic stages", func(t *testing.T) {
 		want := map[string]bool{
 			"keep-ends":    true,
-			"grep":          true,
-			"grep-v":        true,
+			"grep":         true,
+			"grep-v":       true,
 			"token-budget": true,
 		}
 		for _, name := range BuiltinStageNames() {
@@ -1041,9 +1041,9 @@ func TestRegisterBuiltins(t *testing.T) {
 // `name:arg` → (name, arg); first-colon-only split.
 func TestParseNameArg(t *testing.T) {
 	for _, tc := range []struct {
-		token     string
-		wantName  string
-		wantArg   string
+		token    string
+		wantName string
+		wantArg  string
 	}{
 		{token: "strip-ansi", wantName: "strip-ansi", wantArg: ""},
 		{token: "head:100", wantName: "head", wantArg: "100"},

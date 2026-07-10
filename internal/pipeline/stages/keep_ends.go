@@ -1,8 +1,7 @@
 // keep-ends stage: keeps the first N lines plus the last M lines of
 // input, inserting a [... (X lines omitted) ...] marker between them.
 //
-// rtk's toml_filter.rs:496-515 and lowfat's text.rs:27-48 both
-// implement head-and-tail because head:N alone loses the bottom of a
+// Head-and-tail retention avoids losing the bottom of a
 // build log — exactly where errors and stack traces live. keep-ends
 // preserves them. Configurable via the `keep-ends:N:M` token form
 // (e.g. `keep-ends:50:20`). Input with N+M or fewer lines is returned

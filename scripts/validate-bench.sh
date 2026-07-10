@@ -120,15 +120,32 @@ log()   { printf '[validate] %s\n' "$*" >&2; }
 emit()  { printf '%s %s\n' "$1" "$2" >&2; }   # emit "<verdict>" "<layer>: <reason>"
 
 # ---------------------------------------------------------------------------
-# Read methodology-pinned inputs (python parses yaml; we use mapfile).
+# Read the scalar methodology inputs without third-party Python packages.
 # ---------------------------------------------------------------------------
 mapfile -t _INPUTS < <(python3 - "$METHODOLOGY_PATH" <<'PY'
-import sys, yaml
-m = yaml.safe_load(open(sys.argv[1]))
-print(m['inputs']['model']['provider'])
-print(m['inputs']['model']['id'])
-print(m['inputs']['task']['prompt'])
-print(m['inputs']['task']['expected_output'])
+import sys
+
+values = {}
+parents = []
+for raw in open(sys.argv[1], encoding="utf-8"):
+    raw = raw.split("#", 1)[0].rstrip()
+    if not raw.strip() or ":" not in raw:
+        continue
+    depth = (len(raw) - len(raw.lstrip(" "))) // 2
+    parents = parents[:depth]
+    key, value = (part.strip() for part in raw.strip().split(":", 1))
+    if not value:
+        parents.append(key)
+        continue
+    values[".".join([*parents, key])] = value.strip('"\'')
+
+for key in (
+    "inputs.model.provider",
+    "inputs.model.id",
+    "inputs.task.prompt",
+    "inputs.task.expected_output",
+):
+    print(values[key])
 PY
 )
 MODEL_PROVIDER="${_INPUTS[0]}"

@@ -7,19 +7,16 @@ date: "2026-07-08"
 # scoring, but the task prompt is designed to trigger a large file read
 # via the read tool so the captured tool_call output is substantial.
 # v2-tooluse's bash `echo 4` produces a 2-byte output; v1's "What is 2+2?"
-# triggers zero tool calls. Both existing D20 fixtures are useless for
-# compression testing (D22 Phase 2 A/B measurement needs real payload
-# bytes to exercise the compressPipeline path meaningfully). v3's task
+# triggers zero tool calls. Those fixtures are too small for meaningful
+# compression testing. The v3 task
 # reads ~/git/ktx/ARCHITECTURE.md (~22 KB) through the read
 # tool, so the recorded_stream carries a tool_use event whose output is
-# thousands of bytes — enough to make the --replay compression section
-# show a non-trivial baseline_bytes and a real compressed_bytes ratio.
+# thousands of bytes, enough for a non-trivial replay compression ratio.
 scope: |
   Tool-rich variant of v1/v2: single-task, single-trial, exact-match
   scoring. The task prompt triggers a read-tool file read of
   ARCHITECTURE.md so the captured tool_call output is substantial
-  enough for the D22 Phase 2 A/B compression measurement exercised by
-  --replay's compression section.
+  enough for replay compression measurement.
 
 inputs:
   agent:
@@ -66,7 +63,7 @@ output:
 
 out_of_scope:
   - statistical significance / confidence intervals
-  - "ktx bench compare (post-M3)"
-  - compression impact on bench (M4)
-  - cache TTL and auto-refresh (D11 deferral)
+  - multi-pipeline comparison
+  - compression impact on benchmark results
+  - cache TTL and auto-refresh
   - second scoring function (LLM-as-judge is the flexible default acknowledged but not implemented)

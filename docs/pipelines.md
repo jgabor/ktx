@@ -12,7 +12,7 @@ Methodology source notes (adapted, not copied):
 | tilth/benchmark | cost-per-correct headline; multi-skill tasks; per-task reporting; geometric expected cost |
 | lean-ctx | bounce / tool-call inflation as a quality regression signal |
 | headroom | recovery path measurement when `recover_footer` is enabled |
-| lowfat | rank work by tool volume; conservative failure passthrough as a control task |
+| prior pipeline experiments | rank work by tool volume; conservative failure passthrough as a control task |
 
 ## Named pipelines
 
@@ -28,9 +28,9 @@ Configs live in `tools/bench/pipelines/`. Stage lists are the source of truth.
 | `aggressive-head` | `aggressive-head.toml` | sanitize + `head:30` | Max savings; high mid/tail fact risk |
 | `aggressive-keep-ends` | `aggressive-keep-ends.toml` | sanitize + `keep-ends:30:10` | Aggressive but keeps head+tail |
 
-`tools/bench/ktx.toml.baseline` and `tools/bench/ktx.toml.candidate` remain the
-live-ab default mounts (passthrough vs conservative-a). Override with
-`--baseline-config` / `--candidate-config` pointing at any pipeline file.
+The live A/B defaults are `pipelines/passthrough.toml` and
+`pipelines/conservative-a.toml`. Override them with `--baseline-config` or
+`--candidate-config` pointing at any named pipeline file.
 
 Live A/B vocabulary: each run compares a **baseline** pipeline to a **candidate**
 pipeline (summary keys `pipelines.baseline` / `pipelines.candidate`).

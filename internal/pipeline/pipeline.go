@@ -3,18 +3,19 @@
 // The pipeline is a linear ordered slice of bytes-in/bytes-out stages.
 // Each stage implements the Stage interface; the Runner applies stages
 // in order and enforces the three conservative-on-failure
-// invariants at runtime (NOT as a stage-author convention — the lowfat
-// failure mode is explicitly rejected):
+// invariants at runtime rather than relying on stage-author convention:
 //
 //  1. Empty-output guard: a stage producing empty output from
 //     non-empty input has its output discarded and the input passes
 //     through to the next stage unchanged. (Edge: empty input →
 //     empty output preserves the empty output — the guard only fires
 //     when input was non-empty.)
+//
 //  2. Stage-execution-error passthrough: a stage returning a
 //     non-nil error (or a panic recovered by the runner) passes its
 //     input through unchanged to the next stage; the error is not
 //     fatal to the pipeline.
+//
 //  3. Unknown-stage skip: a stage name the Registry cannot resolve
 //     is skipped with a stderr warning ("ktx: warning: unknown
 //     pipeline stage %q, skipped") and the pipeline continues.
@@ -27,8 +28,7 @@
 //     at equal length — did not reduce the agent's context cost, so it
 //     is treated as passthrough (no compressed row). This fires on the
 //     pipeline RESULT, not per-stage; invariants 1–3 still fire
-//     per-stage during the loop. (rtk guard.rs never_worse; lowfat
-//     lib.rs 10% gate.)
+//     per-stage during the loop.
 //
 // Reversibility is captured at the pipeline BOUNDARY, not per stage
 // (the database holds the original (tool_calls) and a
@@ -115,7 +115,7 @@ func (f StageFunc) Apply(input []byte) ([]byte, error) { return f(input) }
 //
 // The Registry is populated at package init by the built-in Go stages
 // (internal/pipeline/stages) and will be extended by the
-// `ktx plugin` registry (TODO:30); the single default profile
+// `ktx plugin` registry; the single default profile
 // is the only consumer.
 type Registry struct {
 	builders map[string]Builder
@@ -334,8 +334,7 @@ func (r *Runner) Run(input []byte) Result {
 	// per-stage). When the input was non-empty and the pipeline's
 	// net output is NOT smaller than the input (len(out) >=
 	// len(in)), the pipeline did not help: a stage that grows output
-	// is worse than no stage (rtk guard.rs:6-12 never_worse; lowfat
-	// lib.rs:46-55 gate). The gate discards the pipeline's work and
+	// is worse than no stage. The gate discards the pipeline's work and
 	// returns the input unchanged. Equal length is treated as "not
 	// better" — a stage that only rewrites bytes at the same length
 	// has not reduced the agent's context cost.

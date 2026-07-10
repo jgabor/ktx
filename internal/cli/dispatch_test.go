@@ -1,4 +1,4 @@
-// Table-driven tests for the dispatch deep module (internal/cli/dispatch.go).
+// Tests for the shared command dispatcher.
 //
 // The dispatch contract is the spine of this file. Each requirement
 // is a subtest so the regression surface is enumerable. Companion
@@ -55,12 +55,12 @@ func captureVerb(t *testing.T, verb string, opts RegisterOptions, captured **Dis
 // (nil, nil) produces exit 0 and writes nothing to stdout. The verb is a
 // no-op closure so the only observable outputs are the dispatcher's.
 func TestDispatch_OkNoOutput(t *testing.T) {
-	registerFor(t, "ac1_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
+	registerFor(t, "basic_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		return nil, nil
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := runDispatch("ac1_foo", nil, false, &stdout, &stderr)
+	code := runDispatch("basic_foo", nil, false, &stdout, &stderr)
 	if code != ExitOK {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 	}
@@ -79,19 +79,19 @@ func TestDispatch_OkNoOutput(t *testing.T) {
 // must surface as exit 2, never as the internal-error fallback.
 func TestDispatch_NotFoundEnvelope(t *testing.T) {
 	var captured *DispatchContext
-	registerFor(t, "ac2_foo", RegisterOptions{}, captureVerb(t, "ac2_foo", RegisterOptions{}, &captured))
+	registerFor(t, "context_foo", RegisterOptions{}, captureVerb(t, "context_foo", RegisterOptions{}, &captured))
 
 	// Replace the no-op logic with one that returns ErrNotFound. The
 	// previous registration gets overwritten by the second Register,
 	// which is exactly the surface this case exercises: the verb returns
 	// the sentinel at dispatch time.
-	Register("ac2_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
+	Register("context_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		captured = ctx
 		return nil, dbpkg.ErrNotFound
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := runDispatch("ac2_foo", nil, false, &stdout, &stderr)
+	code := runDispatch("context_foo", nil, false, &stdout, &stderr)
 	if code != ExitNotFound {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitNotFound, stderr.String())
 	}
@@ -111,12 +111,12 @@ func TestDispatch_NotFoundEnvelope(t *testing.T) {
 // usageError is the standard constructor; the test exercises the
 // printing + exit-code path.
 func TestDispatch_UsageError(t *testing.T) {
-	registerFor(t, "ac3_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
+	registerFor(t, "error_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		return nil, usageError("bad input: %s", "missing-id")
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := runDispatch("ac3_foo", nil, false, &stdout, &stderr)
+	code := runDispatch("error_foo", nil, false, &stdout, &stderr)
 	if code != ExitUsage {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitUsage, stderr.String())
 	}
@@ -141,7 +141,7 @@ func TestDispatch_PassthroughStdout(t *testing.T) {
 		"id":   "raw-abc123",
 		"kind": "tool_call",
 	}
-	registerFor(t, "ac4_echo", RegisterOptions{PassthroughStdout: true}, func(ctx *DispatchContext) (any, error) {
+	registerFor(t, "passthrough_echo", RegisterOptions{PassthroughStdout: true}, func(ctx *DispatchContext) (any, error) {
 		enc := json.NewEncoder(ctx.Stdout)
 		if err := enc.Encode(handRolled); err != nil {
 			return nil, err
@@ -150,7 +150,7 @@ func TestDispatch_PassthroughStdout(t *testing.T) {
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := runDispatch("ac4_echo", nil, false, &stdout, &stderr)
+	code := runDispatch("passthrough_echo", nil, false, &stdout, &stderr)
 	if code != ExitOK {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 	}
@@ -207,7 +207,7 @@ func TestDispatch_NoDB(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(dbPath, 0o644) })
 	t.Setenv("XDG_DATA_HOME", dataHome)
 
-	registerFor(t, "ac5_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
+	registerFor(t, "stdin_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		if ctx.DB != nil {
 			t.Errorf("ctx.DB should be nil when NeedsDB=false, got %v", ctx.DB)
 		}
@@ -215,27 +215,24 @@ func TestDispatch_NoDB(t *testing.T) {
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := runDispatch("ac5_foo", nil, false, &stdout, &stderr)
+	code := runDispatch("stdin_foo", nil, false, &stdout, &stderr)
 	if code != ExitOK {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 	}
 }
 
-// TestDispatch_PreParse covers: a verb with a PreParse hook
-// receives ctx.Args set to whatever the hook returned. The hook is the
-// ktx init shape: hand-rolled arg parsing before the flag set sees
-// anything. The test installs a hook that returns ['a','b'] verbatim
-// (with no flags) and asserts ctx.Args matches.
-func TestDispatch_PreParse(t *testing.T) {
+// TestDispatch_ParseArgs verifies that command-specific parsing can consume
+// arguments and carry a typed value to the command.
+func TestDispatch_ParseArgs(t *testing.T) {
 	var captured *DispatchContext
-	registerFor(t, "ac6_foo", RegisterOptions{
-		PreParse: func(args []string) ([]string, error) {
-			return []string{"a", "b"}, nil
+	registerFor(t, "parse_args", RegisterOptions{
+		ParseArgs: func(args []string) ([]string, any, error) {
+			return []string{"a", "b"}, 42, nil
 		},
-	}, captureVerb(t, "ac6_foo", RegisterOptions{}, &captured))
+	}, captureVerb(t, "parse_args", RegisterOptions{}, &captured))
 
 	var stdout, stderr bytes.Buffer
-	code := runDispatch("ac6_foo", []string{"ignored-by-preparse"}, false, &stdout, &stderr)
+	code := runDispatch("parse_args", []string{"ignored-by-parser"}, false, &stdout, &stderr)
 	if code != ExitOK {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 	}
@@ -244,6 +241,9 @@ func TestDispatch_PreParse(t *testing.T) {
 	}
 	if got, want := captured.Args, []string{"a", "b"}; !sliceEq(got, want) {
 		t.Errorf("ctx.Args = %v, want %v", got, want)
+	}
+	if captured.ParsedArgs != 42 {
+		t.Errorf("ctx.ParsedArgs = %v, want 42", captured.ParsedArgs)
 	}
 }
 
@@ -429,17 +429,17 @@ func TestDispatch_FormatExtraction(t *testing.T) {
 	})
 }
 
-// TestDispatch_PreParseError covers the PreParse failure path: a hook
+// TestDispatch_ParseArgsError covers the command parser failure path: a hook
 // that returns a non-nil error short-circuits to a usage error. The
 // verb is not invoked. The hook is the ktx init shape for unknown
 // flags and unexpected positionals.
-func TestDispatch_PreParseError(t *testing.T) {
+func TestDispatch_ParseArgsError(t *testing.T) {
 	registerFor(t, "preparse_err", RegisterOptions{
-		PreParse: func(args []string) ([]string, error) {
-			return nil, errors.New("unknown flag --projct")
+		ParseArgs: func(args []string) ([]string, any, error) {
+			return nil, nil, errors.New("unknown flag --projct")
 		},
 	}, func(ctx *DispatchContext) (any, error) {
-		t.Errorf("verb must not be invoked when PreParse errors")
+		t.Errorf("verb must not be invoked when argument parsing errors")
 		return nil, nil
 	})
 
@@ -488,8 +488,7 @@ func TestDispatch_PassthroughWithDB(t *testing.T) {
 }
 
 // TestDispatch_UnknownVerb covers the runDispatch-not-found path: an
-// unknown verb gets a usage error envelope with exit 1, matching the
-// legacy commandIndex surface.
+// unknown verb gets a usage error envelope with exit 1.
 func TestDispatch_UnknownVerb(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runDispatch("definitely_not_registered", nil, false, &stdout, &stderr)
@@ -564,17 +563,10 @@ func TestDispatch_RegisterGuards(t *testing.T) {
 	})
 }
 
-// TestDispatch_Integration covers the runWith integration: the
-// dispatcher must fall through to the dispatch registry for any verb
-// the legacy commandIndex does not recognise. This is the proof that
-// dispatch.Register is actually wired into the binary entry point, not
-// just a side table that tests exercise directly.
-//
-// The test uses verb names that do not collide with the legacy
-// commandIndex (the legacy table has 10 verbs; the test uses names
-// like "demo_echo" / "demo_fail" / "demo_help" that are not in it).
+// TestDispatch_Integration verifies that registered commands are wired into
+// the binary entry point rather than only the dispatcher test seam.
 func TestDispatch_Integration(t *testing.T) {
-	t.Run("runWith falls through to dispatch registry", func(t *testing.T) {
+	t.Run("runWith uses dispatch registry", func(t *testing.T) {
 		registerFor(t, "demo_echo", RegisterOptions{PassthroughStdout: true}, func(ctx *DispatchContext) (any, error) {
 			fmt.Fprintln(ctx.Stdout, `{"demo":true}`)
 			return nil, nil

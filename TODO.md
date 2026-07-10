@@ -36,7 +36,7 @@ The immediate goal is to measure, compare, and rank compression pipelines using 
 
 ## ⇢ Annoying
 
-- [ ] Extract `internal/methodology/` from `internal/cli/bench.go` (240 LOC of hand-rolled YAML parsing)
+- [x] Extract `internal/methodology/` from `internal/cli/bench.go`; published methodologies are embedded from `tools/bench/` so the installed binary is checkout-independent
 - [ ] Generalise `extractFormat` to `extractFlag` and collapse the three hand-rolled flag walkers (`parseInitArgs`, `dbPreParse`, `parseRunArgs` + `filterKtxFlags`)
 - [ ] Audit ledger or hash-chain beyond per-record content hash → [Security and trust](ARCHITECTURE.md#security-and-trust)
 - [ ] Provider-specific adapters

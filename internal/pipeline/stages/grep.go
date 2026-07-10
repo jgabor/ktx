@@ -5,11 +5,8 @@
 // (grep-v:^debug:) or keep only errors (grep:(?i)error|fail|panic).
 // Both are pure stdlib (regexp); invalid regexes compile-fail in the
 // Builder, which the runner treats as a stage-execution-error
-// (invariant (2)): the input passes through unchanged (lowfat's
-// proc_grep passthrough behavior, pipeline.rs:327-336). A warning is
-// emitted so the user sees the bad pattern — this is consistent
-// (invariant 2 warns on stage errors) rather than lowfat's silent
-// passthrough, but the observable output (input unchanged) matches.
+// (invariant (2)): the input passes through unchanged. A warning is
+// emitted so the user sees the bad pattern.
 //
 // The pattern is the full token arg after the first colon:
 // `grep:(?i)error|fail|panic` → name="grep", pattern="(?i)error|fail|panic".

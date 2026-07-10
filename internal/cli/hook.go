@@ -16,9 +16,9 @@ import (
 // developer-facing (for reversibility via `ktx decompress`) and are
 // never injected into the agent's context (invisibility).
 type hookEnvelope struct {
-	Output       string `json:"output"`
+	Output       string  `json:"output"`
 	CompressedID *string `json:"compressed_id"`
-	SourceID     string `json:"source_id"`
+	SourceID     string  `json:"source_id"`
 }
 
 // hookCommandFunc is the dispatch entry point for `ktx hook`. The

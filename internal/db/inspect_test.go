@@ -170,7 +170,7 @@ func TestHasBenchRunsColumns(t *testing.T) {
 }
 
 // TestSampleIDs covers the doctor ID-format probe: a populated DB
-// returns IDs that match Decision 3 (^[a-z]{16}$); an empty DB
+// returns IDs that match ^[a-z]{16}$; an empty DB
 // returns empty slices without error so the doctor does not crash
 // on a fresh install.
 func TestSampleIDs(t *testing.T) {
@@ -264,7 +264,7 @@ func TestSampleIDs(t *testing.T) {
 // TestIDPattern_Locked covers the IDPattern regex's lock-down: the
 // regex must be exactly ^[a-z]{16}$ (anchored, lowercase alpha only,
 // 16 chars). A regression that loosened the alphabet or length
-// would compromise Decision 3's collision-safety claim.
+// would compromise the ID format's collision resistance.
 func TestIDPattern_Locked(t *testing.T) {
 	t.Run("positive cases match", func(t *testing.T) {
 		for _, id := range []string{

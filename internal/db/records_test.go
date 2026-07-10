@@ -1,4 +1,4 @@
-// Table-driven unit tests for internal/db/persist.go.
+// Tests for stored record types and persistence behavior.
 //
 // Acceptance coverage:
 //
@@ -25,7 +25,7 @@ import (
 )
 
 // TestNewID_MatchesAndUnique covers AC 1: 1000 calls to NewID must each
-// match ^[a-z]{16}$ (Decision 3 — 16-char lowercase alpha nanoid) and the
+// match ^[a-z]{16}$ and the
 // resulting set must be collision-free. The entropy of a 26-letter
 // alphabet at length 16 is ~75 bits; the collision probability over
 // 1000 IDs is negligible (~1e-20), so a collision would indicate a
@@ -748,7 +748,7 @@ func TestGetRecord_ToolCallVsSession(t *testing.T) {
 //
 //   - SessionExists(""): the empty-string id is treated as "absent"
 //     so the caller's hint-path branch can short-circuit on empty
-//     input without a separate guard (persist.go:84-87).
+//     input without a separate guard.
 //   - InsertSession duplicate primary key: PRIMARY KEY collision
 //     surfaces as an error from the underlying SQL driver; the
 //     caller relies on this to detect double-open on the same
@@ -764,7 +764,7 @@ func TestGetRecord_ToolCallVsSession(t *testing.T) {
 // does not matter.
 func TestPersistMethods_EdgeCases(t *testing.T) {
 	t.Run("SessionExists(\"\") returns false, nil", func(t *testing.T) {
-		// The empty-id branch is documented at persist.go:84-87:
+		// An empty ID is treated as absent:
 		// an empty id is treated as "absent" so the caller-provided
 		// hint path can distinguish "absent" from "present" without
 		// a separate guard. The contract is (false, nil); a nil
@@ -855,7 +855,7 @@ func TestPersistMethods_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("ListSessions() on empty DB returns non-nil empty slice, nil error", func(t *testing.T) {
-		// The contract (persist.go:324-329): a non-nil empty slice
+		// A non-nil empty slice
 		// so the CLI can json-encode "[]" without a nil check
 		// (json.Marshal on a nil slice emits "null"; a non-nil
 		// empty slice emits "[]"). A regression that returned

@@ -17,20 +17,15 @@
 
 set -euo pipefail
 
-# ── Pipeline configs ────────────────────────────────────────────────
-#
-# Named pipelines match docs/pipelines.md and tools/bench/pipelines/*.toml.
-# Each config is: name|stages (stages JSON array for TOML generation).
-
-CONFIGS=(
-  "passthrough|[]"
-  "sanitize|[\"strip-ansi\", \"dedup-blank\", \"normalize\"]"
-  "keep-ends-mid|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:100:50\"]"
-  "conservative-a|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:50:20\", \"token-budget:2000\"]"
-  "conservative-a-recover|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:50:20\", \"token-budget:2000\"]"
-  "aggressive-head|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"head:30\"]"
-  "aggressive-keep-ends|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:30:10\"]"
-)
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+REPO_ROOT="$(dirname -- "$SCRIPT_DIR")"
+PIPELINE_DIR="$REPO_ROOT/tools/bench/pipelines"
+shopt -s nullglob
+CONFIG_FILES=("$PIPELINE_DIR"/*.toml)
+if [[ ${#CONFIG_FILES[@]} -eq 0 ]]; then
+  echo "error: no pipeline configs found in $PIPELINE_DIR" >&2
+  exit 1
+fi
 
 # ── Args ────────────────────────────────────────────────────────────
 
@@ -44,10 +39,12 @@ if [[ -z "$SESSION_ID" || "$SESSION_ID" == "--help" || "$SESSION_ID" == "-h" ]];
   echo "and tabulates compression ratios."
   echo ""
   echo "Pipelines tested:"
-  for cfg in "${CONFIGS[@]}"; do
-    name="${cfg%%|*}"
-    echo "  $name"
+  for config_source in "${CONFIG_FILES[@]}"; do
+    printf '  %s\n' "$(basename "${config_source%.toml}")"
   done
+  if [[ "$SESSION_ID" == "--help" || "$SESSION_ID" == "-h" ]]; then
+    exit 0
+  fi
   exit 1
 fi
 
@@ -94,18 +91,15 @@ trap 'rm -rf "$WORKDIR"' EXIT
 
 RESULTS="[]"
 
-for cfg in "${CONFIGS[@]}"; do
-  name="${cfg%%|*}"
-  stages="${cfg#*|}"
+for config_source in "${CONFIG_FILES[@]}"; do
+  name="$(basename "${config_source%.toml}")"
 
   config_root="$WORKDIR/$name"
   config_path="$config_root/ktx/ktx.toml"
   mkdir -p "$config_root/ktx"
-  cat > "$config_path" << TOML
-[pipeline.default]
-stages = $stages
-TOML
+  cp "$config_source" "$config_path"
   config_sha256="$(sha256sum "$config_path" | awk '{print $1}')"
+  stages="$(XDG_CONFIG_HOME="$config_root" "$KTX_BIN" config show --format json | jq -c '.profiles.default.stages')"
 
   output="$(XDG_CONFIG_HOME="$config_root" "$KTX_BIN" bench run --replay "$SESSION_ID" 2>/dev/null)" || {
     echo "warning: replay failed for pipeline '$name'" >&2

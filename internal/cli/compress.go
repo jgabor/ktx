@@ -315,10 +315,7 @@ func compressCommandFunc(ctx *DispatchContext) (any, error) {
 	return compressLogic(ctx.Args, nil, ctx.DB, ctx.Stdout, ctx.Stderr)
 }
 
-// init registers `ktx compress` with the dispatch module. After
-// init runs, the verb is reachable through runWith (the legacy
-// commandIndex in cli.go is empty; the dispatch registry is the
-// single source of truth).
+// init registers `ktx compress` with the dispatch module.
 //
 // NeedsDB=true: compress reads a source tool_call and writes a
 // compressed row in one invocation.

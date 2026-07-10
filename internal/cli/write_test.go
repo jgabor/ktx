@@ -105,7 +105,7 @@ func TestRunWriteWith_PersistsRecord(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
 
-		// stdout must be the record ID as a JSON string. The m1
+		// stdout must be the record ID as a JSON string. The initial
 		// verification log shows `"abcdefghijklmnop"` (with
 		// surrounding quotes from JSON encoding + trailing
 		// newline from json.NewEncoder).

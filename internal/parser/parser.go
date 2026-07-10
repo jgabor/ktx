@@ -1,6 +1,6 @@
 // Package parser converts agent-runtime event bytes into ktx tool_call
 // records. It is the single source of truth for the ktx tool_call shape:
-// both the wrapper (internal/cli/run.go) and the future hook path
+// both the wrapper and hook paths
 // use ParseEvent.
 //
 // The package is pure: no I/O, no database, no global state. Tests

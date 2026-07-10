@@ -337,10 +337,8 @@ func TestRun_Invariant3_UnknownStageSkip(t *testing.T) {
 // cleared (so the result reads as passthrough: no compressed row).
 //
 // The gate fires on the pipeline RESULT, not per-stage; the three
-// per-stage invariants (1–3) still fire during the loop. rtk calls
-// this never_worse (guard.rs:6-12); lowfat calls it the 10% gate
-// (lib.rs:46-55). The rtk variant (output >= input →
-// discard) is the simpler contract.
+// per-stage invariants (1–3) still fire during the loop. Equal-size or larger
+// output passes the original through unchanged.
 func TestRun_AntiWorseningGate(t *testing.T) {
 	t.Run("pipeline grows output → gate discards, input returned", func(t *testing.T) {
 		// A "repeater" stage that doubles every byte: output is

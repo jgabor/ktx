@@ -2,3 +2,7 @@ docs/notes/
 /ktx
 /cmd/ktx/ktx
 .bench-data/
+.playwright-cli/
+.ruff_cache/
+__pycache__/
+*.py[cod]

@@ -1,7 +1,5 @@
-// The dispatch deep module. Owns every piece of subcommand boilerplate
-// that used to live at the top of each runXWith: flag.NewFlagSet + Discard
-// output + --help/-h, subcommand-local --format extraction, database open
-// + close, error envelope rendering, and exit-code mapping.
+// Package dispatch support owns the shared subcommand lifecycle: common flag
+// parsing, database setup, help, error rendering, and exit-code mapping.
 //
 // A verb registers once (typically via an init() in its own file) with
 //
@@ -12,12 +10,6 @@
 // and from then on the dispatcher (runWith, or a test) invokes it by
 // name. The verb owns whatever it writes to ctx.Stdout; the module owns
 // the flag set, the DB, the error envelope, and the exit code.
-//
-// The existing subcommands migrate onto this module. The legacy
-// commandIndex in cli.go continues to dispatch the existing verbs;
-// runWith falls through to this registry for any verb the legacy table
-// does not recognise, which is what the demo verbs use to prove the
-// integration end-to-end.
 //
 // Module owns:
 //
@@ -100,12 +92,10 @@ type RegisterOptions struct {
 	// graceful exit-0 path.
 	Help func(io.Writer)
 
-	// PreParse lets a verb pre-process args before the flag set sees
-	// them. ktx init uses this to keep its hand-rolled parseInitArgs
-	// (the init flag surface is intentionally not stdlib-flag). The
-	// returned rest is what the flag set parses; an error short-
-	// circuits to a usage error.
-	PreParse func(args []string) (rest []string, err error)
+	// ParseArgs lets a verb consume command-specific flags before the shared
+	// flag set runs. Parsed values are carried to the command in
+	// DispatchContext.ParsedArgs, avoiding package-level handoff state.
+	ParseArgs func(args []string) (rest []string, parsed any, err error)
 }
 
 // CommandFunc is the verb's logic. It receives a populated
@@ -122,6 +112,10 @@ type DispatchContext struct {
 	// Args is the positional tail left after --help and any
 	// subcommand flags. The verb reads it like os.Args[1:].
 	Args []string
+
+	// ParsedArgs is the command-specific value returned by ParseArgs. Commands
+	// that do not register a parser receive nil.
+	ParsedArgs any
 
 	// Format is the resolved format string: the subcommand-local
 	// --format if given, else FormatDefault, else "". Verbs that
@@ -162,10 +156,7 @@ type registeredVerb struct {
 	do   CommandFunc
 }
 
-// dispatchRegistry is the lookup table populated by Register and read
-// by runDispatch. Package-level so init()-time registrations land
-// before any runWith call; tests unregister their verbs via t.Cleanup
-// to stay hermetic.
+// dispatchRegistry is populated by command registrations during package init.
 var dispatchRegistry = map[string]registeredVerb{}
 
 // Register registers a verb with the dispatch table. It returns ExitOK
@@ -187,9 +178,7 @@ func Register(verb string, opts RegisterOptions, do CommandFunc) int {
 
 // RegisteredVerbs returns a snapshot of (name, description) pairs for
 // every verb in the dispatch registry. The slice is sorted by name so
-// the help output is deterministic. The dispatcher uses this in
-// place of the legacy commands slice (now emptied) so
-// `ktx --help` still lists every registered verb.
+// the help output is deterministic. `ktx --help` uses this snapshot.
 func RegisteredVerbs() []struct {
 	Name        string
 	Description string
@@ -209,10 +198,7 @@ func RegisteredVerbs() []struct {
 }
 
 // runDispatch looks up verb in the dispatch registry and runs it.
-// Returns a usage-error envelope with exit 1 if the verb is not
-// registered; that path matches the legacy commandIndex "unknown
-// command" surface so a caller's experience is identical whether the
-// verb is legacy or new.
+// Returns a usage-error envelope with exit 1 if the verb is not registered.
 //
 // globalQuiet is the global --quiet parsed by parseGlobalFlags
 // (cli.go); the dispatch module forwards it to the verb via
@@ -231,16 +217,16 @@ func runDispatch(verb string, args []string, globalQuiet bool, stdout, stderr io
 // runRegisteredVerb executes a single registered verb end-to-end.
 // The pipeline is:
 //
-//  1. PreParse (optional) — verb-specific arg filter.
+//  1. ParseArgs (optional) — verb-specific arg filter and typed result.
 //  2. extractFormat       — pull --format out of the remaining args;
-//                           SKIPPED for verbs with PassthroughStdout=true
-//                           (the run verb): a passthrough verb forwards its
-//                           args including flags to a child agent, so
-//                           --format there belongs to the agent, not ktx.
+//     SKIPPED for verbs with PassthroughStdout=true
+//     (the run verb): a passthrough verb forwards its
+//     args including flags to a child agent, so
+//     --format there belongs to the agent, not ktx.
 //  3. flag set            — --help/-h and --quiet/-q; everything else
-//                           is an error. --quiet/-q is consumed so
-//                           ctx.Args never sees it; the resolved
-//                           value is exposed via ctx.Quiet.
+//     is an error. --quiet/-q is consumed so
+//     ctx.Args never sees it; the resolved
+//     value is exposed via ctx.Quiet.
 //  4. DB open             — only when NeedsDB.
 //  5. Stdin capture       — only when NeedsStdin.
 //  6. Invoke the verb     — pass *DispatchContext.
@@ -249,15 +235,17 @@ func runDispatch(verb string, args []string, globalQuiet bool, stdout, stderr io
 // Each step is conditional so a verb that needs nothing (the
 // baseline) does no I/O.
 func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdout, stderr io.Writer) int {
-	// 1. PreParse: optional verb-specific arg filter.
+	// 1. ParseArgs: optional verb-specific parsing.
 	rest := args
-	if reg.opts.PreParse != nil {
-		parsed, err := reg.opts.PreParse(args)
+	var parsedArgs any
+	if reg.opts.ParseArgs != nil {
+		parsed, values, err := reg.opts.ParseArgs(args)
 		if err != nil {
 			printError(stderr, usageError("%v", err), FormatJSON)
 			return ExitUsage
 		}
 		rest = parsed
+		parsedArgs = values
 	}
 
 	// 2. extractFormat: pull --format out of rest. Skipped for verbs
@@ -332,6 +320,7 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 	// 6. Build the context and invoke the verb.
 	ctx := &DispatchContext{
 		Args:        fs.Args(),
+		ParsedArgs:  parsedArgs,
 		Format:      formatStr,
 		Stdin:       stdin,
 		Stdout:      stdout,
@@ -341,6 +330,10 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 		Quiet:       globalQuiet || subQuiet,
 	}
 	if _, err := reg.do(ctx); err != nil {
+		var status *commandExit
+		if errors.As(err, &status) {
+			return status.code
+		}
 		printError(stderr, err, formatStr)
 		return exitCodeOf(err)
 	}

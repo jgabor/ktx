@@ -1,0 +1,85 @@
+methodology_version: "v4-eval-matrix"
+date: "2026-07-10"
+
+# v4 evaluation matrix
+#
+# Extends the v1 cost-per-correct contract with:
+# - a named pipeline matrix (tools/bench/pipelines/)
+# - a multi-skill task suite with planted-fact corpus
+# - multi-fact fractional scoring (k of n)
+# - geometric expected cost using full_pass_rate
+#
+# Product CLI defaults are unchanged. This methodology governs evaluation
+# harness runs (live-ab, compare-pipelines) documented in docs/pipelines.md.
+
+scope: |
+  Rank named compression pipelines on tool-rich agent tasks using
+  deterministic multi-fact scoring and cost-per-correct ranking.
+  Headline heavy task targets 100k-200k cumulative input tokens.
+
+inputs:
+  agent:
+    binary: opencode
+    version: ">=1.17.8"
+  model:
+    id: "glm-5.2-short-fast-flex"
+    provider: "neuralwatt"
+  pipelines:
+    - passthrough
+    - sanitize
+    - keep-ends-mid
+    - conservative-a
+    - aggressive-head
+    - aggressive-keep-ends
+  tasks:
+    - fact-midfile-v1
+    - log-tail-error-v1
+    - crossfile-nav-v1
+    - grep-noise-v1
+    - failure-passthrough-v1
+  corpus:
+    path: tools/bench/corpus/
+    generator: tools/bench/generate_corpus.py
+  scoring:
+    function: multi_fact_fractional
+    version: "v1"
+    epsilon: 1.0e-9
+    notes: |
+      score = matched_facts / total_facts.
+      full_pass when score == 1.0.
+      exact_match remains supported for legacy task flags.
+  trials:
+    n_per_pipeline_default: 3
+    non_determinism_handling: |
+      Temperature>0 runs are not bit-reproducible. Rank pipelines by
+      expected_cost_per_correct and mean_fact_score across completed
+      evaluated attempts; retain every attempt in attempts.jsonl.
+
+computation: |
+  evaluated = completed + linked session + stream_complete + min_tool_calls
+  full_pass_rate = count(score == 1.0) / count(evaluated)
+  mean_cost = mean(cost over evaluated)
+  expected_cost_per_correct = mean_cost / max(full_pass_rate, 1e-9)
+  mean_fact_score = mean(score over evaluated)
+  tool_call_inflation = candidate.mean_tool_calls / baseline.mean_tool_calls
+
+output:
+  artifact: live-ab summary.json (+ offline compare-pipelines table)
+  default_format: json
+  text_format: true
+  fields:
+    - methodology_version
+    - pipeline id + stage list + config sha256
+    - task id
+    - mean_fact_score
+    - full_pass_rate
+    - expected_cost_per_correct
+    - mean_tokens_in
+    - tool_call_inflation
+    - contributing attempt/session ids
+
+out_of_scope:
+  - LLM-as-judge scoring
+  - statistical significance / confidence intervals
+  - content-type router productization
+  - changing shipped default pipeline (still passthrough without ktx.toml)

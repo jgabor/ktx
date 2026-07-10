@@ -1,0 +1,35 @@
+id = "ephemeral-midfact-v1"
+skill = "bash"
+workspace_mode = "corpus"
+token_band = [20000, 80000]
+minimum_tool_calls = 1
+# No on-disk fixtures: facts exist only in ephemeral bash/tool stdout.
+# Re-grepping the workspace cannot recover mid-body content after lossy compression.
+corpus_files = []
+quality_risks = [
+  "mid_loss",
+  "head_truncation",
+  "recovery_footer_ignored",
+]
+prompt = """
+Use the bash tool exactly once. Run this exact command (do not modify it):
+
+node -e "for (let i=0;i<2500;i++) console.log('noise['+String(i).padStart(5,'0')+'] filler='+i); console.log('FACT_EPHEMERAL_MID=ephemeral-mid-9f2c41a7'); for (let i=2501;i<5000;i++) console.log('noise['+String(i).padStart(5,'0')+'] filler='+i); console.log('FACT_EPHEMERAL_TAIL=ephemeral-tail-c3d81e50');"
+
+Rules:
+- Do not re-run that command.
+- Do not write the output to a file and re-read it.
+- Extract facts only from tool output already returned to you.
+- If a tool result says output was compressed and shows a recovery command, you may run that recovery command (and only that) to obtain the original tool output.
+
+Reply with only these two FACT_* lines (one per line), no other prose:
+FACT_EPHEMERAL_MID=...
+FACT_EPHEMERAL_TAIL=...
+"""
+
+[scoring]
+kind = "multi_fact_fractional"
+facts = [
+  "FACT_EPHEMERAL_MID=ephemeral-mid-9f2c41a7",
+  "FACT_EPHEMERAL_TAIL=ephemeral-tail-c3d81e50",
+]

@@ -1,0 +1,20 @@
+id = "fact-midfile-v1"
+skill = "read"
+workspace_mode = "corpus"
+token_band = [30000, 60000]
+minimum_tool_calls = 1
+corpus_files = ["src_alpha.txt"]
+quality_risks = ["head_truncation", "mid_loss"]
+prompt = """
+Read the file tools/bench/corpus/src_alpha.txt using the read tool.
+Extract every planted FACT_* value from that file (they look like FACT_NAME=value).
+Reply with only those FACT_* lines, one per line, no other prose.
+"""
+
+[scoring]
+kind = "multi_fact_fractional"
+facts = [
+  "FACT_ALPHA_HEAD=alpha-head-7f3a91c2",
+  "FACT_ALPHA_MID=alpha-mid-4b18e0d7",
+  "FACT_ALPHA_TAIL=alpha-tail-c91f2a64",
+]

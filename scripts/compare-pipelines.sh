@@ -19,13 +19,15 @@ set -euo pipefail
 
 # ── Pipeline configs ────────────────────────────────────────────────
 #
-# Each config is: name|stages
-# Stages use ktx.toml syntax inside the stages array.
+# Named pipelines match docs/pipelines.md and tools/bench/pipelines/*.toml.
+# Each config is: name|stages (stages JSON array for TOML generation).
 
 CONFIGS=(
   "passthrough|[]"
-  "tier1-cleanup|[\"strip-ansi\", \"dedup-blank\", \"normalize\"]"
-  "conservative|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:50:20\", \"token-budget:2000\"]"
+  "sanitize|[\"strip-ansi\", \"dedup-blank\", \"normalize\"]"
+  "keep-ends-mid|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:100:50\"]"
+  "conservative-a|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:50:20\", \"token-budget:2000\"]"
+  "conservative-a-recover|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:50:20\", \"token-budget:2000\"]"
   "aggressive-head|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"head:30\"]"
   "aggressive-keep-ends|[\"strip-ansi\", \"dedup-blank\", \"normalize\", \"keep-ends:30:10\"]"
 )

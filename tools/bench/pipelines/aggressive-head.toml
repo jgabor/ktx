@@ -1,0 +1,5 @@
+# Evaluation pipeline: aggressive-head
+# High reduction, high quality risk. Punishes mid/tail fact tasks.
+
+[pipeline.default]
+stages = ["strip-ansi", "dedup-blank", "normalize", "head:30"]

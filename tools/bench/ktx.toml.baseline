@@ -1,11 +1,7 @@
 # ktx.toml for benchmark baseline (passthrough — no compression)
 #
-# Mount this file at /home/node/.config/ktx/ktx.toml for the
-# baseline arm. The ktx plugin still fires (records originals to
-# ktx.db) but does not compress — the agent sees full tool output.
-#
-# For the treatment arm, mount a config with stages configured:
-#   stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]
+# Matches tools/bench/pipelines/passthrough.toml from the evaluation
+# matrix (docs/pipelines.md). Override with live-ab --baseline-config.
 
 [pipeline.default]
 stages = []

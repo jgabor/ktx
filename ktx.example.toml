@@ -103,22 +103,39 @@ recover_footer = false
 #                       cuts); appends "... (truncated to ~N tokens
 #                       from M)" marker. Input under budget → unchanged
 
-# Default: tier 1 cleanup (safe — noise removal only, no content loss)
+# Default: sanitize cleanup (safe — noise removal only, no content loss)
 stages = ["strip-ansi", "dedup-blank", "normalize"]
 
 # ── Example pipelines ────────────────────────────────────────────────
 #
-# # Cleanup only (safe default, no content loss)
+# Named evaluation pipelines and the multi-fact task suite live under
+# tools/bench/; ranking contract and recipes are in docs/pipelines.md.
+# Guidance below tracks live ranking (expected cost per full pass), not
+# offline per-call compression ratio alone.
+#
+# # Sanitize only (safe default in this file — noise removal, no content loss)
+# # Near-passthrough cost on clean tool output; use when content loss is
+# # unacceptable and savings are secondary.
 # stages = ["strip-ansi", "dedup-blank", "normalize"]
 #
-# # Cleanup + conservative tail retention (tested: 80-88% reduction)
-# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]
+# # Recommended general recipe (keep-ends-mid): best $/correct with full
+# # pass on ephemeral mid-fact and crossfile tasks. No token-budget stage.
+# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
 #
-# # Cleanup + aggressive head-only (tested: 87-97% reduction)
+# # Max savings, accept mid/tail fact risk (aggressive-head). Large token
+# # cuts; mid-file and tail content may vanish. Prefer when head-biased
+# # output is enough, or when tool-aware routing can opt out later.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "head:30"]
 #
-# # Build logs: strip noise, drop debug lines, keep head+tail, cap tokens
-# stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
+# # Lossy + recovery: narrow keep-ends + token budget only with the
+# # recovery footer on. Without recover_footer, live ranking saw partial
+# # fact loss; with it, agents used `ktx read` and full pass returned.
+# recover_footer = true
+# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]
+#
+# # Build logs: drop debug noise, keep head+tail. Prefer wider keep-ends
+# # over a tight token budget unless recover_footer is also enabled.
+# stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:100:50"]
 
 # ── External plugin stages ───────────────────────────────────────────
 #

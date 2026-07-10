@@ -1,0 +1,76 @@
+{
+  "all_facts": [
+    "FACT_ALPHA_HEAD=alpha-head-7f3a91c2",
+    "FACT_ALPHA_MID=alpha-mid-4b18e0d7",
+    "FACT_ALPHA_TAIL=alpha-tail-c91f2a64",
+    "FACT_BETA_HEAD=beta-head-22d8a1f0",
+    "FACT_BETA_MID=beta-mid-9c2e71ab",
+    "FACT_BETA_TAIL=beta-tail-0e55d3c8",
+    "FACT_GAMMA_HEAD=gamma-head-81af0c33",
+    "FACT_GAMMA_MID=gamma-mid-5d77b2e1",
+    "FACT_GAMMA_TAIL=gamma-tail-a3c9046f",
+    "FACT_LOG_TAIL_ERROR=log-tail-error-e7b4c012",
+    "FACT_GREP_NEEDLE=grep-needle-6a19d8ef"
+  ],
+  "approx_tokens_chars_div_4": {
+    "note": "chars/4 estimate only; live tokens_in come from the model stream",
+    "total": 152248
+  },
+  "description": "Deterministic planted-fact corpus for pipeline evaluation. Regenerate with tools/bench/generate_corpus.py.",
+  "files": [
+    {
+      "bytes": 119722,
+      "facts": {
+        "head": "FACT_ALPHA_HEAD=alpha-head-7f3a91c2",
+        "mid": "FACT_ALPHA_MID=alpha-mid-4b18e0d7",
+        "tail": "FACT_ALPHA_TAIL=alpha-tail-c91f2a64"
+      },
+      "lines": 1911,
+      "path": "src_alpha.txt",
+      "sha256": "95c63298e073868d7af52fe08afee511afb3a18532ad7282154bc9db1431b885"
+    },
+    {
+      "bytes": 119677,
+      "facts": {
+        "head": "FACT_BETA_HEAD=beta-head-22d8a1f0",
+        "mid": "FACT_BETA_MID=beta-mid-9c2e71ab",
+        "tail": "FACT_BETA_TAIL=beta-tail-0e55d3c8"
+      },
+      "lines": 1941,
+      "path": "src_beta.txt",
+      "sha256": "dc9c7d2618f2212d552cf82cf5182d608a0d3366a67623779ce4cdff8df75a09"
+    },
+    {
+      "bytes": 119722,
+      "facts": {
+        "head": "FACT_GAMMA_HEAD=gamma-head-81af0c33",
+        "mid": "FACT_GAMMA_MID=gamma-mid-5d77b2e1",
+        "tail": "FACT_GAMMA_TAIL=gamma-tail-a3c9046f"
+      },
+      "lines": 1911,
+      "path": "src_gamma.txt",
+      "sha256": "952528e88cead58748b1dd2130d9fee22e24684dc1f20205961183d071db3580"
+    },
+    {
+      "bytes": 149843,
+      "facts": {
+        "tail_error": "FACT_LOG_TAIL_ERROR=log-tail-error-e7b4c012"
+      },
+      "lines": 4320,
+      "path": "build_log.txt",
+      "sha256": "fbca5ca2481e313b2bc6a747a903bdcd4de5fd79f14ae6d4fe1dc3ae9cafeb66"
+    },
+    {
+      "bytes": 100031,
+      "facts": {
+        "needle": "FACT_GREP_NEEDLE=grep-needle-6a19d8ef"
+      },
+      "lines": 1686,
+      "needle_line": 850,
+      "path": "search_hits.txt",
+      "sha256": "7d519a74caf1486f30634787997724acc15f061f0ac93d351d10e6d69360d66a"
+    }
+  ],
+  "schema_version": 1,
+  "total_bytes": 608995
+}

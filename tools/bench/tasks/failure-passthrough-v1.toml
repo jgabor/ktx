@@ -1,0 +1,20 @@
+id = "failure-passthrough-v1"
+skill = "bash"
+workspace_mode = "corpus"
+token_band = [1000, 10000]
+minimum_tool_calls = 1
+corpus_files = []
+quality_risks = ["failure_signal_loss"]
+prompt = """
+Use bash to run exactly this command and capture its output:
+
+  sh -c 'echo FACT_FAIL_STDERR=fail-stderr-1a2b3c4d 1>&2; exit 2'
+
+Reply with only the FACT_FAIL_STDERR line from stderr, no other prose.
+"""
+
+[scoring]
+kind = "multi_fact_fractional"
+facts = [
+  "FACT_FAIL_STDERR=fail-stderr-1a2b3c4d",
+]

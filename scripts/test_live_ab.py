@@ -33,13 +33,13 @@ class LiveABHarnessTest(unittest.TestCase):
     def test_summary_excludes_invalid_attempts(self):
         manifest = {
             "experiment_id": "example",
-            "target_valid_per_arm": 1,
+            "target_valid_per_pipeline": 1,
             "task": {"minimum_tool_calls": 2},
         }
         attempts = [
             {
                 "attempt_id": "baseline-001",
-                "arm": "baseline",
+                "side": "baseline",
                 "status": "completed",
                 "session_id": "baseline",
                 "stream_complete": True,
@@ -51,8 +51,8 @@ class LiveABHarnessTest(unittest.TestCase):
                 "score": 1,
             },
             {
-                "attempt_id": "treatment-001",
-                "arm": "treatment",
+                "attempt_id": "candidate-001",
+                "side": "candidate",
                 "status": "timeout",
                 "session_id": None,
                 "stream_complete": False,
@@ -60,10 +60,10 @@ class LiveABHarnessTest(unittest.TestCase):
                 "tool_call_count": 0,
             },
             {
-                "attempt_id": "treatment-002",
-                "arm": "treatment",
+                "attempt_id": "candidate-002",
+                "side": "candidate",
                 "status": "completed",
-                "session_id": "treatment",
+                "session_id": "candidate",
                 "stream_complete": True,
                 "answer_matches_expected": True,
                 "tool_call_count": 3,
@@ -76,10 +76,176 @@ class LiveABHarnessTest(unittest.TestCase):
 
         summary = LIVE_AB.build_summary(manifest, attempts)
 
-        self.assertEqual(summary["arms"]["baseline"]["valid_count"], 1)
-        self.assertEqual(summary["arms"]["treatment"]["valid_count"], 1)
-        self.assertEqual(summary["baseline_minus_treatment"]["tokens_in"], 60)
-        self.assertEqual(summary["exclusions"][0]["attempt_id"], "treatment-001")
+        self.assertEqual(summary["pipelines"]["baseline"]["valid_count"], 1)
+        self.assertEqual(summary["pipelines"]["candidate"]["valid_count"], 1)
+        self.assertEqual(summary["pipelines"]["baseline"]["evaluated_count"], 1)
+        self.assertEqual(summary["baseline_minus_candidate"]["tokens_in"], 60)
+        self.assertEqual(summary["exclusions"][0]["attempt_id"], "candidate-001")
+        self.assertEqual(summary["methodology_version"], "v4-eval-matrix")
+
+    def test_summary_keeps_partial_fact_scores_in_evaluated(self):
+        manifest = {
+            "experiment_id": "partial",
+            "target_valid_per_pipeline": 1,
+            "task": {"minimum_tool_calls": 1},
+        }
+        attempts = [
+            {
+                "attempt_id": "baseline-001",
+                "side": "baseline",
+                "status": "completed",
+                "session_id": "b1",
+                "stream_complete": True,
+                "answer_matches_expected": True,
+                "full_pass": True,
+                "tool_call_count": 2,
+                "tokens_in": 100,
+                "tokens_out": 10,
+                "cost": 0.2,
+                "score": 1.0,
+            },
+            {
+                "attempt_id": "candidate-001",
+                "side": "candidate",
+                "status": "completed",
+                "session_id": "t1",
+                "stream_complete": True,
+                "answer_matches_expected": False,
+                "full_pass": False,
+                "tool_call_count": 3,
+                "tokens_in": 40,
+                "tokens_out": 8,
+                "cost": 0.05,
+                "score": 0.6,
+            },
+        ]
+
+        summary = LIVE_AB.build_summary(manifest, attempts)
+
+        self.assertEqual(summary["pipelines"]["candidate"]["evaluated_count"], 1)
+        self.assertEqual(summary["pipelines"]["candidate"]["valid_count"], 0)
+        self.assertAlmostEqual(summary["pipelines"]["candidate"]["mean_fact_score"], 0.6)
+        self.assertAlmostEqual(summary["pipelines"]["candidate"]["full_pass_rate"], 0.0)
+        self.assertGreater(
+            summary["pipelines"]["candidate"]["expected_cost_per_correct"],
+            1000,
+        )
+        self.assertAlmostEqual(summary["tool_call_inflation"], 1.5)
+
+    def test_score_answer_multi_fact_fractional(self):
+        facts = [
+            "FACT_A=one",
+            "FACT_B=two",
+            "FACT_C=three",
+        ]
+        scored = LIVE_AB.score_answer(
+            "FACT_A=one\nnoise\nFACT_C=three",
+            expected_facts=facts,
+        )
+        self.assertAlmostEqual(scored["score"], 2 / 3)
+        self.assertFalse(scored["full_pass"])
+        self.assertEqual(scored["facts_matched"], ["FACT_A=one", "FACT_C=three"])
+        self.assertEqual(scored["facts_missed"], ["FACT_B=two"])
+
+    def test_load_task_file_crossfile(self):
+        task = LIVE_AB.load_task_file(ROOT / "tools/bench/tasks/crossfile-nav-v1.toml")
+        self.assertEqual(task["id"], "crossfile-nav-v1")
+        self.assertEqual(task["minimum_tool_calls"], 5)
+        self.assertEqual(len(task["expected_facts"]), 5)
+        self.assertEqual(task["workspace_mode"], "corpus")
+        self.assertEqual(len(task["corpus_files"]), 5)
+        self.assertIn("FACT_ALPHA_MID=", task["expected_facts"][0])
+        self.assertIn("tools/bench/corpus/src_alpha.txt", task["prompt"])
+
+    def test_prepare_corpus_workspace_excludes_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            corpus = root / "tools" / "bench" / "corpus"
+            corpus.mkdir(parents=True)
+            (corpus / "src_alpha.txt").write_text("FACT_ALPHA_MID=alpha-mid-4b18e0d7\n", encoding="utf-8")
+            (corpus / "MANIFEST.json").write_text('{"leak": true}\n', encoding="utf-8")
+            workspace = root / "workspace"
+            meta = LIVE_AB.prepare_attempt_workspace(
+                root,
+                workspace,
+                mode="corpus",
+                corpus_files=["src_alpha.txt"],
+            )
+            self.assertEqual(meta["mode"], "corpus")
+            self.assertTrue((workspace / "tools/bench/corpus/src_alpha.txt").is_file())
+            self.assertFalse((workspace / "tools/bench/corpus/MANIFEST.json").exists())
+            self.assertEqual(
+                sorted(p.name for p in (workspace / "tools/bench/corpus").iterdir()),
+                ["src_alpha.txt"],
+            )
+
+    def test_prepare_repo_workspace_strips_answer_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            corpus = root / "tools" / "bench" / "corpus"
+            tasks = root / "tools" / "bench" / "tasks"
+            corpus.mkdir(parents=True)
+            tasks.mkdir(parents=True)
+            (root / "README.md").write_text("ok\n", encoding="utf-8")
+            (corpus / "src_alpha.txt").write_text("body\n", encoding="utf-8")
+            (corpus / "MANIFEST.json").write_text("{}\n", encoding="utf-8")
+            (tasks / "crossfile-nav-v1.toml").write_text('id="x"\n', encoding="utf-8")
+            (root / "tools" / "bench" / "generate_corpus.py").write_text("print(1)\n", encoding="utf-8")
+            docs = root / "docs"
+            docs.mkdir()
+            (docs / "pipelines.md").write_text("facts\n", encoding="utf-8")
+            workspace = Path(directory) / "workspace"
+            meta = LIVE_AB.prepare_attempt_workspace(
+                root,
+                workspace,
+                mode="repo",
+                corpus_files=[],
+            )
+            self.assertEqual(meta["mode"], "repo")
+            self.assertTrue((workspace / "README.md").is_file())
+            self.assertTrue((workspace / "tools/bench/corpus/src_alpha.txt").is_file())
+            self.assertFalse((workspace / "tools/bench/corpus/MANIFEST.json").exists())
+            self.assertFalse((workspace / "tools/bench/tasks").exists())
+            self.assertFalse((workspace / "tools/bench/generate_corpus.py").exists())
+            self.assertFalse((workspace / "docs/pipelines.md").exists())
+
+    def test_parse_stream_multi_fact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stream = Path(directory) / "stream.jsonl"
+            stream.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"type": "tool_use", "part": {}}),
+                        json.dumps(
+                            {
+                                "type": "step_finish",
+                                "part": {
+                                    "reason": "stop",
+                                    "tokens": {"input": 12, "output": 3},
+                                    "cost": 0.02,
+                                },
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "type": "text",
+                                "part": {
+                                    "text": "FACT_A=one\nFACT_B=two",
+                                },
+                            }
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            metrics = LIVE_AB.parse_stream(
+                stream,
+                expected_facts=["FACT_A=one", "FACT_B=two", "FACT_C=three"],
+            )
+        self.assertTrue(metrics["stream_complete"])
+        self.assertAlmostEqual(metrics["score"], 2 / 3)
+        self.assertFalse(metrics["full_pass"])
 
     def test_parse_stream_requires_stop_and_exact_answer(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -216,13 +382,13 @@ if args and args[0] == "run":
     mounts = [args[i + 1] for i, value in enumerate(args[:-1]) if value == "-v"]
     database = next(value.split(":", 1)[0] for value in mounts if ":/home/node/.local/share/ktx/ktx.db:" in value)
     config = next(value.split(":", 1)[0] for value in mounts if ":/home/node/.config/ktx/ktx.toml:" in value)
-    arm = pathlib.Path(config).name.rsplit(".", 1)[-1]
+    side = pathlib.Path(config).name.rsplit(".", 1)[-1]
     workspace = next(value.split(":", 1)[0] for value in mounts if ":/work:rw" in value)
-    pathlib.Path(database + ".session").write_text(arm)
-    pathlib.Path(workspace, "agent-created").write_text(arm)
+    pathlib.Path(database + ".session").write_text(side)
+    pathlib.Path(workspace, "agent-created").write_text(side)
     for event in (
         {"type": "tool_use", "part": {}},
-        {"type": "step_finish", "part": {"reason": "stop", "tokens": {"input": 100 if arm == "baseline" else 40, "output": 5}, "cost": 0.1 if arm == "baseline" else 0.04}},
+        {"type": "step_finish", "part": {"reason": "stop", "tokens": {"input": 100 if side == "baseline" else 40, "output": 5}, "cost": 0.1 if side == "baseline" else 0.04}},
         {"type": "text", "part": {"text": "done"}},
     ):
         print(json.dumps(event))
@@ -285,19 +451,19 @@ else:
 
             self.assertEqual(result.returncode, 0, result.stderr)
             summary = json.loads(result.stdout)
-            self.assertEqual(summary["arms"]["baseline"]["valid_count"], 2)
-            self.assertEqual(summary["arms"]["treatment"]["valid_count"], 2)
+            self.assertEqual(summary["pipelines"]["baseline"]["valid_count"], 2)
+            self.assertEqual(summary["pipelines"]["candidate"]["valid_count"], 2)
             attempt_records = [
                 json.loads(line)
                 for line in (data_dir / "run" / "attempts.jsonl").read_text(encoding="utf-8").splitlines()
             ]
             self.assertEqual(
-                [record["arm"] for record in attempt_records],
-                ["baseline", "treatment", "treatment", "baseline"],
+                [record["side"] for record in attempt_records],
+                ["baseline", "candidate", "candidate", "baseline"],
             )
             self.assertEqual(
                 [record["session_id"] for record in attempt_records],
-                ["baseline", "treatment", "treatment", "baseline"],
+                ["baseline", "candidate", "candidate", "baseline"],
             )
             manifest = json.loads((data_dir / "run" / "manifest.json").read_text(encoding="utf-8"))
             self.assertTrue((data_dir / "run" / manifest["repository"]["snapshot"]["path"]).is_dir())
@@ -345,8 +511,8 @@ else:
             )
             self.assertEqual(exhausted.returncode, 1)
             exhausted_summary = json.loads(exhausted.stdout)
-            self.assertEqual(exhausted_summary["arms"]["baseline"]["status_counts"]["failed"], 1)
-            self.assertEqual(exhausted_summary["arms"]["treatment"]["status_counts"]["failed"], 1)
+            self.assertEqual(exhausted_summary["pipelines"]["baseline"]["status_counts"]["failed"], 1)
+            self.assertEqual(exhausted_summary["pipelines"]["candidate"]["status_counts"]["failed"], 1)
 
             retry_command = command.copy()
             for option, value in (
@@ -367,9 +533,9 @@ else:
             )
             self.assertEqual(retry.returncode, 0, retry.stderr)
             retry_summary = json.loads(retry.stdout)
-            self.assertEqual(retry_summary["arms"]["baseline"]["status_counts"]["failed"], 1)
-            self.assertEqual(retry_summary["arms"]["baseline"]["valid_count"], 1)
-            self.assertEqual(retry_summary["arms"]["treatment"]["valid_count"], 1)
+            self.assertEqual(retry_summary["pipelines"]["baseline"]["status_counts"]["failed"], 1)
+            self.assertEqual(retry_summary["pipelines"]["baseline"]["valid_count"], 1)
+            self.assertEqual(retry_summary["pipelines"]["candidate"]["valid_count"], 1)
 
     def test_runner_rejects_preflight_stage_mismatch(self):
         with tempfile.TemporaryDirectory() as directory:

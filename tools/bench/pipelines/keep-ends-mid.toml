@@ -1,0 +1,6 @@
+# Evaluation pipeline: keep-ends-mid
+# Intermediate truncation without a token budget.
+# Keeps first 100 + last 50 lines after sanitize cleanup.
+
+[pipeline.default]
+stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]

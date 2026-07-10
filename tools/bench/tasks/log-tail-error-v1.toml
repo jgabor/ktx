@@ -1,0 +1,18 @@
+id = "log-tail-error-v1"
+skill = "bash"
+workspace_mode = "corpus"
+token_band = [40000, 80000]
+minimum_tool_calls = 1
+corpus_files = ["build_log.txt"]
+quality_risks = ["head_truncation", "tail_loss"]
+prompt = """
+Use bash to inspect tools/bench/corpus/build_log.txt (for example: cat or tail).
+Find the planted FACT_LOG_TAIL_ERROR value near the end of the log.
+Reply with only that single FACT_* line, no other prose.
+"""
+
+[scoring]
+kind = "multi_fact_fractional"
+facts = [
+  "FACT_LOG_TAIL_ERROR=log-tail-error-e7b4c012",
+]

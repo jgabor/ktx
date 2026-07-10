@@ -1,0 +1,48 @@
+id = "crossfile-nav-v1"
+skill = "navigate"
+workspace_mode = "corpus"
+token_band = [100000, 200000]
+minimum_tool_calls = 5
+corpus_files = [
+  "src_alpha.txt",
+  "src_beta.txt",
+  "src_gamma.txt",
+  "build_log.txt",
+  "search_hits.txt",
+]
+quality_risks = [
+  "head_truncation",
+  "mid_loss",
+  "tail_loss",
+  "incomplete_coverage",
+]
+prompt = """
+Inspect every file under tools/bench/corpus/ that is listed below. Use tools
+(read, bash, grep) as needed. Do not modify files.
+
+Files:
+- tools/bench/corpus/src_alpha.txt
+- tools/bench/corpus/src_beta.txt
+- tools/bench/corpus/src_gamma.txt
+- tools/bench/corpus/build_log.txt
+- tools/bench/corpus/search_hits.txt
+
+Collect these planted facts from the corpus (each appears exactly once):
+1. The FACT_ALPHA_MID value from src_alpha.txt
+2. The FACT_BETA_TAIL value from src_beta.txt
+3. The FACT_GAMMA_HEAD value from src_gamma.txt
+4. The FACT_LOG_TAIL_ERROR value from build_log.txt
+5. The FACT_GREP_NEEDLE value from search_hits.txt
+
+Reply with only those five FACT_* lines, one per line, no other prose.
+"""
+
+[scoring]
+kind = "multi_fact_fractional"
+facts = [
+  "FACT_ALPHA_MID=alpha-mid-4b18e0d7",
+  "FACT_BETA_TAIL=beta-tail-0e55d3c8",
+  "FACT_GAMMA_HEAD=gamma-head-81af0c33",
+  "FACT_LOG_TAIL_ERROR=log-tail-error-e7b4c012",
+  "FACT_GREP_NEEDLE=grep-needle-6a19d8ef",
+]

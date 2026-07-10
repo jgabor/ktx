@@ -1,0 +1,5 @@
+# Evaluation pipeline: sanitize
+# Noise removal only. Safe control; expects near-zero quality loss.
+
+[pipeline.default]
+stages = ["strip-ansi", "dedup-blank", "normalize"]

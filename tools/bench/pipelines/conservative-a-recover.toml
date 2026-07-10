@@ -1,0 +1,7 @@
+# Evaluation pipeline: conservative-a-recover
+# Same stages as conservative-a, with recovery footer enabled so the
+# agent can self-recover originals via `ktx read <source_id>`.
+
+[pipeline.default]
+recover_footer = true
+stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]

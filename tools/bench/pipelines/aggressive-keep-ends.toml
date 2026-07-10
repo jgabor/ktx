@@ -1,0 +1,5 @@
+# Evaluation pipeline: aggressive-keep-ends
+# Aggressive truncation that still preserves head and tail windows.
+
+[pipeline.default]
+stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:30:10"]

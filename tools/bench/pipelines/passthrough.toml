@@ -1,0 +1,5 @@
+# Evaluation pipeline: passthrough
+# No compression. Baseline for live A/B and offline replay ranking.
+
+[pipeline.default]
+stages = []

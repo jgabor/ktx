@@ -9,9 +9,8 @@
 # against real opencode, then emits five per-layer [PASS]/[FAIL] verdicts
 # per the contract:
 #
-#   L1 session-capture      ktx list shows a session whose agent == 'opencode'
-#                            and whose started_at is within +/- 60s of the
-#                            invocation's wall-clock start.
+#   L1 session-capture      ktx list shows exactly one new session after the
+#                            wrapped invocation.
 #                            Evidence source: ktx list --format json.
 #
 #   L2 stream-token-        on the captured JSONL stream that `ktx run` teed
@@ -104,14 +103,18 @@ done
     exit 2
 }
 
-command -v ktx        >/dev/null || { printf '[validate] fatal: ktx not on PATH\n' >&2; exit 2; }
-command -v opencode   >/dev/null || { printf '[validate] fatal: opencode not on PATH\n' >&2; exit 2; }
+KTX_BIN="${KTX_BIN:-$(command -v ktx 2>/dev/null || true)}"
+OPENCODE_BIN="${OPENCODE_BIN:-$(command -v opencode 2>/dev/null || true)}"
+[ -n "$KTX_BIN" ] && [ -x "$KTX_BIN" ] || { printf '[validate] fatal: ktx not found\n' >&2; exit 2; }
+[ -n "$OPENCODE_BIN" ] && [ -x "$OPENCODE_BIN" ] || { printf '[validate] fatal: opencode not found\n' >&2; exit 2; }
 command -v jq         >/dev/null || { printf '[validate] fatal: jq not on PATH\n' >&2; exit 2; }
 command -v python3    >/dev/null || { printf '[validate] fatal: python3 not on PATH\n' >&2; exit 2; }
 
 STDOUT_LOG="$(mktemp -t ktx-validate.stdout.XXXXXX)"
 STDERR_LOG="$(mktemp -t ktx-validate.stderr.XXXXXX)"
-trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG"' EXIT
+SESSIONS_BEFORE_LOG="$(mktemp -t ktx-validate.sessions-before.XXXXXX)"
+SESSIONS_AFTER_LOG="$(mktemp -t ktx-validate.sessions-after.XXXXXX)"
+trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG" "$SESSIONS_BEFORE_LOG" "$SESSIONS_AFTER_LOG"' EXIT
 
 log()   { printf '[validate] %s\n' "$*" >&2; }
 emit()  { printf '%s %s\n' "$1" "$2" >&2; }   # emit "<verdict>" "<layer>: <reason>"
@@ -136,6 +139,7 @@ MODEL_SPEC="${MODEL_PROVIDER}/${MODEL_ID}"
 
 log "methodology=$METHODOLOGY_PATH"
 log "model=$MODEL_SPEC prompt='$TASK_PROMPT' expected_output='$EXPECTED_OUTPUT'"
+"$KTX_BIN" list --format json >"$SESSIONS_BEFORE_LOG"
 
 # ---------------------------------------------------------------------------
 # Dry-run path: skip the API call. Useful for exercising the parser logic
@@ -164,9 +168,13 @@ log "wall_start_utc=$WALL_START_ISO"
 # ---------------------------------------------------------------------------
 if [ "${KTX_VALIDATE_DRY_RUN:-0}" != "1" ]; then
     log "invoking: ktx run opencode run --format json -m $MODEL_SPEC '$TASK_PROMPT'"
-    if ! timeout 300 ktx run opencode run --format json -m "$MODEL_SPEC" "$TASK_PROMPT" \
-            >"$STDOUT_LOG" 2>"$STDERR_LOG"; then
+    if timeout 300 "$KTX_BIN" run "$OPENCODE_BIN" run --format json -m "$MODEL_SPEC" "$TASK_PROMPT" \
+        >"$STDOUT_LOG" 2>"$STDERR_LOG"; then
+        RC=0
+    else
         RC=$?
+    fi
+    if [ "$RC" -ne 0 ]; then
         log "ktx run exited non-zero (rc=$RC); stderr head:"
         head -5 "$STDERR_LOG" >&2 || true
         # The run failed; any environmental failure is reported as a
@@ -181,37 +189,35 @@ if [ "${KTX_VALIDATE_DRY_RUN:-0}" != "1" ]; then
         exit 1
     fi
 fi
+"$KTX_BIN" list --format json >"$SESSIONS_AFTER_LOG"
 
 # ---------------------------------------------------------------------------
 # Layer 1: session-capture
-#   ktx list shows a session whose agent == 'opencode' and whose started_at
-#   is within +/- 60s of the invocation's wall-clock start.
+#   Exactly one session appears after the wrapped invocation.
 # ---------------------------------------------------------------------------
-L1_FAIL_REASON=""
-SESSION_JSON="$(ktx list --format json 2>/dev/null | python3 -c "
-import sys, json, datetime
-wall_iso = '''$WALL_START_ISO'''
-wall = datetime.datetime.strptime(wall_iso, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
-sessions = json.load(sys.stdin)
-def parse(s):
-    if not s: return None
-    try: return datetime.datetime.fromisoformat(s.replace('Z','+00:00'))
-    except Exception: return None
-matching = []
-for s in sessions:
-    if s.get('agent') != 'opencode': continue
-    sa = parse(s.get('started_at',''))
-    if sa is None: continue
-    if abs((sa - wall).total_seconds()) <= 60:
-        matching.append((sa, s))
-if not matching:
-    sys.stdout.write('')
-else:
-    matching.sort(key=lambda t: t[0])
-    sys.stdout.write(json.dumps(matching[-1][1]))
-" 2>/dev/null)"
+SESSION_JSON="$(python3 - "$SESSIONS_BEFORE_LOG" "$SESSIONS_AFTER_LOG" <<'PY'
+import json
+import sys
+
+before = json.load(open(sys.argv[1]))
+after = json.load(open(sys.argv[2]))
+before_ids = {session.get("id") for session in before if session.get("id")}
+new_sessions = [session for session in after if session.get("id") not in before_ids]
+if len(new_sessions) == 1:
+    print(json.dumps(new_sessions[0]))
+PY
+)"
 if [ -z "$SESSION_JSON" ]; then
-    emit "[FAIL]" "L1 session-capture: no ktx list session with agent=='opencode' and started_at within ±60s of wall_start=$WALL_START_ISO"
+    NEW_SESSION_COUNT="$(python3 - "$SESSIONS_BEFORE_LOG" "$SESSIONS_AFTER_LOG" <<'PY'
+import json
+import sys
+before = json.load(open(sys.argv[1]))
+after = json.load(open(sys.argv[2]))
+before_ids = {session.get("id") for session in before if session.get("id")}
+print(sum(session.get("id") not in before_ids for session in after))
+PY
+)"
+    emit "[FAIL]" "L1 session-capture: expected exactly one new ktx list session, found $NEW_SESSION_COUNT"
 else
     SESSION_ID=$(printf '%s' "$SESSION_JSON" | jq -r '.id')
     SESSION_AGENT=$(printf '%s' "$SESSION_JSON" | jq -r '.agent')

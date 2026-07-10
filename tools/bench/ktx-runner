@@ -10,7 +10,7 @@ set -eu
 #
 # The runner wraps `opencode run` with JSON output parsing. The ktx
 # plugin is pre-installed in the image; the ktx.toml config is
-# bind-mounted at /home/node/.config/ktx/config.toml.
+# bind-mounted at /home/node/.config/ktx/ktx.toml.
 #
 # Environment:
 #   KTX_DB   - ktx database path (default: /home/node/.local/share/ktx/ktx.db)
@@ -74,20 +74,30 @@ if [ -z "$model" ]; then
 fi
 
 # Verify auth is mounted.
-auth="/home/node/.local/share/opencode/auth.json"
+auth="${OPENCODE_AUTH_PATH:-/home/node/.local/share/opencode/auth.json}"
 if [ ! -f "$auth" ]; then
   printf 'ktx-runner: opencode auth missing; mount auth.json at %s\n' "$auth" >&2
   exit 2
 fi
 
 # Verify ktx config is present (even if it's a passthrough stages=[]).
-ktx_config="/home/node/.config/ktx/config.toml"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/home/node/.config}"
+ktx_config="$XDG_CONFIG_HOME/ktx/ktx.toml"
 if [ ! -f "$ktx_config" ]; then
-  printf 'ktx-runner: ktx config missing; mount ktx.toml at %s\n' ktx_config >&2
+  printf 'ktx-runner: ktx config missing; mount ktx.toml at %s\n' "$ktx_config" >&2
   exit 2
 fi
 
 export KTX_DB="${KTX_DB:-/home/node/.local/share/ktx/ktx.db}"
+
+if [ -n "${KTX_EXPECTED_STAGES_JSON:-}" ]; then
+  actual_stages="$(ktx config show --format json | jq -c '.profiles.default.stages')"
+  if [ "$actual_stages" != "$KTX_EXPECTED_STAGES_JSON" ]; then
+    printf 'ktx-runner: configured stages mismatch: expected=%s actual=%s\n' \
+      "$KTX_EXPECTED_STAGES_JSON" "$actual_stages" >&2
+    exit 2
+  fi
+fi
 
 # Run opencode with the ktx plugin active. The plugin intercepts
 # tool.execute.after and compresses output per the mounted ktx.toml.

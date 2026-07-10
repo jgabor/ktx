@@ -1,6 +1,6 @@
 # ktx.toml for benchmark treatment (conservative compression pipeline)
 #
-# Mount this file at /home/node/.config/ktx/config.toml for the
+# Mount this file at /home/node/.config/ktx/ktx.toml for the
 # treatment arm. The ktx plugin compresses each tool_call output
 # in-flight via the configured pipeline before the agent sees it.
 #

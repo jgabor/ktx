@@ -13,7 +13,7 @@
 # Baseline (passthrough — plugin records but does not compress):
 #   docker run --rm \
 #     -v ~/.local/share/opencode/auth.json:/home/node/.local/share/opencode/auth.json:ro \
-#     -v /path/to/ktx.toml:/home/node/.config/ktx/config.toml:ro \
+#     -v /path/to/ktx.toml:/home/node/.config/ktx/ktx.toml:ro \
 #     -v /path/to/target/repo:/work:rw \
 #     ktx-bench \
 #     -m neuralwatt/glm-5.2-short-fast-flex \
@@ -55,7 +55,7 @@ RUN mkdir -p \
   && chmod 0755 /usr/local/bin/ktx-runner
 # Install the ktx OpenCode plugin into the container's plugin dir.
 # This is the ONLY plugin — no host plugins leak in.
-RUN ktx init opencode
 USER node
+RUN ktx init opencode
 WORKDIR /work
 ENTRYPOINT ["/usr/local/bin/ktx-runner"]

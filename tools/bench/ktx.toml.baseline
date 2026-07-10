@@ -1,6 +1,6 @@
 # ktx.toml for benchmark baseline (passthrough — no compression)
 #
-# Mount this file at /home/node/.config/ktx/config.toml for the
+# Mount this file at /home/node/.config/ktx/ktx.toml for the
 # baseline arm. The ktx plugin still fires (records originals to
 # ktx.db) but does not compress — the agent sees full tool output.
 #

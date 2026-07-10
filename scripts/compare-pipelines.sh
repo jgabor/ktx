@@ -63,7 +63,10 @@ done
 
 # ── Setup ───────────────────────────────────────────────────────────
 
-KTX_BIN="$(command -v ktx 2>/dev/null || echo "")"
+KTX_BIN="${KTX_BIN:-}"
+if [[ -z "$KTX_BIN" ]]; then
+  KTX_BIN="$(command -v ktx 2>/dev/null || echo "")"
+fi
 if [[ -z "$KTX_BIN" ]]; then
   if [[ -x "$(pwd)/ktx" ]]; then
     KTX_BIN="$(pwd)/ktx"
@@ -80,10 +83,8 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# Create a temp working directory for config files.
-# ktx discovers config by cwd precedence: ./ktx.toml > $XDG_CONFIG_HOME/ktx/config.toml.
-# Running from a temp dir with a written ktx.toml controls the pipeline
-# without touching the user's real config.
+# Create a temporary XDG config root for each pipeline without touching the
+# user's real config.
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
@@ -95,21 +96,30 @@ for cfg in "${CONFIGS[@]}"; do
   name="${cfg%%|*}"
   stages="${cfg#*|}"
 
-  # Write the config file for this pipeline
-  cat > "$WORKDIR/ktx.toml" << TOML
+  config_root="$WORKDIR/$name"
+  config_path="$config_root/ktx/ktx.toml"
+  mkdir -p "$config_root/ktx"
+  cat > "$config_path" << TOML
 [pipeline.default]
 stages = $stages
 TOML
+  config_sha256="$(sha256sum "$config_path" | awk '{print $1}')"
 
-  # Run replay from the temp dir so ktx discovers our ktx.toml
-  output="$(cd "$WORKDIR" && "$KTX_BIN" bench run --replay "$SESSION_ID" 2>/dev/null)" || {
+  output="$(XDG_CONFIG_HOME="$config_root" "$KTX_BIN" bench run --replay "$SESSION_ID" 2>/dev/null)" || {
     echo "warning: replay failed for pipeline '$name'" >&2
     continue
   }
 
   # Extract compression fields from the replay JSON
-  entry="$(echo "$output" | jq -c --arg name "$name" '{
+  entry="$(echo "$output" | jq -c \
+    --arg name "$name" \
+    --arg session_id "$SESSION_ID" \
+    --arg config_sha256 "$config_sha256" \
+    --argjson stages "$stages" '{
     name: $name,
+    session_id: $session_id,
+    config_sha256: $config_sha256,
+    stages: $stages,
     pipeline: .compression.pipeline,
     baseline_bytes: .compression.baseline_bytes,
     compressed_bytes: .compression.compressed_bytes,

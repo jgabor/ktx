@@ -171,8 +171,9 @@ stages = ["normalize"]
 
 // TestLoad_PipelineTimeout covers the configurable pipeline
 // timeout: [pipeline.default] timeout parses as a Go duration string,
-// defaults to 30s when omitted or when no ktx.toml exists, and a
-// garbage/non-positive value is a *ParseError at config-load time.
+// defaults to DefaultPipelineTimeout (2s) when omitted or when no
+// ktx.toml exists, and a garbage/non-positive value is a *ParseError
+// at config-load time.
 func TestLoad_PipelineTimeout(t *testing.T) {
 	t.Run("timeout='10s' parses to 10s (configurable)", func(t *testing.T) {
 		chdirTemp(t)
@@ -191,7 +192,7 @@ timeout = "10s"
 		}
 	})
 
-	t.Run("no timeout field → default 30s (backward compatible)", func(t *testing.T) {
+	t.Run("no timeout field → default 2s", func(t *testing.T) {
 		chdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 		writeUserConfig(t, `[pipeline.default]
@@ -203,11 +204,14 @@ stages = ["head:3"]
 			t.Fatalf("Load: %v", err)
 		}
 		if cfg.PipelineTimeout != DefaultPipelineTimeout {
-			t.Errorf("PipelineTimeout = %v, want %v (default 30s)", cfg.PipelineTimeout, DefaultPipelineTimeout)
+			t.Errorf("PipelineTimeout = %v, want %v (default 2s)", cfg.PipelineTimeout, DefaultPipelineTimeout)
+		}
+		if DefaultPipelineTimeout != 2*time.Second {
+			t.Errorf("DefaultPipelineTimeout = %v, want 2s", DefaultPipelineTimeout)
 		}
 	})
 
-	t.Run("no ktx.toml → default 30s (passthrough path)", func(t *testing.T) {
+	t.Run("no ktx.toml → default 2s (passthrough path)", func(t *testing.T) {
 		chdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
@@ -281,12 +285,11 @@ timeout = "2m"
 }
 
 // TestLoad_RecoverFooter covers the recover_footer config surface on
-// [pipeline.default]. The flag defaults to false (the Config zero
-// value): when absent or explicitly false, hook behavior is
-// byte-for-byte identical to prior output (no footer, no source_id in
-// agent context). A non-bool value is a *ParseError naming the field.
+// [pipeline.default]. The flag defaults to true when absent or no
+// ktx.toml exists. Explicit false suppresses the recovery footer.
+// A non-bool value is a *ParseError naming the field.
 func TestLoad_RecoverFooter(t *testing.T) {
-	t.Run("no ktx.toml → false (passthrough default)", func(t *testing.T) {
+	t.Run("no ktx.toml → true (default on)", func(t *testing.T) {
 		chdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
@@ -294,12 +297,12 @@ func TestLoad_RecoverFooter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.RecoverFooter {
-			t.Errorf("RecoverFooter = true, want false (no-config default)")
+		if !cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = false, want true (no-config default)")
 		}
 	})
 
-	t.Run("stages-only config (no recover_footer key) → false", func(t *testing.T) {
+	t.Run("stages-only config (no recover_footer key) → true", func(t *testing.T) {
 		chdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 		writeUserConfig(t, `[pipeline.default]
@@ -310,8 +313,8 @@ stages = ["strip-ansi", "head:100"]
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.RecoverFooter {
-			t.Errorf("RecoverFooter = true, want false (absent key defaults to false)")
+		if !cfg.RecoverFooter {
+			t.Errorf("RecoverFooter = false, want true (absent key defaults to true)")
 		}
 	})
 

@@ -23,18 +23,18 @@
 [pipeline.default]
 
 # Pipeline timeout for ktx hook (the agent's critical path). ktx compress
-# (off-line) ignores this. Default 30s when omitted.
-timeout = "30s"
+# (off-line) ignores this. Default 2s when omitted — enough for built-in
+# stages on large tool output; raise for slow external plugins.
+timeout = "2s"
 
 # ── Recovery footer ──────────────────────────────────────────────────
 #
 # recover_footer surfaces the source_id back into the agent's context
-# so the agent can self-recover the original output. Default false (off):
-# no footer is appended and source_id stays developer-facing only (in
-# the hook envelope's source_id field, never injected into output).
+# so the agent can self-recover the original output. Default true (on):
+# when the pipeline actually compresses, ktx hook appends a single-line
+# recovery footer to the agent-visible output. Set false to suppress.
 #
-# When true, ktx hook appends a single-line recovery footer to the
-# compressed output the agent sees. The footer carries:
+# The footer carries:
 #   - source_id (verbatim, as the argument to `ktx read <source_id>`)
 #   - compressed byte size
 #   - reduction ratio (percent)
@@ -57,7 +57,7 @@ timeout = "30s"
 # the agent-visible envelope.Output, NOT in the persisted Compressed.
 # Output. This keeps `ktx decompress <compressed_id>` byte-identical
 # to the bare compressed bytes.
-recover_footer = false
+recover_footer = true
 
 # ── Stage safety tiers ───────────────────────────────────────────────
 #
@@ -127,14 +127,16 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 # # output is enough, or when tool-aware routing can opt out later.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "head:30"]
 #
-# # Lossy + recovery: narrow keep-ends + token budget only with the
-# # recovery footer on. Without recover_footer, live ranking saw partial
-# # fact loss; with it, agents used `ktx read` and full pass returned.
-# recover_footer = true
+# # Lossy + recovery (footer on by default): narrow keep-ends + token
+# # budget. Live ranking saw partial mid-fact loss without recovery;
+# # with the footer, agents used `ktx read` and full pass returned.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]
 #
+# # Suppress recovery footer (opt out of the default):
+# # recover_footer = false
+#
 # # Build logs: drop debug noise, keep head+tail. Prefer wider keep-ends
-# # over a tight token budget unless recover_footer is also enabled.
+# # over a tight token budget when recovery is undesirable.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:100:50"]
 
 # ── External plugin stages ───────────────────────────────────────────

@@ -145,6 +145,7 @@ func TestHook_FooterDisabled(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
+recover_footer = false
 `)
 
 	var sb strings.Builder

@@ -10,16 +10,6 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// hookPipelineTimeout is the legacy default critical-path deadline for the
-// pipeline run inside `ktx hook`. It is retained as the backward-
-// compatible default; the timeout is configurable via the
-// [pipeline.default] timeout field in ktx.toml (config.DefaultPipelineTimeout
-// is the value when the field is omitted). hookLogic now reads
-// cfg.PipelineTimeout and passes it to compressPipeline, so this constant
-// is the fallback only. `ktx compress` (off-line) passes timeout=0 (no
-// timeout) because the developer can Ctrl-C.
-const hookPipelineTimeout = 30 * time.Second
-
 // hookEnvelope is the JSON response written by `ktx hook` to stdout.
 // The plugin parses this and sets output.output = Output (the
 // compressed bytes the agent sees). CompressedID and SourceID are
@@ -210,16 +200,17 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "the original is returned unchanged with compressed_id=null.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "A pipeline timeout is enforced (critical-path contract); the default")
-	fmt.Fprintln(w, "is 30s, configurable via [pipeline.default] timeout in ktx.toml (e.g.")
-	fmt.Fprintln(w, "`timeout = \"10s\"`). On timeout the original is returned unchanged with a")
-	fmt.Fprintln(w, "stderr warning.")
+	fmt.Fprintln(w, "is 2s, configurable via [pipeline.default] timeout in ktx.toml (e.g.")
+	fmt.Fprintln(w, "`timeout = \"500ms\"` or `timeout = \"10s\"`). On timeout the original is")
+	fmt.Fprintln(w, "returned unchanged with a stderr warning.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Set [pipeline.default] recover_footer = true in ktx.toml (default false) to")
-	fmt.Fprintln(w, "append a recovery footer to the compressed output the agent sees. The footer")
-	fmt.Fprintln(w, "carries the source_id, the compressed size, the reduction ratio, and the recovery")
-	fmt.Fprintln(w, "command `ktx read <source_id>` prefixed by an instructional cue. A footer-aware")
-	fmt.Fprintln(w, "anti-worsening gate suppresses the transform (and the footer) when compressed+footer")
-	fmt.Fprintln(w, "would not be smaller than the original; the stored compressed row stays content-only.")
+	fmt.Fprintln(w, "By default, lossy compression appends a recovery footer to the compressed")
+	fmt.Fprintln(w, "output the agent sees (recover_footer = true). The footer carries the")
+	fmt.Fprintln(w, "source_id, the compressed size, the reduction ratio, and the recovery")
+	fmt.Fprintln(w, "command `ktx read <source_id>` prefixed by an instructional cue. Set")
+	fmt.Fprintln(w, "recover_footer = false to suppress it. A footer-aware anti-worsening gate")
+	fmt.Fprintln(w, "suppresses the transform (and the footer) when compressed+footer would not")
+	fmt.Fprintln(w, "be smaller than the original; the stored compressed row stays content-only.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This verb is called by the OpenCode plugin's tool.execute.after hook (installed")
 	fmt.Fprintln(w, "via `ktx init opencode`). It is not typically invoked directly by users.")

@@ -45,10 +45,11 @@ import (
 // DefaultPipelineTimeout is the critical-path deadline for the pipeline
 // run inside `ktx hook` when ktx.toml omits the timeout field.
 // `ktx hook` is on the agent's critical path (the agent waits for the
-// tool result), so a hanging stage must not block indefinitely. The
-// default matches the prior hardcoded constant (hookPipelineTimeout)
-// so omitting the field is backward compatible.
-const DefaultPipelineTimeout = 30 * time.Second
+// tool result), so a hanging stage must not block indefinitely.
+// Built-in stages finish in well under a second on multi-MB inputs;
+// 2s leaves headroom for lightweight external plugins. Slow plugins
+// should set an explicit timeout in ktx.toml.
+const DefaultPipelineTimeout = 2 * time.Second
 
 // userConfigPath is the user-level config path relative to
 // $XDG_CONFIG_HOME. Resolves to
@@ -95,22 +96,21 @@ type Config struct {
 
 	// PipelineTimeout is the configured pipeline deadline for the
 	// [pipeline.default] table's `timeout` field, parsed as a Go
-	// duration string (e.g. "30s", "2m"). Default 30s when the field
-	// is absent (backward compatibility with the prior default). `ktx hook`
-	// reads this instead of the hardcoded constant so a user can tune
-	// the critical-path deadline per project. `ktx compress` ignores
-	// it (off-line, timeout=0, developer can Ctrl-C). A non-positive or
-	// unparseable value is a *ParseError at config-load time.
-	// Only the "default" profile's timeout is read; per-profile
-	// timeouts are YAGNI until content-type routing lands.
+	// duration string (e.g. "2s", "500ms", "30s"). Default
+	// DefaultPipelineTimeout (2s) when the field is absent. `ktx hook`
+	// reads this so a user can tune the critical-path deadline.
+	// `ktx compress` ignores it (off-line, timeout=0, developer can
+	// Ctrl-C). A non-positive or unparseable value is a *ParseError at
+	// config-load time. Only the "default" profile's timeout is read;
+	// per-profile timeouts are YAGNI until content-type routing lands.
 	PipelineTimeout time.Duration
 
 	// RecoverFooter is the [pipeline.default].recover_footer flag.
-	// Defaults to false (the field's zero value): when false, hook
-	// output is unchanged from prior behavior — no footer and no
-	// source_id in agent context. When true, the hook emits a recovery
-	// footer. Only the "default" profile's value is read; per-profile
-	// toggles are YAGNI until content-type routing lands.
+	// Defaults to true when the field is absent or no ktx.toml exists:
+	// lossy compression surfaces a recovery cue so agents can
+	// `ktx read <source_id>`. Set recover_footer = false to suppress
+	// the footer. Only the "default" profile's value is read;
+	// per-profile toggles are YAGNI until content-type routing lands.
 	RecoverFooter bool
 }
 
@@ -170,13 +170,22 @@ func Load() (*Config, error) {
 	// User-level $XDG_CONFIG_HOME/ktx/ktx.toml.
 	userPath, err := userConfigFile()
 	if err != nil {
-		return &Config{PipelineTimeout: DefaultPipelineTimeout}, nil
+		return defaultConfig(), nil
 	}
 	if _, ok := fileExists(userPath); ok {
 		return loadFile(userPath)
 	}
 	// No config found → passthrough default.
-	return &Config{PipelineTimeout: DefaultPipelineTimeout}, nil
+	return defaultConfig(), nil
+}
+
+// defaultConfig is the no-file / load-error-safe baseline: empty stages
+// (passthrough), 2s pipeline timeout, recover_footer on.
+func defaultConfig() *Config {
+	return &Config{
+		PipelineTimeout: DefaultPipelineTimeout,
+		RecoverFooter:   true,
+	}
 }
 
 // userConfigFile resolves the user-level config path:
@@ -246,7 +255,7 @@ type tomlConfig struct {
 	Pipeline map[string]struct {
 		Stages        []string `toml:"stages"`
 		Timeout       string   `toml:"timeout"`
-		RecoverFooter bool     `toml:"recover_footer"`
+		RecoverFooter *bool    `toml:"recover_footer"` // nil = default true
 	} `toml:"pipeline"`
 	Plugin []tomlPlugin `toml:"plugin"`
 }
@@ -297,9 +306,8 @@ func parse(data []byte) (*Config, error) {
 	// string in TOML and parsed here via time.ParseDuration so an
 	// invalid duration surfaces as a *ParseError at config-load time
 	// (not deferred to hook runtime). Empty → DefaultPipelineTimeout
-	// (30s, backward compatible with the prior default). Only the
-	// "default" profile's timeout is read; per-profile timeouts are
-	// YAGNI until content-type routing lands.
+	// (2s). Only the "default" profile's timeout is read; per-profile
+	// timeouts are YAGNI until content-type routing lands.
 	cfg.PipelineTimeout = DefaultPipelineTimeout
 	if def, ok := decoded.Pipeline["default"]; ok && def.Timeout != "" {
 		d, err := time.ParseDuration(def.Timeout)
@@ -318,14 +326,13 @@ func parse(data []byte) (*Config, error) {
 		cfg.PipelineTimeout = d
 	}
 
-	// recover_footer is a bool knob surfaced on the config read
-	// surface. Defaults to false (the Config zero value): when false,
-	// hook behavior is byte-for-byte identical to prior output (no
-	// footer, no source_id in agent context). Only the "default"
-	// profile's value is read. A non-bool value surfaces as a
-	// *ParseError via BurntSushi's decode error (handled above).
-	if def, ok := decoded.Pipeline["default"]; ok {
-		cfg.RecoverFooter = def.RecoverFooter
+	// recover_footer defaults to true. A *bool decode distinguishes
+	// "key absent" (nil → true) from explicit false. Only the
+	// "default" profile's value is read. A non-bool value surfaces as
+	// a *ParseError via BurntSushi's decode error (handled above).
+	cfg.RecoverFooter = true
+	if def, ok := decoded.Pipeline["default"]; ok && def.RecoverFooter != nil {
+		cfg.RecoverFooter = *def.RecoverFooter
 	}
 
 	for i, p := range decoded.Plugin {

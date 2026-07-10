@@ -46,11 +46,13 @@ The recipes below match `ktx.example.toml` and live ranking
 | Sanitize only | `strip-ansi`, `dedup-blank`, `normalize` | Safe default in `ktx.example.toml`; no content loss; little savings on clean output |
 | **Keep-ends mid (recommended general)** | sanitize + `keep-ends:100:50` | Best measured $/correct with full pass; no `token-budget` |
 | Aggressive head | sanitize + `head:30` | Max token/cost cut; accept mid/tail loss (or future tool-aware opt-out) |
-| Lossy + recovery | sanitize + `keep-ends:50:20` + `token-budget:2000` + `recover_footer=true` | Narrow windows/budget only with recovery; agents can `ktx read` |
-| Build logs | sanitize + `grep-v:^debug:` + `keep-ends:100:50` | Prefer wider keep-ends over a tight budget unless recovery is on |
+| Lossy + recovery | sanitize + `keep-ends:50:20` + `token-budget:2000` (footer on by default) | Narrow windows/budget; agents can `ktx read` via default recovery footer |
+| Build logs | sanitize + `grep-v:^debug:` + `keep-ends:100:50` | Prefer wider keep-ends over a tight budget when recovery is undesirable |
 
-Do not promote bare `conservative-a` (budget, no footer) as a general default:
-live ranking showed partial fact loss without `recover_footer`.
+Product defaults when fields are omitted: pipeline timeout **2s**,
+`recover_footer` **true**. Set `recover_footer = false` to suppress the
+footer. Do not promote bare lossy budgets without recovery as a general
+default: live ranking showed partial fact loss when the footer was off.
 
 ## Task suite
 

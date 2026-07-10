@@ -104,8 +104,10 @@ func TestHook_WithPipeline(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	// Footer off: short fixtures would trip the footer anti-worsening gate.
 	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:3"]
+recover_footer = false
 `)
 
 	payload := `{"id":"hookpipe01","tool":"bash","input":"echo hello","output":"line 1\nline 2\nline 3\nline 4\nline 5\n","content_hash":"","timestamp":"2026-07-01T12:00:00Z"}`
@@ -216,8 +218,10 @@ func TestHook_Reversibility(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	// Footer off: short fixtures would trip the footer anti-worsening gate.
 	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["head:2"]
+recover_footer = false
 `)
 
 	payload := `{"id":"hookrev001","tool":"bash","input":"echo","output":"line 1\nline 2\nline 3\nline 4\n","content_hash":"","timestamp":"2026-07-01T12:00:00Z"}`
@@ -329,7 +333,7 @@ stages = ["fast"]
 // TestHook_ConfigurableTimeout covers: a ktx.toml with
 // [pipeline.default] timeout = "5ms" makes the config surface a 5ms
 // PipelineTimeout, which compressPipeline honours (a slow stage racing
-// a 5ms timer fires the CONFIGURED timeout, not the legacy 30s).
+// a 5ms timer fires the CONFIGURED timeout, not the legacy 2s default).
 // hookLogic forwards cfg.PipelineTimeout to compressPipeline, so proving
 // config→timeout→fire exercises the configurable-timeout contract
 // end-to-end minus the envelope write.
@@ -346,7 +350,7 @@ timeout = "5ms"
 		t.Fatalf("config.Load: %v", err)
 	}
 	if cfg.PipelineTimeout != 5*time.Millisecond {
-		t.Fatalf("PipelineTimeout = %v, want 5ms (configured, not the 30s default)", cfg.PipelineTimeout)
+		t.Fatalf("PipelineTimeout = %v, want 5ms (configured, not the 2s default)", cfg.PipelineTimeout)
 	}
 
 	source := &dbpkg.ToolCall{
@@ -377,10 +381,6 @@ timeout = "5ms"
 	}
 }
 
-// TestHook_DefaultTimeoutWhenOmitted covers: a ktx.toml with no
-// timeout field (and the no-ktx.toml passthrough path) surfaces the 30s
-// default so hookLogic's fallback is backward compatible with the
-// default.
 // TestHook_RealSessionEndToEnd covers the real-session path through the
 // actual code the OpenCode plugin's tool.execute.after hook calls
 // (hookLogic → DB → decompress). A live interactive OpenCode agent is
@@ -391,9 +391,11 @@ timeout = "5ms"
 func TestHook_RealSessionEndToEnd(t *testing.T) {
 	// The real-world pipeline: strip ANSI, drop
 	// debug noise, keep head+tail (errors at the bottom survive),
-	// line-safe token truncation.
+	// line-safe token truncation. recover_footer off so the envelope
+	// output stays content-only for ratio/decompress assertions.
 	const pipeline = `[pipeline.default]
 stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
+recover_footer = false
 `
 	// buildVerboseOutput constructs a build-log-style output: ANSI
 	// codes, 100 debug lines (stripped by grep-v), compile lines, and a
@@ -564,7 +566,7 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 }
 
 func TestHook_DefaultTimeoutWhenOmitted(t *testing.T) {
-	t.Run("ktx.toml without timeout → 30s default", func(t *testing.T) {
+	t.Run("ktx.toml without timeout → 2s default", func(t *testing.T) {
 		hookChdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 		hookWriteUserConfig(t, `[pipeline.default]
@@ -576,11 +578,14 @@ stages = ["head:3"]
 			t.Fatalf("config.Load: %v", err)
 		}
 		if cfg.PipelineTimeout != config.DefaultPipelineTimeout {
-			t.Errorf("PipelineTimeout = %v, want %v (default 30s when omitted)", cfg.PipelineTimeout, config.DefaultPipelineTimeout)
+			t.Errorf("PipelineTimeout = %v, want %v (default 2s when omitted)", cfg.PipelineTimeout, config.DefaultPipelineTimeout)
+		}
+		if config.DefaultPipelineTimeout != 2*time.Second {
+			t.Errorf("DefaultPipelineTimeout = %v, want 2s", config.DefaultPipelineTimeout)
 		}
 	})
 
-	t.Run("no ktx.toml → 30s default (passthrough path)", func(t *testing.T) {
+	t.Run("no ktx.toml → 2s default (passthrough path)", func(t *testing.T) {
 		hookChdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
@@ -589,7 +594,7 @@ stages = ["head:3"]
 			t.Fatalf("config.Load: %v", err)
 		}
 		if cfg.PipelineTimeout != config.DefaultPipelineTimeout {
-			t.Errorf("PipelineTimeout = %v, want %v (default 30s on passthrough path)", cfg.PipelineTimeout, config.DefaultPipelineTimeout)
+			t.Errorf("PipelineTimeout = %v, want %v (default 2s on passthrough path)", cfg.PipelineTimeout, config.DefaultPipelineTimeout)
 		}
 	})
 }

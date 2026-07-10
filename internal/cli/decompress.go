@@ -1,8 +1,5 @@
-// `ktx decompress` — the reversal primitive. The reversal acceptance
-// contract: "a compressed output can be retrieved as the original
-// bytes via the public surface." Given a compressed id, it resolves
-// the compressed.source_id and returns the source tool_call's
-// original output bytes verbatim.
+// `ktx decompress` resolves a compressed record's source and returns the
+// original tool output verbatim.
 //
 // Reversibility is OUT-OF-BAND by id: there is no per-stage inverse,
 // no in-band hash marker, no CCR hash store. The tool_calls table
@@ -24,10 +21,8 @@
 //     No --format flag (I/O primitive); the bytes are the bytes, no
 //     JSON wrapping.
 //
-// The verb does NOT verify the compressed row's content_hash against
-// the stored output — that is a future `ktx doctor` /
-// integrity-check responsibility. ktx decompress is the retrieval
-// primitive; it returns what was stored.
+// The command does not verify content_hash; it is a retrieval primitive and
+// returns the stored original.
 //
 // Registration: needsDB=true (one read against the compressed table
 // + one read against tool_calls), passthroughStdout=true (raw bytes,
@@ -70,10 +65,7 @@ func runDecompressWith(args []string, opts Options, stdout, stderr io.Writer) in
 	return ExitOK
 }
 
-// decompressLogic is the shared core of `ktx decompress`. Both
-// runDecompressWith (the legacy test seam) and the dispatch wrapper
-// decompressCommandFunc call it. The caller has already opened the
-// database.
+// decompressLogic restores one compressed record from an open database.
 //
 // Step-by-step:
 //  1. Parse --help/-h.
@@ -82,11 +74,6 @@ func runDecompressWith(args []string, opts Options, stdout, stderr io.Writer) in
 //  4. Resolve the source_id → tool_calls.output via GetSourceOutput.
 //     Missing source row (append-only contract violated by a downstream tool) → exit 2.
 //  5. Print the source's original output bytes verbatim to stdout.
-//
-// Returns (any, error) so the dispatcher can map the error envelope
-// through its own printError + exitCodeOf pipeline. The success
-// value is always nil today; the slot is reserved for future
-// envelope-rendering verbs.
 func decompressLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
 	var showHelp bool
 	fs := flag.NewFlagSet("ktx decompress", flag.ContinueOnError)

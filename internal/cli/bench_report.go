@@ -12,10 +12,8 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runBenchReport is the implementation. It replaces the "not yet
-// implemented" stub with the headline consumer that surfaces the
-// headline from persisted bench_runs rows. Three invocation modes are
-// supported:
+// runBenchReport renders persisted benchmark results. Three invocation
+// modes are supported:
 //
 //	ktx bench report                      — list all rows in insertion
 //	                                       order (oldest first); emit
@@ -34,13 +32,8 @@ import (
 //	                                       is recomputed from the
 //	                                       filtered set
 //
-// The function is the dispatcher adapter: it parses --format and
-// --methodology, opens the database, and converts the typed error
-// envelope into an exit code. The spec-signature implementation lives
-// in runBenchReportImpl (stdout, stderr, db, args, format, filter) →
-// error. The split mirrors the runRun/runRunWith pattern elsewhere in
-// the CLI layer (the adapter owns flag.Parse + DB open + exit code;
-// the impl owns the three-mode dispatch + rendering).
+// It parses report flags, opens the database, and maps errors to CLI exit
+// codes. runBenchReportImpl owns query selection and rendering.
 //
 // Exit codes:
 //
@@ -95,13 +88,8 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// runBenchReportImpl is the implementation core. Its signature
-// matches the spec exactly: stdout/stderr injection, a
-// pre-opened *dbpkg.DB, the parsed positional args (optional <id>),
-// the resolved format ("" or FormatJSON default to JSON; FormatText for
-// humans), and the methodology filter ("" for no filter). Returns a
-// typed *Error on failure so the dispatcher adapter can map it to an
-// exit code.
+// runBenchReportImpl queries and renders benchmark results using an open
+// database. An empty methodology filter includes every methodology.
 //
 // The three invocation modes are dispatched on the presence of a
 // positional arg:
@@ -327,9 +315,7 @@ func filterByMethodology(rows []dbpkg.BenchRun, version string) []dbpkg.BenchRun
 // Returns (headline, ok) where ok=false signals the headline is null
 // (every row's Cost pointer is nil — there is no cost to aggregate,
 // so the headline is meaningless). The 1e-9 epsilon guards against
-// division by zero when SUM(score)=0; the resulting large value
-// correctly signals "an incorrect answer is unboundedly expensive per
-// correct" (the vision's "cost is the contract made loud" reasoning).
+// division by zero when SUM(score)=0.
 //
 // Per-row score is 0.0 or 1.0 (exact-match v1), so SUM(score) over
 // rows is the count of correct runs; the headline is total_cost /

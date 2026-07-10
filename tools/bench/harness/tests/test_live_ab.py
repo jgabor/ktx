@@ -340,7 +340,7 @@ class LiveABHarnessTest(unittest.TestCase):
         self.assertEqual(LIVE_AB.attempt_status(0, ["one"], incomplete), "invalid")
         self.assertEqual(LIVE_AB.attempt_status(0, ["one"], complete), "completed")
 
-    def test_counted_attempt_requires_answer_and_tool_quality_gates(self):
+    def test_full_pass_requires_answer_and_tool_quality_gates(self):
         complete = {
             "status": "completed",
             "session_id": "session",
@@ -349,11 +349,11 @@ class LiveABHarnessTest(unittest.TestCase):
             "tool_call_count": 2,
         }
 
-        self.assertTrue(LIVE_AB.attempt_is_counted(complete, 2))
+        self.assertTrue(LIVE_AB.attempt_is_full_pass(complete, 2))
         self.assertFalse(
-            LIVE_AB.attempt_is_counted({**complete, "answer_matches_expected": False}, 2)
+            LIVE_AB.attempt_is_full_pass({**complete, "answer_matches_expected": False}, 2)
         )
-        self.assertFalse(LIVE_AB.attempt_is_counted({**complete, "tool_call_count": 1}, 2))
+        self.assertFalse(LIVE_AB.attempt_is_full_pass({**complete, "tool_call_count": 1}, 2))
 
     def test_harness_records_session_linked_alternating_attempts(self):
         with tempfile.TemporaryDirectory() as directory:

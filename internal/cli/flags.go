@@ -1,5 +1,4 @@
-// Subcommand-level flag helpers for the query commands (`ktx get`,
-// `ktx list`, future `ktx bench`).
+// Subcommand-level flag helpers for query commands.
 //
 // The global --format flag is parsed by the dispatcher (cli.go) from the
 // front of args, before the subcommand verb. The stdlib flag.Parse stops
@@ -29,8 +28,7 @@ import "strings"
 //
 // Both --format value and --format=value are accepted because both forms
 // appear in shell pipelines. The short form -f is intentionally NOT
-// accepted: keeping the alphabet narrow avoids confusion with future
-// per-command flags.
+// accepted to keep the command surface narrow.
 func extractFormat(args []string) (string, []string) {
 	var format string
 	rest := make([]string, 0, len(args))

@@ -5,17 +5,8 @@ import (
 	"fmt"
 )
 
-// schemaStatements creates the ktx tables plus the
-// bench_runs table, the compressed table,
-// and the recorded_streams table. The statements are idempotent
-// (CREATE TABLE IF NOT EXISTS), so Open runs them on every call without
-// a migration framework; a versioned migration layer is YAGNI for the
-// five-table schema.
-//
-// Column definitions match the task contract exactly: NOT NULL and DEFAULT
-// appear only where the schema specifies them (session_id, tool_call_count,
-// event_type). The tool_calls.session_id REFERENCES sessions(id) clause is
-// enforced because Open enables foreign_keys per connection.
+// schemaStatements creates the current database schema. The statements are
+// idempotent so Open can run them on every call.
 //
 // The cost-publication columns (tokens_in, tokens_out, cost, latency_ms,
 // model, provider) are part of the CREATE TABLE so fresh databases include
@@ -24,35 +15,13 @@ import (
 // DEFAULT — NULL is the proper "field absent" marker so cost reconstruction
 // can distinguish "caller did not supply" from "caller supplied zero".
 //
-// The bench_runs table stores one row per `ktx bench run`
-// invocation. Columns mirror the methodology_version contract
-// (`methodology_version TEXT` references `tools/bench/methodology-v1.yaml`)
-// and the reconstructability inputs (tokens_in + tokens_out + cost +
-// model). `id TEXT PRIMARY KEY` matches the nanoid-keyed shape used by
-// sessions and tool_calls. `timestamp INTEGER` is Unix epoch
-// seconds (the integer variant matches the reproducibility contract:
-// "a third party reading this file plus the persisted `bench_runs` row
-// can compute `cost_per_correct` exactly"). Every column is nullable
-// except `id` — the bench row is the persisted record, not a normalized
-// accounting row; NULL preserves "field not yet supplied by the runner"
-// without coercing zero values.
+// bench_runs stores the inputs and result of each benchmark invocation.
+// Every column except id is nullable so absent measurements remain distinct
+// from zero values. timestamp uses Unix epoch seconds.
 //
-// The recorded_streams table stores one row per `ktx bench run`
-// invocation (paired 1:1 with a bench_runs row), or per opt-in
-// `ktx run --record-stream` (in which case bench_run_id is NULL — the
-// stream was captured outside a bench context, so no bench_runs row
-// exists to reference). It holds the verbatim JSONL stream the agent
-// emitted (the authoritative cost evidence — OpenCode 1.17.8
-// emits tokens/cost/model on step_finish events that the wrapper pipes
-// through stdout but does NOT persist as tool_call rows). session_id is
-// NOT NULL FK; bench_run_id is a NULLABLE FK so the ktx-run path can
-// persist a stream without fabricating a bench_runs parent. The table
-// is the first persistent session-to-bench_run linkage (bench_runs has
-// no session_id column). No ALTER TABLE column add — the CREATE TABLE
-// IF NOT EXISTS alone handles the fresh-DB and unmigrated self-heal paths
-// (resolved judgment call: no partial-column-forward-fix ALTER loop,
-// per the literal reading of the "no ALTER TABLE" clause
-// for recorded_streams).
+// recorded_streams stores verbatim agent output. bench_run_id is nullable
+// because `ktx run --record-stream` captures streams outside a benchmark.
+// session_id always identifies the wrapper session that emitted the stream.
 var schemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS sessions (
 		id              TEXT PRIMARY KEY,
@@ -98,10 +67,7 @@ var schemaStatements = []string{
 	// non-evidence rows would corrupt the cost-summed evidence set).
 	// source_id REFERENCES tool_calls(id); foreign_keys=1 (enforced by
 	// Open's DSN) makes the FK meaningful. pipeline is a JSON array of
-	// stage names that ran ("a record of what stages ran") — JSON
-	// is inspectable and trivially stored as TEXT. The 6-column shape
-	// mirrors the acceptance contract: id, source_id, output,
-	// content_hash, pipeline, timestamp.
+	// stage names that ran, stored as inspectable TEXT.
 	`CREATE TABLE IF NOT EXISTS compressed (
 		id           TEXT PRIMARY KEY,
 		source_id    TEXT NOT NULL REFERENCES tool_calls(id),
@@ -115,7 +81,7 @@ var schemaStatements = []string{
 	// index is created idempotently alongside the table; re-open is a
 	// no-op via CREATE INDEX IF NOT EXISTS.
 	`CREATE INDEX IF NOT EXISTS compressed_source_id_idx ON compressed(source_id)`,
-	// recorded_streams (the recording contract): one row per captured
+	// recorded_streams: one row per captured
 	// `ktx bench run` invocation (or `ktx run --record-stream`, which
 	// opts in to the same recording without a bench_runs parent). Holds
 	// the verbatim JSONL stream the agent emitted (the authoritative
@@ -278,13 +244,8 @@ var compressedColumns = []compressedColumn{
 // the table does not exist (PRAGMA table_info returns zero rows for a
 // missing table). The error path is reserved for genuine query/scan
 // failures — the "table absent" case is reported as an empty set so the
-// caller can compose a single, clear error message.
-//
-// The queryer parameter accepts *sql.DB (read-only callers like doctor)
-// or *sql.Tx (the migrate path, which needs the in-transaction schema
-// view to decide which ALTER TABLE statements to emit). The interface
-// lives in inspect.go so the inspect surface owns its own contract —
-// open.go just borrows the seam for the migration transaction.
+// caller can compose a single, clear error message. q may be a database or
+// transaction so migrations can inspect their in-transaction schema view.
 func tableColumns(q queryer, table string) (map[string]struct{}, error) {
 	rows, err := q.Query("PRAGMA table_info(" + table + ")")
 	if err != nil {
@@ -313,51 +274,10 @@ func tableColumns(q queryer, table string) (map[string]struct{}, error) {
 	return cols, nil
 }
 
-// migrate runs the schema statements and the cost-publication in-place column migration
-// inside a single transaction so the database is never left with a partial
-// schema. Fresh databases get the cost-publication columns from the CREATE TABLE itself;
-// older databases pick them up via ALTER TABLE ADD COLUMN. The same
-// transaction also forward-fixes a partial set: any cost-publication column absent
-// from tool_calls is added; any cost-publication column already present is skipped. A
-// re-open of a fully migrated database is therefore a pure no-op (all
-// PRAGMA checks find the column, no ALTER runs).
-//
-// The bench_runs migration follows the same pattern: the
-// CREATE TABLE statement above establishes the 10-column table on a
-// fresh database or an older database (no bench_runs at all); the
-// ALTER TABLE ADD COLUMN loop below forward-fixes a partial bench_runs
-// schema on the next open (e.g. a buggy prior migration created the
-// table with only some columns). The cost-publication and bench_runs column loops are
-// independent — an older database gets the cost-publication columns added to
-// tool_calls AND gets bench_runs created; a database that already had
-// cost-publication columns but not bench_runs
-// gets bench_runs created with no work on tool_calls.
-//
-// The compressed migration follows the same pattern
-// for the reversibility-layer table: the CREATE TABLE statement above
-// establishes the 6-column table on a fresh database or an older
-// database (no compressed at all); the ALTER TABLE ADD COLUMN loop
-// below forward-fixes a partial compressed schema on the next open.
-// The compressed loop is independent of the cost-publication and bench_runs loops — an older
-// database gets compressed created alongside whatever migration work the
-// same migrate call performs. A re-open of a fully migrated database
-// is a pure no-op.
-//
-// The recorded_streams migration follows the leaner pattern: the
-// CREATE TABLE IF NOT EXISTS statement above establishes the 7-column
-// table on a fresh database or an older database (no recorded_streams
-// at all). No ALTER TABLE ADD COLUMN loop — reading the
-// "no ALTER TABLE" clause literally. The CREATE
-// TABLE IF NOT EXISTS alone handles the fresh-DB and unmigrated self-heal
-// paths; a partial-recorded_streams schema is too pathological to
-// warrant defense-in-depth. A re-open of a fully migrated database
-// is a pure no-op.
-//
-// The column-existence check uses PRAGMA table_info inside the migration
-// transaction. PRAGMA table_info is a read query that returns one row per
-// column on the connected schema view; running it inside a transaction is
-// safe because the transaction has not yet altered the schema and the
-// connection's schema cache is consistent within the transaction.
+// migrate creates missing tables and adds missing columns in one transaction.
+// It repairs partial tool_calls, bench_runs, and compressed schemas. The
+// recorded_streams table is created when absent but does not support partial
+// column repair. Reopening a current database performs no schema changes.
 func migrate(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {

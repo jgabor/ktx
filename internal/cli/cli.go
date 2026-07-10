@@ -46,8 +46,7 @@ func Run(args []string) int {
 	return runWith(args, os.Stdout, os.Stderr)
 }
 
-// runWith is the testable core of Run. stdout/stderr are injected so
-// acceptance checks can capture output without subprocess plumbing.
+// runWith executes the CLI with injected output streams.
 func runWith(args []string, stdout, stderr io.Writer) int {
 	opts, rest, err := parseGlobalFlags(args)
 	if err != nil {

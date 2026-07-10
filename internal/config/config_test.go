@@ -1,7 +1,7 @@
 // Table-driven tests for the ktx.toml loader (stage-list + plugin
 // support via BurntSushi/toml).
 //
-// Coverage per the plan's acceptance:
+// Coverage includes:
 //   - missing config → empty list + no error (passthrough default)
 //   - user-level ktx.toml parses
 //   - user-level config loads from $XDG_CONFIG_HOME/ktx/ktx.toml

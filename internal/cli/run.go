@@ -8,9 +8,7 @@
 //   - agent stdout passes through to ktx's stdout untouched
 //   - agent stderr inherits the wrapper's stderr
 //   - one-line run summary to stderr; --quiet suppresses it
-//   - exit code matches the child's exit code (test seam contract;
-//     dispatch path converts to internal-error on non-zero exit
-//     because the locked dispatch API can only map typed errors)
+//   - exit code matches the child's exit code
 //
 // Session lifecycle:
 //
@@ -36,17 +34,8 @@
 //	module-internal and reused by hook processing
 //	(same JSON payload shape).
 //
-// The verb registers via dispatch.Register with NeedsDB=true
-// (dispatcher opens the DB) and PassthroughStdout=true (transparent
-// stdout proxy — the verb owns its raw output). The verb's own flag
-// set parses --quiet/-q (a runtime flag the dispatcher does not know
-// about); runRunWith remains the test seam and reuses the same parser
-// path. The dispatch wrapper routes through executeRun, which
-// preserves the runCmd injection seam. Child exit codes that are
-// non-zero are mapped to a
-// typed *Error{CodeInternal} because the dispatch API can only map
-// typed errors to exit codes — the test seam preserves the literal
-// child exit code contract.
+// executeRun owns the transparent subprocess proxy, event persistence, and
+// session lifecycle. Both CLI entry points forward the child's exit status.
 package cli
 
 import (
@@ -69,7 +58,7 @@ import (
 )
 
 // maxAgentLine caps a single emitted JSON line. Agent tool outputs (e.g.,
-// file listings) can be tens of MB; we keep enough headroom for PoC without
+// file listings) can be tens of MB; the limit leaves headroom without
 // reserving memory we don't need. Larger lines are skipped (passthrough).
 const maxAgentLine = 64 * 1024 * 1024
 
@@ -89,16 +78,15 @@ type runOptions struct {
 	RecordStream bool
 }
 
-// runRunWith is the testable core of `ktx run` (test seam).
+// runRunWith executes `ktx run` with injected output streams.
 // stdout/stderr are injected so the run flow can be exercised without
 // touching os.Stdout/Stderr. The body parses the run flag set and
-// invokes executeRun, returning its int exit code directly so the
-// test seam preserves the child's exit code contract.
+// invokes executeRun, returning the child's exit code directly.
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	runOpts := runOptions{Format: opts.Format, Quiet: opts.Quiet}
 	// Subcommand-local --quiet / --help / --record-stream. The dispatch
-	// module already extracts --help when invoked through dispatch; for
-	// direct runRunWith callers (test seam), parse the flag set here.
+	// module already extracts --help when invoked through dispatch; parse the
+	// flag set here for direct callers.
 	quiet, showHelp, preRecordStream, rest := parseRunArgs(args)
 	if showHelp {
 		printRunHelp(stdout)
@@ -274,7 +262,7 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 
 	startedAt := start.UTC().Format(time.RFC3339Nano)
 	// The session-file key is the wrapper's own PID: the child sees ktx
-	// run as its parent, so a future hook on the child would look up the
+	// run as its parent, so a hook on the child looks up the
 	// wrapper by its ppid. KTX_SESSION_ID makes the hook noop in any case.
 	sessionID, err := db.OpenNamedSession(agent, os.Getpid(), startedAt)
 	if err != nil {
@@ -409,23 +397,8 @@ func captureStreamForRun(db *dbpkg.DB, sessionID string, streamBytes []byte) err
 	return db.InsertRecordedStream(rs)
 }
 
-// runCommandFunc is the dispatch wrapper. The dispatcher already
-// opened the DB (NeedsDB=true), parsed --help/-h (via the Help hook),
-// and consumed --quiet/-q (so the verb sees the resolved value via
-// ctx.Quiet). The verb receives a *DispatchContext carrying the
-// populated DB, a clean positional Args tail, and the transparent
-// stdout/stderr writers (PassthroughStdout=true; the verb does its
-// own passthrough via teeAndParse).
-//
-// The dispatcher's exit-code pipeline maps typed *Error to the right
-// exit code, but ktx run's exit code is the child's exit code.
-// To preserve the contract on the dispatch path (stub exits
-// 0 → exit 0), the wrapper maps a 0 child exit to (nil, nil) and a
-// non-zero child exit to a typed *Error{CodeInternal}. Production
-// code that needs the literal child exit code should use the test
-// seam (runRunWith) — the locked dispatch API cannot represent
-// arbitrary exit codes without an error envelope. The happy-path case
-// 0-exit happy path; the test seam preserves the contract end-to-end.
+// runCommandFunc adapts parsed run arguments to executeRun. executeRun owns
+// session database lifetime; child statuses are forwarded unchanged.
 func runCommandFunc(ctx *DispatchContext) (any, error) {
 	parsed, ok := ctx.ParsedArgs.(runParsedArgs)
 	if !ok {

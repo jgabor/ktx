@@ -35,9 +35,7 @@
 //     here is a hard error (exit code 4) because the user explicitly
 //     requested the refresh.
 //
-// Cache TTL and auto-refresh are deferred to a future design session.
-// The implementation ships
-// fetch-on-first-use with the manual refresh hook.
+// The cache fetches on first use and refreshes only when requested.
 package db
 
 import (

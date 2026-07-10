@@ -759,7 +759,7 @@ func TestGetRecord_ToolCallVsSession(t *testing.T) {
 //   - ListSessions() on empty DB: returns a non-nil empty slice so
 //     the CLI can json-encode "[]" without a nil check.
 //
-// The five cases are pinned as overall acceptance; no fixtures are
+// The five cases cover the complete persistence contract; no fixtures are
 // shared between them — each is a fresh OpenMemory so the test order
 // does not matter.
 func TestPersistMethods_EdgeCases(t *testing.T) {

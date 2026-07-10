@@ -49,11 +49,9 @@ func ParseEvent(line []byte) (*dbpkg.ToolCall, bool) {
 	return tc, true
 }
 
-// buildToolCall materialises a parsed event into the db's ToolCall
-// shape. ID is always generated fresh — 16-char lowercase alpha
-// nanoids are mandated, and runtime-supplied IDs (e.g., OpenCode's
-// callID) do not necessarily match. Cross-referencing runtime IDs
-// against ktx records is a future enhancement.
+// buildToolCall materialises a parsed event into the database shape. It
+// generates a local 16-character ID because runtime IDs use different
+// formats.
 //
 // content_hash is derived from output. timestamp is normalised to
 // RFC3339Nano so downstream readers do not need to disambiguate
@@ -63,9 +61,7 @@ func ParseEvent(line []byte) (*dbpkg.ToolCall, bool) {
 // are pointer-copied from the parsed event: a nil pointer round-trips
 // to SQL NULL / JSON null (field absent in source), a non-nil pointer
 // to zero round-trips to SQL 0 / JSON 0 (source emitted zero). The
-// convention matches the dbpkg.ToolCall shape and preserves
-// the reconstructability requirement from the cost-mechanics decision:
-// 'absent' is not conflated with 'zero'.
+// convention matches dbpkg.ToolCall: absent is not conflated with zero.
 func buildToolCall(ev *parsedEvent) (*dbpkg.ToolCall, error) {
 	id, err := dbpkg.NewID()
 	if err != nil {
@@ -151,8 +147,7 @@ type parsedEvent struct {
 //     does NOT emit these on tool_use events; they live on the
 //     separate step_finish event (a step-aggregate, not per-tool).
 //     The parser defensively reads part.state.metadata and the
-//     top-level event for these fields so a future OpenCode shape
-//     or a custom adapter that does emit them would round-trip.
+//     top-level event for these fields so custom adapters can emit them.
 //     Real OpenCode 1.17.8 events leave these nil.
 //
 //  2. Flat fallback: a top-level object with tool/name and (input|args)
@@ -205,7 +200,7 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 			// specific output (output, exit, description, truncated)
 			// but not with tokens/cost/model — those live on
 			// step_finish events. The reads below would surface them
-			// if a future runtime or custom adapter adds them.
+			// when a runtime or custom adapter supplies them.
 			var md map[string]json.RawMessage
 			if err := json.Unmarshal(state["metadata"], &md); err == nil {
 				ev.TokensIn = int64PtrFromRaw(md["tokens_in"], md["tokensIn"], md["input_tokens"])

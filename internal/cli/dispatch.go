@@ -54,10 +54,7 @@ import (
 type RegisterOptions struct {
 	// Description is the one-line summary shown by `ktx --help`.
 	// Optional; when empty the verb is omitted from the help list
-	// (the verb is still callable, just not advertised). The legacy
-	// commands slice carried a parallel description field; moving
-	// descriptions onto RegisterOptions keeps the help surface
-	// working after the legacy slice is emptied.
+	// while remaining callable.
 	Description string
 
 	// NeedsDB asks the dispatcher to open the ktx database before
@@ -87,9 +84,8 @@ type RegisterOptions struct {
 	// explicitly set on the command line.
 	FormatDefault string
 
-	// Help writes the verb's --help block to w. Optional; when nil
-	// the dispatcher prints a one-line stub so --help is still a
-	// graceful exit-0 path.
+	// Help writes the verb's --help block to w. When nil, the dispatcher
+	// reports that help is unavailable and exits successfully.
 	Help func(io.Writer)
 
 	// ParseArgs lets a verb consume command-specific flags before the shared
@@ -98,16 +94,12 @@ type RegisterOptions struct {
 	ParseArgs func(args []string) (rest []string, parsed any, err error)
 }
 
-// CommandFunc is the verb's logic. It receives a populated
-// DispatchContext and returns (any, error). The return value is reserved
-// for future envelope-rendering verbs; today the verb writes whatever it
-// wants to ctx.Stdout and returns nil for the first slot.
+// CommandFunc is a command's logic. Commands write success output to
+// ctx.Stdout and return errors for the dispatcher to render.
 type CommandFunc func(ctx *DispatchContext) (any, error)
 
-// DispatchContext is what the verb sees at runtime. Every field is set
-// by the dispatcher before the verb runs; the verb must not mutate any
-// field (they are passed by pointer for symmetry with future envelope
-// rendering, not because mutation is supported).
+// DispatchContext contains the resources and parsed values available to a
+// command. The dispatcher populates it before invocation.
 type DispatchContext struct {
 	// Args is the positional tail left after --help and any
 	// subcommand flags. The verb reads it like os.Args[1:].
@@ -290,11 +282,8 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 		return renderHelp(reg.opts.Help, stdout)
 	}
 
-	// 4. Open the database when NeedsDB.
-	// ResolvePath / Open are the same calls the legacy runXWith
-	// wrappers make (see bench.go / read.go / write.go); failures
-	// surface as internal errors because the database layer is the
-	// source of truth for that mapping.
+	// 4. Open the database when NeedsDB. Resolution and open failures are
+	// internal errors.
 	var db *dbpkg.DB
 	if reg.opts.NeedsDB {
 		path, err := dbpkg.ResolvePath("")
@@ -340,8 +329,8 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 	return ExitOK
 }
 
-// renderHelp invokes the verb's Help hook if set, otherwise prints a
-// minimal stub. Either way it returns ExitOK; --help is never an error.
+// renderHelp invokes the registered renderer or reports that help is
+// unavailable. Help always returns ExitOK.
 func renderHelp(help func(io.Writer), stdout io.Writer) int {
 	if help != nil {
 		help(stdout)

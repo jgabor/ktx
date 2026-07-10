@@ -23,8 +23,7 @@
 // Doctor is read-only. It does not create the database if it is missing —
 // that is the user's signal to run `ktx run` / `ktx write` for the first
 // time, or to investigate a config issue. It does not migrate, prune, or
-// fix anything; repair commands belong to a future `ktx doctor --fix` or
-// `ktx db prune`.
+// repair the database.
 //
 // Output contract:
 //
@@ -51,14 +50,8 @@
 // ($XDG_DATA_HOME/ktx/ktx.db). Per-invocation override lives on
 // `ktx db --path`; doctor does not accept its own --path.
 //
-// The verb registers via dispatch.Register with
-// NeedsDB=false (the verb opens its own database via the existing
-// buildDoctorReport helper; the dispatcher's db open is bypassed) and
-// PassthroughStdout=true (the verb writes its structured envelope
-// directly to stdout without any dispatch wrapper). The legacy
-// runDoctorWith remains the test seam and still
-// parses --format; the dispatch wrapper applies doctorLogic and
-// surfaces typed errors when the report status is "error".
+// Doctor opens the database itself because it must inspect missing and
+// unmigrated files without changing them.
 package cli
 
 import (
@@ -118,7 +111,7 @@ type doctorReport struct {
 	Checks []doctorCheck `json:"checks"`
 }
 
-// runDoctorWith is the testable core of `ktx doctor` (test seam).
+// runDoctorWith executes `ktx doctor` with injected output streams.
 // stdout/stderr are injected so the report can be rendered without
 // touching os.Stdout. The body parses --format, builds the doctor
 // report, renders it, and converts the top-level status into the
@@ -128,11 +121,7 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return code
 }
 
-// doctorLogic is the shared core of `ktx doctor`. Both runDoctorWith
-// (the legacy test seam) and the dispatch wrapper doctorCommandFunc
-// call it. Returns (any, exit_code) so the dispatcher can map the
-// top-level status into the right exit code via the dispatcher's
-// typed-error pipeline.
+// doctorLogic builds and renders the health report, returning its CLI status.
 //
 // The verb's own flag set parses --help/-h. The subcommand-local
 // --format extraction is delegated to extractFormat (the helper also
@@ -190,7 +179,7 @@ func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, i
 		// A failing check maps to ExitInternal (4). The choice between
 		// ExitInternal (4) and ExitUsage (1) is between "the system
 		// is broken" and "the user typed something wrong"; a failing
-		// check is the former.
+		// check represents a system failure, not invalid user input.
 		return nil, ExitInternal
 	}
 	// "ok" and "degraded" both exit 0: degraded means a soft warning

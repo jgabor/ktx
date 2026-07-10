@@ -14,11 +14,8 @@
 // guards. The resolution logic lives in the db package package; this file
 // owns the I/O (stdin, stdout, errors, dispatch).
 //
-// The verb registers via dispatch.Register with NeedsDB=true (dispatcher
-// opens the DB), NeedsStdin=true (dispatcher exposes os.Stdin via
-// ctx.Stdin), and PassthroughStdout=true (verb writes raw JSON, no
-// envelope wrapping). The legacy runWriteWith remains the test seam and
-// still opens its own DB so existing tests pass unchanged.
+// The command reads stdin and writes raw JSON; the dispatcher supplies its
+// database and streams.
 package cli
 
 import (
@@ -31,7 +28,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runWriteWith is the testable core of `ktx write` (test seam).
+// runWriteWith executes `ktx write` with injected input and output streams.
 // stdin/stdout/stderr are injected so the write flow can be exercised
 // without touching os.Stdin or os.Stdout. The body opens the database,
 // delegates to writeLogic for the actual work, and translates the
@@ -57,11 +54,7 @@ func runWriteWith(args []string, opts Options, stdin io.Reader, stdout, stderr i
 	return ExitOK
 }
 
-// writeLogic is the shared core of `ktx write`. Both runWriteWith (the
-// legacy test seam) and the dispatch wrapper writeCommandFunc call it.
-// It assumes the database is already opened and reads from stdin
-// directly. Returns (any, error) so the dispatcher can map the error
-// envelope through its own printError + exitCodeOf pipeline.
+// writeLogic validates and persists one stdin payload using an open database.
 //
 // Step-by-step:
 //  1. Parse --help/-h.

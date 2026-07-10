@@ -37,9 +37,7 @@ type SessionFile struct {
 
 // sessionDir resolves the session-file directory:
 // $XDG_RUNTIME_DIR/ktx/sessions, falling back to os.TempDir()/ktx/sessions
-// when XDG_RUNTIME_DIR is unset (some CI shells and non-launchd macOS setups
-// do not set it). The fallback is adequate for PoC; the spec mandates
-// XDG_RUNTIME_DIR but does not require ktx to fail when it is absent.
+// when XDG_RUNTIME_DIR is unset.
 func sessionDir() string {
 	if base := os.Getenv("XDG_RUNTIME_DIR"); base != "" {
 		return filepath.Join(base, "ktx", "sessions")
@@ -73,10 +71,8 @@ func readSessionFile(ppid int) (*SessionFile, error) {
 // with private permissions (0o700) if missing. The file is 0o600 because it
 // is private session identity keyed to this user's process tree.
 //
-// Concurrent ktx invocations (parallel tool calls) may race on file
-// creation: both see no file, both open sessions, last writer wins. The
-// orphaned session is reconciled by a future `ktx db prune`.
-// File locking would be clever, not boring — out of scope for PoC.
+// Concurrent invocations may race on file creation: both see no file, both
+// open sessions, and the last writer wins. This can leave an orphaned session.
 func writeSessionFile(ppid int, sf *SessionFile) error {
 	dir := sessionDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -95,8 +91,8 @@ func writeSessionFile(ppid int, sf *SessionFile) error {
 
 // procAvailable reports whether the /proc filesystem is mounted. Used to
 // decide between the precise liveness/start-time check (Linux) and the
-// conservative "file exists + session in DB = reuse" fallback (macOS and
-// other non-Linux). The task contract accepts this fallback for the PoC.
+// conservative "file exists + session in DB = reuse" fallback on other
+// platforms.
 func procAvailable() bool {
 	info, err := os.Stat("/proc")
 	return err == nil && info.IsDir()

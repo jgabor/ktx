@@ -37,7 +37,7 @@ inputs:
     notes: |
       score = matched_facts / total_facts.
       full_pass when score == 1.0.
-      exact_match remains supported for legacy task flags.
+      exact_match remains supported for tasks supplied through CLI flags.
   trials:
     n_per_pipeline_default: 3
     non_determinism_handling: |

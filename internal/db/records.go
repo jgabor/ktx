@@ -161,11 +161,8 @@ func (d *DB) CloseSession(id, endedAt string) error {
 // cost-publication fields (tokens_in, tokens_out, cost, latency_ms, model,
 // provider). These fields are passed as the *int64 / *float64 / *string
 // pointer values on the ToolCall struct; a nil pointer round-trips to
-// SQL NULL (database/sql passes a typed nil pointer as NULL), so 'field
-// absent' is preserved. A non-nil pointer to zero persists as 0, so
-// 'field set to zero' is preserved. This is the documented plan choice
-// and the only round-trip-safe shape: Go's zero-value semantics
-// would otherwise coerce 0 → NULL via the field's default.
+// SQL NULL. A non-nil pointer to zero persists as 0, preserving the
+// distinction between an absent field and a measured zero.
 //
 // Cost derivation runs at write time, before the INSERT:
 // when the caller omitted `cost` (nil pointer) AND tokens_in, tokens_out,
@@ -174,10 +171,10 @@ func (d *DB) CloseSession(id, endedAt string) error {
 //
 //	cost = (tokens_in * in_price + tokens_out * out_price) / 1_000_000
 //
-// rounded to 6 decimal places (the methodology-v1 headline precision).
+// rounded to 6 decimal places.
 // The derivation runs ONCE per write; subsequent reads (GetToolCall,
 // ktx read, ktx get) surface the persisted value verbatim — no
-// re-derivation at read time (the reconstructability contract).
+// re-derivation at read time.
 // Cache miss + warm cache → cost stays NULL (no refetch from the write
 // path; the on-disk cache is the source of truth between fetches).
 // Cache miss + cold cache → fetch + atomic write to disk, then
@@ -318,9 +315,7 @@ func isErrorSQL(b *bool) any {
 }
 
 // GetSession fetches a session row by id. It returns ErrNotFound when no
-// row matches. Used by `ktx read` to back the cross-table ID lookup; also
-// useful for future query commands and for session inspection in
-// tests.
+// row matches. `ktx read` uses it for cross-table ID lookup.
 //
 // Nullable text columns (agent, started_at, ended_at, last_seen_at) are
 // coalesced to the empty string in SQL so the Session struct can stay
@@ -415,19 +410,13 @@ func (d *DB) ListSessions() ([]Session, error) {
 	return sessions, nil
 }
 
-// deriveCost fills tc.Cost from the cached (provider, model) price
-// when the caller omitted it. The function is a thin wrapper around
-// the costDeriver deep module (cost.go): it builds a CostInputs from
-// the ToolCall, hands it to Derive, and assigns the result back to
-// tc.Cost. The math, the NULL-preservation branches, the lookup-and-
-// cold-fetch policy, and the 6-decimal rounding all live in cost.go;
-// this wrapper is only the struct-to-input adapter.
+// deriveCost fills tc.Cost from cached provider and model prices when the
+// caller omitted it.
 //
 // Soft-fail: Derive returns nil on every branch that does not
 // derive. tc.Cost is left untouched in that case (the caller's
 // original value, or nil), and the row persists with whatever cost
-// the caller supplied (or NULL) — same contract as the inline
-// helper it replaced.
+// the caller supplied (or NULL).
 //
 // The mutex-free read on tc is safe because the caller owns the
 // pointer (writeToolCall / teeAndParse build a fresh ToolCall and
@@ -437,10 +426,7 @@ func (d *DB) deriveCost(tc *ToolCall) {
 	if tc == nil {
 		return
 	}
-	// LoadPrices is the process-wide singleton (sync.Once). A nil
-	// *Prices with an empty path means XDG_DATA_HOME resolution
-	// failed — the write path cannot derive against an empty
-	// path, so the early-out mirrors the pre-refactor branch.
+	// A nil price cache or empty cache path means price discovery failed.
 	prices, _ := LoadPrices()
 	if prices == nil || prices.path == "" {
 		return

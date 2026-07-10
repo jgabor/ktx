@@ -93,9 +93,8 @@ func keepEndsApply(input []byte, n, m int) []byte {
 	omitted := len(lines) - n - m
 	marker := fmt.Sprintf("[... (%d lines omitted) ...]", omitted)
 
-	// Join head + marker + tail with newlines so the marker sits on
-	// its own line. n head + 1 marker + m tail = n+1+m lines, matching
-	// the plan's "total 71 lines (50+1+20)" contract.
+	// Join head + marker + tail with newlines so the marker occupies its
+	// own line.
 	parts := make([][]byte, 0, len(head)+1+len(tail))
 	parts = append(parts, head...)
 	parts = append(parts, []byte(marker))

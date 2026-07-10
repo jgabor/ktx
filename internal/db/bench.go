@@ -80,31 +80,8 @@ type BenchRun struct {
 	Timestamp          int64    `json:"timestamp"`
 }
 
-// deriveBenchCost mirrors PersistToolCall.deriveCost at the bench-run
-// level. The function is a thin wrapper around the costDeriver deep
-// module (cost.go): it resolves the provider from the bench's model
-// (providerModel, the bench-side adapter for the cache key), builds
-// a CostInputs from the BenchRun, hands it to Derive, and assigns the
-// result back to b.Cost. The math, the NULL-preservation branches,
-// the lookup-and-cold-fetch policy, and the 6-decimal rounding all
-// live in cost.go.
-//
-// Bench-side contract preserved: the zero-tokens pre-filter fires
-// BEFORE the deriver is called. The original inline helper bailed
-// out when both TokensIn and TokensOut were zero, leaving Cost nil;
-// the bench_runs row's Cost is therefore the SQL NULL the bench
-// path expects (TestInsertBenchRun_RoundTrip's "nil Cost round-trips
-// as nil (SQL NULL)" subtest). The deriver itself would happily
-// derive a $0.000000 against a zero-token input (the persist path's
-// semantics — zero is a real value), so the wrapper carries the
-// bench-specific filter instead of leaking it into the deep module.
-//
-// providerModel returns the (provider, model) pair to use for the
-// cache lookup. v1 only knows the (anthropic, claude-sonnet-4-20250514)
-// pair (the methodology file pins it). A future methodology version
-// that introduces a different provider/model pair would extend
-// providerModel's switch accordingly; the bench_runs row's model
-// column is the canonical reference.
+// deriveBenchCost fills b.Cost from cached model prices. Runs without token
+// measurements keep a nil cost rather than deriving a measured zero.
 func (d *DB) deriveBenchCost(b *BenchRun) {
 	if b == nil {
 		return
@@ -150,27 +127,13 @@ func (d *DB) deriveBenchCost(b *BenchRun) {
 	}, prices)
 }
 
-// providerModel returns the cache-key provider for a given model id.
-// v1 only knows the methodology-pinned (anthropic, claude-sonnet-4-20250514)
-// pair; the methodology file's `inputs.model.provider` field is
-// authoritative for future versions. The bench-run CLI layer passes
-// the model id verbatim; this helper is the local single source of
-// truth that bridges the bench-run model id and the price cache key.
-//
-// When a new methodology version introduces a new (provider, model)
-// pair, this switch is the place to extend. YAGNI for v1 — the v1
-// methodology commits to one (agent, model, task) triple.
+// providerModel returns the cache-key provider for a benchmark model.
 func providerModel(model string) string {
 	switch model {
 	case "claude-sonnet-4-20250514":
 		return "anthropic"
 	default:
-		// Default to "anthropic" as a best-effort fallback for v1:
-		// the methodology pins anthropic. A future version that adds
-		// non-Anthropic models will replace this with a table-driven
-		// lookup. For v1 this branch only fires on typos or future
-		// models added before this switch is extended — both of which
-		// are out-of-scope failures (soft-fail: cost stays nil).
+		// Benchmark methodologies currently use Anthropic models.
 		return "anthropic"
 	}
 }

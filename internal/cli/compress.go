@@ -38,11 +38,7 @@
 // changed the bytes) AND decompress(compress(source)) == source holds
 // (the original is retained in tool_calls).
 //
-// The verb registers via dispatch.Register with NeedsDB=true
-// (dispatcher opens the DB) and PassthroughStdout=true (verb writes
-// raw JSON, no envelope wrapping). The legacy runCompressWith remains
-// the test seam and still opens its own DB so the existing tests'
-// shape is preserved.
+// The command writes the compressed record ID as raw JSON.
 package cli
 
 import (
@@ -89,23 +85,11 @@ func runCompressWith(args []string, opts Options, stdout, stderr io.Writer) int 
 	return ExitOK
 }
 
-// compressLogic is the shared core of `ktx compress`. Both
-// runCompressWith (the test seam) and the dispatch wrapper
-// compressCommandFunc call it. The caller has already opened the
-// database.
+// compressLogic compresses and persists one record using an open database.
 //
 // reg is the pipeline.Registry to resolve stage names against. A
-// nil reg means "build the default built-in registry" (RegisterBuiltins
-// on a fresh Registry). Tests inject a custom Registry to exercise
-// the conservative-on-failure invariants: a stage that errors, a
-// stage that panics, an unknown stage name. The dispatch path and
-// runCompressWith both pass nil; only the test-only direct calls
-// pass a non-nil reg.
-//
-// Returns (any, error) so the dispatcher can map the error envelope
-// through its own printError + exitCodeOf pipeline. The success
-// value is always nil today (the verb writes its own raw JSON to
-// stdout); the slot is reserved for future envelope-rendering verbs.
+// nil reg selects a fresh registry containing the built-in stages. A caller
+// may provide a registry to control stage resolution.
 func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, stderr io.Writer) (any, error) {
 	var showHelp bool
 	fs := flag.NewFlagSet("ktx compress", flag.ContinueOnError)
@@ -161,11 +145,8 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 // of 0 means no timeout (used by `ktx compress`, which is off-line and
 // can be Ctrl-C'd). A positive timeout (used by `ktx hook`, which is on
 // the agent's critical path) cancels the pipeline on expiry and returns
-// source.output unchanged with a stderr warning. The goroutine running
-// the pipeline is fire-and-forget on timeout — built-in stages complete
-// near-instantly; a future LLM summarizer plugin that hangs will leak
-// until the external process exits. Proper context cancellation through
-// the pipeline runner is a future concern.
+// source.output unchanged with a stderr warning. A timed-out stage continues
+// in its goroutine until it returns or its external process exits.
 func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.Writer, timeout time.Duration) (compressedOutput, pipelineJSON string, transformed bool, err error) {
 	cfg, err := config.Load()
 	if err != nil {

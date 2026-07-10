@@ -17,8 +17,7 @@
 //  3. Unknown-stage skip: handled by Registry.Lookup before the
 //     external Stage is constructed.
 //
-// No timeout is enforced (deferred). Scripts run to
-// natural completion. The registry is rebuilt per-invocation, so
+// Scripts run to natural completion. The registry is rebuilt per-invocation, so
 // removing a [[plugin]] block from ktx.toml and re-running restores
 // the built-in stage (no persistent state between runs).
 

@@ -476,11 +476,6 @@ def attempt_is_full_pass(record, minimum_tool_calls):
     return record.get("answer_matches_expected") is True
 
 
-def attempt_is_counted(record, minimum_tool_calls):
-    # Backward-compatible alias: counted toward target_valid = full pass.
-    return attempt_is_full_pass(record, minimum_tool_calls)
-
-
 def mean(values):
     return sum(values) / len(values) if values else None
 
@@ -910,7 +905,7 @@ def run_attempt(args, manifest, experiment_dir, side, cycle, ordinal, docker_bin
 def count_valid(attempts, minimum_tool_calls):
     return {
         side: sum(
-            attempt_is_counted(record, minimum_tool_calls)
+            attempt_is_full_pass(record, minimum_tool_calls)
             for record in attempts
             if record.get("side") == side
         )

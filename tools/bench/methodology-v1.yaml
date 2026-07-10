@@ -43,8 +43,7 @@ inputs:
       v1 does not aggregate across trials. A single trial's score is
       the headline numerator. Documented limitation: temperature>0
       runs are not bit-reproducible; exact-match scoring against a
-      known good output will reject any token-level variance. Future
-      methodology versions may introduce fuzzy matching.
+      known good output will reject any token-level variance.
   ktx:
     binary_version: "<ktx version — populated at first real run>"
     commit: "<commit SHA — populated at first real run>"
@@ -54,9 +53,7 @@ inputs:
 # Computation
 #
 # `cost_per_correct` is the headline. The `1e-9` epsilon prevents
-# division by zero when score=0; the resulting large value correctly
-# signals that an incorrect answer is unboundedly expensive per
-# correct (the vision's "cost is the contract" made loud).
+# division by zero when score=0.
 computation: |
   cost_per_correct = cost_USD / max(score, 1.0e-9)
   where:

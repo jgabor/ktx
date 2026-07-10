@@ -110,13 +110,9 @@ func (f StageFunc) Apply(input []byte) ([]byte, error) { return f(input) }
 // unknown name in a freshly-shipped ktx.toml degrades gracefully at
 // runtime rather than failing config load. Lookup(token) splits the
 // token at the FIRST colon before resolving so a parameterised stage's
-// arg may itself contain colons (no built-in accepts such an arg, but
-// the split is single-pass so future stages are not constrained).
+// arg may itself contain colons.
 //
-// The Registry is populated at package init by the built-in Go stages
-// (internal/pipeline/stages) and will be extended by the
-// `ktx plugin` registry; the single default profile
-// is the only consumer.
+// The Registry is populated by built-in stages and user-defined plugins.
 type Registry struct {
 	builders map[string]Builder
 }
@@ -130,10 +126,7 @@ type Registry struct {
 // input passes through unchanged to the next stage.
 type Builder func(arg string) (Stage, error)
 
-// NewRegistry returns an empty Registry. Built-in stages are
-// registered via Register / RegisterBuilder; a future
-// `ktx plugin` path will shell out to an external process and
-// register the result as a stage under a user-chosen name.
+// NewRegistry returns an empty Registry.
 func NewRegistry() *Registry {
 	return &Registry{builders: make(map[string]Builder)}
 }
@@ -141,8 +134,7 @@ func NewRegistry() *Registry {
 // Register adds a simple Stage under name (a Stage that ignores any
 // `:arg` token portion). Returns the Registry so callers can chain
 // registrations. A duplicate registration overwrites the prior entry
-// — the last writer wins, matching the "user config over built-in"
-// precedence a future plugin registry will need.
+// — the last writer wins, allowing user plugins to override built-ins.
 func (r *Registry) Register(name string, s Stage) *Registry {
 	if r == nil || s == nil {
 		return r

@@ -12,20 +12,12 @@
 //     query layer is allowed to add formatting; this is
 //     where the agent's "show me" ergonomics live.
 //
-// Today, --format text is a one-line-per-field summary (key: value), which
-// keeps the get-vs-read difference minimal but visible. Future query
-// commands (ktx bench, ktx compress) can layer richer formatting on the
-// same `text` convention without changing the I/O surface.
+// The text format is a one-line-per-field summary (key: value).
 //
 // Database path resolution: KTX_DB env > default. ktx get
 // does not take a --path flag; per-invocation override lives on `ktx db`.
 //
-// The verb registers via dispatch.Register with
-// NeedsDB=true (dispatcher opens the DB) and FormatDefault=FormatJSON.
-// The legacy runGetWith remains the test seam and
-// still opens its own DB so existing direct-call tests pass unchanged.
-// The shared core is getLogic, returning (any, error); the dispatcher
-// routes the typed error through its printError + exitCodeOf pipeline.
+// JSON is the default output format.
 package cli
 
 import (
@@ -73,18 +65,14 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// getLogic is the shared core of `ktx get`. Both runGetWith (the legacy
-// test seam) and the dispatch wrapper getCommandFunc call it. The
-// caller has already resolved --format and opened the database.
+// getLogic reads and renders one record from an open database. The caller
+// resolves the output format before invoking it.
 //
 // Step-by-step:
 //
 //  1. Parse --help/-h.
 //  2. If --help, render printGetHelp and return.
-//  3. Validate --format is json or text (the dispatch module already
-//     validates when invoked through dispatch; this branch covers the
-//     legacy direct-call seam where format may have been supplied
-//     arbitrarily).
+//  3. Validate --format is json or text.
 //  4. Validate exactly one positional (the ID).
 //  5. db.GetRecord(id): tool_calls first, then sessions.
 //  6. Switch on format: text → printGetText, default → json.Encode.
@@ -222,7 +210,7 @@ func printGetText(w io.Writer, record any) {
 		fmt.Fprintf(w, "tool_call_count: %d\n", r.ToolCallCount)
 	default:
 		// Defensive: GetRecord only returns *ToolCall or *Session. If a
-		// future store change adds a new variant, fall back to JSON so
+		// Unknown record variants fall back to JSON so
 		// the user gets something rather than silence.
 		_ = json.NewEncoder(w).Encode(record)
 	}

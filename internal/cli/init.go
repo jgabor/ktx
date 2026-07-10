@@ -5,13 +5,11 @@
 // Three integration paths share one store: the wrapper
 // (`ktx run`) parses --format json, the sidecar (`ktx write`) accepts
 // caller-supplied payloads, and adapters (`ktx init`) install native
-// hook points in the agent runtime. Not all runtimes use hooks —
-// OpenCode uses in-process TS plugins, Codex would use
-// AGENTS.md injection — so `init` is broader than the former `hook
-// install` namespace it replaces.
+// extension points in the agent runtime. OpenCode uses an in-process
+// TypeScript plugin.
 //
-// PoC scope (OpenCode focus): only `ktx init opencode`
-// is implemented. The plugin subscribes to `tool.execute.after` and calls
+// `ktx init opencode` installs a plugin that subscribes to
+// `tool.execute.after` and calls
 // `ktx write` per event (flat JSON). The plugin noops when
 // KTX_SESSION_ID is set so the wrapper path remains the
 // single source of truth — both paths active means one of them wins.
@@ -191,10 +189,10 @@ type initFlags struct {
 	showHelp  bool
 }
 
-// runInitWith is the testable core of `ktx init` (test seam).
+// runInitWith executes `ktx init` with injected output streams.
 // stdout/stderr are injected so the install/uninstall/show flow can
 // be exercised without touching os.Stdout/Stderr or the real home
-// directory. The body calls parseInitArgs (hand-rolled flag walker),
+// directory. The body calls parseInitArgs,
 // then dispatches on the runtime name and action flags.
 func runInitWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	_, err := initLogic(args, opts.Format, stdout, stderr)
@@ -205,15 +203,11 @@ func runInitWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// initLogic is the shared core of `ktx init`. Both runInitWith (the
-// legacy test seam) and the dispatch wrapper initCommandFunc call
-// it. Returns (any, error) so the dispatcher can map the typed error
-// envelope through its own printError + exitCodeOf pipeline.
-//
-// The parseInitArgs call is the hand-rolled walker that handles
+// initLogic installs, removes, or inspects a runtime adapter.
+// parseInitArgs handles
 // `ktx init opencode --show` correctly (the runtime name is
 // positional, so stdlib flag would stop at it). The walker is
-// called from both runInitWith and the dispatch argument parser.
+// shared with the dispatch argument parser.
 func initLogic(args []string, format string, stdout, stderr io.Writer) (any, error) {
 	f, runtime, err := parseInitArgs(args)
 	if err != nil {
@@ -293,8 +287,7 @@ func opencodeGlobalPluginPath() (string, error) {
 
 // opencodeProjectPluginPath returns the project-scoped plugin path,
 // always relative to the current working directory. The CWD is captured
-// at call time (not process start) so the path is correct even after a
-// future chdir; the wrapper never chdirs.
+// at call time rather than process start.
 func opencodeProjectPluginPath() string {
 	cwd, err := os.Getwd()
 	if err != nil {

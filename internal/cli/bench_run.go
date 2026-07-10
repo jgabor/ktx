@@ -87,8 +87,8 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	rest = fs.Args()
 
-	// --replay dispatches to the replay path before positional-arg
-	// validation. The flag REPLACES the positional-args source — the
+	// --replay dispatches to the replay path before positional-argument
+	// validation. The
 	// (agent, model, task) triple is read from the referenced
 	// bench_runs row, not from the CLI.
 	if replaySessionID != "" {
@@ -190,11 +190,8 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// Find the wrapper's session. The wrapper creates a session for
 	// the agent invocation; we find it by listing sessions and
 	// matching the most-recent session whose started_at is after our
-	// wrapperStart. The pre-condition (no concurrent ktx writers
-	// against this database) holds for v1 because bench run is a
-	// single-process invocation; a future concurrent run mode would
-	// need a tighter match (e.g. agent name + started_at within a
-	// tighter window).
+	// wrapperStart. This assumes bench run is the only concurrent writer to
+	// the benchmark database.
 	sessionID, agentName, err := findWrapperSession(db, agentArg, wrapperStart)
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: find wrapper session: %v", err), format)
@@ -403,9 +400,7 @@ func loadMethodologyOrFail(format, version string, stderr io.Writer) (string, *m
 // it by listing sessions and matching the most recent whose agent
 // matches agentArg and whose started_at is on or after wrapperStart.
 //
-// A future concurrent-run mode would need a tighter match — the
-// current heuristic assumes single-writer (the wrapper itself) on the
-// bench run's database.
+// The match assumes the wrapper is the only writer to the benchmark database.
 func findWrapperSession(db *dbpkg.DB, agentArg string, wrapperStart time.Time) (sessionID, agentName string, err error) {
 	sessions, err := db.ListSessions()
 	if err != nil {
@@ -517,9 +512,7 @@ func extractAgentOutput(stdout []byte) string {
 // Returns 1.0 when actual equals expected after whitespace trimming,
 // 0.0 otherwise. The comparison is byte-exact post-trim; the v1
 // methodology documents that "temperature>0 runs are not bit-
-// reproducible; exact-match scoring will reject any token-level
-// variance." A future methodology version may add Levenshtein-based
-// fuzzy matching.
+// reproducible; exact-match scoring will reject any token-level variance."
 func scoreExactMatch(actual, expected string) float64 {
 	if strings.TrimSpace(actual) == strings.TrimSpace(expected) {
 		return 1.0

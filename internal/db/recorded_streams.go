@@ -72,10 +72,9 @@ import (
 // runBenchRun and executeRun-with---record-stream capture that stdout
 // into a bytes.Buffer). ContentHash is the SHA-256 hex digest of
 // StreamText (recomputed per the integrity rule). StreamFormat is
-// metadata recording what was captured (e.g. 'opencode-jsonl-1'); no
-// parser dispatch exists today, but the column future-proofs against
-// silently mis-parsing a non-OpenCode stream. CapturedAt is
-// RFC3339Nano, supplied by the caller.
+// metadata recording what was captured (e.g. 'opencode-jsonl-1') so readers
+// can choose the correct parser. CapturedAt is RFC3339Nano, supplied by the
+// caller.
 type RecordedStream struct {
 	ID           string `json:"id"`
 	SessionID    string `json:"session_id"`

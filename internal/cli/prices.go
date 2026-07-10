@@ -3,15 +3,12 @@
 // The price cache at $XDG_DATA_HOME/ktx/prices.json is normally managed
 // by the write path (PersistToolCall's deriveCost helper fetches on
 // cold-cache miss and writes the file atomically). `ktx prices update`
-// is the manual refresh hook for cases the write path cannot handle:
+// is the manual refresh command for cases the write path cannot handle:
 //
 //   - the cache is missing a model the user knows should be there
 //     (model was added to models.dev after the cache was written);
 //   - the cache is corrupt or stale and the user wants a clean
-//     refetch without writing a tool_call to trigger it;
-//   - the cache TTL policy (deferred) is eventually
-//     driven by a future `ktx prices refresh` cron; the manual hook
-//     is the PoC substitute.
+//     refetch without writing a tool_call to trigger it.
 //
 // The command's exit-code contract differs from the write path's
 // soft-fail contract: the user explicitly invoked `prices update`,
@@ -23,23 +20,15 @@
 // waiting on the refresh and a silent "nothing happened" would be a
 // bad UX.
 //
-// Subcommands (extensible; v1 ships only `update`):
+// Subcommands:
 //
 //	ktx prices update    fetch from https://models.dev/api.json and
 //	                     atomically rewrite the cache file
 //	ktx prices path      print the cache file path (precedence:
 //	                     KTX_PRICES env > $XDG_DATA_HOME/ktx/prices.json)
-//	ktx prices show      print the cache contents (debug; deferred
-//	                     to a future cycle if needed)
 //
-// The verb registers via dispatch.Register with
-// NeedsDB=false (it only touches the price-cache file, not the ktx
-// database) and FormatDefault=FormatJSON (the manual-refresh output
-// is machine-parseable by default). The legacy runPricesWith remains
-// the test seam and still parses its own flags; the
-// dispatch wrapper applies pricesLogic and surfaces typed errors.
-// The hard-fail contract (manual refresh on a 500 response → exit 4)
-// is preserved by both call sites because they share pricesLogic.
+// The command does not open the ktx database. Refresh failures are hard
+// errors because the user explicitly requested a network operation.
 package cli
 
 import (
@@ -51,7 +40,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runPricesWith is the testable core of `ktx prices` (test seam).
+// runPricesWith executes `ktx prices` with injected output streams.
 // stdout/stderr are injected so the manual-refresh flow can be
 // exercised without touching os.Stdout. The body parses the
 // subcommand's flags and dispatches on the subcommand name
@@ -65,10 +54,7 @@ func runPricesWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// pricesLogic is the shared core of `ktx prices`. Both runPricesWith
-// (the legacy test seam) and the dispatch wrapper pricesCommandFunc
-// call it. Returns (any, error) so the dispatcher can map the typed
-// error envelope through its own printError + exitCodeOf pipeline.
+// pricesLogic routes price-cache subcommands.
 func pricesLogic(args []string, format string, stdout, stderr io.Writer) (any, error) {
 	var showHelp bool
 	fs := flag.NewFlagSet("ktx prices", flag.ContinueOnError)
@@ -126,14 +112,8 @@ func pricesUpdateLogic(format string, stdout, stderr io.Writer) (any, error) {
 		return nil, internalError("ktx prices update: resolve cache path: %v", err)
 	}
 
-	// Build a fresh Prices bound to the default path. We bypass
-	// LoadPrices() because the manual refresh must refetch regardless
-	// of cache state — a stale or corrupt cache is exactly what the
-	// user is trying to fix, and re-using the singleton would re-load
-	// the stale data on a second invocation. Resetting the singleton
-	// is unnecessary here because RefreshAndWrite replaces the
-	// in-memory copy and writes the on-disk file atomically; the
-	// next LoadPrices() call would see the new file on disk.
+	// Use a fresh cache instance so update always fetches, regardless of the
+	// process-wide cache state.
 	p := dbpkg.NewPrices(path)
 	if err := p.RefreshAndWrite(); err != nil {
 		// Hard error: the user asked for the refresh and got a
@@ -179,16 +159,8 @@ func pricesPathLogic(stdout io.Writer) (any, error) {
 	return nil, nil
 }
 
-// pricesCommandFunc is the dispatch wrapper. The dispatcher already
-// parsed --help/-h (via the Help hook) and --format; the verb
-// receives a *DispatchContext carrying a clean positional Args tail
-// and the resolved format. The verb's only responsibility is to
-// apply pricesLogic and surface the typed error to the dispatcher's
-// printError + exitCodeOf pipeline.
-//
-// NeedsDB=false: ktx prices never touches the ktx database — it
-// only touches the price-cache file. The dispatcher's
-// dbpkg.ResolvePath + dbpkg.Open calls are skipped.
+// pricesCommandFunc applies the resolved output format to price-cache
+// operations. Price commands do not use the ktx database.
 func pricesCommandFunc(ctx *DispatchContext) (any, error) {
 	return pricesLogic(ctx.Args, ctx.Format, ctx.Stdout, ctx.Stderr)
 }

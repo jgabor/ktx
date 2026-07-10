@@ -16,57 +16,11 @@ type SessionCosts struct {
 	Model  *string  `json:"model"`
 }
 
-// SessionCostsRollups returns the cost-publication rollup for every
-// session that has at least one tool_call with a non-NULL cost-publication field.
-// Sessions without any non-NULL cost-publication data are absent from the result
-// map — a missing key means "no cost-publication data", which the inspect surface
-// renders as the explicit "-" marker.
-//
-// Implementation: a single GROUP BY over tool_calls filtered with
-// a HAVING clause that excludes groups where every aggregate is
-// NULL. SQLite evaluates SUM and MIN on a per-group basis; SUM
-// ignores NULL operands (so a row with tokens_in=NULL contributes
-// NULL to the per-call sum and is excluded), and MIN returns NULL
-// only when every input is NULL. The HAVING clause is therefore a
-// faithful "did this group see any non-NULL cost-publication data?" check.
-//
-// The query is read-only and uses a single index-friendly
-// aggregate; for the expected session counts (thousands, not
-// millions) the per-group sort is not a bottleneck. The result
-// map is keyed by session_id so the CLI layer can look up the
-// rollup in O(1) when rendering each session row.
-//
-// Tokens: SUM(tokens_in + tokens_out) over the session's tool_calls.
-// SQLite's SUM ignores NULL operands, so a row with either field
-// NULL contributes NULL to the per-call sum and is excluded from
-// the aggregate. This matches the spec's "per-call roll-up of
-// non-NULL values" — the per-call pairing of tokens_in +
-// tokens_out is the unit of the rollup.
-//
-// Cost: SUM(cost) over the session's tool_calls. The mixed-NULL case
-// (1 NULL + 2 non-NULL) sums only the non-NULL values.
-//
-// Model: MIN(model) over the session's tool_calls. SQLite's MIN
-// is deterministic and returns NULL when every value is NULL.
-// "First non-NULL model" in the plan is interpreted as "any
-// non-NULL model, deterministic" — the GROUP BY aggregation has
-// no natural row order, so MIN/MAX are the SQL-idiomatic choices
-// and both produce a stable, non-NULL model when at least one
-// call has a non-NULL model.
-//
-// Pointer types (*int64, *float64, *string) preserve the
-// absent-vs-zero distinction through to the inspect surface: a
-// session with calls summing to 0 tokens reports Tokens=&0, not
-// nil. A session with no non-NULL token values in any call reports
-// Tokens=nil, and the inspect surface renders "-" for the column.
-// The JSON tags deliberately omit omitempty so absent sub-rollups
-// surface as JSON null rather than being dropped from the object
-// — consistent with the pointer discipline used on ToolCall.
-//
-// The query uses a HAVING clause to filter to sessions with at
-// least one non-NULL cost-publication field. Sessions with no cost-publication data are absent
-// from the result map; the inspect surface treats a missing key as
-// "no data" and renders the explicit "-" marker.
+// SessionCostsRollups returns cost data keyed by session ID. Sessions with
+// no non-NULL cost fields are absent from the result. Token totals include a
+// call only when both token fields are present; cost sums ignore NULL values;
+// MIN selects a stable model from grouped rows. Pointer fields preserve the
+// distinction between absent data and a measured zero.
 func (d *DB) SessionCostsRollups() (map[string]SessionCosts, error) {
 	rows, err := d.db.Query(
 		`SELECT session_id,

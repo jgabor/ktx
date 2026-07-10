@@ -43,9 +43,7 @@ import (
 
 // benchEpsilon is the division-by-zero guard from the methodology
 // formula (`cost_per_correct = cost_USD / max(score, 1.0e-9)`).
-// score=0 produces a very large headline number — the vision's "cost
-// is the contract made loud" — signalling that an incorrect answer is
-// unboundedly expensive per correct.
+// score=0 produces a very large cost-per-correct value.
 const benchEpsilon = 1.0e-9
 
 // runBenchWith is the testable core of `ktx bench`.
@@ -89,30 +87,12 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 }
 
-// benchCommandFunc is the dispatch wrapper for the bench namespace.
-// The dispatcher already parsed --help/-h; the verb's job is to look
-// at the positional tail and route to runBenchReport or runBenchRun,
-// converting their int exit code into the dispatcher's (any, error)
-// shape.
-//
-// Per the hard constraint, runBenchReport and
-// runBenchReportImpl remain direct test seams — they open their own
-// database and parse their own flags. The top-level namespace
-// dispatcher is the only piece that registers via dispatch.Register;
-// the inner adapters stay callable directly so existing tests pass
-// unchanged.
-//
-// Exit-code mapping: 0 → (nil, nil); non-zero → typed error. The
-// dispatcher's exitCodeOf recognises CodeUsage (1), CodeNotFound (2),
-// and CodeInternal (4) so the not-found envelope from bench report
-// (which is constructed via notFoundError inside runBenchReportImpl)
-// reaches the user with exit 2 instead of being collapsed to exit 4.
+// benchCommandFunc routes the bench namespace to its subcommands.
+// Subcommands render their own diagnostics and return their status through
+// benchSubToExit.
 func benchCommandFunc(ctx *DispatchContext) (any, error) {
-	// Re-parse --help/-h from ctx.Args. The dispatcher already
-	// consumed --help via the Help hook (renderHelp → printBenchHelp
-	// → exit 0) before invoking the verb, so this branch is
-	// defensive: it covers the rare case where the dispatcher's
-	// flag set ever stops consuming --help before the verb.
+	// Bench subcommands accept help after the namespace token, so scan the
+	// remaining arguments before routing.
 	showHelp, rest := scanBenchHelp(ctx.Args)
 	if showHelp {
 		printBenchHelp(ctx.Stdout)
@@ -138,7 +118,7 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 	}
 }
 
-// scanBenchHelp strips --help/-h from args. The hand-rolled scan
+// scanBenchHelp strips --help/-h from args. The scan
 // matches the stdlib flag package's stop-at-first-non-flag behavior
 // for the top-level bench dispatch (so `ktx bench report --help`
 // routes --help to bench report, not to the bench namespace).
@@ -163,16 +143,7 @@ func benchSubToExit(code int) (any, error) {
 	return nil, exitWith(code)
 }
 
-// init registers `ktx bench` with the dispatch module.
-//
-// NeedsDB=false: the bench namespace dispatcher itself does not
-// touch the database; runBenchReport and runBenchRun each open
-// their own *dbpkg.DB via their existing dispatch adapter paths.
-// The inner functions remain direct test seams (runBenchReportImpl
-// takes a pre-opened DB; runBenchReport opens the DB on call).
-//
-// FormatDefault=FormatJSON: matches the contract for
-// `ktx bench report`'s JSON default with --format text for humans.
+// init registers `ktx bench`. Its subcommands open the database when needed.
 func init() {
 	Register("bench", RegisterOptions{
 		Description:   "benchmark namespace (run, report)",

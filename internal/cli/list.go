@@ -16,12 +16,7 @@
 // Database path resolution: KTX_DB env > default. ktx list
 // does not take a --path flag; per-invocation override lives on `ktx db`.
 //
-// The verb registers via dispatch.Register with
-// NeedsDB=true (dispatcher opens the DB) and FormatDefault=FormatJSON.
-// The legacy runListWith remains the test seam and
-// still opens its own DB so existing tests pass unchanged.
-// The shared core is listLogic, returning (any, error); the dispatcher
-// routes the typed error through its printError + exitCodeOf pipeline.
+// JSON is the default output format.
 package cli
 
 import (
@@ -34,7 +29,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runListWith is the testable core of `ktx list` (test seam).
+// runListWith executes `ktx list` with injected output streams.
 // stdout/stderr are injected so the list flow can be exercised without
 // touching os.Stdout. The body parses --format, opens the database,
 // delegates to listLogic for the actual work, and translates the
@@ -42,7 +37,7 @@ import (
 func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	// Subcommand-local --format. The dispatch module's runRegisteredVerb
 	// already extracts --format from the args when the verb is invoked
-	// through dispatch; for direct runListWith callers (test seam),
+	// through dispatch; for direct runListWith callers,
 	// extract it here so the call sites have identical semantics.
 	format, rest := extractFormat(args)
 	if format == "" {
@@ -69,9 +64,8 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// listLogic is the shared core of `ktx list`. Both runListWith (the
-// legacy test seam) and the dispatch wrapper listCommandFunc call it.
-// The caller has already resolved --format and opened the database.
+// listLogic reads and renders sessions from an open database. The caller
+// resolves the output format before invoking it.
 //
 // Step-by-step:
 //

@@ -3,7 +3,7 @@
 //	ktx db                    -> ktx db path (print current database path)
 //	ktx db path               -> print current database path
 //	ktx db --path <file> path -> print <file> (per-invocation override)
-//	ktx db prune              -> stubbed (not implemented)
+//	ktx db prune              -> unavailable
 //
 // The --path flag is per-invocation only; nothing is persisted. Path
 // precedence: --path flag > KTX_DB env > $XDG_DATA_HOME/ktx/ktx.db.
@@ -24,7 +24,7 @@ import (
 // stdout/stderr are injected so the path-resolution flow can be
 // exercised without touching os.Stdout. The body parses the
 // subcommand's --path flag and dispatches on the subcommand name
-// (path -> dbPathLogic; prune -> stubbed).
+// (path -> dbPathLogic; prune -> usage error).
 func runDBWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	_, err := dbLogic(args, opts.Format, stdout, stderr)
 	if err != nil {
@@ -34,20 +34,13 @@ func runDBWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// dbLogic is the shared core of `ktx db`. Both runDBWith (the legacy
-// test seam) and the dispatch wrapper dbCommandFunc call it. Returns
-// (any, error) so the dispatcher can map the typed error envelope
-// through its own printError + exitCodeOf pipeline.
+// dbLogic routes database namespace operations.
 //
 // The verb does NOT take --help/-h at the dispatch level (the
-// dispatcher handles --help globally); it parses only --path. The
-// subcommand dispatch follows the same pattern as the legacy
-// runDBWith: `ktx db` without a subcommand defaults to `ktx db path`.
+// dispatcher handles --help globally); it parses only --path.
+// `ktx db` without a subcommand defaults to `ktx db path`.
 //
-// `format` is the resolved --format (from the dispatcher's
-// extractFormat + FormatDefault). The verb uses it for error
-// envelope rendering on the legacy seam; the dispatch wrapper
-// passes ctx.Format directly.
+// `format` controls error rendering.
 func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error) {
 	var pathOverride string
 	var showHelp bool
@@ -77,10 +70,7 @@ func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error
 	case "path":
 		return dbPathLogic(pathOverride, stdout)
 	case "prune":
-		// Future orphaned-session cleanup. Stubbed
-		// (not implemented); preserved as a usage error so the CLI
-		// surface reserves the verb without claiming behavior
-		// that does not exist yet.
+		// The namespace reserves prune but does not implement it.
 		return nil, usageError("ktx db prune: not implemented")
 	default:
 		return nil, usageError("ktx db: unknown subcommand %q; run 'ktx db --help'", sub)

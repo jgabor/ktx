@@ -19,16 +19,7 @@
 // across processes (no global state; each `ktx compress` invocation
 // calls Load once).
 //
-// === Dependency ===
-//
-// ktx previously used a hand-rolled minimal TOML reader (~150 LOC)
-// because the config shape was one table with one string array — a
-// full TOML parser was YAGNI. [[plugin]] array-of-tables and the
-// richer syntax BurntSushi handles natively (inline tables, nested
-// arrays, escapes) outgrew it. BurntSushi/toml replaces the
-// hand-rolled reader so ktx does not maintain its own parser. The
-// Load contract (file discovery, ParseError envelope, passthrough
-// default) is unchanged — only the parsing internals swap.
+// Configuration is parsed with BurntSushi/toml.
 package config
 
 import (
@@ -89,9 +80,7 @@ type Config struct {
 	// Profiles holds all discovered pipeline profiles from the
 	// [pipeline.<name>] tables (e.g. default, json, logs). The
 	// "default" key is always present (it maps to PipelineDefault).
-	// Forward-compatible read surface for `ktx config show`; ktx does
-	// not route by content type yet, but the read surface
-	// is ready for it.
+	// ktx currently runs the default profile.
 	Profiles map[string][]string
 
 	// PipelineTimeout is the configured pipeline deadline for the
@@ -101,15 +90,13 @@ type Config struct {
 	// reads this so a user can tune the critical-path deadline.
 	// `ktx compress` ignores it (off-line, timeout=0, developer can
 	// Ctrl-C). A non-positive or unparseable value is a *ParseError at
-	// config-load time. Only the "default" profile's timeout is read;
-	// per-profile timeouts are YAGNI until content-type routing lands.
+	// config-load time. Only the "default" profile's timeout is read.
 	PipelineTimeout time.Duration
 
 	// RecoverFooter is the [pipeline.default].recover_footer flag.
 	// Defaults to false when the field is absent or no ktx.toml exists.
 	// Set recover_footer = true to surface a `ktx read <source_id>` cue.
-	// Only the "default" profile's value is read;
-	// per-profile toggles are YAGNI until content-type routing lands.
+	// Only the "default" profile's value is read.
 	RecoverFooter bool
 }
 
@@ -247,9 +234,8 @@ func loadFile(path string) (*Config, error) {
 // tomlConfig is the intermediate decode struct mapping the TOML
 // document into Go fields. BurntSushi decodes into this struct;
 // parse maps it to the public Config. Pipeline is decoded as a map
-// so arbitrary future profiles ([pipeline.json], [pipeline.logs])
-// are captured without struct changes — the read surface is
-// forward-compatible even though ktx does not route by content type.
+// so every profile ([pipeline.json], [pipeline.logs]) is captured without
+// struct changes, even though ktx does not route by content type.
 type tomlConfig struct {
 	Pipeline map[string]struct {
 		Stages        []string `toml:"stages"`
@@ -303,10 +289,9 @@ func parse(data []byte) (*Config, error) {
 
 	// Parse the configurable pipeline timeout. Stored as a raw
 	// string in TOML and parsed here via time.ParseDuration so an
-	// invalid duration surfaces as a *ParseError at config-load time
-	// (not deferred to hook runtime). Empty → DefaultPipelineTimeout
-	// (2s). Only the "default" profile's timeout is read; per-profile
-	// timeouts are YAGNI until content-type routing lands.
+	// invalid duration surfaces as a *ParseError while loading config.
+	// Empty → DefaultPipelineTimeout (2s). Only the "default" profile's
+	// timeout is read.
 	cfg.PipelineTimeout = DefaultPipelineTimeout
 	if def, ok := decoded.Pipeline["default"]; ok && def.Timeout != "" {
 		d, err := time.ParseDuration(def.Timeout)

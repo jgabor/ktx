@@ -78,9 +78,7 @@ func truncateApply(input []byte, n int) []byte {
 	kept := make([]byte, n)
 	copy(kept, input[:n])
 
-	// Build the marker. `dropped` is how many bytes were cut;
-	// `total` is the original length. Format matches the plan's
-	// spec exactly: `[ktx: truncated N of M bytes]`.
+	// Build the marker from the dropped and original byte counts.
 	dropped := len(input) - n
 	total := len(input)
 	marker := []byte(fmt.Sprintf("[ktx: truncated %d of %d bytes]\n", dropped, total))

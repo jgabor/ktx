@@ -181,7 +181,7 @@ log "wall_start_utc=$WALL_START_ISO"
 # ---------------------------------------------------------------------------
 # Invoke ktx run, capturing stdout and stderr. The wrapper's run summary
 # also lands on stderr (ktx run convention) so we don't interfere.
-# Timeout 5 minutes (overall acceptance criterion).
+# Allow up to five minutes for the benchmark command.
 # ---------------------------------------------------------------------------
 if [ "${KTX_VALIDATE_DRY_RUN:-0}" != "1" ]; then
     log "invoking: ktx run opencode run --format json -m $MODEL_SPEC '$TASK_PROMPT'"

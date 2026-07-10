@@ -45,7 +45,7 @@ The recipes below match `ktx.example.toml` and live ranking
 |--------|--------------------|-------------|
 | Sanitize only | `strip-ansi`, `dedup-blank`, `normalize` | Safe default in `ktx.example.toml`; no content loss; little savings on clean output |
 | **Keep-ends mid (recommended general)** | sanitize + `keep-ends:100:50` | Best measured $/correct with full pass; no `token-budget` |
-| Aggressive head | sanitize + `head:30` | Max token/cost cut; accept mid/tail loss (or future tool-aware opt-out) |
+| Aggressive head | sanitize + `head:30` | Max token/cost cut; accepts mid/tail loss |
 | Lossy + recovery | sanitize + `keep-ends:50:20` + `token-budget:2000` (footer on by default) | Narrow windows/budget; agents can `ktx read` via default recovery footer |
 | Build logs | sanitize + `grep-v:^debug:` + `keep-ends:100:50` | Prefer wider keep-ends over a tight budget when recovery is undesirable |
 

@@ -22,9 +22,8 @@
 // Compressed.content_hash is recomputed from the compressed OUTPUT
 // (not the source output) per the integrity rule — the caller passes
 // the already-hashed value via db.ContentHash(compressedOutput). This
-// keeps the hash faithful to what was stored, so a downstream
-// integrity check (ktx doctor / future verification) compares the
-// hash of the persisted output against the persisted hash.
+// keeps the hash faithful to what was stored and allows integrity checks to
+// compare the persisted output with its hash.
 //
 // Compressed.pipeline is a JSON array of stage names that ran
 // ("a record of what stages ran"). It is passed as a marshalled

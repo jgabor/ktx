@@ -12,7 +12,7 @@
 // module's runRegisteredVerb reads from os.Stdin when NeedsStdin=true
 // (sibling pattern). runCmd injection (the test seam) is
 // preserved: the dispatch path's ktx run uses the same package-level
-// runCmd that the legacy test seam uses, so a single t.Cleanup
+// runCmd used by command tests, so a single t.Cleanup
 // override is observable by both call sites within the same test.
 package cli
 

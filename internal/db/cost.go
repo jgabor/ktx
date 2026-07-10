@@ -8,8 +8,7 @@ import "math"
 // methodology-v1 headline number is six decimals
 // (`tools/bench/methodology-v1.yaml`'s `cost_per_correct = cost /
 // max(score, 1e-9)` plus the reproducibility `six decimal places` rule); the
-// persisted cost uses the same precision so a future reader does
-// not have to round before dividing.
+// persisted cost uses the same precision as the benchmark headline.
 //
 // Both write-time callers use the same persisted precision.
 const costRoundDecimals = 6
@@ -22,11 +21,7 @@ const costRoundDecimals = 6
 //	(p *Prices) Cold() bool
 //	(p *Prices) Refresh() error
 //
-// Tests inject a hand-rolled fakePriceSource (cost_test.go) to
-// exercise every branch without httptest, the *Prices singleton, or
-// a live network call. The cache write (atomic on-disk file) is
-// the source's responsibility — the deriver calls Refresh and lets
-// the source decide whether to persist the in-memory result.
+// The source owns persistence; Derive calls Refresh and then retries lookup.
 type PriceSource interface {
 	Lookup(provider, model string) (in, out float64, ok bool)
 	Cold() bool

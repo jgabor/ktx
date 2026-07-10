@@ -9,17 +9,7 @@
 // a record fetched by `ktx read` is the same shape one could re-persist
 // via `ktx write` (where applicable).
 //
-// Like `ktx write`, this is an I/O primitive: raw JSON, no --format flag at
-// the subcommand level. The dispatcher's extractFormat strips a stray
-// --format before the verb sees it, so `ktx read --format text <id>` is
-// mechanically identical to `ktx read <id>` (the verb always emits raw
-// JSON). The legacy runReadWith still rejects --format at the subcommand
-// flag set when called directly (test seam).
-//
-// The verb registers via dispatch.Register with NeedsDB=true (dispatcher
-// opens the DB) and PassthroughStdout=true (verb writes raw JSON, no
-// envelope wrapping). The legacy runReadWith remains the test seam and
-// still opens its own DB so existing tests pass unchanged.
+// Like `ktx write`, this is an I/O primitive: it always emits raw JSON.
 package cli
 
 import (
@@ -32,7 +22,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// runReadWith is the testable core of `ktx read` (test seam).
+// runReadWith executes `ktx read` with injected output streams.
 // stdout/stderr are injected so the read flow can be exercised without
 // touching os.Stdout. The body opens the database, delegates to
 // readLogic for the actual work, and translates the returned error
@@ -58,11 +48,7 @@ func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
-// readLogic is the shared core of `ktx read`. Both runReadWith (the
-// legacy test seam) and the dispatch wrapper readCommandFunc call it.
-// It assumes the database is already opened and writes raw JSON to
-// stdout. Returns (any, error) so the dispatcher can map the error
-// envelope through its own printError + exitCodeOf pipeline.
+// readLogic reads one record from an open database and writes raw JSON.
 //
 // Step-by-step:
 //  1. Parse --help/-h.
@@ -81,11 +67,8 @@ func readLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
 	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
-		// This rejects `ktx read --format text <id>` and any other
-		// unknown flag at the subcommand level (test seam;
-		// the dispatcher's extractFormat strips --format before the
-		// verb sees it, so this branch only fires on direct test
-		// invocations of runReadWith with --format in args).
+		// The dispatcher removes --format before invoking this function;
+		// direct callers receive normal unknown-flag validation.
 		return nil, usageError("ktx read: %v", err)
 	}
 	if showHelp {

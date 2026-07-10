@@ -1,5 +1,5 @@
 # Evaluation pipeline: conservative-a
-# Legacy lossy recipe (prefer keep-ends-mid or recover_footer).
+# Lossy recipe without recovery; prefer keep-ends-mid or recover_footer.
 # Offline hook-path data: roughly 80-88% per-call reduction.
 
 [pipeline.default]

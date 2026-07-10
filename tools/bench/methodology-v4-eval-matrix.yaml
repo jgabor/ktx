@@ -29,7 +29,7 @@ inputs:
     - failure-passthrough-v1
   corpus:
     path: tools/bench/corpus/
-    generator: tools/bench/generate_corpus.py
+    generator: ktx bench corpus generate
   scoring:
     function: multi_fact_fractional
     version: "v1"
@@ -54,7 +54,7 @@ computation: |
   tool_call_inflation = candidate.mean_tool_calls / baseline.mean_tool_calls
 
 output:
-  artifact: live-ab summary.json (+ offline compare-pipelines table)
+  artifact: ktx bench compare summary.json and ktx bench rank ranking.json
   default_format: json
   text_format: true
   fields:

@@ -2633,3 +2633,27 @@ decisions:
       and _PluginTemplate_PropagatesEnvelopeUnchanged all probe the new bracket-ktx-bracket marker rather than the legacy
       ktx recovery string but assert the same suppression keep propagation properties. Satisfaction stays provisional pending
       a real recover_footer-enabled session showing the agent invokes `ktx read <source_id>` after seeing the new footer.'
+
+- number: 25
+  date: '2026-07-10'
+  question: Should benchmark experiments, corpus generation, ranking, validation, and database reporting remain split between Go, Python, and shell, or consolidate into the shipped Go binary?
+  context: 'The repository shipped one Go product binary but maintained benchmark behavior across Python corpus/report/harness programs, shell launchers with inline Python, Ruff configuration, Python CI, and Go benchmark commands. The split duplicated JSON encoding rules, nullable metric handling, process execution, task parsing, and CLI concepts. The user explicitly requested a single-language Go implementation after asking for an independent investigation. D13 had provisionally rejected a full native live harness to avoid duplicating openeval; the repository subsequently acquired a ktx-specific session-linked live harness with immutable manifests, append-only attempts, Docker isolation, pipeline preflight, and deterministic summaries. The implementation therefore already existed inside ktx, but outside the binary and in another language.'
+  alternatives:
+  - name: Keep Python and shell benchmark tooling
+    status: rejected
+    description: Preserve the existing scripts and treat them as development-only tooling.
+    rationale: The evidence formats and orchestration rules are core benchmark behavior. Keeping them outside the binary preserves duplicated interfaces and a second runtime requirement.
+  - name: Port only launchers and leave reporting or corpus generation in Python
+    status: rejected
+    description: Move live orchestration to Go but retain isolated Python utilities.
+    rationale: Partial consolidation leaves JSON, floating-point, timestamp, and null-versus-zero behavior split across runtimes and does not achieve one artifact.
+  - name: Consolidate benchmark and report behavior in Go
+    status: chosen
+    description: A Go experiment module owns tasks, scoring, stream metrics, manifests, attempts, summaries, corpus generation, live comparison, validation, and ranking. A separate read-only Go report module owns SQLite analysis. The CLI exposes bench compare, bench rank, bench validate, bench corpus generate, and db report. The benchmark container invokes the Go binary directly.
+  choice: 'Consolidate the implementation on Go and remove Python. Supersede D13 only where it rejected a ktx-native live harness: ktx now owns the ktx-specific experiment evidence it already produces, while remaining unaware of and uncoupled from openeval. Keep SQLite as product evidence only; experiment identity, side assignment, attempts, and summaries remain retained file artifacts. Database reports open SQLite in mode=ro with query_only and never call db.Open, preventing report-time migrations. External command execution uses a real process-group adapter and a fake test adapter; timeouts send TERM, wait a configured grace period, then KILL, and Docker cleanup runs after every attempt. Ranking invokes comparison in-process. Stable JSON and corpus bytes are pinned by golden tests, including timestamps, floats, and null-versus-zero behavior.'
+  reasoning: 'The deep experiment module concentrates invariants that were spread across programs and gives the CLI and tests one interface. The deletion test supports the module: removing it would redistribute task parsing, scoring, evidence schemas, alternation, exclusion logic, and ranking across every command. Database reporting remains separate because its read-only connection contract is materially different from product persistence. This is an explicit user-requested revisit of provisional D13, grounded in the repository state changing after D13: a native harness already existed, so the choice is no longer build-versus-do-not-build but maintain it as fragmented tooling versus make it part of the one binary.'
+  confidence: firm
+  feeds_into: 'ARCHITECTURE.md Benchmark; internal/experiment; internal/dbreport; ktx bench compare; ktx bench rank; ktx bench validate; ktx bench corpus generate; ktx db report; Dockerfile.benchmark; Makefile; CI; docs/pipelines.md'
+  satisfaction:
+    state: provisionally_satisfied
+    evidence: 'Go golden tests cover deterministic corpus bytes, summary JSON, ranking JSON, timestamps, floating-point values, and null-versus-zero metrics. The live runner has a fake command adapter test covering alternating side order, retained summaries, and unconditional Docker cleanup; the OS adapter test covers process-group timeout and grace termination. The report test verifies database bytes remain unchanged and no bench_runs table is created. Repository-wide validation remains required before user confirmation.'

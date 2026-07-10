@@ -56,29 +56,22 @@ Comments should describe the actual behavior. If the reader needs rationale, the
 
 ## Testing
 
-### Hook validation
-
-`scripts/validate-hook.sh` runs a real OpenCode session with the ktx plugin, a configurable pipeline, and a pinned model, then queries the DB for A/B compression numbers.
+### Live comparison
 
 ```bash
-# Default pipeline (strip-ansi + grep-v + keep-ends + token-budget)
-scripts/validate-hook.sh
-
-# Custom model and prompt
-scripts/validate-hook.sh --model neuralwatt/glm-5.2-short-fast --prompt "Run: seq 1 500"
-
-# Keep workdir for inspection
-scripts/validate-hook.sh --keep-workdir
-
-# Custom pipeline stages
-scripts/validate-hook.sh --pipeline "strip-ansi,keep-ends:50:20,token-budget:2000"
-
-# Use a pre-written ktx.toml
-scripts/validate-hook.sh --ktx-toml path/to/ktx.toml
+ktx bench compare \
+  --model neuralwatt/glm-5.2-short-fast-flex \
+  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --rounds 3
 ```
 
 **Model policy:** use `neuralwatt/*` models only. Never use `github-copilot/*` models — they are on an enterprise plan and not permitted for this repo.
 
-### Benchmark validation
+### Evidence validation
 
-`scripts/validate-bench.sh` validates wrapper capture against real opencode (D16/D17 five-layer gate). See the script header for usage.
+```bash
+ktx bench validate --experiment .bench-data/<experiment-id>
+```
+
+The validator checks retained artifacts and hashes, session-linked attempts,
+target completion counts, and byte-for-byte summary regeneration.

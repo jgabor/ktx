@@ -206,7 +206,7 @@ Computes or ingests token and cost figures in a form that can be audited and rec
 
 ### Benchmark
 
-Aggregates persisted evidence into comparable headline metrics—cost per correct answer, savings over baseline, and related reports—using a published methodology.
+Aggregates persisted evidence into comparable headline metrics—cost per correct answer, savings over baseline, and related reports—using a published methodology. The Go experiment module owns tasks, scoring, retained manifests and attempts, deterministic summaries, live comparison, and ranking. SQLite remains product evidence; experiment-side assignment and orchestration metadata remain file artifacts outside the database.
 
 ### Extension registry
 

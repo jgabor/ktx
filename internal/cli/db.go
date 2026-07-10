@@ -16,8 +16,10 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/dbreport"
 )
 
 // runDBWith is the testable core of `ktx db`.
@@ -69,12 +71,53 @@ func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error
 	switch sub {
 	case "path":
 		return dbPathLogic(pathOverride, stdout)
+	case "report":
+		return dbReportLogic(pathOverride, rest, stdout)
 	case "prune":
 		// The namespace reserves prune but does not implement it.
 		return nil, usageError("ktx db prune: not implemented")
 	default:
 		return nil, usageError("ktx db: unknown subcommand %q; run 'ktx db --help'", sub)
 	}
+}
+
+// dbReportLogic renders a read-only database evidence report. It uses a
+// read-only SQLite connection and never runs product migrations.
+func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, error) {
+	fs := flag.NewFlagSet("ktx db report", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	var output string
+	var includeIdentifiers bool
+	fs.StringVar(&output, "output", "-", "output path, or - for stdout")
+	fs.BoolVar(&includeIdentifiers, "include-identifiers", false, "include session IDs and absolute database path")
+	if err := fs.Parse(args); err != nil {
+		return nil, usageError("ktx db report: %v", err)
+	}
+	if len(fs.Args()) > 0 {
+		return nil, usageError("ktx db report: unexpected argument %q", fs.Arg(0))
+	}
+	path, err := dbpkg.ResolvePath(pathOverride)
+	if err != nil {
+		return nil, internalError("ktx db report: resolve database path: %v", err)
+	}
+	report, err := dbreport.Generate(path, includeIdentifiers, time.Now())
+	if err != nil {
+		return nil, internalError("ktx db report: %v", err)
+	}
+	if output != "-" {
+		if err := dbreport.WriteJSON(output, report); err != nil {
+			return nil, internalError("ktx db report: %v", err)
+		}
+		return nil, nil
+	}
+	data, err := dbreport.MarshalJSON(report)
+	if err != nil {
+		return nil, internalError("ktx db report: %v", err)
+	}
+	if _, err := stdout.Write(data); err != nil {
+		return nil, internalError("ktx db report: write output: %v", err)
+	}
+	return nil, nil
 }
 
 // dbPathLogic resolves the database path (precedence:
@@ -144,7 +187,7 @@ type dbParsedArgs struct {
 // the verb is reachable through runWith.
 func init() {
 	Register("db", RegisterOptions{
-		Description: "database operations (path, prune)",
+		Description: "database path, reporting, and maintenance",
 		NeedsDB:     false,
 		ParseArgs:   parseDBDispatchArgs,
 		Help:        printDBHelp,
@@ -164,6 +207,7 @@ func printDBHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Subcommands:")
 	fmt.Fprintln(w, "  path    print the current database path (default when no subcommand given)")
+	fmt.Fprintln(w, "  report  emit a read-only evidence report (--output <path>|-)")
 	fmt.Fprintln(w, "  prune   remove orphaned sessions (not yet implemented)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")

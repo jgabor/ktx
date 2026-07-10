@@ -45,17 +45,15 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 RUN npm install -g opencode-ai@${OPENCODE_VERSION}
 COPY --from=ktx-build /out/ktx /usr/local/bin/ktx
-COPY tools/bench/ktx-runner /usr/local/bin/ktx-runner
 RUN mkdir -p \
       /home/node/.local/share/opencode \
       /home/node/.local/share/ktx \
       /home/node/.config/ktx \
       /home/node/.config/opencode/plugins \
-  && chown -R node:node /home/node/.local /home/node/.config \
-  && chmod 0755 /usr/local/bin/ktx-runner
+  && chown -R node:node /home/node/.local /home/node/.config
 # Install the ktx OpenCode plugin into the container's plugin dir.
 # This is the ONLY plugin — no host plugins leak in.
 USER node
 RUN ktx init opencode
 WORKDIR /work
-ENTRYPOINT ["/usr/local/bin/ktx-runner"]
+ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]

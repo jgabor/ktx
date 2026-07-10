@@ -31,10 +31,11 @@ and `token-budget`. Originals remain addressable through `ktx read` and
 
 ## Benchmarking
 
-`ktx bench run` and `ktx bench report` use methodologies embedded in the
-binary. Named evaluation pipelines, tasks, and corpus fixtures live under
-[`tools/bench`](tools/bench); the runbook is [`docs/pipelines.md`](docs/pipelines.md).
-Live validation scripts use only `neuralwatt/*` models.
+`ktx bench run`, `report`, `compare`, `rank`, `validate`, and `corpus generate`
+use Go implementations shipped in the binary. Named pipelines, tasks, and
+corpus fixtures live under [`tools/bench`](tools/bench); the runbook is
+[`docs/pipelines.md`](docs/pipelines.md). Live runs use only `neuralwatt/*`
+models.
 
 ## Development
 
@@ -42,6 +43,5 @@ Live validation scripts use only `neuralwatt/*` models.
 make check
 ```
 
-This runs formatting checks, Go tests and vet, Python unit tests and Ruff, and
-shell syntax validation. The architectural intent and recorded choices are in
-[`ARCHITECTURE.md`](ARCHITECTURE.md) and [`.agentera/decisions.yaml`](.agentera/decisions.yaml).
+This runs formatting checks, Go tests, and vet. Architectural intent is
+documented in [`ARCHITECTURE.md`](ARCHITECTURE.md).

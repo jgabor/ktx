@@ -81,6 +81,16 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		return runBenchRun(rest, opts, stdout, stderr)
 	case "report":
 		return runBenchReport(rest, opts, stdout, stderr)
+	case "compare":
+		return runBenchCompare(rest, opts, stdout, stderr)
+	case "rank":
+		return runBenchRank(rest, opts, stdout, stderr)
+	case "validate":
+		return runBenchValidate(rest, opts, stdout, stderr)
+	case "corpus":
+		return runBenchCorpus(rest, opts, stdout, stderr)
+	case "agent":
+		return runBenchAgent(rest, opts, stdout, stderr)
 	default:
 		printError(stderr, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub), opts.Format)
 		return ExitUsage
@@ -113,6 +123,16 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 		return benchSubToExit(runBenchRun(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "report":
 		return benchSubToExit(runBenchReport(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "compare":
+		return benchSubToExit(runBenchCompare(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "rank":
+		return benchSubToExit(runBenchRank(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "validate":
+		return benchSubToExit(runBenchValidate(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "corpus":
+		return benchSubToExit(runBenchCorpus(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "agent":
+		return benchSubToExit(runBenchAgent(tail, opts, ctx.Stdout, ctx.Stderr))
 	default:
 		return nil, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub)
 	}
@@ -146,7 +166,7 @@ func benchSubToExit(code int) (any, error) {
 // init registers `ktx bench`. Its subcommands open the database when needed.
 func init() {
 	Register("bench", RegisterOptions{
-		Description:   "benchmark namespace (run, report)",
+		Description:   "benchmark runs, experiments, and reports",
 		NeedsDB:       false,
 		FormatDefault: FormatJSON,
 		Help:          printBenchHelp,
@@ -180,6 +200,14 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      With <id>: emit a single row by nanoid; not-found → exit 2.")
 	fmt.Fprintln(w, "      --methodology filters rows by methodology_version; the")
 	fmt.Fprintln(w, "        headline is recomputed from the filtered set.")
+	fmt.Fprintln(w, "  compare --model <model> --task-file <path>")
+	fmt.Fprintln(w, "      Run a retained live baseline/candidate experiment.")
+	fmt.Fprintln(w, "  rank --model <model> --task-file <path>")
+	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
+	fmt.Fprintln(w, "  validate --experiment <directory>")
+	fmt.Fprintln(w, "      Verify retained artifacts, hashes, links, and summary bytes.")
+	fmt.Fprintln(w, "  corpus generate [--output <directory>]")
+	fmt.Fprintln(w, "      Regenerate the deterministic planted-fact corpus.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Methodology source: tools/bench/methodology-v1.yaml (embedded). The")
 	fmt.Fprintln(w, "CLI inputs (agent, model, task) must match the methodology's")

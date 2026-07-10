@@ -16,14 +16,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - name: Install Python tooling
-        run: pipx install ruff
       - name: Check formatting
-        run: |
-          test -z "$(gofmt -l cmd internal tools/bench/data.go)"
-          ruff format --check scripts tools/bench
-      - name: Test and lint
-        run: make go-test python-test lint shell-check
+        run: make fmt-check
+      - name: Test and vet
+        run: make test

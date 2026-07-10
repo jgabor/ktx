@@ -16,7 +16,7 @@
     "note": "chars/4 estimate only; live tokens_in come from the model stream",
     "total": 152248
   },
-  "description": "Deterministic planted-fact corpus for pipeline evaluation. Regenerate with tools/bench/generate_corpus.py.",
+  "description": "Deterministic planted-fact corpus for pipeline evaluation. Regenerate with ktx bench corpus generate.",
   "files": [
     {
       "bytes": 119722,

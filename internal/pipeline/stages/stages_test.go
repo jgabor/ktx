@@ -497,8 +497,8 @@ func TestKeepEnds(t *testing.T) {
 			t.Errorf("head section = %q..%q, want line0..line49", outLines[0], outLines[49])
 		}
 		// Marker line in the middle.
-		if outLines[50] != "[... (30 lines omitted) ...]" {
-			t.Errorf("marker = %q, want [... (30 lines omitted) ...]", outLines[50])
+		if outLines[50] != "[ktx: 30 lines omitted]" {
+			t.Errorf("marker = %q, want [ktx: 30 lines omitted]", outLines[50])
 		}
 		// Last 20 lines preserved.
 		if outLines[51] != "line80" || outLines[70] != "line99" {
@@ -750,7 +750,7 @@ func TestTokenBudget(t *testing.T) {
 			t.Fatalf("token-budget Apply: %v", err)
 		}
 		// Marker present and names the original token estimate (500).
-		marker := "... (truncated to ~100 tokens from 500)"
+		marker := "[ktx: truncated ~100 tokens from 500]"
 		if !bytes.Contains(out, []byte(marker)) {
 			t.Errorf("output missing marker %q; got (len %d) %q", marker, len(out), string(out[:min(80, len(out))]))
 		}

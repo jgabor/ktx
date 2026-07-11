@@ -11,7 +11,7 @@
 // `token-budget:2000`). Input under budget is returned unchanged (a
 // fresh slice). When over budget, the stage keeps the first ~N*4
 // characters (snapped back to the last newline before that count) and
-// appends a marker `... (truncated to ~N tokens from M)` where M is
+// appends a marker `[ktx: truncated ~N tokens from M]` where M is
 // the estimated original token count.
 //
 // The arg parser is strconv.Atoi. A malformed or non-positive arg
@@ -92,7 +92,7 @@ func tokenBudgetApply(input []byte, n int) []byte {
 	// cut is unavoidable when there are no newlines.
 
 	kept := input[:cut]
-	marker := fmt.Sprintf("... (truncated to ~%d tokens from %d)", n, totalTokens)
+	marker := fmt.Sprintf("[ktx: truncated ~%d tokens from %d]", n, totalTokens)
 
 	out := make([]byte, 0, len(kept)+1+len(marker)+1)
 	out = append(out, kept...)

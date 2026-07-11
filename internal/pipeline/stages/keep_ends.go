@@ -1,5 +1,5 @@
 // keep-ends stage: keeps the first N lines plus the last M lines of
-// input, inserting a [... (X lines omitted) ...] marker between them.
+// input, inserting a [ktx: X lines omitted] marker between them.
 //
 // Head-and-tail retention avoids losing the bottom of a
 // build log — exactly where errors and stack traces live. keep-ends
@@ -67,7 +67,7 @@ func keepEndsBuilder(arg string) (pipeline.Stage, error) {
 }
 
 // keepEndsApply returns the first n lines plus the last m lines with a
-// [... (X lines omitted) ...] marker between. Input with n+m or fewer
+// [ktx: X lines omitted] marker between. Input with n+m or fewer
 // lines is returned byte-identical (a fresh slice). The trailing-
 // newline convention is preserved (matching head's edge handling).
 func keepEndsApply(input []byte, n, m int) []byte {
@@ -91,7 +91,7 @@ func keepEndsApply(input []byte, n, m int) []byte {
 	head := lines[:n]
 	tail := lines[len(lines)-m:]
 	omitted := len(lines) - n - m
-	marker := fmt.Sprintf("[... (%d lines omitted) ...]", omitted)
+	marker := fmt.Sprintf("[ktx: %d lines omitted]", omitted)
 
 	// Join head + marker + tail with newlines so the marker occupies its
 	// own line.

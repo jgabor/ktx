@@ -88,7 +88,7 @@ recover_footer = true
 #                       truncation occurred
 #
 #   keep-ends:N:M       Keep first N + last M lines with
-#                       "[... (X lines omitted) ...]" marker in the
+#                       "[ktx: X lines omitted]" marker in the
 #                       middle. Preserves bottom-of-log errors that
 #                       head:N alone would lose
 #
@@ -100,8 +100,8 @@ recover_footer = true
 #
 #   token-budget:N      Truncate to ~N tokens (chars/4 estimate);
 #                       snaps back to last newline (no mid-line
-#                       cuts); appends "... (truncated to ~N tokens
-#                       from M)" marker. Input under budget → unchanged
+#                       cuts); appends "[ktx: truncated ~N tokens
+#                       from M]" marker. Input under budget → unchanged
 
 # Default: sanitize cleanup (safe — noise removal only, no content loss)
 stages = ["strip-ansi", "dedup-blank", "normalize"]

@@ -1,0 +1,56 @@
+output: [
+    # "meta",
+    "summary",
+    # "success",
+    "failure",
+    # "execution",
+    # "execution_out",
+    # "execution_info",
+    # "skips",
+  ]
+
+post-checkout:
+  commands:
+    go:
+      run: go mod tidy
+
+pre-commit:
+  commands:
+    go:
+      run: go mod tidy
+      stage_fixed: true
+    lint:
+      run: golangci-lint run --fix ./...
+      stage_fixed: true
+      glob: "*.go"
+    vet:
+      run: go vet ./...
+      stage_fixed: true
+      glob: "*.go"
+    vuln:
+      run: govulncheck ./...
+      stage_fixed: true
+      glob: "*.go"
+    docs:
+      run: bunx prettier --write {staged_files}
+      stage_fixed: true
+      glob: "*.md"
+    configs:
+      run: bunx prettier --write {staged_files}
+      stage_fixed: true
+      glob: "*.json"
+
+pre-push:
+  parallel: true
+  commands:
+    lint:
+      run: golangci-lint run --fix ./...
+      stage_fixed: true
+      glob: "*.go"
+    test:
+      run: go test ./...
+      glob: "*.go"
+    vuln:
+      run: govulncheck ./...
+      stage_fixed: true
+      glob: "*.go"

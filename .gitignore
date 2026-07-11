@@ -1,5 +1,4 @@
+build/
 docs/notes/
-/ktx
-/cmd/ktx/ktx
 .bench-data/
 .playwright-cli/

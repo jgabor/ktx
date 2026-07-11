@@ -1,0 +1,171 @@
+header:
+  level: full
+  created: '2026-07-11'
+  status: complete
+  reviewed: '2026-07-11'
+  critic_issues: '3 found, 3 addressed, 0 dismissed'
+  title: Plugin boundary consolidation — ID, timestamp, runtime attribution, field extraction
+what: |
+  Consolidate logic currently living in the OpenCode plugin template into the ktx binary. Four pieces of logic are duplicated or misplaced: (1) ID generation — the plugin reimplements the nanoid alphabet with a biased modular mapping while the binary already owns an unbiased ID generator; (2) timestamp generation — the plugin generates a timestamp while the binary already defaults timestamps in other code paths; (3) runtime attribution — the hook path opens sessions with agent="unknown" because no runtime identity is communicated; (4) field extraction — the plugin manually extracts tool name, args, and output from the OpenCode callback shape, which is the single remaining piece of domain logic in the plugin. After consolidation, the plugin becomes a pure IPC shim: session noop guard, PATH check, subprocess invocation, output mutation. The binary owns all domain logic: runtime identification, field extraction, ID generation, timestamp, content hash, session resolution, persist, compress.
+why: |
+  The plugin template is versioned with the binary via `ktx init opencode`, but it carries duplicate logic with divergent behaviour: the plugin's modular mapping is biased (256 % 26 = 22, so some values under-map). The hook already computes content_hash and session_id when empty — id and timestamp are the inconsistent outliers, hard-rejected instead of computed. Adding a `runtime` field to the JSON payload and a corresponding database column enables per-tool-call runtime attribution, answering "which runtime compresses best" without a new query layer. Moving field extraction into the binary, keyed off `runtime`, makes the plugin a pure IPC shim — the consistent boundary where every domain decision lives in Go, tested and unbiased.
+constraints: |
+  Existing hook contract (firm): stdin JSON payload to stdout JSON envelope. The payload shape gains a `runtime` field; existing fields remain accepted. The hook must remain backward-compatible: a payload without `runtime` still works, a payload with empty id or timestamp now generates them instead of rejecting.
+
+  The plugin noops when the wrapper session env is set. This stays in the plugin — the binary cannot detect this without being spawned first.
+
+  Conservative-on-failure (firm): on any hook failure, the original output is returned unchanged. Unaffected by this change.
+
+  Compression pipeline, recovery footer, and anti-worsening gate are unchanged. The footer-aware gate and envelope composition operate after persistence and compression, which is after the consolidated logic runs.
+
+  Schema migration (firm): idempotent additive column via existence check, inside the migration transaction. Same pattern as prior column additions. No versioned migration framework. Pre-migration rows get NULL for the new column — "unknown runtime," the same default they already have via sessions.agent.
+
+  No new dependencies. The hook contract is unchanged in shape, only relaxed in field requirements. No project-memory markers (decision IDs, milestone tokens, or internal path references) in shipped code, plugin template, help text, or test fixtures.
+scope:
+  included:
+    - |
+      Schema: add a nullable runtime column to the tool_calls table. Fresh databases include it from the start; existing databases gain it via idempotent migration.
+    - |
+      Record layer: add a runtime field to the tool_call struct, update the persist and fetch paths to round-trip it. Pointer type preserves the absent-vs-empty distinction (nil = field absent in payload, non-nil pointer to empty string = runtime explicitly empty).
+    - |
+      Hook logic: when id is empty, generate one instead of rejecting. When timestamp is empty, generate one instead of rejecting. Keep the guard for empty tool name (genuinely unresolvable — the binary cannot infer it).
+    - |
+      Runtime extraction: add a new function that receives the raw callback input and output objects plus the runtime identifier, and extracts tool name, input string, and output string. For the OpenCode runtime: tool from the callback's tool field, input from stringified args, output from the callback's output field with string fallback. The extraction lives in the hook layer, not the stream parser — the parser owns the JSONL stream shape; the hook owns the plugin payload shape. The two are different schemas.
+    - |
+      Hook payload contract change: the plugin sends {runtime, input, output} where input and output are the raw callback objects. The hook deserialises, applies runtime-keyed extraction, then proceeds with persist and compress as today. When runtime is absent or unknown, the hook falls back to treating the payload as a flat tool_call (today's behaviour) so sidecar callers are unaffected.
+    - |
+      Plugin template: slim to a pure IPC shim. Remove the alphabet, ID generator, envelope interface, and field extraction logic. The plugin sends {runtime:"opencode", input, output} and mutates the output field from the envelope. The template is parameterised at install time so `runtime` is baked in (the binary knows the runtime at install time).
+    - |
+      Tests: migration test following the existing pattern. Hook tests for empty id/timestamp generation, runtime-keyed extraction, and backward-compatible flat-payload fallback. Init tests verifying the slimmed template.
+  excluded:
+    - |
+      Populating runtime on the wrapper path. The wrapper already sets session.agent from the agent name; per-tool-call runtime on the wrapper path is YAGNI until a second runtime uses the wrapper. The column exists for the hook path; the wrapper path can populate it later if needed.
+    - |
+      Generic runtime extraction framework. Only OpenCode extraction is implemented. A second runtime's extraction would be a new function. No plugin registry, no reflection, no interface — YAGNI.
+    - |
+      Changing the hook command name or envelope shape. The envelope stays {output, compressed_id, source_id}. The command stays `ktx hook`.
+    - |
+      Backfilling runtime for existing tool_call rows. Pre-migration rows get NULL. Backfill is YAGNI.
+    - |
+      Adding runtime to the compressed table. Runtime is on tool_calls; compressed joins to tool_calls via source_id. No denormalisation.
+  deferred:
+    - |
+      Wrapper-path runtime attribution. Deferred because the session.agent column already captures this at session granularity. Revisit if per-tool-call runtime attribution on the wrapper path becomes a measured need.
+    - |
+      `ktx list` / `ktx get` surfacing runtime as a column. The field round-trips automatically; explicit CLI surfacing is a display concern. Revisit when a user asks or a benchmark query needs it.
+    - |
+      Runtime-aware compression pipeline selection. The `runtime` field enables per-runtime pipeline routing in the future, but that's a router/classifier concern, not a boundary-consolidation concern.
+design: |
+  The work has a natural dependency chain: schema must exist before the record layer can write to it; the record layer must accept runtime before the hook can pass it; the hook must accept raw input/output before the plugin can stop flattening them. Tasks are ordered accordingly.
+
+  The key design decision is where runtime-keyed extraction lives. The stream parser owns the JSONL event shape — the wrapper path's structured event schema. The plugin payload shape (raw callback objects) is a different schema that enters through the hook, not through the wrapper. The extraction function lives in the hook layer alongside the hook logic, not in the stream parser. This keeps the parser pure for stream events and the hook pure for plugin payloads.
+
+  The second key decision is backward compatibility. Today the hook requires id, tool, and timestamp. After this change, id and timestamp are optional (generated when empty). Tool remains required (the binary cannot infer it). When runtime is present, the hook applies extraction and ignores any flat fields in the payload. When runtime is absent, the hook deserialises the payload as a flat tool_call (today's behaviour). This means sidecar callers that send flat JSON are unaffected, and only the OpenCode plugin (which sends runtime + raw objects) takes the new extraction path.
+
+  Plugin upgrade path: existing installs that still send id+timestamp are backward-compatible — the hook accepts caller-supplied values. Users re-run `ktx init opencode` to get the slimmed template.
+tasks:
+  - number: 1
+    name: "Schema: runtime column on tool_calls"
+    depends_on: []
+    status: complete
+    acceptance:
+      - |
+        GIVEN a fresh database WHEN opened THEN tool_calls has a nullable runtime column.
+      - |
+        GIVEN a pre-runtime-column database WHEN opened THEN the column is added via idempotent migration and existing rows have NULL for runtime.
+      - |
+        GIVEN a database that already has the runtime column WHEN migration runs again THEN the column is not duplicated.
+    test_proportionality: 2 testable units (fresh-database-has-column, migration-adds-column-idempotently); one pass + one re-migrate no-op per unit.
+  - number: 2
+    name: "Record layer: runtime field round-trips through persist and fetch"
+    depends_on:
+      - "1"
+    status: complete
+    acceptance:
+      - |
+        GIVEN a tool_call with runtime set WHEN persisted THEN the stored row has the runtime value in the runtime column.
+      - |
+        GIVEN a tool_call with runtime absent WHEN persisted THEN the stored row has NULL in the runtime column (absent, not empty string).
+      - |
+        GIVEN a tool_call persisted with runtime="opencode" WHEN fetched THEN the returned record has runtime="opencode".
+      - |
+        GIVEN a tool_call persisted with runtime=NULL WHEN fetched THEN the returned record has runtime absent (nil).
+    test_proportionality: 2 testable units (persist-with-runtime, persist-without-runtime); one pass per unit, fetch round-trip verified per unit.
+  - number: 3
+    name: "Hook: generate ID and timestamp when empty (relax hard requirements)"
+    depends_on: []
+    status: complete
+    acceptance:
+      - |
+        GIVEN a hook payload with an empty id field WHEN ktx hook runs THEN the hook generates a 16-char lowercase alpha ID and persists the row (no error).
+      - |
+        GIVEN a hook payload with an empty timestamp field WHEN ktx hook runs THEN the hook generates an RFC3339Nano timestamp and persists the row (no error).
+      - |
+        GIVEN a hook payload with both id and timestamp populated WHEN ktx hook runs THEN the hook uses the caller-supplied values (backward compatible).
+      - |
+        GIVEN a hook payload with an empty tool field WHEN ktx hook runs THEN the hook returns a usage error (tool remains required — the binary cannot infer it).
+      - |
+        GIVEN ktx hook --help WHEN read THEN the help text does not list id or timestamp as required fields (they are now optional, generated when empty).
+    test_proportionality: 3 testable units (empty-id-generates, empty-timestamp-generates, supplied-values-pass-through); one pass per unit + one fail (empty-tool-rejected) + one documentation check (help text).
+  - number: 4
+    name: "Hook: runtime-keyed field extraction from raw plugin callback objects"
+    depends_on:
+      - "2"
+      - "3"
+    status: complete
+    acceptance:
+      - |
+        GIVEN a hook payload with runtime="opencode" and raw callback input containing tool name and args, and raw callback output containing an output field WHEN ktx hook runs THEN the persisted tool_call has the extracted tool name, stringified args, and output string.
+      - |
+        GIVEN a hook payload with runtime="opencode" and output is a bare string (not an object) WHEN ktx hook runs THEN the persisted tool_call output is the bare string.
+      - |
+        GIVEN a hook payload with runtime="opencode" and output is an object without an output field WHEN ktx hook runs THEN the persisted tool_call output is the stringified object (fallback).
+      - |
+        GIVEN a hook payload with runtime="opencode" and the callback input has no tool name WHEN ktx hook runs THEN the persisted tool_call tool is "unknown" (fallback).
+      - |
+        GIVEN a hook payload WITHOUT a runtime field (flat tool_call shape) WHEN ktx hook runs THEN the hook deserialises it as a flat tool_call (today's behaviour, backward compatible).
+      - |
+        GIVEN a hook payload with an unrecognised runtime value WHEN ktx hook runs THEN the hook falls back to flat tool_call deserialisation (backward compatible).
+      - |
+        GIVEN the extraction logic WHEN inspected THEN it lives in the hook layer, not in the stream parser.
+    test_proportionality: 4 testable units (opencode-object-extraction, opencode-string-output, opencode-missing-tool-fallback, no-runtime-flat-backward-compat); one pass per unit.
+  - number: 5
+    name: "Plugin template: slim to pure IPC shim"
+    depends_on:
+      - "4"
+    status: complete
+    acceptance:
+      - |
+        GIVEN the installed plugin template WHEN inspected THEN it does NOT contain an ID alphabet or ID generator.
+      - |
+        GIVEN the installed plugin template WHEN inspected THEN it does NOT contain field-extraction logic (tool name, args, or output extraction from callback objects).
+      - |
+        GIVEN the installed plugin template WHEN inspected THEN it contains runtime="opencode" in the payload sent to ktx hook (baked in at install time).
+      - |
+        GIVEN the installed plugin template WHEN inspected THEN it still contains the session noop guard, the PATH check, the subprocess invocation, and the output mutation from the envelope.
+      - |
+        GIVEN `ktx init opencode` WHEN run THEN the installed plugin file matches the slimmed template byte-for-byte.
+      - |
+        GIVEN the existing init tests WHEN run with the slimmed template THEN they pass (install/show/uninstall flow unaffected).
+    test_proportionality: 2 testable units (template-has-no-duplicate-logic, template-still-has-ipc-shim-logic); one pass per unit.
+  - number: 6
+    name: "State sync: progress entry"
+    depends_on:
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+    status: complete
+    acceptance:
+      - |
+        GIVEN all prior tasks complete and verified WHEN the state sync runs THEN progress records the plugin boundary consolidation as one cycle entry summarising: ID/timestamp generation moved to binary, runtime column added, field extraction moved to binary, plugin slimmed to IPC shim.
+overall_acceptance: |
+  GIVEN a payload with runtime="opencode", raw callback objects, and no id/timestamp WHEN ktx hook runs THEN the hook generates ID and timestamp, extracts tool/input/output from the OpenCode callback shape, persists the row with runtime="opencode", and returns the compressed envelope — the plugin contributes only session noop, PATH guard, subprocess invocation, and output mutation.
+
+  GIVEN a flat tool_call payload without runtime (sidecar caller) WHEN ktx hook runs THEN behaviour is byte-for-byte identical to pre-change (backward compatible).
+
+  GIVEN a pre-migration database WHEN opened THEN the runtime column is added idempotently and existing rows have NULL (no data loss, no breakage).
+
+  GIVEN `ktx init opencode` WHEN run THEN the installed plugin contains no domain logic — no alphabet, no ID generation, no field extraction.
+surprises: []

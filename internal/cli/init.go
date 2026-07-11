@@ -9,10 +9,11 @@
 // TypeScript plugin.
 //
 // `ktx init opencode` installs a plugin that subscribes to
-// `tool.execute.after` and calls
-// `ktx write` per event (flat JSON). The plugin noops when
-// KTX_SESSION_ID is set so the wrapper path remains the
-// single source of truth — both paths active means one of them wins.
+// `tool.execute.after` and calls `ktx hook` per event,
+// sending the raw callback object tagged with runtime="opencode".
+// The plugin noops when KTX_SESSION_ID is set so the wrapper
+// path remains the single source of truth — both paths active means
+// one of them wins.
 //
 // Flags:
 //
@@ -63,24 +64,21 @@ type initParsedArgs struct {
 // the installed file when users re-run `ktx init opencode`.
 //
 // Behaviour:
-//   - Listens on `tool.execute.after` and calls `ktx hook` (not `ktx
-//     write`) via Bun.spawn with stdin = flat JSON tool_call.
+//   - Listens on `tool.execute.after` and shells out to
+//     `ktx hook` via Bun.spawn, sending the raw callback object
+//     (input + output) tagged with `runtime: "opencode"`. No
+//     domain logic lives in the plugin: the binary owns all
+//     extraction, ID generation, and timestamps.
 //   - `ktx hook` persists the original and returns a JSON envelope:
 //     {"output": string, "compressed_id": string|null, "source_id": string}.
 //   - The plugin mutates `output.output` to the envelope's `output`
-//     field (the compressed bytes the agent sees). Empirically confirmed
-//     (2026-07-01): output.output mutation propagates to the agent context.
+//     field (the compressed bytes the agent sees).
 //   - On any ktx hook failure (non-zero exit, unparseable stdout,
 //     ktx-not-in-PATH), the plugin leaves output.output unchanged —
 //     conservative failure at the plugin level.
 //   - Noops when KTX_SESSION_ID is present: when the user
 //     is also running the agent under `ktx run`, the wrapper owns
 //     persistence and the plugin would otherwise double-record.
-//   - `session_id` is left empty so ktx hook resolves session identity
-//     by ppid file lookup.
-//   - `content_hash` is left empty so ktx hook can compute it.
-//   - Generates a fresh 16-char lowercase alpha nanoid matching the
-//     alphabet.
 //
 // Presence check: the plugin factory verifies the ktx
 // binary is in PATH before registering the tool.execute.after hook. If
@@ -88,15 +86,6 @@ type initParsedArgs struct {
 // the disabled state visible — without this, every tool call would
 // pay a `ktx hook` spawn cost and silently drop its payload.
 const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
-
-const KTX_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz"
-const ktxGenerateID = (): string => {
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
-  let id = ""
-  for (let i = 0; i < 16; i++) id += KTX_ID_ALPHABET[bytes[i] % 26]
-  return id
-}
 
 interface KtxEnvelope {
   output: string
@@ -148,18 +137,10 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       // Noop when wrapper is active
       if (process.env.KTX_SESSION_ID) return
 
-      const toolName = input.tool || "unknown"
-      const toolInput = JSON.stringify(input.args || {})
-      const toolOutput = typeof output === "string" ? output : (output?.output ?? JSON.stringify(output))
-
       const record = {
-        id: ktxGenerateID(),
-        session_id: "",
-        tool: toolName,
-        input: toolInput,
-        output: toolOutput,
-        content_hash: "",
-        timestamp: new Date().toISOString(),
+        runtime: "opencode",
+        input: input,
+        output: output,
       }
 
       const envelope = await ktxHook(JSON.stringify(record))
@@ -553,7 +534,8 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  2  not found (--show found nothing, --uninstall found nothing)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The installed plugin subscribes to tool.execute.after and shells out to")
-	fmt.Fprintln(w, "`ktx write` for each event. When KTX_SESSION_ID is")
+	fmt.Fprintln(w, "`ktx hook` for each event, sending the raw callback object tagged")
+	fmt.Fprintln(w, "with runtime=\"opencode\". When KTX_SESSION_ID is")
 	fmt.Fprintln(w, "set in the environment, the plugin noops so the wrapper")
 	fmt.Fprintln(w, "path remains the single source of truth.")
 	fmt.Fprintln(w)

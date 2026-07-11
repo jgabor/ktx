@@ -73,6 +73,12 @@ type ToolCall struct {
 	// diagnostic only.
 	ExitCode *int64 `json:"exit_code"`
 	IsError  *bool  `json:"is_error"`
+
+	// Optional runtime field (persisted when present; NULL when
+	// absent; pointer type preserves the absent-vs-empty distinction
+	// through JSON and SQL round-trips). runtime records the agent
+	// runtime that executed the tool call.
+	Runtime *string `json:"runtime"`
 }
 
 // Session is a row in the sessions table. The JSON tags mirror
@@ -156,10 +162,11 @@ func (d *DB) CloseSession(id, endedAt string) error {
 // transaction keeps the aggregate consistent with the evidence — a
 // tool_call never exists without its session counters reflecting it.
 //
-// The INSERT writes all 14 columns: the 8 core fields (id, session_id, tool,
-// input, output, content_hash, timestamp, event_type) and the 6
+// The INSERT writes all 17 columns: the 8 core fields (id, session_id, tool,
+// input, output, content_hash, timestamp, event_type), the 6
 // cost-publication fields (tokens_in, tokens_out, cost, latency_ms, model,
-// provider). These fields are passed as the *int64 / *float64 / *string
+// provider), the 2 failure-signal fields (exit_code, is_error), and the
+// runtime field. These fields are passed as the *int64 / *float64 / *string
 // pointer values on the ToolCall struct; a nil pointer round-trips to
 // SQL NULL. A non-nil pointer to zero persists as 0, preserving the
 // distinction between an absent field and a measured zero.
@@ -201,11 +208,11 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 		`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
-			exit_code, is_error
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			exit_code, is_error, runtime
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
 		tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
-		tc.ExitCode, isErrorSQL(tc.IsError),
+		tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -231,7 +238,8 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 // row matches so the CLI layer can map "not found" to exit code 2.
 // The returned struct carries the persisted shape including the
 // cost-publication fields (tokens_in, tokens_out, cost, latency_ms,
-// model, provider). The columns are nullable; the Scan uses
+// model, provider), the failure-signal fields (exit_code, is_error), and
+// the runtime field. The columns are nullable; the Scan uses
 // sql.NullInt64 / sql.NullFloat64 / sql.NullString intermediates so
 // NULL is converted back to a nil pointer on the ToolCall struct,
 // preserving the 'field absent' distinction. A non-NULL column with
@@ -248,18 +256,19 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		provider  sql.NullString
 		exitCode  sql.NullInt64
 		isError   sql.NullInt64
+		runtime   sql.NullString
 	)
 	err := d.db.QueryRow(
 		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type,
 		        tokens_in, tokens_out, cost, latency_ms, model, provider,
-		        exit_code, is_error
+		        exit_code, is_error, runtime
 		 FROM tool_calls WHERE id = ?`,
 		id,
 	).Scan(
 		&tc.ID, &tc.SessionID, &tc.Tool, &tc.Input, &tc.Output,
 		&tc.ContentHash, &tc.Timestamp, &tc.EventType,
 		&tokensIn, &tokensOut, &cost, &latencyMs, &model, &provider,
-		&exitCode, &isError,
+		&exitCode, &isError, &runtime,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -298,6 +307,10 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 	if isError.Valid {
 		v := isError.Int64 != 0
 		tc.IsError = &v
+	}
+	if runtime.Valid {
+		v := runtime.String
+		tc.Runtime = &v
 	}
 	return &tc, nil
 }

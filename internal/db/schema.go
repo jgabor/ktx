@@ -47,7 +47,8 @@ var schemaStatements = []string{
 		model        TEXT,
 		provider     TEXT,
 		exit_code    INTEGER,
-		is_error     INTEGER
+		is_error     INTEGER,
+		runtime      TEXT
 	)`,
 	`CREATE TABLE IF NOT EXISTS bench_runs (
 		id                  TEXT PRIMARY KEY,
@@ -156,6 +157,13 @@ var costColumns = []costColumn{
 var failureSignalColumns = []costColumn{
 	{Name: "exit_code", Type: "INTEGER"},
 	{Name: "is_error", Type: "INTEGER"},
+}
+
+// runtimeColumns are the runtime columns on tool_calls. runtime
+// records the agent runtime that executed the tool call. Idempotency
+// mirrors costColumns and failureSignalColumns.
+var runtimeColumns = []costColumn{
+	{Name: "runtime", Type: "TEXT"},
 }
 
 // benchRunsColumn enumerates a single bench_runs column. The list is the
@@ -312,6 +320,16 @@ func migrate(db *sql.DB) error {
 		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("db: add failure-signal column %q: %w", col.Name, err)
+		}
+	}
+
+	for _, col := range runtimeColumns {
+		if _, ok := have[col.Name]; ok {
+			continue
+		}
+		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("db: add runtime column %q: %w", col.Name, err)
 		}
 	}
 

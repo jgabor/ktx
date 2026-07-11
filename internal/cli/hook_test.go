@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/pipeline"
 )
+
+var idPattern = regexp.MustCompile(`^[a-z]{16}$`)
 
 func hookTestDB(t *testing.T) *dbpkg.DB {
 	t.Helper()
@@ -197,9 +200,7 @@ func TestHook_MissingFields(t *testing.T) {
 		payload string
 		want    string
 	}{
-		{"missing id", `{"tool":"bash","output":"hi","timestamp":"2026-07-01T12:00:00Z"}`, "id"},
 		{"missing tool", `{"id":"abc","output":"hi","timestamp":"2026-07-01T12:00:00Z"}`, "tool"},
-		{"missing timestamp", `{"id":"abc","tool":"bash","output":"hi"}`, "timestamp"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
@@ -211,6 +212,105 @@ func TestHook_MissingFields(t *testing.T) {
 				t.Errorf("error = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestHook_GeneratesIDWhenEmpty(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := `{"id":"","tool":"bash","input":"echo","output":"hello\n","content_hash":"","timestamp":"2026-07-01T12:00:00Z"}`
+
+	var stdout, stderr bytes.Buffer
+	result, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+	if result != nil {
+		t.Errorf("result = %v, want nil", result)
+	}
+
+	var env hookEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+	}
+	if !idPattern.MatchString(env.SourceID) {
+		t.Errorf("source_id = %q, want 16-char lowercase alpha id", env.SourceID)
+	}
+	if env.SourceID == "" {
+		t.Fatal("source_id is empty; want generated id")
+	}
+
+	persisted, err := d.GetToolCall(env.SourceID)
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Output != "hello\n" {
+		t.Errorf("persisted output = %q, want %q", persisted.Output, "hello\n")
+	}
+}
+
+func TestHook_GeneratesTimestampWhenEmpty(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := `{"id":"hookts01","tool":"bash","input":"echo","output":"hello\n","content_hash":"","timestamp":""}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	var env hookEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+	}
+	if env.SourceID != "hookts01" {
+		t.Errorf("source_id = %q, want hookts01 (caller-supplied)", env.SourceID)
+	}
+
+	persisted, err := d.GetToolCall("hookts01")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Timestamp == "" {
+		t.Fatal("persisted timestamp is empty; want generated RFC3339Nano timestamp")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, persisted.Timestamp); err != nil {
+		t.Errorf("persisted timestamp = %q, not RFC3339Nano: %v", persisted.Timestamp, err)
+	}
+}
+
+func TestHook_PopulatedFieldsUseCallerValues(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := `{"id":"callerID1","tool":"bash","input":"echo","output":"hello\n","content_hash":"","timestamp":"2026-07-01T12:00:00Z"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	var env hookEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+	}
+	if env.SourceID != "callerID1" {
+		t.Errorf("source_id = %q, want callerID1 (caller-supplied)", env.SourceID)
+	}
+
+	persisted, err := d.GetToolCall("callerID1")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Timestamp != "2026-07-01T12:00:00Z" {
+		t.Errorf("persisted timestamp = %q, want caller-supplied 2026-07-01T12:00:00Z", persisted.Timestamp)
 	}
 }
 
@@ -567,6 +667,227 @@ recover_footer = false
 		}
 		if !strings.Contains(stderr.String(), "failure") {
 			t.Errorf("stderr should note the failure-skipped warning: %q", stderr.String())
+		}
+	})
+}
+
+func TestHook_OpenCode_RawCallbackExtracted(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// runtime="opencode" with raw callback input (tool + args object)
+	// and raw callback output (object with output field). AC1.
+	payload := `{"runtime":"opencode","id":"ocext001","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hello"}},"output":{"output":"hello\nline 2\nline 3\nline 4\nline 5\n"}}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	var env hookEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+	}
+	if env.SourceID != "ocext001" {
+		t.Errorf("source_id = %q, want ocext001", env.SourceID)
+	}
+
+	persisted, err := d.GetToolCall("ocext001")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "bash" {
+		t.Errorf("persisted tool = %q, want bash", persisted.Tool)
+	}
+	if !strings.Contains(persisted.Input, "echo hello") {
+		t.Errorf("persisted input = %q, want stringified args containing echo hello", persisted.Input)
+	}
+	if persisted.Output != "hello\nline 2\nline 3\nline 4\nline 5\n" {
+		t.Errorf("persisted output = %q, want extracted output field", persisted.Output)
+	}
+	if persisted.Runtime == nil || *persisted.Runtime != "opencode" {
+		t.Errorf("persisted runtime = %v, want &opencode", persisted.Runtime)
+	}
+}
+
+func TestHook_OpenCode_BareStringOutput(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// runtime="opencode" with output as a bare string (not an object). AC2.
+	payload := `{"runtime":"opencode","id":"ocext002","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hi"}},"output":"bare string output"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("ocext002")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Output != "bare string output" {
+		t.Errorf("persisted output = %q, want bare string output", persisted.Output)
+	}
+}
+
+func TestHook_OpenCode_ObjectWithoutOutputField(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// runtime="opencode" with output as an object without an output
+	// field. The persisted output is the stringified object (fallback). AC3.
+	payload := `{"runtime":"opencode","id":"ocext003","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{}},"output":{"foo":"bar"}}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("ocext003")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if !strings.Contains(persisted.Output, "foo") || !strings.Contains(persisted.Output, "bar") {
+		t.Errorf("persisted output = %q, want stringified object containing foo and bar", persisted.Output)
+	}
+}
+
+func TestHook_OpenCode_NoToolName(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// runtime="opencode" with input that has no tool name. The
+	// persisted tool is "unknown" (fallback). AC4.
+	payload := `{"runtime":"opencode","id":"ocext004","timestamp":"2026-07-11T12:00:00Z","input":{"args":{"command":"echo"}},"output":"hello"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("ocext004")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "unknown" {
+		t.Errorf("persisted tool = %q, want unknown (fallback)", persisted.Tool)
+	}
+}
+
+func TestHook_NoRuntime_FlatDeserialisation(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// No runtime field: flat tool_call shape, backward compatible. AC5.
+	payload := `{"id":"ocext005","tool":"bash","input":"echo hello","output":"hello\n","content_hash":"","timestamp":"2026-07-11T12:00:00Z"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("ocext005")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "bash" {
+		t.Errorf("persisted tool = %q, want bash (flat deserialisation)", persisted.Tool)
+	}
+	if persisted.Input != "echo hello" {
+		t.Errorf("persisted input = %q, want echo hello (flat string, not stringified args)", persisted.Input)
+	}
+	if persisted.Output != "hello\n" {
+		t.Errorf("persisted output = %q, want hello\\n", persisted.Output)
+	}
+	if persisted.Runtime != nil {
+		t.Errorf("persisted runtime = %v, want nil (no runtime in flat payload)", persisted.Runtime)
+	}
+}
+
+func TestHook_UnrecognisedRuntime_FlatDeserialisation(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// Unrecognised runtime value: falls back to flat tool_call
+	// deserialisation (backward compatible). AC6.
+	payload := `{"runtime":"cli-tool","id":"ocext006","tool":"bash","input":"echo hello","output":"hello\n","timestamp":"2026-07-11T12:00:00Z"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("ocext006")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "bash" {
+		t.Errorf("persisted tool = %q, want bash (flat deserialisation)", persisted.Tool)
+	}
+	if persisted.Input != "echo hello" {
+		t.Errorf("persisted input = %q, want echo hello (flat string, not stringified args)", persisted.Input)
+	}
+	if persisted.Output != "hello\n" {
+		t.Errorf("persisted output = %q, want hello\\n", persisted.Output)
+	}
+	if persisted.Runtime == nil || *persisted.Runtime != "cli-tool" {
+		t.Errorf("persisted runtime = %v, want &cli-tool (preserved from flat payload)", persisted.Runtime)
+	}
+}
+
+func TestExtractOpenCodeFields_Direct(t *testing.T) {
+	// AC7: the extraction logic lives in the hook layer (internal/cli),
+	// not in the stream parser (internal/parser). Calling the function
+	// directly from a test in package cli confirms the placement.
+	t.Run("input with tool and args, output object", func(t *testing.T) {
+		inputRaw := json.RawMessage(`{"tool":"bash","args":{"command":"echo hi"}}`)
+		outputRaw := json.RawMessage(`{"output":"result"}`)
+		tool, input, output := extractOpenCodeFields(inputRaw, outputRaw)
+		if tool != "bash" {
+			t.Errorf("tool = %q, want bash", tool)
+		}
+		if !strings.Contains(input, "echo hi") {
+			t.Errorf("input = %q, want stringified args containing echo hi", input)
+		}
+		if output != "result" {
+			t.Errorf("output = %q, want result", output)
+		}
+	})
+
+	t.Run("bare string output", func(t *testing.T) {
+		outputRaw := json.RawMessage(`"bare"`)
+		_, _, output := extractOpenCodeFields(nil, outputRaw)
+		if output != "bare" {
+			t.Errorf("output = %q, want bare", output)
+		}
+	})
+
+	t.Run("object output without output field", func(t *testing.T) {
+		outputRaw := json.RawMessage(`{"foo":"bar"}`)
+		_, _, output := extractOpenCodeFields(nil, outputRaw)
+		if !strings.Contains(output, "foo") {
+			t.Errorf("output = %q, want stringified object (fallback)", output)
+		}
+	})
+
+	t.Run("input without tool name", func(t *testing.T) {
+		inputRaw := json.RawMessage(`{"args":{"command":"echo"}}`)
+		tool, _, _ := extractOpenCodeFields(inputRaw, nil)
+		if tool != "unknown" {
+			t.Errorf("tool = %q, want unknown (fallback)", tool)
 		}
 	})
 }

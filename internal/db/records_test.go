@@ -981,6 +981,81 @@ func boolPtrEqual(a, b *bool) bool {
 	return *a == *b
 }
 
+func stringPtrEqual(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// TestPersistToolCall_RuntimeRoundTrip covers the runtime round-trip:
+// the nullable Runtime pointer round-trips through PersistToolCall +
+// GetToolCall and JSON marshal with present/absent/empty semantics.
+// A non-nil pointer to "" persists as the empty string (not NULL) so
+// the absent-vs-empty distinction survives the round-trip.
+func TestPersistToolCall_RuntimeRoundTrip(t *testing.T) {
+	cases := []struct {
+		name    string
+		runtime *string
+	}{
+		{name: "present opencode", runtime: ptrString("opencode")},
+		{name: "present empty string", runtime: ptrString("")},
+		{name: "absent", runtime: nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := OpenMemory()
+			if err != nil {
+				t.Fatalf("OpenMemory: %v", err)
+			}
+			t.Cleanup(func() { _ = d.Close() })
+
+			sessionID := mustNewID(t)
+			if err := d.InsertSession(&Session{
+				ID: sessionID, Agent: "test", StartedAt: "2026-07-11T00:00:00Z",
+				LastSeenAt: "2026-07-11T00:00:00Z",
+			}); err != nil {
+				t.Fatalf("InsertSession: %v", err)
+			}
+
+			tcID := mustNewID(t)
+			in := &ToolCall{
+				ID: tcID, SessionID: sessionID, Tool: "bash",
+				Input: "x", Output: "y", ContentHash: ContentHash("y"),
+				Timestamp: "2026-07-11T00:00:01Z", EventType: "tool_call",
+				Runtime: tc.runtime,
+			}
+			if err := d.PersistToolCall(in); err != nil {
+				t.Fatalf("PersistToolCall: %v", err)
+			}
+
+			got, err := d.GetToolCall(tcID)
+			if err != nil {
+				t.Fatalf("GetToolCall: %v", err)
+			}
+			if !stringPtrEqual(got.Runtime, tc.runtime) {
+				t.Errorf("Runtime = %v, want %v", got.Runtime, tc.runtime)
+			}
+
+			b, err := json.Marshal(got)
+			if err != nil {
+				t.Fatalf("json.Marshal: %v", err)
+			}
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(b, &wire); err != nil {
+				t.Fatalf("json.Unmarshal wire: %v", err)
+			}
+			if _, ok := wire["runtime"]; !ok {
+				t.Errorf("JSON missing key %q (fields must not be omitted)", "runtime")
+			}
+		})
+	}
+}
+
 // --- test helpers ---
 
 // mustNewID is a t.Helper wrapper around NewID that calls t.Fatal on

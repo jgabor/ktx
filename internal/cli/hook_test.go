@@ -137,7 +137,6 @@ recover_footer = false
 	if source.Output != "line 1\nline 2\nline 3\nline 4\nline 5\n" {
 		t.Errorf("persisted original = %q, want full 5 lines", source.Output)
 	}
-
 }
 
 func TestHook_FailureGate(t *testing.T) {
@@ -234,7 +233,9 @@ recover_footer = false
 	}
 
 	var env hookEnvelope
-	json.Unmarshal(stdout.Bytes(), &env)
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
 	if env.CompressedID == nil {
 		t.Fatal("compressed_id is null")
 	}
@@ -517,7 +518,9 @@ recover_footer = false
 			t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
 		}
 		var env hookEnvelope
-		json.Unmarshal(stdout.Bytes(), &env)
+		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
 		if env.Output != short {
 			t.Errorf("output = %q, want %q (anti-worsening gate returns original on short input)", env.Output, short)
 		}
@@ -549,7 +552,9 @@ recover_footer = false
 			t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
 		}
 		var env hookEnvelope
-		json.Unmarshal(stdout.Bytes(), &env)
+		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
 		// The agent sees the ORIGINAL error output unchanged
 		// (the failure gate skips compression so the full error reaches the
 		// agent). Note: the original includes the ANSI codes — they are

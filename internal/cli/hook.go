@@ -104,13 +104,11 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	// suppressed — source returned unchanged, no footer, no compressed
 	// row. The footer lives only in the agent-visible envelope.Output;
 	// the persisted Compressed.Output stays content-only.
-	var footer string
 	envelopeOutput := compressedOutput
 	if cfg.RecoverFooter && transformed {
-		footer = buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
+		footer := buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
 		if len(compressedOutput)+len(footer) >= len(tc.Output) {
 			transformed = false
-			footer = ""
 			envelopeOutput = tc.Output
 			compressedOutput = tc.Output
 		} else {

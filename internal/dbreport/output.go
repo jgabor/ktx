@@ -29,7 +29,7 @@ func WriteJSON(path string, report map[string]any) error {
 		return err
 	}
 	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
+	defer func() { _ = os.Remove(temporaryPath) }()
 	if _, err := temporary.Write(data); err != nil {
 		temporary.Close()
 		return err

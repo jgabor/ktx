@@ -395,12 +395,14 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	}
 	stages, _ := json.Marshal(manifest.Pipelines[side].Stages)
 	containerName := sanitizeContainerName("ktx-" + manifest.ExperimentID + "-" + attemptID)
-	command := []string{options.DockerBin, "run", "--rm", "--name", containerName,
+	command := []string{
+		options.DockerBin, "run", "--rm", "--name", containerName,
 		"-e", "KTX_EXPECTED_STAGES_JSON=" + string(stages),
 		"-v", options.AuthPath + ":/home/node/.local/share/opencode/auth.json:ro",
 		"-v", manifest.Pipelines[side].Path + ":/home/node/.config/ktx/ktx.toml:ro",
 		"-v", database + ":/home/node/.local/share/ktx/ktx.db:rw",
-		"-v", workspace + ":/work:rw", options.Image, "-m", options.Model, manifest.Task.Prompt}
+		"-v", workspace + ":/work:rw", options.Image, "-m", options.Model, manifest.Task.Prompt,
+	}
 	startedAt := runner.timestamp()
 	result, runErr := runner.Executor.Run(ctx, Command{Args: command, Stdout: stream, Stderr: stderr, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
 	streamErr, stderrErr := stream.Close(), stderr.Close()

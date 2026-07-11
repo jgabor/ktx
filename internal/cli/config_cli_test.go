@@ -70,7 +70,9 @@ stages = ["strip-ansi", "head:5"]
 	}
 
 	var env map[string]any
-	json.Unmarshal([]byte(stdout), &env)
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
 	profiles := env["profiles"].(map[string]any)
 	def := profiles["default"].(map[string]any)
 	stages := def["stages"].([]any)
@@ -100,7 +102,9 @@ stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"
 	}
 
 	var env map[string]any
-	json.Unmarshal([]byte(stdout), &env)
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
 	profiles := env["profiles"].(map[string]any)
 	def := profiles["default"].(map[string]any)
 	stages := def["stages"].([]any)
@@ -133,7 +137,9 @@ stages = ["dedup-blank", "truncate:2048"]
 	}
 
 	var env map[string]any
-	json.Unmarshal([]byte(stdout), &env)
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
 	profiles := env["profiles"].(map[string]any)
 	if len(profiles) < 3 {
 		t.Fatalf("profiles count = %d, want >= 3", len(profiles))

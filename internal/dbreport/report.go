@@ -244,8 +244,10 @@ GROUP BY provider ORDER BY call_count DESC, provider`)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"total_tool_calls": total, "coverage": coverage, "totals": metrics,
-		"latency_ms_distribution": distribution(latencies), "models": models, "providers": providers}, nil
+	return map[string]any{
+		"total_tool_calls": total, "coverage": coverage, "totals": metrics,
+		"latency_ms_distribution": distribution(latencies), "models": models, "providers": providers,
+	}, nil
 }
 
 func extractFailureMetrics(tx *sql.Tx) (any, error) {
@@ -419,11 +421,13 @@ func compressionAggregate(rows []compressionRow) map[string]any {
 			reductions = append(reductions, *value)
 		}
 	}
-	return map[string]any{"artifact_count": len(rows), "unique_source_count": len(sources),
+	return map[string]any{
+		"artifact_count": len(rows), "unique_source_count": len(sources),
 		"source_bytes_across_artifacts": original, "compressed_bytes": compressed, "bytes_saved": original - compressed,
 		"reduction_pct": reduction(float64(original), float64(compressed)), "improved_artifacts": improved,
 		"passthrough_artifacts": passthrough, "worsened_artifacts": worsened,
-		"bytes_saved_distribution": distribution(savings), "reduction_pct_distribution": distribution(reductions)}
+		"bytes_saved_distribution": distribution(savings), "reduction_pct_distribution": distribution(reductions),
+	}
 }
 
 func compressionSessions(tx *sql.Tx, rows []compressionRow, includeIdentifiers bool) ([]any, error) {
@@ -517,9 +521,11 @@ FROM sessions s LEFT JOIN tool_calls tc ON tc.session_id=s.id GROUP BY s.id ORDE
 			mismatches = append(mismatches, mismatch)
 		}
 	}
-	return map[string]any{"open_sessions": open, "closed_sessions": closed, "zero_call_sessions": zero,
+	return map[string]any{
+		"open_sessions": open, "closed_sessions": closed, "zero_call_sessions": zero,
 		"missing_started_at": missingStart, "missing_last_seen_at": missingSeen,
-		"duration_ms_distribution": distribution(durations), "rollup_mismatch_count": len(mismatches), "rollup_mismatches": mismatches}, nil
+		"duration_ms_distribution": distribution(durations), "rollup_mismatch_count": len(mismatches), "rollup_mismatches": mismatches,
+	}, nil
 }
 
 func extractRecordedStreams(tx *sql.Tx) (any, error) {
@@ -636,12 +642,14 @@ func percentile(values []float64, fraction float64) float64 {
 	weight := position - float64(lower)
 	return round2(values[lower]*(1-weight) + values[upper]*weight)
 }
+
 func percentage(numerator, denominator float64) any {
 	if denominator == 0 {
 		return nil
 	}
 	return round2(100 * numerator / denominator)
 }
+
 func reduction(original, result float64) *float64 {
 	if original == 0 {
 		return nil
@@ -664,6 +672,7 @@ func pipelineLabel(value string) string {
 	}
 	return value
 }
+
 func asInt64(value any) int64 {
 	switch value := value.(type) {
 	case int64:
@@ -676,6 +685,7 @@ func asInt64(value any) int64 {
 		return 0
 	}
 }
+
 func asFloat(value any) float64 {
 	switch value := value.(type) {
 	case float64:
@@ -688,6 +698,7 @@ func asFloat(value any) float64 {
 		return 0
 	}
 }
+
 func asString(value any) string {
 	if value == nil {
 		return ""

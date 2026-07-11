@@ -61,15 +61,19 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 		}
 	}
 	if baseline != nil {
-		row := map[string]any{"pipeline": options.BaselinePipeline, "side": Baseline, "experiment_id": nil,
-			"tool_call_inflation_vs_baseline": 1.0, "tokens_saved_vs_baseline": 0.0, "cost_saved_vs_baseline": 0.0}
+		row := map[string]any{
+			"pipeline": options.BaselinePipeline, "side": Baseline, "experiment_id": nil,
+			"tool_call_inflation_vs_baseline": 1.0, "tokens_saved_vs_baseline": 0.0, "cost_saved_vs_baseline": 0.0,
+		}
 		copyMap(row, baseline)
 		rows = append(rows, row)
 	}
 	for _, pair := range pairs {
 		candidate := sideMetrics(pair.Summary, Candidate)
-		row := map[string]any{"pipeline": pair.CandidatePipeline, "side": Candidate, "experiment_id": pair.ExperimentID, "exit_code": pair.ExitCode,
-			"tool_call_inflation_vs_baseline": nil, "tokens_saved_vs_baseline": nil, "cost_saved_vs_baseline": nil, "pair_tool_call_inflation": nil}
+		row := map[string]any{
+			"pipeline": pair.CandidatePipeline, "side": Candidate, "experiment_id": pair.ExperimentID, "exit_code": pair.ExitCode,
+			"tool_call_inflation_vs_baseline": nil, "tokens_saved_vs_baseline": nil, "cost_saved_vs_baseline": nil, "pair_tool_call_inflation": nil,
+		}
 		copyMap(row, candidate)
 		if baseline != nil {
 			baseTools, candidateTools := summaryValue(baseline["mean_tool_calls"]), summaryValue(candidate["mean_tool_calls"])

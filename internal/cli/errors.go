@@ -83,12 +83,15 @@ func newError(code ErrorCode, format string, args ...any) *Error {
 func usageError(format string, args ...any) *Error {
 	return newError(CodeUsage, format, args...)
 }
+
 func notFoundError(format string, args ...any) *Error {
 	return newError(CodeNotFound, format, args...)
 }
+
 func conflictError(format string, args ...any) *Error {
 	return newError(CodeConflict, format, args...)
 }
+
 func internalError(format string, args ...any) *Error {
 	return newError(CodeInternal, format, args...)
 }

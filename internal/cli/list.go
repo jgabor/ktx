@@ -220,7 +220,7 @@ func printListText(w io.Writer, sessions []dbpkg.Session, rollups map[string]dbp
 			s.ID, s.Agent, s.StartedAt, ended, s.ToolCallCount,
 			tokens, cost, model)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // costsTokensCell renders the TOKENS column value for a session rollup.

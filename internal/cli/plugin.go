@@ -280,10 +280,10 @@ func buildPluginBlock(name, command, description string) string {
 	// Ensure a blank line before the block when appending to non-empty
 	// content.
 	b.WriteString("\n[[plugin]]\n")
-	b.WriteString(fmt.Sprintf("name = %s\n", tomlQuote(name)))
-	b.WriteString(fmt.Sprintf("command = %s\n", tomlQuote(command)))
+	fmt.Fprintf(&b, "name = %s\n", tomlQuote(name))
+	fmt.Fprintf(&b, "command = %s\n", tomlQuote(command))
 	if description != "" {
-		b.WriteString(fmt.Sprintf("description = %s\n", tomlQuote(description)))
+		fmt.Fprintf(&b, "description = %s\n", tomlQuote(description))
 	}
 	return b.String()
 }

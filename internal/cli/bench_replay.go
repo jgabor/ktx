@@ -44,7 +44,6 @@ func runBenchReplay(sessionID string, opts Options, stdout, stderr io.Writer, fo
 // and invoke the replay logic directly without filesystem or subprocess
 // overhead. The public runBenchReplay opens the DB and delegates here.
 func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer, format string) int {
-
 	// Pre-flight: verify recorded_streams table exists. A missing table
 	// signals an old database; the user should run any ktx command to
 	// trigger the migration.

@@ -88,7 +88,7 @@ recover_footer = true
 
 	var sb strings.Builder
 	for i := 0; i < 100; i++ {
-		sb.WriteString(fmt.Sprintf("line %d content here for padding\n", i))
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
 	}
 	original := sb.String()
 
@@ -150,7 +150,7 @@ recover_footer = false
 
 	var sb strings.Builder
 	for i := 0; i < 100; i++ {
-		sb.WriteString(fmt.Sprintf("line %d content here for padding\n", i))
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
 	}
 	original := sb.String()
 
@@ -242,7 +242,7 @@ recover_footer = true
 
 	var sb strings.Builder
 	for i := 0; i < 100; i++ {
-		sb.WriteString(fmt.Sprintf("line %d content here for padding\n", i))
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
 	}
 	original := sb.String()
 

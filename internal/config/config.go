@@ -265,7 +265,7 @@ func parse(data []byte) (*Config, error) {
 		var pe toml.ParseError
 		if errors.As(err, &pe) {
 			return nil, &ParseError{
-				Line: pe.Line,
+				Line: pe.Position.Line,
 				Msg:  pe.Message,
 			}
 		}
@@ -332,11 +332,7 @@ func parse(data []byte) (*Config, error) {
 				Msg:  fmt.Sprintf("[[plugin]] block %q missing required field 'command'", p.Name),
 			}
 		}
-		cfg.Plugins = append(cfg.Plugins, Plugin{
-			Name:        p.Name,
-			Command:     p.Command,
-			Description: p.Description,
-		})
+		cfg.Plugins = append(cfg.Plugins, Plugin(p))
 	}
 
 	return cfg, nil

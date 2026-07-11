@@ -281,7 +281,7 @@ func (p *Prices) WriteToDisk() error {
 	}
 	if _, err := f.Write(data); err != nil {
 		f.Close()
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("prices: write temp %q: %w", tmpPath, err)
 	}
 	// fsync so the rename publishes a fully-committed file. Without
@@ -291,15 +291,15 @@ func (p *Prices) WriteToDisk() error {
 	// ingredient on Linux.
 	if err := f.Sync(); err != nil {
 		f.Close()
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("prices: sync temp %q: %w", tmpPath, err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("prices: close temp %q: %w", tmpPath, err)
 	}
 	if err := os.Rename(tmpPath, p.path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("prices: rename %q -> %q: %w", tmpPath, p.path, err)
 	}
 

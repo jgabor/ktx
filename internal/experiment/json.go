@@ -43,7 +43,7 @@ func WriteJSON(path string, value any) error {
 		return fmt.Errorf("create temporary JSON file: %w", err)
 	}
 	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
+	defer func() { _ = os.Remove(temporaryPath) }()
 	if _, err := temporary.Write(data); err != nil {
 		temporary.Close()
 		return fmt.Errorf("write temporary JSON file: %w", err)

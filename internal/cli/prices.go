@@ -79,7 +79,6 @@ func pricesLogic(args []string, format string, stdout, stderr io.Writer) (any, e
 	sub := "update"
 	if len(rest) > 0 {
 		sub = rest[0]
-		rest = rest[1:]
 	}
 
 	switch sub {

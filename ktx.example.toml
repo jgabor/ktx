@@ -167,6 +167,14 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 #   tool            Tool name to match (e.g. "bash"). Empty = any tool.
 #   command_prefix  Prefix match on the command string (e.g. "git"
 #                   matches "git status"). Empty = any command.
+#   subcommand      Exact match on the first non-flag token after the
+#                   binary name (e.g. "status" for "git status", or
+#                   "log" for "git --no-pager log"). Empty = any.
+#                   Flags (tokens starting with "-") are skipped, so
+#                   placement before or after the subcommand does not
+#                   affect the match. More precise than command_prefix
+#                   when you want to key on a verb; see the git
+#                   examples below.
 #   exit_status     "success", "failure", or "any". Empty = "any".
 #   profile         Target [pipeline.<name>] table. Required; must
 #                   name an existing profile or config load fails.
@@ -177,8 +185,8 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 # Matching: rules are evaluated in file order and the first rule whose
 # conditions all match wins. Put specific rules before broad ones.
 # An empty field is a wildcard — empty tool = any tool, empty
-# command_prefix = any command, empty or "any" exit_status = either
-# success or failure.
+# command_prefix = any command, empty subcommand = any subcommand,
+# empty or "any" exit_status = either success or failure.
 #
 # Fallback: when no rule matches, ktx uses the "default" profile, which
 # is always present. When [pipeline.default] is absent from the config,
@@ -224,3 +232,89 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 #
 # [[route]]
 # profile = "freads"
+
+# ── Recommended profiles: git subcommands ───────────────────────────
+#
+# git output is well-structured and each subcommand has a different
+# shape. Route with `subcommand` for precision: the router extracts
+# the first non-flag token after the binary name, so "git --no-pager
+# log" still routes as the "log" subcommand. Combine with
+# `command_prefix = "git"` to scope the match to git invocations only.
+#
+# Contrast with `command_prefix = "git status"`, a raw prefix match on
+# the whole command string. The prefix form would MISS a call like
+# "git --no-pager status" (the third token is "status", not the
+# second), and it would also match "git status-extra" verbatim. The
+# `subcommand` field is the more accurate signal when you want to key
+# on the verb the user ran.
+#
+# Tier 1 stages (strip-ansi, dedup-blank) get noise out of the way
+# without content loss; tier 2 stages (keep-ends, head) below fit the
+# typical shape of each subcommand's output.
+#
+# git-status: output is short and dense; dedup-blank removes blank-line
+# padding some pagers add. No truncation needed in practice.
+#
+# [pipeline.git-status]
+# stages = ["strip-ansi", "dedup-blank"]
+#
+# git-diff: keep-ends preserves the bottom-of-diff summary (stat, file
+# list) that head alone would drop on large diffs.
+#
+# [pipeline.git-diff]
+# stages = ["strip-ansi", "keep-ends:50:10"]
+#
+# git-log: logs grow without bound; head keeps recent commits and the
+# rest is recoverable via `ktx read` when the footer is enabled.
+#
+# [pipeline.git-log]
+# stages = ["strip-ansi", "head:20"]
+#
+# [[route]]
+# tool = "bash"
+# command_prefix = "git"
+# subcommand = "status"
+# profile = "git-status"
+#
+# [[route]]
+# tool = "bash"
+# command_prefix = "git"
+# subcommand = "diff"
+# profile = "git-diff"
+#
+# [[route]]
+# tool = "bash"
+# command_prefix = "git"
+# subcommand = "log"
+# profile = "git-log"
+
+# ── Recommended profiles: shell listing commands ────────────────────
+#
+# `ls` and `find` have no stable subcommand verb the router can key
+# on (the first post-binary token is usually a flag like "-la" or a
+# path, so the subcommand field is empty or unpredictable). Their
+# output, however, has a recognizable shape: head-biased listings the
+# agent scans top-down. Route them by `command_prefix` so any flags or
+# path arguments still hit the right profile.
+#
+# ls: directory listings are usually short on their own; normalize
+# cleans \r\n and trims per-line whitespace. No truncation.
+#
+# [pipeline.ls]
+# stages = ["strip-ansi", "normalize"]
+#
+# find: entries are uniform; strip-ansi is a safe default. Add
+# head:N or keep-ends:N:M for trees you know get huge.
+#
+# [pipeline.find]
+# stages = ["strip-ansi"]
+#
+# [[route]]
+# tool = "bash"
+# command_prefix = "ls"
+# profile = "ls"
+#
+# [[route]]
+# tool = "bash"
+# command_prefix = "find"
+# profile = "find"

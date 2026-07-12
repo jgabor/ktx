@@ -1,0 +1,60 @@
+header:
+  level: full
+  created: 2026-07-12
+  status: active
+  reviewed: 2026-07-12
+  critic_issues: 14 found, 10 addressed, 4 dismissed
+  title: "Plan: Subcommand extraction and recommended default profiles"
+what: |
+  Add subcommand extraction to the router so route rules can match on the subcommand token (e.g. "status" in "git status") rather than only command prefix. Then add commented recommended profiles for common git and bash commands to ktx.example.toml so users can copy them as a starting point.
+why: |
+  The command-aware router matches on CommandPrefix only, so "git diff" and "git status" cannot be distinguished without duplicate rules pointing at separate profiles. Subcommand extraction eliminates that proliferation. Recommended profiles in the example config give users a documented starter set they can copy into their ktx.toml, without adding binary-embedded defaults or changing the no-config passthrough behavior (D14).
+constraints: |
+  Single TOML config at $XDG_CONFIG_HOME/ktx/ktx.toml (D5, firm). Default is passthrough when no ktx.toml exists (D14, firm) — unchanged. No go:embed, no include directive, no config merge logic. Recommended profiles are comments in ktx.example.toml that the user copies manually. No new compression stages. No project-memory markers in shipped code. Compound commands (e.g. "git status && ls") route on the first binary's first non-flag arg — documented as a known limitation.
+overall_acceptance: |
+  A route rule can match on an extracted subcommand token, so "git status" and "git diff" route to different profiles without duplicate prefix rules. A user reading ktx.example.toml finds commented recommended profiles for common git and bash commands that they can copy into their ktx.toml. The no-config default remains passthrough (D14 unchanged).
+scope:
+  included:
+    - Subcommand field on RouteRule and extraction logic
+    - Subcommand match semantics (exact equality on second token)
+    - TOML parsing of subcommand field in route blocks
+    - Recommended git profiles (status, diff, log) as comments in ktx.example.toml
+    - Recommended bash profiles (ls, find) as comments in ktx.example.toml
+    - Documentation for subcommand routing in docs/pipelines.md
+  excluded:
+    - Regex command matching
+    - Transparent-prefix stripping
+    - Level/intensity dimension
+    - New compression stages or filter packs
+    - Filter verification
+    - go:embed or binary-embedded profiles
+    - Include directive or config merge logic
+    - Project-local config
+design: |
+  Subcommand extraction extends the router's commandFromInput function to also return the subcommand token — the first non-flag argument after the binary name. A new Subcommand field on RouteRule matches by exact string equality when non-empty. Malformed input causes the subcommand condition to fail the rule (consistent with existing CommandPrefix semantics). The router evaluates it alongside CommandPrefix, Tool, and ExitStatus (all must match; empty fields are wildcards). Recommended profiles are added as commented blocks in ktx.example.toml, showing subcommand-based routing for git (status, diff, log) and command_prefix routing for bash (ls, find). Users copy what they need into their ktx.toml. No binary embedding, no config merge, no include directive.
+tasks:
+  - number: 1
+    name: Subcommand extraction in router
+    depends_on:
+      []
+    status: complete
+    acceptance:
+      - GIVEN ktx.toml with [[route]] subcommand = "status" profile = "x" WHEN config.Load() runs THEN cfg.Routes[0].Subcommand == "status"
+      - GIVEN a tool call with command "git status --short" WHEN a route rule has Subcommand "status" THEN the router returns that rule's profile name
+      - GIVEN a tool call with command "git diff" WHEN a route rule has Subcommand "status" THEN the router does not match that rule
+      - GIVEN a tool call with command "git" (no subcommand) WHEN a route rule has Subcommand "status" THEN the router does not match that rule
+      - GIVEN a tool call with command "git --no-pager log" WHEN a route rule has Subcommand "log" THEN the router returns that rule's profile name
+      - GIVEN a tool call with malformed or empty input JSON WHEN a route rule has Subcommand set THEN the rule does not match (mirrors CommandPrefix behavior)
+  - number: 2
+    name: Recommended profiles and documentation
+    depends_on:
+      - "1"
+    status: complete
+    acceptance:
+      - GIVEN a user reading ktx.example.toml WHEN they look for subcommand routing THEN they find commented examples showing the Subcommand field with git status git diff and git log
+      - GIVEN a user reading ktx.example.toml WHEN they look for bash profiles THEN they find commented examples showing command_prefix routing for ls and find
+      - GIVEN a user reading docs/pipelines.md WHEN they look for subcommand routing THEN they find an explanation of the Subcommand match field and how it differs from CommandPrefix
+      - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test ./... run THEN both exit zero
+surprises: |
+  Original plan included binary-embedded profiles with an include_defaults directive and config merge logic. User revised to recommended profiles in ktx.example.toml only — simpler, no infrastructure, D14 cleanly preserved.
+previous_plan_archived: .agentera/archive/PLAN-2026-07-12-subcommand-extraction-and-embedded-default-profiles.yaml

@@ -993,6 +993,7 @@ stages = ["head:50"]
 [[route]]
 tool = "bash"
 command_prefix = "git"
+subcommand = "status"
 exit_status = "success"
 profile = "logs"
 
@@ -1015,6 +1016,9 @@ profile = "default"
 		}
 		if r0.CommandPrefix != "git" {
 			t.Errorf("Routes[0].CommandPrefix = %q, want git", r0.CommandPrefix)
+		}
+		if r0.Subcommand != "status" {
+			t.Errorf("Routes[0].Subcommand = %q, want status", r0.Subcommand)
 		}
 		if r0.ExitStatus != "success" {
 			t.Errorf("Routes[0].ExitStatus = %q, want success", r0.ExitStatus)
@@ -1073,6 +1077,9 @@ profile = "default"
 		}
 		if cfg.Routes[0].CommandPrefix != "" {
 			t.Errorf("CommandPrefix = %q, want empty", cfg.Routes[0].CommandPrefix)
+		}
+		if cfg.Routes[0].Subcommand != "" {
+			t.Errorf("Subcommand = %q, want empty", cfg.Routes[0].Subcommand)
 		}
 	})
 }

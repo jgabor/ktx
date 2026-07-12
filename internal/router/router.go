@@ -24,14 +24,14 @@ import (
 // Match returns the profile name of the first route rule whose
 // conditions all match tc. Conditions with empty fields are wildcards:
 // an empty Tool matches any tool, an empty CommandPrefix matches any
-// command, and an empty or "any" ExitStatus matches any exit state.
-// When no rule matches, or tc/routes are nil, Match returns
-// defaultProfile.
+// command, an empty Subcommand matches any subcommand, and an empty
+// or "any" ExitStatus matches any exit state. When no rule matches,
+// or tc/routes are nil, Match returns defaultProfile.
 //
-// Malformed or empty tool-call input JSON causes command-prefix
-// matching to fail for that rule (its command-prefix condition
-// cannot be satisfied); other conditions on the same rule still
-// apply. Match never panics on malformed input.
+// Malformed or empty tool-call input JSON causes command-prefix and
+// subcommand matching to fail for that rule (their conditions cannot
+// be satisfied); other conditions on the same rule still apply. Match
+// never panics on malformed input.
 func Match(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) string {
 	if tc == nil {
 		return defaultProfile
@@ -45,9 +45,11 @@ func Match(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) st
 }
 
 // ruleMatches reports whether every non-empty condition on r holds
-// against tc. Empty fields are wildcards. ExitStatus "success"
-// requires no error; "failure" requires an error; "any" (or any
-// unrecognized value) matches either state.
+// against tc. Empty fields are wildcards. CommandPrefix requires the
+// command string to start with the prefix; Subcommand requires the
+// first non-flag token after the binary name to equal the value.
+// ExitStatus "success" requires no error; "failure" requires an
+// error; "any" (or any unrecognized value) matches either state.
 func ruleMatches(tc *db.ToolCall, r config.RouteRule) bool {
 	if r.Tool != "" && tc.Tool != r.Tool {
 		return false
@@ -55,6 +57,12 @@ func ruleMatches(tc *db.ToolCall, r config.RouteRule) bool {
 	if r.CommandPrefix != "" {
 		cmd, ok := commandFromInput(tc.Input)
 		if !ok || !strings.HasPrefix(cmd, r.CommandPrefix) {
+			return false
+		}
+	}
+	if r.Subcommand != "" {
+		sub, ok := subcommandFromInput(tc.Input)
+		if !ok || sub != r.Subcommand {
 			return false
 		}
 	}
@@ -88,4 +96,26 @@ func commandFromInput(input string) (string, bool) {
 		return "", false
 	}
 	return p.Command, true
+}
+
+// subcommandFromInput parses the tool-call input JSON, extracts the
+// "command" field, and returns the first non-flag token after the
+// binary name. Tokens starting with "-" are treated as flags and
+// skipped. Returns ok=false when the input is malformed, the command
+// has fewer than two tokens, or no non-flag token follows the binary.
+func subcommandFromInput(input string) (string, bool) {
+	cmd, ok := commandFromInput(input)
+	if !ok {
+		return "", false
+	}
+	fields := strings.Fields(cmd)
+	if len(fields) < 2 {
+		return "", false
+	}
+	for _, f := range fields[1:] {
+		if !strings.HasPrefix(f, "-") {
+			return f, true
+		}
+	}
+	return "", false
 }

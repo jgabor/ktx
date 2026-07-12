@@ -61,7 +61,8 @@ type Plugin struct {
 // RouteRule maps tool-call metadata to a named pipeline profile. A
 // rule fires when the tool call matches all non-empty match fields
 // (Tool for the tool name, CommandPrefix for a prefix on the command
-// string, ExitStatus for success/failure). The matching Profile names
+// string, Subcommand for the first non-flag token after the binary
+// name, ExitStatus for success/failure). The matching Profile names
 // a [pipeline.<name>] table. Empty ExitStatus normalizes to "any".
 // Matching itself is performed by the router at runtime, not at
 // config-load time; the loader only parses and validates profile
@@ -74,6 +75,12 @@ type RouteRule struct {
 	// CommandPrefix is a prefix match on the command string (e.g.
 	// "git" matches "git status"). Empty matches any command.
 	CommandPrefix string
+
+	// Subcommand matches the first non-flag token after the binary
+	// name in the command string (e.g. "status" for "git status").
+	// Tokens starting with "-" are treated as flags and skipped.
+	// Empty matches any subcommand.
+	Subcommand string
 
 	// ExitStatus is "success", "failure", or "any". Empty normalizes
 	// to "any".
@@ -345,6 +352,7 @@ type tomlPlugin struct {
 type tomlRoute struct {
 	Tool          string `toml:"tool"`
 	CommandPrefix string `toml:"command_prefix"`
+	Subcommand    string `toml:"subcommand"`
 	ExitStatus    string `toml:"exit_status"`
 	Profile       string `toml:"profile"`
 }
@@ -449,6 +457,7 @@ func parse(data []byte) (*Config, error) {
 		cfg.Routes = append(cfg.Routes, RouteRule{
 			Tool:          r.Tool,
 			CommandPrefix: r.CommandPrefix,
+			Subcommand:    r.Subcommand,
 			ExitStatus:    exitStatus,
 			Profile:       r.Profile,
 		})

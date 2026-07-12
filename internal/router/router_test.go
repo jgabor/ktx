@@ -307,3 +307,68 @@ func TestMatch_EmptyConditionsAreWildcards(t *testing.T) {
 		}
 	})
 }
+
+// TestMatch_Subcommand covers the Subcommand dimension: the router
+// matches on the first non-flag token after the binary name in the
+// command string. Flags before the subcommand are skipped.
+func TestMatch_Subcommand(t *testing.T) {
+	t.Run("subcommand matches → rule profile", func(t *testing.T) {
+		routes := []config.RouteRule{
+			{Subcommand: "status", Profile: "status-profile"},
+		}
+		tc := &db.ToolCall{Tool: "bash", Input: `{"command":"git status --short"}`}
+		if got := Match(tc, routes, defaultProfile); got != "status-profile" {
+			t.Errorf("Match = %q, want status-profile", got)
+		}
+	})
+
+	t.Run("different subcommand does not match → default", func(t *testing.T) {
+		routes := []config.RouteRule{
+			{Subcommand: "status", Profile: "status-profile"},
+		}
+		tc := &db.ToolCall{Tool: "bash", Input: `{"command":"git diff"}`}
+		if got := Match(tc, routes, defaultProfile); got != defaultProfile {
+			t.Errorf("Match = %q, want %q", got, defaultProfile)
+		}
+	})
+
+	t.Run("command with no subcommand does not match → default", func(t *testing.T) {
+		routes := []config.RouteRule{
+			{Subcommand: "status", Profile: "status-profile"},
+		}
+		tc := &db.ToolCall{Tool: "bash", Input: `{"command":"git"}`}
+		if got := Match(tc, routes, defaultProfile); got != defaultProfile {
+			t.Errorf("Match = %q, want %q", got, defaultProfile)
+		}
+	})
+
+	t.Run("flags before subcommand are skipped → rule profile", func(t *testing.T) {
+		routes := []config.RouteRule{
+			{Subcommand: "log", Profile: "log-profile"},
+		}
+		tc := &db.ToolCall{Tool: "bash", Input: `{"command":"git --no-pager log"}`}
+		if got := Match(tc, routes, defaultProfile); got != "log-profile" {
+			t.Errorf("Match = %q, want log-profile", got)
+		}
+	})
+
+	t.Run("malformed input does not match → default", func(t *testing.T) {
+		routes := []config.RouteRule{
+			{Subcommand: "status", Profile: "status-profile"},
+		}
+		cases := map[string]string{
+			"empty input":         "",
+			"malformed JSON":      `{"command":`,
+			"missing command key": `{"path":"/tmp"}`,
+			"empty command value": `{"command":""}`,
+		}
+		for name, input := range cases {
+			t.Run(name, func(t *testing.T) {
+				tc := &db.ToolCall{Tool: "bash", Input: input}
+				if got := Match(tc, routes, defaultProfile); got != defaultProfile {
+					t.Errorf("Match = %q, want %q", got, defaultProfile)
+				}
+			})
+		}
+	})
+}

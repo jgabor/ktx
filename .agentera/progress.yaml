@@ -1,4 +1,32 @@
 cycles:
+  - number: 27
+    timestamp: 2026-07-12 15:11
+    type: docs
+    phase: build
+    what: "Task 2: Recommended profiles and documentation. Added subcommand to
+      match-field list and Signals table. Five commented profiles in
+      ktx.example.toml (git-status, git-diff, git-log, ls, find) with route
+      rules. New Subcommand vs command prefix subsection in docs/pipelines.md."
+    verified: "N/A: docs-only"
+    next: Plan complete.
+    context:
+      intent: Add recommended profiles to ktx.example.toml and subcommand routing docs
+        to docs/pipelines.md.
+  - number: 26
+    timestamp: 2026-07-12 14:56
+    type: feat
+    phase: build
+    what: "Task 1: Subcommand extraction. Added Subcommand field to RouteRule and
+      tomlRoute. New subcommandFromInput in router.go: skips binary name, skips
+      flags, returns first non-flag token. ruleMatches checks Subcommand with
+      same malformed-input-fails semantics as CommandPrefix. 9 new subtests."
+    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
+      -buildvcs=false ./... exit 0. AC1: TestLoad_RouteRules asserts Subcommand
+      field. AC2-AC6: TestMatch_Subcommand with 9 subtests."
+    next: "Task 2: Recommended profiles and documentation."
+    context:
+      intent: Add subcommand extraction to the router so route rules can match on the
+        subcommand token rather than only command prefix.
   - number: 25
     timestamp: 2026-07-12 13:58
     type: chore
@@ -228,150 +256,11 @@ cycles:
         tests); internal/cli/init.go (slimmed ktxOpencodePluginTemplate, doc
         comment and help text updates). No changes to go.mod/go.sum,
         internal/parser/, or the compression pipeline.
-  - number: 17
-    timestamp: 2026-07-09 22:50
-    type: feat
-    phase: build
-    what: 'D24 amends D23: recovery footer reformatted to a single instructional
-      line. buildRecoveryFooter now emits `[ktx] output compressed: <N> bytes
-      (<P>% reduction) - get full output with `ktx read <source_id>`` instead of
-      the prior four-line block (header + source_id + original/compressed sizes
-      + recover command). Original byte count dropped from footer; reduction
-      percent alone conveys loss magnitude at lower token cost. Instructional
-      cue ("get full output with") replaces the "recover:" label that the agent
-      saw but did not act on. All D23 invariants preserved: footer off by
-      default, footer only when transformed, footer-aware anti-worsening gate
-      unchanged in mechanism, persisted Compressed.Output stays content-only,
-      plugin propagates envelope.output verbatim.'
-    discovered: 'The D23 footer was technically correct but structurally inert: the
-      agent acknowledged seeing it in its own reasoning transcript yet chose a
-      costlier workaround (re-running the original tool call to /tmp) instead of
-      invoking `ktx read <source_id>`. The fielded shape read as a labelled
-      report block (`--- ktx recovery ---` header, four labelled fields,
-      "recover:" as a label not an action). The single-line instructional form
-      reprioritises action: brand flag, size signal, separator, then the action
-      cue naming the action immediately before the literal command. The plugin
-      template (init.go) uses `[ktx]` as a console.error prefix in three places,
-      so the AC5 footer-leak test probe was tightened from the bare `[ktx]`
-      marker to footer-specific substrings ("output compressed:", "get full
-      output with", "buildRecoveryFooter", "recover_footer") to avoid false
-      positives. decisions.yaml DX2 gate (max 10 full-detail active decisions)
-      blocked the D24 write: 19 active decisions already exceeded cap.
-      Compaction pass flipped 10 shipped-and-firm decisions (D1, D3, D4, D5, D6,
-      D8, D10, D11, D12, D14) to user_confirmed_satisfied with user_confirmation
-      blocks; D23 satisfaction state typo (provisional_satisfied) fixed to
-      provisionally_satisfied; unsupported review_needed field dropped. Active
-      count now 10 (at cap).'
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
-      -buildvcs=false ./... exit 0 (all packages pass). Footer-composition tests
-      green: TestBuildRecoveryFooter_ContainsSourceID,
-      TestBuildRecoveryFooter_CompressedSizeAndRatio (renamed from
-      _SizesAndRatio; asserts compressed size + reduction percent + original
-      byte count does NOT surface),
-      TestBuildRecoveryFooter_ContainsRecoveryCommand. Footer-gate behaviour
-      unaffected: TestHook_FooterGate_Suppresses / _Keeps / _Disabled /
-      _NoTransform_NoFooter / _OrderedContentBeforeFooter (footer marker now
-      `\\n[ktx]`) / _PluginTemplate_PropagatesEnvelopeUnchanged (probes
-      tightened to footer-specific substrings). Documentation: ktx.example.toml
-      footer-contents comment updated to single-line + instructional cue;
-      printHookHelp describes the new footer contents. decisions.yaml: 24
-      decisions, 14 closed (user_confirmed_satisfied), 10 active (at DX2 cap).
-      D24 amendment_to=23 recorded; D23 satisfaction normalised against schema."
-    next: D24 satisfaction is provisional_satisfied pending empirical confirmation
-      that the new single-line instructional footer causes the agent to invoke
-      `ktx read <source_id>` in a real recover_footer-enabled session. No
-      carry-forward code work; the footer revision is feature-complete.
-    context:
-      intent: Amend D23 recovery footer from a multi-line labelled report to a
-        single-line instructional cue so the agent acts on the recovery path
-        rather than noticing and ignoring it. The D23 plan explicitly deferred
-        validation to empirical observation; the signal arrived negative and
-        this cycle implements the format revision.
-      constraints: "D23 firm invariants preserved: footer off by default
-        (recover_footer false); footer only when transformed=true; footer-aware
-        anti-worsening gate unchanged in mechanism; persisted Compressed.Output
-        content-only; envelope.Output carries compressed+footer; plugin
-        propagates envelope.output verbatim; source_id surfaces only when
-        recover_footer enabled (D22 amendment); compressed_id never in the
-        footer. User confirmed dropping original byte count from footer;
-        reduction percent alone conveys loss magnitude. decisions.yaml DX2 cap
-        (10 active) enforced; compaction pass required before D24 could be
-        recorded."
-      unknowns: Whether the single-line instructional form will cause the agent to
-        invoke `ktx read <source_id>` in the next observed session. D23
-        provisional satisfaction was invalidated by empirical evidence; D24
-        stays provisional until the new shape is empirically validated.
-      scope: internal/cli/hook.go (buildRecoveryFooter format string + doc comment;
-        printHookHelp footer description); internal/cli/hook_footer_test.go
-        (assertion probes, footer marker, test rename, AC5 probe tightening);
-        ktx.example.toml (footer-contents comment block);
-        .agentera/decisions.yaml (D24 amendment_to=23; D23 satisfaction
-        normalisation; 10 decisions flipped to user_confirmed_satisfied with
-        user_confirmation blocks); .agentera/progress.yaml (this cycle 17
-        entry). No changes to go.mod / go.sum.
-  - number: 16
-    timestamp: 2026-07-09 16:14
-    type: feat
-    phase: build
-    what: "D23 ships: ktx hook composes an opt-in recovery footer (source_id +
-      original/compressed sizes + reduction ratio + `ktx read <source_id>`
-      command) appended to the agent-visible compressed output, with a
-      footer-aware anti-worsening gate that suppresses the transform when
-      compressed+footer would not beat the original size. Off by default
-      (recover_footer=false in ktx.toml); stored compressed rows stay
-      content-only (decompress returns pure compressed); the footer lives only
-      in envelope.Output."
-    discovered: "The plugin template (init.go) needed NO change -- it already
-      assigns output.output = envelope.output verbatim, so the footer-bearing
-      envelope propagates untouched. The two-gate structure is essential: the
-      pipeline runner's byte-gate fires first (inside compressPipeline), then
-      the footer-aware second gate accounts for footer overhead and suppresses
-      wins too small to clear it. The amended D22 invisibility clause is
-      conditional: source_id surfaces only when recovery is opted in;
-      compressed_id stays dev-facing forever."
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. vet/tests: go test
-      ./... exit 0 (all packages pass). Config flag default-false verified
-      (config_test.go TestLoad_RecoverFooter covers
-      absent/default/explicit-on/explicit-off/non-bool). Footer composition +
-      footer-aware gate + content-only DB row + envelope wiring verified in
-      hook_footer_test.go (ACs for default-off byte-identity,
-      footer-when-enabled, gate-suppression, content-only persistence,
-      plugin-template-unchanged). Documentation: ktx.example.toml documents
-      recover_footer with safety-gate explanation; printHookHelp mentions the
-      footer, gate, and content-only storage. All D23 plan acceptance criteria
-      met."
-    next: D23 implementation complete; provisional satisfaction recorded in
-      decisions.yaml pending user confirmation. The user confirms final
-      satisfaction -- until then the satisfaction state is provisional_satisfied
-      with review_needed=true. No carry-forward code work; D23 is
-      feature-complete.
-    context:
-      intent: "Ship D23 reactive recovery: surface source_id in an agent-visible
-        footer so the agent can self-recover the original output after lossy
-        compression. The footer is off by default (recover_footer=false); opt-in
-        via ktx.toml."
-      constraints: "D23 firm: footer off by default; source_id surfaces only when
-        recover_footer enabled; compressed_id stays dev-facing and never in the
-        footer; stored Compressed.Output stays content-only; footer-aware
-        anti-worsening gate (len(compressed)+len(footer) < len(input)); D22
-        invisibility clause amended for source_id only. AGENTS.md: boring before
-        clever (footer is stdlib string composition); router wins, algorithm
-        loses (footer is recovery surfacing, not a new compression algorithm)."
-      unknowns: Whether agents will follow the footer and invoke `ktx read
-        <source_id>` in practice. D23 confidence is firm but the belief that
-        agents will act on the footer instruction is empirically unvalidated.
-        The footer shape (four-line labelled block) is the v1 surface; a future
-        session may revise it if the empirical signal is negative.
-      scope: "internal/config/config.go (RecoverFooter bool field, default false);
-        internal/cli/hook.go (buildRecoveryFooter, footer-aware second gate,
-        envelope wiring); internal/cli/hook_footer_test.go (6 ACs: default-off
-        byte-identity, footer-when-enabled, gate-suppression, disabled-noop,
-        no-transform-noop, ordered-content-before-footer,
-        plugin-template-unchanged); ktx.example.toml (recover_footer knob
-        documented); .agentera/decisions.yaml (D23 entry);
-        .agentera/progress.yaml (cycle 16 entry). No changes to go.mod /
-        go.sum."
 archive:
+  - summary: "Cycle 17 (2026-07-09): D24 amends D23: recovery footer reformatted to
+      a single instructional line. buildRecoveryFooter now emits `[ktx]..."
+  - summary: "Cycle 16 (2026-07-09): D23 ships: ktx hook composes an opt-in recovery
+      footer (source_id + original/compressed sizes + reduction..."
   - summary: "Cycle 15 (2026-06-24): M4 (Reversible compression) closes on the
       explicit-verb path. ktx compress <id> writes a row in..."
   - summary: "Cycle 14 (2026-06-21): Plan close: Task 7 lands the four namespace

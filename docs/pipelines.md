@@ -63,19 +63,52 @@ back to the `default` profile when none match.
 
 ### Signals
 
-Each route rule can match on up to three signals, combined with AND
+Each route rule can match on up to four signals, combined with AND
 semantics — every non-empty condition must hold:
 
-| Signal         | Field            | Meaning                                                                                                                                                                                                                               |
-| -------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool name      | `tool`           | Exact tool name (e.g. `"bash"`, `"read"`). Empty matches any tool.                                                                                                                                                                    |
-| Command prefix | `command_prefix` | Prefix match on the command string (e.g. `"git"` matches `"git status"`). Empty matches any command. Only applies to tools whose input carries a `command` field; a rule with a command prefix never matches a tool call without one. |
-| Exit status    | `exit_status`    | `"success"` (no error), `"failure"` (errored), or `"any"` (the default when the field is empty or absent).                                                                                                                            |
+| Signal         | Field            | Meaning                                                                                                                                                                                                                                                                             |
+| -------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tool name      | `tool`           | Exact tool name (e.g. `"bash"`, `"read"`). Empty matches any tool.                                                                                                                                                                                                                  |
+| Command prefix | `command_prefix` | Prefix match on the command string (e.g. `"git"` matches `"git status"`). Empty matches any command. Only applies to tools whose input carries a `command` field; a rule with a command prefix never matches a tool call without one.                                               |
+| Subcommand     | `subcommand`     | Exact match on the first non-flag token after the binary name in the command string (e.g. `"status"` for `git status`, `"log"` for `git --no-pager log`). Tokens starting with `-` are skipped. Empty matches any subcommand. Same `command`-field requirement as `command_prefix`. |
+| Exit status    | `exit_status`    | `"success"` (no error), `"failure"` (errored), or `"any"` (the default when the field is empty or absent).                                                                                                                                                                          |
 
 `profile` names the target `[pipeline.<name>]` table and is required.
 Profile references are validated at config-load time — every
 `profile =` value must name an existing profile or the config fails to
 load. The router itself never errors at runtime.
+
+### Subcommand vs command prefix
+
+`subcommand` and `command_prefix` both inspect the `command` string
+in a tool call's input, but they answer different questions and have
+different precision:
+
+- `command_prefix` is a raw prefix match on the whole command string.
+  `command_prefix = "git"` matches `"git status"`, `"git log --oneline"`,
+  and `"git rebase"`. `command_prefix = "git status"` would miss a call
+  like `"git --no-pager status"` (the prefix diverges at the second
+  token) and would also match `"git status-extra"` verbatim, since the
+  prefix check does not tokenize.
+- `subcommand` is an exact match on the first non-flag token after the
+  binary name. The binary name (first token) is dropped; tokens
+  starting with `-` are treated as flags and skipped; the first
+  remaining token is the subcommand. So `"git --no-pager status"`
+  extracts `"status"`, and `"git diff --stat"` extracts `"diff"`.
+  Empty matches any subcommand.
+
+Both fields require the tool call's input to carry a `command`
+field (the same JSON field `command_prefix` reads); if absent, a rule
+with a non-empty `subcommand` never matches that call. The two can
+also appear on the same rule and combine with AND semantics, like the
+other signals.
+
+Use `subcommand` when you want to key on the verb the user ran —
+route `git status`, `git diff`, and `git log` to different profiles
+even when flags move around (`git --no-pager log` still routes as
+`log`). Use `command_prefix` when the routing signal is the binary
+itself — `ls`, `find`, `make` — or commands whose first post-binary
+token is usually a flag or path rather than a stable verb.
 
 ### First-match-wins
 

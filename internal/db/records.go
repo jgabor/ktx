@@ -28,6 +28,10 @@ import (
 // in the database. The cli layer maps it to a not-found exit code.
 var ErrNotFound = errors.New("db: not found")
 
+// ErrToolCallConflict reports that a retry reused a tool-call identity with
+// different evidence. The first persisted row remains authoritative.
+var ErrToolCallConflict = errors.New("db: tool_call identity conflict")
+
 // ToolCall is the flat JSON tool_call payload.
 //
 // Required fields are persisted to the tool_calls table. The optional
@@ -232,6 +236,82 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 		return fmt.Errorf("db: commit tool_call %q: %w", tc.ID, err)
 	}
 	return nil
+}
+
+// PersistToolCallOnce persists tc exactly once and reports whether this call
+// inserted the row. A retry with the same id, tool, input, output, and runtime
+// succeeds without updating the row or session roll-up. Reusing the id with
+// different evidence returns ErrToolCallConflict and preserves the first row.
+//
+// The insert-or-observe decision and session roll-up share one transaction, so
+// concurrent deliveries cannot double-count a tool call.
+func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
+	eventType := tc.EventType
+	if eventType == "" {
+		eventType = "tool_call"
+	}
+
+	d.deriveCost(tc)
+
+	tx, err := d.db.Begin()
+	if err != nil {
+		return false, fmt.Errorf("db: begin retry-safe tool_call tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(
+		`INSERT INTO tool_calls (
+			id, session_id, tool, input, output, content_hash, timestamp, event_type,
+			tokens_in, tokens_out, cost, latency_ms, model, provider,
+			exit_code, is_error, runtime
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO NOTHING`,
+		tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
+		tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
+		tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
+	)
+	if err != nil {
+		return false, fmt.Errorf("db: insert retry-safe tool_call %q: %w", tc.ID, err)
+	}
+	inserted, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("db: inspect retry-safe tool_call %q: %w", tc.ID, err)
+	}
+
+	if inserted == 0 {
+		var tool, input, output string
+		var runtime sql.NullString
+		if err := tx.QueryRow(
+			`SELECT tool, input, output, runtime FROM tool_calls WHERE id = ?`, tc.ID,
+		).Scan(&tool, &input, &output, &runtime); err != nil {
+			return false, fmt.Errorf("db: inspect existing tool_call %q: %w", tc.ID, err)
+		}
+		if tool != tc.Tool || input != tc.Input || output != tc.Output || !sameOptionalString(runtime, tc.Runtime) {
+			return false, fmt.Errorf("%w: %q already identifies different evidence", ErrToolCallConflict, tc.ID)
+		}
+		if err := tx.Commit(); err != nil {
+			return false, fmt.Errorf("db: commit tool_call retry %q: %w", tc.ID, err)
+		}
+		return false, nil
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE sessions SET tool_call_count = tool_call_count + 1, last_seen_at = ? WHERE id = ?`,
+		tc.Timestamp, tc.SessionID,
+	); err != nil {
+		return false, fmt.Errorf("db: update retry-safe session roll-up %q: %w", tc.SessionID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("db: commit retry-safe tool_call %q: %w", tc.ID, err)
+	}
+	return true, nil
+}
+
+func sameOptionalString(stored sql.NullString, incoming *string) bool {
+	if incoming == nil {
+		return !stored.Valid
+	}
+	return stored.Valid && stored.String == *incoming
 }
 
 // GetToolCall fetches a tool_call row by id. It returns ErrNotFound when no

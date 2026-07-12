@@ -145,6 +145,50 @@ func (d *DB) InsertCompressed(c *Compressed) error {
 	return nil
 }
 
+// InsertCompressedOnce records at most one compressed artifact for a source.
+// Concurrent retries race through one atomic INSERT ... SELECT statement; the
+// winner's artifact is returned to every caller and later candidates are not
+// persisted.
+func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
+	if c == nil {
+		return nil, false, errors.New("db: insert compressed once: nil compressed")
+	}
+	if c.ID == "" || c.SourceID == "" {
+		return nil, false, errors.New("db: insert compressed once: id and source_id are required")
+	}
+
+	res, err := d.db.Exec(
+		`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
+		 SELECT ?, ?, ?, ?, ?, ?
+		 WHERE EXISTS (SELECT 1 FROM tool_calls WHERE id = ?)
+		   AND NOT EXISTS (SELECT 1 FROM compressed WHERE source_id = ?)`,
+		c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp,
+		c.SourceID, c.SourceID,
+	)
+	if err != nil {
+		return nil, false, fmt.Errorf("db: insert compressed once %q: %w", c.ID, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, false, fmt.Errorf("db: inspect compressed once %q: %w", c.ID, err)
+	}
+	if n == 0 {
+		var existing Compressed
+		err := d.db.QueryRow(
+			`SELECT id, source_id, output, content_hash, pipeline, timestamp
+			 FROM compressed WHERE source_id = ? LIMIT 1`, c.SourceID,
+		).Scan(&existing.ID, &existing.SourceID, &existing.Output, &existing.ContentHash, &existing.Pipeline, &existing.Timestamp)
+		if err == sql.ErrNoRows {
+			return nil, false, ErrSourceNotFound
+		}
+		if err != nil {
+			return nil, false, fmt.Errorf("db: get compressed for source %q: %w", c.SourceID, err)
+		}
+		return &existing, false, nil
+	}
+	return c, true, nil
+}
+
 // GetCompressed fetches a `compressed` row by id.
 // Returns ErrNotFound when no row matches so the CLI layer maps a
 // missing compressed id to exit 2 (the `ktx decompress` not-found

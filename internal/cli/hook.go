@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/identity"
 )
 
 // hookEnvelope is the JSON response written by `ktx hook` to stdout.
@@ -152,8 +154,13 @@ func extractCodexFields(toolName string, toolInputRaw, toolResponseRaw json.RawM
 //
 // When hook_event_name is present (Codex PostToolUse payload), the
 // hook extracts tool name, input, and output from the top-level
-// tool_name, tool_input, and tool_response fields. When
-// runtime="opencode" is present, the hook extracts tool name, input
+// tool_name, tool_input, and tool_response fields. When runtime
+// session_id and tool_use_id are both usable, the persisted source id is
+// derived deterministically from the runtime tuple; otherwise it is freshly
+// generated. Exact retries reuse the first row, while changed evidence for the
+// same tuple is rejected as a conflict.
+//
+// When runtime="opencode" is present, the hook extracts tool name, input
 // string, and output string from raw OpenCode callback objects
 // (input.tool + input.args, output as string or {output: string})
 // instead of requiring a flat tool_call shape. Any other payload
@@ -207,12 +214,16 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		if v := raw["tool_use_id"]; len(v) > 0 {
 			_ = json.Unmarshal(v, &toolUseID)
 		}
+		var runtimeSessionID string
+		if v := raw["session_id"]; len(v) > 0 {
+			_ = json.Unmarshal(v, &runtimeSessionID)
+		}
 		tool, input, output := extractCodexFields(toolName, toolInputRaw, toolResponseRaw)
 		tc.Tool = tool
 		tc.Input = input
 		tc.Output = output
-		if toolUseID != "" {
-			tc.ID = toolUseID
+		if id, err := identity.Derive("codex", runtimeSessionID, toolUseID); err == nil {
+			tc.ID = id
 		}
 		rt := "codex"
 		tc.Runtime = &rt
@@ -271,7 +282,14 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		tc.ContentHash = dbpkg.ContentHash(tc.Output)
 	}
 
-	if err := db.PersistToolCall(&tc); err != nil {
+	if isCodex {
+		if _, err := db.PersistToolCallOnce(&tc); err != nil {
+			if errors.Is(err, dbpkg.ErrToolCallConflict) {
+				return nil, conflictError("ktx hook: Codex retry conflicts with the evidence already stored for source %q", tc.ID)
+			}
+			return nil, internalError("ktx hook: persist tool_call: %v", err)
+		}
+	} else if err := db.PersistToolCall(&tc); err != nil {
 		return nil, internalError("ktx hook: persist tool_call: %v", err)
 	}
 
@@ -329,7 +347,13 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 			Pipeline:    pipeJSON,
 			Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
 		}
-		if err := db.InsertCompressed(c); err != nil {
+		if isCodex {
+			stored, _, err := db.InsertCompressedOnce(c)
+			if err != nil {
+				return nil, internalError("ktx hook: persist compressed: %v", err)
+			}
+			cid = stored.ID
+		} else if err := db.InsertCompressed(c); err != nil {
 			return nil, internalError("ktx hook: persist compressed: %v", err)
 		}
 		compressedID = &cid
@@ -430,8 +454,10 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "Codex mode: when the input payload carries a top-level `hook_event_name`")
 	fmt.Fprintln(w, "field (Codex PostToolUse), the hook auto-detects it and extracts tool")
 	fmt.Fprintln(w, "name, input, and output from `tool_name`, `tool_input`, and")
-	fmt.Fprintln(w, "`tool_response` instead of the flat tool_call shape. The response uses")
-	fmt.Fprintln(w, "the Codex PostToolUse output contract:")
+	fmt.Fprintln(w, "`tool_response` instead of the flat tool_call shape. The hook uses a stable")
+	fmt.Fprintln(w, "canonical source id when `session_id` and `tool_use_id` are usable;")
+	fmt.Fprintln(w, "exact retries do not add evidence, and changed retries report a conflict.")
+	fmt.Fprintln(w, "The response uses the Codex PostToolUse output contract:")
 	fmt.Fprintln(w, `  {"decision":"block","reason":"<compressed>"}`)
 	fmt.Fprintln(w, "when the pipeline transforms the output (Codex blocks the original tool")
 	fmt.Fprintln(w, "result and replaces it with the compressed reason), or `{}` when")

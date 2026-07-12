@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/identity"
 	"github.com/jgabor/ktx/internal/pipeline"
 )
 
@@ -1123,7 +1125,7 @@ func TestHook_Codex_ObjectWithAggregatedOutput(t *testing.T) {
 		t.Errorf("codex output = {decision:%q reason:%q}, want {} (passthrough, no pipeline)", out.Decision, out.Reason)
 	}
 
-	persisted, err := d.GetToolCall("call_abc123")
+	persisted, err := d.GetToolCall(mustCodexID(t, "some-codex-uuid", "call_abc123"))
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1151,7 +1153,7 @@ func TestHook_Codex_BareStringOutput(t *testing.T) {
 
 	// Codex PostToolUse with bare string tool_response. Output
 	// is the bare string.
-	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":"bare string output","tool_use_id":"codex002"}`
+	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":"bare string output","tool_use_id":"codex002","session_id":"codex-test-session"}`
 
 	var stdout, stderr bytes.Buffer
 	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
@@ -1159,7 +1161,7 @@ func TestHook_Codex_BareStringOutput(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall("codex002")
+	persisted, err := d.GetToolCall(mustCodexID(t, "codex-test-session", "codex002"))
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1175,7 +1177,7 @@ func TestHook_Codex_ObjectWithoutRecognisedField(t *testing.T) {
 
 	// Codex PostToolUse with object tool_response without
 	// aggregated_output, output, or text. Stringified fallback.
-	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{},"tool_response":{"foo":"bar"},"tool_use_id":"codex003"}`
+	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{},"tool_response":{"foo":"bar"},"tool_use_id":"codex003","session_id":"codex-test-session"}`
 
 	var stdout, stderr bytes.Buffer
 	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
@@ -1183,7 +1185,7 @@ func TestHook_Codex_ObjectWithoutRecognisedField(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall("codex003")
+	persisted, err := d.GetToolCall(mustCodexID(t, "codex-test-session", "codex003"))
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1198,7 +1200,7 @@ func TestHook_Codex_NoToolName(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// Codex PostToolUse missing tool_name. Tool="unknown".
-	payload := `{"hook_event_name":"PostToolUse","tool_input":{"command":"echo"},"tool_response":"hello","tool_use_id":"codex004"}`
+	payload := `{"hook_event_name":"PostToolUse","tool_input":{"command":"echo"},"tool_response":"hello","tool_use_id":"codex004","session_id":"codex-test-session"}`
 
 	var stdout, stderr bytes.Buffer
 	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
@@ -1206,7 +1208,7 @@ func TestHook_Codex_NoToolName(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall("codex004")
+	persisted, err := d.GetToolCall(mustCodexID(t, "codex-test-session", "codex004"))
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1215,7 +1217,7 @@ func TestHook_Codex_NoToolName(t *testing.T) {
 	}
 }
 
-func TestHook_Codex_WithoutToolUseID_GeneratesID(t *testing.T) {
+func TestHook_Codex_WithoutUsableTupleGeneratesFreshIDs(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -1224,28 +1226,35 @@ func TestHook_Codex_WithoutToolUseID_GeneratesID(t *testing.T) {
 	// (16-char lowercase alpha).
 	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo"},"tool_response":"hello"}`
 
-	var stdout, stderr bytes.Buffer
-	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
-	if err != nil {
-		t.Fatalf("hookLogic: %v", err)
-	}
+	for i := 0; i < 2; i++ {
+		var stdout, stderr bytes.Buffer
+		_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+		if err != nil {
+			t.Fatalf("hookLogic delivery %d: %v", i, err)
+		}
 
-	var out codexHookOutput
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
-		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+		var out codexHookOutput
+		if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+			t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+		}
+		if out.Decision != "" || out.Reason != "" {
+			t.Errorf("codex output = {decision:%q reason:%q}, want {} (passthrough)", out.Decision, out.Reason)
+		}
 	}
-	if out.Decision != "" || out.Reason != "" {
-		t.Errorf("codex output = {decision:%q reason:%q}, want {} (passthrough)", out.Decision, out.Reason)
-	}
-	_, ids, err := d.SampleIDs(1)
+	_, ids, err := d.SampleIDs(2)
 	if err != nil {
 		t.Fatalf("SampleIDs: %v", err)
 	}
-	if len(ids) != 1 {
-		t.Fatalf("SampleIDs returned %d tool_call ids, want 1 (fresh DB)", len(ids))
+	if len(ids) != 2 {
+		t.Fatalf("SampleIDs returned %d tool_call ids, want 2 (fresh ID per unusable tuple)", len(ids))
 	}
-	if !idPattern.MatchString(ids[0]) {
-		t.Errorf("generated source_id = %q, want 16-char lowercase alpha", ids[0])
+	for _, id := range ids {
+		if !idPattern.MatchString(id) {
+			t.Errorf("generated source_id = %q, want 16-char lowercase alpha", id)
+		}
+	}
+	if ids[0] == ids[1] {
+		t.Errorf("unusable tuples collapsed to shared id %q", ids[0])
 	}
 }
 
@@ -1323,6 +1332,7 @@ func codexPayload(t *testing.T, toolUseID, toolName, output string) string {
 		"tool_name":       toolName,
 		"tool_input":      map[string]any{"command": "echo"},
 		"tool_response":   map[string]any{"aggregated_output": output},
+		"session_id":      "codex-test-session",
 	}
 	if toolUseID != "" {
 		m["tool_use_id"] = toolUseID
@@ -1332,6 +1342,141 @@ func codexPayload(t *testing.T, toolUseID, toolName, output string) string {
 		t.Fatalf("marshal codex payload: %v", err)
 	}
 	return string(b)
+}
+
+func mustCodexID(t *testing.T, sessionID, toolUseID string) string {
+	t.Helper()
+	id, err := identity.Derive("codex", sessionID, toolUseID)
+	if err != nil {
+		t.Fatalf("derive Codex id: %v", err)
+	}
+	return id
+}
+
+func TestHook_Codex_CanonicalIdentityIsStable(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	payload := codexPayload(t, "exec-runtime-id", "Bash", "hello")
+
+	for i := 0; i < 2; i++ {
+		var stdout, stderr bytes.Buffer
+		if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+			t.Fatalf("delivery %d: %v (stderr=%q)", i, err, stderr.String())
+		}
+	}
+
+	sourceID := mustCodexID(t, "codex-test-session", "exec-runtime-id")
+	if !idPattern.MatchString(sourceID) {
+		t.Fatalf("source id = %q, want canonical id", sourceID)
+	}
+	if _, err := d.GetToolCall(sourceID); err != nil {
+		t.Fatalf("canonical source: %v", err)
+	}
+	if _, err := d.GetToolCall("exec-runtime-id"); !errors.Is(err, dbpkg.ErrNotFound) {
+		t.Fatalf("external runtime id lookup = %v, want not found", err)
+	}
+	var count int
+	if err := d.DB().QueryRow(`SELECT count(*) FROM tool_calls`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("tool_calls = %d, want 1", count)
+	}
+}
+
+func TestHook_Codex_ConcurrentExactRetriesDoNotDoubleCount(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+`)
+	original := strings.Repeat("one two three four five six seven eight nine ten\n", 100)
+	payload := codexPayload(t, "concurrent-retry", "Bash", original)
+
+	var initialOut, initialErr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &initialOut, &initialErr); err != nil {
+		t.Fatalf("initial delivery: %v (stderr=%q)", err, initialErr.String())
+	}
+
+	const retries = 12
+	start := make(chan struct{})
+	errs := make(chan error, retries)
+	var wg sync.WaitGroup
+	for i := 0; i < retries; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			var stdout, stderr bytes.Buffer
+			_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+			if err != nil {
+				err = fmt.Errorf("%w (stderr=%q)", err, stderr.String())
+			}
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("retry: %v", err)
+		}
+	}
+
+	sourceID := mustCodexID(t, "codex-test-session", "concurrent-retry")
+	var sourceCount, compressedCount int
+	if err := d.DB().QueryRow(`SELECT count(*) FROM tool_calls WHERE id = ?`, sourceID).Scan(&sourceCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DB().QueryRow(`SELECT count(*) FROM compressed WHERE source_id = ?`, sourceID).Scan(&compressedCount); err != nil {
+		t.Fatal(err)
+	}
+	if sourceCount != 1 || compressedCount != 1 {
+		t.Errorf("rows = source:%d compressed:%d, want 1 and 1", sourceCount, compressedCount)
+	}
+	source, err := d.GetToolCall(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := d.GetSession(source.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.ToolCallCount != 1 {
+		t.Errorf("tool_call_count = %d, want 1", session.ToolCallCount)
+	}
+}
+
+func TestHook_Codex_ChangedRetryConflictsAndPreservesFirstEvidence(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	first := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"first"},"tool_response":"first output","tool_use_id":"same-runtime-id","session_id":"same-runtime-session"}`
+	changed := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"changed"},"tool_response":"changed output","tool_use_id":"same-runtime-id","session_id":"same-runtime-session"}`
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(first), d, &stdout, &stderr); err != nil {
+		t.Fatalf("first delivery: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	_, err := hookLogic(strings.NewReader(changed), d, &stdout, &stderr)
+	var cliErr *Error
+	if !errors.As(err, &cliErr) || cliErr.Code != CodeConflict {
+		t.Fatalf("changed retry error = %v, want conflict", err)
+	}
+
+	sourceID := mustCodexID(t, "same-runtime-session", "same-runtime-id")
+	persisted, err := d.GetToolCall(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Input != `{"command":"first"}` || persisted.Output != "first output" {
+		t.Errorf("persisted evidence = (%q, %q), want first delivery", persisted.Input, persisted.Output)
+	}
 }
 
 func TestHook_CodexOutput_Transforms(t *testing.T) {
@@ -1374,7 +1519,8 @@ stages = ["head:3"]
 		t.Error("reason equals original; want compressed (transformed)")
 	}
 
-	persisted, err := d.GetToolCall("codxform01")
+	sourceID := mustCodexID(t, "codex-test-session", "codxform01")
+	persisted, err := d.GetToolCall(sourceID)
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1383,7 +1529,7 @@ stages = ["head:3"]
 	}
 
 	var comp string
-	if err := d.DB().QueryRow("SELECT output FROM compressed WHERE source_id = ?", "codxform01").Scan(&comp); err != nil {
+	if err := d.DB().QueryRow("SELECT output FROM compressed WHERE source_id = ?", sourceID).Scan(&comp); err != nil {
 		t.Fatalf("query compressed row: %v", err)
 	}
 	if out.Reason != comp {
@@ -1415,7 +1561,7 @@ func TestHook_CodexOutput_Passthrough_Empty(t *testing.T) {
 		t.Errorf("codex output = {decision:%q reason:%q}, want both empty", out.Decision, out.Reason)
 	}
 
-	persisted, err := d.GetToolCall("codxpass01")
+	persisted, err := d.GetToolCall(mustCodexID(t, "codex-test-session", "codxpass01"))
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1447,7 +1593,7 @@ recover_footer = true
 		t.Errorf("stdout = %q (decision=%q reason present=%v), want {} (anti-worsening gate suppressed)", got, out.Decision, out.Reason != "")
 	}
 
-	persisted, err := d.GetToolCall("codxsup01")
+	persisted, err := d.GetToolCall(mustCodexID(t, "codex-test-session", "codxsup01"))
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}

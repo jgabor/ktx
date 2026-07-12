@@ -98,6 +98,30 @@ func commandFromInput(input string) (string, bool) {
 	return p.Command, true
 }
 
+// CommandFromInput is the exported wrapper for commandFromInput.
+// It extracts the "command" field from a tool-call's input JSON.
+// Returns "" and false when the input is empty, not valid JSON,
+// or the command field is absent or empty.
+func CommandFromInput(input string) (string, bool) {
+	return commandFromInput(input)
+}
+
+// BinaryFromInput extracts the binary name (first token) from a
+// tool-call's input JSON command field. Returns "" when the input
+// is malformed, the command is absent, or the command has no
+// non-whitespace tokens.
+func BinaryFromInput(input string) string {
+	cmd, ok := commandFromInput(input)
+	if !ok {
+		return ""
+	}
+	fields := strings.Fields(cmd)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
 // subcommandFromInput parses the tool-call input JSON, extracts the
 // "command" field, and returns the first non-flag token after the
 // binary name. Tokens starting with "-" are treated as flags and

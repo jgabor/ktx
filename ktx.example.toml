@@ -102,6 +102,12 @@ recover_footer = true
 #                       snaps back to last newline (no mid-line
 #                       cuts); appends "[ktx: truncated ~N tokens
 #                       from M]" marker. Input under budget → unchanged
+#
+#   replace:pat::rep    Regex substitution: replace every match of
+#                       pattern `pat` with `rep`. The separator is
+#                       `::` (double colon). Empty replacement removes
+#                       matches. Invalid regex → passthrough. Same
+#                       length or no match → anti-worsening gate fires
 
 # Default: sanitize cleanup (safe — noise removal only, no content loss)
 stages = ["strip-ansi", "dedup-blank", "normalize"]
@@ -138,6 +144,11 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 # # Build logs: drop debug noise, keep head+tail. Prefer wider keep-ends
 # # over a tight token budget when recovery is undesirable.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "grep-v:^debug:", "keep-ends:100:50"]
+#
+# # Replace stage: shorten repeated path prefixes or strip timestamp
+# # prefixes from log lines. The :: separates pattern from replacement.
+# # replace:pattern::replacement — empty replacement removes the match.
+# stages = ["strip-ansi", "normalize", "replace:/home/user/project/::./", "head:50"]
 
 # ── External plugin stages ───────────────────────────────────────────
 #

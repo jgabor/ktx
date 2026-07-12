@@ -918,7 +918,7 @@ func TestRegisterBuiltins(t *testing.T) {
 		// recognised-but-bad-arg (ok=true, err!=nil, s=nil) which the
 		// runner treats as a stage-execution-error passthrough. Every
 		// other built-in resolves to a usable Stage on the bare form.
-		requireArg := map[string]bool{"grep": true, "grep-v": true}
+		requireArg := map[string]bool{"grep": true, "grep-v": true, "replace": true}
 		for _, name := range BuiltinStageNames() {
 			s, ok, err := reg.Lookup(name)
 			if !ok {
@@ -949,6 +949,7 @@ func TestRegisterBuiltins(t *testing.T) {
 			"grep":         true,
 			"grep-v":       true,
 			"token-budget": true,
+			"replace":      true,
 		}
 		for _, name := range BuiltinStageNames() {
 			delete(want, name)

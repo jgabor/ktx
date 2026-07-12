@@ -59,6 +59,7 @@ var builtinStageNames = []string{
 	"grep",
 	"grep-v",
 	"token-budget",
+	"replace",
 }
 
 // BuiltinStageNames returns the names of all built-in pipeline stages
@@ -106,6 +107,7 @@ func RegisterBuiltins(reg *pipeline.Registry) {
 	reg.RegisterBuilder("grep", func(arg string) (pipeline.Stage, error) { return grepBuilder(arg, true) })
 	reg.RegisterBuilder("grep-v", func(arg string) (pipeline.Stage, error) { return grepBuilder(arg, false) })
 	reg.RegisterBuilder("token-budget", tokenBudgetBuilder)
+	reg.RegisterBuilder("replace", replaceBuilder)
 }
 
 // ParseNameArg splits a `name[:arg]` stage-name token into its name

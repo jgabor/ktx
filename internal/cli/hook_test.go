@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -848,6 +850,493 @@ func TestHook_UnrecognisedRuntime_FlatDeserialisation(t *testing.T) {
 	}
 }
 
+func TestHook_Codex_ObjectWithAggregatedOutput(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// Codex PostToolUse payload with object tool_response containing
+	// aggregated_output. AC1: extracts correctly, runtime="codex".
+	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls -la"},"tool_response":{"aggregated_output":"file1\nfile2","exit_code":0},"tool_use_id":"call_abc123","session_id":"some-codex-uuid","cwd":"/path/to/project","model":"gpt-5"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+	}
+	if out.Decision != "" || out.Reason != "" {
+		t.Errorf("codex output = {decision:%q reason:%q}, want {} (passthrough, no pipeline)", out.Decision, out.Reason)
+	}
+
+	persisted, err := d.GetToolCall("call_abc123")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "Bash" {
+		t.Errorf("persisted tool = %q, want Bash", persisted.Tool)
+	}
+	if !strings.Contains(persisted.Input, "ls -la") {
+		t.Errorf("persisted input = %q, want stringified tool_input containing ls -la", persisted.Input)
+	}
+	if persisted.Output != "file1\nfile2" {
+		t.Errorf("persisted output = %q, want file1\\nfile2 (aggregated_output)", persisted.Output)
+	}
+	if persisted.Runtime == nil || *persisted.Runtime != "codex" {
+		t.Errorf("persisted runtime = %v, want &codex", persisted.Runtime)
+	}
+	if persisted.SessionID == "some-codex-uuid" {
+		t.Errorf("persisted session_id = %q, should not use Codex session_id (ppid resolution instead)", persisted.SessionID)
+	}
+}
+
+func TestHook_Codex_BareStringOutput(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// Codex PostToolUse with bare string tool_response. AC2: output
+	// is the bare string.
+	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":"bare string output","tool_use_id":"codex002"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("codex002")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Output != "bare string output" {
+		t.Errorf("persisted output = %q, want bare string output", persisted.Output)
+	}
+}
+
+func TestHook_Codex_ObjectWithoutRecognisedField(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// Codex PostToolUse with object tool_response without
+	// aggregated_output, output, or text. AC3: stringified fallback.
+	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{},"tool_response":{"foo":"bar"},"tool_use_id":"codex003"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("codex003")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if !strings.Contains(persisted.Output, "foo") || !strings.Contains(persisted.Output, "bar") {
+		t.Errorf("persisted output = %q, want stringified object containing foo and bar", persisted.Output)
+	}
+}
+
+func TestHook_Codex_NoToolName(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// Codex PostToolUse missing tool_name. AC4: tool="unknown".
+	payload := `{"hook_event_name":"PostToolUse","tool_input":{"command":"echo"},"tool_response":"hello","tool_use_id":"codex004"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("codex004")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "unknown" {
+		t.Errorf("persisted tool = %q, want unknown (fallback)", persisted.Tool)
+	}
+}
+
+func TestHook_Codex_WithoutToolUseID_GeneratesID(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// Codex PostToolUse without tool_use_id. AC6: id is generated
+	// (16-char lowercase alpha).
+	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo"},"tool_response":"hello"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+	}
+	if out.Decision != "" || out.Reason != "" {
+		t.Errorf("codex output = {decision:%q reason:%q}, want {} (passthrough)", out.Decision, out.Reason)
+	}
+	_, ids, err := d.SampleIDs(1)
+	if err != nil {
+		t.Fatalf("SampleIDs: %v", err)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("SampleIDs returned %d tool_call ids, want 1 (fresh DB)", len(ids))
+	}
+	if !idPattern.MatchString(ids[0]) {
+		t.Errorf("generated source_id = %q, want 16-char lowercase alpha", ids[0])
+	}
+}
+
+func TestHook_Codex_BackwardCompat_OpenCode(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// AC7: OpenCode payload (runtime="opencode") uses OpenCode path
+	// (backward compat).
+	payload := `{"runtime":"opencode","id":"occompat01","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hi"}},"output":{"output":"result"}}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("occompat01")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "bash" {
+		t.Errorf("persisted tool = %q, want bash (OpenCode path)", persisted.Tool)
+	}
+	if persisted.Output != "result" {
+		t.Errorf("persisted output = %q, want result (OpenCode extraction)", persisted.Output)
+	}
+	if persisted.Runtime == nil || *persisted.Runtime != "opencode" {
+		t.Errorf("persisted runtime = %v, want &opencode", persisted.Runtime)
+	}
+}
+
+func TestHook_Codex_BackwardCompat_Flat(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// AC8: flat tool_call payload (no hook_event_name, no runtime)
+	// uses flat deserialisation (backward compat).
+	payload := `{"id":"flatcompat01","tool":"bash","input":"echo hello","output":"hello\n","content_hash":"","timestamp":"2026-07-11T12:00:00Z"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v", err)
+	}
+
+	persisted, err := d.GetToolCall("flatcompat01")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "bash" {
+		t.Errorf("persisted tool = %q, want bash (flat deserialisation)", persisted.Tool)
+	}
+	if persisted.Input != "echo hello" {
+		t.Errorf("persisted input = %q, want echo hello (flat string)", persisted.Input)
+	}
+	if persisted.Output != "hello\n" {
+		t.Errorf("persisted output = %q, want hello\\n", persisted.Output)
+	}
+	if persisted.Runtime != nil {
+		t.Errorf("persisted runtime = %v, want nil (no runtime in flat payload)", persisted.Runtime)
+	}
+}
+
+// codexPayload builds a Codex PostToolUse JSON payload string from a
+// tool_use_id, tool_name, and the tool_response text (carried as
+// aggregated_output). When toolUseID is empty, the field is omitted so
+// the hook generates an id.
+func codexPayload(t *testing.T, toolUseID, toolName, output string) string {
+	t.Helper()
+	m := map[string]any{
+		"hook_event_name": "PostToolUse",
+		"tool_name":       toolName,
+		"tool_input":      map[string]any{"command": "echo"},
+		"tool_response":   map[string]any{"aggregated_output": output},
+	}
+	if toolUseID != "" {
+		m["tool_use_id"] = toolUseID
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal codex payload: %v", err)
+	}
+	return string(b)
+}
+
+func TestHook_CodexOutput_Transforms(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+`)
+
+	var sb strings.Builder
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
+	}
+	original := sb.String()
+	payload := codexPayload(t, "codxform01", "Bash", original)
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+	}
+	if out.Decision != "block" {
+		t.Errorf("decision = %q, want block", out.Decision)
+	}
+	if !strings.HasPrefix(out.Reason, "line 0") {
+		t.Errorf("reason = %q, want compressed content starting with line 0", out.Reason)
+	}
+	if strings.Contains(out.Reason, "line 50") {
+		t.Errorf("reason should be truncated (head:3); still contains line 50: %q", out.Reason)
+	}
+	if strings.Contains(out.Reason, "[ktx]") {
+		t.Errorf("reason should NOT contain footer (footer off by default): %q", out.Reason)
+	}
+	if out.Reason == original {
+		t.Error("reason equals original; want compressed (transformed)")
+	}
+
+	persisted, err := d.GetToolCall("codxform01")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Output != original {
+		t.Errorf("persisted original does not match input (reversibility)")
+	}
+
+	var comp string
+	if err := d.DB().QueryRow("SELECT output FROM compressed WHERE source_id = ?", "codxform01").Scan(&comp); err != nil {
+		t.Fatalf("query compressed row: %v", err)
+	}
+	if out.Reason != comp {
+		t.Errorf("reason should equal the stored compressed row content (footer off): %q vs %q", out.Reason, comp)
+	}
+}
+
+func TestHook_CodexOutput_Passthrough_Empty(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := codexPayload(t, "codxpass01", "Bash", "some tool result text\n")
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	if got := strings.TrimSpace(stdout.String()); got != "{}" {
+		t.Errorf("stdout = %q, want {} (passthrough, no pipeline)", got)
+	}
+
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+	}
+	if out.Decision != "" || out.Reason != "" {
+		t.Errorf("codex output = {decision:%q reason:%q}, want both empty", out.Decision, out.Reason)
+	}
+
+	persisted, err := d.GetToolCall("codxpass01")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Output != "some tool result text\n" {
+		t.Errorf("persisted original = %q, want the tool result unchanged", persisted.Output)
+	}
+}
+
+func TestHook_CodexOutput_AntiWorsening_Suppressed(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi"]
+recover_footer = true
+`)
+
+	original := "\x1b[31mError\x1b[0m: build started\nsee log for details\ncheck config\nrun tests\n"
+	payload := codexPayload(t, "codxsup01", "Bash", original)
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	if got := strings.TrimSpace(stdout.String()); got != "{}" {
+		var out codexHookOutput
+		_ = json.Unmarshal(stdout.Bytes(), &out)
+		t.Errorf("stdout = %q (decision=%q reason present=%v), want {} (anti-worsening gate suppressed)", got, out.Decision, out.Reason != "")
+	}
+
+	persisted, err := d.GetToolCall("codxsup01")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Output != original {
+		t.Errorf("persisted original = %q, want unchanged (suppressed transform)", persisted.Output)
+	}
+}
+
+func TestHook_CodexOutput_OpenCode_KeepsEnvelope(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := `{"runtime":"opencode","id":"ocenv01","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hi"}},"output":{"output":"open code result"}}`
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	var env hookEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+	}
+	if env.Output != "open code result" {
+		t.Errorf("envelope output = %q, want open code result (passthrough)", env.Output)
+	}
+	if env.CompressedID != nil {
+		t.Errorf("compressed_id = %v, want null (no pipeline)", env.CompressedID)
+	}
+	if env.SourceID != "ocenv01" {
+		t.Errorf("source_id = %q, want ocenv01", env.SourceID)
+	}
+
+	var spoof codexHookOutput
+	_ = json.Unmarshal(stdout.Bytes(), &spoof)
+	if spoof.Decision != "" || spoof.Reason != "" {
+		t.Errorf("OpenCode payload must NOT emit codex decision/reason; got decision=%q reason=%q", spoof.Decision, spoof.Reason)
+	}
+}
+
+func TestHook_CodexOutput_Footer_Transforms(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+recover_footer = true
+`)
+
+	var sb strings.Builder
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
+	}
+	payload := codexPayload(t, "codxfoot01", "Bash", sb.String())
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+	}
+	if out.Decision != "block" {
+		t.Errorf("decision = %q, want block", out.Decision)
+	}
+	if !strings.HasPrefix(out.Reason, "line 0") {
+		t.Errorf("reason = %q, want compressed content starting with line 0", out.Reason)
+	}
+	footerMarker := "\n[ktx]"
+	if !strings.Contains(out.Reason, footerMarker) {
+		t.Errorf("reason should contain the recovery footer marker %q: %q", footerMarker, out.Reason)
+	}
+	if idx := strings.Index(out.Reason, footerMarker); idx <= 0 || !strings.HasPrefix(out.Reason, "line 0") {
+		t.Errorf("footer must follow the compressed content, not precede it: %q", out.Reason)
+	}
+}
+
+func TestExtractCodexFields_Direct(t *testing.T) {
+	// AC7 (placement): the extraction logic lives in the hook layer
+	// (internal/cli), not in the stream parser. Calling the function
+	// directly from a test in package cli confirms the placement.
+	t.Run("tool_name and tool_input, aggregated_output response", func(t *testing.T) {
+		toolInputRaw := json.RawMessage(`{"command":"echo hi"}`)
+		toolResponseRaw := json.RawMessage(`{"aggregated_output":"result"}`)
+		tool, input, output := extractCodexFields("Bash", toolInputRaw, toolResponseRaw)
+		if tool != "Bash" {
+			t.Errorf("tool = %q, want Bash", tool)
+		}
+		if !strings.Contains(input, "echo hi") {
+			t.Errorf("input = %q, want stringified tool_input containing echo hi", input)
+		}
+		if output != "result" {
+			t.Errorf("output = %q, want result", output)
+		}
+	})
+
+	t.Run("bare string response", func(t *testing.T) {
+		toolResponseRaw := json.RawMessage(`"bare"`)
+		_, _, output := extractCodexFields("Bash", nil, toolResponseRaw)
+		if output != "bare" {
+			t.Errorf("output = %q, want bare", output)
+		}
+	})
+
+	t.Run("object response with output field", func(t *testing.T) {
+		toolResponseRaw := json.RawMessage(`{"output":"result"}`)
+		_, _, output := extractCodexFields("Bash", nil, toolResponseRaw)
+		if output != "result" {
+			t.Errorf("output = %q, want result", output)
+		}
+	})
+
+	t.Run("object response with text field", func(t *testing.T) {
+		toolResponseRaw := json.RawMessage(`{"text":"result"}`)
+		_, _, output := extractCodexFields("Bash", nil, toolResponseRaw)
+		if output != "result" {
+			t.Errorf("output = %q, want result", output)
+		}
+	})
+
+	t.Run("object response without recognised field", func(t *testing.T) {
+		toolResponseRaw := json.RawMessage(`{"foo":"bar"}`)
+		_, _, output := extractCodexFields("Bash", nil, toolResponseRaw)
+		if !strings.Contains(output, "foo") {
+			t.Errorf("output = %q, want stringified object (fallback)", output)
+		}
+	})
+
+	t.Run("empty tool name falls back to unknown", func(t *testing.T) {
+		tool, _, _ := extractCodexFields("", nil, nil)
+		if tool != "unknown" {
+			t.Errorf("tool = %q, want unknown (fallback)", tool)
+		}
+	})
+}
+
 func TestExtractOpenCodeFields_Direct(t *testing.T) {
 	// AC7: the extraction logic lives in the hook layer (internal/cli),
 	// not in the stream parser (internal/parser). Calling the function
@@ -924,4 +1413,82 @@ stages = ["head:3"]
 			t.Errorf("PipelineTimeout = %v, want %v (default 2s on passthrough path)", cfg.PipelineTimeout, config.DefaultPipelineTimeout)
 		}
 	})
+}
+
+func TestHook_SessionIDGuard(t *testing.T) {
+	t.Run("KTX_SESSION_ID set → noop (nil, nil), no stdin read, no stdout, no db write", func(t *testing.T) {
+		t.Setenv("KTX_SESSION_ID", "test-session-id")
+
+		d := hookTestDB(t)
+		hookChdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		stdin := &trackingReader{r: strings.NewReader(`{"id":"sess-01","tool":"bash","output":"data"}`)}
+		var stdout, stderr bytes.Buffer
+
+		result, err := hookLogic(stdin, d, &stdout, &stderr)
+		if err != nil {
+			t.Fatalf("hookLogic err = %v, want nil", err)
+		}
+		if result != nil {
+			t.Errorf("result = %v, want nil (no stdout payload)", result)
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("stdout = %q, want empty", stdout.String())
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("stderr = %q, want empty", stderr.String())
+		}
+		if got := stdin.bytes(); got != 0 {
+			t.Errorf("stdin read %d bytes, want 0 (must not read stdin)", got)
+		}
+		if _, err := d.GetToolCall("sess-01"); !errors.Is(err, dbpkg.ErrNotFound) {
+			t.Errorf("GetToolCall(sess-01) err = %v, want %v (no row should be persisted)", err, dbpkg.ErrNotFound)
+		}
+	})
+
+	t.Run("KTX_SESSION_ID unset → normal processing writes envelope to stdout", func(t *testing.T) {
+		d := hookTestDB(t)
+		hookChdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		payload := `{"id":"sess-02","tool":"bash","input":"echo hi","output":"hi\n","content_hash":"","timestamp":"2026-07-01T12:00:00Z"}`
+		var stdout, stderr bytes.Buffer
+
+		_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+		if err != nil {
+			t.Fatalf("hookLogic err = %v, want nil", err)
+		}
+		if stdout.Len() == 0 {
+			t.Fatal("stdout empty, want envelope written (normal processing)")
+		}
+		var env hookEnvelope
+		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+			t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+		}
+		if env.Output != "hi\n" {
+			t.Errorf("output = %q, want %q (passthrough)", env.Output, "hi\n")
+		}
+		if env.SourceID != "sess-02" {
+			t.Errorf("source_id = %q, want sess-02", env.SourceID)
+		}
+		if env.CompressedID != nil {
+			t.Errorf("compressed_id = %v, want null (no pipeline)", env.CompressedID)
+		}
+	})
+}
+
+type trackingReader struct {
+	r *strings.Reader
+	n int64
+}
+
+func (tr *trackingReader) Read(p []byte) (int, error) {
+	n, err := tr.r.Read(p)
+	tr.n += int64(n)
+	return n, err
+}
+
+func (tr *trackingReader) bytes() int64 {
+	return tr.n
 }

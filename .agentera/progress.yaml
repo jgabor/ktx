@@ -1,4 +1,62 @@
 cycles:
+  - number: 19
+    timestamp: 2026-07-12 01:10
+    type: feat
+    phase: build
+    what: "Codex hook integration: added ktx init codex, runtime-aware hook I/O for
+      Codex PostToolUse payloads. The hook auto-detects Codex from
+      hook_event_name, extracts tool_name/tool_input/tool_response/tool_use_id,
+      and outputs Codex-format hook responses:
+      {decision:block,reason:compressed} when compression transforms, {} when
+      passthrough. KTX_SESSION_ID noop guard moved into hook logic (fires before
+      any stdin read or DB access). ktx init codex installs/uninstalls/shows a
+      PostToolUse entry in ~/.codex/hooks.json with merge semantics (preserves
+      existing hooks like SessionStart). Codex uses command-type hooks (stdin
+      JSON -> stdout JSON), no TypeScript plugin needed. Trust review required:
+      user must run /hooks in Codex to trust the ktx hook."
+    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
+      -buildvcs=false ./... exit 0 (all packages pass). KTX_SESSION_ID guard:
+      TestHook_SessionIDGuard (set→noop, unset→processes). Codex extraction:
+      TestHook_Codex_ObjectWithAggregatedOutput, _BareStringOutput,
+      _ObjectWithoutRecognisedField, _NoToolName, _WithoutToolUseID_GeneratesID,
+      _BackwardCompat_OpenCode, _BackwardCompat_Flat,
+      TestExtractCodexFields_Direct. Codex output:
+      TestHook_CodexOutput_Transforms, _Passthrough_Empty,
+      _AntiWorsening_Suppressed, _OpenCode_KeepsEnvelope, _Footer_Transforms.
+      Init codex: 14 subtests in TestRunInitWith_CodexInstall + 3 in
+      _CodexRuntimeErrors covering
+      install/merge/idempotent/uninstall/show/project/trust-note."
+    next: No carry-forward code work. Re-install the plugin via ktx init codex to
+      deploy. codex exec --json wrapper path for benchmarking is deferred to a
+      future plan. updatedMCPToolOutput transparent compression is deferred
+      until Codex ships support.
+    context:
+      intent: Support Codex similarly to how OpenCode is supported. Codex (v0.144.1)
+        has a stable PostToolUse hook system with per-tool-call observation and
+        output replacement via decision/reason. This is the only path that gives
+        ktx both observation AND transformation in Codex's interactive TUI mode,
+        since updatedMCPToolOutput is not yet supported by Codex.
+      constraints: "Hook contract unchanged in shape (stdin JSON -> stdout JSON), only
+        output format is runtime-keyed (Codex gets decision/reason, OpenCode
+        gets ktx envelope). Conservative-on-failure preserved. Compression
+        pipeline, recovery footer, and anti-worsening gate unchanged. hooks.json
+        is a shared config file: install merges, uninstall removes only ktx
+        entry. No new dependencies. Codex session IDs ignored (ppid resolution).
+        No project-memory markers in shipped code."
+      unknowns: Whether decision:block semantics (model sees compressed output as hook
+        feedback rather than original tool result) will affect model behavior.
+        If it degrades, observation-only mode is the fallback. Whether Codex
+        spawns ktx hook directly or through a shell (affects ppid-based session
+        resolution).
+      scope: "internal/cli/hook.go (KTX_SESSION_ID guard, Codex extraction function,
+        Codex output formatting, help text update); internal/cli/hook_test.go (8
+        Codex extraction tests, 5 Codex output tests, 1 SessionID guard test);
+        internal/cli/init.go (codex case in switch, help text);
+        internal/cli/init_codex.go (new: init logic, hooks.json merge,
+        uninstall, show); internal/cli/init_codex_test.go (new: 14
+        install/uninstall/show subtests + 3 error/help tests). No changes to
+        go.mod/go.sum, internal/parser/, internal/db/, or the compression
+        pipeline."
   - number: 18
     timestamp: 2026-07-11 23:22
     type: feat
@@ -1943,340 +2001,9 @@ cycles:
         prices.go, internal/cli/* other than doctor.go, or any
         test file. No changes to go.mod or go.sum. No new
         external dependencies.
-  - number: 9
-    timestamp: 2026-06-20 09:40
-    type: feat
-    phase: build
-    what: |
-      D11 implementation lands as three pieces of code plus two artifact
-      updates, satisfying all 8 of plan.yaml Task 2's acceptance criteria.
-      (1) `internal/store/prices.go` (new, ~360 lines) — the price cache
-      type with `Prices`, `LoadPrices()`, `LookupPrice()`,
-      `PricesPath()`, `Refresh()`, `WriteToDisk()`. The cache file at
-      `$XDG_DATA_HOME/ktx/prices.json` is keyed by `(provider, model)`
-      with `input` and `output` USD-per-million-token rates; the format
-      is the JSON shape a third party reads directly without ktx (AC8).
-      The fetch uses `net/http` with a 5-second timeout context against
-      `https://models.dev/api.json` (no external deps — pure stdlib).
-      The write is atomic via write-to-temp + fsync + rename (AC3):
-      `os.Rename` swaps `prices.json.tmp` into `prices.json` only after
-      `f.Sync()` succeeds, so a partial cache file cannot be observed
-      by a concurrent reader. Parent directory is created with 0o755
-      via `os.MkdirAll(filepath.Dir(...), pricesDirPerm)` if missing
-      (AC4). (2) `internal/store/persist.go:deriveCost` (new helper) —
-      called inside `PersistToolCall` immediately after `EventType`
-      defaulting and before the transaction begins. The derivation
-      runs ONLY at write time (per D11 contract); `GetToolCall`,
-      `ktx read`, `ktx get`, `ktx list` are unchanged and surface
-      stored values verbatim (AC5). The helper is silent on every
-      non-derive branch (no error return) — D11's soft-fail contract
-      requires the write path to persist the row with whatever cost
-      the caller supplied on any failure to derive (AC3, AC6). (3)
-      `internal/cli/prices.go` (new, ~180 lines) — `ktx prices` namespace
-      with `update` and `path` subcommands; `pricesUpdate` forces a
-      refetch regardless of cache state and atomically rewrites the
-      cache file; a fetch failure on `update` is a hard error
-      (exit code 4) because the user explicitly requested the refresh
-      (AC8). (4) `internal/cli/cli.go:commands` — `prices` added to the
-      dispatch table in the order shown by `ktx --help`.
-      `go build -buildvcs=false ./...` exit 0;
-      `go vet   -buildvcs=false ./...` exit 0.
-    discovered: |
-      The models.dev JSON endpoint (`https://models.dev/api.json`) is
-      structured as `{provider_id: {models: {model_id: {cost: {input,
-      output, ...}}}}}` — the conventional shape. Cost entries vary
-      across providers: some omit cache_read/cache_write; some
-      providers (e.g. `anyapi`, `snowflake-cortex`) have entries with
-      no cost at all, which `Refresh` silently skips rather than
-      storing a zero-priced record (a zero-priced entry would corrupt
-      the cache by silently pricing free models). The cache
-      projection is faithful but lossy: only `input` and `output` are
-      retained; cache_read/cache_write/tiers/context_over_200k/etc.
-      are discarded because the D11 derivation formula only needs
-      the input/output rates. The `claude-sonnet-4-20250514` reference
-      from m2-acceptance.md AC2 resolves cleanly through the
-      `anthropic` provider (`input: 3.0`, `output: 15.0`) — the live
-      endpoint reproduces the m2-acceptance.md Anthropic-list-prices
-      placeholder exactly, so the cost reconstruction that proved
-      $0.0123 → $0.012207 in the M2 log now fires automatically via
-      `deriveCost` at write time when the caller omits `cost`.
-      Provider IDs in models.dev sometimes contain hyphens
-      (e.g. `amazon-bedrock`) and model IDs sometimes contain
-      special characters (`:`, `@`, `/`) — JSON keys accept all of
-      these, so no normalization is needed.
-    verified: |
-      Cycle date: 2026-06-20.
-
-      Files touched:
-      - internal/store/prices.go (new, ~360 lines) — Prices type,
-        PricesPath(), NewPrices(), Load(), Lookup(), Cold(), Path(),
-        Size(), WriteToDisk(), Refresh(), RefreshAndWrite(),
-        LoadPrices(), LookupPrice(), resetPricesForTest(), plus the
-        ModelsDevURL constant (https://models.dev/api.json) and the
-        modelsDevTimeout (5s) and modelsDevMaxBody (64MB) constants.
-        The atomic-write path (WriteToDisk) opens `prices.json.tmp`
-        with O_WRONLY|O_CREATE|O_TRUNC, writes, fsyncs, closes, then
-        `os.Rename` swaps into the final path; on any error in the
-        sequence, the temp file is removed before returning so no
-        residue is left on disk.
-      - internal/store/persist.go (modified) — `import` block gains
-        `math`; `deriveCost` helper added at the bottom of the file
-        (~80 lines of code + comment); `PersistToolCall` body gains
-        one line — `d.deriveCost(tc)` between the EventType default
-        and the `tx, err := d.db.Begin()` call.
-      - internal/cli/prices.go (new, ~180 lines) — `runPrices`,
-        `runPricesWith`, `pricesUpdate`, `pricesPath`, `printPricesHelp`.
-        The dispatch defaults to `update` when no subcommand is
-        provided; `path` is the second subcommand; future subcommands
-        (show, lookup) are namespace-reserved but not implemented.
-      - internal/cli/cli.go:commands — `prices` entry added between
-        `db` and `doctor`, mirroring the existing order convention
-        (read-only commands after mutating ones).
-      - .agentera/plan.yaml — Task 2 status flipped from `pending` to
-        `complete`. Per the plan.yaml schema, this is the orchestrator-
-        territory state update that the delegated capability flips for
-        its own task in M3.
-      - .agentera/progress.yaml — this cycle 9 entry at the top of the
-        cycles: list.
-
-      Build: go build -buildvcs=false ./... OK (exit 0, no output).
-      Vet:   go vet   -buildvcs=false ./... OK (exit 0, no output).
-      Binary: go build -buildvcs=false -o /tmp/ktx-m3-task2 ./cmd/ktx
-              OK (exit 0).
-
-      Acceptance walk-through for plan.yaml Task 2's 8 ACs:
-
-      AC1 (cold cache → fetch from models.dev + populate cache):
-      PASS. With XDG_DATA_HOME=/tmp/ktx-m3-xdg (no prior
-      prices.json) and KTX_DB=/tmp/ktx-m3-derive.db (no prior
-      database), `echo '{"id":"...","session_id":"...",
-      "tokens_in":1234,"tokens_out":567,
-      "model":"claude-sonnet-4-20250514",
-      "provider":"anthropic"}' | ktx write`:
-        - First call to PersistToolCall triggers deriveCost →
-          LoadPrices → Load → cold=true → Lookup miss →
-          Refresh (https://models.dev/api.json) → success →
-          WriteToDisk → re-Lookup → derivation → INSERT.
-        - ktx list (JSON) shows the new tool_call; sqlite3 inspect
-          shows cost=0.012207 (derived: 1234*3+567*15=10500,
-          10500/1e6=0.0105; with rounding to 6 decimals =
-          0.0105). Wait, my expected was 0.012207 for the m2-ac
-          scenario (1234/1e6*3 = 0.003702, 567/1e6*15 = 0.008505,
-          sum = 0.012207). The walkthrough used a 1000/500 payload
-          to keep numbers small: 1000*3 + 500*15 = 10500; 10500/1e6
-          = 0.0105. List rollup: 0.0105 + 0.05 = 0.0605 (sum of
-          derived + explicit), matching the SQLite SUM aggregate.
-        - The cache file at /tmp/ktx-m3-xdg/ktx/prices.json is
-          388,884 bytes (140 providers, 4,910 models); format is
-          the documented two-level JSON map; parent directory was
-          created via os.MkdirAll(filepath.Dir(path), 0o755).
-
-      AC2 (warm cache → no refetch, file preserved):
-      PASS. After test 8 created a warm cache (mtime=T1), a
-      subsequent write with an UNKNOWN (provider, model) leaves
-      the file unchanged: mtime stays at T1, size stays at
-      388,884 bytes. The write succeeds with cost=NULL on the
-      row (Lookup miss + warm cache → no fetch → no derivation).
-      This is the idempotent write-path semantic: only the
-      manual `ktx prices update` command and the cold-cache
-      miss path touch the disk.
-
-      AC3 (atomic cache write; fetch failure → no write, no error):
-      PASS. WriteToDisk uses write-to-temp + fsync + rename
-      pattern; verified by inspection (the temp file is removed
-      after successful rename and on error). A malformed cache
-      file (e.g. `/tmp/ktx-m3-corrupt/ktx/prices.json` containing
-      `this is not valid JSON`) does not crash the binary: ktx
-      write succeeds, cost stays NULL, the malformed file is left
-      unchanged on disk (LoadPrices returns the parse error but
-      deriveCost swallows it via the soft-fail contract).
-      A read-only cache directory (`chmod 555`) does not crash:
-      ktx write succeeds, cost is derived in memory from the
-      Refresh-populated in-memory cache, the best-effort
-      WriteToDisk returns the disk-permission error which is
-      discarded (the row persists with the derived cost).
-
-      AC4 (parent directory created on first write):
-      PASS. `ktx prices update` with no pre-existing directory
-      creates `$XDG_DATA_HOME/ktx/` with 0o755 perms and writes
-      `prices.json` inside. Verified in the AC1 walkthrough.
-
-      AC5 (derivation runs at write time only; ktx read / ktx get /
-      ktx list show stored values verbatim):
-      PASS. The derived cost (0.012207 in the m2-ac scenario) is
-      stored on the tool_calls row; `ktx read` and `ktx get` (both
-      JSON and text) emit the stored value verbatim — there is
-      no derivation in `GetToolCall` or the list rollup query.
-      A caller-supplied cost (0.9999 with full M2 inputs) is
-      preserved verbatim: deriveCost sees tc.Cost != nil and
-      returns immediately without overwriting. Explicit-zero
-      cost (0.0) is preserved verbatim for the same reason.
-
-      AC6 (soft-fail on fetch failure: cost=NULL, cache file
-      unchanged):
-      PASS. deriveCost's Refresh call is gated on
-      `if err := prices.Refresh(); err == nil`. On network
-      failure, the inner branch is skipped; cost stays NULL;
-      PersistToolCall returns nil (no error). The on-disk cache
-      file is untouched because WriteToDisk is only called
-      inside the success branch (after a successful Refresh +
-      successful re-Lookup), and a failed Refresh leaves the
-      in-memory cache empty so a subsequent LoadPrices call in
-      the same process would not find a populated cache to
-      clobber. A real network-outage test would require
-      pointing the URL at a black hole; the soft-fail code
-      path is verified by the malformed-cache test (the same
-      `if err == nil` gating handles parse errors and network
-      errors uniformly).
-
-      AC7 (NULL preservation: any of tokens_in / tokens_out /
-      model NULL → cost stays NULL):
-      PASS. deriveCost has a single guard at the top:
-        if tc.TokensIn == nil || tc.TokensOut == nil ||
-          tc.Model == nil || tc.Provider == nil { return }
-      All four inputs must be non-NULL for derivation to fire;
-      any NULL short-circuits. Verified by writing three rows
-      with one NULL input each (model=NULL, tokens_in=NULL,
-      tokens_out=NULL) — all three persisted with cost=NULL
-      even though the cache had the price for (anthropic,
-      claude-sonnet-4-20250514). A row with provider=NULL also
-      stays NULL (the cache key is (provider, model); without
-      provider the lookup cannot resolve and silent failure is
-      the safe outcome; the OpenCode wrapper path defaults
-      provider="opencode" per D10 so this only fires on sidecar
-      payloads that omit the field).
-
-      AC8 (ktx prices update forces refetch + atomic rewrite;
-      fetch failure is hard error exit 4):
-      PASS. `ktx prices update` always invokes
-      `RefreshAndWrite` (Refresh + WriteToDisk) regardless of
-      cache state. A successful run on the warm cache from AC2
-      changes the cache mtime (T1 → T2) — verified by stat.
-      The JSON output reports `{"refreshed": true,
-      "providers": 140, "models": 4910, "path": "..."}`; the
-      text output (`--format text`) emits a four-line summary.
-      The exit code is 0 on success. On fetch failure (which we
-      verified by code review of the `pricesUpdate` function:
-      `RefreshAndWrite` returns the Refresh error, the function
-      prints it via printError(internalError(...)) and returns
-      ExitInternal = 4). The 5-second timeout on the http fetch
-      bounds the failure window so the manual command cannot
-      hang indefinitely on a stalled connection.
-
-      M1+M2 regression check (re-running the M1+M2 surface
-      against the new binary): PASS. ktx list (text + JSON),
-      ktx get (text + JSON), ktx read (raw JSON), ktx doctor
-      (all 5 checks), and the M2 surface (TOKENS/COST/MODEL
-      columns in list, conditional M2 section in get text,
-      m2 object in list JSON, sidecar round-trip in three
-      scenarios) all behave as documented in m2-acceptance.md.
-      The new deriveCost step is purely additive on the
-      sidecar path: a record with explicit cost round-trips
-      verbatim; a record with NULL M2 fields stays NULL; a
-      record with derivable inputs is filled by the new code.
-
-      No regressions discovered. M1, M2, and D11 implementation
-      all coexist on the committed binary.
-
-      Cycle-9 active-section size advisory: the progress.yaml
-      schema (PX2) caps full-detail entries at 10; cycles 11
-      through 50 move to one-line archive form (PX3). Cycle 9
-      is the second M3 cycle and lands 6 file changes (3 new
-      Go files, 2 modified Go files, 2 modified YAML files).
-      The decisions.yaml DX2 advisory (> 10 active decisions)
-      is unchanged at 12 entries — this cycle did not modify
-      decisions.yaml (the pre-tool gate would block it).
-    next: |
-      M3 plan Task 3 (Schema migration — bench_runs table).
-      Task 3 depends on both Task 1 (D12) and Task 2 (D11,
-      this cycle) and becomes dispatchable once Task 2 closes.
-      The next cycle owns the bench_runs migration (in-place
-      ALTER/CREATE inside store.Open, same idempotent pattern
-      as M2's tool_calls migration), the doctor pre-M3 warning
-      for missing bench_runs, and forward-fix on partial
-      bench_runs schemas. Task 4 (ktx bench run) and Task 5
-      (ktx bench report) follow; Task 6 closes M3 with the
-      reproducibility verification log.
-    context:
-      intent: |
-        Land the D11 cost-measurement mechanics as code so any
-        tool_call row with non-NULL tokens_in/tokens_out/model
-        has a non-NULL cost derived from the cached (provider,
-        model) price. The derivation runs at write time only
-        (D11 contract); the read surface surfaces stored values
-        verbatim. Soft-fail on fetch error (cost stays NULL,
-        no error returned from the write path); manual refresh
-        hook (`ktx prices update`) forces a refetch and
-        surfaces failures as exit code 4. The price cache file
-        is a faithful JSON projection of models.dev's per-model
-        pricing, readable by a third party without ktx (the
-        D11 reconstructability contract).
-      constraints: |
-        Go stdlib only (`net/http`, `encoding/json`, `os`,
-        `sync`, `path/filepath`, `math`); no new external deps.
-        Pure-Go SQLite (already pinned in go.mod). The new
-        `prices` command is a namespace (mirrors `db`, `bench`)
-        per the D2 design rule for managed resources. The
-        `deriveCost` helper is silent on every non-derive
-        branch — D11's soft-fail contract requires the write
-        path to persist the row with whatever cost the caller
-        supplied. Cache TTL and auto-refresh are deferred per
-        D11 reasoning and the M3 plan scope.deferred list;
-        fetch-on-first-use is the v1 semantic. The fetch URL
-        `https://models.dev/api.json` was confirmed by HTTP
-        probing and matches the plan.yaml Task 2 acceptance
-        contract that requires a fetch from `https://models.dev`.
-        Strict scope: only `internal/store/persist.go`,
-        `internal/store/prices.go` (new), `internal/cli/prices.go`
-        (new), `internal/cli/cli.go` (one dispatch entry), and
-        `.agentera/plan.yaml` (Task 2 flip) are touched in this
-        cycle. `.agentera/decisions.yaml` is OFF LIMITS for this
-        task per the DX2 over-the-cap advisory; the cycle's
-        `verified` section mirrors cycles 1-8 without modifying
-        the decision file.
-      unknowns: |
-        - Whether models.dev's response shape will change in
-          ways that break the partial parser (currently only
-          cost.input and cost.output are read; tier-based and
-          cache-based pricing are ignored). If models.dev adds
-          a new cost tier system that ktx should respect, the
-          parser would need to extend the modelsDevModel type.
-          Not a blocker for M3 close; the M3 plan reserves this
-          as a post-M3 follow-up.
-        - Whether the 5-second fetch timeout is appropriate
-          under high network latency. The empirical models.dev
-          response time at HEAD is < 100ms; 5s provides 50x
-          headroom. A future resonera could tune this.
-        - Whether OpenCode or other runtimes will start
-          emitting model + tokens_per_tool on tool_use events
-          (today they don't — Task 4's empirical finding). If
-          they do, the wrapper path's deriveCost would fire
-          automatically because the parsed event's M2 fields
-          would be non-NULL. No code change required.
-      scope: |
-        Three Go files (two new, one modified):
-        - internal/store/prices.go (new) — Prices type +
-          LoadPrices + LookupPrice + atomic write + Refresh
-        - internal/store/persist.go (modified) — deriveCost
-          helper + one-line call in PersistToolCall + math
-          import
-        - internal/cli/prices.go (new) — ktx prices namespace
-          with update + path subcommands
-        - internal/cli/cli.go (modified) — dispatch entry
-
-        Two updated artifacts:
-        - .agentera/plan.yaml — Task 2 status flip
-        - .agentera/progress.yaml — this cycle entry
-
-        No changes to internal/store/store.go, internal/store/
-        inspect.go, internal/store/rollup.go, internal/store/
-        session.go, internal/cli/run.go, internal/cli/write.go,
-        internal/cli/doctor.go, internal/cli/get.go,
-        internal/cli/list.go, internal/cli/read.go, or any
-        test file. No changes to the schema (the M2 columns
-        on tool_calls are sufficient for D11 derivation —
-        no new columns). No changes to go.mod or go.sum.
 archive:
+  - summary: "Cycle 9 (2026-06-20): D11 implementation lands as three pieces of code
+      plus two artifact updates, satisfying all 8..."
   - summary: "Cycle 8 (2026-06-19): The resonera session closed M3 plan Task 1 by
       recording Decision 12 in `.agentera/decisions.yaml` as..."
   - summary: "Cycle 7 (2026-06-19): PersistToolCall now defers tx.Rollback()

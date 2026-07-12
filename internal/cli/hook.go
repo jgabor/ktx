@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/jgabor/ktx/internal/config"
@@ -19,6 +20,17 @@ type hookEnvelope struct {
 	Output       string  `json:"output"`
 	CompressedID *string `json:"compressed_id"`
 	SourceID     string  `json:"source_id"`
+}
+
+// codexHookOutput is the Codex PostToolUse hook response written by
+// `ktx hook` to stdout when the input payload carries a hook_event_name.
+// When the pipeline transforms the output, the hook blocks the original
+// tool result and replaces it with the compressed text in reason. When
+// passthrough (no transform), an empty JSON object is emitted and Codex
+// leaves the tool result unchanged.
+type codexHookOutput struct {
+	Decision string `json:"decision,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 // hookCommandFunc is the dispatch entry point for `ktx hook`. The
@@ -78,6 +90,58 @@ func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, ou
 	return tool, input, output
 }
 
+// codexToolResponseObject covers the known Codex tool_response shapes:
+// an object carrying aggregated_output, output, or text (checked in
+// that order before falling back to the stringified object).
+type codexToolResponseObject struct {
+	AggregatedOutput string `json:"aggregated_output"`
+	Output           string `json:"output"`
+	Text             string `json:"text"`
+}
+
+// extractCodexFields extracts the flat tool, input, and output strings
+// from a Codex PostToolUse payload's top-level tool_name, tool_input,
+// and tool_response fields. The tool_input is stringified JSON. The
+// tool_response is either a bare string or an object carrying
+// aggregated_output, output, or text; an object without a recognised
+// field falls back to the stringified object. An empty tool name
+// falls back to "unknown".
+func extractCodexFields(toolName string, toolInputRaw, toolResponseRaw json.RawMessage) (tool, input, output string) {
+	tool = "unknown"
+	if toolName != "" {
+		tool = toolName
+	}
+
+	if len(toolInputRaw) > 0 {
+		input = string(toolInputRaw)
+	}
+
+	if len(toolResponseRaw) > 0 {
+		var s string
+		if err := json.Unmarshal(toolResponseRaw, &s); err == nil {
+			output = s
+		} else {
+			var resp codexToolResponseObject
+			if err := json.Unmarshal(toolResponseRaw, &resp); err == nil {
+				switch {
+				case resp.AggregatedOutput != "":
+					output = resp.AggregatedOutput
+				case resp.Output != "":
+					output = resp.Output
+				case resp.Text != "":
+					output = resp.Text
+				default:
+					output = string(toolResponseRaw)
+				}
+			} else {
+				output = string(toolResponseRaw)
+			}
+		}
+	}
+
+	return tool, input, output
+}
+
 // hookLogic reads a JSON tool_call from stdin, persists the original
 // via the shared PersistToolCall code path (DRY, same code ktx write
 // calls), then delegates to compressPipeline for the failure gate +
@@ -86,12 +150,15 @@ func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, ou
 // passthrough (no ktx.toml) and failure-gate-skip (is_error=true)
 // return the source output unchanged with compressed_id=null.
 //
-// When runtime="opencode" is present, the hook extracts tool name,
-// input string, and output string from raw OpenCode callback objects
+// When hook_event_name is present (Codex PostToolUse payload), the
+// hook extracts tool name, input, and output from the top-level
+// tool_name, tool_input, and tool_response fields. When
+// runtime="opencode" is present, the hook extracts tool name, input
+// string, and output string from raw OpenCode callback objects
 // (input.tool + input.args, output as string or {output: string})
-// instead of requiring a flat tool_call shape. Any other runtime value
-// (or absent runtime) falls back to flat tool_call deserialisation
-// (backward compatible).
+// instead of requiring a flat tool_call shape. Any other payload
+// (absent hook_event_name and absent/unrecognised runtime) falls back
+// to flat tool_call deserialisation (backward compatible).
 //
 // The JSON envelope is written to stdout as a single line. On any
 // error, no envelope is written; the exit code and stderr error
@@ -99,6 +166,10 @@ func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, ou
 // (tool.execute.after) catches non-zero exit and leaves output.output
 // unchanged (conservative failure at the plugin level).
 func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, error) {
+	if os.Getenv("KTX_SESSION_ID") != "" {
+		return nil, nil
+	}
+
 	body, err := io.ReadAll(stdin)
 	if err != nil {
 		return nil, internalError("ktx hook: read stdin: %v", err)
@@ -109,16 +180,43 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	var tc dbpkg.ToolCall
 
-	// Peek at the runtime field to decide between OpenCode callback
-	// extraction and flat tool_call deserialisation.
+	// Peek at hook_event_name and runtime to decide between Codex,
+	// OpenCode callback extraction, and flat tool_call deserialisation.
 	var peek struct {
-		Runtime *string `json:"runtime"`
+		Runtime       *string `json:"runtime"`
+		HookEventName *string `json:"hook_event_name"`
 	}
 	if err := json.Unmarshal(body, &peek); err != nil {
 		return nil, usageError("ktx hook: parse JSON: %v", err)
 	}
 
-	if peek.Runtime != nil && *peek.Runtime == "opencode" {
+	var isCodex bool
+	if peek.HookEventName != nil && *peek.HookEventName != "" {
+		isCodex = true
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(body, &raw); err != nil {
+			return nil, usageError("ktx hook: parse JSON: %v", err)
+		}
+		var toolName string
+		if v := raw["tool_name"]; len(v) > 0 {
+			_ = json.Unmarshal(v, &toolName)
+		}
+		toolInputRaw := raw["tool_input"]
+		toolResponseRaw := raw["tool_response"]
+		var toolUseID string
+		if v := raw["tool_use_id"]; len(v) > 0 {
+			_ = json.Unmarshal(v, &toolUseID)
+		}
+		tool, input, output := extractCodexFields(toolName, toolInputRaw, toolResponseRaw)
+		tc.Tool = tool
+		tc.Input = input
+		tc.Output = output
+		if toolUseID != "" {
+			tc.ID = toolUseID
+		}
+		rt := "codex"
+		tc.Runtime = &rt
+	} else if peek.Runtime != nil && *peek.Runtime == "opencode" {
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(body, &raw); err != nil {
 			return nil, usageError("ktx hook: parse JSON: %v", err)
@@ -235,13 +333,23 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		compressedID = &cid
 	}
 
+	enc := json.NewEncoder(stdout)
+	enc.SetEscapeHTML(false)
+	if isCodex {
+		var out codexHookOutput
+		if transformed {
+			out = codexHookOutput{Decision: "block", Reason: envelopeOutput}
+		}
+		if err := enc.Encode(out); err != nil {
+			return nil, internalError("ktx hook: write codex output: %v", err)
+		}
+		return nil, nil
+	}
 	envelope := hookEnvelope{
 		Output:       envelopeOutput,
 		CompressedID: compressedID,
 		SourceID:     sourceID,
 	}
-	enc := json.NewEncoder(stdout)
-	enc.SetEscapeHTML(false)
 	if err := enc.Encode(envelope); err != nil {
 		return nil, internalError("ktx hook: write envelope: %v", err)
 	}
@@ -314,11 +422,27 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "suppresses the transform (and the footer) when compressed+footer would not")
 	fmt.Fprintln(w, "be smaller than the original; the stored compressed row stays content-only.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "This verb is called by the OpenCode plugin's tool.execute.after hook (installed")
-	fmt.Fprintln(w, "via `ktx init opencode`). It is not typically invoked directly by users.")
+	fmt.Fprintln(w, "Codex mode: when the input payload carries a top-level `hook_event_name`")
+	fmt.Fprintln(w, "field (Codex PostToolUse), the hook auto-detects it and extracts tool")
+	fmt.Fprintln(w, "name, input, and output from `tool_name`, `tool_input`, and")
+	fmt.Fprintln(w, "`tool_response` instead of the flat tool_call shape. The response uses")
+	fmt.Fprintln(w, "the Codex PostToolUse output contract:")
+	fmt.Fprintln(w, `  {"decision":"block","reason":"<compressed>"}`)
+	fmt.Fprintln(w, "when the pipeline transforms the output (Codex blocks the original tool")
+	fmt.Fprintln(w, "result and replaces it with the compressed reason), or `{}` when")
+	fmt.Fprintln(w, "passthrough (Codex leaves the tool result unchanged). The envelope")
+	fmt.Fprintln(w, "documented above does not apply to the Codex path.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "When KTX_SESSION_ID is set in the environment, the hook exits 0 with no")
+	fmt.Fprintln(w, "output. This noop guard keeps the `ktx run` wrapper the single source")
+	fmt.Fprintln(w, "of truth when both the wrapper and an adapter are active in one session.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "This verb is called by `ktx init` adapters: the OpenCode plugin's")
+	fmt.Fprintln(w, "tool.execute.after hook and the Codex PostToolUse command hook. It is not")
+	fmt.Fprintln(w, "typically invoked directly by users.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Related commands:")
 	fmt.Fprintln(w, "  ktx compress    explicit-verb compression (returns compressed id)")
 	fmt.Fprintln(w, "  ktx decompress  reverse a compression (return source output verbatim)")
-	fmt.Fprintln(w, "  ktx init        install the OpenCode adapter plugin")
+	fmt.Fprintln(w, "  ktx init        install an OpenCode or Codex adapter")
 }

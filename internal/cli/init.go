@@ -6,7 +6,8 @@
 // (`ktx run`) parses --format json, the sidecar (`ktx write`) accepts
 // caller-supplied payloads, and adapters (`ktx init`) install native
 // extension points in the agent runtime. OpenCode uses an in-process
-// TypeScript plugin.
+// TypeScript plugin; Codex uses a PostToolUse command hook merged into
+// the shared ~/.codex/hooks.json.
 //
 // `ktx init opencode` installs a plugin that subscribes to
 // `tool.execute.after` and calls `ktx hook` per event,
@@ -15,23 +16,42 @@
 // path remains the single source of truth — both paths active means
 // one of them wins.
 //
+// `ktx init codex` merges a PostToolUse hook entry into
+// ~/.codex/hooks.json (global) or ./.codex/hooks.json (project).
+// The hooks.json file is shared with other Codex hooks, so install
+// parses, appends ktx's entry (matcher ".*", command "ktx hook"),
+// and writes the merged file back — never overwriting unrelated
+// hooks. Uninstall removes only ktx's entry and leaves the rest
+// intact. The ktx entry is identified by the literal command
+// string "ktx hook" inside the PostToolUse array; re-running
+// install is a no-op when the entry is already present.
+//
 // Flags:
 //
-//	--project      install to <cwd>/.opencode/plugins/ktx.ts (project scope)
-//	--uninstall    remove the installed plugin (checks both locations)
-//	--show         report whether the plugin is installed and where
+//	--project      install to <cwd>/.codex/hooks.json (Codex) or
+//	               <cwd>/.opencode/plugins/ktx.ts (OpenCode); project scope
+//	--uninstall    remove the installed adapter (Codex: scoped target;
+//	               OpenCode: checks both locations)
+//	--show         report whether the adapter is installed and where
 //
-// Default (no flag) installs to $XDG_CONFIG_HOME/opencode/plugins/ktx.ts
-// (global). All three flags are mutually exclusive actions; combining
-// --project with --uninstall/--show still scopes the action to that
-// location.
+// Default (no flag) installs to the global scope:
+// $XDG_CONFIG_HOME/opencode/plugins/ktx.ts for OpenCode, or
+// ~/.codex/hooks.json for Codex. All three flags are mutually
+// exclusive actions; combining --project with --uninstall/--show
+// still scopes the action to that location.
 //
-// Path resolution (global): $XDG_CONFIG_HOME/opencode/plugins/ktx.ts
-// (XDG Base Directory spec; falls back to $HOME/.config/... when
-// XDG_CONFIG_HOME is unset, per the spec default).
+// Path resolution (Codex, global): ~/.codex/hooks.json, where ~ is
+// resolved via os.UserHomeDir (no XDG for Codex's home config).
+// Path resolution (Codex, project): ./.codex/hooks.json relative to
+// the invocation's CWD.
 //
-// Path resolution (project): ./.opencode/plugins/ktx.ts relative to the
-// invocation's CWD.
+// Path resolution (OpenCode, global):
+// $XDG_CONFIG_HOME/opencode/plugins/ktx.ts (XDG Base Directory spec;
+// falls back to $HOME/.config/... when XDG_CONFIG_HOME is unset, per
+// the spec default).
+//
+// Path resolution (OpenCode, project): ./.opencode/plugins/ktx.ts
+// relative to the invocation's CWD.
 //
 // The command parses its runtime and action flags without opening the database.
 package cli
@@ -200,7 +220,7 @@ func initLogic(args []string, format string, stdout, stderr io.Writer) (any, err
 	}
 
 	if runtime == "" {
-		return nil, usageError("ktx init: missing runtime name; usage: ktx init <runtime> [flags] (supported: opencode)")
+		return nil, usageError("ktx init: missing runtime name; usage: ktx init <runtime> [flags] (supported: opencode, codex)")
 	}
 
 	// At most one action flag is meaningful; mixing --uninstall/--show with
@@ -213,8 +233,10 @@ func initLogic(args []string, format string, stdout, stderr io.Writer) (any, err
 	switch runtime {
 	case "opencode":
 		return nil, initOpencodeLogic(&f, format, stdout, stderr)
+	case "codex":
+		return nil, initCodexLogic(&f, format, stdout, stderr)
 	default:
-		return nil, usageError("ktx init: unknown runtime %q; supported: opencode", runtime)
+		return nil, usageError("ktx init: unknown runtime %q; supported: opencode, codex", runtime)
 	}
 }
 
@@ -447,7 +469,7 @@ func initCommandFunc(ctx *DispatchContext) (any, error) {
 	}
 
 	if runtime == "" {
-		return nil, usageError("ktx init: missing runtime name; usage: ktx init <runtime> [flags] (supported: opencode)")
+		return nil, usageError("ktx init: missing runtime name; usage: ktx init <runtime> [flags] (supported: opencode, codex)")
 	}
 
 	// At most one action flag is meaningful; mixing --uninstall/--show with
@@ -460,8 +482,10 @@ func initCommandFunc(ctx *DispatchContext) (any, error) {
 	switch runtime {
 	case "opencode":
 		return nil, initOpencodeLogic(&f, ctx.Format, ctx.Stdout, ctx.Stderr)
+	case "codex":
+		return nil, initCodexLogic(&f, ctx.Format, ctx.Stdout, ctx.Stderr)
 	default:
-		return nil, usageError("ktx init: unknown runtime %q; supported: opencode", runtime)
+		return nil, usageError("ktx init: unknown runtime %q; supported: opencode, codex", runtime)
 	}
 }
 
@@ -520,12 +544,21 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Supported runtimes:")
 	fmt.Fprintln(w, "  opencode   install the OpenCode TS plugin adapter")
+	fmt.Fprintln(w, "             (a standalone ktx.ts file at $XDG_CONFIG_HOME/opencode/plugins/)")
+	fmt.Fprintln(w, "  codex      merge a PostToolUse hook into ~/.codex/hooks.json or ./.codex/hooks.json")
+	fmt.Fprintln(w, "             (shared hooks file; other Codex hooks are preserved on install/uninstall)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
-	fmt.Fprintln(w, "  --project      install to project scope (./.opencode/plugins/ktx.ts)")
-	fmt.Fprintln(w, "                 default scope is global ($XDG_CONFIG_HOME/opencode/plugins/ktx.ts)")
-	fmt.Fprintln(w, "  --uninstall    remove the plugin file (checks both locations)")
-	fmt.Fprintln(w, "  --show         report whether the plugin is installed and where")
+	fmt.Fprintln(w, "  --project      install to project scope")
+	fmt.Fprintln(w, "                 opencode: ./.opencode/plugins/ktx.ts")
+	fmt.Fprintln(w, "                 codex:    ./.codex/hooks.json")
+	fmt.Fprintln(w, "                 default scope is global ($XDG_CONFIG_HOME/opencode/plugins/ktx.ts")
+	fmt.Fprintln(w, "                 or ~/.codex/hooks.json respectively)")
+	fmt.Fprintln(w, "  --uninstall    remove the installed adapter")
+	fmt.Fprintln(w, "                 opencode: checks both global and project locations")
+	fmt.Fprintln(w, "                 codex:    scopes to the target (--project for project scope,")
+	fmt.Fprintln(w, "                           otherwise global); only the ktx PostToolUse entry is removed")
+	fmt.Fprintln(w, "  --show         report whether the adapter is installed and where")
 	fmt.Fprintln(w, "  -h, --help     show this help")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
@@ -533,17 +566,27 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  1  usage error (unknown runtime, conflicting flags)")
 	fmt.Fprintln(w, "  2  not found (--show found nothing, --uninstall found nothing)")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "The installed plugin subscribes to tool.execute.after and shells out to")
+	fmt.Fprintln(w, "The OpenCode plugin subscribes to tool.execute.after and shells out to")
 	fmt.Fprintln(w, "`ktx hook` for each event, sending the raw callback object tagged")
 	fmt.Fprintln(w, "with runtime=\"opencode\". When KTX_SESSION_ID is")
 	fmt.Fprintln(w, "set in the environment, the plugin noops so the wrapper")
 	fmt.Fprintln(w, "path remains the single source of truth.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "The Codex hook entry is identified by command \"ktx hook\" inside the")
+	fmt.Fprintln(w, "PostToolUse array of hooks.json. Install is idempotent (no-op when the")
+	fmt.Fprintln(w, "entry is already present); uninstall removes only ktx's entry and")
+	fmt.Fprintln(w, "preserves other hooks (SessionStart, etc.). After install, run /hooks")
+	fmt.Fprintln(w, "in Codex to trust the ktx hook before it fires — untrusted hooks do not execute.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  ktx init opencode              # global install")
 	fmt.Fprintln(w, "  ktx init opencode --project    # project install")
 	fmt.Fprintln(w, "  ktx init opencode --show       # check status")
 	fmt.Fprintln(w, "  ktx init opencode --uninstall  # remove")
+	fmt.Fprintln(w, "  ktx init codex                 # merge ktx PostToolUse hook into ~/.codex/hooks.json")
+	fmt.Fprintln(w, "  ktx init codex --project       # merge into ./.codex/hooks.json")
+	fmt.Fprintln(w, "  ktx init codex --show          # check both global and project scopes")
+	fmt.Fprintln(w, "  ktx init codex --uninstall     # remove ktx entry from global hooks.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
 }

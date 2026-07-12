@@ -11,9 +11,6 @@ go install github.com/jgabor/ktx/cmd/ktx@latest
 
 Build from a checkout with `go build -o ktx ./cmd/ktx`.
 
-Before upgrading, review [`docs/migrations.md`](docs/migrations.md). Database
-migrations run automatically when the new binary first opens the database.
-
 ## Quick start
 
 ```bash

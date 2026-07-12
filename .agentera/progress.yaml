@@ -1,4 +1,35 @@
 cycles:
+  - number: 33
+    timestamp: 2026-07-12 22:25
+    type: refactor
+    phase: build
+    what: Removed the permanent historical Codex identity conversion and its tests,
+      deleted migration guidance and indexing, and narrowed architecture wording
+      to the current Codex-only identity boundary while preserving canonical
+      retry-safe ingestion and legacy flat ingress.
+    inspiration: The user rejected permanent backward-compatibility machinery for a
+      product with no released users.
+    discovered: Agentera refused the required new decision because 12 protected
+      active decisions exceed its 10-entry review capacity; no prior
+      satisfaction state was changed or inferred.
+    verified: go test -race ./internal/identity ./internal/db ./internal/cli
+      -count=1 passed; mage check passed all packages with 0 lint issues;
+      README.md and .agentera/docs.yaml docs lint passed; ARCHITECTURE.md had
+      only its pre-existing full-file word-budget advisory; reference scan and
+      git diff --check passed.
+    next: Record the approved decision revision after the user reviews enough active
+      decision satisfaction to clear Agentera's protected capacity.
+    context:
+      intent: Make the unreleased sole-user product contract equal to the desired
+        current state after the sole live database was backed up and converted
+        once externally.
+      constraints: Did not touch the local database, installed binary, historical
+        archived plan/progress, canonical Codex derivation, retry conflict
+        handling, or legacy flat ingress.
+      unknowns: none
+      scope: internal/db/schema.go; deleted internal/db/codex_identity_migration.go
+        and tests; README.md; deleted docs/migrations.md; .agentera/docs.yaml;
+        ARCHITECTURE.md; .agentera/progress.yaml
   - number: 32
     timestamp: 2026-07-12 21:52
     type: docs
@@ -162,26 +193,11 @@ cycles:
     context:
       intent: "Document command-aware routing: example config, pipeline docs,
         architecture update."
-  - number: 23
-    timestamp: 2026-07-12 13:46
-    type: refactor
-    phase: build
-    what: "Task 4: Replaced global PipelineTimeout/RecoverFooter with per-profile
-      Profile struct. ResolveTimeout/ResolveRecoverFooter with default fallback.
-      compressPipeline resolves timeout internally. hookLogic resolves
-      recover_footer per selected profile. 4 per-profile acceptance tests +
-      config-layer unit tests."
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
-      -buildvcs=false ./... exit 0. AC1:
-      TestCompressPipeline_PerProfileTimeout_ProfileOwnValue. AC2:
-      TestCompressPipeline_PerProfileTimeout_InheritsDefault. AC3:
-      TestHook_PerProfileRecoverFooter_ProfileOwnValue. AC4:
-      TestHook_PerProfileRecoverFooter_InheritsDefault."
-    next: "Task 6: Current-state check."
-    context:
-      intent: Lift timeout and recover_footer from global scalars to per-profile
-        values with default fallback.
 archive:
+  - summary: "Cycle 23 (2026-07-12): Task 4: Replaced global
+      PipelineTimeout/RecoverFooter with per-profile Profile struct.
+      ResolveTimeout/ResolveRecoverFooter with default fallback.
+      compressPipeline resolves..."
   - summary: "Cycle 22 (2026-07-12): Task 3: Pipeline wiring. compressPipeline calls
       router.Match to select profile, stagesForProfile resolves stages with
       default..."

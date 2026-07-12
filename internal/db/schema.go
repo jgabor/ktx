@@ -334,10 +334,6 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
-	if err := migrateCodexIdentities(tx); err != nil {
-		return err
-	}
-
 	haveBR, err := tableColumns(tx, "bench_runs")
 	if err != nil {
 		return fmt.Errorf("db: inspect bench_runs: %w", err)

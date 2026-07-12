@@ -154,13 +154,13 @@ Agents differ in how they can host external tooling. ktx accommodates multiple a
 | **Sidecar** | An already-running agent sends events to ktx; observation starts when data arrives. Suited to richer runtimes and custom integrations.                                            |
 | **Hooks**   | ktx is wired into the agent's configuration; observation runs silently inside long-lived sessions (including TUIs). Suited where wrapping the process is impractical.             |
 
-All ingress modes converge on one persisted identity contract. KTX owns every
-stored identifier; runtime-provided identifiers are correlation inputs, not
-database identities. When a runtime supplies a usable runtime name, session
-identifier, and tool-call identifier, KTX derives the same canonical identifier
-from that tuple on every machine. Events without a complete usable tuple receive
-a fresh canonical identifier. Runtime-shaped identifiers and compatibility
-aliases are not retained.
+Codex hook records use KTX-owned persisted identifiers. Runtime-provided
+identifiers are correlation inputs, not database identities. When Codex supplies
+a usable runtime name, session identifier, and tool-call identifier, KTX derives
+the same canonical identifier from that tuple on every machine. Events without
+a complete usable tuple receive a fresh canonical identifier. Runtime-shaped
+identifiers and compatibility aliases are not retained. Legacy flat ingress
+continues to preserve caller-supplied identifiers.
 
 Architecturally, these are **ingress variants**, not separate products. Inspection, compression, reversibility, and benchmarking must not depend on which path recorded the data.
 

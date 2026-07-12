@@ -38,7 +38,3 @@ index:
     path: docs/pipelines.md
     last_updated: 2026-07-12
     status: current
-  - document: Database migrations
-    path: docs/migrations.md
-    last_updated: 2026-07-12
-    status: current

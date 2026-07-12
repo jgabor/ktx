@@ -1,4 +1,17 @@
 cycles:
+  - number: 28
+    timestamp: 2026-07-12 21:19
+    type: docs
+    phase: build
+    what: Ratified the single persisted tool-call identity contract
+    verified: Decision 26 fixes versioned length-prefixed tuple framing, ASCII-only
+      normalization, SHA-256 base-26 derivation, and fresh random fallback for
+      unusable tuples; ARCHITECTURE.md records the ingress invariant; Agentera
+      decisions and plan artifact validation passed; mage check passed with 0
+      issues
+    context:
+      intent: Make KTX the sole owner of Codex tool-call identities before migration
+        and ingestion changes
   - number: 27
     timestamp: 2026-07-12 15:11
     type: docs
@@ -188,75 +201,10 @@ cycles:
         install/uninstall/show subtests + 3 error/help tests). No changes to
         go.mod/go.sum, internal/parser/, internal/db/, or the compression
         pipeline."
-  - number: 18
-    timestamp: 2026-07-11 23:22
-    type: feat
-    phase: build
-    what: 'Plugin boundary consolidation: moved ID generation, timestamp generation,
-      and field extraction from the OpenCode plugin template into the ktx
-      binary. Added a runtime TEXT column to tool_calls for per-tool-call
-      runtime attribution. The plugin template (ktxOpencodePluginTemplate in
-      init.go) is now a pure IPC shim: it sends {runtime:"opencode", input,
-      output} (raw callback objects) and mutates output.output from the
-      envelope. The hook generates IDs via dbpkg.NewID() and timestamps via
-      time.Now() when empty, following the same compute-when-empty pattern as
-      content_hash and session_id. Runtime-keyed extraction in the hook layer
-      handles the OpenCode callback shape (tool from input.tool, input from
-      stringified args, output from bare string or object.output field with
-      stringified fallback). Backward compatible: payloads without runtime fall
-      back to flat ToolCall deserialisation.'
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
-      -buildvcs=false ./... exit 0 (all packages pass). Schema migration test:
-      TestOpen_RuntimeMigration verifies pre-migration schema gains runtime
-      column, existing row has NULL, re-migrate is a no-op. Record layer test:
-      TestPersistToolCall_RuntimeRoundTrip covers present-value, absent, and
-      empty-string-disambiguation cases with fetch round-trip. Hook ID/timestamp
-      tests: TestHook_GeneratesIDWhenEmpty,
-      TestHook_GeneratesTimestampWhenEmpty,
-      TestHook_PopulatedFieldsUseCallerValues, TestHook_MissingFields (tool
-      still required). Extraction tests: TestHook_OpenCode_RawCallbackExtracted,
-      TestHook_OpenCode_BareStringOutput,
-      TestHook_OpenCode_ObjectWithoutOutputField, TestHook_OpenCode_NoToolName,
-      TestHook_NoRuntime_FlatDeserialisation,
-      TestHook_UnrecognisedRuntime_FlatDeserialisation,
-      TestExtractOpenCodeFields_Direct. Init tests pass unchanged with slimmed
-      template."
-    next: No carry-forward code work. The plugin template is feature-complete as a
-      pure IPC shim. Re-install the plugin via ktx init opencode to deploy the
-      slimmed template. Wrapper-path runtime attribution is deferred
-      (session.agent covers it). Runtime-aware pipeline routing is a future
-      router/classifier concern.
-    context:
-      intent: "Consolidate domain logic from the OpenCode plugin into the ktx binary.
-        The plugin reimplemented the nanoid alphabet with a biased modular
-        mapping, generated timestamps manually, and extracted fields from
-        callback objects. Moving all of this into the binary creates a
-        consistent boundary: the plugin is a pure IPC shim, the binary owns all
-        domain decisions (ID generation, timestamp, content hash, session
-        resolution, field extraction, runtime attribution)."
-      constraints: Hook contract unchanged in shape (stdin JSON -> stdout JSON
-        envelope), only relaxed in field requirements (id and timestamp now
-        optional). Conservative-on-failure preserved. Compression pipeline,
-        recovery footer, and anti-worsening gate unchanged. No new dependencies.
-        Extraction lives in hook layer (internal/cli), not in stream parser
-        (internal/parser) — different schemas. Unknown runtime falls back to
-        flat ToolCall deserialisation. No project-memory markers in shipped code
-        or test fixtures.
-      unknowns: Whether the slimmed plugin template will work with future OpenCode
-        plugin API versions. Only tested against the current callback shape.
-      scope: internal/db/schema.go (runtime column in CREATE TABLE, runtimeColumns
-        list, migration loop in migrate()); internal/db/records.go (Runtime
-        *string on ToolCall, PersistToolCall INSERT, GetToolCall SELECT/Scan);
-        internal/db/runtime_migration_test.go (new migration test);
-        internal/db/records_test.go (runtime round-trip tests);
-        internal/db/db_test.go (fixture update); internal/cli/hook.go
-        (ID/timestamp generation when empty, extractOpenCodeFields function,
-        runtime-keyed extraction in hookLogic, help text update);
-        internal/cli/hook_test.go (7 new extraction tests + 3 ID/timestamp
-        tests); internal/cli/init.go (slimmed ktxOpencodePluginTemplate, doc
-        comment and help text updates). No changes to go.mod/go.sum,
-        internal/parser/, or the compression pipeline.
 archive:
+  - summary: "Cycle 18 (2026-07-11): Plugin boundary consolidation: moved ID
+      generation, timestamp generation, and field extraction from the OpenCode
+      plugin..."
   - summary: "Cycle 17 (2026-07-09): D24 amends D23: recovery footer reformatted to
       a single instructional line. buildRecoveryFooter now emits `[ktx]..."
   - summary: "Cycle 16 (2026-07-09): D23 ships: ktx hook composes an opt-in recovery

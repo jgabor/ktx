@@ -2657,3 +2657,24 @@ decisions:
   satisfaction:
     state: provisionally_satisfied
     evidence: 'Go golden tests cover deterministic corpus bytes, summary JSON, ranking JSON, timestamps, floating-point values, and null-versus-zero metrics. The live runner has a fake command adapter test covering alternating side order, retained summaries, and unconditional Docker cleanup; the OS adapter test covers process-group timeout and grace termination. The report test verifies database bytes remain unchanged and no bench_runs table is created. Repository-wide validation remains required before user confirmation.'
+
+- number: 26
+  date: '2026-07-12'
+  question: How should KTX identify Codex tool calls when the runtime supplies an external-shaped identifier?
+  context: 'The Codex hook currently accepts tool_use_id values such as exec-UUID and persists them directly as tool_calls.id, while KTX-generated identifiers use exactly 16 lowercase ASCII letters. This creates two primary-key domains and lets adapter behavior redefine the persistence contract. The user approved a strict single-identity model: no external-correlation metadata, no compatibility aliases, and no promise that previously emitted ktx read exec-* commands continue to resolve after historical migration.'
+  alternatives:
+  - name: Preserve the external identifier as the primary key
+    status: rejected
+    description: Keep Codex tool_use_id values unchanged so existing recovery commands continue to resolve.
+    rationale: This preserves two identity domains and leaves the persistence contract under runtime control.
+  - name: Generate an unrelated KTX identifier for every delivery
+    status: rejected
+    description: Ignore runtime identity and allocate a fresh random identifier for every event.
+    rationale: Exact runtime retries would become duplicate evidence and could not be recognized atomically.
+  - name: Derive one canonical KTX identifier from a framed runtime tuple
+    status: chosen
+    description: Treat runtime, runtime session, and runtime tool-call identifier as correlation inputs to a versioned deterministic derivation; allocate a fresh canonical identifier when the tuple is incomplete or unusable.
+  choice: 'KTX exclusively owns persisted tool-call identity. For a usable Codex tuple, canonical identity is derived from the ordered tuple (runtime, session, tool_use_id) under derivation version ktx-tool-call-id-v1. Each field must be valid UTF-8. Strip only leading and trailing ASCII whitespace (bytes 0x09 through 0x0d and 0x20); lowercase the runtime field using ASCII A-Z mapping; preserve session and tool_use_id bytes exactly after that trim, including case and internal whitespace. All three normalized fields must be non-empty. Frame the derivation preimage as the UTF-8 domain bytes ktx-tool-call-id-v1 followed by each ordered field encoded as an unsigned 32-bit big-endian byte length and then its bytes. Hash that preimage with SHA-256, interpret the digest as one unsigned big-endian integer, reduce it modulo 26^16, and encode the result as exactly 16 base-26 digits using a=0 through z=25, most-significant digit first with leading a digits retained. The same tuple therefore maps identically across processes, machines, migrations, and releases. If any field is missing, invalid UTF-8, or empty after normalization, the tuple is unusable and the accepted event receives a fresh cryptographically random canonical KTX ID; missing identifiers are never replaced by a shared sentinel or hashed into a common identity. The external identifier is not retained as metadata or alias. Eligible historical Codex primary keys will be replaced in place, so legacy ktx read exec-* commands are intentionally unsupported after migration. This choice supersedes any earlier implication that runtime correlation identifiers must be preserved or that recovery commands using an external-shaped primary key remain compatible.'
+  reasoning: 'A versioned, length-prefixed preimage makes tuple boundaries unambiguous and avoids separator, locale, Unicode-normalization, and platform-dependent serialization behavior. Narrow ASCII normalization handles the runtime label predictably without changing opaque session or tool-call identifiers. Deterministic derivation gives exact retries one identity, while fresh random allocation for unusable tuples prevents unrelated missing-identifier events from collapsing. Keeping no alias or external-ID column enforces the approved single-identity tradeoff and leaves one durable contract for persistence, recovery, inspection, and migration.'
+  confidence: firm
+  feeds_into: 'Codex hook ingress; canonical ID derivation; historical Codex identity migration; retry conflict handling; recovery commands; structured output'

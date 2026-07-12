@@ -1,0 +1,73 @@
+header:
+  level: full
+  created: 2026-07-12
+  status: active
+  reviewed: 2026-07-12
+  critic_issues: 10 found, 10 addressed, 0 dismissed
+  title: Unify Codex tool-call identity
+what: Make KTX the sole owner of persisted tool-call identity. Codex runtime identifiers are converted at ingress into stable canonical KTX identifiers, and eligible historical Codex rows are migrated to the same contract.
+why: Runtime-shaped primary keys violate KTX's identifier alphabet and make adapter behavior inconsistent. A single durable identity keeps persistence, recovery, inspection, and retry behavior under one contract.
+constraints: Persisted tool-call IDs use the canonical 16-letter lowercase alphabet. No external-ID field or compatibility alias is retained. Existing non-Codex and ambiguous historical rows are not rewritten. Previously emitted exec-based commands are intentionally unsupported after migration. Migration and retry handling never silently merge, overwrite, or discard evidence.
+overall_acceptance: A Codex event is persisted under a canonical source ID without retaining an exec-shaped identity; exact retries in one runtime session resolve atomically without duplicate evidence or counts; eligible historical identities and their references migrate atomically or remain wholly unchanged with an actionable error; canonical recovery returns the exact original bytes.
+scope:
+  included:
+    - Codex tool-call identity and exact-retry behavior
+    - Eligible historical Codex source rows and dependent references
+    - Recovery, structured output, diagnostics, documentation, and validation
+  excluded:
+    - Compatibility aliases for old exec-based commands
+    - Preservation of the original Codex identifier
+    - Rewriting non-Codex or ambiguously attributed historical rows
+    - Changing canonical session or compressed-record identity contracts
+  deferred:
+    []
+design: Establish one durable KTX identity at the runtime boundary. Exact runtime retries share that identity; conflicting deliveries fail rather than mutate prior evidence. Historical conversion is conservative, atomic, and limited to rows authoritatively attributable to Codex.
+unknowns:
+  - question: Do existing databases contain eligible Codex rows whose canonical mappings collide or represent conflicting retries?
+    affects_task: 2
+    resolve_by: Migration preflight inventories conflicts and aborts without writes when safe one-to-one conversion is impossible.
+rejected:
+  - issue: Retain external Codex identifiers as metadata or compatibility aliases.
+    rationale: The user selected a strict single-identity contract and accepted that previously emitted exec-based commands will no longer resolve after migration.
+tasks:
+  - number: 1
+    name: Ratify the single-identity contract
+    depends_on:
+      []
+    status: complete
+    acceptance:
+      - GIVEN the approved compatibility tradeoff WHEN the contract is recorded THEN it explicitly supersedes external-correlation preservation and legacy exec-command compatibility.
+      - GIVEN a runtime identity tuple WHEN its canonical identity is derived THEN tuple boundaries and normalization remain stable across processes, machines, migrations, and future releases.
+      - GIVEN a Codex event without a usable runtime identifier WHEN it is accepted THEN it receives a fresh canonical identity and cannot collapse with another missing-identifier event.
+  - number: 2
+    name: Convert eligible historical Codex identities safely
+    depends_on:
+      - "1"
+    status: pending
+    acceptance:
+      - GIVEN a historical row authoritatively attributed to Codex with an external-shaped source ID WHEN migration succeeds THEN its source ID and every dependent reference use the canonical replacement while all other evidence remains unchanged.
+      - GIVEN an ambiguous row, mapping collision, or multiple historical rows competing for one identity WHEN migration runs THEN it stops with actionable diagnostics and commits no partial changes.
+      - GIVEN a successfully migrated database WHEN it opens again and validates referential integrity THEN migration is a no-op and no eligible external-shaped Codex source ID remains.
+  - number: 3
+    name: Enforce canonical Codex ingestion and retry behavior
+    depends_on:
+      - "1"
+    status: pending
+    acceptance:
+      - GIVEN a new Codex event with a usable runtime identifier WHEN it is persisted THEN its KTX source ID is canonical and stable for the same runtime session.
+      - GIVEN concurrent exact retries WHEN they are handled THEN one source and at most one corresponding compressed artifact are recorded without double-counting.
+      - GIVEN the same runtime identity with changed tool input or output WHEN it is handled THEN KTX reports a conflict and preserves the first evidence unchanged.
+      - GIVEN OpenCode or legacy flat-hook input WHEN it is handled THEN its existing binary-owned identity behavior remains intact.
+  - number: 4
+    name: Publish and verify the unified contract
+    depends_on:
+      - "2"
+      - "3"
+    status: pending
+    acceptance:
+      - GIVEN migrated and newly captured Codex records WHEN users inspect, read, compress, or decompress them THEN every surfaced source identity is canonical and recovery returns exact original bytes.
+      - GIVEN an old exec-based command WHEN it is used after migration THEN its unsupported status is clear in release and migration documentation.
+      - GIVEN focused migration, collision, retry, hook-path, recovery, and structured-output checks WHEN full project verification runs THEN all checks pass.
+      - GIVEN a representative Codex hook payload WHEN exercised end to end THEN no external-shaped primary key is persisted.
+surprises:
+  []

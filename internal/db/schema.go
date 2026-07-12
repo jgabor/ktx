@@ -282,7 +282,8 @@ func tableColumns(q queryer, table string) (map[string]struct{}, error) {
 	return cols, nil
 }
 
-// migrate creates missing tables and adds missing columns in one transaction.
+// migrate creates missing tables, adds missing columns, and converts historical
+// Codex tool-call identities in one transaction.
 // It repairs partial tool_calls, bench_runs, and compressed schemas. The
 // recorded_streams table is created when absent but does not support partial
 // column repair. Reopening a current database performs no schema changes.
@@ -331,6 +332,10 @@ func migrate(db *sql.DB) error {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("db: add runtime column %q: %w", col.Name, err)
 		}
+	}
+
+	if err := migrateCodexIdentities(tx); err != nil {
+		return err
 	}
 
 	haveBR, err := tableColumns(tx, "bench_runs")

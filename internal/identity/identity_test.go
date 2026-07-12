@@ -67,4 +67,7 @@ func TestDeriveIsDeterministic(t *testing.T) {
 	if first != second {
 		t.Fatalf("Derive returned %q then %q", first, second)
 	}
+	if first != "yeidpaaatyvvzrfo" {
+		t.Fatalf("Derive returned %q, want stable cross-runtime vector %q", first, "yeidpaaatyvvzrfo")
+	}
 }

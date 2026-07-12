@@ -1,4 +1,19 @@
 cycles:
+  - number: 29
+    timestamp: 2026-07-12 21:35
+    type: fix
+    phase: build
+    what: Converted historical Codex tool-call identities atomically
+    verified: go test ./internal/identity ./internal/db -count=1 passed; migration
+      tests verified evidence preservation and all discovered foreign-key
+      updates, ambiguous-tuple rollback, existing-target collision rollback,
+      competing-row rollback, reopen idempotency, zero remaining eligible
+      external Codex IDs, and foreign-key integrity; mage check passed with 0
+      issues
+    context:
+      intent: Replace noncanonical Codex primary keys and every dependent reference
+        with deterministic canonical identities while rejecting ambiguous
+        tuples, competing mappings, and collisions without partial changes
   - number: 28
     timestamp: 2026-07-12 21:19
     type: docs
@@ -143,65 +158,9 @@ cycles:
     context:
       intent: Support command-aware filter routing in Layer 1 by parsing route rules
         in ktx.toml that map tool call metadata to named pipeline profiles.
-  - number: 19
-    timestamp: 2026-07-12 01:10
-    type: feat
-    phase: build
-    what: "Codex hook integration: added ktx init codex, runtime-aware hook I/O for
-      Codex PostToolUse payloads. The hook auto-detects Codex from
-      hook_event_name, extracts tool_name/tool_input/tool_response/tool_use_id,
-      and outputs Codex-format hook responses:
-      {decision:block,reason:compressed} when compression transforms, {} when
-      passthrough. KTX_SESSION_ID noop guard moved into hook logic (fires before
-      any stdin read or DB access). ktx init codex installs/uninstalls/shows a
-      PostToolUse entry in ~/.codex/hooks.json with merge semantics (preserves
-      existing hooks like SessionStart). Codex uses command-type hooks (stdin
-      JSON -> stdout JSON), no TypeScript plugin needed. Trust review required:
-      user must run /hooks in Codex to trust the ktx hook."
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
-      -buildvcs=false ./... exit 0 (all packages pass). KTX_SESSION_ID guard:
-      TestHook_SessionIDGuard (set→noop, unset→processes). Codex extraction:
-      TestHook_Codex_ObjectWithAggregatedOutput, _BareStringOutput,
-      _ObjectWithoutRecognisedField, _NoToolName, _WithoutToolUseID_GeneratesID,
-      _BackwardCompat_OpenCode, _BackwardCompat_Flat,
-      TestExtractCodexFields_Direct. Codex output:
-      TestHook_CodexOutput_Transforms, _Passthrough_Empty,
-      _AntiWorsening_Suppressed, _OpenCode_KeepsEnvelope, _Footer_Transforms.
-      Init codex: 14 subtests in TestRunInitWith_CodexInstall + 3 in
-      _CodexRuntimeErrors covering
-      install/merge/idempotent/uninstall/show/project/trust-note."
-    next: No carry-forward code work. Re-install the plugin via ktx init codex to
-      deploy. codex exec --json wrapper path for benchmarking is deferred to a
-      future plan. updatedMCPToolOutput transparent compression is deferred
-      until Codex ships support.
-    context:
-      intent: Support Codex similarly to how OpenCode is supported. Codex (v0.144.1)
-        has a stable PostToolUse hook system with per-tool-call observation and
-        output replacement via decision/reason. This is the only path that gives
-        ktx both observation AND transformation in Codex's interactive TUI mode,
-        since updatedMCPToolOutput is not yet supported by Codex.
-      constraints: "Hook contract unchanged in shape (stdin JSON -> stdout JSON), only
-        output format is runtime-keyed (Codex gets decision/reason, OpenCode
-        gets ktx envelope). Conservative-on-failure preserved. Compression
-        pipeline, recovery footer, and anti-worsening gate unchanged. hooks.json
-        is a shared config file: install merges, uninstall removes only ktx
-        entry. No new dependencies. Codex session IDs ignored (ppid resolution).
-        No project-memory markers in shipped code."
-      unknowns: Whether decision:block semantics (model sees compressed output as hook
-        feedback rather than original tool result) will affect model behavior.
-        If it degrades, observation-only mode is the fallback. Whether Codex
-        spawns ktx hook directly or through a shell (affects ppid-based session
-        resolution).
-      scope: "internal/cli/hook.go (KTX_SESSION_ID guard, Codex extraction function,
-        Codex output formatting, help text update); internal/cli/hook_test.go (8
-        Codex extraction tests, 5 Codex output tests, 1 SessionID guard test);
-        internal/cli/init.go (codex case in switch, help text);
-        internal/cli/init_codex.go (new: init logic, hooks.json merge,
-        uninstall, show); internal/cli/init_codex_test.go (new: 14
-        install/uninstall/show subtests + 3 error/help tests). No changes to
-        go.mod/go.sum, internal/parser/, internal/db/, or the compression
-        pipeline."
 archive:
+  - summary: "Cycle 19 (2026-07-12): Codex hook integration: added ktx init codex,
+      runtime-aware hook I/O for Codex PostToolUse payloads. The..."
   - summary: "Cycle 18 (2026-07-11): Plugin boundary consolidation: moved ID
       generation, timestamp generation, and field extraction from the OpenCode
       plugin..."

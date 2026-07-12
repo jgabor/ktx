@@ -1,7 +1,7 @@
 header:
   level: full
   created: 2026-07-12
-  status: active
+  status: complete
   reviewed: 2026-07-12
   critic_issues: 10 found, 10 addressed, 0 dismissed
   title: Unify Codex tool-call identity

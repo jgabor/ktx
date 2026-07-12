@@ -1,7 +1,7 @@
 header:
   level: full
   created: 2026-07-12
-  status: active
+  status: complete
   reviewed: 2026-07-12
   critic_issues: 14 found, 11 addressed, 3 dismissed
   title: "Plan: Residual-waste discovery command and replace stage"
@@ -29,12 +29,17 @@ scope:
     - Project-local config
 design: |
   The replace stage follows the grepBuilder pattern: compile a regex, apply ReplaceAll per-line, return the result. The separator between pattern and replacement within the stage arg is left as an unknown — build must choose an ASCII delimiter that does not conflict with Go regex syntax and document it. The candidates command uses a LEFT JOIN from tool_calls to compressed so uncompressed calls surface with delivered == raw. The query groups by tool and the binary name extracted from tool_calls.input JSON (reusing the router's commandFromInput, exported for this purpose). For rows with no compressed entry, delivered tokens equal raw tokens. The query filters out trivial calls (strictly fewer than 50 delivered tokens or strictly fewer than 2 calls) and ranks by total delivered tokens descending. Text output is a table with a default limit of 20; --format json is an array of objects. Both reuse the existing dispatch and format-extraction patterns.
+unknowns:
+  - entry: Replace stage pattern/replacement separator
+    question: What ASCII delimiter separates pattern from replacement in the replace stage arg without conflicting with Go regex syntax?
+    affects_task: "1"
+    resolve_by: Build chooses and documents the delimiter in the replace stage implementation.
 tasks:
   - number: 1
     name: Replace stage
     depends_on:
       []
-    status: pending
+    status: complete
     acceptance:
       - GIVEN a profile with a replace stage matching a literal prefix WHEN compression runs on input containing that prefix THEN the output has the prefix replaced
       - GIVEN a profile with a replace stage matching a regex pattern WHEN compression runs on input containing matches THEN the output has matches replaced with the replacement string
@@ -45,7 +50,7 @@ tasks:
     name: ktx candidates command
     depends_on:
       []
-    status: pending
+    status: complete
     acceptance:
       - GIVEN a database with compressed rows linked to tool_calls WHEN ktx candidates runs THEN output lists tool and command groups ranked by total delivered tokens descending
       - GIVEN a database with tool_calls that have no compressed rows WHEN ktx candidates runs THEN those calls appear with delivered tokens equal to raw tokens
@@ -59,7 +64,7 @@ tasks:
     depends_on:
       - "1"
       - "2"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN a user reading ktx.example.toml WHEN they look for replace THEN they find a commented example showing the replace stage syntax
       - GIVEN a user reading docs/pipelines.md WHEN they look for filter packs THEN they find a section explaining how to combine routing profiles and the replace stage into a filter pack with a worked example

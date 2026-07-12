@@ -52,7 +52,7 @@ tasks:
     name: Enforce canonical Codex ingestion and retry behavior
     depends_on:
       - "1"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN a new Codex event with a usable runtime identifier WHEN it is persisted THEN its KTX source ID is canonical and stable for the same runtime session.
       - GIVEN concurrent exact retries WHEN they are handled THEN one source and at most one corresponding compressed artifact are recorded without double-counting.

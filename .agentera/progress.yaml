@@ -1,4 +1,24 @@
 cycles:
+  - number: 30
+    timestamp: 2026-07-12 21:41
+    type: feat
+    phase: build
+    what: Integrated the audited internal/cli/hook.go Codex ingestion implementation
+      into main, retaining the shared canonical identity package and migration
+      evidence.
+    verified: go test -race ./internal/cli ./internal/db passed targeted canonical
+      identity, concurrent retry, changed-payload conflict, and atomic insertion
+      tests on main; mage check passed all packages with 0 lint issues; the Task
+      3 audit passed all acceptance surfaces.
+    next: Execute and audit the remaining unified-contract documentation task.
+    context:
+      intent: Complete live Codex ingestion with canonical stable IDs, retry
+        deduplication, conflict preservation, and unchanged OpenCode and
+        flat-hook behavior.
+      constraints: Integrated only the audited product diff; did not replay duplicate
+        identity or stale progress commits.
+      scope: internal/cli/hook.go, internal/cli/hook_test.go, internal/db/records.go,
+        internal/db/compress.go, internal/db/retry_test.go
   - number: 29
     timestamp: 2026-07-12 21:35
     type: fix
@@ -141,24 +161,9 @@ cycles:
     context:
       intent: Support command-aware filter routing by matching tool call metadata to
         named pipeline profiles using route rules.
-  - number: 20
-    timestamp: 2026-07-12 12:48
-    type: feat
-    phase: build
-    what: "Task 1: Route rule config parsing. Added RouteRule struct and Routes
-      field to Config, [[route]] TOML parsing with profile-existence validation,
-      config show --json routes output, ktx.example.toml examples, 5 test files
-      covering all acceptance criteria."
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
-      -buildvcs=false ./internal/config/... ./internal/cli/... exit 0. AC1:
-      TestLoad_RouteRules. AC2: TestLoad_NoRouteRules. AC3:
-      TestLoad_RouteRuleMissingProfile. AC4: TestConfigShow_JSON_WithRoutes +
-      _NoRoutes. AC5: TestBenchAgentPreflightResolvesStagesWithRouteRules."
-    next: "Task 2: Router function."
-    context:
-      intent: Support command-aware filter routing in Layer 1 by parsing route rules
-        in ktx.toml that map tool call metadata to named pipeline profiles.
 archive:
+  - summary: "Cycle 20 (2026-07-12): Task 1: Route rule config parsing. Added
+      RouteRule struct and Routes field to Config, [[route]]..."
   - summary: "Cycle 19 (2026-07-12): Codex hook integration: added ktx init codex,
       runtime-aware hook I/O for Codex PostToolUse payloads. The..."
   - summary: "Cycle 18 (2026-07-11): Plugin boundary consolidation: moved ID

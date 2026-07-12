@@ -32,10 +32,11 @@ are ordered lists of deterministic stages such as `strip-ansi`, `keep-ends`,
 and `token-budget`. Originals remain addressable through `ktx read` and
 `ktx decompress`.
 
-All record IDs printed by KTX are 16 lowercase letters. Runtime identifiers
-such as Codex `exec-*` values are inputs to identity derivation, not record IDs.
-Use the canonical ID printed in KTX output for `read`, `get`, `compress`, and
-recovery commands.
+Codex hook records use KTX-owned IDs containing exactly 16 lowercase letters.
+Codex runtime identifiers such as `exec-*` values are inputs to identity
+derivation, not record IDs. Use the canonical source ID printed by the Codex
+hook or returned by KTX inspection for `read`, `get`, `compress`, and recovery
+commands.
 
 ## Benchmarking
 

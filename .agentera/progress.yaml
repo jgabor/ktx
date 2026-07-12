@@ -1,4 +1,30 @@
 cycles:
+  - number: 32
+    timestamp: 2026-07-12 21:52
+    type: docs
+    phase: audit
+    what: Corrected the README identity contract so it applies specifically to Codex
+      hook records and no longer implies that backward-compatible flat-hook
+      caller IDs are canonicalized.
+    inspiration: Task 4 evaluation retry found that the release wording was broader
+      than the implemented Codex-only identity boundary.
+    discovered: The migration guide was already correctly scoped to Codex; only the
+      README summary required correction. Legacy flat-hook ingress intentionally
+      preserves caller-supplied IDs such as callerID1.
+    verified: README and migration guide docs lint passed. Focused CLI hook tests
+      passed, including legacy caller-supplied ID behavior and Codex hook
+      behavior. Focused database and identity derivation tests passed. git diff
+      --check passed.
+    next: Task 4 remains complete with documentation aligned to both canonical Codex
+      ingestion and backward-compatible flat-hook ingress.
+    context:
+      intent: Resolve the Task 4 audit defect without changing legacy flat-hook
+        behavior or expanding product scope.
+      constraints: Documentation-only correction; no product behavior, migration,
+        compatibility, decision satisfaction, or unrelated documentation
+        changes.
+      unknowns: none
+      scope: README.md, .agentera/progress.yaml, .agentera/plan.yaml
   - number: 31
     timestamp: 2026-07-12 21:48
     type: docs
@@ -155,27 +181,10 @@ cycles:
     context:
       intent: Lift timeout and recover_footer from global scalars to per-profile
         values with default fallback.
-  - number: 22
-    timestamp: 2026-07-12 13:21
-    type: feat
-    phase: build
-    what: "Task 3: Pipeline wiring. compressPipeline calls router.Match to select
-      profile, stagesForProfile resolves stages with default fallback. New
-      EncodePipelineRecord emits {profile, stages} JSON. pipelineLabel
-      backward-compatible with legacy array format. No schema migration needed.
-      6 new tests, existing tests updated for new JSON format."
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
-      -buildvcs=false ./... exit 0 (12 packages). AC1:
-      TestCompressLogic_RoutedProfileAppliesRoutedStages. AC2:
-      TestCompressLogic_NoRouteMatchUsesDefaultProfile. AC3:
-      TestCompressLogic_PipelineRecordsSelectedProfile. AC4:
-      TestStagesForProfile +
-      TestCompressPipeline_UnknownProfileFallsBackToDefault."
-    next: "Task 4: Lift timeout and recover_footer from global to per-profile."
-    context:
-      intent: Wire the router into the compression pipeline so routed profiles are
-        selected per tool call, with profile name recorded for auditability.
 archive:
+  - summary: "Cycle 22 (2026-07-12): Task 3: Pipeline wiring. compressPipeline calls
+      router.Match to select profile, stagesForProfile resolves stages with
+      default..."
   - summary: "Cycle 21 (2026-07-12): Task 2: Router function. New
       internal/router/router.go with Match(tc, routes, defaultProfile) — pure
       function, first-match-wins, default..."

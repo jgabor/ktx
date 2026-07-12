@@ -23,7 +23,7 @@ func TestStatsLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := statsLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -61,7 +61,7 @@ func TestStatsLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := statsLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -90,7 +90,7 @@ func TestStatsLogic(t *testing.T) {
 		seedCompressedRow(t, db, ids[1], strings.Repeat("s", 200)+"\n", "2026-07-12T00:00:01Z")
 
 		var buf bytes.Buffer
-		_, err := statsLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -118,7 +118,7 @@ func TestStatsLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := statsLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -148,7 +148,7 @@ func TestStatsLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := statsLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -178,7 +178,7 @@ func TestStatsLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := statsLogic([]string{"--limit", "1"}, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, 1, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -201,7 +201,7 @@ func TestStatsLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := statsLogic(nil, FormatText, db, &buf)
+		_, err := statsLogic(nil, FormatText, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -222,7 +222,7 @@ func TestStatsLogic(t *testing.T) {
 		db := openMemoryDB(t)
 
 		var buf bytes.Buffer
-		_, err := statsLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}
@@ -236,7 +236,7 @@ func TestStatsLogic(t *testing.T) {
 		}
 
 		var textBuf bytes.Buffer
-		_, err = statsLogic(nil, FormatText, db, &textBuf)
+		_, err = statsLogic(nil, FormatText, statsDefaultLimit, db, &textBuf)
 		if err != nil {
 			t.Fatalf("statsLogic text: %v", err)
 		}
@@ -248,7 +248,7 @@ func TestStatsLogic(t *testing.T) {
 	t.Run("invalid --limit returns usage error", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
-		_, err := statsLogic([]string{"--limit", "0"}, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, 0, db, &buf)
 		if err == nil {
 			t.Error("expected usage error for --limit 0")
 		}
@@ -257,7 +257,7 @@ func TestStatsLogic(t *testing.T) {
 	t.Run("--help renders help text", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
-		_, err := statsLogic([]string{"--help"}, FormatJSON, db, &buf)
+		_, err := statsLogic([]string{"--help"}, FormatJSON, statsDefaultLimit, db, &buf)
 		if err != nil {
 			t.Fatalf("statsLogic: %v", err)
 		}

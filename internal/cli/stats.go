@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
@@ -50,31 +52,73 @@ type statsGroup struct {
 	TotalDeliveredTokens int    `json:"total_delivered_tokens"`
 }
 
+// statsParsedArgs carries the parsed --limit value from ParseArgs
+// through the dispatcher into statsCommandFunc.
+type statsParsedArgs struct {
+	Limit int
+}
+
+// parseStatsArgs pre-extracts --limit from args before the
+// dispatcher's shared flag set sees it. The shared flag set only
+// knows --help/-h and --quiet/-q; an unrecognized --limit would
+// trigger "flag provided but not defined." This mirrors how
+// extractFormat handles --format: scan, extract, return the rest.
+func parseStatsArgs(args []string) ([]string, any, error) {
+	limit := statsDefaultLimit
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--limit" && i+1 < len(args) {
+			parsed, err := strconv.Atoi(args[i+1])
+			if err != nil {
+				return nil, nil, fmt.Errorf("ktx stats: invalid --limit %q: %v", args[i+1], err)
+			}
+			limit = parsed
+			i++ // skip the value
+			continue
+		}
+		if strings.HasPrefix(a, "--limit=") {
+			val := strings.TrimPrefix(a, "--limit=")
+			parsed, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, nil, fmt.Errorf("ktx stats: invalid --limit %q: %v", val, err)
+			}
+			limit = parsed
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return rest, statsParsedArgs{Limit: limit}, nil
+}
+
 func init() {
 	Register("stats", RegisterOptions{
 		Description:   "per-tool-call statistics ranked by delivered tokens",
 		NeedsDB:       true,
 		FormatDefault: FormatJSON,
 		Help:          printStatsHelp,
+		ParseArgs:     parseStatsArgs,
 	}, statsCommandFunc)
 }
 
-// statsCommandFunc is the dispatch wrapper. The dispatcher
-// already opened the DB, parsed --help/--format, and resolved the
-// format.
+// statsCommandFunc is the dispatch wrapper. The dispatcher already
+// opened the DB, parsed --help/--format, and extracted --limit via
+// ParseArgs. The limit value arrives via ctx.ParsedArgs.
 func statsCommandFunc(ctx *DispatchContext) (any, error) {
-	return statsLogic(ctx.Args, ctx.Format, ctx.DB, ctx.Stdout)
+	limit := statsDefaultLimit
+	if parsed, ok := ctx.ParsedArgs.(statsParsedArgs); ok {
+		limit = parsed.Limit
+	}
+	return statsLogic(ctx.Args, ctx.Format, limit, ctx.DB, ctx.Stdout)
 }
 
 // statsLogic reads, aggregates, and renders the stats groups.
-func statsLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (any, error) {
+func statsLogic(args []string, format string, limit int, db *dbpkg.DB, stdout io.Writer) (any, error) {
 	var showHelp bool
-	var limit int
 	fs := flag.NewFlagSet("ktx stats", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.BoolVar(&showHelp, "help", false, "show help")
 	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-	fs.IntVar(&limit, "limit", statsDefaultLimit, "maximum number of groups to show")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, usageError("ktx stats: %v", err)

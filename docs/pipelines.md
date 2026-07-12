@@ -176,7 +176,7 @@ pipeline result and the original passes through unchanged.
 
 ### Residual-waste discovery
 
-`ktx candidates` ranks tool/command groups by delivered token
+`ktx stats` ranks tool/command groups by delivered token
 volume so you know which commands to target with filter packs or
 tighter compression. It surfaces both compressed and uncompressed
 calls — uncompressed calls appear with delivered tokens equal to
@@ -184,9 +184,9 @@ raw tokens, so the command is useful before any profiles are
 configured.
 
 ```bash
-ktx candidates
-ktx candidates --format text
-ktx candidates --limit 5
+ktx stats
+ktx stats --format text
+ktx stats --limit 5
 ```
 
 Groups with fewer than 2 calls or fewer than 50 delivered tokens

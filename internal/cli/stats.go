@@ -1,8 +1,8 @@
-// `ktx candidates` — the discovery command that ranks tool/command
+// `ktx stats` — per-tool-call statistics that rank tool/command
 // groups by delivered tokens so users know which commands need
 // profiles or tighter compression.
 //
-// `ktx candidates` is a query command. The default output is a JSON
+// `ktx stats` is a query command. The default output is a JSON
 // array; `--format text` renders a human-readable table. `--limit N`
 // caps the number of groups shown (default 20).
 //
@@ -27,22 +27,22 @@ import (
 	"github.com/jgabor/ktx/internal/router"
 )
 
-// candidatesDefaultLimit is the default maximum number of groups
-// returned by `ktx candidates` when --limit is not specified.
-const candidatesDefaultLimit = 20
+// statsDefaultLimit is the default maximum number of groups
+// returned by `ktx stats` when --limit is not specified.
+const statsDefaultLimit = 20
 
-// candidatesMinCalls is the minimum number of calls a group must
+// statsMinCalls is the minimum number of calls a group must
 // have to be included in the output.
-const candidatesMinCalls = 2
+const statsMinCalls = 2
 
-// candidatesMinDeliveredTokens is the minimum delivered tokens a
+// statsMinDeliveredTokens is the minimum delivered tokens a
 // group must have to be included.
-const candidatesMinDeliveredTokens = 50
+const statsMinDeliveredTokens = 50
 
-// candidateGroup is one ranked row of the candidates output. It
+// statsGroup is one ranked row of the stats output. It
 // represents an aggregated view of tool calls grouped by tool name
 // and extracted binary name.
-type candidateGroup struct {
+type statsGroup struct {
 	Tool                 string `json:"tool"`
 	Command              string `json:"command"`
 	Calls                int    `json:"calls"`
@@ -51,76 +51,76 @@ type candidateGroup struct {
 }
 
 func init() {
-	Register("candidates", RegisterOptions{
-		Description:   "rank tool/command groups by delivered token waste",
+	Register("stats", RegisterOptions{
+		Description:   "per-tool-call statistics ranked by delivered tokens",
 		NeedsDB:       true,
 		FormatDefault: FormatJSON,
-		Help:          printCandidatesHelp,
-	}, candidatesCommandFunc)
+		Help:          printStatsHelp,
+	}, statsCommandFunc)
 }
 
-// candidatesCommandFunc is the dispatch wrapper. The dispatcher
+// statsCommandFunc is the dispatch wrapper. The dispatcher
 // already opened the DB, parsed --help/--format, and resolved the
 // format.
-func candidatesCommandFunc(ctx *DispatchContext) (any, error) {
-	return candidatesLogic(ctx.Args, ctx.Format, ctx.DB, ctx.Stdout)
+func statsCommandFunc(ctx *DispatchContext) (any, error) {
+	return statsLogic(ctx.Args, ctx.Format, ctx.DB, ctx.Stdout)
 }
 
-// candidatesLogic reads, aggregates, and renders the candidate groups.
-func candidatesLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (any, error) {
+// statsLogic reads, aggregates, and renders the stats groups.
+func statsLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (any, error) {
 	var showHelp bool
 	var limit int
-	fs := flag.NewFlagSet("ktx candidates", flag.ContinueOnError)
+	fs := flag.NewFlagSet("ktx stats", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.BoolVar(&showHelp, "help", false, "show help")
 	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-	fs.IntVar(&limit, "limit", candidatesDefaultLimit, "maximum number of groups to show")
+	fs.IntVar(&limit, "limit", statsDefaultLimit, "maximum number of groups to show")
 
 	if err := fs.Parse(args); err != nil {
-		return nil, usageError("ktx candidates: %v", err)
+		return nil, usageError("ktx stats: %v", err)
 	}
 	if showHelp {
-		printCandidatesHelp(stdout)
+		printStatsHelp(stdout)
 		return nil, nil
 	}
 	if format != FormatJSON && format != FormatText {
-		return nil, usageError("ktx candidates: invalid --format %q: want %q or %q", format, FormatJSON, FormatText)
+		return nil, usageError("ktx stats: invalid --format %q: want %q or %q", format, FormatJSON, FormatText)
 	}
 	if len(fs.Args()) > 0 {
-		return nil, usageError("ktx candidates: unexpected argument %q", fs.Arg(0))
+		return nil, usageError("ktx stats: unexpected argument %q", fs.Arg(0))
 	}
 	if limit <= 0 {
-		return nil, usageError("ktx candidates: --limit must be positive, got %d", limit)
+		return nil, usageError("ktx stats: --limit must be positive, got %d", limit)
 	}
 
-	rows, err := db.CandidateRows()
+	rows, err := db.StatsRows()
 	if err != nil {
-		return nil, internalError("ktx candidates: %v", err)
+		return nil, internalError("ktx stats: %v", err)
 	}
 
-	groups := aggregateCandidates(rows)
-	sortCandidates(groups)
+	groups := aggregateStats(rows)
+	sortStats(groups)
 
 	if len(groups) > limit {
 		groups = groups[:limit]
 	}
 
 	if format == FormatText {
-		printCandidatesText(stdout, groups)
+		printStatsText(stdout, groups)
 	} else {
 		_ = json.NewEncoder(stdout).Encode(groups)
 	}
 	return nil, nil
 }
 
-// aggregateCandidates groups raw rows by (tool, binary name) and
+// aggregateStats groups raw rows by (tool, binary name) and
 // computes per-group totals. The 4-chars-per-token heuristic
 // matches the token-budget stage's formula.
-func aggregateCandidates(rows []dbpkg.CandidateRow) []candidateGroup {
+func aggregateStats(rows []dbpkg.StatsRow) []statsGroup {
 	type key struct {
 		tool, command string
 	}
-	m := map[key]*candidateGroup{}
+	m := map[key]*statsGroup{}
 
 	for _, r := range rows {
 		binary := router.BinaryFromInput(r.Input)
@@ -128,7 +128,7 @@ func aggregateCandidates(rows []dbpkg.CandidateRow) []candidateGroup {
 
 		g, ok := m[k]
 		if !ok {
-			g = &candidateGroup{Tool: r.Tool, Command: binary}
+			g = &statsGroup{Tool: r.Tool, Command: binary}
 			m[k] = g
 		}
 		g.Calls++
@@ -136,12 +136,12 @@ func aggregateCandidates(rows []dbpkg.CandidateRow) []candidateGroup {
 		g.TotalDeliveredTokens += (r.DeliveredBytes + 3) / 4
 	}
 
-	result := make([]candidateGroup, 0, len(m))
+	result := make([]statsGroup, 0, len(m))
 	for _, g := range m {
-		if g.Calls < candidatesMinCalls {
+		if g.Calls < statsMinCalls {
 			continue
 		}
-		if g.TotalDeliveredTokens < candidatesMinDeliveredTokens {
+		if g.TotalDeliveredTokens < statsMinDeliveredTokens {
 			continue
 		}
 		result = append(result, *g)
@@ -149,10 +149,10 @@ func aggregateCandidates(rows []dbpkg.CandidateRow) []candidateGroup {
 	return result
 }
 
-// sortCandidates sorts groups by total delivered tokens descending.
+// sortStats sorts groups by total delivered tokens descending.
 // Groups with equal delivered tokens are sorted by tool, then
 // command, for deterministic output.
-func sortCandidates(groups []candidateGroup) {
+func sortStats(groups []statsGroup) {
 	sort.Slice(groups, func(i, j int) bool {
 		if groups[i].TotalDeliveredTokens != groups[j].TotalDeliveredTokens {
 			return groups[i].TotalDeliveredTokens > groups[j].TotalDeliveredTokens
@@ -164,10 +164,10 @@ func sortCandidates(groups []candidateGroup) {
 	})
 }
 
-// printCandidatesText writes a human-readable table of candidate groups.
-func printCandidatesText(w io.Writer, groups []candidateGroup) {
+// printStatsText writes a human-readable table of stats groups.
+func printStatsText(w io.Writer, groups []statsGroup) {
 	if len(groups) == 0 {
-		fmt.Fprintln(w, "no candidates")
+		fmt.Fprintln(w, "no stats")
 		return
 	}
 
@@ -180,11 +180,11 @@ func printCandidatesText(w io.Writer, groups []candidateGroup) {
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
 }
 
-// printCandidatesHelp writes the `ktx candidates` help.
-func printCandidatesHelp(w io.Writer) {
-	fmt.Fprintln(w, "ktx candidates — rank tool/command groups by delivered token waste")
+// printStatsHelp writes the `ktx stats` help.
+func printStatsHelp(w io.Writer) {
+	fmt.Fprintln(w, "ktx stats — per-tool-call statistics ranked by delivered tokens")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage: ktx candidates [--format text|json] [--limit N]")
+	fmt.Fprintln(w, "Usage: ktx stats [--format text|json] [--limit N]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Lists tool/command groups ranked by total delivered tokens (descending).")
 	fmt.Fprintln(w, "Uncompressed tool calls are included with delivered tokens equal to raw tokens.")
@@ -198,7 +198,7 @@ func printCandidatesHelp(w io.Writer) {
 	fmt.Fprintln(w, "  text            a tab-aligned table")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
-	fmt.Fprintln(w, "  0  candidates listed (may be empty)")
+	fmt.Fprintln(w, "  0  stats listed (may be empty)")
 	fmt.Fprintln(w, "  1  usage error (unknown flag, invalid --limit)")
 	fmt.Fprintln(w, "  4  internal error (database failure)")
 	fmt.Fprintln(w)

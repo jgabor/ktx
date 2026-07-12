@@ -9,9 +9,9 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-// TestCandidatesLogic exercises the aggregation, filtering,
-// sorting, and rendering of `ktx candidates`.
-func TestCandidatesLogic(t *testing.T) {
+// TestStatsLogic exercises the aggregation, filtering,
+// sorting, and rendering of `ktx stats`.
+func TestStatsLogic(t *testing.T) {
 	t.Run("groups by tool and rank by delivered tokens descending", func(t *testing.T) {
 		db := openMemoryDB(t)
 		sid := seedSession(t, db)
@@ -23,12 +23,12 @@ func TestCandidatesLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
-		var groups []candidateGroup
+		var groups []statsGroup
 		if err := json.Unmarshal(buf.Bytes(), &groups); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
@@ -61,12 +61,12 @@ func TestCandidatesLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
-		var groups []candidateGroup
+		var groups []statsGroup
 		if err := json.Unmarshal(buf.Bytes(), &groups); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
@@ -90,12 +90,12 @@ func TestCandidatesLogic(t *testing.T) {
 		seedCompressedRow(t, db, ids[1], strings.Repeat("s", 200)+"\n", "2026-07-12T00:00:01Z")
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
-		var groups []candidateGroup
+		var groups []statsGroup
 		if err := json.Unmarshal(buf.Bytes(), &groups); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
@@ -118,12 +118,12 @@ func TestCandidatesLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
-		var groups []candidateGroup
+		var groups []statsGroup
 		if err := json.Unmarshal(buf.Bytes(), &groups); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
@@ -148,12 +148,12 @@ func TestCandidatesLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
-		var groups []candidateGroup
+		var groups []statsGroup
 		if err := json.Unmarshal(buf.Bytes(), &groups); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
@@ -178,12 +178,12 @@ func TestCandidatesLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic([]string{"--limit", "1"}, FormatJSON, db, &buf)
+		_, err := statsLogic([]string{"--limit", "1"}, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
-		var groups []candidateGroup
+		var groups []statsGroup
 		if err := json.Unmarshal(buf.Bytes(), &groups); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
@@ -201,9 +201,9 @@ func TestCandidatesLogic(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic(nil, FormatText, db, &buf)
+		_, err := statsLogic(nil, FormatText, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
 		out := buf.String()
@@ -222,12 +222,12 @@ func TestCandidatesLogic(t *testing.T) {
 		db := openMemoryDB(t)
 
 		var buf bytes.Buffer
-		_, err := candidatesLogic(nil, FormatJSON, db, &buf)
+		_, err := statsLogic(nil, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
 
-		var groups []candidateGroup
+		var groups []statsGroup
 		if err := json.Unmarshal(buf.Bytes(), &groups); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
@@ -236,19 +236,19 @@ func TestCandidatesLogic(t *testing.T) {
 		}
 
 		var textBuf bytes.Buffer
-		_, err = candidatesLogic(nil, FormatText, db, &textBuf)
+		_, err = statsLogic(nil, FormatText, db, &textBuf)
 		if err != nil {
-			t.Fatalf("candidatesLogic text: %v", err)
+			t.Fatalf("statsLogic text: %v", err)
 		}
-		if !strings.Contains(textBuf.String(), "no candidates") {
-			t.Errorf("text output should say 'no candidates': %q", textBuf.String())
+		if !strings.Contains(textBuf.String(), "no stats") {
+			t.Errorf("text output should say 'no stats': %q", textBuf.String())
 		}
 	})
 
 	t.Run("invalid --limit returns usage error", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
-		_, err := candidatesLogic([]string{"--limit", "0"}, FormatJSON, db, &buf)
+		_, err := statsLogic([]string{"--limit", "0"}, FormatJSON, db, &buf)
 		if err == nil {
 			t.Error("expected usage error for --limit 0")
 		}
@@ -257,11 +257,11 @@ func TestCandidatesLogic(t *testing.T) {
 	t.Run("--help renders help text", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
-		_, err := candidatesLogic([]string{"--help"}, FormatJSON, db, &buf)
+		_, err := statsLogic([]string{"--help"}, FormatJSON, db, &buf)
 		if err != nil {
-			t.Fatalf("candidatesLogic: %v", err)
+			t.Fatalf("statsLogic: %v", err)
 		}
-		if !strings.Contains(buf.String(), "ktx candidates") {
+		if !strings.Contains(buf.String(), "ktx stats") {
 			t.Errorf("help output missing command name: %q", buf.String())
 		}
 	})
@@ -278,7 +278,7 @@ func openMemoryDB(t *testing.T) *dbpkg.DB {
 	return d
 }
 
-// callSeed is a minimal tool_call fixture for the candidates tests.
+// callSeed is a minimal tool_call fixture for the stats tests.
 type callSeed struct {
 	tool    string
 	command string

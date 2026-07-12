@@ -2,11 +2,11 @@ package db
 
 import "testing"
 
-// TestCandidateRows covers the raw row query: uncompressed calls
+// TestStatsRows covers the raw row query: uncompressed calls
 // have delivered equal to raw, compressed calls have delivered from
 // the compressed output, the most recent compression is used when
 // multiple exist, and an empty database returns an empty slice.
-func TestCandidateRows(t *testing.T) {
+func TestStatsRows(t *testing.T) {
 	t.Run("uncompressed calls have delivered equal to raw", func(t *testing.T) {
 		d := openMemoryDB(t)
 		seedSessionAndCalls(t, d, []callFixture{
@@ -14,9 +14,9 @@ func TestCandidateRows(t *testing.T) {
 			{id: "bbbbbbbbbbbbbbbb", tool: "bash", input: `{"command": "ls -la"}`, output: "drwxr-xr-x  2 user user 4096 Jan 1 00:00 ..\n"},
 		})
 
-		rows, err := d.CandidateRows()
+		rows, err := d.StatsRows()
 		if err != nil {
-			t.Fatalf("CandidateRows: %v", err)
+			t.Fatalf("StatsRows: %v", err)
 		}
 		if len(rows) != 2 {
 			t.Fatalf("got %d rows, want 2", len(rows))
@@ -38,9 +38,9 @@ func TestCandidateRows(t *testing.T) {
 		compressedOutput := "short\n"
 		seedCompressed(t, d, sourceID, compressedOutput, "2026-07-12T00:00:01Z")
 
-		rows, err := d.CandidateRows()
+		rows, err := d.StatsRows()
 		if err != nil {
-			t.Fatalf("CandidateRows: %v", err)
+			t.Fatalf("StatsRows: %v", err)
 		}
 		if len(rows) != 1 {
 			t.Fatalf("got %d rows, want 1", len(rows))
@@ -62,9 +62,9 @@ func TestCandidateRows(t *testing.T) {
 		seedCompressed(t, d, sourceID, "medium output here\n", "2026-07-12T00:00:01Z")
 		seedCompressed(t, d, sourceID, "tiny\n", "2026-07-12T00:00:02Z")
 
-		rows, err := d.CandidateRows()
+		rows, err := d.StatsRows()
 		if err != nil {
-			t.Fatalf("CandidateRows: %v", err)
+			t.Fatalf("StatsRows: %v", err)
 		}
 		if len(rows) != 1 {
 			t.Fatalf("got %d rows, want 1", len(rows))
@@ -77,9 +77,9 @@ func TestCandidateRows(t *testing.T) {
 
 	t.Run("empty database returns empty slice", func(t *testing.T) {
 		d := openMemoryDB(t)
-		rows, err := d.CandidateRows()
+		rows, err := d.StatsRows()
 		if err != nil {
-			t.Fatalf("CandidateRows: %v", err)
+			t.Fatalf("StatsRows: %v", err)
 		}
 		if len(rows) != 0 {
 			t.Fatalf("got %d rows, want 0", len(rows))

@@ -187,8 +187,8 @@ timeout = "10s"
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.PipelineTimeout != 10*time.Second {
-			t.Errorf("PipelineTimeout = %v, want 10s", cfg.PipelineTimeout)
+		if ResolveTimeout(cfg, "default") != 10*time.Second {
+			t.Errorf("PipelineTimeout = %v, want 10s", ResolveTimeout(cfg, "default"))
 		}
 	})
 
@@ -203,8 +203,8 @@ stages = ["head:3"]
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.PipelineTimeout != DefaultPipelineTimeout {
-			t.Errorf("PipelineTimeout = %v, want %v (default 2s)", cfg.PipelineTimeout, DefaultPipelineTimeout)
+		if ResolveTimeout(cfg, "default") != DefaultPipelineTimeout {
+			t.Errorf("PipelineTimeout = %v, want %v (default 2s)", ResolveTimeout(cfg, "default"), DefaultPipelineTimeout)
 		}
 		if DefaultPipelineTimeout != 2*time.Second {
 			t.Errorf("DefaultPipelineTimeout = %v, want 2s", DefaultPipelineTimeout)
@@ -219,8 +219,8 @@ stages = ["head:3"]
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.PipelineTimeout != DefaultPipelineTimeout {
-			t.Errorf("PipelineTimeout = %v, want %v (default on passthrough path)", cfg.PipelineTimeout, DefaultPipelineTimeout)
+		if ResolveTimeout(cfg, "default") != DefaultPipelineTimeout {
+			t.Errorf("PipelineTimeout = %v, want %v (default on passthrough path)", ResolveTimeout(cfg, "default"), DefaultPipelineTimeout)
 		}
 	})
 
@@ -278,8 +278,8 @@ timeout = "2m"
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.PipelineTimeout != 2*time.Minute {
-			t.Errorf("PipelineTimeout = %v, want 2m", cfg.PipelineTimeout)
+		if ResolveTimeout(cfg, "default") != 2*time.Minute {
+			t.Errorf("PipelineTimeout = %v, want 2m", ResolveTimeout(cfg, "default"))
 		}
 	})
 }
@@ -297,7 +297,7 @@ func TestLoad_RecoverFooter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.RecoverFooter {
+		if ResolveRecoverFooter(cfg, "default") {
 			t.Errorf("RecoverFooter = true, want false (no-config default)")
 		}
 	})
@@ -313,7 +313,7 @@ stages = ["strip-ansi", "head:100"]
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.RecoverFooter {
+		if ResolveRecoverFooter(cfg, "default") {
 			t.Errorf("RecoverFooter = true, want false (absent key defaults to false)")
 		}
 	})
@@ -330,7 +330,7 @@ recover_footer = true
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if !cfg.RecoverFooter {
+		if !ResolveRecoverFooter(cfg, "default") {
 			t.Errorf("RecoverFooter = false, want true")
 		}
 	})
@@ -347,7 +347,7 @@ recover_footer = false
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.RecoverFooter {
+		if ResolveRecoverFooter(cfg, "default") {
 			t.Errorf("RecoverFooter = true, want false (explicit off)")
 		}
 	})
@@ -402,17 +402,240 @@ func TestNamedBenchmarkPipelines(t *testing.T) {
 				t.Fatalf("parse %s: %v", file, err)
 			}
 			name := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
-			if cfg.RecoverFooter != expectedRecovery[name] {
-				t.Errorf("RecoverFooter = %v, want %v", cfg.RecoverFooter, expectedRecovery[name])
+			if ResolveRecoverFooter(cfg, "default") != expectedRecovery[name] {
+				t.Errorf("RecoverFooter = %v, want %v", ResolveRecoverFooter(cfg, "default"), expectedRecovery[name])
 			}
-			if cfg.PipelineTimeout != DefaultPipelineTimeout {
-				t.Errorf("PipelineTimeout = %v, want %v", cfg.PipelineTimeout, DefaultPipelineTimeout)
+			if ResolveTimeout(cfg, "default") != DefaultPipelineTimeout {
+				t.Errorf("PipelineTimeout = %v, want %v", ResolveTimeout(cfg, "default"), DefaultPipelineTimeout)
 			}
 			if cfg.PipelineDefault == nil {
 				t.Error("PipelineDefault is nil; named pipelines must declare stages")
 			}
 		})
 	}
+}
+
+// TestResolveTimeout covers per-profile timeout resolution: a selected
+// profile's own timeout is used when set, otherwise the default
+// profile's timeout, otherwise DefaultPipelineTimeout.
+func TestResolveTimeout(t *testing.T) {
+	const toml = `[pipeline.default]
+stages = ["head:3"]
+timeout = "2s"
+
+[pipeline.fast]
+stages = ["head:1"]
+timeout = "50ms"
+
+[pipeline.bare]
+stages = ["head:2"]
+`
+	c, err := parse([]byte(toml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	// A profile with its own timeout resolves to that value.
+	if got := ResolveTimeout(c, "fast"); got != 50*time.Millisecond {
+		t.Errorf("ResolveTimeout(fast) = %v, want 50ms (the profile's own timeout)", got)
+	}
+	// A profile without a timeout inherits the default profile's timeout.
+	if got := ResolveTimeout(c, "bare"); got != 2*time.Second {
+		t.Errorf("ResolveTimeout(bare) = %v, want 2s (inherited from the default profile)", got)
+	}
+	// The default profile resolves to its own value.
+	if got := ResolveTimeout(c, "default"); got != 2*time.Second {
+		t.Errorf("ResolveTimeout(default) = %v, want 2s (the default profile's own timeout)", got)
+	}
+	// An unknown profile falls back to the default profile's timeout.
+	if got := ResolveTimeout(c, "missing"); got != 2*time.Second {
+		t.Errorf("ResolveTimeout(missing) = %v, want 2s (fallback to the default profile)", got)
+	}
+}
+
+// TestResolveTimeout_NeitherProfileNorDefault covers a config where both
+// the selected profile and the default profile omit a timeout: the
+// const DefaultPipelineTimeout is used (so the no-config passthrough and
+// profiles that set nothing still get a sensible critical-path deadline).
+func TestResolveTimeout_NeitherProfileNorDefault(t *testing.T) {
+	const toml = `[pipeline.default]
+stages = ["head:3"]
+
+[pipeline.bare]
+stages = ["head:2"]
+`
+	c, err := parse([]byte(toml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got := ResolveTimeout(c, "bare"); got != DefaultPipelineTimeout {
+		t.Errorf("ResolveTimeout(bare) = %v, want %v (const default when profile and default both omit)", got, DefaultPipelineTimeout)
+	}
+	if got := ResolveTimeout(c, "default"); got != DefaultPipelineTimeout {
+		t.Errorf("ResolveTimeout(default) = %v, want %v (const default when default omits)", got, DefaultPipelineTimeout)
+	}
+}
+
+// TestResolveTimeout_NoConfig covers the no-ktx.toml baseline: a nil
+// Profiles map yields DefaultPipelineTimeout for any profile name.
+func TestResolveTimeout_NoConfig(t *testing.T) {
+	c := defaultConfig()
+	if got := ResolveTimeout(c, "default"); got != DefaultPipelineTimeout {
+		t.Errorf("ResolveTimeout(default) = %v, want %v (const default on the no-config path)", got, DefaultPipelineTimeout)
+	}
+	if got := ResolveTimeout(c, "anything"); got != DefaultPipelineTimeout {
+		t.Errorf("ResolveTimeout(anything) = %v, want %v (const default on the no-config path)", got, DefaultPipelineTimeout)
+	}
+}
+
+// TestResolveRecoverFooter covers per-profile recover_footer resolution:
+// a selected profile's own value is used when set, otherwise the default
+// profile's value, otherwise false.
+func TestResolveRecoverFooter(t *testing.T) {
+	const toml = `[pipeline.default]
+stages = ["head:3"]
+recover_footer = true
+
+[pipeline.silent]
+stages = ["head:1"]
+recover_footer = false
+
+[pipeline.bare]
+stages = ["head:2"]
+`
+	c, err := parse([]byte(toml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	// A profile with its own explicit value resolves to that value.
+	if got := ResolveRecoverFooter(c, "silent"); got != false {
+		t.Errorf("ResolveRecoverFooter(silent) = %v, want false (the profile's own explicit value)", got)
+	}
+	if got := ResolveRecoverFooter(c, "default"); got != true {
+		t.Errorf("ResolveRecoverFooter(default) = %v, want true (the default profile's own value)", got)
+	}
+	// A profile without a value inherits the default profile's value.
+	if got := ResolveRecoverFooter(c, "bare"); got != true {
+		t.Errorf("ResolveRecoverFooter(bare) = %v, want true (inherited from the default profile)", got)
+	}
+	// An unknown profile falls back to the default profile's value.
+	if got := ResolveRecoverFooter(c, "missing"); got != true {
+		t.Errorf("ResolveRecoverFooter(missing) = %v, want true (fallback to the default profile)", got)
+	}
+}
+
+// TestResolveRecoverFooter_NeitherProfileNorDefault covers a config where
+// both the selected profile and the default profile omit recover_footer:
+// the const false is used (the no-config passthrough suppresses the
+// footer).
+func TestResolveRecoverFooter_NeitherProfileNorDefault(t *testing.T) {
+	const toml = `[pipeline.default]
+stages = ["head:3"]
+
+[pipeline.bare]
+stages = ["head:2"]
+`
+	c, err := parse([]byte(toml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got := ResolveRecoverFooter(c, "bare"); got != false {
+		t.Errorf("ResolveRecoverFooter(bare) = %v, want false (neither profile nor default sets it)", got)
+	}
+	if got := ResolveRecoverFooter(c, "default"); got != false {
+		t.Errorf("ResolveRecoverFooter(default) = %v, want false (default omits it)", got)
+	}
+}
+
+// TestResolveRecoverFooter_NoConfig covers the no-ktx.toml baseline: a
+// nil Profiles map yields false for any profile name.
+func TestResolveRecoverFooter_NoConfig(t *testing.T) {
+	c := defaultConfig()
+	if got := ResolveRecoverFooter(c, "default"); got != false {
+		t.Errorf("ResolveRecoverFooter(default) = %v, want false (const default on the no-config path)", got)
+	}
+	if got := ResolveRecoverFooter(c, "anything"); got != false {
+		t.Errorf("ResolveRecoverFooter(anything) = %v, want false (const default on the no-config path)", got)
+	}
+}
+
+// TestLoad_PerProfileTimeout_Validated covers that a timeout set on ANY
+// profile (not just default) is parsed and validated: a garbage or
+// non-positive value in a non-default profile is a *ParseError naming
+// that profile, and a valid non-default timeout surfaces via the
+// profile's own Profile.Timeout (so ResolveTimeout returns it).
+func TestLoad_PerProfileTimeout_Validated(t *testing.T) {
+	t.Run("non-default valid timeout parses and is set on the profile", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+
+[pipeline.logs]
+stages = ["head:5"]
+timeout = "750ms"
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Profiles["logs"].Timeout != 750*time.Millisecond {
+			t.Errorf("Profiles[logs].Timeout = %v, want 750ms (parsed per-profile)", cfg.Profiles["logs"].Timeout)
+		}
+		// default sets no timeout → its Profile.Timeout stays zero.
+		if cfg.Profiles["default"].Timeout != 0 {
+			t.Errorf("Profiles[default].Timeout = %v, want 0 (default omits timeout)", cfg.Profiles["default"].Timeout)
+		}
+	})
+
+	t.Run("non-default garbage timeout → *ParseError naming the profile", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+
+[pipeline.logs]
+stages = ["head:5"]
+timeout = "nope"
+`)
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load succeeded; want *ParseError for a garbage timeout on a non-default profile")
+		}
+		pe, ok := err.(*ParseError)
+		if !ok {
+			t.Fatalf("error = %T, want *ParseError", err)
+		}
+		if !strings.Contains(pe.Msg, "pipeline.logs") {
+			t.Errorf("ParseError.Msg = %q, want it to name the offending profile [pipeline.logs]", pe.Msg)
+		}
+		if !strings.Contains(pe.Msg, "timeout") {
+			t.Errorf("ParseError.Msg = %q, want it to mention 'timeout'", pe.Msg)
+		}
+	})
+
+	t.Run("non-default non-positive timeout → *ParseError", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+
+[pipeline.logs]
+stages = ["head:5"]
+timeout = "0s"
+`)
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load succeeded; want *ParseError for a non-positive timeout on a non-default profile")
+		}
+		if _, ok := err.(*ParseError); !ok {
+			t.Errorf("error = %T, want *ParseError", err)
+		}
+	})
 }
 
 // TestLoad_Malformed covers the syntax-error path: a malformed
@@ -749,6 +972,243 @@ name = "nocmd"
 		}
 		if !strings.Contains(pe.Msg, "command") {
 			t.Errorf("ParseError.Msg = %q, want 'command'", pe.Msg)
+		}
+	})
+}
+
+// TestLoad_RouteRules covers [[route]] block parsing: rules parse into
+// Config.Routes in document order with all match fields populated;
+// empty exit_status normalizes to "any"; the profile reference must
+// name an existing [pipeline.<name>] table.
+func TestLoad_RouteRules(t *testing.T) {
+	t.Run("route rules parse with all fields, document order preserved", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi"]
+
+[pipeline.logs]
+stages = ["head:50"]
+
+[[route]]
+tool = "bash"
+command_prefix = "git"
+exit_status = "success"
+profile = "logs"
+
+[[route]]
+tool = "bash"
+exit_status = "failure"
+profile = "default"
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if len(cfg.Routes) != 2 {
+			t.Fatalf("Routes = %v, want 2 rules", cfg.Routes)
+		}
+		r0 := cfg.Routes[0]
+		if r0.Tool != "bash" {
+			t.Errorf("Routes[0].Tool = %q, want bash", r0.Tool)
+		}
+		if r0.CommandPrefix != "git" {
+			t.Errorf("Routes[0].CommandPrefix = %q, want git", r0.CommandPrefix)
+		}
+		if r0.ExitStatus != "success" {
+			t.Errorf("Routes[0].ExitStatus = %q, want success", r0.ExitStatus)
+		}
+		if r0.Profile != "logs" {
+			t.Errorf("Routes[0].Profile = %q, want logs", r0.Profile)
+		}
+		r1 := cfg.Routes[1]
+		if r1.Profile != "default" {
+			t.Errorf("Routes[1].Profile = %q, want default", r1.Profile)
+		}
+	})
+
+	t.Run("empty exit_status normalizes to any", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi"]
+
+[[route]]
+tool = "bash"
+profile = "default"
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if len(cfg.Routes) != 1 {
+			t.Fatalf("Routes = %v, want 1 rule", cfg.Routes)
+		}
+		if cfg.Routes[0].ExitStatus != "any" {
+			t.Errorf("ExitStatus = %q, want any (normalized from empty)", cfg.Routes[0].ExitStatus)
+		}
+	})
+
+	t.Run("empty match fields are valid (profile-only rule)", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi"]
+
+[[route]]
+profile = "default"
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if len(cfg.Routes) != 1 {
+			t.Fatalf("Routes = %v, want 1 rule", cfg.Routes)
+		}
+		if cfg.Routes[0].Tool != "" {
+			t.Errorf("Tool = %q, want empty", cfg.Routes[0].Tool)
+		}
+		if cfg.Routes[0].CommandPrefix != "" {
+			t.Errorf("CommandPrefix = %q, want empty", cfg.Routes[0].CommandPrefix)
+		}
+	})
+}
+
+// TestLoad_NoRouteRules covers the no-rules case: a ktx.toml without
+// [[route]] blocks yields nil Routes and the existing fields
+// (PipelineDefault, Profiles, Plugins) are unchanged.
+func TestLoad_NoRouteRules(t *testing.T) {
+	t.Run("stages-only config → nil Routes, behavior unchanged", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi", "head:100"]
+`)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Routes != nil {
+			t.Errorf("Routes = %v, want nil (no [[route]] blocks)", cfg.Routes)
+		}
+		if len(cfg.PipelineDefault) != 2 {
+			t.Errorf("PipelineDefault = %v, want 2 entries", cfg.PipelineDefault)
+		}
+		if cfg.Plugins != nil {
+			t.Errorf("Plugins = %v, want nil", cfg.Plugins)
+		}
+	})
+
+	t.Run("no-config default → nil Routes", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Routes != nil {
+			t.Errorf("Routes = %v, want nil (no config)", cfg.Routes)
+		}
+	})
+}
+
+// TestLoad_RouteRuleMissingProfile verifies that a [[route]] block
+// referencing a profile name not present in any [pipeline.<name>]
+// table returns *ParseError naming the offending rule index and the
+// missing profile name.
+func TestLoad_RouteRuleMissingProfile(t *testing.T) {
+	t.Run("unknown profile → ParseError names rule and missing profile", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi"]
+
+[[route]]
+tool = "bash"
+profile = "nonexistent"
+`)
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load succeeded; want ParseError")
+		}
+		var pe *ParseError
+		if !errors.As(err, &pe) {
+			t.Fatalf("Load returned %T, want *ParseError", err)
+		}
+		if !strings.Contains(pe.Msg, "nonexistent") {
+			t.Errorf("ParseError.Msg = %q, want it to name the missing profile 'nonexistent'", pe.Msg)
+		}
+		if !strings.Contains(pe.Msg, "profile") {
+			t.Errorf("ParseError.Msg = %q, want it to mention 'profile'", pe.Msg)
+		}
+		if !strings.Contains(pe.Path, "ktx.toml") {
+			t.Errorf("ParseError.Path = %q, want 'ktx.toml'", pe.Path)
+		}
+	})
+
+	t.Run("missing profile field → ParseError", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi"]
+
+[[route]]
+tool = "bash"
+`)
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load succeeded; want ParseError")
+		}
+		var pe *ParseError
+		if !errors.As(err, &pe) {
+			t.Fatalf("Load returned %T, want *ParseError", err)
+		}
+		if !strings.Contains(pe.Msg, "profile") {
+			t.Errorf("ParseError.Msg = %q, want it to mention 'profile'", pe.Msg)
+		}
+		if !strings.Contains(pe.Path, "ktx.toml") {
+			t.Errorf("ParseError.Path = %q, want 'ktx.toml'", pe.Path)
+		}
+	})
+
+	t.Run("second rule's unknown profile named with correct index", func(t *testing.T) {
+		chdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		writeUserConfig(t, `[pipeline.default]
+stages = ["strip-ansi"]
+
+[pipeline.logs]
+stages = ["head:50"]
+
+[[route]]
+tool = "bash"
+profile = "logs"
+
+[[route]]
+tool = "bash"
+profile = "missing-prof"
+`)
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load succeeded; want ParseError")
+		}
+		var pe *ParseError
+		if !errors.As(err, &pe) {
+			t.Fatalf("Load returned %T, want *ParseError", err)
+		}
+		if !strings.Contains(pe.Msg, "missing-prof") {
+			t.Errorf("ParseError.Msg = %q, want it to name 'missing-prof'", pe.Msg)
+		}
+		if !strings.Contains(pe.Msg, "index 1") {
+			t.Errorf("ParseError.Msg = %q, want it to name index 1", pe.Msg)
 		}
 	})
 }

@@ -157,3 +157,70 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 #
 # Reference the plugin name in your pipeline stages:
 # stages = ["strip-ansi", "redact-secrets", "keep-ends:50:20"]
+
+# ── Route rules ──────────────────────────────────────────────────────
+#
+# Route rules map tool-call metadata to a named pipeline profile. Each
+# [[route]] block selects a target profile when the tool call matches
+# all of the non-empty match fields:
+#
+#   tool            Tool name to match (e.g. "bash"). Empty = any tool.
+#   command_prefix  Prefix match on the command string (e.g. "git"
+#                   matches "git status"). Empty = any command.
+#   exit_status     "success", "failure", or "any". Empty = "any".
+#   profile         Target [pipeline.<name>] table. Required; must
+#                   name an existing profile or config load fails.
+#
+# The router applies rules at runtime; the loader only parses and
+# validates profile references at config-load time.
+#
+# Matching: rules are evaluated in file order and the first rule whose
+# conditions all match wins. Put specific rules before broad ones.
+# An empty field is a wildcard — empty tool = any tool, empty
+# command_prefix = any command, empty or "any" exit_status = either
+# success or failure.
+#
+# Fallback: when no rule matches, ktx uses the "default" profile, which
+# is always present. When [pipeline.default] is absent from the config,
+# its stages are empty, i.e. passthrough (output unchanged). A catch-all
+# route as the last rule overrides this fallback so every tool call lands
+# in a chosen profile.
+#
+# Define the target profiles first:
+#
+# [pipeline.default]
+# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
+#
+# [pipeline.logs]
+# stages = ["strip-ansi", "dedup-blank", "normalize", "head:50"]
+#
+# Then route git commands that succeeded to the logs profile:
+#
+# [[route]]
+# tool = "bash"
+# command_prefix = "git"
+# exit_status = "success"
+# profile = "logs"
+#
+# Route failed bash commands to a conservative profile:
+#
+# [[route]]
+# tool = "bash"
+# exit_status = "failure"
+# profile = "default"
+#
+# Route file-read output (the "read" tool) to a wider keep-ends so the
+# top of large files survives — mid-file facts matter for navigation:
+#
+# [pipeline.freads]
+# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:200:50"]
+#
+# [[route]]
+# tool = "read"
+# profile = "freads"
+#
+# A catch-all as the last rule matches every tool call (all fields empty)
+# so unmatched calls land in a chosen profile instead of the default:
+#
+# [[route]]
+# profile = "freads"

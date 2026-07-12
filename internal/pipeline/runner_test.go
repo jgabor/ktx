@@ -474,3 +474,30 @@ func TestEncodePipelineJSON(t *testing.T) {
 		})
 	}
 }
+
+// TestEncodePipelineRecord covers the pipeline-record encoder which carries
+// the selected profile name alongside the stages that ran. The compressed
+// row's `pipeline` column stores this string so evidence shows which
+// profile was selected.
+func TestEncodePipelineRecord(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		profile string
+		ran     []string
+		want    string
+	}{
+		{name: "empty profile empty stages", profile: "default", ran: nil, want: `{"profile":"default","stages":[]}`},
+		{name: "profile with stages", profile: "git-status", ran: []string{"strip-ansi", "head:5"}, want: `{"profile":"git-status","stages":["strip-ansi","head:5"]}`},
+		{name: "profile single stage", profile: "logs", ran: []string{"head:100"}, want: `{"profile":"logs","stages":["head:100"]}`},
+		{name: "escaped quote in profile", profile: `a"b`, ran: nil, want: `{"profile":"a\"b","stages":[]}`},
+		{name: "escaped backslash in profile", profile: `a\b`, ran: nil, want: `{"profile":"a\\b","stages":[]}`},
+		{name: "escaped quote in stage", profile: "default", ran: []string{`a"b`}, want: `{"profile":"default","stages":["a\"b"]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := EncodePipelineRecord(tc.profile, tc.ran)
+			if got != tc.want {
+				t.Errorf("EncodePipelineRecord(%q, %v) = %q, want %q", tc.profile, tc.ran, got, tc.want)
+			}
+		})
+	}
+}

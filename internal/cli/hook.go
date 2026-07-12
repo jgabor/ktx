@@ -281,27 +281,29 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	if err != nil {
 		return nil, usageError("%v", err)
 	}
-	timeout := config.DefaultPipelineTimeout
-	if cfg.PipelineTimeout > 0 {
-		timeout = cfg.PipelineTimeout
-	}
 
-	compressedOutput, pipeJSON, transformed, err := compressPipeline(&tc, nil, stderr, timeout)
+	// compressPipeline selects the profile (via the router) and resolves
+	// the per-profile timeout internally; enforceTimeout=true puts the
+	// pipeline on the agent's critical-path deadline. The selected
+	// profileName is returned so the recover_footer setting can be
+	// resolved per-profile below.
+	compressedOutput, pipeJSON, profileName, transformed, err := compressPipeline(&tc, nil, stderr, true)
 	if err != nil {
 		return nil, err
 	}
 
 	// Footer-aware second gate. Fires only when recover_footer is
-	// enabled and the pipeline actually transformed the output. The
-	// pipeline Runner's byte-gate already fired inside compressPipeline
-	// (it discards results not smaller than the input). This second
-	// gate accounts for the footer's own byte overhead: when
-	// len(compressed)+len(footer) >= len(original), the transform is
-	// suppressed — source returned unchanged, no footer, no compressed
-	// row. The footer lives only in the agent-visible envelope.Output;
-	// the persisted Compressed.Output stays content-only.
+	// enabled for the selected profile and the pipeline actually
+	// transformed the output. The pipeline Runner's byte-gate already
+	// fired inside compressPipeline (it discards results not smaller
+	// than the input). This second gate accounts for the footer's own
+	// byte overhead: when len(compressed)+len(footer) >= len(original),
+	// the transform is suppressed — source returned unchanged, no
+	// footer, no compressed row. The footer lives only in the
+	// agent-visible envelope.Output; the persisted Compressed.Output
+	// stays content-only.
 	envelopeOutput := compressedOutput
-	if cfg.RecoverFooter && transformed {
+	if config.ResolveRecoverFooter(cfg, profileName) && transformed {
 		footer := buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
 		if len(compressedOutput)+len(footer) >= len(tc.Output) {
 			transformed = false
@@ -410,17 +412,20 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "the original is returned unchanged with compressed_id=null.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "A pipeline timeout is enforced (critical-path contract); the default")
-	fmt.Fprintln(w, "is 2s, configurable via [pipeline.default] timeout in ktx.toml (e.g.")
-	fmt.Fprintln(w, "`timeout = \"500ms\"` or `timeout = \"10s\"`). On timeout the original is")
-	fmt.Fprintln(w, "returned unchanged with a stderr warning.")
+	fmt.Fprintln(w, "is 2s, configurable per profile via `[pipeline.<name>] timeout` in")
+	fmt.Fprintln(w, "ktx.toml (e.g. `timeout = \"500ms\"` or `timeout = \"10s\"`). A profile")
+	fmt.Fprintln(w, "without a timeout inherits the default profile's timeout. On timeout the")
+	fmt.Fprintln(w, "original is returned unchanged with a stderr warning.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "By default, lossy compression appends a recovery footer to the compressed")
 	fmt.Fprintln(w, "output the agent sees (recover_footer = true). The footer carries the")
 	fmt.Fprintln(w, "source_id, the compressed size, the reduction ratio, and the recovery")
 	fmt.Fprintln(w, "command `ktx read <source_id>` prefixed by an instructional cue. Set")
-	fmt.Fprintln(w, "recover_footer = false to suppress it. A footer-aware anti-worsening gate")
-	fmt.Fprintln(w, "suppresses the transform (and the footer) when compressed+footer would not")
-	fmt.Fprintln(w, "be smaller than the original; the stored compressed row stays content-only.")
+	fmt.Fprintln(w, "recover_footer = false to suppress it; the setting is per profile, and a")
+	fmt.Fprintln(w, "profile without one inherits the default profile's. A footer-aware")
+	fmt.Fprintln(w, "anti-worsening gate suppresses the transform (and the footer) when")
+	fmt.Fprintln(w, "compressed+footer would not be smaller than the original; the stored")
+	fmt.Fprintln(w, "compressed row stays content-only.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Codex mode: when the input payload carries a top-level `hook_event_name`")
 	fmt.Fprintln(w, "field (Codex PostToolUse), the hook auto-detects it and extracts tool")

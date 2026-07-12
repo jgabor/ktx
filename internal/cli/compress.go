@@ -23,8 +23,8 @@
 //     the artifact that was stored, NOT the source output, so a
 //     downstream integrity check compares the hash of the persisted
 //     output against the persisted hash.
-//  6. Build pipeline JSON = pipeline.EncodePipelineJSON(res.Ran) — a
-//     record of what stages ran.
+//  6. Build pipeline JSON = pipeline.EncodePipelineRecord(profile, res.Ran) — a
+//     record of the selected profile and what stages ran.
 //  7. Generate a fresh 16-char nanoid for the compressed row.
 //  8. db.InsertCompressed — the source_id FK is enforced
 //     (foreign_keys=1); a miss (should not happen here since step 2
@@ -52,6 +52,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/pipeline"
 	"github.com/jgabor/ktx/internal/pipeline/stages"
+	"github.com/jgabor/ktx/internal/router"
 )
 
 // sourceFailureWarning is emitted when the pre-pipeline failure gate
@@ -124,11 +125,14 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 
 // compressPipeline is the shared failure-gate + pipeline core used by
 // both `ktx compress` (via compressCore) and `ktx hook` (via hookLogic).
-// It loads ktx.toml, builds the runner, applies the pre-pipeline
-// failure gate (is_error → skip), runs the pipeline (with the
-// conservative-on-failure invariants enforced by the runner), and
-// returns the compressed output, pipeline JSON, whether the pipeline
-// actually transformed the output, and any config error.
+// It loads ktx.toml, matches the source tool_call against route rules to
+// select a pipeline profile, builds the runner with that profile's stages,
+// applies the pre-pipeline failure gate (is_error → skip), runs the
+// pipeline (with the conservative-on-failure invariants enforced by the
+// runner), and returns the compressed output, pipeline JSON (carrying the
+// selected profile and stages that ran), the selected profile name,
+// whether the pipeline actually transformed the output, and any config
+// error.
 //
 // The caller owns the INSERT decision: `ktx compress` always inserts a
 // compressed row (the user explicitly invoked it); `ktx hook` inserts
@@ -141,29 +145,49 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 // fresh Registry + external plugins from config). Tests inject a custom
 // Registry to exercise the conservative-on-failure invariants.
 //
-// timeout is the critical-path deadline for the pipeline run. A duration
-// of 0 means no timeout (used by `ktx compress`, which is off-line and
-// can be Ctrl-C'd). A positive timeout (used by `ktx hook`, which is on
-// the agent's critical path) cancels the pipeline on expiry and returns
-// source.output unchanged with a stderr warning. A timed-out stage continues
-// in its goroutine until it returns or its external process exits.
-func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.Writer, timeout time.Duration) (compressedOutput, pipelineJSON string, transformed bool, err error) {
+// enforceTimeout controls the critical-path deadline. When false, no
+// timeout is applied (used by `ktx compress` and the offline bench
+// replay, which are not on the agent's critical path and can be Ctrl-C'd).
+// When true, the deadline is resolved per-profile via
+// config.ResolveTimeout — the selected profile's own timeout, falling
+// back to the default profile's timeout, then DefaultPipelineTimeout.
+// (`ktx hook` is on the agent's critical path, so it passes true.) On
+// expiry the pipeline is cancelled and source.output is returned unchanged
+// with a stderr warning. A timed-out stage continues in its goroutine
+// until it returns or its external process exits.
+//
+// The selected profileName is returned so callers can resolve the
+// profile-scoped recover_footer setting (via config.ResolveRecoverFooter)
+// without re-running the router themselves.
+func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.Writer, enforceTimeout bool) (compressedOutput, pipelineJSON, profileName string, transformed bool, err error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return "", "", false, usageError("%v", err)
+		return "", "", "", false, usageError("%v", err)
 	}
 
-	runner := buildCompressRunner(reg, cfg, stderr)
+	profileName = router.Match(source, cfg.Routes, "default")
+	pipelineStages := stagesForProfile(cfg, profileName)
+
+	runner := buildCompressRunner(reg, cfg, pipelineStages, stderr)
 
 	// Pre-pipeline failure gate: skip compression for failed tool calls.
 	if source.IsError != nil && *source.IsError {
 		fmt.Fprint(stderr, sourceFailureWarning)
-		return source.Output, "[]", false, nil
+		return source.Output, pipeline.EncodePipelineRecord(profileName, nil), profileName, false, nil
 	}
 
 	// Identity: no stages configured → source returned unchanged.
 	if len(runner.Pipeline) == 0 {
-		return source.Output, "[]", false, nil
+		return source.Output, pipeline.EncodePipelineRecord(profileName, nil), profileName, false, nil
+	}
+
+	// Resolve the critical-path deadline per-profile (the selected
+	// profile's own timeout, falling back to the default profile's,
+	// then DefaultPipelineTimeout). Callers off the critical path pass
+	// enforceTimeout=false to skip the deadline entirely.
+	var timeout time.Duration
+	if enforceTimeout {
+		timeout = config.ResolveTimeout(cfg, profileName)
 	}
 
 	// Run the pipeline. When a timeout is set, race the pipeline against
@@ -183,16 +207,16 @@ func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.
 			res = r.res
 		case <-timer.C:
 			fmt.Fprintf(stderr, "ktx: warning: pipeline timeout after %s, returning original\n", timeout)
-			return source.Output, "[]", false, nil
+			return source.Output, pipeline.EncodePipelineRecord(profileName, nil), profileName, false, nil
 		}
 	} else {
 		res = (<-ch).res
 	}
 
 	compressedOutput = string(res.Out)
-	pipelineJSON = pipeline.EncodePipelineJSON(res.Ran)
-	transformed = compressedOutput != source.Output || pipelineJSON != "[]"
-	return compressedOutput, pipelineJSON, transformed, nil
+	pipelineJSON = pipeline.EncodePipelineRecord(profileName, res.Ran)
+	transformed = compressedOutput != source.Output || len(res.Ran) > 0
+	return compressedOutput, pipelineJSON, profileName, transformed, nil
 }
 
 // compressCore is the shared pipeline+persist core used by `ktx compress`
@@ -218,7 +242,7 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 		return "", "", "", internalError("get source: %v", err)
 	}
 
-	compressedOutput, pipelineJSON, _, err = compressPipeline(source, reg, stderr, 0)
+	compressedOutput, pipelineJSON, _, _, err = compressPipeline(source, reg, stderr, false)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -248,6 +272,22 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 	return cid, compressedOutput, pipelineJSON, nil
 }
 
+// stagesForProfile resolves the stage list for a given profile name from
+// the loaded config. When the profile name exists in the Profiles map,
+// its stages are returned. When the name is absent — which happens when
+// no ktx.toml is present (Profiles is nil and the router returned
+// "default") — the function falls back to PipelineDefault so compression
+// still runs with the default stages (or passthrough when that is empty).
+func stagesForProfile(cfg *config.Config, profileName string) []string {
+	if cfg == nil {
+		return nil
+	}
+	if p, ok := cfg.Profiles[profileName]; ok {
+		return p.Stages
+	}
+	return cfg.PipelineDefault
+}
+
 // buildCompressRunner constructs the pipeline.Runner for `ktx compress`.
 // A nil reg builds a fresh Registry with the built-in stages registered
 // (the "OFF by default" contract: the stages exist but do not run
@@ -265,7 +305,7 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 // last-writer-wins lets a user plugin shadow a built-in of the same
 // name. The registry is rebuilt per-invocation — removing the
 // [[plugin]] block from ktx.toml and re-running restores the built-in.
-func buildCompressRunner(reg *pipeline.Registry, cfg *config.Config, stderr io.Writer) *pipeline.Runner {
+func buildCompressRunner(reg *pipeline.Registry, cfg *config.Config, pipelineStages []string, stderr io.Writer) *pipeline.Runner {
 	if reg == nil {
 		reg = pipeline.NewRegistry()
 		stages.RegisterBuiltins(reg)
@@ -274,10 +314,6 @@ func buildCompressRunner(reg *pipeline.Registry, cfg *config.Config, stderr io.W
 				reg.RegisterExternalBuilder(p.Name, p.Command)
 			}
 		}
-	}
-	pipelineStages := []string{}
-	if cfg != nil {
-		pipelineStages = cfg.PipelineDefault
 	}
 	return &pipeline.Runner{
 		Registry: reg,

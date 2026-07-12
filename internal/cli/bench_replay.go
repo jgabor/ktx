@@ -276,7 +276,7 @@ func measureReplayCompression(toolCalls []*dbpkg.ToolCall) map[string]any {
 	var baseline, compressed int64
 	for _, tc := range toolCalls {
 		baseline += int64(len(tc.Output))
-		out, _, _, err := compressPipeline(tc, nil, io.Discard, 0)
+		out, _, _, _, err := compressPipeline(tc, nil, io.Discard, false)
 		if err != nil {
 			// compressPipeline could not run (e.g. a broken
 			// ktx.toml); count the original length — no

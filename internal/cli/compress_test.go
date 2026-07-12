@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/pipeline"
 	"github.com/jgabor/ktx/internal/pipeline/stages"
@@ -183,8 +185,8 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	if comp.ContentHash != dbpkg.ContentHash(sourceOutput) {
 		t.Errorf("ContentHash = %q, want %q", comp.ContentHash, dbpkg.ContentHash(sourceOutput))
 	}
-	if comp.Pipeline != "[]" {
-		t.Errorf("Pipeline = %q, want \"[]\" (no stages ran)", comp.Pipeline)
+	if comp.Pipeline != `{"profile":"default","stages":[]}` {
+		t.Errorf("Pipeline = %q, want empty default profile (no stages ran)", comp.Pipeline)
 	}
 
 	// decompress <compressed-id> → source bytes verbatim.
@@ -464,8 +466,8 @@ func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	if comp.Output != sourceOutput {
 		t.Errorf("Output = %q, want passthrough %q", comp.Output, sourceOutput)
 	}
-	if comp.Pipeline != "[]" {
-		t.Errorf("Pipeline = %q, want \"[]\" (gate skipped pipeline)", comp.Pipeline)
+	if comp.Pipeline != `{"profile":"default","stages":[]}` {
+		t.Errorf("Pipeline = %q, want empty default profile (gate skipped pipeline)", comp.Pipeline)
 	}
 
 	var dstdout, dstderr bytes.Buffer
@@ -518,8 +520,8 @@ func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
 			if comp.Output == sourceOutput {
 				t.Errorf("Output unchanged; head:1 should have truncated to one line")
 			}
-			if comp.Pipeline == "[]" {
-				t.Errorf("Pipeline = \"[]\"; stages should have run")
+			if strings.Contains(comp.Pipeline, `"stages":[]`) {
+				t.Errorf("Pipeline = %q; stages should have run", comp.Pipeline)
 			}
 		})
 	}
@@ -564,5 +566,242 @@ func TestCompressLogic_GateDistinctFromStageError(t *testing.T) {
 	}
 	if !strings.Contains(comp.Pipeline, "head:1") {
 		t.Errorf("Pipeline = %q, want head:1 recorded", comp.Pipeline)
+	}
+}
+
+// seedSourceWithTool inserts a session + tool_call row with a specified
+// tool name and input, so route rules matching on tool or command-prefix
+// can be exercised. Returns nothing — the test supplies the id.
+func seedSourceWithTool(t *testing.T, d *dbpkg.DB, toolCallID, sessionID, tool, input, output string) {
+	t.Helper()
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "test-agent",
+		StartedAt:  "2026-06-24T12:00:00Z",
+		LastSeenAt: "2026-06-24T12:00:00Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+	if err := d.PersistToolCall(&dbpkg.ToolCall{
+		ID:          toolCallID,
+		SessionID:   sessionID,
+		Tool:        tool,
+		Input:       input,
+		Output:      output,
+		ContentHash: dbpkg.ContentHash(output),
+		Timestamp:   "2026-06-24T12:00:00Z",
+		EventType:   "tool_call",
+	}); err != nil {
+		t.Fatalf("PersistToolCall: %v", err)
+	}
+}
+
+// TestCompressLogic_RoutedProfileAppliesRoutedStages covers the core
+// routing contract: a tool call matching a route rule gets the routed
+// profile's stages, not the default profile's stages.
+func TestCompressLogic_RoutedProfileAppliesRoutedStages(t *testing.T) {
+	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+	d := compressTestDB(t)
+	restore := chdir(t, t.TempDir())
+	defer restore()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:1"]
+
+[pipeline.git-status]
+stages = ["head:2"]
+
+[[route]]
+tool = "bash"
+command_prefix = "git status"
+profile = "git-status"
+`)
+
+	const sourceOutput = "line one\nline two\nline three\n"
+	seedSourceWithTool(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", "bash", `{"command":"git status"}`, sourceOutput)
+
+	var stdout, stderr bytes.Buffer
+	_, err := compressLogic([]string{"abcdefghijklmnop"}, nil, d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("compressLogic: %v", err)
+	}
+	compressedID := decodeID(t, &stdout)
+
+	comp, err := d.GetCompressed(compressedID)
+	if err != nil {
+		t.Fatalf("GetCompressed: %v", err)
+	}
+	if comp.Output != "line one\nline two\n" {
+		t.Errorf("Output = %q, want 2 lines (head:2 from routed git-status profile, not head:1 from default)", comp.Output)
+	}
+	if !strings.Contains(comp.Pipeline, `"profile":"git-status"`) {
+		t.Errorf("Pipeline = %q, want profile git-status", comp.Pipeline)
+	}
+	if !strings.Contains(comp.Pipeline, "head:2") {
+		t.Errorf("Pipeline = %q, want head:2 stage recorded", comp.Pipeline)
+	}
+}
+
+// TestCompressLogic_NoRouteMatchUsesDefaultProfile covers the fallback
+// contract: a tool call matching no route rule gets the default
+// profile's stages.
+func TestCompressLogic_NoRouteMatchUsesDefaultProfile(t *testing.T) {
+	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+	d := compressTestDB(t)
+	restore := chdir(t, t.TempDir())
+	defer restore()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:1"]
+
+[pipeline.git-status]
+stages = ["head:2"]
+
+[[route]]
+tool = "bash"
+command_prefix = "git status"
+profile = "git-status"
+`)
+
+	const sourceOutput = "line one\nline two\nline three\n"
+	seedSourceWithTool(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", "bash", `{"command":"ls -la"}`, sourceOutput)
+
+	var stdout, stderr bytes.Buffer
+	_, err := compressLogic([]string{"abcdefghijklmnop"}, nil, d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("compressLogic: %v", err)
+	}
+	compressedID := decodeID(t, &stdout)
+
+	comp, err := d.GetCompressed(compressedID)
+	if err != nil {
+		t.Fatalf("GetCompressed: %v", err)
+	}
+	if comp.Output != "line one\n" {
+		t.Errorf("Output = %q, want 1 line (head:1 from default profile, no route matched)", comp.Output)
+	}
+	if !strings.Contains(comp.Pipeline, `"profile":"default"`) {
+		t.Errorf("Pipeline = %q, want profile default (no route matched)", comp.Pipeline)
+	}
+	if !strings.Contains(comp.Pipeline, "head:1") {
+		t.Errorf("Pipeline = %q, want head:1 stage recorded", comp.Pipeline)
+	}
+}
+
+// TestCompressLogic_PipelineRecordsSelectedProfile covers the
+// auditability contract: a compressed row created from a routed
+// profile, when inspected through the existing compressed-row access
+// path (GetCompressed), shows which profile was selected in the
+// pipeline evidence.
+func TestCompressLogic_PipelineRecordsSelectedProfile(t *testing.T) {
+	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+	d := compressTestDB(t)
+	restore := chdir(t, t.TempDir())
+	defer restore()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:1"]
+
+[pipeline.logs]
+stages = ["head:2"]
+
+[[route]]
+tool = "bash"
+command_prefix = "tail"
+profile = "logs"
+`)
+
+	const sourceOutput = "line one\nline two\nline three\n"
+	seedSourceWithTool(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", "bash", `{"command":"tail -f /var/log/syslog"}`, sourceOutput)
+
+	var stdout, stderr bytes.Buffer
+	_, err := compressLogic([]string{"abcdefghijklmnop"}, nil, d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("compressLogic: %v", err)
+	}
+	compressedID := decodeID(t, &stdout)
+
+	comp, err := d.GetCompressed(compressedID)
+	if err != nil {
+		t.Fatalf("GetCompressed: %v", err)
+	}
+
+	var rec struct {
+		Profile string   `json:"profile"`
+		Stages  []string `json:"stages"`
+	}
+	if err := json.Unmarshal([]byte(comp.Pipeline), &rec); err != nil {
+		t.Fatalf("Pipeline JSON is not a valid object: %v (value=%q)", err, comp.Pipeline)
+	}
+	if rec.Profile != "logs" {
+		t.Errorf("Pipeline profile = %q, want \"logs\" (routed profile)", rec.Profile)
+	}
+	if len(rec.Stages) != 1 || rec.Stages[0] != "head:2" {
+		t.Errorf("Pipeline stages = %v, want [\"head:2\"] (stages from logs profile)", rec.Stages)
+	}
+}
+
+// TestStagesForProfile covers the defense-in-depth fallback: when the
+// profile name is not in the Profiles map (e.g. no ktx.toml and the
+// router returned "default" against an empty map), the function
+// falls back to PipelineDefault.
+func TestStagesForProfile(t *testing.T) {
+	cfg := &config.Config{
+		PipelineDefault: []string{"strip-ansi"},
+		Profiles: map[string]config.Profile{
+			"default":    {Stages: []string{"strip-ansi"}},
+			"git-status": {Stages: []string{"head:5"}},
+		},
+	}
+
+	if got := stagesForProfile(cfg, "git-status"); !slices.Equal(got, []string{"head:5"}) {
+		t.Errorf("stagesForProfile(git-status) = %v, want [head:5]", got)
+	}
+	if got := stagesForProfile(cfg, "default"); !slices.Equal(got, []string{"strip-ansi"}) {
+		t.Errorf("stagesForProfile(default) = %v, want [strip-ansi]", got)
+	}
+	if got := stagesForProfile(cfg, "nonexistent"); !slices.Equal(got, []string{"strip-ansi"}) {
+		t.Errorf("stagesForProfile(nonexistent) = %v, want [strip-ansi] (PipelineDefault fallback)", got)
+	}
+	if got := stagesForProfile(nil, "default"); got != nil {
+		t.Errorf("stagesForProfile(nil, default) = %v, want nil", got)
+	}
+}
+
+// TestCompressPipeline_UnknownProfileFallsBackToDefault covers the
+// full pipeline path when no ktx.toml is present: the router returns
+// "default" against an empty Profiles map, stagesForProfile falls back
+// to PipelineDefault (nil), and the pipeline runs passthrough with the
+// profile recorded as "default".
+func TestCompressPipeline_UnknownProfileFallsBackToDefault(t *testing.T) {
+	restore := noConfigEnv(t)
+	defer restore()
+
+	source := &dbpkg.ToolCall{
+		ID:        "fallback01",
+		Tool:      "bash",
+		Output:    "line one\nline two\n",
+		Timestamp: "2026-06-24T12:00:00Z",
+	}
+
+	var stderr bytes.Buffer
+	out, pj, _, transformed, err := compressPipeline(source, nil, &stderr, false)
+	if err != nil {
+		t.Fatalf("compressPipeline: %v", err)
+	}
+	if transformed {
+		t.Error("transformed = true; want false (passthrough, no stages)")
+	}
+	if out != source.Output {
+		t.Errorf("output = %q; want %q (source unchanged)", out, source.Output)
+	}
+	if !strings.Contains(pj, `"profile":"default"`) {
+		t.Errorf("pipelineJSON = %q; want profile \"default\" (fallback)", pj)
+	}
+	if !strings.Contains(pj, `"stages":[]`) {
+		t.Errorf("pipelineJSON = %q; want empty stages (passthrough)", pj)
 	}
 }

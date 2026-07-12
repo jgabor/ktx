@@ -660,6 +660,24 @@ func reduction(original, result float64) *float64 {
 func round2(value float64) float64 { return math.Round(value*100) / 100 }
 
 func pipelineLabel(value string) string {
+	// Object format: {"profile":"git-status","stages":["strip-ansi","head:5"]}
+	var rec struct {
+		Profile string   `json:"profile"`
+		Stages  []string `json:"stages"`
+	}
+	if json.Unmarshal([]byte(value), &rec) == nil && (rec.Profile != "" || rec.Stages != nil) {
+		if len(rec.Stages) == 0 {
+			if rec.Profile != "" {
+				return rec.Profile
+			}
+			return "passthrough"
+		}
+		if rec.Profile != "" {
+			return rec.Profile + ": " + strings.Join(rec.Stages, " → ")
+		}
+		return strings.Join(rec.Stages, " → ")
+	}
+	// Legacy array format: ["strip-ansi","head:5"]
 	var stages []string
 	if json.Unmarshal([]byte(value), &stages) == nil {
 		if len(stages) == 0 {

@@ -414,11 +414,6 @@ func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output 
 
 // EncodePipelineJSON renders the stage-names slice as a JSON array
 // string, e.g. `["strip-ansi","head:5"]` or `[]` for an empty slice.
-// The compressed row's `pipeline` column stores this string so the
-// "a record of what stages ran" contract has an inspectable,
-// deterministically-encoded representation (a profile-hash would
-// require readers to resolve the hash against a registry ktx does
-// not yet have).
 //
 // Encoding lives in package pipeline (not in db) because the pipeline
 // owns the JSON shape contract; the db layer persists it verbatim as
@@ -431,24 +426,44 @@ func EncodePipelineJSON(names []string) string {
 		if i > 0 {
 			b.WriteByte(',')
 		}
-		b.WriteByte('"')
-		// Escape the two characters JSON requires inside a string:
-		// the quote and the backslash. Stage names are
-		// author-chosen (e.g. "head:5", "strip-ansi") and unlikely
-		// to need full JSON-string escaping, but correctness is
-		// cheap.
-		for _, c := range []byte(n) {
-			switch c {
-			case '"':
-				b.WriteString(`\"`)
-			case '\\':
-				b.WriteString(`\\`)
-			default:
-				b.WriteByte(c)
-			}
-		}
-		b.WriteByte('"')
+		writeJSONString(&b, n)
 	}
 	b.WriteByte(']')
 	return b.String()
+}
+
+// EncodePipelineRecord renders a pipeline record as a JSON object carrying
+// the selected profile name and the stages that ran, e.g.
+// `{"profile":"git-status","stages":["strip-ansi","head:5"]}` or
+// `{"profile":"default","stages":[]}` when no stages ran. The compressed
+// row's `pipeline` column stores this string so the evidence shows which
+// profile was selected alongside what stages actually ran.
+func EncodePipelineRecord(profile string, ran []string) string {
+	var b bytes.Buffer
+	b.WriteString(`{"profile":`)
+	writeJSONString(&b, profile)
+	b.WriteString(`,"stages":`)
+	b.WriteString(EncodePipelineJSON(ran))
+	b.WriteByte('}')
+	return b.String()
+}
+
+// writeJSONString writes s as a JSON string (with surrounding quotes)
+// into b, escaping the two characters JSON requires inside a string:
+// the quote and the backslash. Profile names and stage names are
+// author-chosen (e.g. "head:5", "strip-ansi") and unlikely to need full
+// JSON-string escaping, but correctness is cheap.
+func writeJSONString(b *bytes.Buffer, s string) {
+	b.WriteByte('"')
+	for _, c := range []byte(s) {
+		switch c {
+		case '"':
+			b.WriteString(`\"`)
+		case '\\':
+			b.WriteString(`\\`)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	b.WriteByte('"')
 }

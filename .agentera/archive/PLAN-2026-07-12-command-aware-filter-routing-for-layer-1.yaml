@@ -1,0 +1,96 @@
+header:
+  level: full
+  created: 2026-07-12
+  status: active
+  reviewed: 2026-07-12
+  critic_issues: 9 found, 6 addressed, 3 dismissed
+  title: "Plan: Command-aware filter routing for Layer 1"
+what: |
+  Introduce a Layer 1 router that selects a pipeline profile based on command identity, subcommand, and exit status, rather than always running the default profile for every tool call. The router is a new component — there is no pre-existing router code to activate — but the infrastructure to support it (named profiles in config, the compression pipeline insertion point) already exists.
+why: |
+  The default pipeline applies the same stages to every tool call. Common shell commands (git status, git diff, test runners, search tools) have predictable output structures that can be safely cleaned up with targeted filter packs. Without routing, ktx either applies no compression (passthrough) or applies the same aggressive stages everywhere, risking over-truncation of important output. Routing lets each command type get the right level of cleanup while unknown commands fall back to the default profile unchanged.
+constraints: |
+  Single TOML config file at $XDG_CONFIG_HOME/ktx/ktx.toml (D5, firm). Default pipeline is passthrough when no ktx.toml exists (D14, firm). ktx hook does persist, compress, and return in one process (D22, firm). Unknown commands must fall back to the default profile (conservative-on-failure). No content-type detection from raw bytes (separate TODO). No new compression stages (separate TODOs). CLI surface stays stable. No project-memory markers in shipped code. A deliberation session should precede implementation to record that command-aware routing is a distinct signal axis from byte-level content-type detection. Unknowns: (1) command extraction reliability varies across runtimes — if unreliable, router falls back to default for that runtime; (2) prefix vs regex match strategy resolved at Task 2 design time, acceptance criteria are match-strategy-agnostic; (3) profile-name auditing may need a schema migration — if so, a migration test is required; (4) the signal-axis distinction from byte-level content-type detection should be recorded in a pre-implementation deliberation session. Rejected critic issues: (a) resolving content-type taxonomy — command-aware routing uses metadata signals, not byte-level detection, distinct concerns; (b) specifying route rule data structure — implementation detail for build; (c) linear dependency chain — Task 5 can parallel Task 4, remaining chain is genuinely sequential.
+overall_acceptance: |
+  A ktx.toml with route rules and multiple pipeline profiles applies the routed profile's stages when a tool call matches a rule, and the default profile's stages when it does not. A ktx.toml without route rules behaves identically to today. A tool call with malformed or unparseable input returns the default profile without error. A compressed row created from a routed profile shows which profile was selected through existing compressed-row access paths.
+scope:
+  included:
+    - Route rule config parsing in ktx.toml
+    - Router function matching tool call metadata to a profile name
+    - Wiring the router into the compression pipeline
+    - Lifting per-profile timeout and recover_footer from global scalars to per-profile values
+    - Recording the selected profile name for auditability
+    - Example config and documentation
+  excluded:
+    - Content-type detection from raw bytes (separate TODO)
+    - Per-layer profiles beyond Layer 1 Shell (Layer 2-5 remain dormant)
+    - New compression stages or filter packs (separate TODOs)
+    - Structured output parsers (separate TODO)
+  deferred:
+    - Declarative filter pack format (separate TODO; routing enables it but does not ship it)
+    - Residual-waste discovery command (separate TODO)
+design: |
+  The routing system sits between config discovery and pipeline execution. The config layer already discovers and stores named pipeline profiles; it gains a parallel set of route rules that map match conditions to profile names. A new routing function receives tool call metadata (tool name, input, exit status) and the route rules, and returns a profile name by first-match-wins, falling back to default on no match or any error. The compression pipeline calls the router before building the runner, selects the named profile's stages, and proceeds as before. Per-profile settings (timeout, recover_footer) are currently global scalars read only from the default profile; this plan lifts them into per-profile values with fallback to default. The selected profile name is recorded for auditability through the existing compressed-row access paths. Phases run in order: config parsing, router implementation, pipeline wiring, per-profile settings, documentation, then a final state sync.
+tasks:
+  - number: 1
+    name: Route rule config parsing
+    depends_on:
+      []
+    status: complete
+    acceptance:
+      - GIVEN ktx.toml with one or more route rules WHEN config is loaded THEN all rules are parsed and available on the config object
+      - GIVEN ktx.toml without route rules WHEN config is loaded THEN the config object has zero route rules and behavior is unchanged
+      - GIVEN ktx.toml with a route rule referencing a profile name that does not exist in [pipeline.<name>] WHEN config is loaded THEN a parse error names the offending rule and the missing profile
+      - GIVEN ktx config show --json WHEN route rules exist THEN the JSON output includes the routing configuration alongside existing keys without changing the shape of existing keys
+      - GIVEN the bench harness preflight that reads config JSON WHEN route rules are added to ktx.toml THEN the preflight still resolves pipeline stages correctly
+  - number: 2
+    name: Router function
+    depends_on:
+      - "1"
+    status: complete
+    acceptance:
+      - GIVEN a tool call from a bash tool with a command string matching a route rule's match condition WHEN the router evaluates it THEN the router returns the matched profile name
+      - GIVEN a tool call whose command matches no route rule WHEN the router evaluates it THEN the router returns the default profile name
+      - GIVEN a tool call with malformed or empty input JSON WHEN the router evaluates it THEN the router returns the default profile name without error
+      - GIVEN a tool call with a non-zero exit code WHEN a route rule matches on exit failure THEN the router returns that rule's profile name
+      - GIVEN a tool call from a non-bash tool WHEN the router evaluates it and a route rule matches on tool name THEN the router returns that rule's profile name
+  - number: 3
+    name: Pipeline wiring and auditability
+    depends_on:
+      - "2"
+    status: complete
+    acceptance:
+      - GIVEN a tool call that matches a route rule pointing to a profile with specific stages WHEN compression runs THEN the pipeline applies the routed profile's stages not the default profile's stages
+      - GIVEN a tool call that matches no route rule WHEN compression runs THEN the pipeline applies the default profile's stages
+      - GIVEN a compressed row created from a routed profile WHEN the row is inspected through the existing compressed-row access paths THEN the evidence shows which profile was selected
+      - GIVEN the router returns an empty or unknown profile name WHEN compression runs THEN the pipeline falls back to the default profile
+  - number: 4
+    name: Lift timeout and recover_footer from global to per-profile
+    depends_on:
+      - "3"
+    status: complete
+    acceptance:
+      - GIVEN a selected profile with its own timeout value WHEN the pipeline runs THEN that profile's timeout is used for the pipeline deadline
+      - GIVEN a selected profile without a timeout value WHEN the pipeline runs THEN the default profile's timeout is used
+      - GIVEN a selected profile with its own recover_footer value WHEN the pipeline runs and transformation fires THEN that profile's recover_footer setting determines whether the footer is appended
+      - GIVEN a selected profile without a recover_footer value WHEN the pipeline runs THEN the default profile's recover_footer setting is used
+  - number: 5
+    name: Example config and documentation
+    depends_on:
+      - "3"
+    status: complete
+    acceptance:
+      - GIVEN a user reading ktx.example.toml WHEN they look for routing THEN they find commented examples showing how to define route rules and link them to named profiles
+      - GIVEN a user reading the pipeline documentation WHEN they look for routing THEN they find a section explaining how command-aware routing works what signals are available and how fallback to default works
+      - GIVEN the architecture document WHEN routing is implemented THEN it notes that Layer 1 routing is no longer dormant
+  - number: 6
+    name: Current-state check
+    depends_on:
+      - "4"
+      - "5"
+    status: complete
+    acceptance:
+      - GIVEN all prior tasks are complete WHEN build runs go test ./... and go build ./cmd/ktx THEN both exit zero
+      - GIVEN all prior tasks are complete WHEN the existing benchmark and config tests run THEN no previously passing test regresses
+      - GIVEN a schema migration was needed for profile-name auditability WHEN a migration test of the same shape as existing migration tests runs THEN the migration is idempotent and existing rows are preserved
+surprises: ""

@@ -58,15 +58,72 @@ type Plugin struct {
 	Description string
 }
 
+// RouteRule maps tool-call metadata to a named pipeline profile. A
+// rule fires when the tool call matches all non-empty match fields
+// (Tool for the tool name, CommandPrefix for a prefix on the command
+// string, ExitStatus for success/failure). The matching Profile names
+// a [pipeline.<name>] table. Empty ExitStatus normalizes to "any".
+// Matching itself is performed by the router at runtime, not at
+// config-load time; the loader only parses and validates profile
+// references.
+type RouteRule struct {
+	// Tool is the tool name to match (e.g. "bash"). Empty matches
+	// any tool.
+	Tool string
+
+	// CommandPrefix is a prefix match on the command string (e.g.
+	// "git" matches "git status"). Empty matches any command.
+	CommandPrefix string
+
+	// ExitStatus is "success", "failure", or "any". Empty normalizes
+	// to "any".
+	ExitStatus string
+
+	// Profile is the target [pipeline.<name>] profile. Required; the
+	// loader validates it exists in the Profiles map.
+	Profile string
+}
+
+// Profile is one [pipeline.<name>] table: its stage list plus the
+// optional per-profile overrides for the pipeline deadline and the
+// recovery-footer behavior. A zero Timeout or nil RecoverFooter means
+// "inherit the default profile's value" — see ResolveTimeout and
+// ResolveRecoverFooter. Stages is the ordered list of stage-name
+// tokens (e.g. ["strip-ansi", "head:100"]); nil/empty stages run the
+// passthrough pipeline for that profile.
+type Profile struct {
+	// Stages is the ordered list of stage-name tokens for this
+	// profile (e.g. ["strip-ansi", "head:100"]). Empty when the
+	// [pipeline.<name>] table has no stages key — passthrough.
+	Stages []string
+
+	// Timeout is this profile's pipeline deadline, parsed from the
+	// [pipeline.<name>] timeout field as a Go duration string (e.g.
+	// "2s", "500ms"). Zero when the field is absent — the effective
+	// timeout falls back to the default profile's timeout, then to
+	// DefaultPipelineTimeout. A non-positive or unparseable value is
+	// a *ParseError at config-load time.
+	Timeout time.Duration
+
+	// RecoverFooter, when non-nil, is this profile's explicit
+	// recover_footer setting: true appends a `ktx read <source_id>`
+	// cue to the agent-visible output, false suppresses it. Nil when
+	// the field is absent — the effective value falls back to the
+	// default profile's setting, then to false. A non-bool value is
+	// a *ParseError at config-load time (surfaced by the TOML decoder).
+	RecoverFooter *bool
+}
+
 // Config is the parsed ktx.toml representation. It carries
-// the default pipeline's stage list and any user-defined plugins. The
-// Load signature is additive: new fields can be added without
-// breaking callers (struct growth).
+// the default pipeline's stage list, every discovered profile, and any
+// user-defined plugins. The Load signature is additive: new fields can
+// be added without breaking callers (struct growth).
 type Config struct {
 	// PipelineDefault is the ordered list of stage-name tokens for
 	// the default pipeline (e.g. ["strip-ansi", "head:100"]). Empty
 	// when ktx.toml is absent or when [pipeline.default] has no
-	// stages key — both map to the passthrough default.
+	// stages key — both map to the passthrough default. It is a
+	// convenience alias for Profiles["default"].Stages.
 	PipelineDefault []string
 
 	// Plugins holds user-defined external stages from [[plugin]]
@@ -77,27 +134,20 @@ type Config struct {
 	// name.
 	Plugins []Plugin
 
-	// Profiles holds all discovered pipeline profiles from the
-	// [pipeline.<name>] tables (e.g. default, json, logs). The
-	// "default" key is always present (it maps to PipelineDefault).
-	// ktx currently runs the default profile.
-	Profiles map[string][]string
+	// Profiles holds every discovered pipeline profile from the
+	// [pipeline.<name>] tables (e.g. default, json, logs), each with
+	// its own stages and optional timeout / recover_footer overrides.
+	// Nil when ktx.toml is absent (the no-config passthrough path);
+	// resolvers fall back to the const defaults in that case. The
+	// "default" key is present whenever a [pipeline.default] table
+	// exists, and its Stages mirror PipelineDefault.
+	Profiles map[string]Profile
 
-	// PipelineTimeout is the configured pipeline deadline for the
-	// [pipeline.default] table's `timeout` field, parsed as a Go
-	// duration string (e.g. "2s", "500ms", "30s"). Default
-	// DefaultPipelineTimeout (2s) when the field is absent. `ktx hook`
-	// reads this so a user can tune the critical-path deadline.
-	// `ktx compress` ignores it (off-line, timeout=0, developer can
-	// Ctrl-C). A non-positive or unparseable value is a *ParseError at
-	// config-load time. Only the "default" profile's timeout is read.
-	PipelineTimeout time.Duration
-
-	// RecoverFooter is the [pipeline.default].recover_footer flag.
-	// Defaults to false when the field is absent or no ktx.toml exists.
-	// Set recover_footer = true to surface a `ktx read <source_id>` cue.
-	// Only the "default" profile's value is read.
-	RecoverFooter bool
+	// Routes holds route rules from [[route]] blocks, in document
+	// order. Each rule maps tool-call metadata to a named pipeline
+	// profile. Nil when no [[route]] blocks exist. Profile references
+	// are validated against the Profiles map at load time.
+	Routes []RouteRule
 }
 
 // ParseError is returned by Load when a discovered ktx.toml contains
@@ -165,13 +215,48 @@ func Load() (*Config, error) {
 	return defaultConfig(), nil
 }
 
-// defaultConfig is the no-file / load-error-safe baseline: empty stages
-// (passthrough), 2s pipeline timeout, recover_footer off.
+// defaultConfig is the no-file / load-error-safe baseline: no profiles
+// (nil Profiles → passthrough pipeline), and the resolvers return the
+// const defaults (DefaultPipelineTimeout, recover_footer off).
 func defaultConfig() *Config {
-	return &Config{
-		PipelineTimeout: DefaultPipelineTimeout,
-		RecoverFooter:   false,
+	return &Config{}
+}
+
+// ResolveTimeout returns the effective pipeline deadline for a profile:
+// the selected profile's own timeout when set, otherwise the default
+// profile's timeout, otherwise DefaultPipelineTimeout. The critical-path
+// runner (`ktx hook`) calls this so each profile tunes its own deadline
+// while still inheriting the default when it omits the field. A nil cfg
+// (no ktx.toml) yields DefaultPipelineTimeout.
+func ResolveTimeout(cfg *Config, profile string) time.Duration {
+	if cfg != nil {
+		if p, ok := cfg.Profiles[profile]; ok && p.Timeout > 0 {
+			return p.Timeout
+		}
+		if def, ok := cfg.Profiles["default"]; ok && def.Timeout > 0 {
+			return def.Timeout
+		}
 	}
+	return DefaultPipelineTimeout
+}
+
+// ResolveRecoverFooter returns the effective recover_footer setting for
+// a profile: the selected profile's own value when set, otherwise the
+// default profile's value, otherwise false. `ktx hook` uses this to
+// decide whether to append a `ktx read <source_id>` recovery cue to the
+// agent-visible output, so each profile can enable or suppress the footer
+// independently while inheriting the default when it omits the field. A
+// nil cfg (no ktx.toml) yields false.
+func ResolveRecoverFooter(cfg *Config, profile string) bool {
+	if cfg != nil {
+		if p, ok := cfg.Profiles[profile]; ok && p.RecoverFooter != nil {
+			return *p.RecoverFooter
+		}
+		if def, ok := cfg.Profiles["default"]; ok && def.RecoverFooter != nil {
+			return *def.RecoverFooter
+		}
+	}
+	return false
 }
 
 // userConfigFile resolves the user-level config path:
@@ -243,6 +328,7 @@ type tomlConfig struct {
 		RecoverFooter *bool    `toml:"recover_footer"` // nil = default false
 	} `toml:"pipeline"`
 	Plugin []tomlPlugin `toml:"plugin"`
+	Route  []tomlRoute  `toml:"route"`
 }
 
 // tomlPlugin maps a single [[plugin]] block. Name and Command are
@@ -251,6 +337,16 @@ type tomlPlugin struct {
 	Name        string `toml:"name"`
 	Command     string `toml:"command"`
 	Description string `toml:"description"`
+}
+
+// tomlRoute maps a single [[route]] block. Profile is required and
+// must name an existing [pipeline.<name>] table; Tool,
+// CommandPrefix, and ExitStatus are optional match filters.
+type tomlRoute struct {
+	Tool          string `toml:"tool"`
+	CommandPrefix string `toml:"command_prefix"`
+	ExitStatus    string `toml:"exit_status"`
+	Profile       string `toml:"profile"`
 }
 
 // parse decodes TOML bytes into a Config using BurntSushi/toml. A
@@ -272,51 +368,49 @@ func parse(data []byte) (*Config, error) {
 		return nil, &ParseError{Line: 0, Msg: err.Error()}
 	}
 
-	// Build the Profiles map from all discovered pipeline tables.
-	profiles := make(map[string][]string, len(decoded.Pipeline))
+	// Build the Profiles map from all discovered pipeline tables. Each
+	// profile carries its own stages plus optional timeout and
+	// recover_footer overrides; ResolveTimeout / ResolveRecoverFooter
+	// fall back to the default profile (then the const defaults) when a
+	// profile omits a field.
+	profiles := make(map[string]Profile, len(decoded.Pipeline))
 	for name, p := range decoded.Pipeline {
 		// Defensive copy so the caller cannot mutate the parsed
 		// slice via a shared backing array.
-		out := make([]string, len(p.Stages))
-		copy(out, p.Stages)
-		profiles[name] = out
+		stages := make([]string, len(p.Stages))
+		copy(stages, p.Stages)
+
+		prof := Profile{
+			Stages:        stages,
+			RecoverFooter: p.RecoverFooter, // nil when absent
+		}
+		// Timeout is stored as a raw string in TOML and parsed here via
+		// time.ParseDuration so an invalid duration surfaces as a
+		// *ParseError while loading config. Empty means "inherit the
+		// default profile's value". Every profile's timeout is
+		// validated, not just the default's.
+		if p.Timeout != "" {
+			d, err := time.ParseDuration(p.Timeout)
+			if err != nil {
+				return nil, &ParseError{
+					Line: 0,
+					Msg:  fmt.Sprintf("[pipeline.%s] timeout: invalid duration %q: %v", name, p.Timeout, err),
+				}
+			}
+			if d <= 0 {
+				return nil, &ParseError{
+					Line: 0,
+					Msg:  fmt.Sprintf("[pipeline.%s] timeout: must be positive, got %q", name, p.Timeout),
+				}
+			}
+			prof.Timeout = d
+		}
+		profiles[name] = prof
 	}
 
 	cfg := &Config{
-		PipelineDefault: profiles["default"],
+		PipelineDefault: profiles["default"].Stages,
 		Profiles:        profiles,
-	}
-
-	// Parse the configurable pipeline timeout. Stored as a raw
-	// string in TOML and parsed here via time.ParseDuration so an
-	// invalid duration surfaces as a *ParseError while loading config.
-	// Empty → DefaultPipelineTimeout (2s). Only the "default" profile's
-	// timeout is read.
-	cfg.PipelineTimeout = DefaultPipelineTimeout
-	if def, ok := decoded.Pipeline["default"]; ok && def.Timeout != "" {
-		d, err := time.ParseDuration(def.Timeout)
-		if err != nil {
-			return nil, &ParseError{
-				Line: 0,
-				Msg:  fmt.Sprintf("[pipeline.default] timeout: invalid duration %q: %v", def.Timeout, err),
-			}
-		}
-		if d <= 0 {
-			return nil, &ParseError{
-				Line: 0,
-				Msg:  fmt.Sprintf("[pipeline.default] timeout: must be positive, got %q", def.Timeout),
-			}
-		}
-		cfg.PipelineTimeout = d
-	}
-
-	// recover_footer defaults to false. A *bool decode distinguishes
-	// "key absent" from an explicit value. Only the
-	// "default" profile's value is read. A non-bool value surfaces as
-	// a *ParseError via BurntSushi's decode error (handled above).
-	cfg.RecoverFooter = false
-	if def, ok := decoded.Pipeline["default"]; ok && def.RecoverFooter != nil {
-		cfg.RecoverFooter = *def.RecoverFooter
 	}
 
 	for i, p := range decoded.Plugin {
@@ -333,6 +427,31 @@ func parse(data []byte) (*Config, error) {
 			}
 		}
 		cfg.Plugins = append(cfg.Plugins, Plugin(p))
+	}
+
+	for i, r := range decoded.Route {
+		if r.Profile == "" {
+			return nil, &ParseError{
+				Line: 0,
+				Msg:  fmt.Sprintf("[[route]] block at index %d missing required field 'profile'", i),
+			}
+		}
+		if _, ok := profiles[r.Profile]; !ok {
+			return nil, &ParseError{
+				Line: 0,
+				Msg:  fmt.Sprintf("[[route]] block at index %d references unknown profile %q", i, r.Profile),
+			}
+		}
+		exitStatus := r.ExitStatus
+		if exitStatus == "" {
+			exitStatus = "any"
+		}
+		cfg.Routes = append(cfg.Routes, RouteRule{
+			Tool:          r.Tool,
+			CommandPrefix: r.CommandPrefix,
+			ExitStatus:    exitStatus,
+			Profile:       r.Profile,
+		})
 	}
 
 	return cfg, nil

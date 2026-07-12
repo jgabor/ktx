@@ -365,6 +365,7 @@ func TestCompressPipeline_Timeout(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["slow"]
+timeout = "10ms"
 `)
 
 	source := &dbpkg.ToolCall{
@@ -381,7 +382,7 @@ stages = ["slow"]
 	}))
 
 	var stderr bytes.Buffer
-	out, _, transformed, err := compressPipeline(source, reg, &stderr, 10*time.Millisecond)
+	out, _, _, transformed, err := compressPipeline(source, reg, &stderr, true)
 	if err != nil {
 		t.Fatalf("compressPipeline: %v", err)
 	}
@@ -401,6 +402,7 @@ func TestCompressPipeline_TimeoutNotHit(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	hookWriteUserConfig(t, `[pipeline.default]
 stages = ["fast"]
+timeout = "5s"
 `)
 
 	source := &dbpkg.ToolCall{
@@ -416,7 +418,7 @@ stages = ["fast"]
 	}))
 
 	var stderr bytes.Buffer
-	out, pj, transformed, err := compressPipeline(source, reg, &stderr, 5*time.Second)
+	out, pj, _, transformed, err := compressPipeline(source, reg, &stderr, true)
 	if err != nil {
 		t.Fatalf("compressPipeline: %v", err)
 	}
@@ -426,21 +428,269 @@ stages = ["fast"]
 	if out != "line 1\nline 2\nline 3\n" {
 		t.Errorf("output = %q; want 3 lines", out)
 	}
-	if pj == "[]" {
-		t.Error("pipelineJSON = []; want non-empty (stage ran)")
+	if strings.Contains(pj, `"stages":[]`) {
+		t.Error("pipelineJSON has empty stages; want non-empty (stage ran)")
 	}
 	if strings.Contains(stderr.String(), "timeout") {
 		t.Errorf("stderr should NOT contain timeout: %q", stderr.String())
 	}
 }
 
+// The next four tests cover per-profile resolution of the pipeline
+// timeout and recover_footer: a selected profile's own value is used,
+// and when the profile omits the field the default profile's value is
+// used. Each test routes a bash tool call to a named profile so the
+// router selects it inside compressPipeline / hookLogic.
+
+// TestCompressPipeline_PerProfileTimeout_ProfileOwnValue covers a
+// selected profile with its own timeout: the resolved deadline is that
+// profile's timeout (5ms), which fires against a 200ms slow stage. The
+// default profile sets no timeout (effective 2s), which would not fire —
+// so a fired timeout proves the routed profile's own value was used.
+func TestCompressPipeline_PerProfileTimeout_ProfileOwnValue(t *testing.T) {
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["slow"]
+
+[pipeline.fast]
+stages = ["slow"]
+timeout = "5ms"
+
+[[route]]
+tool = "bash"
+profile = "fast"
+`)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	if got := config.ResolveTimeout(cfg, "fast"); got != 5*time.Millisecond {
+		t.Fatalf("ResolveTimeout(fast) = %v, want 5ms (the fast profile's own timeout)", got)
+	}
+	// default sets no timeout; its effective deadline is the 2s const,
+	// which would NOT fire against the 200ms slow stage below.
+	if got := config.ResolveTimeout(cfg, "default"); got != config.DefaultPipelineTimeout {
+		t.Fatalf("ResolveTimeout(default) = %v, want %v (default leaves timeout unset)", got, config.DefaultPipelineTimeout)
+	}
+
+	source := &dbpkg.ToolCall{
+		ID:        "pp-timeout-own",
+		Tool:      "bash",
+		Output:    "line 1\nline 2\nline 3\n",
+		Timestamp: "2026-07-01T12:00:00Z",
+	}
+	reg := pipeline.NewRegistry()
+	reg.Register("slow", pipeline.StageFunc(func(input []byte) ([]byte, error) {
+		time.Sleep(200 * time.Millisecond)
+		return []byte("shrunk"), nil
+	}))
+
+	var stderr bytes.Buffer
+	out, _, profileName, transformed, err := compressPipeline(source, reg, &stderr, true)
+	if err != nil {
+		t.Fatalf("compressPipeline: %v", err)
+	}
+	if profileName != "fast" {
+		t.Errorf("profileName = %q, want fast (routed by tool match)", profileName)
+	}
+	if transformed {
+		t.Error("transformed = true; want false (the fast profile's 5ms timeout fires before the 200ms stage)")
+	}
+	if out != source.Output {
+		t.Errorf("output = %q; want %q (source unchanged on timeout)", out, source.Output)
+	}
+	if !strings.Contains(stderr.String(), "timeout") {
+		t.Errorf("stderr should contain the timeout warning: %q", stderr.String())
+	}
+}
+
+// TestCompressPipeline_PerProfileTimeout_InheritsDefault covers a selected
+// profile WITHOUT its own timeout: the resolved deadline is the default
+// profile's timeout (5ms), which fires against a slow stage on the routed
+// profile. The routed profile sets no timeout, so the fired 5ms deadline
+// must have come from the default profile.
+func TestCompressPipeline_PerProfileTimeout_InheritsDefault(t *testing.T) {
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["slow"]
+timeout = "5ms"
+
+[pipeline.inherit]
+stages = ["slow"]
+
+[[route]]
+tool = "bash"
+profile = "inherit"
+`)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	// inherit sets no timeout → resolves to the default profile's 5ms.
+	if got := config.ResolveTimeout(cfg, "inherit"); got != 5*time.Millisecond {
+		t.Fatalf("ResolveTimeout(inherit) = %v, want 5ms (inherited from the default profile)", got)
+	}
+
+	source := &dbpkg.ToolCall{
+		ID:        "pp-timeout-inherit",
+		Tool:      "bash",
+		Output:    "line 1\nline 2\nline 3\n",
+		Timestamp: "2026-07-01T12:00:00Z",
+	}
+	reg := pipeline.NewRegistry()
+	reg.Register("slow", pipeline.StageFunc(func(input []byte) ([]byte, error) {
+		time.Sleep(200 * time.Millisecond)
+		return []byte("shrunk"), nil
+	}))
+
+	var stderr bytes.Buffer
+	out, _, profileName, transformed, err := compressPipeline(source, reg, &stderr, true)
+	if err != nil {
+		t.Fatalf("compressPipeline: %v", err)
+	}
+	if profileName != "inherit" {
+		t.Errorf("profileName = %q, want inherit (routed by tool match)", profileName)
+	}
+	if transformed {
+		t.Error("transformed = true; want false (the default profile's 5ms timeout fires before the 200ms stage)")
+	}
+	if out != source.Output {
+		t.Errorf("output = %q; want %q (source unchanged on timeout)", out, source.Output)
+	}
+	if !strings.Contains(stderr.String(), "timeout") {
+		t.Errorf("stderr should contain the timeout warning: %q", stderr.String())
+	}
+}
+
+// TestHook_PerProfileRecoverFooter_ProfileOwnValue covers a selected
+// profile with its own recover_footer setting: that profile's value
+// overrides the default's. The default profile enables the footer, but a
+// routed profile with recover_footer = false suppresses it (the
+// agent-visible output is the compressed content with no recovery cue).
+func TestHook_PerProfileRecoverFooter_ProfileOwnValue(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+recover_footer = true
+
+[pipeline.silent]
+stages = ["head:3"]
+recover_footer = false
+
+[[route]]
+tool = "bash"
+profile = "silent"
+`)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	if got := config.ResolveRecoverFooter(cfg, "silent"); got != false {
+		t.Fatalf("ResolveRecoverFooter(silent) = %v, want false (the silent profile's own value)", got)
+	}
+	if got := config.ResolveRecoverFooter(cfg, "default"); got != true {
+		t.Fatalf("ResolveRecoverFooter(default) = %v, want true (the default profile enables the footer)", got)
+	}
+
+	var sb strings.Builder
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
+	}
+	payload := codexPayload(t, "pp-foot-own", "bash", sb.String())
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+	}
+	if out.Decision != "block" {
+		t.Errorf("decision = %q, want block (the pipeline transformed the output)", out.Decision)
+	}
+	if !strings.HasPrefix(out.Reason, "line 0") {
+		t.Errorf("reason = %q, want the compressed content starting with line 0", out.Reason)
+	}
+	footerMarker := "\n[ktx]"
+	if strings.Contains(out.Reason, footerMarker) {
+		t.Errorf("reason should NOT contain a recovery footer (the silent profile sets recover_footer = false): %q", out.Reason)
+	}
+}
+
+// TestHook_PerProfileRecoverFooter_InheritsDefault covers a selected
+// profile WITHOUT its own recover_footer setting: the resolved value is
+// the default profile's. The default profile enables the footer, and a
+// routed profile that sets no recover_footer inherits that (the
+// agent-visible output carries the recovery cue).
+func TestHook_PerProfileRecoverFooter_InheritsDefault(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+recover_footer = true
+
+[pipeline.inherit]
+stages = ["head:3"]
+
+[[route]]
+tool = "bash"
+profile = "inherit"
+`)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	// inherit sets no recover_footer → resolves to the default profile's true.
+	if got := config.ResolveRecoverFooter(cfg, "inherit"); got != true {
+		t.Fatalf("ResolveRecoverFooter(inherit) = %v, want true (inherited from the default profile)", got)
+	}
+
+	var sb strings.Builder
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
+	}
+	payload := codexPayload(t, "pp-foot-inherit", "bash", sb.String())
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+	}
+	if out.Decision != "block" {
+		t.Errorf("decision = %q, want block (the pipeline transformed the output)", out.Decision)
+	}
+	footerMarker := "\n[ktx]"
+	if !strings.Contains(out.Reason, footerMarker) {
+		t.Errorf("reason should contain the recovery footer (the inherit profile inherits the default's recover_footer = true): %q", out.Reason)
+	}
+	if idx := strings.Index(out.Reason, footerMarker); idx <= 0 || !strings.HasPrefix(out.Reason, "line 0") {
+		t.Errorf("footer must follow the compressed content, not precede it: %q", out.Reason)
+	}
+}
+
 // TestHook_ConfigurableTimeout covers: a ktx.toml with
-// [pipeline.default] timeout = "5ms" makes the config surface a 5ms
-// PipelineTimeout, which compressPipeline honours (a slow stage racing
-// a 5ms timer fires the CONFIGURED timeout, not the legacy 2s default).
-// hookLogic forwards cfg.PipelineTimeout to compressPipeline, so proving
-// config→timeout→fire exercises the configurable-timeout contract
-// end-to-end minus the envelope write.
+// [pipeline.default] timeout = "5ms" makes ResolveTimeout return 5ms for
+// the default profile, which compressPipeline honours when on the
+// critical path (a slow stage racing a 5ms timer fires the CONFIGURED
+// timeout, not the 2s const default). compressPipeline resolves the
+// per-profile deadline internally, so proving config→timeout→fire
+// exercises the configurable-timeout contract end-to-end minus the
+// envelope write.
 func TestHook_ConfigurableTimeout(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -453,8 +703,8 @@ timeout = "5ms"
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	if cfg.PipelineTimeout != 5*time.Millisecond {
-		t.Fatalf("PipelineTimeout = %v, want 5ms (configured, not the 2s default)", cfg.PipelineTimeout)
+	if got := config.ResolveTimeout(cfg, "default"); got != 5*time.Millisecond {
+		t.Fatalf("ResolveTimeout(default) = %v, want 5ms (configured, not the 2s default)", got)
 	}
 
 	source := &dbpkg.ToolCall{
@@ -470,7 +720,7 @@ timeout = "5ms"
 	}))
 
 	var stderr bytes.Buffer
-	out, _, transformed, err := compressPipeline(source, reg, &stderr, cfg.PipelineTimeout)
+	out, _, _, transformed, err := compressPipeline(source, reg, &stderr, true)
 	if err != nil {
 		t.Fatalf("compressPipeline: %v", err)
 	}
@@ -679,7 +929,7 @@ func TestHook_OpenCode_RawCallbackExtracted(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// runtime="opencode" with raw callback input (tool + args object)
-	// and raw callback output (object with output field). AC1.
+	// and raw callback output (object with output field).
 	payload := `{"runtime":"opencode","id":"ocext001","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hello"}},"output":{"output":"hello\nline 2\nline 3\nline 4\nline 5\n"}}`
 
 	var stdout, stderr bytes.Buffer
@@ -719,7 +969,7 @@ func TestHook_OpenCode_BareStringOutput(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// runtime="opencode" with output as a bare string (not an object). AC2.
+	// runtime="opencode" with output as a bare string (not an object).
 	payload := `{"runtime":"opencode","id":"ocext002","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hi"}},"output":"bare string output"}`
 
 	var stdout, stderr bytes.Buffer
@@ -743,7 +993,7 @@ func TestHook_OpenCode_ObjectWithoutOutputField(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// runtime="opencode" with output as an object without an output
-	// field. The persisted output is the stringified object (fallback). AC3.
+	// field. The persisted output is the stringified object (fallback).
 	payload := `{"runtime":"opencode","id":"ocext003","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{}},"output":{"foo":"bar"}}`
 
 	var stdout, stderr bytes.Buffer
@@ -767,7 +1017,7 @@ func TestHook_OpenCode_NoToolName(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// runtime="opencode" with input that has no tool name. The
-	// persisted tool is "unknown" (fallback). AC4.
+	// persisted tool is "unknown" (fallback).
 	payload := `{"runtime":"opencode","id":"ocext004","timestamp":"2026-07-11T12:00:00Z","input":{"args":{"command":"echo"}},"output":"hello"}`
 
 	var stdout, stderr bytes.Buffer
@@ -790,7 +1040,7 @@ func TestHook_NoRuntime_FlatDeserialisation(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// No runtime field: flat tool_call shape, backward compatible. AC5.
+	// No runtime field: flat tool_call shape, backward compatible.
 	payload := `{"id":"ocext005","tool":"bash","input":"echo hello","output":"hello\n","content_hash":"","timestamp":"2026-07-11T12:00:00Z"}`
 
 	var stdout, stderr bytes.Buffer
@@ -823,7 +1073,7 @@ func TestHook_UnrecognisedRuntime_FlatDeserialisation(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// Unrecognised runtime value: falls back to flat tool_call
-	// deserialisation (backward compatible). AC6.
+	// deserialisation (backward compatible).
 	payload := `{"runtime":"cli-tool","id":"ocext006","tool":"bash","input":"echo hello","output":"hello\n","timestamp":"2026-07-11T12:00:00Z"}`
 
 	var stdout, stderr bytes.Buffer
@@ -856,7 +1106,7 @@ func TestHook_Codex_ObjectWithAggregatedOutput(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// Codex PostToolUse payload with object tool_response containing
-	// aggregated_output. AC1: extracts correctly, runtime="codex".
+	// aggregated_output. Extracts correctly, runtime="codex".
 	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls -la"},"tool_response":{"aggregated_output":"file1\nfile2","exit_code":0},"tool_use_id":"call_abc123","session_id":"some-codex-uuid","cwd":"/path/to/project","model":"gpt-5"}`
 
 	var stdout, stderr bytes.Buffer
@@ -899,7 +1149,7 @@ func TestHook_Codex_BareStringOutput(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// Codex PostToolUse with bare string tool_response. AC2: output
+	// Codex PostToolUse with bare string tool_response. Output
 	// is the bare string.
 	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":"bare string output","tool_use_id":"codex002"}`
 
@@ -924,7 +1174,7 @@ func TestHook_Codex_ObjectWithoutRecognisedField(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// Codex PostToolUse with object tool_response without
-	// aggregated_output, output, or text. AC3: stringified fallback.
+	// aggregated_output, output, or text. Stringified fallback.
 	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{},"tool_response":{"foo":"bar"},"tool_use_id":"codex003"}`
 
 	var stdout, stderr bytes.Buffer
@@ -947,7 +1197,7 @@ func TestHook_Codex_NoToolName(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// Codex PostToolUse missing tool_name. AC4: tool="unknown".
+	// Codex PostToolUse missing tool_name. Tool="unknown".
 	payload := `{"hook_event_name":"PostToolUse","tool_input":{"command":"echo"},"tool_response":"hello","tool_use_id":"codex004"}`
 
 	var stdout, stderr bytes.Buffer
@@ -970,7 +1220,7 @@ func TestHook_Codex_WithoutToolUseID_GeneratesID(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// Codex PostToolUse without tool_use_id. AC6: id is generated
+	// Codex PostToolUse without tool_use_id. ID is generated
 	// (16-char lowercase alpha).
 	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo"},"tool_response":"hello"}`
 
@@ -1004,7 +1254,7 @@ func TestHook_Codex_BackwardCompat_OpenCode(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// AC7: OpenCode payload (runtime="opencode") uses OpenCode path
+	// OpenCode payload (runtime="opencode") uses OpenCode path
 	// (backward compat).
 	payload := `{"runtime":"opencode","id":"occompat01","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hi"}},"output":{"output":"result"}}`
 
@@ -1034,7 +1284,7 @@ func TestHook_Codex_BackwardCompat_Flat(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// AC8: flat tool_call payload (no hook_event_name, no runtime)
+	// Flat tool_call payload (no hook_event_name, no runtime)
 	// uses flat deserialisation (backward compat).
 	payload := `{"id":"flatcompat01","tool":"bash","input":"echo hello","output":"hello\n","content_hash":"","timestamp":"2026-07-11T12:00:00Z"}`
 
@@ -1279,7 +1529,7 @@ recover_footer = true
 }
 
 func TestExtractCodexFields_Direct(t *testing.T) {
-	// AC7 (placement): the extraction logic lives in the hook layer
+	// The extraction logic lives in the hook layer
 	// (internal/cli), not in the stream parser. Calling the function
 	// directly from a test in package cli confirms the placement.
 	t.Run("tool_name and tool_input, aggregated_output response", func(t *testing.T) {
@@ -1338,7 +1588,7 @@ func TestExtractCodexFields_Direct(t *testing.T) {
 }
 
 func TestExtractOpenCodeFields_Direct(t *testing.T) {
-	// AC7: the extraction logic lives in the hook layer (internal/cli),
+	// The extraction logic lives in the hook layer (internal/cli),
 	// not in the stream parser (internal/parser). Calling the function
 	// directly from a test in package cli confirms the placement.
 	t.Run("input with tool and args, output object", func(t *testing.T) {
@@ -1393,8 +1643,8 @@ stages = ["head:3"]
 		if err != nil {
 			t.Fatalf("config.Load: %v", err)
 		}
-		if cfg.PipelineTimeout != config.DefaultPipelineTimeout {
-			t.Errorf("PipelineTimeout = %v, want %v (default 2s when omitted)", cfg.PipelineTimeout, config.DefaultPipelineTimeout)
+		if config.ResolveTimeout(cfg, "default") != config.DefaultPipelineTimeout {
+			t.Errorf("PipelineTimeout = %v, want %v (default 2s when omitted)", config.ResolveTimeout(cfg, "default"), config.DefaultPipelineTimeout)
 		}
 		if config.DefaultPipelineTimeout != 2*time.Second {
 			t.Errorf("DefaultPipelineTimeout = %v, want 2s", config.DefaultPipelineTimeout)
@@ -1409,8 +1659,8 @@ stages = ["head:3"]
 		if err != nil {
 			t.Fatalf("config.Load: %v", err)
 		}
-		if cfg.PipelineTimeout != config.DefaultPipelineTimeout {
-			t.Errorf("PipelineTimeout = %v, want %v (default 2s on passthrough path)", cfg.PipelineTimeout, config.DefaultPipelineTimeout)
+		if config.ResolveTimeout(cfg, "default") != config.DefaultPipelineTimeout {
+			t.Errorf("PipelineTimeout = %v, want %v (default 2s on passthrough path)", config.ResolveTimeout(cfg, "default"), config.DefaultPipelineTimeout)
 		}
 	})
 }

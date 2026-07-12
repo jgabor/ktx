@@ -11,6 +11,9 @@ go install github.com/jgabor/ktx/cmd/ktx@latest
 
 Build from a checkout with `go build -o ktx ./cmd/ktx`.
 
+Before upgrading, review [`docs/migrations.md`](docs/migrations.md). Database
+migrations run automatically when the new binary first opens the database.
+
 ## Quick start
 
 ```bash
@@ -28,6 +31,11 @@ Without a configuration file, compression is passthrough. Configured pipelines
 are ordered lists of deterministic stages such as `strip-ansi`, `keep-ends`,
 and `token-budget`. Originals remain addressable through `ktx read` and
 `ktx decompress`.
+
+All record IDs printed by KTX are 16 lowercase letters. Runtime identifiers
+such as Codex `exec-*` values are inputs to identity derivation, not record IDs.
+Use the canonical ID printed in KTX output for `read`, `get`, `compress`, and
+recovery commands.
 
 ## Benchmarking
 

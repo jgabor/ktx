@@ -1,0 +1,44 @@
+last_audit: 2026-07-12
+conventions:
+  doc_root: .
+  style: technical, concise
+  auto_gen: []
+  version_files: []
+mapping:
+  - artifact: README.md
+    path: README.md
+    producers: [document]
+  - artifact: AGENTS.md
+    path: AGENTS.md
+    producers: [document]
+  - artifact: ARCHITECTURE.md
+    path: ARCHITECTURE.md
+    producers: [discuss, document]
+  - artifact: TODO.md
+    path: TODO.md
+    producers: [plan, document]
+index:
+  - document: README
+    path: README.md
+    last_updated: 2026-07-12
+    status: current
+  - document: Agent guide
+    path: AGENTS.md
+    last_updated: 2026-07-12
+    status: current
+  - document: Architecture
+    path: ARCHITECTURE.md
+    last_updated: 2026-07-12
+    status: current
+  - document: Work backlog
+    path: TODO.md
+    last_updated: 2026-07-12
+    status: current
+  - document: Pipeline runbook
+    path: docs/pipelines.md
+    last_updated: 2026-07-12
+    status: current
+  - document: Database migrations
+    path: docs/migrations.md
+    last_updated: 2026-07-12
+    status: current

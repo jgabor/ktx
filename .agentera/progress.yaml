@@ -1,4 +1,35 @@
 cycles:
+  - number: 31
+    timestamp: 2026-07-12 21:48
+    type: docs
+    phase: audit
+    what: Published the canonical Codex identity contract in the README and
+      migration guide, indexed project documentation, and verified the shipped
+      hook and recovery paths against an isolated database.
+    inspiration: Active plan task 4 and the strict single-identity contract.
+    discovered: The repository had no migration guide or docs index. Existing
+      pipeline, architecture, and backlog documents exceed the advisory
+      full-file word budget; changed documentation passes the docs lint.
+    verified: Focused db and CLI identity, migration, collision, retry, hook,
+      compression, and recovery tests passed. A representative Codex payload
+      containing an exec-shaped runtime ID persisted only 16-letter source IDs;
+      read and get surfaced the canonical ID, the old exec command returned not
+      found, SQLite contained zero exec-shaped primary keys, and decompression
+      matched the original SHA-256
+      7dd87a9ab0185bb4ea1e08ccac6720c84330174e468628d709fd61303db37a89. README
+      and migration docs lint passed. mage check passed all tests, vet, lint,
+      and build.
+    next: Task 4 is complete. Decision satisfaction remains user-owned;
+      orchestration may close the plan without adding aliases or external
+      identity metadata.
+    context:
+      intent: Close the unified Codex identity plan with release-facing upgrade
+        guidance, migration behavior, and end-to-end evidence.
+      constraints: No paid calls, prohibited models, product behavior changes,
+        compatibility aliases, or decision satisfaction updates.
+      unknowns: none
+      scope: README.md, docs/migrations.md, .agentera/docs.yaml,
+        .agentera/progress.yaml, .agentera/plan.yaml
   - number: 30
     timestamp: 2026-07-12 21:41
     type: feat
@@ -144,24 +175,10 @@ cycles:
     context:
       intent: Wire the router into the compression pipeline so routed profiles are
         selected per tool call, with profile name recorded for auditability.
-  - number: 21
-    timestamp: 2026-07-12 12:54
-    type: feat
-    phase: build
-    what: "Task 2: Router function. New internal/router/router.go with Match(tc,
-      routes, defaultProfile) — pure function, first-match-wins, default
-      fallback. Matches on tool name, command prefix, exit status. Malformed
-      input skips command-prefix condition. 22 subtests covering all 5 ACs."
-    verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test
-      -buildvcs=false ./... exit 0 (internal/router: 22 subtests pass). AC1:
-      TestMatch_CommandPrefix pass+fail. AC2: TestMatch_Fallback. AC3:
-      TestMatch_MalformedInput (4 shapes). AC4: TestMatch_ExitFailureRule. AC5:
-      TestMatch_NonBashTool."
-    next: "Task 3: Pipeline wiring and auditability."
-    context:
-      intent: Support command-aware filter routing by matching tool call metadata to
-        named pipeline profiles using route rules.
 archive:
+  - summary: "Cycle 21 (2026-07-12): Task 2: Router function. New
+      internal/router/router.go with Match(tc, routes, defaultProfile) — pure
+      function, first-match-wins, default..."
   - summary: "Cycle 20 (2026-07-12): Task 1: Route rule config parsing. Added
       RouteRule struct and Routes field to Config, [[route]]..."
   - summary: "Cycle 19 (2026-07-12): Codex hook integration: added ktx init codex,

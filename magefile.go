@@ -35,6 +35,10 @@ func ldflags() string {
 	}, " ")
 }
 
+func Clean() error {
+	return os.RemoveAll("build")
+}
+
 func Test() error {
 	return run("go", "test", "-race", "./...")
 }

@@ -54,6 +54,16 @@ They MUST NOT appear in shipped product code, scripts, TOML configs, user-facing
 
 Comments should describe the actual behavior. If the reader needs rationale, they consult `.agentera/decisions.yaml`. When implementing changes for a tracked decision, write code that reads naturally on its own; cross-reference the decision only in deliverables in `.agentera/` (e.g. `decisions.yaml` satisfaction review) — never inside a Go comment, help text, or shell-script header.
 
+## Building
+
+```bash
+mage build      # builds to build/ktx
+mage check      # test + vet + lint + build (default target)
+mage install    # go install to GOPATH/bin
+```
+
+Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go build ./cmd/ktx` — it drops the binary in the repo root.
+
 ## Testing
 
 ### Live comparison

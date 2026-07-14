@@ -170,8 +170,8 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 	if !ok {
 		t.Fatalf("envelope missing 'plugins' array: %v", env)
 	}
-	if len(plugins) != 10 {
-		t.Fatalf("plugins count = %d, want 10 builtins", len(plugins))
+	if len(plugins) != 11 {
+		t.Fatalf("plugins count = %d, want 11 builtins", len(plugins))
 	}
 	// Verify first entry is a builtin.
 	first := plugins[0].(map[string]any)
@@ -186,7 +186,7 @@ func TestPluginList_NoUserPlugins(t *testing.T) {
 	for _, p := range plugins {
 		names = append(names, p.(map[string]any)["name"].(string))
 	}
-	for _, want := range []string{"strip-ansi", "dedup-blank", "normalize", "head", "truncate", "keep-ends", "grep", "grep-v", "token-budget", "replace"} {
+	for _, want := range []string{"unwrap-result", "strip-ansi", "dedup-blank", "normalize", "head", "truncate", "keep-ends", "grep", "grep-v", "token-budget", "replace"} {
 		found := false
 		for _, n := range names {
 			if n == want {
@@ -222,12 +222,12 @@ func TestPluginList_WithUserPlugins(t *testing.T) {
 
 	env := decodePluginEnvelope(t, stdout)
 	plugins := env["plugins"].([]any)
-	if len(plugins) != 11 {
-		t.Fatalf("plugins count = %d, want 11 (10 builtins + 1 user)", len(plugins))
+	if len(plugins) != 12 {
+		t.Fatalf("plugins count = %d, want 12 (11 builtins + 1 user)", len(plugins))
 	}
 
 	// User plugin should be the last entry.
-	last := plugins[10].(map[string]any)
+	last := plugins[len(plugins)-1].(map[string]any)
 	if last["name"] != "mycat" {
 		t.Errorf("user plugin name = %v, want mycat", last["name"])
 	}

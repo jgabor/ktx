@@ -291,9 +291,9 @@ func stagesForProfile(cfg *config.Config, profileName string) []string {
 // buildCompressRunner constructs the pipeline.Runner for `ktx compress`.
 // A nil reg builds a fresh Registry with the built-in stages registered
 // (the "OFF by default" contract: the stages exist but do not run
-// unless named in the config) — strip-ansi, dedup-blank, normalize,
-// head, truncate plus the deterministic stages keep-ends, grep,
-// grep-v, token-budget. A non-nil reg (test injection) is used as-is so
+// unless named in the config), including unwrap-result, cleanup,
+// bounded-rendering, and deterministic-filter stages. A non-nil reg
+// (test injection) is used as-is so
 // tests can substitute fake stages without re-wiring the built-in
 // registration. The runner's Warn writer is set to stderr so
 // unknown-stage skips and stage-error pass-throughs surface to the
@@ -374,8 +374,8 @@ func printCompressHelp(w io.Writer) {
 	fmt.Fprintln(w, "  [pipeline.default]")
 	fmt.Fprintln(w, "  stages = [\"strip-ansi\", \"head:100\"]")
 	fmt.Fprintln(w, "Empty/missing config → passthrough pipeline (output == source.output).")
-	fmt.Fprintln(w, "Built-in stages: strip-ansi, dedup-blank, head (head:N), truncate")
-	fmt.Fprintln(w, "(truncate:N), normalize; deterministic stages: keep-ends (keep-ends:N:M),")
+	fmt.Fprintln(w, "Built-in stages: unwrap-result, strip-ansi, dedup-blank, normalize,")
+	fmt.Fprintln(w, "head (head:N), truncate (truncate:N), keep-ends (keep-ends:N:M),")
 	fmt.Fprintln(w, "grep (grep:pattern), grep-v (grep-v:pattern), token-budget (token-budget:N),")
 	fmt.Fprintln(w, "replace (replace:pattern::replacement).")
 	fmt.Fprintln(w, "Each OFF unless named in [pipeline.default].stages.")

@@ -7,28 +7,13 @@
 // (empty-output guard, stage-error passthrough, unknown-stage skip)
 // live in the runner, not in stage-author convention.
 //
-// The five built-in stages:
+// Built-ins cover strict structured-result projection (unwrap-result),
+// cleanup (strip-ansi, dedup-blank, normalize), bounded rendering (head,
+// truncate, keep-ends, token-budget), and deterministic filtering (grep,
+// grep-v, replace). BuiltinStageNames is the authoritative enumeration.
 //
-//   - strip-ansi  : removes ANSI escape sequences (CSI … m, cursor
-//     moves, etc.) so colored terminal transcripts
-//     become plain text.
-//   - dedup-blank : collapses runs of 2+ consecutive blank lines to
-//     a single blank line; single blank lines and
-//     non-blank content are byte-identical.
-//   - head        : keeps the first N lines (default N=10; configurable
-//     via `head:100`). Input shorter than N is returned
-//     unchanged; trailing newline preserved.
-//   - truncate    : keeps the first N bytes (default N=4096;
-//     configurable via `truncate:4096`) and appends a
-//     marker line `[ktx: truncated N of M bytes]` when
-//     truncation occurred. Input shorter than N is
-//     returned unchanged.
-//   - normalize   : normalizes mixed line endings (\r\n, \r) to \n
-//     and trims trailing whitespace from each line;
-//     leading whitespace is preserved.
-//
-// All built-in stages are off by default: only stages named in a
-// ktx.toml's `[pipeline.default].stages` array run. RegisterBuiltins
+// All built-in stages are off by default: only stages named in the
+// selected ktx.toml pipeline profile run. RegisterBuiltins
 // populates a registry at package init so the CLI's compress verb
 // can resolve names without a separate plugin loader; the plugin
 // registry adds external stages through `ktx plugin add` and
@@ -49,6 +34,7 @@ import (
 // `ktx plugin list` to enumerate built-in stages alongside
 // user-defined plugins.
 var builtinStageNames = []string{
+	"unwrap-result",
 	"strip-ansi",
 	"dedup-blank",
 	"normalize",
@@ -69,11 +55,11 @@ func BuiltinStageNames() []string {
 	return builtinStageNames
 }
 
-// RegisterBuiltins registers all five built-in stages on reg. A nil
+// RegisterBuiltins registers every built-in stage on reg. A nil
 // reg is a no-op (defensive; the caller passes a fresh
 // pipeline.NewRegistry() in normal use).
 //
-// The three simple stages (strip-ansi, dedup-blank, normalize) are
+// The simple stages (unwrap-result, strip-ansi, dedup-blank, normalize) are
 // registered via Register — their token form is the bare name and
 // they ignore any `:arg` portion. The two parameterised stages (head,
 // truncate) are registered via RegisterBuilder — they parse the arg
@@ -88,6 +74,7 @@ func RegisterBuiltins(reg *pipeline.Registry) {
 		return
 	}
 	// Simple stages — bytes-in, bytes-out, no configuration token.
+	reg.Register("unwrap-result", pipeline.StageFunc(UnwrapResult))
 	reg.Register("strip-ansi", pipeline.StageFunc(StripANSI))
 	reg.Register("dedup-blank", pipeline.StageFunc(DedupBlank))
 	reg.Register("normalize", pipeline.StageFunc(Normalize))

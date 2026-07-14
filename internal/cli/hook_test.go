@@ -146,6 +146,94 @@ recover_footer = false
 	}
 }
 
+func TestHook_UnwrapResultCompressesAndPreservesOriginal(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["unwrap-result", "keep-ends:100:50"]
+recover_footer = true
+`)
+
+	var text strings.Builder
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&text, "result line %03d\n", i)
+	}
+	resultText := text.String()
+	structured, err := json.Marshal(map[string]any{
+		"_meta":             map[string]any{"fastmcp": map[string]any{"wrap_result": true}},
+		"content":           []any{map[string]any{"type": "text", "text": resultText}},
+		"isError":           false,
+		"structuredContent": map[string]any{"result": resultText},
+	})
+	if err != nil {
+		t.Fatalf("marshal structured result: %v", err)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"id":        "hookunwraptestaa",
+		"tool":      "kagi_kagi_search_fetch",
+		"input":     `{}`,
+		"output":    string(structured),
+		"timestamp": "2026-07-01T12:00:00Z",
+	})
+	if err != nil {
+		t.Fatalf("marshal hook payload: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(bytes.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	var env hookEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+	}
+	if env.CompressedID == nil {
+		t.Fatal("compressed_id is null; want structured result compression")
+	}
+	if !strings.Contains(env.Output, "[ktx: 50 lines omitted]") {
+		t.Errorf("output lacks keep-ends marker: %q", env.Output)
+	}
+	if !strings.Contains(env.Output, "ktx read hookunwraptestaa") {
+		t.Errorf("output lacks recovery command: %q", env.Output)
+	}
+	if strings.Contains(env.Output, `"structuredContent"`) {
+		t.Errorf("output still contains the JSON envelope: %q", env.Output)
+	}
+
+	source, err := d.GetToolCall("hookunwraptestaa")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if source.Output != string(structured) {
+		t.Error("persisted source output does not match the original JSON envelope")
+	}
+	recovered, err := d.GetSourceOutput("hookunwraptestaa")
+	if err != nil {
+		t.Fatalf("GetSourceOutput: %v", err)
+	}
+	if recovered != string(structured) {
+		t.Error("recovered output does not match the original JSON envelope")
+	}
+
+	compressed, err := d.GetCompressed(*env.CompressedID)
+	if err != nil {
+		t.Fatalf("GetCompressed: %v", err)
+	}
+	var pipelineRecord struct {
+		Profile string   `json:"profile"`
+		Stages  []string `json:"stages"`
+	}
+	if err := json.Unmarshal([]byte(compressed.Pipeline), &pipelineRecord); err != nil {
+		t.Fatalf("parse compressed pipeline: %v", err)
+	}
+	wantRan := []string{"unwrap-result", "keep-ends:100:50"}
+	if pipelineRecord.Profile != "default" || fmt.Sprint(pipelineRecord.Stages) != fmt.Sprint(wantRan) {
+		t.Errorf("pipeline = %+v, want profile default with stages %v", pipelineRecord, wantRan)
+	}
+}
+
 func TestHook_FailureGate(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)

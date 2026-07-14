@@ -38,16 +38,31 @@ pipeline (summary keys `pipelines.baseline` / `pipelines.candidate`).
 ### Recommended recipes
 
 Product default when no config is found remains passthrough (empty stages).
-The recipes below match `ktx.example.toml` and live ranking
-(`expected_cost_per_correct` on full-pass pipelines), not offline per-call ratio alone.
+The truncation windows below track live ranking (`expected_cost_per_correct` on
+full-pass pipelines), not offline per-call ratio alone. The configured example
+also applies the structured projection described below; the named benchmark
+pipelines remain unchanged for historical comparison.
 
-| Recipe                                  | Stages (and flags)                                                        | When to use                                                                         |
-| --------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Sanitize only                           | `strip-ansi`, `dedup-blank`, `normalize`                                  | Safe default in `ktx.example.toml`; no content loss; little savings on clean output |
-| **Keep-ends mid (recommended general)** | sanitize + `keep-ends:100:50`                                             | Best measured $/correct with full pass; no `token-budget`                           |
-| Aggressive head                         | sanitize + `head:30`                                                      | Max token/cost cut; accepts mid/tail loss                                           |
-| Lossy + recovery                        | sanitize + `keep-ends:50:20` + `token-budget:2000` (footer on by default) | Narrow windows/budget; agents can `ktx read` via default recovery footer            |
-| Build logs                              | sanitize + `grep-v:^debug:` + `keep-ends:100:50`                          | Prefer wider keep-ends over a tight budget when recovery is undesirable             |
+The configured default in `ktx.example.toml` prepends `unwrap-result` to the
+sanitize stages and `keep-ends:100:50`. `unwrap-result` recognizes only strict,
+successful, single-text JSON envelopes: a content-only Context7 object with one
+`content` text item; a Kagi object with that item, `isError:false`, FastMCP
+`wrap_result:true` metadata, and an identical `structuredContent.result`; or a
+Codex `webrun` array with one `input_text` item. Malformed or trailing JSON,
+unknown fields, error or empty results, invalid metadata, multiple or non-text
+items, and mismatched Kagi duplicates are byte-identical no-ops. It must run
+first: decoding escaped newlines exposes real lines to `strip-ansi`, `normalize`,
+and `keep-ends`; running line-oriented stages against the original envelope
+would treat it as one line. The original envelope remains available through the
+recovery footer whenever the composed pipeline compresses.
+
+| Recipe                                  | Stages (and flags)                                                        | When to use                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Sanitize only                           | `strip-ansi`, `dedup-blank`, `normalize`                                  | No content loss; little savings on clean output                                 |
+| **Keep-ends mid (recommended general)** | `unwrap-result` + sanitize + `keep-ends:100:50`                           | Configured example default; structured projection before recoverable truncation |
+| Aggressive head                         | sanitize + `head:30`                                                      | Max token/cost cut; accepts mid/tail loss                                       |
+| Lossy + recovery                        | sanitize + `keep-ends:50:20` + `token-budget:2000` (footer on by default) | Narrow windows/budget; agents can `ktx read` via default recovery footer        |
+| Build logs                              | sanitize + `grep-v:^debug:` + `keep-ends:100:50`                          | Prefer wider keep-ends over a tight budget when recovery is undesirable         |
 
 Product defaults when fields are omitted: pipeline timeout **2s**,
 `recover_footer` **true**. Set `recover_footer = false` to suppress the

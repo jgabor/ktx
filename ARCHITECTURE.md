@@ -100,7 +100,7 @@ flowchart LR
   end
 
   subgraph stages["Stages — bytes in, bytes out, error or nil"]
-    B["Built-in Go stages<br/>strip-ansi, dedup-blank, normalize,<br/>head, truncate, keep-ends,<br/>grep, grep-v, token-budget"]
+    B["Built-in Go stages<br/>unwrap-result, strip-ansi, dedup-blank,<br/>normalize, head, truncate, keep-ends,<br/>grep, grep-v, token-budget, replace"]
     U["User plugins — ktx.toml plugin blocks<br/>subprocess: stdin in, stdout out<br/>same name shadows a built-in<br/>(last writer wins)"]
   end
 

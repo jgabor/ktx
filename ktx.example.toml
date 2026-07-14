@@ -61,11 +61,19 @@ recover_footer = true
 
 # ── Stage safety tiers ───────────────────────────────────────────────
 #
-# Stages fall into two tiers. Pick stages from tier 1 for a safe default
-# that can only remove noise, never content. Add tier 2 stages when you
-# accept content loss for more aggressive compression.
+# Stages fall into two tiers. Pick stages from tier 1 when you only want
+# recognized result projection and noise cleanup. Add tier 2 stages when
+# you accept content loss for more aggressive compression.
 #
-# Tier 1 — cleanup (noise removal, no content loss):
+# Tier 1 — structured projection and cleanup (no result-text loss):
+#
+#   unwrap-result       Decode the canonical text from recognized Kagi,
+#                       Context7, and Codex webrun JSON envelopes. Strict:
+#                       malformed, unknown, error, empty, multi-item, invalid
+#                       FastMCP metadata, or mismatched duplicate results pass
+#                       through unchanged.
+#                       Put this first so later line-oriented stages see the
+#                       decoded text rather than one line of escaped JSON.
 #
 #   strip-ansi          Strip ANSI escape sequences (colors, cursor moves)
 #
@@ -74,10 +82,8 @@ recover_footer = true
 #   normalize           Convert \r\n and \r to \n; trim trailing whitespace
 #                       per line; strip leading/trailing blank lines
 #
-# Tier 1 stages can only make output smaller or identical. If the input
-# has no noise (e.g. clean markdown), the anti-worsening gate passes it
-# through unchanged — no risk of quality drop-off. These are the stages
-# lowfat, headroom, and rtk all agree are universally safe.
+# Tier 1 stages preserve the canonical result text and can only make output
+# smaller or identical. Unrecognized JSON and clean text pass through.
 #
 # Tier 2 — truncation (content loss, needs per-tool consideration):
 #
@@ -109,8 +115,10 @@ recover_footer = true
 #                       matches. Invalid regex → passthrough. Same
 #                       length or no match → anti-worsening gate fires
 
-# Default: sanitize cleanup (safe — noise removal only, no content loss)
-stages = ["strip-ansi", "dedup-blank", "normalize"]
+# Configured example default: unwrap recognized structured results, sanitize,
+# then keep the first 100 and last 50 lines. The recovery footer above keeps
+# the original JSON or text self-recoverable when keep-ends truncates it.
+stages = ["unwrap-result", "strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
 
 # ── Example pipelines ────────────────────────────────────────────────
 #
@@ -119,7 +127,7 @@ stages = ["strip-ansi", "dedup-blank", "normalize"]
 # Guidance below tracks live ranking (expected cost per full pass), not
 # offline per-call compression ratio alone.
 #
-# # Sanitize only (safe default in this file — noise removal, no content loss)
+# # Sanitize only (noise removal, no content loss)
 # # Near-passthrough cost on clean tool output; use when content loss is
 # # unacceptable and savings are secondary.
 # stages = ["strip-ansi", "dedup-blank", "normalize"]

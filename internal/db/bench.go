@@ -139,9 +139,7 @@ func providerModel(model string) string {
 }
 
 // InsertBenchRun persists a single bench_runs row.
-// The transaction is the same idempotency pattern as PersistToolCall:
-// the BEGIN/Commit pair with defer tx.Rollback() matches the review
-// fix-up pattern (tx.Rollback is a no-op after a successful Commit).
+// The write uses the shared bounded transaction retry path.
 //
 // deriveBenchCost runs before the transaction begins; the in-memory
 // b.Cost pointer is updated in place (or left nil on soft-fail) and
@@ -160,28 +158,23 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 
 	d.deriveBenchCost(b) // write-time cost derivation; soft-fail
 
-	tx, err := d.db.Begin()
-	if err != nil {
-		return fmt.Errorf("db: begin bench_run tx: %w", err)
-	}
-	defer tx.Rollback() // Safe, low-overhead no-op after tx.Commit()
-
-	_, err = tx.Exec(
-		`INSERT INTO bench_runs (
+	ctx, cancel := writeContext()
+	defer cancel()
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO bench_runs (
 			id, agent, model, task, score,
 			tokens_in, tokens_out, cost,
 			methodology_version, timestamp
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		b.ID, b.Agent, b.Model, b.Task, b.Score,
-		b.TokensIn, b.TokensOut, b.Cost,
-		b.MethodologyVersion, b.Timestamp,
-	)
+			b.ID, b.Agent, b.Model, b.Task, b.Score,
+			b.TokensIn, b.TokensOut, b.Cost,
+			b.MethodologyVersion, b.Timestamp,
+		)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("db: insert bench_run %q: %w", b.ID, err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("db: commit bench_run %q: %w", b.ID, err)
 	}
 	return nil
 }

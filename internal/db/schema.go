@@ -1,12 +1,15 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 )
 
-// schemaStatements creates the current database schema. The statements are
-// idempotent so Open can run them on every call.
+const schemaVersion = 1
+
+// schemaStatements creates the current database schema. The statements remain
+// idempotent so stale and partially migrated databases can be repaired safely.
 //
 // The cost-publication columns (tokens_in, tokens_out, cost, latency_ms,
 // model, provider) are part of the CREATE TABLE so fresh databases include
@@ -282,18 +285,57 @@ func tableColumns(q queryer, table string) (map[string]struct{}, error) {
 	return cols, nil
 }
 
-// migrate creates missing tables, adds missing columns, and converts historical
-// Codex tool-call identities in one transaction.
+// migrate gates schema work with PRAGMA user_version. The first read is outside
+// a transaction so opening an already-current database never acquires a write
+// lock. A stale opener checks the version again after beginning its immediate
+// transaction, allowing concurrent openers to observe the winner's migration.
+func migrate(db *sql.DB) error {
+	return migrateWith(db, migrateTx)
+}
+
+// migrateWith keeps lock acquisition attempt-bounded while allowing an
+// acquired migration transaction to finish independently of the shorter
+// deadline used for ordinary writes. apply is injected only to make that
+// distinction deterministic in tests.
+func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
+	var version int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return fmt.Errorf("db: read schema version: %w", err)
+	}
+	if version == schemaVersion {
+		return nil
+	}
+	if version > schemaVersion {
+		return fmt.Errorf("db: schema version %d is newer than supported version %d", version, schemaVersion)
+	}
+
+	ctx := context.Background()
+	return withWriteTx(ctx, db, func(tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+			return fmt.Errorf("db: recheck schema version: %w", err)
+		}
+		if version == schemaVersion {
+			return nil
+		}
+		if version > schemaVersion {
+			return fmt.Errorf("db: schema version %d is newer than supported version %d", version, schemaVersion)
+		}
+		if err := apply(tx); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+			return fmt.Errorf("db: set schema version: %w", err)
+		}
+		return nil
+	})
+}
+
+// migrateTx creates missing tables and adds or repairs all historical schema
+// shapes. The caller owns the transaction and schema-version update.
 // It repairs partial tool_calls, bench_runs, and compressed schemas. The
 // recorded_streams table is created when absent but does not support partial
-// column repair. Reopening a current database performs no schema changes.
-func migrate(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() // no-op after a successful Commit
-
+// column repair.
+func migrateTx(tx *sql.Tx) error {
 	for _, stmt := range schemaStatements {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("db: create schema: %w", err)
@@ -409,5 +451,5 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }

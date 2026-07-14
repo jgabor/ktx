@@ -95,9 +95,8 @@ type RecordedStream struct {
 var ErrRecordedStreamSourceNotFound = fmt.Errorf("db: recorded_stream source not found: %w", ErrNotFound)
 
 // InsertRecordedStream persists one `recorded_streams` row (the
-// recording contract). The transaction follows the same BEGIN/Commit +
-// defer Rollback idempotency pattern as InsertCompressed and
-// InsertBenchRun. The INSERT writes all 7 columns; the caller is
+// recording contract). The write uses the shared bounded transaction retry
+// path. The INSERT writes all 7 columns; the caller is
 // responsible for generating id via NewID, computing ContentHash
 // via ContentHash(streamText) (the integrity rule, recomputed from the
 // stream text), and supplying stream_format and captured_at.
@@ -126,30 +125,6 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 		return errors.New("db: insert recorded_stream: session_id is empty")
 	}
 
-	// Pre-check the session exists so the not-found case maps to a
-	// typed error rather than a driver-specific FK error string.
-	var one int
-	err := d.db.QueryRow(`SELECT 1 FROM sessions WHERE id = ? LIMIT 1`, rs.SessionID).Scan(&one)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("db: insert recorded_stream %q: %w", rs.ID, ErrRecordedStreamSourceNotFound)
-	}
-	if err != nil {
-		return fmt.Errorf("db: insert recorded_stream %q: check session %q: %w", rs.ID, rs.SessionID, err)
-	}
-
-	// Pre-check the bench_run exists ONLY when BenchRunID is non-empty.
-	// An empty BenchRunID inserts SQL NULL (the ktx-run --record-stream
-	// path); there is no bench_run to validate.
-	if rs.BenchRunID != "" {
-		err = d.db.QueryRow(`SELECT 1 FROM bench_runs WHERE id = ? LIMIT 1`, rs.BenchRunID).Scan(&one)
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("db: insert recorded_stream %q: %w", rs.ID, ErrRecordedStreamSourceNotFound)
-		}
-		if err != nil {
-			return fmt.Errorf("db: insert recorded_stream %q: check bench_run %q: %w", rs.ID, rs.BenchRunID, err)
-		}
-	}
-
 	// Map an empty BenchRunID to SQL NULL via sql.NullString so the
 	// nullable bench_run_id column receives NULL rather than the empty
 	// string (keeps the FK contract honest: NULL is "no bench parent",
@@ -159,23 +134,36 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 		benchRunID.Valid = true
 	}
 
-	tx, err := d.db.Begin()
-	if err != nil {
-		return fmt.Errorf("db: begin recorded_stream tx: %w", err)
-	}
-	defer tx.Rollback() // Safe, low-overhead no-op after tx.Commit()
+	ctx, cancel := writeContext()
+	defer cancel()
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		var one int
+		err := tx.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ? LIMIT 1`, rs.SessionID).Scan(&one)
+		if err == sql.ErrNoRows {
+			return ErrRecordedStreamSourceNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("check session %q: %w", rs.SessionID, err)
+		}
+		if rs.BenchRunID != "" {
+			err = tx.QueryRowContext(ctx, `SELECT 1 FROM bench_runs WHERE id = ? LIMIT 1`, rs.BenchRunID).Scan(&one)
+			if err == sql.ErrNoRows {
+				return ErrRecordedStreamSourceNotFound
+			}
+			if err != nil {
+				return fmt.Errorf("check bench_run %q: %w", rs.BenchRunID, err)
+			}
+		}
 
-	_, err = tx.Exec(
-		`INSERT INTO recorded_streams (id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO recorded_streams (id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		rs.ID, rs.SessionID, benchRunID, rs.StreamText, rs.ContentHash, rs.StreamFormat, rs.CapturedAt,
-	)
+			rs.ID, rs.SessionID, benchRunID, rs.StreamText, rs.ContentHash, rs.StreamFormat, rs.CapturedAt,
+		)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("db: insert recorded_stream %q: %w", rs.ID, err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("db: commit recorded_stream %q: %w", rs.ID, err)
 	}
 	return nil
 }

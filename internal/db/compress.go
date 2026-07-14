@@ -83,9 +83,8 @@ type Compressed struct {
 var ErrSourceNotFound = fmt.Errorf("db: compressed source_id not found: %w", ErrNotFound)
 
 // InsertCompressed persists one `compressed` row.
-// The transaction follows the same BEGIN/Commit + defer Rollback
-// idempotency pattern as PersistToolCall and InsertBenchRun. The
-// INSERT writes all 6 columns; the caller is responsible for
+// The write uses the shared bounded transaction retry path. The INSERT writes
+// all 6 columns; the caller is responsible for
 // generating id via NewID, computing ContentHash via
 // ContentHash(compressedOutput) (the integrity rule, recomputed from
 // the compressed output), and marshalling Pipeline as a JSON array.
@@ -108,39 +107,27 @@ func (d *DB) InsertCompressed(c *Compressed) error {
 		return errors.New("db: insert compressed: source_id is empty")
 	}
 
-	// Pre-check the source exists so the not-found case maps to a
-	// typed error rather than a driver-specific FK error string.
-	// The FK still enforces correctness at the SQL level (defense in
-	// depth: a race between the check and the insert is
-	// impossible because both run on the same connection's
-	// transaction), but the typed error keeps the CLI's exit-code
-	// mapping stable across SQLite driver versions.
-	var one int
-	err := d.db.QueryRow(`SELECT 1 FROM tool_calls WHERE id = ? LIMIT 1`, c.SourceID).Scan(&one)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("db: insert compressed %q: %w", c.ID, ErrSourceNotFound)
-	}
-	if err != nil {
-		return fmt.Errorf("db: insert compressed %q: check source %q: %w", c.ID, c.SourceID, err)
-	}
+	ctx, cancel := writeContext()
+	defer cancel()
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		var one int
+		err := tx.QueryRowContext(ctx, `SELECT 1 FROM tool_calls WHERE id = ? LIMIT 1`, c.SourceID).Scan(&one)
+		if err == sql.ErrNoRows {
+			return ErrSourceNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("check source %q: %w", c.SourceID, err)
+		}
 
-	tx, err := d.db.Begin()
-	if err != nil {
-		return fmt.Errorf("db: begin compressed tx: %w", err)
-	}
-	defer tx.Rollback() // Safe, low-overhead no-op after tx.Commit()
-
-	_, err = tx.Exec(
-		`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
-		c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp,
-	)
+			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp,
+		)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("db: insert compressed %q: %w", c.ID, err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("db: commit compressed %q: %w", c.ID, err)
 	}
 	return nil
 }
@@ -157,36 +144,51 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 		return nil, false, errors.New("db: insert compressed once: id and source_id are required")
 	}
 
-	res, err := d.db.Exec(
-		`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
+	ctx, cancel := writeContext()
+	defer cancel()
+	var (
+		stored   *Compressed
+		inserted bool
+	)
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
 		 SELECT ?, ?, ?, ?, ?, ?
 		 WHERE EXISTS (SELECT 1 FROM tool_calls WHERE id = ?)
 		   AND NOT EXISTS (SELECT 1 FROM compressed WHERE source_id = ?)`,
-		c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp,
-		c.SourceID, c.SourceID,
-	)
-	if err != nil {
-		return nil, false, fmt.Errorf("db: insert compressed once %q: %w", c.ID, err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return nil, false, fmt.Errorf("db: inspect compressed once %q: %w", c.ID, err)
-	}
-	if n == 0 {
-		var existing Compressed
-		err := d.db.QueryRow(
-			`SELECT id, source_id, output, content_hash, pipeline, timestamp
-			 FROM compressed WHERE source_id = ? LIMIT 1`, c.SourceID,
-		).Scan(&existing.ID, &existing.SourceID, &existing.Output, &existing.ContentHash, &existing.Pipeline, &existing.Timestamp)
-		if err == sql.ErrNoRows {
-			return nil, false, ErrSourceNotFound
-		}
+			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp,
+			c.SourceID, c.SourceID,
+		)
 		if err != nil {
-			return nil, false, fmt.Errorf("db: get compressed for source %q: %w", c.SourceID, err)
+			return fmt.Errorf("db: insert compressed once %q: %w", c.ID, err)
 		}
-		return &existing, false, nil
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("db: inspect compressed once %q: %w", c.ID, err)
+		}
+		inserted = n != 0
+		if !inserted {
+			var existing Compressed
+			err := tx.QueryRowContext(ctx,
+				`SELECT id, source_id, output, content_hash, pipeline, timestamp
+			 FROM compressed WHERE source_id = ? LIMIT 1`, c.SourceID,
+			).Scan(&existing.ID, &existing.SourceID, &existing.Output, &existing.ContentHash, &existing.Pipeline, &existing.Timestamp)
+			if err == sql.ErrNoRows {
+				return ErrSourceNotFound
+			}
+			if err != nil {
+				return fmt.Errorf("db: get compressed for source %q: %w", c.SourceID, err)
+			}
+			stored = &existing
+			return nil
+		}
+		stored = c
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
 	}
-	return c, true, nil
+	return stored, inserted, nil
 }
 
 // GetCompressed fetches a `compressed` row by id.

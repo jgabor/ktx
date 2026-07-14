@@ -135,10 +135,15 @@ func (d *DB) SessionExists(id string) (bool, error) {
 // caller is responsible for generating the id via NewID and for writing the
 // ppid session file when this is part of the adapter/hook open path.
 func (d *DB) InsertSession(s *Session) error {
-	_, err := d.db.Exec(
-		`INSERT INTO sessions (id, agent, started_at, ended_at, last_seen_at, tool_call_count) VALUES (?, ?, ?, ?, ?, ?)`,
-		s.ID, s.Agent, s.StartedAt, s.EndedAt, s.LastSeenAt, s.ToolCallCount,
-	)
+	ctx, cancel := writeContext()
+	defer cancel()
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO sessions (id, agent, started_at, ended_at, last_seen_at, tool_call_count) VALUES (?, ?, ?, ?, ?, ?)`,
+			s.ID, s.Agent, s.StartedAt, s.EndedAt, s.LastSeenAt, s.ToolCallCount,
+		)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("db: insert session %q: %w", s.ID, err)
 	}
@@ -149,12 +154,21 @@ func (d *DB) InsertSession(s *Session) error {
 // close). It returns ErrNotFound when no session matches id, so the close
 // path surfaces a clear not-found rather than a silent no-op.
 func (d *DB) CloseSession(id, endedAt string) error {
-	res, err := d.db.Exec(`UPDATE sessions SET ended_at = ? WHERE id = ?`, endedAt, id)
+	ctx, cancel := writeContext()
+	defer cancel()
+	var rows int64
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `UPDATE sessions SET ended_at = ? WHERE id = ?`, endedAt, id)
+		if err != nil {
+			return err
+		}
+		rows, err = res.RowsAffected()
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("db: close session %q: %w", id, err)
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
+	if rows == 0 {
 		return ErrNotFound
 	}
 	return nil
@@ -202,38 +216,34 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 
 	d.deriveCost(tc) // write-time cost derivation; soft-fail, see helper
 
-	tx, err := d.db.Begin()
-	if err != nil {
-		return fmt.Errorf("db: begin tx: %w", err)
-	}
-	defer tx.Rollback() // Safe, low-overhead no-op if tx.Commit() is called successfully
-
-	_, err = tx.Exec(
-		`INSERT INTO tool_calls (
+	ctx, cancel := writeContext()
+	defer cancel()
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
 			exit_code, is_error, runtime
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
-		tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
-		tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
-	)
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("db: insert tool_call %q: %w", tc.ID, err)
-	}
+			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
+			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
+			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
+		)
+		if err != nil {
+			return fmt.Errorf("db: insert tool_call %q: %w", tc.ID, err)
+		}
 
-	_, err = tx.Exec(
-		`UPDATE sessions SET tool_call_count = tool_call_count + 1, last_seen_at = ? WHERE id = ?`,
-		tc.Timestamp, tc.SessionID,
-	)
+		_, err = tx.ExecContext(ctx,
+			`UPDATE sessions SET tool_call_count = tool_call_count + 1, last_seen_at = ? WHERE id = ?`,
+			tc.Timestamp, tc.SessionID,
+		)
+		if err != nil {
+			return fmt.Errorf("db: update session roll-up %q: %w", tc.SessionID, err)
+		}
+		return nil
+	})
 	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("db: update session roll-up %q: %w", tc.SessionID, err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("db: commit tool_call %q: %w", tc.ID, err)
+		return fmt.Errorf("db: persist tool_call %q: %w", tc.ID, err)
 	}
 	return nil
 }
@@ -253,58 +263,56 @@ func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 
 	d.deriveCost(tc)
 
-	tx, err := d.db.Begin()
-	if err != nil {
-		return false, fmt.Errorf("db: begin retry-safe tool_call tx: %w", err)
-	}
-	defer tx.Rollback()
-
-	res, err := tx.Exec(
-		`INSERT INTO tool_calls (
+	ctx, cancel := writeContext()
+	defer cancel()
+	var didInsert bool
+	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
 			exit_code, is_error, runtime
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO NOTHING`,
-		tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
-		tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
-		tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
-	)
-	if err != nil {
-		return false, fmt.Errorf("db: insert retry-safe tool_call %q: %w", tc.ID, err)
-	}
-	inserted, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("db: inspect retry-safe tool_call %q: %w", tc.ID, err)
-	}
+			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
+			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
+			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
+		)
+		if err != nil {
+			return fmt.Errorf("db: insert retry-safe tool_call %q: %w", tc.ID, err)
+		}
+		inserted, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("db: inspect retry-safe tool_call %q: %w", tc.ID, err)
+		}
+		didInsert = inserted != 0
 
-	if inserted == 0 {
-		var tool, input, output string
-		var runtime sql.NullString
-		if err := tx.QueryRow(
-			`SELECT tool, input, output, runtime FROM tool_calls WHERE id = ?`, tc.ID,
-		).Scan(&tool, &input, &output, &runtime); err != nil {
-			return false, fmt.Errorf("db: inspect existing tool_call %q: %w", tc.ID, err)
+		if !didInsert {
+			var tool, input, output string
+			var runtime sql.NullString
+			if err := tx.QueryRowContext(ctx,
+				`SELECT tool, input, output, runtime FROM tool_calls WHERE id = ?`, tc.ID,
+			).Scan(&tool, &input, &output, &runtime); err != nil {
+				return fmt.Errorf("db: inspect existing tool_call %q: %w", tc.ID, err)
+			}
+			if tool != tc.Tool || input != tc.Input || output != tc.Output || !sameOptionalString(runtime, tc.Runtime) {
+				return fmt.Errorf("%w: %q already identifies different evidence", ErrToolCallConflict, tc.ID)
+			}
+			return nil
 		}
-		if tool != tc.Tool || input != tc.Input || output != tc.Output || !sameOptionalString(runtime, tc.Runtime) {
-			return false, fmt.Errorf("%w: %q already identifies different evidence", ErrToolCallConflict, tc.ID)
-		}
-		if err := tx.Commit(); err != nil {
-			return false, fmt.Errorf("db: commit tool_call retry %q: %w", tc.ID, err)
-		}
-		return false, nil
-	}
 
-	if _, err := tx.Exec(
-		`UPDATE sessions SET tool_call_count = tool_call_count + 1, last_seen_at = ? WHERE id = ?`,
-		tc.Timestamp, tc.SessionID,
-	); err != nil {
-		return false, fmt.Errorf("db: update retry-safe session roll-up %q: %w", tc.SessionID, err)
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE sessions SET tool_call_count = tool_call_count + 1, last_seen_at = ? WHERE id = ?`,
+			tc.Timestamp, tc.SessionID,
+		); err != nil {
+			return fmt.Errorf("db: update retry-safe session roll-up %q: %w", tc.SessionID, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
 	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("db: commit retry-safe tool_call %q: %w", tc.ID, err)
-	}
-	return true, nil
+	return didInsert, nil
 }
 
 func sameOptionalString(stored sql.NullString, incoming *string) bool {

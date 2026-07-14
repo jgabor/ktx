@@ -98,15 +98,8 @@ var IDPattern = regexp.MustCompile(`^[a-z]{16}$`)
 // keys are enforced so the tool_calls.session_id REFERENCES clause is
 // meaningful, not decorative.
 //
-// The schema migration is idempotent: CREATE TABLE IF NOT EXISTS runs on
-// every open, so re-opening an existing database is a no-op. The
-// in-place cost-publication migration (ALTER TABLE ADD COLUMN for tokens_in/cost/etc.) is
-// equally idempotent — the column-existence check via PRAGMA table_info
-// makes a second run on a fully migrated database a no-op, and a
-// partial-set database (e.g. only tokens_in added) is forward-fixed on
-// the next open. No versioned migration framework is needed for the
-// additive cost-publication column set (SQLite ALTER TABLE, no custom
-// framework).
+// PRAGMA user_version gates migration so a current-schema open performs no
+// write transaction. Stale schemas are migrated and versioned atomically.
 func Open(path string) (*DB, error) {
 	if path == "" {
 		return nil, errors.New("db: open: path is empty")
@@ -119,7 +112,7 @@ func Open(path string) (*DB, error) {
 	// modernc.org/sqlite reads _pragma query params and applies them per
 	// connection. foreign_keys(1) enforces the tool_calls -> sessions FK on
 	// every pooled connection, not just the first.
-	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", path, sqliteBusyTimeoutMS)
 
 	db, err := sql.Open(sqliteDriver, dsn)
 	if err != nil {

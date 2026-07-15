@@ -78,7 +78,7 @@ func TestSummaryCacheGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertGolden(t, "summary_cache.golden.json", actual)
+	assertGolden(t, "summary_cache.golden", actual)
 }
 
 func TestRankingGolden(t *testing.T) {

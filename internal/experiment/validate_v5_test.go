@@ -81,14 +81,14 @@ func assertV5Validation(t *testing.T, dir string, want bool) map[string]any {
 
 func isolateV5Fixture(manifest *Manifest, attempts *[]Attempt, baselineHash, candidateHash string) {
 	manifest.CacheControl.Mode, manifest.CacheControl.Source = "isolated", "runtime_adapter"
-	manifest.CacheControl.RuntimeVersion = "1.17.15"
-	manifest.Identities["opencode"] = "1.17.15"
+	manifest.CacheControl.RuntimeVersion = "1.18.0"
+	manifest.Identities["opencode"] = "1.18.0"
 	manifest.CacheControl.NamespaceSHA256 = map[string]string{Baseline: baselineHash, Candidate: candidateHash}
 	for i := range *attempts {
 		metadata := (*attempts)[i].CacheControl
 		metadata.Mode = "isolated"
 		metadata.Source = "runtime_adapter"
-		metadata.RuntimeVersion = "1.17.15"
+		metadata.RuntimeVersion = "1.18.0"
 		metadata.NamespaceSHA256 = manifest.CacheControl.NamespaceSHA256[(*attempts)[i].Side]
 	}
 }
@@ -99,6 +99,16 @@ func TestValidateV5ObservedAndMalformedEvidence(t *testing.T) {
 		assertV5Validation(t, writeV5ValidationFixture(t, func(manifest *Manifest, attempts *[]Attempt) {
 			isolateV5Fixture(manifest, attempts, strings.Repeat("a", 64), strings.Repeat("b", 64))
 		}, true), true)
+	})
+	t.Run("isolated with prior pinned version", func(t *testing.T) {
+		assertV5Validation(t, writeV5ValidationFixture(t, func(manifest *Manifest, attempts *[]Attempt) {
+			isolateV5Fixture(manifest, attempts, strings.Repeat("a", 64), strings.Repeat("b", 64))
+			manifest.CacheControl.RuntimeVersion = "1.17.15"
+			manifest.Identities["opencode"] = "1.17.15"
+			for i := range *attempts {
+				(*attempts)[i].CacheControl.RuntimeVersion = "1.17.15"
+			}
+		}, true), false)
 	})
 	t.Run("missing roles cannot satisfy target", func(t *testing.T) {
 		dir := writeV5ValidationFixture(t, func(_ *Manifest, attempts *[]Attempt) {

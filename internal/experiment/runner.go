@@ -140,7 +140,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	}
 	manifest.Pricing = pricing
 	if options.methodologyVersion == "v5-cache-aware" {
-		manifest.CacheControl = &CacheControlManifest{Mode: cacheControl.mode, Source: cacheControl.source, NamespaceSHA256: cacheControl.hashes, WarmupCount: options.Warmup, IdleGapMS: 0, Model: options.Model, Provider: provider, Variant: options.Variant, RuntimeVersion: manifest.Identities["opencode"], TTFTAvailable: false, TTFTUnavailableReason: "OpenCode 1.17.15 retained stream timestamps do not provide a reliable request start"}
+		manifest.CacheControl = &CacheControlManifest{Mode: cacheControl.mode, Source: cacheControl.source, NamespaceSHA256: cacheControl.hashes, WarmupCount: options.Warmup, IdleGapMS: 0, Model: options.Model, Provider: provider, Variant: options.Variant, RuntimeVersion: manifest.Identities["opencode"], TTFTAvailable: false, TTFTUnavailableReason: "retained OpenCode stream timestamps do not provide a reliable request start"}
 	}
 	if err := WriteJSON(filepath.Join(experimentDir, "manifest.json"), manifest); err != nil {
 		return "", nil, 2, err

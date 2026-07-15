@@ -32,10 +32,10 @@ type resolvedCacheControl struct {
 }
 
 func OpenCodeCacheCapability(request CacheCapabilityRequest) CacheCapability {
-	// OpenCode 1.17.15 merges arbitrary per-model options after its
+	// OpenCode 1.18.0 merges arbitrary per-model options after its
 	// session-derived defaults. Restrict the built-in adapter to provider paths
 	// whose OpenCode source explicitly uses promptCacheKey.
-	if request.Runtime != "opencode" || request.RuntimeVersion != "1.17.15" {
+	if request.Runtime != "opencode" || request.RuntimeVersion != "1.18.0" {
 		return CacheCapability{Source: "unavailable"}
 	}
 	switch request.Provider {

@@ -135,7 +135,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
 	auth := writeFixture("auth.json", "{}\n")
 
-	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "opencode v1.17.15"}
+	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "opencode v1.18.0"}
 	runner := &Runner{Executor: fake, Now: func() time.Time { return time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC) }, PID: 29, ResolvePrice: testPriceResolver}
 	dir, summary, code, err := runner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", Variant: "high", TaskFile: task, TargetValid: 2, MaxAttempts: 8, Warmup: 1, CacheControl: "auto",
@@ -167,7 +167,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		if attempt.CacheControl == nil || attempt.CacheControl.Mode != "isolated" || attempt.CacheControl.Source != "runtime_adapter" {
 			t.Fatalf("cache metadata = %#v", attempt.CacheControl)
 		}
-		if attempt.CacheControl.Phase != attempt.Role || attempt.CacheControl.ExecutionOrder == 0 || attempt.CacheControl.Model != "openai/test" || attempt.CacheControl.Provider != "openai" || attempt.CacheControl.Variant != "high" || attempt.CacheControl.RuntimeVersion != "1.17.15" || attempt.CacheControl.IdleGapMS != 0 {
+		if attempt.CacheControl.Phase != attempt.Role || attempt.CacheControl.ExecutionOrder == 0 || attempt.CacheControl.Model != "openai/test" || attempt.CacheControl.Provider != "openai" || attempt.CacheControl.Variant != "high" || attempt.CacheControl.RuntimeVersion != "1.18.0" || attempt.CacheControl.IdleGapMS != 0 {
 			t.Fatalf("incomplete cache metadata = %#v", attempt.CacheControl)
 		}
 		if prior := seenHashes[attempt.Side]; prior != "" && prior != attempt.CacheControl.NamespaceSHA256 {
@@ -212,7 +212,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		t.Fatalf("headline phase = %v", summary["headline_phase"])
 	}
 	summaryCache := summary["cache_control"].(*CacheControlManifest)
-	if summaryCache.Model != "openai/test" || summaryCache.Provider != "openai" || summaryCache.Variant != "high" || summaryCache.RuntimeVersion != "1.17.15" {
+	if summaryCache.Model != "openai/test" || summaryCache.Provider != "openai" || summaryCache.Variant != "high" || summaryCache.RuntimeVersion != "1.18.0" {
 		t.Fatalf("summary cache metadata = %#v", summaryCache)
 	}
 	if summary["pipelines"].(map[string]any)[Baseline].(map[string]any)["sample_classification"] != "exploratory" {
@@ -223,7 +223,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		t.Fatalf("validation report=%#v err=%v", report, err)
 	}
 
-	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.17.20"}
+	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.17.15"}
 	observedRunner := &Runner{Executor: observedFake, Now: runner.Now, PID: 30, ResolvePrice: testPriceResolver}
 	observedDir, _, code, err := observedRunner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", TaskFile: task, TargetValid: 1, MaxAttempts: 6, Warmup: 1, CacheControl: "auto",
@@ -249,7 +249,8 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		name, identity string
 		omit           bool
 	}{
-		{name: "unsupported_version", identity: "1.17.20"},
+		{name: "unsupported_version", identity: "1.17.15"},
+		{name: "unsupported_newer", identity: "1.17.20"},
 		{name: "malformed_version", identity: "version banana"},
 		{name: "unknown_version", omit: true},
 	} {

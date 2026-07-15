@@ -388,12 +388,12 @@ adapter, exists only in ephemeral runtime configuration/command state.
 `idle_gap_ms` records the intentional harness delay and is zero when no delay is
 imposed; it is not inferred from orchestration overhead.
 
-For OpenCode 1.17.15, `provider.options.setCacheKey=true` is not arm isolation:
+For OpenCode 1.18.0, `provider.options.setCacheKey=true` is not arm isolation:
 source sets `promptCacheKey` to the OpenCode session id. Source also confirms
 that arbitrary per-model options are merged after that default, allowing a
 generated `model.options.promptCacheKey` override. ktx enables this adapter only
 for provider paths with confirmed support for that request option and only when
-the inspected image reports OpenCode exactly `1.17.15`. Other, unknown, or
+the inspected image reports OpenCode exactly `1.18.0`. Other, unknown, or
 malformed runtime versions and other providers remain observed-only under
 `auto`; explicit isolation fails before an agent attempt.
 
@@ -401,7 +401,7 @@ Schema-v3 cache-aware summaries expose distributions for each phase while
 keeping `measured_warm` as the headline, a cold-to-warm estimated-cost rebuild
 penalty, and the first cumulative measured turn where candidate estimated API
 cost is below baseline after setup cost. Unavailable estimates produce null
-values with reasons. TTFT is null: retained OpenCode 1.17.15 JSONL does not
+values with reasons. TTFT is null: retained OpenCode 1.18.0 JSONL does not
 provide a reliable request-start timestamp.
 
 Validation is methodology-aware. For v5 it requires summary schema 3, retained

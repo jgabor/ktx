@@ -9,7 +9,7 @@ scope: |
 inputs:
   agent:
     binary: opencode
-    version: "1.17.15"
+    version: "1.18.0"
   model:
     id: "glm-5.2-short-fast-flex"
     provider: "neuralwatt"
@@ -54,14 +54,14 @@ cache_control:
     harness imposes no delay), model, provider, variant,
     and runtime version. A raw namespace may exist only in ephemeral generated
     runtime configuration or command state.
-  opencode_1_17_15: |
+  opencode_1_18_0: |
     OpenCode config accepts arbitrary per-model options. Request preparation
     merges model options after runtime defaults, so model.options.promptCacheKey
     can override the session-derived default. provider.options.setCacheKey only
     sets promptCacheKey to the OpenCode session id and does not isolate arms.
     The built-in adapter therefore enables fixed-key isolation only for provider
     paths whose promptCacheKey support is confirmed and only when the inspected,
-    normalized benchmark runtime version is exactly 1.17.15. Unknown, malformed,
+    normalized benchmark runtime version is exactly 1.18.0. Unknown, malformed,
     custom, and other OpenCode versions remain observed under auto and reject an
     explicit isolated request before a paid attempt.
 
@@ -77,7 +77,7 @@ computation: |
   Estimated API cost uses the retained selected base/context-tier reasoning rate
   when present and otherwise falls back deterministically to its output rate.
   An explicit zero reasoning rate remains zero. TTFT is
-  null because OpenCode 1.17.15 retained JSONL does not expose a reliable request
+  null because OpenCode 1.18.0 retained JSONL does not expose a reliable request
   start timestamp from which to derive it.
 
 output:

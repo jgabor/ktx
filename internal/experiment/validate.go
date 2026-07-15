@@ -165,8 +165,8 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	} else if control.RuntimeVersion != manifest.Identities["opencode"] {
 		reasons = append(reasons, "cache control runtime version does not match manifest identity")
 	}
-	if control.Mode == "isolated" && control.Source == "runtime_adapter" && control.RuntimeVersion != "1.17.15" {
-		reasons = append(reasons, "runtime adapter isolation requires OpenCode 1.17.15")
+	if control.Mode == "isolated" && control.Source == "runtime_adapter" && control.RuntimeVersion != "1.18.0" {
+		reasons = append(reasons, "runtime adapter isolation requires OpenCode 1.18.0")
 	}
 	if control.Mode == "observed" && len(control.NamespaceSHA256) != 0 {
 		reasons = append(reasons, "observed cache control must not retain namespace hashes")

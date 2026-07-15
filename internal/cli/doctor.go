@@ -432,7 +432,8 @@ func checkCostColumns(db *dbpkg.DB) doctorCheck {
 //
 //   - "ok" with detail "all bench_runs columns present: id, agent,
 //     model, task, score, tokens_in, tokens_out, cost,
-//     methodology_version, timestamp, cache_read, cache_write" when
+//     methodology_version, timestamp, cache_read, cache_write,
+//     reasoning, estimated_api_cost" when
 //     the table exists and every expected column is present
 //     (post-migration or fresh DB).
 //   - "warning" with detail naming the absent columns when the table
@@ -484,7 +485,7 @@ func checkBenchRuns(db *dbpkg.DB) doctorCheck {
 	return doctorCheck{
 		Name:   "bench_runs_table",
 		Status: doctorStatusOK,
-		Detail: "all bench_runs columns present: id, agent, model, task, score, tokens_in, tokens_out, cost, methodology_version, timestamp, cache_read, cache_write",
+		Detail: "all bench_runs columns present: id, agent, model, task, score, tokens_in, tokens_out, cost, methodology_version, timestamp, cache_read, cache_write, reasoning, estimated_api_cost",
 	}
 }
 

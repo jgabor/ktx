@@ -22,6 +22,8 @@ import (
 	"database/sql"
 	"errors"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -123,6 +125,74 @@ func TestInsertBenchRun_RoundTrip(t *testing.T) {
 			t.Errorf("Cost: got %v, want nil", *got.Cost)
 		}
 	})
+}
+
+func TestBenchRunReasoningAndEstimatedCostRoundTrip(t *testing.T) {
+	database, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	reasoning := int64(42)
+	estimated := 0.001234
+	reported := 0.0
+	run := &BenchRun{ID: "estimated-roundtrip", Agent: "openai/gpt", Model: "gpt", Cost: &reported, Reasoning: &reasoning, EstimatedAPICost: &estimated}
+	if err := database.InsertBenchRun(run); err != nil {
+		t.Fatal(err)
+	}
+	got, err := database.QueryBenchRun(run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Cost == nil || *got.Cost != 0 || got.Reasoning == nil || *got.Reasoning != 42 || got.EstimatedAPICost == nil || *got.EstimatedAPICost != estimated {
+		t.Fatalf("round trip = %#v", got)
+	}
+}
+
+func TestBenchRunReportedZeroKeepsSeparateNonzeroEstimate(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	resetPricesForTest()
+	t.Cleanup(resetPricesForTest)
+	path, err := PricesPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prices := `{"openai":{"gpt":{"input":2.5,"output":15,"cache_read":0.25,"cache_write":3.125}}}`
+	if err := os.WriteFile(path, []byte(prices), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	database, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	reported := 0.0
+	reasoning, cacheRead, cacheWrite := int64(20), int64(100), int64(10)
+	run := &BenchRun{ID: "reported-zero", Agent: "openai/gpt", Model: "gpt", TokensIn: 1000, TokensOut: 50, Cost: &reported, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}
+	if err := database.InsertBenchRun(run); err != nil {
+		t.Fatal(err)
+	}
+	if run.Cost == nil || *run.Cost != 0 || run.EstimatedAPICost == nil || *run.EstimatedAPICost != 0.003606 {
+		t.Fatalf("run after insert = %#v", run)
+	}
+	partial := &BenchRun{ID: "partial-usage", Agent: "openai/gpt", Model: "gpt", TokensIn: 1000, TokensOut: 50, Cost: &reported, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite, SkipEstimatedAPICost: true}
+	if err := database.InsertBenchRun(partial); err != nil {
+		t.Fatal(err)
+	}
+	if partial.EstimatedAPICost != nil {
+		t.Fatalf("partial usage estimate = %v, want nil", *partial.EstimatedAPICost)
+	}
+	missingReported := &BenchRun{ID: "missing-reported", Agent: "openai/gpt", Model: "gpt", TokensIn: 1000, TokensOut: 50, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}
+	if err := database.InsertBenchRun(missingReported); err != nil {
+		t.Fatal(err)
+	}
+	if missingReported.Cost != nil || missingReported.EstimatedAPICost == nil || *missingReported.EstimatedAPICost != 0.003606 {
+		t.Fatalf("missing reported cost run = %#v", missingReported)
+	}
 }
 
 // TestQueryBenchRuns_OrderedByTimestamp covers the "rows array, oldest
@@ -520,16 +590,16 @@ func TestOpen_BenchRunsCacheMigration(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = d.Close() })
 
-		// Verify schema version bumped to 2.
+		// Verify schema version bumped to the current additive schema.
 		var gotVersion int
 		if err := d.db.QueryRow(`PRAGMA user_version`).Scan(&gotVersion); err != nil {
 			t.Fatalf("read user_version: %v", err)
 		}
-		if gotVersion != 2 {
-			t.Fatalf("user_version = %d, want 2 after migration", gotVersion)
+		if gotVersion != 3 {
+			t.Fatalf("user_version = %d, want 3 after migration", gotVersion)
 		}
 
-		for _, col := range []string{"cache_read", "cache_write"} {
+		for _, col := range []string{"cache_read", "cache_write", "reasoning", "estimated_api_cost"} {
 			var present int
 			if err := d.db.QueryRow(
 				"SELECT COUNT(*) FROM pragma_table_info('bench_runs') WHERE name = ?",
@@ -552,6 +622,9 @@ func TestOpen_BenchRunsCacheMigration(t *testing.T) {
 		}
 		if got.CacheWrite != nil {
 			t.Errorf("legacy CacheWrite = %v, want nil (NULL preserved on existing row)", *got.CacheWrite)
+		}
+		if got.Reasoning != nil || got.EstimatedAPICost != nil {
+			t.Fatalf("legacy estimated fields = reasoning:%v estimated:%v, want nil", got.Reasoning, got.EstimatedAPICost)
 		}
 
 		// New rows with cache telemetry round-trip through the migrated table.
@@ -602,4 +675,45 @@ func TestOpen_BenchRunsCacheMigration(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestOpen_BenchRunsUserVersion2To3Migration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v2.db")
+	raw, err := sql.Open(sqliteDriver, "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE bench_runs (
+		id TEXT PRIMARY KEY, agent TEXT, model TEXT, task TEXT, score REAL,
+		tokens_in INTEGER, tokens_out INTEGER, cost REAL,
+		methodology_version TEXT, timestamp INTEGER,
+		cache_read INTEGER, cache_write INTEGER
+	)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE IF NOT EXISTS migration_marker (value TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO migration_marker VALUES ('preserved')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 2`); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	database, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	var version int
+	if err := database.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 3 {
+		t.Fatalf("version=%d err=%v", version, err)
+	}
+	var marker string
+	if err := database.db.QueryRow(`SELECT value FROM migration_marker`).Scan(&marker); err != nil || marker != "preserved" {
+		t.Fatalf("marker=%q err=%v", marker, err)
+	}
 }

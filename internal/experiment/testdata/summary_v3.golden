@@ -1,0 +1,798 @@
+{
+  "baseline_minus_candidate": {
+    "cache_read": 21,
+    "cache_write": 2,
+    "cost": 0.41000000000000014,
+    "estimated_api_cost": 0.04100000000000002,
+    "estimated_api_cost_per_correct": 0.021250000000000033,
+    "expected_cost_per_correct": 0.21250000000000024,
+    "mean_fact_score": 0.040000000000000036,
+    "pass_rate": 0.19999999999999996,
+    "tokens_in": 41,
+    "tokens_out": 3,
+    "tool_call_count": -9.8
+  },
+  "estimated_api_cost_basis": {
+    "formula": "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1000000",
+    "null_policy": "ordinary input/output prices and complete reasoning/cache usage are required; nonzero cache usage requires its corresponding cache price",
+    "pricing_snapshot": {
+      "model": "gpt-5.6-luna",
+      "path": "pricing.json",
+      "provider": "openai",
+      "retrieved_at": null,
+      "sha256": "pricing-sha",
+      "source_url": "https://models.dev/api.json"
+    },
+    "reasoning_price_policy": "use the selected base or context-tier reasoning price when present; otherwise use that selected record's output price",
+    "rounding_decimals": 6,
+    "unavailable_guidance": "run `ktx prices update` when the warm cache lacks required model or cache pricing"
+  },
+  "exclusions": [
+    {
+      "attempt_id": "candidate-2",
+      "reasons": [
+        "partial_or_failed_facts"
+      ],
+      "side": "candidate"
+    }
+  ],
+  "experiment_id": "exp-v3",
+  "methodology_version": "v4-eval-matrix",
+  "minimum_tool_calls": 1,
+  "paired_baseline_minus_candidate": {
+    "cycles": [
+      {
+        "baseline_attempt_id": "baseline-1",
+        "candidate_attempt_id": "candidate-1",
+        "cycle": 1,
+        "deltas": {
+          "cache_read": 20,
+          "cache_write": 2,
+          "cost": 0.4,
+          "estimated_api_cost": 0.04000000000000001,
+          "quality_score": 0,
+          "reasoning": 2,
+          "tokens_in": 40,
+          "tokens_out": 3,
+          "tool_call_count": 0,
+          "total_logical_input": 62
+        }
+      },
+      {
+        "baseline_attempt_id": "baseline-2",
+        "candidate_attempt_id": "candidate-2",
+        "cycle": 2,
+        "deltas": {
+          "cache_read": 20,
+          "cache_write": 2,
+          "cost": 0.40000000000000013,
+          "estimated_api_cost": 0.039999999999999994,
+          "quality_score": 0.19999999999999996,
+          "reasoning": 2,
+          "tokens_in": 40,
+          "tokens_out": 3,
+          "tool_call_count": 0,
+          "total_logical_input": 62
+        }
+      },
+      {
+        "baseline_attempt_id": "baseline-3",
+        "candidate_attempt_id": "candidate-3",
+        "cycle": 3,
+        "deltas": {
+          "cache_read": 20,
+          "cache_write": 2,
+          "cost": 0.3999999999999999,
+          "estimated_api_cost": 0.039999999999999994,
+          "quality_score": 0,
+          "reasoning": 2,
+          "tokens_in": 40,
+          "tokens_out": 3,
+          "tool_call_count": 0,
+          "total_logical_input": 62
+        }
+      },
+      {
+        "baseline_attempt_id": "baseline-4",
+        "candidate_attempt_id": "candidate-4",
+        "cycle": 4,
+        "deltas": {
+          "cache_read": 20,
+          "cache_write": 2,
+          "cost": 0.4,
+          "estimated_api_cost": 0.04000000000000001,
+          "quality_score": 0,
+          "reasoning": 2,
+          "tokens_in": 40,
+          "tokens_out": 3,
+          "tool_call_count": -49,
+          "total_logical_input": 62
+        }
+      }
+    ],
+    "metrics": {
+      "cache_read": {
+        "count": 4,
+        "mean_paired_delta": 20,
+        "median_paired_delta": 20
+      },
+      "cache_write": {
+        "count": 4,
+        "mean_paired_delta": 2,
+        "median_paired_delta": 2
+      },
+      "cost": {
+        "count": 4,
+        "mean_paired_delta": 0.4,
+        "median_paired_delta": 0.4
+      },
+      "estimated_api_cost": {
+        "count": 4,
+        "mean_paired_delta": 0.04,
+        "median_paired_delta": 0.04
+      },
+      "quality_score": {
+        "count": 4,
+        "mean_paired_delta": 0.04999999999999999,
+        "median_paired_delta": 0
+      },
+      "reasoning": {
+        "count": 4,
+        "mean_paired_delta": 2,
+        "median_paired_delta": 2
+      },
+      "tokens_in": {
+        "count": 4,
+        "mean_paired_delta": 40,
+        "median_paired_delta": 40
+      },
+      "tokens_out": {
+        "count": 4,
+        "mean_paired_delta": 3,
+        "median_paired_delta": 3
+      },
+      "tool_call_count": {
+        "count": 4,
+        "mean_paired_delta": -12.25,
+        "median_paired_delta": 0
+      },
+      "total_logical_input": {
+        "count": 4,
+        "mean_paired_delta": 62,
+        "median_paired_delta": 62
+      }
+    },
+    "paired_count": 4,
+    "sample_classification": "exploratory",
+    "unpaired_attempts": [
+      {
+        "attempt_id": "baseline-5",
+        "cycle": 5,
+        "side": "baseline"
+      },
+      {
+        "attempt_id": "candidate-6",
+        "cycle": 6,
+        "side": "candidate"
+      }
+    ]
+  },
+  "pipelines": {
+    "baseline": {
+      "attempt_count": 5,
+      "cache_read": {
+        "count": 5,
+        "max": 70,
+        "mean": 50,
+        "median": 50,
+        "min": 30,
+        "outlier_detection": {
+          "lower_fence": 10,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 90
+        },
+        "p25": 40,
+        "p75": 60,
+        "population_standard_deviation": 14.142135623730951,
+        "values": [
+          30,
+          40,
+          50,
+          60,
+          70
+        ]
+      },
+      "cache_write": {
+        "count": 5,
+        "max": 7,
+        "mean": 5,
+        "median": 5,
+        "min": 3,
+        "outlier_detection": {
+          "lower_fence": 1,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 9
+        },
+        "p25": 4,
+        "p75": 6,
+        "population_standard_deviation": 1.4142135623730951,
+        "values": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "contributing_attempts": [
+        {
+          "attempt_id": "baseline-1",
+          "session_id": "session-baseline-1"
+        },
+        {
+          "attempt_id": "baseline-2",
+          "session_id": "session-baseline-2"
+        },
+        {
+          "attempt_id": "baseline-4",
+          "session_id": "session-baseline-4"
+        },
+        {
+          "attempt_id": "baseline-3",
+          "session_id": "session-baseline-3"
+        },
+        {
+          "attempt_id": "baseline-5",
+          "session_id": "session-baseline-5"
+        }
+      ],
+      "cost": {
+        "count": 5,
+        "max": 1.4,
+        "mean": 1.2,
+        "median": 1.2,
+        "min": 1,
+        "outlier_detection": {
+          "lower_fence": 0.8000000000000002,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 1.6
+        },
+        "p25": 1.1,
+        "p75": 1.3,
+        "population_standard_deviation": 0.14142135623730948,
+        "values": [
+          1,
+          1.1,
+          1.2,
+          1.3,
+          1.4
+        ]
+      },
+      "estimated_api_cost": {
+        "count": 5,
+        "max": 0.14,
+        "mean": 0.12000000000000002,
+        "median": 0.12,
+        "min": 0.1,
+        "outlier_detection": {
+          "lower_fence": 0.07999999999999999,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 0.16
+        },
+        "p25": 0.11,
+        "p75": 0.13,
+        "population_standard_deviation": 0.014142135623730954,
+        "values": [
+          0.1,
+          0.11,
+          0.12,
+          0.13,
+          0.14
+        ]
+      },
+      "estimated_api_cost_per_correct": 0.12000000000000002,
+      "evaluated_attempts": [
+        {
+          "attempt_id": "baseline-1",
+          "score": 1,
+          "session_id": "session-baseline-1"
+        },
+        {
+          "attempt_id": "baseline-2",
+          "score": 1,
+          "session_id": "session-baseline-2"
+        },
+        {
+          "attempt_id": "baseline-4",
+          "score": 1,
+          "session_id": "session-baseline-4"
+        },
+        {
+          "attempt_id": "baseline-3",
+          "score": 1,
+          "session_id": "session-baseline-3"
+        },
+        {
+          "attempt_id": "baseline-5",
+          "score": 1,
+          "session_id": "session-baseline-5"
+        }
+      ],
+      "evaluated_count": 5,
+      "expected_cost_per_correct": 1.2,
+      "full_pass_rate": 1,
+      "mean_fact_score": 1,
+      "pass_rate": 1,
+      "pipeline_hash": "sha-baseline",
+      "pipeline_id": "passthrough",
+      "quality_score": {
+        "count": 5,
+        "max": 1,
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "outlier_detection": {
+          "lower_fence": 1,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 1
+        },
+        "p25": 1,
+        "p75": 1,
+        "population_standard_deviation": 0,
+        "values": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "reasoning": {
+        "count": 5,
+        "max": 8,
+        "mean": 6,
+        "median": 6,
+        "min": 4,
+        "outlier_detection": {
+          "lower_fence": 2,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 10
+        },
+        "p25": 5,
+        "p75": 7,
+        "population_standard_deviation": 1.4142135623730951,
+        "values": [
+          4,
+          5,
+          6,
+          7,
+          8
+        ]
+      },
+      "sample_classification": "descriptive",
+      "stage_labels": [],
+      "status_counts": {
+        "completed": 5,
+        "failed": 0,
+        "invalid": 0,
+        "timeout": 0,
+        "unlinked": 0
+      },
+      "tokens_in": {
+        "count": 5,
+        "max": 140,
+        "mean": 120,
+        "median": 120,
+        "min": 100,
+        "outlier_detection": {
+          "lower_fence": 80,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 160
+        },
+        "p25": 110,
+        "p75": 130,
+        "population_standard_deviation": 14.142135623730951,
+        "values": [
+          100,
+          110,
+          120,
+          130,
+          140
+        ]
+      },
+      "tokens_out": {
+        "count": 5,
+        "max": 14,
+        "mean": 12,
+        "median": 12,
+        "min": 10,
+        "outlier_detection": {
+          "lower_fence": 8,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 16
+        },
+        "p25": 11,
+        "p75": 13,
+        "population_standard_deviation": 1.4142135623730951,
+        "values": [
+          10,
+          11,
+          12,
+          13,
+          14
+        ]
+      },
+      "tool_call_count": {
+        "count": 5,
+        "max": 3,
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "outlier_detection": {
+          "lower_fence": 3,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 3
+        },
+        "p25": 3,
+        "p75": 3,
+        "population_standard_deviation": 0,
+        "values": [
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "total_logical_input": {
+        "count": 5,
+        "max": 217,
+        "mean": 175,
+        "median": 175,
+        "min": 133,
+        "outlier_detection": {
+          "lower_fence": 91,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 259
+        },
+        "p25": 154,
+        "p75": 196,
+        "population_standard_deviation": 29.698484809834994,
+        "values": [
+          133,
+          154,
+          175,
+          196,
+          217
+        ]
+      },
+      "valid_count": 5
+    },
+    "candidate": {
+      "attempt_count": 5,
+      "cache_read": {
+        "count": 5,
+        "max": 45,
+        "mean": 29,
+        "median": 30,
+        "min": 10,
+        "outlier_detection": {
+          "lower_fence": -10,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 70
+        },
+        "p25": 20,
+        "p75": 40,
+        "population_standard_deviation": 12.806248474865697,
+        "values": [
+          10,
+          20,
+          30,
+          40,
+          45
+        ]
+      },
+      "cache_write": {
+        "count": 5,
+        "max": 5,
+        "mean": 3,
+        "median": 3,
+        "min": 1,
+        "outlier_detection": {
+          "lower_fence": -1,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 7
+        },
+        "p25": 2,
+        "p75": 4,
+        "population_standard_deviation": 1.4142135623730951,
+        "values": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "contributing_attempts": [
+        {
+          "attempt_id": "candidate-1",
+          "session_id": "session-candidate-1"
+        },
+        {
+          "attempt_id": "candidate-4",
+          "session_id": "session-candidate-4"
+        },
+        {
+          "attempt_id": "candidate-3",
+          "session_id": "session-candidate-3"
+        },
+        {
+          "attempt_id": "candidate-6",
+          "session_id": "session-candidate-6"
+        }
+      ],
+      "cost": {
+        "count": 5,
+        "max": 0.95,
+        "mean": 0.7899999999999998,
+        "median": 0.8,
+        "min": 0.6,
+        "outlier_detection": {
+          "lower_fence": 0.39999999999999986,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 1.2000000000000002
+        },
+        "p25": 0.7,
+        "p75": 0.9,
+        "population_standard_deviation": 0.128062484748657,
+        "values": [
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          0.95
+        ]
+      },
+      "estimated_api_cost": {
+        "count": 5,
+        "max": 0.095,
+        "mean": 0.079,
+        "median": 0.08,
+        "min": 0.06,
+        "outlier_detection": {
+          "lower_fence": 0.04000000000000002,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 0.11999999999999998
+        },
+        "p25": 0.07,
+        "p75": 0.09,
+        "population_standard_deviation": 0.012806248474865698,
+        "values": [
+          0.06,
+          0.07,
+          0.08,
+          0.09,
+          0.095
+        ]
+      },
+      "estimated_api_cost_per_correct": 0.09874999999999999,
+      "evaluated_attempts": [
+        {
+          "attempt_id": "candidate-2",
+          "score": 0.8,
+          "session_id": "session-candidate-2"
+        },
+        {
+          "attempt_id": "candidate-1",
+          "score": 1,
+          "session_id": "session-candidate-1"
+        },
+        {
+          "attempt_id": "candidate-4",
+          "score": 1,
+          "session_id": "session-candidate-4"
+        },
+        {
+          "attempt_id": "candidate-3",
+          "score": 1,
+          "session_id": "session-candidate-3"
+        },
+        {
+          "attempt_id": "candidate-6",
+          "score": 1,
+          "session_id": "session-candidate-6"
+        }
+      ],
+      "evaluated_count": 5,
+      "expected_cost_per_correct": 0.9874999999999997,
+      "full_pass_rate": 0.8,
+      "mean_fact_score": 0.96,
+      "pass_rate": 0.8,
+      "pipeline_hash": "sha-candidate",
+      "pipeline_id": "keep-ends-mid",
+      "quality_score": {
+        "count": 5,
+        "max": 1,
+        "mean": 0.96,
+        "median": 1,
+        "min": 0.8,
+        "outlier_detection": {
+          "lower_fence": 1,
+          "points": [
+            {
+              "attempt_id": "candidate-2",
+              "cycle": 2,
+              "value": 0.8
+            }
+          ],
+          "status": "complete",
+          "upper_fence": 1
+        },
+        "p25": 1,
+        "p75": 1,
+        "population_standard_deviation": 0.07999999999999999,
+        "values": [
+          0.8,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "reasoning": {
+        "count": 5,
+        "max": 6,
+        "mean": 4,
+        "median": 4,
+        "min": 2,
+        "outlier_detection": {
+          "lower_fence": 0,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 8
+        },
+        "p25": 3,
+        "p75": 5,
+        "population_standard_deviation": 1.4142135623730951,
+        "values": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "sample_classification": "descriptive",
+      "stage_labels": [
+        "strip-ansi",
+        "dedup-blank",
+        "normalize",
+        "keep-ends:100:50"
+      ],
+      "status_counts": {
+        "completed": 5,
+        "failed": 0,
+        "invalid": 0,
+        "timeout": 0,
+        "unlinked": 0
+      },
+      "tokens_in": {
+        "count": 5,
+        "max": 95,
+        "mean": 79,
+        "median": 80,
+        "min": 60,
+        "outlier_detection": {
+          "lower_fence": 40,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 120
+        },
+        "p25": 70,
+        "p75": 90,
+        "population_standard_deviation": 12.806248474865697,
+        "values": [
+          60,
+          70,
+          80,
+          90,
+          95
+        ]
+      },
+      "tokens_out": {
+        "count": 5,
+        "max": 11,
+        "mean": 9,
+        "median": 9,
+        "min": 7,
+        "outlier_detection": {
+          "lower_fence": 5,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 13
+        },
+        "p25": 8,
+        "p75": 10,
+        "population_standard_deviation": 1.4142135623730951,
+        "values": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      },
+      "tool_call_count": {
+        "count": 5,
+        "max": 52,
+        "mean": 12.8,
+        "median": 3,
+        "min": 3,
+        "outlier_detection": {
+          "lower_fence": 3,
+          "points": [
+            {
+              "attempt_id": "candidate-4",
+              "cycle": 4,
+              "value": 52
+            }
+          ],
+          "status": "complete",
+          "upper_fence": 3
+        },
+        "p25": 3,
+        "p75": 3,
+        "population_standard_deviation": 19.6,
+        "values": [
+          3,
+          3,
+          3,
+          3,
+          52
+        ]
+      },
+      "total_logical_input": {
+        "count": 5,
+        "max": 145,
+        "mean": 111,
+        "median": 113,
+        "min": 71,
+        "outlier_detection": {
+          "lower_fence": 29,
+          "points": [],
+          "status": "complete",
+          "upper_fence": 197
+        },
+        "p25": 92,
+        "p75": 134,
+        "population_standard_deviation": 27.018512172212592,
+        "values": [
+          71,
+          92,
+          113,
+          134,
+          145
+        ]
+      },
+      "valid_count": 4
+    }
+  },
+  "schema_version": 3,
+  "target_valid_per_pipeline": 4,
+  "tool_call_inflation": 4.266666666666667
+}

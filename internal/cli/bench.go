@@ -202,6 +202,8 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "        headline is recomputed from the filtered set.")
 	fmt.Fprintln(w, "  compare --model <model> [--variant <name>] --task-file <path>")
 	fmt.Fprintln(w, "      Run a retained live baseline/candidate experiment.")
+	fmt.Fprintln(w, "      Cache-aware opt-in: --methodology tools/bench/methodology-v5-cache-aware.yaml")
+	fmt.Fprintln(w, "      with --cache-control auto|isolated|observed, --warmup N, --rounds N.")
 	fmt.Fprintln(w, "  rank --model <model> [--variant <name>] --task-file <path>")
 	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
 	fmt.Fprintln(w, "  validate --experiment <directory>")

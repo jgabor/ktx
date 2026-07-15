@@ -39,6 +39,50 @@ type CostInputs struct {
 	Cost                *float64
 }
 
+type EstimatedCostInputs struct {
+	UncachedInput int64
+	Output        int64
+	Reasoning     *int64
+	CacheRead     *int64
+	CacheWrite    *int64
+}
+
+// EstimateAPICost derives an API-equivalent estimate independently of reported
+// cost. Complete reasoning and cache counts are required; rates are selected
+// from supported context tiers using all prompt-side tokens.
+func EstimateAPICost(in EstimatedCostInputs, price Price) *float64 {
+	if in.Reasoning == nil || in.CacheRead == nil || in.CacheWrite == nil {
+		return nil
+	}
+	contextTokens := in.UncachedInput + *in.CacheRead + *in.CacheWrite
+	rates := price.SelectRates(contextTokens)
+	if !rates.hasOrdinaryPrices() {
+		return nil
+	}
+	if (*in.CacheRead != 0 && rates.CacheRead == nil) || (*in.CacheWrite != 0 && rates.CacheWrite == nil) {
+		return nil
+	}
+	cacheReadPrice, cacheWritePrice := 0.0, 0.0
+	if rates.CacheRead != nil {
+		cacheReadPrice = *rates.CacheRead
+	}
+	if rates.CacheWrite != nil {
+		cacheWritePrice = *rates.CacheWrite
+	}
+	reasoningPrice := rates.Output
+	if rates.Reasoning != nil {
+		reasoningPrice = *rates.Reasoning
+	}
+	raw := float64(in.UncachedInput)*rates.Input + float64(*in.CacheRead)*cacheReadPrice +
+		float64(*in.CacheWrite)*cacheWritePrice + float64(in.Output)*rates.Output + float64(*in.Reasoning)*reasoningPrice
+	return roundCost(raw / 1_000_000)
+}
+
+func roundCost(raw float64) *float64 {
+	rounded := math.Round(raw*math.Pow(10, costRoundDecimals)) / math.Pow(10, costRoundDecimals)
+	return &rounded
+}
+
 // costDeriver is the deep cost module. The instance is stateless
 // after construction; the type exists to give Derive a home and
 // to make the lookup-and-cold-fetch sequence one symbol. One
@@ -119,6 +163,5 @@ func (cd *costDeriver) Derive(in CostInputs, src PriceSource) *float64 {
 
 	raw := float64(*in.TokensIn)*inPrice + float64(*in.TokensOut)*outPrice
 	raw = raw / 1_000_000
-	rounded := math.Round(raw*math.Pow(10, costRoundDecimals)) / math.Pow(10, costRoundDecimals)
-	return &rounded
+	return roundCost(raw)
 }

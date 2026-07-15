@@ -362,3 +362,45 @@ func TestCostDeriver_Derive(t *testing.T) {
 		})
 	}
 }
+
+func TestEstimateAPICostCacheReasoningAndMissingRates(t *testing.T) {
+	cacheReadRate, cacheWriteRate := .25, 3.125
+	reasoning, cacheRead, cacheWrite := int64(20), int64(100), int64(10)
+	price := Price{Input: 2.5, Output: 15, CacheRead: &cacheReadRate, CacheWrite: &cacheWriteRate}
+	got := EstimateAPICost(EstimatedCostInputs{UncachedInput: 1000, Output: 50, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}, price)
+	if got == nil || *got != 0.003606 {
+		t.Fatalf("estimate = %v, want 0.003606", got)
+	}
+
+	price.CacheRead = nil
+	if got := EstimateAPICost(EstimatedCostInputs{UncachedInput: 1000, Output: 50, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}, price); got != nil {
+		t.Fatalf("estimate with missing nonzero cache rate = %v, want nil", *got)
+	}
+	cacheRead = 0
+	if got := EstimateAPICost(EstimatedCostInputs{UncachedInput: 1000, Output: 50, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}, price); got == nil {
+		t.Fatal("zero cache reads should not require a cache-read rate")
+	}
+}
+
+func TestEstimateAPICostReasoningRateAndOutputFallback(t *testing.T) {
+	reasoningRate := 3.0
+	zeroReasoningRate := 0.0
+	reasoning, cacheRead, cacheWrite := int64(100), int64(0), int64(0)
+	inputs := EstimatedCostInputs{UncachedInput: 0, Output: 100, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}
+	base := Price{Input: 2, Output: 10, Reasoning: &reasoningRate, InputSet: true, OutputSet: true}
+	if got := EstimateAPICost(inputs, base); got == nil || *got != .0013 {
+		t.Fatalf("independent reasoning estimate = %v, want .0013", got)
+	}
+	base.Reasoning = nil
+	if got := EstimateAPICost(inputs, base); got == nil || *got != .002 {
+		t.Fatalf("output fallback estimate = %v, want .002", got)
+	}
+	base.Reasoning = &zeroReasoningRate
+	if got := EstimateAPICost(inputs, base); got == nil || *got != .001 {
+		t.Fatalf("zero reasoning rate estimate = %v, want .001", got)
+	}
+	base.Tiers = []PriceTier{{Tier: PriceTierSelector{Type: "context", Size: 0}, Input: 4, Output: 20, Reasoning: &reasoningRate, InputSet: true, OutputSet: true}}
+	if got := EstimateAPICost(inputs, base); got == nil || *got != .0023 {
+		t.Fatalf("tier reasoning estimate = %v, want .0023", got)
+	}
+}

@@ -252,15 +252,19 @@ All metrics are derived from retained experiment evidence
 
 ### Per-attempt
 
-| Field                               | Meaning                                                                                  |
-| ----------------------------------- | ---------------------------------------------------------------------------------------- |
-| `score`                             | For multi-fact: `matched_facts / total_facts` in `[0, 1]`. For exact-match: `0` or `1`.  |
-| `full_pass`                         | `score == 1.0`                                                                           |
-| `facts_matched` / `facts_missed`    | Multi-fact detail                                                                        |
-| `tokens_in` / `tokens_out` / `cost` | From stream `step_finish` usage when complete                                            |
-| `cache_read` / `cache_write`        | SUM of `part.tokens.cache.{read,write}` across `step_finish` events (per-request counts) |
-| `tool_call_count`                   | Count of `tool_use` events                                                               |
-| `session_id`                        | Linked only when exactly one new session appears                                         |
+| Field                                    | Meaning                                                                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `score`                                  | For multi-fact: `matched_facts / total_facts` in `[0, 1]`. For exact-match: `0` or `1`.  |
+| `full_pass`                              | `score == 1.0`                                                                           |
+| `facts_matched` / `facts_missed`         | Multi-fact detail                                                                        |
+| `tokens_in` / `tokens_out` / `reasoning` | SUM from stream `step_finish` usage when present on every request                        |
+| `cost`                                   | Runtime-reported cost retained verbatim, including literal zero                          |
+| `estimated_api_cost`                     | Nullable cache-aware estimate from the experiment's retained models.dev pricing snapshot |
+| `cache_read` / `cache_write`             | SUM of `part.tokens.cache.{read,write}` across `step_finish` events (per-request counts) |
+| `tool_call_count`                        | Count of `tool_use` events                                                               |
+| `session_id`                             | Linked only when exactly one new session appears                                         |
+| `role`                                   | v5 trial role: `cold_observation`, `warmup`, or `measured_warm`                          |
+| `cache_control`                          | v5 mode/source, namespace hash, phase/order/gap, model/provider/variant/runtime metadata |
 
 ### Per-pipeline aggregates (evaluated attempts)
 
@@ -270,15 +274,25 @@ An attempt is **evaluated** when:
 
 Partial fact scores are kept; they are not discarded.
 
-| Aggregate                    | Formula                                                                                                                     |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `mean_fact_score`            | mean of `score` over evaluated attempts                                                                                     |
-| `full_pass_rate`             | fraction of evaluated attempts with `full_pass`                                                                             |
-| `mean_cost`                  | mean cost over evaluated attempts                                                                                           |
-| `expected_cost_per_correct`  | `mean_cost / max(full_pass_rate, 1e-9)`                                                                                     |
-| `mean_tokens_in`             | mean input tokens over evaluated attempts                                                                                   |
-| `tool_call_inflation`        | `candidate.mean_tool_calls / baseline.mean_tool_calls` (live A/B)                                                           |
-| `cache_read` / `cache_write` | SUM over `step_finish.part.tokens.cache.{read,write}` per attempt; per-side distribution and baseline-minus-candidate delta |
+For schema-v3 summaries, every applicable metric is a deterministic
+distribution with `count`, sorted `values`, `min`, `p25`, `median`, `mean`,
+`p75`, `max`, and `population_standard_deviation`. Quantiles use linear
+interpolation at rank `q*(n-1)` in the sorted values. Population standard
+deviation divides by `n`. Empty distributions have `count=0` and null
+descriptive values; a singleton has standard deviation zero.
+
+| Aggregate                        | Formula                                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `mean_fact_score`                | mean of `score` over evaluated attempts                                                                                     |
+| `full_pass_rate`                 | fraction of evaluated attempts with `full_pass`                                                                             |
+| `mean_cost`                      | mean runtime-reported cost over evaluated attempts                                                                          |
+| `estimated_api_cost`             | distribution of independently estimated API-equivalent cost when pricing is complete                                        |
+| `estimated_api_cost_per_correct` | `mean_estimated_api_cost / max(full_pass_rate, 1e-9)`                                                                       |
+| `expected_cost_per_correct`      | `mean_cost / max(full_pass_rate, 1e-9)`                                                                                     |
+| `mean_tokens_in`                 | mean input tokens over evaluated attempts                                                                                   |
+| `tool_call_inflation`            | `candidate.mean_tool_calls / baseline.mean_tool_calls` (live A/B)                                                           |
+| `cache_read` / `cache_write`     | SUM over `step_finish.part.tokens.cache.{read,write}` per attempt; per-side distribution and baseline-minus-candidate delta |
+| `total_logical_input`            | `tokens_in + cache_read + cache_write` when all three observations are available                                            |
 
 `expected_cost_per_correct` is the ranking headline (tilth geometric form).
 A cheaper pipeline that loses facts ranks worse than a slightly costlier full-pass pipeline.
@@ -295,6 +309,44 @@ and `baseline_minus_candidate.cache_write` give the absolute baseline-minus-cand
 delta so cache effects between strategies are observable alongside token and
 cost deltas. ktx does not derive a cache-miss ratio from these counts.
 
+Estimated API cost prices uncached input, cache reads, cache writes, output,
+and reasoning independently. The selected base or context-tier `cost.reasoning`
+rate is used when present; if absent, reasoning deterministically uses that
+record's output rate. An explicit zero reasoning rate remains zero. It never
+replaces the runtime-reported `cost`.
+If ordinary input/output pricing is absent, or non-zero cache usage has no
+matching cache rate, the estimate is NULL. A missing cache rate is harmless
+when that cache count is zero; cache reads are never charged at the ordinary
+input rate. New experiments retain the exact resolved pricing record and its
+SHA-256, and summary regeneration uses that snapshot rather than live data.
+If the warm local cache lacks the model or cache rates, run `ktx prices update`.
+The retained pricing snapshot alone does not enable estimated-cost summary
+fields: those appear only when at least one attempt has a non-NULL estimate.
+Cache-aware methodology v5 independently retains summary schema v3 even when
+all estimates are NULL.
+
+Reported cost and estimated API cost have independent completeness gates.
+Estimation requires complete input, output, reasoning, cache-read, and
+cache-write token evidence; missing reported cost remains NULL but does not
+block an estimate. For every methodology, validation checks the snapshot hash
+and requires its embedded provider/model and pricing metadata to match the
+manifest model. Estimated evidence without that retained pricing basis is
+rejected rather than trusted.
+
+Schema-v3 summaries annotate Tukey outliers using `1.5 * IQR` fences. With
+fewer than four observations, detection is marked `insufficient_sample` and no
+point is flagged. Every flagged point remains in `values`, means, standard
+deviations, paired deltas, and all other aggregates. Outlier reporting is not an
+exclusion mechanism.
+
+Evaluated baseline and candidate attempts are paired by cycle, not execution
+order. `paired_baseline_minus_candidate` reports each cycle's baseline-minus-
+candidate deltas, aggregate mean and median paired deltas, paired count, and
+unpaired attempt IDs/cycles. The existing `baseline_minus_candidate` object
+remains the unpaired mean-minus-mean compatibility view. Samples with fewer
+than five evaluated attempts are labeled `exploratory`; samples of five or
+more are `descriptive`. The label does not block smoke runs.
+
 ### Secondary quality signals
 
 | Signal                        | Interpretation                                 |
@@ -305,6 +357,64 @@ cost deltas. ktx does not derive a cache-miss ratio from these counts.
 | `failure-passthrough-v1` miss | Failure path incorrectly compressed or dropped |
 
 ## How to run
+
+### Cache-aware comparison
+
+Methodology v4 remains the default for compatibility. Select the cache-aware
+contract explicitly:
+
+```bash
+ktx bench compare \
+  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --model neuralwatt/glm-5.2-short-fast-flex \
+  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --cache-control auto \
+  --warmup 1 \
+  --rounds 5
+```
+
+Each strategy runs one `cold_observation`, the requested number of `warmup`
+attempts, and then `--rounds` `measured_warm` attempts. Setup attempts remain in
+`attempts.jsonl` and retain their artifacts, but do not count toward the target
+or headline quality/cost distributions. Measured cycles continue alternating
+side order. Fewer than five measured attempts is labeled `exploratory`.
+
+`--cache-control isolated` requires a confirmed adapter and fails before an
+agent call when unsupported. `auto` uses isolation only when confirmed and
+otherwise records `observed`. In observed mode, phase names describe the role
+of a trial; they do not prove a provider cache hit or miss. Retained cache
+metadata contains only a namespace hash. The raw namespace, when required by an
+adapter, exists only in ephemeral runtime configuration/command state.
+`idle_gap_ms` records the intentional harness delay and is zero when no delay is
+imposed; it is not inferred from orchestration overhead.
+
+For OpenCode 1.17.15, `provider.options.setCacheKey=true` is not arm isolation:
+source sets `promptCacheKey` to the OpenCode session id. Source also confirms
+that arbitrary per-model options are merged after that default, allowing a
+generated `model.options.promptCacheKey` override. ktx enables this adapter only
+for provider paths with confirmed support for that request option and only when
+the inspected image reports OpenCode exactly `1.17.15`. Other, unknown, or
+malformed runtime versions and other providers remain observed-only under
+`auto`; explicit isolation fails before an agent attempt.
+
+Schema-v3 cache-aware summaries expose distributions for each phase while
+keeping `measured_warm` as the headline, a cold-to-warm estimated-cost rebuild
+penalty, and the first cumulative measured turn where candidate estimated API
+cost is below baseline after setup cost. Unavailable estimates produce null
+values with reasons. TTFT is null: retained OpenCode 1.17.15 JSONL does not
+provide a reliable request-start timestamp.
+
+Validation is methodology-aware. For v5 it requires summary schema 3, retained
+pricing metadata and its hash-bound snapshot, exactly one cold observation and
+the configured warm-up count per side, explicit roles, cache metadata consistent
+with the manifest, and measured-warm-only target counts. Isolated evidence must
+use one stable namespace hash per side and different hashes across sides.
+Observed evidence must not retain a namespace hash. Isolated manifest and
+attempt hashes must be exactly 64 lowercase hexadecimal characters, agree for
+every attempt within a side, and differ across sides. This format check ensures
+only the SHA-256 digest—not the raw namespace—can occupy retained namespace
+metadata. Methodologies v1-v4 retain the legacy validation predicate and summary
+bytes.
 
 ### Live quality ranking (one candidate pipeline)
 
@@ -350,5 +460,7 @@ golden test and must remain consistent with every task TOML file.
 
 - LLM-as-judge scoring
 - Statistical confidence intervals
+- P-values, significance claims, or other inferential statistics
+- Automatic exclusion of outliers
 - Content-type taxonomy routing (separate follow-up; command-aware routing by tool name, command prefix, and exit status is available — see [Command-aware routing](#command-aware-routing))
 - Changing the product default pipeline (still opt-in empty/passthrough)

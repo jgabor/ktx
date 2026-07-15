@@ -12,12 +12,14 @@
 //
 //	{
 //	  "<provider>": {
-//	    "<model>": {"input": <float>, "output": <float>}
+//	    "<model>": {"input": <float>, "output": <float>,
+//	                 "cache_read": <float>, "cache_write": <float>,
+//	                 "tiers": [...]}
 //	  }
 //	}
 //
-// input and output are USD per million tokens, the units models.dev uses
-// for its `cost.input` and `cost.output` fields. The format is a faithful
+// Rates are USD per million tokens and use models.dev's singular cost field
+// names. Legacy input/output-only records remain valid. The format is a faithful
 // projection of models.dev's per-model pricing — a third party can read
 // the file without ktx and reconstruct the per-call cost the same way
 // ktx does (the reconstructability contract).
@@ -95,12 +97,162 @@ const modelsDevTimeout = 5 * time.Second
 const modelsDevMaxBody = 64 * 1024 * 1024
 
 // Price is the per-(provider, model) price record persisted to disk.
-// USD per million tokens for input and output. The JSON
+// USD per million tokens for ordinary input/output, reasoning, and prompt-cache traffic. The JSON
 // tags are the canonical field names so a third party reading the
 // cache file directly sees the same shape ktx uses internally.
+type PriceRates struct {
+	Input      float64  `json:"input"`
+	Output     float64  `json:"output"`
+	CacheRead  *float64 `json:"cache_read,omitempty"`
+	CacheWrite *float64 `json:"cache_write,omitempty"`
+	Reasoning  *float64 `json:"reasoning,omitempty"`
+	InputSet   bool     `json:"-"`
+	OutputSet  bool     `json:"-"`
+}
+
+func (r PriceRates) hasOrdinaryPrices() bool {
+	return (r.InputSet || r.Input != 0) && (r.OutputSet || r.Output != 0)
+}
+
+type PriceTierSelector struct {
+	Type string `json:"type"`
+	Size int64  `json:"size"`
+}
+
+type PriceTier struct {
+	Tier       PriceTierSelector `json:"tier"`
+	Input      float64           `json:"input"`
+	Output     float64           `json:"output"`
+	CacheRead  *float64          `json:"cache_read,omitempty"`
+	CacheWrite *float64          `json:"cache_write,omitempty"`
+	Reasoning  *float64          `json:"reasoning,omitempty"`
+	InputSet   bool              `json:"-"`
+	OutputSet  bool              `json:"-"`
+}
+
 type Price struct {
-	Input  float64 `json:"input"`
-	Output float64 `json:"output"`
+	Input           float64     `json:"input"`
+	Output          float64     `json:"output"`
+	CacheRead       *float64    `json:"cache_read,omitempty"`
+	CacheWrite      *float64    `json:"cache_write,omitempty"`
+	Reasoning       *float64    `json:"reasoning,omitempty"`
+	InputSet        bool        `json:"-"`
+	OutputSet       bool        `json:"-"`
+	Tiers           []PriceTier `json:"tiers,omitempty"`
+	ContextOver200K *PriceRates `json:"context_over_200k,omitempty"`
+	SourceURL       string      `json:"source_url,omitempty"`
+	RetrievedAt     string      `json:"retrieved_at,omitempty"`
+}
+
+func (p *Price) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Input           *float64    `json:"input"`
+		Output          *float64    `json:"output"`
+		CacheRead       *float64    `json:"cache_read"`
+		CacheWrite      *float64    `json:"cache_write"`
+		Reasoning       *float64    `json:"reasoning"`
+		Tiers           []PriceTier `json:"tiers"`
+		ContextOver200K *PriceRates `json:"context_over_200k"`
+		SourceURL       string      `json:"source_url"`
+		RetrievedAt     string      `json:"retrieved_at"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	if wire.Input != nil {
+		p.Input, p.InputSet = *wire.Input, true
+	}
+	if wire.Output != nil {
+		p.Output, p.OutputSet = *wire.Output, true
+	}
+	p.CacheRead, p.CacheWrite, p.Reasoning, p.Tiers, p.ContextOver200K = wire.CacheRead, wire.CacheWrite, wire.Reasoning, wire.Tiers, wire.ContextOver200K
+	p.SourceURL, p.RetrievedAt = wire.SourceURL, wire.RetrievedAt
+	return nil
+}
+
+func (p Price) MarshalJSON() ([]byte, error) {
+	var input, output *float64
+	if p.InputSet || p.Input != 0 {
+		value := p.Input
+		input = &value
+	}
+	if p.OutputSet || p.Output != 0 {
+		value := p.Output
+		output = &value
+	}
+	return json.Marshal(struct {
+		Input           *float64    `json:"input,omitempty"`
+		Output          *float64    `json:"output,omitempty"`
+		CacheRead       *float64    `json:"cache_read,omitempty"`
+		CacheWrite      *float64    `json:"cache_write,omitempty"`
+		Reasoning       *float64    `json:"reasoning,omitempty"`
+		Tiers           []PriceTier `json:"tiers,omitempty"`
+		ContextOver200K *PriceRates `json:"context_over_200k,omitempty"`
+		SourceURL       string      `json:"source_url,omitempty"`
+		RetrievedAt     string      `json:"retrieved_at,omitempty"`
+	}{input, output, p.CacheRead, p.CacheWrite, p.Reasoning, p.Tiers, p.ContextOver200K, p.SourceURL, p.RetrievedAt})
+}
+
+func (t *PriceTier) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Tier       PriceTierSelector `json:"tier"`
+		Input      *float64          `json:"input"`
+		Output     *float64          `json:"output"`
+		CacheRead  *float64          `json:"cache_read"`
+		CacheWrite *float64          `json:"cache_write"`
+		Reasoning  *float64          `json:"reasoning"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	t.Tier = wire.Tier
+	if wire.Input != nil {
+		t.Input, t.InputSet = *wire.Input, true
+	}
+	if wire.Output != nil {
+		t.Output, t.OutputSet = *wire.Output, true
+	}
+	t.CacheRead, t.CacheWrite, t.Reasoning = wire.CacheRead, wire.CacheWrite, wire.Reasoning
+	return nil
+}
+
+func (t PriceTier) MarshalJSON() ([]byte, error) {
+	var input, output *float64
+	if t.InputSet || t.Input != 0 {
+		value := t.Input
+		input = &value
+	}
+	if t.OutputSet || t.Output != 0 {
+		value := t.Output
+		output = &value
+	}
+	return json.Marshal(struct {
+		Tier       PriceTierSelector `json:"tier"`
+		Input      *float64          `json:"input,omitempty"`
+		Output     *float64          `json:"output,omitempty"`
+		CacheRead  *float64          `json:"cache_read,omitempty"`
+		CacheWrite *float64          `json:"cache_write,omitempty"`
+		Reasoning  *float64          `json:"reasoning,omitempty"`
+	}{t.Tier, input, output, t.CacheRead, t.CacheWrite, t.Reasoning})
+}
+
+// SelectRates applies only models.dev context tiers. A tier begins at its
+// declared context size; unsupported tier types are ignored.
+func (p Price) SelectRates(contextTokens int64) PriceRates {
+	rates := PriceRates{Input: p.Input, Output: p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, InputSet: p.InputSet, OutputSet: p.OutputSet}
+	selectedTier := false
+	var selectedSize int64
+	for _, tier := range p.Tiers {
+		if tier.Tier.Type == "context" && contextTokens >= tier.Tier.Size && (!selectedTier || tier.Tier.Size > selectedSize) {
+			rates = PriceRates{Input: tier.Input, Output: tier.Output, CacheRead: tier.CacheRead, CacheWrite: tier.CacheWrite, Reasoning: tier.Reasoning, InputSet: tier.InputSet, OutputSet: tier.OutputSet}
+			selectedTier = true
+			selectedSize = tier.Tier.Size
+		}
+	}
+	if !selectedTier && contextTokens > 200000 && p.ContextOver200K != nil {
+		rates = *p.ContextOver200K
+	}
+	return rates
 }
 
 // Prices is the parsed price cache plus its on-disk path. The in-memory
@@ -196,7 +348,7 @@ func (p *Prices) Load() error {
 	return nil
 }
 
-// Lookup returns the (input, output) USD-per-million-token price for
+// Lookup returns the legacy (input, output) USD-per-million-token view for
 // (provider, model) and ok=true when present in the cache; (0, 0,
 // false) otherwise. The provider/model match is exact: a missing
 // provider, a missing model, or a missing cost record (rare in
@@ -204,21 +356,30 @@ func (p *Prices) Load() error {
 // surface as ok=false so the caller can distinguish "price known"
 // from "price unknown".
 func (p *Prices) Lookup(provider, model string) (input, output float64, ok bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if p.raw == nil {
-		return 0, 0, false
-	}
-	byModel, ok := p.raw[provider]
-	if !ok {
-		return 0, 0, false
-	}
-	price, ok := byModel[model]
+	price, ok := p.LookupRecord(provider, model)
 	if !ok {
 		return 0, 0, false
 	}
 	return price.Input, price.Output, true
+}
+
+// LookupRecord returns the complete cache-aware model pricing record.
+func (p *Prices) LookupRecord(provider, model string) (Price, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.raw == nil {
+		return Price{}, false
+	}
+	byModel, ok := p.raw[provider]
+	if !ok {
+		return Price{}, false
+	}
+	price, ok := byModel[model]
+	if !ok {
+		return Price{}, false
+	}
+	return price, true
 }
 
 // Cold reports whether the cache was loaded from a non-existent file.
@@ -316,10 +477,7 @@ func (p *Prices) WriteToDisk() error {
 // else (modalities, limits, knowledge cutoff, etc.) is discarded
 // because the cache is a price table, not a model registry.
 type modelsDevModel struct {
-	Cost *struct {
-		Input  float64 `json:"input"`
-		Output float64 `json:"output"`
-	} `json:"cost"`
+	Cost *Price `json:"cost"`
 }
 
 // modelsDevProvider is the per-provider slice of the response. ktx only
@@ -375,6 +533,7 @@ func (p *Prices) Refresh() error {
 	}
 
 	newRaw := make(map[string]map[string]Price, len(raw))
+	retrievedAt := time.Now().UTC().Format(time.RFC3339)
 	for provider, pdata := range raw {
 		if len(pdata.Models) == 0 {
 			continue
@@ -384,10 +543,10 @@ func (p *Prices) Refresh() error {
 			if mdata.Cost == nil {
 				continue
 			}
-			byModel[model] = Price{
-				Input:  mdata.Cost.Input,
-				Output: mdata.Cost.Output,
-			}
+			price := *mdata.Cost
+			price.SourceURL = ModelsDevURL
+			price.RetrievedAt = retrievedAt
+			byModel[model] = price
 		}
 		if len(byModel) > 0 {
 			newRaw[provider] = byModel
@@ -470,6 +629,27 @@ func LookupPrice(provider, model string) (input, output float64, ok bool) {
 		return 0, 0, false
 	}
 	return p.Lookup(provider, model)
+}
+
+// ResolvePrice returns the complete cached record, fetching only when the cache
+// was cold. Warm misses never refetch implicitly.
+func ResolvePrice(provider, model string) (Price, error) {
+	p, err := LoadPrices()
+	if err != nil || p == nil || p.path == "" {
+		return Price{}, fmt.Errorf("pricing cache unavailable; run `ktx prices update`")
+	}
+	if record, ok := p.LookupRecord(provider, model); ok {
+		return record, nil
+	}
+	if p.Cold() {
+		if err := p.RefreshAndWrite(); err != nil {
+			return Price{}, fmt.Errorf("resolve pricing for %s/%s: %w", provider, model, err)
+		}
+		if record, ok := p.LookupRecord(provider, model); ok {
+			return record, nil
+		}
+	}
+	return Price{}, fmt.Errorf("pricing for %s/%s is absent from the warm cache; run `ktx prices update`", provider, model)
 }
 
 // resetPricesForTest clears the singleton so the next LoadPrices call

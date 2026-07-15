@@ -43,6 +43,7 @@ Implementation candidates for lossless, semantics-preserving compression at the 
 
 ## ✓ Resolved
 
+- [x] ~~Cache-aware benchmark methodology~~ · Methodology v5 separates cold observation, warm-up, and measured-warm attempts; isolates per-arm namespaces only through confirmed adapters; otherwise labels evidence observed-only; and publishes retained-cost rebuild and break-even evidence. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
 - [x] ~~Residual-waste discovery + replace stage~~ · `ktx stats` command ranks tool/command groups by delivered token waste (LEFT JOIN from tool_calls to compressed, uncompressed calls surface with delivered == raw). `replace` stage adds regex substitution (`replace:pattern::replacement`) following the existing Builder pattern. Filter pack pattern documented in `docs/pipelines.md`. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression) and [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
 - [x] ~~Subcommand extraction in router~~ · Added `Subcommand` field to `RouteRule`; router extracts first non-flag token after binary name. Flag-skipping handles `git --no-pager log`. Malformed input fails the condition, consistent with CommandPrefix. Recommended profiles for git (status, diff, log) and bash (ls, find) added to `ktx.example.toml`. → [Router and classification](ARCHITECTURE.md#router-and-classification)
 - [x] ~~Embedded default profiles~~ · Decided against binary-embedded profiles. Recommended profiles in `ktx.example.toml` as commented blocks users copy manually is sufficient. D14 (passthrough default) preserved without modification.
@@ -73,6 +74,7 @@ Implementation candidates for lossless, semantics-preserving compression at the 
 - [x] ~~PoC wrapper target~~ · Decision 10 → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
 - [x] ~~Hook install scope~~ · Decisions 1, 2 revised, 22 → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
 - [x] ~~Cost measurement mechanics~~ · Decision 11 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
+- [x] ~~Reported versus estimated API cost~~ · Decision 27 supersedes Decision 11's cost conflation: reported cost remains verbatim while cache-aware, reasoning-aware estimates use retained models.dev pricing snapshots. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
 - [x] ~~Benchmark methodology~~ · Decisions 12, 13 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
 - [x] ~~Benchmark harness — record a real OpenCode session as replay fixture~~ · Decisions 16, 17, 18, 19 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
 - [x] ~~`--replay` flag with internal A/B comparison (D13 Tier 1)~~ · Decision 20 (+ D22 Phase 2 A/B compression section) → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)

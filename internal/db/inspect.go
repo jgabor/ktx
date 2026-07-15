@@ -109,6 +109,8 @@ var benchRunsSchema = []string{
 	"timestamp",
 	"cache_read",
 	"cache_write",
+	"reasoning",
+	"estimated_api_cost",
 }
 
 // CheckSchema verifies the database schema matches the core schema

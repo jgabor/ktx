@@ -1963,6 +1963,164 @@ decisions:
       in the output contract); legacy summary.golden.json byte-match preserved
       by the conditional schema_version bump; new cache-bearing golden (summary_cache.golden.json)
       locks the v2 byte-match contract'
+  - number: 27
+    date: '2026-07-15'
+    question: How should ktx preserve provider/runtime-reported cost while adding
+      reproducible API-equivalent cost estimates for cache-aware and reasoning-bearing
+      benchmark requests?
+    context: 'Decision 11 incorrectly treated models.dev-derived cost as interchangeable
+      with provider-reported cost. That fails for subscription-backed runtimes such as
+      Luna, where the runtime legitimately reports literal zero while the same usage has
+      a non-zero API-equivalent price. Decision 25 added cache token evidence but did not
+      price it, and reasoning tokens were not retained. Benchmark summaries must remain
+      reproducible from retained evidence and legacy experiments must continue to regenerate
+      byte-for-byte.'
+    alternatives:
+      - name: Preserve reported cost and add a separate snapshot-derived estimate
+        status: chosen
+        description: Keep runtime cost verbatim, including zero, and derive a nullable
+          estimated_api_cost from a retained models.dev pricing record that prices uncached
+          input, cache reads, cache writes, output, and reasoning independently.
+      - name: Replace reported cost with the models.dev estimate
+        status: rejected
+        description: Produces one convenient number but destroys billing evidence and
+          misrepresents subscription-backed runtime cost.
+      - name: Estimate from the current global price cache during summary regeneration
+        status: rejected
+        description: Avoids a snapshot artifact but makes historical summaries drift as
+          models.dev pricing changes.
+    choice: 'Supersede Decision 11 only where it conflated reported and derived cost.
+      The existing cost field is reported_cost evidence and is never overwritten; an
+      explicitly reported 0 remains 0. Add nullable estimated_api_cost with explicit
+      models.dev provenance and pricing basis. Parse singular cost.input, cost.output,
+      cost.cache_read, and cost.cache_write fields. Support ordinary pricing plus context
+      tiers of the observed shape {tier:{type:"context",size:N}, input, output,
+      cache_read, cache_write}; select a context tier when uncached_input + cache_read +
+      cache_write reaches its threshold. Do not infer other tier types. The estimate is
+      (uncached_input*input + cache_read*cache_read_price +
+      cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1e6,
+      rounded to six decimals. models.dev cost.reasoning is retained as a nullable base
+      or context-tier rate; when absent, reasoning_price deterministically falls back to
+      that selected record''s output price. An explicit zero reasoning rate remains zero.
+      Ordinary input and output prices are required. A non-zero cache count
+      requires its corresponding rate; a zero cache count does not. Cache reads are never
+      priced as ordinary input. OpenCode step_finish reasoning is a per-request SUM with
+      the same absent-versus-zero and all-events completeness rule as other usage fields.
+      Estimated-cost eligibility depends only on complete input, output, reasoning,
+      cache-read, and cache-write token evidence; reported cost has its own completeness
+      gate and may remain NULL without suppressing an otherwise reproducible estimate.
+      Extend prices.json additively while reading legacy input/output-only records. Warm
+      cache lookup misses never refetch implicitly; diagnostics direct the user to
+      `ktx prices update`. Each new live experiment retains the exact resolved model price
+      record plus source URL, retrieval timestamp when known, and SHA-256. Manifest and
+      validation bind that artifact. Summary regeneration uses only the retained snapshot.
+      For every methodology, pricing metadata requires a hash-valid snapshot whose embedded
+      provider/model and metadata provider/model exactly match manifest.model. Any retained
+      attempt or summary estimated_api_cost evidence without such a snapshot is rejected;
+      derived values are never trusted without their retained pricing basis.
+      Experiments without a pricing snapshot retain their historical bytes. Estimated-cost
+      distributions, baseline-minus-candidate delta, and estimated_api_cost_per_correct
+      appear only in summary schema v3 when at least one estimated_api_cost observation is
+      non-NULL. A retained pricing snapshot alone does not change summary schema; later
+      methodologies may independently require schema v3. Additive
+      bench_runs columns retain reasoning tokens and estimated cost; step-level cache and
+      reasoning evidence is not attached to tool_calls.'
+    reasoning: 'Reported billing evidence and counterfactual API pricing answer different
+      questions and must remain independently auditable. Retaining the exact price record
+      makes benchmark regeneration deterministic. Nullable rates and completeness gates
+      prevent invented costs, while the narrow context-tier rule implements only observed
+      models.dev semantics. Conditional schema evolution preserves historical goldens.'
+    confidence: high
+    feeds_into: models.dev price cache; OpenCode stream parsing; bench_runs migration;
+      experiment manifests, attempts, summaries, validation; benchmark methodology
+    satisfaction:
+      state: provisionally_satisfied
+      evidence: 'Implementation retains runtime cost independently from cache-aware
+        estimated_api_cost, snapshots the resolved pricing record into new experiments,
+        validates its SHA-256, regenerates summaries from that retained artifact, and
+        migrates bench_runs additively for reasoning and estimated cost. Focused pricing,
+        stream, summary, snapshot, and migration tests pass. Review follow-up also retains
+        nullable base/tier reasoning rates with explicit output-rate fallback, completeness-gates
+        every CLI usage field, gates non-v5 estimated summary surfaces on actual observations,
+        decouples token eligibility from reported-cost completeness, applies hash and embedded
+        model identity validation to every methodology, rejects ungrounded retained estimates,
+        and directly exercises the user_version 2 to 3 migration. Mage check passes on
+        2026-07-15. Awaiting user confirmation.'
+  - number: 28
+    date: '2026-07-15'
+    question: How should schema-v3 benchmark evidence describe small, variable samples
+      and paired pipeline effects without making inferential claims or silently removing
+      unusual runs?
+    context: Schema v3 already distinguishes reproducible estimated API cost from reported
+      cost. The live harness alternates baseline and candidate execution by cycle, but the
+      summary exposes only unpaired mean-minus-mean deltas and min/mean/max distributions.
+      Tool-heavy runs can be visibly unusual while still being valid evidence. Historical
+      schema-v1 and schema-v2 summaries are byte-compared during validation and cannot be
+      rewritten.
+    alternatives:
+      - name: Deterministic descriptive statistics, cycle pairing, and annotated outliers
+        status: chosen
+        description: Add robust distributions, Tukey annotations, paired cycle deltas,
+          and sample-size labels only to schema v3. Retain every evaluated observation.
+      - name: Inferential tests and automatic outlier filtering
+        status: rejected
+        description: P-values and confidence intervals over very small agent samples imply
+          unsupported certainty; automatic filtering destroys retained evidence.
+      - name: Replace compatibility deltas with paired deltas
+        status: rejected
+        description: Pairing is more informative for cycle-controlled comparisons, but
+          replacing the existing mean-minus-mean fields would break consumers.
+    choice: 'Schema-v3 summaries publish deterministic distributions for applicable input,
+      cache, logical-input, output, reasoning, reported-cost, estimated-cost, tool-call,
+      and quality-score metrics. Quantiles use linear interpolation over sorted values at
+      rank q*(n-1). Standard deviation is population standard deviation. Empty and singleton
+      samples are explicit. Tukey 1.5*IQR annotations identify attempt id, cycle, and value;
+      n<4 is insufficient_sample, and flagged attempts are never excluded. Evaluated
+      baseline and candidate attempts pair by cycle, independent of execution order, with
+      baseline-minus-candidate per-cycle deltas, aggregate mean and median paired deltas,
+      paired count, and explicit unpaired attempts. Existing unpaired deltas remain. n<5 is
+      exploratory and n>=5 descriptive; labels do not gate runs. Ranking surfaces paired
+      estimated-cost, token, and cache deltas plus sample classification only when v3
+      evidence exists. Schema-v1 and schema-v2 summaries and legacy ranking output remain
+      byte-identical. P-values, confidence intervals, significance claims, and automatic
+      outlier exclusion are out of scope.'
+    reasoning: Deterministic descriptive evidence makes variance and unusual tool behavior
+      auditable without overstating what small samples establish. Cycle pairing uses the
+      control already built into the harness and avoids order-based matching. Additive v3-only
+      fields preserve historical validation and ranking consumers while retaining the existing
+      compatibility view.
+    confidence: high
+    feeds_into: benchmark methodology; experiment summary and validation; pipeline ranking;
+      schema-v3 golden coverage
+    satisfaction:
+      state: provisionally_satisfied
+      evidence: Schema-v3 summaries now publish deterministic robust distributions,
+        cycle-paired deltas, explicit unpaired attempts, sample classifications, and
+        non-excluding Tukey annotations. Ranking exposes paired token, cache, and estimated
+        cost means only for v3 evidence. Focused summary/ranking/validation tests pass,
+        legacy v1/v2 and ranking goldens remain byte-identical, and mage check passes on
+        2026-07-15. Awaiting user confirmation.
+  - number: 29
+    date: '2026-07-15'
+    question: How should live pipeline comparisons control and describe provider prompt caching without claiming cache isolation the runtime cannot prove?
+    context: OpenCode 1.17.15 emits cache usage but the existing methodology mixes setup and measured attempts. Its documented setCacheKey option does not accept a key. Source inspection shows it assigns the OpenCode session id, while arbitrary per-model options are merged afterward and can override promptCacheKey. Provider acceptance remains provider-specific, so runtime configurability alone is not proof of isolation.
+    alternatives:
+      - name: Separate phases with capability-gated namespace isolation
+        status: chosen
+        description: Retain cold observation and warm-up attempts separately, count only measured-warm attempts, isolate stable per-side namespaces only through a confirmed adapter, and otherwise label the experiment observed-only.
+      - name: Treat setCacheKey as isolated cache control
+        status: rejected
+        description: The source derives the key from each OpenCode session, so independently launched attempts do not share one stable arm namespace and the two arms are not controlled as claimed.
+      - name: Infer cold and warm state from emitted cache token counts
+        status: rejected
+        description: Usage telemetry is valuable observation but cannot prove namespace ownership, eviction state, or whether another workload populated the provider cache.
+    choice: 'Publish methodology v5 as an explicit opt-in while preserving v4 defaults. Per side retain one cold_observation, configured warmup attempts (default one), and measured_warm attempts (default five). Setup attempts never satisfy the target and never enter quality/headline aggregates. Counterbalance setup order deterministically and alternate measured order by cycle. Cache-control modes are auto, isolated, and observed. Inspect and normalize the benchmark image runtime identity before capability resolution. The built-in fixed promptCacheKey adapter is supported only for OpenCode exactly 1.17.15 and confirmed provider paths; unknown, malformed, custom, and all other versions are unsupported. Explicit unsupported isolation fails before paid execution; auto falls back to observed. Isolated mode uses a unique stable namespace per experiment side through a capability adapter and retains only its SHA-256. Retained isolated namespace hashes must be exactly 64 lowercase hexadecimal characters, stable within each side, distinct across sides, and consistent between manifest and attempts; observed mode forbids retained namespace hashes. Attempt and manifest file artifacts retain cache mode/source/phase/order/idle gap/model/provider/variant/runtime version; SQLite is unchanged. Schema-v3 summaries publish phase distributions, cold-minus-measured-warm estimated-cost rebuild penalty, and cumulative estimated-cost break-even including setup cost, with nullable reasons. V5 validation uses a strict measured_warm target predicate and requires schema 3, pricing evidence, exact setup topology, manifest/attempt cache metadata consistency, and isolated namespace stability and separation. TTFT remains null until retained timestamps support a reliable derivation.'
+    reasoning: Separating setup from measurement removes a known methodological confound while retaining every paid observation. Capability gating turns unsupported cache control into an honest label rather than a false guarantee. Retained pricing and attempts make rebuild and break-even deterministic and independently auditable. The additive file-artifact model preserves legacy summaries and avoids a database migration for orchestration state.
+    confidence: high
+    feeds_into: methodology-v5-cache-aware; live comparison orchestration; experiment manifest and attempt metadata; schema-v3 summary and validation; benchmark documentation
+    satisfaction:
+      state: provisionally_satisfied
+      evidence: Methodology v5 is embedded and opt-in; benchmark image identities are inspected and normalized before capability resolution, and tests gate the runtime adapter to OpenCode exactly 1.17.15 while unsupported, malformed, and unknown versions fall back or fail before agent execution. Focused orchestration tests verify setup counts and counterbalancing, measured alternation, target exclusion, namespace stability and non-retention, and observed fallback. Methodology-aware validation tests cover strict measured targets, phase topology, schema 3, pricing evidence, namespace reuse and drift, manifest/attempt mismatch, short/uppercase/nonhex/raw namespace values, observed-mode hash rejection, metadata consistency, and valid observed and isolated evidence. Schema-v3 tests cover phase distributions, rebuild penalties, break-even outcomes, exploratory labels, and byte-identical regeneration. Focused race tests and mage check pass on 2026-07-15. Awaiting user confirmation.
 archive:
   - summary: 'Decision 1 (2026-06-15): Wrapper (ktx run) + sidecar (ktx write) + adapters
       (ktx init), all writing to the...'

@@ -227,18 +227,17 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// seen any step_finish events — is the authoritative fallback
 	// for filling the bench_runs row's tokens/cost fields.
 	if streamMetrics.hasData {
-		if tokensIn == 0 && streamMetrics.tokensIn > 0 {
-			tokensIn = streamMetrics.tokensIn
+		if tokensIn == 0 && streamMetrics.tokensIn != nil {
+			tokensIn = *streamMetrics.tokensIn
 		}
-		if tokensOut == 0 && streamMetrics.tokensOut > 0 {
-			tokensOut = streamMetrics.tokensOut
+		if tokensOut == 0 && streamMetrics.tokensOut != nil {
+			tokensOut = *streamMetrics.tokensOut
 		}
-		// streamMetrics.cost is the provider-reported cost on the
-		// stream (provider-cost branch); it wins over SummarizeBenchToolCalls'
-		// nil result. A non-nil provider cost does NOT override a
-		// non-nil tool_calls-aggregated cost — the per-row evidence
-		// is the stronger signal when present.
-		if sumCost == nil && streamMetrics.cost != nil {
+		// The complete stream value is the runtime-reported cost for
+		// the model requests and therefore wins even when it is zero.
+		// Tool-call aggregation is only a fallback for runtimes without
+		// step-level cost evidence.
+		if streamMetrics.cost != nil {
 			v := *streamMetrics.cost
 			sumCost = &v
 		}
@@ -283,6 +282,9 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		MethodologyVersion: m.Version,
 		Timestamp:          time.Now().UTC().Unix(),
 	}
+	if streamMetrics.hasData && !streamMetrics.completeTokens() {
+		br.SkipEstimatedAPICost = true
+	}
 	// streamMetrics carries cache telemetry as nullable pointers
 	// (absent stays nil; emitted zero is non-nil). The bench_runs
 	// row replicates them verbatim — no fall-through to tool_calls
@@ -294,6 +296,10 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	if streamMetrics.cacheWrite != nil {
 		v := *streamMetrics.cacheWrite
 		br.CacheWrite = &v
+	}
+	if streamMetrics.reasoning != nil {
+		v := *streamMetrics.reasoning
+		br.Reasoning = &v
 	}
 	if br.Agent == "" || br.Agent == "/" {
 		// Fallback when neither tool_calls nor the methodology
@@ -543,14 +549,23 @@ func scoreExactMatch(actual, expected string) float64 {
 // populate bench_runs row fields that would otherwise stay 0/NULL via
 // SummarizeBenchToolCalls.
 type streamMetrics struct {
-	tokensIn   int64
-	tokensOut  int64
+	tokensIn   *int64
+	tokensOut  *int64
 	cost       *float64
 	model      string
 	provider   string
 	cacheRead  *int64
 	cacheWrite *int64
+	reasoning  *int64
 	hasData    bool
+}
+
+func (sm streamMetrics) completeTokens() bool {
+	return sm.tokensIn != nil && sm.tokensOut != nil && sm.reasoning != nil && sm.cacheRead != nil && sm.cacheWrite != nil
+}
+
+func (sm streamMetrics) completeReportedCost() bool {
+	return sm.cost != nil
 }
 
 // extractStreamMetrics parses the captured JSONL stream looking for
@@ -566,11 +581,10 @@ type streamMetrics struct {
 // step_finish event (the parser also defaults to "opencode" for the
 // same reason; see parser.go:226-229).
 //
-// Cache telemetry (part.tokens.cache.{read,write}) is only exposed
-// when the field was present on EVERY step_finish event (completeness
-// gate — partial evidence is discarded to nil, not a misleading SUM
-// from a subset of events). An emitted zero is a valid measurement
-// (cold cache); absent stays nil.
+// Input, output, cost, reasoning, and cache telemetry are exposed only when
+// each field was present on EVERY step_finish event. Partial evidence is
+// discarded to nil rather than persisted or priced as a misleading subset.
+// An emitted zero is a valid measurement; absent stays nil.
 //
 // When the stream carries no step_finish events (e.g., a flat-
 // fallback runtime that emits only tool calls with tokens on
@@ -582,9 +596,9 @@ type streamMetrics struct {
 // Scanner consumes a *bytes.Buffer, the read offset is at EOF).
 func extractStreamMetrics(stdout []byte) streamMetrics {
 	var sm streamMetrics
-	var cacheReadVal, cacheWriteVal int64
-	var sawCacheRead, sawCacheWrite bool
-	var cacheReadEvents, cacheWriteEvents, stepCount int
+	var inputVal, outputVal, cacheReadVal, cacheWriteVal, reasoningVal int64
+	var costVal float64
+	var inputEvents, outputEvents, costEvents, cacheReadEvents, cacheWriteEvents, reasoningEvents, stepCount int
 	scanner := bufio.NewScanner(bytes.NewReader(stdout))
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
@@ -609,19 +623,26 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 		sm.hasData = true
 		stepCount++
 		var tk struct {
-			Input  json.RawMessage `json:"input"`
-			Output json.RawMessage `json:"output"`
-			Cache  struct {
+			Input     json.RawMessage `json:"input"`
+			Output    json.RawMessage `json:"output"`
+			Reasoning json.RawMessage `json:"reasoning"`
+			Cache     struct {
 				Read  json.RawMessage `json:"read"`
 				Write json.RawMessage `json:"write"`
 			} `json:"cache"`
 		}
 		_ = json.Unmarshal(part["tokens"], &tk)
 		if n, ok := jsonNumberToInt64(tk.Input); ok {
-			sm.tokensIn += n
+			inputVal += n
+			inputEvents++
 		}
 		if n, ok := jsonNumberToInt64(tk.Output); ok {
-			sm.tokensOut += n
+			outputVal += n
+			outputEvents++
+		}
+		if n, ok := jsonNumberToInt64(tk.Reasoning); ok {
+			reasoningVal += n
+			reasoningEvents++
 		}
 		// part.cost: non-cumulative per-step delta — SUM across
 		// step_finish events (mirrors experiment.ParseStream).
@@ -632,11 +653,8 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 		if raw := part["cost"]; len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
 			var c float64
 			if err := json.Unmarshal(raw, &c); err == nil {
-				if sm.cost == nil {
-					v := 0.0
-					sm.cost = &v
-				}
-				*sm.cost += c
+				costVal += c
+				costEvents++
 			}
 		}
 		// part.tokens.cache.read / .write: per-request cache
@@ -648,12 +666,10 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 		// step_finish (completeness gate below).
 		if n, ok := jsonNumberToInt64(tk.Cache.Read); ok {
 			cacheReadVal += n
-			sawCacheRead = true
 			cacheReadEvents++
 		}
 		if n, ok := jsonNumberToInt64(tk.Cache.Write); ok {
 			cacheWriteVal += n
-			sawCacheWrite = true
 			cacheWriteEvents++
 		}
 		if raw := part["model"]; len(raw) > 0 {
@@ -669,18 +685,31 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 			}
 		}
 	}
-	// Completeness gate: only expose a cache metric when that field
-	// was present on every step_finish event (mirrors
-	// experiment.ParseStream's `sawCacheRead && CacheReadEvents ==
-	// steps`). Partial evidence drops to nil so a SUM from a subset
-	// of events never misrepresents the attempt.
-	if sawCacheRead && cacheReadEvents == stepCount {
+	// Completeness gates mirror experiment.ParseStream. A metric is exposed
+	// only when every step_finish event carried that field.
+	if inputEvents > 0 && inputEvents == stepCount {
+		v := inputVal
+		sm.tokensIn = &v
+	}
+	if outputEvents > 0 && outputEvents == stepCount {
+		v := outputVal
+		sm.tokensOut = &v
+	}
+	if costEvents > 0 && costEvents == stepCount {
+		v := costVal
+		sm.cost = &v
+	}
+	if cacheReadEvents > 0 && cacheReadEvents == stepCount {
 		v := cacheReadVal
 		sm.cacheRead = &v
 	}
-	if sawCacheWrite && cacheWriteEvents == stepCount {
+	if cacheWriteEvents > 0 && cacheWriteEvents == stepCount {
 		v := cacheWriteVal
 		sm.cacheWrite = &v
+	}
+	if reasoningEvents > 0 && reasoningEvents == stepCount {
+		v := reasoningVal
+		sm.reasoning = &v
 	}
 	return sm
 }

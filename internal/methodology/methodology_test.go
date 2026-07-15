@@ -15,7 +15,7 @@ func TestLoadIsIndependentOfWorkingDirectory(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(previous) })
 
-	for _, version := range []string{"v1", "v2-tooluse", "v3"} {
+	for _, version := range []string{"v1", "v2-tooluse", "v3", "v5-cache-aware"} {
 		spec, source, err := Load(version)
 		if err != nil {
 			t.Fatalf("Load(%q): %v", version, err)

@@ -1,0 +1,100 @@
+methodology_version: "v5-cache-aware"
+date: "2026-07-15"
+
+scope: |
+  Compare compression strategies while separating cache setup from the
+  measured warm sample. Preserve every paid attempt and make only claims
+  supported by the selected runtime/provider cache-control adapter.
+
+inputs:
+  agent:
+    binary: opencode
+    version: "1.17.15"
+  model:
+    id: "glm-5.2-short-fast-flex"
+    provider: "neuralwatt"
+  task:
+    identifier: "crossfile-nav-v1"
+    prompt: "Use the task file supplied to ktx bench compare."
+    expected_output: "See tools/bench/tasks/crossfile-nav-v1.toml."
+  scoring:
+    function: multi_fact_fractional
+
+trials:
+  phases:
+    cold_observation: 1
+    warmup_default: 1
+    measured_warm_default: 5
+  accounting: |
+    cold_observation and warmup attempts are retained but never count toward
+    target valid completions, quality aggregates, paired headline deltas, or
+    sample classification. measured_warm attempts are the headline sample.
+    A measured sample smaller than five is exploratory.
+  order: |
+    Measured cycles alternate baseline/candidate then candidate/baseline.
+    Setup order is deterministic from experiment-id parity. The warmup phase
+    starts in the reverse order from cold observation; additional warmups
+    alternate order.
+
+cache_control:
+  modes:
+    - auto
+    - isolated
+    - observed
+  contract: |
+    isolated requires a confirmed adapter that supplies one stable namespace
+    per experiment side across all phases. Namespaces never cross sides.
+    auto selects isolated only when that capability is confirmed; otherwise it
+    selects observed. An explicit unsupported isolated request fails before an
+    agent attempt. observed phase names describe trial roles and do not assert
+    provider cache state, hits, or misses.
+  retained_metadata: |
+    Retain mode, adapter source, namespace SHA-256 (never the raw namespace),
+    phase, execution order, intentional idle gap milliseconds (zero when the
+    harness imposes no delay), model, provider, variant,
+    and runtime version. A raw namespace may exist only in ephemeral generated
+    runtime configuration or command state.
+  opencode_1_17_15: |
+    OpenCode config accepts arbitrary per-model options. Request preparation
+    merges model options after runtime defaults, so model.options.promptCacheKey
+    can override the session-derived default. provider.options.setCacheKey only
+    sets promptCacheKey to the OpenCode session id and does not isolate arms.
+    The built-in adapter therefore enables fixed-key isolation only for provider
+    paths whose promptCacheKey support is confirmed and only when the inspected,
+    normalized benchmark runtime version is exactly 1.17.15. Unknown, malformed,
+    custom, and other OpenCode versions remain observed under auto and reject an
+    explicit isolated request before a paid attempt.
+
+computation: |
+  Phase distributions use evaluated attempts from that phase. Headline and
+  paired distributions use measured_warm only. cold_to_warm_rebuild_penalty is
+  cold_observation estimated_api_cost minus mean measured_warm estimated_api_cost
+  for each side. Break-even includes each side's retained cold and warmup setup
+  costs, then adds paired measured turns in cycle order; it is the first measured
+  turn where candidate cumulative estimated API cost is lower than baseline.
+  Both values are null with an explicit reason when required estimates or pairs
+  are unavailable. Runtime-reported cost remains independent evidence.
+  Estimated API cost uses the retained selected base/context-tier reasoning rate
+  when present and otherwise falls back deterministically to its output rate.
+  An explicit zero reasoning rate remains zero. TTFT is
+  null because OpenCode 1.17.15 retained JSONL does not expose a reliable request
+  start timestamp from which to derive it.
+
+output:
+  summary_schema: 3
+  headline_phase: measured_warm
+  validation: |
+    Regenerate byte-identically from manifest.json, attempts.jsonl, retained
+    streams, and the retained pricing snapshot. Legacy methodology summaries
+    preserve their historical schemas and bytes. V5 additionally requires schema
+    3, its pricing snapshot, exact setup topology per side, measured_warm-only
+    target counts, and cache metadata on every role. Observed mode forbids any
+    retained namespace hash. Isolated manifest and attempt namespace hashes must
+    be exactly 64 lowercase hexadecimal characters, stable within each side,
+    distinct across sides, and consistent with each other.
+
+out_of_scope:
+  - definitive hit/miss claims in observed mode
+  - inferential significance claims
+  - raw cache namespaces in retained evidence
+  - SQLite orchestration metadata

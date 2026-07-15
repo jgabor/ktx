@@ -10,24 +10,13 @@
 //	score REAL                   -- exact-match: 1.0 or 0.0
 //	tokens_in INTEGER            -- SUM of underlying tool_calls
 //	tokens_out INTEGER           -- SUM of underlying tool_calls
-//	cost REAL                    -- SUM of underlying tool_calls (cost
-//	                               derivation when the sum is NULL)
+//	cost REAL                    -- runtime-reported cost
 //	methodology_version TEXT     -- references
 //	                               tools/bench/methodology-v1.yaml
 //	timestamp INTEGER            -- Unix epoch seconds
 //
-// Cost derivation follows the same write-time soft-fail
-// pattern as PersistToolCall.deriveCost: when the caller passes a
-// BenchRun with a nil Cost pointer AND non-nil TokensIn, TokensOut,
-// and Model, the helper looks up the cached (provider-derived, model)
-// price and fills Cost from (tokens_in * in_price + tokens_out *
-// out_price) / 1_000_000. The cache key in the bench-run path uses a
-// provider resolved from the bench's model — the only provider model
-// we currently know about in the bench-run path is "anthropic" (the
-// pinned model is claude-sonnet-4-20250514; the methodology file
-// names it as `provider: anthropic`). When the cache does not have
-// the price, Cost stays nil and the bench row is inserted with cost
-// NULL — soft-fail contract preserved.
+// EstimatedAPICost is derived separately from the cache-aware model price;
+// Cost is never filled or replaced by that estimate.
 //
 // Pointer discipline mirrors ToolCall: Cost is *float64
 // so the absent-vs-zero distinction survives the SQL round-trip. A
@@ -43,6 +32,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrBenchMethodologyNotFound is returned by LookupMethodologyVersion
@@ -76,65 +66,45 @@ var ErrBenchMethodologyNotFound = errors.New("db: bench methodology file not fou
 // reconstructability contract); the bench report's row view will
 // include them.
 type BenchRun struct {
-	ID                 string   `json:"id"`
-	Agent              string   `json:"agent"`
-	Model              string   `json:"model"`
-	Task               string   `json:"task"`
-	Score              float64  `json:"score"`
-	TokensIn           int64    `json:"tokens_in"`
-	TokensOut          int64    `json:"tokens_out"`
-	Cost               *float64 `json:"cost"`
-	MethodologyVersion string   `json:"methodology_version"`
-	Timestamp          int64    `json:"timestamp"`
-	CacheRead          *int64   `json:"cache_read"`
-	CacheWrite         *int64   `json:"cache_write"`
+	ID                   string   `json:"id"`
+	Agent                string   `json:"agent"`
+	Model                string   `json:"model"`
+	Task                 string   `json:"task"`
+	Score                float64  `json:"score"`
+	TokensIn             int64    `json:"tokens_in"`
+	TokensOut            int64    `json:"tokens_out"`
+	Cost                 *float64 `json:"cost"`
+	MethodologyVersion   string   `json:"methodology_version"`
+	Timestamp            int64    `json:"timestamp"`
+	CacheRead            *int64   `json:"cache_read"`
+	CacheWrite           *int64   `json:"cache_write"`
+	Reasoning            *int64   `json:"reasoning"`
+	EstimatedAPICost     *float64 `json:"estimated_api_cost"`
+	SkipEstimatedAPICost bool     `json:"-"`
 }
 
-// deriveBenchCost fills b.Cost from cached model prices. Runs without token
-// measurements keep a nil cost rather than deriving a measured zero.
-func (d *DB) deriveBenchCost(b *BenchRun) {
-	if b == nil {
+func (d *DB) deriveBenchEstimatedCost(b *BenchRun) {
+	if b == nil || b.EstimatedAPICost != nil || b.SkipEstimatedAPICost || b.Model == "" {
 		return
 	}
-	// Caller-supplied cost wins. A non-nil pointer round-trips
-	// verbatim (the caller owns the cost evidence).
-	if b.Cost != nil {
-		return
-	}
-	// Bench-side pre-filter: both tokens zero → leave Cost nil.
-	// The bench-run rollup aggregates tokens from underlying
-	// tool_calls; an all-zero rollup is a valid "no measurement"
-	// state (NULL preservation for the bench headline), and
-	// the cost-stays-nil semantic is the contract the bench
-	// report depends on. The deriver's "zero is a real value"
-	// semantic is the persist path's; the bench path overrides
-	// it here.
-	if b.TokensIn == 0 && b.TokensOut == 0 {
-		return
-	}
-	// The bench side does not carry a Provider column on
-	// BenchRun — the provider is resolved from the model id
-	// (providerModel, the only v1 known pair is
-	// (anthropic, claude-sonnet-4-20250514)).
-	if b.Model == "" {
-		return
-	}
-
 	prices, _ := LoadPrices()
-	if prices == nil || prices.path == "" {
+	if prices == nil {
 		return
 	}
-
 	provider := providerModel(b.Model)
-	tokensIn := b.TokensIn
-	tokensOut := b.TokensOut
-	b.Cost = (&costDeriver{}).Derive(CostInputs{
-		TokensIn:  &tokensIn,
-		TokensOut: &tokensOut,
-		Model:     &b.Model,
-		Provider:  &provider,
-		Cost:      b.Cost,
-	}, prices)
+	if prefix, _, ok := strings.Cut(b.Agent, "/"); ok && prefix != "" {
+		provider = prefix
+	}
+	price, ok := prices.LookupRecord(provider, b.Model)
+	if !ok && prices.Cold() {
+		if prices.RefreshAndWrite() == nil {
+			price, ok = prices.LookupRecord(provider, b.Model)
+		}
+	}
+	if !ok {
+		return
+	}
+	b.EstimatedAPICost = EstimateAPICost(EstimatedCostInputs{UncachedInput: b.TokensIn, Output: b.TokensOut, Reasoning: b.Reasoning, CacheRead: b.CacheRead, CacheWrite: b.CacheWrite}, price)
 }
 
 // providerModel returns the cache-key provider for a benchmark model.
@@ -155,7 +125,7 @@ func providerModel(model string) string {
 // b.Cost pointer is updated in place (or left nil on soft-fail) and
 // the SQL INSERT sees the post-derivation value.
 //
-// The INSERT covers all 12 columns. Cost and the cache telemetry
+// The INSERT covers all current columns. Nullable evidence
 // columns are bound through their pointers: nil maps to SQL NULL via
 // database/sql's typed-nil-pointer convention (same as ToolCall.Cost).
 func (d *DB) InsertBenchRun(b *BenchRun) error {
@@ -166,7 +136,8 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 		return errors.New("db: insert bench_run: id is empty")
 	}
 
-	d.deriveBenchCost(b) // write-time cost derivation; soft-fail
+	// Cost is runtime-reported evidence and is never derived or overwritten.
+	d.deriveBenchEstimatedCost(b)
 
 	ctx, cancel := writeContext()
 	defer cancel()
@@ -177,12 +148,12 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 			id, agent, model, task, score,
 			tokens_in, tokens_out, cost,
 			methodology_version, timestamp,
-			cache_read, cache_write
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			cache_read, cache_write, reasoning, estimated_api_cost
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			b.ID, b.Agent, b.Model, b.Task, b.Score,
 			b.TokensIn, b.TokensOut, b.Cost,
 			b.MethodologyVersion, b.Timestamp,
-			b.CacheRead, b.CacheWrite,
+			b.CacheRead, b.CacheWrite, b.Reasoning, b.EstimatedAPICost,
 		)
 		return err
 	})
@@ -210,7 +181,7 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 		`SELECT id, agent, model, task, score,
 		        tokens_in, tokens_out, cost,
 		        methodology_version, timestamp,
-		        cache_read, cache_write
+		        cache_read, cache_write, reasoning, estimated_api_cost
 		 FROM bench_runs
 		 ORDER BY timestamp ASC, id ASC`,
 	)
@@ -226,12 +197,14 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 			cost       sql.NullFloat64
 			cacheRead  sql.NullInt64
 			cacheWrite sql.NullInt64
+			reasoning  sql.NullInt64
+			estimated  sql.NullFloat64
 		)
 		if err := rows.Scan(
 			&b.ID, &b.Agent, &b.Model, &b.Task, &b.Score,
 			&b.TokensIn, &b.TokensOut, &cost,
 			&b.MethodologyVersion, &b.Timestamp,
-			&cacheRead, &cacheWrite,
+			&cacheRead, &cacheWrite, &reasoning, &estimated,
 		); err != nil {
 			return nil, fmt.Errorf("db: scan bench_run: %w", err)
 		}
@@ -246,6 +219,14 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 		if cacheWrite.Valid {
 			v := cacheWrite.Int64
 			b.CacheWrite = &v
+		}
+		if reasoning.Valid {
+			v := reasoning.Int64
+			b.Reasoning = &v
+		}
+		if estimated.Valid {
+			v := estimated.Float64
+			b.EstimatedAPICost = &v
 		}
 		out = append(out, b)
 	}
@@ -266,19 +247,21 @@ func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
 		cost       sql.NullFloat64
 		cacheRead  sql.NullInt64
 		cacheWrite sql.NullInt64
+		reasoning  sql.NullInt64
+		estimated  sql.NullFloat64
 	)
 	err := d.db.QueryRow(
 		`SELECT id, agent, model, task, score,
 		        tokens_in, tokens_out, cost,
 		        methodology_version, timestamp,
-		        cache_read, cache_write
+		        cache_read, cache_write, reasoning, estimated_api_cost
 		 FROM bench_runs WHERE id = ?`,
 		id,
 	).Scan(
 		&b.ID, &b.Agent, &b.Model, &b.Task, &b.Score,
 		&b.TokensIn, &b.TokensOut, &cost,
 		&b.MethodologyVersion, &b.Timestamp,
-		&cacheRead, &cacheWrite,
+		&cacheRead, &cacheWrite, &reasoning, &estimated,
 	)
 	if err == sql.ErrNoRows {
 		return BenchRun{}, ErrNotFound
@@ -297,6 +280,14 @@ func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
 	if cacheWrite.Valid {
 		v := cacheWrite.Int64
 		b.CacheWrite = &v
+	}
+	if reasoning.Valid {
+		v := reasoning.Int64
+		b.Reasoning = &v
+	}
+	if estimated.Valid {
+		v := estimated.Float64
+		b.EstimatedAPICost = &v
 	}
 	return b, nil
 }

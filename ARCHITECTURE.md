@@ -210,11 +210,11 @@ Writes session-scoped and call-scoped records to the database: inputs, outputs, 
 
 ### Measurement
 
-Computes or ingests token and cost figures in a form that can be audited and reconstructed. Feeds both per-call records and benchmark aggregation.
+Ingests provider/runtime-reported token and cost figures without rewriting them. Reported cost, including literal zero, remains billing evidence. A separate nullable API-equivalent estimate is reconstructed from cache-aware models.dev prices for uncached input, cache reads, cache writes, output, and reasoning. Benchmark experiments retain the exact resolved pricing record so estimates can be regenerated without consulting mutable live data.
 
 ### Benchmark
 
-Aggregates persisted evidence into comparable headline metrics—cost per correct answer, savings over baseline, and related reports—using a published methodology. The Go experiment module owns tasks, scoring, retained manifests and attempts, deterministic summaries, live comparison, and ranking. SQLite remains product evidence; experiment-side assignment and orchestration metadata remain file artifacts outside the database.
+Aggregates persisted evidence into comparable headline metrics—reported cost per correct answer, estimated API cost per correct answer, savings over baseline, and related reports—using a published methodology. New evidence summaries use deterministic descriptive distributions, pair baseline and candidate attempts by execution cycle, and annotate rather than remove outliers; they do not make inferential significance claims. Cache-aware comparisons retain cold observation and warm-up evidence separately from measured-warm headline attempts. Cache namespaces are isolated between strategies only through a confirmed runtime/provider adapter; otherwise the evidence is explicitly observed-only and makes no hit/miss claim. Rebuild penalties and cumulative break-even use the retained API-cost estimates. The Go experiment module owns tasks, scoring, retained manifests and attempts, retained pricing snapshots, deterministic summaries, live comparison, and ranking. SQLite remains product evidence; experiment-side assignment, cache-control metadata, and orchestration metadata remain file artifacts outside the database.
 
 ### Extension registry
 

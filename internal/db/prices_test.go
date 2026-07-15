@@ -138,6 +138,72 @@ func TestPrices_WithHTTPClient(t *testing.T) {
 	})
 }
 
+func TestPricesParsesCacheRatesContextTiersAndLegacyFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "prices.json")
+	legacy := `{"openai":{"legacy":{"input":2.5,"output":15}}}`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := NewPrices(path)
+	if err := p.Load(); err != nil {
+		t.Fatal(err)
+	}
+	record, ok := p.LookupRecord("openai", "legacy")
+	if !ok || record.Input != 2.5 || record.Output != 15 || record.CacheRead != nil || record.CacheWrite != nil {
+		t.Fatalf("legacy record = %#v, ok=%v", record, ok)
+	}
+
+	body := `{"openai":{"models":{"gpt":{"cost":{"input":2.5,"output":15,"cache_read":0.25,"cache_write":3.125,"tiers":[{"tier":{"type":"context","size":272000},"input":5,"output":22.5,"cache_read":0.5,"cache_write":6.25}],"context_over_200k":{"input":4,"output":20,"cache_read":0.4,"cache_write":5}}}}}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) }))
+	defer server.Close()
+	p = NewPrices(path).WithHTTPClient(&http.Client{Transport: redirectTransport{target: server.URL}})
+	if err := p.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	record, ok = p.LookupRecord("openai", "gpt")
+	if !ok || record.CacheRead == nil || *record.CacheRead != .25 || record.CacheWrite == nil || *record.CacheWrite != 3.125 {
+		t.Fatalf("cache-aware record = %#v, ok=%v", record, ok)
+	}
+	if len(record.Tiers) != 1 || record.Tiers[0].Tier.Type != "context" || record.Tiers[0].Tier.Size != 272000 {
+		t.Fatalf("tiers = %#v", record.Tiers)
+	}
+	if record.ContextOver200K == nil || record.ContextOver200K.Input != 4 {
+		t.Fatalf("context_over_200k = %#v", record.ContextOver200K)
+	}
+}
+
+func TestPriceSelectRatesAtContextThreshold(t *testing.T) {
+	read, write := .25, 3.125
+	record := Price{Input: 2.5, Output: 15, CacheRead: &read, CacheWrite: &write, Tiers: []PriceTier{{Tier: PriceTierSelector{Type: "context", Size: 272000}, Input: 5, Output: 22.5}}}
+	if got := record.SelectRates(271999); got.Input != 2.5 {
+		t.Fatalf("below threshold input = %v", got.Input)
+	}
+	if got := record.SelectRates(272000); got.Input != 5 {
+		t.Fatalf("at threshold input = %v", got.Input)
+	}
+}
+
+func TestPricesActualSchemaReasoningRatesAndZero(t *testing.T) {
+	body := `{"openai":{"models":{"gpt":{"cost":{"input":2,"output":10,"reasoning":3,"cache_read":0,"cache_write":0,"tiers":[{"tier":{"type":"context","size":272000},"input":4,"output":20,"reasoning":7,"cache_read":0,"cache_write":0}]}},"free":{"cost":{"input":0,"output":0,"reasoning":0,"cache_read":0,"cache_write":0}}}}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) }))
+	defer server.Close()
+	p := NewPrices(filepath.Join(t.TempDir(), "prices.json")).WithHTTPClient(&http.Client{Transport: redirectTransport{target: server.URL}})
+	if err := p.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	record, ok := p.LookupRecord("openai", "gpt")
+	if !ok || record.Reasoning == nil || *record.Reasoning != 3 || record.CacheRead == nil || *record.CacheRead != 0 {
+		t.Fatalf("base record = %#v, ok=%v", record, ok)
+	}
+	if len(record.Tiers) != 1 || record.Tiers[0].Reasoning == nil || *record.Tiers[0].Reasoning != 7 || record.Tiers[0].CacheWrite == nil || *record.Tiers[0].CacheWrite != 0 {
+		t.Fatalf("tier record = %#v", record.Tiers)
+	}
+	free, ok := p.LookupRecord("openai", "free")
+	if !ok || !free.InputSet || !free.OutputSet || free.Reasoning == nil || *free.Reasoning != 0 || free.CacheRead == nil || *free.CacheRead != 0 {
+		t.Fatalf("zero-rate record = %#v, ok=%v", free, ok)
+	}
+}
+
 // redirectTransport is an http.RoundTripper that rewrites the request URL
 // to the target httptest server URL before forwarding. This is the
 // canonical pattern for testing code that hardcodes an upstream URL (in

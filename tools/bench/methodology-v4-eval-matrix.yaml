@@ -57,9 +57,40 @@ computation: |
   Per-attempt cache counts are SUM because the runtime reports them as per-request
   values across step_finish events (tokens.total == tokens.input + tokens.output
   + tokens.reasoning + tokens.cache.read + tokens.cache.write for every event).
+  Runtime-reported cost is retained verbatim, including literal zero. When an
+  experiment retains a models.dev pricing snapshot, estimated_api_cost is derived
+  independently as (uncached_input*input + cache_read*cache_read_price +
+  cache_write*cache_write_price + output*output_price +
+  reasoning*reasoning_price)/1_000_000 and rounded to six decimals. The selected
+  base or context-tier cost.reasoning rate is used when present; otherwise reasoning
+  deterministically uses that selected record's output price. An explicit zero rate
+  remains zero. Missing ordinary input/output prices, or a missing cache
+  rate for a non-zero corresponding cache count, makes the estimate NULL. Summary
+  regeneration uses the retained snapshot rather than current models.dev data.
+  Reported cost completeness is independent: complete token/cache/reasoning
+  evidence can produce an estimate even when reported cost is absent. Pricing
+  metadata and estimated evidence are valid only with a hash-bound retained
+  snapshot whose embedded provider/model matches the manifest model.
   Absent (no field emitted) stays NULL; an explicitly
   emitted 0 is preserved as 0 — the two are observable separately in the
   per-side distribution and the baseline-minus-candidate delta.
+  Schema-v3 distributions are descriptive and deterministic. Values are sorted
+  ascending. Quantiles use linear interpolation at zero-based rank
+  q*(n-1). Standard deviation is the population standard deviation (divide by
+  n). Empty distributions publish count=0 with null descriptive values; a
+  one-value distribution has identical quantiles and standard deviation 0.
+  total_logical_input = tokens_in + cache_read + cache_write when all three
+  values are available for an attempt.
+  Tukey outliers use fences p25 - 1.5*IQR and p75 + 1.5*IQR. Detection is
+  insufficient_sample when n < 4. Outliers remain in every aggregate and are
+  reported with attempt id, cycle, and value; they are never exclusions.
+  Evaluated baseline and candidate attempts pair by cycle, independent of
+  execution order. Per-cycle deltas are baseline minus candidate. Missing sides
+  are reported by attempt id and cycle. Paired aggregates report the mean and
+  median of available per-metric deltas without replacing the existing
+  unpaired mean-minus-mean compatibility deltas.
+  Sample size is exploratory for n < 5 and descriptive for n >= 5. This label
+  is informational and never blocks a run.
 
 output:
   artifact: ktx bench compare summary.json and ktx bench rank ranking.json
@@ -77,9 +108,19 @@ output:
     - contributing attempt/session ids
     - cache_read distribution (present only when any attempt carries cache evidence)
     - cache_write distribution (present only when any attempt carries cache evidence)
+    - reasoning token evidence (present only when complete)
+    - runtime-reported cost distribution retained verbatim
+    - estimated_api_cost distribution, delta, and per-correct value only when at least one non-NULL estimate exists
+    - pricing snapshot source URL, retrieval timestamp when available, and sha256
+    - schema-v3 descriptive distributions (count, values, min, p25, median, mean, p75, max, population standard deviation)
+    - schema-v3 Tukey outlier annotations with no automatic exclusion
+    - schema-v3 paired per-cycle baseline-minus-candidate deltas and unpaired attempts
+    - schema-v3 exploratory/descriptive sample-size classification
 
 out_of_scope:
   - LLM-as-judge scoring
   - statistical significance / confidence intervals
+  - p-values or inferential significance claims
+  - automatic outlier exclusion
   - content-type router productization
   - changing shipped default pipeline

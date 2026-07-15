@@ -136,8 +136,12 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	var replayTokensIn, replayTokensOut int64
 	var replayCacheRead, replayCacheWrite *int64
 	if streamMetrics.hasData {
-		replayTokensIn = streamMetrics.tokensIn
-		replayTokensOut = streamMetrics.tokensOut
+		if streamMetrics.tokensIn != nil {
+			replayTokensIn = *streamMetrics.tokensIn
+		}
+		if streamMetrics.tokensOut != nil {
+			replayTokensOut = *streamMetrics.tokensOut
+		}
 		if streamMetrics.cost != nil {
 			v := *streamMetrics.cost
 			replayCost = &v

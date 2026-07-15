@@ -15,8 +15,8 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	}
 	defer file.Close()
 	var tokensIn, tokensOut, cost float64
-	var cacheRead, cacheWrite float64
-	var sawTokensIn, sawTokensOut, sawCost, sawCacheRead, sawCacheWrite bool
+	var cacheRead, cacheWrite, reasoning float64
+	var sawTokensIn, sawTokensOut, sawCost, sawCacheRead, sawCacheWrite, sawReasoning bool
 	lastText := ""
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64*1024), 64*1024*1024)
@@ -30,9 +30,10 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				Content string   `json:"content"`
 				Cost    *float64 `json:"cost"`
 				Tokens  struct {
-					Input  *float64 `json:"input"`
-					Output *float64 `json:"output"`
-					Cache  struct {
+					Input     *float64 `json:"input"`
+					Output    *float64 `json:"output"`
+					Reasoning *float64 `json:"reasoning"`
+					Cache     struct {
 						Read  *float64 `json:"read"`
 						Write *float64 `json:"write"`
 					} `json:"cache"`
@@ -61,6 +62,11 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				cost += *event.Part.Cost
 				sawCost = true
 				metrics.UsageEvidence.CostEvents++
+			}
+			if event.Part.Tokens.Reasoning != nil {
+				reasoning += *event.Part.Tokens.Reasoning
+				sawReasoning = true
+				metrics.UsageEvidence.ReasoningEvents++
 			}
 			// Cache telemetry on step_finish is per-request
 			// (tokens.total == tokens.input + tokens.output +
@@ -117,6 +123,9 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	}
 	if sawCacheWrite && metrics.UsageEvidence.CacheWriteEvents == steps {
 		metrics.CacheWrite = &cacheWrite
+	}
+	if sawReasoning && metrics.UsageEvidence.ReasoningEvents == steps {
+		metrics.Reasoning = &reasoning
 	}
 	return metrics
 }

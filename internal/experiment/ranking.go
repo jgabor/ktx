@@ -49,7 +49,20 @@ func sideMetrics(summary map[string]any, side string) map[string]any {
 	result["full_pass_rate"] = summaryValue(details["full_pass_rate"])
 	result["expected_cost_per_correct"] = summaryValue(details["expected_cost_per_correct"])
 	result["mean_tool_calls"] = summaryValue(details["tool_call_count"])
+	if schemaVersion, _ := summary["schema_version"].(int); schemaVersion >= 3 {
+		result["sample_classification"] = details["sample_classification"]
+		result["mean_estimated_api_cost"] = summaryValue(details["estimated_api_cost"])
+		result["mean_cache_read"] = summaryValue(details["cache_read"])
+		result["mean_cache_write"] = summaryValue(details["cache_write"])
+	}
 	return result
+}
+
+func pairedMetric(summary map[string]any, field string) *float64 {
+	paired, _ := summary["paired_baseline_minus_candidate"].(map[string]any)
+	metrics, _ := paired["metrics"].(map[string]any)
+	metric, _ := metrics[field].(map[string]any)
+	return summaryValue(metric["mean_paired_delta"])
 }
 
 func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map[string]any {
@@ -67,6 +80,16 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 			"tool_call_inflation_vs_baseline": 1.0, "tokens_saved_vs_baseline": 0.0, "cost_saved_vs_baseline": 0.0,
 		}
 		copyMap(row, baseline)
+		if _, ok := baseline["sample_classification"]; ok {
+			row["paired_mean_tokens_saved_vs_baseline"] = 0.0
+			row["paired_mean_cache_read_saved_vs_baseline"] = 0.0
+			row["paired_mean_cache_write_saved_vs_baseline"] = 0.0
+			row["paired_mean_estimated_api_cost_saved_vs_baseline"] = 0.0
+			if len(pairs) > 0 {
+				paired, _ := pairs[0].Summary["paired_baseline_minus_candidate"].(map[string]any)
+				row["paired_sample_classification"] = paired["sample_classification"]
+			}
+		}
 		rows = append(rows, row)
 	}
 	for _, pair := range pairs {
@@ -92,6 +115,14 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 		}
 		if pair.Summary != nil {
 			row["pair_tool_call_inflation"] = pair.Summary["tool_call_inflation"]
+			if schemaVersion, _ := pair.Summary["schema_version"].(int); schemaVersion >= 3 {
+				row["paired_mean_tokens_saved_vs_baseline"] = pairedMetric(pair.Summary, "tokens_in")
+				row["paired_mean_cache_read_saved_vs_baseline"] = pairedMetric(pair.Summary, "cache_read")
+				row["paired_mean_cache_write_saved_vs_baseline"] = pairedMetric(pair.Summary, "cache_write")
+				row["paired_mean_estimated_api_cost_saved_vs_baseline"] = pairedMetric(pair.Summary, "estimated_api_cost")
+				paired, _ := pair.Summary["paired_baseline_minus_candidate"].(map[string]any)
+				row["paired_sample_classification"] = paired["sample_classification"]
+			}
 		}
 		rows = append(rows, row)
 	}
@@ -195,6 +226,17 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["mean_tokens_in"], 6), formatSignificant(row["mean_cost"], 4),
 			formatSignificant(row["expected_cost_per_correct"], 4), formatSignificant(row["mean_tool_calls"], 3),
 			formatSignificant(row["tool_call_inflation_vs_baseline"], 3)))
+	}
+	for _, row := range rows {
+		if _, ok := row["sample_classification"]; !ok {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("paired pipeline=%v sample=%v paired_sample=%v tokens=%s cache_read=%s cache_write=%s estimated_cost=%s",
+			row["pipeline"], row["sample_classification"], row["paired_sample_classification"],
+			formatSignificant(row["paired_mean_tokens_saved_vs_baseline"], 6),
+			formatSignificant(row["paired_mean_cache_read_saved_vs_baseline"], 6),
+			formatSignificant(row["paired_mean_cache_write_saved_vs_baseline"], 6),
+			formatSignificant(row["paired_mean_estimated_api_cost_saved_vs_baseline"], 6)))
 	}
 	return strings.Join(lines, "\n")
 }

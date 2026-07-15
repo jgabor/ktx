@@ -1101,6 +1101,54 @@ func TestExtractStreamMetrics_CacheTelemetry(t *testing.T) {
 	})
 }
 
+func TestExtractStreamMetrics_UsageCompleteness(t *testing.T) {
+	t.Run("complete explicit zeros remain observations", func(t *testing.T) {
+		stream := `{"type":"step_finish","part":{"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if !sm.completeTokens() || !sm.completeReportedCost() || sm.tokensIn == nil || *sm.tokensIn != 0 || sm.tokensOut == nil || *sm.tokensOut != 0 || sm.reasoning == nil || *sm.reasoning != 0 || sm.cost == nil || *sm.cost != 0 {
+			t.Fatalf("explicit-zero metrics = %#v", sm)
+		}
+	})
+	tests := []struct {
+		name, first, second, field string
+	}{
+		{"partial input including zero", `"input":0,"output":1,"reasoning":0`, `"output":2,"reasoning":0`, "input"},
+		{"partial output including zero", `"input":1,"output":0,"reasoning":0`, `"input":2,"reasoning":0`, "output"},
+		{"partial reasoning including zero", `"input":1,"output":1,"reasoning":0`, `"input":2,"output":2`, "reasoning"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stream := `{"type":"step_finish","part":{"tokens":{` + test.first + `,"cache":{"read":0,"write":0}},"cost":0}}` + "\n" +
+				`{"type":"step_finish","part":{"tokens":{` + test.second + `,"cache":{"read":0,"write":0}},"cost":0}}`
+			sm := extractStreamMetrics([]byte(stream))
+			if sm.completeTokens() {
+				t.Fatal("completeTokens=true for partial token stream")
+			}
+			switch test.field {
+			case "input":
+				if sm.tokensIn != nil {
+					t.Fatalf("tokensIn = %v, want nil", *sm.tokensIn)
+				}
+			case "output":
+				if sm.tokensOut != nil {
+					t.Fatalf("tokensOut = %v, want nil", *sm.tokensOut)
+				}
+			case "reasoning":
+				if sm.reasoning != nil {
+					t.Fatalf("reasoning = %v, want nil", *sm.reasoning)
+				}
+			}
+		})
+	}
+	t.Run("partial cost including zero", func(t *testing.T) {
+		stream := `{"type":"step_finish","part":{"tokens":{"input":1,"output":1,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}` + "\n" +
+			`{"type":"step_finish","part":{"tokens":{"input":2,"output":2,"reasoning":0,"cache":{"read":0,"write":0}}}}`
+		if sm := extractStreamMetrics([]byte(stream)); sm.cost != nil || !sm.completeTokens() || sm.completeReportedCost() {
+			t.Fatalf("partial cost metrics = %#v, want complete tokens and incomplete reported cost", sm)
+		}
+	})
+}
+
 // TestRunBenchReplay_CacheDrift covers the cost_drift envelope's cache
 // fields. Seed a bench_run with cache telemetry and a matching recorded
 // stream; assert replayed_cache_read / original_cache_read round-trip, and

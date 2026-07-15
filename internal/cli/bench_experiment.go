@@ -102,7 +102,8 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs.SetOutput(io.Discard)
 	var model, variant, taskFile, taskID, prompt, expectedOutput, expectedFactsRaw, workspaceMode string
 	var baseline, candidate, dataDir, auth, image, experimentID, format, summarize, repoRoot, methodology string
-	var target, maxAttempts, minimumToolCalls int
+	var cacheControl string
+	var target, maxAttempts, minimumToolCalls, warmup int
 	var timeout, grace time.Duration
 	var build bool
 	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. neuralwatt/glm-5.2-short-fast-flex)")
@@ -126,9 +127,11 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs.StringVar(&summarize, "summarize", "", "regenerate an experiment summary")
 	fs.StringVar(&repoRoot, "repo-root", "", "repository root")
 	fs.StringVar(&methodology, "methodology", "", "methodology YAML")
-	fs.IntVar(&target, "target-valid", 3, "valid attempts required per side")
-	fs.IntVar(&target, "rounds", 3, "valid attempts required per side")
-	fs.IntVar(&maxAttempts, "max-attempts", 12, "total attempt budget")
+	fs.StringVar(&cacheControl, "cache-control", "", "cache control: auto, isolated, or observed (methodology v5)")
+	fs.IntVar(&warmup, "warmup", 0, "warm-up attempts per side (methodology v5 default 1)")
+	fs.IntVar(&target, "target-valid", 0, "valid measured attempts required per side")
+	fs.IntVar(&target, "rounds", 0, "valid measured attempts required per side (v4 default 3; v5 default 5)")
+	fs.IntVar(&maxAttempts, "max-attempts", 0, "total attempt budget")
 	fs.DurationVar(&timeout, "attempt-timeout", 10*time.Minute, "per-attempt timeout")
 	fs.DurationVar(&grace, "termination-grace", 30*time.Second, "termination grace period")
 	fs.BoolVar(&build, "build", false, "build the benchmark image")
@@ -136,6 +139,12 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		printError(stderr, usageError("ktx bench compare: %v", err), opts.Format)
 		return ExitUsage
 	}
+	warmupSet := false
+	fs.Visit(func(flag *flag.Flag) {
+		if flag.Name == "warmup" {
+			warmupSet = true
+		}
+	})
 	if summarize != "" {
 		summary, err := experiment.WriteSummary(summarize)
 		if err != nil {
@@ -175,6 +184,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 		DataDir: dataDir, Image: image, AuthPath: auth, BaselineConfig: baseline,
 		CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: methodology,
+		CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet,
 		DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
 	})
 	if err != nil {

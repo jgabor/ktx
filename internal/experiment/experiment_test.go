@@ -81,6 +81,53 @@ func TestSummaryCacheGolden(t *testing.T) {
 	assertGolden(t, "summary_cache.golden", actual)
 }
 
+func TestParseStreamReasoningCompletenessAndReportedZero(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stream.jsonl")
+	data := "{\"type\":\"step_finish\",\"part\":{\"tokens\":{\"input\":100,\"output\":2,\"reasoning\":3,\"cache\":{\"read\":0,\"write\":0}},\"cost\":0}}\n" +
+		"{\"type\":\"step_finish\",\"part\":{\"reason\":\"stop\",\"tokens\":{\"input\":50,\"output\":1,\"reasoning\":4,\"cache\":{\"read\":10,\"write\":0}},\"cost\":0}}\n"
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	metrics := ParseStream(path, nil, nil)
+	if metrics.Cost == nil || *metrics.Cost != 0 || metrics.Reasoning == nil || *metrics.Reasoning != 7 {
+		t.Fatalf("metrics = %#v", metrics)
+	}
+	if metrics.UsageEvidence.ReasoningEvents != 2 {
+		t.Fatalf("reasoning events = %d", metrics.UsageEvidence.ReasoningEvents)
+	}
+	data = "{\"type\":\"step_finish\",\"part\":{\"tokens\":{\"reasoning\":3}}}\n{\"type\":\"step_finish\",\"part\":{\"reason\":\"stop\",\"tokens\":{}}}\n"
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ParseStream(path, nil, nil).Reasoning; got != nil {
+		t.Fatalf("partial reasoning = %v, want nil", *got)
+	}
+}
+
+func TestSummaryV3EstimatedAPICostLeavesLegacyGoldensUnchanged(t *testing.T) {
+	manifest := cacheFixtureManifest()
+	manifest.Pricing = &PricingSnapshotMetadata{Path: "pricing.json", SHA256: "abc", SourceURL: "https://models.dev/api.json", Provider: "openai", Model: "gpt"}
+	attempts := cacheFixtureAttempts()
+	for i := range attempts {
+		if attempts[i].Status == "completed" {
+			attempts[i].EstimatedAPICost = floatPointer(float64(i+1) / 100)
+		}
+	}
+	summary := BuildSummary(manifest, attempts)
+	if summary["schema_version"] != 3 {
+		t.Fatalf("schema version = %v", summary["schema_version"])
+	}
+	baseline := summary["pipelines"].(map[string]any)[Baseline].(map[string]any)
+	if _, ok := baseline["estimated_api_cost"]; !ok || baseline["estimated_api_cost_per_correct"] == nil {
+		t.Fatalf("baseline estimated cost fields = %#v", baseline)
+	}
+	legacy, err := MarshalJSON(BuildSummary(fixtureManifest(), fixtureAttempts()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGolden(t, "summary.golden.json", legacy)
+}
+
 func TestRankingGolden(t *testing.T) {
 	summary := BuildSummary(fixtureManifest(), fixtureAttempts())
 	ranking := BuildRanking(RankingOptions{

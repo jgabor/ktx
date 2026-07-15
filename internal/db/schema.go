@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 // schemaStatements creates the current database schema. The statements remain
 // idempotent so stale and partially migrated databases can be repaired safely.
@@ -65,7 +65,9 @@ var schemaStatements = []string{
 		methodology_version TEXT,
 		timestamp           INTEGER,
 		cache_read          INTEGER,
-		cache_write         INTEGER
+		cache_write         INTEGER,
+		reasoning           INTEGER,
+		estimated_api_cost  REAL
 	)`,
 	// compressed (the reversibility layer): one row per `ktx compress`
 	// invocation. Holds compressed artifacts SEPARATE from tool_calls
@@ -214,6 +216,8 @@ var benchRunsColumns = []benchRunsColumn{
 	{Name: "timestamp", Type: "INTEGER"},
 	{Name: "cache_read", Type: "INTEGER"},
 	{Name: "cache_write", Type: "INTEGER"},
+	{Name: "reasoning", Type: "INTEGER"},
+	{Name: "estimated_api_cost", Type: "REAL"},
 }
 
 // compressedColumn enumerates a single `compressed` table column. The

@@ -61,11 +61,11 @@ recovery footer whenever the composed pipeline compresses.
 | Sanitize only                           | `strip-ansi`, `dedup-blank`, `normalize`                                  | No content loss; little savings on clean output                                 |
 | **Keep-ends mid (recommended general)** | `unwrap-result` + sanitize + `keep-ends:100:50`                           | Configured example default; structured projection before recoverable truncation |
 | Aggressive head                         | sanitize + `head:30`                                                      | Max token/cost cut; accepts mid/tail loss                                       |
-| Lossy + recovery                        | sanitize + `keep-ends:50:20` + `token-budget:2000` (footer on by default) | Narrow windows/budget; agents can `ktx read` via default recovery footer        |
+| Lossy + recovery                        | sanitize + `keep-ends:50:20` + `token-budget:2000`; `recover_footer=true` | Narrow windows/budget; agents can recover with `ktx read`                       |
 | Build logs                              | sanitize + `grep-v:^debug:` + `keep-ends:100:50`                          | Prefer wider keep-ends over a tight budget when recovery is undesirable         |
 
-Product defaults when fields are omitted: pipeline timeout **2s**,
-`recover_footer` **true**. Set `recover_footer = false` to suppress the
+Product defaults when fields are omitted: pipeline timeout **2s** and
+`recover_footer` **false**. The configured example explicitly enables the
 footer. Do not promote bare lossy budgets without recovery as a general
 default: live ranking showed partial fact loss when the footer was off.
 
@@ -453,7 +453,7 @@ ktx bench corpus generate
 ```
 
 Committed corpus files must stay in sync with task fact lists. After
-regeneration, run `make check`; the corpus manifest is covered by a byte-level
+regeneration, run `mage check`; the corpus manifest is covered by a byte-level
 golden test and must remain consistent with every task TOML file.
 
 ## Non-goals
@@ -462,5 +462,5 @@ golden test and must remain consistent with every task TOML file.
 - Statistical confidence intervals
 - P-values, significance claims, or other inferential statistics
 - Automatic exclusion of outliers
-- Content-type taxonomy routing (separate follow-up; command-aware routing by tool name, command prefix, and exit status is available — see [Command-aware routing](#command-aware-routing))
+- Content-type taxonomy routing (separate follow-up; command-aware routing by tool name, command prefix, subcommand, and exit status is available — see [Command-aware routing](#command-aware-routing))
 - Changing the product default pipeline (still opt-in empty/passthrough)

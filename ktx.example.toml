@@ -30,9 +30,10 @@ timeout = "2s"
 # ── Recovery footer ──────────────────────────────────────────────────
 #
 # recover_footer surfaces the source_id back into the agent's context
-# so the agent can self-recover the original output. Default true (on):
-# when the pipeline actually compresses, ktx hook appends a single-line
-# recovery footer to the agent-visible output. Set false to suppress.
+# so the agent can self-recover the original output. The product default is
+# false (off); this example explicitly enables it below. When the pipeline
+# actually compresses, ktx hook appends a single-line recovery footer to the
+# agent-visible output.
 #
 # The footer carries:
 #   - source_id (verbatim, as the argument to `ktx read <source_id>`)
@@ -141,12 +142,12 @@ stages = ["unwrap-result", "strip-ansi", "dedup-blank", "normalize", "keep-ends:
 # # output is enough, or when tool-aware routing can opt out later.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "head:30"]
 #
-# # Lossy + recovery (footer on by default): narrow keep-ends + token
+# # Lossy + recovery (footer explicitly enabled): narrow keep-ends + token
 # # budget. Live ranking saw partial mid-fact loss without recovery;
 # # with the footer, agents used `ktx read` and full pass returned.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]
 #
-# # Suppress recovery footer (opt out of the default):
+# # Suppress the recovery footer enabled by this example:
 # # recover_footer = false
 #
 # # Build logs: drop debug noise, keep head+tail. Prefer wider keep-ends

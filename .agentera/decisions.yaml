@@ -1412,9 +1412,7 @@ decisions:
           tool results at the wire level.
         rationale: Violates 'no daemon' (vision). Introduces a long-running process
           on the critical path. The hook+mutation path achieves the same transform
-          WITHOUT a daemon. Proxy mode remains open as the heavier alternative if
-          mutation proves impossible — but the mutation test PASSED, closing this
-          path.
+          WITHOUT a daemon, and the successful mutation test closed this alternative.
       - name: '`experimental.chat.messages.transform` (transform full message history)'
         status: rejected
         description: A plugin subscribes to experimental.chat.messages.transform and
@@ -1497,10 +1495,9 @@ decisions:
       noop); envelope parser in the plugin; pipeline timeout (hookPipelineTimeout=30s
       hardcoded in hook.go; ktx.toml configurability deferred to Phase 2); migration
       of existing installed plugins (ktx init opencode --show detects old ktx-write
-      template and suggests re-init); ARCHITECTURE.md Decided subsection (In-flight
-      compression hook / D22); the open 'foreground proxy mode' deliberation stays
-      open (D22 closes the hook+mutation path; proxy mode remains the daemon-based
-      alternative)
+      template and suggests re-init); architecture documentation of the in-flight
+      compression hook. The successful mutation test closes the rejected foreground
+      proxy alternative.
   - number: 23
     date: '2026-07-09'
     question: Should ktx surface an in-agent recovery path for lossy compression,

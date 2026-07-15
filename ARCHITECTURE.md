@@ -46,13 +46,14 @@ flowchart TD
   subgraph ingress["Ingress — how observations reach ktx"]
     W["Wrapper<br/>ktx run wraps the<br/>agent process"]
     S["Sidecar<br/>a running agent sends<br/>events to ktx write"]
-    H["Hook<br/>agent plugin calls ktx hook<br/>on each tool call"]
+    H["Hook<br/>runtime adapter calls ktx hook<br/>on each tool call"]
   end
 
   O["Observe<br/>normalize the event into one flat tool_call record"]
   C["Classify<br/>router picks a pipeline profile"]
   T["Transform<br/>run the profile's stages in order"]
-  G{"Anti-worsening gate<br/>is the result smaller<br/>than the input?"}
+  G{"Pipeline anti-worsening gate<br/>is the result smaller<br/>than the input?"}
+  F{"Optional recovery cue<br/>is result + cue still<br/>smaller than input?"}
   M["Measure<br/>tokens, cost, content hash"]
   P["Persist<br/>original always kept; compressed row<br/>added only when a transform helped"]
   R["Report<br/>ktx get / list / bench / decompress"]
@@ -66,8 +67,10 @@ flowchart TD
   O --> C
   C --> T
   T --> G
-  G -- "yes: keep result" --> M
+  G -- "yes: keep result" --> F
   G -- "no: discard result,<br/>keep original input" --> M
+  F -- "disabled or yes: deliver result;<br/>persist content only" --> M
+  F -- "no: discard result,<br/>keep original input" --> M
   M --> P
   P --> R
   P --> DB
@@ -76,7 +79,7 @@ flowchart TD
 
   classDef gate fill:#374151,color:#f9fafb,stroke:#4b5563
   classDef store fill:#111827,color:#f9fafb,stroke:#374151
-  class G gate
+  class G,F gate
   class DB,PR store
 ```
 
@@ -118,7 +121,7 @@ The diagrams above use five nouns that build on each other. In order from outerm
 
 | Term        | What it is                                                                                                                                                                                                                                                                                                                                                                       | Examples                                                                                                                                                          | Where it lives                                                                               |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Ingress** | An adoption mode: how ktx receives observations from an agent. Ingress variants converge on the same internal loop; the choice only changes _where_ observation begins.                                                                                                                                                                                                          | Wrapper (`ktx run`), Sidecar (`ktx write`), Hooks (`ktx init opencode` + `ktx hook`)                                                                              | Agent runtime + ktx CLI                                                                      |
+| **Ingress** | An adoption mode: how ktx receives observations from an agent. Ingress variants converge on the same internal loop; the choice only changes _where_ observation begins.                                                                                                                                                                                                          | Wrapper (`ktx run`), Sidecar (`ktx write`), Hooks (`ktx init <runtime>` adapters delegating to `ktx hook`)                                                        | Agent runtime + ktx CLI                                                                      |
 | **Layer**   | A category of agent context where waste appears. Layers are the _inputs_ to classification — they describe what the router sees, not separate code modules.                                                                                                                                                                                                                      | L1 Shell (command output), L2 Tool (MCP payloads), L3 Code (file reads, diffs), L4 Instructions (rules, skills), L5 Session+memory (history, cross-session carry) | Conceptual taxonomy only; no layer field exists in the record today                          |
 | **Profile** | A named, ordered list of stage tokens that the runner executes. Profiles are selected by the router at classify time. Today `default` runs and command-aware routing (tool name, command prefix, exit status) selects among named profiles for Layer 1; per-layer content-type profiles (`[pipeline.shell]`, `[pipeline.tool]`, etc.) remain aspirational.                       | `[pipeline.default] stages = ["strip-ansi", "head:100"]`                                                                                                          | `ktx.toml` `[pipeline.<name>].stages`; inspectable via `ktx config show --json`              |
 | **Stage**   | A single bytes-in → bytes-out → error-or-nil transform. Stages are the atoms a profile is built from. The runner enforces the conservative-on-failure contract around every stage; stage authors cannot violate it. Built-in Go stages and external subprocess stages share the same `Stage` interface.                                                                          | `strip-ansi` (no arg), `head:100` (arg = line count), `token-budget:2000`, `grep:^error:`                                                                         | Go package `internal/pipeline/stages`; also any command addressable via a `[[plugin]]` block |
@@ -130,7 +133,7 @@ The diagrams above use five nouns that build on each other. In order from outerm
 
 **Classify** — Decide which kind of content is being handled so the right compression strategy applies. The router wins; individual algorithms are interchangeable behind it.
 
-**Transform** — Apply compression (and optional memory-oriented distillation) through built-in behavior, user configuration, or both. Failure is conservative: a stage that errors, produces empty output from non-empty input, or is unknown passes its input through unchanged. After all stages run, the anti-worsening gate discards the whole result unless it is smaller than the input.
+**Transform** — Apply compression (and optional memory-oriented distillation) through built-in behavior, user configuration, or both. Failure is conservative: a stage that errors, produces empty output from non-empty input, or is unknown passes its input through unchanged. After all stages run, the anti-worsening gate discards the whole result unless it is smaller than the input. A lossy hook profile may then add a configured recovery cue; a second gate suppresses the transform unless the result and cue together remain smaller than the original.
 
 **Measure** — Attach quantitative evidence: tokens in, tokens out, cost, integrity fingerprints. Numbers, not adjectives.
 
@@ -140,7 +143,7 @@ The diagrams above use five nouns that build on each other. In order from outerm
 
 The loop is the system; adoption mode only changes _where_ observation begins.
 
-Default database file: `$XDG_DATA_HOME/ktx/ktx.db`. Path precedence: `ktx db --path <file>` flag > `KTX_DB` env var > default (Decision 8 revised).
+Default database file: `$XDG_DATA_HOME/ktx/ktx.db`. Normal commands select an alternate database through `KTX_DB`. Within the `ktx db` namespace, the per-invocation `--path <file>` flag takes precedence over `KTX_DB` (Decision 8 revised).
 
 ---
 
@@ -202,7 +205,7 @@ Executes an ordered sequence of transformation stages—built-in, configured, or
 
 ### Reversibility
 
-Retains originals (or sufficient material to reconstruct them) keyed for retrieval on demand. Enables aggressive compression elsewhere without silent loss.
+Retains originals (or sufficient material to reconstruct them) keyed for retrieval on demand. Lossy hook profiles may append an agent-visible recovery cue containing the canonical source ID and `ktx read <source-id>`. Recovery cues are configuration-controlled and emitted only when the compressed result plus the cue remains smaller than the original. The persisted compressed artifact remains content-only.
 
 ### Persistence
 
@@ -227,7 +230,7 @@ A discoverable set of user-supplied behaviors that pipelines can invoke. Distinc
 Architecturally, ktx distinguishes **mechanical I/O** from **derived inspection**:
 
 - **I/O** (`read`, `write`) moves records faithfully—raw, structured, suitable for pipelines and audits. Always raw JSON; no output-format flag.
-- **Query** (`get`, `list`, `bench`) aggregates, filters, and formats for humans or downstream tools. JSON by default; `--format text` for humans.
+- **Query** (`get`, `list`, `db report`, `bench`) aggregates, filters, and formats for humans or downstream tools. JSON by default; `--format text` for humans.
 
 Compression produces new records from existing ones; decompression recovers prior bytes through the public surface. Benchmark reads from the same evidence as inspection: no parallel truth.
 
@@ -257,10 +260,6 @@ The CLI surface stays narrow. The space behind the router stays wide.
 
 The items below are **not** architecture yet. They are questions for future resonera sessions. PoC/MVP blockers are cross-linked in [`TODO.md`](TODO.md). When an item is resolved, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
-### Ingress and session lifecycle
-
-- [ ] Whether a foreground proxy mode belongs in the architecture (wire-level compression) without violating the no-daemon principle.
-
 ### Record model and persistence
 
 - [ ] How session roll-up counters relate to append-only call evidence for benchmark aggregation.
@@ -270,7 +269,7 @@ The items below are **not** architecture yet. They are questions for future reso
 
 - [ ] Taxonomy of content types the router recognizes and the order of fallback when classification is ambiguous.
 - [ ] How layer (shell, tool, code, instructions, session) maps to router profiles—one-to-one or many-to-one.
-- [ ] Signals available at ingress beyond raw bytes (command name, tool name, MIME hints, agent metadata).
+- [ ] Which additional classification signals are warranted beyond the implemented tool, command-prefix, subcommand, and exit-status routing—for example MIME hints, parsed content type, or runtime metadata—and what is their fallback order.
 
 ### Pipeline and compression
 

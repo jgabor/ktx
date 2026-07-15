@@ -40,6 +40,8 @@ type UsageEvidence struct {
 	TokensInEvents   int `json:"tokens_in_events"`
 	TokensOutEvents  int `json:"tokens_out_events"`
 	CostEvents       int `json:"cost_events"`
+	CacheReadEvents  int `json:"cache_read_events"`
+	CacheWriteEvents int `json:"cache_write_events"`
 }
 
 type Metrics struct {
@@ -49,6 +51,8 @@ type Metrics struct {
 	TokensIn      *float64      `json:"tokens_in"`
 	TokensOut     *float64      `json:"tokens_out"`
 	Cost          *float64      `json:"cost"`
+	CacheRead     *float64      `json:"cache_read"`
+	CacheWrite    *float64      `json:"cache_write"`
 	AnswerExcerpt string        `json:"answer_excerpt"`
 	UsageEvidence UsageEvidence `json:"usage_evidence"`
 }
@@ -120,6 +124,7 @@ type Manifest struct {
 	CreatedAt               string                      `json:"created_at"`
 	Task                    Task                        `json:"task"`
 	Model                   string                      `json:"model"`
+	Variant                 *string                     `json:"variant,omitempty"`
 	TargetValidPerPipeline  int                         `json:"target_valid_per_pipeline"`
 	MaxAttempts             int                         `json:"max_attempts"`
 	AttemptTimeout          string                      `json:"attempt_timeout"`

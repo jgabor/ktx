@@ -15,7 +15,8 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	}
 	defer file.Close()
 	var tokensIn, tokensOut, cost float64
-	var sawTokensIn, sawTokensOut, sawCost bool
+	var cacheRead, cacheWrite float64
+	var sawTokensIn, sawTokensOut, sawCost, sawCacheRead, sawCacheWrite bool
 	lastText := ""
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64*1024), 64*1024*1024)
@@ -31,6 +32,10 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				Tokens  struct {
 					Input  *float64 `json:"input"`
 					Output *float64 `json:"output"`
+					Cache  struct {
+						Read  *float64 `json:"read"`
+						Write *float64 `json:"write"`
+					} `json:"cache"`
 				} `json:"tokens"`
 			} `json:"part"`
 		}
@@ -56,6 +61,23 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				cost += *event.Part.Cost
 				sawCost = true
 				metrics.UsageEvidence.CostEvents++
+			}
+			// Cache telemetry on step_finish is per-request
+			// (tokens.total == tokens.input + tokens.output +
+			// tokens.reasoning + tokens.cache.read +
+			// tokens.cache.write for every event). SUM across
+			// events matches the input/output/cost aggregation.
+			// A nil source field stays nil; an explicitly emitted
+			// zero is preserved as a non-nil pointer to 0.
+			if event.Part.Tokens.Cache.Read != nil {
+				cacheRead += *event.Part.Tokens.Cache.Read
+				sawCacheRead = true
+				metrics.UsageEvidence.CacheReadEvents++
+			}
+			if event.Part.Tokens.Cache.Write != nil {
+				cacheWrite += *event.Part.Tokens.Cache.Write
+				sawCacheWrite = true
+				metrics.UsageEvidence.CacheWriteEvents++
 			}
 			if event.Part.Reason == "stop" {
 				metrics.StreamComplete = true
@@ -89,6 +111,12 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	}
 	if sawCost && metrics.UsageEvidence.CostEvents == steps {
 		metrics.Cost = &cost
+	}
+	if sawCacheRead && metrics.UsageEvidence.CacheReadEvents == steps {
+		metrics.CacheRead = &cacheRead
+	}
+	if sawCacheWrite && metrics.UsageEvidence.CacheWriteEvents == steps {
+		metrics.CacheWrite = &cacheWrite
 	}
 	return metrics
 }

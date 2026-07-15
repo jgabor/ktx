@@ -252,14 +252,15 @@ All metrics are derived from retained experiment evidence
 
 ### Per-attempt
 
-| Field                               | Meaning                                                                                 |
-| ----------------------------------- | --------------------------------------------------------------------------------------- |
-| `score`                             | For multi-fact: `matched_facts / total_facts` in `[0, 1]`. For exact-match: `0` or `1`. |
-| `full_pass`                         | `score == 1.0`                                                                          |
-| `facts_matched` / `facts_missed`    | Multi-fact detail                                                                       |
-| `tokens_in` / `tokens_out` / `cost` | From stream `step_finish` usage when complete                                           |
-| `tool_call_count`                   | Count of `tool_use` events                                                              |
-| `session_id`                        | Linked only when exactly one new session appears                                        |
+| Field                               | Meaning                                                                                  |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `score`                             | For multi-fact: `matched_facts / total_facts` in `[0, 1]`. For exact-match: `0` or `1`.  |
+| `full_pass`                         | `score == 1.0`                                                                           |
+| `facts_matched` / `facts_missed`    | Multi-fact detail                                                                        |
+| `tokens_in` / `tokens_out` / `cost` | From stream `step_finish` usage when complete                                            |
+| `cache_read` / `cache_write`        | SUM of `part.tokens.cache.{read,write}` across `step_finish` events (per-request counts) |
+| `tool_call_count`                   | Count of `tool_use` events                                                               |
+| `session_id`                        | Linked only when exactly one new session appears                                         |
 
 ### Per-pipeline aggregates (evaluated attempts)
 
@@ -269,17 +270,30 @@ An attempt is **evaluated** when:
 
 Partial fact scores are kept; they are not discarded.
 
-| Aggregate                   | Formula                                                           |
-| --------------------------- | ----------------------------------------------------------------- |
-| `mean_fact_score`           | mean of `score` over evaluated attempts                           |
-| `full_pass_rate`            | fraction of evaluated attempts with `full_pass`                   |
-| `mean_cost`                 | mean cost over evaluated attempts                                 |
-| `expected_cost_per_correct` | `mean_cost / max(full_pass_rate, 1e-9)`                           |
-| `mean_tokens_in`            | mean input tokens over evaluated attempts                         |
-| `tool_call_inflation`       | `candidate.mean_tool_calls / baseline.mean_tool_calls` (live A/B) |
+| Aggregate                    | Formula                                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `mean_fact_score`            | mean of `score` over evaluated attempts                                                                                     |
+| `full_pass_rate`             | fraction of evaluated attempts with `full_pass`                                                                             |
+| `mean_cost`                  | mean cost over evaluated attempts                                                                                           |
+| `expected_cost_per_correct`  | `mean_cost / max(full_pass_rate, 1e-9)`                                                                                     |
+| `mean_tokens_in`             | mean input tokens over evaluated attempts                                                                                   |
+| `tool_call_inflation`        | `candidate.mean_tool_calls / baseline.mean_tool_calls` (live A/B)                                                           |
+| `cache_read` / `cache_write` | SUM over `step_finish.part.tokens.cache.{read,write}` per attempt; per-side distribution and baseline-minus-candidate delta |
 
 `expected_cost_per_correct` is the ranking headline (tilth geometric form).
 A cheaper pipeline that loses facts ranks worse than a slightly costlier full-pass pipeline.
+
+`cache_read` / `cache_write` are provider-reported per-request token counts the
+runtime emits on `step_finish.part.tokens.cache`. For every event, tokens.total
+== tokens.input + tokens.output + tokens.reasoning + tokens.cache.read +
+tokens.cache.write, confirming cache values are per-request deltas (not
+cumulative). The summary includes them only
+when an attempt contains cache evidence (a runtime that does not emit cache
+fields leaves them NULL and the summary stays on its legacy shape). The
+per-side distribution mirrors tokens/cost; `baseline_minus_candidate.cache_read`
+and `baseline_minus_candidate.cache_write` give the absolute baseline-minus-candidate
+delta so cache effects between strategies are observable alongside token and
+cost deltas. ktx does not derive a cache-miss ratio from these counts.
 
 ### Secondary quality signals
 

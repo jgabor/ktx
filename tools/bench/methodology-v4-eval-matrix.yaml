@@ -52,6 +52,14 @@ computation: |
   expected_cost_per_correct = mean_cost / max(full_pass_rate, 1e-9)
   mean_fact_score = mean(score over evaluated)
   tool_call_inflation = candidate.mean_tool_calls / baseline.mean_tool_calls
+  cache_read = sum(part.tokens.cache.read over step_finish events per attempt)
+  cache_write = sum(part.tokens.cache.write over step_finish events per attempt)
+  Per-attempt cache counts are SUM because the runtime reports them as per-request
+  values across step_finish events (tokens.total == tokens.input + tokens.output
+  + tokens.reasoning + tokens.cache.read + tokens.cache.write for every event).
+  Absent (no field emitted) stays NULL; an explicitly
+  emitted 0 is preserved as 0 — the two are observable separately in the
+  per-side distribution and the baseline-minus-candidate delta.
 
 output:
   artifact: ktx bench compare summary.json and ktx bench rank ranking.json
@@ -67,6 +75,8 @@ output:
     - mean_tokens_in
     - tool_call_inflation
     - contributing attempt/session ids
+    - cache_read distribution (present only when any attempt carries cache evidence)
+    - cache_write distribution (present only when any attempt carries cache evidence)
 
 out_of_scope:
   - LLM-as-judge scoring

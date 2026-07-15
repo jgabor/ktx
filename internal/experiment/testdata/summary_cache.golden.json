@@ -1,0 +1,185 @@
+{
+  "baseline_minus_candidate": {
+    "cache_read": 4500,
+    "cache_write": -200,
+    "cost": -0.04,
+    "expected_cost_per_correct": -0.04,
+    "mean_fact_score": -0.25,
+    "pass_rate": -0.5,
+    "tokens_in": 60,
+    "tokens_out": 0,
+    "tool_call_count": -0.5
+  },
+  "exclusions": [
+    {
+      "attempt_id": "baseline-002",
+      "reasons": ["partial_or_failed_facts"],
+      "side": "baseline"
+    },
+    {
+      "attempt_id": "candidate-001",
+      "reasons": [
+        "status=timeout",
+        "missing session_id",
+        "incomplete stream",
+        "answer mismatch",
+        "too few tool calls"
+      ],
+      "side": "candidate"
+    }
+  ],
+  "experiment_id": "exp-cache",
+  "methodology_version": "v4-eval-matrix",
+  "minimum_tool_calls": 1,
+  "pipelines": {
+    "baseline": {
+      "attempt_count": 2,
+      "cache_read": {
+        "max": 15000,
+        "mean": 7500,
+        "min": 0,
+        "values": [0, 15000]
+      },
+      "cache_write": {
+        "max": 2000,
+        "mean": 1000,
+        "min": 0,
+        "values": [0, 2000]
+      },
+      "contributing_attempts": [
+        {
+          "attempt_id": "baseline-001",
+          "session_id": "s1"
+        }
+      ],
+      "cost": {
+        "max": 0,
+        "mean": 0,
+        "min": 0,
+        "values": [0]
+      },
+      "evaluated_attempts": [
+        {
+          "attempt_id": "baseline-001",
+          "score": 1,
+          "session_id": "s1"
+        },
+        {
+          "attempt_id": "baseline-002",
+          "score": 0.5,
+          "session_id": "s2"
+        }
+      ],
+      "evaluated_count": 2,
+      "expected_cost_per_correct": 0,
+      "full_pass_rate": 0.5,
+      "mean_fact_score": 0.75,
+      "pass_rate": 0.5,
+      "pipeline_hash": "sha-baseline",
+      "pipeline_id": "passthrough",
+      "stage_labels": [],
+      "status_counts": {
+        "completed": 2,
+        "failed": 0,
+        "invalid": 0,
+        "timeout": 0,
+        "unlinked": 0
+      },
+      "tokens_in": {
+        "max": 100,
+        "mean": 100,
+        "min": 100,
+        "values": [100]
+      },
+      "tokens_out": {
+        "max": 0,
+        "mean": 0,
+        "min": 0,
+        "values": [0]
+      },
+      "tool_call_count": {
+        "max": 2,
+        "mean": 1.5,
+        "min": 1,
+        "values": [1, 2]
+      },
+      "valid_count": 1
+    },
+    "candidate": {
+      "attempt_count": 2,
+      "cache_read": {
+        "max": 3000,
+        "mean": 3000,
+        "min": 3000,
+        "values": [3000]
+      },
+      "cache_write": {
+        "max": 1200,
+        "mean": 1200,
+        "min": 1200,
+        "values": [1200]
+      },
+      "contributing_attempts": [
+        {
+          "attempt_id": "candidate-002",
+          "session_id": "s3"
+        }
+      ],
+      "cost": {
+        "max": 0.04,
+        "mean": 0.04,
+        "min": 0.04,
+        "values": [0.04]
+      },
+      "evaluated_attempts": [
+        {
+          "attempt_id": "candidate-002",
+          "score": 1,
+          "session_id": "s3"
+        }
+      ],
+      "evaluated_count": 1,
+      "expected_cost_per_correct": 0.04,
+      "full_pass_rate": 1,
+      "mean_fact_score": 1,
+      "pass_rate": 1,
+      "pipeline_hash": "sha-candidate",
+      "pipeline_id": "keep-ends-mid",
+      "stage_labels": [
+        "strip-ansi",
+        "dedup-blank",
+        "normalize",
+        "keep-ends:100:50"
+      ],
+      "status_counts": {
+        "completed": 1,
+        "failed": 0,
+        "invalid": 0,
+        "timeout": 1,
+        "unlinked": 0
+      },
+      "tokens_in": {
+        "max": 40,
+        "mean": 40,
+        "min": 40,
+        "values": [40]
+      },
+      "tokens_out": {
+        "max": 0,
+        "mean": 0,
+        "min": 0,
+        "values": [0]
+      },
+      "tool_call_count": {
+        "max": 2,
+        "mean": 2,
+        "min": 2,
+        "values": [2]
+      },
+      "valid_count": 1
+    }
+  },
+  "schema_version": 2,
+  "target_valid_per_pipeline": 1,
+  "tool_call_inflation": 1.3333333333333333
+}

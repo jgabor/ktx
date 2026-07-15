@@ -61,6 +61,14 @@ var ErrBenchMethodologyNotFound = errors.New("db: bench methodology file not fou
 // vs-zero distinction is the same round-trip contract the bench_runs
 // schema inherits from tool_calls).
 //
+// CacheRead and CacheWrite carry the SUM of per-request prompt-cache
+// token counts from the runtime's step_finish events. They are NULL
+// when the runtime did not emit cache telemetry so the absent-vs-zero distinction survives the SQL round-trip — a runtime
+// that emits an explicit zero cache_read stays distinct from one that
+// emits nothing. Cache evidence is sourced from the captured stream,
+// never from tool_calls (the per-tool rows are NULL-by-design for
+// step-aggregate usage under OpenCode 1.17.8).
+//
 // The JSON shape mirrors what `ktx bench report` emits in its `rows`
 // array (each row carries id, agent, model, task, score, cost,
 // methodology_version, timestamp). Tokens_in and tokens_out are
@@ -78,6 +86,8 @@ type BenchRun struct {
 	Cost               *float64 `json:"cost"`
 	MethodologyVersion string   `json:"methodology_version"`
 	Timestamp          int64    `json:"timestamp"`
+	CacheRead          *int64   `json:"cache_read"`
+	CacheWrite         *int64   `json:"cache_write"`
 }
 
 // deriveBenchCost fills b.Cost from cached model prices. Runs without token
@@ -145,9 +155,9 @@ func providerModel(model string) string {
 // b.Cost pointer is updated in place (or left nil on soft-fail) and
 // the SQL INSERT sees the post-derivation value.
 //
-// The INSERT covers all 10 columns. Cost is bound through the
-// pointer: nil maps to SQL NULL via database/sql's typed-nil-pointer
-// convention (same as ToolCall.Cost).
+// The INSERT covers all 12 columns. Cost and the cache telemetry
+// columns are bound through their pointers: nil maps to SQL NULL via
+// database/sql's typed-nil-pointer convention (same as ToolCall.Cost).
 func (d *DB) InsertBenchRun(b *BenchRun) error {
 	if b == nil {
 		return errors.New("db: insert bench_run: nil bench run")
@@ -161,15 +171,18 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 	ctx, cancel := writeContext()
 	defer cancel()
 	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx,
+		_, err := tx.ExecContext(
+			ctx,
 			`INSERT INTO bench_runs (
 			id, agent, model, task, score,
 			tokens_in, tokens_out, cost,
-			methodology_version, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			methodology_version, timestamp,
+			cache_read, cache_write
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			b.ID, b.Agent, b.Model, b.Task, b.Score,
 			b.TokensIn, b.TokensOut, b.Cost,
 			b.MethodologyVersion, b.Timestamp,
+			b.CacheRead, b.CacheWrite,
 		)
 		return err
 	})
@@ -188,14 +201,16 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 // exist; the CLI layer treats an empty slice as "no runs yet" and
 // emits `rows: []` rather than a nil check.
 //
-// The Scan uses sql.NullFloat64 for Cost so a NULL cost column
-// round-trips to a nil *float64 on the BenchRun struct, preserving
-// the absent-vs-zero distinction.
+// The Scan uses sql.NullFloat64 for Cost and sql.NullInt64 for the
+// cache telemetry columns so a NULL column round-trips to a nil
+// pointer on the BenchRun struct, preserving the absent-vs-zero
+// distinction.
 func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 	rows, err := d.db.Query(
 		`SELECT id, agent, model, task, score,
 		        tokens_in, tokens_out, cost,
-		        methodology_version, timestamp
+		        methodology_version, timestamp,
+		        cache_read, cache_write
 		 FROM bench_runs
 		 ORDER BY timestamp ASC, id ASC`,
 	)
@@ -207,19 +222,30 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 	out := []BenchRun{}
 	for rows.Next() {
 		var (
-			b    BenchRun
-			cost sql.NullFloat64
+			b          BenchRun
+			cost       sql.NullFloat64
+			cacheRead  sql.NullInt64
+			cacheWrite sql.NullInt64
 		)
 		if err := rows.Scan(
 			&b.ID, &b.Agent, &b.Model, &b.Task, &b.Score,
 			&b.TokensIn, &b.TokensOut, &cost,
 			&b.MethodologyVersion, &b.Timestamp,
+			&cacheRead, &cacheWrite,
 		); err != nil {
 			return nil, fmt.Errorf("db: scan bench_run: %w", err)
 		}
 		if cost.Valid {
 			v := cost.Float64
 			b.Cost = &v
+		}
+		if cacheRead.Valid {
+			v := cacheRead.Int64
+			b.CacheRead = &v
+		}
+		if cacheWrite.Valid {
+			v := cacheWrite.Int64
+			b.CacheWrite = &v
 		}
 		out = append(out, b)
 	}
@@ -232,23 +258,27 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 // QueryBenchRun fetches a single bench_runs row by id. Returns
 // ErrNotFound when no row matches, so the CLI layer can map a
 // missing id to ExitNotFound (exit 2). The same
-// pointer-discipline rules apply as QueryBenchRuns (nil Cost when
-// the column is NULL).
+// pointer-discipline rules apply as QueryBenchRuns (nil Cost and
+// nil cache telemetry when the columns are NULL).
 func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
 	var (
-		b    BenchRun
-		cost sql.NullFloat64
+		b          BenchRun
+		cost       sql.NullFloat64
+		cacheRead  sql.NullInt64
+		cacheWrite sql.NullInt64
 	)
 	err := d.db.QueryRow(
 		`SELECT id, agent, model, task, score,
 		        tokens_in, tokens_out, cost,
-		        methodology_version, timestamp
+		        methodology_version, timestamp,
+		        cache_read, cache_write
 		 FROM bench_runs WHERE id = ?`,
 		id,
 	).Scan(
 		&b.ID, &b.Agent, &b.Model, &b.Task, &b.Score,
 		&b.TokensIn, &b.TokensOut, &cost,
 		&b.MethodologyVersion, &b.Timestamp,
+		&cacheRead, &cacheWrite,
 	)
 	if err == sql.ErrNoRows {
 		return BenchRun{}, ErrNotFound
@@ -259,6 +289,14 @@ func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
 	if cost.Valid {
 		v := cost.Float64
 		b.Cost = &v
+	}
+	if cacheRead.Valid {
+		v := cacheRead.Int64
+		b.CacheRead = &v
+	}
+	if cacheWrite.Valid {
+		v := cacheWrite.Int64
+		b.CacheWrite = &v
 	}
 	return b, nil
 }

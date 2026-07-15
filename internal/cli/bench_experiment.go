@@ -33,15 +33,20 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	fs := flag.NewFlagSet("ktx bench agent", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var model, format string
-	fs.StringVar(&model, "model", os.Getenv("MODEL"), "model")
-	fs.StringVar(&model, "m", os.Getenv("MODEL"), "model")
+	var model, format, variant string
+	fs.StringVar(&model, "model", os.Getenv("MODEL"), "model id (provider/name)")
+	fs.StringVar(&model, "m", os.Getenv("MODEL"), "model id (provider/name)")
+	fs.StringVar(&variant, "variant", os.Getenv("MODEL_VARIANT"), "model variant (e.g. high)")
 	fs.StringVar(&format, "format", "json", "OpenCode output format")
 	if err := fs.Parse(args); err != nil || model == "" || len(fs.Args()) != 1 {
 		if err == nil {
 			err = errors.New("usage: ktx bench agent -m <model> <prompt>")
 		}
 		printError(stderr, usageError("ktx bench agent: %v", err), opts.Format)
+		return ExitUsage
+	}
+	if strings.HasPrefix(model, "github-copilot/") {
+		printError(stderr, usageError("ktx bench agent: github-copilot/* models are not permitted for this repo; use a different provider such as neuralwatt/* or openai/*"), opts.Format)
 		return ExitUsage
 	}
 	auth := os.Getenv("OPENCODE_AUTH_PATH")
@@ -74,7 +79,12 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 			return ExitUsage
 		}
 	}
-	command := exec.Command("opencode", "run", "--format", format, "-m", model, fs.Arg(0))
+	opencodeArgs := []string{"run", "--format", format, "-m", model}
+	if variant != "" {
+		opencodeArgs = append(opencodeArgs, "--variant", variant)
+	}
+	opencodeArgs = append(opencodeArgs, fs.Arg(0))
+	command := exec.Command("opencode", opencodeArgs...)
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, stdout, stderr
 	if err := command.Run(); err != nil {
 		var exitError *exec.ExitError
@@ -90,13 +100,14 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench compare", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var model, taskFile, taskID, prompt, expectedOutput, expectedFactsRaw, workspaceMode string
+	var model, variant, taskFile, taskID, prompt, expectedOutput, expectedFactsRaw, workspaceMode string
 	var baseline, candidate, dataDir, auth, image, experimentID, format, summarize, repoRoot, methodology string
 	var target, maxAttempts, minimumToolCalls int
 	var timeout, grace time.Duration
 	var build bool
-	fs.StringVar(&model, "model", "", "neuralwatt model")
-	fs.StringVar(&model, "m", "", "neuralwatt model")
+	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. neuralwatt/glm-5.2-short-fast-flex)")
+	fs.StringVar(&model, "m", "", "model id (provider/name)")
+	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
 	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")
 	fs.StringVar(&taskID, "task-id", "", "task id when not using --task-file")
 	fs.StringVar(&prompt, "prompt", "", "task prompt when not using --task-file")
@@ -160,7 +171,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	}
 	runner := experiment.NewRunner()
 	_, summary, code, err := runner.Compare(context.Background(), experiment.CompareOptions{
-		Model: model, TaskFile: taskFile, Task: task, TargetValid: target, MaxAttempts: maxAttempts,
+		Model: model, Variant: variant, TaskFile: taskFile, Task: task, TargetValid: target, MaxAttempts: maxAttempts,
 		AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 		DataDir: dataDir, Image: image, AuthPath: auth, BaselineConfig: baseline,
 		CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: methodology,
@@ -237,11 +248,12 @@ func runBenchValidate(args []string, opts Options, stdout, stderr io.Writer) int
 func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench rank", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var model, taskFile, pipelinesRaw, baselineID, dataDir, auth, image, campaignID, format string
+	var model, variant, taskFile, pipelinesRaw, baselineID, dataDir, auth, image, campaignID, format string
 	var rounds, maxAttempts int
 	var timeout, grace time.Duration
-	fs.StringVar(&model, "model", "", "neuralwatt model")
-	fs.StringVar(&model, "m", "", "neuralwatt model")
+	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. neuralwatt/glm-5.2-short-fast-flex)")
+	fs.StringVar(&model, "m", "", "model id (provider/name)")
+	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
 	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")
 	fs.StringVar(&pipelinesRaw, "pipelines", "sanitize,keep-ends-mid,conservative-a,conservative-a-recover,aggressive-head", "comma-separated pipeline ids")
 	fs.StringVar(&baselineID, "baseline-pipeline", "passthrough", "baseline pipeline id")
@@ -294,7 +306,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	for _, candidateID := range candidates {
 		experimentID := campaignID + "-" + candidateID
 		_, summary, code, err := runner.Compare(context.Background(), experiment.CompareOptions{
-			Model: model, TaskFile: taskFile, TargetValid: rounds, MaxAttempts: maxAttempts,
+			Model: model, Variant: variant, TaskFile: taskFile, TargetValid: rounds, MaxAttempts: maxAttempts,
 			AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 			DataDir: dataDir, Image: image, AuthPath: auth,
 			BaselineConfig: pipelineConfigPath(baselineID), CandidateConfig: pipelineConfigPath(candidateID),
@@ -311,7 +323,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 		pairs = append(pairs, pair)
 		_ = experiment.WriteJSON(filepath.Join(campaignDir, "pair-"+candidateID+".json"), pair)
 	}
-	ranking := experiment.BuildRanking(experiment.RankingOptions{TaskFile: taskFile, Model: model, Rounds: rounds, BaselinePipeline: baselineID, Candidates: candidates}, pairs, time.Now())
+	ranking := experiment.BuildRanking(experiment.RankingOptions{TaskFile: taskFile, Model: model, Variant: variant, Rounds: rounds, BaselinePipeline: baselineID, Candidates: candidates}, pairs, time.Now())
 	if err := experiment.WriteJSON(filepath.Join(campaignDir, "ranking.json"), ranking); err != nil {
 		printError(stderr, internalError("ktx bench rank: %v", err), opts.Format)
 		return ExitInternal

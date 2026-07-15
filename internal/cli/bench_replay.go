@@ -120,16 +120,21 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	}
 	parserRegressionPass := int64(replayedToolUseCount) == session.ToolCallCount
 
-	// (c) Cost drift: re-aggregate tokens/cost via extractStreamMetrics
-	// and compare to the original bench_runs row. Skipped entirely when
-	// the stream has no bench_run parent (ktx-run --record-stream
-	// captures) — there is no original cost to compare against, so
-	// costDriftDetected stays false and the cost_drift envelope reports
-	// the reduced "no original bench_run to compare against" shape.
+	// (c) Cost drift: re-aggregate tokens/cost/cache via
+	// extractStreamMetrics and compare to the original bench_runs row.
+	// Every evidence field is compared: tokens_in, tokens_out, cost,
+	// cache_read, cache_write. Nil-vs-explicit-zero on cache (and
+	// cost) is a drift — absent ≠ emitted zero. Any mismatch produces
+	// DRIFT. Skipped entirely when the stream has no bench_run parent
+	// (ktx-run --record-stream captures) — there is no original to
+	// compare against, so costDriftDetected stays false and the
+	// cost_drift envelope reports the reduced "no original bench_run
+	// to compare against" shape with replayed-side values only.
 	streamMetrics := extractStreamMetrics([]byte(rs.StreamText))
 	costDriftDetected := false
 	var replayCost *float64
 	var replayTokensIn, replayTokensOut int64
+	var replayCacheRead, replayCacheWrite *int64
 	if streamMetrics.hasData {
 		replayTokensIn = streamMetrics.tokensIn
 		replayTokensOut = streamMetrics.tokensOut
@@ -137,11 +142,21 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 			v := *streamMetrics.cost
 			replayCost = &v
 		}
+		if streamMetrics.cacheRead != nil {
+			v := *streamMetrics.cacheRead
+			replayCacheRead = &v
+		}
+		if streamMetrics.cacheWrite != nil {
+			v := *streamMetrics.cacheWrite
+			replayCacheWrite = &v
+		}
 	}
 	if originalBR != nil {
-		if originalBR.Cost != nil && replayCost != nil {
-			costDriftDetected = *originalBR.Cost != *replayCost
-		} else if originalBR.Cost != nil && replayCost == nil {
+		if replayTokensIn != originalBR.TokensIn ||
+			replayTokensOut != originalBR.TokensOut ||
+			!float64PtrEqual(replayCost, originalBR.Cost) ||
+			!int64PtrEqual(replayCacheRead, originalBR.CacheRead) ||
+			!int64PtrEqual(replayCacheWrite, originalBR.CacheWrite) {
 			costDriftDetected = true
 		}
 	}
@@ -192,33 +207,46 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	if originalBR == nil {
 		// No bench_run to compare against — the stream was captured
 		// via `ktx run --record-stream`. Report replay-derived
-		// tokens/cost (if any) without an original to compare.
+		// tokens/cost/cache (if any) without an original to compare.
+		// Legacy keys (replay_tokens_in / replay_tokens_out /
+		// replay_cost) are preserved for stream consumers; cache
+		// fields use the replayed_* / original_* vocabulary.
 		envelope["cost_drift"] = map[string]any{
-			"detected":          false,
-			"comparison":        "unavailable",
-			"reason":            "no original bench_run to compare against — session captured via ktx run --record-stream",
-			"replay_tokens_in":  replayTokensIn,
-			"replay_tokens_out": replayTokensOut,
-			"replay_cost":       replayCost,
+			"detected":             false,
+			"comparison":           "unavailable",
+			"reason":               "no original bench_run to compare against — session captured via ktx run --record-stream",
+			"replay_tokens_in":     replayTokensIn,
+			"replay_tokens_out":    replayTokensOut,
+			"replay_cost":          replayCost,
+			"replayed_cache_read":  replayCacheRead,
+			"replayed_cache_write": replayCacheWrite,
 		}
-	} else if costDriftDetected {
+	} else {
+		// Always carry both replayed and original values so drift
+		// is diagnosable even when detected=false (PASS). The delta
+		// is the cost difference (negative = replay cheaper).
+		// Legacy keys (replay_tokens_in / replay_tokens_out /
+		// replay_cost, original_tokens_in / original_tokens_out /
+		// original_cost) are preserved for stream consumers; cache
+		// fields use the replayed_* / original_* vocabulary.
 		delta := 0.0
 		if replayCost != nil && originalBR.Cost != nil {
 			delta = *replayCost - *originalBR.Cost
 		}
-		costDrift := map[string]any{
-			"detected":            true,
-			"replay_tokens_in":    replayTokensIn,
-			"original_tokens_in":  originalBR.TokensIn,
-			"replay_tokens_out":   replayTokensOut,
-			"original_tokens_out": originalBR.TokensOut,
-			"replay_cost":         replayCost,
-			"original_cost":       originalBR.Cost,
-			"delta":               delta,
+		envelope["cost_drift"] = map[string]any{
+			"detected":             costDriftDetected,
+			"replay_tokens_in":     replayTokensIn,
+			"original_tokens_in":   originalBR.TokensIn,
+			"replay_tokens_out":    replayTokensOut,
+			"original_tokens_out":  originalBR.TokensOut,
+			"replay_cost":          replayCost,
+			"original_cost":        originalBR.Cost,
+			"delta":                delta,
+			"replayed_cache_read":  replayCacheRead,
+			"original_cache_read":  originalBR.CacheRead,
+			"replayed_cache_write": replayCacheWrite,
+			"original_cache_write": originalBR.CacheWrite,
 		}
-		envelope["cost_drift"] = costDrift
-	} else {
-		envelope["cost_drift"] = map[string]any{"detected": false}
 	}
 
 	switch format {
@@ -332,4 +360,32 @@ func captureStreamForBenchRun(db *dbpkg.DB, sessionID, benchRunID string, stream
 		CapturedAt:   time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	return db.InsertRecordedStream(rs)
+}
+
+// float64PtrEqual reports whether two nullable float64 pointers hold
+// equal values. nil == nil (both absent); nil ≠ non-nil (absent vs
+// emitted value) is a mismatch — the absent-vs-zero distinction that
+// cost drift detection relies on.
+func float64PtrEqual(a, b *float64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// int64PtrEqual reports whether two nullable int64 pointers hold equal
+// values. nil == nil (both absent); nil ≠ non-nil (absent vs emitted
+// zero) is a mismatch — the absent-vs-zero distinction that cache
+// drift detection relies on.
+func int64PtrEqual(a, b *int64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }

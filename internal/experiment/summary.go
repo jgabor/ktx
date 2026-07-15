@@ -13,6 +13,44 @@ func LoadAttempts(experimentDir string) ([]Attempt, error) {
 	return loadJSONLines[Attempt](filepath.Join(experimentDir, "attempts.jsonl"))
 }
 
+// reconcileCacheFromStream re-parses the retained stream artifact for
+// attempts that already carry cache evidence in attempts.jsonl and
+// overrides the cache fields with the authoritative stream-derived
+// SUM. The raw stream is the ground truth for cache aggregation;
+// stale cache values from a superseded method (e.g. MAX) must not
+// survive into the regenerated summary or the validator's byte-match
+// check.
+//
+// The reparsing fires ONLY for attempts that already declare cache
+// evidence in attempts.jsonl (non-nil CacheRead/CacheWrite pointer or
+// non-zero CacheReadEvents/CacheWriteEvents counter). Pre-cache
+// cacheless attempts are left untouched even if their retained raw
+// stream happens to contain cache fields — this preserves the v1
+// byte-match contract for legacy experiments so they continue to
+// validate against their original summaries.
+func reconcileCacheFromStream(attempts []Attempt, experimentDir string) []Attempt {
+	for i := range attempts {
+		hasCacheEvidence := attempts[i].CacheRead != nil ||
+			attempts[i].CacheWrite != nil ||
+			attempts[i].UsageEvidence.CacheReadEvents > 0 ||
+			attempts[i].UsageEvidence.CacheWriteEvents > 0
+		if !hasCacheEvidence {
+			continue
+		}
+		streamRel, ok := attempts[i].Artifacts["stream"]
+		if !ok || streamRel == "" {
+			continue
+		}
+		streamPath := filepath.Join(experimentDir, filepath.FromSlash(streamRel))
+		metrics := ParseStream(streamPath, nil, nil)
+		attempts[i].CacheRead = metrics.CacheRead
+		attempts[i].CacheWrite = metrics.CacheWrite
+		attempts[i].UsageEvidence.CacheReadEvents = metrics.UsageEvidence.CacheReadEvents
+		attempts[i].UsageEvidence.CacheWriteEvents = metrics.UsageEvidence.CacheWriteEvents
+	}
+	return attempts
+}
+
 func AppendAttempt(experimentDir string, attempt Attempt) error {
 	return appendJSONLine(filepath.Join(experimentDir, "attempts.jsonl"), attempt)
 }
@@ -90,6 +128,25 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 	if methodologyVersion == "" {
 		methodologyVersion = "v4-eval-matrix"
 	}
+	// Cache telemetry is optional evidence: a runtime that emits
+	// part.tokens.cache.{read,write} on step_finish produces cache
+	// counts on the attempts; a runtime that does not emits neither
+	// and the summary stays on its legacy v1 shape. The v2 schema
+	// bumps ONLY when at least one attempt under either side carries
+	// cache evidence, so cache-less experiments regenerate their v1
+	// summary byte-for-byte identically (the byte-match contract
+	// ValidateExperiment relies on).
+	hasCacheEvidence := false
+	for _, attempt := range attempts {
+		if attempt.CacheRead != nil || attempt.CacheWrite != nil {
+			hasCacheEvidence = true
+			break
+		}
+	}
+	schemaVersion := 1
+	if hasCacheEvidence {
+		schemaVersion = 2
+	}
 	pipelines := map[string]any{}
 	exclusions := []any{}
 	for _, side := range Sides {
@@ -121,6 +178,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		}
 		evaluatedRows := make([]any, 0, len(evaluated))
 		var scores, tokensIn, tokensOut, costs, toolCalls []float64
+		var cacheReads, cacheWrites []float64
 		for _, attempt := range evaluated {
 			evaluatedRows = append(evaluatedRows, map[string]any{"attempt_id": attempt.AttemptID, "session_id": *attempt.SessionID, "score": attempt.Score.Score})
 			scores = append(scores, attempt.Score.Score)
@@ -133,6 +191,12 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 			}
 			if attempt.Cost != nil {
 				costs = append(costs, *attempt.Cost)
+			}
+			if attempt.CacheRead != nil {
+				cacheReads = append(cacheReads, *attempt.CacheRead)
+			}
+			if attempt.CacheWrite != nil {
+				cacheWrites = append(cacheWrites, *attempt.CacheWrite)
 			}
 		}
 		factScore := mean(scores)
@@ -151,7 +215,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 			value := costMean / denominator
 			expectedCost = &value
 		}
-		pipelines[side] = map[string]any{
+		sideSummary := map[string]any{
 			"attempt_count": len(records), "status_counts": statusCounts,
 			"evaluated_count": len(evaluated), "valid_count": len(counted),
 			"contributing_attempts": contributing, "evaluated_attempts": evaluatedRows,
@@ -160,10 +224,29 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 			"mean_fact_score": factScore, "full_pass_rate": passRate, "pass_rate": passRate,
 			"expected_cost_per_correct": expectedCost,
 		}
+		// Self-contained pipeline identity on the cache-bearing v2
+		// summary: pipeline_id, stage_labels, and pipeline_hash are
+		// surfaced per side so a reader of summary.json alone can
+		// attribute cache/token/cost effects to the named strategy
+		// without consulting the manifest. Cache distributions
+		// join the existing token/cost distributions.
+		if hasCacheEvidence {
+			pipeline := manifest.Pipelines[side]
+			sideSummary["pipeline_id"] = pipeline.PipelineID
+			sideSummary["stage_labels"] = pipeline.Stages
+			sideSummary["pipeline_hash"] = pipeline.SHA256
+			sideSummary["cache_read"] = distribution(cacheReads)
+			sideSummary["cache_write"] = distribution(cacheWrites)
+		}
+		pipelines[side] = sideSummary
 	}
 
+	deltaFields := []string{"tokens_in", "tokens_out", "cost", "tool_call_count", "pass_rate", "mean_fact_score", "expected_cost_per_correct"}
+	if hasCacheEvidence {
+		deltaFields = append(deltaFields, "cache_read", "cache_write")
+	}
 	deltas := map[string]any{}
-	for _, field := range []string{"tokens_in", "tokens_out", "cost", "tool_call_count", "pass_rate", "mean_fact_score", "expected_cost_per_correct"} {
+	for _, field := range deltaFields {
 		baseline := summaryValue(pipelines[Baseline].(map[string]any)[field])
 		candidate := summaryValue(pipelines[Candidate].(map[string]any)[field])
 		if baseline == nil || candidate == nil {
@@ -179,7 +262,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		inflation = *candidateTools / *baseTools
 	}
 	return map[string]any{
-		"schema_version": 1, "methodology_version": methodologyVersion,
+		"schema_version": schemaVersion, "methodology_version": methodologyVersion,
 		"experiment_id": manifest.ExperimentID, "target_valid_per_pipeline": manifest.TargetValidPerPipeline,
 		"minimum_tool_calls": minimum, "pipelines": pipelines,
 		"baseline_minus_candidate": deltas, "tool_call_inflation": inflation, "exclusions": exclusions,
@@ -213,6 +296,7 @@ func WriteSummary(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	attempts = reconcileCacheFromStream(attempts, experimentDir)
 	summary := BuildSummary(manifest, attempts)
 	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
 		return nil, err

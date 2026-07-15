@@ -21,6 +21,7 @@ type PairResult struct {
 type RankingOptions struct {
 	TaskFile         string
 	Model            string
+	Variant          string
 	Rounds           int
 	BaselinePipeline string
 	Candidates       []string
@@ -116,12 +117,16 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 	for _, pair := range pairs {
 		pairRefs = append(pairRefs, map[string]any{"candidate_pipeline": pair.CandidatePipeline, "experiment_id": pair.ExperimentID, "exit_code": pair.ExitCode})
 	}
-	return map[string]any{
+	result := map[string]any{
 		"schema_version": 1, "created_at": now.UTC().Truncate(time.Second).Format(time.RFC3339),
 		"task_file": absolutePath(options.TaskFile), "model": options.Model, "rounds": options.Rounds,
 		"baseline_pipeline": options.BaselinePipeline, "candidate_pipelines": options.Candidates,
 		"ranking": rows, "pairs": pairRefs,
 	}
+	if options.Variant != "" {
+		result["variant"] = options.Variant
+	}
+	return result
 }
 
 func copyMap(destination, source map[string]any) {

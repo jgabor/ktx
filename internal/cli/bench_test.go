@@ -948,3 +948,648 @@ stages = ["head:2"]
 		t.Errorf("ratio = %v, want 1.0 (empty stream guard)", ratio)
 	}
 }
+
+// TestExtractStreamMetrics_CacheTelemetry covers the stream-side cache
+// parsing contract that bench_run.go uses to populate BenchRun.CacheRead /
+// CacheWrite. Cache counts are per-request deltas — SUM matches the
+// input/output/cost aggregation. An emitted zero is preserved (non-nil);
+// absent stays nil. A cache metric present on only some step_finish events
+// drops to nil (completeness gate).
+func TestExtractStreamMetrics_CacheTelemetry(t *testing.T) {
+	t.Run("per-request SUM + emitted zero preserved", func(t *testing.T) {
+		// Two step_finish events: cache.read = 100+15232 = 15332,
+		// cache.write = 500+1500 = 2000. The SUM aggregation
+		// recovers these totals; MAX would give 15232 and 1500
+		// (wrong for non-zero first events).
+		stream := `{"type":"step_finish","part":{"tokens":{"input":10,"output":2,"cache":{"read":100,"write":500}}}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":15232,"write":1500}}}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if !sm.hasData {
+			t.Fatal("hasData=false, want true (step_finish events present)")
+		}
+		if sm.cacheRead == nil || *sm.cacheRead != 15332 {
+			t.Errorf("cacheRead = %v, want pointer to 15332 (SUM of per-request counts)", sm.cacheRead)
+		}
+		if sm.cacheWrite == nil || *sm.cacheWrite != 2000 {
+			t.Errorf("cacheWrite = %v, want pointer to 2000", sm.cacheWrite)
+		}
+	})
+
+	t.Run("MAX would give wrong answer for non-zero first event", func(t *testing.T) {
+		// cache.read=100 on first event, 200 on second.
+		// SUM=300, MAX=200 (wrong). Locks SUM, not MAX.
+		stream := `{"type":"step_finish","part":{"tokens":{"input":10,"output":1,"cache":{"read":100,"write":50}}}}
+{"type":"step_finish","part":{"tokens":{"input":20,"output":2,"cache":{"read":200,"write":100}}}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if sm.cacheRead == nil || *sm.cacheRead != 300 {
+			t.Errorf("cacheRead = %v, want 300 (SUM: 100+200), not 200 (MAX)", sm.cacheRead)
+		}
+		if sm.cacheWrite == nil || *sm.cacheWrite != 150 {
+			t.Errorf("cacheWrite = %v, want 150 (SUM: 50+100), not 100 (MAX)", sm.cacheWrite)
+		}
+	})
+
+	t.Run("multi-step cost and cache SUM", func(t *testing.T) {
+		// Two step_finish events: cost SUM = 0.01+0.02, cache.read
+		// SUM = 100+15232 = 15332, cache.write SUM = 100+100 = 200.
+		// If cost used MAX it would give 0.02 (wrong); if cache
+		// used MAX it would give 15232 (wrong). Both use SUM.
+		stream := `{"type":"step_finish","part":{"tokens":{"input":10,"output":1,"cache":{"read":100,"write":100}},"cost":0.01}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":15232,"write":100}},"cost":0.02}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if !sm.hasData {
+			t.Fatal("hasData=false, want true")
+		}
+		wantCost := 0.01 + 0.02
+		if sm.cost == nil || *sm.cost != wantCost {
+			t.Errorf("cost = %v, want %v (SUM of per-step deltas)", sm.cost, wantCost)
+		}
+		if sm.cacheRead == nil || *sm.cacheRead != 15332 {
+			t.Errorf("cacheRead = %v, want 15332 (SUM of per-request counts)", sm.cacheRead)
+		}
+		if sm.cacheWrite == nil || *sm.cacheWrite != 200 {
+			t.Errorf("cacheWrite = %v, want 200 (SUM of per-request counts)", sm.cacheWrite)
+		}
+	})
+
+	t.Run("absent cache leaves nil pointers", func(t *testing.T) {
+		// step_finish with no part.tokens.cache: an older runtime
+		// that does not emit cache telemetry. The absent value
+		// is NOT the same as an emitted zero.
+		stream := `{"type":"step_finish","part":{"tokens":{"input":41,"output":2},"cost":0.01}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if !sm.hasData {
+			t.Fatal("hasData=false, want true")
+		}
+		if sm.cacheRead != nil {
+			t.Errorf("cacheRead = %v, want nil (cache telemetry absent)", *sm.cacheRead)
+		}
+		if sm.cacheWrite != nil {
+			t.Errorf("cacheWrite = %v, want nil (cache telemetry absent)", *sm.cacheWrite)
+		}
+	})
+
+	t.Run("emitted zero on every event preserved as 0", func(t *testing.T) {
+		// cache.read=0 on every step_finish (cold cache): emitted
+		// zero must round-trip as a non-nil pointer to 0.
+		stream := `{"type":"step_finish","part":{"tokens":{"input":10,"output":2,"cache":{"read":0,"write":0}}}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":0,"write":0}}}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if sm.cacheRead == nil || *sm.cacheRead != 0 {
+			t.Errorf("cacheRead = %v, want pointer to 0 (emitted zero preserved)", sm.cacheRead)
+		}
+		if sm.cacheWrite == nil || *sm.cacheWrite != 0 {
+			t.Errorf("cacheWrite = %v, want pointer to 0 (emitted zero preserved)", sm.cacheWrite)
+		}
+	})
+
+	t.Run("partial cache evidence leaves nil (completeness gate)", func(t *testing.T) {
+		// First step_finish carries cache.read=100 and cache.write=50;
+		// the second carries neither. The completeness gate drops
+		// both pointers to nil — a SUM from a subset of events would
+		// misrepresent the attempt. Mirrors experiment.ParseStream's
+		// `sawCacheRead && CacheReadEvents == steps` guard.
+		stream := `{"type":"step_finish","part":{"tokens":{"input":10,"output":1,"cache":{"read":100,"write":50}}}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2}}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if !sm.hasData {
+			t.Fatal("hasData=false, want true")
+		}
+		if sm.cacheRead != nil {
+			t.Errorf("cacheRead = %v, want nil (incomplete — one step_finish lacks cache.read)", *sm.cacheRead)
+		}
+		if sm.cacheWrite != nil {
+			t.Errorf("cacheWrite = %v, want nil (incomplete — one step_finish lacks cache.write)", *sm.cacheWrite)
+		}
+	})
+
+	t.Run("explicit JSON null treated as absent, not emitted zero", func(t *testing.T) {
+		// Explicit JSON null for cache.read, cache.write, and cost
+		// must be treated as absent (nil pointers), not emitted zero.
+		// This matches experiment.ParseStream where *float64 pointers
+		// unmarshal null to nil. Without this guard, null would be
+		// indistinguishable from a real 0 measurement.
+		stream := `{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":null,"write":null}},"cost":null}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if !sm.hasData {
+			t.Fatal("hasData=false, want true")
+		}
+		if sm.cacheRead != nil {
+			t.Errorf("cacheRead = %v, want nil (JSON null is absent, not zero)", *sm.cacheRead)
+		}
+		if sm.cacheWrite != nil {
+			t.Errorf("cacheWrite = %v, want nil (JSON null is absent, not zero)", *sm.cacheWrite)
+		}
+		if sm.cost != nil {
+			t.Errorf("cost = %v, want nil (JSON null is absent, not zero)", *sm.cost)
+		}
+	})
+
+	t.Run("null cache on one event triggers completeness gate", func(t *testing.T) {
+		// First step_finish: cache.read=100. Second: cache.read=null.
+		// The null is absent (not zero), so cacheReadEvents=1 < steps=2
+		// → completeness gate drops the pointer to nil.
+		stream := `{"type":"step_finish","part":{"tokens":{"input":10,"output":1,"cache":{"read":100,"write":50}}}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":null,"write":null}}}}`
+		sm := extractStreamMetrics([]byte(stream))
+		if sm.cacheRead != nil {
+			t.Errorf("cacheRead = %v, want nil (null on second event fails completeness gate)", *sm.cacheRead)
+		}
+		if sm.cacheWrite != nil {
+			t.Errorf("cacheWrite = %v, want nil (null on second event fails completeness gate)", *sm.cacheWrite)
+		}
+	})
+}
+
+// TestRunBenchReplay_CacheDrift covers the cost_drift envelope's cache
+// fields. Seed a bench_run with cache telemetry and a matching recorded
+// stream; assert replayed_cache_read / original_cache_read round-trip, and
+// that cache-bearing original_bench_run carries the columns verbatim.
+// The fixture uses a single step_finish so every field (tokens_in,
+// tokens_out, cost, cache_read, cache_write) matches exactly — PASS
+// genuinely means all fields match.
+func TestRunBenchReplay_CacheDrift(t *testing.T) {
+	d := benchTestDB(t)
+
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "opencode",
+		StartedAt:  "2026-06-30T15:55:51Z",
+		LastSeenAt: "2026-06-30T15:55:51Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	benchID := mustNewIDBench(t)
+	originalCost := 0.002597825
+	originalCacheRead := int64(15232)
+	originalCacheWrite := int64(1500)
+	if err := d.InsertBenchRun(&dbpkg.BenchRun{
+		ID:                 benchID,
+		Agent:              "neuralwatt/glm-5.2-short-fast-flex",
+		Model:              "glm-5.2-short-fast-flex",
+		Task:               "addition_v1",
+		Score:              1.0,
+		TokensIn:           41,
+		TokensOut:          2,
+		Cost:               &originalCost,
+		MethodologyVersion: "v1",
+		Timestamp:          1782834992,
+		CacheRead:          &originalCacheRead,
+		CacheWrite:         &originalCacheWrite,
+	}); err != nil {
+		t.Fatalf("InsertBenchRun: %v", err)
+	}
+
+	// Single step_finish: all fields (tokens_in, tokens_out, cost,
+	// cache_read, cache_write) match the original bench_run row → PASS.
+	streamText := `{"type":"step_start","part":{}}
+{"type":"text","part":{"text":"4"}}
+{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":15232,"write":1500}},"cost":0.002597825,"model":"glm-5.2-short-fast-flex","provider":"neuralwatt"}}`
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   benchID,
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-06-30T15:56:32Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+
+	var env struct {
+		CostDrift        map[string]any  `json:"cost_drift"`
+		OriginalBenchRun json.RawMessage `json:"original_bench_run"`
+		Consistency      string          `json:"consistency"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
+	}
+
+	// cost_drift.detected = false: all fields match.
+	driftDetected, _ := env.CostDrift["detected"].(bool)
+	if driftDetected {
+		t.Errorf("cost_drift.detected = true, want false (all fields match)")
+	}
+
+	// The envelope retains both replayed and original cache values
+	// even when no drift, so PASS is diagnosable.
+	replayedCacheRead, ok := env.CostDrift["replayed_cache_read"].(float64)
+	if !ok {
+		t.Errorf("cost_drift.replayed_cache_read missing or wrong type: %T", env.CostDrift["replayed_cache_read"])
+	} else if replayedCacheRead != 15232 {
+		t.Errorf("cost_drift.replayed_cache_read = %v, want 15232", replayedCacheRead)
+	}
+	originalCacheReadJSON, ok := env.CostDrift["original_cache_read"].(float64)
+	if !ok {
+		t.Errorf("cost_drift.original_cache_read missing or wrong type: %T", env.CostDrift["original_cache_read"])
+	} else if originalCacheReadJSON != 15232 {
+		t.Errorf("cost_drift.original_cache_read = %v, want 15232", originalCacheReadJSON)
+	}
+
+	// original_bench_run carries cache columns verbatim.
+	var obr struct {
+		CacheRead  *int64 `json:"cache_read"`
+		CacheWrite *int64 `json:"cache_write"`
+	}
+	if err := json.Unmarshal(env.OriginalBenchRun, &obr); err != nil {
+		t.Fatalf("decode original_bench_run: %v", err)
+	}
+	if obr.CacheRead == nil || *obr.CacheRead != 15232 {
+		t.Errorf("original_bench_run.cache_read = %v, want 15232", obr.CacheRead)
+	}
+	if obr.CacheWrite == nil || *obr.CacheWrite != 1500 {
+		t.Errorf("original_bench_run.cache_write = %v, want 1500", obr.CacheWrite)
+	}
+
+	if env.Consistency != "PASS" {
+		t.Errorf("consistency = %q, want PASS", env.Consistency)
+	}
+
+	// Legacy replay_* keys (replay_tokens_in, replay_tokens_out,
+	// replay_cost, original_tokens_in, original_tokens_out,
+	// original_cost) must be preserved — they predate cache telemetry
+	// and downstream consumers depend on them. Cache fields use the
+	// replayed_* / original_* vocabulary. This protects against
+	// accidental renaming.
+	if _, ok := env.CostDrift["replay_tokens_in"]; !ok {
+		t.Errorf("cost_drift.replay_tokens_in missing (legacy key must be preserved)")
+	}
+	if _, ok := env.CostDrift["replay_tokens_out"]; !ok {
+		t.Errorf("cost_drift.replay_tokens_out missing (legacy key must be preserved)")
+	}
+	if _, ok := env.CostDrift["replay_cost"]; !ok {
+		t.Errorf("cost_drift.replay_cost missing (legacy key must be preserved)")
+	}
+	if _, ok := env.CostDrift["original_tokens_in"]; !ok {
+		t.Errorf("cost_drift.original_tokens_in missing (legacy key must be preserved)")
+	}
+	if _, ok := env.CostDrift["original_tokens_out"]; !ok {
+		t.Errorf("cost_drift.original_tokens_out missing (legacy key must be preserved)")
+	}
+	if _, ok := env.CostDrift["original_cost"]; !ok {
+		t.Errorf("cost_drift.original_cost missing (legacy key must be preserved)")
+	}
+	// No replayed_tokens_in / replayed_tokens_out / replayed_cost —
+	// these were never introduced; the legacy keys are the canonical ones.
+	if _, ok := env.CostDrift["replayed_tokens_in"]; ok {
+		t.Errorf("cost_drift.replayed_tokens_in present — must NOT exist (legacy replay_tokens_in is canonical)")
+	}
+	if _, ok := env.CostDrift["replayed_cost"]; ok {
+		t.Errorf("cost_drift.replayed_cost present — must NOT exist (legacy replay_cost is canonical)")
+	}
+}
+
+// no original bench_run to compare against, but replayed_cache_read /
+// replayed_cache_write surface in the "unavailable comparison" envelope.
+func TestRunBenchReplay_CacheAbsentKtxRun(t *testing.T) {
+	d := benchTestDB(t)
+
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "opencode",
+		StartedAt:  "2026-06-30T15:55:51Z",
+		LastSeenAt: "2026-06-30T15:55:51Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	// A recorded_stream with no parent bench_run (captures were
+	// taken via `ktx run --record-stream`).
+	streamText := `{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":15232,"write":1500}},"cost":0.01,"model":"glm-5.2-short-fast-flex","provider":"neuralwatt"}}`
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   "", // ktx-run path: no bench_run
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-06-30T15:56:32Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+
+	var env struct {
+		CostDrift   map[string]any `json:"cost_drift"`
+		Consistency string         `json:"consistency"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
+	}
+
+	// ktx-run path: detected=false, comparison=unavailable.
+	detected, _ := env.CostDrift["detected"].(bool)
+	if detected {
+		t.Errorf("cost_drift.detected = true, want false (ktx-run path)")
+	}
+	comparison, _ := env.CostDrift["comparison"].(string)
+	if comparison != "unavailable" {
+		t.Errorf("cost_drift.comparison = %q, want unavailable", comparison)
+	}
+
+	// replayed_cache_read / replayed_cache_write surface even on the
+	// ktx-run path (the stream is the only source, the original is nil).
+	replayedCacheRead, ok := env.CostDrift["replayed_cache_read"].(float64)
+	if !ok {
+		t.Errorf("cost_drift.replayed_cache_read missing or wrong type: %T", env.CostDrift["replayed_cache_read"])
+	} else if replayedCacheRead != 15232 {
+		t.Errorf("cost_drift.replayed_cache_read = %v, want 15232", replayedCacheRead)
+	}
+	replayedCacheWrite, ok := env.CostDrift["replayed_cache_write"].(float64)
+	if !ok {
+		t.Errorf("cost_drift.replayed_cache_write missing or wrong type: %T", env.CostDrift["replayed_cache_write"])
+	} else if replayedCacheWrite != 1500 {
+		t.Errorf("cost_drift.replayed_cache_write = %v, want 1500", replayedCacheWrite)
+	}
+
+	if env.Consistency != "PASS" {
+		t.Errorf("consistency = %q, want PASS", env.Consistency)
+	}
+
+	// Legacy replay_* keys preserved on the ktx-run path too.
+	if _, ok := env.CostDrift["replay_tokens_in"]; !ok {
+		t.Errorf("cost_drift.replay_tokens_in missing (legacy key must be preserved on ktx-run path)")
+	}
+	if _, ok := env.CostDrift["replay_tokens_out"]; !ok {
+		t.Errorf("cost_drift.replay_tokens_out missing (legacy key must be preserved on ktx-run path)")
+	}
+	if _, ok := env.CostDrift["replay_cost"]; !ok {
+		t.Errorf("cost_drift.replay_cost missing (legacy key must be preserved on ktx-run path)")
+	}
+}
+
+// TestRunBenchReplay_CacheMismatch covers cache-only drift: tokens,
+// tokens_out, and cost all match, but cache_read differs → DRIFT. The
+// envelope carries both sides for diagnosis.
+func TestRunBenchReplay_CacheMismatch(t *testing.T) {
+	d := benchTestDB(t)
+
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "opencode",
+		StartedAt:  "2026-06-30T15:55:51Z",
+		LastSeenAt: "2026-06-30T15:55:51Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	benchID := mustNewIDBench(t)
+	originalCost := 0.002597825
+	originalCacheRead := int64(15232)
+	originalCacheWrite := int64(1500)
+	if err := d.InsertBenchRun(&dbpkg.BenchRun{
+		ID:                 benchID,
+		Agent:              "neuralwatt/glm-5.2-short-fast-flex",
+		Model:              "glm-5.2-short-fast-flex",
+		Task:               "addition_v1",
+		Score:              1.0,
+		TokensIn:           41,
+		TokensOut:          2,
+		Cost:               &originalCost,
+		MethodologyVersion: "v1",
+		Timestamp:          1782834992,
+		CacheRead:          &originalCacheRead,
+		CacheWrite:         &originalCacheWrite,
+	}); err != nil {
+		t.Fatalf("InsertBenchRun: %v", err)
+	}
+
+	// tokens/cost match, but cache_read=9999 ≠ 15232 → DRIFT.
+	streamText := `{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":9999,"write":1500}},"cost":0.002597825,"model":"glm-5.2-short-fast-flex","provider":"neuralwatt"}}`
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   benchID,
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-06-30T15:56:32Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+
+	var env struct {
+		CostDrift   map[string]any `json:"cost_drift"`
+		Consistency string         `json:"consistency"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
+	}
+
+	driftDetected, _ := env.CostDrift["detected"].(bool)
+	if !driftDetected {
+		t.Errorf("cost_drift.detected = false, want true (cache_read mismatch: 9999 ≠ 15232)")
+	}
+	if env.Consistency != "DRIFT" {
+		t.Errorf("consistency = %q, want DRIFT", env.Consistency)
+	}
+
+	// Envelope carries both sides for diagnosis.
+	replayedCacheRead, ok := env.CostDrift["replayed_cache_read"].(float64)
+	if !ok || replayedCacheRead != 9999 {
+		t.Errorf("cost_drift.replayed_cache_read = %v, want 9999", env.CostDrift["replayed_cache_read"])
+	}
+	originalCR, ok := env.CostDrift["original_cache_read"].(float64)
+	if !ok || originalCR != 15232 {
+		t.Errorf("cost_drift.original_cache_read = %v, want 15232", env.CostDrift["original_cache_read"])
+	}
+}
+
+// TestRunBenchReplay_CacheNilVsZero covers the absent-vs-emitted-zero
+// distinction on cache drift. A bench_run with cache_read=nil (absent —
+// pre-cache runtime) and a stream emitting cache_read=0 (cold cache) is
+// a drift: absent ≠ emitted zero. The comparison must not treat nil and
+// 0 as equal.
+func TestRunBenchReplay_CacheNilVsZero(t *testing.T) {
+	d := benchTestDB(t)
+
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "opencode",
+		StartedAt:  "2026-06-30T15:55:51Z",
+		LastSeenAt: "2026-06-30T15:55:51Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	// bench_run has cache_read=nil (absent — pre-cache runtime).
+	// Stream emits cache_read=0 (cold cache). Absent ≠ emitted
+	// zero → DRIFT.
+	benchID := mustNewIDBench(t)
+	originalCost := 0.002597825
+	if err := d.InsertBenchRun(&dbpkg.BenchRun{
+		ID:                 benchID,
+		Agent:              "neuralwatt/glm-5.2-short-fast-flex",
+		Model:              "glm-5.2-short-fast-flex",
+		Task:               "addition_v1",
+		Score:              1.0,
+		TokensIn:           41,
+		TokensOut:          2,
+		Cost:               &originalCost,
+		MethodologyVersion: "v1",
+		Timestamp:          1782834992,
+		// CacheRead / CacheWrite left nil (absent — pre-cache runtime)
+	}); err != nil {
+		t.Fatalf("InsertBenchRun: %v", err)
+	}
+
+	streamText := `{"type":"step_finish","part":{"tokens":{"input":41,"output":2,"cache":{"read":0,"write":0}},"cost":0.002597825,"model":"glm-5.2-short-fast-flex","provider":"neuralwatt"}}`
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   benchID,
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-06-30T15:56:32Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+
+	var env struct {
+		CostDrift   map[string]any `json:"cost_drift"`
+		Consistency string         `json:"consistency"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
+	}
+
+	driftDetected, _ := env.CostDrift["detected"].(bool)
+	if !driftDetected {
+		t.Errorf("cost_drift.detected = false, want true (nil ≠ emitted zero on cache_read)")
+	}
+	if env.Consistency != "DRIFT" {
+		t.Errorf("consistency = %q, want DRIFT", env.Consistency)
+	}
+
+	// original_cache_read must be null (nil pointer), replayed_cache_read must be 0.
+	if env.CostDrift["original_cache_read"] != nil {
+		t.Errorf("original_cache_read = %v, want null (absent)", env.CostDrift["original_cache_read"])
+	}
+	replayedCacheRead, ok := env.CostDrift["replayed_cache_read"].(float64)
+	if !ok {
+		t.Errorf("cost_drift.replayed_cache_read missing or wrong type: %T", env.CostDrift["replayed_cache_read"])
+	} else if replayedCacheRead != 0 {
+		t.Errorf("cost_drift.replayed_cache_read = %v, want 0 (emitted zero)", replayedCacheRead)
+	}
+}
+
+// TestRunBenchReplay_MultiStepCacheSUM covers multi-step cache SUM
+// semantics end-to-end through the replay path. Two step_finish events
+// with cache.read=100 and cache.read=15200 SUM to 15300 (matching the
+// bench_run row). MAX would give 15200 ≠ 15300 → DRIFT, but SUM
+// correctly produces PASS.
+func TestRunBenchReplay_MultiStepCacheSUM(t *testing.T) {
+	d := benchTestDB(t)
+
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID:         sessionID,
+		Agent:      "opencode",
+		StartedAt:  "2026-06-30T15:55:51Z",
+		LastSeenAt: "2026-06-30T15:55:51Z",
+	}); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	benchID := mustNewIDBench(t)
+	originalCost := 0.03
+	originalCacheRead := int64(15300) // SUM of 100 + 15200
+	originalCacheWrite := int64(1500) // SUM of 500 + 1000
+	if err := d.InsertBenchRun(&dbpkg.BenchRun{
+		ID:                 benchID,
+		Agent:              "neuralwatt/glm-5.2-short-fast-flex",
+		Model:              "glm-5.2-short-fast-flex",
+		Task:               "addition_v1",
+		Score:              1.0,
+		TokensIn:           41, // SUM of 10 + 31
+		TokensOut:          2,  // SUM of 1 + 1
+		Cost:               &originalCost,
+		MethodologyVersion: "v1",
+		Timestamp:          1782834992,
+		CacheRead:          &originalCacheRead,
+		CacheWrite:         &originalCacheWrite,
+	}); err != nil {
+		t.Fatalf("InsertBenchRun: %v", err)
+	}
+
+	// Two step_finish events: every field SUMs to the bench_run row.
+	// If MAX were used, cache_read=15200 ≠ 15300 → DRIFT (wrong).
+	streamText := `{"type":"step_start","part":{}}
+{"type":"step_finish","part":{"tokens":{"input":10,"output":1,"cache":{"read":100,"write":500}},"cost":0.01,"model":"glm-5.2-short-fast-flex","provider":"neuralwatt"}}
+{"type":"step_finish","part":{"tokens":{"input":31,"output":1,"cache":{"read":15200,"write":1000}},"cost":0.02,"model":"glm-5.2-short-fast-flex","provider":"neuralwatt"}}`
+	rsID := mustNewIDBench(t)
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID:           rsID,
+		SessionID:    sessionID,
+		BenchRunID:   benchID,
+		StreamText:   streamText,
+		ContentHash:  dbpkg.ContentHash(streamText),
+		StreamFormat: "opencode-jsonl-1",
+		CapturedAt:   "2026-06-30T15:56:32Z",
+	}); err != nil {
+		t.Fatalf("InsertRecordedStream: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+
+	var env struct {
+		CostDrift   map[string]any `json:"cost_drift"`
+		Consistency string         `json:"consistency"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
+	}
+
+	// SUM: all fields match the bench_run row → PASS.
+	driftDetected, _ := env.CostDrift["detected"].(bool)
+	if driftDetected {
+		t.Errorf("cost_drift.detected = true, want false (SUM matches: 100+15200=15300, not MAX=15200)")
+	}
+	if env.Consistency != "PASS" {
+		t.Errorf("consistency = %q, want PASS", env.Consistency)
+	}
+
+	// Verify the replayed SUM values surface in the envelope.
+	replayedCacheRead, ok := env.CostDrift["replayed_cache_read"].(float64)
+	if !ok || replayedCacheRead != 15300 {
+		t.Errorf("replayed_cache_read = %v, want 15300 (SUM of 100+15200)", env.CostDrift["replayed_cache_read"])
+	}
+}

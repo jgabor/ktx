@@ -19,6 +19,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"math"
 	"testing"
@@ -318,6 +319,287 @@ func TestInsertBenchRun_NilRejected(t *testing.T) {
 	t.Run("empty id rejected", func(t *testing.T) {
 		if err := d.InsertBenchRun(&BenchRun{}); err == nil {
 			t.Fatal("InsertBenchRun(empty id) returned nil error")
+		}
+	})
+}
+
+// TestInsertBenchRun_CacheTelemetryRoundTrip covers the absent-vs-zero
+// contract for the additive cache telemetry columns on bench_runs.
+// CacheRead / CacheWrite are *int64 nullable pointers — a runtime that
+// emits cache telemetry on step_finish produces non-nil pointers on the
+// bench_runs row; a runtime that does not (or a pre-cache bench run)
+// produces SQL NULL that round-trips to nil pointers.
+func TestInsertBenchRun_CacheTelemetryRoundTrip(t *testing.T) {
+	t.Run("populated cache telemetry round-trips verbatim", func(t *testing.T) {
+		d, err := OpenMemory()
+		if err != nil {
+			t.Fatalf("OpenMemory: %v", err)
+		}
+		t.Cleanup(func() { d.Close() })
+
+		id := mustNewID(t)
+		cacheRead := int64(15232)
+		cacheWrite := int64(1500)
+		b := &BenchRun{
+			ID: id, Agent: "opencode", Model: "m", Task: "t", Score: 1,
+			MethodologyVersion: "v1", Timestamp: 1718928000,
+			CacheRead:  &cacheRead,
+			CacheWrite: &cacheWrite,
+		}
+		if err := d.InsertBenchRun(b); err != nil {
+			t.Fatalf("InsertBenchRun: %v", err)
+		}
+		got, err := d.QueryBenchRun(id)
+		if err != nil {
+			t.Fatalf("QueryBenchRun: %v", err)
+		}
+		if got.CacheRead == nil || *got.CacheRead != cacheRead {
+			t.Errorf("CacheRead = %v, want pointer to %d", got.CacheRead, cacheRead)
+		}
+		if got.CacheWrite == nil || *got.CacheWrite != cacheWrite {
+			t.Errorf("CacheWrite = %v, want pointer to %d", got.CacheWrite, cacheWrite)
+		}
+	})
+
+	t.Run("emitted zero cache round-trips as 0 (not NULL)", func(t *testing.T) {
+		// An explicitly emitted zero cache_read is a real
+		// measurement (no cache hits on a cold prompt). The SQL
+		// column is NULL only when the runtime did not emit
+		// cache telemetry at all.
+		d, err := OpenMemory()
+		if err != nil {
+			t.Fatalf("OpenMemory: %v", err)
+		}
+		t.Cleanup(func() { d.Close() })
+
+		id := mustNewID(t)
+		zero := int64(0)
+		b := &BenchRun{
+			ID: id, Agent: "opencode", Model: "m", Task: "t", Score: 1,
+			MethodologyVersion: "v1", Timestamp: 1718928000,
+			CacheRead:  &zero,
+			CacheWrite: &zero,
+		}
+		if err := d.InsertBenchRun(b); err != nil {
+			t.Fatalf("InsertBenchRun: %v", err)
+		}
+		got, err := d.QueryBenchRun(id)
+		if err != nil {
+			t.Fatalf("QueryBenchRun: %v", err)
+		}
+		if got.CacheRead == nil || *got.CacheRead != 0 {
+			t.Errorf("CacheRead = %v, want pointer to 0 (emitted zero preserved)", got.CacheRead)
+		}
+		if got.CacheWrite == nil || *got.CacheWrite != 0 {
+			t.Errorf("CacheWrite = %v, want pointer to 0 (emitted zero preserved)", got.CacheWrite)
+		}
+	})
+
+	t.Run("nil cache telemetry round-trips as NULL", func(t *testing.T) {
+		// Pre-cache or cache-less run: CacheRead and CacheWrite
+		// stay nil, the columns are NULL. The absent-vs-zero
+		// distinction survives the round-trip.
+		d, err := OpenMemory()
+		if err != nil {
+			t.Fatalf("OpenMemory: %v", err)
+		}
+		t.Cleanup(func() { d.Close() })
+
+		id := mustNewID(t)
+		b := &BenchRun{
+			ID: id, Agent: "opencode", Model: "m", Task: "t", Score: 1,
+			MethodologyVersion: "v1", Timestamp: 1718928000,
+		}
+		if err := d.InsertBenchRun(b); err != nil {
+			t.Fatalf("InsertBenchRun: %v", err)
+		}
+		got, err := d.QueryBenchRun(id)
+		if err != nil {
+			t.Fatalf("QueryBenchRun: %v", err)
+		}
+		if got.CacheRead != nil {
+			t.Errorf("CacheRead = %v, want nil (cache telemetry absent)", *got.CacheRead)
+		}
+		if got.CacheWrite != nil {
+			t.Errorf("CacheWrite = %v, want nil (cache telemetry absent)", *got.CacheWrite)
+		}
+	})
+
+	t.Run("QueryBenchRuns surfaces cache telemetry on every row", func(t *testing.T) {
+		d, err := OpenMemory()
+		if err != nil {
+			t.Fatalf("OpenMemory: %v", err)
+		}
+		t.Cleanup(func() { d.Close() })
+
+		// Two rows: one with cache telemetry, one without.
+		zero := int64(0)
+		populated := int64(7777)
+		rows := []*BenchRun{
+			{ID: "aaaaaaaaaaaaaaaa", Agent: "a", Model: "m", Task: "t", Score: 1, MethodologyVersion: "v1", Timestamp: 100, CacheRead: &populated, CacheWrite: &populated},
+			{ID: "bbbbbbbbbbbbbbbb", Agent: "a", Model: "m", Task: "t", Score: 1, MethodologyVersion: "v1", Timestamp: 200, CacheRead: &zero, CacheWrite: &zero},
+		}
+		for _, b := range rows {
+			if err := d.InsertBenchRun(b); err != nil {
+				t.Fatalf("InsertBenchRun(%q): %v", b.ID, err)
+			}
+		}
+		got, err := d.QueryBenchRuns()
+		if err != nil {
+			t.Fatalf("QueryBenchRuns: %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("got %d rows, want 2", len(got))
+		}
+		// Order: timestamp ASC. Row 0 = 100, cache = 7777. Row 1 = 200, cache = 0.
+		if got[0].CacheRead == nil || *got[0].CacheRead != populated {
+			t.Errorf("row[0].CacheRead = %v, want %d", got[0].CacheRead, populated)
+		}
+		if got[1].CacheRead == nil || *got[1].CacheRead != 0 {
+			t.Errorf("row[1].CacheRead = %v, want 0 (emitted-zero preserved)", got[1].CacheRead)
+		}
+	})
+}
+
+// TestOpen_BenchRunsCacheMigration covers the contract: an older
+// database at user_version=1 without the cache_read / cache_write
+// columns picks them up on open (additive ALTER TABLE ADD COLUMN),
+// existing rows have NULL for the cache columns, and a second migrate
+// is a no-op. Mirrors TestOpen_RuntimeMigration's structure.
+func TestOpen_BenchRunsCacheMigration(t *testing.T) {
+	t.Run("user_version=1 db gains cache columns idempotently", func(t *testing.T) {
+		path := t.TempDir() + "/pre-cache.db"
+		raw, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=foreign_keys(1)")
+		if err != nil {
+			t.Fatalf("open raw sqlite: %v", err)
+		}
+		t.Cleanup(func() { _ = raw.Close() })
+
+		// Build a pre-cache bench_runs schema (the 10-column legacy shape)
+		// and explicitly stamp user_version=1 so it simulates a real v1
+		// database that must trigger the v1→v2 migration path.
+		if _, err := raw.Exec(`CREATE TABLE sessions (
+			id TEXT PRIMARY KEY,
+			agent TEXT,
+			started_at TEXT,
+			ended_at TEXT,
+			last_seen_at TEXT,
+			tool_call_count INTEGER DEFAULT 0
+		)`); err != nil {
+			t.Fatalf("create sessions: %v", err)
+		}
+		if _, err := raw.Exec(`CREATE TABLE bench_runs (
+			id TEXT PRIMARY KEY,
+			agent TEXT,
+			model TEXT,
+			task TEXT,
+			score REAL,
+			tokens_in INTEGER,
+			tokens_out INTEGER,
+			cost REAL,
+			methodology_version TEXT,
+			timestamp INTEGER
+		)`); err != nil {
+			t.Fatalf("create legacy bench_runs: %v", err)
+		}
+		legacyID := "cccccccccccccccc"
+		if _, err := raw.Exec(
+			`INSERT INTO bench_runs (id, agent, model, task, score, tokens_in, tokens_out, methodology_version, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			legacyID, "legacy-agent", "m", "t", 1.0, 0, 0, "v1", 100,
+		); err != nil {
+			t.Fatalf("seed legacy bench_run: %v", err)
+		}
+		if _, err := raw.Exec(`PRAGMA user_version = 1`); err != nil {
+			t.Fatalf("set user_version=1: %v", err)
+		}
+		_ = raw.Close()
+
+		d, err := Open(path)
+		if err != nil {
+			t.Fatalf("Open v1 db: %v", err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+
+		// Verify schema version bumped to 2.
+		var gotVersion int
+		if err := d.db.QueryRow(`PRAGMA user_version`).Scan(&gotVersion); err != nil {
+			t.Fatalf("read user_version: %v", err)
+		}
+		if gotVersion != 2 {
+			t.Fatalf("user_version = %d, want 2 after migration", gotVersion)
+		}
+
+		for _, col := range []string{"cache_read", "cache_write"} {
+			var present int
+			if err := d.db.QueryRow(
+				"SELECT COUNT(*) FROM pragma_table_info('bench_runs') WHERE name = ?",
+				col,
+			).Scan(&present); err != nil {
+				t.Fatalf("pragma_table_info bench_runs.%s: %v", col, err)
+			}
+			if present != 1 {
+				t.Fatalf("bench_runs column %q missing after cache migration", col)
+			}
+		}
+
+		// Pre-cache rows carry NULL for the new columns and are queryable.
+		got, err := d.QueryBenchRun(legacyID)
+		if err != nil {
+			t.Fatalf("QueryBenchRun legacy: %v", err)
+		}
+		if got.CacheRead != nil {
+			t.Errorf("legacy CacheRead = %v, want nil (NULL preserved on existing row)", *got.CacheRead)
+		}
+		if got.CacheWrite != nil {
+			t.Errorf("legacy CacheWrite = %v, want nil (NULL preserved on existing row)", *got.CacheWrite)
+		}
+
+		// New rows with cache telemetry round-trip through the migrated table.
+		cacheRead, cacheWrite := int64(15232), int64(1500)
+		cost := 0.001
+		cacheRun := &BenchRun{
+			ID: mustNewID(t), Agent: "test-agent", Model: "m", Task: "t", Score: 0.5,
+			TokensIn: 100, TokensOut: 10, Cost: &cost, MethodologyVersion: "v4-eval-matrix",
+			Timestamp: 200, CacheRead: &cacheRead, CacheWrite: &cacheWrite,
+		}
+		if err := d.InsertBenchRun(cacheRun); err != nil {
+			t.Fatalf("InsertBenchRun with cache: %v", err)
+		}
+		gotCache, err := d.QueryBenchRun(cacheRun.ID)
+		if err != nil {
+			t.Fatalf("QueryBenchRun cache: %v", err)
+		}
+		if gotCache.CacheRead == nil || *gotCache.CacheRead != cacheRead {
+			t.Errorf("cache CacheRead = %v, want %d", gotCache.CacheRead, cacheRead)
+		}
+		if gotCache.CacheWrite == nil || *gotCache.CacheWrite != cacheWrite {
+			t.Errorf("cache CacheWrite = %v, want %d", gotCache.CacheWrite, cacheWrite)
+		}
+
+		// QueryBenchRuns returns both rows (bench report path works).
+		allRows, err := d.QueryBenchRuns()
+		if err != nil {
+			t.Fatalf("QueryBenchRuns: %v", err)
+		}
+		if len(allRows) != 2 {
+			t.Fatalf("QueryBenchRuns returned %d rows, want 2", len(allRows))
+		}
+
+		// Re-running migrate is idempotent.
+		if err := migrate(d.db); err != nil {
+			t.Fatalf("second migrate: %v", err)
+		}
+		for _, col := range []string{"cache_read", "cache_write"} {
+			var present int
+			if err := d.db.QueryRow(
+				"SELECT COUNT(*) FROM pragma_table_info('bench_runs') WHERE name = ?",
+				col,
+			).Scan(&present); err != nil {
+				t.Fatalf("pragma_table_info bench_runs.%s after re-migrate: %v", col, err)
+			}
+			if present != 1 {
+				t.Fatalf("column %q duplicated or missing after idempotent migrate", col)
+			}
 		}
 	})
 }

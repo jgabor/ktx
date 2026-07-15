@@ -73,9 +73,16 @@ ktx bench compare \
   --model neuralwatt/glm-5.2-short-fast-flex \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --rounds 3
+
+# With a model variant (e.g. high):
+ktx bench compare \
+  --model openai/gpt-5.6-luna \
+  --variant high \
+  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --rounds 3
 ```
 
-**Model policy:** use `neuralwatt/*` models only. Never use `github-copilot/*` models — they are on an enterprise plan and not permitted for this repo.
+**Model policy:** any provider is allowed except `github-copilot/*` models — they are on an enterprise plan and not permitted for this repo. The CLI rejects `github-copilot/*` at validation time.
 
 ### Evidence validation
 

@@ -24,6 +24,7 @@ import (
 
 type CompareOptions struct {
 	Model            string
+	Variant          string
 	TaskFile         string
 	Task             Task
 	TargetValid      int
@@ -168,8 +169,8 @@ func (runner *Runner) prepareOptions(options *CompareOptions) error {
 	if options.Task.ExpectedOutput == nil && options.Task.ExpectedFacts == nil {
 		return errors.New("task expected output or facts are required")
 	}
-	if !strings.HasPrefix(options.Model, "neuralwatt/") {
-		return errors.New("model must use the neuralwatt/ provider")
+	if strings.HasPrefix(options.Model, "github-copilot/") {
+		return errors.New("github-copilot/* models are not permitted for this repo; use a different provider such as neuralwatt/* or openai/*")
 	}
 	if options.TargetValid <= 0 {
 		options.TargetValid = 3
@@ -298,9 +299,14 @@ func (runner *Runner) createManifest(ctx context.Context, options CompareOptions
 	}
 	repository := runner.repositoryMetadata(ctx, options.RepoRoot)
 	repository.Snapshot = snapshot
+	var variant *string
+	if options.Variant != "" {
+		v := options.Variant
+		variant = &v
+	}
 	return Manifest{
 		SchemaVersion: 1, ExperimentID: experimentID, CreatedAt: runner.timestamp(), Task: options.Task,
-		Model: options.Model, TargetValidPerPipeline: options.TargetValid, MaxAttempts: options.MaxAttempts,
+		Model: options.Model, Variant: variant, TargetValidPerPipeline: options.TargetValid, MaxAttempts: options.MaxAttempts,
 		AttemptTimeout: options.AttemptTimeout.String(), TerminationGrace: options.TerminationGrace.String(),
 		PipelineExecutionPolicy: map[string]any{"kind": "alternating_by_cycle", "first_cycle": []string{Baseline, Candidate}, "second_cycle": []string{Candidate, Baseline}},
 		Repository:              repository, Image: map[string]string{"name": options.Image, "id": strings.TrimSpace(imageID)},
@@ -401,8 +407,12 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		"-v", options.AuthPath + ":/home/node/.local/share/opencode/auth.json:ro",
 		"-v", manifest.Pipelines[side].Path + ":/home/node/.config/ktx/ktx.toml:ro",
 		"-v", database + ":/home/node/.local/share/ktx/ktx.db:rw",
-		"-v", workspace + ":/work:rw", options.Image, "-m", options.Model, manifest.Task.Prompt,
+		"-v", workspace + ":/work:rw", options.Image, "-m", options.Model,
 	}
+	if options.Variant != "" {
+		command = append(command, "--variant", options.Variant)
+	}
+	command = append(command, manifest.Task.Prompt)
 	startedAt := runner.timestamp()
 	result, runErr := runner.Executor.Run(ctx, Command{Args: command, Stdout: stream, Stderr: stderr, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
 	streamErr, stderrErr := stream.Close(), stderr.Close()

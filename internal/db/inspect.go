@@ -107,6 +107,8 @@ var benchRunsSchema = []string{
 	"cost",
 	"methodology_version",
 	"timestamp",
+	"cache_read",
+	"cache_write",
 }
 
 // CheckSchema verifies the database schema matches the core schema
@@ -184,7 +186,7 @@ func (d *DB) HasCostColumns() (bool, []string, error) {
 // yet been migrated has no such table. The doctor uses this
 // probe to distinguish three states:
 //
-//   - Table present + all 10 columns present → "ok"
+//   - Table present + all 12 columns present → "ok"
 //   - Table present + some columns missing → "warning" (forward-fix on next open)
 //   - Table absent entirely → "warning" (unmigrated database; core and cost-publication records
 //     still queryable, the migration creates the table on next open)

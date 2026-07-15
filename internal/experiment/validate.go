@@ -20,6 +20,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	attempts = reconcileCacheFromStream(attempts, experimentDir)
 	seen := map[string]bool{}
 	checks := []map[string]any{}
 	valid := true

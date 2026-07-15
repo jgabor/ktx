@@ -40,8 +40,8 @@ commands.
 `ktx bench run`, `report`, `compare`, `rank`, `validate`, and `corpus generate`
 use Go implementations shipped in the binary. Named pipelines, tasks, and
 corpus fixtures live under [`tools/bench`](tools/bench); the runbook is
-[`docs/pipelines.md`](docs/pipelines.md). Live runs use only `neuralwatt/*`
-models.
+[`docs/pipelines.md`](docs/pipelines.md). Live runs accept any provider
+except `github-copilot/*`.
 
 ## Development
 

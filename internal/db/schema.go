@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 // schemaStatements creates the current database schema. The statements remain
 // idempotent so stale and partially migrated databases can be repaired safely.
@@ -63,7 +63,9 @@ var schemaStatements = []string{
 		tokens_out          INTEGER,
 		cost                REAL,
 		methodology_version TEXT,
-		timestamp           INTEGER
+		timestamp           INTEGER,
+		cache_read          INTEGER,
+		cache_write         INTEGER
 	)`,
 	// compressed (the reversibility layer): one row per `ktx compress`
 	// invocation. Holds compressed artifacts SEPARATE from tool_calls
@@ -189,12 +191,14 @@ type benchRunsColumn struct {
 	Type string
 }
 
-// benchRunsColumns are the bench_runs columns. The list covers all 10
+// benchRunsColumns are the bench_runs columns. The list covers all 12
 // columns per the reproducibility contract: `id` (nanoid), `agent`,
 // `model`, `task`, `score`, `tokens_in`, `tokens_out`, `cost`,
 // `methodology_version` (the methodology column), `timestamp` (Unix epoch
-// seconds). Idempotency is handled identically to costColumns — PRAGMA
-// table_info is consulted before ALTER TABLE ADD COLUMN, so a re-open
+// seconds), `cache_read` and `cache_write` (additive NULL-when-absent
+// cache-telemetry columns sourced from the runtime's step_finish event,
+// not from tool_calls). Idempotency is handled identically to costColumns —
+// PRAGMA table_info is consulted before ALTER TABLE ADD COLUMN, so a re-open
 // of a fully migrated database is a no-op and a partial bench_runs
 // schema is forward-fixed on the next open.
 var benchRunsColumns = []benchRunsColumn{
@@ -208,6 +212,8 @@ var benchRunsColumns = []benchRunsColumn{
 	{Name: "cost", Type: "REAL"},
 	{Name: "methodology_version", Type: "TEXT"},
 	{Name: "timestamp", Type: "INTEGER"},
+	{Name: "cache_read", Type: "INTEGER"},
+	{Name: "cache_write", Type: "INTEGER"},
 }
 
 // compressedColumn enumerates a single `compressed` table column. The

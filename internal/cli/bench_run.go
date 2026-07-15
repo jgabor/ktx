@@ -59,7 +59,7 @@ func loadMethodology(version string) (*methodology, string, error) {
 //  8. Derivation fills bench_runs.cost when the tool_calls'
 //     SUM(cost) is NULL but tokens + model are present and the cache
 //     has the price.
-//  9. Insert the bench_runs row with all 10 columns populated.
+//  9. Insert the bench_runs row with all 12 columns populated.
 //  10. Print the headline JSON envelope to stdout and a one-line
 //     summary to stderr (wrapper convention).
 //
@@ -282,6 +282,18 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		Cost:               sumCost,
 		MethodologyVersion: m.Version,
 		Timestamp:          time.Now().UTC().Unix(),
+	}
+	// streamMetrics carries cache telemetry as nullable pointers
+	// (absent stays nil; emitted zero is non-nil). The bench_runs
+	// row replicates them verbatim — no fall-through to tool_calls
+	// aggregation, which has no cache columns.
+	if streamMetrics.cacheRead != nil {
+		v := *streamMetrics.cacheRead
+		br.CacheRead = &v
+	}
+	if streamMetrics.cacheWrite != nil {
+		v := *streamMetrics.cacheWrite
+		br.CacheWrite = &v
 	}
 	if br.Agent == "" || br.Agent == "/" {
 		// Fallback when neither tool_calls nor the methodology
@@ -531,26 +543,34 @@ func scoreExactMatch(actual, expected string) float64 {
 // populate bench_runs row fields that would otherwise stay 0/NULL via
 // SummarizeBenchToolCalls.
 type streamMetrics struct {
-	tokensIn  int64
-	tokensOut int64
-	cost      *float64
-	model     string
-	provider  string
-	hasData   bool
+	tokensIn   int64
+	tokensOut  int64
+	cost       *float64
+	model      string
+	provider   string
+	cacheRead  *int64
+	cacheWrite *int64
+	hasData    bool
 }
 
 // extractStreamMetrics parses the captured JSONL stream looking for
 // step_finish events (the OpenCode 1.17.8 step-aggregate). Returns
-// a streamMetrics populated with the SUM of tokens_in / tokens_out
-// over all step_finish lines; cost is the MAX provider-reported
-// part.cost across step_finish lines (matches the provider-cost
-// branch of the stream contract); model is the methodology-pinned
-// model id when the stream does not carry a model identifier (the
-// step_finish event has no model field today, only part.cost and
-// part.tokens). provider is derived per the OpenCode runtime-known
-// default ("opencode") unless explicitly present on a step_finish
-// event (the parser also defaults to "opencode" for the same reason;
-// see parser.go:226-229).
+// a streamMetrics populated with the SUM of tokens_in / tokens_out /
+// cost / cache_read / cache_write over all step_finish lines (all are
+// per-request deltas — tokens.total == input + output + reasoning +
+// cache.read + cache.write for every event); model is the
+// methodology-pinned model id when the stream does not carry a model
+// identifier (the step_finish event has no model field today, only
+// part.cost and part.tokens). provider is derived per the OpenCode
+// runtime-known default ("opencode") unless explicitly present on a
+// step_finish event (the parser also defaults to "opencode" for the
+// same reason; see parser.go:226-229).
+//
+// Cache telemetry (part.tokens.cache.{read,write}) is only exposed
+// when the field was present on EVERY step_finish event (completeness
+// gate — partial evidence is discarded to nil, not a misleading SUM
+// from a subset of events). An emitted zero is a valid measurement
+// (cold cache); absent stays nil.
 //
 // When the stream carries no step_finish events (e.g., a flat-
 // fallback runtime that emits only tool calls with tokens on
@@ -562,6 +582,9 @@ type streamMetrics struct {
 // Scanner consumes a *bytes.Buffer, the read offset is at EOF).
 func extractStreamMetrics(stdout []byte) streamMetrics {
 	var sm streamMetrics
+	var cacheReadVal, cacheWriteVal int64
+	var sawCacheRead, sawCacheWrite bool
+	var cacheReadEvents, cacheWriteEvents, stepCount int
 	scanner := bufio.NewScanner(bytes.NewReader(stdout))
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
@@ -578,15 +601,20 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 		if eventType != "step_finish" {
 			continue
 		}
-		// part.tokens.input / .output is the OpenCode 1.17.8 shape.
+		// part.tokens.input / .output / .cache.{read,write} is the OpenCode 1.17.8 shape.
 		var part map[string]json.RawMessage
 		if err := json.Unmarshal(top["part"], &part); err != nil {
 			continue
 		}
 		sm.hasData = true
+		stepCount++
 		var tk struct {
 			Input  json.RawMessage `json:"input"`
 			Output json.RawMessage `json:"output"`
+			Cache  struct {
+				Read  json.RawMessage `json:"read"`
+				Write json.RawMessage `json:"write"`
+			} `json:"cache"`
 		}
 		_ = json.Unmarshal(part["tokens"], &tk)
 		if n, ok := jsonNumberToInt64(tk.Input); ok {
@@ -595,19 +623,38 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 		if n, ok := jsonNumberToInt64(tk.Output); ok {
 			sm.tokensOut += n
 		}
-		// part.cost: provider-reported cost in the stream (provider-cost branch).
-		// MAX across events keeps the largest reported cost (the
-		// last step_finish usually carries the total). cost=0 is a
-		// valid provider-reported value (e.g., cache hits) and is
-		// not an absent value; absent stays nil.
-		if raw := part["cost"]; len(raw) > 0 {
+		// part.cost: non-cumulative per-step delta — SUM across
+		// step_finish events (mirrors experiment.ParseStream).
+		// cost=0 is a valid provider-reported value (e.g., cache
+		// hits) and is not an absent value; explicit JSON null
+		// and absent keys stay nil (matching *float64 semantics
+		// in experiment.ParseStream).
+		if raw := part["cost"]; len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
 			var c float64
 			if err := json.Unmarshal(raw, &c); err == nil {
-				if sm.cost == nil || c > *sm.cost {
-					v := c
+				if sm.cost == nil {
+					v := 0.0
 					sm.cost = &v
 				}
+				*sm.cost += c
 			}
+		}
+		// part.tokens.cache.read / .write: per-request cache
+		// token counts (tokens.total == tokens.input +
+		// tokens.output + tokens.reasoning + tokens.cache.read +
+		// tokens.cache.write). SUM across events matches
+		// the input/output/cost aggregation. Tracked locally
+		// and exposed only when the field appeared on every
+		// step_finish (completeness gate below).
+		if n, ok := jsonNumberToInt64(tk.Cache.Read); ok {
+			cacheReadVal += n
+			sawCacheRead = true
+			cacheReadEvents++
+		}
+		if n, ok := jsonNumberToInt64(tk.Cache.Write); ok {
+			cacheWriteVal += n
+			sawCacheWrite = true
+			cacheWriteEvents++
 		}
 		if raw := part["model"]; len(raw) > 0 {
 			var m string
@@ -622,6 +669,19 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 			}
 		}
 	}
+	// Completeness gate: only expose a cache metric when that field
+	// was present on every step_finish event (mirrors
+	// experiment.ParseStream's `sawCacheRead && CacheReadEvents ==
+	// steps`). Partial evidence drops to nil so a SUM from a subset
+	// of events never misrepresents the attempt.
+	if sawCacheRead && cacheReadEvents == stepCount {
+		v := cacheReadVal
+		sm.cacheRead = &v
+	}
+	if sawCacheWrite && cacheWriteEvents == stepCount {
+		v := cacheWriteVal
+		sm.cacheWrite = &v
+	}
 	return sm
 }
 
@@ -630,10 +690,12 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 // default UnmarshalJSON; int64 values from OpenCode step_finish
 // tokens round-trip cleanly when the source emits them without
 // a fractional component (real OpenCode 1.17.8 emits integer
-// token counts). Returns (0, false) on parsing failure or non-
-// numeric input; the caller treats false as 'field absent'.
+// token counts). Returns (0, false) on parsing failure, non-numeric
+// input, or explicit JSON null — the caller treats false as 'field
+// absent', matching experiment.ParseStream's *float64 pointer
+// semantics where null unmarshals to nil (not emitted zero).
 func jsonNumberToInt64(raw json.RawMessage) (int64, bool) {
-	if len(raw) == 0 {
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return 0, false
 	}
 	var i int64

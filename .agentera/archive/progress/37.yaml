@@ -1,0 +1,19 @@
+schemaVersion: agentera.stateArchiveEntry.v1
+artifact_id: progress
+entry_number: 37
+record:
+  number: 37
+  timestamp: 2026-07-16 05:04
+  type: fix
+  phase: deliberate
+  what: Corrected Decision 30's equality contract and restored Decisions 27-29 to their pre-task confidence values.
+  inspiration: Independent evaluation found underspecified JSON equality and unauthorized confidence changes in cycle 36.
+  discovered: "Cycle 36's claim that changing Decisions 27-29 from high to firm had explicit approval was false and is retracted. Agentera 3.0.0-dev.22 supports only satisfaction updates for existing decisions: state decisions update --choice is rejected as an unrecognized argument, while the numbered archive is immutable. After explicit authorization for the only viable synchronized correction, Decision 30's active and archive records were amended together and rehashed; no Decision 31 was created."
+  verified: Decision 30 retrieval passed from verified archive .agentera/archive/decisions/30.yaml with SHA-256 50a6f5d2d9009a7970483244c98ef53363c312bb6c22915964a59f8fc2e76f67. Its equality rule now preserves exact numeric lexemes (1, 1.0, and 1e0 differ), rejects duplicate decoded object names from semantic normalization, applies RFC 8785 object ordering/string serialization, removes insignificant whitespace, preserves array order and scalar values, and falls back to exact original UTF-8 bytes when strict unique-key JSON handling fails. python /tmp/opencode/compare-decisions-head.py reported HEAD_DECISIONS=29, CURRENT_DECISIONS=30, CHANGED_PRE_EXISTING=none, MISSING_PRE_EXISTING=none, ADDED_SINCE_HEAD=30, and confidence=high for Decisions 27, 28, and 29 after datetime normalization only. git diff --check passed. Agentera artifact validation fails only on the three inherited high labels, naming decisions[11], decisions[12], and decisions[13]; those labels predate Task 2 and are intentionally not reinterpreted.
+  next: Implementation Tasks 3-5 must implement and test exact numeric-lexeme preservation, duplicate-key fallback, RFC 8785 ordering/string handling, byte fallback, and the unchanged eligibility/retry/session/compressed-result/compatibility clauses. Do not mark the plan task complete.
+  context:
+    intent: Repair independent-audit failures without changing product behavior, architecture, documentation, TODO, or plan status.
+    constraints: No product code, README, architecture, TODO, plan content/status, Decision 31, migration, alias, or unrelated historical decision change.
+    unknowns: Decision artifact strict validation remains degraded because its current schema excludes the inherited high confidence vocabulary. Decision 30 satisfaction/outcome remain absent and review-needed.
+    scope: .agentera/decisions.yaml, .agentera/archive/decisions/30.yaml, .agentera/progress.yaml, and .agentera/archive/progress/37.yaml.
+record_sha256: 780e6b5c390c669114e4ec6bccac08b2d3bdc1bcf7fc78f6ec86d19c63ebbe83

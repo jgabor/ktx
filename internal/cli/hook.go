@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/jgabor/ktx/internal/config"
+	"github.com/jgabor/ktx/internal/correlation"
 	dbpkg "github.com/jgabor/ktx/internal/db"
-	"github.com/jgabor/ktx/internal/identity"
+	"github.com/jgabor/ktx/internal/evidence"
 )
 
 // hookEnvelope is the JSON response written by `ktx hook` to stdout.
@@ -24,12 +25,21 @@ type hookEnvelope struct {
 	SourceID     string  `json:"source_id"`
 }
 
+// codexPostToolUseEvent is the sole hook_event_name value the hook
+// trusts as a Codex PostToolUse payload. Any other non-empty
+// hook_event_name is rejected before persistence so an unknown
+// Codex-shaped event cannot reach trusted provenance or
+// deterministic identity. An absent or empty hook_event_name falls
+// back to OpenCode/flat deserialisation (backward compatible).
+const codexPostToolUseEvent = "PostToolUse"
+
 // codexHookOutput is the Codex PostToolUse hook response written by
-// `ktx hook` to stdout when the input payload carries a hook_event_name.
-// When the pipeline transforms the output, the hook blocks the original
-// tool result and replaces it with the compressed text in reason. When
-// passthrough (no transform), an empty JSON object is emitted and Codex
-// leaves the tool result unchanged.
+// `ktx hook` to stdout when the input payload carries hook_event_name
+// exactly equal to "PostToolUse". When the pipeline transforms the
+// output, the hook blocks the original tool result and replaces it
+// with the compressed text in reason. When passthrough (no transform),
+// an empty JSON object is emitted and Codex leaves the tool result
+// unchanged.
 type codexHookOutput struct {
 	Decision string `json:"decision,omitempty"`
 	Reason   string `json:"reason,omitempty"`
@@ -43,11 +53,15 @@ func hookCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // openCodeInput is the OpenCode callback input shape: an object with a
-// tool name (string) and an args object. The hook extracts these into
-// the flat ToolCall fields when runtime="opencode".
+// tool name (string), the native session and call identifiers, and an args
+// object. The hook extracts these into the flat ToolCall fields when
+// runtime="opencode". The native sessionID and callID form the trusted
+// correlation tuple the hook uses for deterministic identity.
 type openCodeInput struct {
-	Tool string          `json:"tool"`
-	Args json.RawMessage `json:"args"`
+	Tool      string          `json:"tool"`
+	SessionID string          `json:"sessionID"`
+	CallID    string          `json:"callID"`
+	Args      json.RawMessage `json:"args"`
 }
 
 // openCodeOutputObject is the OpenCode callback output shape when the
@@ -56,13 +70,15 @@ type openCodeOutputObject struct {
 	Output string `json:"output"`
 }
 
-// extractOpenCodeFields extracts the flat tool, input, and output
-// strings from raw OpenCode callback input and output JSON values. The
-// input is an object with a tool (string) and args (object); the output
-// is either a bare string or an object with an output field. An empty
-// tool name falls back to "unknown". An output object without an
-// output field falls back to the stringified object.
-func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, output string) {
+// extractOpenCodeFields extracts the flat tool, input, output strings, and
+// the native correlation identifiers (sessionID, callID) from raw OpenCode
+// callback input and output JSON values. The input is an object with a tool
+// (string), sessionID, callID, and args (object); the output is either a bare
+// string or an object with an output field. An empty tool name falls back to
+// "unknown". An output object without an output field falls back to the
+// stringified object. The native sessionID and callID are empty when absent
+// from the input; the caller uses them to resolve deterministic identity.
+func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, output, sessionID, callID string) {
 	tool = "unknown"
 
 	if len(inputRaw) > 0 {
@@ -70,6 +86,8 @@ func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, ou
 		if err := json.Unmarshal(inputRaw, &in); err == nil && in.Tool != "" {
 			tool = in.Tool
 		}
+		sessionID = in.SessionID
+		callID = in.CallID
 		if len(in.Args) > 0 {
 			input = string(in.Args)
 		}
@@ -89,7 +107,7 @@ func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, ou
 		}
 	}
 
-	return tool, input, output
+	return tool, input, output, sessionID, callID
 }
 
 // codexToolResponseObject covers the known Codex tool_response shapes:
@@ -152,20 +170,30 @@ func extractCodexFields(toolName string, toolInputRaw, toolResponseRaw json.RawM
 // passthrough (no ktx.toml) and failure-gate-skip (is_error=true)
 // return the source output unchanged with compressed_id=null.
 //
-// When hook_event_name is present (Codex PostToolUse payload), the
-// hook extracts tool name, input, and output from the top-level
-// tool_name, tool_input, and tool_response fields. When runtime
+// When hook_event_name is exactly "PostToolUse" (Codex PostToolUse
+// payload), the hook extracts tool name, input, and output from the
+// top-level tool_name, tool_input, and tool_response fields. When runtime
 // session_id and tool_use_id are both usable, the persisted source id is
 // derived deterministically from the runtime tuple; otherwise it is freshly
 // generated. Exact retries reuse the first row, while changed evidence for the
-// same tuple is rejected as a conflict.
+// same tuple is rejected as a conflict. Any other non-empty hook_event_name
+// is rejected before persistence (_fail before side effects_) so it cannot
+// reach trusted Codex provenance or deterministic identity.
 //
 // When runtime="opencode" is present, the hook extracts tool name, input
 // string, and output string from raw OpenCode callback objects
 // (input.tool + input.args, output as string or {output: string})
-// instead of requiring a flat tool_call shape. Any other payload
-// (absent hook_event_name and absent/unrecognised runtime) falls back
-// to flat tool_call deserialisation (backward compatible).
+// instead of requiring a flat tool_call shape. The recognized adapter
+// input also carries the native sessionID and callID that form the
+// trusted correlation tuple; when both are present and valid, the
+// source id is derived deterministically and exact retries converge
+// to one row. When the native tuple is incomplete or absent the hook
+// assigns a fresh NanoID with no deduplication guarantee. A flat
+// payload that carries runtime:"opencode" but lacks the recognized
+// nested input schema cannot self-qualify for deterministic identity.
+// Any other payload (absent or empty hook_event_name and
+// absent/unrecognised runtime) falls back to flat tool_call
+// deserialisation (backward compatible).
 //
 // The JSON envelope is written to stdout as a single line. On any
 // error, no envelope is written; the exit code and stderr error
@@ -189,6 +217,11 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	// Peek at hook_event_name and runtime to decide between Codex,
 	// OpenCode callback extraction, and flat tool_call deserialisation.
+	// Only the exact Codex PostToolUse event enters the trusted Codex
+	// path; any other non-empty hook_event_name is rejected before
+	// persistence so an unknown Codex-shaped event cannot reach trusted
+	// provenance or deterministic identity. An absent or empty
+	// hook_event_name falls back to OpenCode/flat (backward compatible).
 	var peek struct {
 		Runtime       *string `json:"runtime"`
 		HookEventName *string `json:"hook_event_name"`
@@ -197,8 +230,31 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		return nil, usageError("ktx hook: parse JSON: %v", err)
 	}
 
-	var isCodex bool
+	var isCodex, isOpenCode bool
+	var src correlation.Source
 	if peek.HookEventName != nil && *peek.HookEventName != "" {
+		if *peek.HookEventName != codexPostToolUseEvent {
+			// Fail before side effects: an unknown Codex-shaped event
+			// must not enter trusted provenance or roll up into
+			// compressed evidence. The error names the unsupported
+			// value, states the sole accepted value, and shows the two
+			// working corrections (exact Codex event, or omit for
+			// flat/OpenCode input).
+			return nil, &Error{
+				Code: CodeUsage,
+				Message: fmt.Sprintf(
+					`ktx hook: unsupported hook_event_name %q; only %q is accepted. Set "hook_event_name":"%s" for a Codex PostToolUse payload, or omit hook_event_name (or set it to "") for flat/OpenCode input.`,
+					*peek.HookEventName, codexPostToolUseEvent, codexPostToolUseEvent,
+				),
+				Extra: map[string]any{
+					"valid_values": []string{codexPostToolUseEvent},
+					"valid_examples": []string{
+						`{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"aggregated_output":"..."}}`,
+						`{"tool":"bash","input":"echo hi","output":"hello"}`,
+					},
+				},
+			}
+		}
 		isCodex = true
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(body, &raw); err != nil {
@@ -222,12 +278,18 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		tc.Tool = tool
 		tc.Input = input
 		tc.Output = output
-		if id, err := identity.Derive("codex", runtimeSessionID, toolUseID); err == nil {
-			tc.ID = id
+		resolved, err := correlation.Resolve(
+			correlation.NativeTuple{Runtime: "codex", SessionID: runtimeSessionID, CallID: toolUseID},
+			correlation.Trusted(correlation.ProvenanceCodexPostToolUse))
+		if err != nil {
+			return nil, internalError("ktx hook: resolve identity: %v", err)
 		}
+		src = resolved
+		tc.ID = src.ID
 		rt := "codex"
 		tc.Runtime = &rt
 	} else if peek.Runtime != nil && *peek.Runtime == "opencode" {
+		isOpenCode = true
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(body, &raw); err != nil {
 			return nil, usageError("ktx hook: parse JSON: %v", err)
@@ -246,11 +308,25 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		if err := json.Unmarshal(flatBody, &tc); err != nil {
 			return nil, usageError("ktx hook: parse JSON: %v", err)
 		}
-		tool, input, output := extractOpenCodeFields(inputRaw, outputRaw)
+		tool, input, output, sessionID, callID := extractOpenCodeFields(inputRaw, outputRaw)
 		tc.Tool = tool
 		tc.Input = input
 		tc.Output = output
-		rt := *peek.Runtime
+		// Resolve deterministic identity from the native correlation
+		// tuple. The hook is a trusted adapter that KTX authors, so
+		// provenance is trusted. When the input lacks the recognized
+		// sessionID/callID fields (a flat payload claiming opencode),
+		// correlation.Resolve falls back to a fresh NanoID — eligibility
+		// is provenance-driven, not text-driven.
+		resolved, err := correlation.Resolve(
+			correlation.NativeTuple{Runtime: "opencode", SessionID: sessionID, CallID: callID},
+			correlation.Trusted(correlation.ProvenanceOpenCodeHook))
+		if err != nil {
+			return nil, internalError("ktx hook: resolve identity: %v", err)
+		}
+		src = resolved
+		tc.ID = src.ID
+		rt := "opencode"
 		tc.Runtime = &rt
 	} else {
 		if err := json.Unmarshal(body, &tc); err != nil {
@@ -282,13 +358,20 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		tc.ContentHash = dbpkg.ContentHash(tc.Output)
 	}
 
-	if isCodex {
-		if _, err := db.PersistToolCallOnce(&tc); err != nil {
+	sourceInserted := false
+	if isCodex || isOpenCode {
+		inserted, err := evidence.PersistSource(db, src, &tc)
+		if err != nil {
 			if errors.Is(err, dbpkg.ErrToolCallConflict) {
-				return nil, conflictError("ktx hook: Codex retry conflicts with the evidence already stored for source %q", tc.ID)
+				label := "Codex"
+				if isOpenCode {
+					label = "OpenCode"
+				}
+				return nil, conflictError("ktx hook: %s retry conflicts with the evidence already stored for source %q", label, tc.ID)
 			}
 			return nil, internalError("ktx hook: persist tool_call: %v", err)
 		}
+		sourceInserted = inserted
 	} else if err := db.PersistToolCall(&tc); err != nil {
 		return nil, internalError("ktx hook: persist tool_call: %v", err)
 	}
@@ -332,6 +415,70 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		}
 	}
 
+	// Evidence-safe artifact persistence for Codex and OpenCode trusted
+	// paths. Once an artifact exists, exact retries return the first persisted
+	// artifact even when the current pipeline configuration differs. A
+	// concurrent no-transform retry may return source output if it checks before
+	// the first artifact is persisted; later retries return that artifact.
+	if isCodex || isOpenCode {
+		var candidate *dbpkg.Compressed
+		if transformed {
+			candidate = &dbpkg.Compressed{
+				Output:      compressedOutput,
+				ContentHash: dbpkg.ContentHash(compressedOutput),
+				Pipeline:    pipeJSON,
+				Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
+			}
+		}
+		result, err := evidence.PersistArtifact(db, src, &tc, sourceInserted, candidate)
+		if err != nil {
+			return nil, internalError("ktx hook: persist compressed: %v", err)
+		}
+
+		// The footer is agent-visible decoration on the authoritative
+		// (possibly stored) artifact; it is never persisted.
+		finalOutput := result.Output
+		if result.Transformed && config.ResolveRecoverFooter(cfg, profileName) {
+			footer := buildRecoveryFooter(result.SourceID, len(tc.Output), len(result.Output))
+			if len(result.Output)+len(footer) < len(tc.Output) {
+				finalOutput = result.Output + footer
+			}
+		}
+
+		if isCodex {
+			enc := json.NewEncoder(stdout)
+			enc.SetEscapeHTML(false)
+			var out codexHookOutput
+			if result.Transformed {
+				out = codexHookOutput{Decision: "block", Reason: finalOutput}
+			}
+			if err := enc.Encode(out); err != nil {
+				return nil, internalError("ktx hook: write codex output: %v", err)
+			}
+			return nil, nil
+		}
+
+		// OpenCode path: hookEnvelope output (same evidence layer,
+		// different output contract than Codex).
+		var compressedID *string
+		if result.CompressedID != "" {
+			compressedID = &result.CompressedID
+		}
+		enc := json.NewEncoder(stdout)
+		enc.SetEscapeHTML(false)
+		envelope := hookEnvelope{
+			Output:       finalOutput,
+			CompressedID: compressedID,
+			SourceID:     result.SourceID,
+		}
+		if err := enc.Encode(envelope); err != nil {
+			return nil, internalError("ktx hook: write envelope: %v", err)
+		}
+		return nil, nil
+	}
+
+	// Flat/non-runtime path: ordinary compressed persistence + envelope
+	// encoding.
 	var compressedID *string
 	if transformed {
 		hash := dbpkg.ContentHash(compressedOutput)
@@ -347,13 +494,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 			Pipeline:    pipeJSON,
 			Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
 		}
-		if isCodex {
-			stored, _, err := db.InsertCompressedOnce(c)
-			if err != nil {
-				return nil, internalError("ktx hook: persist compressed: %v", err)
-			}
-			cid = stored.ID
-		} else if err := db.InsertCompressed(c); err != nil {
+		if err := db.InsertCompressed(c); err != nil {
 			return nil, internalError("ktx hook: persist compressed: %v", err)
 		}
 		compressedID = &cid
@@ -361,16 +502,6 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	enc := json.NewEncoder(stdout)
 	enc.SetEscapeHTML(false)
-	if isCodex {
-		var out codexHookOutput
-		if transformed {
-			out = codexHookOutput{Decision: "block", Reason: envelopeOutput}
-		}
-		if err := enc.Encode(out); err != nil {
-			return nil, internalError("ktx hook: write codex output: %v", err)
-		}
-		return nil, nil
-	}
 	envelope := hookEnvelope{
 		Output:       envelopeOutput,
 		CompressedID: compressedID,
@@ -420,14 +551,14 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx hook < tool_call.json")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Reads a flat JSON tool_call from stdin, persists the original to the")
-	fmt.Fprintln(w, "database, runs the configured compression pipeline, and writes a JSON")
-	fmt.Fprintln(w, "envelope to stdout:")
+	fmt.Fprintln(w, "Reads a tool-call event from stdin, persists the original, runs the")
+	fmt.Fprintln(w, "configured compression pipeline, and writes a JSON envelope to stdout")
+	fmt.Fprintln(w, "for flat and OpenCode input:")
 	fmt.Fprintln(w, `  {"output": "<compressed>", "compressed_id": "<id>|null", "source_id": "<id>"}`)
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Input fields:")
+	fmt.Fprintln(w, "Flat input fields:")
 	fmt.Fprintln(w, "  tool       required (the binary cannot infer the tool name)")
-	fmt.Fprintln(w, "  id         optional; generated as a 16-char lowercase id when empty")
+	fmt.Fprintln(w, "  id         optional caller ID; a fresh NanoID is generated when empty")
 	fmt.Fprintln(w, "  timestamp  optional; generated as an RFC3339Nano timestamp when empty")
 	fmt.Fprintln(w, "  output     tool output to persist (and compress when a pipeline is configured)")
 	fmt.Fprintln(w)
@@ -451,12 +582,31 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "compressed+footer would not be smaller than the original; the stored")
 	fmt.Fprintln(w, "compressed row stays content-only.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Codex mode: when the input payload carries a top-level `hook_event_name`")
-	fmt.Fprintln(w, "field (Codex PostToolUse), the hook auto-detects it and extracts tool")
+	fmt.Fprintln(w, "Source identity:")
+	fmt.Fprintln(w, "  Recognized OpenCode hook events and Codex PostToolUse events are eligible")
+	fmt.Fprintln(w, "  for deterministic source IDs when their verified native schema supplies a")
+	fmt.Fprintln(w, "  complete runtime/session/call tuple. The recognized `ktx run opencode`")
+	fmt.Fprintln(w, "  wrapper applies the same contract. Runtime IDs are correlation inputs, not")
+	fmt.Fprintln(w, "  KTX record IDs or KTX session ownership.")
+	fmt.Fprintln(w, "  Missing, malformed, or unverified native tuples receive a fresh NanoID with")
+	fmt.Fprintln(w, "  no deduplication guarantee. A payload selecting the OpenCode adapter path but")
+	fmt.Fprintln(w, "  lacking its complete tuple also receives a fresh NanoID; its caller id cannot")
+	fmt.Fprintln(w, "  substitute for native correlation. Legacy flat input without a recognized")
+	fmt.Fprintln(w, "  runtime-adapter discriminator preserves its caller id, or generates a fresh")
+	fmt.Fprintln(w, "  one when absent.")
+	fmt.Fprintln(w, "  Eligible exact retries reuse the first source evidence and KTX session roll-up.")
+	fmt.Fprintln(w, "  The first compressed artifact is authoritative once persisted. A racing retry")
+	fmt.Fprintln(w, "  may receive source output while no artifact exists; later retries return the")
+	fmt.Fprintln(w, "  artifact and cannot replace it. Changed runtime, tool, canonical input, or")
+	fmt.Fprintln(w, "  output conflicts before compression and leaves first evidence unchanged.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Codex mode: when the input payload carries exactly")
+	fmt.Fprintln(w, "`hook_event_name` set to \"PostToolUse\", the hook extracts tool")
 	fmt.Fprintln(w, "name, input, and output from `tool_name`, `tool_input`, and")
-	fmt.Fprintln(w, "`tool_response` instead of the flat tool_call shape. The hook uses a stable")
-	fmt.Fprintln(w, "canonical source id when `session_id` and `tool_use_id` are usable;")
-	fmt.Fprintln(w, "exact retries do not add evidence, and changed retries report a conflict.")
+	fmt.Fprintln(w, "`tool_response` instead of the flat tool_call shape. Any other")
+	fmt.Fprintln(w, "non-empty `hook_event_name` is rejected before persistence (no")
+	fmt.Fprintln(w, "source, roll-up, or compressed evidence is written); an absent or")
+	fmt.Fprintln(w, "empty `hook_event_name` falls back to flat/OpenCode input.")
 	fmt.Fprintln(w, "The response uses the Codex PostToolUse output contract:")
 	fmt.Fprintln(w, `  {"decision":"block","reason":"<compressed>"}`)
 	fmt.Fprintln(w, "when the pipeline transforms the output (Codex blocks the original tool")

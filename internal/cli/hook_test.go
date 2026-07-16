@@ -1019,7 +1019,9 @@ func TestHook_OpenCode_RawCallbackExtracted(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// runtime="opencode" with raw callback input (tool + args object)
-	// and raw callback output (object with output field).
+	// and raw callback output (object with output field). The input lacks
+	// the native sessionID/callID schema, so the hook assigns a fresh
+	// NanoID — eligibility is provenance-driven, not text-driven.
 	payload := `{"runtime":"opencode","id":"ocext001","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hello"}},"output":{"output":"hello\nline 2\nline 3\nline 4\nline 5\n"}}`
 
 	var stdout, stderr bytes.Buffer
@@ -1032,11 +1034,14 @@ func TestHook_OpenCode_RawCallbackExtracted(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
 	}
-	if env.SourceID != "ocext001" {
-		t.Errorf("source_id = %q, want ocext001", env.SourceID)
+	if env.SourceID == "ocext001" {
+		t.Errorf("source_id = caller-supplied %q, want fresh NanoID (no native schema)", env.SourceID)
+	}
+	if !idPattern.MatchString(env.SourceID) {
+		t.Errorf("source_id = %q, want 16-char lowercase id", env.SourceID)
 	}
 
-	persisted, err := d.GetToolCall("ocext001")
+	persisted, err := d.GetToolCall(env.SourceID)
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1068,7 +1073,9 @@ func TestHook_OpenCode_BareStringOutput(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall("ocext002")
+	var env hookEnvelope
+	_ = json.Unmarshal(stdout.Bytes(), &env)
+	persisted, err := d.GetToolCall(env.SourceID)
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1092,7 +1099,9 @@ func TestHook_OpenCode_ObjectWithoutOutputField(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall("ocext003")
+	var env hookEnvelope
+	_ = json.Unmarshal(stdout.Bytes(), &env)
+	persisted, err := d.GetToolCall(env.SourceID)
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1116,7 +1125,9 @@ func TestHook_OpenCode_NoToolName(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall("ocext004")
+	var env hookEnvelope
+	_ = json.Unmarshal(stdout.Bytes(), &env)
+	persisted, err := d.GetToolCall(env.SourceID)
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1352,7 +1363,9 @@ func TestHook_Codex_BackwardCompat_OpenCode(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	// OpenCode payload (runtime="opencode") uses OpenCode path
-	// (backward compat).
+	// (backward compat). The input lacks sessionID/callID, so identity
+	// is a fresh NanoID — but extraction still produces the correct
+	// tool/output/runtime.
 	payload := `{"runtime":"opencode","id":"occompat01","timestamp":"2026-07-11T12:00:00Z","input":{"tool":"bash","args":{"command":"echo hi"}},"output":{"output":"result"}}`
 
 	var stdout, stderr bytes.Buffer
@@ -1361,7 +1374,9 @@ func TestHook_Codex_BackwardCompat_OpenCode(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall("occompat01")
+	var env hookEnvelope
+	_ = json.Unmarshal(stdout.Bytes(), &env)
+	persisted, err := d.GetToolCall(env.SourceID)
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
@@ -1406,6 +1421,187 @@ func TestHook_Codex_BackwardCompat_Flat(t *testing.T) {
 	}
 	if persisted.Runtime != nil {
 		t.Errorf("persisted runtime = %v, want nil (no runtime in flat payload)", persisted.Runtime)
+	}
+}
+
+// countRows returns the row count for table in d. It fails the test on
+// any query error so rejection assertions surface unexpected writes.
+func countRows(t *testing.T, d *dbpkg.DB, table string) int {
+	t.Helper()
+	var n int
+	if err := d.DB().QueryRow(fmt.Sprintf(`SELECT count(*) FROM %s`, table)).Scan(&n); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return n
+}
+
+// assertNoEvidenceWritten fails the test when a rejected payload has
+// left any source row, session roll-up, or compressed artifact behind.
+func assertNoEvidenceWritten(t *testing.T, d *dbpkg.DB) {
+	t.Helper()
+	for _, table := range []string{"tool_calls", "sessions", "compressed"} {
+		if n := countRows(t, d, table); n != 0 {
+			t.Errorf("table %s has %d rows after rejection; want 0 (no source, roll-up, or compressed evidence)", table, n)
+		}
+	}
+}
+
+// TestHook_Codex_RejectsUnsupportedEventName verifies the trust
+// boundary: only the exact hook_event_name "PostToolUse" may enter
+// trusted Codex parsing/provenance and deterministic identity. Two
+// distinct unsupported non-empty event names are rejected before
+// persistence with an actionable error, and nothing is written.
+func TestHook_Codex_RejectsUnsupportedEventName(t *testing.T) {
+	for _, ev := range []string{"PreToolUse", "SessionStart"} {
+		t.Run(ev, func(t *testing.T) {
+			d := hookTestDB(t)
+			hookChdirTemp(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+`)
+			original := strings.Repeat("alpha beta gamma delta epsilon zeta eta theta\n", 50)
+			payload := fmt.Sprintf(
+				`{"hook_event_name":%q,"tool_name":"Bash","tool_input":{"command":"echo"},"tool_response":{"aggregated_output":%q},"tool_use_id":"unsupported-rt","session_id":"unsupported-session"}`,
+				ev, original,
+			)
+
+			var stdout, stderr bytes.Buffer
+			_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+			if err == nil {
+				t.Fatalf("hookLogic succeeded for unsupported hook_event_name %q; want usage error", ev)
+			}
+			ktxErr, ok := err.(*Error)
+			if !ok || ktxErr.Code != CodeUsage {
+				t.Fatalf("error = %v (code %v), want *Error with CodeUsage", err, ktxErr)
+			}
+			if !strings.Contains(ktxErr.Message, ev) {
+				t.Errorf("error message = %q, want it to name the unsupported value %q", ktxErr.Message, ev)
+			}
+			if !strings.Contains(ktxErr.Message, "PostToolUse") {
+				t.Errorf("error message = %q, want it to state the valid value PostToolUse", ktxErr.Message)
+			}
+			if !strings.Contains(ktxErr.Message, "omit hook_event_name") {
+				t.Errorf("error message = %q, want a correction that mentions omitting hook_event_name", ktxErr.Message)
+			}
+			// Structured correction fields for machine consumers.
+			vals, _ := ktxErr.Extra["valid_values"].([]string)
+			if len(vals) != 1 || vals[0] != "PostToolUse" {
+				t.Errorf("valid_values = %v, want [PostToolUse]", ktxErr.Extra["valid_values"])
+			}
+			if _, ok := ktxErr.Extra["valid_examples"]; !ok {
+				t.Errorf("error envelope missing valid_examples correction")
+			}
+
+			// No envelope written on rejection.
+			if stdout.Len() != 0 {
+				t.Errorf("stdout = %q, want empty (no envelope on rejection)", stdout.String())
+			}
+			// Fail before side effects: no source, roll-up, or compressed evidence.
+			assertNoEvidenceWritten(t, d)
+		})
+	}
+}
+
+// TestHook_Codex_RejectsUnsupportedEventName_NoPipeline repeats the
+// rejection guard without a configured pipeline, proving the boundary
+// fires during event dispatch — before the pipeline or persistence
+// runs — and writes no evidence.
+func TestHook_Codex_RejectsUnsupportedEventName_NoPipeline(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := `{"hook_event_name":"Stop","tool_name":"Bash","tool_input":{"command":"echo"},"tool_response":"hi","tool_use_id":"stop-rt","session_id":"stop-session"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("hookLogic succeeded for hook_event_name \"Stop\"; want usage error")
+	}
+	ktxErr, ok := err.(*Error)
+	if !ok || ktxErr.Code != CodeUsage {
+		t.Fatalf("error = %v, want *Error with CodeUsage", err)
+	}
+	if !strings.Contains(ktxErr.Message, "Stop") || !strings.Contains(ktxErr.Message, "PostToolUse") {
+		t.Errorf("error message = %q, want unsupported value named plus valid PostToolUse", ktxErr.Message)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want empty", stdout.String())
+	}
+	assertNoEvidenceWritten(t, d)
+}
+
+// TestHook_Codex_EmptyEventNameFallsBack confirms an explicitly empty
+// hook_event_name is treated like an absent one: the payload falls
+// back to OpenCode/flat deserialisation rather than being rejected.
+// This guards the absent/empty-vs-unsupported distinction.
+func TestHook_Codex_EmptyEventNameFallsBack(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// Flat tool_call shape with an explicit empty hook_event_name.
+	payload := `{"hook_event_name":"","id":"emptyev01","tool":"bash","input":"echo hi","output":"hello\n","timestamp":"2026-07-16T12:00:00Z"}`
+
+	var stdout, stderr bytes.Buffer
+	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("hookLogic: %v (empty hook_event_name should fall back to flat, not error)", err)
+	}
+
+	persisted, err := d.GetToolCall("emptyev01")
+	if err != nil {
+		t.Fatalf("GetToolCall: %v", err)
+	}
+	if persisted.Tool != "bash" {
+		t.Errorf("persisted tool = %q, want bash (flat fallback)", persisted.Tool)
+	}
+	if persisted.Output != "hello\n" {
+		t.Errorf("persisted output = %q, want hello\\n (flat fallback)", persisted.Output)
+	}
+	if persisted.Runtime != nil {
+		t.Errorf("persisted runtime = %v, want nil (flat path, not codex)", persisted.Runtime)
+	}
+}
+
+// TestHook_Codex_ExactAcceptedEventUnchanged is the acceptance
+// regression for the exact PostToolUse event: deterministic identity,
+// idempotent retry, and the Codex output contract behave exactly as
+// before the trust-boundary tightening.
+func TestHook_Codex_ExactAcceptedEventUnchanged(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	original := strings.Repeat("one two three four five six seven eight nine ten\n", 80)
+	payload := codexPayload(t, "exact-accepted-rt", "Bash", original)
+
+	// Two exact retries converge on one source row with a stable id.
+	for i := 0; i < 2; i++ {
+		var stdout, stderr bytes.Buffer
+		if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+			t.Fatalf("delivery %d: %v (stderr=%q)", i, err, stderr.String())
+		}
+		var out codexHookOutput
+		if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+			t.Fatalf("parse codex output: %v\nstdout=%s", err, stdout.String())
+		}
+		// No pipeline configured: passthrough {} contract is unchanged.
+		if out.Decision != "" || out.Reason != "" {
+			t.Errorf("delivery %d codex output = {decision:%q reason:%q}, want {} (passthrough)", i, out.Decision, out.Reason)
+		}
+	}
+
+	sourceID := mustCodexID(t, "codex-test-session", "exact-accepted-rt")
+	if !idPattern.MatchString(sourceID) {
+		t.Fatalf("source id = %q, want canonical id", sourceID)
+	}
+	if _, err := d.GetToolCall(sourceID); err != nil {
+		t.Fatalf("canonical source: %v", err)
+	}
+	if n := countRows(t, d, "tool_calls"); n != 1 {
+		t.Errorf("tool_calls = %d, want 1 (exact retries converge)", n)
 	}
 }
 
@@ -1625,6 +1821,114 @@ stages = ["head:3"]
 	}
 }
 
+func TestHook_Codex_PipelineChangeRetryReturnsFirstArtifact(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:3"]
+`)
+
+	var sb strings.Builder
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&sb, "line %d content here for padding\n", i)
+	}
+	original := sb.String()
+	payload := codexPayload(t, "pc-retry-01", "Bash", original)
+
+	// First delivery: pipeline transforms → stored artifact + block response.
+	var stdout1, stderr1 bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout1, &stderr1); err != nil {
+		t.Fatalf("first delivery: %v (stderr=%q)", err, stderr1.String())
+	}
+	var out1 codexHookOutput
+	if err := json.Unmarshal(stdout1.Bytes(), &out1); err != nil {
+		t.Fatalf("parse first output: %v\nstdout=%s", err, stdout1.String())
+	}
+	if out1.Decision != "block" {
+		t.Fatalf("first decision = %q, want block", out1.Decision)
+	}
+	if strings.Contains(out1.Reason, "line 50") {
+		t.Fatalf("first reason should be truncated (head:3); got %q", out1.Reason)
+	}
+
+	// Change config: remove the pipeline (passthrough now).
+	hookWriteUserConfig(t, "")
+
+	// Second delivery (exact retry): pipeline would not transform, but the
+	// first persisted artifact must be returned, not the original output.
+	var stdout2, stderr2 bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout2, &stderr2); err != nil {
+		t.Fatalf("second delivery: %v (stderr=%q)", err, stderr2.String())
+	}
+	var out2 codexHookOutput
+	if err := json.Unmarshal(stdout2.Bytes(), &out2); err != nil {
+		t.Fatalf("parse second output: %v\nstdout=%s", err, stdout2.String())
+	}
+	if out2.Decision != "block" {
+		t.Fatalf("second decision = %q, want block (first artifact is authoritative)", out2.Decision)
+	}
+	if out2.Reason != out1.Reason {
+		t.Errorf("second reason != first reason: %q vs %q (must return first artifact)", out2.Reason, out1.Reason)
+	}
+	if out2.Reason == original {
+		t.Error("second reason equals original; want first compressed artifact (authority)")
+	}
+
+	sourceID := mustCodexID(t, "codex-test-session", "pc-retry-01")
+	var compCount int
+	if err := d.DB().QueryRow(`SELECT count(*) FROM compressed WHERE source_id = ?`, sourceID).Scan(&compCount); err != nil {
+		t.Fatal(err)
+	}
+	if compCount != 1 {
+		t.Errorf("compressed rows = %d, want 1", compCount)
+	}
+}
+
+func TestHook_Codex_CanonicalEquivalentInputConverges(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	outputJSON, err := json.Marshal("some output text")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// First delivery: tool_input with keys in one order.
+	first := fmt.Sprintf(`{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo","cwd":"/tmp"},"tool_response":{"aggregated_output":%s},"tool_use_id":"canon-equiv-01","session_id":"codex-test-session"}`, outputJSON)
+
+	var stdout1, stderr1 bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(first), d, &stdout1, &stderr1); err != nil {
+		t.Fatalf("first: %v (stderr=%q)", err, stderr1.String())
+	}
+
+	// Second delivery: same input, different key order + whitespace.
+	second := fmt.Sprintf(`{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{ "cwd" : "/tmp" , "command" : "echo" },"tool_response":{"aggregated_output":%s},"tool_use_id":"canon-equiv-01","session_id":"codex-test-session"}`, outputJSON)
+
+	var stdout2, stderr2 bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(second), d, &stdout2, &stderr2); err != nil {
+		t.Fatalf("second (canonical-equivalent): %v (stderr=%q)", err, stderr2.String())
+	}
+
+	// No conflict: one source row, first input preserved.
+	sourceID := mustCodexID(t, "codex-test-session", "canon-equiv-01")
+	var sourceCount int
+	if err := d.DB().QueryRow(`SELECT count(*) FROM tool_calls WHERE id = ?`, sourceID).Scan(&sourceCount); err != nil {
+		t.Fatal(err)
+	}
+	if sourceCount != 1 {
+		t.Errorf("source rows = %d, want 1", sourceCount)
+	}
+	persisted, err := d.GetToolCall(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Input != `{"command":"echo","cwd":"/tmp"}` {
+		t.Errorf("persisted input = %q, want first delivery's input", persisted.Input)
+	}
+}
+
 func TestHook_CodexOutput_Passthrough_Empty(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
@@ -1712,8 +2016,13 @@ func TestHook_CodexOutput_OpenCode_KeepsEnvelope(t *testing.T) {
 	if env.CompressedID != nil {
 		t.Errorf("compressed_id = %v, want null (no pipeline)", env.CompressedID)
 	}
-	if env.SourceID != "ocenv01" {
-		t.Errorf("source_id = %q, want ocenv01", env.SourceID)
+	// The payload lacks native sessionID/callID, so the hook assigns
+	// a fresh NanoID rather than preserving the caller-supplied id.
+	if env.SourceID == "ocenv01" {
+		t.Errorf("source_id = caller-supplied %q, want fresh NanoID (no native schema)", env.SourceID)
+	}
+	if !idPattern.MatchString(env.SourceID) {
+		t.Errorf("source_id = %q, want 16-char lowercase id", env.SourceID)
 	}
 
 	var spoof codexHookOutput
@@ -1828,7 +2137,7 @@ func TestExtractOpenCodeFields_Direct(t *testing.T) {
 	t.Run("input with tool and args, output object", func(t *testing.T) {
 		inputRaw := json.RawMessage(`{"tool":"bash","args":{"command":"echo hi"}}`)
 		outputRaw := json.RawMessage(`{"output":"result"}`)
-		tool, input, output := extractOpenCodeFields(inputRaw, outputRaw)
+		tool, input, output, _, _ := extractOpenCodeFields(inputRaw, outputRaw)
 		if tool != "bash" {
 			t.Errorf("tool = %q, want bash", tool)
 		}
@@ -1842,7 +2151,7 @@ func TestExtractOpenCodeFields_Direct(t *testing.T) {
 
 	t.Run("bare string output", func(t *testing.T) {
 		outputRaw := json.RawMessage(`"bare"`)
-		_, _, output := extractOpenCodeFields(nil, outputRaw)
+		_, _, output, _, _ := extractOpenCodeFields(nil, outputRaw)
 		if output != "bare" {
 			t.Errorf("output = %q, want bare", output)
 		}
@@ -1850,7 +2159,7 @@ func TestExtractOpenCodeFields_Direct(t *testing.T) {
 
 	t.Run("object output without output field", func(t *testing.T) {
 		outputRaw := json.RawMessage(`{"foo":"bar"}`)
-		_, _, output := extractOpenCodeFields(nil, outputRaw)
+		_, _, output, _, _ := extractOpenCodeFields(nil, outputRaw)
 		if !strings.Contains(output, "foo") {
 			t.Errorf("output = %q, want stringified object (fallback)", output)
 		}
@@ -1858,9 +2167,28 @@ func TestExtractOpenCodeFields_Direct(t *testing.T) {
 
 	t.Run("input without tool name", func(t *testing.T) {
 		inputRaw := json.RawMessage(`{"args":{"command":"echo"}}`)
-		tool, _, _ := extractOpenCodeFields(inputRaw, nil)
+		tool, _, _, _, _ := extractOpenCodeFields(inputRaw, nil)
 		if tool != "unknown" {
 			t.Errorf("tool = %q, want unknown (fallback)", tool)
+		}
+	})
+
+	t.Run("native sessionID and callID extracted", func(t *testing.T) {
+		inputRaw := json.RawMessage(`{"tool":"bash","sessionID":"ses-123","callID":"call-456","args":{}}`)
+		_, _, _, sessionID, callID := extractOpenCodeFields(inputRaw, nil)
+		if sessionID != "ses-123" {
+			t.Errorf("sessionID = %q, want ses-123", sessionID)
+		}
+		if callID != "call-456" {
+			t.Errorf("callID = %q, want call-456", callID)
+		}
+	})
+
+	t.Run("native fields empty when absent", func(t *testing.T) {
+		inputRaw := json.RawMessage(`{"tool":"bash","args":{}}`)
+		_, _, _, sessionID, callID := extractOpenCodeFields(inputRaw, nil)
+		if sessionID != "" || callID != "" {
+			t.Errorf("sessionID=%q callID=%q, want empty (no native schema)", sessionID, callID)
 		}
 	})
 }

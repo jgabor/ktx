@@ -49,11 +49,16 @@ a compact `ktx read <source-id>` recovery cue. The original and compressed
 artifact remain stored separately; the footer is not part of the persisted
 compressed bytes.
 
-KTX assigns source IDs to persisted tool calls. Use the source ID returned by
-inspection or included in a recovery cue with commands such as `ktx read` and
-`ktx compress`; runtime-provided identifiers are not necessarily record IDs.
-For Codex events with complete correlation metadata, exact retries resolve to
-the same source record.
+KTX assigns its own source IDs to persisted tool calls. Runtime session and
+tool-call identifiers are correlation inputs, not record IDs. Recognized
+OpenCode and Codex events with a complete, verified runtime/session/call tuple
+derive the same source ID on exact retry. An event selecting a recognized
+adapter path but missing a complete tuple receives a fresh NanoID; caller IDs
+are preserved only for legacy flat payloads without a recognized runtime-adapter
+discriminator. The first compressed artifact is authoritative once persisted.
+A racing retry may receive source output while no artifact exists yet, but later
+retries return the first artifact and cannot replace it. Use the source ID from
+inspection or a recovery cue with commands such as `ktx read` and `ktx compress`.
 
 ## Configuration and data
 

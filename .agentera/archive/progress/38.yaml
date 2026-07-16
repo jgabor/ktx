@@ -1,0 +1,19 @@
+schemaVersion: agentera.stateArchiveEntry.v1
+artifact_id: progress
+entry_number: 38
+record:
+  number: 38
+  timestamp: 2026-07-16 05:16
+  type: feat
+  phase: build
+  what: "Added the shared runtime-neutral correlation contract: internal/canon (strict canonical JSON comparison per Decision 30) and internal/correlation (NativeTuple, trusted Provenance, Source resolution with identity.Derive + db.NewID fallback). identity.Derive bytes/output unchanged; Codex hook production path untouched."
+  inspiration: Decision 30 (trusted-ingress deterministic identity, strict canonical JSON equality) and corrected Task 1 evidence in .agentera/verification/.
+  discovered: Go 1.26 lacks json.CanonicalNumber; Decision 30's exact-numeric-lexeme rule is satisfied by preserving json.Number verbatim. canon is a stdlib-only leaf so db can adopt it in Task 4 without an import cycle; correlation imports identity+db (no cycle). Fresh and derived IDs share the [a-z]{16} domain, so Source.Eligible is the only retry-semantics signal.
+  verified: "mage check exit 0: test+vet+lint+build. Focused: go test ./internal/canon ./internal/correlation -count=1 => PASS. Canon proves {b:2,a:1}=={a:1,b:2}, whitespace/order normalized, exact numeric lexemes (1!=1.0!=1e0!=1E0), duplicate decoded key => exact-byte fallback, invalid JSON => exact bytes, UTF-16 astral member ordering, array order preserved. Correlation proves trusted+complete tuple == identity.Derive golden yeidpaaatyvvzrfo (unchanged), OpenCode hook and wrapper same native tuple converge to one ID, Untrusted flat runtime:opencode denied eligibility (fresh), trusted incomplete/malformed => fresh distinct NanoID (no dedup), source identity invariant to KTX session by construction. Codex identity preserved: go test ./internal/cli -run 'TestHook_Codex_(CanonicalIdentityIsStable|ConcurrentExactRetriesDoNotDoubleCount|ChangedRetryConflictsAndPreservesFirstEvidence)' -count=1 => PASS; go test ./internal/identity -run TestDerive => PASS; -race concurrent retry tests PASS."
+  next: "Task 4: adopt canon.Equal in PersistToolCallOnce input-evidence comparison and wire Source.Eligible into retry semantics. Task 5: route OpenCode hook+wrapper through correlation.Resolve with trusted provenance."
+  context:
+    intent: "Plan Task 3: equivalent trusted native tuples produce one source ID across process/machine/hook/wrapper boundaries; untrusted or flat ingress claiming a runtime label cannot self-qualify; missing/malformed/ineligible tuples fall back to a fresh NanoID with no dedup; source identity and KTX session ownership stay separately defined."
+    constraints: Shared contract + focused tests only. Did not switch OpenCode production ingress to deterministic persistence (Task 5) or implement atomic retry/compressed-artifact convergence (Task 4). db.PersistToolCallOnce equality untouched; no schema migration; no third-party dependency added (stdlib-first). Plan task 3 left pending.
+    unknowns: Decision 30 satisfaction is review-needed (missing legacy state, not treated as satisfied). health state unavailable; profile stale (caveat, not refreshed). Cross-process stability is inherited from identity.Derive purity, proven by the existing runtime_identity_probe.
+    scope: New internal/canon/{canon.go,canon_test.go} and internal/correlation/{correlation.go,correlation_test.go}. No production path changed; no existing test modified.
+record_sha256: ff960d248a1052b96a8be77afd0b6a155d83154b2cf2799162e697d68f756098

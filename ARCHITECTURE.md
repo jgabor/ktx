@@ -157,13 +157,32 @@ Agents differ in how they can host external tooling. ktx accommodates multiple a
 | **Sidecar** | An already-running agent sends events to ktx; observation starts when data arrives. Suited to richer runtimes and custom integrations.                                            |
 | **Hooks**   | ktx is wired into the agent's configuration; observation runs silently inside long-lived sessions (including TUIs). Suited where wrapping the process is impractical.             |
 
-Codex hook records use KTX-owned persisted identifiers. Runtime-provided
-identifiers are correlation inputs, not database identities. When Codex supplies
-a usable runtime name, session identifier, and tool-call identifier, KTX derives
-the same canonical identifier from that tuple on every machine. Events without
-a complete usable tuple receive a fresh canonical identifier. Runtime-shaped
-identifiers and compatibility aliases are not retained. Legacy flat ingress
-continues to preserve caller-supplied identifiers.
+Tool-call records use KTX-owned persisted identifiers. Runtime identifiers are
+correlation inputs, not database identities. Deterministic identity is eligible
+only when a recognized, trusted native ingress verifies a complete usable
+runtime/session/call tuple. The OpenCode hook and wrapper and the Codex
+PostToolUse hook meet that provenance boundary; caller-supplied runtime text in
+generic sidecar or flat input does not. Eligible tuples derive the same source
+ID across process, machine, hook, and wrapper boundaries. Missing, malformed,
+or unverified tuples receive a fresh NanoID with no deduplication guarantee.
+That fallback applies when a payload selects a recognized adapter path, such as
+OpenCode, but lacks its complete native tuple; a caller ID cannot substitute for
+the tuple. Legacy flat ingress without a recognized runtime-adapter
+discriminator remains compatible by preserving a caller-supplied ID, or
+generating a fresh ID when none is supplied.
+
+Native correlation is separate from KTX session ownership: the first accepted
+delivery owns the source row's KTX session association, and an exact retry
+through another KTX session does not move it or increment another roll-up.
+Exact eligible retries compare runtime, tool, canonical input evidence, and
+output bytes. Equal evidence converges on one source row; later metadata does
+not enrich it. The first compressed artifact is authoritative once persisted,
+and pipeline changes cannot replace it. A concurrent exact retry may receive
+source output if it checks before any artifact exists; retries after persistence
+return the first artifact. Changed authoritative evidence is a conflict and
+leaves the first evidence unchanged. Historical random-ID rows and new
+deterministic rows coexist without migration, aliases, or reconstructed runtime
+identifiers.
 
 Architecturally, these are **ingress variants**, not separate products. Inspection, compression, reversibility, and benchmarking must not depend on which path recorded the data.
 

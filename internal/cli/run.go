@@ -53,7 +53,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jgabor/ktx/internal/correlation"
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/evidence"
 	"github.com/jgabor/ktx/internal/parser"
 )
 
@@ -494,7 +496,7 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, 
 		_, _ = stdout.Write(line)
 		_, _ = stdout.Write([]byte{'\n'})
 
-		tc, ok := parser.ParseEvent(line)
+		tc, nc, ok := parser.ParseEventWithCorrelation(line)
 		if !ok {
 			continue
 		}
@@ -503,10 +505,39 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, 
 		// it before persisting.
 		tc.SessionID = sessionID
 
-		if err := db.PersistToolCall(tc); err != nil {
-			// Don't fail the run; record the error so the user sees
-			// it. The summary will reflect the partial count.
-			fmt.Fprintf(stderr, "ktx: warning: persist tool_call: %v\n", err)
+		// Resolve deterministic identity from the native correlation
+		// tuple the parser extracted. For OpenCode tool_use events the
+		// parser recognizes the native schema and sets Trusted=true; the
+		// wrapper is a recognized parser path, so provenance is trusted.
+		// Flat-fallback events are untrusted and receive a fresh NanoID.
+		var prov correlation.Provenance
+		if nc.Trusted {
+			prov = correlation.Trusted(correlation.ProvenanceOpenCodeWrapper)
+		} else {
+			prov = correlation.Untrusted()
+		}
+		src, err := correlation.Resolve(
+			correlation.NativeTuple{Runtime: nc.Runtime, SessionID: nc.SessionID, CallID: nc.CallID},
+			prov)
+		if err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: resolve identity: %v\n", err)
+			continue
+		}
+		tc.ID = src.ID
+		// Normalize runtime consistently with the hook path so that
+		// equivalent cross-ingress events have the same authoritative
+		// evidence (runtime is an equality field in PersistToolCallOnce).
+		if nc.Runtime != "" {
+			rt := nc.Runtime
+			tc.Runtime = &rt
+		}
+
+		if _, err := evidence.PersistSource(db, src, tc); err != nil {
+			if errors.Is(err, dbpkg.ErrToolCallConflict) {
+				fmt.Fprintf(stderr, "ktx: warning: tool_call conflict for source %q: %v\n", tc.ID, err)
+			} else {
+				fmt.Fprintf(stderr, "ktx: warning: persist tool_call: %v\n", err)
+			}
 			continue
 		}
 		persisted++

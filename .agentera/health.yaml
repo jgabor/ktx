@@ -1,0 +1,43 @@
+audits:
+  - number: 1
+    date: 2026-07-16
+    dimensions:
+      - architecture_alignment
+      - pattern_consistency
+      - coupling_health
+      - complexity_hotspots
+      - test_health
+      - artifact_freshness
+      - prose_health
+      - security_hygiene
+    findings_summary:
+      critical: 0
+      warning: 1
+      info: 0
+      filtered_by_confidence: 0
+    trajectory: stable
+    grades:
+      architecture_alignment: B
+      pattern_consistency: A
+      coupling_health: A
+      complexity_hotspots: A
+      test_health: B
+      artifact_freshness: B
+      prose_health: A
+      security_hygiene: B
+    findings:
+      - severity: warning
+        heading: Codex trust classification accepts any non-empty hook event name
+        confidence: 98
+        location: internal/cli/hook.go:219
+        evidence: The Codex branch treats every non-empty hook_event_name as trusted Codex PostToolUse provenance. A retained temporary-database probe sent hook_event_name=NotPostToolUse twice with a complete tuple and persisted one deterministic codex source row, despite ARCHITECTURE.md:162-167 limiting eligibility to recognized trusted native ingress.
+        impact: An unrecognized hook event can enter deterministic retry and first-evidence authority semantics. This violates the stated trust boundary and leaves the main negative provenance case untested.
+        suggested_action: Require hook_event_name to equal PostToolUse before applying trusted Codex provenance; reject or use fresh untrusted handling for other values, and add a regression test. Run dedicated security tooling beyond this surface-level trust-boundary review.
+        verify_command: tmp=$(mktemp -d /tmp/opencode/ktx-audit-trust.XXXXXX); mkdir $tmp/config $tmp/runtime $tmp/data; payload='{"hook_event_name":"NotPostToolUse","session_id":"spoof-session","tool_use_id":"spoof-call","tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":{"aggregated_output":"hi\n","exit_code":0}}'; env KTX_DB=$tmp/ktx.db XDG_CONFIG_HOME=$tmp/config XDG_RUNTIME_DIR=$tmp/runtime XDG_DATA_HOME=$tmp/data ./build/ktx hook <<<$payload; env KTX_DB=$tmp/ktx.db XDG_CONFIG_HOME=$tmp/config XDG_RUNTIME_DIR=$tmp/runtime XDG_DATA_HOME=$tmp/data ./build/ktx hook <<<$payload; sqlite3 $tmp/ktx.db 'SELECT id, runtime, count(*) OVER () FROM tool_calls;'
+    dimension_details:
+      []
+    trends:
+      comparison_target: "not-applicable: prior health unavailable"
+      stable: "[post-audit-flagged] Correlation, canonical equality, and retry persistence are centralized; the inherited Codex event discriminator remains broader than the documented provenance boundary. Draft lint retained a summary-preamble advisory after three attempts."
+    patterns:
+      - Runtime adapters resolve native tuples through internal/correlation; strict input equality lives in internal/canon; eligible source/artifact authority is centralized in internal/evidence; generic flat persistence remains separate.

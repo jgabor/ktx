@@ -1,4 +1,4 @@
-last_audit: 2026-07-12
+last_audit: 2026-07-16
 conventions:
   doc_root: .
   style: technical, concise
@@ -20,7 +20,7 @@ mapping:
 index:
   - document: README
     path: README.md
-    last_updated: 2026-07-12
+    last_updated: 2026-07-16
     status: current
   - document: Agent guide
     path: AGENTS.md
@@ -28,11 +28,11 @@ index:
     status: current
   - document: Architecture
     path: ARCHITECTURE.md
-    last_updated: 2026-07-12
+    last_updated: 2026-07-16
     status: current
   - document: Work backlog
     path: TODO.md
-    last_updated: 2026-07-12
+    last_updated: 2026-07-16
     status: current
   - document: Pipeline runbook
     path: docs/pipelines.md

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jgabor/ktx/internal/canon"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -249,9 +250,18 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 }
 
 // PersistToolCallOnce persists tc exactly once and reports whether this call
-// inserted the row. A retry with the same id, tool, input, output, and runtime
-// succeeds without updating the row or session roll-up. Reusing the id with
-// different evidence returns ErrToolCallConflict and preserves the first row.
+// inserted the row. A retry with the same id, tool, canonically-equal input,
+// exact output, and exact runtime succeeds without updating the row or session
+// roll-up. Reusing the id with different authoritative evidence returns
+// ErrToolCallConflict and preserves the first row.
+//
+// Authoritative equality follows the identity decision: the input field is
+// compared under the strict canonical JSON comparison (canon.Equal, which
+// removes only object member order and insignificant whitespace and falls back
+// to exact bytes for non-normalizable input). Tool, output (exact bytes), and
+// runtime are compared exactly. All other metadata is first-wins: a retry with
+// different cost, token, timestamp, exit-code, or session fields neither
+// conflicts nor enriches the stored row.
 //
 // The insert-or-observe decision and session roll-up share one transaction, so
 // concurrent deliveries cannot double-count a tool call.
@@ -295,8 +305,8 @@ func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 			).Scan(&tool, &input, &output, &runtime); err != nil {
 				return fmt.Errorf("db: inspect existing tool_call %q: %w", tc.ID, err)
 			}
-			if tool != tc.Tool || input != tc.Input || output != tc.Output || !sameOptionalString(runtime, tc.Runtime) {
-				return fmt.Errorf("%w: %q already identifies different evidence", ErrToolCallConflict, tc.ID)
+			if reason := conflictReason(tool, input, output, runtime, tc); reason != "" {
+				return fmt.Errorf("%w: %q %s", ErrToolCallConflict, tc.ID, reason)
 			}
 			return nil
 		}
@@ -320,6 +330,27 @@ func sameOptionalString(stored sql.NullString, incoming *string) bool {
 		return !stored.Valid
 	}
 	return stored.Valid && stored.String == *incoming
+}
+
+// conflictReason returns a non-empty reason string when the incoming
+// ToolCall's authoritative evidence differs from the stored row, or "" when
+// the retry is an exact match (including canonically-equivalent input). Tool,
+// output, and runtime are compared exactly; input uses the strict canonical
+// JSON comparison so differently formatted but semantically equal JSON inputs
+// converge instead of conflicting.
+func conflictReason(tool, input, output string, runtime sql.NullString, tc *ToolCall) string {
+	switch {
+	case tool != tc.Tool:
+		return "tool differs"
+	case output != tc.Output:
+		return "output differs"
+	case !sameOptionalString(runtime, tc.Runtime):
+		return "runtime differs"
+	case !canon.Equal([]byte(input), []byte(tc.Input)):
+		return "input differs"
+	default:
+		return ""
+	}
 }
 
 // GetToolCall fetches a tool_call row by id. It returns ErrNotFound when no

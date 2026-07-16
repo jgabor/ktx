@@ -16,6 +16,52 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
+// NativeCorrelation carries the runtime-native identity tuple fields that
+// the parser extracts from recognized agent-runtime event schemas. The
+// wrapper uses these — together with the correlation package — to resolve
+// deterministic source identity for eligible retries.
+//
+// Trusted is true only when the event arrived through a recognized native
+// parser branch (OpenCode tool_use). Flat-fallback events are untrusted
+// and receive a fresh identity with no deduplication guarantee: a flat
+// payload that carries a runtime label cannot self-qualify for
+// deterministic identity just by claiming a runtime name, because
+// eligibility is provenance-driven, not text-driven.
+//
+// This struct is intentionally free of correlation-package dependencies so
+// the parser stays pure: the wrapper constructs the correlation.NativeTuple
+// and correlation.Provenance from these fields.
+type NativeCorrelation struct {
+	Runtime   string
+	SessionID string
+	CallID    string
+	Trusted   bool
+}
+
+// ParseEventWithCorrelation is the extended entry point that also returns
+// the native correlation tuple extracted from the event. For OpenCode
+// tool_use events, Trusted is true and the fields carry
+// (top.sessionID, part.callID). For flat-fallback events, Trusted is false
+// and the fields are empty. The caller uses these to resolve source identity
+// via correlation.Resolve.
+//
+// ParseEvent delegates to this function and discards the correlation.
+func ParseEventWithCorrelation(line []byte) (*dbpkg.ToolCall, NativeCorrelation, bool) {
+	ev, ok := parseToolEvent(line)
+	if !ok {
+		return nil, NativeCorrelation{}, false
+	}
+	tc, err := buildToolCall(ev)
+	if err != nil {
+		// NewID can only fail on gonanoid's internal entropy source
+		// (effectively impossible). Surface as a non-tool event so the
+		// caller's persist loop continues without recording — better
+		// than crashing the run.
+		return nil, NativeCorrelation{}, false
+	}
+	return tc, ev.native, true
+}
+
 // ParseEvent returns the tool_call encoded in line, or (nil, false) when
 // line is not a tool event (text, step lifecycle, etc.). The caller
 // forwards the result to db.PersistToolCall when ok=true; passthrough
@@ -33,20 +79,12 @@ import (
 // pointer (SQL NULL / JSON null) and a non-nil source value to a
 // non-nil pointer (SQL value / JSON value), preserving the
 // absent-vs-zero distinction at the db boundary.
+//
+// Callers that need the native correlation tuple (e.g. the wrapper for
+// deterministic identity) should use ParseEventWithCorrelation instead.
 func ParseEvent(line []byte) (*dbpkg.ToolCall, bool) {
-	ev, ok := parseToolEvent(line)
-	if !ok {
-		return nil, false
-	}
-	tc, err := buildToolCall(ev)
-	if err != nil {
-		// NewID can only fail on gonanoid's internal entropy source
-		// (effectively impossible). Surface as a non-tool event so the
-		// caller's persist loop continues without recording — better
-		// than crashing the run.
-		return nil, false
-	}
-	return tc, true
+	tc, _, ok := ParseEventWithCorrelation(line)
+	return tc, ok
 }
 
 // buildToolCall materialises a parsed event into the database shape. It
@@ -125,6 +163,12 @@ type parsedEvent struct {
 	// Failure-signal fields. nil = absent in the source event.
 	ExitCode *int64
 	IsError  *bool
+
+	// native carries the runtime-native correlation tuple extracted from
+	// recognized event schemas. For OpenCode tool_use events it carries
+	// (runtime="opencode", top.sessionID, part.callID, Trusted=true).
+	// For flat-fallback events it is zero-valued (Trusted=false).
+	native NativeCorrelation
 }
 
 // parseToolEvent returns (event, true) if line looks like a tool call,
@@ -189,6 +233,19 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 		_ = json.Unmarshal(part["callID"], &ev.ID)
 		if ev.ID == "" {
 			_ = json.Unmarshal(part["id"], &ev.ID)
+		}
+		// Capture the native correlation tuple for the OpenCode wrapper
+		// path. top.sessionID and part.callID form the same native tuple
+		// the hook adapter exposes (input.sessionID, input.callID); the
+		// wrapper uses this to resolve deterministic source identity via
+		// correlation.Resolve(Trusted(ProvenanceOpenCodeWrapper)).
+		var topSessionID string
+		_ = json.Unmarshal(top["sessionID"], &topSessionID)
+		ev.native = NativeCorrelation{
+			Runtime:   "opencode",
+			SessionID: topSessionID,
+			CallID:    ev.ID,
+			Trusted:   true,
 		}
 		var state map[string]json.RawMessage
 		if err := json.Unmarshal(part["state"], &state); err == nil {

@@ -213,6 +213,29 @@ func (d *DB) GetCompressed(id string) (*Compressed, error) {
 	return &c, nil
 }
 
+// GetCompressedBySource fetches the compressed artifact for a source tool_call
+// id. At most one compressed row exists per source (enforced by
+// InsertCompressedOnce), so LIMIT 1 is definitive. Returns ErrNotFound when no
+// compressed artifact exists for the source — the evidence layer uses this to
+// distinguish "exact retry with a prior artifact" from "no artifact yet".
+func (d *DB) GetCompressedBySource(sourceID string) (*Compressed, error) {
+	var c Compressed
+	err := d.db.QueryRow(
+		`SELECT id, source_id, output, content_hash, pipeline, timestamp
+		 FROM compressed WHERE source_id = ? LIMIT 1`,
+		sourceID,
+	).Scan(
+		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("db: get compressed for source %q: %w", sourceID, err)
+	}
+	return &c, nil
+}
+
 // GetSourceOutput is the reversal primitive `ktx decompress` invokes.
 // Given a source tool_call id (the
 // compressed.source_id), it returns the source's original output

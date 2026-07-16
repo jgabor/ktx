@@ -188,7 +188,7 @@ func (d *DB) HasCostColumns() (bool, []string, error) {
 // yet been migrated has no such table. The doctor uses this
 // probe to distinguish three states:
 //
-//   - Table present + all 12 columns present → "ok"
+//   - Table present + all 14 columns present → "ok"
 //   - Table present + some columns missing → "warning" (forward-fix on next open)
 //   - Table absent entirely → "warning" (unmigrated database; core and cost-publication records
 //     still queryable, the migration creates the table on next open)

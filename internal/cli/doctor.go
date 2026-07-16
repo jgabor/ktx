@@ -11,7 +11,7 @@
 //     Soft requirement — a missing cost column is a warning because the
 //     system still functions; records load, cost fields stay NULL on
 //     insert. The next ktx invocation applies the in-place migration.
-//  5. The `bench_runs` table exists with all 12 expected columns.
+//  5. The `bench_runs` table exists with all 14 expected columns.
 //     Soft requirement — a missing or partial `bench_runs`
 //     is a warning because the system still functions; records
 //     are queryable, `ktx bench run` is the only feature that
@@ -358,7 +358,7 @@ func buildDoctorReport() *doctorReport {
 	// requirement — a missing bench_runs table means the database
 	// lacks the table, not that the system is broken. Records are still
 	// queryable; only `ktx bench run` requires the table. Status:
-	// "ok" on migrated DB or fresh DB (all 12 columns present);
+	// "ok" on migrated DB or fresh DB (all 14 columns present);
 	// "warning" when the table is absent or partial bench_runs
 	// (some columns missing — forward-fix on next open).
 	if brCheck := checkBenchRuns(db); brCheck.Status == doctorStatusError {
@@ -581,7 +581,7 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "  - the database is openable")
 	fmt.Fprintln(w, "  - the schema matches the expected shape (sessions + tool_calls tables, hard requirement)")
 	fmt.Fprintln(w, "  - the cost-publication columns are present on tool_calls (soft requirement: warning if missing)")
-	fmt.Fprintln(w, "  - the bench_runs table is present with all 12 columns (soft requirement: warning if missing or partial)")
+	fmt.Fprintln(w, "  - the bench_runs table is present with all 14 columns (soft requirement: warning if missing or partial)")
 	fmt.Fprintln(w, "  - sampled IDs match the expected format (16-char lowercase alpha)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")

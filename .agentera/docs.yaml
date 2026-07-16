@@ -24,7 +24,7 @@ index:
     status: current
   - document: Agent guide
     path: AGENTS.md
-    last_updated: 2026-07-12
+    last_updated: 2026-07-15
     status: current
   - document: Architecture
     path: ARCHITECTURE.md
@@ -36,5 +36,5 @@ index:
     status: current
   - document: Pipeline runbook
     path: docs/pipelines.md
-    last_updated: 2026-07-12
+    last_updated: 2026-07-15
     status: current

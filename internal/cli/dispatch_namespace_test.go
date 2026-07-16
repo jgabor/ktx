@@ -467,6 +467,9 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		if !strings.Contains(stdout.String(), "ktx doctor") {
 			t.Errorf("stdout missing ktx doctor header: %q", stdout.String())
 		}
+		if !strings.Contains(stdout.String(), "all 14 columns") {
+			t.Errorf("stdout missing current bench_runs column count: %q", stdout.String())
+		}
 	})
 }
 

@@ -193,16 +193,16 @@ type benchRunsColumn struct {
 	Type string
 }
 
-// benchRunsColumns are the bench_runs columns. The list covers all 12
+// benchRunsColumns are the bench_runs columns. The list covers all 14
 // columns per the reproducibility contract: `id` (nanoid), `agent`,
 // `model`, `task`, `score`, `tokens_in`, `tokens_out`, `cost`,
 // `methodology_version` (the methodology column), `timestamp` (Unix epoch
 // seconds), `cache_read` and `cache_write` (additive NULL-when-absent
-// cache-telemetry columns sourced from the runtime's step_finish event,
-// not from tool_calls). Idempotency is handled identically to costColumns —
-// PRAGMA table_info is consulted before ALTER TABLE ADD COLUMN, so a re-open
-// of a fully migrated database is a no-op and a partial bench_runs
-// schema is forward-fixed on the next open.
+// cache-telemetry columns sourced from the runtime's step_finish event),
+// `reasoning`, and `estimated_api_cost`. Idempotency is handled identically
+// to costColumns — PRAGMA table_info is consulted before ALTER TABLE ADD
+// COLUMN, so a re-open of a fully migrated database is a no-op and a partial
+// bench_runs schema is forward-fixed on the next open.
 var benchRunsColumns = []benchRunsColumn{
 	{Name: "id", Type: "TEXT"},
 	{Name: "agent", Type: "TEXT"},

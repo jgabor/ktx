@@ -59,7 +59,7 @@ func loadMethodology(version string) (*methodology, string, error) {
 //  8. Derivation fills bench_runs.cost when the tool_calls'
 //     SUM(cost) is NULL but tokens + model are present and the cache
 //     has the price.
-//  9. Insert the bench_runs row with all 12 columns populated.
+//  9. Insert the bench_runs row with all 14 columns populated.
 //  10. Print the headline JSON envelope to stdout and a one-line
 //     summary to stderr (wrapper convention).
 //

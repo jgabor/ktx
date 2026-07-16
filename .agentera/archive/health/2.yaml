@@ -1,0 +1,57 @@
+schemaVersion: agentera.stateArchiveEntry.v1
+artifact_id: health
+entry_number: 2
+record:
+  number: 2
+  date: 2026-07-16
+  dimensions:
+    - architecture_alignment
+    - pattern_consistency
+    - coupling_health
+    - complexity_hotspots
+    - test_health
+    - dependency_health
+    - artifact_freshness
+    - prose_health
+    - security_hygiene
+  findings_summary:
+    critical: 0
+    warning: 2
+    info: 0
+    filtered_by_confidence: 1
+  trajectory: stable
+  grades:
+    architecture_alignment: A
+    pattern_consistency: A
+    coupling_health: A
+    complexity_hotspots: A
+    test_health: A
+    dependency_health: A
+    artifact_freshness: B
+    prose_health: A
+    security_hygiene: A
+  findings:
+    - severity: warning
+      heading: Documentation freshness index trails substantive edits
+      confidence: 95
+      location: .agentera/docs.yaml:27
+      evidence: AGENTS.md and docs/pipelines.md are dated 2026-07-12 although git records substantive edits on 2026-07-15; the second stale entry is .agentera/docs.yaml:39.
+      impact: Agentera reports indexed documentation as older than its content.
+      suggested_action: Refresh both index dates to 2026-07-15.
+      verify_command: git log -1 --format='%aI' -- AGENTS.md; git log -1 --format='%aI' -- docs/pipelines.md
+    - severity: warning
+      heading: Prior health trend describes a resolved trust-boundary defect
+      confidence: 98
+      location: .agentera/health.yaml:41
+      evidence: The trend says the Codex discriminator remains broad, but internal/cli/hook.go:235 rejects every non-PostToolUse event before side effects.
+      impact: Health state presents a closed security finding as active.
+      suggested_action: Record the resolution in this audit; retain the prior audit unchanged.
+      verify_command: go test ./internal/cli -run TestHook_Codex_RejectsUnsupportedEventName -count=1
+  dimension_details:
+    []
+  trends:
+    comparison_target: Audit 1
+    stable: The prior trust-boundary warning is resolved; two artifact-freshness warnings replace it.
+  patterns:
+    - Pure identity and canonicalization packages feed correlation and evidence layers; CLI code remains the composition boundary.
+record_sha256: 8ba02b14bdf92403a7774ebda8830c089c9dc1e4d830a63ca5efb0ff5921ffaa

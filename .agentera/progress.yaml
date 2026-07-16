@@ -1,4 +1,30 @@
 cycles:
+  - number: 45
+    timestamp: 2026-07-16 12:12
+    type: refactor
+    phase: build
+    what: Unified recorded-stream usage evidence across live benchmark and
+      experiment paths.
+    inspiration: The architecture review identified two independent interpretations
+      of authoritative recorded-stream evidence.
+    discovered: Exact cross-path equivalence also required aggregate range checks,
+      consistent malformed typed-event validation, and delimiter-safe handling
+      at the 64 MiB limit.
+    verified: mage check passed all tests, vet, lint, and build with 0 issues; git
+      diff --check passed; independent review accepted; cross-path edge-case
+      regressions pass.
+    next: The next architecture backlog item is the unified hook processing flow; do
+      not expand stream parsing into scoring or runtime-format dispatch without
+      separate planning.
+    context:
+      intent: Remove duplicate step-finish aggregation while preserving benchmark
+        output, scoring, and retained-evidence regeneration.
+      constraints: Kept answer scoring, excerpts, model and agent metadata, completion
+        detection, wrapper enrichment, and new runtime formats out of scope.
+      unknowns: Answer extraction retains its caller-specific 4 MiB limit by design;
+        changing it may alter scoring and requires separate work.
+      scope: Added shared usage parsing and tests; updated live benchmark and
+        experiment stream readers; marked the corresponding TODO resolved.
   - number: 44
     timestamp: 2026-07-16 09:27
     type: docs
@@ -465,48 +491,6 @@ cycles:
       scope: .agentera/decisions.yaml, .agentera/archive/decisions/30.yaml,
         user-approved confidence-label normalization for Decisions 27-29, and
         Agentera progress artifacts.
-  - number: 35
-    timestamp: 2026-07-15 23:37
-    type: test
-    phase: plan
-    what: Corrected the runtime identity evidence after independent evaluation by
-      adding an offline retry-class probe and replacing inferred coverage with
-      tested stable versus unknown/ineligible classifications.
-    inspiration: Independent evaluation found that cycle 34 claimed all retry
-      classes were substantiated although only exact Codex redelivery had been
-      exercised.
-    discovered: At the KTX boundary, repeated OpenCode callbacks and hook-failure
-      redelivery create duplicate rows today; retained OpenCode stream replay
-      preserves the native tuple but current parser IDs differ; a new native
-      call ID derives a distinct identity; the same Codex tuple converges across
-      separate KTX processes and KTX sessions.
-    verified: "Cycle 34 overclaimed criterion 2. Command go run
-      .agentera/verification/runtime_identity_probe.go passed five offline
-      classes: duplicate OpenCode callback retained 2 rows/ineligible; OpenCode
-      stream replay kept one native tuple and derived candidate while parser IDs
-      differed/ineligible; changed model call ID derived distinctly; simulated
-      KTX process/session restart yielded 2 KTX sessions but 1 Codex source and
-      roll-up; post-persistence failure redelivery converged for Codex and
-      duplicated for OpenCode. Focused identity, DB migration/retry, Codex hook,
-      exact parser, and race commands passed. Criterion 1 remains pinned in the
-      evidence artifact; criterion 3 remains substantiated by records.go
-      equality inspection/tests; criterion 4 remains substantiated by schema
-      inspection and TestOpen_RuntimeMigration. Upstream automatic failed-hook
-      retry and runtime-restart replay are explicitly unknown/ineligible, not
-      claimed exercised."
-    next: Use only the corrected stable/ineligible matrix when recording the
-      generalized identity decision.
-    context:
-      intent: Repair cycle 34's criterion 2 overclaim while preserving the
-        research-only scope and all prior user work.
-      constraints: No product code, decisions, plan status, README, architecture, or
-        TODO changes; no live model calls.
-      unknowns: Upstream failed-hook retry, callback replay after runtime restart, and
-        guaranteed fresh model re-execution IDs remain unspecified by pinned
-        contracts.
-      scope: .agentera/verification/runtime_identity_probe.go,
-        .agentera/verification/runtime-identity-evidence.md, and Agentera
-        progress artifacts only.
   - number: 33
     timestamp: 2026-07-12 22:25
     type: refactor
@@ -702,6 +686,8 @@ cycles:
       intent: "Document command-aware routing: example config, pipeline docs,
         architecture update."
 archive:
+  - summary: "Cycle 35 (2026-07-15): Corrected the runtime identity evidence after
+      independent evaluation by adding an offline retry-class probe and..."
   - summary: "Cycle 34 (2026-07-15): Established pinned runtime identity evidence
       for OpenCode hook/wrapper and Codex hook without changing product
       behavior..."

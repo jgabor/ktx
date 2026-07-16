@@ -1,10 +1,11 @@
 package experiment
 
 import (
-	"bufio"
 	"encoding/json"
 	"os"
 	"strings"
+
+	"github.com/jgabor/ktx/internal/usage"
 )
 
 func ParseStream(path string, expectedOutput *string, expectedFacts []string) Metrics {
@@ -14,13 +15,26 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 		return metrics
 	}
 	defer file.Close()
-	var tokensIn, tokensOut, cost float64
-	var cacheRead, cacheWrite, reasoning float64
-	var sawTokensIn, sawTokensOut, sawCost, sawCacheRead, sawCacheWrite, sawReasoning bool
+	// Usage-evidence aggregation for step_finish events is shared via
+	// the usage package so the live benchmark path and this experiment
+	// path apply one interpretation to the same recorded stream. The
+	// Aggregator is driven inline so the stream is read exactly once:
+	// the same scan also collects tool_use counts, the answer text,
+	// and the stream-complete marker, which stay here because they are
+	// not usage evidence.
+	agg := &usage.Aggregator{}
 	lastText := ""
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 64*1024), 64*1024*1024)
-	for scanner.Scan() {
+	usage.ReadDelimitedLines(file, usage.MaxRecordSize, func(line []byte) bool {
+		// The event struct includes the usage fields as strict *float64
+		// types so that a wrong-type cost or tokens value (e.g., a
+		// string where a number is expected) causes json.Unmarshal to
+		// fail and the entire line to be skipped — preserving the
+		// caller-specific behavior where a malformed text or
+		// step_finish event does not affect scoring, completion, or
+		// the step count. The aggregator re-parses validated lines for
+		// usage evidence; the struct fields exist only for this
+		// validation gate and for text/reason extraction, not for
+		// aggregation (that is the aggregator's sole responsibility).
 		var event struct {
 			Type    string          `json:"type"`
 			Content json.RawMessage `json:"content"`
@@ -40,50 +54,19 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				} `json:"tokens"`
 			} `json:"part"`
 		}
-		if json.Unmarshal(scanner.Bytes(), &event) != nil {
-			continue
+		if json.Unmarshal(line, &event) != nil {
+			return false // skip malformed line (preserves scoring/status)
 		}
 		switch event.Type {
 		case "tool_use":
 			metrics.ToolCallCount++
 		case "step_finish":
-			metrics.UsageEvidence.StepFinishEvents++
-			if event.Part.Tokens.Input != nil {
-				tokensIn += *event.Part.Tokens.Input
-				sawTokensIn = true
-				metrics.UsageEvidence.TokensInEvents++
-			}
-			if event.Part.Tokens.Output != nil {
-				tokensOut += *event.Part.Tokens.Output
-				sawTokensOut = true
-				metrics.UsageEvidence.TokensOutEvents++
-			}
-			if event.Part.Cost != nil {
-				cost += *event.Part.Cost
-				sawCost = true
-				metrics.UsageEvidence.CostEvents++
-			}
-			if event.Part.Tokens.Reasoning != nil {
-				reasoning += *event.Part.Tokens.Reasoning
-				sawReasoning = true
-				metrics.UsageEvidence.ReasoningEvents++
-			}
-			// Cache telemetry on step_finish is per-request
-			// (tokens.total == tokens.input + tokens.output +
-			// tokens.reasoning + tokens.cache.read +
-			// tokens.cache.write for every event). SUM across
-			// events matches the input/output/cost aggregation.
-			// A nil source field stays nil; an explicitly emitted
-			// zero is preserved as a non-nil pointer to 0.
-			if event.Part.Tokens.Cache.Read != nil {
-				cacheRead += *event.Part.Tokens.Cache.Read
-				sawCacheRead = true
-				metrics.UsageEvidence.CacheReadEvents++
-			}
-			if event.Part.Tokens.Cache.Write != nil {
-				cacheWrite += *event.Part.Tokens.Cache.Write
-				sawCacheWrite = true
-				metrics.UsageEvidence.CacheWriteEvents++
+			// The shared parser owns the minimal typed-usage validity
+			// gate. A malformed step is skipped here as it was by the
+			// legacy strict event decoder, preserving completion behavior
+			// without moving completion or scoring into usage.
+			if !agg.AddLine(line) {
+				return false
 			}
 			if event.Part.Reason == "stop" {
 				metrics.StreamComplete = true
@@ -101,33 +84,45 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				}
 			}
 		}
-	}
+		return false
+	})
 	metrics.Score = ScoreAnswer(lastText, expectedOutput, expectedFacts)
 	answer := strings.TrimSpace(lastText)
 	if len(answer) > 500 {
 		answer = answer[:500]
 	}
 	metrics.AnswerExcerpt = answer
-	steps := metrics.UsageEvidence.StepFinishEvents
-	if sawTokensIn && metrics.UsageEvidence.TokensInEvents == steps {
-		metrics.TokensIn = &tokensIn
-	}
-	if sawTokensOut && metrics.UsageEvidence.TokensOutEvents == steps {
-		metrics.TokensOut = &tokensOut
-	}
-	if sawCost && metrics.UsageEvidence.CostEvents == steps {
-		metrics.Cost = &cost
-	}
-	if sawCacheRead && metrics.UsageEvidence.CacheReadEvents == steps {
-		metrics.CacheRead = &cacheRead
-	}
-	if sawCacheWrite && metrics.UsageEvidence.CacheWriteEvents == steps {
-		metrics.CacheWrite = &cacheWrite
-	}
-	if sawReasoning && metrics.UsageEvidence.ReasoningEvents == steps {
-		metrics.Reasoning = &reasoning
-	}
+	ev := agg.Result()
+	metrics.UsageEvidence.StepFinishEvents = ev.Steps
+	metrics.UsageEvidence.TokensInEvents = ev.TokensInEvents
+	metrics.UsageEvidence.TokensOutEvents = ev.TokensOutEvents
+	metrics.UsageEvidence.CostEvents = ev.CostEvents
+	metrics.UsageEvidence.CacheReadEvents = ev.CacheReadEvents
+	metrics.UsageEvidence.CacheWriteEvents = ev.CacheWriteEvents
+	metrics.UsageEvidence.ReasoningEvents = ev.ReasoningEvents
+	// Integer evidence is shared as exact *int64. The experiment's
+	// Metrics uses *float64 for JSON serialization; the conversion is
+	// exact for every accepted value (the aggregator rejects fractional
+	// and precision-losing values above 2^53 from completeness).
+	metrics.TokensIn = int64ToFloat64(ev.TokensIn)
+	metrics.TokensOut = int64ToFloat64(ev.TokensOut)
+	metrics.Cost = ev.Cost
+	metrics.CacheRead = int64ToFloat64(ev.CacheRead)
+	metrics.CacheWrite = int64ToFloat64(ev.CacheWrite)
+	metrics.Reasoning = int64ToFloat64(ev.Reasoning)
 	return metrics
+}
+
+// int64ToFloat64 converts an exact-int64 evidence pointer to the
+// *float64 type the experiment's Metrics uses for JSON serialization.
+// The conversion is exact for all values the aggregator accepts
+// (within [-2^53, 2^53]). nil passes through as nil.
+func int64ToFloat64(v *int64) *float64 {
+	if v == nil {
+		return nil
+	}
+	f := float64(*v)
+	return &f
 }
 
 func AttemptStatus(exitCode int, newSessionIDs []string, metrics Metrics) string {

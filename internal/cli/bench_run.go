@@ -16,6 +16,7 @@ import (
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	methodologypkg "github.com/jgabor/ktx/internal/methodology"
+	"github.com/jgabor/ktx/internal/usage"
 )
 
 // methodology is the parsed subset of a published methodology the bench
@@ -569,173 +570,77 @@ func (sm streamMetrics) completeReportedCost() bool {
 }
 
 // extractStreamMetrics parses the captured JSONL stream looking for
-// step_finish events (the OpenCode 1.17.8 step-aggregate). Returns
-// a streamMetrics populated with the SUM of tokens_in / tokens_out /
-// cost / cache_read / cache_write over all step_finish lines (all are
-// per-request deltas — tokens.total == input + output + reasoning +
-// cache.read + cache.write for every event); model is the
-// methodology-pinned model id when the stream does not carry a model
-// identifier (the step_finish event has no model field today, only
-// part.cost and part.tokens). provider is derived per the OpenCode
-// runtime-known default ("opencode") unless explicitly present on a
-// step_finish event (the parser also defaults to "opencode" for the
-// same reason; see parser.go:226-229).
+// step_finish events (the OpenCode step-aggregate). Token, cost,
+// cache, and reasoning aggregation and the completeness gate are
+// delegated to the shared usage package so the live benchmark path
+// and the experiment path apply one interpretation to the same
+// recorded stream.
 //
-// Input, output, cost, reasoning, and cache telemetry are exposed only when
-// each field was present on EVERY step_finish event. Partial evidence is
-// discarded to nil rather than persisted or priced as a misleading subset.
-// An emitted zero is a valid measurement; absent stays nil.
+// model and provider are command-specific metadata extracted here, not
+// in the shared package: the first non-empty part.model /
+// part.provider on any step_finish wins. They do not participate in
+// the completeness gate.
 //
-// When the stream carries no step_finish events (e.g., a flat-
-// fallback runtime that emits only tool calls with tokens on
-// each), streamMetrics.hasData=false and the caller falls through
-// to the tool_calls-based aggregation path.
+// When the stream carries no step_finish events (e.g., a flat-fallback
+// runtime that emits only tool calls), streamMetrics.hasData=false
+// and the caller falls through to the tool_calls-based aggregation
+// path.
 //
 // The input is a []byte snapshot taken before any scanner reads the
 // buffer (see extractAgentOutput's doc for why — once a bufio.
 // Scanner consumes a *bytes.Buffer, the read offset is at EOF).
 func extractStreamMetrics(stdout []byte) streamMetrics {
 	var sm streamMetrics
-	var inputVal, outputVal, cacheReadVal, cacheWriteVal, reasoningVal int64
-	var costVal float64
-	var inputEvents, outputEvents, costEvents, cacheReadEvents, cacheWriteEvents, reasoningEvents, stepCount int
-	scanner := bufio.NewScanner(bytes.NewReader(stdout))
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-		var top map[string]json.RawMessage
-		if err := json.Unmarshal(line, &top); err != nil {
-			continue
-		}
-		var eventType string
-		_ = json.Unmarshal(top["type"], &eventType)
-		if eventType != "step_finish" {
-			continue
-		}
-		// part.tokens.input / .output / .cache.{read,write} is the OpenCode 1.17.8 shape.
-		var part map[string]json.RawMessage
-		if err := json.Unmarshal(top["part"], &part); err != nil {
-			continue
-		}
-		sm.hasData = true
-		stepCount++
-		var tk struct {
-			Input     json.RawMessage `json:"input"`
-			Output    json.RawMessage `json:"output"`
-			Reasoning json.RawMessage `json:"reasoning"`
-			Cache     struct {
-				Read  json.RawMessage `json:"read"`
-				Write json.RawMessage `json:"write"`
-			} `json:"cache"`
-		}
-		_ = json.Unmarshal(part["tokens"], &tk)
-		if n, ok := jsonNumberToInt64(tk.Input); ok {
-			inputVal += n
-			inputEvents++
-		}
-		if n, ok := jsonNumberToInt64(tk.Output); ok {
-			outputVal += n
-			outputEvents++
-		}
-		if n, ok := jsonNumberToInt64(tk.Reasoning); ok {
-			reasoningVal += n
-			reasoningEvents++
-		}
-		// part.cost: non-cumulative per-step delta — SUM across
-		// step_finish events (mirrors experiment.ParseStream).
-		// cost=0 is a valid provider-reported value (e.g., cache
-		// hits) and is not an absent value; explicit JSON null
-		// and absent keys stay nil (matching *float64 semantics
-		// in experiment.ParseStream).
-		if raw := part["cost"]; len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
-			var c float64
-			if err := json.Unmarshal(raw, &c); err == nil {
-				costVal += c
-				costEvents++
-			}
-		}
-		// part.tokens.cache.read / .write: per-request cache
-		// token counts (tokens.total == tokens.input +
-		// tokens.output + tokens.reasoning + tokens.cache.read +
-		// tokens.cache.write). SUM across events matches
-		// the input/output/cost aggregation. Tracked locally
-		// and exposed only when the field appeared on every
-		// step_finish (completeness gate below).
-		if n, ok := jsonNumberToInt64(tk.Cache.Read); ok {
-			cacheReadVal += n
-			cacheReadEvents++
-		}
-		if n, ok := jsonNumberToInt64(tk.Cache.Write); ok {
-			cacheWriteVal += n
-			cacheWriteEvents++
-		}
-		if raw := part["model"]; len(raw) > 0 {
-			var m string
-			if err := json.Unmarshal(raw, &m); err == nil && m != "" && sm.model == "" {
-				sm.model = m
-			}
-		}
-		if raw := part["provider"]; len(raw) > 0 {
-			var p string
-			if err := json.Unmarshal(raw, &p); err == nil && p != "" && sm.provider == "" {
-				sm.provider = p
-			}
-		}
-	}
-	// Completeness gates mirror experiment.ParseStream. A metric is exposed
-	// only when every step_finish event carried that field.
-	if inputEvents > 0 && inputEvents == stepCount {
-		v := inputVal
-		sm.tokensIn = &v
-	}
-	if outputEvents > 0 && outputEvents == stepCount {
-		v := outputVal
-		sm.tokensOut = &v
-	}
-	if costEvents > 0 && costEvents == stepCount {
-		v := costVal
-		sm.cost = &v
-	}
-	if cacheReadEvents > 0 && cacheReadEvents == stepCount {
-		v := cacheReadVal
-		sm.cacheRead = &v
-	}
-	if cacheWriteEvents > 0 && cacheWriteEvents == stepCount {
-		v := cacheWriteVal
-		sm.cacheWrite = &v
-	}
-	if reasoningEvents > 0 && reasoningEvents == stepCount {
-		v := reasoningVal
-		sm.reasoning = &v
-	}
+	agg := &usage.Aggregator{}
+	usage.ReadDelimitedLines(bytes.NewReader(stdout), usage.MaxRecordSize, func(line []byte) bool {
+		agg.AddLine(line)
+		// model / provider are CLI-local metadata; extract them
+		// from the same scan so the stream is read exactly once.
+		extractModelProvider(line, &sm)
+		return false
+	})
+	ev := agg.Result()
+	// Integer evidence (tokens, cache, reasoning) is shared as
+	// exact *int64 from the usage package; this caller passes it
+	// through without conversion. An explicit zero is preserved
+	// (non-nil pointer to 0); a completeness failure, an absent
+	// field, or a fractional/precision-losing value stays nil.
+	sm.hasData = ev.HasData
+	sm.tokensIn = ev.TokensIn
+	sm.tokensOut = ev.TokensOut
+	sm.cacheRead = ev.CacheRead
+	sm.cacheWrite = ev.CacheWrite
+	sm.reasoning = ev.Reasoning
+	// cost is *float64 in the shared result; pass through.
+	sm.cost = ev.Cost
 	return sm
 }
 
-// jsonNumberToInt64 coerces a json.RawMessage that's expected to be
-// numeric into an int64. JSON numbers can decode as float64 via the
-// default UnmarshalJSON; int64 values from OpenCode step_finish
-// tokens round-trip cleanly when the source emits them without
-// a fractional component (real OpenCode 1.17.8 emits integer
-// token counts). Returns (0, false) on parsing failure, non-numeric
-// input, or explicit JSON null — the caller treats false as 'field
-// absent', matching experiment.ParseStream's *float64 pointer
-// semantics where null unmarshals to nil (not emitted zero).
-func jsonNumberToInt64(raw json.RawMessage) (int64, bool) {
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return 0, false
+// extractModelProvider reads the first non-empty part.model and
+// part.provider from a step_finish line into sm. They are
+// command-specific metadata and do not affect usage-evidence
+// aggregation or completeness. Malformed and non-step_finish lines
+// are ignored.
+func extractModelProvider(line []byte, sm *streamMetrics) {
+	var event struct {
+		Type string `json:"type"`
+		Part struct {
+			Model    string `json:"model"`
+			Provider string `json:"provider"`
+		} `json:"part"`
 	}
-	var i int64
-	if err := json.Unmarshal(raw, &i); err == nil {
-		return i, true
+	if json.Unmarshal(line, &event) != nil {
+		return
 	}
-	var f float64
-	if err := json.Unmarshal(raw, &f); err == nil {
-		return int64(f), true
+	if event.Type != "step_finish" {
+		return
 	}
-	return 0, false
+	if sm.model == "" && event.Part.Model != "" {
+		sm.model = event.Part.Model
+	}
+	if sm.provider == "" && event.Part.Provider != "" {
+		sm.provider = event.Part.Provider
+	}
 }
 
 // computeHeadline computes the headline number:

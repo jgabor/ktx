@@ -1,0 +1,19 @@
+schemaVersion: agentera.stateArchiveEntry.v1
+artifact_id: progress
+entry_number: 45
+record:
+  number: 45
+  timestamp: 2026-07-16 12:12
+  type: refactor
+  phase: build
+  what: Unified recorded-stream usage evidence across live benchmark and experiment paths.
+  inspiration: The architecture review identified two independent interpretations of authoritative recorded-stream evidence.
+  discovered: Exact cross-path equivalence also required aggregate range checks, consistent malformed typed-event validation, and delimiter-safe handling at the 64 MiB limit.
+  verified: mage check passed all tests, vet, lint, and build with 0 issues; git diff --check passed; independent review accepted; cross-path edge-case regressions pass.
+  next: The next architecture backlog item is the unified hook processing flow; do not expand stream parsing into scoring or runtime-format dispatch without separate planning.
+  context:
+    intent: Remove duplicate step-finish aggregation while preserving benchmark output, scoring, and retained-evidence regeneration.
+    constraints: Kept answer scoring, excerpts, model and agent metadata, completion detection, wrapper enrichment, and new runtime formats out of scope.
+    unknowns: Answer extraction retains its caller-specific 4 MiB limit by design; changing it may alter scoring and requires separate work.
+    scope: Added shared usage parsing and tests; updated live benchmark and experiment stream readers; marked the corresponding TODO resolved.
+record_sha256: e51f8ddfbe326311ad90c3248a3eb041e344614647a6ca0c9b80f49103d61985

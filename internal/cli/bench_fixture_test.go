@@ -327,6 +327,79 @@ func TestRunBenchExportPreservesSourceDatabaseBytes(t *testing.T) {
 	}
 }
 
+func assertFixtureDatabaseUnchanged(t *testing.T, path string, before []byte) {
+	t.Helper()
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read source database after rejected export: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("source database bytes changed after rejected export")
+	}
+	database, err := dbpkg.OpenReadOnly(path)
+	if err != nil {
+		t.Fatalf("reopen source database after rejected export: %v", err)
+	}
+	defer database.Close()
+	var integrity string
+	if err := database.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		t.Fatalf("check source database integrity: %v", err)
+	}
+	if integrity != "ok" {
+		t.Fatalf("source database integrity = %q, want ok", integrity)
+	}
+}
+
+func TestRunBenchExportRejectsSourceDatabaseDestinationAliases(t *testing.T) {
+	tests := []struct {
+		name        string
+		destination func(*testing.T, string) string
+	}{
+		{"direct path", func(_ *testing.T, path string) string { return path }},
+		{"relative equivalent", func(_ *testing.T, path string) string {
+			return filepath.Dir(path) + string(os.PathSeparator) + "." + string(os.PathSeparator) + filepath.Base(path)
+		}},
+		{"symlink alias", func(t *testing.T, path string) string {
+			alias := filepath.Join(filepath.Dir(path), "source-link.db")
+			if err := os.Symlink(path, alias); err != nil {
+				t.Fatalf("create source database symlink: %v", err)
+			}
+			return alias
+		}},
+		{"hard-link alias", func(t *testing.T, path string) string {
+			alias := filepath.Join(filepath.Dir(path), "source-hardlink.db")
+			if err := os.Link(path, alias); err != nil {
+				t.Fatalf("create source database hard link: %v", err)
+			}
+			return alias
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			dbPath := filepath.Join(dir, "ktx.db")
+			sessionID := seedFixtureExportDB(t, dbPath, true)
+			before, err := os.ReadFile(dbPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			destination := tt.destination(t, dbPath)
+			t.Setenv("KTX_DB", dbPath)
+
+			var stdout, stderr bytes.Buffer
+			code := runWith([]string{"bench", "export", "--output", destination, sessionID}, &stdout, &stderr)
+			if code != ExitUsage || stdout.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q stderr=%q, want usage rejection without output", code, stdout.String(), stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "source database") || !strings.Contains(stderr.String(), "--output -") {
+				t.Fatalf("stderr=%q, want source alias explanation and safe stdout correction", stderr.String())
+			}
+			assertFixtureDatabaseUnchanged(t, dbPath, before)
+		})
+	}
+}
+
 func TestRunBenchExportRejectsInvalidSourcesBeforePublication(t *testing.T) {
 	tests := []struct {
 		name   string

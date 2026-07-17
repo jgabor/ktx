@@ -51,6 +51,44 @@ func invalidReplayFixtureSource(message string, args ...any) *Error {
 	return err
 }
 
+func invalidReplayFixtureDestination(sourcePath string) *Error {
+	err := usageError("ktx bench export: --output resolves to the source database %q; refusing to replace source evidence", sourcePath)
+	err.Extra = map[string]any{
+		"failure_class": "invalid-replay-fixture-destination",
+		"correction":    "use --output - for stdout or choose a file that is distinct from the source database",
+	}
+	return err
+}
+
+func destinationAliasesSource(sourcePath, outputPath string) (bool, error) {
+	if outputPath == "-" {
+		return false, nil
+	}
+	sourceAbsolute, err := filepath.Abs(sourcePath)
+	if err != nil {
+		return false, err
+	}
+	outputAbsolute, err := filepath.Abs(outputPath)
+	if err != nil {
+		return false, err
+	}
+	if sourceAbsolute == outputAbsolute {
+		return true, nil
+	}
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		return false, err
+	}
+	outputInfo, err := os.Stat(outputPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return os.SameFile(sourceInfo, outputInfo), nil
+}
+
 func runBenchExport(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench export", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -73,6 +111,15 @@ func runBenchExport(args []string, opts Options, stdout, stderr io.Writer) int {
 	if err != nil {
 		printError(stderr, internalError("ktx bench export: resolve database path: %v", err), opts.Format)
 		return ExitInternal
+	}
+	aliasesSource, err := destinationAliasesSource(path, output)
+	if err != nil {
+		printError(stderr, internalError("ktx bench export: compare output with source database: %v", err), opts.Format)
+		return ExitInternal
+	}
+	if aliasesSource {
+		printError(stderr, invalidReplayFixtureDestination(path), opts.Format)
+		return ExitUsage
 	}
 	database, err := dbpkg.OpenReadOnly(path)
 	if err != nil {

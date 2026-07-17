@@ -82,6 +82,14 @@ func Check() error {
 	return nil
 }
 
+// Verify runs the complete repository verification used locally and in CI.
+func Verify() error {
+	if err := Check(); err != nil {
+		return err
+	}
+	return ReplayFixture()
+}
+
 func run(name string, args ...string) error {
 	command := exec.Command(name, args...)
 	command.Stdout = os.Stdout

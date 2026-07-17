@@ -90,7 +90,7 @@ tasks:
     name: Enforce the gate in tracked CI
     depends_on:
       - "5"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN a push or pull request WHEN tracked CI runs THEN the repository verification command includes the portable fixture gate.
       - GIVEN a clean hosted runner WHEN verification starts THEN no model key, network service, container daemon, user configuration, or mutable local database is required.

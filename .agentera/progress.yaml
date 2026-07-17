@@ -1,4 +1,35 @@
 cycles:
+  - number: 55
+    timestamp: 2026-07-17 20:38
+    type: fix
+    phase: build
+    what: Updated internal/cli/bench_fixture.go to require hexadecimal stream.sha256
+      text before replay evaluation; added malformed-digest and strict-drift
+      regression coverage; clarified the exact 64-character contract in
+      docs/pipelines.md.
+    inspiration: Active replay digest remediation plan and reproduced audit finding.
+    discovered: The implementation already enforced length and lowercase but allowed
+      64 non-hexadecimal characters. An initial smoke invocation also confirmed
+      that --json is not a bench run flag; the documented default JSON
+      invocation was then used successfully.
+    verified: Focused replay tests passed; go test ./internal/cli -count=1 passed;
+      mage verify passed tests, vet, lint with 0 issues, build, and the retained
+      replay gate. build/ktx rejected 64 g characters with exit 1,
+      invalid-replay-fixture, correction guidance, and empty stdout.
+    next: The remediation task and plan can be marked complete from local evidence;
+      do not infer hosted CI execution or decision satisfaction, and do not
+      stage the pre-existing portable replay plan archive transition.
+    context:
+      intent: Restore malformed portable replay digests to the documented
+        input-validation path without changing valid replay or syntactically
+        valid drift evidence.
+      constraints: Digest validation, focused tests, runbook accuracy, and state
+        closeout only. Preserved valid replay and syntactically valid content,
+        digest, and expectation drift behavior.
+      unknowns: Hosted CI was not observed. Historical decision state remains degraded
+        and was not used for satisfaction claims.
+      scope: internal/cli/bench_fixture.go, internal/cli/bench_fixture_test.go,
+        docs/pipelines.md, and agentera-managed remediation plan/progress state.
   - number: 54
     timestamp: 2026-07-17 20:12
     type: chore
@@ -261,32 +292,6 @@ cycles:
       scope: Added portable fixture types, strict decoder and validation, explicit
         --replay-file dispatch and help/error contract, and focused CLI tests;
         updated active plan evidence and progress through the state writer.
-  - number: 45
-    timestamp: 2026-07-16 12:12
-    type: refactor
-    phase: build
-    what: Unified recorded-stream usage evidence across live benchmark and
-      experiment paths.
-    inspiration: The architecture review identified two independent interpretations
-      of authoritative recorded-stream evidence.
-    discovered: Exact cross-path equivalence also required aggregate range checks,
-      consistent malformed typed-event validation, and delimiter-safe handling
-      at the 64 MiB limit.
-    verified: mage check passed all tests, vet, lint, and build with 0 issues; git
-      diff --check passed; independent review accepted; cross-path edge-case
-      regressions pass.
-    next: The next architecture backlog item is the unified hook processing flow; do
-      not expand stream parsing into scoring or runtime-format dispatch without
-      separate planning.
-    context:
-      intent: Remove duplicate step-finish aggregation while preserving benchmark
-        output, scoring, and retained-evidence regeneration.
-      constraints: Kept answer scoring, excerpts, model and agent metadata, completion
-        detection, wrapper enrichment, and new runtime formats out of scope.
-      unknowns: Answer extraction retains its caller-specific 4 MiB limit by design;
-        changing it may alter scoring and requires separate work.
-      scope: Added shared usage parsing and tests; updated live benchmark and
-        experiment stream readers; marked the corresponding TODO resolved.
   - number: 39
     timestamp: 2026-07-16 06:30
     type: feat
@@ -556,6 +561,8 @@ cycles:
       intent: "Document command-aware routing: example config, pipeline docs,
         architecture update."
 archive:
+  - summary: "Cycle 45 (2026-07-16): Unified recorded-stream usage evidence across
+      live benchmark and experiment paths."
   - summary: "Cycle 44 (2026-07-16): Corrected cycle 43's stale next-action
       narrative: the deterministic-identity plan was already complete and
       archived before..."

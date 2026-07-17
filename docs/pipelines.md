@@ -245,14 +245,14 @@ configuration or plugins, contact a model or network service, start a
 container, or require credentials. Version 1 is one JSON value with no unknown
 fields and these required sections:
 
-| Section                | Required evidence                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `version`              | Integer `1`.                                                                                                          |
-| `benchmark`            | Non-empty `methodology_version`, `agent`, `model`, and `task`, plus a finite `score`.                                 |
-| `stream`               | `format`, raw JSONL `content`, and its lowercase SHA-256 digest. Export currently requires `opencode-jsonl-1`.        |
-| `expected.parser`      | Non-negative `tool_use_count`.                                                                                        |
-| `expected.usage`       | `tokens_in`, `tokens_out`, `cost`, `cache_read`, and `cache_write`; every key is required and each value may be null. |
-| `expected.compression` | Ordered pipeline identity, baseline and compressed byte counts, bytes saved, and ratio.                               |
+| Section                | Required evidence                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`              | Integer `1`.                                                                                                                                        |
+| `benchmark`            | Non-empty `methodology_version`, `agent`, `model`, and `task`, plus a finite `score`.                                                               |
+| `stream`               | `format`, raw JSONL `content`, and its SHA-256 digest as exactly 64 lowercase hexadecimal characters. Export currently requires `opencode-jsonl-1`. |
+| `expected.parser`      | Non-negative `tool_use_count`.                                                                                                                      |
+| `expected.usage`       | `tokens_in`, `tokens_out`, `cost`, `cache_read`, and `cache_write`; every key is required and each value may be null.                               |
+| `expected.compression` | Ordered pipeline identity, baseline and compressed byte counts, bytes saved, and ratio.                                                             |
 
 Null means the stream did not report a value. Zero means it explicitly
 reported zero; replay and export preserve this distinction for usage, cost,

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -163,6 +164,9 @@ func validateReplayFixture(f *replayFixture, verifyIntegrity bool) error {
 		return invalidReplayFixture("stream requires format, content, and sha256")
 	}
 	if len(f.Stream.SHA256) != 64 || strings.ToLower(f.Stream.SHA256) != f.Stream.SHA256 {
+		return invalidReplayFixture("stream.sha256 must be a lowercase SHA-256 hex digest")
+	}
+	if _, err := hex.DecodeString(f.Stream.SHA256); err != nil {
 		return invalidReplayFixture("stream.sha256 must be a lowercase SHA-256 hex digest")
 	}
 	if got := dbpkg.ContentHash(*f.Stream.Content); verifyIntegrity && got != f.Stream.SHA256 {

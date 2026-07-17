@@ -184,6 +184,44 @@ func TestRunBenchReplayFileValidV1(t *testing.T) {
 	}
 }
 
+func TestRunBenchReplayFileRejectsMalformedDigestBeforeEvaluation(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{"missing", func(f map[string]any) { delete(f["stream"].(map[string]any), "sha256") }},
+		{"wrong length", func(f map[string]any) { f["stream"].(map[string]any)["sha256"] = strings.Repeat("a", 63) }},
+		{"uppercase", func(f map[string]any) { f["stream"].(map[string]any)["sha256"] = strings.Repeat("A", 64) }},
+		{"non-hexadecimal", func(f map[string]any) { f["stream"].(map[string]any)["sha256"] = strings.Repeat("g", 64) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var fixture map[string]any
+			if err := json.Unmarshal(evaluableReplayFixtureJSON(t), &fixture); err != nil {
+				t.Fatal(err)
+			}
+			tt.mutate(fixture)
+			data, err := json.Marshal(fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "fixture.json")
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			var stdout, stderr bytes.Buffer
+			code := runBenchReplayFile(path, &stdout, &stderr, FormatJSON)
+			if code != ExitUsage || stdout.Len() != 0 ||
+				!strings.Contains(stderr.String(), `"failure_class":"invalid-replay-fixture"`) ||
+				!strings.Contains(stderr.String(), `"correction":`) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
 func evaluableReplayFixtureJSON(t *testing.T) []byte {
 	t.Helper()
 	toolEvent, err := json.Marshal(map[string]any{
@@ -277,6 +315,7 @@ func TestRunBenchReplayFileStrictVerificationEmitsEveryDivergence(t *testing.T) 
 		field  string
 	}{
 		{"integrity", func(f map[string]any) { f["stream"].(map[string]any)["content"] = "{}\n" }, `"integrity":{"pass":false`},
+		{"digest", func(f map[string]any) { f["stream"].(map[string]any)["sha256"] = strings.Repeat("0", 64) }, `"integrity":{"pass":false`},
 		{"parser", func(f map[string]any) {
 			f["expected"].(map[string]any)["parser"].(map[string]any)["tool_use_count"] = 2
 		}, `"parser_regression":{"original_tool_call_count":2,"pass":false`},
@@ -313,7 +352,7 @@ func TestRunBenchReplayFileStrictVerificationEmitsEveryDivergence(t *testing.T) 
 			}
 			var stdout, stderr bytes.Buffer
 			code := runBenchReplayFile(path, &stdout, &stderr, FormatJSON)
-			if code == ExitOK || !strings.Contains(stdout.String(), `"consistency":"FAIL"`) || !strings.Contains(stdout.String(), tt.field) ||
+			if code != ExitInternal || !strings.Contains(stdout.String(), `"consistency":"FAIL"`) || !strings.Contains(stdout.String(), tt.field) ||
 				!strings.Contains(stderr.String(), `"failure_class":"replay-fixture-verification-failed"`) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}

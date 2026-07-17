@@ -107,6 +107,17 @@ Live runs accept any provider except `github-copilot/*`. The complete runbook is
 [`docs/pipelines.md`](docs/pipelines.md); the latest published exploratory result
 is the [Layer 1 cache and cost benchmark](benchs/layer-1-cache-cost.md).
 
+### Evidence from live use
+
+A rolling 24-hour snapshot on July 17, 2026 covered 8,321 tool calls. ktx reduced
+the delivered tool-output context from 47.8 million to 26.0 million characters,
+avoiding about 5.47 million tokens under its four-characters-per-token estimate.
+At the models.dev uncached-input price for `openai/gpt-5.6-sol`, that is about
+$27.33 of gross input cost avoided if each saved token would have been included
+once. This is a model-priced estimate rather than a billing claim: ordinary live
+calls did not retain enough cache telemetry to measure cache-adjusted savings or
+changes in prompt-cache hit behavior.
+
 ## Development
 
 ```bash

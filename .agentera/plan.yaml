@@ -80,7 +80,7 @@ tasks:
       - "2"
       - "3"
       - "4"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN the retained fixture WHEN reviewed THEN it has explicit provenance, nontrivial tool output, multi-step usage, absent-or-zero cache semantics, no required machine-local identifiers, and no unreviewed sensitive data.
       - GIVEN repository verification WHEN run headlessly THEN it exercises the exact retained fixture through controlled built-in behavior and rejects every integrity, parser, usage, cost, cache, and compression divergence.

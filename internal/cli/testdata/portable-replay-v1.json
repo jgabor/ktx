@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "benchmark": {
+    "methodology_version": "synthetic-v1",
+    "agent": "fixture-agent",
+    "model": "fixture-model",
+    "task": "portable_replay_gate",
+    "score": 1
+  },
+  "stream": {
+    "format": "opencode-jsonl-1",
+    "content": "{\"type\":\"tool_use\",\"part\":{\"type\":\"tool\",\"tool\":\"bash\",\"callID\":\"fixture-call-1\",\"state\":{\"input\":{\"command\":\"run fixture checks\"},\"output\":\"\\u001b[32mPASS\\u001b[0m parser\\n\\n\\nrecords: 3\\n\",\"time\":{\"start\":1,\"end\":2},\"metadata\":{\"exit\":0}}}}\n{\"type\":\"step_finish\",\"part\":{\"tokens\":{\"input\":100,\"output\":20,\"cache\":{\"read\":0}},\"cost\":0.001,\"model\":\"fixture-model\",\"provider\":\"fixture\"}}\n{\"type\":\"tool_use\",\"part\":{\"type\":\"tool\",\"tool\":\"read\",\"callID\":\"fixture-call-2\",\"state\":{\"input\":{\"path\":\"fixture/input.txt\"},\"output\":\"alpha    beta\\ntrailing   \\n\\n\\nsummary\\n\",\"time\":{\"start\":3,\"end\":4},\"metadata\":{\"exit\":0}}}}\n{\"type\":\"step_finish\",\"part\":{\"tokens\":{\"input\":60,\"output\":12,\"cache\":{\"read\":0}},\"cost\":0.0015,\"model\":\"fixture-model\",\"provider\":\"fixture\"}}\n",
+    "sha256": "2a9c7ce13e1ec3a6d0398c8326c41b56fd59df7ea12af1f6b11097d0d9f47b97"
+  },
+  "expected": {
+    "parser": { "tool_use_count": 2 },
+    "usage": {
+      "tokens_in": 160,
+      "tokens_out": 32,
+      "cost": 0.0025,
+      "cache_read": 0,
+      "cache_write": null
+    },
+    "compression": {
+      "pipeline": ["strip-ansi", "dedup-blank", "normalize"],
+      "baseline_bytes": 70,
+      "compressed_bytes": 56,
+      "bytes_saved": 14,
+      "ratio": 0.8
+    }
+  }
+}

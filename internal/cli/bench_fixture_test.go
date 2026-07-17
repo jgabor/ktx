@@ -321,6 +321,164 @@ func TestRunBenchReplayFileStrictVerificationEmitsEveryDivergence(t *testing.T) 
 	}
 }
 
+func TestRetainedReplayFixtureGate(t *testing.T) {
+	fixturePath := filepath.Join("testdata", "portable-replay-v1.json")
+	fixtureBytes, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runFixture := func(t *testing.T, path string) (int, []byte, []byte) {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		code := runWith([]string{"bench", "run", "--replay-file", path}, &stdout, &stderr)
+		return code, stdout.Bytes(), stderr.Bytes()
+	}
+
+	firstCode, firstEvidence, firstDiagnostics := runFixture(t, fixturePath)
+	secondCode, secondEvidence, secondDiagnostics := runFixture(t, fixturePath)
+	if firstCode != ExitOK || secondCode != ExitOK {
+		t.Fatalf("retained fixture failed: first code=%d stderr=%s; second code=%d stderr=%s", firstCode, firstDiagnostics, secondCode, secondDiagnostics)
+	}
+	if !bytes.Equal(firstEvidence, secondEvidence) || !bytes.Equal(firstDiagnostics, secondDiagnostics) {
+		t.Fatalf("repeated fixture evidence differs:\nfirst=%s\nsecond=%s\nfirst stderr=%s\nsecond stderr=%s", firstEvidence, secondEvidence, firstDiagnostics, secondDiagnostics)
+	}
+	var baseline map[string]any
+	if err := json.Unmarshal(firstEvidence, &baseline); err != nil {
+		t.Fatalf("decode retained fixture evidence: %v", err)
+	}
+	if baseline["consistency"] != "PASS" {
+		t.Fatalf("retained fixture consistency = %v, want PASS", baseline["consistency"])
+	}
+
+	type divergence struct {
+		name    string
+		section string
+		field   string
+		want    bool
+		mutate  func(map[string]any)
+	}
+	divergences := []divergence{
+		{name: "integrity", section: "integrity", field: "pass", want: false, mutate: func(f map[string]any) {
+			f["stream"].(map[string]any)["content"] = f["stream"].(map[string]any)["content"].(string) + "{}\n"
+		}},
+		{name: "parser", section: "parser_regression", field: "pass", want: false, mutate: func(f map[string]any) {
+			f["expected"].(map[string]any)["parser"].(map[string]any)["tool_use_count"] = float64(3)
+		}},
+		{name: "usage", section: "cost_drift", field: "detected", want: true, mutate: func(f map[string]any) {
+			f["expected"].(map[string]any)["usage"].(map[string]any)["tokens_in"] = float64(161)
+		}},
+		{name: "cost", section: "cost_drift", field: "detected", want: true, mutate: func(f map[string]any) {
+			f["expected"].(map[string]any)["usage"].(map[string]any)["cost"] = 0.003
+		}},
+		{name: "cache absent versus zero", section: "cost_drift", field: "detected", want: true, mutate: func(f map[string]any) {
+			f["expected"].(map[string]any)["usage"].(map[string]any)["cache_read"] = nil
+		}},
+		{name: "compression pipeline", section: "compression", field: "pass", want: false, mutate: func(f map[string]any) {
+			f["expected"].(map[string]any)["compression"].(map[string]any)["pipeline"] = []any{"normalize"}
+		}},
+		{name: "compression measurement", section: "compression", field: "pass", want: false, mutate: func(f map[string]any) {
+			compression := f["expected"].(map[string]any)["compression"].(map[string]any)
+			compression["baseline_bytes"] = float64(71)
+			compression["bytes_saved"] = float64(15)
+			compression["ratio"] = float64(56) / float64(71)
+		}},
+	}
+
+	for _, tt := range divergences {
+		t.Run(tt.name, func(t *testing.T) {
+			var candidate map[string]any
+			if err := json.Unmarshal(fixtureBytes, &candidate); err != nil {
+				t.Fatal(err)
+			}
+			tt.mutate(candidate)
+			data, err := json.Marshal(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "portable-replay-v1.json")
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			code, evidence, diagnostics := runFixture(t, path)
+			if code == ExitOK {
+				t.Fatalf("strict fixture verification accepted %s divergence: %s", tt.name, evidence)
+			}
+			var envelope map[string]any
+			if err := json.Unmarshal(evidence, &envelope); err != nil {
+				t.Fatalf("decode %s evidence: %v; stdout=%s stderr=%s", tt.name, err, evidence, diagnostics)
+			}
+			section, ok := envelope[tt.section].(map[string]any)
+			if envelope["consistency"] != "FAIL" || !ok || section[tt.field] != tt.want {
+				t.Fatalf("%s divergence evidence did not identify strict failure: stdout=%s stderr=%s", tt.name, evidence, diagnostics)
+			}
+			if !bytes.Contains(diagnostics, []byte(`"failure_class":"replay-fixture-verification-failed"`)) {
+				t.Fatalf("%s divergence diagnostics lack failure class: %s", tt.name, diagnostics)
+			}
+		})
+	}
+
+	t.Run("informational session drift is strict fixture failure", func(t *testing.T) {
+		fixture, err := decodeReplayFixture(bytes.NewReader(fixtureBytes))
+		if err != nil {
+			t.Fatal(err)
+		}
+		database, err := dbpkg.Open(filepath.Join(t.TempDir(), "replay.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		sessionID, benchID := mustNewIDBench(t), mustNewIDBench(t)
+		if err := database.InsertSession(&dbpkg.Session{
+			ID: sessionID, Agent: fixture.Benchmark.Agent, StartedAt: "2026-07-17T12:00:00Z",
+			LastSeenAt: "2026-07-17T12:01:00Z", ToolCallCount: *fixture.Expected.Parser.ToolUseCount,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.InsertBenchRun(&dbpkg.BenchRun{
+			ID: benchID, Agent: fixture.Benchmark.Agent, Model: fixture.Benchmark.Model, Task: fixture.Benchmark.Task,
+			Score: *fixture.Benchmark.Score, TokensIn: *fixture.Expected.Usage.TokensIn.Value,
+			TokensOut: *fixture.Expected.Usage.TokensOut.Value, Cost: cloneFloat64(fixture.Expected.Usage.Cost.Value),
+			MethodologyVersion: fixture.Benchmark.MethodologyVersion, Timestamp: 1784289600,
+			CacheRead: cloneInt64(fixture.Expected.Usage.CacheRead.Value), CacheWrite: cloneInt64(fixture.Expected.Usage.CacheWrite.Value),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.InsertRecordedStream(&dbpkg.RecordedStream{
+			ID: mustNewIDBench(t), SessionID: sessionID, BenchRunID: benchID, StreamText: *fixture.Stream.Content,
+			ContentHash: fixture.Stream.SHA256, StreamFormat: fixture.Stream.Format, CapturedAt: "2026-07-17T12:01:00Z",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.DB().Exec(`UPDATE bench_runs SET cost = 0.003 WHERE id = ?`, benchID); err != nil {
+			t.Fatal(err)
+		}
+		var sessionEvidence, sessionDiagnostics bytes.Buffer
+		if code := runBenchReplayImpl(database, sessionID, &sessionEvidence, &sessionDiagnostics, FormatJSON); code != ExitOK ||
+			!bytes.Contains(sessionEvidence.Bytes(), []byte(`"consistency":"DRIFT"`)) {
+			t.Fatalf("database replay did not preserve informational DRIFT success: code=%d stdout=%s stderr=%s", code, sessionEvidence.Bytes(), sessionDiagnostics.Bytes())
+		}
+
+		var candidate map[string]any
+		if err := json.Unmarshal(fixtureBytes, &candidate); err != nil {
+			t.Fatal(err)
+		}
+		candidate["expected"].(map[string]any)["usage"].(map[string]any)["cost"] = 0.003
+		data, err := json.Marshal(candidate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "informational-drift.json")
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		code, evidence, _ := runFixture(t, path)
+		if code != ExitInternal || !bytes.Contains(evidence, []byte(`"consistency":"FAIL"`)) {
+			t.Fatalf("portable gate accepted drift that database replay treats informationally: code=%d evidence=%s", code, evidence)
+		}
+	})
+}
+
 func seedFixtureExportDB(t *testing.T, path string, parented bool) string {
 	t.Helper()
 	d, err := dbpkg.Open(path)

@@ -43,6 +43,11 @@ func Test() error {
 	return run("go", "test", "-race", "./...")
 }
 
+// ReplayFixture runs the bounded, offline repository gate for the retained fixture.
+func ReplayFixture() error {
+	return run("go", "test", "-race", "./internal/cli", "-run", "^TestRetainedReplayFixtureGate$", "-count=1", "-timeout=30s")
+}
+
 func Vet() error {
 	return run("go", "vet", "./...")
 }

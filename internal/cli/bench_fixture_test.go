@@ -181,3 +181,211 @@ func TestRunBenchReplayFileValidV1(t *testing.T) {
 		t.Fatalf("stdout=%q", stdout.String())
 	}
 }
+
+func seedFixtureExportDB(t *testing.T, path string, parented bool) string {
+	t.Helper()
+	d, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatalf("open fixture export database: %v", err)
+	}
+	sessionID := mustNewIDBench(t)
+	if err := d.InsertSession(&dbpkg.Session{
+		ID: sessionID, Agent: "opencode", StartedAt: "2026-07-17T12:00:00Z",
+		LastSeenAt: "2026-07-17T12:01:00Z", ToolCallCount: 1,
+	}); err != nil {
+		d.Close()
+		t.Fatalf("insert session: %v", err)
+	}
+
+	benchID := ""
+	if parented {
+		benchID = mustNewIDBench(t)
+		cost, cacheRead := 0.25, int64(0)
+		if err := d.InsertBenchRun(&dbpkg.BenchRun{
+			ID: benchID, Agent: "opencode", Model: "test-model", Task: "portable_fixture",
+			Score: 1, TokensIn: 12, TokensOut: 3, Cost: &cost,
+			MethodologyVersion: "v1", Timestamp: 1784289600, CacheRead: &cacheRead,
+		}); err != nil {
+			d.Close()
+			t.Fatalf("insert bench run: %v", err)
+		}
+	}
+
+	toolEvent, err := json.Marshal(map[string]any{
+		"type": "tool_use",
+		"part": map[string]any{
+			"type": "tool", "tool": "bash", "callID": "call1",
+			"state": map[string]any{
+				"input": "printf output", "output": "\x1b[31mline\x1b[0m\n\n\nline\n",
+				"time": map[string]any{"start": 1, "end": 2}, "metadata": map[string]any{"exit": 0},
+			},
+		},
+		"timestamp": "2026-07-17T12:00:30Z",
+	})
+	if err != nil {
+		d.Close()
+		t.Fatalf("marshal tool event: %v", err)
+	}
+	finishEvent := `{"type":"step_finish","part":{"tokens":{"input":12,"output":3,"cache":{"read":0}},"cost":0.25,"model":"test-model","provider":"opencode"}}`
+	stream := string(toolEvent) + "\n" + finishEvent + "\n"
+	if err := d.InsertRecordedStream(&dbpkg.RecordedStream{
+		ID: mustNewIDBench(t), SessionID: sessionID, BenchRunID: benchID,
+		StreamText: stream, ContentHash: dbpkg.ContentHash(stream),
+		StreamFormat: "opencode-jsonl-1", CapturedAt: "2026-07-17T12:01:00Z",
+	}); err != nil {
+		d.Close()
+		t.Fatalf("insert recorded stream: %v", err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatalf("close fixture export database: %v", err)
+	}
+	return sessionID
+}
+
+func TestRunBenchExportCanonicalStdoutAndFile(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "ktx.db")
+	sessionID := seedFixtureExportDB(t, dbPath, true)
+	t.Setenv("KTX_DB", dbPath)
+
+	var first, second, stderr bytes.Buffer
+	if code := runWith([]string{"bench", "export", sessionID}, &first, &stderr); code != ExitOK {
+		t.Fatalf("first export code=%d stderr=%q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stdout export diagnostics = %q, want none", stderr.String())
+	}
+	configHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(configHome, "ktx"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configHome, "ktx", "ktx.toml"), []byte("malformed = ["), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	if code := runWith([]string{"bench", "export", sessionID}, &second, &stderr); code != ExitOK {
+		t.Fatalf("second export code=%d stderr=%q", code, stderr.String())
+	}
+	if !bytes.Equal(first.Bytes(), second.Bytes()) {
+		t.Fatalf("repeated exports differ:\nfirst=%s\nsecond=%s", first.Bytes(), second.Bytes())
+	}
+	for _, forbidden := range [][]byte{[]byte(`"captured_at"`), []byte(`"timestamp"`), []byte(`"session_id"`), []byte(`"bench_run_id"`)} {
+		if bytes.Contains(first.Bytes(), forbidden) {
+			t.Fatalf("canonical fixture contains invocation or machine-local metadata %s: %s", forbidden, first.Bytes())
+		}
+	}
+	fixture, err := decodeReplayFixture(bytes.NewReader(first.Bytes()))
+	if err != nil {
+		t.Fatalf("decode exported fixture: %v\n%s", err, first.Bytes())
+	}
+	if *fixture.Expected.Parser.ToolUseCount != 1 || fixture.Expected.Usage.CacheRead.Value == nil || *fixture.Expected.Usage.CacheRead.Value != 0 || fixture.Expected.Usage.CacheWrite.Value != nil {
+		t.Fatalf("exported parser/cache semantics = %#v %#v", fixture.Expected.Parser, fixture.Expected.Usage)
+	}
+	if got := fixture.Expected.Compression.Pipeline; len(got) != 3 || got[0] != "strip-ansi" || got[1] != "dedup-blank" || got[2] != "normalize" {
+		t.Fatalf("controlled pipeline = %q", got)
+	}
+
+	destination := filepath.Join(dir, "portable.json")
+	var fileStdout, fileStderr bytes.Buffer
+	if code := runWith([]string{"bench", "export", "--output", destination, sessionID}, &fileStdout, &fileStderr); code != ExitOK {
+		t.Fatalf("file export code=%d stderr=%q", code, fileStderr.String())
+	}
+	if fileStdout.Len() != 0 {
+		t.Fatalf("file export stdout=%q, want empty", fileStdout.String())
+	}
+	if !strings.Contains(fileStderr.String(), destination) || strings.Contains(fileStderr.String(), `"version"`) {
+		t.Fatalf("file export diagnostics=%q, want destination only and no result data", fileStderr.String())
+	}
+	fileBytes, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(fileBytes, first.Bytes()) {
+		t.Fatalf("file and stdout fixtures differ:\nfile=%s\nstdout=%s", fileBytes, first.Bytes())
+	}
+}
+
+func TestRunBenchExportPreservesSourceDatabaseBytes(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "ktx.db")
+	sessionID := seedFixtureExportDB(t, dbPath, true)
+	before, err := os.ReadFile(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KTX_DB", dbPath)
+	var stdout, stderr bytes.Buffer
+	if code := runWith([]string{"bench", "export", sessionID}, &stdout, &stderr); code != ExitOK {
+		t.Fatalf("export code=%d stderr=%q", code, stderr.String())
+	}
+	after, err := os.ReadFile(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("source database bytes changed during export")
+	}
+}
+
+func TestRunBenchExportRejectsInvalidSourcesBeforePublication(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*testing.T, string)
+		want   string
+	}{
+		{"parentless", nil, "benchmark-parented"},
+		{"bad hash", func(t *testing.T, path string) {
+			d, err := dbpkg.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.DB().Exec(`UPDATE recorded_streams SET content_hash = 'bad'`); err != nil {
+				t.Fatal(err)
+			}
+			d.Close()
+		}, "content hash"},
+		{"broken benchmark link", func(t *testing.T, path string) {
+			d, err := dbpkg.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			d.DB().SetMaxOpenConns(1)
+			if _, err := d.DB().Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.DB().Exec(`UPDATE recorded_streams SET bench_run_id = 'missing-parent'`); err != nil {
+				t.Fatal(err)
+			}
+			d.Close()
+		}, "benchmark link"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			dbPath := filepath.Join(dir, "ktx.db")
+			sessionID := seedFixtureExportDB(t, dbPath, tt.name != "parentless")
+			if tt.mutate != nil {
+				tt.mutate(t, dbPath)
+			}
+			t.Setenv("KTX_DB", dbPath)
+			destination := filepath.Join(dir, "fixture.json")
+			sentinel := []byte("existing destination")
+			if err := os.WriteFile(destination, sentinel, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			code := runWith([]string{"bench", "export", "--output", destination, sessionID}, &stdout, &stderr)
+			if code != ExitUsage || stdout.Len() != 0 || !strings.Contains(stderr.String(), tt.want) {
+				t.Fatalf("code=%d stdout=%q stderr=%q, want rejection containing %q", code, stdout.String(), stderr.String(), tt.want)
+			}
+			got, err := os.ReadFile(destination)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, sentinel) {
+				t.Fatalf("destination changed on rejected export: %q", got)
+			}
+		})
+	}
+}

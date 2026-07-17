@@ -47,7 +47,7 @@ tasks:
     name: Produce authoritative portable fixtures
     depends_on:
       - "1"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN a benchmark-parented recorded stream WHEN export runs THEN stream, session comparison, and benchmark evidence are read from one consistent source and their links and content integrity are validated before output.
       - GIVEN unchanged authoritative evidence WHEN export repeats THEN it emits byte-identical canonical fixture content apart from no invocation-time metadata.

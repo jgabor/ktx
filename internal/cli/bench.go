@@ -81,6 +81,8 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		return runBenchRun(rest, opts, stdout, stderr)
 	case "report":
 		return runBenchReport(rest, opts, stdout, stderr)
+	case "export":
+		return runBenchExport(rest, opts, stdout, stderr)
 	case "compare":
 		return runBenchCompare(rest, opts, stdout, stderr)
 	case "rank":
@@ -123,6 +125,8 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 		return benchSubToExit(runBenchRun(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "report":
 		return benchSubToExit(runBenchReport(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "export":
+		return benchSubToExit(runBenchExport(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "compare":
 		return benchSubToExit(runBenchCompare(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "rank":
@@ -207,6 +211,10 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      With <id>: emit a single row by nanoid; not-found → exit 2.")
 	fmt.Fprintln(w, "      --methodology filters rows by methodology_version; the")
 	fmt.Fprintln(w, "        headline is recomputed from the filtered set.")
+	fmt.Fprintln(w, "  export [--output <path|->] <session-id>")
+	fmt.Fprintln(w, "      Export one validated benchmark-parented recorded stream as a")
+	fmt.Fprintln(w, "      canonical version 1 portable fixture. Defaults to stdout; file")
+	fmt.Fprintln(w, "      publication is atomic. The source database is opened read-only.")
 	fmt.Fprintln(w, "  compare --model <model> [--variant <name>] --task-file <path>")
 	fmt.Fprintln(w, "      Run a retained live baseline/candidate experiment.")
 	fmt.Fprintln(w, "      Cache-aware opt-in: --methodology tools/bench/methodology-v5-cache-aware.yaml")

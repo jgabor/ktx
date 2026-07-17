@@ -1,4 +1,31 @@
 cycles:
+  - number: 54
+    timestamp: 2026-07-17 20:12
+    type: chore
+    phase: build
+    what: Populated the five missing task-level evidence fields for active-plan
+      Tasks 2–6 from retained progress entries 47–52, restoring the plan's
+      authoritative completeness projection without changing task statuses or
+      implementation.
+    inspiration: Orchestrator closure found that complete statuses without
+      task-level evidence leave the active plan incomplete.
+    discovered: The active plan header and all task statuses were complete, but the
+      plan projection requires evidence on every completed task; Tasks 2–6
+      lacked those fields despite retained audited progress.
+    verified: The exact command npx -y agentera@next state plan --format json
+      returned status ok, not incomplete, after the updates. All seven tasks are
+      complete and all seven task evidence fields are present; Tasks 1 and 7
+      evidence remained unchanged.
+    next: The active complete plan remains unarchived for orchestrator-owned closure.
+    context:
+      intent: Close the orchestrator audit failure by making already-verified task
+        outcomes visible to the supported plan-state projection.
+      constraints: State closeout only. Preserved plan identity, statuses, acceptance
+        criteria, Task 1 and Task 7 evidence, surprises, implementation,
+        documentation, decisions, and decision satisfaction.
+      unknowns: None.
+      scope: .agentera/plan.yaml task evidence and agentera-managed progress evidence
+        only.
   - number: 53
     timestamp: 2026-07-17 19:56
     type: docs
@@ -260,32 +287,6 @@ cycles:
         changing it may alter scoring and requires separate work.
       scope: Added shared usage parsing and tests; updated live benchmark and
         experiment stream readers; marked the corresponding TODO resolved.
-  - number: 44
-    timestamp: 2026-07-16 09:27
-    type: docs
-    phase: build
-    what: "Corrected cycle 43's stale next-action narrative: the
-      deterministic-identity plan was already complete and archived before this
-      direct trust-boundary Build cycle, so no active plan or pending
-      documentation task exists."
-    discovered: Cycle 43's implementation and verification evidence remain
-      authoritative; only its next-action sentence was stale. Agentera progress
-      archives are immutable, so this corrective entry supersedes that sentence
-      without rewriting history.
-    verified: agentera state plan --format json reports no active plan and lists the
-      completed deterministic-identity archive; cycle 43 remains retrievable
-      with a verified archive; the independent trust-boundary review passed all
-      acceptance criteria and mage check.
-    next: No active plan remains. Decision 30 satisfaction is still review-needed;
-      cycle 39 archive hygiene and the external writer blocker remain separate
-      caveats. No commit or push was performed.
-    context:
-      intent: Keep retained Build state truthful after independent review identified
-        stale orchestration context in cycle 43's next field.
-      constraints: State correction only; no source, decision, plan, health, or
-        historical progress mutation.
-      unknowns: none
-      scope: .agentera progress projection and verified cycle 44 archive only.
   - number: 39
     timestamp: 2026-07-16 06:30
     type: feat
@@ -555,6 +556,9 @@ cycles:
       intent: "Document command-aware routing: example config, pipeline docs,
         architecture update."
 archive:
+  - summary: "Cycle 44 (2026-07-16): Corrected cycle 43's stale next-action
+      narrative: the deterministic-identity plan was already complete and
+      archived before..."
   - summary: "Cycle 43 (2026-07-16): Tightened the Codex PostToolUse trust boundary
       in ktx hook: only an exact hook_event_name equal to..."
   - summary: "Cycle 42 (2026-07-16): Corrected the failed identity closeout: updated

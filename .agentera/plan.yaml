@@ -53,6 +53,7 @@ tasks:
       - GIVEN unchanged authoritative evidence WHEN export repeats THEN it emits byte-identical canonical fixture content apart from no invocation-time metadata.
       - GIVEN an explicit file destination or standard output WHEN export succeeds THEN result data goes only to that destination, diagnostics stay separate, and the source database is not mutated.
       - GIVEN a parentless or inconsistent source WHEN export is requested THEN version 1 rejects it before writing and explains the supported source requirement.
+    evidence: "Retained progress 47 records authoritative export from one validated read-only database snapshot: focused export and fixture tests passed; mage check passed tests, vet, lint with 0 issues, and build; a built-binary smoke produced byte-identical stdout and file fixtures while the source database SHA-256 stayed unchanged; git diff --check passed. Progress 48 records TestRunBenchExportRejectsSourceDatabaseDestinationAliases passing for direct, relative, symlink, and hard-link aliases, with source bytes unchanged and PRAGMA integrity_check=ok after each rejection; all TestRunBenchExport tests and mage check passed."
   - number: 3
     name: Evaluate portable fixtures offline
     depends_on:
@@ -64,6 +65,7 @@ tasks:
       - GIVEN the same fixture and binary WHEN replay repeats THEN all evidence fields are deterministic.
       - GIVEN hostile, malformed, or plugin-bearing user configuration WHEN fixture replay runs THEN the fixture's controlled built-in pipeline is authoritative and external stages cannot affect the result.
       - GIVEN invalid integrity, parser count, usage, cache, cost, or compression expectations WHEN strict fixture verification runs THEN inspectable evidence is emitted and the operation exits nonzero.
+    evidence: Retained progress 49 records strict offline fixture replay emitting deterministic integrity, parser, original benchmark, nullable usage/cost/cache, and controlled built-in compression evidence. Focused replay tests and go test ./internal/cli passed; mage check passed tests, vet, lint with 0 issues, and build; git diff --check passed. The retained test matrix covered repeated deterministic output, inaccessible-database isolation, malformed and plugin-bearing configuration, absent-versus-zero evidence, and integrity, parser, token, cost, cache, pipeline, and compression-measurement drift.
   - number: 4
     name: Preserve database-backed replay compatibility
     depends_on:
@@ -74,6 +76,7 @@ tasks:
       - GIVEN parentless database evidence WHEN replay runs THEN its existing comparison-unavailable behavior remains supported and is not presented as full portable verification.
       - GIVEN equivalent database and exported fixture evidence WHEN each is evaluated THEN shared integrity, parser, usage, cache, cost, and compression values agree.
       - GIVEN missing session and missing fixture inputs WHEN invoked THEN each reports the correct selector-specific error without falling through to the other source.
+    evidence: Retained progress 50 records session replay routed through the shared recorded-stream parser with focused envelope, exit, parentless, parity, and selector-negative coverage. Focused replay compatibility tests and go test ./internal/cli passed; mage check passed tests, vet, lint with 0 issues, and build; git diff --check passed. The verified contract preserved legacy JSON/text envelopes, informational DRIFT exit 0, FAIL exit 4, parentless comparison-unavailable behavior, selector-specific failures, and parity of shared integrity, parser, usage, cache, cost, and compression evidence.
   - number: 5
     name: Retain representative fixture and repository gate
     depends_on:
@@ -86,6 +89,7 @@ tasks:
       - GIVEN repository verification WHEN run headlessly THEN it exercises the exact retained fixture through controlled built-in behavior and rejects every integrity, parser, usage, cost, cache, and compression divergence.
       - GIVEN informational replay drift that preserves session replay success WHEN the strict fixture gate evaluates it THEN the gate fails rather than accepting the replay process exit code alone.
       - GIVEN unchanged code and fixture WHEN the repository gate repeats twice THEN expected evidence remains identical and execution is bounded and noninteractive.
+    evidence: Retained progress 51 records a reviewed synthetic benchmark-parented fixture with explicit provenance after all six available real captures failed authoritative export consistency. mage replayFixture passed twice; the built CLI emitted byte-identical 1,190-byte evidence with SHA-256 f5d7bf37bd2df5fac3f42ff2326aa84f08ad6f8558e879e477df82b9d104cc3b and empty stderr. The gate rejected integrity, parser, usage, cost, cache, pipeline, and compression drift and proved database DRIFT exits 0 while strict fixture replay exits nonzero. mage check and git diff --check passed.
   - number: 6
     name: Enforce the gate in tracked CI
     depends_on:
@@ -96,6 +100,7 @@ tasks:
       - GIVEN a clean hosted runner WHEN verification starts THEN no model key, network service, container daemon, user configuration, or mutable local database is required.
       - GIVEN fixture or behavior drift WHEN the gate fails THEN CI exposes the failing evidence category and returns a failing status.
       - GIVEN local and hosted verification WHEN both use the same commit THEN they invoke the same authoritative repository command.
+    evidence: Retained progress 52 records .github/workflows/ci.yml on push and pull_request installing Go from go.mod, Mage v1.15.0, and golangci-lint v2.12.2 before running mage verify. magefile.go composes mage check with mage replayFixture, and internal/ci/workflow_test.go guards that wiring. mage verify, mage check, go test ./internal/ci -count=1, Ruby YAML parsing, and git diff --check passed. No secrets or external runtime dependencies are configured; hosted execution remained explicitly unobserved because no push or pull request was made.
   - number: 7
     name: Synchronize documentation and current state
     depends_on:

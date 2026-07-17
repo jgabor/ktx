@@ -1,7 +1,7 @@
 header:
   level: full
   created: 2026-07-17
-  status: open
+  status: complete
   reviewed: 2026-07-17
   critic_issues: 8 found, 8 addressed, 0 dismissed
   title: "Plan: Portable replay fixture and CI gate"
@@ -105,10 +105,10 @@ tasks:
       - "4"
       - "5"
       - "6"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN portable replay is available WHEN users inspect command help and benchmark documentation THEN fixture format, source requirements, export and replay usage, refresh procedure, privacy review, compatibility, and failure semantics agree.
       - GIVEN implementation is complete WHEN focused replay checks and the repository verification suite run THEN all supported paths pass.
       - GIVEN retained acceptance evidence WHEN project state is synchronized THEN the matching TODO and plan show completion without duplicate open work and any discovered surprise is recorded.
-surprises:
-  []
+    evidence: README.md, docs/pipelines.md, command help, and retained fixture provenance now agree on selectors, fixture schema and source constraints, export destinations, refresh/privacy review, compatibility, integrity boundary, nullable evidence, controlled pipeline, CI, and exits. Focused race-enabled replay/help tests, mage replayFixture, mage verify, Prettier, 25 local link checks, and git diff --check passed. TODO.md no longer carries the completed portable replay item; progress entry 53 retains verification evidence.
+surprises: The final progress append succeeded and retained entry 53, but its automatic compaction reported pre-existing missing numbered archives for older progress entries and conservatively kept their full projections. This did not affect Task 7 files or verification and was not repaired because archive maintenance is outside scope.

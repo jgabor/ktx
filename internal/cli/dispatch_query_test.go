@@ -501,8 +501,17 @@ func TestRunWith_BenchReportDispatched(t *testing.T) {
 		if code != ExitOK {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
-		if !strings.Contains(stdout.String(), "ktx bench") {
-			t.Errorf("stdout missing ktx bench header: %q", stdout.String())
+		for _, contract := range []string{
+			"run --replay <session-id>",
+			"usage/cost/cache DRIFT exit 0",
+			"run --replay-file <path>",
+			"failure_class=replay-fixture-verification-failed",
+			"export [--output <path|->] <session-id>",
+			"review raw stream",
+		} {
+			if !strings.Contains(stdout.String(), contract) {
+				t.Errorf("stdout missing replay help contract %q: %q", contract, stdout.String())
+			}
 		}
 	})
 

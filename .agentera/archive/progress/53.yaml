@@ -1,0 +1,19 @@
+schemaVersion: agentera.stateArchiveEntry.v1
+artifact_id: progress
+entry_number: 53
+record:
+  number: 53
+  timestamp: 2026-07-17 19:56
+  type: docs
+  phase: build
+  what: Updated README.md, docs/pipelines.md, ktx bench --help, and internal/cli/testdata/README.md so database replay compatibility, strict portable fixture verification, authoritative export and refresh, privacy and integrity boundaries, nullable evidence, controlled compression, CI, and failure exits agree. Removed the completed portable replay item from TODO.md.
+  inspiration: The active portable replay plan's final documentation and state synchronization task.
+  discovered: No new implementation surprise. The documentation audit confirmed that retained fixture provenance was already explicit but the user-facing benchmark runbook lacked the complete portable replay contract.
+  verified: Focused race-enabled internal/cli replay, selector, compatibility, export, retained-gate, and help tests passed. mage replayFixture passed. mage verify passed the full race test suite, vet, golangci-lint with 0 issues, build, and retained fixture gate. Prettier checks passed; markdown-link-check validated 25 local links.
+  next: Plan implementation is complete and remains active for the orchestrator's audit and closure; do not archive it here.
+  context:
+    intent: Close the final portable replay plan task by documenting shipped contracts and synchronizing canonical project state without archiving the plan.
+    constraints: Documentation and state only; preserved database --replay behavior, strict --replay-file behavior, fixture bytes, implementation, decisions, vision, profile, and app state.
+    unknowns: None.
+    scope: README.md, docs/pipelines.md, bench command help and its contract assertion, retained fixture provenance, TODO.md, active plan status, and progress evidence.
+record_sha256: 17520186f43004adfeb05aeabe1747ddb5af8f6ae561dc3d7f4c9824c3658311

@@ -1,4 +1,37 @@
 cycles:
+  - number: 53
+    timestamp: 2026-07-17 19:56
+    type: docs
+    phase: build
+    what: Updated README.md, docs/pipelines.md, ktx bench --help, and
+      internal/cli/testdata/README.md so database replay compatibility, strict
+      portable fixture verification, authoritative export and refresh, privacy
+      and integrity boundaries, nullable evidence, controlled compression, CI,
+      and failure exits agree. Removed the completed portable replay item from
+      TODO.md.
+    inspiration: The active portable replay plan's final documentation and state
+      synchronization task.
+    discovered: No new implementation surprise. The documentation audit confirmed
+      that retained fixture provenance was already explicit but the user-facing
+      benchmark runbook lacked the complete portable replay contract.
+    verified: Focused race-enabled internal/cli replay, selector, compatibility,
+      export, retained-gate, and help tests passed. mage replayFixture passed.
+      mage verify passed the full race test suite, vet, golangci-lint with 0
+      issues, build, and retained fixture gate. Prettier checks passed;
+      markdown-link-check validated 25 local links.
+    next: Plan implementation is complete and remains active for the orchestrator's
+      audit and closure; do not archive it here.
+    context:
+      intent: Close the final portable replay plan task by documenting shipped
+        contracts and synchronizing canonical project state without archiving
+        the plan.
+      constraints: Documentation and state only; preserved database --replay behavior,
+        strict --replay-file behavior, fixture bytes, implementation, decisions,
+        vision, profile, and app state.
+      unknowns: None.
+      scope: README.md, docs/pipelines.md, bench command help and its contract
+        assertion, retained fixture provenance, TODO.md, active plan status, and
+        progress evidence.
   - number: 52
     timestamp: 2026-07-17 19:38
     type: chore
@@ -253,58 +286,6 @@ cycles:
         historical progress mutation.
       unknowns: none
       scope: .agentera progress projection and verified cycle 44 archive only.
-  - number: 43
-    timestamp: 2026-07-16 09:19
-    type: fix
-    phase: build
-    what: "Tightened the Codex PostToolUse trust boundary in ktx hook: only an exact
-      hook_event_name equal to PostToolUse now enters trusted Codex parsing,
-      provenance, and deterministic identity. Any other non-empty
-      hook_event_name is rejected before persistence with an actionable usage
-      error that names the unsupported value, states the sole valid value, and
-      shows both corrections (set PostToolUse for Codex, or omit or empty it for
-      flat or OpenCode input). The error carries machine-readable valid_values
-      and valid_examples. Absent or empty hook_event_name falls back to OpenCode
-      or flat unchanged. Help text and code comments now state the exact
-      PostToolUse requirement and the fail-before-side-effects boundary."
-    inspiration: Post-audit trust-boundary finding against the prior
-      any-non-empty-event-name acceptance.
-    discovered: CHANGELOG.md is absent; per the cycle boundary it was not created
-      solely for this fix and that boundary is recorded here. The default
-      agentera npx tag remains broken (external writer blocker); the @next v3
-      writer is reachable and assigns the cycle number and archive provenance.
-      No identity-generator or schema change was needed for sessions,
-      compressed, or experiments.
-    verified: "go build ./cmd/ktx exit 0. New focused tests pass:
-      TestHook_Codex_RejectsUnsupportedEventName (PreToolUse, SessionStart),
-      TestHook_Codex_RejectsUnsupportedEventName_NoPipeline,
-      TestHook_Codex_EmptyEventNameFallsBack, and
-      TestHook_Codex_ExactAcceptedEventUnchanged. Rejections assert zero
-      tool_calls, sessions, and compressed rows plus empty stdout. 'go test
-      ./internal/cli -run TestHook -count=1' and the same with '-race -count=1'
-      passed. 'go test ./... -count=1' passed all packages. 'mage check' passed
-      tests, vet, lint (0 issues), and build. gofmt -l reported no files; git
-      diff --check was clean. A marker scan of changed and new Go files found no
-      project-memory markers in shipped source or tests."
-    next: Leave the active plan and its documentation task pending; preserve
-      Decision 30 satisfaction as review-needed; retain the cycle 39
-      archive-hygiene caveat and the external writer blocker until separately
-      repaired. No commit or push in this cycle.
-    context:
-      intent: Close the post-audit Codex trust-boundary finding so an unknown
-        Codex-shaped event can never reach trusted provenance, deterministic
-        identity, or evidence roll-up; fail before side effects.
-      constraints: No commit, push, plan mutation, plan archive, or Decision 30
-        satisfaction update. Absent or empty hook_event_name behavior preserved
-        as the flat or OpenCode fallback. Rejection preferred over silently
-        trusting or flat-falling an unknown Codex-shaped event.
-      unknowns: Health remains unavailable; profile-derived state remains stale;
-        legacy or degraded decision summaries and historical progress remain;
-        cycle 39 lacks a verified archive; the default-tag external writer
-        blocker remains unresolved (the @next tag worked for this write).
-      scope: internal/cli/hook.go (constant, trust-boundary check, help text,
-        comments) and internal/cli/hook_test.go (countRows and
-        assertNoEvidenceWritten helpers plus four new tests).
   - number: 39
     timestamp: 2026-07-16 06:30
     type: feat
@@ -574,6 +555,8 @@ cycles:
       intent: "Document command-aware routing: example config, pipeline docs,
         architecture update."
 archive:
+  - summary: "Cycle 43 (2026-07-16): Tightened the Codex PostToolUse trust boundary
+      in ktx hook: only an exact hook_event_name equal to..."
   - summary: "Cycle 42 (2026-07-16): Corrected the failed identity closeout: updated
       retained research/probe evidence for current OpenCode convergence while
       preserving..."

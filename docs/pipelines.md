@@ -209,6 +209,117 @@ are excluded as trivial. The output is ranked by total delivered
 tokens (descending). Use this to find the commands where a filter
 pack or a more aggressive profile would have the highest impact.
 
+## Portable offline replay
+
+Replay has two explicit selectors with different compatibility contracts. They
+are mutually exclusive; a path-like value passed to `--replay` remains a
+session ID and is never interpreted as a file.
+
+### Database session replay
+
+```bash
+ktx bench run --replay <session-id>
+```
+
+This path opens the configured database, loads the recorded stream by session
+ID, and preserves the established output envelope and exit behavior. It checks
+the stream hash and parser count, re-aggregates usage, cost, and cache evidence,
+and measures compression without making an agent call. A benchmark-parented
+stream compares replayed values with its original benchmark row. A parentless
+stream remains supported, but `original_bench_run` is null and cost comparison
+is unavailable; it is not equivalent to full portable verification.
+
+`PASS` exits 0. A usage, cost, or cache mismatch is informational `DRIFT` and
+also exits 0 so existing consumers remain compatible. Hash or parser mismatch
+is `FAIL` and exits 4. A missing recorded stream exits 2; selector and format
+errors exit 1; database and output failures exit 4.
+
+### Version 1 fixture contract
+
+```bash
+ktx bench run --replay-file <path>
+```
+
+File replay is strict and offline: it does not open a database, load user
+configuration or plugins, contact a model or network service, start a
+container, or require credentials. Version 1 is one JSON value with no unknown
+fields and these required sections:
+
+| Section                | Required evidence                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `version`              | Integer `1`.                                                                                                          |
+| `benchmark`            | Non-empty `methodology_version`, `agent`, `model`, and `task`, plus a finite `score`.                                 |
+| `stream`               | `format`, raw JSONL `content`, and its lowercase SHA-256 digest. Export currently requires `opencode-jsonl-1`.        |
+| `expected.parser`      | Non-negative `tool_use_count`.                                                                                        |
+| `expected.usage`       | `tokens_in`, `tokens_out`, `cost`, `cache_read`, and `cache_write`; every key is required and each value may be null. |
+| `expected.compression` | Ordered pipeline identity, baseline and compressed byte counts, bytes saved, and ratio.                               |
+
+Null means the stream did not report a value. Zero means it explicitly
+reported zero; replay and export preserve this distinction for usage, cost,
+and cache evidence. The version 1 compression pipeline is the controlled
+built-in sequence `strip-ansi`, `dedup-blank`, `normalize`. User configuration
+and external stages cannot alter fixture evaluation. Error tool outputs remain
+uncompressed, and the ordinary conservative and smaller-only pipeline behavior
+still applies.
+
+Malformed or unsupported fixtures fail before evaluation with exit 1,
+`failure_class=invalid-replay-fixture`, and a correction. A well-formed fixture
+always emits inspectable replay evidence; any hash, parser, usage, cost, cache,
+pipeline, or compression expectation mismatch produces `consistency=FAIL`,
+`failure_class=replay-fixture-verification-failed`, and exit 4. Output write
+failures also exit 4. Only a complete match exits 0; unlike database replay,
+fixture drift is never informational.
+
+### Authoritative export and refresh
+
+Version 1 export accepts only a recorded stream with one consistent session
+and benchmark parent. The stored stream hash and parser count must match, and
+stream-derived tokens, cost, and cache values must agree with the benchmark
+row. Parentless streams, broken links, unsupported stream formats, and
+inconsistent evidence are rejected before publication with exit 1 and
+`failure_class=invalid-replay-fixture-source`. A missing session exits 2.
+
+Export from one read-only database snapshot. The default destination is stdout:
+
+```bash
+KTX_DB=/path/to/ktx.db ktx bench export <session-id> > replay-v1.json
+# Equivalent explicit stdout delivery:
+KTX_DB=/path/to/ktx.db ktx bench export --output - <session-id>
+```
+
+Prefer `--output` when publishing a file; publication is atomic and successful
+file delivery writes only a diagnostic to stderr:
+
+```bash
+KTX_DB=/path/to/ktx.db ktx bench export \
+  --output /tmp/portable-replay-v1.json <session-id>
+```
+
+The output may not alias the source database by path, symlink, or hard link.
+Export never mutates the source database and includes no invocation timestamp,
+database path, session ID, or benchmark-run ID, so unchanged authoritative
+evidence produces byte-identical fixture bytes.
+
+To refresh the retained fixture, export to a temporary path with the command
+above; run `ktx bench run --replay-file /tmp/portable-replay-v1.json`; review
+the complete embedded stream and metadata for credentials, personal or user
+content, repository data, and machine-local names or paths; update
+`internal/cli/testdata/README.md` with the source and privacy review; then copy
+the reviewed bytes to `internal/cli/testdata/portable-replay-v1.json`. Do not
+hand-edit expectations: regenerate them from the authoritative capture. Finish
+with `mage replayFixture` and `mage verify`.
+
+The fixture SHA-256 and strict expectations detect accidental content or code
+drift. They do not protect against a committer changing both content and
+expectations; privacy, provenance, and synchronized expectation changes remain
+code-review responsibilities. The exporter performs consistency validation,
+not redaction.
+
+`mage replayFixture` is the bounded offline gate for the retained fixture and
+runs it twice plus strict negative cases. `mage verify` is the authoritative
+repository command: it runs test, vet, lint, build, and then that fixture gate.
+Tracked CI invokes `mage verify` for every push and pull request.
+
 ## Task suite
 
 Tasks live in `tools/bench/tasks/*.toml`. The synthetic corpus is generated by

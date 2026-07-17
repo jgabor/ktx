@@ -103,6 +103,35 @@ summaries. Validate retained evidence with:
 ktx bench validate --experiment .bench-data/<experiment-id>
 ```
 
+Replay a database capture by session ID without another agent call:
+
+```bash
+ktx bench run --replay <session-id>
+```
+
+This compatibility path preserves the existing database-backed envelope and
+exit behavior: `PASS` and informational cost/cache `DRIFT` exit 0, integrity or
+parser `FAIL` exits 4, and a missing session exits 2. A parentless recorded
+stream is supported, but has no original benchmark comparison.
+
+For strict, portable verification, export a benchmark-parented capture and
+replay the resulting file without the source database:
+
+```bash
+KTX_DB=/path/to/ktx.db ktx bench export --output replay-v1.json <session-id>
+ktx bench run --replay-file replay-v1.json
+```
+
+`ktx bench export <session-id>` writes the same canonical version 1 fixture to
+stdout by default; `--output -` makes stdout delivery explicit. File replay
+uses only the fixture and a controlled built-in pipeline. Any integrity,
+parser, usage, cost, cache, or compression divergence is a strict failure.
+Fixture contents include raw recorded stream data, so review them for secrets,
+personal data, machine-local identifiers, and repository content before
+sharing or committing them. See the runbook for the fixture schema, source and
+refresh requirements, absent-versus-zero semantics, threat boundary, and exit
+classes.
+
 Live runs accept any provider except `github-copilot/*`. The complete runbook is
 [`docs/pipelines.md`](docs/pipelines.md); the latest published exploratory result
 is the [Layer 1 cache and cost benchmark](benchs/layer-1-cache-cost.md).
@@ -121,10 +150,13 @@ changes in prompt-cache hit behavior.
 ## Development
 
 ```bash
-mage check      # test, vet, lint, and build
-mage build      # build build/ktx
+mage replayFixture # bounded offline gate for the retained portable fixture
+mage verify        # authoritative local and CI verification
+mage build         # build build/ktx
 ```
 
-`mage check` requires `golangci-lint`. Architectural intent is documented in
-[`ARCHITECTURE.md`](ARCHITECTURE.md); repository working conventions are in
-[`AGENTS.md`](AGENTS.md).
+`mage verify` runs `mage check` (test, vet, lint, and build) and then the
+portable replay gate. Tracked CI runs this same command on every push and pull
+request. Verification requires `golangci-lint`. Architectural intent is
+documented in [`ARCHITECTURE.md`](ARCHITECTURE.md); repository working
+conventions are in [`AGENTS.md`](AGENTS.md).

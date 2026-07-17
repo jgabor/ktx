@@ -21,4 +21,24 @@ fixture contains no user content, credentials, repository content, personal
 data, or externally captured tool output.
 
 Run `mage replayFixture` to evaluate this exact file twice and exercise its
-strict negative cases through the built-in portable replay path.
+strict negative cases through the built-in portable replay path. `mage verify`
+is the authoritative repository and push/pull-request CI gate.
+
+Refresh this fixture only from a consistent benchmark-parented source. Export
+to a temporary path, verify it, review every embedded string and metadata value,
+then replace the retained bytes and update this provenance record:
+
+```bash
+KTX_DB=/path/to/ktx.db ktx bench export \
+  --output /tmp/portable-replay-v1.json <session-id>
+ktx bench run --replay-file /tmp/portable-replay-v1.json
+cp /tmp/portable-replay-v1.json internal/cli/testdata/portable-replay-v1.json
+mage replayFixture
+mage verify
+```
+
+Do not hand-edit hashes or expectations. The exporter derives canonical bytes
+from the authoritative source; the manual review is required because export
+validates evidence consistency but does not redact raw stream content. The
+digest detects accidental drift, not coordinated edits to content and expected
+values.

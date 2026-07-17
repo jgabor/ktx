@@ -4,7 +4,6 @@ This document is the canonical executable backlog for implementation, evidence, 
 
 ## Immediately actionable
 
-- [ ] **Portable replay fixture and CI gate** — Make `ktx bench run --replay <file>` consume a self-contained fixture without the capture machine's database, commit a representative fixture, and run deterministic parser, cost-derivation, and compression checks per commit. → [Benchmark](ARCHITECTURE.md#benchmark)
 - [ ] **JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. → [Pipeline](ARCHITECTURE.md#pipeline)
 - [ ] **Routing-candidate evidence characterization** — Use retained calls and benchmark fixtures to measure candidate content signals, ambiguous cases, residual spend, and fallback outcomes. Publish evidence for deliberation without selecting a taxonomy or profile mapping. → [Router taxonomy and profile selection](ARCHITECTURE.md#router-taxonomy-and-profile-selection)
 - [ ] **Unified hook processing flow** — Separate Codex, OpenCode, and flat payload extraction from the common session resolution, source persistence, compression, artifact persistence, recovery-cue, and envelope-rendering flow. Preserve trusted-ingress identity, first-evidence ownership, and first-compressed-artifact authority. → [Ingress](ARCHITECTURE.md#ingress)

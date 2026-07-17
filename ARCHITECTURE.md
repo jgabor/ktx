@@ -1,6 +1,6 @@
 # ktx Architecture
 
-Aspirational architecture for ktx. This document describes **what the system is for** and **how its parts relate at a conceptual level**. It does not commit to implementation choices. Those are captured as open deliberations at the end; resolving them is what will refine this document over time.
+Conceptual architecture for ktx. This document describes **what the system is for**, **how its parts relate**, and the unresolved architectural questions. It is not an executable work backlog. Actionable work and deliberation tasks live in [`TODO.md`](TODO.md).
 
 For product direction, see `.agentera/vision.yaml`. For recorded choices already made in deliberation, see `.agentera/decisions.yaml`. For agent workflow and document maintenance, see `AGENTS.md`.
 
@@ -99,7 +99,7 @@ flowchart LR
 
   subgraph profiles["Profiles — named stage lists in ktx.toml"]
     P0["pipeline.default<br/>passthrough when no ktx.toml exists"]
-    PX["pipeline.shell / tool / code /<br/>instructions / session<br/>(content-type routing planned;<br/>command-aware routing active for L1)"]
+    PX["pipeline.shell / tool / code /<br/>instructions / session<br/>(content-type profile selection not yet<br/>specified; see deliberation)"]
   end
 
   subgraph stages["Stages — bytes in, bytes out, error or nil"]
@@ -111,21 +111,21 @@ flowchart LR
   C --> profiles
   profiles --> stages
 
-  classDef planned fill:#374151,color:#f9fafb,stroke:#4b5563
-  class PX planned
+  classDef unspecified fill:#374151,color:#f9fafb,stroke:#4b5563
+  class PX unspecified
 ```
 
 ### Grammar
 
 The diagrams above use five nouns that build on each other. In order from outermost to innermost:
 
-| Term        | What it is                                                                                                                                                                                                                                                                                                                                                                       | Examples                                                                                                                                                          | Where it lives                                                                               |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Ingress** | An adoption mode: how ktx receives observations from an agent. Ingress variants converge on the same internal loop; the choice only changes _where_ observation begins.                                                                                                                                                                                                          | Wrapper (`ktx run`), Sidecar (`ktx write`), Hooks (`ktx init <runtime>` adapters delegating to `ktx hook`)                                                        | Agent runtime + ktx CLI                                                                      |
-| **Layer**   | A category of agent context where waste appears. Layers are the _inputs_ to classification — they describe what the router sees, not separate code modules.                                                                                                                                                                                                                      | L1 Shell (command output), L2 Tool (MCP payloads), L3 Code (file reads, diffs), L4 Instructions (rules, skills), L5 Session+memory (history, cross-session carry) | Conceptual taxonomy only; no layer field exists in the record today                          |
-| **Profile** | A named, ordered list of stage tokens that the runner executes. Profiles are selected by the router at classify time. Today `default` runs and command-aware routing (tool name, command prefix, exit status) selects among named profiles for Layer 1; per-layer content-type profiles (`[pipeline.shell]`, `[pipeline.tool]`, etc.) remain aspirational.                       | `[pipeline.default] stages = ["strip-ansi", "head:100"]`                                                                                                          | `ktx.toml` `[pipeline.<name>].stages`; inspectable via `ktx config show --json`              |
-| **Stage**   | A single bytes-in → bytes-out → error-or-nil transform. Stages are the atoms a profile is built from. The runner enforces the conservative-on-failure contract around every stage; stage authors cannot violate it. Built-in Go stages and external subprocess stages share the same `Stage` interface.                                                                          | `strip-ansi` (no arg), `head:100` (arg = line count), `token-budget:2000`, `grep:^error:`                                                                         | Go package `internal/pipeline/stages`; also any command addressable via a `[[plugin]]` block |
-| **Plugin**  | A user-registered external stage: a shell command ktx spawns with input on stdin and output on stdout. Plugins are registered after built-ins, so a plugin named `head` shadows the built-in `head` (last-writer-wins); removing the block restores the built-in. A plugin is just another stage from the runner's perspective — the only difference is _how it got registered_. | `[[plugin]] name="myf", command="/usr/local/bin/myf", description="custom filter"`                                                                                | `ktx.toml` `[[plugin]]` blocks; managed via `ktx plugin add/list/remove`                     |
+| Term        | What it is                                                                                                                                                                                                                                                                                                                                                                                        | Examples                                                                                                                                                          | Where it lives                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Ingress** | An adoption mode: how ktx receives observations from an agent. Ingress variants converge on the same internal loop; the choice only changes _where_ observation begins.                                                                                                                                                                                                                           | Wrapper (`ktx run`), Sidecar (`ktx write`), Hooks (`ktx init <runtime>` adapters delegating to `ktx hook`)                                                        | Agent runtime + ktx CLI                                                                      |
+| **Layer**   | A category of agent context where waste appears. Layers are the _inputs_ to classification — they describe what the router sees, not separate code modules.                                                                                                                                                                                                                                       | L1 Shell (command output), L2 Tool (MCP payloads), L3 Code (file reads, diffs), L4 Instructions (rules, skills), L5 Session+memory (history, cross-session carry) | Conceptual taxonomy only; no layer field exists in the record today                          |
+| **Profile** | A named, ordered list of stage tokens that the runner executes. Profiles are selected by the router at classify time. Today `default` runs and command-aware routing (tool name, command prefix, subcommand, exit status) selects among named profiles. Content-type profile selection is not yet specified; see [Router taxonomy and profile selection](#router-taxonomy-and-profile-selection). | `[pipeline.default] stages = ["strip-ansi", "head:100"]`                                                                                                          | `ktx.toml` `[pipeline.<name>].stages`; inspectable via `ktx config show --json`              |
+| **Stage**   | A single bytes-in → bytes-out → error-or-nil transform. Stages are the atoms a profile is built from. The runner enforces the conservative-on-failure contract around every stage; stage authors cannot violate it. Built-in Go stages and external subprocess stages share the same `Stage` interface.                                                                                           | `strip-ansi` (no arg), `head:100` (arg = line count), `token-budget:2000`, `grep:^error:`                                                                         | Go package `internal/pipeline/stages`; also any command addressable via a `[[plugin]]` block |
+| **Plugin**  | A user-registered external stage: a shell command ktx spawns with input on stdin and output on stdout. Plugins are registered after built-ins, so a plugin named `head` shadows the built-in `head` (last-writer-wins); removing the block restores the built-in. A plugin is just another stage from the runner's perspective — the only difference is _how it got registered_.                  | `[[plugin]] name="myf", command="/usr/local/bin/myf", description="custom filter"`                                                                                | `ktx.toml` `[[plugin]]` blocks; managed via `ktx plugin add/list/remove`                     |
 
 **How they relate:** An **ingress** path delivers a tool_call to ktx. The router **classifies** it (conceptually by **layer**, in practice by profile selection) and picks a **profile**. The profile is an ordered list of **stage** tokens; each stage (built-in or **plugin**) transforms bytes. The pipeline result passes the anti-worsening gate, then is measured and persisted. None of these nouns know about each other's internals — ingress is layer-agnostic, layers are not a code module, profiles name stages by token, and plugins are just stages registered from ktx.toml.
 
@@ -133,7 +133,7 @@ The diagrams above use five nouns that build on each other. In order from outerm
 
 **Classify** — Decide which kind of content is being handled so the right compression strategy applies. The router wins; individual algorithms are interchangeable behind it.
 
-**Transform** — Apply compression (and optional memory-oriented distillation) through built-in behavior, user configuration, or both. Failure is conservative: a stage that errors, produces empty output from non-empty input, or is unknown passes its input through unchanged. After all stages run, the anti-worsening gate discards the whole result unless it is smaller than the input. A lossy hook profile may then add a configured recovery cue; a second gate suppresses the transform unless the result and cue together remain smaller than the original.
+**Transform** — Apply compression through built-in behavior, user configuration, or both. Whether memory-oriented distillation belongs in this loop is not yet specified; see [Layer 5 boundary](#layer-5-boundary). Failure is conservative: a stage that errors, produces empty output from non-empty input, or is unknown passes its input through unchanged. After all stages run, the anti-worsening gate discards the whole result unless it is smaller than the input. A lossy hook profile may then add a configured recovery cue; a second gate suppresses the transform unless the result and cue together remain smaller than the original.
 
 **Measure** — Attach quantitative evidence: tokens in, tokens out, cost, integrity fingerprints. Numbers, not adjectives.
 
@@ -192,17 +192,17 @@ Architecturally, these are **ingress variants**, not separate products. Inspecti
 
 Context waste appears at different stages of an agent session. ktx aims to address all of them through one dispatch model—not five separate tools.
 
-| Layer                | What it targets                                      | Architectural intent                                                                                           |
-| -------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **1 — Shell**        | Command-line stdout and stderr                       | Filter noise before tool results enter context. Highest volume, lowest semantic risk when done conservatively. |
-| **2 — Tool**         | Large structured tool and MCP payloads               | Compact or sandbox bulky results; retrieve detail only when the agent asks.                                    |
-| **3 — Code**         | File reads, diffs, exploration dumps                 | Prefer outlines and targeted excerpts over full-file dumps.                                                    |
-| **4 — Instructions** | Always-on project memory (rules, skills, agent docs) | Shrink static context loaded every session without dropping safety-critical constraints.                       |
-| **5 — Memory**       | Conversation history and cross-session carry         | Distill what persists across turns and sessions so compression compounds over time.                            |
+| Layer                | What it targets                                      | Architectural intent                                                                                                  |
+| -------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **1 — Shell**        | Command-line stdout and stderr                       | Filter noise before tool results enter context. Highest volume, lowest semantic risk when done conservatively.        |
+| **2 — Tool**         | Large structured tool and MCP payloads               | Compact or sandbox bulky results; retrieve detail only when the agent asks.                                           |
+| **3 — Code**         | File reads, diffs, exploration dumps                 | Prefer outlines and targeted excerpts over full-file dumps.                                                           |
+| **4 — Instructions** | Always-on project memory (rules, skills, agent docs) | Shrink static context loaded every session without dropping safety-critical constraints.                              |
+| **5 — Memory**       | Conversation history and cross-session carry         | Its boundary, lifecycle, and distillation mechanism are not yet specified; see [Layer 5 boundary](#layer-5-boundary). |
 
-Each layer maps to a **pipeline profile** selected by classification—not to a separate binary or long-running service. Built-in behavior provides defaults; user extension refines or replaces stages without forking the CLI surface.
+Layers inform classification rather than defining separate binaries or long-running services. How layers and content types map to **pipeline profiles** is not yet specified; see [Router taxonomy and profile selection](#router-taxonomy-and-profile-selection).
 
-Memory is not a separate product feature; it is how compression **sticks** across sessions. Layer 5 closes the loop Layer 1–4 open.
+Layer 5 names the cross-turn and cross-session context problem. Whether and how ktx addresses it is not yet specified; see [Layer 5 boundary](#layer-5-boundary).
 
 ---
 
@@ -224,7 +224,7 @@ Executes an ordered sequence of transformation stages—built-in, configured, or
 
 ### Reversibility
 
-Retains originals (or sufficient material to reconstruct them) keyed for retrieval on demand. Lossy hook profiles may append an agent-visible recovery cue containing the canonical source ID and `ktx read <source-id>`. Recovery cues are configuration-controlled and emitted only when the compressed result plus the cue remains smaller than the original. The persisted compressed artifact remains content-only.
+Retains originals keyed for retrieval on demand. Lossy hook profiles may append an agent-visible recovery cue containing the canonical source ID and `ktx read <source-id>`. Recovery cues are configuration-controlled and emitted only when the compressed result plus the cue remains smaller than the original. The persisted compressed artifact remains content-only.
 
 ### Persistence
 
@@ -277,43 +277,79 @@ The CLI surface stays narrow. The space behind the router stays wide.
 
 ## Open deliberations
 
-The items below are **not** architecture yet. They are questions for future resonera sessions. PoC/MVP blockers are cross-linked in [`TODO.md`](TODO.md). When an item is resolved, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
+These questions do not select an implementation. Each has one executable deliberation task in [`TODO.md`](TODO.md#architectural-deliberations). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
-### Record model and persistence
+### Benchmark evidence aggregation
 
-- [ ] How session roll-up counters relate to append-only call evidence for benchmark aggregation.
-- [ ] Retention, compaction, and pruning policy for originals versus compressed artifacts.
+How should append-only call evidence, session roll-ups, and experiment artifacts compose into benchmark aggregates without allowing mutable counters or duplicated observations to become a parallel truth?
 
-### Router and classification
+→ [Deliberation task](TODO.md#deliberate-benchmark-evidence-aggregation)
 
-- [ ] Taxonomy of content types the router recognizes and the order of fallback when classification is ambiguous.
-- [ ] How layer (shell, tool, code, instructions, session) maps to router profiles—one-to-one or many-to-one.
-- [ ] Which additional classification signals are warranted beyond the implemented tool, command-prefix, subcommand, and exit-status routing—for example MIME hints, parsed content type, or runtime metadata—and what is their fallback order.
+### Evidence maintenance boundary
 
-### Pipeline and compression
+Given that originals are append-only and retained, the first compressed artifact and retry evidence remain authoritative, and `ktx doctor` is read-only, which non-authoritative derived, index, or orchestration artifacts may be compacted, reconciled, or pruned? If maintenance is permitted, what explicit command boundary keeps mutation outside `ktx doctor`?
 
-- [ ] Pipeline stage contract: the full stage interface (metadata, ordering guarantees, terminal-vs-continuable stages) beyond the decided runner-level bytes-in/bytes-out/error-or-nil contract.
+→ [Deliberation task](TODO.md#deliberate-evidence-maintenance-boundary)
 
-### Memory and layer 5
+### Router taxonomy and profile selection
 
-- [ ] Operational definition of the memory stage: sync versus async, inline versus on session close.
-- [ ] What gets distilled, where it is stored, and how the next session consumes it.
-- [ ] Boundary between session-history compression and cross-session memory—same pipeline or separate profiles.
-- [ ] Optional external distillation tools: allowed roles without violating boring-before-clever constraints.
+What content types should the router recognize; how do shell, tool, code, instructions, and session layers map to profiles; which signals beyond the implemented tool, command-prefix, subcommand, and exit-status routing are justified by evidence; and what deterministic fallback order handles ambiguity?
 
-### Measurement and benchmark
+→ [Deliberation task](TODO.md#deliberate-router-taxonomy-and-profile-selection)
 
-- [ ] How per-layer savings roll into session and benchmark headline numbers without double-counting.
+### Pipeline stage semantics
 
-### CLI surface and ergonomics
+What stage metadata, ordering guarantees, and terminal-versus-continuable semantics are needed beyond the established bytes-in, bytes-out, error-or-nil runner contract?
 
-- [ ] Extended diagnostics scope: `ktx doctor --fix` for orphaned session reconciliation (Decision 1 revised), `ktx db --prune` for cleanup, pipeline sanity checks. Basic scope settled per Decision 2; non-blocking.
+→ [Deliberation task](TODO.md#deliberate-pipeline-stage-semantics)
 
-### Security and trust
+### Universal preprocessing and filter-pack composition
 
-- [ ] Threat model for executing user-configured pipeline stages (shell, scripts, plugins).
-- [ ] Redaction requirements for secrets in originals and compressed output.
-- [ ] Integrity and audit expectations beyond per-record content fingerprints.
+Should universal preprocessing exist, and if so, how should it compose with profile stages, command-aware routing, recovery cues, and the pipeline gate? Are wildcard stage lists, declarative filter packs, or explicit duplication the appropriate configuration model, and how are precedence and inspection defined?
+
+→ [Deliberation task](TODO.md#deliberate-universal-preprocessing-and-filter-pack-composition)
+
+### Instruction and tool-schema normalization
+
+Which deterministic normalizations, if any, are semantically safe for stable instructions and tool schemas; where should canonical ordering and serialization occur; and how should byte identity, semantic equivalence, provider-specific behavior, and invalidation be evidenced?
+
+→ [Deliberation task](TODO.md#deliberate-instruction-and-tool-schema-normalization)
+
+### Instruction indexing and retrieval
+
+Should instruction context be indexed and retrieved selectively rather than always loaded, and if so, what retrieval unit, relevance signal, safety floor, freshness rule, and recovery path prevent omission of applicable constraints?
+
+→ [Deliberation task](TODO.md#deliberate-instruction-indexing-and-retrieval)
+
+### Layer 5 boundary
+
+Where is the boundary between in-session history compression and cross-session memory? If distillation is part of ktx, what is distilled, when it runs, where it is stored, how later sessions consume it, and what role may external tools play without adding a required runtime or opaque behavior?
+
+→ [Deliberation task](TODO.md#deliberate-layer-5-boundary)
+
+### Prefix observability and derived evidence
+
+Which trusted runtime or provider source can describe request-prefix composition and compaction events? Which hashes and counts can evidence stable-prefix versus changing-tail behavior without retaining more sensitive content, how are instruction and tool-schema segments distinguished, and what privacy boundary applies to derived prefix telemetry?
+
+→ [Deliberation task](TODO.md#deliberate-prefix-observability-and-derived-evidence)
+
+### Provider cache-control ownership
+
+Outside the settled cache-aware benchmark methodology and its confirmed benchmark adapters, where should product/runtime cache-control policy and adapter versioning live: ktx, the agent runtime, or a shared contract? How should non-benchmark capability negotiation fail or fall back without extending benchmark isolation claims to unconfirmed runtime/provider adapters?
+
+→ [Deliberation task](TODO.md#deliberate-provider-cache-control-ownership)
+
+### Savings attribution
+
+How should tool-output reduction, logical input, provider-reported cost, independently estimated API cost, cache reads, cache writes, setup cost, and quality effects be attributed across layers and attempts without double-counting? Raw `cache_read` and `cache_write` distributions remain authoritative; a generic cache-hit ratio is not a headline.
+
+→ [Deliberation task](TODO.md#deliberate-savings-attribution)
+
+### Trust, redaction, and audit
+
+What threat model governs user-configured stages, scripts, and plugins; which secrets must be redacted from originals, compressed output, hashes, and derived prefix evidence; and what integrity and audit guarantees are required beyond per-record fingerprints while originals remain retrievable?
+
+→ [Deliberation task](TODO.md#deliberate-trust-redaction-and-audit)
 
 ---
 

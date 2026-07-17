@@ -1,103 +1,74 @@
 # TODO
 
-The full architectural deliberation backlog is canonical in [ARCHITECTURE.md — Open deliberations](ARCHITECTURE.md#open-deliberations). Items below cross-link there; resolve via the workflow in [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
+This document is the canonical executable backlog for implementation, evidence, benchmark, documentation, verification, and deliberation work. [`ARCHITECTURE.md`](ARCHITECTURE.md) owns conceptual architecture and unresolved architectural questions; every such question has one cross-linked deliberation task below. Git history, recorded decisions, and retained evidence own completion history.
 
-## ⇶ Critical
+## Immediately actionable
 
-_None — reserved for future critical items._
+- [ ] **Portable replay fixture and CI gate** — Make `ktx bench run --replay <file>` consume a self-contained fixture without the capture machine's database, commit a representative fixture, and run deterministic parser, cost-derivation, and compression checks per commit. → [Benchmark](ARCHITECTURE.md#benchmark)
+- [ ] **JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. → [Pipeline](ARCHITECTURE.md#pipeline)
+- [ ] **Routing-candidate evidence characterization** — Use retained calls and benchmark fixtures to measure candidate content signals, ambiguous cases, residual spend, and fallback outcomes. Publish evidence for deliberation without selecting a taxonomy or profile mapping. → [Router taxonomy and profile selection](ARCHITECTURE.md#router-taxonomy-and-profile-selection)
+- [ ] **Unified hook processing flow** — Separate Codex, OpenCode, and flat payload extraction from the common session resolution, source persistence, compression, artifact persistence, recovery-cue, and envelope-rendering flow. Preserve trusted-ingress identity, first-evidence ownership, and first-compressed-artifact authority. → [Ingress](ARCHITECTURE.md#ingress)
+- [ ] **Structured experiment summary model** — Replace internal `map[string]any` traversal between summary generation, validation, ranking, and rendering with a defined Go representation. Preserve serialized schemas and byte-for-byte regeneration of retained experiments. → [Benchmark](ARCHITECTURE.md#benchmark)
+- [ ] **Single pipeline resolution per operation** — Load configuration once for each hook or replay operation, resolve routing and profile settings through one path, and report the profiles and stages that ran. Do not expand the stage contract. → [Pipeline](ARCHITECTURE.md#pipeline)
+- [ ] **Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. → [Pipeline](ARCHITECTURE.md#pipeline)
+- [ ] **Consolidated CLI argument handling** — Give run, init, db, stats, bench, plugin, and shared format handling one consistent interpretation of owned flags, consumed values, and passthrough arguments. Cover flags before and after a wrapped executable. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)
+- [ ] **Cache-observability capability matrix** — Retain source- and version-specific evidence for which runtime/provider pairs expose model-step cache telemetry, prefix metadata, compaction events, and confirmed cache-control adapters. Distinguish observed telemetry from controlled isolation; do not place cache evidence on `tool_calls`. → [Prefix observability and derived evidence](ARCHITECTURE.md#prefix-observability-and-derived-evidence)
+- [ ] **Retained cache-aware provider comparison** — Run and retain a methodology-v5 comparison across selected cache-aware providers. Use isolated mode only for confirmed runtime/provider adapters; otherwise label evidence observed-only. Report raw `cache_read` and `cache_write` distributions, reported and estimated costs, quality, setup cost, and break-even evidence without a generic cache-hit-ratio headline. → [Benchmark](ARCHITECTURE.md#benchmark)
+- [ ] **Recorded-decision satisfaction review** — Review recorded choices that lack current satisfaction evidence against shipped behavior, tests, documentation, and retained benchmark evidence; record the review in the decision history without rewriting prior choices.
 
-## ⇉ Degraded
+## Architectural deliberations
 
-_None — reserved for future degraded items._
+Each task must run a structured deliberation, append the resulting choice to the recorded decision history, remove the resolved question from `ARCHITECTURE.md`, complete this task, and add or unblock only the implementation work selected by the choice.
 
-## → Normal — Compression benchmarking
+<a id="deliberate-benchmark-evidence-aggregation"></a>
 
-The immediate goal is to measure, compare, and rank compression pipelines using ktx's own infrastructure. The corpus, tools, and A/B comparison already exist; the work below turns them into a repeatable methodology.
+- [ ] **Benchmark evidence aggregation** — Run structured deliberation and record the choice for how call evidence, session roll-ups, and experiment artifacts compose. → [Question](ARCHITECTURE.md#benchmark-evidence-aggregation)
 
-- [ ] **Replay fixture portability** · `ktx bench run --replay <file>` reads the fixture directly without the capture machine's ktx.db. Needed for CI gates and sharing fixtures across machines. Deferred per D20/YAGNI; build when CI or cross-machine comparison demands it, not before. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
+<a id="deliberate-evidence-maintenance-boundary"></a>
 
-## → Normal — Layer 1 compression opportunities
+- [ ] **Evidence maintenance boundary** — Run structured deliberation and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)
 
-Implementation candidates for lossless, semantics-preserving compression at the tool-output boundary.
+<a id="deliberate-router-taxonomy-and-profile-selection"></a>
 
-- [ ] **JSON structure guard stage** · Add a stage that detects when valid JSON input has been structurally corrupted by earlier stages (e.g. `head` cutting a JSON array mid-element) and re-compacts from the parsed tree. Recognizes single-object, NDJSON, and with-trailer shapes. Opt-in behind a `json_guard = true` profile setting initially. Prevents semantic corruption that the byte-level anti-worsening gate cannot catch. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [ ] **Wildcard preprocessor pipeline** · Add a `[pipeline."*"]` table whose stages are prepended to every profile's stage list, so always-on stages like `strip-ansi` or future `redact-secrets` fire universally without duplicating them in every profile. Today a user who forgets to add `strip-ansi` to one profile loses ANSI cleanup for that tool call. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [ ] **Declarative filter packs** · Ship a small declarative format for predictable text: strip-ansi → scoped regex replacements → keep/drop lines → head/tail with omission markers → emit only when smaller. Covers most noise-stripping without bespoke Go stages. The `replace` stage and command-aware routing are now shipped; remaining work is a packaged rules format to share/distribute filter packs without manual TOML copying. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [ ] **Structured parsers for high-volume tools** · Parse known output formats before rendering compactly: group search results by file with per-file and global caps, deduplicate repeated diagnostics with exact occurrence counts, keep failure blocks intact while collapsing successful cases, and select the smallest faithful representation before the global anti-worsening gate (only use grouped form when smaller than flat). Build only for commands demonstrated by ktx evidence to dominate residual token spend. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
+- [ ] **Router taxonomy and profile selection** — Run structured deliberation and record the taxonomy, signal, layer-to-profile, ambiguity, and fallback choice using the routing-candidate evidence. → [Question](ARCHITECTURE.md#router-taxonomy-and-profile-selection)
 
-## → Normal — Architecture and platform
+<a id="deliberate-pipeline-stage-semantics"></a>
 
-- [ ] **Content-type detection heuristics** — JSON vs logs vs code vs prose from bytes; ambiguity fallback order. Prerequisite for per-content-type pipeline profiles (M5 routing). Single default profile works for initial benchmarking; this enables the next stage of comparison. → [Router and classification](ARCHITECTURE.md#router-and-classification)
-- [ ] **Wrapper-side step_finish enrichment (deferred follow-up from D17)** · OpenCode 1.17.8 emits tokens/cost/model on `step_finish` (step-aggregate), not on `tool_use` (per-tool); the wrapper persists only `tool_use` rows, so M2 cost fields stay NULL per-row. `--replay` bypasses this (re-parses the stream), so this is NOT blocking — revisit only if a future use case needs per-tool_call cost rows (e.g., cost-by-tool breakdown, per-tool compression savings). → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [ ] **CI wiring: per-commit replay gate** · Per-commit deterministic gate runs `ktx bench run --replay <session-id>` against a committed fixture. Blocked on replay fixture portability (above). → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [ ] **Unified hook processing flow** · Separate Codex, OpenCode, and flat payload extraction from the common sequence for session resolution, source persistence, compression, artifact persistence, recovery footer handling, and envelope rendering. Preserve the existing provenance and retry-authority rules while removing divergent post-extraction paths. → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
-- [ ] **Structured experiment summary model** · Replace internal `map[string]any` traversal between summary generation, validation, ranking, and rendering with a defined Go representation. Preserve the existing serialized JSON shapes and byte-for-byte summary regeneration for retained experiments. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [ ] **Single pipeline resolution per operation** · Load configuration once for a hook or replay operation, resolve routing and profile settings in one path, and report the profiles and stages that actually ran instead of reconstructing pipeline information from the default profile. Do not expand the stage contract as part of this work. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [ ] **Consolidated CLI argument handling** · Replace the hand-written flag walkers in run, init, db, stats, bench, plugin, and shared format handling with one consistent interpretation of ktx-owned flags, consumed values, and passthrough arguments. Cover complete argv sequences, especially flags before and after a wrapped executable. → [CLI surface and ergonomics](ARCHITECTURE.md#cli-surface-and-ergonomics)
+- [ ] **Pipeline stage semantics** — Run structured deliberation and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)
 
-## ⇢ Annoying
+<a id="deliberate-universal-preprocessing-and-filter-pack-composition"></a>
 
-- [ ] Audit ledger or hash-chain beyond per-record content hash → [Security and trust](ARCHITECTURE.md#security-and-trust)
-- [ ] Provider-specific adapters
-- [ ] `ktx doctor` diagnostic depth → [CLI surface and ergonomics](ARCHITECTURE.md#cli-surface-and-ergonomics)
-- [ ] Satisfy review on recorded decisions 1–10
-- [ ] Multi-agent memory / cross-session carry → [Memory and layer 5](ARCHITECTURE.md#memory-and-layer-5)
+- [ ] **Universal preprocessing and filter-pack composition** — Run structured deliberation and record the composition, precedence, and inspection choice, considering wildcard preprocessors and declarative filter packs only as alternatives. → [Question](ARCHITECTURE.md#universal-preprocessing-and-filter-pack-composition)
 
-## ✓ Resolved
+<a id="deliberate-instruction-and-tool-schema-normalization"></a>
 
-- [x] ~~Single recorded-stream metrics parser~~ · Live benchmark runs and experiments now share one implementation of `step_finish` usage aggregation, completeness checks, malformed-field handling, absent-versus-zero semantics, and the 64 MiB record limit. Answer scoring, completion detection, and model metadata remain caller-specific. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Cache-aware benchmark methodology~~ · Methodology v5 separates cold observation, warm-up, and measured-warm attempts; isolates per-arm namespaces only through confirmed adapters; otherwise labels evidence observed-only; and publishes retained-cost rebuild and break-even evidence. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Residual-waste discovery + replace stage~~ · `ktx stats` command ranks tool/command groups by delivered token waste (LEFT JOIN from tool_calls to compressed, uncompressed calls surface with delivered == raw). `replace` stage adds regex substitution (`replace:pattern::replacement`) following the existing Builder pattern. Filter pack pattern documented in `docs/pipelines.md`. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression) and [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Subcommand extraction in router~~ · Added `Subcommand` field to `RouteRule`; router extracts first non-flag token after binary name. Flag-skipping handles `git --no-pager log`. Malformed input fails the condition, consistent with CommandPrefix. Recommended profiles for git (status, diff, log) and bash (ls, find) added to `ktx.example.toml`. → [Router and classification](ARCHITECTURE.md#router-and-classification)
-- [x] ~~Embedded default profiles~~ · Decided against binary-embedded profiles. Recommended profiles in `ktx.example.toml` as commented blocks users copy manually is sufficient. D14 (passthrough default) preserved without modification.
+- [ ] **Instruction and tool-schema normalization** — Run structured deliberation and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)
 
-- [x] ~~Command-aware filter routing~~ · Layer 1 router implemented: `[[route]]` TOML blocks with tool/command_prefix/exit_status matching, first-match-wins with default fallback. Per-profile timeout and recover_footer with default inheritance. Pipeline JSON records selected profile. `internal/router/router.go`, `internal/config/config.go`, `internal/cli/compress.go`. → [Router and classification](ARCHITECTURE.md#router-and-classification)
+<a id="deliberate-instruction-indexing-and-retrieval"></a>
 
-- [x] ~~Pipeline configurations for evaluation~~ · Named pipelines in `tools/bench/pipelines/` (`passthrough`, `sanitize`, `keep-ends-mid`, `conservative-a`, `aggressive-head`, `aggressive-keep-ends`), planted-fact corpus + multi-skill task suite in `tools/bench/corpus/` and `tools/bench/tasks/`, metrics contract and runbook in `docs/pipelines.md` (methodology `v4-eval-matrix`). Live harness supports `--task-file`, multi-fact fractional scoring, and pipeline config overrides (`--baseline-config` / `--candidate-config`). Per-tool-type routing deferred to content-type/tool routing follow-up.
-- [x] ~~Live A/B harness: session-linked experiment evidence~~ · Completed multi-tool experiment `20260710T094624Z-0195d07-370898` with 3 valid, session-linked runs per pipeline side and no exclusions. Baseline mean input tokens/cost: 12084.67/$0.011637; candidate: 2926.33/$0.005588. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-  - **Evidence boundary:** SQLite remains product evidence only. The harness owns experiment identity, pipeline side assignment (`baseline`/`candidate`), configuration hashes, execution order, retries, and aggregate results. Each counted attempt references the exact persisted `session_id`; no side is inferred from tokens, timestamps, or database contents.
-  - [x] ~~1. Repair configuration isolation and add a preflight.~~ Mount each pipeline config at `$XDG_CONFIG_HOME/ktx/ktx.toml` (`/home/node/.config/ktx/ktx.toml` in the benchmark image). Before spending a model call, the Go benchmark entrypoint requires the active stage list to match the selected pipeline.
-  - [x] ~~2. Create one immutable experiment directory.~~ On startup, create `.bench-data/<experiment-id>/` without reusing or overwriting an earlier run. Write `manifest.json` before the first attempt with: experiment ID, creation time, task ID, prompt, expected output, minimum tool calls, model, target completions per pipeline side, maximum attempts, timeout, pipeline execution policy, repository commit plus dirty state, image ID, ktx/OpenCode identities, and SHA-256 plus parsed stages for each pipeline config.
-  - [x] ~~3. Isolate and link every attempt.~~ Give each attempt its own directory and data mount: `attempts/<side>-<ordinal>/{ktx.db,stream.jsonl,stderr.log}`. After the container exits, query that database through `KTX_DB=<path> ktx list --format json`; accept exactly one new session and record its `session_id`. Mark zero or multiple sessions as `unlinked` rather than choosing by timestamp. Record nullable `bench_run_id` and `recorded_stream_id` only when the existing database linkage supplies them; do not manufacture either.
-  - [x] ~~4. Persist append-only attempt records.~~ Append one object per attempted run to `attempts.jsonl` with experiment/attempt IDs, explicit side (`baseline`/`candidate`), cycle and ordinal, start/end timestamps, status (`completed`, `timeout`, `failed`, `unlinked`, or `invalid`), process exit code, session ID, score, tool-call count, tokens, cost, answer excerpt, config hash, artifact paths, and stdout/stderr content hashes. Preserve evidence for every failure and never count a partial stream as completed.
-  - [x] ~~5. Bound execution and balance ordering.~~ Add configurable per-attempt timeout, termination grace period, target valid completions (default 3 per side), and maximum attempts. Alternate side order by cycle (`baseline→candidate`, then `candidate→baseline`) to reduce time/order bias. Continue until both sides reach the target or the attempt budget is exhausted; return nonzero when either side is short.
-  - [x] ~~6. Derive reproducible output.~~ Generate `summary.json` exclusively from `manifest.json` and `attempts.jsonl`, considering only completed, linked attempts that satisfy the expected answer and minimum tool-call count. Include status counts, contributing attempt/session IDs, per-side sample size and distributions for tokens/cost/tool calls, baseline-minus-candidate deltas, pass rates, and explicit exclusions. Keep the text table as a rendering of the same JSON, not a separate aggregation path.
-  - [x] ~~7. Harden adjacent harness paths.~~ Replace `validate-bench.sh` timestamp-proximity session selection with before/after session-set comparison (or the same per-attempt database isolation), and preserve the real `timeout`/child exit code instead of reading `$?` after `!`. Make `compare-pipelines.sh` use an isolated `XDG_CONFIG_HOME` and include session ID, config hash, and parsed stages in JSON output.
-  - [x] ~~8. Add offline harness tests.~~ Stub Docker/ktx and use retained JSONL fixtures to cover: successful paired cycles, timeout plus retry, failed process, incomplete stream, wrong answer, fewer than the minimum tool calls, zero/multiple sessions, exhausted attempt budget, rerun non-overwrite, side-order alternation, config-preflight mismatch, and deterministic summary regeneration. Validate with `bash -n`, ShellCheck when available, the harness tests, `go test ./...`, and `go vet ./...`.
-  - **Result:** The successful experiment has at least 3 valid, session-linked attempts per side; every aggregate names its contributing attempts and sessions; the configured candidate pipeline was proven before execution; raw evidence survived all failure paths; reruns create new experiment directories; `summary.json` regenerated byte-for-byte from retained inputs; and no SQLite schema change was introduced.
-- [x] ~~Extract `internal/methodology/` from `internal/cli/bench.go`~~ · published methodologies are embedded from `tools/bench/` so the installed binary is checkout-independent
-- [x] ~~Single-language benchmark implementation~~ · Corpus generation, experiment evidence, live comparison, ranking, validation, and read-only database reporting now ship in the Go binary; Python tooling and launchers removed.
-- [x] ~~Database on-disk layout~~ · Decision 6, superseded by D8 → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
-- [x] ~~Run record schema~~ · Decision 7 → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
-- [x] ~~Database terminology and CLI path~~ · Decision 8 → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
-- [x] ~~`ktx db --path` semantics~~ · Decision 8 revised → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
-- [x] ~~Session identity for hooks~~ · Decision 1 revised → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
-- [x] ~~Tool-call source identity and retry authority~~ · Decision 30 is the current contract; it supersedes only the conflicting scope of historical Decisions 3 and 26. → [Integration topology](ARCHITECTURE.md#integration-topology)
-- [x] ~~Session close detection~~ · Decisions 1, 7, 9 revised → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
-- [x] ~~`ktx write` payload shape~~ · Decision 9 → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
-- [x] ~~PoC wrapper target~~ · Decision 10 → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
-- [x] ~~Hook install scope~~ · Decisions 1, 2 revised, 22 → [Ingress and session lifecycle](ARCHITECTURE.md#ingress-and-session-lifecycle)
-- [x] ~~Cost measurement mechanics~~ · Decision 11 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Reported versus estimated API cost~~ · Decision 27 supersedes Decision 11's cost conflation: reported cost remains verbatim while cache-aware, reasoning-aware estimates use retained models.dev pricing snapshots. → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Benchmark methodology~~ · Decisions 12, 13 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Benchmark harness — record a real OpenCode session as replay fixture~~ · Decisions 16, 17, 18, 19 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~`--replay` flag with internal A/B comparison (D13 Tier 1)~~ · Decision 20 (+ D22 Phase 2 A/B compression section) → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Wrapper-capture `--format` passthrough bug~~ · Decision 18 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~M3 bench run invocation fix~~ · Decisions 18, 19 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~`extractAgentOutput` wrong JSON path~~ · resolved in the extractStreamMetrics session → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~Wrapper argv-doubling bug~~ · Decision 19 → [Measurement and benchmark](ARCHITECTURE.md#measurement-and-benchmark)
-- [x] ~~`decisions.yaml` D14 schema violation~~ · commit `4f54e10`
-- [x] ~~Default compression pipeline~~ · Decision 14 → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [x] ~~D9 failure-signal field~~ · Decision 15 → [Record model and persistence](ARCHITECTURE.md#record-model-and-persistence)
-- [x] ~~Plugin registry vs TOML pipeline~~ · Decision 21 → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [x] ~~`ktx config show --json` companion verb~~ · Decision 21 → [Configuration](ARCHITECTURE.md#configuration)
-- [x] ~~D22 Phase 2 — deterministic stages + savings measurement~~ · Decision 22 → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [x] ~~Cost-deriver consolidation~~ · plan `.agentera/archive/PLAN-2026-06-21-deepen-cost-db-parser.yaml`
-- [x] ~~`internal/db` file reorganisation~~ · plan `.agentera/archive/PLAN-2026-06-21-deepen-cost-db-parser.yaml`
-- [x] ~~Event-parser extraction~~ · plan `.agentera/archive/PLAN-2026-06-21-deepen-cost-db-parser.yaml`
-- [x] ~~Phase 2 A/B verification with configured pipeline~~ · Verified on session `wwyxmfiiwkmgpmvx`: sanitize (noise cleanup) fires pipeline, ratio 0.996 (normalize trims whitespace); aggressive pipeline 89.9% reduction. Consistency/integrity/parser PASS.
-- [x] ~~Corpus expansion: capture 3-5 tool-rich replay fixtures~~ · 5 fixtures captured via `ktx run --record-stream`: `ifgbcsfewlnbwkhd` (3 reads, 62KB stream), `bqdaufpnvkxxpzhp` (1 bash, 32KB), `boefqygqblmbojcr` (bash+read, 123KB stream, 60KB baseline), `plwfwucqexmrsoui` (2 bash, 4KB), `pntrhflgnjduvzfu` (3 bash, 11KB). Comparison script verified across all fixtures.
-- [x] ~~Multi-pipeline comparison~~ · `ktx bench rank` runs named configurations in-process and emits text plus retained JSON rankings.
-- [x] ~~Live A/B cost comparison (initial)~~ · v3 task (read_summary_v1): baseline N=3 cost $0.0061-0.0096 score=1; candidate N=2 cost $0.0053-0.0059 score=1. Tool output 23695→3947 chars (83% compression). Quality preserved. Follow-up TODO opened for longer multi-tool tasks.
-- [x] ~~Recovery footer + amended anti-worsening gate (D23)~~ · ktx hook composes an agent-visible recovery footer (source ID + compressed size + reduction ratio + `ktx read <source-id>`) when transformation fires and the config flag is enabled. Anti-worsening gate amended to include footer bytes (`len(compressed)+len(footer) < len(input)`). Off by default; opt in via `[pipeline.default] recover_footer = true` in ktx.toml. Stored compressed rows stay content-only; `ktx read <source-id>` returns the original tool_call record for layering recovery. → [Pipeline and compression](ARCHITECTURE.md#pipeline-and-compression)
-- [x] ~~Config file format, search path, and precedence between project and user scope~~ · D5 amendment: project-root (cwd) scope dropped; single user-level scope at `$XDG_CONFIG_HOME/ktx/ktx.toml` (renamed from `config.toml`). → [Configuration](ARCHITECTURE.md#configuration)
+- [ ] **Instruction indexing and retrieval** — Run structured deliberation and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)
+
+<a id="deliberate-layer-5-boundary"></a>
+
+- [ ] **Layer 5 boundary** — Run structured deliberation and record the history/memory boundary, lifecycle, storage, consumption, and external-tool choice. → [Question](ARCHITECTURE.md#layer-5-boundary)
+
+<a id="deliberate-prefix-observability-and-derived-evidence"></a>
+
+- [ ] **Prefix observability and derived evidence** — Run structured deliberation and record trusted sources, hashes and counts, stable-prefix versus tail evidence, compaction-event treatment, and privacy limits. → [Question](ARCHITECTURE.md#prefix-observability-and-derived-evidence)
+
+<a id="deliberate-provider-cache-control-ownership"></a>
+
+- [ ] **Provider cache-control ownership** — Run structured deliberation and record product/runtime ownership, adapter versioning, capability negotiation, and fallback behavior outside the settled benchmark contract and confirmed benchmark adapters. → [Question](ARCHITECTURE.md#provider-cache-control-ownership)
+
+<a id="deliberate-savings-attribution"></a>
+
+- [ ] **Savings attribution** — Run structured deliberation and record the attribution and aggregation contract without double-counting or replacing raw cache distributions with a generic hit ratio. → [Question](ARCHITECTURE.md#savings-attribution)
+
+<a id="deliberate-trust-redaction-and-audit"></a>
+
+- [ ] **Trust, redaction, and audit** — Run structured deliberation and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)
+
+## Triggered/deferred
+
+- [ ] **Wrapper `step_finish` enrichment** — Trigger only if a concrete use case requires per-tool cost evidence. Model-step cache and cost telemetry remains benchmark/recorded-stream evidence and must not be attached to `tool_calls`. → [Measurement](ARCHITECTURE.md#measurement)
+- [ ] **Structured parsers for high-volume tools** — Trigger only when retained evidence shows specific tools dominate residual spend. Preserve failure blocks, exact occurrence counts, and the smallest faithful representation before the global gate. → [Pipeline](ARCHITECTURE.md#pipeline)

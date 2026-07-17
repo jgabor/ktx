@@ -1,0 +1,113 @@
+header:
+  level: full
+  created: 2026-07-17
+  status: open
+  reviewed: 2026-07-17
+  critic_issues: 8 found, 8 addressed, 0 dismissed
+  title: "Plan: Portable replay fixture and CI gate"
+  id: plan:9636f652-3e40-41d1-ad15-180631f24f78
+what: Make replay evidence self-contained so a retained fixture can reproduce integrity, parser, usage, cost, cache, and compression checks without the capture machine database, then enforce one representative fixture as an offline repository and CI regression gate.
+why: Portable replay converts captured evidence into a shareable deterministic guardrail, protects parser, cost, cache, and compression behavior before later routing work, and avoids recurring live-model cost for regression verification.
+constraints: Preserve database-backed session replay fields and exit behavior, capture database authority, absent-versus-zero usage, model-step evidence ownership, conservative failure, the smaller-only pipeline gate, and first-evidence authority. The gate must require no network, model, container, credentials, plugins, or user-local state. Do not add fixture import, a registry, database migration, cache-control changes, or new compression algorithms.
+overall_acceptance: GIVEN a sanitized committed fixture and no capture database WHEN repository and CI verification run offline THEN integrity, parser, usage, cost, cache, and compression expectations are reproduced deterministically; every divergence fails the gate; existing session replay remains compatible; and documentation identifies one reproducible evidence contract.
+scope:
+  included:
+    - Versioned portable replay fixture contract
+    - Explicit file replay and fixture export surfaces
+    - Existing session replay compatibility
+    - Controlled built-in compression evidence
+    - Sanitized representative fixture
+    - Repository verification and tracked CI gate
+    - User documentation and project-state synchronization
+  excluded:
+    - Live provider execution as part of verification
+    - External plugins in the fixture gate
+    - Database fixture import or migration
+    - Provider cache-control changes
+    - New compression algorithms
+    - Generic fixture registry or lifecycle service
+design: Establish a narrow self-contained evidence contract first. Produce it only from one validated source snapshot. Evaluate database and file inputs through equivalent replay behavior while keeping their selectors and compatibility explicit. Retain one reviewed fixture, enforce strict expectations through repository and CI verification, then synchronize documentation and state.
+unknowns:
+  - question: Does an existing benchmark-parented capture contain complete, nontrivial, privacy-safe evidence suitable for long-term retention, or is a marked deterministic synthetic benchmark source required?
+    affects_task: 5
+    resolve_by: Export and review candidate evidence before retaining the fixture; if no capture satisfies the contract, create a deterministic synthetic benchmark-parented source with explicit provenance rather than weakening privacy or evidence requirements.
+tasks:
+  - number: 1
+    name: Establish fixture contract and selectors
+    depends_on:
+      []
+    status: pending
+    acceptance:
+      - GIVEN session and file replay inputs WHEN command selection is parsed THEN each uses an explicit unambiguous selector and an ambiguous-looking filename cannot alter session replay behavior.
+      - GIVEN a portable fixture WHEN decoded THEN version 1 requires a benchmark-parented stream, expected parser evidence, nullable usage and cache evidence, and expected compression identity and measurements.
+      - GIVEN a missing or unsupported fixture version or malformed required field WHEN validation runs THEN replay fails before evaluation with a documented machine-readable failure class and correction.
+      - GIVEN fixture integrity metadata WHEN content changes accidentally THEN validation detects the change; synchronized expectation edits remain a code-review boundary rather than a claim of malicious-committer defense.
+  - number: 2
+    name: Produce authoritative portable fixtures
+    depends_on:
+      - "1"
+    status: pending
+    acceptance:
+      - GIVEN a benchmark-parented recorded stream WHEN export runs THEN stream, session comparison, and benchmark evidence are read from one consistent source and their links and content integrity are validated before output.
+      - GIVEN unchanged authoritative evidence WHEN export repeats THEN it emits byte-identical canonical fixture content apart from no invocation-time metadata.
+      - GIVEN an explicit file destination or standard output WHEN export succeeds THEN result data goes only to that destination, diagnostics stay separate, and the source database is not mutated.
+      - GIVEN a parentless or inconsistent source WHEN export is requested THEN version 1 rejects it before writing and explains the supported source requirement.
+  - number: 3
+    name: Evaluate portable fixtures offline
+    depends_on:
+      - "1"
+      - "2"
+    status: pending
+    acceptance:
+      - GIVEN only a valid fixture WHEN file replay runs THEN integrity, parser, original comparison, usage, cost, cache, and compression evidence are emitted without opening a database or requiring network, agent, container, credential, or user-local state.
+      - GIVEN the same fixture and binary WHEN replay repeats THEN all evidence fields are deterministic.
+      - GIVEN hostile, malformed, or plugin-bearing user configuration WHEN fixture replay runs THEN the fixture's controlled built-in pipeline is authoritative and external stages cannot affect the result.
+      - GIVEN invalid integrity, parser count, usage, cache, cost, or compression expectations WHEN strict fixture verification runs THEN inspectable evidence is emitted and the operation exits nonzero.
+  - number: 4
+    name: Preserve database-backed replay compatibility
+    depends_on:
+      - "3"
+    status: pending
+    acceptance:
+      - GIVEN an existing session identifier WHEN replay runs THEN its selector, envelope fields, comparison semantics, and PASS, DRIFT, and FAIL exit behavior remain compatible.
+      - GIVEN parentless database evidence WHEN replay runs THEN its existing comparison-unavailable behavior remains supported and is not presented as full portable verification.
+      - GIVEN equivalent database and exported fixture evidence WHEN each is evaluated THEN shared integrity, parser, usage, cache, cost, and compression values agree.
+      - GIVEN missing session and missing fixture inputs WHEN invoked THEN each reports the correct selector-specific error without falling through to the other source.
+  - number: 5
+    name: Retain representative fixture and repository gate
+    depends_on:
+      - "2"
+      - "3"
+      - "4"
+    status: pending
+    acceptance:
+      - GIVEN the retained fixture WHEN reviewed THEN it has explicit provenance, nontrivial tool output, multi-step usage, absent-or-zero cache semantics, no required machine-local identifiers, and no unreviewed sensitive data.
+      - GIVEN repository verification WHEN run headlessly THEN it exercises the exact retained fixture through controlled built-in behavior and rejects every integrity, parser, usage, cost, cache, and compression divergence.
+      - GIVEN informational replay drift that preserves session replay success WHEN the strict fixture gate evaluates it THEN the gate fails rather than accepting the replay process exit code alone.
+      - GIVEN unchanged code and fixture WHEN the repository gate repeats twice THEN expected evidence remains identical and execution is bounded and noninteractive.
+  - number: 6
+    name: Enforce the gate in tracked CI
+    depends_on:
+      - "5"
+    status: pending
+    acceptance:
+      - GIVEN a push or pull request WHEN tracked CI runs THEN the repository verification command includes the portable fixture gate.
+      - GIVEN a clean hosted runner WHEN verification starts THEN no model key, network service, container daemon, user configuration, or mutable local database is required.
+      - GIVEN fixture or behavior drift WHEN the gate fails THEN CI exposes the failing evidence category and returns a failing status.
+      - GIVEN local and hosted verification WHEN both use the same commit THEN they invoke the same authoritative repository command.
+  - number: 7
+    name: Synchronize documentation and current state
+    depends_on:
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "6"
+    status: pending
+    acceptance:
+      - GIVEN portable replay is available WHEN users inspect command help and benchmark documentation THEN fixture format, source requirements, export and replay usage, refresh procedure, privacy review, compatibility, and failure semantics agree.
+      - GIVEN implementation is complete WHEN focused replay checks and the repository verification suite run THEN all supported paths pass.
+      - GIVEN retained acceptance evidence WHEN project state is synchronized THEN the matching TODO and plan show completion without duplicate open work and any discovered surprise is recorded.
+surprises:
+  []

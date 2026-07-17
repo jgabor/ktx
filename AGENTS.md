@@ -4,28 +4,31 @@ ktx is a runtime-agnostic CLI that makes coding agents measurable and cheaper. O
 
 ## Key documents
 
-| Document                                               | Role                                                        |
-| ------------------------------------------------------ | ----------------------------------------------------------- |
-| `[.agentera/vision.yaml](.agentera/vision.yaml)`       | North star, principles, identity                            |
-| `[.agentera/decisions.yaml](.agentera/decisions.yaml)` | Recorded deliberation outcomes (reasoning trail)            |
-| `[ARCHITECTURE.md](ARCHITECTURE.md)`                   | Aspirational architecture; open deliberations backlog       |
-| `[TODO.md](TODO.md)`                                   | PoC/MVP blockers cross-linked to architecture deliberations |
+| Document                                               | Role                                                           |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| `[.agentera/vision.yaml](.agentera/vision.yaml)`       | North star, principles, identity                               |
+| `[.agentera/decisions.yaml](.agentera/decisions.yaml)` | Recorded deliberation outcomes (reasoning trail)               |
+| `[ARCHITECTURE.md](ARCHITECTURE.md)`                   | Conceptual architecture and unresolved architectural questions |
+| `[TODO.md](TODO.md)`                                   | Canonical executable backlog, including deliberation work      |
 
 **Read order for new work:** vision → architecture (intent) → decisions (what is already chosen) → todo.
 
-`ARCHITECTURE.md` is the map of intent, not the blueprint. `.agentera/decisions.yaml` holds choices made in resonera. Do not treat aspirational architecture prose as settled design.
+`ARCHITECTURE.md` is the map of intent, not an implementation backlog or blueprint. `.agentera/decisions.yaml` holds choices made in resonera. `TODO.md` owns all executable implementation, evidence, benchmark, documentation, verification, and deliberation work. Do not treat conceptual architecture prose or unresolved questions as settled design.
 
 ## Documentation maintenance
 
-When an open deliberation item is resolved (in resonera or equivalent structured discussion):
+When adding an unresolved architectural question:
+
+1. **Add the question** to [ARCHITECTURE.md — Open deliberations](ARCHITECTURE.md#open-deliberations) as a named heading and neutral question block. Do not encode a preferred implementation.
+2. **Add one deliberation task** to [TODO.md — Architectural deliberations](TODO.md#architectural-deliberations) with a stable explicit HTML anchor and reciprocal links between the question and task.
+
+When an open question is resolved in resonera or equivalent structured discussion:
 
 1. **Record the choice** in `[.agentera/decisions.yaml](.agentera/decisions.yaml)` — append a decision entry with question, alternatives, choice, reasoning, and confidence.
-2. **Update `[ARCHITECTURE.md](ARCHITECTURE.md)`** — remove the item from [Open deliberations](ARCHITECTURE.md#open-deliberations). No "Decided" entry is added; `decisions.yaml` is the single source of resolved reasoning. Only amend the conceptual sections above the Open-deliberations backlog when the decision changes the architectural map itself.
-3. **Update `[TODO.md](TODO.md)`** — mark matching blockers complete; do not leave duplicate open items when the architecture backlog and todo list describe the same question.
+2. **Update `[ARCHITECTURE.md](ARCHITECTURE.md)`** — remove the resolved question. No "Decided" entry is added; `decisions.yaml` is the single source of resolved reasoning. Amend conceptual sections only when the choice changes the architectural map.
+3. **Update `[TODO.md](TODO.md)`** — complete the matching deliberation task and add or unblock only the implementation, evidence, benchmark, documentation, or verification work selected by the choice.
 
-When implementing before a deliberation is recorded, prefer opening a resonera session over encoding guesses in code comments or architecture prose.
-
-When adding a new open question, add it to [ARCHITECTURE.md — Open deliberations](ARCHITECTURE.md#open-deliberations) first; add a cross-linked line in `[TODO.md](TODO.md)` only if it blocks PoC or MVP delivery.
+Do not implement an unresolved architectural choice. Run its deliberation task rather than encoding a guess in code comments, TODO wording, or architecture prose.
 
 ## Working conventions
 

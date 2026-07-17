@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
-	parserpkg "github.com/jgabor/ktx/internal/parser"
 )
 
 // runBenchReplay implements `ktx bench run --replay <session-id>`. It
@@ -106,18 +104,8 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	// The parsed tool_calls are also collected: the A/B
 	// compression measurement reuses them below — zero agent calls,
 	// the stream is already in memory.
-	replayedToolUseCount := 0
-	var parsedToolCalls []*dbpkg.ToolCall
-	for _, line := range bytes.Split([]byte(rs.StreamText), []byte("\n")) {
-		if len(line) == 0 {
-			continue
-		}
-		tc, ok := parserpkg.ParseEvent(line)
-		if ok && tc != nil {
-			replayedToolUseCount++
-			parsedToolCalls = append(parsedToolCalls, tc)
-		}
-	}
+	parsedToolCalls := parseReplayToolCalls(rs.StreamText)
+	replayedToolUseCount := len(parsedToolCalls)
 	parserRegressionPass := int64(replayedToolUseCount) == session.ToolCallCount
 
 	// (c) Cost drift: re-aggregate tokens/cost/cache via

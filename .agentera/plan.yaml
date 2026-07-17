@@ -68,7 +68,7 @@ tasks:
     name: Preserve database-backed replay compatibility
     depends_on:
       - "3"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN an existing session identifier WHEN replay runs THEN its selector, envelope fields, comparison semantics, and PASS, DRIFT, and FAIL exit behavior remain compatible.
       - GIVEN parentless database evidence WHEN replay runs THEN its existing comparison-unavailable behavior remains supported and is not presented as full portable verification.

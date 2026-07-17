@@ -1,4 +1,30 @@
 cycles:
+  - number: 50
+    timestamp: 2026-07-17 19:06
+    type: test
+    phase: build
+    what: Preserved database-backed replay compatibility by routing session replay
+      through the shared recorded-stream parser and adding focused envelope,
+      exit, parentless, parity, and selector-negative coverage in internal/cli.
+    discovered: Database and fixture replay already shared usage extraction; parser
+      traversal was the remaining duplicated evidence path. Strict fixture
+      status intentionally remains separate from informational session DRIFT.
+    verified: Focused replay compatibility tests passed; go test ./internal/cli
+      passed; mage check passed all tests, vet, lint with 0 issues, and build;
+      git diff --check passed.
+    next: Task 5 remains pending; no retained fixture, repository gate, CI, or broad
+      documentation was added here.
+    context:
+      intent: Keep established session replay semantics intact while proving
+        equivalent database and exported fixture evidence agrees on shared
+        integrity, parser, usage, cache, cost, and compression values.
+      constraints: Preserved legacy JSON/text envelopes, DRIFT exit 0, FAIL exit 4,
+        parentless comparison-unavailable behavior, and selector-specific
+        failures. No decision satisfaction was inferred.
+      unknowns: Historical plan and decision state remains degraded as reported by
+        agentera@next; no hidden outcomes were reconstructed.
+      scope: internal/cli/bench_replay.go, internal/cli/bench_replay_compat_test.go,
+        and agentera-managed plan/progress artifacts.
   - number: 49
     timestamp: 2026-07-17 18:49
     type: feat
@@ -347,40 +373,6 @@ cycles:
       scope: README.md, ARCHITECTURE.md, TODO.md, .agentera/docs.yaml,
         internal/cli/hook.go, and writer-managed progress projection/archive
         only.
-  - number: 40
-    timestamp: 2026-07-16 06:06
-    type: feat
-    phase: build
-    what: Adopt deterministic identity in verified OpenCode hook and wrapper paths
-    verified: "Hook (internal/cli/hook.go:245-281) extracts (input.sessionID,
-      input.callID) via correlation.Resolve(Trusted(opencode:hook)); wrapper
-      (internal/cli/run.go:497-526) uses parser.ParseEventWithCorrelation +
-      correlation.Resolve(Trusted(opencode:wrapper)). Both use
-      evidence.PersistSource (internal/evidence). Flat runtime:opencode without
-      native schema -> fresh NanoID. Tests:
-      TestOpenCode_HookAndWrapperResolveSameSourceID,
-      TestOpenCode_HookExactDuplicateConverges,
-      TestOpenCode_WrapperReplayConverges,
-      TestOpenCode_CrossIngressEquivalencePersistence,
-      TestOpenCode_MissingTupleFallback,
-      TestOpenCode_FlatClaimingOpencodeRemainsUntrusted,
-      TestOpenCode_MalformedSchemaFallback,
-      TestOpenCode_NewCallIDDistinctObservation,
-      TestOpenCode_FlatCallerSuppliedIDPreserved,
-      TestOpenCode_ChangedEvidenceConflicts,
-      TestOpenCode_KTXSessionOwnershipSeparate,
-      TestOpenCode_ConcurrentExactRetriesConverge,
-      TestOpenCode_WrapperConcurrentExactRetriesConverge,
-      TestOpenCode_SequentialExactRetriesConverge,
-      TestOpenCode_KTXSessionIDGuardSuppressesHook all PASS. go test ./...
-      -count=1: all PASS. go test -race -run TestOpenCode_Concurrent: PASS. mage
-      check: 0 issues. Caveats: cycle 39 archive hygiene to Task 6;
-      legacy/degraded decisions; health unavailable; stale profile; historical
-      progress degradation; Decision 30 review-needed."
-    context:
-      intent: "Task 5 of the generalized tool-call identity plan: carry OpenCode
-        native correlation through hook extraction and wrapper parsing into the
-        evidence layer"
   - number: 39
     timestamp: 2026-07-16 06:30
     type: feat
@@ -650,6 +642,8 @@ cycles:
       intent: "Document command-aware routing: example config, pipeline docs,
         architecture update."
 archive:
+  - summary: "Cycle 40 (2026-07-16): Adopt deterministic identity in verified
+      OpenCode hook and wrapper paths"
   - summary: "Cycle 38 (2026-07-16): Added the shared runtime-neutral correlation
       contract: internal/canon (strict canonical JSON comparison per Decision
       30) and..."

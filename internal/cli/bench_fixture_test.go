@@ -170,15 +170,154 @@ func TestRunBenchRunReplaySelectorsAreUnambiguous(t *testing.T) {
 
 func TestRunBenchReplayFileValidV1(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fixture.json")
-	if err := os.WriteFile(path, validReplayFixtureJSON(t, completeFixtureUsage()), 0o600); err != nil {
+	if err := os.WriteFile(path, evaluableReplayFixtureJSON(t), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
 	if code := runBenchReplayFile(path, &stdout, &stderr, FormatJSON); code != ExitOK {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), `"fixture_validation":"PASS"`) {
+	if !strings.Contains(stdout.String(), `"consistency":"PASS"`) ||
+		!strings.Contains(stdout.String(), `"capture_source":"fixture"`) ||
+		!strings.Contains(stdout.String(), `"original_bench_run"`) {
 		t.Fatalf("stdout=%q", stdout.String())
+	}
+}
+
+func evaluableReplayFixtureJSON(t *testing.T) []byte {
+	t.Helper()
+	toolEvent, err := json.Marshal(map[string]any{
+		"type": "tool_use", "timestamp": "2026-07-17T12:00:30Z",
+		"part": map[string]any{"type": "tool", "tool": "bash", "callID": "call1", "state": map[string]any{
+			"input": "printf output", "output": "\x1b[31mline\x1b[0m\n\n\nline\n",
+			"time": map[string]any{"start": 1, "end": 2}, "metadata": map[string]any{"exit": 0},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := string(toolEvent) + "\n" + `{"type":"step_finish","part":{"tokens":{"input":12,"output":3,"cache":{"read":0}},"cost":0.25,"model":"test-model","provider":"opencode"}}` + "\n"
+	metrics := extractStreamMetrics([]byte(stream))
+	toolUseCount := int64(len(parseReplayToolCalls(stream)))
+	version, score := 1, 1.0
+	fixture := replayFixture{
+		Version:   &version,
+		Benchmark: &replayFixtureBenchmark{MethodologyVersion: "v1", Agent: "opencode", Model: "test-model", Task: "portable_fixture", Score: &score},
+		Stream:    &replayFixtureStream{Format: "opencode-jsonl-1", Content: &stream, SHA256: dbpkg.ContentHash(stream)},
+		Expected: &replayFixtureExpectations{
+			Parser: &replayFixtureParser{ToolUseCount: &toolUseCount},
+			Usage: &replayFixtureUsage{
+				TokensIn: optionalNullable[int64]{Present: true, Value: cloneInt64(metrics.tokensIn)}, TokensOut: optionalNullable[int64]{Present: true, Value: cloneInt64(metrics.tokensOut)},
+				Cost: optionalNullable[float64]{Present: true, Value: cloneFloat64(metrics.cost)}, CacheRead: optionalNullable[int64]{Present: true, Value: cloneInt64(metrics.cacheRead)},
+				CacheWrite: optionalNullable[int64]{Present: true, Value: cloneInt64(metrics.cacheWrite)},
+			},
+			Compression: measureReplayFixtureCompression(parseReplayToolCalls(stream)),
+		},
+	}
+	b, err := json.Marshal(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestRunBenchReplayFileIsDeterministicOfflineAndIgnoresConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	fixturePath := filepath.Join(dir, "fixture.json")
+	if err := os.WriteFile(fixturePath, evaluableReplayFixtureJSON(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KTX_DB", filepath.Join(dir, "not-a-database"))
+	if err := os.Mkdir(os.Getenv("KTX_DB"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config"))
+	if err := os.MkdirAll(filepath.Join(dir, "config", "ktx"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config", "ktx", "ktx.toml"), []byte("malformed = ["), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	work := filepath.Join(dir, "work")
+	if err := os.Mkdir(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(dir, "plugin-ran")
+	config := "[pipeline.default]\nstages = [\"strip-ansi\", \"hostile\"]\n[[plugin]]\nname = \"hostile\"\ncommand = \"/bin/sh\"\nargs = [\"-c\", \"touch " + marker + "\"]\n"
+	if err := os.WriteFile(filepath.Join(work, "ktx.toml"), []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(work)
+
+	var first, second, firstErr, secondErr bytes.Buffer
+	if code := runBenchReplayFile(fixturePath, &first, &firstErr, FormatJSON); code != ExitOK {
+		t.Fatalf("first code=%d stderr=%q", code, firstErr.String())
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config", "ktx", "ktx.toml"), []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code := runBenchReplayFile(fixturePath, &second, &secondErr, FormatJSON); code != ExitOK {
+		t.Fatalf("second code=%d stderr=%q", code, secondErr.String())
+	}
+	if !bytes.Equal(first.Bytes(), second.Bytes()) {
+		t.Fatalf("replay evidence is nondeterministic:\nfirst=%s\nsecond=%s", first.Bytes(), second.Bytes())
+	}
+	if firstErr.Len() != 0 || secondErr.Len() != 0 {
+		t.Fatalf("unexpected diagnostics: first=%q second=%q", firstErr.String(), secondErr.String())
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("external plugin affected replay: stat error=%v", err)
+	}
+}
+
+func TestRunBenchReplayFileStrictVerificationEmitsEveryDivergence(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(map[string]any)
+		field  string
+	}{
+		{"integrity", func(f map[string]any) { f["stream"].(map[string]any)["content"] = "{}\n" }, `"integrity":{"pass":false`},
+		{"parser", func(f map[string]any) {
+			f["expected"].(map[string]any)["parser"].(map[string]any)["tool_use_count"] = 2
+		}, `"parser_regression":{"original_tool_call_count":2,"pass":false`},
+		{"tokens in", func(f map[string]any) { f["expected"].(map[string]any)["usage"].(map[string]any)["tokens_in"] = 13 }, `"original_tokens_in":13`},
+		{"tokens out", func(f map[string]any) { f["expected"].(map[string]any)["usage"].(map[string]any)["tokens_out"] = 4 }, `"original_tokens_out":4`},
+		{"cost", func(f map[string]any) { f["expected"].(map[string]any)["usage"].(map[string]any)["cost"] = 0.5 }, `"original_cost":0.5`},
+		{"cache read", func(f map[string]any) { f["expected"].(map[string]any)["usage"].(map[string]any)["cache_read"] = nil }, `"original_cache_read":null`},
+		{"cache write", func(f map[string]any) { f["expected"].(map[string]any)["usage"].(map[string]any)["cache_write"] = 0 }, `"original_cache_write":0`},
+		{"compression pipeline", func(f map[string]any) {
+			f["expected"].(map[string]any)["compression"].(map[string]any)["pipeline"] = []any{"hostile-plugin"}
+		}, `"pass":false`},
+		{"compression measurements", func(f map[string]any) {
+			c := f["expected"].(map[string]any)["compression"].(map[string]any)
+			baseline := int64(c["baseline_bytes"].(float64)) + 1
+			compressed := int64(c["compressed_bytes"].(float64))
+			c["baseline_bytes"], c["bytes_saved"], c["ratio"] = baseline, baseline-compressed, float64(compressed)/float64(baseline)
+		}, `"pass":false`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var fixture map[string]any
+			if err := json.Unmarshal(evaluableReplayFixtureJSON(t), &fixture); err != nil {
+				t.Fatal(err)
+			}
+			tt.mutate(fixture)
+			data, err := json.Marshal(fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "fixture.json")
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			code := runBenchReplayFile(path, &stdout, &stderr, FormatJSON)
+			if code == ExitOK || !strings.Contains(stdout.String(), `"consistency":"FAIL"`) || !strings.Contains(stdout.String(), tt.field) ||
+				!strings.Contains(stderr.String(), `"failure_class":"replay-fixture-verification-failed"`) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+		})
 	}
 }
 

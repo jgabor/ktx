@@ -82,7 +82,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	var replayFile string
 	var methodologyVersion string
 	fs.StringVar(&replaySessionID, "replay", "", "replay a recorded session by session-id; makes (agent, model, task) optional")
-	fs.StringVar(&replayFile, "replay-file", "", "validate a portable replay fixture by explicit file path")
+	fs.StringVar(&replayFile, "replay-file", "", "evaluate a portable replay fixture offline by explicit file path")
 	fs.StringVar(&methodologyVersion, "methodology", "", "methodology version (e.g., 'v1', 'v2-tooluse'); defaults to v1")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench run: %v", err), format)

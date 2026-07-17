@@ -100,6 +100,14 @@ func invalidReplayFixture(message string, args ...any) *Error {
 }
 
 func decodeReplayFixture(r io.Reader) (*replayFixture, error) {
+	return decodeReplayFixtureWithIntegrity(r, true)
+}
+
+func decodeReplayFixtureForEvaluation(r io.Reader) (*replayFixture, error) {
+	return decodeReplayFixtureWithIntegrity(r, false)
+}
+
+func decodeReplayFixtureWithIntegrity(r io.Reader, verifyIntegrity bool) (*replayFixture, error) {
 	limited := io.LimitReader(r, replayFixtureMaxBytes+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
@@ -118,7 +126,7 @@ func decodeReplayFixture(r io.Reader) (*replayFixture, error) {
 	if err := ensureJSONEOF(dec); err != nil {
 		return nil, invalidReplayFixture("decode fixture: %v", err)
 	}
-	if err := validateReplayFixture(&fixture); err != nil {
+	if err := validateReplayFixture(&fixture, verifyIntegrity); err != nil {
 		return nil, err
 	}
 	return &fixture, nil
@@ -135,7 +143,7 @@ func ensureJSONEOF(dec *json.Decoder) error {
 	return nil
 }
 
-func validateReplayFixture(f *replayFixture) error {
+func validateReplayFixture(f *replayFixture, verifyIntegrity bool) error {
 	if f.Version == nil {
 		return invalidReplayFixture("missing required field version")
 	}
@@ -157,7 +165,7 @@ func validateReplayFixture(f *replayFixture) error {
 	if len(f.Stream.SHA256) != 64 || strings.ToLower(f.Stream.SHA256) != f.Stream.SHA256 {
 		return invalidReplayFixture("stream.sha256 must be a lowercase SHA-256 hex digest")
 	}
-	if got := dbpkg.ContentHash(*f.Stream.Content); got != f.Stream.SHA256 {
+	if got := dbpkg.ContentHash(*f.Stream.Content); verifyIntegrity && got != f.Stream.SHA256 {
 		return invalidReplayFixture("stream integrity mismatch: computed sha256 %s, fixture has %s", got, f.Stream.SHA256)
 	}
 	if f.Expected == nil || f.Expected.Parser == nil || f.Expected.Parser.ToolUseCount == nil || *f.Expected.Parser.ToolUseCount < 0 {
@@ -200,9 +208,6 @@ func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 func negative(v *int64) bool { return v != nil && *v < 0 }
 
-// runBenchReplayFile validates the portable contract. Offline replay and
-// expectation evaluation are added separately; this path deliberately opens no
-// database and runs no compression pipeline.
 func runBenchReplayFile(path string, stdout, stderr io.Writer, format string) int {
 	f, err := os.Open(path)
 	if err != nil {
@@ -210,22 +215,97 @@ func runBenchReplayFile(path string, stdout, stderr io.Writer, format string) in
 		return ExitUsage
 	}
 	defer f.Close()
-	fixture, err := decodeReplayFixture(f)
+	fixture, err := decodeReplayFixtureForEvaluation(f)
 	if err != nil {
 		printError(stderr, err, format)
 		return ExitUsage
 	}
+	evidence := evaluateReplayFixture(fixture)
 	if format == FormatText {
-		fmt.Fprintf(stdout, "fixture: valid (version=%d, sha256=%s)\n", *fixture.Version, fixture.Stream.SHA256)
-		return ExitOK
-	}
-	if err := json.NewEncoder(stdout).Encode(map[string]any{
-		"fixture_validation": "PASS",
-		"version":            *fixture.Version,
-		"stream_sha256":      fixture.Stream.SHA256,
-	}); err != nil {
+		fmt.Fprintf(stdout, "fixture replay: %s (integrity=%v, parser=%v, usage=%v, compression=%v)\n",
+			evidence["consistency"], evidence["integrity"].(map[string]any)["pass"],
+			evidence["parser_regression"].(map[string]any)["pass"], !evidence["cost_drift"].(map[string]any)["detected"].(bool),
+			evidence["compression"].(map[string]any)["pass"])
+	} else if err := json.NewEncoder(stdout).Encode(evidence); err != nil {
 		printError(stderr, internalError("ktx bench run --replay-file: write JSON: %v", err), format)
 		return ExitInternal
 	}
+	if evidence["consistency"] != "PASS" {
+		err := internalError("ktx bench run --replay-file: strict fixture verification failed")
+		err.Extra = map[string]any{"failure_class": "replay-fixture-verification-failed"}
+		printError(stderr, err, format)
+		return ExitInternal
+	}
 	return ExitOK
+}
+
+func evaluateReplayFixture(fixture *replayFixture) map[string]any {
+	content := *fixture.Stream.Content
+	recomputedHash := dbpkg.ContentHash(content)
+	integrityPass := recomputedHash == fixture.Stream.SHA256
+	toolCalls := parseReplayToolCalls(content)
+	toolUseCount := int64(len(toolCalls))
+	parserPass := toolUseCount == *fixture.Expected.Parser.ToolUseCount
+
+	metrics := extractStreamMetrics([]byte(content))
+	expectedUsage := fixture.Expected.Usage
+	usagePass := int64PtrEqual(metrics.tokensIn, expectedUsage.TokensIn.Value) &&
+		int64PtrEqual(metrics.tokensOut, expectedUsage.TokensOut.Value) &&
+		float64PtrEqual(metrics.cost, expectedUsage.Cost.Value) &&
+		int64PtrEqual(metrics.cacheRead, expectedUsage.CacheRead.Value) &&
+		int64PtrEqual(metrics.cacheWrite, expectedUsage.CacheWrite.Value)
+
+	actualCompression := measureReplayFixtureCompression(toolCalls)
+	expectedCompression := fixture.Expected.Compression
+	compressionPass := stringSlicesEqual(actualCompression.Pipeline, expectedCompression.Pipeline) &&
+		*actualCompression.BaselineBytes == *expectedCompression.BaselineBytes &&
+		*actualCompression.CompressedBytes == *expectedCompression.CompressedBytes &&
+		*actualCompression.BytesSaved == *expectedCompression.BytesSaved &&
+		*actualCompression.Ratio == *expectedCompression.Ratio
+
+	original := map[string]any{
+		"agent": fixture.Benchmark.Agent, "model": fixture.Benchmark.Model, "task": fixture.Benchmark.Task,
+		"score": *fixture.Benchmark.Score, "methodology_version": fixture.Benchmark.MethodologyVersion,
+		"tokens_in": expectedUsage.TokensIn.Value, "tokens_out": expectedUsage.TokensOut.Value,
+		"cost": expectedUsage.Cost.Value, "cache_read": expectedUsage.CacheRead.Value, "cache_write": expectedUsage.CacheWrite.Value,
+	}
+	costDrift := map[string]any{
+		"detected":         !usagePass,
+		"replay_tokens_in": metrics.tokensIn, "original_tokens_in": expectedUsage.TokensIn.Value,
+		"replay_tokens_out": metrics.tokensOut, "original_tokens_out": expectedUsage.TokensOut.Value,
+		"replay_cost": metrics.cost, "original_cost": expectedUsage.Cost.Value,
+		"replayed_cache_read": metrics.cacheRead, "original_cache_read": expectedUsage.CacheRead.Value,
+		"replayed_cache_write": metrics.cacheWrite, "original_cache_write": expectedUsage.CacheWrite.Value,
+	}
+	compression := map[string]any{
+		"pass": compressionPass, "pipeline": actualCompression.Pipeline,
+		"baseline_bytes": *actualCompression.BaselineBytes, "compressed_bytes": *actualCompression.CompressedBytes,
+		"bytes_saved": *actualCompression.BytesSaved, "ratio": *actualCompression.Ratio,
+		"expected": expectedCompression,
+	}
+	consistency := "PASS"
+	if !integrityPass || !parserPass || !usagePass || !compressionPass {
+		consistency = "FAIL"
+	}
+	return map[string]any{
+		"replay":             map[string]any{"fixture_version": *fixture.Version, "stream_format": fixture.Stream.Format, "capture_source": "fixture"},
+		"integrity":          map[string]any{"pass": integrityPass, "recomputed_hash": recomputedHash, "stored_hash": fixture.Stream.SHA256},
+		"parser_regression":  map[string]any{"pass": parserPass, "replayed_tool_use_count": toolUseCount, "original_tool_call_count": *fixture.Expected.Parser.ToolUseCount},
+		"original_bench_run": original,
+		"cost_drift":         costDrift,
+		"compression":        compression,
+		"consistency":        consistency,
+	}
+}
+
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

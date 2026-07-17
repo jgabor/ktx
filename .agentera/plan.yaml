@@ -58,7 +58,7 @@ tasks:
     depends_on:
       - "1"
       - "2"
-    status: pending
+    status: complete
     acceptance:
       - GIVEN only a valid fixture WHEN file replay runs THEN integrity, parser, original comparison, usage, cost, cache, and compression evidence are emitted without opening a database or requiring network, agent, container, credential, or user-local state.
       - GIVEN the same fixture and binary WHEN replay repeats THEN all evidence fields are deterministic.

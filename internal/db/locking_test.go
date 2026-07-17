@@ -182,8 +182,9 @@ func TestWriteTransactionFailureIsBounded(t *testing.T) {
 	if err == nil || !isSQLiteLockError(err) {
 		t.Fatalf("held reader error = %v, want SQLite BUSY/LOCKED", err)
 	}
-	if elapsed > writeTimeout+250*time.Millisecond {
-		t.Fatalf("write exceeded bound: elapsed %s, bound %s", elapsed, writeTimeout)
+	bound := writeTimeout + time.Duration(sqliteBusyTimeoutMS)*time.Millisecond + 250*time.Millisecond
+	if elapsed > bound {
+		t.Fatalf("write exceeded bound: elapsed %s, bound %s", elapsed, bound)
 	}
 	if elapsed < 500*time.Millisecond {
 		t.Fatalf("write failed before useful retries: elapsed %s", elapsed)
@@ -258,8 +259,13 @@ func TestMigrationLockRetriesRemainAttemptBounded(t *testing.T) {
 	if err == nil || !isSQLiteLockError(err) {
 		t.Fatalf("held migration lock error = %v, want SQLite BUSY/LOCKED", err)
 	}
-	if elapsed > writeTimeout+250*time.Millisecond {
-		t.Fatalf("migration lock retries exceeded bound: elapsed %s, bound %s", elapsed, writeTimeout)
+	bound := time.Duration(writeMaxAttempts*sqliteBusyTimeoutMS)*time.Millisecond + 250*time.Millisecond
+	for attempt := range writeMaxAttempts {
+		delay := time.Duration(attempt+1) * 10 * time.Millisecond
+		bound += min(delay, 100*time.Millisecond)
+	}
+	if elapsed > bound {
+		t.Fatalf("migration lock retries exceeded bound: elapsed %s, bound %s", elapsed, bound)
 	}
 	if elapsed < 500*time.Millisecond {
 		t.Fatalf("migration lock retries ended too early: elapsed %s", elapsed)

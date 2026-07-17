@@ -39,6 +39,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -129,6 +130,31 @@ func Open(path string) (*DB, error) {
 	}
 
 	return &DB{db: db}, nil
+}
+
+// OpenReadOnly opens an existing SQLite database with a single connection.
+// SQLite's mode=ro is the write-enforcement boundary; query_only adds defense
+// in depth. The caller owns the returned pool and must close it.
+func OpenReadOnly(path string) (*sql.DB, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	uri := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=ro&_pragma=busy_timeout(%d)", sqliteBusyTimeoutMS)
+	database, err := sql.Open(sqliteDriver, uri)
+	if err != nil {
+		return nil, err
+	}
+	database.SetMaxOpenConns(1)
+	if err := database.Ping(); err != nil {
+		database.Close()
+		return nil, err
+	}
+	if _, err := database.Exec("PRAGMA query_only = ON"); err != nil {
+		database.Close()
+		return nil, err
+	}
+	return database, nil
 }
 
 // OpenWithoutMigration wraps an existing *sql.DB without changing its

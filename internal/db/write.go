@@ -14,9 +14,10 @@ import (
 const (
 	writeTimeout     = 2 * time.Second
 	writeMaxAttempts = 8
-	// Keep each driver's context-unaware Commit wait short. Eight waits plus
-	// deterministic backoff total at most 1.16s before scheduling overhead.
-	sqliteBusyTimeoutMS = 100
+	// Eight driver waits plus deterministic backoff total at most 4.36s before
+	// scheduling overhead. Ordinary writes use writeTimeout, with one final
+	// context-unaware driver wait able to outlive that deadline.
+	sqliteBusyTimeoutMS = 500
 )
 
 func writeContext() (context.Context, context.CancelFunc) {

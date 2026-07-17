@@ -8,13 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"net/url"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/jgabor/ktx/internal/db"
 )
 
 const SchemaVersion = 2
@@ -22,7 +21,7 @@ const SchemaVersion = 2
 var reportTables = []string{"sessions", "tool_calls", "compressed", "recorded_streams"}
 
 func Generate(path string, includeIdentifiers bool, now time.Time) (map[string]any, error) {
-	database, err := openReadOnly(path)
+	database, err := db.OpenReadOnly(path)
 	if err != nil {
 		return nil, err
 	}
@@ -81,28 +80,6 @@ func Generate(path string, includeIdentifiers bool, now time.Time) (map[string]a
 		return nil, err
 	}
 	return report, nil
-}
-
-func openReadOnly(path string) (*sql.DB, error) {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-	uri := (&url.URL{Scheme: "file", Path: absolute}).String() + "?mode=ro"
-	database, err := sql.Open("sqlite", uri)
-	if err != nil {
-		return nil, err
-	}
-	database.SetMaxOpenConns(1)
-	if err := database.Ping(); err != nil {
-		database.Close()
-		return nil, err
-	}
-	if _, err := database.Exec("PRAGMA query_only = ON"); err != nil {
-		database.Close()
-		return nil, err
-	}
-	return database, nil
 }
 
 type queryer interface {

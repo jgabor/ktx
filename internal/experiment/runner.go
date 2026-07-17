@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +19,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/jgabor/ktx/internal/db"
-	_ "modernc.org/sqlite"
 )
 
 type CompareOptions struct {
@@ -637,21 +635,12 @@ func (runner *Runner) listSessions(ctx context.Context, options CompareOptions, 
 }
 
 func recordedStreamLinks(database, sessionID string) ([]RecordedStreamLink, error) {
-	absolute, err := filepath.Abs(database)
+	databaseHandle, err := db.OpenReadOnly(database)
 	if err != nil {
 		return nil, err
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute}).String() + "?mode=ro"
-	db, err := sql.Open("sqlite", uri)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	if _, err := db.Exec("PRAGMA query_only = ON"); err != nil {
-		return nil, err
-	}
-	rows, err := db.Query("SELECT id, bench_run_id FROM recorded_streams WHERE session_id = ? ORDER BY id", sessionID)
+	defer databaseHandle.Close()
+	rows, err := databaseHandle.Query("SELECT id, bench_run_id FROM recorded_streams WHERE session_id = ? ORDER BY id", sessionID)
 	if err != nil {
 		return nil, err
 	}

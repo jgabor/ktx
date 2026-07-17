@@ -3,8 +3,79 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
+
+func TestOpenConfiguresBusyTimeout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "timeout.db")
+	database, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	assertBusyTimeout(t, database.db, 500)
+
+	readOnly, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readOnly.Close()
+	assertBusyTimeout(t, readOnly, 500)
+}
+
+func assertBusyTimeout(t *testing.T, database *sql.DB, want int) {
+	t.Helper()
+	var got int
+	if err := database.QueryRow("PRAGMA busy_timeout").Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("busy_timeout = %d, want %d", got, want)
+	}
+}
+
+func TestOpenReadOnly(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"report ?#1.db", "100%&ready=.db"} {
+		t.Run(name, func(t *testing.T) {
+			source := filepath.Join(dir, "fixture.db")
+			fixture, err := Open(source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := fixture.Close(); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, name)
+			if err := os.Rename(source, path); err != nil {
+				t.Fatal(err)
+			}
+
+			readOnly, err := OpenReadOnly(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer readOnly.Close()
+			if _, err := readOnly.Exec("CREATE TABLE forbidden (id INTEGER)"); err == nil {
+				t.Fatal("write to read-only database succeeded")
+			}
+		})
+	}
+
+	t.Run("nonexistent", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing ?#%.db")
+		if database, err := OpenReadOnly(path); err == nil {
+			database.Close()
+			t.Fatal("opening nonexistent database succeeded")
+		}
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("nonexistent database was created: %v", err)
+		}
+	})
+}
 
 // TestOpenMemory_BackendAndForeignKeys covers the first three legs of the
 // OpenMemory acceptance contract: the seam returns a *DB backed by an

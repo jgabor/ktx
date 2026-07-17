@@ -1,4 +1,39 @@
 cycles:
+  - number: 46
+    timestamp: 2026-07-17 18:00
+    type: feat
+    phase: build
+    what: Established the portable replay fixture contract and explicit file
+      selector. Version 1 strictly validates benchmark provenance, stream
+      integrity, parser evidence, nullable usage and cache values, and
+      controlled compression identity and measurements before any evaluation.
+    inspiration: The reviewed portable replay fixture plan requires a contract and
+      selector boundary before export or offline evaluation.
+    discovered: The default Agentera 2.x state writer is currently broken in its
+      cached Python checkout; the supported @next writer completed both plan and
+      progress mutations. File replay intentionally performs contract validation
+      only in this task; export and full offline evaluation remain separate.
+    verified: "Focused command: go test ./internal/cli -run
+      'Test(DecodeReplayFixture|RunBenchRunReplaySelectors|RunBenchReplayFile)'
+      -count=1 passed. mage check passed all packages, vet, lint with 0 issues,
+      and build. git diff --check passed. Tests cover selector ambiguity and
+      conflict, valid version 1, missing and unsupported versions, malformed
+      benchmark/usage/compression fields, absent-versus-zero nullable evidence,
+      and integrity mismatch."
+    next: Proceed to authoritative fixture export from one validated
+      benchmark-parented database snapshot; do not broaden this validation-only
+      file path into offline evaluation until that export contract exists.
+    context:
+      intent: Define the smallest self-contained fixture boundary and keep file paths
+        unambiguous from existing session identifiers.
+      constraints: No fixture export, full offline evaluation, retained fixture,
+        repository gate, CI, database migration, plugin execution, or unrelated
+        architecture/TODO changes.
+      unknowns: A privacy-safe authoritative benchmark capture remains to be selected
+        by the later retention task.
+      scope: Added portable fixture types, strict decoder and validation, explicit
+        --replay-file dispatch and help/error contract, and focused CLI tests;
+        updated active plan evidence and progress through the state writer.
   - number: 45
     timestamp: 2026-07-16 12:12
     type: refactor
@@ -439,58 +474,6 @@ cycles:
         Decision 30 satisfaction/outcome remain absent and review-needed.
       scope: .agentera/decisions.yaml, .agentera/archive/decisions/30.yaml,
         .agentera/progress.yaml, and .agentera/archive/progress/37.yaml.
-  - number: 36
-    timestamp: 2026-07-16 02:04
-    type: docs
-    phase: deliberate
-    what: Recorded the generalized trusted-ingress tool-call identity policy as
-      Decision 30, including retry equality, session ownership,
-      compressed-result authority, supersession boundaries, and legacy
-      coexistence.
-    inspiration: Approved orchestration decision task;
-      .agentera/verification/runtime-identity-evidence.md; retained offline
-      probe; progress cycles 34 and corrective 35, with cycle 35 authoritative
-      for retry classes.
-    discovered: The decisions writer initially refused legacy confidence labels on
-      Decisions 27-29. After explicit user approval, only those three labels
-      were normalized from high to firm; Decisions 3 and 26 remain irrecoverable
-      legacy summaries and no missing fields were inferred. Decision 30
-      retrieval reports missing satisfaction/outcome as review-needed rather
-      than reconstructing them.
-    verified: Pre-write agentera check lint on
-      /tmp/opencode/ktx-decision-30-draft.yaml passed all self-audit checks. The
-      decisions writer dry-run passed after the user-approved confidence
-      normalization, then agentera state decisions append assigned Decision 30
-      and reported validation pass with verified archive
-      .agentera/archive/decisions/30.yaml. agentera state decisions get --number
-      30 --format json returned the exact trusted-provenance eligibility, fresh
-      NanoID fallback, semantic-JSON equality, conflict/first-wins, atomic
-      sequential/concurrent convergence, first-session ownership,
-      first-compressed-artifact authority, scoped Decision 3/26 supersession,
-      and no-migration/no-alias clauses; archive record SHA-256 is
-      3a0234c0bd5227618d9d9062ea64eea7902883949c4e5364ecdb4c635c8529ab. agentera
-      check validate artifact --artifact decisions --format json passed with
-      zero violations. git diff --check passed. Retained progress cycles 34 and
-      35 and both verification artifacts were inspected; cycle 35's corrected
-      stable/ineligible matrix was used.
-    next: Implementation Tasks 3-5 should encode Decision 30 and add focused
-      sequential/concurrent, changed-evidence, cross-ingress equivalence,
-      session-roll-up, pipeline-change, and historical-coexistence tests. Do not
-      claim upstream retry/restart guarantees or mark the plan task complete
-      from this cycle.
-    context:
-      intent: Complete the approved structured decision task from retained Task 1
-        evidence without changing product behavior or plan task status.
-      constraints: Decision recording only; no product code, README, architecture,
-        TODO, plan content/status, migration, runtime-ID alias, or historical
-        tuple mapping.
-      unknowns: Upstream automatic failed-hook retry, runtime-restart callback replay,
-        and guaranteed fresh native IDs for model re-execution remain
-        unguaranteed. Decision satisfaction/outcome are absent and
-        review-needed; no values were inferred.
-      scope: .agentera/decisions.yaml, .agentera/archive/decisions/30.yaml,
-        user-approved confidence-label normalization for Decisions 27-29, and
-        Agentera progress artifacts.
   - number: 33
     timestamp: 2026-07-12 22:25
     type: refactor
@@ -686,6 +669,9 @@ cycles:
       intent: "Document command-aware routing: example config, pipeline docs,
         architecture update."
 archive:
+  - summary: "Cycle 36 (2026-07-16): Recorded the generalized trusted-ingress
+      tool-call identity policy as Decision 30, including retry equality,
+      session ownership,..."
   - summary: "Cycle 35 (2026-07-15): Corrected the runtime identity evidence after
       independent evaluation by adding an offline retry-class probe and..."
   - summary: "Cycle 34 (2026-07-15): Established pinned runtime identity evidence

@@ -1,0 +1,19 @@
+schemaVersion: agentera.stateArchiveEntry.v1
+artifact_id: progress
+entry_number: 46
+record:
+  number: 46
+  timestamp: 2026-07-17 18:00
+  type: feat
+  phase: build
+  what: Established the portable replay fixture contract and explicit file selector. Version 1 strictly validates benchmark provenance, stream integrity, parser evidence, nullable usage and cache values, and controlled compression identity and measurements before any evaluation.
+  inspiration: The reviewed portable replay fixture plan requires a contract and selector boundary before export or offline evaluation.
+  discovered: The default Agentera 2.x state writer is currently broken in its cached Python checkout; the supported @next writer completed both plan and progress mutations. File replay intentionally performs contract validation only in this task; export and full offline evaluation remain separate.
+  verified: "Focused command: go test ./internal/cli -run 'Test(DecodeReplayFixture|RunBenchRunReplaySelectors|RunBenchReplayFile)' -count=1 passed. mage check passed all packages, vet, lint with 0 issues, and build. git diff --check passed. Tests cover selector ambiguity and conflict, valid version 1, missing and unsupported versions, malformed benchmark/usage/compression fields, absent-versus-zero nullable evidence, and integrity mismatch."
+  next: Proceed to authoritative fixture export from one validated benchmark-parented database snapshot; do not broaden this validation-only file path into offline evaluation until that export contract exists.
+  context:
+    intent: Define the smallest self-contained fixture boundary and keep file paths unambiguous from existing session identifiers.
+    constraints: No fixture export, full offline evaluation, retained fixture, repository gate, CI, database migration, plugin execution, or unrelated architecture/TODO changes.
+    unknowns: A privacy-safe authoritative benchmark capture remains to be selected by the later retention task.
+    scope: Added portable fixture types, strict decoder and validation, explicit --replay-file dispatch and help/error contract, and focused CLI tests; updated active plan evidence and progress through the state writer.
+record_sha256: 0981097462bb1465df41817a331bb2031bd721c1745c429b9c4fca022be1e5b9

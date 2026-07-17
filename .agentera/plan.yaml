@@ -36,12 +36,13 @@ tasks:
     name: Establish fixture contract and selectors
     depends_on:
       []
-    status: pending
+    status: complete
     acceptance:
       - GIVEN session and file replay inputs WHEN command selection is parsed THEN each uses an explicit unambiguous selector and an ambiguous-looking filename cannot alter session replay behavior.
       - GIVEN a portable fixture WHEN decoded THEN version 1 requires a benchmark-parented stream, expected parser evidence, nullable usage and cache evidence, and expected compression identity and measurements.
       - GIVEN a missing or unsupported fixture version or malformed required field WHEN validation runs THEN replay fails before evaluation with a documented machine-readable failure class and correction.
       - GIVEN fixture integrity metadata WHEN content changes accidentally THEN validation detects the change; synchronized expectation edits remain a code-review boundary rather than a claim of malicious-committer defense.
+    evidence: Added explicit --replay-file selection without changing --replay session lookup; strict version 1 decoding requires benchmark parent, raw stream SHA-256, parser count, presence-aware nullable usage/cache fields, and compression pipeline plus consistent measurements. Focused replay fixture tests passed; mage check passed all tests, vet, lint with 0 issues, and build; git diff --check passed.
   - number: 2
     name: Produce authoritative portable fixtures
     depends_on:

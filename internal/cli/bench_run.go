@@ -79,14 +79,20 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var replaySessionID string
+	var replayFile string
 	var methodologyVersion string
 	fs.StringVar(&replaySessionID, "replay", "", "replay a recorded session by session-id; makes (agent, model, task) optional")
+	fs.StringVar(&replayFile, "replay-file", "", "validate a portable replay fixture by explicit file path")
 	fs.StringVar(&methodologyVersion, "methodology", "", "methodology version (e.g., 'v1', 'v2-tooluse'); defaults to v1")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench run: %v", err), format)
 		return ExitUsage
 	}
 	rest = fs.Args()
+	if replaySessionID != "" && replayFile != "" {
+		printError(stderr, usageError("ktx bench run: --replay and --replay-file are mutually exclusive; choose a session-id or a fixture path"), format)
+		return ExitUsage
+	}
 
 	// --replay dispatches to the replay path before positional-argument
 	// validation. The
@@ -98,6 +104,13 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 			return ExitUsage
 		}
 		return runBenchReplay(replaySessionID, opts, stdout, stderr, format)
+	}
+	if replayFile != "" {
+		if len(rest) > 0 {
+			printError(stderr, usageError("ktx bench run --replay-file does not accept positional args; pass the fixture path as the flag value"), format)
+			return ExitUsage
+		}
+		return runBenchReplayFile(replayFile, stdout, stderr, format)
 	}
 
 	if len(rest) != 3 {

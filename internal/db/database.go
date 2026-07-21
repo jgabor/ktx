@@ -43,6 +43,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	// Register the pure-Go SQLite driver used by database/sql.
 	_ "modernc.org/sqlite"
@@ -53,6 +54,14 @@ import (
 const (
 	idAlphabet = "abcdefghijklmnopqrstuvwxyz"
 	idLength   = 16
+
+	// A hook opens its database before its configured pipeline timeout starts.
+	// Two one-second driver busy waits keep startup bounded near the default
+	// two-second critical-path budget while allowing a lock that outlives one
+	// busy wait to clear. The attempt limit also bounds context-unaware driver
+	// waits.
+	startupRetryDeadline    = 2 * time.Second
+	startupRetryMaxAttempts = 2
 )
 
 // sqliteDriver is the registered name of the modernc.org/sqlite driver.
@@ -115,12 +124,8 @@ func Open(path string) (*DB, error) {
 	// every pooled connection, not just the first.
 	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", path, sqliteBusyTimeoutMS)
 
-	db, err := sql.Open(sqliteDriver, dsn)
+	db, err := openSQLiteWithRetry(dsn, 0, startupLockRetryPolicy())
 	if err != nil {
-		return nil, fmt.Errorf("db: open %q: %w", path, err)
-	}
-	if err := db.Ping(); err != nil {
-		db.Close()
 		return nil, fmt.Errorf("db: open %q: %w", path, err)
 	}
 
@@ -141,13 +146,8 @@ func OpenReadOnly(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	uri := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=ro&_pragma=busy_timeout(%d)", sqliteBusyTimeoutMS)
-	database, err := sql.Open(sqliteDriver, uri)
+	database, err := openSQLiteWithRetry(uri, 1, startupLockRetryPolicy())
 	if err != nil {
-		return nil, err
-	}
-	database.SetMaxOpenConns(1)
-	if err := database.Ping(); err != nil {
-		database.Close()
 		return nil, err
 	}
 	if _, err := database.Exec("PRAGMA query_only = ON"); err != nil {
@@ -155,6 +155,90 @@ func OpenReadOnly(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	return database, nil
+}
+
+type sqliteLockRetryPolicy struct {
+	deadline    time.Duration
+	maxAttempts int
+	retryDelay  func(int) time.Duration
+}
+
+func startupLockRetryPolicy() sqliteLockRetryPolicy {
+	return sqliteLockRetryPolicy{
+		deadline:    startupRetryDeadline,
+		maxAttempts: startupRetryMaxAttempts,
+		retryDelay:  func(int) time.Duration { return 0 },
+	}
+}
+
+// openSQLiteWithRetry retries only physical-connection startup failures caused
+// by SQLite's BUSY or LOCKED codes. Each failed pool is closed before another
+// connection can be opened, so its connection and any partially applied
+// pragmas cannot outlive the retry.
+func openSQLiteWithRetry(dsn string, maxOpenConns int, policy sqliteLockRetryPolicy) (*sql.DB, error) {
+	if policy.maxAttempts < 1 {
+		policy.maxAttempts = 1
+	}
+	deadline := time.Now().Add(policy.deadline)
+	for attempt := 0; attempt < policy.maxAttempts; attempt++ {
+		database, err := sql.Open(sqliteDriver, dsn)
+		if err != nil {
+			if database != nil {
+				_ = database.Close()
+			}
+			return nil, err
+		}
+		if maxOpenConns > 0 {
+			database.SetMaxOpenConns(maxOpenConns)
+		}
+		err = database.Ping()
+		if err == nil {
+			return database, nil
+		}
+		_ = database.Close()
+		if !isSQLiteLockError(err) || !waitSQLiteLockRetry(policy, deadline, attempt) {
+			return nil, err
+		}
+	}
+	return nil, errors.New("db: sqlite startup retry exhausted without an error")
+}
+
+// retrySQLiteLock retries only lock errors and returns the original error when
+// no retry is permitted. The deadline prevents another retry from starting
+// after the startup budget; maxAttempts bounds driver busy waits that do not
+// observe a Go context.
+func retrySQLiteLock(policy sqliteLockRetryPolicy, attempt func() error) error {
+	if policy.maxAttempts < 1 {
+		policy.maxAttempts = 1
+	}
+	deadline := time.Now().Add(policy.deadline)
+	for i := 0; i < policy.maxAttempts; i++ {
+		err := attempt()
+		if err == nil || !isSQLiteLockError(err) {
+			return err
+		}
+		if !waitSQLiteLockRetry(policy, deadline, i) {
+			return err
+		}
+	}
+	return errors.New("db: sqlite lock retry exhausted without an error")
+}
+
+func waitSQLiteLockRetry(policy sqliteLockRetryPolicy, deadline time.Time, attempt int) bool {
+	if attempt+1 == policy.maxAttempts || time.Now().After(deadline) {
+		return false
+	}
+	delay := policy.retryDelay(attempt)
+	if delay <= 0 {
+		return true
+	}
+	if time.Now().Add(delay).After(deadline) {
+		return false
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	<-timer.C
+	return true
 }
 
 // OpenWithoutMigration wraps an existing *sql.DB without changing its

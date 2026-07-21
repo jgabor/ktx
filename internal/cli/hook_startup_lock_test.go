@@ -1,0 +1,125 @@
+package cli
+
+import (
+	"bytes"
+	"database/sql"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+	"time"
+
+	dbpkg "github.com/jgabor/ktx/internal/db"
+)
+
+// TestHookStartupLockProcessHelper supplies separate processes for the lock
+// holder and the real hook command. It is invoked only by
+// TestHookRetriesStartupLock.
+func TestHookStartupLockProcessHelper(t *testing.T) {
+	if os.Getenv("KTX_HOOK_STARTUP_HELPER") != "1" {
+		return
+	}
+
+	switch os.Getenv("KTX_HOOK_STARTUP_ROLE") {
+	case "hold-exclusive":
+		database, err := sql.Open("sqlite", "file:"+os.Getenv("KTX_DB")+"?_pragma=busy_timeout(1)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		database.SetMaxOpenConns(1)
+		if _, err := database.Exec(`BEGIN EXCLUSIVE`); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(os.Getenv("KTX_HOOK_STARTUP_READY"), []byte("ready"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		waitForHookStartupFile(t, os.Getenv("KTX_HOOK_STARTUP_RELEASE"), 10*time.Second)
+		if _, err := database.Exec(`COMMIT`); err != nil {
+			t.Fatal(err)
+		}
+	case "hook":
+		if code := Run([]string{"hook"}); code != ExitOK {
+			t.Fatalf("hook exit code = %d, want %d", code, ExitOK)
+		}
+	default:
+		t.Fatalf("unknown helper role %q", os.Getenv("KTX_HOOK_STARTUP_ROLE"))
+	}
+}
+
+func TestHookRetriesStartupLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hook-startup-lock.db")
+	initialized, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	ready := path + ".ready"
+	release := path + ".release"
+	holder, holderOutput := startHookStartupHelper(t, "hold-exclusive", path, ready, release)
+	if err := holder.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.WriteFile(release, nil, 0o600)
+		_ = holder.Wait()
+	})
+	waitForHookStartupFile(t, ready, 5*time.Second)
+
+	hook, hookOutput := startHookStartupHelper(t, "hook", path, "", "")
+	hook.Stdin = bytes.NewBufferString(`{"id":"hookstartuplocka","tool":"bash","input":"true","output":"ok","timestamp":"2026-07-21T00:00:00Z"}` + "\n")
+	started := time.Now()
+	if err := hook.Start(); err != nil {
+		t.Fatal(err)
+	}
+	// Hold longer than the configured driver busy timeout, then release within
+	// the two-attempt startup budget.
+	time.Sleep(1100 * time.Millisecond)
+	if err := os.WriteFile(release, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := hook.Wait(); err != nil {
+		t.Fatalf("ktx hook under startup lock: %v\nhook output: %s\nholder output: %s", err, hookOutput.String(), holderOutput.String())
+	}
+	// Include one driver busy-wait beyond the retry deadline for process startup
+	// and race-instrumentation scheduling overhead. The attempt cap remains the
+	// production bound on SQLite waits.
+	if elapsed := time.Since(started); elapsed > 3*time.Second {
+		t.Fatalf("hook startup retry exceeded bound: elapsed %s", elapsed)
+	}
+	if err := holder.Wait(); err != nil {
+		t.Fatalf("exclusive lock holder: %v\n%s", err, holderOutput.String())
+	}
+}
+
+func startHookStartupHelper(t *testing.T, role, path, ready, release string) (*exec.Cmd, *bytes.Buffer) {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestHookStartupLockProcessHelper$")
+	cmd.Env = append(os.Environ(),
+		"KTX_HOOK_STARTUP_HELPER=1",
+		"KTX_HOOK_STARTUP_ROLE="+role,
+		"KTX_DB="+path,
+		"XDG_CONFIG_HOME="+t.TempDir(),
+		"KTX_HOOK_STARTUP_READY="+ready,
+		"KTX_HOOK_STARTUP_RELEASE="+release,
+	)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	return cmd, &output
+}
+
+func waitForHookStartupFile(t *testing.T, path string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", path)
+}

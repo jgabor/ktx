@@ -308,8 +308,8 @@ func migrate(db *sql.DB) error {
 // deadline used for ordinary writes. apply is injected only to make that
 // distinction deterministic in tests.
 func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
-	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+	version, err := readSchemaVersionWithRetry(db, startupLockRetryPolicy())
+	if err != nil {
 		return fmt.Errorf("db: read schema version: %w", err)
 	}
 	if version == schemaVersion {
@@ -338,6 +338,17 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 		}
 		return nil
 	})
+}
+
+// readSchemaVersionWithRetry is deliberately limited to migration's initial
+// non-transactional read. The migration transaction keeps its own retry owner;
+// retrying the whole migration here could replay schema work.
+func readSchemaVersionWithRetry(db *sql.DB, policy sqliteLockRetryPolicy) (int, error) {
+	var version int
+	err := retrySQLiteLock(policy, func() error {
+		return db.QueryRow(`PRAGMA user_version`).Scan(&version)
+	})
+	return version, err
 }
 
 // migrateTx creates missing tables and adds or repairs all historical schema

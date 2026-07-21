@@ -905,7 +905,7 @@ func TestPipeline_EndToEnd(t *testing.T) {
 }
 
 // TestRegisterBuiltins covers the registry-wiring contract: after
-// RegisterBuiltins runs on a fresh registry, all five stage names
+// RegisterBuiltins runs on a fresh registry, all built-in stage names
 // resolve. Simple stages resolve bare-name; parameterised stages
 // resolve bare-name (default) and `name:arg` (configured). Unknown
 // names do not resolve (so the runner's invariant (3) skips them).

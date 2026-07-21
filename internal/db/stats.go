@@ -11,6 +11,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -77,6 +79,15 @@ type StatsSummaryRow struct {
 	HasCompressedArtifact bool
 }
 
+type statsSummarySelectedRow struct {
+	row               StatsSummaryRow
+	rawSet            bool
+	artifactID        string
+	artifactTimestamp string
+}
+
+const statsSummaryBatchSize = 128
+
 // StatsSummaryRows returns source calls with non-NULL output and an RFC3339
 // timestamp in the inclusive [from, to] interval. Each source contributes at
 // most one artifact: greatest compressed timestamp, then greatest ID. A missing
@@ -85,45 +96,141 @@ func (d *DB) StatsSummaryRows(from, to time.Time) ([]StatsSummaryRow, error) {
 	if d == nil || d.db == nil {
 		return nil, fmt.Errorf("db: stats summary: database is nil")
 	}
+	return statsSummaryRowsFor(d.db, from, to, nil)
+}
 
-	rows, err := d.db.Query(`
-		SELECT tc.id, LENGTH(tc.output), tc.timestamp,
-		       c.id, LENGTH(c.output), c.timestamp
-		FROM tool_calls tc
-		LEFT JOIN compressed c ON c.source_id = tc.id
-		WHERE tc.output IS NOT NULL AND tc.timestamp IS NOT NULL
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("db: stats summary query: %w", err)
-	}
-	defer rows.Close()
-
+// statsSummaryRowsFor reads source IDs before reading output lengths so that
+// the first SQLite read is released before the potentially expensive second
+// phase. The queries deliberately do not share a transaction: a compressed
+// artifact committed between phases may be included, while source calls are
+// append-only.
+// afterSourceIDs exists only to synchronize the rollback-journal contention
+// regression at the phase boundary.
+func statsSummaryRowsFor(database *sql.DB, from, to time.Time, afterSourceIDs func()) ([]StatsSummaryRow, error) {
 	from = from.UTC()
 	to = to.UTC()
-	type selectedRow struct {
-		row               StatsSummaryRow
-		artifactID        string
-		artifactTimestamp string
+
+	ids, err := statsSummarySourceIDs(database, from, to)
+	if err != nil {
+		return nil, err
 	}
-	selected := make(map[string]*selectedRow)
+	if afterSourceIDs != nil {
+		afterSourceIDs()
+	}
+	if len(ids) == 0 {
+		return []StatsSummaryRow{}, nil
+	}
+
+	selected := make(map[string]*statsSummarySelectedRow, len(ids))
+	for _, sourceID := range ids {
+		selected[sourceID] = &statsSummarySelectedRow{}
+	}
+
+	if err := forEachStatsSummaryBatch(ids, func(batch []string) error {
+		if err := statsSummaryLengths(database, batch, selected); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	result := make([]StatsSummaryRow, 0, len(ids))
+	for _, sourceID := range ids {
+		result = append(result, selected[sourceID].row)
+	}
+	return result, nil
+}
+
+func forEachStatsSummaryBatch(ids []string, fn func([]string) error) error {
+	for start := 0; start < len(ids); start += statsSummaryBatchSize {
+		end := min(start+statsSummaryBatchSize, len(ids))
+		if err := fn(ids[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// statsSummarySourceIDs finishes and closes its rows before returning. This
+// keeps the phase-one rollback-journal read from blocking writers while output
+// and artifact lengths are read in phase two.
+func statsSummarySourceIDs(database *sql.DB, from, to time.Time) ([]string, error) {
+	rows, err := database.Query(`
+		SELECT id, timestamp
+		FROM tool_calls
+		WHERE output IS NOT NULL AND timestamp IS NOT NULL
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("db: stats summary source query: %w", err)
+	}
+
+	selected := make(map[string]struct{})
 	for rows.Next() {
-		var (
-			sourceID, timestamp           string
-			rawChars                      int
-			artifactID, artifactTimestamp sql.NullString
-			artifactChars                 sql.NullInt64
-		)
-		if err := rows.Scan(&sourceID, &rawChars, &timestamp, &artifactID, &artifactChars, &artifactTimestamp); err != nil {
-			return nil, fmt.Errorf("db: stats summary scan: %w", err)
+		var sourceID, timestamp string
+		if err := rows.Scan(&sourceID, &timestamp); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("db: stats summary source scan: %w", err)
 		}
 		parsed, err := time.Parse(time.RFC3339Nano, timestamp)
 		if err != nil || parsed.Before(from) || parsed.After(to) {
 			continue
 		}
-		current, ok := selected[sourceID]
-		if !ok {
-			current = &selectedRow{row: StatsSummaryRow{RawChars: rawChars, DeliveredChars: rawChars}}
-			selected[sourceID] = current
+		selected[sourceID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf("db: stats summary source iterate: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("db: stats summary source close: %w", err)
+	}
+
+	ids := make([]string, 0, len(selected))
+	for sourceID := range selected {
+		ids = append(ids, sourceID)
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
+func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*statsSummarySelectedRow) error {
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, sourceID := range ids {
+		args[i] = sourceID
+	}
+
+	rows, err := database.Query(`
+		SELECT tc.id, LENGTH(tc.output),
+		       c.id, LENGTH(c.output), c.timestamp
+		FROM tool_calls tc
+		LEFT JOIN compressed c ON c.source_id = tc.id
+		WHERE tc.id IN (`+placeholders+`)
+	`, args...)
+	if err != nil {
+		return fmt.Errorf("db: stats summary length query: %w", err)
+	}
+	for rows.Next() {
+		var (
+			sourceID                      string
+			rawChars                      int
+			artifactID, artifactTimestamp sql.NullString
+			artifactChars                 sql.NullInt64
+		)
+		if err := rows.Scan(&sourceID, &rawChars, &artifactID, &artifactChars, &artifactTimestamp); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("db: stats summary length scan: %w", err)
+		}
+		current := selected[sourceID]
+		if current == nil {
+			_ = rows.Close()
+			return fmt.Errorf("db: stats summary length returned unselected source %q", sourceID)
+		}
+		if !current.rawSet {
+			current.rawSet = true
+			current.row.RawChars = rawChars
+			current.row.DeliveredChars = rawChars
 		}
 		if !artifactID.Valid {
 			continue
@@ -140,13 +247,13 @@ func (d *DB) StatsSummaryRows(from, to time.Time) ([]StatsSummaryRow, error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("db: stats summary iterate: %w", err)
+		_ = rows.Close()
+		return fmt.Errorf("db: stats summary length iterate: %w", err)
 	}
-	result := make([]StatsSummaryRow, 0, len(selected))
-	for _, row := range selected {
-		result = append(result, row.row)
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("db: stats summary length close: %w", err)
 	}
-	return result, nil
+	return nil
 }
 
 func compressedArtifactLater(candidateTimestamp, candidateID, currentTimestamp, currentID string) bool {

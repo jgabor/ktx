@@ -58,6 +58,9 @@ timeout = "2s"
 # the agent-visible envelope.Output, NOT in the persisted Compressed.
 # Output. This keeps `ktx decompress <compressed_id>` byte-identical
 # to the bare compressed bytes.
+# recover_footer controls only that agent-visible cue and its
+# footer-aware gate. It does not decide routing, stage execution,
+# compression, or artifact persistence.
 recover_footer = true
 
 # ── Stage safety tiers ───────────────────────────────────────────────
@@ -75,6 +78,14 @@ recover_footer = true
 #                       through unchanged.
 #                       Put this first so later line-oriented stages see the
 #                       decoded text rather than one line of escaped JSON.
+#
+#   json-compact        Remove only insignificant whitespace from one complete
+#                       JSON value without decoding or re-marshaling: object
+#                       member order, duplicate members, number spelling, and
+#                       string bytes/escapes are preserved. It also accepts
+#                       newline-delimited JSON when every line is one value;
+#                       blank NDJSON records are rejected, while one final
+#                       newline is retained. Other input passes through.
 #
 #   strip-ansi          Strip ANSI escape sequences (colors, cursor moves)
 #
@@ -116,10 +127,11 @@ recover_footer = true
 #                       matches. Invalid regex → passthrough. Same
 #                       length or no match → anti-worsening gate fires
 
-# Configured example default: unwrap recognized structured results, sanitize,
-# then keep the first 100 and last 50 lines. The recovery footer above keeps
-# the original JSON or text self-recoverable when keep-ends truncates it.
-stages = ["unwrap-result", "strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
+# Configured example default: unwrap recognized structured results, compact
+# strict JSON, sanitize, then keep the first 100 and last 50 lines. The recovery
+# footer above keeps the original JSON or text self-recoverable when keep-ends
+# truncates it.
+stages = ["unwrap-result", "json-compact", "strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
 
 # ── Example pipelines ────────────────────────────────────────────────
 #
@@ -133,9 +145,26 @@ stages = ["unwrap-result", "strip-ansi", "dedup-blank", "normalize", "keep-ends:
 # # unacceptable and savings are secondary.
 # stages = ["strip-ansi", "dedup-blank", "normalize"]
 #
+# # Compact strict JSON or NDJSON lexically, before any line-oriented stages.
+# # Invalid or ambiguous input passes through unchanged.
+# stages = ["json-compact", "strip-ansi", "dedup-blank", "normalize"]
+#
 # # Recommended general recipe (keep-ends-mid): best $/correct with full
 # # pass on ephemeral mid-fact and crossfile tasks. No token-budget stage.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
+
+# A dedicated JSON-only profile may suppress the footer because
+# json-compact omits no semantic content. Do NOT copy recover_footer = false
+# to profiles containing head, truncate, keep-ends, token-budget, grep,
+# grep-v, other content-dropping filters, or unknown external stages.
+[pipeline.json-compact]
+stages = ["json-compact"]
+recover_footer = false
+
+# Route todowrite payloads through that semantic-preserving profile.
+[[route]]
+tool = "todowrite"
+profile = "json-compact"
 #
 # # Max savings, accept mid/tail fact risk (aggressive-head). Large token
 # # cuts; mid-file and tail content may vanish. Prefer when head-biased
@@ -146,9 +175,6 @@ stages = ["unwrap-result", "strip-ansi", "dedup-blank", "normalize", "keep-ends:
 # # budget. Live ranking saw partial mid-fact loss without recovery;
 # # with the footer, agents used `ktx read` and full pass returned.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:50:20", "token-budget:2000"]
-#
-# # Suppress the recovery footer enabled by this example:
-# # recover_footer = false
 #
 # # Build logs: drop debug noise, keep head+tail. Prefer wider keep-ends
 # # over a tight token budget when recovery is undesirable.

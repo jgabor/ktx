@@ -43,9 +43,10 @@ full-pass pipelines), not offline per-call ratio alone. The configured example
 also applies the structured projection described below; the named benchmark
 pipelines remain unchanged for historical comparison.
 
-The configured default in `ktx.example.toml` prepends `unwrap-result` to the
-sanitize stages and `keep-ends:100:50`. `unwrap-result` recognizes only strict,
-successful, single-text JSON envelopes: a content-only Context7 object with one
+The configured default in `ktx.example.toml` prepends `unwrap-result` and
+`json-compact` to the sanitize stages and `keep-ends:100:50`. `unwrap-result`
+recognizes only strict, successful, single-text JSON envelopes: a content-only
+Context7 object with one
 `content` text item; a Kagi object with that item, `isError:false`, FastMCP
 `wrap_result:true` metadata, and an identical `structuredContent.result`; or a
 Codex `webrun` array with one `input_text` item. Malformed or trailing JSON,
@@ -59,7 +60,7 @@ recovery footer whenever the composed pipeline compresses.
 | Recipe                                  | Stages (and flags)                                                        | When to use                                                                     |
 | --------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Sanitize only                           | `strip-ansi`, `dedup-blank`, `normalize`                                  | No content loss; little savings on clean output                                 |
-| **Keep-ends mid (recommended general)** | `unwrap-result` + sanitize + `keep-ends:100:50`                           | Configured example default; structured projection before recoverable truncation |
+| **Keep-ends mid (recommended general)** | `unwrap-result` + `json-compact` + sanitize + `keep-ends:100:50`          | Configured example default; structured projection before recoverable truncation |
 | Aggressive head                         | sanitize + `head:30`                                                      | Max token/cost cut; accepts mid/tail loss                                       |
 | Lossy + recovery                        | sanitize + `keep-ends:50:20` + `token-budget:2000`; `recover_footer=true` | Narrow windows/budget; agents can recover with `ktx read`                       |
 | Build logs                              | sanitize + `grep-v:^debug:` + `keep-ends:100:50`                          | Prefer wider keep-ends over a tight budget when recovery is undesirable         |
@@ -68,6 +69,43 @@ Product defaults when fields are omitted: pipeline timeout **2s** and
 `recover_footer` **false**. The configured example explicitly enables the
 footer. Do not promote bare lossy budgets without recovery as a general
 default: live ranking showed partial fact loss when the footer was off.
+
+### JSON compaction
+
+`json-compact` removes only insignificant whitespace using Go's standard
+library JSON lexer; it does not decode and re-marshal values. A single complete
+JSON value is accepted, including JSON whitespace around that value. Object
+member order and duplicates, numeric spelling, UTF-8 text, and string escapes
+are preserved exactly apart from whitespace outside strings.
+
+When the full input is not one value, `json-compact` accepts NDJSON only when
+every physical line is independently one complete JSON value. Blank NDJSON
+records, including whitespace-only records, reject the entire input unchanged.
+A single JSON value ending in `\n` loses that newline because it is surrounding
+JSON whitespace. In contrast, a multi-record NDJSON input retains one final
+`\n`. Invalid JSON, trailing non-whitespace text, and ambiguous multi-record
+input all pass through unchanged. Put the stage before line-oriented cleanup
+stages when JSON syntax must be retained.
+
+`recover_footer` controls only the agent-visible `ktx read <source_id>` cue and
+the footer-aware gate that accounts for that cue's bytes. It does not control
+routing, stage execution, compression, or artifact persistence. A dedicated
+semantic-preserving JSON profile can therefore suppress the cue:
+
+```toml
+[pipeline.json-compact]
+stages = ["json-compact"]
+recover_footer = false
+
+[[route]]
+tool = "todowrite"
+profile = "json-compact"
+```
+
+Footer suppression is appropriate here only because `json-compact` omits no
+semantic content. Do not copy `recover_footer = false` to profiles containing
+`head`, `truncate`, `keep-ends`, `token-budget`, `grep`, `grep-v`, other
+content-dropping filters, or unknown external stages.
 
 ## Command-aware routing
 
@@ -217,6 +255,13 @@ timestamp in that window are counted. Each call uses its latest compressed
 artifact by timestamp, breaking timestamp ties by the lexicographically greatest
 artifact ID; calls without an artifact use their raw output. Recompressions are
 therefore never double-counted.
+
+To avoid holding a long rollback-journal read while clients poll this summary,
+the query first scans eligible source IDs and timestamps, closes that read, then
+fetches output lengths and artifacts for those IDs in batches. No transaction
+spans those phases: an artifact committed after the source scan can appear in
+the result. Source calls are append-only, so the selected source set remains
+stable.
 
 The default window is `30m`; `--window` accepts a positive Go duration. Token
 estimates apply `ceil(character count / 4)` to each call before summing, matching

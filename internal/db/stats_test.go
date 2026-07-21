@@ -1,6 +1,8 @@
 package db
 
 import (
+	"fmt"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -98,20 +100,26 @@ func TestStatsSummaryRows(t *testing.T) {
 	ids := seedSessionAndCalls(t, d, []callFixture{
 		{id: "fromfromfromfrom", output: "12345", timestamp: from.Format(time.RFC3339Nano)},
 		{id: "totototototototo", output: "界界界界界", timestamp: to.Format(time.RFC3339Nano)},
+		{id: "offsetoffsetoffx", output: "offset", timestamp: "2026-07-21T13:30:00+02:00"},
 		{id: "emptyemptyemptyx", output: "", timestamp: from.Add(time.Minute).Format(time.RFC3339Nano)},
 		{id: "compressedsource", output: "123456789", timestamp: from.Add(2 * time.Minute).Format(time.RFC3339Nano)},
 		{id: "emptycompressedx", output: "1234", timestamp: from.Add(3 * time.Minute).Format(time.RFC3339Nano)},
+		{id: "nullartifactsrcx", output: "abc", timestamp: from.Add(4 * time.Minute).Format(time.RFC3339Nano)},
 		{id: "beforebeforebefx", output: "outside", timestamp: from.Add(-time.Nanosecond).Format(time.RFC3339Nano)},
 		{id: "afterafterafterx", output: "outside", timestamp: to.Add(time.Nanosecond).Format(time.RFC3339Nano)},
 		{id: "invalidinvalidxx", output: "outside", timestamp: "not-a-timestamp"},
 	})
 
 	// The latest timestamp wins. At an equal timestamp, the greatest ID wins.
-	seedCompressedWithID(t, d, "oldoldoldoldoldx", ids[3], "12345678", from.Add(4*time.Minute).Format(time.RFC3339Nano))
+	seedCompressedWithID(t, d, "oldoldoldoldoldx", ids[4], "12345678", from.Add(4*time.Minute).Format(time.RFC3339Nano))
 	latestTimestamp := from.Add(5*time.Minute + time.Nanosecond).Format(time.RFC3339Nano)
-	seedCompressedWithID(t, d, "aaaaaaaaaaaaaaax", ids[3], "1", latestTimestamp)
-	seedCompressedWithID(t, d, "zzzzzzzzzzzzzzzx", ids[3], "1234", latestTimestamp)
-	seedCompressedWithID(t, d, "emptyartifactxxx", ids[4], "", from.Add(5*time.Minute).Format(time.RFC3339Nano))
+	seedCompressedWithID(t, d, "aaaaaaaaaaaaaaax", ids[4], "1", latestTimestamp)
+	seedCompressedWithID(t, d, "zzzzzzzzzzzzzzzx", ids[4], "1234", latestTimestamp)
+	seedCompressedWithID(t, d, "emptyartifactxxx", ids[5], "", from.Add(5*time.Minute).Format(time.RFC3339Nano))
+	if _, err := d.db.Exec(`INSERT INTO compressed (id, source_id, output, timestamp) VALUES (?, ?, NULL, ?)`,
+		"nullartifactxxxx", ids[6], from.Add(5*time.Minute).Format(time.RFC3339Nano)); err != nil {
+		t.Fatalf("insert NULL artifact output: %v", err)
+	}
 
 	if _, err := d.db.Exec(`INSERT INTO tool_calls (id, session_id, output, timestamp)
 		VALUES (?, (SELECT session_id FROM tool_calls LIMIT 1), NULL, ?)`,
@@ -123,8 +131,8 @@ func TestStatsSummaryRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StatsSummaryRows: %v", err)
 	}
-	if len(rows) != 5 {
-		t.Fatalf("got %d rows, want 5: %+v", len(rows), rows)
+	if len(rows) != 7 {
+		t.Fatalf("got %d rows, want 7: %+v", len(rows), rows)
 	}
 
 	sort.Slice(rows, func(i, j int) bool { return rows[i].RawChars < rows[j].RawChars })
@@ -136,14 +144,56 @@ func TestStatsSummaryRows(t *testing.T) {
 			compressed++
 		}
 	}
-	if rawChars != 23 || deliveredChars != 14 {
-		t.Errorf("character totals raw=%d delivered=%d, want 23 and 14", rawChars, deliveredChars)
+	if rawChars != 32 || deliveredChars != 23 {
+		t.Errorf("character totals raw=%d delivered=%d, want 32 and 23", rawChars, deliveredChars)
 	}
-	if compressed != 2 {
-		t.Errorf("compressed artifact count=%d, want 2", compressed)
+	if compressed != 3 {
+		t.Errorf("compressed artifact count=%d, want 3", compressed)
 	}
 	if rows[0].RawChars != 0 {
 		t.Errorf("empty non-NULL output missing: rows=%+v", rows)
+	}
+	for _, row := range rows {
+		if row.RawChars == 3 && (!row.HasCompressedArtifact || row.DeliveredChars != row.RawChars) {
+			t.Errorf("NULL artifact output should use raw output: %+v", row)
+		}
+	}
+}
+
+func TestForEachStatsSummaryBatch(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		sources     int
+		wantBatches []int
+	}{
+		{name: "zero", sources: 0},
+		{name: "one", sources: 1, wantBatches: []int{1}},
+		{name: "one batch", sources: statsSummaryBatchSize, wantBatches: []int{statsSummaryBatchSize}},
+		{name: "two batches", sources: statsSummaryBatchSize + 1, wantBatches: []int{statsSummaryBatchSize, 1}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ids := make([]string, test.sources)
+			for i := range ids {
+				ids[i] = fmt.Sprintf("batch%011d", i)
+			}
+
+			var batchSizes []int
+			err := forEachStatsSummaryBatch(ids, func(batch []string) error {
+				batchSizes = append(batchSizes, len(batch))
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("forEachStatsSummaryBatch: %v", err)
+			}
+			if !reflect.DeepEqual(batchSizes, test.wantBatches) {
+				t.Errorf("batch sizes = %v, want %v", batchSizes, test.wantBatches)
+			}
+			for _, size := range batchSizes {
+				if size > statsSummaryBatchSize {
+					t.Errorf("batch size = %d, want at most %d", size, statsSummaryBatchSize)
+				}
+			}
+		})
 	}
 }
 

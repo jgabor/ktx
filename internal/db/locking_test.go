@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,9 +52,182 @@ func TestSQLiteProcessHelper(t *testing.T) {
 		if err := d.InsertSession(&Session{ID: os.Getenv("KTX_SQLITE_ID"), Agent: "test"}); err != nil {
 			t.Fatal(err)
 		}
+	case "hold-exclusive":
+		database, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=busy_timeout(1)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		database.SetMaxOpenConns(1)
+		if _, err := database.Exec(`BEGIN EXCLUSIVE`); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(os.Getenv("KTX_SQLITE_READY"), []byte("ready"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		waitForFile(t, os.Getenv("KTX_SQLITE_RELEASE"), 10*time.Second)
+		if _, err := database.Exec(`COMMIT`); err != nil {
+			t.Fatal(err)
+		}
 	default:
 		t.Fatalf("unknown helper role %q", os.Getenv("KTX_SQLITE_ROLE"))
 	}
+}
+
+func TestOpenRetriesStartupLock(t *testing.T) {
+	for name, open := range map[string]func(string) (interface{ Close() error }, error){
+		"read-write": func(path string) (interface{ Close() error }, error) { return Open(path) },
+		"read-only":  func(path string) (interface{ Close() error }, error) { return OpenReadOnly(path) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "startup-retry.db")
+			initialized, err := Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := initialized.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			ready := path + ".ready"
+			release := path + ".release"
+			cmd, output := startDBHelper(t, path, "hold-exclusive", map[string]string{
+				"KTX_SQLITE_READY":   ready,
+				"KTX_SQLITE_RELEASE": release,
+			})
+			t.Cleanup(func() {
+				_ = os.WriteFile(release, nil, 0o600)
+				_ = cmd.Wait()
+			})
+			waitForFile(t, ready, 5*time.Second)
+
+			started := time.Now()
+			opened := make(chan error, 1)
+			go func() {
+				database, err := open(path)
+				if err == nil {
+					err = database.Close()
+				}
+				opened <- err
+			}()
+			// This deliberately outlives the configured one-second busy wait.
+			time.Sleep(time.Duration(sqliteBusyTimeoutMS)*time.Millisecond + 100*time.Millisecond)
+			if err := os.WriteFile(release, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-opened; err != nil {
+				t.Fatalf("Open after startup lock release: %v\nhelper output: %s", err, output.String())
+			}
+			if elapsed := time.Since(started); elapsed > startupRetryDeadline+250*time.Millisecond {
+				t.Fatalf("startup retry exceeded bound: elapsed %s, bound %s", elapsed, startupRetryDeadline+250*time.Millisecond)
+			}
+			if err := cmd.Wait(); err != nil {
+				t.Fatalf("exclusive lock holder: %v\n%s", err, output.String())
+			}
+		})
+	}
+}
+
+func TestOpenStartupLockFailureIsBounded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "startup-bounded.db")
+	initialized, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	ready := path + ".ready"
+	release := path + ".release"
+	cmd, _ := startDBHelper(t, path, "hold-exclusive", map[string]string{
+		"KTX_SQLITE_READY":   ready,
+		"KTX_SQLITE_RELEASE": release,
+	})
+	t.Cleanup(func() {
+		_ = os.WriteFile(release, nil, 0o600)
+		_ = cmd.Wait()
+	})
+	waitForFile(t, ready, 5*time.Second)
+
+	started := time.Now()
+	_, err = Open(path)
+	elapsed := time.Since(started)
+	if err == nil || !isSQLiteLockError(err) {
+		t.Fatalf("held startup lock error = %v, want SQLite BUSY/LOCKED", err)
+	}
+	if elapsed < time.Duration(sqliteBusyTimeoutMS)*time.Millisecond {
+		t.Fatalf("startup retry ended before one busy wait: elapsed %s", elapsed)
+	}
+	if bound := startupRetryDeadline + 250*time.Millisecond; elapsed > bound {
+		t.Fatalf("startup retry exceeded bound: elapsed %s, bound %s", elapsed, bound)
+	}
+}
+
+func TestInitialSchemaVersionReadRetriesOnlyLockErrors(t *testing.T) {
+	t.Run("retries lock", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "schema-version-lock.db")
+		initialized, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := initialized.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		ready := path + ".ready"
+		release := path + ".release"
+		cmd, output := startDBHelper(t, path, "hold-exclusive", map[string]string{
+			"KTX_SQLITE_READY":   ready,
+			"KTX_SQLITE_RELEASE": release,
+		})
+		t.Cleanup(func() {
+			_ = os.WriteFile(release, nil, 0o600)
+			_ = cmd.Wait()
+		})
+		waitForFile(t, ready, 5*time.Second)
+
+		contender, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=busy_timeout(5)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer contender.Close()
+		go func() {
+			time.Sleep(25 * time.Millisecond)
+			_ = os.WriteFile(release, nil, 0o600)
+		}()
+		policy := sqliteLockRetryPolicy{
+			deadline:    100 * time.Millisecond,
+			maxAttempts: 8,
+			retryDelay:  func(int) time.Duration { return 2 * time.Millisecond },
+		}
+		version, err := readSchemaVersionWithRetry(contender, policy)
+		if err != nil {
+			t.Fatalf("schema version after lock release: %v\nhelper output: %s", err, output.String())
+		}
+		if version != schemaVersion {
+			t.Fatalf("user_version = %d, want %d", version, schemaVersion)
+		}
+	})
+
+	t.Run("returns other errors immediately", func(t *testing.T) {
+		want := errors.New("not a lock")
+		calls := 0
+		err := retrySQLiteLock(sqliteLockRetryPolicy{
+			deadline:    time.Second,
+			maxAttempts: 8,
+			retryDelay:  func(int) time.Duration { return time.Second },
+		}, func() error {
+			calls++
+			return want
+		})
+		if !errors.Is(err, want) {
+			t.Fatalf("error = %v, want original %v", err, want)
+		}
+		if calls != 1 {
+			t.Fatalf("attempts = %d, want 1 for non-lock error", calls)
+		}
+	})
 }
 
 func TestOpenCurrentSchemaDoesNotAcquireWriteLock(t *testing.T) {
@@ -199,6 +373,71 @@ func TestWriteTransactionFailureIsBounded(t *testing.T) {
 	}
 	if elapsed < 500*time.Millisecond {
 		t.Fatalf("write failed before useful retries: elapsed %s", elapsed)
+	}
+}
+
+func TestStatsSummaryRowsReleasesPhaseOneReadBeforePhaseTwo(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stats-summary-phases.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	assertRollbackJournal(t, d.db)
+
+	from := time.Date(2026, 7, 21, 11, 30, 0, 0, time.UTC)
+	to := from.Add(time.Minute)
+	seedSessionAndCalls(t, d, []callFixture{{
+		id:        "summaryphasetest",
+		output:    "output",
+		timestamp: from.Format(time.RFC3339Nano),
+	}})
+
+	phaseOneClosed := make(chan struct{})
+	releasePhaseTwo := make(chan struct{})
+	type summaryResult struct {
+		rows []StatsSummaryRow
+		err  error
+	}
+	summaryDone := make(chan summaryResult, 1)
+	go func() {
+		rows, err := statsSummaryRowsFor(d.db, from, to, func() {
+			close(phaseOneClosed)
+			<-releasePhaseTwo
+		})
+		summaryDone <- summaryResult{rows: rows, err: err}
+	}()
+
+	select {
+	case <-phaseOneClosed:
+	case <-time.After(time.Second):
+		t.Fatal("stats summary did not reach the phase boundary")
+	}
+
+	// The source query has closed before this point. In rollback-journal mode a
+	// monolithic summary query would still hold its shared read lock here and
+	// this independent writer would time out before phase two is released.
+	writer, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=busy_timeout(100)")
+	if err != nil {
+		close(releasePhaseTwo)
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	_, writeErr := writer.ExecContext(ctx,
+		`INSERT INTO sessions (id, agent) VALUES (?, ?)`, "summaryphasewrite", "test")
+	cancel()
+
+	close(releasePhaseTwo)
+	result := <-summaryDone
+	if writeErr != nil {
+		t.Fatalf("writer between stats summary phases: %v", writeErr)
+	}
+	if result.err != nil {
+		t.Fatalf("StatsSummaryRows: %v", result.err)
+	}
+	if len(result.rows) != 1 {
+		t.Fatalf("summary rows = %d, want 1", len(result.rows))
 	}
 }
 

@@ -202,12 +202,55 @@ configured.
 ktx stats
 ktx stats --format text
 ktx stats --limit 5
+ktx stats summary --window 30m --format json
 ```
 
 Groups with fewer than 2 calls or fewer than 50 delivered tokens
 are excluded as trivial. The output is ranked by total delivered
 tokens (descending). Use this to find the commands where a filter
 pack or a more aggressive profile would have the highest impact.
+
+`ktx stats summary` emits a versioned snapshot for periodically polled clients.
+Its trailing window is inclusive at both endpoints (`[from, to]`) and ends at
+one captured wall-clock time. Only calls with non-NULL output and an RFC3339
+timestamp in that window are counted. Each call uses its latest compressed
+artifact by timestamp, breaking timestamp ties by the lexicographically greatest
+artifact ID; calls without an artifact use their raw output. Recompressions are
+therefore never double-counted.
+
+The default window is `30m`; `--window` accepts a positive Go duration. Token
+estimates apply `ceil(character count / 4)` to each call before summing, matching
+`ktx stats`. Per-second rates divide by the full configured window. The JSON
+contract is:
+
+```json
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-21T12:00:00Z",
+  "window": {
+    "seconds": 1800,
+    "from": "2026-07-21T11:30:00Z",
+    "to": "2026-07-21T12:00:00Z"
+  },
+  "calls": {
+    "total_with_output": 51,
+    "with_compressed_artifact": 42
+  },
+  "tokens": {
+    "raw_estimated": 37370,
+    "delivered_estimated": 14200,
+    "raw_estimated_per_second": 20.761111111111113,
+    "delivered_estimated_per_second": 7.888888888888889,
+    "reduction_percent": 62.001605565962
+  }
+}
+```
+
+`reduction_percent` is `(raw_estimated - delivered_estimated) /
+raw_estimated * 100`, and is `null` when `raw_estimated` is zero. Calls with an
+empty (but non-NULL) output are included in the call counts and contribute zero
+tokens. `with_compressed_artifact` measures retained-artifact coverage, not
+whether compression reduced output size.
 
 ## Portable offline replay
 

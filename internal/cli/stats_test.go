@@ -3,8 +3,12 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
@@ -265,6 +269,151 @@ func TestStatsLogic(t *testing.T) {
 			t.Errorf("help output missing command name: %q", buf.String())
 		}
 	})
+}
+
+func TestStatsSummaryLogic(t *testing.T) {
+	now := time.Date(2026, 7, 12, 0, 30, 0, 0, time.UTC)
+
+	t.Run("empty window has zero rates and unavailable reduction", func(t *testing.T) {
+		db := openMemoryDB(t)
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
+		}
+		if got.SchemaVersion != 1 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
+			t.Errorf("metadata = %+v", got)
+		}
+		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != got.GeneratedAt {
+			t.Errorf("window = %+v", got.Window)
+		}
+		if got.Calls.TotalWithOutput != 0 || got.Calls.WithCompressedArtifact != 0 {
+			t.Errorf("calls = %+v", got.Calls)
+		}
+		if got.Tokens.RawEstimatedPerSecond != 0 || got.Tokens.DeliveredEstimatedPerSecond != 0 || got.Tokens.ReductionPercent != nil {
+			t.Errorf("tokens = %+v", got.Tokens)
+		}
+	})
+
+	t.Run("uses per-call character rounding and retained artifact coverage", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		ids := seedCalls(t, db, sid, []callSeed{
+			{tool: "read", output: "界界界界界"}, // 5 characters => 2 tokens, not 5 UTF-8 tokens.
+			{tool: "bash", output: "12345"}, // 5 characters => 2 tokens.
+		})
+		seedCompressedRow(t, db, ids[1], "x", now.Add(-time.Minute).Format(time.RFC3339Nano))
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v", err)
+		}
+		if got.Calls.TotalWithOutput != 2 || got.Calls.WithCompressedArtifact != 1 {
+			t.Errorf("calls = %+v, want total 2 compressed 1", got.Calls)
+		}
+		if got.Tokens.RawEstimated != 4 || got.Tokens.DeliveredEstimated != 3 {
+			t.Errorf("token totals = %+v, want raw 4 delivered 3", got.Tokens)
+		}
+		if math.Abs(got.Tokens.RawEstimatedPerSecond-4.0/1800) > 1e-12 || math.Abs(got.Tokens.DeliveredEstimatedPerSecond-3.0/1800) > 1e-12 {
+			t.Errorf("rates = %+v", got.Tokens)
+		}
+		if got.Tokens.ReductionPercent == nil || *got.Tokens.ReductionPercent != 25 {
+			t.Errorf("reduction_percent = %v, want 25", got.Tokens.ReductionPercent)
+		}
+	})
+
+	t.Run("JSON schema has only the version 1 contract keys", func(t *testing.T) {
+		db := openMemoryDB(t)
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v", err)
+		}
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens")
+		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
+		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
+		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated", "raw_estimated_per_second", "delivered_estimated_per_second", "reduction_percent")
+	})
+
+	t.Run("text and summary help follow command conventions", func(t *testing.T) {
+		db := openMemoryDB(t)
+		var text bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &text); err != nil {
+			t.Fatalf("text: %v", err)
+		}
+		if !strings.Contains(text.String(), "WINDOW") || !strings.Contains(text.String(), "RAW_TOK") {
+			t.Errorf("text output missing fields: %q", text.String())
+		}
+		var help bytes.Buffer
+		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &help); err != nil {
+			t.Fatalf("help: %v", err)
+		}
+		if !strings.Contains(help.String(), "ktx stats summary") {
+			t.Errorf("summary help missing command: %q", help.String())
+		}
+	})
+}
+
+func TestParseStatsArgsSummaryWindow(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		want    time.Duration
+		wantErr string
+	}{
+		{name: "default", args: []string{"summary"}, want: 30 * time.Minute},
+		{name: "separate value", args: []string{"summary", "--window", "45s"}, want: 45 * time.Second},
+		{name: "equals value", args: []string{"summary", "--window=1h30m"}, want: 90 * time.Minute},
+		{name: "missing", args: []string{"summary", "--window"}, wantErr: "requires a duration"},
+		{name: "zero", args: []string{"summary", "--window", "0s"}, wantErr: "must be positive"},
+		{name: "negative", args: []string{"summary", "--window=-1m"}, wantErr: "must be positive"},
+		{name: "invalid", args: []string{"summary", "--window", "soon"}, wantErr: "invalid --window"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rest, parsedAny, err := parseStatsArgs(tt.args)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseStatsArgs: %v", err)
+			}
+			if !reflect.DeepEqual(rest, []string{"summary"}) {
+				t.Errorf("rest = %v, want [summary]", rest)
+			}
+			parsed := parsedAny.(statsParsedArgs)
+			if parsed.Window != tt.want {
+				t.Errorf("window = %v, want %v", parsed.Window, tt.want)
+			}
+		})
+	}
+}
+
+func assertStatsJSONKeys(t *testing.T, got map[string]any, want ...string) {
+	t.Helper()
+	gotKeys := make([]string, 0, len(got))
+	for key := range got {
+		gotKeys = append(gotKeys, key)
+	}
+	sort.Strings(gotKeys)
+	sort.Strings(want)
+	if !reflect.DeepEqual(gotKeys, want) {
+		t.Errorf("JSON keys = %v, want %v", gotKeys, want)
+	}
 }
 
 // openMemoryDB is a helper that opens an in-memory database.

@@ -160,6 +160,17 @@ func TestWriteTransactionRetriesBusyBySQLiteCode(t *testing.T) {
 	t.Run("commit", testWriteRetryAtCommit)
 }
 
+func TestWriteTimeoutCoversRetryBudget(t *testing.T) {
+	retryBudget := time.Duration(writeMaxAttempts*sqliteBusyTimeoutMS) * time.Millisecond
+	for attempt := range writeMaxAttempts {
+		delay := time.Duration(attempt+1) * 10 * time.Millisecond
+		retryBudget += min(delay, 100*time.Millisecond)
+	}
+	if writeTimeout <= retryBudget {
+		t.Fatalf("write timeout %s must exceed retry budget %s", writeTimeout, retryBudget)
+	}
+}
+
 func TestWriteTransactionFailureIsBounded(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bounded.db")
 	d, err := Open(path)

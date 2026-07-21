@@ -16,14 +16,14 @@ func TestOpenConfiguresBusyTimeout(t *testing.T) {
 	}
 	defer database.Close()
 
-	assertBusyTimeout(t, database.db, 500)
+	assertBusyTimeout(t, database.db, 1000)
 
 	readOnly, err := OpenReadOnly(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer readOnly.Close()
-	assertBusyTimeout(t, readOnly, 500)
+	assertBusyTimeout(t, readOnly, 1000)
 }
 
 func assertBusyTimeout(t *testing.T, database *sql.DB, want int) {

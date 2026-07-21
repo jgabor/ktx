@@ -12,12 +12,14 @@ import (
 )
 
 const (
-	writeTimeout     = 2 * time.Second
+	// The deadline covers all configured busy waits and retry backoffs, with
+	// room for the transaction itself and scheduler delay.
+	writeTimeout     = 10 * time.Second
 	writeMaxAttempts = 8
-	// Eight driver waits plus deterministic backoff total at most 4.36s before
+	// Eight driver waits plus deterministic backoff total at most 8.36s before
 	// scheduling overhead. Ordinary writes use writeTimeout, with one final
 	// context-unaware driver wait able to outlive that deadline.
-	sqliteBusyTimeoutMS = 500
+	sqliteBusyTimeoutMS = 1000
 )
 
 func writeContext() (context.Context, context.CancelFunc) {

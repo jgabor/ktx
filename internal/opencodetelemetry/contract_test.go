@@ -13,22 +13,28 @@ func TestContractFixtures(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cases []struct {
-		Name     string          `json:"name"`
-		Decoder  string          `json:"decoder"`
-		Accepted bool            `json:"accepted"`
-		Payload  json.RawMessage `json:"payload"`
+		Name     string   `json:"name"`
+		Decoder  string   `json:"decoder"`
+		Accepted bool     `json:"accepted"`
+		Rules    []string `json:"rules"`
+		Payload  string   `json:"payload"`
 	}
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
 	}
+	type coverage struct{ accepted, rejected bool }
+	covered := make(map[string]coverage)
 	for _, test := range cases {
 		t.Run(test.Name, func(t *testing.T) {
+			if len(test.Rules) == 0 {
+				t.Fatal("fixture does not identify a contract rule")
+			}
 			var err error
 			switch test.Decoder {
 			case "step":
-				_, err = DecodeModelStep(test.Payload)
+				_, err = DecodeModelStep([]byte(test.Payload))
 			case "message":
-				_, _, err = DecodeMessageIdentity(test.Payload)
+				_, _, err = DecodeMessageIdentity([]byte(test.Payload))
 			default:
 				t.Fatalf("unknown decoder %q", test.Decoder)
 			}
@@ -38,7 +44,18 @@ func TestContractFixtures(t *testing.T) {
 			if !test.Accepted && err == nil {
 				t.Fatal("rejected fixture accepted")
 			}
+			for _, rule := range test.Rules {
+				state := covered[rule]
+				state.accepted = state.accepted || test.Accepted
+				state.rejected = state.rejected || !test.Accepted
+				covered[rule] = state
+			}
 		})
+	}
+	for rule, state := range covered {
+		if !state.accepted || !state.rejected {
+			t.Errorf("rule %q coverage = accepted:%t rejected:%t, want both", rule, state.accepted, state.rejected)
+		}
 	}
 }
 

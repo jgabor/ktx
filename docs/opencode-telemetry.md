@@ -32,10 +32,10 @@ shape:
 ```
 
 The session, message, and part IDs are authoritative fields on the part. Token
-fields must be non-negative safe JSON integers; `cost` must be a non-negative
-JSON number. Explicit zero is a measurement, not missing data. Additional
-fields are ignored so additive OpenCode metadata does not invalidate the
-event.
+fields must be non-negative safe JSON integers no greater than `2^53 - 1`;
+`cost` must be a non-negative JSON number. Explicit zero is a measurement, not
+missing data. Additional fields are ignored so additive OpenCode metadata does
+not invalidate the event.
 
 Provider and model are not fields on `StepFinishPart`. They are available from
 a preceding assistant `message.updated` event whose `properties.info.id` and

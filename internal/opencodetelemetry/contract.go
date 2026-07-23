@@ -272,7 +272,7 @@ func nonnegativeInteger(raw json.RawMessage, name string) (int64, error) {
 		return 0, invalid(name + " must be a non-negative safe integer")
 	}
 	value, err := number.Int64()
-	if err != nil || value < 0 || value > 1<<53 {
+	if err != nil || value < 0 || value >= 1<<53 {
 		return 0, invalid(name + " must be a non-negative safe integer")
 	}
 	return value, nil

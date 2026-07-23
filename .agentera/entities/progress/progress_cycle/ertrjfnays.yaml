@@ -1,0 +1,14 @@
+id: ertrjfnays
+artifact: progress
+record:
+  timestamp: 2026-07-23 15:32
+  type: fix
+  phase: build
+  what: Corrected the OpenCode telemetry safe-integer boundary and replaced implicit fixture coverage with rule-tagged accepted and rejected contract cases for malformed, incomplete, non-object, blank, negative, fractional, and unsafe-range inputs.
+  context:
+    intent: Resolve independent audit attempt audit-1 for the pinned OpenCode telemetry contract without expanding task scope.
+    constraints: Only audit findings were changed; audit-1 evaluation provenance was preserved and no decision satisfaction was modified.
+  inspiration: Independent audit failure recorded on plan task vuhfexydfu.
+  discovered: The decoder comparison admitted 2^53 while the documented safe-integer boundary ends at 2^53-1; the original fixtures exercised many missing fields but did not prove bidirectional coverage for every named shape rule.
+  verified: go test ./internal/opencodetelemetry -run TestContractFixtures\|TestCollector -count=1 passed, including rule coverage that requires accepted and rejected fixtures, accepted 9007199254740991, and rejected 9007199254740992; mage check passed tests, vet, lint, and build with 0 issues.
+  next: Proceed to optional session telemetry persistence only after this corrected prerequisite remains complete.

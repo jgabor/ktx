@@ -11,3 +11,13 @@ record:
     - GIVEN repeated, incomplete, and unsupported events WHEN correlation rules are evaluated THEN the deduplication key, ordering rule, and conservative rejection behavior are deterministic.
     - GIVEN representative accepted and rejected fixtures WHEN contract tests run THEN at least one passing and one failing case cover each testable event-shape rule.
   plan: abigkdluzd
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Safe-integer decoder accepts 2^53 despite documented maximum 2^53-1. Rejected fixtures do not cover every testable rule, including unsafe-range and negative measurements, blank IDs, malformed JSON, malformed cost, and non-object structures. Criteria 3 and 4 and the evidence audit failed.
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit evaluation ses_070dc08f6ffetQU20fofdDOJng
+      recorded_at: 2026-07-23 15:28
+      writer_command: agentera state plan record-evaluation

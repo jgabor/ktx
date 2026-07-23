@@ -1,468 +1,368 @@
 [
   {
-    "name": "accepted model step",
+    "name": "accepted model step covers step rules",
     "decoder": "step",
     "accepted": true,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 116,
-            "output": 3,
-            "reasoning": 2,
-            "cache": { "read": 15232, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": [
+      "json",
+      "step.event_type",
+      "step.properties",
+      "step.part",
+      "step.part_type",
+      "step.session_id",
+      "step.message_id",
+      "step.part_id",
+      "step.reason",
+      "step.cost",
+      "step.tokens",
+      "step.input",
+      "step.output",
+      "step.reasoning",
+      "step.cache",
+      "step.cache_read",
+      "step.cache_write"
+    ],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":116,\"output\":3,\"reasoning\":2,\"cache\":{\"read\":15232,\"write\":0}}}}}"
   },
   {
-    "name": "accepted assistant identity",
+    "name": "accepted assistant identity covers message rules",
     "decoder": "message",
     "accepted": true,
-    "payload": {
-      "type": "message.updated",
-      "properties": {
-        "info": {
-          "id": "msg_1",
-          "sessionID": "ses_1",
-          "role": "assistant",
-          "providerID": "openai",
-          "modelID": "gpt-5"
-        }
-      }
-    }
+    "rules": [
+      "json",
+      "message.event_type",
+      "message.properties",
+      "message.info",
+      "message.role",
+      "message.session_id",
+      "message.id",
+      "message.provider",
+      "message.model"
+    ],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"sessionID\":\"ses_1\",\"role\":\"assistant\",\"providerID\":\"openai\",\"modelID\":\"gpt-5\"}}}"
+  },
+  {
+    "name": "accepted safe integer maximum",
+    "decoder": "step",
+    "accepted": true,
+    "rules": ["step.cache_write"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_max\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":9007199254740991}}}}}"
+  },
+
+  {
+    "name": "malformed JSON",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["json"],
+    "payload": "{"
   },
   {
     "name": "step wrong event type",
     "decoder": "step",
     "accepted": false,
-    "payload": { "type": "text", "properties": { "part": {} } }
+    "rules": ["step.event_type"],
+    "payload": "{\"type\":\"text\",\"properties\":{\"part\":{}}}"
   },
   {
     "name": "step missing properties",
     "decoder": "step",
     "accepted": false,
-    "payload": { "type": "message.part.updated" }
+    "rules": ["step.properties"],
+    "payload": "{\"type\":\"message.part.updated\"}"
   },
   {
     "name": "step non-object properties",
     "decoder": "step",
     "accepted": false,
-    "payload": { "type": "message.part.updated", "properties": [] }
+    "rules": ["step.properties"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":[]}"
   },
   {
     "name": "step missing part",
     "decoder": "step",
     "accepted": false,
-    "payload": { "type": "message.part.updated", "properties": {} }
+    "rules": ["step.part"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{}}"
   },
   {
     "name": "step non-object part",
     "decoder": "step",
     "accepted": false,
-    "payload": { "type": "message.part.updated", "properties": { "part": [] } }
+    "rules": ["step.part"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":[]}}"
   },
   {
     "name": "step wrong part type",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": { "part": { "type": "text" } }
-    }
+    "rules": ["step.part_type"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"type\":\"text\"}}}"
   },
   {
-    "name": "step missing session",
+    "name": "step missing session id",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.session_id"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\"}}}"
   },
   {
-    "name": "step missing message",
+    "name": "step blank session id",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.session_id"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\" \",\"messageID\":\"msg_1\",\"type\":\"step-finish\"}}}"
+  },
+  {
+    "name": "step missing message id",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.message_id"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"type\":\"step-finish\"}}}"
+  },
+  {
+    "name": "step blank message id",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.message_id"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\" \",\"type\":\"step-finish\"}}}"
   },
   {
     "name": "step missing part id",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.part_id"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\"}}}"
+  },
+  {
+    "name": "step blank part id",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.part_id"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\" \",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\"}}}"
   },
   {
     "name": "step missing reason",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.reason"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\"}}}"
   },
   {
     "name": "step missing cost",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.cost"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\"}}}"
+  },
+  {
+    "name": "step negative cost",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.cost"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":-1}}}"
+  },
+  {
+    "name": "step malformed cost",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.cost"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":\"free\"}}}"
   },
   {
     "name": "step missing tokens",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0
-        }
-      }
-    }
+    "rules": ["step.tokens"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0}}}"
+  },
+  {
+    "name": "step non-object tokens",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.tokens"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":[]}}}"
   },
   {
     "name": "step missing input",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.input"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
+  },
+  {
+    "name": "step negative input",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.input"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":-1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step missing output",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "reasoning": 0,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.output"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
+  },
+  {
+    "name": "step malformed output",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.output"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":\"one\",\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step missing reasoning",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "cache": { "read": 0, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.reasoning"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"cache\":{\"read\":0,\"write\":0}}}}}"
+  },
+  {
+    "name": "step unsafe reasoning",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.reasoning"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":9007199254740992,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step missing cache",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": { "input": 1, "output": 1, "reasoning": 0 }
-        }
-      }
-    }
+    "rules": ["step.cache"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0}}}}"
+  },
+  {
+    "name": "step non-object cache",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.cache"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":[]}}}}"
   },
   {
     "name": "step missing cache read",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "write": 0 }
-          }
-        }
-      }
-    }
-  },
-  {
-    "name": "step missing cache write",
-    "decoder": "step",
-    "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.cache_read"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"write\":0}}}}}"
   },
   {
     "name": "step fractional cache read",
     "decoder": "step",
     "accepted": false,
-    "payload": {
-      "type": "message.part.updated",
-      "properties": {
-        "part": {
-          "id": "prt_1",
-          "sessionID": "ses_1",
-          "messageID": "msg_1",
-          "type": "step-finish",
-          "reason": "stop",
-          "cost": 0,
-          "tokens": {
-            "input": 1,
-            "output": 1,
-            "reasoning": 0,
-            "cache": { "read": 0.5, "write": 0 }
-          }
-        }
-      }
-    }
+    "rules": ["step.cache_read"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0.5,\"write\":0}}}}}"
   },
+  {
+    "name": "step missing cache write",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.cache_write"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0}}}}}"
+  },
+  {
+    "name": "step unsafe cache write",
+    "decoder": "step",
+    "accepted": false,
+    "rules": ["step.cache_write"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":9007199254740992}}}}}"
+  },
+
   {
     "name": "message wrong event type",
     "decoder": "message",
     "accepted": false,
-    "payload": { "type": "message.part.updated", "properties": { "info": {} } }
+    "rules": ["message.event_type"],
+    "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"info\":{}}}"
+  },
+  {
+    "name": "message missing properties",
+    "decoder": "message",
+    "accepted": false,
+    "rules": ["message.properties"],
+    "payload": "{\"type\":\"message.updated\"}"
+  },
+  {
+    "name": "message non-object properties",
+    "decoder": "message",
+    "accepted": false,
+    "rules": ["message.properties"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":[]}"
   },
   {
     "name": "message missing info",
     "decoder": "message",
     "accepted": false,
-    "payload": { "type": "message.updated", "properties": {} }
+    "rules": ["message.info"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{}}"
+  },
+  {
+    "name": "message non-object info",
+    "decoder": "message",
+    "accepted": false,
+    "rules": ["message.info"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":[]}}"
   },
   {
     "name": "message user role",
     "decoder": "message",
     "accepted": false,
-    "payload": {
-      "type": "message.updated",
-      "properties": {
-        "info": {
-          "id": "msg_1",
-          "sessionID": "ses_1",
-          "role": "user",
-          "providerID": "openai",
-          "modelID": "gpt-5"
-        }
-      }
-    }
+    "rules": ["message.role"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"sessionID\":\"ses_1\",\"role\":\"user\",\"providerID\":\"openai\",\"modelID\":\"gpt-5\"}}}"
   },
   {
-    "name": "message missing session",
+    "name": "message missing session id",
     "decoder": "message",
     "accepted": false,
-    "payload": {
-      "type": "message.updated",
-      "properties": {
-        "info": {
-          "id": "msg_1",
-          "role": "assistant",
-          "providerID": "openai",
-          "modelID": "gpt-5"
-        }
-      }
-    }
+    "rules": ["message.session_id"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"providerID\":\"openai\",\"modelID\":\"gpt-5\"}}}"
+  },
+  {
+    "name": "message blank session id",
+    "decoder": "message",
+    "accepted": false,
+    "rules": ["message.session_id"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"sessionID\":\" \",\"role\":\"assistant\",\"providerID\":\"openai\",\"modelID\":\"gpt-5\"}}}"
   },
   {
     "name": "message missing id",
     "decoder": "message",
     "accepted": false,
-    "payload": {
-      "type": "message.updated",
-      "properties": {
-        "info": {
-          "sessionID": "ses_1",
-          "role": "assistant",
-          "providerID": "openai",
-          "modelID": "gpt-5"
-        }
-      }
-    }
+    "rules": ["message.id"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"sessionID\":\"ses_1\",\"role\":\"assistant\",\"providerID\":\"openai\",\"modelID\":\"gpt-5\"}}}"
+  },
+  {
+    "name": "message blank id",
+    "decoder": "message",
+    "accepted": false,
+    "rules": ["message.id"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\" \",\"sessionID\":\"ses_1\",\"role\":\"assistant\",\"providerID\":\"openai\",\"modelID\":\"gpt-5\"}}}"
   },
   {
     "name": "message missing provider",
     "decoder": "message",
     "accepted": false,
-    "payload": {
-      "type": "message.updated",
-      "properties": {
-        "info": {
-          "id": "msg_1",
-          "sessionID": "ses_1",
-          "role": "assistant",
-          "modelID": "gpt-5"
-        }
-      }
-    }
+    "rules": ["message.provider"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"sessionID\":\"ses_1\",\"role\":\"assistant\",\"modelID\":\"gpt-5\"}}}"
+  },
+  {
+    "name": "message blank provider",
+    "decoder": "message",
+    "accepted": false,
+    "rules": ["message.provider"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"sessionID\":\"ses_1\",\"role\":\"assistant\",\"providerID\":\" \",\"modelID\":\"gpt-5\"}}}"
   },
   {
     "name": "message missing model",
     "decoder": "message",
     "accepted": false,
-    "payload": {
-      "type": "message.updated",
-      "properties": {
-        "info": {
-          "id": "msg_1",
-          "sessionID": "ses_1",
-          "role": "assistant",
-          "providerID": "openai"
-        }
-      }
-    }
+    "rules": ["message.model"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"sessionID\":\"ses_1\",\"role\":\"assistant\",\"providerID\":\"openai\"}}}"
+  },
+  {
+    "name": "message blank model",
+    "decoder": "message",
+    "accepted": false,
+    "rules": ["message.model"],
+    "payload": "{\"type\":\"message.updated\",\"properties\":{\"info\":{\"id\":\"msg_1\",\"sessionID\":\"ses_1\",\"role\":\"assistant\",\"providerID\":\"openai\",\"modelID\":\" \"}}}"
   }
 ]

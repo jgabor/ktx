@@ -1,0 +1,14 @@
+id: pyzenwhvhl
+artifact: plan
+record:
+  name: Extend the generated OpenCode adapter
+  depends_on:
+    - vuhfexydfu
+    - fekcqinvyc
+  status: pending
+  acceptance:
+    - GIVEN an ordinary unwrapped OpenCode session emits an accepted model-step event WHEN the installed adapter receives it THEN ktx records the optional observation without changing model or tool output.
+    - GIVEN a tool execution completes WHEN the existing tool-result hook runs THEN compression, passthrough, recovery, and failure behavior remain unchanged.
+    - GIVEN the wrapper owns a session WHEN both integration paths are available THEN the adapter emits no duplicate tool or telemetry evidence.
+    - GIVEN global or project installation runs repeatedly WHEN the adapter is refreshed THEN installation is idempotent and reports candidate locations, generated revision, and declared hook coverage without claiming runtime activation.
+  plan: abigkdluzd

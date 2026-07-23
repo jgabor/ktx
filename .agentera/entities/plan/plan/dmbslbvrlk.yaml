@@ -4,7 +4,7 @@ record:
   header:
     level: full
     created: 2026-07-23
-    status: open
+    status: archived
     reviewed: 2026-07-23
     critic_issues: 5 found, 5 addressed, 0 dismissed
     revised: Separated unconditional claim correction from evidence-gated enablement, made live-probe blockage explicit, defined source events versus native requests, specified historical validation compatibility, and added enforceable probe cost and privacy boundaries.

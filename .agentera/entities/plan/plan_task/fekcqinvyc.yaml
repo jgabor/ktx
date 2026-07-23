@@ -1,0 +1,13 @@
+id: fekcqinvyc
+artifact: plan
+record:
+  name: Persist and inspect optional session telemetry
+  depends_on:
+    - vuhfexydfu
+  status: pending
+  acceptance:
+    - GIVEN an accepted model-step observation with authoritative session association WHEN it is recorded THEN it is retained separately from tool calls, benchmark runs, and experiment artifacts.
+    - GIVEN retained cache-read or cache-write telemetry WHEN structured inspection is requested THEN a bounded JSON result exposes available identity, order, value, and measurement state.
+    - GIVEN explicit zero, unknown, malformed, duplicate, or concurrent observations WHEN they are recorded THEN zero remains distinct, unavailable data is not invented, exact retries are idempotent, and session association is atomic.
+    - GIVEN optional telemetry persistence fails WHEN an OpenCode session continues THEN existing evidence is not corrupted and the failure does not alter tool output or session success.
+  plan: abigkdluzd

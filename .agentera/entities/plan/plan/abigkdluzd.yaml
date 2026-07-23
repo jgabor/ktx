@@ -1,0 +1,35 @@
+id: abigkdluzd
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-23
+    status: open
+    reviewed: 2026-07-23
+    critic_issues: 5 found, 5 addressed, 0 dismissed
+    title: "Plan: Capture OpenCode plugin telemetry"
+  what: Extend the owned OpenCode adapter to capture normalized model-step cache telemetry during ordinary unwrapped sessions, retain it as optional session observability, and make the integration contract easy to discover and maintain.
+  why: ktx already installs an OpenCode plugin, but that adapter currently captures only tool results. Reusing the owned adapter provides useful cache-read and cache-write observations outside wrapper-based benchmarks without introducing direct-provider integrations or overstating what normalized telemetry proves.
+  constraints: Telemetry is best-effort and must never block an otherwise valid session. Preserve tool-output compression, wrapper ownership, installer idempotency, existing evidence, and the no-daemon architecture. Do not claim raw provider responses, native request counts, cache hits, cache misses, or cache isolation.
+  overall_acceptance: GIVEN OpenCode emits normalized model-step telemetry during an ordinary session WHEN the ktx adapter is installed and its evidence is inspected THEN available cache observations are retained with honest identity and ordering semantics, missing data is harmless, tool compression is unchanged, and the integration is documented without provider-native claims.
+  scope:
+    included:
+      - A pinned behavioral contract for OpenCode model-step events, identity, ordering, deduplication, and fallback semantics
+      - Optional session-linked model-step persistence and bounded structured inspection
+      - Generated OpenCode adapter event capture alongside existing tool-result compression
+      - Global and project installation reporting, wrapper coexistence, documentation, offline verification, and state synchronization
+    excluded:
+      - Direct provider clients, raw successful provider responses, provider logs, and paid probes
+      - Cache hit or miss ratios, native provider request counts, namespace ownership, and isolation claims
+      - Reusing tool-call, benchmark-run, or retained experiment records as the ordinary-session telemetry store
+      - Changes to unrelated backlog items or final confirmation of provisional decisions
+    deferred:
+      - Provider-native cache-control probes and negative controls
+      - Stronger provider-specific telemetry if OpenCode later exposes an authoritative response hook
+  design: First pin the observable OpenCode event contract and state exactly which identity and ordering fields are authoritative or unavailable. Then retain accepted observations in a separate session evidence stream with bounded inspection and conservative failure behavior. Extend the generated adapter only after that contract is fixed, preserving the existing tool-result path and wrapper ownership rule. Finish by documenting the complete integration and verifying generated installation, wrapped and unwrapped behavior, compatibility, and project state.
+  unknowns:
+    - question: Does the supported OpenCode plugin event expose enough stable session, message, part, provider, and model identity to correlate and order observations without a second lookup?
+      affects_task: 1
+      resolve_by: Inspect the installed typed event contract and representative offline fixtures; retain only authoritative available fields and document any unavailable association rather than synthesizing it.
+  surprises:
+    []

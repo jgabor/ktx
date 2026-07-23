@@ -1,0 +1,14 @@
+id: bkxqswukrk
+artifact: progress
+record:
+  timestamp: 2026-07-23 15:20
+  type: feat
+  phase: build
+  what: Pinned the OpenCode 1.18.4 model-step telemetry contract in documentation and a strict collector/decoder with deterministic identity correlation, deduplication, local ordering, and conservative rejection fixtures.
+  context:
+    intent: Establish the observable OpenCode telemetry boundary needed before optional session telemetry persistence.
+    constraints: No persistence, adapter generation, direct-provider integration, or decision satisfaction changes were included.
+  inspiration: Active plan abigkdluzd task vuhfexydfu.
+  discovered: OpenCode step-finish parts carry authoritative session, message, and part IDs plus normalized cache measurements, but provider and model exist only on correlated assistant message updates; plugin events expose no source timestamp, sequence, provider request ID, or retry relation. The startup decision slice was degraded and omitted 27 of 31 entries, so omitted decisions were not treated as absent and no decision satisfaction was changed.
+  verified: go test ./internal/opencodetelemetry -run TestContractFixtures\|TestCollector -count=1 passed; mage check passed tests, vet, lint, and build with 0 issues.
+  next: Persist accepted observations separately as optional session telemetry; do not extend this contract into provider-native claims.

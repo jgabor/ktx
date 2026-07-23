@@ -1,0 +1,11 @@
+id: jiotzyyzci
+artifact: progress
+record:
+  timestamp: 2026-07-12 14:56
+  type: feat
+  phase: build
+  what: "Task 1: Subcommand extraction. Added Subcommand field to RouteRule and tomlRoute. New subcommandFromInput in router.go: skips binary name, skips flags, returns first non-flag token. ruleMatches checks Subcommand with same malformed-input-fails semantics as CommandPrefix. 9 new subtests."
+  verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Tests: go test -buildvcs=false ./... exit 0. AC1: TestLoad_RouteRules asserts Subcommand field. AC2-AC6: TestMatch_Subcommand with 9 subtests."
+  next: "Task 2: Recommended profiles and documentation."
+  context:
+    intent: Add subcommand extraction to the router so route rules can match on the subcommand token rather than only command prefix.

@@ -1,0 +1,29 @@
+id: hlchwycrqi
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-07-16
+    status: archived
+    title: "Plan: Unify Recorded-Stream Usage Evidence"
+  what: Give live benchmark runs and experiments one shared interpretation of recorded-stream usage evidence, including token, cost, cache, and reasoning totals and their completeness rules.
+  why: Recorded streams are the authoritative source for this evidence, but two independent interpretations currently duplicate the rules and can diverge. One interpretation makes benchmark evidence consistent and cheaper to maintain.
+  constraints: Preserve existing benchmark output and retained-evidence regeneration. Keep answer scoring, answer excerpts, model and agent metadata, and command-specific fallback behavior outside this work. Continue ignoring malformed non-evidence lines. Preserve the distinction between an absent value and an explicitly reported zero.
+  overall_acceptance: GIVEN a recorded stream is evaluated by either benchmark path WHEN usage evidence is reported THEN both paths apply the same aggregation and completeness rules and produce equivalent evidence.
+  scope:
+    included:
+      - Shared interpretation of step-finish usage evidence
+      - Consistent token, cost, cache, and reasoning aggregation
+      - Consistent completeness and absent-versus-zero behavior
+      - A common 64 MiB maximum record size for accepted stream evidence
+      - Regression coverage using shared representative streams
+    excluded:
+      - Answer scoring and answer excerpts
+      - Model and agent metadata extraction
+      - Wrapper-side enrichment of persisted tool calls
+      - New recorded-stream formats or runtime dispatch
+      - Changes to serialized benchmark and experiment output
+    deferred:
+      - Any broader consolidation of recorded-stream interpretation
+  surprises:
+    []

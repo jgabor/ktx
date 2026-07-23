@@ -1,0 +1,23 @@
+id: bhvkivyhpn
+artifact: plan
+record:
+  name: Establish runtime identity evidence
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN each supported OpenCode and Codex ingress WHEN its pinned contract is inspected THEN native correlation fields, provenance, and normalization inputs are recorded.
+    - GIVEN each relevant retry class WHEN repeated delivery is exercised THEN retained evidence identifies which tuples remain stable and eligible.
+    - GIVEN equivalent and changed deliveries WHEN equality is assessed THEN authoritative, ignored, enriched, and conflicting fields are explicit.
+    - GIVEN historical rows lack native correlation fields WHEN coexistence is assessed THEN migration necessity and cross-version duplication limits are resolved.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: .agentera/verification/runtime-identity-evidence.md classifies OpenCode wrapper replay, hook failure, re-execution, and restart but only Codex exact retries were exercised; cycle 34 therefore overclaims criterion 2.
+    provenance:
+      attempt_id: task-1-attempt-2
+      source: Independent reaudit verified corrected runtime identity evidence and progress cycle 35 against all four acceptance criteria.
+      recorded_at: 2026-07-15 23:40
+      writer_command: agentera state plan record-evaluation
+  plan: bzkbsxjouw

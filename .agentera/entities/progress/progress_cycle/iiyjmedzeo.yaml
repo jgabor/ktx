@@ -1,0 +1,10 @@
+id: iiyjmedzeo
+artifact: progress
+record:
+  timestamp: 2026-07-12 21:35
+  type: fix
+  phase: build
+  what: Converted historical Codex tool-call identities atomically
+  verified: go test ./internal/identity ./internal/db -count=1 passed; migration tests verified evidence preservation and all discovered foreign-key updates, ambiguous-tuple rollback, existing-target collision rollback, competing-row rollback, reopen idempotency, zero remaining eligible external Codex IDs, and foreign-key integrity; mage check passed with 0 issues
+  context:
+    intent: Replace noncanonical Codex primary keys and every dependent reference with deterministic canonical identities while rejecting ambiguous tuples, competing mappings, and collisions without partial changes

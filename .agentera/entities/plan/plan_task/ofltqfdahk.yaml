@@ -1,0 +1,14 @@
+id: ofltqfdahk
+artifact: plan
+record:
+  name: Resonera — benchmark methodology (D12)
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - "GIVEN the open deliberation 'Benchmark methodology v1' in ARCHITECTURE.md WHEN a resonera session records the choice THEN a new decision entry in `.agentera/decisions.yaml` documents: (a) task shape — identifier, prompt, ground-truth location, single-task minimum for v1; (b) scoring v1 — exact match against a known good output (boring default, deterministic); (c) trial count — N≥1 with methodology-documented handling of non-determinism; (d) methodology versioning — a version string on every `bench_runs` row; (e) `bench report` artifact shape — JSON default with `--format text` rendering the headline number and methodology reference"
+    - GIVEN the decision WHEN recorded THEN ARCHITECTURE.md 'Measurement and benchmark' open-deliberation item 'Benchmark methodology v1' moves to Decided with a short paragraph citing D12
+    - "GIVEN the decision WHEN recorded THEN a published methodology file exists at the path committed by D12 (recommended: `.agentera/bench/methodology-v1.yaml`) that a third party can read and follow"
+    - "GIVEN the decision WHEN recorded THEN the new entry has `confidence: firm` and a `feeds_into` list naming: schema migration (task 3), `ktx bench run`, `ktx bench report`, M4 compression impact on bench"
+    - GIVEN the methodology file WHEN a third party reads it THEN they can name every input that produced the published headline number (agent binary/version, model ID, task prompt, expected output, scoring function, trial count, ktx binary version, `bench_runs` row id) — the file is the reproducibility contract
+  plan: npqrhaezkv

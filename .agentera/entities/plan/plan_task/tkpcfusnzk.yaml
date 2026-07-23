@@ -1,0 +1,22 @@
+id: tkpcfusnzk
+artifact: plan
+record:
+  name: "Plugin template: slim to pure IPC shim"
+  depends_on:
+    - zxjzkcijsg
+  status: complete
+  acceptance:
+    - |
+      GIVEN the installed plugin template WHEN inspected THEN it does NOT contain an ID alphabet or ID generator.
+    - |
+      GIVEN the installed plugin template WHEN inspected THEN it does NOT contain field-extraction logic (tool name, args, or output extraction from callback objects).
+    - |
+      GIVEN the installed plugin template WHEN inspected THEN it contains runtime="opencode" in the payload sent to ktx hook (baked in at install time).
+    - |
+      GIVEN the installed plugin template WHEN inspected THEN it still contains the session noop guard, the PATH check, the subprocess invocation, and the output mutation from the envelope.
+    - |
+      GIVEN `ktx init opencode` WHEN run THEN the installed plugin file matches the slimmed template byte-for-byte.
+    - |
+      GIVEN the existing init tests WHEN run with the slimmed template THEN they pass (install/show/uninstall flow unaffected).
+  test_proportionality: 2 testable units (template-has-no-duplicate-logic, template-still-has-ipc-shim-logic); one pass per unit.
+  plan: qwgcryrgdq

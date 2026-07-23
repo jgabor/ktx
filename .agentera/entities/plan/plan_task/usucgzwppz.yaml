@@ -1,0 +1,15 @@
+id: usucgzwppz
+artifact: plan
+record:
+  name: ktx init opencode (TS plugin, tool.execute.after, --project/--uninstall/--show)
+  depends_on:
+    - cvqjtrxcjs
+  status: complete
+  acceptance:
+    - GIVEN ktx init opencode WHEN invoked THEN a TS plugin is written to ~/.config/opencode/plugins/ktx.ts
+    - GIVEN ktx init opencode --project WHEN invoked THEN the TS plugin is written to .opencode/plugins/ktx.ts
+    - GIVEN the installed plugin WHEN OpenCode runs and a tool executes THEN the plugin subscribes to tool.execute.after and calls ktx write with the tool_call JSON
+    - GIVEN the plugin WHEN KTX_SESSION_ID is present in the environment THEN it noops (does not call ktx write)
+    - GIVEN ktx init opencode --uninstall WHEN invoked THEN the plugin file is removed
+    - GIVEN ktx init opencode --show WHEN invoked THEN it reports whether the plugin is installed and where
+  plan: zymsplszbm

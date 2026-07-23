@@ -1,0 +1,7 @@
+id: haslqkjfrn
+artifact: progress
+record:
+  summary: "Cycle 22 (2026-07-12): Task 3: Pipeline wiring. compressPipeline calls router.Match to select profile, stagesForProfile resolves stages with default..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 0755310f8c8337e6d404abc6a02f8327f541c29dce34acede4762576e2c2bc9f

@@ -1,0 +1,31 @@
+id: qpakgfraes
+artifact: plan
+record:
+  name: Reorganise internal/db files by concern
+  depends_on:
+    - xmqtdlyphd
+  status: complete
+  files:
+    - internal/db/db.go
+    - internal/db/db_test.go
+    - internal/db/persist.go
+    - internal/db/persist_test.go
+    - internal/db/session.go
+    - internal/db/session_test.go
+    - internal/db/bench.go
+    - internal/db/bench_test.go
+    - internal/db/prices.go
+    - internal/db/prices_test.go
+    - internal/db/inspect.go
+    - internal/db/inspect_test.go
+    - internal/db/cost.go
+    - internal/db/cost_test.go
+    - internal/db/rollup.go
+    - internal/db/rollup_test.go
+  acceptance:
+    - GIVEN the reorg completes, WHEN the public symbols are enumerated (`git grep -n '^func [A-Z]\|^func (.*DB)' internal/db/*.go`), THEN each is in exactly one file matching its concern (`open.go` for Open/OpenMemory/OpenWithoutMigration/ResolvePath; `session.go` for ResolveSessionID/OpenNamedSession; `record.go` for PersistToolCall/GetToolCall/GetRecord/ListSessions/SessionM2Rollups/SessionExists/InsertSession/CloseSession/NewID/ContentHash; `bench.go` for InsertBenchRun/QueryBenchRuns/QueryBenchRun/SummarizeBenchToolCalls; `prices.go` for LoadPrices/PricesPath; `inspect.go` for CheckSchema/HasM2Columns/HasBenchRunsTable/HasBenchRunsColumns/SampleIDs; `cost.go` for costDeriver.Derive).
+    - GIVEN the reorg completes, WHEN the unexported symbols are enumerated (`git grep -n '^func [a-z]' internal/db/*.go`), THEN each is in exactly one file matching its concern (migrate/tableColumns/schemaStatements in open.go; readSessionFile/writeSessionFile/procAvailable/ppidStartTime/canReuse in session.go; costRoundDecimals in cost.go; pricesOnce/processPrices/resetPricesForTest in prices.go; queryer/sortedKeys/selectIDs in inspect.go; providerModel in bench.go).
+    - GIVEN the reorg completes, WHEN `go test ./...` runs, THEN every existing test passes byte-identical (no test file modifications other than rename/relocate within `internal/db/`).
+    - GIVEN the reorg completes, WHEN `go vet ./...` and `gofmt -l internal/db/*.go` run, THEN both produce no output (clean).
+    - GIVEN the reorg completes, WHEN the file sizes are inspected (`wc -l internal/db/*.go`), THEN no file exceeds 600 LOC and the average file size is below 450 LOC. `cost.go` is the smallest at < 150 LOC (deep module, minimal surface, includes costRoundDecimals constant).
+  plan: cwkcnuilrp

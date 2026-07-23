@@ -1,0 +1,16 @@
+id: bttaqnshfo
+artifact: progress
+record:
+  timestamp: 2026-07-17 20:12
+  type: chore
+  phase: build
+  what: Populated the five missing task-level evidence fields for active-plan Tasks 2–6 from retained progress entries 47–52, restoring the plan's authoritative completeness projection without changing task statuses or implementation.
+  inspiration: Orchestrator closure found that complete statuses without task-level evidence leave the active plan incomplete.
+  discovered: The active plan header and all task statuses were complete, but the plan projection requires evidence on every completed task; Tasks 2–6 lacked those fields despite retained audited progress.
+  verified: The exact command npx -y agentera@next state plan --format json returned status ok, not incomplete, after the updates. All seven tasks are complete and all seven task evidence fields are present; Tasks 1 and 7 evidence remained unchanged.
+  next: The active complete plan remains unarchived for orchestrator-owned closure.
+  context:
+    intent: Close the orchestrator audit failure by making already-verified task outcomes visible to the supported plan-state projection.
+    constraints: State closeout only. Preserved plan identity, statuses, acceptance criteria, Task 1 and Task 7 evidence, surprises, implementation, documentation, decisions, and decision satisfaction.
+    unknowns: None.
+    scope: .agentera/plan.yaml task evidence and agentera-managed progress evidence only.

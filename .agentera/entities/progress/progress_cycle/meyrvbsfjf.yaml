@@ -1,0 +1,16 @@
+id: meyrvbsfjf
+artifact: progress
+record:
+  timestamp: 2026-07-17 18:49
+  type: feat
+  phase: build
+  what: Added strict offline portable-fixture replay that emits deterministic integrity, parser, original benchmark, nullable usage/cost/cache, and controlled built-in compression evidence.
+  inspiration: Active portable replay fixture plan, Task 3.
+  discovered: Historical decision state remains degraded; no decision-satisfaction claim was made.
+  verified: Focused replay tests and the full internal/cli package passed; mage check passed all tests, vet, lint with 0 issues, and build; git diff --check passed. The matrix covers deterministic repeats, inaccessible database isolation, malformed and plugin-bearing configuration, nullable absent versus zero evidence, and integrity, parser, token, cost, cache, pipeline, and compression-measurement drift.
+  next: Preserve database-backed replay compatibility without weakening strict fixture verification.
+  context:
+    intent: Evaluate version 1 fixtures without SQLite, network, agents, credentials, containers, user state, configuration, or plugins, and reject every expectation divergence with inspectable evidence.
+    constraints: No retained fixture, repository gate, CI, broad documentation, session-replay consolidation, network access, user pipeline, or external stage execution.
+    unknowns: Database-backed and fixture envelope consolidation remains deferred to the next plan task.
+    scope: Portable file replay evaluator, focused tests, and matching CLI help text.

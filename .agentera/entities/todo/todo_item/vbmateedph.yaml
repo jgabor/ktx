@@ -1,0 +1,6 @@
+id: vbmateedph
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. → [Pipeline](ARCHITECTURE.md#pipeline)"

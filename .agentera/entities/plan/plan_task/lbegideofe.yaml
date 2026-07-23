@@ -1,0 +1,21 @@
+id: lbegideofe
+artifact: plan
+record:
+  name: M1 acceptance verification + ktx doctor (basic health)
+  depends_on:
+    - yqnsstyvvr
+    - jvwhlvdepg
+    - gzitpxocif
+    - linydjlkar
+    - zuxedrlsop
+    - uesujlfopd
+    - lqzkqxjrvq
+  status: complete
+  acceptance:
+    - GIVEN ktx run opencode run --format json "explain closures" WHEN the command completes THEN ktx list shows the session and ktx get <session-id> shows agent identity, input, and output
+    - GIVEN ktx init opencode WHEN installed and OpenCode TUI is used with a tool THEN ktx list shows the session with tool_calls persisted via the adapter path
+    - GIVEN ktx read <tool-call-id> WHEN invoked after either path THEN it returns the raw JSON record with all required fields
+    - GIVEN ktx doctor WHEN invoked THEN it checks database existence, schema validity, and ID format, and reports status as JSON
+    - GIVEN ktx doctor WHEN the database is missing or corrupt THEN it reports the issue and exit code is non-zero
+    - "GIVEN the full M1 flow WHEN complete THEN ROADMAP.md M1 acceptance is satisfied: an agent invocation produces a record in the database with agent identity, input, and output"
+  plan: anaemecwba

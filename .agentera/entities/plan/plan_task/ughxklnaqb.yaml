@@ -1,0 +1,17 @@
+id: ughxklnaqb
+artifact: plan
+record:
+  name: Inspect surface — M2 in ktx get and ktx list
+  depends_on:
+    - tvelpnehsn
+    - rvthuroycg
+  status: complete
+  acceptance:
+    - GIVEN a session with tool_calls that have non-NULL M2 fields WHEN ktx list --format text is invoked THEN the output table includes TOKENS (sum of tokens_in + tokens_out per call, summed across the session), COST, and MODEL columns derived from per-call roll-up of non-NULL values
+    - GIVEN a session with mixed (some NULL, some non-NULL) M2 fields WHEN ktx list --format text is invoked THEN the rollup sums the non-NULL values only (a session with 3 calls where 1 has NULL cost sums the 2 non-NULL costs, not zero)
+    - GIVEN a tool_call with M2 fields WHEN ktx get <id> --format text is invoked THEN a M2 section appears below the existing fields showing tokens_in, tokens_out, cost, model, provider, latency_ms
+    - GIVEN a tool_call with NULL M2 fields WHEN ktx get <id> --format text is invoked THEN no M2 section appears (no 0 / n/a placeholders)
+    - GIVEN any tool_call WHEN ktx get <id> (JSON) is invoked THEN the JSON includes the M2 fields as null when absent, with the value when set
+    - GIVEN a ktx list row WHEN the session has no non-NULL M2 fields THEN the COST/TOKENS columns show '-' (not 0, not n/a, not blank — explicit 'no data' marker that is visually distinct from a zero total)
+    - GIVEN a session WHEN ktx list (JSON, no --format) is invoked THEN the session row's JSON includes a top-level m2 object with tokens, cost, model rollup when any underlying call has non-NULL M2 fields, and omits or sets the m2 object to null when no underlying call has M2 data
+  plan: zgmcmzilab

@@ -1,0 +1,16 @@
+id: vvohkhgqgq
+artifact: plan
+record:
+  name: ktx candidates command
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a database with compressed rows linked to tool_calls WHEN ktx candidates runs THEN output lists tool and command groups ranked by total delivered tokens descending
+    - GIVEN a database with tool_calls that have no compressed rows WHEN ktx candidates runs THEN those calls appear with delivered tokens equal to raw tokens
+    - GIVEN a database with tool_calls WHEN ktx candidates --format json runs THEN output is a JSON array of objects with tool command calls total_raw_tokens total_delivered_tokens
+    - GIVEN a database where some commands were called strictly fewer than 2 times WHEN ktx candidates runs THEN those commands are excluded
+    - GIVEN a database where delivered tokens are strictly fewer than 50 for a group WHEN ktx candidates runs THEN that group is excluded
+    - GIVEN an empty database WHEN ktx candidates runs THEN output is empty text or an empty JSON array without error
+    - GIVEN ktx candidates with --limit 5 WHEN the database has more than 5 groups THEN only the top 5 by delivered tokens appear
+  plan: booohunfhp

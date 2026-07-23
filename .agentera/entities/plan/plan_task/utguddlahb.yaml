@@ -1,0 +1,17 @@
+id: utguddlahb
+artifact: plan
+record:
+  name: Documentation sync
+  depends_on:
+    - xgxebwvfca
+    - qzvcnucwbj
+    - haydnpetvk
+    - uppifmpohi
+    - ddhmxsbadw
+  status: pending
+  acceptance:
+    - "GIVEN Tasks 1-5 landed WHEN ARCHITECTURE.md is inspected THEN the In-flight compression hook (D22) section is updated to reflect Phase 2: configurable timeout, anti-worsening gate as fourth D14 invariant, four new built-in stages, A/B measurement surface."
+    - GIVEN Phase 2 is complete WHEN TODO.md is updated THEN any Phase 2-related TODOs are marked complete; no duplicate open items.
+    - GIVEN Phase 2 is complete WHEN ROADMAP.md is inspected THEN a Phase 2 note is added under the M5 section indicating that in-flight compression is now meaningful (deterministic stages, not just head:3) and measurable (--replay A/B).
+    - GIVEN the acceptance log at .agentera/verification/phase2-acceptance.md WHEN a reviewer reads it THEN it contains Build / Regression / Timeout AC / Anti-Worsening Gate AC / New Stages AC / A/B Measurement AC / Real-Session AC / VERIFICATION SUMMARY.
+  plan: lnsgjprfcm

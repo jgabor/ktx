@@ -1,0 +1,45 @@
+id: zgmcmzilab
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-06-19
+    status: archived
+    reviewed: 2026-06-19
+    critic_issues: 13 found, 13 addressed, 0 dismissed
+    title: M2 — Cost publication
+  what: Persist and surface per-call cost (tokens and dollars) so any record in the database can be inspected and its cost reconstructed from the stored data. M1 reserved the M2 fields in the Go ToolCall struct (D9) but did not add them to the SQL schema. M2 closes that gap and populates them from two ingress paths (wrapper, sidecar).
+  why: M2 is the cost contract's first proof. Without published cost, M3 (benchmark) has no input and the M1 evidence is half-formed. M2 also closes the 'Measurement' loop in the conceptual system (observe → classify → transform → measure → persist → report).
+  constraints: All firm decisions D1–D10 are hard constraints. Go stdlib first; pure-Go SQLite (no CGO). M2 fields are part of the existing flat JSON payload (D9) — no payload-shape change. ktx read stays raw JSON (mechanical I/O, no --format). ktx get/ktx list JSON default, --format text for humans. No ktx bench (M3), no compression (M4), no config file (M5), no new external deps. SQLite ALTER TABLE for in-place migration; no custom migration framework.
+  scope:
+    included:
+      - "M2 column migration on tool_calls: tokens_in INTEGER, tokens_out INTEGER, cost REAL, latency_ms INTEGER, model TEXT, provider TEXT"
+      - ktx write persists M2 fields from the D9 flat JSON payload (NULL when absent)
+      - ktx run extracts M2 fields from OpenCode --format json events when present (NULL when absent)
+      - ktx get --format text renders an M2 section when fields are non-NULL
+      - ktx list --format text adds TOKENS/COST/MODEL columns with per-session roll-up of non-NULL values
+      - ktx doctor flags missing M2 columns on pre-M2 databases as a normal-severity warning (not hard error)
+      - End-to-end M2 acceptance verification with regression check against M1
+    excluded:
+      - "Benchmark aggregation (M3: ktx bench run/report/compare, cost-per-correct)"
+      - Compression/transform and ktx hook bidirectional protocol (M4)
+      - ktx.toml config file and plugin registry (M5)
+      - ktx db --prune (post-M1 housekeeping, not M2)
+      - Automatic cost computation from tokens+model when caller does not supply cost — deferred to a post-M2 resonera
+    deferred:
+      - ktx bench commands (M3)
+      - ktx compress/decompress (M4)
+      - ktx.toml (M5)
+      - ktx db --prune (post-M1)
+      - Auto-compute cost from tokens+model when not supplied (post-M2 resonera)
+  design: "Two-phase. Phase A: Resonera (task 1) resolves the open 'Cost measurement mechanics' deliberation — token counting source, dollar model, reconstructability requirement, which fields ktx auto-populates vs requires from the caller. Phase B: implementation. The M2 columns are added to tool_calls via in-place ALTER TABLE inside the idempotent schema migration that Open() runs on every call; M1 databases upgrade without manual steps. ktx write already accepts the M2 fields in the D9 flat payload; the change is to persist them rather than drop them on the floor, and to map Go zero values to SQL NULL when the JSON omits the field. ktx run parses OpenCode event payloads for token/model fields when present; absent fields stay NULL. ktx get --format text adds an M2 section below the existing fields when any M2 field is non-NULL; ktx list --format text adds TOKENS (sum of tokens_in + tokens_out), COST, and MODEL columns derived from per-call roll-up of non-NULL values only. ktx doctor confirms M2 columns are present in the schema, flags pre-M2 databases as a normal-severity warning. Implementation risk: OpenCode --format json event shape for token/model is not yet verified for M2 fields; realisera must discover the schema empirically and map fields defensively (NULL when absent, never error on a missing M2 field). Implementation risk: distinguishing 'field absent' from 'field set to zero' in JSON output requires pointer types (*int64, *float64, *string) on the Go ToolCall struct — a struct-shape change that the M1 struct's omitempty semantics did not need. NULL preservation must survive the round-trip through ktx read (raw JSON) and ktx get (formatted). Critic issue #1 (addressed): task 4 originally assumed OpenCode --format json emits M2 fields in tool_use events. If empirical research shows it does not, task 4's success criterion cannot pass as written. Addressed by adding an acceptance branch: the empirical research finding IS the deliverable when the runtime does not emit M2 fields, and the M2 surface then relies on sidecar callers (task 3) for populated data. This is not a failure — it is a real-world finding the plan accommodates, and the rollup acceptance in task 5 is fulfilled by sidecar-populated sessions in either case."
+  overall_acceptance: GIVEN any persisted tool_call in the database WHEN inspected via ktx read <id> (JSON) or ktx get <id> (text) THEN the M2 fields appear when present and are NULL/absent otherwise. GIVEN any session with tool_calls WHEN ktx list is invoked THEN session-level cost and token totals are computed from non-NULL M2 fields (never inferred from zero values). GIVEN the M1 evidence WHEN re-inspected via the M2 binary THEN every M1 record still loads (additive migration, no breakage). GIVEN the cost-mechanics decision from task 1 WHEN applied to a known tokens_in/tokens_out/model triple THEN cost is reconstructable (either stored directly or computed from the decision's dollar model).
+  surprises: |
+    OpenCode --format json emits tokens/cost/model only on step_finish
+    (step-aggregate), not on tool_use (per-tool). Task 4 wrapper
+    therefore populates latency_ms (from part.state.time.{start,end})
+    and provider (defaulted to 'opencode' as the runtime-known single
+    exception) for tool_use rows; tokens_in/out/cost/model remain NULL
+    for OpenCode-emitted tool_calls. The sidecar path (Task 3) and any
+    future OpenCode shape that places them per-tool round-trip via the
+    defensive state.metadata / flat-fallback reads.

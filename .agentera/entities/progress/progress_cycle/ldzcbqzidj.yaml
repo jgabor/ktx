@@ -1,0 +1,11 @@
+id: ldzcbqzidj
+artifact: progress
+record:
+  timestamp: 2026-07-12 13:46
+  type: docs
+  phase: build
+  what: "Task 5: Expanded ktx.example.toml route-rules section with matching/fallback notes and examples. Added Command-aware routing section to docs/pipelines.md with signals table, first-match-wins, default fallback. Updated ARCHITECTURE.md L1 routing status from dormant to active. No Go source changes."
+  verified: "N/A: docs-only"
+  next: "Task 6: Current-state check."
+  context:
+    intent: "Document command-aware routing: example config, pipeline docs, architecture update."

@@ -1,0 +1,27 @@
+id: bztvtozujh
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-06-21
+    status: archived
+    title: Close Degraded finding and coverage gaps
+  what: Three tightly scoped changes after the post-plan inspektera audit. (1) Add `dbpkg.OpenWithoutMigration(*sql.DB) (*DB, error)` -- a public helper that constructs a `*DB` from an externally-managed `*sql.DB` without applying the migration. (2) Rewire `dbpkgDBFromSQL` in `dispatch_namespace_test.go` to call the new helper; the file loses its `unsafe.Pointer` cast and its `unsafe` import. (3) Add `internal/db/rollup_test.go` covering `SessionM2Rollups()` edge cases (empty DB, mixed-NULL aggregates, zero aggregate, single partial M2 call). (4) Add five method-level tests in `internal/db/persist_test.go` for `SessionExists`, `InsertSession`, `GetToolCall`, `GetSession`, `ListSessions`.
+  why: "The inspektera health audit (2026-06-21) flagged 1 Degraded and 2 Normal items. The Degraded is a real landmine: `dispatch_namespace_test.go:62` couples the pre-M3 doctor fixture to `dbpkg.DB`'s unexported struct layout via `unsafe.Pointer`; any future field added to `dbpkg.DB` silently mis-aligns the cast. The Normal items are coverage gaps: `SessionM2Rollups()` is exercised only transitively via integration tests, and 5 public methods on `*DB` lack per-method regression surface. All three resolve to ~200 LOC of new code. The `OpenWithoutMigration` helper also primes the deepening backlog (provides a natural seam for the future db reorganisation)."
+  constraints: D1-D12 firm decisions stand. Go stdlib first, no new deps. Existing tests must keep passing. `dbpkg.OpenWithoutMigration` is exported (production-re-usable, not build-tag-scoped) so future deepening work can use it without unsafe. No production call site changes -- only test fixtures and one new public helper. Total LOC delta <= 250.
+  scope:
+    included:
+      - "`dbpkg.OpenWithoutMigration(*sql.DB) (*DB, error)` in `internal/db/db.go`."
+      - "`dbpkgDBFromSQL` rewired in `internal/cli/dispatch_namespace_test.go`; `unsafe` import removed."
+      - "`internal/db/rollup_test.go` (new) covering `SessionM2Rollups` edge cases."
+      - "Five method-level tests in `internal/db/persist_test.go`: `SessionExists`, `InsertSession`, `GetToolCall`, `GetSession`, `ListSessions`."
+      - "`TODO.md` \"-> Deepening\" section preamble updated to note that `OpenWithoutMigration` is now available, removing the `dbpkg` file reorganisation candidate's coupling concern."
+    excluded:
+      - Production call site changes.
+      - Migration logic changes.
+      - Cost-deriver consolidation, event-parser extraction, M4 reversible compression (separate plans).
+    deferred:
+      - PreParse generalization to `func(args) (rest, parsed, err)` (defer until the third PreParse user lands).
+      - "`runDispatch` options-bag refactor (cosmetic)."
+      - TODO.md '-> Deepening' candidates (cost-deriver, db reorg, event parser) -- these are now well-primed by this plan but remain separate work.
+  overall_acceptance: 'GIVEN `dbpkg.OpenWithoutMigration(db)`, WHEN called with a `*sql.DB` opened against `:memory:` with M1 columns only and no `bench_runs` table, THEN the returned `*DB` operates on the existing schema without applying migrations; inserting a tool_call succeeds; `db.HasBenchRunsTable()` returns false. GIVEN the rewired `dispatch_namespace_test.go` fixture using `OpenWithoutMigration`, WHEN the doctor AC3 test runs, THEN it produces the same `degraded` envelope on a pre-M3 database; the test file contains no `unsafe.Pointer` reference and no `unsafe` import. GIVEN a new `internal/db/rollup_test.go`, WHEN run against an in-memory database populated with edge-case sessions (empty DB, sessions with mixed-NULL tokens/cost/model, sessions with zero aggregates, sessions with a single partial M2 call), THEN every edge case produces the documented rollup map: nil pointers for absent aggregates, non-nil pointers to zero for present-but-zero aggregates. GIVEN five new method-level tests in `internal/db/persist_test.go`, WHEN `SessionExists("")`, `InsertSession` (collision), `GetToolCall("missing")`, `GetSession("missing")`, and `ListSessions()` (empty DB) are exercised, THEN each returns its documented contract: `false`, FK-violation error, `ErrNotFound`, `ErrNotFound`, and `[]Session{}` (non-nil empty slice) respectively. GIVEN the full suite, WHEN `go test ./...` runs, THEN every existing test passes; the new code adds <= 250 LOC of test + ~15 LOC of production helper; the production code path contains no `unsafe` import.'

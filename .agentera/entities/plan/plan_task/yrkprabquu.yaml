@@ -1,0 +1,13 @@
+id: yrkprabquu
+artifact: plan
+record:
+  name: Documentation and current-state check
+  depends_on:
+    - syyqktftky
+    - vvohkhgqgq
+  status: complete
+  acceptance:
+    - GIVEN a user reading ktx.example.toml WHEN they look for replace THEN they find a commented example showing the replace stage syntax
+    - GIVEN a user reading docs/pipelines.md WHEN they look for filter packs THEN they find a section explaining how to combine routing profiles and the replace stage into a filter pack with a worked example
+    - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test ./... run THEN both exit zero
+  plan: booohunfhp

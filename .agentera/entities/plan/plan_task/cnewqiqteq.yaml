@@ -1,0 +1,13 @@
+id: cnewqiqteq
+artifact: plan
+record:
+  name: Refactor compressLogic to return values instead of printing to stdout
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN compressLogic is refactored to return (compressedID, compressedOutput string, pipelineJSON string, error) WHEN ktx compress <id> runs THEN the compressed id is printed to stdout as raw JSON (identical to current behavior); M4 acceptance tests pass byte-identical.
+    - GIVEN the refactored core compress function WHEN called by ktx hook THEN it returns the compressedID, compressedOutput, and pipelineJSON as values (not via stdout) so ktx hook can format them into the envelope.
+    - GIVEN the refactored compressLogic WHEN no ktx.toml exists (passthrough pipeline) THEN compressedOutput equals source.Output and pipelineJSON is [] (passthrough, unchanged from M4).
+    - GIVEN go test ./... runs THEN every M1-M5 test passes (no regression from the refactor).
+  plan: mnmjhmbpel

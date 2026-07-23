@@ -1,0 +1,15 @@
+id: gayhtqphka
+artifact: plan
+record:
+  name: Hook envelope wiring (content-only DB row, footer in envelope)
+  depends_on:
+    - wrnfsbjgdm
+  status: complete
+  acceptance:
+    - GIVEN recover_footer enabled, pipeline transformed, and footer gate passed WHEN ktx hook runs THEN envelope.Output = compressed content + footer; compressed_id populated when a row is created.
+    - GIVEN recover_footer enabled WHEN the compressed row is persisted to the DB THEN the DB row Output field is content-only (no footer bytes).
+    - GIVEN recover_footer enabled and footer gate suppressed the transform WHEN ktx hook runs THEN envelope.Output = source output unchanged (no footer); compressed_id is null (no row created).
+    - GIVEN recover_footer disabled WHEN ktx hook runs THEN envelope.Output = compressed content unchanged (no footer); behavior byte-identical to pre-D23.
+    - GIVEN the plugin template (unchanged) WHEN envelope.Output is set THEN output.output = envelope.output (footer propagates without plugin modification).
+  test_proportionality: 3 testable units (footer-in-envelope, content-only-row, disabled-noop); one pass + one fail per unit.
+  plan: iodsixrygb

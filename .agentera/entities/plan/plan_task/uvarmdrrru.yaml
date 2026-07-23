@@ -1,0 +1,15 @@
+id: uvarmdrrru
+artifact: plan
+record:
+  name: Evaluate portable fixtures offline
+  depends_on:
+    - cjjuanlxst
+    - jxqgzxqimm
+  status: complete
+  acceptance:
+    - GIVEN only a valid fixture WHEN file replay runs THEN integrity, parser, original comparison, usage, cost, cache, and compression evidence are emitted without opening a database or requiring network, agent, container, credential, or user-local state.
+    - GIVEN the same fixture and binary WHEN replay repeats THEN all evidence fields are deterministic.
+    - GIVEN hostile, malformed, or plugin-bearing user configuration WHEN fixture replay runs THEN the fixture's controlled built-in pipeline is authoritative and external stages cannot affect the result.
+    - GIVEN invalid integrity, parser count, usage, cache, cost, or compression expectations WHEN strict fixture verification runs THEN inspectable evidence is emitted and the operation exits nonzero.
+  evidence: Retained progress 49 records strict offline fixture replay emitting deterministic integrity, parser, original benchmark, nullable usage/cost/cache, and controlled built-in compression evidence. Focused replay tests and go test ./internal/cli passed; mage check passed tests, vet, lint with 0 issues, and build; git diff --check passed. The retained test matrix covered repeated deterministic output, inaccessible-database isolation, malformed and plugin-bearing configuration, absent-versus-zero evidence, and integrity, parser, token, cost, cache, pipeline, and compression-measurement drift.
+  plan: werahgotke

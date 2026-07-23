@@ -1,0 +1,18 @@
+id: eqegxytsev
+artifact: plan
+record:
+  name: Add test seams
+  status: complete
+  files:
+    - internal/db/db.go
+    - internal/db/prices.go
+    - internal/cli/run.go
+    - internal/cli/testutil/testutil.go
+  acceptance:
+    - GIVEN `dbpkg.OpenMemory()`, WHEN called, THEN it returns a `*DB` backed by `:memory:` SQLite with `foreign_keys=1` and the full schema migrated; no file path needed.
+    - GIVEN `prices.WithHTTPClient(c)` on the `Prices` cache, WHEN `Refresh` is called, THEN the supplied `*http.Client.Do` is invoked instead of `http.DefaultClient.Do`; the manual-refresh hard-fail contract is preserved.
+    - GIVEN `executeRun` called with a stub `runCmd` returning a fake `*exec.Cmd` writing 'ok' to stdout and exiting 0, WHEN invoked, THEN the agent's stdout passes through to ktx's stdout and exit code is 0.
+    - GIVEN `testutil.WithTempXDG(t)`, WHEN any session-file operation runs, THEN `XDG_RUNTIME_DIR` points at `t.TempDir()/run` and `XDG_DATA_HOME` points at `t.TempDir()/share`; restored on test exit.
+  depends_on:
+    []
+  plan: ppfsaqcxml

@@ -1,0 +1,7 @@
+id: nvfheqaysu
+artifact: progress
+record:
+  summary: "Cycle 2 (2026-06-19): ToolCall struct gains pointer types (*int64 / *float64 / *string) on the six M2 cost-publication..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: ee0a01f2c3ce8bc8482c716dcf1ecd93383bc1ca2cbf4f49b57c925cdc56dc76

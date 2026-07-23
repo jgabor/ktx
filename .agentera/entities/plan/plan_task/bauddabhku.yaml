@@ -1,0 +1,23 @@
+id: bauddabhku
+artifact: plan
+record:
+  name: Make eligible retries evidence-safe
+  depends_on:
+    - jwhymqypnw
+  status: complete
+  acceptance:
+    - GIVEN sequential or concurrent exact eligible retries WHEN evidence persists THEN one source, one roll-up increment, and at most one compressed artifact remain.
+    - GIVEN changed authoritative evidence reuses an eligible identity WHEN persistence is attempted THEN the first record remains unchanged and a conflict is reported.
+    - GIVEN pipeline configuration changes between exact retries WHEN output is returned THEN behavior follows the recorded authority policy without silently replacing evidence.
+    - GIVEN fallback NanoID deliveries repeat WHEN they persist THEN they remain distinct observations.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: task-4-attempt-1
+      source: Independent review verified atomic source/artifact convergence, conflicts, first-artifact authority, fresh fallback, race tests, and cycle 39 substantive evidence; archive hygiene is carried to Task 6.
+      recorded_at: 2026-07-16 05:51
+      writer_command: agentera state plan record-evaluation
+  plan: bzkbsxjouw

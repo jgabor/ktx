@@ -1,0 +1,17 @@
+id: hitnzaijss
+artifact: decisions
+record:
+  summary: "Decision 9 (2026-06-17): Flat JSON tool_call. Required: id, session_id, tool, input, output, content_hash, timestamp. Optional: tokens_in, tokens_out, cost,..."
+  date: 2026-06-17
+  choice: "Flat JSON tool_call. Required: id, session_id, tool, input, output, content_hash, timestamp. Optional: tokens_in, tokens_out, cost, latency_ms, model, provider. ktx auto-creates bare session if session_id absent. event_type field (default tool_call; session_close for close payloads with just session_id + timestamp). One command, two payload shapes, backward-compatible."
+  feeds_into: M1 implementation, ktx write command, store implementation
+  satisfaction:
+    state: user_confirmed_satisfied
+    evidence: M1 + M2 both consume and emit the same flat JSON envelope for ktx write (sidecar) and ktx read (raw I/O). M2 added six optional fields (tokens_in, tokens_out, cost, latency_ms, model, provider) without changing the payload shape — they ride on the existing keys, and `omitempty` is intentionally NOT applied to M2 fields so absent vs explicit-zero round-trips correctly. JSON output of ktx read / ktx get is byte-identical between the two paths (both route *store.ToolCall through json.NewEncoder.Encode). End-to-end sidecar round-trip is documented in .agentera/verification/m2-acceptance.md AC2 with absent-vs-zero distinction preserved across all three scenarios.
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-06-19
+  outcome: "Flat JSON tool_call. Required: id, session_id, tool, input, output, content_hash, timestamp. Optional: tokens_in, tokens_out, cost, latency_ms, model, provider. ktx auto-creates bare session if session_id absent. event_type field (default tool_call; session_close for close payloads with just session_id + timestamp). One command, two payload shapes, backward-compatible."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: 1c8cfe5deb2fc961385f08c72b581d71c90c6cd34586ef3dd34b8e9114ab13a5

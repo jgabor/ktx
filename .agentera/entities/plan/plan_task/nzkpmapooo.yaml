@@ -1,0 +1,20 @@
+id: nzkpmapooo
+artifact: plan
+record:
+  name: "Hook: Codex output formatting (decision/reason envelope)"
+  depends_on:
+    - bzmobsaolp
+  status: complete
+  acceptance:
+    - |
+      GIVEN a Codex PostToolUse payload and a configured compression pipeline that transforms the output WHEN ktx hook runs THEN stdout contains valid JSON with decision="block" and reason set to the compressed output (with footer if enabled).
+    - |
+      GIVEN a Codex PostToolUse payload and no compression pipeline configured (passthrough) WHEN ktx hook runs THEN stdout contains empty JSON {} and the original tool result is unchanged.
+    - |
+      GIVEN a Codex PostToolUse payload where the pipeline ran but the anti-worsening gate suppressed the transform WHEN ktx hook runs THEN stdout contains empty JSON {} (passthrough, same as no compression).
+    - |
+      GIVEN an OpenCode payload with runtime="opencode" WHEN ktx hook runs THEN stdout contains the existing ktx envelope format (backward compatible, not affected by Codex output formatting).
+    - |
+      GIVEN the recovery footer is enabled and compression transformed the output WHEN ktx hook runs with a Codex payload THEN the reason field contains the compressed output followed by the recovery footer line.
+  test_proportionality: 3 testable units (codex-compressed-block, codex-passthrough-empty, opencode-unaffected); one pass per unit.
+  plan: tyhjhmlrcr

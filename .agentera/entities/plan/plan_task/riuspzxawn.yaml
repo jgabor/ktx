@@ -1,0 +1,12 @@
+id: riuspzxawn
+artifact: plan
+record:
+  name: "Documentation: recover_footer knob in example config + help text"
+  depends_on:
+    - gayhtqphka
+  status: complete
+  acceptance:
+    - GIVEN the example config file WHEN reading it THEN recover_footer appears documented with default false, a one-line description, and a note that it surfaces source_id in agent context when enabled.
+    - GIVEN ktx hook --help WHEN reading it THEN the recovery footer is mentioned under the recover_footer config flag, including the recovery command `ktx read <source_id>`.
+  test_proportionality: 2 testable units (example config, help text); one pass per unit (documentation, no fail case).
+  plan: iodsixrygb

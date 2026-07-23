@@ -1,0 +1,16 @@
+id: aycgyjpldq
+artifact: progress
+record:
+  timestamp: 2026-07-17 20:38
+  type: fix
+  phase: build
+  what: Updated internal/cli/bench_fixture.go to require hexadecimal stream.sha256 text before replay evaluation; added malformed-digest and strict-drift regression coverage; clarified the exact 64-character contract in docs/pipelines.md.
+  inspiration: Active replay digest remediation plan and reproduced audit finding.
+  discovered: The implementation already enforced length and lowercase but allowed 64 non-hexadecimal characters. An initial smoke invocation also confirmed that --json is not a bench run flag; the documented default JSON invocation was then used successfully.
+  verified: Focused replay tests passed; go test ./internal/cli -count=1 passed; mage verify passed tests, vet, lint with 0 issues, build, and the retained replay gate. build/ktx rejected 64 g characters with exit 1, invalid-replay-fixture, correction guidance, and empty stdout.
+  next: The remediation task and plan can be marked complete from local evidence; do not infer hosted CI execution or decision satisfaction, and do not stage the pre-existing portable replay plan archive transition.
+  context:
+    intent: Restore malformed portable replay digests to the documented input-validation path without changing valid replay or syntactically valid drift evidence.
+    constraints: Digest validation, focused tests, runbook accuracy, and state closeout only. Preserved valid replay and syntactically valid content, digest, and expectation drift behavior.
+    unknowns: Hosted CI was not observed. Historical decision state remains degraded and was not used for satisfaction claims.
+    scope: internal/cli/bench_fixture.go, internal/cli/bench_fixture_test.go, docs/pipelines.md, and agentera-managed remediation plan/progress state.

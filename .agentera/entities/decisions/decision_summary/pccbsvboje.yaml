@@ -1,0 +1,16 @@
+id: pccbsvboje
+artifact: decisions
+record:
+  summary: "Decision 4 (2026-06-15): JSON by default for ktx get, ktx list, and ktx bench. --format text for human-readable..."
+  date: 2026-06-15
+  choice: "JSON by default for ktx get, ktx list, and ktx bench. --format text for human-readable output. ktx read always returns raw JSON (store primitive, no format flag). Five global flags: --format (text|json, default json), --quiet/-q (suppress stderr run summary), --store path (record store location override; default $XDG_DATA_HOME/ktx/store/), --help/-h, --version/-v."
+  feeds_into: All command output implementations, flag parsing layer
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-07-09
+  outcome: "JSON by default for ktx get, ktx list, and ktx bench. --format text for human-readable output. ktx read always returns raw JSON (store primitive, no format flag). Five global flags: --format (text|json, default json), --quiet/-q (suppress stderr run summary), --store path (record store location override; default $XDG_DATA_HOME/ktx/store/), --help/-h, --version/-v."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: 1b8e8d009e7423a69b0d237407a3e06f73c16d818613ecad05e93930fb2ebbd7

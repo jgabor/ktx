@@ -1,0 +1,6 @@
+id: urnhagptpz
+artifact: decisions
+record:
+  state: provisionally_satisfied
+  evidence: Schema-v3 summaries now publish deterministic robust distributions, cycle-paired deltas, explicit unpaired attempts, sample classifications, and non-excluding Tukey annotations. Ranking exposes paired token, cache, and estimated cost means only for v3 evidence. Focused summary/ranking/validation tests pass, legacy v1/v2 and ranking goldens remain byte-identical, and mage check passes on 2026-07-15. Awaiting user confirmation.
+  decision: hmsncavikm

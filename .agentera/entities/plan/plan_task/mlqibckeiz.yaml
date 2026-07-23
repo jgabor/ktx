@@ -1,0 +1,17 @@
+id: mlqibckeiz
+artifact: plan
+record:
+  name: Verify and synchronize final state
+  depends_on:
+    - dqndtgqhyi
+    - hsfzssgczr
+    - tiefkhegac
+    - rwylzfdrda
+    - ctarpiwslf
+    - xozxgrsdif
+  status: pending
+  acceptance:
+    - GIVEN all retained fixtures and offline checks WHEN repository verification runs headlessly THEN tests, vet, lint, build, deterministic summary regeneration, and cache-evidence validation pass without provider credentials or network access.
+    - GIVEN the capability matrix and control evidence WHEN benchmark documentation is read THEN request-level versus attempt-level semantics, evidence strengths, unavailable-provider handling, and isolation limits agree with command behavior.
+    - GIVEN plan completion WHEN project state is synchronized THEN only bundled TODO items backed by retained evidence are removed or marked complete, provider-visible prefix characterization becomes the next cache priority, verified work is recorded in progress, and unresolved deliberations remain open.
+  plan: dmbslbvrlk

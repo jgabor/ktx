@@ -1,0 +1,16 @@
+id: juxcewxpkq
+artifact: decisions
+record:
+  summary: "Decision 5 (2026-06-15): Single TOML config file (ktx.toml) using github.com/BurntSushi/toml, at $XDG_CONFIG_HOME/ktx/ktx.toml (user-level only; project-root scope was dropped..."
+  date: 2026-06-15
+  choice: "Single TOML config file (ktx.toml) using github.com/BurntSushi/toml, at $XDG_CONFIG_HOME/ktx/ktx.toml (user-level only; project-root scope was dropped — ktx is not project-scoped). Shell macro arrays with content-type routing: each content type maps to an array of shell commands forming a pipeline. Content type detected from bytes (JSON, logs, code, prose). The pipeline can include memory-aware stages (shell macros calling go-agent for async distillation; content-type routing into a `memory` pipeline). Inline arrays only — no named macros in config. External scripts are the reuse mechanism. No custom DSL."
+  feeds_into: M5 implementation, config file schema, content-type detection, BurntSushi/toml dependency
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-07-09
+  outcome: "Single TOML config file (ktx.toml) using github.com/BurntSushi/toml, at $XDG_CONFIG_HOME/ktx/ktx.toml (user-level only; project-root scope was dropped — ktx is not project-scoped). Shell macro arrays with content-type routing: each content type maps to an array of shell commands forming a pipeline. Content type detected from bytes (JSON, logs, code, prose). The pipeline can include memory-aware stages (shell macros calling go-agent for async distillation; content-type routing into a `memory` pipeline). Inline arrays only — no named macros in config. External scripts are the reuse mechanism. No custom DSL."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: 2f66fbef1486310c44a608c7fa04857fa3e51cc7430b33d27b6b238bb615d9f6

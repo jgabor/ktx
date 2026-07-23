@@ -1,0 +1,15 @@
+id: cyayibhmnt
+artifact: plan
+record:
+  name: Capture trigger — persist stream in runBenchRun (D20 step 1 capture, M3 path unchanged)
+  depends_on:
+    - ggtbnudltw
+  status: complete
+  acceptance:
+    - GIVEN runBenchRun (internal/cli/bench.go) already holds agentStdoutBytes := agentStdout.Bytes() (bench.go:1049, the snapshot taken before extractStreamMetrics/extractAgentOutput consume the bytes via bufio.Scanner) WHEN a successful InsertBenchRun returns br.ID THEN runBenchRun calls InsertRecordedStream with a RecordedStream whose stream_text = string(agentStdoutBytes), session_id = the sessionID from findWrapperSession, bench_run_id = br.ID, content_hash = dbpkg.ContentHash(string(agentStdoutBytes)), stream_format = 'opencode-jsonl-1', captured_at = time.Now().UTC().Format(time.RFC3339Nano) — exactly one INSERT after the InsertBenchRun call
+    - GIVEN a successful `ktx bench run` invocation WHEN the command concludes THEN ktx.db holds BOTH a bench_runs row AND a recorded_streams row, linked via the same bench_run_id and session_id, AND recorded_streams.content_hash equals SHA-256 of recorded_streams.stream_text (verified by re-reading the row and recomputing)
+    - GIVEN the existing runBenchRun stderr summary line (bench.go:1190, D1 wrapper convention) WHEN the command concludes THEN the summary is unchanged from M3 (the headline, methodology, score, cost, tokens are all still present); the capture step adds NO new stderr line in the success path (capture is silent on success; the headline JSON envelope on stdout is unchanged from M3)
+    - "GIVEN the capture is a D20-dependent secondary artifact (the headline is the primary product of runBenchRun) WHEN InsertRecordedStream fails (e.g., FK rejection, disk full, schema error) THEN the failure is a NON-FATAL warning: a one-line `ktx: warning: failed to record stream for --replay: <err>` is written to stderr AND the bench run STILL exits 0 with the headline printed to stdout (the bench_runs row was already persisted; --replay simply will be unavailable for this session) — soft-fail mirrors the D11 cost-derivation soft-fail policy"
+    - GIVEN the capture step is extracted into a small helper (captureStreamForBenchRun(db, sessionID, benchRunID, streamBytes) error) so the capture is unit-testable in isolation WHEN the helper is unit-tested against an in-memory OpenMemory() DB with a seeded session and bench_run THEN it persists the RecordedStream row and the test asserts all 7 columns without spawning any subprocess — the existing runBenchRun end-to-end test (which spawns a fake binary) is NOT required to exercise the capture step
+    - "GIVEN runBenchRun's existing flow is preserved WHEN --replay is NOT set THEN every M3 behavior is byte-identical: agent spawn, methodology validation, findWrapperSession, SummarizeBenchToolCalls, extractStreamMetrics, extractAgentOutput, scoreExactMatch, InsertBenchRun, re-fetch, computeHeadline, emit envelope — the ONLY addition is the one InsertRecordedStream call (which silently no-ops or warns on failure); the M3 regression test suite stays green"
+  plan: akjhpurupo

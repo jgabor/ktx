@@ -1,0 +1,15 @@
+id: sepakyyada
+artifact: plan
+record:
+  name: "State sync: progress entry"
+  depends_on:
+    - oukbrhnesq
+    - bzmobsaolp
+    - nzkpmapooo
+    - eaqbxtznqv
+    - ezithhdfdd
+  status: complete
+  acceptance:
+    - |
+      GIVEN all prior tasks complete and verified WHEN the state sync runs THEN progress records the Codex hook integration as one cycle entry summarising: ktx init codex installs PostToolUse hook, hook auto-detects Codex input, output formatting via decision/reason, KTX_SESSION_ID noop guard, hooks.json merge.
+  plan: tyhjhmlrcr

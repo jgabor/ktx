@@ -1,0 +1,6 @@
+id: tboojlmkyq
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Single pipeline resolution per operation** — Load configuration once for each hook or replay operation, resolve routing and profile settings through one path, and report the profiles and stages that ran. Do not expand the stage contract. → [Pipeline](ARCHITECTURE.md#pipeline)"

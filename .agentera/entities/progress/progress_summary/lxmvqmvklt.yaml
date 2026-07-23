@@ -1,0 +1,7 @@
+id: lxmvqmvklt
+artifact: progress
+record:
+  summary: "Cycle 18 (2026-07-11): Plugin boundary consolidation: moved ID generation, timestamp generation, and field extraction from the OpenCode plugin..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 6992168838a3269a91c5f6d3cdf424587f0788c7fb039338676e7a436214a5f9

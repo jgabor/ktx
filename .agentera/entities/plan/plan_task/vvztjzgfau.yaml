@@ -1,0 +1,15 @@
+id: vvztjzgfau
+artifact: plan
+record:
+  name: Baseline profiles for bash commands and documentation
+  depends_on:
+    - zkvziihvdf
+  status: pending
+  acceptance:
+    - GIVEN an ls tool call with include_defaults enabled WHEN compression runs THEN the profile strips ANSI and normalizes line endings and the file entries are preserved
+    - GIVEN a find tool call with include_defaults enabled WHEN compression runs THEN the profile strips ANSI and the path entries are preserved
+    - GIVEN a user reading ktx.example.toml WHEN they look for subcommand routing THEN they find examples showing the Subcommand field
+    - GIVEN a user reading ktx.example.toml WHEN they look for embedded defaults THEN they find the include_defaults directive and a list of what profiles ship built-in
+    - GIVEN a user reading docs/pipelines.md WHEN they look for embedded defaults THEN they find a section explaining the include mechanism, what profiles ship, and how user config overrides them
+    - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test ./... run THEN both exit zero
+  plan: vengvkwlsk

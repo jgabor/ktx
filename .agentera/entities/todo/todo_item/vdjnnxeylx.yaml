@@ -1,0 +1,6 @@
+id: vdjnnxeylx
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Savings attribution** — Run structured deliberation and record the attribution and aggregation contract without double-counting or replacing raw cache distributions with a generic hit ratio. → [Question](ARCHITECTURE.md#savings-attribution)"

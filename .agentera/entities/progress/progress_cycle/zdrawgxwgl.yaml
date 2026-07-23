@@ -1,0 +1,16 @@
+id: zdrawgxwgl
+artifact: progress
+record:
+  timestamp: 2026-07-12 22:25
+  type: refactor
+  phase: build
+  what: Removed the permanent historical Codex identity conversion and its tests, deleted migration guidance and indexing, and narrowed architecture wording to the current Codex-only identity boundary while preserving canonical retry-safe ingestion and legacy flat ingress.
+  inspiration: The user rejected permanent backward-compatibility machinery for a product with no released users.
+  discovered: Agentera refused the required new decision because 12 protected active decisions exceed its 10-entry review capacity; no prior satisfaction state was changed or inferred.
+  verified: go test -race ./internal/identity ./internal/db ./internal/cli -count=1 passed; mage check passed all packages with 0 lint issues; README.md and .agentera/docs.yaml docs lint passed; ARCHITECTURE.md had only its pre-existing full-file word-budget advisory; reference scan and git diff --check passed.
+  next: Record the approved decision revision after the user reviews enough active decision satisfaction to clear Agentera's protected capacity.
+  context:
+    intent: Make the unreleased sole-user product contract equal to the desired current state after the sole live database was backed up and converted once externally.
+    constraints: Did not touch the local database, installed binary, historical archived plan/progress, canonical Codex derivation, retry conflict handling, or legacy flat ingress.
+    unknowns: none
+    scope: internal/db/schema.go; deleted internal/db/codex_identity_migration.go and tests; README.md; deleted docs/migrations.md; .agentera/docs.yaml; ARCHITECTURE.md; .agentera/progress.yaml

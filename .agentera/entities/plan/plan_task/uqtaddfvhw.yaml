@@ -1,0 +1,15 @@
+id: uqtaddfvhw
+artifact: plan
+record:
+  name: Restore the portable replay digest contract
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a version-1 portable replay fixture WHEN its stream digest syntax is validated THEN it is syntactically valid only when it contains exactly 64 characters drawn from lowercase hexadecimal digits.
+    - GIVEN a stream digest that is missing, the wrong length, uppercase, or contains a non-hexadecimal character WHEN file replay is requested THEN replay evaluation does not run, exit 1 reports the invalid-replay-fixture class with the documented correction, and no replay evidence envelope is emitted.
+    - GIVEN a syntactically valid lowercase digest WHEN the fixture is replayed THEN a matching digest preserves the valid-fixture outcome, while intentional content, digest, or expectation drift still emits inspectable failure evidence with the documented verification-failure class and exit 4.
+    - GIVEN the remediation and proportional regression coverage are complete WHEN focused replay-fixture tests and the repository mage verify gate run and the user documentation is reviewed THEN the tests and gate pass and the documentation remains accurate or is corrected to match observable behavior.
+    - GIVEN verified remediation evidence and degraded historical decision or progress state WHEN the task reaches final state and the plan is eligible for archival THEN closeout records only established evidence and does not infer decision satisfaction or hosted CI results.
+  evidence: internal/cli digest regressions prove missing, wrong-length, uppercase, and 64-g values exit 1 with invalid-replay-fixture, correction guidance, and no envelope. Valid fixtures still PASS; syntactically valid content, digest, and expectation drift emits FAIL evidence and exact exit 4. go test ./internal/cli -count=1 and mage verify passed locally; docs/pipelines.md states exactly 64 lowercase hexadecimal characters. Progress entry 55 records the built-binary malformed-digest smoke result. No hosted CI result or decision satisfaction is claimed.
+  plan: wnguwrbwcs

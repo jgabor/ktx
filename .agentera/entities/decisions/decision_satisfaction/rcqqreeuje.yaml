@@ -1,0 +1,6 @@
+id: rcqqreeuje
+artifact: decisions
+record:
+  state: provisionally_satisfied
+  evidence: Methodology v5 is embedded and opt-in; benchmark image identities are inspected and normalized before capability resolution, and tests gate the runtime adapter to OpenCode exactly 1.18.0 while the prior pinned 1.17.15, unsupported, malformed, and unknown versions fall back or fail before agent execution. Focused orchestration tests verify setup counts and counterbalancing, measured alternation, target exclusion, namespace stability and non-retention, and observed fallback. Methodology-aware validation tests cover strict measured targets, phase topology, schema 3, pricing evidence, namespace reuse and drift, manifest/attempt mismatch, short/uppercase/nonhex/raw namespace values, observed-mode hash rejection, metadata consistency, valid observed and isolated evidence, and isolated rejection of the prior pinned version. Schema-v3 tests cover phase distributions, rebuild penalties, break-even outcomes, exploratory labels, and byte-identical regeneration. Focused race tests and mage check pass on 2026-07-15. Awaiting user confirmation.
+  decision: ghpoujuxci

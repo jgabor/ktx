@@ -1,0 +1,15 @@
+id: ddhmxsbadw
+artifact: plan
+record:
+  name: Real-session end-to-end with deterministic pipeline
+  depends_on:
+    - xgxebwvfca
+    - qzvcnucwbj
+    - haydnpetvk
+  status: pending
+  acceptance:
+    - GIVEN an OpenCode session with the ktx plugin installed AND ktx.toml configures [pipeline.default].stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"] WHEN the agent runs a tool that produces verbose output (e.g. 'cat README.md' on a 500-line file, or a build command with 200 lines of output) THEN the agent's context receives the compressed output (fewer bytes than original); the original is in ktx's database (ktx decompress returns it verbatim).
+    - GIVEN the same session's session-id WHEN ktx bench run --replay <session-id> runs THEN the compression section reports ratio < 1.0 and bytes_saved > 0 (the pipeline actually reduced context).
+    - GIVEN a pipeline that does not help on a particular tool_call (e.g. input is already short) WHEN ktx hook runs THEN the anti-worsening gate returns the original unchanged with compressed_id=null (no compressed row created).
+    - GIVEN the D15 gate (is_error=true) WHEN a tool_call fails THEN the original error output is returned unchanged (no compression attempted; the agent sees the full error).
+  plan: lnsgjprfcm

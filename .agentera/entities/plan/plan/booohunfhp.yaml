@@ -1,0 +1,41 @@
+id: booohunfhp
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-12
+    status: archived
+    reviewed: 2026-07-12
+    critic_issues: 14 found, 11 addressed, 3 dismissed
+    title: "Plan: Residual-waste discovery command and replace stage"
+  what: |
+    Add a `ktx candidates` command that ranks tool/command groups by delivered tokens so users know which commands need profiles or tighter compression. Add a `replace` stage for scoped regex substitutions, the one missing primitive that prevents filter packs from handling common noise patterns. Document the filter pack pattern.
+  why: |
+    Without a discovery command, users have no feedback loop — they cannot know which commands are wasting tokens after compression, or which lack compression entirely. Without a replace stage, filter packs cannot handle substitution patterns that grep/grep-v alone miss (e.g. shortening repeated path prefixes, stripping timestamp prefixes from log lines). Both compose: the discovery command identifies targets, the replace stage makes the resulting filter packs more effective.
+  constraints: |
+    Single TOML config at $XDG_CONFIG_HOME/ktx/ktx.toml (D5, firm). Default is passthrough when no ktx.toml exists (D14, firm). No new compression algorithm — replace is a regex substitution. No DSL — static TOML stage arrays only. Read-only query for candidates, no DB writes. Token estimation uses the existing 4-chars-per-token heuristic. No project-memory markers in shipped code. The replace stage follows the existing Builder pattern. CLI follows the existing --format text/json convention (not --json). List commands need --limit.
+  overall_acceptance: |
+    A user can run `ktx candidates` to see which tool/command groups have the highest residual token waste, including commands with no compression at all. A user can add a replace stage to any profile to perform regex substitutions. The docs explain how to combine routing, profiles, and the replace stage into a filter pack.
+  scope:
+    included:
+      - replace stage following existing Builder pattern
+      - ktx candidates command with --format text/json output and --limit
+      - LEFT JOIN query surfacing both compressed and uncompressed tool calls
+      - Grouping by tool and extracted binary name from tool_calls.input
+      - Filter pack pattern documentation in docs/pipelines.md
+      - Example replace usage in ktx.example.toml
+    excluded:
+      - Schema migration (no new columns needed)
+      - Content-type detection from raw bytes
+      - New compression stages beyond replace
+      - Structured parsers for specific tools
+      - Project-local config
+  design: |
+    The replace stage follows the grepBuilder pattern: compile a regex, apply ReplaceAll per-line, return the result. The separator between pattern and replacement within the stage arg is left as an unknown — build must choose an ASCII delimiter that does not conflict with Go regex syntax and document it. The candidates command uses a LEFT JOIN from tool_calls to compressed so uncompressed calls surface with delivered == raw. The query groups by tool and the binary name extracted from tool_calls.input JSON (reusing the router's commandFromInput, exported for this purpose). For rows with no compressed entry, delivered tokens equal raw tokens. The query filters out trivial calls (strictly fewer than 50 delivered tokens or strictly fewer than 2 calls) and ranks by total delivered tokens descending. Text output is a table with a default limit of 20; --format json is an array of objects. Both reuse the existing dispatch and format-extraction patterns.
+  unknowns:
+    - entry: Replace stage pattern/replacement separator
+      question: What ASCII delimiter separates pattern from replacement in the replace stage arg without conflicting with Go regex syntax?
+      affects_task: "1"
+      resolve_by: Build chooses and documents the delimiter in the replace stage implementation.
+  surprises: |
+    Critic found that the original design used --json instead of the established --format convention — corrected. Original design used a non-ASCII arrow as the replace separator — left as an unknown for build to choose. Original design used an INNER JOIN that would hide uncompressed calls from the discovery command — corrected to LEFT JOIN so the command is useful for users who have no profiles yet. Original design grouped by command prefix (first word) which conflated with routing's command_prefix field — corrected to group by extracted binary name. Original design claimed command scoping was already shipped in the router, but the router's commandFromInput is unexported — build must either export it or duplicate the parse. Token estimation helper is NOT shared — each consumer (token-budget stage, candidates command) has its own inline formula.

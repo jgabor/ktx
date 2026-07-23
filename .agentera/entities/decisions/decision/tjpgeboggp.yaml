@@ -1,0 +1,26 @@
+id: tjpgeboggp
+artifact: decisions
+migration_provenance:
+  kind: inherited_decision_confidence
+  source: current_projection
+  source_path: .agentera/decisions.yaml
+  source_record_sha256: 7eea9185a1d2296765b12e7a389d43955ce59e1b93c8d587bf43eac0e479cf1f
+  confidence: high
+record:
+  date: 2026-07-15
+  question: How should ktx preserve provider/runtime-reported cost while adding reproducible API-equivalent cost estimates for cache-aware and reasoning-bearing benchmark requests?
+  context: Decision 11 incorrectly treated models.dev-derived cost as interchangeable with provider-reported cost. That fails for subscription-backed runtimes such as Luna, where the runtime legitimately reports literal zero while the same usage has a non-zero API-equivalent price. Decision 31 added cache token evidence but did not price it, and reasoning tokens were not retained. Benchmark summaries must remain reproducible from retained evidence and legacy experiments must continue to regenerate byte-for-byte.
+  alternatives:
+    - name: Preserve reported cost and add a separate snapshot-derived estimate
+      status: chosen
+      description: Keep runtime cost verbatim, including zero, and derive a nullable estimated_api_cost from a retained models.dev pricing record that prices uncached input, cache reads, cache writes, output, and reasoning independently.
+    - name: Replace reported cost with the models.dev estimate
+      status: rejected
+      description: Produces one convenient number but destroys billing evidence and misrepresents subscription-backed runtime cost.
+    - name: Estimate from the current global price cache during summary regeneration
+      status: rejected
+      description: Avoids a snapshot artifact but makes historical summaries drift as models.dev pricing changes.
+  choice: Supersede Decision 11 only where it conflated reported and derived cost. The existing cost field is reported_cost evidence and is never overwritten; an explicitly reported 0 remains 0. Add nullable estimated_api_cost with explicit models.dev provenance and pricing basis. Parse singular cost.input, cost.output, cost.cache_read, and cost.cache_write fields. Support ordinary pricing plus context tiers of the observed shape {tier:{type:"context",size:N}, input, output, cache_read, cache_write}; select a context tier when uncached_input + cache_read + cache_write reaches its threshold. Do not infer other tier types. The estimate is (uncached_input*input + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1e6, rounded to six decimals. models.dev cost.reasoning is retained as a nullable base or context-tier rate; when absent, reasoning_price deterministically falls back to that selected record's output price. An explicit zero reasoning rate remains zero. Ordinary input and output prices are required. A non-zero cache count requires its corresponding rate; a zero cache count does not. Cache reads are never priced as ordinary input. OpenCode step_finish reasoning is a per-request SUM with the same absent-versus-zero and all-events completeness rule as other usage fields. Estimated-cost eligibility depends only on complete input, output, reasoning, cache-read, and cache-write token evidence; reported cost has its own completeness gate and may remain NULL without suppressing an otherwise reproducible estimate. Extend prices.json additively while reading legacy input/output-only records. Warm cache lookup misses never refetch implicitly; diagnostics direct the user to `ktx prices update`. Each new live experiment retains the exact resolved model price record plus source URL, retrieval timestamp when known, and SHA-256. Manifest and validation bind that artifact. Summary regeneration uses only the retained snapshot. For every methodology, pricing metadata requires a hash-valid snapshot whose embedded provider/model and metadata provider/model exactly match manifest.model. Any retained attempt or summary estimated_api_cost evidence without such a snapshot is rejected; derived values are never trusted without their retained pricing basis. Experiments without a pricing snapshot retain their historical bytes. Estimated-cost distributions, baseline-minus-candidate delta, and estimated_api_cost_per_correct appear only in summary schema v3 when at least one estimated_api_cost observation is non-NULL. A retained pricing snapshot alone does not change summary schema; later methodologies may independently require schema v3. Additive bench_runs columns retain reasoning tokens and estimated cost; step-level cache and reasoning evidence is not attached to tool_calls.
+  reasoning: Reported billing evidence and counterfactual API pricing answer different questions and must remain independently auditable. Retaining the exact price record makes benchmark regeneration deterministic. Nullable rates and completeness gates prevent invented costs, while the narrow context-tier rule implements only observed models.dev semantics. Conditional schema evolution preserves historical goldens.
+  confidence: high
+  feeds_into: models.dev price cache; OpenCode stream parsing; bench_runs migration; experiment manifests, attempts, summaries, validation; benchmark methodology

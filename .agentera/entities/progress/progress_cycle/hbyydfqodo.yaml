@@ -1,0 +1,16 @@
+id: hbyydfqodo
+artifact: progress
+record:
+  timestamp: 2026-07-17 18:37
+  type: fix
+  phase: build
+  what: Prevented fixture export destinations from aliasing the source database.
+  inspiration: The Task 2 audit reproduced successful fixture publication over the open source database.
+  discovered: Atomic rename protects destination completeness but does not protect the source when the destination names that source; destination identity must be rejected before publication.
+  verified: TestRunBenchExportRejectsSourceDatabaseDestinationAliases passed for direct, relative, symlink, and hard-link aliases and verified source byte identity plus PRAGMA integrity_check=ok after every rejection. All TestRunBenchExport tests passed with -count=1. mage check passed all tests, vet, lint with 0 issues, and build. git diff --check passed.
+  next: Continue with offline fixture evaluation; Task 2 remains complete and no other plan task changed.
+  context:
+    intent: Close the audited source-database replacement path without changing valid stdout or distinct-file export behavior.
+    constraints: Fixed only the verified destination-alias failure; preserved stdout and distinct-file behavior and did not alter fixture evidence, replay evaluation, retained fixtures, gates, CI, or unrelated tasks.
+    unknowns: none
+    scope: internal/cli/bench_fixture_export.go and focused export alias regression tests.

@@ -1,0 +1,14 @@
+id: qdfhnivwyi
+artifact: plan
+record:
+  name: Route rule config parsing
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN ktx.toml with one or more route rules WHEN config is loaded THEN all rules are parsed and available on the config object
+    - GIVEN ktx.toml without route rules WHEN config is loaded THEN the config object has zero route rules and behavior is unchanged
+    - GIVEN ktx.toml with a route rule referencing a profile name that does not exist in [pipeline.<name>] WHEN config is loaded THEN a parse error names the offending rule and the missing profile
+    - GIVEN ktx config show --json WHEN route rules exist THEN the JSON output includes the routing configuration alongside existing keys without changing the shape of existing keys
+    - GIVEN the bench harness preflight that reads config JSON WHEN route rules are added to ktx.toml THEN the preflight still resolves pipeline stages correctly
+  plan: hsvylrxjpg

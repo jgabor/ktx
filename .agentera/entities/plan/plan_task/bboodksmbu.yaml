@@ -1,0 +1,15 @@
+id: bboodksmbu
+artifact: plan
+record:
+  name: ktx run extracts M2 fields from OpenCode events
+  depends_on:
+    - tvelpnehsn
+    - rvthuroycg
+  status: complete
+  acceptance:
+    - GIVEN an OpenCode --format json tool_use event with token/model data WHEN ktx run opencode run --format json parses it THEN the persisted tool_calls row has the M2 columns populated
+    - GIVEN an OpenCode event without token/model data WHEN ktx run persists it THEN the M2 columns are NULL (not guessed)
+    - GIVEN the wrapper's parseToolEvent WHEN the event shape is unknown THEN M2 fields default to NULL rather than erroring — a missing field is not a parse failure
+    - GIVEN a real OpenCode run (not the mock agent from M1 verification) WHEN completed THEN the persisted tool_calls have non-NULL tokens/model for at least one call, OR the run's verification log documents that OpenCode --format json does not emit M2 fields in tool_use events and the M2 surface is fed by sidecar callers (task 3) — both outcomes are valid
+    - "GIVEN the empirical-research outcome (whether OpenCode emits M2 fields or not) WHEN documented THEN the verification log records the finding and the M2 acceptance path forward is named: either wrapper extraction (success) or sidecar-only (documented gap, no regression)"
+  plan: zgmcmzilab

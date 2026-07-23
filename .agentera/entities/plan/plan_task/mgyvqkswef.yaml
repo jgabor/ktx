@@ -1,0 +1,12 @@
+id: mgyvqkswef
+artifact: plan
+record:
+  name: Ratify the single-identity contract
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the approved compatibility tradeoff WHEN the contract is recorded THEN it explicitly supersedes external-correlation preservation and legacy exec-command compatibility.
+    - GIVEN a runtime identity tuple WHEN its canonical identity is derived THEN tuple boundaries and normalization remain stable across processes, machines, migrations, and future releases.
+    - GIVEN a Codex event without a usable runtime identifier WHEN it is accepted THEN it receives a fresh canonical identity and cannot collapse with another missing-identifier event.
+  plan: dbbyqzqyvu

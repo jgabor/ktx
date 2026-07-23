@@ -1,0 +1,17 @@
+id: podbellbay
+artifact: plan
+record:
+  name: D11 implementation — price cache and cost derivation
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a cold cache (no `$XDG_DATA_HOME/ktx/prices.json`) WHEN ktx needs a price and is invoked THEN ktx GETs https://models.dev, parses the JSON, writes the cache file keyed by `(provider, model)` with input/output USD-per-million-token rates; the parent directory (`$XDG_DATA_HOME/ktx/`) is created if missing
+    - GIVEN the cache file already exists and is non-empty WHEN ktx needs a price THEN ktx reads the cache and does not refetch; the cache file's content and mtime are preserved (idempotent cache write — second invocation on a warm cache is a no-op on disk)
+    - "GIVEN a fetch failure (network error, non-2xx response, malformed JSON) WHEN ktx needs a price THEN ktx soft-fails: stored cost is still surfaced, no error exit, the cache file is not written or is left in its previous state, and the derivation step produces NULL cost when tokens cannot be priced"
+    - GIVEN a tool_call with NULL `cost` + non-NULL `tokens_in`, `tokens_out`, `model` WHEN the D11 derivation step runs THEN `cost` is non-NULL and equals `(tokens_in * in_price + tokens_out * out_price) / 1_000_000` against the cached `(provider, model)` price, within USD rounding to 6 decimals
+    - GIVEN a tool_call with NULL `cost` AND any of `tokens_in`/`tokens_out`/`model` NULL WHEN the D11 derivation step runs THEN `cost` remains NULL (no inference from partial data; the D11 reconstructability contract requires all three)
+    - GIVEN a tool_call with non-NULL stored `cost` WHEN ktx reads or inspects it THEN the stored value is returned verbatim (D11 reconstructability contract — no derivation at read time; derivation is at write time only)
+    - GIVEN the M2 columns on `tool_calls` WHEN D11 derivation runs THEN the schema is unchanged — no new columns; the M2 columns are sufficient
+    - GIVEN `ktx prices update` WHEN invoked THEN ktx forces a refetch regardless of cache state and rewrites the cache file atomically (write-to-temp + rename); a fetch failure on the update command is a hard error (exit code 4) because the user explicitly requested the refresh
+  plan: npqrhaezkv

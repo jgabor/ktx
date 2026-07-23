@@ -1,0 +1,19 @@
+id: haydnpetvk
+artifact: plan
+record:
+  name: Four new built-in pipeline stages
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN keep-ends:50:20 is in [pipeline.default].stages WHEN input has 100 lines THEN output has first 50 + last 20 lines with [... (30 lines omitted) ...] between; total 71 lines (50+1+20).
+    - GIVEN keep-ends:50:20 is configured WHEN input has 60 lines THEN output has all 60 lines unchanged (60 <= 50+20, no truncation needed).
+    - GIVEN grep:(?i)error|fail|panic is in stages WHEN input is a build log with 50 lines of which 3 contain 'error' or 'fail' THEN output has only those 3 lines.
+    - GIVEN grep:[invalid is configured (malformed regex) WHEN the stage runs THEN input is returned unchanged (passthrough on invalid regex, matching lowfat's proc_grep behavior).
+    - "GIVEN grep-v:^debug: is in stages WHEN input has debug lines (prefixed with 'debug:') and info lines THEN output has only non-debug lines (debug lines rejected)."
+    - GIVEN token-budget:100 is in stages WHEN input is 2000 chars (~500 tokens) THEN output is ~400 chars (~100 tokens) with a '... (truncated to ~100 tokens from 500)' marker, snapped back to the last newline before the target char count.
+    - GIVEN token-budget:2000 is in stages WHEN input is 500 chars (~125 tokens) THEN input is returned unchanged (under budget).
+    - GIVEN all four stages are registered via RegisterBuiltins WHEN ktx plugin list --json runs THEN all four appear with builtin=true, removable=false (same as strip-ansi, head, etc.).
+    - GIVEN all four stages WHEN ktx config show --json runs THEN stages referencing these names appear in the active pipeline.profiles.default.stages array.
+    - "GIVEN go test ./internal/pipeline/stages/ -v runs THEN each new stage has table-driven tests covering: normal case, edge case (short input), error case (invalid arg), and D14 invariant interaction (empty-output guard, stage-error passthrough)."
+  plan: lnsgjprfcm

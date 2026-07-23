@@ -1,0 +1,16 @@
+id: xisgnrqvrt
+artifact: plan
+record:
+  name: ktx bench report
+  depends_on:
+    - tmzmgrkdie
+  status: complete
+  acceptance:
+    - GIVEN a database with one or more `bench_runs` rows WHEN `ktx bench report` is invoked THEN JSON output includes a top-level headline number (per the D12 methodology's published metric) alongside a rows array; each row carries `id`, `agent`, `model`, `task`, `score`, `cost`, `methodology_version`, `timestamp`
+    - GIVEN the same conditions WHEN `ktx bench report --format text` is invoked THEN the headline is rendered as a one-line summary with the methodology reference (e.g., 'v1') visible; rows are listed below in insertion order (oldest first)
+    - GIVEN a `bench_runs` id WHEN `ktx bench report <id>` is invoked THEN a single-row JSON is emitted for that `bench_runs` row (no rows array, headline is the row's value); if no row matches the id, ktx exits with code 2 (not-found)
+    - GIVEN a `bench_runs` row WHEN the JSON is emitted THEN the `methodology_version` field is present and non-NULL (the bench row is meaningless without a methodology reference)
+    - GIVEN two `bench_runs` rows with the same (agent, model, task) WHEN `ktx bench report` is invoked THEN the JSON includes both rows in insertion order (oldest first); the headline is the methodology-defined aggregate across rows
+    - GIVEN an empty `bench_runs` table WHEN `ktx bench report` is invoked THEN the headline is null, the rows array is empty, and ktx exits with code 0 — an empty benchmark is not an error
+    - GIVEN a methodology filter (`--methodology v1`) WHEN `ktx bench report` is invoked THEN only rows with that `methodology_version` are emitted; the headline is recomputed from the filtered set
+  plan: npqrhaezkv

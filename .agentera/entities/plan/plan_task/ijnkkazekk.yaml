@@ -1,0 +1,16 @@
+id: ijnkkazekk
+artifact: plan
+record:
+  name: Retain representative fixture and repository gate
+  depends_on:
+    - jxqgzxqimm
+    - uvarmdrrru
+    - xdymypngqh
+  status: complete
+  acceptance:
+    - GIVEN the retained fixture WHEN reviewed THEN it has explicit provenance, nontrivial tool output, multi-step usage, absent-or-zero cache semantics, no required machine-local identifiers, and no unreviewed sensitive data.
+    - GIVEN repository verification WHEN run headlessly THEN it exercises the exact retained fixture through controlled built-in behavior and rejects every integrity, parser, usage, cost, cache, and compression divergence.
+    - GIVEN informational replay drift that preserves session replay success WHEN the strict fixture gate evaluates it THEN the gate fails rather than accepting the replay process exit code alone.
+    - GIVEN unchanged code and fixture WHEN the repository gate repeats twice THEN expected evidence remains identical and execution is bounded and noninteractive.
+  evidence: Retained progress 51 records a reviewed synthetic benchmark-parented fixture with explicit provenance after all six available real captures failed authoritative export consistency. mage replayFixture passed twice; the built CLI emitted byte-identical 1,190-byte evidence with SHA-256 f5d7bf37bd2df5fac3f42ff2326aa84f08ad6f8558e879e477df82b9d104cc3b and empty stderr. The gate rejected integrity, parser, usage, cost, cache, pipeline, and compression drift and proved database DRIFT exits 0 while strict fixture replay exits nonzero. mage check and git diff --check passed.
+  plan: werahgotke

@@ -1,0 +1,16 @@
+id: ummbqnvkuq
+artifact: decisions
+record:
+  summary: "Decision 8 (2026-06-16): Use record for the evidence unit and database for the on-disk SQLite file ($XDG_DATA_HOME/ktx/ktx.db by..."
+  date: 2026-06-16
+  choice: "Use record for the evidence unit and database for the on-disk SQLite file ($XDG_DATA_HOME/ktx/ktx.db by default). Do not use record store or write to the store in prose. Prefer verb-led phrasing: persist the record, write the record, read the record; name the database only when the path matters. Rename the mechanical-vs-derived split to I/O vs query (ktx read/ktx write vs ktx get/ktx list/ktx bench). Drop the global --store flag from D4; supersede with ktx db --path <file> for database path override. Global flags become four: --format, --quiet/-q, --help/-h, --version/-v. ktx db namespace groups database-path and related operations: `ktx db path` (print current path), `ktx db --path <file>` (per-invocation override), future `ktx db prune` (orphaned session cleanup, D1 revised). Path override is per-invocation only — no config persistence. Env var `KTX_DB` for CI/scripts. Precedence: `--path` flag > `KTX_DB` env > `$XDG_DATA_HOME/ktx/ktx.db` default. `ktx db` without args = `ktx db path`. Reversibility layer replaces reversibility store in aspirational docs."
+  feeds_into: CLI command surface, help text, flag parsing, ARCHITECTURE.md Decided section, ktx doctor, CI path override semantics
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-07-09
+  outcome: "Use record for the evidence unit and database for the on-disk SQLite file ($XDG_DATA_HOME/ktx/ktx.db by default). Do not use record store or write to the store in prose. Prefer verb-led phrasing: persist the record, write the record, read the record; name the database only when the path matters. Rename the mechanical-vs-derived split to I/O vs query (ktx read/ktx write vs ktx get/ktx list/ktx bench). Drop the global --store flag from D4; supersede with ktx db --path <file> for database path override. Global flags become four: --format, --quiet/-q, --help/-h, --version/-v. ktx db namespace groups database-path and related operations: `ktx db path` (print current path), `ktx db --path <file>` (per-invocation override), future `ktx db prune` (orphaned session cleanup, D1 revised). Path override is per-invocation only — no config persistence. Env var `KTX_DB` for CI/scripts. Precedence: `--path` flag > `KTX_DB` env > `$XDG_DATA_HOME/ktx/ktx.db` default. `ktx db` without args = `ktx db path`. Reversibility layer replaces reversibility store in aspirational docs."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: be826412bdcb68be9f9b3afbc455774e995c4cbda6328e45b13ecde139146529

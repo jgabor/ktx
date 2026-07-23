@@ -1,0 +1,26 @@
+id: okwezoeuby
+artifact: plan
+record:
+  name: Add internal/cli golden-file subcommand tests
+  depends_on:
+    - usiawzanfp
+  status: complete
+  files:
+    - internal/cli/cli_test.go
+    - internal/cli/read_test.go
+    - internal/cli/write_test.go
+    - internal/cli/get_test.go
+    - internal/cli/list_test.go
+    - internal/cli/db_test.go
+    - internal/cli/prices_test.go
+    - internal/cli/doctor_test.go
+    - internal/cli/run_test.go
+    - internal/cli/bench_test.go
+    - internal/cli/init_test.go
+  acceptance:
+    - GIVEN a tool_call JSON envelope equivalent to m1-acceptance.md AC1, WHEN piped through `runWriteWith`, THEN stdout is the persisted record ID as JSON and the record is queryable via `db.GetRecord`.
+    - GIVEN a missing database file at `t.TempDir()/ktx.db`, WHEN any subcommand opens the database, THEN the parent directory is created, the schema is migrated, and a re-open is a no-op.
+    - GIVEN `KTX_DB=''` and no `--path`, WHEN `runDBWith -- sub=path` is invoked, THEN stdout is the resolved path under the test XDG_DATA_HOME.
+    - GIVEN `--format text` in either flag position, WHEN a query subcommand runs, THEN text rendering is used; absent `--format`, JSON default.
+    - GIVEN m3-acceptance.md AC1 (empty bench_runs table), WHEN `runBenchReport` is invoked against the test DB, THEN stdout emits a JSON envelope where `headline` is `null` and `rows` is `[]`.
+  plan: ppfsaqcxml

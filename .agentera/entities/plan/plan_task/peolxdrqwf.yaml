@@ -1,0 +1,12 @@
+id: peolxdrqwf
+artifact: plan
+record:
+  name: Example config and documentation
+  depends_on:
+    - ghsxslzokr
+  status: complete
+  acceptance:
+    - GIVEN a user reading ktx.example.toml WHEN they look for routing THEN they find commented examples showing how to define route rules and link them to named profiles
+    - GIVEN a user reading the pipeline documentation WHEN they look for routing THEN they find a section explaining how command-aware routing works what signals are available and how fallback to default works
+    - GIVEN the architecture document WHEN routing is implemented THEN it notes that Layer 1 routing is no longer dormant
+  plan: hsvylrxjpg

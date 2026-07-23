@@ -1,0 +1,15 @@
+id: eudslcmqke
+artifact: plan
+record:
+  name: Publish and verify the unified contract
+  depends_on:
+    - xveqhbbyfv
+    - vanmlepiaz
+  status: complete
+  acceptance:
+    - GIVEN migrated and newly captured Codex records WHEN users inspect, read, compress, or decompress them THEN every surfaced source identity is canonical and recovery returns exact original bytes.
+    - GIVEN an old exec-based command WHEN it is used after migration THEN its unsupported status is clear in release and migration documentation.
+    - GIVEN focused migration, collision, retry, hook-path, recovery, and structured-output checks WHEN full project verification runs THEN all checks pass.
+    - GIVEN a representative Codex hook payload WHEN exercised end to end THEN no external-shaped primary key is persisted.
+  evidence: README and migration guidance now scope canonical 16-letter identity specifically to Codex hook records while preserving documented legacy flat-hook compatibility. Docs lint, focused Codex and flat-hook tests, migration and identity tests, live isolated-database checks, byte-exact recovery, and mage check passed.
+  plan: dbbyqzqyvu

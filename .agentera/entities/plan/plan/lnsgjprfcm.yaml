@@ -1,0 +1,116 @@
+id: lnsgjprfcm
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-01
+    status: archived
+    reviewed: 2026-07-01
+    critic_issues: 1 found, 1 addressed, 0 dismissed
+    title: D22 Phase 2 — deterministic compression stages + savings measurement
+  what: "Phase 1 proved the plumbing: head:3 truncation flows through ktx hook → plugin mutation → agent context, with reversibility via ktx decompress. Phase 2 ships MEANINGFUL deterministic compression: four new built-in pipeline stages (keep-ends, grep, grep-v, token-budget) and an anti-worsening gate (if the pipeline makes output longer, return the original). All four stages are proven in two production codebases (rtk: ~/git/rtk, lowfat: ~/git/lowfat) that achieve 60–90% token reduction with zero ML. Phase 2 also makes the 30s hardcoded timeout configurable via ktx.toml, extends ktx bench run --replay with A/B byte-count measurement (baseline vs compressed, zero agent calls), and proves it end-to-end in a real OpenCode session with a real-world pipeline."
+  why: "Phase 1's head:3 proves the wire protocol but saves no meaningful tokens — line truncation is a toy. The project's stated goal is 'makes coding agents measurable and cheaper.' Phase 2 delivers the 'cheaper' part with deterministic stages that are proven in production: rtk's keep-head-and-tail preserves error messages at the bottom of build logs (head:N alone loses them); grep/grep-v enables content-aware filtering (strip debug lines, keep only errors); token-budget is line-safe truncation (no mid-line cuts). The anti-worsening gate is called out by BOTH rtk (never_worse in guard.rs) and lowfat (<10% savings → passthrough in lib.rs) as the single most important invariant — never make output worse. ktx ships dispatch + measurement + reversibility, not compression intelligence (AGENTS.md: 'router wins, algorithm loses'); the stages are deterministic Go code, not an LLM call."
+  constraints: |
+    D22 (firm) design rules unchanged: single subprocess, envelope shape, compressed-row-only-when-transformed, two-layer conservative failure, sync compression, D10 noop.
+    D14 conservative-on-failure invariants unchanged: empty-output guard, stage-error passthrough, unknown-stage skip. The new stages are subject to all three. The anti-worsening gate is a FOURTH runner-level invariant: if len(output) >= len(input) AND input was non-empty, return input (a stage that grows output is worse than no stage). This is D14-adjacent, not a D14 override — the three existing invariants fire per-stage; the gate fires on the pipeline result.
+    AGENTS.md: "boring before clever — stdlib first, no ML deps." All new stages are pure Go stdlib (regexp, strings, bytes). No new dependencies.
+    AGENTS.md: "router wins, algorithm loses." ktx ships the stages and the runner; the user configures which stages to use in ktx.toml. No content-type routing (YAGNI for Phase 2 — single [pipeline.default] is sufficient). No aggressiveness tiers (YAGNI — lowfat's lite/full/ultra is a design choice, not a copy-paste; ktx's stages are parameterised by N, not by level).
+    Research basis: rtk (~/git/rtk, ~17K LOC Rust, 63 TOML filters, 60-90% token reduction) and lowfat (~/git/lowfat, ~3K LOC Rust, DSL-based pipelines). Both are production codebases solving ktx's exact problem with zero ML. The four stages selected are the intersection of both codebases' highest-leverage, lowest-risk additions.
+    No content-type routing (Phase 3). No aggressiveness tiers (Phase 3). No in-process LLM call (violates D22 single-subprocess rule).
+  scope:
+    included:
+      - "Task 1: Configurable pipeline timeout — add [pipeline.default] timeout = '30s' to ktx.toml; config.Load returns it; hookLogic reads it instead of the hardcoded hookPipelineTimeout constant. Default 30s when omitted (backward compatible)."
+      - "Task 2: Anti-worsening gate in the pipeline Runner — after all stages complete, if len(output) >= len(input) AND input was non-empty, return input unchanged. The gate fires on the pipeline result, not per-stage (D14's three invariants remain per-stage). Adds a fourth conservative-on-failure invariant: 'a pipeline that grows output is discarded.' rtk: guard.rs:6-12 (never_worse). lowfat: lib.rs:46-55 (<10% savings → passthrough)."
+      - "Task 3: Four new built-in pipeline stages in internal/pipeline/stages/, each ~10-25 LOC, all deterministic, all bytes-in/bytes-out, all subject to D14 invariants: keep-ends:N:M (head N + tail M with [... N lines omitted ...] marker), grep:pattern (keep lines matching regex, invalid regex → passthrough), grep-v:pattern (reject lines matching regex, invalid regex → passthrough), token-budget:N (truncate to ~N tokens via chars/4, snap back to last newline, append marker)."
+      - "Task 4: A/B compression measurement in ktx bench run --replay — iterate recorded tool_use events through compressPipeline (timeout=0, off-line), emit baseline_bytes, compressed_bytes, ratio, bytes_saved, pipeline in the replay envelope. Zero agent calls (reuses D20 recorded stream)."
+      - "Task 5: Real-session end-to-end with a deterministic pipeline — install plugin, configure a real-world pipeline (strip-ansi + grep-v + keep-ends + token-budget), run a real OpenCode session with verbose tool output. Verify: agent sees compressed output; original in DB; decompress returns verbatim; replay shows ratio < 1.0."
+      - "Task 6: Documentation sync (ARCHITECTURE.md, TODO.md, ROADMAP.md, acceptance log)."
+    excluded:
+      - Content-type routing / multi-profile pipeline selection (Phase 3 / YAGNI).
+      - Aggressiveness tiers — lite/full/ultra (Phase 3 / YAGNI; lowfat's Level enum is a design choice, not a copy-paste).
+      - Match-output short-circuit with unless guard (rtk Finding 3; valuable but more complex than the four selected stages; Phase 3 candidate).
+      - Log normalize + dedup with counts (rtk Finding 4; ~220 LOC, higher complexity; Phase 3 candidate).
+      - JSON schema extraction (rtk Finding 7; medium complexity, niche use case; Phase 3 candidate).
+      - Code comment-strip + body collapse (lowfat Finding 2; ~370 LOC, needs language detection; Phase 3 candidate).
+      - Secret redaction engine (lowfat Finding 13; ~170 LOC; important but orthogonal to compression; separate TODO).
+      - Per-stage timeout override (D14 territory).
+      - USD cost estimation in replay (bytes, not tokens — D11 says provider-reported; a replay has no provider).
+    deferred:
+      - Content-type detection heuristics (ARCHITECTURE.md open deliberation; Phase 3).
+      - Match-output short-circuit + unless guard (rtk src/core/toml_filter.rs:464-478; Phase 3).
+      - Log normalize + dedup with counts (rtk src/cmds/system/log_cmd.rs:71-236; Phase 3).
+      - Density-tuned caps (rtk's CAP_ERRORS=20 / CAP_WARNINGS=10; Phase 3, needs content-type awareness).
+  design: |
+    Six tasks in dependency order.
+
+    Task 1 (configurable timeout) is mechanical: add a Timeout field to the
+    tomlConfig pipeline struct, parse as a Go duration string ("30s", "2m"),
+    default 30s when omitted. hookLogic reads cfg.PipelineTimeout instead of
+    the hookPipelineTimeout constant. compressPipeline's signature is unchanged
+    (already takes time.Duration).
+
+    Task 2 (anti-worsening gate) is a runner-level change in pipeline.go. After
+    the existing stage loop in Runner.Run completes, before returning res, add:
+      if len(input) > 0 && len(res.Out) >= len(input) {
+          res.Out = input  // pipeline grew output; discard
+      }
+    This is the fourth conservative-on-failure invariant, alongside the existing
+    three (empty-output guard, stage-error passthrough, unknown-stage skip). It
+    fires on the pipeline RESULT, not per-stage — a stage that grows output is
+    caught by D14's empty-output guard only when it empties; the gate catches the
+    more common case where stages ADD bytes (e.g. a replace stage that expands,
+    or a chain that produces markers but no net reduction). rtk calls this
+    never_worse (guard.rs:6-12); lowfat calls it the 10% gate (lib.rs:46-55).
+    Phase 2 ships the rtk variant (output >= input → discard) as the simpler
+    contract; the 10% threshold variant is a Phase 3 tuning option.
+
+    Task 3 (four new stages) adds to internal/pipeline/stages/stages.go and
+    registers via RegisterBuiltins. Each stage is a pure function over bytes:
+
+    keep-ends:N:M — keep first N + last M lines, insert [... (X lines
+    omitted) ...] between. When input has <= N+M lines, return unchanged.
+    Ports: rtk toml_filter.rs:496-515, lowfat text.rs:27-48. ~25 LOC.
+
+    grep:pattern — keep only lines matching the regex. Invalid regex →
+    return input unchanged (passthrough, like lowfat's proc_grep at
+    pipeline.rs:327-336). The pattern is the full token arg after the first
+    colon. ~10 LOC.
+
+    grep-v:pattern — reject lines matching the regex (inverse of grep).
+    Same passthrough on invalid regex. ~10 LOC.
+
+    token-budget:N — estimate tokens as (len+3)/4; if over budget, truncate
+    to target_chars, snap back to last newline, append "... (truncated to ~N
+    tokens from M)". Input under budget → unchanged. Ports: lowfat
+    pipeline.rs:254-271. ~20 LOC.
+
+    All four use the existing StageFunc / Stage interface and the existing
+    RegisterBuilder pattern (head:N already uses Builder for its arg). The
+    keep-ends stage needs two args (N:M) — the existing splitToken splits at
+    the first colon only, so keep-ends:50:20 splits as name="keep-ends",
+    arg="50:20"; the Builder parses "50:20" into two ints. This is the same
+    pattern head:100 uses (name="head", arg="100").
+
+    Task 4 (A/B measurement) extends runBenchReplayImpl in bench.go. After
+    the existing integrity/parser/cost checks, iterate the re-parsed tool_use
+    events, run each output through compressPipeline (timeout=0, off-line),
+    aggregate baseline_bytes (sum len original), compressed_bytes (sum len
+    compressed), ratio = compressed/baseline, bytes_saved = baseline-compressed.
+    The compression section is additive to the existing replay envelope;
+    existing fields unchanged. D15-gated calls (is_error=true) are counted in
+    baseline_bytes only (compressed_bytes = original for those calls). This
+    reuses compressPipeline (DRY) and the D20 recorded stream (zero agent calls).
+
+    Task 5 (real-session evidence) depends on Tasks 1+2+3. It configures a
+    real-world pipeline in ktx.toml:
+      [pipeline.default]
+      stages = ["strip-ansi", "grep-v:^debug:", "keep-ends:50:20", "token-budget:2000"]
+    and runs a real OpenCode session with a tool that produces verbose output.
+    The agent sees the compressed output; the original is in the DB; decompress
+    returns it verbatim; the anti-worsening gate ensures no regression on short
+    outputs (if the pipeline doesn't help, the original is returned). The session
+    is then replayed via ktx bench run --replay to produce A/B numbers.
+
+    Task 6 (docs) depends on all.
+  overall_acceptance: GIVEN ktx hook is configured with a real-world deterministic pipeline (strip-ansi + grep-v + keep-ends + token-budget) AND an OpenCode session runs with verbose tool output WHEN the agent calls a tool THEN the agent sees compressed output (fewer bytes; errors preserved at the bottom via keep-ends; debug noise stripped via grep-v; no mid-line cuts via token-budget), the original is in ktx's database (ktx decompress returns it verbatim), the anti-worsening gate ensures no regression on short outputs, and ktx bench run --replay quantifies the savings (ratio < 1.0, bytes_saved > 0). With no ktx.toml, the agent sees the original unchanged (passthrough, zero behavioral change).
+  surprises: "Task 2 AC6 assumed all existing runner tests produce smaller output; TestRun_Invariant3 (output KNOWN > input) and 3 external-stage tests (cat-is-passthrough, empty-output-guard, last-writer-wins) produced equal-or-larger output, triggering the new gate. Fixtures adjusted minimally to preserve each test's original intent: lengthened inputs so real shrinks stay under the gate (last-writer-wins, invariant3); added a downstream shrinking stage to observe the empty-output guard's pass-through past the gate; acknowledged passthrough-discard for cat (the 'stage ran' intent is covered by EchoWithArg). The plan under-specified how the gate yields compressed_id=null (Task 5 AC3): resolved by clearing res.Ran when the gate fires (a discarded result records no stages that ran), so compressPipeline's transformed=false via the existing output==input AND pipeline-JSON=='[]' logic — a Runner-only change; compressPipeline's signature is unchanged as the plan requires. grep/grep-v invalid-regex uses a Builder error (D14 invariant-2 passthrough with a warning) rather than lowfat's silent passthrough; observable output (input unchanged) matches the AC."

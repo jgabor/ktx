@@ -1,0 +1,7 @@
+id: wukmgbiojp
+artifact: progress
+record:
+  summary: "Cycle 1 (2026-06-19): In-place ALTER TABLE migration on tool_calls adding six M2 cost-publication columns (tokens_in INTEGER, tokens_out INTEGER,..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: ae07bc446d067a35c3870fb30d00b18c90498c4921463a9ae0f5b3b336a5ef52

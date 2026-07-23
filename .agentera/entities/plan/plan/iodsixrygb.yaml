@@ -1,0 +1,44 @@
+id: iodsixrygb
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-09
+    status: archived
+    reviewed: 2026-07-09
+    critic_issues: 5 found, 4 addressed, 1 dismissed
+    title: Recovery footer + amended anti-worsening gate (D23)
+  what: "D23 chose reactive recovery: ktx hook composes a recovery footer appended to the agent-visible compressed output when the pipeline transforms AND a config flag is enabled. The footer carries source_id, original size, reduction ratio, and the recovery command `ktx read <source_id>`. The anti-worsening gate is amended to include footer bytes — compression must clear its own overhead to fire. Stored compressed rows stay content-only; `ktx decompress` returns pure compressed; `ktx read <source_id>` returns the original. Off by default; opt in via [pipeline.default] recover_footer = true."
+  why: "A real OpenCode session with an aggressive pipeline showed the gap: five truncations the agent needed in full drove 8+ workaround calls (/tmp saves, node -e JSON introspection, chunked reads) even though the originals sat recoverable in the database the whole time. The per-call anti-worsening gate was locally optimal but blind to downstream recovery overhead, producing net-negative session cost. Surfacing a recovery handle in a structured footer turns silent loss into compressed-with-recovery, and amending the gate to include footer bytes ensures compression that cannot justify its own overhead is self-suppressing. Aligns with the vision's 'reversibility before aggression': aggressive compression is safe because recovery is one call away."
+  constraints: |
+    D23 (firm): footer off by default (recover_footer = false); source_id surfaces in agent context only when enabled; compressed_id stays dev-facing and never in the footer. Stored compressed artifact (DB row) stays content-only; `ktx decompress` returns pure compressed bytes. Per-call recovery only; session-batch is YAGNI.
+    D22 (firm, amended): the invisibility clause is amended for source_id only — it surfaces in the agent-visible footer when recovery is enabled; invisible-by-default is preserved (opt-in). compressed_id remains never injected into agent context. Plugin mutation contract unchanged: output.output = envelope.output.
+    D14/D15 (firm, amended): the existing pipeline-level byte-gate (len(output) >= len(input) → return input) fires first, unchanged. The footer-aware second gate fires only when recovery is enabled and the pipeline transformed. The pipeline Runner is NOT modified — footer knowledge stays in the hook layer (the Runner knows bytes, not envelopes).
+    Conservative-on-failure preserved: any footer or gate computation failure degrades to today's behavior (no footer, source returned unchanged).
+    AGENTS.md "boring before clever": footer is Go stdlib string composition, no new deps. AGENTS.md "router wins, algorithm loses": footer is recovery surfacing, not a new compression algorithm.
+    Scope: footer is OpenCode-hook-path-specific. Wrapper mode (ktx run) does not intercept tool results today and carries no footer. Sidecar callers compose their own. ktx compress (offline) is unchanged — it persists a content-only row and prints the ID; no footer there.
+  scope:
+    included:
+      - "Config: add recover_footer bool to pipeline config surface, default false."
+      - "Footer composition: build the recovery footer (source_id, original size, reduction ratio, recovery command) when transformed and enabled."
+      - "Footer-aware second gate: when enabled and transformed, suppress the transform if compressed+footer is not smaller than the original."
+      - "Hook envelope wiring: compose envelope.Output = compressed + footer when enabled; DB row stays content-only."
+      - "Documentation: ktx.example.toml + help text for the recover_footer knob."
+    excluded:
+      - Proactive bypass (agent signals ktx to skip lossy compression per call). Rejected in D23; YAGNI until reactive recovery is observed insufficient.
+      - Session-batch recovery primitive (ktx read --recent or all-compressed-in-session). YAGNI per D23; revisit only if observed sessions show agents struggling with N recovery calls compounding context.
+      - Footer on wrapper path (ktx run). Wrapper does not intercept tool results; no footer there.
+      - Footer in ktx compress (offline). The stored artifact is content-only; footer is an agent-visible envelope concept.
+      - Modifying the pipeline Runner's anti-worsening gate. The Runner's byte-gate is unchanged; the footer-aware gate is a hook-layer addition.
+      - Plugin template changes. The plugin already sets output.output = envelope.output; footer baked into envelope.Output propagates unchanged.
+    deferred:
+      - Empirical observation of agent recovery behavior. D23 confidence is firm but the belief that agents will follow the footer handle is unproven in ktx. Revisit after opt-in usage.
+      - Footer metadata enrichment (pipeline name, compressed_id in footer). D23 chose size signal sufficiency; revisit if agents need more decision context.
+  design: |
+    Phase 1 — Config foundation. Add a recovery toggle to the pipeline configuration surface, default off. When off, behavior is byte-for-byte identical to today (no source_id in agent context, no footer, no gate change). The toggle is read at the same point the pipeline timeout is read today.
+    Phase 2 — Footer composition + layered gate. Build the recovery footer as a pure composition: given source_id, original byte count, compressed byte count, produce a compact footer string containing source_id, original size, reduction ratio (percent), and the recovery command `ktx read <source_id>`. Add a footer-aware second gate that fires AFTER the pipeline Runner's existing byte-gate: when recovery is enabled and the pipeline transformed, check whether len(compressed) + len(footer) < len(original). If not, suppress the transform (return source unchanged, no footer, no compressed row) — compression that cannot justify its own overhead is self-suppressing. The pipeline Runner is not modified; the footer-aware gate is a hook-layer concern because the footer is an envelope concept, not a pipeline concept. Two gates are layered: the Runner's byte-gate (unchanged, fires first), then the hook's footer-aware gate (new, fires second only when enabled and transformed).
+    Phase 3 — Envelope wiring. The hook composes the agent-visible envelope output as compressed content + footer when enabled and the gate passed; the stored compressed artifact (DB row) stays content-only so `ktx decompress` returns pure compressed. The plugin layer is unchanged — it already propagates envelope.output to output.output, and the footer is baked into envelope.output by the hook, so the plugin carries it without modification.
+    Phase 4 — Documentation. Surface the recover_footer knob in the example config with default false and a usage note. Update hook help text to mention recovery footer behavior under the config flag.
+  overall_acceptance: GIVEN recover_footer = false (default) WHEN any ktx hook invocation runs THEN output is byte-for-byte identical to pre-D23 behavior (zero behavioral change for existing users). GIVEN recover_footer = true WHEN the pipeline transforms and compressed+footer < original THEN the agent-visible output carries a footer with source_id, original size, reduction ratio, and the recovery command `ktx read <source_id>`, and the stored compressed row stays content-only. GIVEN recover_footer = true WHEN compressed+footer >= original THEN the transform is suppressed (no footer, source returned unchanged, no compressed row). GIVEN the agent sees a footer and runs `ktx read <source_id>` THEN the original untransformed tool_call record is returned for layered recovery.
+  surprises:
+    []

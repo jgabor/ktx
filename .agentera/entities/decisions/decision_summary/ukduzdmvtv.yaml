@@ -1,0 +1,16 @@
+id: ukduzdmvtv
+artifact: decisions
+record:
+  summary: "Decision 25 (2026-07-10): Consolidate the implementation on Go and remove Python. Supersede D13 only where it rejected a..."
+  date: 2026-07-10
+  choice: "Consolidate the implementation on Go and remove Python. Supersede D13 only where it rejected a ktx-native live harness: ktx now owns the ktx-specific experiment evidence it already produces, while remaining unaware of and uncoupled from openeval. Keep SQLite as product evidence only; experiment identity, side assignment, attempts, and summaries remain retained file artifacts. Database reports open SQLite in mode=ro with query_only and never call db.Open, preventing report-time migrations. External command execution uses a real process-group adapter and a fake test adapter; timeouts send TERM, wait a configured grace period, then KILL, and Docker cleanup runs after every attempt. Ranking invokes comparison in-process. Stable JSON and corpus bytes are pinned by golden tests, including timestamps, floats, and null-versus-zero behavior."
+  feeds_into: ARCHITECTURE.md Benchmark; internal/experiment; internal/dbreport; ktx bench compare; ktx bench rank; ktx bench validate; ktx bench corpus generate; ktx db report; Dockerfile.benchmark; Makefile; CI; docs/pipelines.md
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor
+      confirmed_at: 2026-07-12 22:20:00+02:00
+  outcome: "Consolidate the implementation on Go and remove Python. Supersede D13 only where it rejected a ktx-native live harness: ktx now owns the ktx-specific experiment evidence it already produces, while remaining unaware of and uncoupled from openeval. Keep SQLite as product evidence only; experiment identity, side assignment, attempts, and summaries remain retained file artifacts. Database reports open SQLite in mode=ro with query_only and never call db.Open, preventing report-time migrations. External command execution uses a real process-group adapter and a fake test adapter; timeouts send TERM, wait a configured grace period, then KILL, and Docker cleanup runs after every attempt. Ranking invokes comparison in-process. Stable JSON and corpus bytes are pinned by golden tests, including timestamps, floats, and null-versus-zero behavior."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: d956738f57d30b4cfd8304dc4f5c0694d2548fe0d96e7c11eb3138c1648b996d

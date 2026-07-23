@@ -1,0 +1,14 @@
+id: xdymypngqh
+artifact: plan
+record:
+  name: Preserve database-backed replay compatibility
+  depends_on:
+    - uvarmdrrru
+  status: complete
+  acceptance:
+    - GIVEN an existing session identifier WHEN replay runs THEN its selector, envelope fields, comparison semantics, and PASS, DRIFT, and FAIL exit behavior remain compatible.
+    - GIVEN parentless database evidence WHEN replay runs THEN its existing comparison-unavailable behavior remains supported and is not presented as full portable verification.
+    - GIVEN equivalent database and exported fixture evidence WHEN each is evaluated THEN shared integrity, parser, usage, cache, cost, and compression values agree.
+    - GIVEN missing session and missing fixture inputs WHEN invoked THEN each reports the correct selector-specific error without falling through to the other source.
+  evidence: Retained progress 50 records session replay routed through the shared recorded-stream parser with focused envelope, exit, parentless, parity, and selector-negative coverage. Focused replay compatibility tests and go test ./internal/cli passed; mage check passed tests, vet, lint with 0 issues, and build; git diff --check passed. The verified contract preserved legacy JSON/text envelopes, informational DRIFT exit 0, FAIL exit 4, parentless comparison-unavailable behavior, selector-specific failures, and parity of shared integrity, parser, usage, cache, cost, and compression evidence.
+  plan: werahgotke

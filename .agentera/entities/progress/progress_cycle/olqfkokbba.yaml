@@ -1,0 +1,16 @@
+id: olqfkokbba
+artifact: progress
+record:
+  timestamp: 2026-07-12 21:48
+  type: docs
+  phase: audit
+  what: Published the canonical Codex identity contract in the README and migration guide, indexed project documentation, and verified the shipped hook and recovery paths against an isolated database.
+  inspiration: Active plan task 4 and the strict single-identity contract.
+  discovered: The repository had no migration guide or docs index. Existing pipeline, architecture, and backlog documents exceed the advisory full-file word budget; changed documentation passes the docs lint.
+  verified: Focused db and CLI identity, migration, collision, retry, hook, compression, and recovery tests passed. A representative Codex payload containing an exec-shaped runtime ID persisted only 16-letter source IDs; read and get surfaced the canonical ID, the old exec command returned not found, SQLite contained zero exec-shaped primary keys, and decompression matched the original SHA-256 7dd87a9ab0185bb4ea1e08ccac6720c84330174e468628d709fd61303db37a89. README and migration docs lint passed. mage check passed all tests, vet, lint, and build.
+  next: Task 4 is complete. Decision satisfaction remains user-owned; orchestration may close the plan without adding aliases or external identity metadata.
+  context:
+    intent: Close the unified Codex identity plan with release-facing upgrade guidance, migration behavior, and end-to-end evidence.
+    constraints: No paid calls, prohibited models, product behavior changes, compatibility aliases, or decision satisfaction updates.
+    unknowns: none
+    scope: README.md, docs/migrations.md, .agentera/docs.yaml, .agentera/progress.yaml, .agentera/plan.yaml

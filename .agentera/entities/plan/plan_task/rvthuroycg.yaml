@@ -1,0 +1,14 @@
+id: rvthuroycg
+artifact: plan
+record:
+  name: ktx write persists M2 fields
+  depends_on:
+    - tvelpnehsn
+  status: complete
+  acceptance:
+    - GIVEN a ktx write payload with tokens_in, tokens_out, cost, latency_ms, model, provider set WHEN ktx write persists it THEN those columns are non-NULL in the tool_calls row
+    - GIVEN a ktx write payload without M2 fields WHEN ktx write persists it THEN the M2 columns are NULL (not 0, not empty string — NULL preserves 'field absent' for reconstructability)
+    - "GIVEN a ktx write payload with M2 fields explicitly set to 0 (e.g., tokens_in: 0) WHEN ktx write persists it THEN the column is 0, not NULL (preserves the distinction between absent and zero)"
+    - GIVEN a persisted tool_call with M2 fields WHEN ktx read <id> or ktx get <id> is invoked THEN the M2 fields appear in the JSON output (null when absent, value when set)
+    - GIVEN a persisted tool_call with NULL M2 fields WHEN ktx get <id> --format text is invoked THEN no M2 section is rendered (silent absence, not 'n/a' filler)
+  plan: zgmcmzilab

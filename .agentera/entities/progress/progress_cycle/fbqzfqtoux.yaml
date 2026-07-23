@@ -1,0 +1,16 @@
+id: fbqzfqtoux
+artifact: progress
+record:
+  timestamp: 2026-07-16 02:04
+  type: docs
+  phase: deliberate
+  what: Recorded the generalized trusted-ingress tool-call identity policy as Decision 30, including retry equality, session ownership, compressed-result authority, supersession boundaries, and legacy coexistence.
+  inspiration: Approved orchestration decision task; .agentera/verification/runtime-identity-evidence.md; retained offline probe; progress cycles 34 and corrective 35, with cycle 35 authoritative for retry classes.
+  discovered: The decisions writer initially refused legacy confidence labels on Decisions 27-29. After explicit user approval, only those three labels were normalized from high to firm; Decisions 3 and 26 remain irrecoverable legacy summaries and no missing fields were inferred. Decision 30 retrieval reports missing satisfaction/outcome as review-needed rather than reconstructing them.
+  verified: Pre-write agentera check lint on /tmp/opencode/ktx-decision-30-draft.yaml passed all self-audit checks. The decisions writer dry-run passed after the user-approved confidence normalization, then agentera state decisions append assigned Decision 30 and reported validation pass with verified archive .agentera/archive/decisions/30.yaml. agentera state decisions get --number 30 --format json returned the exact trusted-provenance eligibility, fresh NanoID fallback, semantic-JSON equality, conflict/first-wins, atomic sequential/concurrent convergence, first-session ownership, first-compressed-artifact authority, scoped Decision 3/26 supersession, and no-migration/no-alias clauses; archive record SHA-256 is 3a0234c0bd5227618d9d9062ea64eea7902883949c4e5364ecdb4c635c8529ab. agentera check validate artifact --artifact decisions --format json passed with zero violations. git diff --check passed. Retained progress cycles 34 and 35 and both verification artifacts were inspected; cycle 35's corrected stable/ineligible matrix was used.
+  next: Implementation Tasks 3-5 should encode Decision 30 and add focused sequential/concurrent, changed-evidence, cross-ingress equivalence, session-roll-up, pipeline-change, and historical-coexistence tests. Do not claim upstream retry/restart guarantees or mark the plan task complete from this cycle.
+  context:
+    intent: Complete the approved structured decision task from retained Task 1 evidence without changing product behavior or plan task status.
+    constraints: Decision recording only; no product code, README, architecture, TODO, plan content/status, migration, runtime-ID alias, or historical tuple mapping.
+    unknowns: Upstream automatic failed-hook retry, runtime-restart callback replay, and guaranteed fresh native IDs for model re-execution remain unguaranteed. Decision satisfaction/outcome are absent and review-needed; no values were inferred.
+    scope: .agentera/decisions.yaml, .agentera/archive/decisions/30.yaml, user-approved confidence-label normalization for Decisions 27-29, and Agentera progress artifacts.

@@ -1,0 +1,14 @@
+id: hwuvvsnaii
+artifact: plan
+record:
+  name: Integration tests + acceptance verification
+  depends_on:
+    - bbbuubepsu
+    - gcvapyocjy
+  status: complete
+  acceptance:
+    - GIVEN ktx hook is invoked from the command line with a valid D9 JSON payload on stdin WHEN ktx.toml has [pipeline.default].stages with head:5 AND the input has 20 lines of output THEN the envelope output field contains only 5 lines; ktx decompress <compressed_id> returns the original 20 lines.
+    - GIVEN an OpenCode session with the ktx plugin installed AND ktx.toml has [pipeline.default].stages with head:3 WHEN the agent runs a tool that produces 10 lines of output THEN the agent context receives only 3 lines (the compressed output); the original 10 lines are in ktx database (ktx decompress returns them).
+    - GIVEN go test ./... runs THEN every M1-M5 test passes AND every new hook test in internal/cli/hook_test.go passes.
+    - GIVEN the acceptance log at .agentera/verification/hook-acceptance.md WHEN a reviewer reads it THEN it contains Build / Regression / Hook Acceptance (end-to-end passthrough + configured pipeline + D15 gate + reversibility + plugin mutation) / VERIFICATION SUMMARY.
+  plan: mnmjhmbpel

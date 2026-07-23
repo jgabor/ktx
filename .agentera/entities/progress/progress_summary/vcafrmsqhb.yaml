@@ -1,0 +1,7 @@
+id: vcafrmsqhb
+artifact: progress
+record:
+  summary: "Cycle 12 (2026-06-20): M3 plan Task 5 (`ktx bench report`) lands as the headline consumer for persisted bench_runs..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 49e48d4be0d8ce88ba1b62ed281f38d8227c8e4577759fdbba366f1a8241224e

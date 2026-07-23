@@ -1,0 +1,12 @@
+id: xveqhbbyfv
+artifact: plan
+record:
+  name: Convert eligible historical Codex identities safely
+  depends_on:
+    - mgyvqkswef
+  status: complete
+  acceptance:
+    - GIVEN a historical row authoritatively attributed to Codex with an external-shaped source ID WHEN migration succeeds THEN its source ID and every dependent reference use the canonical replacement while all other evidence remains unchanged.
+    - GIVEN an ambiguous row, mapping collision, or multiple historical rows competing for one identity WHEN migration runs THEN it stops with actionable diagnostics and commits no partial changes.
+    - GIVEN a successfully migrated database WHEN it opens again and validates referential integrity THEN migration is a no-op and no eligible external-shaped Codex source ID remains.
+  plan: dbbyqzqyvu

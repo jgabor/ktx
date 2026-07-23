@@ -1,0 +1,24 @@
+id: xmqtdlyphd
+artifact: plan
+record:
+  name: Extract costDeriver deep module with PriceSource seam
+  depends_on:
+    []
+  status: complete
+  files:
+    - internal/db/cost.go
+    - internal/db/cost_test.go
+    - internal/db/persist.go
+    - internal/db/bench.go
+  acceptance:
+    - GIVEN `costDeriver.Derive(in CostInputs, src PriceSource) *float64` with `(tokensIn=1_000_000, tokensOut=1_000_000, model=&'claude-sonnet-4-20250514', provider=&'anthropic', cost=nil, src.Lookup returns (3, 15, true))`, THEN Derive returns `$18.000000` rounded to 6 decimals per D11.
+    - GIVEN the same Derive with `cost=&0.005` (caller-supplied zero), THEN Derive returns `0.005` unchanged (caller wins; no lookup).
+    - GIVEN Derive with `tokensIn=nil` (any NULL input), THEN Derive returns `nil` (D11 NULL preservation; no lookup).
+    - GIVEN Derive with a fakePriceSource where Lookup returns false and Cold()=true and Refresh succeeds and the post-refresh Lookup returns (3, 15, true), THEN Derive returns `$18.000000` and the cache write is the source's responsibility (caller-side observation).
+    - GIVEN Derive with a fakePriceSource where Lookup returns false and Cold()=false, THEN Derive returns `nil` and `Refresh` is NOT called (warm-cache miss is silent per D11).
+    - GIVEN Derive with a fakePriceSource where Lookup returns false and Cold()=true and Refresh fails, THEN Derive returns `nil` (D11 soft-fail; no error propagated).
+    - GIVEN Derive with `tokensIn=&0, tokensOut=&0, model=&'m', provider=&'p', src.Lookup=(3, 15, true)`, THEN Derive returns `$0.000000` (zero-token input is a real value for the persist path; bench caller pre-filters this case).
+    - GIVEN the refactored `(*DB).deriveCost`, WHEN a tool_call with `Cost=nil` and `tokens_in=tokens_out=1_000_000, model='claude-sonnet-4-20250514', provider='anthropic'` is persisted, THEN the persisted `Cost` is identical to the pre-refactor result (existing `TestPersistToolCall_CostDerivation` in persist_test.go proves this).
+    - GIVEN the refactored `(*DB).deriveBenchCost`, WHEN a bench_run with `tokens_in=tokens_out=1_000_000, model='claude-sonnet-4-20250514'` is inserted, THEN the persisted `Cost` is identical to the pre-refactor result (existing `TestSummarizeBenchToolCalls` / `TestInsertBenchRun_RoundTrip` proves this).
+    - GIVEN the refactored `(*DB).deriveBenchCost`, WHEN a bench_run with `tokens_in=tokens_out=0` is inserted, THEN the persisted `Cost` is `nil` (the bench caller pre-filters this case; preserves the existing bench-side contract).
+  plan: cwkcnuilrp

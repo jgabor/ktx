@@ -1,0 +1,13 @@
+id: aetngexdsb
+artifact: plan
+record:
+  name: Documentation sync
+  depends_on:
+    - bbbuubepsu
+    - gcvapyocjy
+    - hwuvvsnaii
+  status: complete
+  acceptance:
+    - GIVEN Tasks 2, 3 landed AND Task 4 verified WHEN ARCHITECTURE.md is inspected THEN the In-flight compression hook (D22) section reflects the implemented verb, envelope shape, and plugin mutation contract.
+    - GIVEN ktx hook is implemented WHEN TODO.md is updated THEN any existing hook-related TODO is marked complete; no duplicate open items.
+  plan: mnmjhmbpel

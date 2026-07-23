@@ -1,0 +1,24 @@
+id: gugfedwuga
+artifact: plan
+record:
+  name: Adopt deterministic identity in verified OpenCode paths
+  depends_on:
+    - jwhymqypnw
+    - bauddabhku
+  status: complete
+  acceptance:
+    - GIVEN equivalent eligible OpenCode hook and wrapper events WHEN they persist THEN shared test vectors prove they resolve to the same source ID.
+    - GIVEN an OpenCode path is not proven eligible WHEN it accepts an event THEN it assigns a fresh NanoID.
+    - GIVEN model-requested re-execution has a new native call identity WHEN it persists THEN it remains a distinct observation.
+    - GIVEN caller-supplied compatibility ingress WHEN behavior is checked THEN its documented identity handling remains unchanged.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: task-5-attempt-1
+      source: Independent review verified OpenCode hook/wrapper convergence, fallback, new-call distinctness, flat compatibility, race tests, and progress cycle 40.
+      recorded_at: 2026-07-16 06:16
+      writer_command: agentera state plan record-evaluation
+  plan: bzkbsxjouw

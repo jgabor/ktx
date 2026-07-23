@@ -1,0 +1,14 @@
+id: lqzkqxjrvq
+artifact: plan
+record:
+  name: ktx get + ktx list (minimal query, JSON default, --format text)
+  depends_on:
+    - jvwhlvdepg
+  status: complete
+  acceptance:
+    - GIVEN a persisted tool_call with ID abcdefghijklmnop WHEN ktx get abcdefghijklmnop is invoked THEN it prints the record as JSON to stdout
+    - GIVEN ktx get abcdefghijklmnop --format text WHEN invoked THEN it prints a human-readable summary
+    - GIVEN multiple persisted sessions WHEN ktx list is invoked THEN it prints a JSON array of sessions to stdout
+    - GIVEN ktx list --format text WHEN invoked THEN it prints a human-readable table of sessions
+    - GIVEN a non-existent ID WHEN ktx get xyz is invoked THEN exit code is 2 (not-found)
+  plan: anaemecwba

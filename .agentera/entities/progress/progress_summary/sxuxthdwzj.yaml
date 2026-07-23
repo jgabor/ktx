@@ -1,0 +1,7 @@
+id: sxuxthdwzj
+artifact: progress
+record:
+  summary: "Cycle 17 (2026-07-09): D24 amends D23: recovery footer reformatted to a single instructional line. buildRecoveryFooter now emits `[ktx]..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: ced80ba7c0a677f3838cb539d50d497f6f3a158f3e6a24dc39e14b64c9503322

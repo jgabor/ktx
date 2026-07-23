@@ -1,0 +1,15 @@
+id: uiwnoslecp
+artifact: progress
+record:
+  timestamp: 2026-07-17 19:06
+  type: test
+  phase: build
+  what: Preserved database-backed replay compatibility by routing session replay through the shared recorded-stream parser and adding focused envelope, exit, parentless, parity, and selector-negative coverage in internal/cli.
+  discovered: Database and fixture replay already shared usage extraction; parser traversal was the remaining duplicated evidence path. Strict fixture status intentionally remains separate from informational session DRIFT.
+  verified: Focused replay compatibility tests passed; go test ./internal/cli passed; mage check passed all tests, vet, lint with 0 issues, and build; git diff --check passed.
+  next: Task 5 remains pending; no retained fixture, repository gate, CI, or broad documentation was added here.
+  context:
+    intent: Keep established session replay semantics intact while proving equivalent database and exported fixture evidence agrees on shared integrity, parser, usage, cache, cost, and compression values.
+    constraints: Preserved legacy JSON/text envelopes, DRIFT exit 0, FAIL exit 4, parentless comparison-unavailable behavior, and selector-specific failures. No decision satisfaction was inferred.
+    unknowns: Historical plan and decision state remains degraded as reported by agentera@next; no hidden outcomes were reconstructed.
+    scope: internal/cli/bench_replay.go, internal/cli/bench_replay_compat_test.go, and agentera-managed plan/progress artifacts.

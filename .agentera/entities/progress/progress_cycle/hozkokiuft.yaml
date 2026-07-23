@@ -1,0 +1,16 @@
+id: hozkokiuft
+artifact: progress
+record:
+  timestamp: 2026-07-17 19:24
+  type: test
+  phase: build
+  what: Retained a reviewed synthetic benchmark-parented replay fixture and added a bounded offline repository gate.
+  inspiration: Active plan task for representative fixture retention and repository verification.
+  discovered: All six benchmark-parented captures in the available local database failed authoritative export because stream-derived usage diverged from their benchmark parents. None met the completeness contract, so the retained source is deterministic synthetic evidence with explicit provenance and reviewed strings.
+  verified: mage replayFixture passed twice. The built CLI produced byte-identical 1,190-byte evidence on two runs with SHA-256 f5d7bf37bd2df5fac3f42ff2326aa84f08ad6f8558e879e477df82b9d104cc3b and empty stderr. The gate rejects integrity, parser, usage, cost, cache, pipeline, and compression drift and proves database DRIFT exits zero while strict fixture replay exits nonzero. mage check and git diff --check passed.
+  next: Add tracked hosted CI invocation of the same repository gate without changing its offline contract.
+  context:
+    intent: Make repository verification exercise one privacy-safe portable fixture and reject strict evidence drift rather than trusting replay exit status alone.
+    constraints: No CI workflow, broad user documentation, trust/redaction architecture, network, user configuration, plugins, credentials, or external database dependency.
+    unknowns: "Resolved: no reviewed existing capture was complete; deterministic synthetic benchmark-parented evidence was required."
+    scope: Retained fixture and provenance under internal/cli/testdata, focused strict gate coverage, and a mage replayFixture target.

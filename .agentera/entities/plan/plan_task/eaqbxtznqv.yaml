@@ -1,0 +1,26 @@
+id: eaqbxtznqv
+artifact: plan
+record:
+  name: "Init: ktx init codex install/uninstall/show with hooks.json merge"
+  depends_on:
+    - nzkpmapooo
+  status: complete
+  acceptance:
+    - |
+      GIVEN no hooks.json exists at ~/.codex/hooks.json WHEN ktx init codex runs (global scope) THEN a new hooks.json is created with a PostToolUse entry containing command "ktx hook" and matcher ".*".
+    - |
+      GIVEN an existing hooks.json with a SessionStart hook WHEN ktx init codex runs THEN the PostToolUse entry is added and the existing SessionStart hook is preserved (merge, not overwrite).
+    - |
+      GIVEN a hooks.json that already contains ktx's PostToolUse entry WHEN ktx init codex runs again THEN the file is unchanged (idempotent install).
+    - |
+      GIVEN a hooks.json with ktx's PostToolUse entry and other hooks WHEN ktx init codex --uninstall runs THEN ktx's entry is removed and other hooks are preserved.
+    - |
+      GIVEN ktx init codex --project runs THEN the hooks.json is written to ./.codex/hooks.json (project scope, not global).
+    - |
+      GIVEN ktx init codex --show runs and ktx hooks are present THEN the output reports the installed scope (global and/or project) and the hook command.
+    - |
+      GIVEN ktx init codex --show runs and no ktx hooks are found THEN the output reports not-installed and exits with code 2.
+    - |
+      GIVEN the install output WHEN read THEN it includes instructions about Codex's trust review requirement (the user must run /hooks in Codex to trust the ktx hook before it fires).
+  test_proportionality: 4 testable units (install-creates, install-merges, uninstall-preserves-others, show-reports); one pass per unit.
+  plan: tyhjhmlrcr

@@ -1,0 +1,6 @@
+id: lejmjmiqzt
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Recorded-decision satisfaction review** — Review recorded choices that lack current satisfaction evidence against shipped behavior, tests, documentation, and retained benchmark evidence; record the review in the decision history without rewriting prior choices."

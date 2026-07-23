@@ -1,0 +1,17 @@
+id: wrnfsbjgdm
+artifact: plan
+record:
+  name: Footer composition + footer-aware second gate
+  depends_on:
+    - fwrnhnloib
+  status: complete
+  acceptance:
+    - GIVEN source_id, original byte count, and compressed byte count WHEN the footer is built THEN it contains the source_id verbatim.
+    - GIVEN original_bytes=50000 and compressed_bytes=2000 WHEN the footer is built THEN it contains the original size, compressed size, and a reduction ratio (96%).
+    - GIVEN a built footer WHEN inspecting its text THEN it contains the recovery command `ktx read <source_id>`.
+    - "GIVEN recover_footer enabled and pipeline transformed and len(compressed)+len(footer) >= len(original) WHEN the footer-aware gate fires THEN the gate signals suppression (transformed=false for the caller): source is returned unchanged and no footer is produced; the caller's insert-when-transformed policy yields no compressed row."
+    - GIVEN recover_footer enabled and pipeline transformed and len(compressed)+len(footer) < len(original) WHEN the footer-aware gate fires THEN the transform is kept and the footer is produced for the envelope.
+    - GIVEN recover_footer disabled WHEN the pipeline transforms THEN no footer is built and the existing byte-gate alone determines the outcome (today's behavior).
+    - GIVEN the pipeline did not transform (transformed=false) WHEN recover_footer is enabled THEN no footer is built (footer only on actual compression).
+  test_proportionality: 4 testable units (footer content, gate suppress, gate pass, disabled-noop); one pass + one fail per unit.
+  plan: iodsixrygb

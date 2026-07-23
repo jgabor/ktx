@@ -1,0 +1,13 @@
+id: devodavuih
+artifact: plan
+record:
+  name: Resonera — cost measurement mechanics
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - "GIVEN the open deliberation 'Cost measurement mechanics' WHEN a resonera session records the choice THEN a new decision entry in .agentera/decisions.yaml documents: (a) token counting source (provider-reported vs local tokenizer vs hybrid), (b) dollar model (list prices vs user overrides vs provider-agnostic units), (c) reconstructability requirement (which fields are required vs optional for cost to be reconstructable from stored data), (d) which fields ktx auto-populates vs requires from the caller"
+    - GIVEN the decision WHEN recorded THEN ARCHITECTURE.md 'Measurement and benchmark' open-deliberation items for 'Token counting source' and 'Dollar model' move to Decided with a short paragraph each
+    - GIVEN the decision WHEN recorded THEN tasks 2–5 can proceed without re-deliberation
+    - "GIVEN the decision WHEN recorded THEN the new entry has confidence: firm and a downstream_consequence_references list naming: schema migration, ktx write, ktx run, ktx get, ktx list, M3 benchmark methodology"
+  plan: zgmcmzilab

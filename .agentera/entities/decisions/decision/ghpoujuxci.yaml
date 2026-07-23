@@ -1,0 +1,26 @@
+id: ghpoujuxci
+artifact: decisions
+migration_provenance:
+  kind: inherited_decision_confidence
+  source: current_projection
+  source_path: .agentera/decisions.yaml
+  source_record_sha256: 5bafd0ff5eb877eb34addbce637c1c34d13b95f8e8af9dc96547a6964b8a5494
+  confidence: high
+record:
+  date: 2026-07-15
+  question: How should live pipeline comparisons control and describe provider prompt caching without claiming cache isolation the runtime cannot prove?
+  context: OpenCode 1.18.0 emits cache usage but the existing methodology mixes setup and measured attempts. Its documented setCacheKey option does not accept a key. Source inspection shows it assigns the OpenCode session id, while arbitrary per-model options are merged afterward and can override promptCacheKey. Provider acceptance remains provider-specific, so runtime configurability alone is not proof of isolation.
+  alternatives:
+    - name: Separate phases with capability-gated namespace isolation
+      status: chosen
+      description: Retain cold observation and warm-up attempts separately, count only measured-warm attempts, isolate stable per-side namespaces only through a confirmed adapter, and otherwise label the experiment observed-only.
+    - name: Treat setCacheKey as isolated cache control
+      status: rejected
+      description: The source derives the key from each OpenCode session, so independently launched attempts do not share one stable arm namespace and the two arms are not controlled as claimed.
+    - name: Infer cold and warm state from emitted cache token counts
+      status: rejected
+      description: Usage telemetry is valuable observation but cannot prove namespace ownership, eviction state, or whether another workload populated the provider cache.
+  choice: Publish methodology v5 as an explicit opt-in while preserving v4 defaults. Per side retain one cold_observation, configured warmup attempts (default one), and measured_warm attempts (default five). Setup attempts never satisfy the target and never enter quality/headline aggregates. Counterbalance setup order deterministically and alternate measured order by cycle. Cache-control modes are auto, isolated, and observed. Inspect and normalize the benchmark image runtime identity before capability resolution. The built-in fixed promptCacheKey adapter is supported only for OpenCode exactly 1.18.0 and confirmed provider paths; unknown, malformed, custom, and all other versions are unsupported. Explicit unsupported isolation fails before paid execution; auto falls back to observed. Isolated mode uses a unique stable namespace per experiment side through a capability adapter and retains only its SHA-256. Retained isolated namespace hashes must be exactly 64 lowercase hexadecimal characters, stable within each side, distinct across sides, and consistent between manifest and attempts; observed mode forbids retained namespace hashes. Attempt and manifest file artifacts retain cache mode/source/phase/order/idle gap/model/provider/variant/runtime version; SQLite is unchanged. Schema-v3 summaries publish phase distributions, cold-minus-measured-warm estimated-cost rebuild penalty, and cumulative estimated-cost break-even including setup cost, with nullable reasons. V5 validation uses a strict measured_warm target predicate and requires schema 3, pricing evidence, exact setup topology, manifest/attempt cache metadata consistency, and isolated namespace stability and separation. TTFT remains null until retained timestamps support a reliable derivation.
+  reasoning: Separating setup from measurement removes a known methodological confound while retaining every paid observation. Capability gating turns unsupported cache control into an honest label rather than a false guarantee. Retained pricing and attempts make rebuild and break-even deterministic and independently auditable. The additive file-artifact model preserves legacy summaries and avoids a database migration for orchestration state.
+  confidence: high
+  feeds_into: methodology-v5-cache-aware; live comparison orchestration; experiment manifest and attempt metadata; schema-v3 summary and validation; benchmark documentation

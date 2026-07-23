@@ -1,0 +1,16 @@
+id: cggetupjfo
+artifact: plan
+record:
+  name: Project scaffolding + CLI dispatch + global flags + ktx db path
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a clean checkout WHEN go build ./... succeeds THEN the ktx binary is produced
+    - GIVEN ktx --help WHEN invoked THEN it lists all subcommands (run, write, read, get, list, init, db, doctor)
+    - GIVEN ktx --version WHEN invoked THEN it prints the version
+    - GIVEN ktx db path WHEN invoked THEN it prints the default database path ($XDG_DATA_HOME/ktx/ktx.db)
+    - GIVEN KTX_DB=/tmp/test.db WHEN ktx db path is invoked THEN it prints /tmp/test.db
+    - GIVEN ktx db --path /tmp/test.db path WHEN invoked THEN it prints /tmp/test.db
+    - GIVEN an invalid command WHEN ktx foo is invoked THEN exit code is 1 and stderr is JSON error
+  plan: zymsplszbm

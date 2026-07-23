@@ -1,0 +1,18 @@
+id: tsshhohtyj
+artifact: plan
+record:
+  name: Extract internal/parser package from cli/run.go
+  depends_on:
+    - xmqtdlyphd
+  status: complete
+  files:
+    - internal/parser/parser.go
+    - internal/parser/parser_test.go
+    - internal/cli/run.go
+  acceptance:
+    - "GIVEN the new `internal/parser/` package with `ParseEvent(line []byte) (*db.ToolCall, bool)`, WHEN called with a JSON event from m3-acceptance.md AC1 (OpenCode tool_use shape: `top.type == 'tool_use', part.type == 'tool', part.state.input/output`), THEN it returns the populated `*db.ToolCall` and `true`."
+    - GIVEN the same package called with a non-tool event (text message, step lifecycle), WHEN invoked, THEN it returns `nil, false` (passthrough signal).
+    - GIVEN the refactored `internal/cli/run.go`, WHEN its `wc -l` is taken, THEN it is reduced by >= 280 LOC compared to the pre-Plan baseline (extracted parser helpers minus the new `import "internal/parser"` block and the thinned `teeAndParse` calling `parser.ParseEvent`).
+    - GIVEN the new `internal/parser/parser_test.go`, WHEN run with table-driven fixtures covering OpenCode tool_use, fallback flat shape (id/tool/name/input/args/output/result/timestamp/time), and 5 non-tool event shapes, THEN each fixture produces the expected `*db.ToolCall` or `nil` result without any database I/O (pure functions).
+    - GIVEN the full suite, WHEN `go test ./... -race -count=3` runs, THEN every test passes; the parser package is importable as `internal/parser` from any future module-internal hook-path package without circular dependencies on `internal/cli`.
+  plan: cwkcnuilrp

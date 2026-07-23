@@ -1,0 +1,18 @@
+id: ohwoytvozc
+artifact: plan
+record:
+  name: M2 acceptance verification
+  depends_on:
+    - devodavuih
+    - tvelpnehsn
+    - rvthuroycg
+    - bboodksmbu
+    - ughxklnaqb
+  status: complete
+  acceptance:
+    - GIVEN the full M2 implementation WHEN a real OpenCode ktx run opencode run --format json "<task>" produces a tool_call THEN ktx get <tool-call-id> shows the M2 fields populated from the runtime, OR the verification log documents that OpenCode --format json does not emit M2 fields and the surface is fed by sidecar
+    - GIVEN a sidecar echo '{...}' | ktx write with M2 fields WHEN persisted THEN ktx read returns the M2 fields AND the cost is reconstructable from tokens_in, tokens_out, model against a known price (the dollar model from task 1)
+    - GIVEN the M1 acceptance verification (.agentera/verification/m1-acceptance.md) WHEN re-run with the M2 binary THEN all M1 cases still pass (regression check — M2 is additive, not breaking)
+    - "GIVEN a new verification log at .agentera/verification/m2-acceptance.md WHEN written THEN it documents: M1 regression pass, sidecar-with-M2 round-trip (including the absent vs zero distinction), wrapper-with-OpenCode-events M2 extraction outcome (extraction or documented gap), ktx list cost rollup including the mixed-NULL case, ktx get text M2 section including the silent-absence case, ktx doctor M2 column check on a pre-M2 database"
+    - GIVEN the verification log WHEN complete THEN ROADMAP.md M2 acceptance is satisfied (cost reconstructable from published data)
+  plan: zgmcmzilab

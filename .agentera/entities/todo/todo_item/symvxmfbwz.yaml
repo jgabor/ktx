@@ -1,0 +1,6 @@
+id: symvxmfbwz
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Instruction and tool-schema normalization** — Run structured deliberation and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)"

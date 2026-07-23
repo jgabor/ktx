@@ -1,0 +1,32 @@
+id: cyiopgvevi
+artifact: plan
+record:
+  name: Extract internal/cli/dispatch.go deep module
+  depends_on:
+    - okwezoeuby
+  status: complete
+  files:
+    - internal/cli/dispatch.go
+  api:
+    - type RegisterOptions struct { NeedsDB bool; NeedsStdin bool; PassthroughStdout bool; FormatDefault string; Help func(io.Writer); PreParse func(args []string) (rest []string, err error) }
+    - type CommandFunc func(ctx *DispatchContext) (any, error)
+    - type DispatchContext struct { Args []string; Format string; Stdin io.Reader; Stdout io.Writer; Stderr io.Writer; DB *dbpkg.DB; Passthrough bool }
+    - func Register(verb string, opts RegisterOptions, do CommandFunc) int
+  module_owns:
+    - flag.NewFlagSet + SetOutput(io.Discard) + --help/-h boilerplate
+    - subcommand-local --format extraction via existing extractFormat helper
+    - dbpkg.ResolvePath + dbpkg.Open + defer db.Close when NeedsDB
+    - error envelope rendering via printError(stderr, toKtxError(err), format)
+    - exit-code mapping via exitCodeOf(err); dbpkg.ErrNotFound -> 2; *Error{CodeUsage} -> 1
+  module_does_not_own:
+    - JSON or text rendering (verb writes whatever it wants to ctx.Stdout)
+    - subprocess orchestration
+    - event parsing
+  acceptance:
+    - GIVEN a `Register('foo', RegisterOptions{}, fooLogic)` where fooLogic returns nil, nil, WHEN `ktx foo` runs, THEN exit 0 and nothing is written to stdout.
+    - GIVEN fooLogic returns nil, dbpkg.ErrNotFound, WHEN invoked, THEN exit 2 and stderr carries the not-found error envelope.
+    - GIVEN fooLogic returns nil, usageError('bad input'), WHEN invoked, THEN exit 1 and stderr carries the usage error envelope.
+    - GIVEN a verb registered with PassthroughStdout=true whose logic writes a hand-rolled JSON envelope, WHEN invoked, THEN that exact envelope appears on stdout.
+    - GIVEN a verb with NeedsDB=false, WHEN the database file is unreadable, THEN exit 0 (the verb never opened the DB).
+    - GIVEN a verb with PreParse returning rest=['a','b'], err=nil, WHEN invoked, THEN ctx.Args is ['a','b'] after the parse step.
+  plan: ppfsaqcxml

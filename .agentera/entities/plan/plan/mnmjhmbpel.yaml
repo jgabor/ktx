@@ -1,0 +1,31 @@
+id: mnmjhmbpel
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-01
+    status: archived
+    reviewed: 2026-07-01
+    critic_issues: 4 found, 4 addressed, 0 dismissed
+    title: ktx hook — in-flight compression plumbing verification (D22 Phase 1)
+  what: Implement ktx hook as a new flat verb that reads a D9 flat JSON tool_call from stdin, persists the original via the shared internal/db.PersistToolCall code path, runs the D14 compression pipeline via the shared compressPipeline core (D15 gate + D14 invariants; DRY — same code ktx compress calls), and writes a JSON envelope on stdout with output, compressed_id, and source_id fields. Then update the OpenCode plugin template to call ktx hook instead of ktx write, parse the envelope, and mutate output.output to the compressed bytes. Phase 1 verifies the full loop end-to-end with built-in stages (strip-ansi, head).
+  why: "D22 (firm) closes the runtime-token-cost gap: M1-M5 compress stored data post-hoc, but the agent already saw the full output. ktx hook persists the original (reversibility via ktx decompress) and returns the compressed bytes to the agent context via tool.execute.after output mutation (empirically confirmed 2026-07-01). Phase 1 proves the plumbing with conservative built-in stages before adding real compression intelligence (Phase 2: deterministic compression stages)."
+  constraints: "D22 (firm) design rules: single subprocess (no nested subprocess, DRY via shared PersistToolCall); envelope with output, compressed_id, source_id on stdout; compressed row created ONLY when pipeline transforms (passthrough/D15-skip returns source.output with compressed_id=null); two-layer conservative failure (D14 invariants inside ktx hook, plugin-level pass-through on any ktx failure); sync compression (block tool result); critical-path timeout (30s default); D10 noop preserved (KTX_SESSION_ID means plugin skips). D14 D15 invariants unchanged. D9 flat JSON input shape unchanged. M1-M5 regression byte-identical. No new dependencies."
+  scope:
+    included:
+      - "Task 1: Refactor compressLogic to return (compressedID, compressedOutput string, pipelineJSON string, error) as values instead of printing the id to stdout, so both ktx compress and ktx hook consume the shared pipeline+persist code."
+      - "Task 2: Implement ktx hook verb in new internal/cli/hook.go via dispatch.Register (NeedsDB=true, NeedsStdin=true, PassthroughStdout=true). Reads D9 JSON from stdin, persists original via PersistToolCall, runs pipeline, writes envelope to stdout. Compressed row only when pipeline transforms."
+      - "Task 3: Update OpenCode plugin template in internal/cli/init.go to call ktx hook instead of ktx write, parse the JSON envelope, and set output.output = envelope.output."
+      - "Task 4: Integration tests + acceptance verification (.agentera/verification/hook-acceptance.md)."
+      - "Task 5: Documentation sync (ARCHITECTURE.md, TODO.md, ROADMAP.md if needed)."
+    excluded:
+      - "Real compression intelligence (Phase 2: deterministic compression stages)."
+      - Content-type routing (TODO:40).
+      - Per-stage timeout override (D14 territory).
+      - ktx hook --help (manual; follows existing verb help patterns).
+    deferred:
+      - Aggressiveness tiers (TODO:59).
+      - Wrapper-side step_finish enrichment (TODO:29).
+  design: "Five tasks in dependency order. Task 1 (compressLogic refactor) is the prerequisite: today compressLogic prints the compressed id to stdout and returns (nil, error); both ktx compress and ktx hook need the compressed id and output as return values. The refactor splits compressLogic into a core function returning (compressedID, compressedOutput string, pipelineJSON string, error) and a thin wrapper that prints the id for ktx compress. Task 2 (ktx hook verb) depends on Task 1: reads D9 JSON from stdin, parses into ToolCall, calls db.PersistToolCall (the same code ktx write calls, DRY), then calls the refactored compressLogic core (the same code ktx compress calls, DRY) to run the pipeline and persist a compressed row when transformed. Writes the envelope to stdout. Task 3 (plugin update) depends on Task 2: the OpenCode plugin template changes from calling ktx write to calling ktx hook, parsing the JSON envelope, and setting output.output. Task 4 (integration tests) depends on Tasks 2, 3. Task 5 (docs) depends on 2, 3, 4."
+  overall_acceptance: GIVEN ktx hook is implemented and the OpenCode plugin updated WHEN an OpenCode session runs with a ktx.toml that configures compression stages THEN the agent sees compressed tool_call output (fewer tokens in context), the original is in ktx database (ktx decompress returns it verbatim), and with no ktx.toml the agent sees the original unchanged (passthrough, zero behavioral change).
+  surprises: "[]"

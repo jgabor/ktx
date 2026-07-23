@@ -1,0 +1,16 @@
+id: wqyhlbtwdo
+artifact: progress
+record:
+  timestamp: 2026-07-17 18:25
+  type: feat
+  phase: build
+  what: Added authoritative portable fixture export from one validated read-only database snapshot.
+  inspiration: The active portable replay plan requires narrow export before offline evaluation or fixture retention.
+  discovered: The registered bench namespace and legacy testable dispatcher have separate route switches; the binary smoke exposed the missing registered route, and command-level tests now exercise it.
+  verified: Focused export and fixture tests passed. mage check passed all tests, vet, lint with 0 issues, and build. A build/ktx smoke emitted byte-identical stdout and file fixtures while the source database SHA-256 remained unchanged. git diff --check passed.
+  next: Evaluate valid fixtures offline without opening a database or consulting user-local configuration; do not add retained fixtures, gates, CI, or broad documentation yet.
+  context:
+    intent: Produce deterministic version 1 fixtures only from consistent benchmark-parented recorded evidence.
+    constraints: Kept version 1 benchmark-parented only; no import, registry, lifecycle, offline evaluation, compatibility consolidation, retained fixture, CI, migration, plugin, or broad documentation work.
+    unknowns: The retained-capture privacy and suitability question remains deferred to the representative-fixture task.
+    scope: internal/cli/bench_fixture_export.go, bench dispatch/help, and focused fixture export tests.

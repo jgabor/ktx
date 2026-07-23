@@ -1,0 +1,13 @@
+id: sukqkernst
+artifact: progress
+record:
+  timestamp: 2026-07-12 21:41
+  type: feat
+  phase: build
+  what: Integrated the audited internal/cli/hook.go Codex ingestion implementation into main, retaining the shared canonical identity package and migration evidence.
+  verified: go test -race ./internal/cli ./internal/db passed targeted canonical identity, concurrent retry, changed-payload conflict, and atomic insertion tests on main; mage check passed all packages with 0 lint issues; the Task 3 audit passed all acceptance surfaces.
+  next: Execute and audit the remaining unified-contract documentation task.
+  context:
+    intent: Complete live Codex ingestion with canonical stable IDs, retry deduplication, conflict preservation, and unchanged OpenCode and flat-hook behavior.
+    constraints: Integrated only the audited product diff; did not replay duplicate identity or stale progress commits.
+    scope: internal/cli/hook.go, internal/cli/hook_test.go, internal/db/records.go, internal/db/compress.go, internal/db/retry_test.go

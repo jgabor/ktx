@@ -1,0 +1,10 @@
+id: mimvaitmlb
+artifact: progress
+record:
+  timestamp: 2026-07-12 21:19
+  type: docs
+  phase: build
+  what: Ratified the single persisted tool-call identity contract
+  verified: Decision 26 fixes versioned length-prefixed tuple framing, ASCII-only normalization, SHA-256 base-26 derivation, and fresh random fallback for unusable tuples; ARCHITECTURE.md records the ingress invariant; Agentera decisions and plan artifact validation passed; mage check passed with 0 issues
+  context:
+    intent: Make KTX the sole owner of Codex tool-call identities before migration and ingestion changes

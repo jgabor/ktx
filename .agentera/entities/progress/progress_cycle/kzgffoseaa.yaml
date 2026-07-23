@@ -1,0 +1,16 @@
+id: kzgffoseaa
+artifact: progress
+record:
+  timestamp: 2026-07-15 23:29
+  type: docs
+  phase: plan
+  what: Established pinned runtime identity evidence for OpenCode hook/wrapper and Codex hook without changing product behavior or plan status.
+  inspiration: Approved plan task to establish trusted ingress, retry, equality, and historical-coexistence evidence.
+  discovered: OpenCode 1.18.2 hook and wrapper expose the same native session/call tuple but KTX drops it; current retry equality has no enrichment path; compressed persistence and delivered retry output can diverge after pipeline changes.
+  verified: "Criteria 1-4 are substantiated in .agentera/verification/runtime-identity-evidence.md: pinned OpenCode v1.18.2 commit 70b56a0 and Codex 0.144.4 commit 8c68d4c contracts identify native tuples/provenance; sequential and concurrent retry tests passed; records.go inspection classifies authoritative, ignored, and conflicting fields; schema/runtime migration tests prove native tuples were not retained, historical rows coexist without rewrite, and cross-version duplicates cannot be retroactively deduplicated. Focused identity, db, cli, parser, and race commands all passed."
+  next: Use the retained facts and explicit unknowns to record the generalized identity decision; do not infer runtime retry guarantees or historical tuple mappings.
+  context:
+    intent: Substantiate all four runtime-identity research criteria before the generalized identity decision.
+    constraints: Research only; no product code, decisions, plan task status, README, architecture, or TODO changes; no live model calls.
+    unknowns: Runtime failed-hook and restart stability are not guaranteed; JSON equality, metadata enrichment, and pipeline result authority require policy in the next task.
+    scope: .agentera/verification/runtime-identity-evidence.md and Agentera progress projection only.

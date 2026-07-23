@@ -1,0 +1,6 @@
+id: gnkiweayco
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Routing-candidate evidence characterization** — Use retained calls and benchmark fixtures to measure candidate content signals, ambiguous cases, residual spend, and fallback outcomes. Publish evidence for deliberation without selecting a taxonomy or profile mapping. → [Router taxonomy and profile selection](ARCHITECTURE.md#router-taxonomy-and-profile-selection)"

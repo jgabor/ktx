@@ -1,0 +1,16 @@
+id: cvqjtrxcjs
+artifact: plan
+record:
+  name: ktx write (flat JSON, event_type, ppid-aware session resolution)
+  depends_on:
+    - syllidpmib
+  status: complete
+  acceptance:
+    - GIVEN a flat JSON tool_call on stdin with all required fields WHEN ktx write is invoked THEN it persists the record and prints the record ID to stdout
+    - GIVEN a tool_call without session_id WHEN ktx write is invoked AND a valid session file exists at $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json THEN it reuses that session_id
+    - GIVEN a tool_call without session_id WHEN ktx write is invoked AND no session file exists THEN it creates a new session, writes the session file, and uses the new session_id
+    - GIVEN a tool_call without session_id WHEN ktx write is invoked AND the session file's ppid is dead or start-time mismatches THEN it closes the old session and creates a new one
+    - GIVEN event_type=session_close with session_id and timestamp WHEN ktx write is invoked THEN it sets ended_at on the session row
+    - GIVEN a tool_call persist WHEN successful THEN the sessions row is updated (tool_call_count incremented, last_seen_at updated)
+    - GIVEN ktx write output WHEN invoked THEN it is raw JSON with no --format flag
+  plan: zymsplszbm

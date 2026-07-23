@@ -1,0 +1,7 @@
+id: ssaerpqdpw
+artifact: progress
+record:
+  summary: "Cycle 23 (2026-07-12): Task 4: Replaced global PipelineTimeout/RecoverFooter with per-profile Profile struct. ResolveTimeout/ResolveRecoverFooter with default fallback. compressPipeline resolves..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 5b3a5662854a4b60f87d408124e18fd067875858993987badb65deb0002d8789

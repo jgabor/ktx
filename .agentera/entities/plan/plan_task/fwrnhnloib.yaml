@@ -1,0 +1,15 @@
+id: fwrnhnloib
+artifact: plan
+record:
+  name: "Config: recover_footer flag (default false)"
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN no ktx.toml exists WHEN config loads THEN recover_footer is false (passthrough default, zero behavioral change).
+    - GIVEN ktx.toml has [pipeline.default] recover_footer = true WHEN config loads THEN recover_footer is true.
+    - GIVEN ktx.toml has [pipeline.default] recover_footer = false WHEN config loads THEN recover_footer is false (explicit off).
+    - GIVEN ktx.toml has recover_footer = "yes" (non-bool) WHEN config loads THEN a ParseError is returned naming the field and the invalid value.
+    - GIVEN config loads with recover_footer false WHEN any ktx hook invocation runs THEN the envelope output is byte-for-byte identical to pre-D23 behavior (no footer, no source_id in agent context).
+  test_proportionality: 4 testable units (absent→false, true, false explicit, non-bool→error); one pass + one fail per unit.
+  plan: iodsixrygb

@@ -1,0 +1,16 @@
+id: nahamhqnak
+artifact: plan
+record:
+  name: Schema migration — bench_runs table
+  depends_on:
+    - ofltqfdahk
+    - podbellbay
+  status: complete
+  acceptance:
+    - "GIVEN an M2-era database at the default path WHEN the new binary opens it THEN a new `bench_runs` table exists with columns: `id TEXT PRIMARY KEY` (D3 nanoid), `agent TEXT`, `model TEXT`, `task TEXT`, `score REAL`, `tokens_in INTEGER`, `tokens_out INTEGER`, `cost REAL`, `methodology_version TEXT`, `timestamp INTEGER`"
+    - GIVEN the migration WHEN applied THEN existing `tool_calls` and `sessions` rows are unchanged; existing `bench_runs` rows (if any) are unchanged
+    - GIVEN a fresh database WHEN created THEN the schema includes `bench_runs` from the start (no migration needed)
+    - GIVEN `ktx doctor` WHEN invoked on a migrated DB THEN `schema_valid` reports `bench_runs` present AND on a pre-M3 database the doctor flags the missing `bench_runs` table as a normal-severity warning (not a hard error — M1/M2 records still queryable)
+    - GIVEN the migration logic WHEN run twice on the same DB THEN the second run is a no-op (idempotent)
+    - GIVEN a database with a partial `bench_runs` schema (some columns missing) WHEN the binary opens it THEN the missing columns are added on the next migration run (forward-fix, not an error)
+  plan: npqrhaezkv

@@ -1,0 +1,25 @@
+id: zxjzkcijsg
+artifact: plan
+record:
+  name: "Hook: runtime-keyed field extraction from raw plugin callback objects"
+  depends_on:
+    - gvwyvqdssg
+    - mtmnvuppec
+  status: complete
+  acceptance:
+    - |
+      GIVEN a hook payload with runtime="opencode" and raw callback input containing tool name and args, and raw callback output containing an output field WHEN ktx hook runs THEN the persisted tool_call has the extracted tool name, stringified args, and output string.
+    - |
+      GIVEN a hook payload with runtime="opencode" and output is a bare string (not an object) WHEN ktx hook runs THEN the persisted tool_call output is the bare string.
+    - |
+      GIVEN a hook payload with runtime="opencode" and output is an object without an output field WHEN ktx hook runs THEN the persisted tool_call output is the stringified object (fallback).
+    - |
+      GIVEN a hook payload with runtime="opencode" and the callback input has no tool name WHEN ktx hook runs THEN the persisted tool_call tool is "unknown" (fallback).
+    - |
+      GIVEN a hook payload WITHOUT a runtime field (flat tool_call shape) WHEN ktx hook runs THEN the hook deserialises it as a flat tool_call (today's behaviour, backward compatible).
+    - |
+      GIVEN a hook payload with an unrecognised runtime value WHEN ktx hook runs THEN the hook falls back to flat tool_call deserialisation (backward compatible).
+    - |
+      GIVEN the extraction logic WHEN inspected THEN it lives in the hook layer, not in the stream parser.
+  test_proportionality: 4 testable units (opencode-object-extraction, opencode-string-output, opencode-missing-tool-fallback, no-runtime-flat-backward-compat); one pass per unit.
+  plan: qwgcryrgdq

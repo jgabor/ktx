@@ -1,0 +1,13 @@
+id: vanmlepiaz
+artifact: plan
+record:
+  name: Enforce canonical Codex ingestion and retry behavior
+  depends_on:
+    - mgyvqkswef
+  status: complete
+  acceptance:
+    - GIVEN a new Codex event with a usable runtime identifier WHEN it is persisted THEN its KTX source ID is canonical and stable for the same runtime session.
+    - GIVEN concurrent exact retries WHEN they are handled THEN one source and at most one corresponding compressed artifact are recorded without double-counting.
+    - GIVEN the same runtime identity with changed tool input or output WHEN it is handled THEN KTX reports a conflict and preserves the first evidence unchanged.
+    - GIVEN OpenCode or legacy flat-hook input WHEN it is handled THEN its existing binary-owned identity behavior remains intact.
+  plan: dbbyqzqyvu

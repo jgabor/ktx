@@ -1,0 +1,25 @@
+id: wnguwrbwcs
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-07-17
+    status: archived
+    title: "Plan: Enforce Replay Fixture Digest Syntax"
+  what: Require every version-1 portable replay fixture stream digest to use the complete lowercase SHA-256 hexadecimal syntax before replay evaluation, while retaining the established behavior for valid fixtures and intentional evidence drift.
+  why: Prevent malformed digest text from being misclassified as evaluated replay drift, so the versioned fixture contract, exit status, failure class, correction guidance, and evidence output remain predictable.
+  constraints: Keep the remediation limited to portable file replay fixture validation, proportional regression coverage, documentation accuracy, and plan closeout. Preserve strict offline replay, valid-fixture results, and intentional content or expectation drift behavior. Do not alter the previous archive transition, unrelated project state, or infer decision satisfaction from degraded historical evidence or unobserved hosted CI.
+  overall_acceptance: GIVEN a version-1 portable replay fixture WHEN its stream digest and replay evidence are processed THEN malformed digest syntax is rejected before evaluation and well-formed fixtures retain their documented success or drift outcomes.
+  scope:
+    included:
+      - Version-1 portable replay fixture stream digest syntax validation
+      - Focused malformed, valid, and intentional drift regression coverage
+      - Replay fixture documentation accuracy and verification
+      - Evidence-based plan closeout without decision-satisfaction inference
+    excluded:
+      - Other replay sources or fixture versions
+      - Replay evaluation semantics unrelated to digest syntax
+      - Hosted CI observation or historical decision-state repair
+      - Changes to the previous archived plan or other project-memory artifacts
+  surprises:
+    []

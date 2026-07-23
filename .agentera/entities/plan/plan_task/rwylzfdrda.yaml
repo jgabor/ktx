@@ -1,0 +1,18 @@
+id: rwylzfdrda
+artifact: plan
+record:
+  name: Run bounded native and runtime cache controls
+  depends_on:
+    - hsfzssgczr
+    - tiefkhegac
+  status: pending
+  acceptance:
+    - GIVEN an accessible eligible provider/runtime pair WHEN controls run THEN retained evidence covers same-prefix/same-key, same-prefix/different-key, changed-prefix/same-key, cold-fill-repeat, and one-request/multi-request behavior.
+    - GIVEN provider TTL and concurrency controls are supported WHEN probes run THEN pre/post-TTL and sequential/concurrent outcomes are retained with execution order and intentional delay rather than inferred from orchestration time.
+    - GIVEN both direct-provider and OpenCode access for a pair WHEN equivalent requests run THEN native and normalized per-request fields are compared and any retry, rounding, or field-loss difference is explicit.
+    - GIVEN credentials, model access, or a required control is unavailable WHEN preflight runs THEN no billable request is made for that pair and the matrix records the exact unavailable capability instead of fabricating observed evidence.
+    - GIVEN preflight finds no accessible eligible pair WHEN plan status is evaluated THEN no paid calls occur, this task remains blocked, and the negative-controls and native-probes TODO items remain open.
+    - GIVEN any live probe is requested WHEN preflight runs THEN it emits the provider and model, exact maximum request count and spend, maximum TTL wall time, artifact destination, and redaction policy before network activity; non-interactive opt-in is required and hard limits stop excess work.
+    - GIVEN probe evidence is retained WHEN tracked artifacts are reviewed THEN prompts are synthetic, credentials and raw namespaces are absent, sensitive correlation identifiers are omitted or hashed, and any necessary raw response remains only in an ignored local artifact.
+    - GIVEN a probe case and its expected opposite WHEN the bounded probe suite is verified THEN each controllable dimension has at least one positive and one negative case within the declared bounds.
+  plan: dmbslbvrlk

@@ -1,0 +1,7 @@
+id: undvgmjhrm
+artifact: progress
+record:
+  summary: "Cycle 11 (2026-06-20): M3 plan Task 4 (`ktx bench run <agent> <model> <task>`) lands as one new store..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 51a0427d0fd1ce698fd239a65cca18fbef3228e33aa0c0b825313ffc34fabc5a

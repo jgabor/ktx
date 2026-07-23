@@ -1,0 +1,15 @@
+id: bbbuubepsu
+artifact: plan
+record:
+  name: Implement ktx hook verb in internal/cli/hook.go
+  depends_on:
+    - cnewqiqteq
+  status: complete
+  acceptance:
+    - GIVEN a new internal/cli/hook.go calls dispatch.Register('hook', RegisterOptions with NeedsDB=true, NeedsStdin=true, PassthroughStdout=true, Help:printHookHelp) in init() WHEN dispatcher receives 'hook' THEN it routes to the handler with stdin exposed.
+    - GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN no ktx.toml exists (passthrough) THEN the original is persisted to tool_calls, the envelope with output=source_output, compressed_id=null, source_id=tool_call_id is written to stdout, and exit code is 0.
+    - GIVEN ktx hook with a D9 JSON tool_call on stdin WHEN ktx.toml has [pipeline.default].stages with strip-ansi and head:5 THEN the original is persisted to tool_calls, a compressed row is created, and the envelope with output=compressed_output, compressed_id=compressed_id, source_id=tool_call_id is written to stdout.
+    - "GIVEN ktx hook with a D9 JSON tool_call on stdin WHERE is_error=true WHEN ktx.toml has compression stages configured THEN the D15 gate fires: original is persisted, envelope returns source.output with compressed_id=null (no compressed row created), and a stderr warning is emitted."
+    - GIVEN ktx hook failing to persist (DB error, malformed JSON) WHEN the error occurs THEN exit code maps to the error class (usage=1 for malformed JSON, internal=4 for DB error) and no envelope is written to stdout.
+    - GIVEN ktx decompress <compressed_id> for a compressed row created by ktx hook WHEN invoked THEN the original tool_call output is returned verbatim (D14 reversibility preserved).
+  plan: mnmjhmbpel

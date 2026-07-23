@@ -1,0 +1,13 @@
+id: sjajwbtcbq
+artifact: plan
+record:
+  name: Lift timeout and recover_footer from global to per-profile
+  depends_on:
+    - ghsxslzokr
+  status: complete
+  acceptance:
+    - GIVEN a selected profile with its own timeout value WHEN the pipeline runs THEN that profile's timeout is used for the pipeline deadline
+    - GIVEN a selected profile without a timeout value WHEN the pipeline runs THEN the default profile's timeout is used
+    - GIVEN a selected profile with its own recover_footer value WHEN the pipeline runs and transformation fires THEN that profile's recover_footer setting determines whether the footer is appended
+    - GIVEN a selected profile without a recover_footer value WHEN the pipeline runs THEN the default profile's recover_footer setting is used
+  plan: hsvylrxjpg

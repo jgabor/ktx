@@ -1,0 +1,16 @@
+id: lkgnylycwf
+artifact: decisions
+record:
+  summary: "Decision 3 (2026-06-15): 16-character lowercase alphabetic nanoid using github.com/matoous/go-nanoid with custom alphabet a-z. Content hash stored as a..."
+  date: 2026-06-15
+  choice: 16-character lowercase alphabetic nanoid using github.com/matoous/go-nanoid with custom alphabet a-z. Content hash stored as a separate run field for verification.
+  feeds_into: Record store schema, run format, go-nanoid dependency
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-07-09
+  outcome: 16-character lowercase alphabetic nanoid using github.com/matoous/go-nanoid with custom alphabet a-z. Content hash stored as a separate run field for verification.
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: c5041e970a3ae50a9d90e5bfe4d8bfc0119367cdb95906b2aa16eeae863184bb

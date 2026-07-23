@@ -1,0 +1,15 @@
+id: jrhvcphqgm
+artifact: plan
+record:
+  name: Schema migration for recorded_streams table (db layer, D20 step 1 schema)
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the recorded_streams CREATE TABLE IF NOT EXISTS statement is added to schemaStatements in internal/db/open.go WHEN a fresh database is opened via OpenMemory() THEN recorded_streams exists with exactly 7 columns (id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at) in the named order AND a session_id index (recorded_streams_session_id_idx) AND a bench_run_id index (recorded_streams_bench_run_id_idx) exist via sqlite_master lookup — mirrors TestCompressedMigration_FreshDB
+    - GIVEN a pre-D20 fixture (raw *sql.DB with sessions + tool_calls-with-M2-and-D15-columns + bench_runs + compressed, no recorded_streams table) plus one seeded row per existing table WHEN migrate() runs against it THEN recorded_streams appears with all 7 columns AND every existing table's seeded row is intact (tool_calls.tool, bench_runs.score, sessions.id, compressed.output all readable) — mirrors TestCompressedMigration_PreM4Database
+    - GIVEN an already-migrated OpenMemory() database WHEN migrate() runs a second time THEN no error AND the recorded_streams column set is unchanged (re-open is a no-op) — mirrors the compressed re-migrate idempotency subtest
+    - GIVEN foreign_keys=1 (enforced by Open/OpenMemory DSN) WHEN a recorded_streams INSERT references a non-existent session_id or bench_run_id THEN the FK rejects the insert (non-nil error) — mirrors TestCompressedMigration_ForeignKeyEnforcement
+    - GIVEN the recordedStreamsColumn type and recordedStreamsColumns var are added to internal/db/open.go (mirroring compressedColumn/compressedColumns, naming the 7 columns by name+SQL type in CREATE TABLE order) THEN doctor and inspect paths report missing columns by referencing the single source of truth — mirrors compressedColumns
+    - "GIVEN D20's 'no ALTER TABLE column add' rule (resolved: read literally — no ALTER TABLE at all, neither to existing tables nor a partial-column-forward-fix loop for recorded_streams) WHEN migrate() runs THEN it adds NO columns to any table — only the CREATE TABLE IF NOT EXISTS for recorded_streams. The CREATE TABLE IF NOT EXISTS alone handles the fresh-DB and pre-D20 self-heal paths. No partial-column-forward-fix ALTER loop is included."
+  plan: akjhpurupo

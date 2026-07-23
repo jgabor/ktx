@@ -1,0 +1,7 @@
+id: yfujfgelzt
+artifact: progress
+record:
+  summary: "Cycle 13 (2026-06-20): M3 acceptance verification log landed at `.agentera/verification/m3-acceptance.md`. All 7 ACs PASS; M2 regression preserved; reproducibility..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: cad8068553296ab843b06e71f211133f50598b545f6c3efd715890ca1d34058c

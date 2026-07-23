@@ -1,0 +1,14 @@
+id: gcvapyocjy
+artifact: plan
+record:
+  name: Update OpenCode plugin template to call ktx hook
+  depends_on:
+    - bbbuubepsu
+  status: complete
+  acceptance:
+    - GIVEN the updated ktxOpencodePluginTemplate in internal/cli/init.go WHEN ktx init opencode installs the plugin THEN the plugin tool.execute.after spawns ktx hook (not ktx write) via Bun.spawn with stdin = D9 JSON tool_call.
+    - GIVEN the plugin tool.execute.after calls ktx hook WHEN ktx hook returns the envelope on stdout THEN the plugin parses the JSON envelope and sets output.output = envelope.output (the compressed bytes replace the original in the agent context).
+    - GIVEN any ktx hook failure (non-zero exit, unparseable stdout, ktx not in PATH) WHEN the plugin catches the error THEN output.output is left unchanged (the agent sees the original tool output, D14 conservative failure at the plugin level).
+    - GIVEN KTX_SESSION_ID is set in the environment WHEN the plugin tool.execute.after fires THEN the plugin skips the ktx hook call entirely (D10 dedup, wrapper owns persistence).
+    - GIVEN go test ./internal/cli/ -run TestInit runs THEN all existing init tests pass (the template is a string constant; the test verifies it writes to the expected path).
+  plan: mnmjhmbpel

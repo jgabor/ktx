@@ -1,0 +1,14 @@
+id: xgxebwvfca
+artifact: plan
+record:
+  name: Configurable pipeline timeout via ktx.toml
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN ktx.toml has [pipeline.default] timeout = '10s' WHEN ktx hook runs a slow pipeline stage THEN the 10s timeout (not the hardcoded 30s) fires and returns source.output unchanged with a stderr warning.
+    - GIVEN ktx.toml has no timeout field WHEN ktx hook runs THEN the default 30s timeout applies (backward compatible with Phase 1).
+    - GIVEN ktx.toml has timeout = 'garbage' WHEN config.Load runs THEN a ParseError is returned (invalid duration string).
+    - GIVEN no ktx.toml exists WHEN ktx hook runs THEN the default 30s timeout applies (passthrough path, unchanged from Phase 1).
+    - GIVEN go test ./... runs THEN every M1-M5 + Phase 1 test passes (no regression).
+  plan: lnsgjprfcm

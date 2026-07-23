@@ -1,0 +1,20 @@
+id: mfnjsdibqs
+artifact: plan
+record:
+  name: M3 acceptance verification
+  depends_on:
+    - ofltqfdahk
+    - podbellbay
+    - nahamhqnak
+    - tmzmgrkdie
+    - xisgnrqvrt
+  status: complete
+  acceptance:
+    - GIVEN the full M3 implementation WHEN two independent `ktx bench run <agent> <model> <task>` invocations on the same inputs run to completion THEN both produce the same headline number (within methodology-acknowledged non-determinism, which is zero for deterministic agents and exact-match scoring)
+    - GIVEN the M2 acceptance verification (`.agentera/verification/m2-acceptance.md`) WHEN re-run with the M3 binary THEN all M2 cases still pass (regression check — M3 is additive, not breaking)
+    - GIVEN the D11 derivation WHEN the network is offline (no models.dev reachability) and the cache file is pre-seeded with known prices THEN cost derivation completes successfully and the `bench_runs` row has non-NULL `cost` (offline cost is the cache, not the fetch)
+    - GIVEN a real `ktx bench run` invocation on a published (agent, model, task) WHEN completed THEN a `bench_runs` row exists with non-NULL `tokens_in`, `tokens_out`, `model`, `cost`, `methodology_version`
+    - GIVEN a pre-M3 database WHEN the M3 binary opens it THEN the `bench_runs` table is created via migration AND existing M1/M2 records are intact AND `ktx doctor` flags the migration on the next doctor invocation (one-time normal-severity warning, not hard error)
+    - "GIVEN a new verification log at `.agentera/verification/m3-acceptance.md` WHEN written THEN it documents: reproducibility proof (two runs → same headline), M2 regression pass, offline cost derivation, `bench_runs` schema migration on a pre-M3 database, `ktx bench report` headline rendering with methodology reference visible, `bench_runs` NULL-cost soft-fail path"
+    - GIVEN the verification log WHEN complete THEN ROADMAP.md M3 acceptance is satisfied ('the number is reproducible from the published methodology')
+  plan: npqrhaezkv

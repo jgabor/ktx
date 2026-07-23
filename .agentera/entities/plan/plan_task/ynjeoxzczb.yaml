@@ -1,0 +1,15 @@
+id: ynjeoxzczb
+artifact: plan
+record:
+  name: --replay flag + arg parsing + dispatch stub (D20 step 2, M3 surface preserved)
+  depends_on:
+    - ggtbnudltw
+  status: complete
+  acceptance:
+    - "GIVEN the existing runBenchRun flag set `fs := flag.NewFlagSet('ktx bench run', flag.ContinueOnError)` (bench.go:919) WHEN a `--replay` StringVar is added with empty-string default (no-op when absent) THEN `ktx bench run --replay <session-id>` parses the flag and runBenchRun branches: when --replay is non-empty, dispatch to a runBenchReplay(sessionID, opts, stdout, stderr) function (the implementation lives in Task 5; this task adds a stub that returns a placeholder until Task 5 lands) BEFORE the len(rest) != 3 check"
+    - GIVEN --replay is set AND no positional args are supplied WHEN runBenchRun parses flags THEN the rest slice is empty AND the len(rest) != 3 check is SKIPPED (the flag makes the (agent, model, task) triple optional per D20; the triple is read from the bench_runs row later) — the methodology-file load + methodology-input validation (bench.go:932-952) is ALSO SKIPPED on the --replay path (replay reads methodology_version from the bench_runs row, not from disk; a methodology file drift between capture and replay is NOT a replay failure and emits NO signal — resolved judgment call 3)
+    - "GIVEN --replay is set AND positional args ARE supplied (e.g., `ktx bench run --replay <id> opencode <model> <task>`) WHEN runBenchRun parses flags THEN it returns ExitUsage with error 'ktx bench run --replay does not accept positional args; the (agent, model, task) triple is read from the referenced bench_runs row' — --replay REPLACES the positional-args source, it does not augment it (DRY: one source of truth for the triple)"
+    - GIVEN --replay <session-id> WHERE GetRecordedStreamBySession(sessionID) returns ErrNotFound WHEN runBenchReplay (the stub in this task; the full implementation in Task 5) returns THEN the command exits 2 (ExitNotFound, D4 contract) with a not-found error envelope on stderr naming the missing session-id — the not-found check happens BEFORE any re-parsing, with zero agent calls
+    - GIVEN the --replay flag is absent WHEN runBenchRun runs THEN the existing M3 path executes unchanged (the --replay branch is dead code; the len(rest) != 3 check fires as before) — the M3 regression is preserved
+    - GIVEN printBenchHelp (bench.go:1490) is updated WHEN `ktx bench --help` runs THEN the help text lists `--replay <session-id>` as a flag on `bench run` with a one-line description citing D13 Tier 1 (fast, free, deterministic consistency check against a previously-captured stream) AND a one-line example `ktx bench run --replay <session-id>` — the help cross-reference closes the discovery gap (the user gets a bench_run_id from `ktx bench run`; they need the session_id for `--replay`; the help text mentions that the session_id is queryable via `ktx get <bench_run_id>` or `ktx list`)
+  plan: akjhpurupo

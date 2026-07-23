@@ -1,0 +1,7 @@
+id: ejnpaluiqr
+artifact: progress
+record:
+  summary: "Cycle 6 (2026-06-19): M2 acceptance verification log landed at .agentera/verification/m2-acceptance.md. Re-runs the 11 M1 regression steps against the..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 17889659c989814afeead99c75268840691bb6788d87331927ce2561d5a246e0

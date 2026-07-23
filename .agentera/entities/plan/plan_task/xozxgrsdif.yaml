@@ -1,0 +1,14 @@
+id: xozxgrsdif
+artifact: plan
+record:
+  name: Adjudicate evidence-gated cache isolation
+  depends_on:
+    - rwylzfdrda
+    - ctarpiwslf
+  status: pending
+  acceptance:
+    - GIVEN authoritative semantics and retained negative controls establish stable within-side reuse and cross-side separation WHEN a path is enabled THEN its runtime, provider, model or API family, and control assumptions are narrowly version-gated.
+    - GIVEN controls show routing affinity, cross-key reuse, incomplete separation, or nondeterministic ownership WHEN capability is adjudicated THEN no isolated path is enabled and the retained evidence states the limiting observation.
+    - GIVEN live controls cannot run WHEN plan status is evaluated THEN this task remains blocked and no source-only inference upgrades a path from observed to isolated.
+    - GIVEN an enabled or rejected capability path WHEN offline regression cases run THEN at least one confirmed case and one unsupported or contradictory case preserve the evidence gate without network access.
+  plan: dmbslbvrlk

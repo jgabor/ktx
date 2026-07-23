@@ -1,0 +1,11 @@
+id: luvraxipvv
+artifact: progress
+record:
+  timestamp: 2026-07-12 13:58
+  type: chore
+  phase: build
+  what: "Task 6: Current-state check. Cleaned 18 AC tokens from router_test.go (3) and hook_test.go (15). Full verification: go build exit 0, go vet exit 0, go test -count=1 ./... exit 0 (11 packages). No schema migration needed (N/A). No regressions."
+  verified: "Build: go build -buildvcs=false ./cmd/ktx exit 0. Vet: go vet -buildvcs=false ./... exit 0. Tests: go test -buildvcs=false -count=1 ./... exit 0 (11 packages). AC1: build+test exit zero. AC2: no regressions. AC3: N/A (no migration needed)."
+  next: Plan complete. All 6 tasks done.
+  context:
+    intent: "Final verification: all tasks complete, full build/test/vet green, AC tokens cleaned from test comments."

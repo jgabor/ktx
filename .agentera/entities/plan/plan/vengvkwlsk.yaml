@@ -1,0 +1,41 @@
+id: vengvkwlsk
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-12
+    status: archived
+    reviewed: 2026-07-12
+    critic_issues: 14 found, 10 addressed, 4 dismissed
+    title: "Plan: Subcommand extraction and embedded default profiles"
+  what: |
+    Add subcommand extraction to the router so route rules can match on the subcommand token (e.g. "status" in "git status") rather than only command prefix. Then ship an embedded default-profiles.toml file in the binary that users opt into by referencing from their ktx.toml, rather than changing the no-config default (which D14 firmly sets to passthrough).
+  why: |
+    The command-aware router matches on CommandPrefix only, so "git diff" and "git status" cannot be distinguished without duplicate rules pointing at separate profiles. Subcommand extraction eliminates that proliferation. Embedded default profiles give users a starter set they can adopt with a single line in ktx.toml instead of authoring profiles from scratch.
+  constraints: |
+    Single TOML config at $XDG_CONFIG_HOME/ktx/ktx.toml (D5, firm). Default is passthrough when no ktx.toml exists (D14, firm) — this plan does NOT change the no-config default. Embedded profiles are an opt-in starter pack: the user adds a single include directive or copies profile/route blocks from documentation. The embedded file ships inside the binary but is inert until the user references it. No new compression stages. No project-memory markers in shipped code. Embedded profiles use only already-shipped built-in stages. Embedded file contains zero [[plugin]] blocks (plugins remain user-only per D5). Compound commands (e.g. "git status && ls") route on the first binary's first non-flag arg. ktx bench agent keeps its existing user-config requirement gate (bench is a deliberate experiment, not a runtime consumer).
+  overall_acceptance: |
+    A route rule can match on an extracted subcommand token, so "git status" and "git diff" route to different profiles without duplicate prefix rules. A user can opt into a starter set of embedded profiles by referencing them from their ktx.toml, getting useful compression for common git and bash commands. The no-config default remains passthrough (D14 unchanged). User-defined profiles override embedded ones by name. User route rules take precedence over embedded route rules on conflicting match conditions.
+  scope:
+    included:
+      - Subcommand field on RouteRule and extraction logic
+      - Subcommand match semantics (exact equality on second token)
+      - TOML parsing of subcommand field in route blocks
+      - Embedded default-profiles.toml compiled into binary
+      - Include directive so user ktx.toml can reference embedded profiles
+      - "Config merge: user profiles override embedded by name; user routes evaluated first"
+      - Baseline profiles for git (status, diff, log)
+      - Baseline profiles for bash (ls, find)
+      - Example config and documentation updates
+    excluded:
+      - Regex command matching
+      - Transparent-prefix stripping
+      - Level/intensity dimension
+      - New compression stages or filter packs
+      - Filter verification (ktx verify)
+      - Changing the no-config passthrough default (D14 firm)
+      - Project-local config
+  design: |
+    Subcommand extraction extends the router's commandFromInput function to also return the subcommand token — the first non-flag argument after the binary name. A new Subcommand field on RouteRule matches by exact string equality when non-empty. Malformed input causes the subcommand condition to fail the rule (consistent with existing CommandPrefix semantics). The router evaluates it alongside CommandPrefix, Tool, and ExitStatus (all must match; empty fields are wildcards). The embedded default-profiles.toml ships inside the binary via go:embed. A new TOML directive (e.g. `include_defaults = true` or `profiles = "embedded"`) lets the user opt into the embedded profiles from their ktx.toml. When opted in, embedded profiles seed the Profiles map first; user profiles override by name (user-wins-on-key). Embedded route rules are appended after user route rules so user rules are evaluated first under first-match-wins. When no ktx.toml exists, nothing changes — passthrough (D14). Bash profiles use command_prefix routing (ls and find have no subcommands). Git profiles use subcommand routing. Each baseline profile has a test fixture asserting which line patterns are preserved and which are absent after compression.
+  surprises: |
+    D14 (firm) explicitly rejected always-on builtins. The original plan draft violated D14 by changing the no-config default from passthrough to embedded defaults. Revised to opt-in via an include directive in user ktx.toml, leaving D14 intact. Route precedence design originally said "prepend" embedded routes, which under first-match-wins would make embedded rules win over user rules; corrected to "append" so user rules evaluate first. Compound commands route on the first binary's subcommand only; documented as a known limitation, not a gap.

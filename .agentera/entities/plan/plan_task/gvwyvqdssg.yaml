@@ -1,0 +1,18 @@
+id: gvwyvqdssg
+artifact: plan
+record:
+  name: "Record layer: runtime field round-trips through persist and fetch"
+  depends_on:
+    - bkvckrvawr
+  status: complete
+  acceptance:
+    - |
+      GIVEN a tool_call with runtime set WHEN persisted THEN the stored row has the runtime value in the runtime column.
+    - |
+      GIVEN a tool_call with runtime absent WHEN persisted THEN the stored row has NULL in the runtime column (absent, not empty string).
+    - |
+      GIVEN a tool_call persisted with runtime="opencode" WHEN fetched THEN the returned record has runtime="opencode".
+    - |
+      GIVEN a tool_call persisted with runtime=NULL WHEN fetched THEN the returned record has runtime absent (nil).
+  test_proportionality: 2 testable units (persist-with-runtime, persist-without-runtime); one pass per unit, fetch round-trip verified per unit.
+  plan: qwgcryrgdq

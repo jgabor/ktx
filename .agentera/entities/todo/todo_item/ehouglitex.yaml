@@ -1,0 +1,6 @@
+id: ehouglitex
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Wrapper `step_finish` enrichment** — Trigger only if a concrete use case requires per-tool cost evidence. Model-step cache and cost telemetry remains benchmark/recorded-stream evidence and must not be attached to `tool_calls`. → [Measurement](ARCHITECTURE.md#measurement)"

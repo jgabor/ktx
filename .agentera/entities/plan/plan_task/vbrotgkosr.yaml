@@ -1,0 +1,21 @@
+id: vbrotgkosr
+artifact: plan
+record:
+  name: Migrate I/O commands (ktx read, ktx write)
+  depends_on:
+    - cyiopgvevi
+  status: complete
+  files:
+    - internal/cli/read.go
+    - internal/cli/write.go
+    - internal/cli/cli.go
+    - internal/cli/dispatch_io_test.go
+  contract_preserved:
+    - ktx read always emits raw JSON, no --format (PassthroughStdout=true)
+    - ktx write reads stdin (NeedsStdin=true), validates required fields, calls db.ResolveSessionID + db.PersistToolCall (NeedsDB=true), prints record ID as raw JSON
+  acceptance:
+    - GIVEN a persisted record, WHEN `ktx read <id>` runs, THEN stdout is the raw JSON record, exit 0; exit 2 on not-found.
+    - GIVEN a valid tool_call payload on stdin, WHEN `ktx write` runs, THEN stdout is the persisted record ID, exit 0; validation errors for missing id/tool/timestamp return exit 1.
+    - GIVEN event_type=session_close payload, WHEN `ktx write` runs, THEN the session's ended_at is updated, exit 0; missing session_id returns exit 1, missing session returns exit 2.
+    - GIVEN the M1 and M2 acceptance scenarios for ktx read and ktx write, WHEN replayed as `go test ./internal/cli`, THEN each passes.
+  plan: ppfsaqcxml

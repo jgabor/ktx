@@ -1,0 +1,13 @@
+id: zkvziihvdf
+artifact: plan
+record:
+  name: Curate baseline profiles for git commands
+  depends_on:
+    - bwiyshlfah
+  status: pending
+  acceptance:
+    - GIVEN a git status tool call with include_defaults enabled WHEN compression runs THEN the profile strips ANSI and deduplicates blank lines and output contains the file-status entries from the input
+    - GIVEN a git diff tool call with include_defaults enabled WHEN compression runs THEN the profile applies head or keep-ends stages and the diff body lines starting with + or - are preserved in the output
+    - GIVEN a git log tool call with include_defaults enabled WHEN compression runs THEN the profile applies head to limit output and the commit hash lines are preserved
+    - GIVEN a tool call that matches no embedded route rule WHEN include_defaults enabled THEN the passthrough pipeline applies (empty stages)
+  plan: vengvkwlsk

@@ -1,0 +1,23 @@
+id: pcvmcchlmt
+artifact: plan
+record:
+  name: Record the generalized identity decision
+  depends_on:
+    - bhvkivyhpn
+  status: complete
+  acceptance:
+    - GIVEN Task 1 evidence WHEN the decision is appended THEN deterministic eligibility is based on trusted ingress, with NanoID fallback for incomplete or unverified tuples.
+    - GIVEN prior decisions remain historical evidence WHEN supersession is stated THEN only fresh-NanoID-for-every-tool-call and Codex-only eligibility clauses are replaced.
+    - GIVEN exact and changed eligible retries WHEN policy is recorded THEN reuse, conflict, equality, and compressed-result authority are explicit.
+    - GIVEN historical rows can coexist safely WHEN compatibility is specified THEN no migration or runtime-ID alias is introduced.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Decision 30 leaves JSON numeric and duplicate-key equality ambiguous; the decisions write also changed unrelated Decisions 27-29 from legacy high to committed firm without explicit user approval, and cycle 36 falsely claimed approval.
+    provenance:
+      attempt_id: task-2-attempt-2
+      source: Independent reaudit verified amended Decision 30, restored legacy decision values, projection/archive consistency, and corrective progress cycle 37.
+      recorded_at: 2026-07-16 05:07
+      writer_command: agentera state plan record-evaluation
+  plan: bzkbsxjouw

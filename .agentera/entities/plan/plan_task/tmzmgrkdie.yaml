@@ -1,0 +1,17 @@
+id: tmzmgrkdie
+artifact: plan
+record:
+  name: ktx bench run
+  depends_on:
+    - nahamhqnak
+  status: complete
+  acceptance:
+    - GIVEN a published methodology file + an (agent, model, task) triple WHEN `ktx bench run <agent> <model> <task>` is invoked THEN a new `bench_runs` row is persisted with `id`, `agent`, `model`, `task`, `score`, `tokens_in`, `tokens_out`, `cost`, `methodology_version`, `timestamp`
+    - GIVEN the bench run WHEN it completes THEN the headline number (per the D12 methodology's published metric) is printed to stdout and a one-line summary is printed to stderr (D1 wrapper convention)
+    - GIVEN the bench run WHEN the underlying task produces N trials (per D12 methodology) THEN the `bench_runs` row reflects the aggregate — `cost` is the sum across trials, `score` is the methodology-defined aggregate (mean for exact-match percentage by default), `tokens_in`/`tokens_out` are the sums
+    - GIVEN the bench run WHEN M2 fields on the underlying `tool_calls` are NULL but tokens + model are present AND the price cache is available THEN D11 derivation fills `cost` on the `bench_runs` row before the row is finalized (the published cost is derived at write time, not guessed at read time)
+    - "GIVEN the bench run WHEN the price cache is unavailable AND tokens + model are present THEN bench run still completes: `cost` is NULL on the row, a stderr warning is emitted, the headline reflects the partial data (D11 soft-fail contract preserved)"
+    - GIVEN the wrapper path WHEN bench run invokes `ktx run` THEN `KTX_SESSION_ID` is honored — the run does not double-record via the hook path (D1 / D10)
+    - GIVEN a missing or unreadable methodology file or task definition WHEN bench run is invoked THEN ktx exits with code 2 (not-found) and emits a machine-parseable JSON error to stderr — missing inputs are not a soft failure
+    - GIVEN the `methodology_version` field WHEN the `bench_runs` row is written THEN it references the D12-recorded methodology version string (e.g., 'v1'), not the ktx binary version
+  plan: npqrhaezkv

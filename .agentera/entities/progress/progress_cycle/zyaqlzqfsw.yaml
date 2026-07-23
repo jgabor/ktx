@@ -1,0 +1,11 @@
+id: zyaqlzqfsw
+artifact: progress
+record:
+  timestamp: 2026-07-12 15:11
+  type: docs
+  phase: build
+  what: "Task 2: Recommended profiles and documentation. Added subcommand to match-field list and Signals table. Five commented profiles in ktx.example.toml (git-status, git-diff, git-log, ls, find) with route rules. New Subcommand vs command prefix subsection in docs/pipelines.md."
+  verified: "N/A: docs-only"
+  next: Plan complete.
+  context:
+    intent: Add recommended profiles to ktx.example.toml and subcommand routing docs to docs/pipelines.md.

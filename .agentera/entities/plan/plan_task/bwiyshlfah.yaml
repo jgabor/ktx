@@ -1,0 +1,14 @@
+id: bwiyshlfah
+artifact: plan
+record:
+  name: Embedded default profiles infrastructure
+  depends_on:
+    - knzmdqrtuc
+  status: pending
+  acceptance:
+    - GIVEN no ktx.toml exists WHEN config is loaded THEN the config object has no profiles and no routes (passthrough, D14 unchanged)
+    - GIVEN a ktx.toml with include_defaults = true WHEN config is loaded THEN the config object contains embedded profiles and route rules from the embedded defaults
+    - GIVEN a ktx.toml with include_defaults = true and a profile named "git-status" WHEN config is loaded THEN the user's "git-status" profile overrides the embedded one of the same name
+    - GIVEN a ktx.toml with include_defaults = true and route rules WHEN config is loaded THEN user route rules are evaluated before embedded route rules under first-match-wins
+    - GIVEN ktx config show --json WHEN include_defaults = true THEN the JSON output shows both embedded and user profiles with user profiles marked as overrides
+  plan: vengvkwlsk

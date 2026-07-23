@@ -1,0 +1,16 @@
+id: bkvckrvawr
+artifact: plan
+record:
+  name: "Schema: runtime column on tool_calls"
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - |
+      GIVEN a fresh database WHEN opened THEN tool_calls has a nullable runtime column.
+    - |
+      GIVEN a pre-runtime-column database WHEN opened THEN the column is added via idempotent migration and existing rows have NULL for runtime.
+    - |
+      GIVEN a database that already has the runtime column WHEN migration runs again THEN the column is not duplicated.
+  test_proportionality: 2 testable units (fresh-database-has-column, migration-adds-column-idempotently); one pass + one re-migrate no-op per unit.
+  plan: qwgcryrgdq

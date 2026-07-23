@@ -1,0 +1,7 @@
+id: sumktthzll
+artifact: progress
+record:
+  summary: "Cycle 8 (2026-06-19): The resonera session closed M3 plan Task 1 by recording Decision 12 in `.agentera/decisions.yaml` as..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 3bba81ba4d76710f52418ffaf63873b7914acb45f99765d8e764bd0927faac01

@@ -1,0 +1,7 @@
+id: xarbtjyept
+artifact: progress
+record:
+  summary: "Cycle 4 (2026-06-19): ktx run now extracts M2 cost-publication fields from OpenCode --format json tool_use events. parseToolEvent recognises..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 51760e74d0bdce19a230c00976de397cb3d56bbfccc3c1c45cb6524d143567a8

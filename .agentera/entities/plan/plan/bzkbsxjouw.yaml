@@ -1,0 +1,46 @@
+id: bzkbsxjouw
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-15
+    status: archived
+    reviewed: 2026-07-15
+    critic_issues: 10 found, 10 addressed, 0 dismissed
+    title: "Plan: Generalize Deterministic Tool-Call Identity"
+  what: "Establish one runtime-neutral identity policy for persisted tool calls: derive a repeatable KTX source ID when a recognized ingress supplies a complete, verified runtime correlation tuple, and generate a fresh NanoID otherwise. Apply retry-safe behavior consistently to eligible OpenCode and Codex paths and record a superseding decision."
+  why: Preserve the original NanoID fallback while making retries idempotent independent of runtime, eliminating the current Codex-specific identity exception and clarifying the durable identity contract.
+  constraints: Preserve the existing KTX-owned identity domain. Tie deterministic eligibility to trusted ingress provenance rather than caller-supplied runtime text. Append a superseding decision instead of rewriting history. Preserve references and avoid historical row rewriting unless evidence proves it necessary. Cover at least one accepted and one fallback or conflict case per testable identity unit.
+  overall_acceptance: GIVEN a recognized ingress supplies a verified complete correlation tuple WHEN the same event is delivered again THEN KTX resolves it to one source record without duplicate roll-ups or compressed evidence; GIVEN no verified tuple WHEN an event is accepted THEN KTX assigns a fresh NanoID; GIVEN changed authoritative evidence reuses an eligible identity THEN the first evidence remains authoritative and a conflict is reported; AND the recorded decision states this hierarchy and its historical compatibility boundary.
+  scope:
+    included:
+      - Tool-call source identity for verified OpenCode hook and wrapper ingress and existing Codex ingress
+      - Trusted-ingress eligibility, tuple normalization, retry equality, and incomplete-tuple fallback
+      - Exact, changed, and concurrent retry behavior for source and compressed evidence
+      - A new decision superseding only the conflicting scope of existing identity decisions
+      - Architecture, help, user guidance, and project-state synchronization
+    excluded:
+      - Generic flat or sidecar ingress opting into deterministic identity
+      - Session, compressed-record, benchmark-run, and experiment identity
+      - Changing the public ID shape
+      - Runtime-identifier compatibility aliases
+      - Historical row rewriting without evidence of a required compatibility repair
+    deferred:
+      - Deterministic identity for runtimes that do not expose a verified stable tuple
+      - Generic sidecar identity until it has a defined native schema and provenance contract
+  design: First establish which ingress tuples are trustworthy, which retry classes preserve them, and whether current rows can coexist. Then record a runtime-neutral decision before changing behavior. Separate native correlation from KTX session association, enforce one retry-safe evidence contract, adopt it only in verified ingress paths, and finish by synchronizing documentation and project state.
+  unknowns:
+    - question: Does the supported OpenCode version preserve session and call identifiers across each relevant retry class and expose an equivalent tuple in wrapper streams?
+      affects_task: 2-5
+      resolve_by: Pin and exercise duplicate callback delivery, hook-failure retry, model-requested re-execution, process restart, and wrapper replay in Task 1; limit eligibility by ingress and retry class when stability is not proven.
+    - question: Which persisted fields are authoritative for retry equality, and which differences are enrichment rather than conflict?
+      affects_task: 2-4
+      resolve_by: Resolve JSON equivalence, tool and output changes, error and exit metadata, cost enrichment, and KTX session association from retained evidence in Task 1.
+    - question: Can historical OpenCode rows coexist safely when their native correlation tuple was not retained?
+      affects_task: 2-6
+      resolve_by: Prove the compatibility boundary from retained schema capabilities in Task 1; require repair only if untouched coexistence would break references or corrupt evidence.
+    - question: What result is authoritative when an exact retry arrives after pipeline configuration changes?
+      affects_task: 2-4
+      resolve_by: Define and test a first-result or recomputation policy before retry-safe compressed persistence is implemented.
+  surprises:
+    []

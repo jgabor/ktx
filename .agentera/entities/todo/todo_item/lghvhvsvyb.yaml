@@ -1,0 +1,6 @@
+id: lghvhvsvyb
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. → [Pipeline](ARCHITECTURE.md#pipeline)"

@@ -1,0 +1,14 @@
+id: hsfzssgczr
+artifact: plan
+record:
+  name: Retain ordered model-step usage evidence
+  depends_on:
+    - dqndtgqhyi
+  status: pending
+  acceptance:
+    - GIVEN a valid multi-step stream WHEN a new cache-aware attempt is retained THEN its ordered model-step observations reproduce the existing uncached-input, output, reasoning, cache-read, cache-write, and cost totals exactly.
+    - GIVEN any source event omits or invalidates a measured field WHEN the attempt aggregate is produced THEN the ordered observation shows the local absence and the aggregate preserves the existing completeness gate instead of summing a partial value.
+    - GIVEN an explicit zero on every source event WHEN evidence is retained and reloaded THEN zero remains present at both source-event and attempt levels.
+    - GIVEN legacy experiments and cache-less attempts WHEN summaries and validation regenerate THEN their serialized bytes remain unchanged.
+    - GIVEN representative complete and incomplete streams for each ordered field WHEN offline verification runs THEN complete evidence is accepted, incomplete or invalid evidence remains unavailable, and live-benchmark and experiment paths produce equivalent observations and totals.
+  plan: dmbslbvrlk

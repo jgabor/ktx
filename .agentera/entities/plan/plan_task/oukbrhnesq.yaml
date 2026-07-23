@@ -1,0 +1,16 @@
+id: oukbrhnesq
+artifact: plan
+record:
+  name: "Hook: KTX_SESSION_ID noop guard in hook logic"
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - |
+      GIVEN KTX_SESSION_ID is set in the environment WHEN ktx hook runs THEN the hook exits 0 with no output on stdout and no database write (the wrapper is the single source of truth).
+    - |
+      GIVEN KTX_SESSION_ID is not set WHEN ktx hook runs THEN the hook processes normally (reads stdin, persists, compresses, writes output).
+    - |
+      GIVEN the OpenCode plugin (which has its own KTX_SESSION_ID check) WHEN it calls ktx hook with KTX_SESSION_ID set THEN the hook-level check fires first and exits cleanly (the plugin's check is redundant but harmless).
+  test_proportionality: 2 testable units (env-set-noops, env-unset-processes); one pass per unit.
+  plan: tyhjhmlrcr

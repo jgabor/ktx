@@ -1,0 +1,12 @@
+id: linydjlkar
+artifact: plan
+record:
+  name: ktx read (raw JSON by nanoid)
+  depends_on:
+    - jvwhlvdepg
+  status: complete
+  acceptance:
+    - GIVEN a persisted tool_call with ID abcdefghijklmnop WHEN ktx read abcdefghijklmnop is invoked THEN it prints the raw JSON record to stdout
+    - GIVEN a non-existent ID WHEN ktx read xyz is invoked THEN exit code is 2 (not-found) and stderr is JSON error
+    - GIVEN ktx read WHEN invoked THEN there is no --format flag available
+  plan: anaemecwba

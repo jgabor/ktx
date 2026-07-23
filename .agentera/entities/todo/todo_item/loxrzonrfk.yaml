@@ -1,0 +1,6 @@
+id: loxrzonrfk
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Provider cache-control ownership** — Run structured deliberation and record product/runtime ownership, adapter versioning, capability negotiation, and fallback behavior outside the settled benchmark contract and confirmed benchmark adapters. → [Question](ARCHITECTURE.md#provider-cache-control-ownership)"

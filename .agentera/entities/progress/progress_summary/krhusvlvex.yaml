@@ -1,0 +1,7 @@
+id: krhusvlvex
+artifact: progress
+record:
+  summary: "Cycle 14 (2026-06-21): Plan close: Task 7 lands the four namespace commands (ktx db, ktx prices, ktx doctor,..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 77036fb44913d182a79f3b5e326692e8e5b2e4aa38a4bd848f3cb01292316f81

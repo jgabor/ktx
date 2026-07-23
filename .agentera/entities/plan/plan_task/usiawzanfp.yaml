@@ -1,0 +1,21 @@
+id: usiawzanfp
+artifact: plan
+record:
+  name: Add internal/db table-driven unit tests
+  depends_on:
+    - eqegxytsev
+  status: complete
+  files:
+    - internal/db/persist_test.go
+    - internal/db/session_test.go
+    - internal/db/prices_test.go
+    - internal/db/bench_test.go
+    - internal/db/inspect_test.go
+  acceptance:
+    - GIVEN `OpenMemory()`, WHEN `NewID()` is called 1000 times, THEN every ID matches `^[a-z]{16}$` and the set is collision-free.
+    - GIVEN `OpenMemory()` with a populated `*ToolCall` whose M2 pointers are set, WHEN `PersistToolCall` runs and the row is fetched, THEN those values round-trip byte-identical.
+    - GIVEN `OpenMemory()` with a `*ToolCall` whose M2 pointers are nil, WHEN `PersistToolCall` runs, THEN those columns round-trip as SQL NULL (nil pointers preserved).
+    - GIVEN `OpenMemory()` and `testutil.WithTempXDG(t)`, WHEN `ResolveSessionID` is called with a non-existent `hint`, THEN it returns `dbpkg.ErrNotFound`.
+    - GIVEN a `Prices` cache loaded from a malformed JSON file, WHEN `Load` returns and `Cold()` is checked, THEN `Cold()` is `false` (warm-cache semantic preserved).
+    - GIVEN `OpenMemory()` and `Prices.WithHTTPClient` set to an `httptest.NewServer` returning models.dev-shaped JSON, WHEN `PersistToolCall` runs with `Cost=nil` and `TokensIn=TokensOut=1_000_000` for `claude-sonnet-4-20250514`/`anthropic`, THEN the persisted `Cost` is the formula result rounded to 6 decimals per D11.
+  plan: ppfsaqcxml

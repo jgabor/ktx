@@ -1,0 +1,15 @@
+id: ggtbnudltw
+artifact: plan
+record:
+  name: RecordedStream persistence + query methods (db layer, D20 step 1 persistence)
+  depends_on:
+    - jrhvcphqgm
+  status: complete
+  acceptance:
+    - "GIVEN a new file internal/db/recorded_streams.go (mirroring internal/db/compress.go: package doc, RecordedStream struct, typed sentinel errors, BEGIN/Commit/Rollback transactions) WHEN InsertRecordedStream(rs *RecordedStream) is called against a seeded (session + bench_run) OpenMemory() database THEN the row persists with all 7 columns round-tripping verbatim via GetRecordedStreamBySession and GetRecordedStreamByBenchRun — mirrors TestInsertCompressed happy path"
+    - GIVEN the RecordedStream struct (id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at with JSON tags matching the column names, no omitempty) WHEN InsertRecordedStream is called with a session_id or bench_run_id referencing a non-existent row THEN it returns ErrSourceNotFound (wrapping ErrNotFound, mirroring compress.go's ErrSourceNotFound) so the CLI maps it to exit 2 — pre-check existence before INSERT for a typed error regardless of driver FK-error string drift
+    - GIVEN a recorded_streams row persisted with content_hash = ContentHash(stream_text) (D9 recomputed-from-stored-data rule, ktx owns integrity) WHEN the row is re-fetched THEN the stored content_hash equals SHA-256 of the stored stream_text — content_hash round-trip mirrors the compress_test.go hash assertion
+    - GIVEN GetRecordedStreamBySession(sessionID) and GetRecordedStreamByBenchRun(benchRunID) exist WHEN called against a session_id / bench_run_id with no recorded_streams row THEN both return ErrNotFound (exit 2 surface) — mirrors GetCompressed miss path
+    - GIVEN empty stream_text is a valid stream (a session that emitted no events still gets captured) WHEN InsertRecordedStream is called with stream_text = '' THEN it succeeds and content_hash = ContentHash('') (SHA-256 of the empty string, a real value) — the absence-vs-empty distinction is preserved; no silent skip on empty stream
+    - "GIVEN a new internal/db/recorded_streams_test.go (mirroring internal/db/compress_test.go: table-driven subtests, OpenMemory fixtures, seedSessionAndBenchRun helper) WHEN go test ./internal/db/ runs THEN all subtests pass: happy-path round-trip, FK rejection on unknown session_id, FK rejection on unknown bench_run_id, GetBySession miss → ErrNotFound, GetByBenchRun miss → ErrNotFound, content_hash round-trip, empty stream_text round-trip"
+  plan: akjhpurupo

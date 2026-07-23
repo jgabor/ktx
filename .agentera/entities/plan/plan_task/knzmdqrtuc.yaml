@@ -1,0 +1,15 @@
+id: knzmdqrtuc
+artifact: plan
+record:
+  name: Subcommand extraction in router
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN ktx.toml with [[route]] subcommand = "status" profile = "x" WHEN config.Load() runs THEN cfg.Routes[0].Subcommand == "status"
+    - GIVEN a tool call with command "git status --short" WHEN a route rule has Subcommand "status" THEN the router returns that rule's profile name
+    - GIVEN a tool call with command "git diff" WHEN a route rule has Subcommand "status" THEN the router does not match that rule
+    - GIVEN a tool call with command "git" (no subcommand) WHEN a route rule has Subcommand "status" THEN the router does not match that rule
+    - GIVEN a tool call with command "git --no-pager log" WHEN a route rule has Subcommand "log" THEN the router returns that rule's profile name
+    - GIVEN a tool call with malformed or empty input JSON WHEN a route rule has Subcommand set THEN the rule does not match (mirrors CommandPrefix behavior)
+  plan: vengvkwlsk

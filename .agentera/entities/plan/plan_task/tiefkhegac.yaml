@@ -1,0 +1,14 @@
+id: tiefkhegac
+artifact: plan
+record:
+  name: Build the source and runtime capability matrix
+  depends_on:
+    - dqndtgqhyi
+    - hsfzssgczr
+  status: pending
+  acceptance:
+    - GIVEN the pinned OpenCode runtime and current official provider documentation WHEN the matrix is produced THEN every OpenCode, OpenAI, Anthropic, and Gemini row names exact versions or API families, exposed native fields, normalized fields, available controls, eligibility constraints, retention semantics, and evidence strength.
+    - GIVEN a provider-native response fixture and its runtime-normalized equivalent WHEN compared THEN read, write or creation, uncached input, total input, and absent-versus-zero semantics either reconcile or the matrix records the incompatibility without rewriting either source.
+    - GIVEN a provider or gateway with undocumented or dropped cache fields WHEN classified THEN it remains unknown or observed-only rather than inheriting another adapter's capability.
+    - GIVEN source citations or retained fixtures change WHEN matrix verification runs THEN stale hashes, missing sources, and semantic mismatches are reported before any isolation capability can be enabled.
+  plan: dmbslbvrlk

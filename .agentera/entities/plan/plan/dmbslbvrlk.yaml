@@ -1,0 +1,48 @@
+id: dmbslbvrlk
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-23
+    status: open
+    reviewed: 2026-07-23
+    critic_issues: 5 found, 5 addressed, 0 dismissed
+    revised: Separated unconditional claim correction from evidence-gated enablement, made live-probe blockage explicit, defined source events versus native requests, specified historical validation compatibility, and added enforceable probe cost and privacy boundaries.
+    title: "Plan: Establish prompt-cache observability and control evidence"
+  what: Establish ordered model-step and native-request cache evidence, a source- and version-specific capability matrix, and controlled provider/runtime probes so ktx can distinguish observed cache reuse from cache writes, unknown outcomes, and genuinely controlled isolation before comparing providers.
+  why: Attempt-level sums preserve billing volume but erase the request sequence needed to interpret cold and warm behavior. The current key-based OpenAI adapter is labeled isolated without retained negative-control evidence, while provider APIs expose different controls and token semantics. The next coherent step is to make request evidence auditable and stabilize claims before general prefix characterization or cross-provider cost comparison.
+  constraints: Preserve captured streams as authoritative evidence, exact per-attempt SUM aggregation, absent-versus-zero semantics, reported cost independence, and byte-identical legacy experiment regeneration. Do not attach model-step evidence to tool_calls, invent a generic cache-hit ratio, infer provider-internal misses, retain raw cache namespaces or credentials, or treat routing affinity as provider cache isolation. Keep live probes bounded, headless, opt-in, and outside ordinary CI; reject github-copilot providers. Do not settle the open prefix-observability, provider-ownership, savings-attribution, or benchmark-aggregation deliberations, and do not build a universal cache adapter in this plan.
+  overall_acceptance: GIVEN a retained multi-step cache-aware experiment and the source/version capability evidence WHEN an operator inspects or validates it THEN ordered source-event observations reconstruct the existing attempt totals, native requests are identified only when supported by authoritative evidence, incomplete telemetry remains distinguishable from zero, every provider/runtime claim is traceable to authoritative source or retained probe evidence, unsupported isolation fails before a paid attempt, and no result is described as a provider-internal hit or miss without a controlled eligible lookup.
+  scope:
+    included:
+      - Ordered source-event token, cache, identity, control, and available retry evidence, with native requests distinguished from runtime model steps
+      - Additive retained evidence and validation without changing legacy experiment bytes
+      - Source- and version-specific OpenCode, OpenAI, Anthropic, and Gemini capability evidence
+      - Same-prefix, changed-prefix, key, TTL, concurrency, direct-provider, runtime-parity, and request-count controls
+      - Evidence-gated correction of benchmark cache-isolation claims
+      - Focused documentation, verification, and project-state synchronization
+    excluded:
+      - General stable-prefix and changing-tail instrumentation for ordinary agent sessions
+      - A product-wide provider cache-control registry or universal adapter abstraction
+      - Cross-provider cost, quality, setup-cost, or break-even comparison
+      - Provider-internal lookup counts, eviction state, or miss-reason inference
+      - Cache evidence on tool_calls or a new per-tool cost model
+      - Live provider calls in CI or mandatory credentials for offline verification
+    deferred:
+      - Provider-visible prefix and compaction characterization
+      - Prefix-observability and provider-cache-control ownership deliberations
+      - Savings-attribution deliberation
+      - Retained cache-aware provider comparison
+  design: First define one ordered source-event and claim vocabulary against representative streams and provider-native response fixtures. Every observation carries a source kind and ordinal; an OpenCode step_finish remains a model step unless an authoritative native identifier or documented one-to-one mapping proves it is a provider request. Extend the shared recorded-stream interpretation to return ordered observations plus the unchanged complete aggregate, retaining observations additively only for new cache-aware evidence. Build a cited capability matrix separating source-confirmed fields, runtime normalization, live observation, and control-validated isolation. Use bounded probes where access exists. Correct unsupported isolation unconditionally from source evidence, then enable a narrowly gated path only after retained controls support it.
+  unknowns:
+    - question: Which direct-provider credentials and eligible models are available for bounded OpenAI, Anthropic, and Gemini probes?
+      affects_task: 4
+      resolve_by: Run a no-call capability and credential preflight; execute only accessible pairs and record inaccessible pairs as not live-observed with the exact missing prerequisite.
+    - question: Which request identifiers, retry relationships, and provider-native cache fields survive OpenCode 1.18.0 normalization?
+      affects_task: 2
+      resolve_by: Inspect the pinned runtime and provider-adapter sources and representative streams; retain OpenCode evidence as model steps and unavailable fields as absent rather than synthesizing request identities or retry links.
+    - question: Can any supported OpenAI or Azure key/breakpoint path establish cache separation rather than improve routing affinity?
+      affects_task: 6
+      resolve_by: Require both authoritative source semantics and retained same-prefix/different-key negative controls; otherwise downgrade the path to observed and reject explicit isolation before execution.
+  surprises:
+    []

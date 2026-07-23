@@ -1,0 +1,15 @@
+id: prelotwvrv
+artifact: plan
+record:
+  name: "State sync: progress entry"
+  depends_on:
+    - bkvckrvawr
+    - gvwyvqdssg
+    - mtmnvuppec
+    - zxjzkcijsg
+    - tkpcfusnzk
+  status: complete
+  acceptance:
+    - |
+      GIVEN all prior tasks complete and verified WHEN the state sync runs THEN progress records the plugin boundary consolidation as one cycle entry summarising: ID/timestamp generation moved to binary, runtime column added, field extraction moved to binary, plugin slimmed to IPC shim.
+  plan: qwgcryrgdq

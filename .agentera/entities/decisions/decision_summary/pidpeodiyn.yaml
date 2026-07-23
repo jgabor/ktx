@@ -1,0 +1,16 @@
+id: pidpeodiyn
+artifact: decisions
+record:
+  summary: "Decision 10 (2026-06-17): OpenCode is the first target. Non-interactive: ktx run opencode run --format json parses events into..."
+  date: 2026-06-17
+  choice: "OpenCode is the first target. Non-interactive: ktx run opencode run --format json parses events into tool_calls. Interactive: wrapper records session bounds; hooks capture individual tools. Hook noops when KTX_SESSION_ID is present."
+  feeds_into: M1 implementation, CLI command surface, OpenCode plugin design, ktx run behavior
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-07-09
+  outcome: "OpenCode is the first target. Non-interactive: ktx run opencode run --format json parses events into tool_calls. Interactive: wrapper records session bounds; hooks capture individual tools. Hook noops when KTX_SESSION_ID is present."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: 59520f5348a0e4896ad1dff7f77e25191eea52660a7065c84a10066f9e43c314

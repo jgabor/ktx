@@ -1,0 +1,7 @@
+id: kbaiuvyefr
+artifact: progress
+record:
+  summary: "Cycle 7 (2026-06-19): PersistToolCall now defers tx.Rollback() immediately after the tx, err := d.db.Begin() error check, eliminating the..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: b9d25b426733368c9f7e780408b9595a67b5565de23c96583b2c2854879df297

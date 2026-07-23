@@ -1,0 +1,15 @@
+id: vxtugaoocm
+artifact: plan
+record:
+  name: Documentation sync — ARCHITECTURE.md, ROADMAP.md, TODO.md (DTC documentation step)
+  depends_on:
+    - cyayibhmnt
+    - hulnpxbymv
+  status: complete
+  acceptance:
+    - "GIVEN Task 3 landed (capture trigger produces both rows) and Task 5 landed (--replay emits consistency headline) WHEN ARCHITECTURE.md is updated THEN a D20 Decided entry is added under the Measurement-and-benchmark section (one paragraph: recording contract = recorded_streams table, capture trigger = bench run only, --replay reads by session_id, pre-M4 = consistency check, post-M4 A/B out of scope) AND any Open deliberations item referencing the recording contract is removed (per AGENTS.md Documentation maintenance workflow)"
+    - GIVEN D20 is provisional (confidence in decisions.yaml) WHEN ARCHITECTURE.md notes the implementation THEN the Decided entry names D20 as provisional and cites the implementation evidence (the recorded_streams row + --replay consistency envelope) as the path to upgrade D20 to firm — per AGENTS.md 'Upgrade to firm after --replay ships and the pre-M4 consistency check produces evidence'
+    - "GIVEN ROADMAP.md milestones WHEN the --replay pre-M4 consistency check ships THEN the M5 (or whatever milestone names D13 Tier 1) milestone's acceptance criteria is updated: the D13 Tier 1 per-commit deterministic gate is now available pre-M4 (was previously M4-gated); M4 A/B (baseline vs treatment) remains the M4 milestone"
+    - "GIVEN TODO.md:28 has four implementation steps (1: persist stream; 2: --replay flag; 3: replay logic; 4: M4 A/B) WHEN Tasks 3 and 5 land THEN steps 1, 2, 3 are marked complete (with a pointer to the D20 implementation evidence) AND step 4 (M4 A/B) is left open as explicitly out-of-scope per D20 — no duplicate open items; the AGENTS.md rule 'do not leave duplicate open items when the architecture backlog and todo list describe the same question' is honored"
+    - "GIVEN the existing captured D16 fixture (bench_run id `ccsbkoluqgkgtelc`, paired session_id `sdeloqgthcgasfld`) WHEN the implementation completes THEN a follow-up note is added: this fixture predates D20's recorded_streams table (it has a bench_runs row but no recorded_streams companion because the capture trigger did not exist at capture time); --replay against this session_id will return exit 2 (not-found) by design — a fresh `ktx bench run opencode <model> <task>` post-D20 will produce both rows and is the candidate fixture for --replay validation"
+  plan: akjhpurupo

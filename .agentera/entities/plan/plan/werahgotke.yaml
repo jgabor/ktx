@@ -1,0 +1,36 @@
+id: werahgotke
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-17
+    status: archived
+    reviewed: 2026-07-17
+    critic_issues: 8 found, 8 addressed, 0 dismissed
+    title: "Plan: Portable replay fixture and CI gate"
+  what: Make replay evidence self-contained so a retained fixture can reproduce integrity, parser, usage, cost, cache, and compression checks without the capture machine database, then enforce one representative fixture as an offline repository and CI regression gate.
+  why: Portable replay converts captured evidence into a shareable deterministic guardrail, protects parser, cost, cache, and compression behavior before later routing work, and avoids recurring live-model cost for regression verification.
+  constraints: Preserve database-backed session replay fields and exit behavior, capture database authority, absent-versus-zero usage, model-step evidence ownership, conservative failure, the smaller-only pipeline gate, and first-evidence authority. The gate must require no network, model, container, credentials, plugins, or user-local state. Do not add fixture import, a registry, database migration, cache-control changes, or new compression algorithms.
+  overall_acceptance: GIVEN a sanitized committed fixture and no capture database WHEN repository and CI verification run offline THEN integrity, parser, usage, cost, cache, and compression expectations are reproduced deterministically; every divergence fails the gate; existing session replay remains compatible; and documentation identifies one reproducible evidence contract.
+  scope:
+    included:
+      - Versioned portable replay fixture contract
+      - Explicit file replay and fixture export surfaces
+      - Existing session replay compatibility
+      - Controlled built-in compression evidence
+      - Sanitized representative fixture
+      - Repository verification and tracked CI gate
+      - User documentation and project-state synchronization
+    excluded:
+      - Live provider execution as part of verification
+      - External plugins in the fixture gate
+      - Database fixture import or migration
+      - Provider cache-control changes
+      - New compression algorithms
+      - Generic fixture registry or lifecycle service
+  design: Establish a narrow self-contained evidence contract first. Produce it only from one validated source snapshot. Evaluate database and file inputs through equivalent replay behavior while keeping their selectors and compatibility explicit. Retain one reviewed fixture, enforce strict expectations through repository and CI verification, then synchronize documentation and state.
+  unknowns:
+    - question: Does an existing benchmark-parented capture contain complete, nontrivial, privacy-safe evidence suitable for long-term retention, or is a marked deterministic synthetic benchmark source required?
+      affects_task: 5
+      resolve_by: Export and review candidate evidence before retaining the fixture; if no capture satisfies the contract, create a deterministic synthetic benchmark-parented source with explicit provenance rather than weakening privacy or evidence requirements.
+  surprises: The final progress append succeeded and retained entry 53, but its automatic compaction reported pre-existing missing numbered archives for older progress entries and conservatively kept their full projections. This did not affect Task 7 files or verification and was not repaired because archive maintenance is outside scope.

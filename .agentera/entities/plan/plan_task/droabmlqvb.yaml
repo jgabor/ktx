@@ -1,0 +1,13 @@
+id: droabmlqvb
+artifact: plan
+record:
+  name: Current-state check
+  depends_on:
+    - sjajwbtcbq
+    - peolxdrqwf
+  status: complete
+  acceptance:
+    - GIVEN all prior tasks are complete WHEN build runs go test ./... and go build ./cmd/ktx THEN both exit zero
+    - GIVEN all prior tasks are complete WHEN the existing benchmark and config tests run THEN no previously passing test regresses
+    - GIVEN a schema migration was needed for profile-name auditability WHEN a migration test of the same shape as existing migration tests runs THEN the migration is idempotent and existing rows are preserved
+  plan: hsvylrxjpg

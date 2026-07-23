@@ -1,0 +1,26 @@
+id: bzmobsaolp
+artifact: plan
+record:
+  name: "Hook: Codex input auto-detection and field extraction"
+  depends_on:
+    - oukbrhnesq
+  status: complete
+  acceptance:
+    - |
+      GIVEN a Codex PostToolUse payload with hook_event_name="PostToolUse", tool_name="Bash", tool_input={"command":"ls"}, tool_response={"aggregated_output":"file1\nfile2","exit_code":0} WHEN ktx hook runs THEN the persisted tool_call has tool="Bash", input containing the tool_input as a string, output containing the tool_response's output field, and runtime="codex".
+    - |
+      GIVEN a Codex PostToolUse payload where tool_response is a bare string WHEN ktx hook runs THEN the persisted tool_call output is the bare string.
+    - |
+      GIVEN a Codex PostToolUse payload where tool_response is an object without a recognised output field WHEN ktx hook runs THEN the persisted tool_call output is the stringified object (fallback).
+    - |
+      GIVEN a Codex PostToolUse payload where tool_name is missing or empty WHEN ktx hook runs THEN the persisted tool_call tool is "unknown" (fallback).
+    - |
+      GIVEN a Codex PostToolUse payload with tool_use_id present WHEN ktx hook runs THEN the persisted tool_call id is the tool_use_id value (caller-supplied, not generated).
+    - |
+      GIVEN a Codex PostToolUse payload with no tool_use_id WHEN ktx hook runs THEN the hook generates a 16-char lowercase alpha id (same as OpenCode path).
+    - |
+      GIVEN an OpenCode payload with runtime="opencode" WHEN ktx hook runs THEN the hook uses the OpenCode extraction path (backward compatible, not affected by Codex auto-detection).
+    - |
+      GIVEN a flat tool_call payload without hook_event_name or runtime WHEN ktx hook runs THEN the hook deserialises it as a flat tool_call (backward compatible).
+  test_proportionality: 4 testable units (codex-extraction, codex-bare-string, codex-missing-tool, opencode-unaffected); one pass per unit.
+  plan: tyhjhmlrcr

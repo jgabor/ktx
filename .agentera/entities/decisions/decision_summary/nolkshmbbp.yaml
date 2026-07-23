@@ -1,0 +1,16 @@
+id: nolkshmbbp
+artifact: decisions
+record:
+  summary: "Decision 6 (2026-06-16): SQLite database at $XDG_DATA_HOME/ktx/ktx.db. The default record store is a single database file, not a..."
+  date: 2026-06-16
+  choice: SQLite database at $XDG_DATA_HOME/ktx/ktx.db. The default record store is a single database file, not a directory tree. --store path overrides the database file path for CI isolation and testing. Parent directory ($XDG_DATA_HOME/ktx/) is created if missing. ktx read returns the stored run as raw JSON (row serialization). This supersedes Decision 4's default store path of $XDG_DATA_HOME/ktx/store/.
+  feeds_into: Record store schema, store implementation, M1 implementation, M3 bench design, --store flag semantics, ktx doctor
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-07-09
+  outcome: SQLite database at $XDG_DATA_HOME/ktx/ktx.db. The default record store is a single database file, not a directory tree. --store path overrides the database file path for CI isolation and testing. Parent directory ($XDG_DATA_HOME/ktx/) is created if missing. ktx read returns the stored run as raw JSON (row serialization). This supersedes Decision 4's default store path of $XDG_DATA_HOME/ktx/store/.
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: 9fcf317274accdcfdbce788b614fc5d34635d5cc929acdb012df6e14637a9800

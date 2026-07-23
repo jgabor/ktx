@@ -1,0 +1,10 @@
+id: aohyaxaejo
+artifact: progress
+record:
+  timestamp: 2026-07-16 06:06
+  type: feat
+  phase: build
+  what: Adopt deterministic identity in verified OpenCode hook and wrapper paths
+  verified: "Hook (internal/cli/hook.go:245-281) extracts (input.sessionID, input.callID) via correlation.Resolve(Trusted(opencode:hook)); wrapper (internal/cli/run.go:497-526) uses parser.ParseEventWithCorrelation + correlation.Resolve(Trusted(opencode:wrapper)). Both use evidence.PersistSource (internal/evidence). Flat runtime:opencode without native schema -> fresh NanoID. Tests: TestOpenCode_HookAndWrapperResolveSameSourceID, TestOpenCode_HookExactDuplicateConverges, TestOpenCode_WrapperReplayConverges, TestOpenCode_CrossIngressEquivalencePersistence, TestOpenCode_MissingTupleFallback, TestOpenCode_FlatClaimingOpencodeRemainsUntrusted, TestOpenCode_MalformedSchemaFallback, TestOpenCode_NewCallIDDistinctObservation, TestOpenCode_FlatCallerSuppliedIDPreserved, TestOpenCode_ChangedEvidenceConflicts, TestOpenCode_KTXSessionOwnershipSeparate, TestOpenCode_ConcurrentExactRetriesConverge, TestOpenCode_WrapperConcurrentExactRetriesConverge, TestOpenCode_SequentialExactRetriesConverge, TestOpenCode_KTXSessionIDGuardSuppressesHook all PASS. go test ./... -count=1: all PASS. go test -race -run TestOpenCode_Concurrent: PASS. mage check: 0 issues. Caveats: cycle 39 archive hygiene to Task 6; legacy/degraded decisions; health unavailable; stale profile; historical progress degradation; Decision 30 review-needed."
+  context:
+    intent: "Task 5 of the generalized tool-call identity plan: carry OpenCode native correlation through hook extraction and wrapper parsing into the evidence layer"

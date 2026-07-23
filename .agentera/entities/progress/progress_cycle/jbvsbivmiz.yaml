@@ -1,0 +1,16 @@
+id: jbvsbivmiz
+artifact: progress
+record:
+  timestamp: 2026-07-12 21:52
+  type: docs
+  phase: audit
+  what: Corrected the README identity contract so it applies specifically to Codex hook records and no longer implies that backward-compatible flat-hook caller IDs are canonicalized.
+  inspiration: Task 4 evaluation retry found that the release wording was broader than the implemented Codex-only identity boundary.
+  discovered: The migration guide was already correctly scoped to Codex; only the README summary required correction. Legacy flat-hook ingress intentionally preserves caller-supplied IDs such as callerID1.
+  verified: README and migration guide docs lint passed. Focused CLI hook tests passed, including legacy caller-supplied ID behavior and Codex hook behavior. Focused database and identity derivation tests passed. git diff --check passed.
+  next: Task 4 remains complete with documentation aligned to both canonical Codex ingestion and backward-compatible flat-hook ingress.
+  context:
+    intent: Resolve the Task 4 audit defect without changing legacy flat-hook behavior or expanding product scope.
+    constraints: Documentation-only correction; no product behavior, migration, compatibility, decision satisfaction, or unrelated documentation changes.
+    unknowns: none
+    scope: README.md, .agentera/progress.yaml, .agentera/plan.yaml

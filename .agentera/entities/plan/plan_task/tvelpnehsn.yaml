@@ -1,0 +1,15 @@
+id: tvelpnehsn
+artifact: plan
+record:
+  name: Schema migration — M2 columns
+  depends_on:
+    - devodavuih
+  status: complete
+  acceptance:
+    - "GIVEN an M1-era database at the default path WHEN the new binary opens it THEN the tool_calls table has new nullable columns: tokens_in INTEGER, tokens_out INTEGER, cost REAL, latency_ms INTEGER, model TEXT, provider TEXT"
+    - GIVEN the migration WHEN applied THEN existing tool_calls rows are unchanged (NULL for new columns) AND sessions schema is unchanged
+    - GIVEN a fresh database WHEN created THEN the schema includes the M2 columns from the start (no migration needed)
+    - GIVEN ktx doctor WHEN invoked on a migrated DB THEN schema_valid reports M2 columns present AND on a pre-M2 DB the doctor flags the missing columns as a normal-severity warning (not a hard error — M1 records still queryable)
+    - GIVEN the migration logic WHEN run twice on the same DB THEN the second run is a no-op (idempotent)
+    - GIVEN a database with a partial M2 column set (e.g., only tokens_in added) WHEN the binary opens it THEN the missing M2 columns are added on the next migration run (forward-fix, not an error)
+  plan: zgmcmzilab

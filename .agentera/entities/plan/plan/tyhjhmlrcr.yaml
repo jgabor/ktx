@@ -1,0 +1,80 @@
+id: tyhjhmlrcr
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-11
+    status: archived
+    reviewed: 2026-07-11
+    critic_issues: 3 found, 3 addressed, 0 dismissed
+    title: Codex hook integration — ktx init codex, runtime-aware hook I/O
+  what: |
+    Add `ktx init codex` as a new runtime adapter alongside the existing `ktx init opencode`. Codex has a stable PostToolUse hook system that sends JSON on stdin and expects JSON on stdout — a command-based hook model, no TypeScript plugin needed. The hook auto-detects Codex from the input shape (presence of `hook_event_name`), extracts fields from the Codex PostToolUse schema (`tool_name`, `tool_input`, `tool_response`, `tool_use_id`), and returns a Codex-format hook response. When compression transforms the output, the hook returns `decision: "block"` with the compressed text as `reason`, which Codex uses to replace the tool result. When passthrough, the hook returns empty JSON and Codex keeps the original output unchanged.
+  why: |
+    Codex (v0.144.1) is installed and its hooks feature is stable and enabled. The PostToolUse hook system provides per-tool-call observation and output replacement via `decision: "block"` + `reason`. This is the only path that gives ktx both observation AND transformation in Codex's interactive TUI mode. The `updatedMCPToolOutput` field (transparent output replacement) is parsed but not yet supported by Codex, so `decision: "block"` is the only available output-transformation mechanism. For non-interactive benchmarking, `codex exec --json` emits a structured JSONL stream that the existing wrapper parser can be extended to handle in a future plan.
+  constraints: |
+    Codex hooks are command-type: stdin JSON → stdout JSON. Multiple matching hooks run concurrently. Non-managed hooks require trust review — the user must run `/hooks` in Codex to trust the ktx hook after install. The hook command is `ktx hook` (no flags); runtime is auto-detected from the input shape.
+
+    PostToolUse `decision: "block"` + `reason` replaces the tool result. The model sees compressed output as hook feedback, not as the original tool result — a semantic difference from OpenCode's transparent mutation. This risk is accepted for initial implementation; if model behavior degrades, observation-only mode is the fallback.
+
+    The hook output format becomes runtime-keyed: Codex gets `{"decision":"block","reason":"..."}` or `{}`; OpenCode gets the existing ktx envelope. The hook command stays `ktx hook` with no flags.
+
+    KTX_SESSION_ID noop: the OpenCode plugin checks this env in TypeScript. For Codex, the hooks.json invokes `ktx hook` directly, so the check must move into the hook logic itself. Additive — the OpenCode plugin's check becomes redundant but harmless.
+
+    hooks.json is a shared config file. Unlike OpenCode (standalone `ktx.ts`), Codex uses one `hooks.json` per scope that may contain hooks from multiple sources. Install must merge, not overwrite. Uninstall removes only ktx's entry.
+
+    No database changes needed — the `runtime` column already exists. Codex tool calls will have `runtime="codex"`. Codex session IDs are not ktx-format (likely UUIDs); the hook leaves session_id empty for ppid resolution, same as the OpenCode path.
+  scope:
+    included:
+      - |
+        Init handler: add `codex` as a supported runtime in the init switch. Install writes or merges a PostToolUse hook entry into `~/.codex/hooks.json` (global) or `.codex/hooks.json` (project). The hook entry uses `ktx hook` as the command, matcher `.*`, timeout 10. Uninstall removes ktx's PostToolUse entry (identified by the `ktx hook` command string) from hooks.json, preserving other hooks. Show reports whether ktx's hook is present and in which scope.
+      - |
+        Codex input extraction: auto-detect Codex input from the presence of `hook_event_name` (Codex sends this on all hook events). Extract: `tool_name` → tool (fallback "unknown"), `tool_input` → input (stringified JSON), `tool_response` → output (extract string from response; try `aggregated_output`, `output`, `text` fields, then stringified fallback), `tool_use_id` → id (if present, else hook generates). Set runtime="codex". Leave session_id empty for ppid resolution.
+      - |
+        Codex output formatting: when compression transforms the output, return `{"decision":"block","reason":"<compressed output>"}` — Codex replaces the tool result with the compressed text. When passthrough (no compression or no pipeline configured), return `{}` — Codex keeps the original output. The recovery footer (if enabled) is appended to the compressed output in the `reason` field, same as the OpenCode path.
+      - |
+        KTX_SESSION_ID noop in hook logic: add an early check at the top of hookLogic — if KTX_SESSION_ID env var is set, exit 0 with empty output (wrapper is active, hook should not record or compress). This is the hook-level equivalent of the OpenCode plugin's TypeScript noop guard.
+      - |
+        Tests: Codex input extraction tests (all tool_input/tool_response shape variants), Codex output formatting tests (compressed + passthrough + footer), init codex install/uninstall/show tests with pre-existing hooks.json (merge preservation), KTX_SESSION_ID noop test.
+      - |
+        Help text: update `ktx init --help` to list codex as a supported runtime. Update `ktx hook --help` to mention Codex auto-detection and the `decision: "block"` output format.
+    excluded:
+      - |
+        `codex exec --json` wrapper support. The JSONL stream from `codex exec` has a different schema from the hook input and enters through `ktx run`, not `ktx hook`. This is a separate integration path for benchmarking. Deferred to a future plan.
+      - |
+        Codex plugin packaging. Codex has a full plugin system with marketplace support, but packaging ktx as a Codex plugin (with manifest, marketplace entry, etc.) is YAGNI — the hooks.json approach is simpler and directly editable.
+      - |
+        `updatedMCPToolOutput` transparent output replacement. Codex parses this field but does not yet support it. When Codex adds support, the hook can switch from `decision: "block"` to `updatedMCPToolOutput` for transparent compression. Revisit when Codex ships support.
+      - |
+        Observation-only mode toggle. If `decision: "block"` negatively affects model behavior, a config flag could disable compression for Codex while keeping observation. Deferred until the risk materialises.
+      - |
+        PreToolUse hook for input compression. Codex's PreToolUse supports `updatedInput` to transform tool inputs before execution. This could compress the tool call payload before the model sees it. YAGNI for initial implementation.
+    deferred:
+      - |
+        `codex exec --json` wrapper path for benchmarking. The JSONL stream includes `turn.completed` with token usage data, enabling cost measurement. This is the benchmarking counterpart to the interactive-mode hook. Revisit when ktx bench needs Codex support.
+      - |
+        Codex `session_id` correlation. Codex sends its own session_id; ktx creates its own via ppid resolution. Cross-referencing the two is useful for debugging but not blocking. Revisit when a use case arises.
+      - |
+        Trust-review automation. After `ktx init codex`, the user must manually trust the hook in Codex's `/hooks` UI. Automating trust (or documenting it clearly in the install output) is a UX improvement. Revisit based on user feedback.
+  design: |
+    The work follows the same dependency chain as the plugin boundary consolidation: hook changes (extraction + output formatting + KTX_SESSION_ID noop) are prerequisite; the init handler writes the hooks.json that invokes `ktx hook`.
+
+    Auto-detection vs flag: the hook auto-detects from input shape — Codex sends `hook_event_name`; OpenCode sends `runtime: "opencode"`; flat tool_call has neither. This avoids flag parsing and works with Codex's command-type hooks. The hooks.json command is simply `ktx hook`.
+
+    Output format: runtime-keyed. Codex gets `{"decision":"block","reason":"<compressed>"}` or `{}`. OpenCode gets the existing ktx envelope. Selection happens after compression, at envelope-write time — a clean extension of the runtime-keyed pattern.
+
+    `decision: "block"` for output transformation: Codex's `updatedMCPToolOutput` is not yet supported, so `decision: "block"` + `reason` is the only output-replacement mechanism. The model sees compressed output as hook feedback, not as the original tool result. The compressed text in `reason` is the same content the OpenCode path puts in `envelope.output` — only the wrapping JSON differs.
+
+    hooks.json merge: `ktx init codex` reads the existing hooks.json (if any), adds or updates ktx's PostToolUse entry (identified by the `ktx hook` command string), and writes it back. Uninstall removes entries containing this command. This preserves other hooks.
+
+    KTX_SESSION_ID in hook logic: the OpenCode plugin checks this env in TypeScript before spawning `ktx hook`. For Codex, the check moves into the hook itself — if KTX_SESSION_ID is set, exit 0 with empty output before reading stdin. Additive and backward-compatible.
+  overall_acceptance: |
+    GIVEN a Codex PostToolUse payload with hook_event_name, tool_name, tool_input, and tool_response WHEN ktx hook runs THEN the hook auto-detects Codex, extracts the fields, persists the tool_call with runtime="codex", and returns a Codex-format hook response — decision="block" with compressed output as reason when compression transforms, or empty JSON when passthrough.
+
+    GIVEN an existing hooks.json with other hooks WHEN ktx init codex runs THEN ktx's PostToolUse entry is merged in, preserving existing hooks. WHEN ktx init codex --uninstall runs THEN only ktx's entry is removed.
+
+    GIVEN KTX_SESSION_ID is set in the environment WHEN ktx hook runs THEN the hook exits 0 with no output (wrapper is the single source of truth, regardless of which runtime invokes the hook).
+
+    GIVEN an OpenCode payload or a flat tool_call payload WHEN ktx hook runs THEN behaviour is byte-for-byte identical to pre-change (backward compatible).
+  surprises:
+    []

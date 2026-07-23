@@ -1,0 +1,16 @@
+id: qddvigrcdy
+artifact: progress
+record:
+  timestamp: 2026-07-15 23:37
+  type: test
+  phase: plan
+  what: Corrected the runtime identity evidence after independent evaluation by adding an offline retry-class probe and replacing inferred coverage with tested stable versus unknown/ineligible classifications.
+  inspiration: Independent evaluation found that cycle 34 claimed all retry classes were substantiated although only exact Codex redelivery had been exercised.
+  discovered: At the KTX boundary, repeated OpenCode callbacks and hook-failure redelivery create duplicate rows today; retained OpenCode stream replay preserves the native tuple but current parser IDs differ; a new native call ID derives a distinct identity; the same Codex tuple converges across separate KTX processes and KTX sessions.
+  verified: "Cycle 34 overclaimed criterion 2. Command go run .agentera/verification/runtime_identity_probe.go passed five offline classes: duplicate OpenCode callback retained 2 rows/ineligible; OpenCode stream replay kept one native tuple and derived candidate while parser IDs differed/ineligible; changed model call ID derived distinctly; simulated KTX process/session restart yielded 2 KTX sessions but 1 Codex source and roll-up; post-persistence failure redelivery converged for Codex and duplicated for OpenCode. Focused identity, DB migration/retry, Codex hook, exact parser, and race commands passed. Criterion 1 remains pinned in the evidence artifact; criterion 3 remains substantiated by records.go equality inspection/tests; criterion 4 remains substantiated by schema inspection and TestOpen_RuntimeMigration. Upstream automatic failed-hook retry and runtime-restart replay are explicitly unknown/ineligible, not claimed exercised."
+  next: Use only the corrected stable/ineligible matrix when recording the generalized identity decision.
+  context:
+    intent: Repair cycle 34's criterion 2 overclaim while preserving the research-only scope and all prior user work.
+    constraints: No product code, decisions, plan status, README, architecture, or TODO changes; no live model calls.
+    unknowns: Upstream failed-hook retry, callback replay after runtime restart, and guaranteed fresh model re-execution IDs remain unspecified by pinned contracts.
+    scope: .agentera/verification/runtime_identity_probe.go, .agentera/verification/runtime-identity-evidence.md, and Agentera progress artifacts only.

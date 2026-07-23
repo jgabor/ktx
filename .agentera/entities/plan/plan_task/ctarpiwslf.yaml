@@ -1,0 +1,13 @@
+id: ctarpiwslf
+artifact: plan
+record:
+  name: Correct unconfirmed cache-control claims
+  depends_on:
+    - tiefkhegac
+  status: pending
+  acceptance:
+    - GIVEN a runtime/provider path backed only by routing affinity or a configurable cache key WHEN automatic cache control resolves THEN it remains observed rather than isolated.
+    - GIVEN explicit isolation is requested for an unconfirmed path WHEN validation runs THEN it fails before an agent or provider call and names the supported observed fallback.
+    - GIVEN supported, unsupported, malformed-version, and unknown-provider cases WHEN capability tests run THEN each has at least one passing resolution case and one rejection or observed-fallback case.
+    - GIVEN retained experiment 20260715T135419Z-3012214-1979487 says isolated WHEN current validation evaluates it THEN artifacts and summaries regenerate byte-identically, integrity validity is separate from present-day isolation capability, the unconfirmed isolation claim is machine-readable, and the experiment cannot enable isolation for new runs.
+  plan: dmbslbvrlk

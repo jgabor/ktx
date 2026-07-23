@@ -1,0 +1,16 @@
+id: czntnccmsn
+artifact: decisions
+record:
+  summary: "Decision 1 (2026-06-15): Wrapper (ktx run) + sidecar (ktx write) + adapters (ktx init), all writing to the..."
+  date: 2026-06-15
+  choice: "Wrapper (ktx run) + sidecar (ktx write) + adapters (ktx init), all writing to the same record store. The wrapper is a transparent proxy: agent stdout passes through untouched, one-line per-session run summary to stderr. Hooks are bidirectional transformers with a universal protocol (stdin JSON payload → stdout JSON response). Session identity is file-based: first invocation generates a nanoid and writes it to $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json with session_id, ppid, and ppid_start_time; subsequent invocations reuse it. Session close is lazy: a file is stale when ppid is dead or ppid_start_time no longer matches (PID reuse); stale file triggers close on next call. --quiet suppresses the inline run summary. --format json emits structured run summary to stderr instead. Run always written to store regardless of display mode. The run is per-session evidence; `ktx bench` aggregates runs into a headline number that proves the cost savings."
+  feeds_into: M1 implementation, CLI command surface, hook design, run format
+  satisfaction:
+    state: user_confirmed_satisfied
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-07-09
+  outcome: "Wrapper (ktx run) + sidecar (ktx write) + adapters (ktx init), all writing to the same record store. The wrapper is a transparent proxy: agent stdout passes through untouched, one-line per-session run summary to stderr. Hooks are bidirectional transformers with a universal protocol (stdin JSON payload → stdout JSON response). Session identity is file-based: first invocation generates a nanoid and writes it to $XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json with session_id, ppid, and ppid_start_time; subsequent invocations reuse it. Session close is lazy: a file is stale when ppid is dead or ppid_start_time no longer matches (PID reuse); stale file triggers close on next call. --quiet suppresses the inline run summary. --format json emits structured run summary to stderr instead. Run always written to store regardless of display mode. The run is per-session evidence; `ktx bench` aggregates runs into a headline number that proves the cost savings."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: 9b0f61a18732bb42155f74634a22025ec8692cdbee5343f9e8234e7b20349069

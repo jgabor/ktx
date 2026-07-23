@@ -1,0 +1,23 @@
+id: jwhymqypnw
+artifact: plan
+record:
+  name: Establish the shared correlation contract
+  depends_on:
+    - pcvmcchlmt
+  status: complete
+  acceptance:
+    - GIVEN equivalent verified tuples WHEN they cross process, machine, hook, or wrapper boundaries THEN they produce the same source ID.
+    - GIVEN unknown or compatibility ingress WHEN it claims a runtime label THEN it cannot opt itself into deterministic identity.
+    - GIVEN missing, malformed, or ineligible tuple fields WHEN an event is accepted THEN it receives a fresh NanoID with no deduplication guarantee.
+    - GIVEN KTX session association changes WHEN native correlation is unchanged THEN source identity and session ownership remain separately defined.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: task-3-attempt-1
+      source: Independent review verified all shared correlation acceptance criteria and progress cycle 38; latent canonicalization findings are carried into Task 4 before equality is wired.
+      recorded_at: 2026-07-16 05:22
+      writer_command: agentera state plan record-evaluation
+  plan: bzkbsxjouw

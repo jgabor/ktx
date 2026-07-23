@@ -1,0 +1,7 @@
+id: pbvxaoigbw
+artifact: progress
+record:
+  summary: "Cycle 19 (2026-07-12): Codex hook integration: added ktx init codex, runtime-aware hook I/O for Codex PostToolUse payloads. The..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 25f069634881afa8b447e901e825bb6ca6ee71b0e3b2de3ac3c75e2243db8634

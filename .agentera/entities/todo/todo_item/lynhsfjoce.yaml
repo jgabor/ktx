@@ -1,0 +1,6 @@
+id: lynhsfjoce
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Router taxonomy and profile selection** — Run structured deliberation and record the taxonomy, signal, layer-to-profile, ambiguity, and fallback choice using the routing-candidate evidence. → [Question](ARCHITECTURE.md#router-taxonomy-and-profile-selection)"

@@ -1,0 +1,15 @@
+id: syllidpmib
+artifact: plan
+record:
+  name: SQLite database layer (schema, nanoid, path resolution)
+  depends_on:
+    - cggetupjfo
+  status: complete
+  acceptance:
+    - GIVEN a new database path WHEN ktx initializes the database THEN sessions and tool_calls tables exist with correct columns
+    - "GIVEN the sessions table WHEN inspected THEN it has: id (nanoid PK), agent, started_at, ended_at, last_seen_at, tool_call_count"
+    - "GIVEN the tool_calls table WHEN inspected THEN it has: id (nanoid PK), session_id (FK), tool, input, output, content_hash, timestamp, event_type"
+    - GIVEN nanoid generation WHEN called THEN it produces 16-char lowercase alpha strings
+    - GIVEN a tool_call output WHEN content_hash is computed THEN it is SHA-256 of the output field
+    - GIVEN a missing parent directory WHEN the database is created THEN the directory is created first
+  plan: zymsplszbm

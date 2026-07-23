@@ -1,0 +1,7 @@
+id: ewwskcoivh
+artifact: progress
+record:
+  summary: "Cycle 20 (2026-07-12): Task 1: Route rule config parsing. Added RouteRule struct and Routes field to Config, [[route]]..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 2656ec03270c71370412bc7de3fa35df90bbefe9780821860761852ea63578b3

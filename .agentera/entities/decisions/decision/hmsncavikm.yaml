@@ -1,0 +1,26 @@
+id: hmsncavikm
+artifact: decisions
+migration_provenance:
+  kind: inherited_decision_confidence
+  source: current_projection
+  source_path: .agentera/decisions.yaml
+  source_record_sha256: 81267c228052f53f6376856beeed88d881a78bb9864870b5da0fc99a779c1674
+  confidence: high
+record:
+  date: 2026-07-15
+  question: How should schema-v3 benchmark evidence describe small, variable samples and paired pipeline effects without making inferential claims or silently removing unusual runs?
+  context: Schema v3 already distinguishes reproducible estimated API cost from reported cost. The live harness alternates baseline and candidate execution by cycle, but the summary exposes only unpaired mean-minus-mean deltas and min/mean/max distributions. Tool-heavy runs can be visibly unusual while still being valid evidence. Historical schema-v1 and schema-v2 summaries are byte-compared during validation and cannot be rewritten.
+  alternatives:
+    - name: Deterministic descriptive statistics, cycle pairing, and annotated outliers
+      status: chosen
+      description: Add robust distributions, Tukey annotations, paired cycle deltas, and sample-size labels only to schema v3. Retain every evaluated observation.
+    - name: Inferential tests and automatic outlier filtering
+      status: rejected
+      description: P-values and confidence intervals over very small agent samples imply unsupported certainty; automatic filtering destroys retained evidence.
+    - name: Replace compatibility deltas with paired deltas
+      status: rejected
+      description: Pairing is more informative for cycle-controlled comparisons, but replacing the existing mean-minus-mean fields would break consumers.
+  choice: Schema-v3 summaries publish deterministic distributions for applicable input, cache, logical-input, output, reasoning, reported-cost, estimated-cost, tool-call, and quality-score metrics. Quantiles use linear interpolation over sorted values at rank q*(n-1). Standard deviation is population standard deviation. Empty and singleton samples are explicit. Tukey 1.5*IQR annotations identify attempt id, cycle, and value; n<4 is insufficient_sample, and flagged attempts are never excluded. Evaluated baseline and candidate attempts pair by cycle, independent of execution order, with baseline-minus-candidate per-cycle deltas, aggregate mean and median paired deltas, paired count, and explicit unpaired attempts. Existing unpaired deltas remain. n<5 is exploratory and n>=5 descriptive; labels do not gate runs. Ranking surfaces paired estimated-cost, token, and cache deltas plus sample classification only when v3 evidence exists. Schema-v1 and schema-v2 summaries and legacy ranking output remain byte-identical. P-values, confidence intervals, significance claims, and automatic outlier exclusion are out of scope.
+  reasoning: Deterministic descriptive evidence makes variance and unusual tool behavior auditable without overstating what small samples establish. Cycle pairing uses the control already built into the harness and avoids order-based matching. Additive v3-only fields preserve historical validation and ranking consumers while retaining the existing compatibility view.
+  confidence: high
+  feeds_into: benchmark methodology; experiment summary and validation; pipeline ranking; schema-v3 golden coverage

@@ -1,0 +1,7 @@
+id: pyvbjsaaja
+artifact: progress
+record:
+  summary: "Cycle 10 (2026-06-20): M3 plan Task 3 (bench_runs table migration) lands as one schema migration, two inspector helpers,..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 0059ce3104404084cc2f43282bc109fc0d841fd45b83fc92518bd78a735ede07

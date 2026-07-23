@@ -1,0 +1,7 @@
+id: ihexjpnxzv
+artifact: progress
+record:
+  summary: "Cycle 16 (2026-07-09): D23 ships: ktx hook composes an opt-in recovery footer (source_id + original/compressed sizes + reduction..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 078d99c3f155b6a600d153a8fe461d1ddf60a734cdd92704ce2fbcc1c27c59d9

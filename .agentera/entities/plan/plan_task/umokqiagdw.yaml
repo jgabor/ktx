@@ -1,0 +1,27 @@
+id: umokqiagdw
+artifact: plan
+record:
+  name: Migrate query + complex-flow commands (ktx get, ktx list, ktx run, ktx bench)
+  depends_on:
+    - vbrotgkosr
+  status: complete
+  files:
+    - internal/cli/get.go
+    - internal/cli/list.go
+    - internal/cli/run.go
+    - internal/cli/bench.go
+    - internal/cli/cli.go
+    - internal/cli/dispatch.go
+    - internal/cli/dispatch_test.go
+    - internal/cli/dispatch_query_test.go
+  notes:
+    - "ktx get and ktx list use FormatDefault: FormatJSON; dispatch handles --format extraction in both flag positions."
+    - ktx run keeps transparent-proxy stdout/stderr (PassthroughStdout=true) and uses the Task 1 runCmd injection for subprocess testability.
+    - "ktx bench preserves the runBenchReport / runBenchReportImpl dispatcher/impl split: only the top-level dispatcher registers via dispatch.Register; the impl keeps its pre-opened *dbpkg.DB parameter for direct unit testing."
+  acceptance:
+    - GIVEN `ktx get <id> --format text`, WHEN invoked, THEN stdout is the one-line-per-field text view with the optional M2 section when at least one M2 pointer is non-nil.
+    - GIVEN `ktx list` in JSON mode with a populated session set, WHEN invoked, THEN stdout is the array of sessionListRow with optional m2 object.
+    - GIVEN `ktx list --format text` with sessions lacking M2 data, WHEN invoked, THEN stdout shows '-' for the M2 columns.
+    - GIVEN `ktx run <agent> --quiet` with runCmd returning a stub exiting 0, WHEN invoked, THEN no run summary is written to stderr and exit code matches the stub.
+    - GIVEN `ktx bench report` with an empty bench_runs table, WHEN invoked, THEN stdout emits a JSON envelope where headline is null and rows is [].
+  plan: ppfsaqcxml

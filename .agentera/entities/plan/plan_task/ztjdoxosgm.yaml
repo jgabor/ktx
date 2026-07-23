@@ -1,0 +1,15 @@
+id: ztjdoxosgm
+artifact: plan
+record:
+  name: Unify recorded-stream usage evidence
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the same recorded stream is evaluated by a live benchmark run and an experiment WHEN usage evidence is extracted THEN both paths report equivalent token, cost, cache, and reasoning values.
+    - GIVEN every step-finish event reports a field, including an explicit zero WHEN the stream is aggregated THEN the field is present and its value is the sum of all reported events.
+    - GIVEN a field is absent or null on any step-finish event WHEN the stream is aggregated THEN that field is omitted rather than reported as a partial total.
+    - GIVEN malformed unrelated lines and a valid evidence record larger than 4 MiB but no larger than 64 MiB WHEN either benchmark path reads the stream THEN malformed lines are ignored and the valid evidence is interpreted consistently.
+    - GIVEN existing benchmark and experiment fixtures WHEN the full checks run THEN serialized results, scoring behavior, and retained-summary regeneration remain unchanged.
+  evidence: Shared usage parser verified by cross-path regression tests; exact integer aggregation, malformed typed fields, absent-versus-zero handling, and the 64 MiB record limit pass; mage check reports 0 issues; independent review accepted.
+  plan: hlchwycrqi

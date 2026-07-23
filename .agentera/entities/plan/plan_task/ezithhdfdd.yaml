@@ -1,0 +1,14 @@
+id: ezithhdfdd
+artifact: plan
+record:
+  name: "Help text: init and hook help updated for Codex"
+  depends_on:
+    - eaqbxtznqv
+  status: complete
+  acceptance:
+    - |
+      GIVEN ktx init --help WHEN read THEN it lists codex as a supported runtime alongside opencode.
+    - |
+      GIVEN ktx hook --help WHEN read THEN it mentions Codex auto-detection (from hook_event_name) and the decision/reason output format for Codex payloads.
+  test_proportionality: 2 testable units (init-help, hook-help); one pass per unit.
+  plan: tyhjhmlrcr

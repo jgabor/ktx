@@ -1,0 +1,6 @@
+id: waxriacenw
+artifact: decisions
+record:
+  state: provisionally_satisfied
+  evidence: Implementation retains runtime cost independently from cache-aware estimated_api_cost, snapshots the resolved pricing record into new experiments, validates its SHA-256, regenerates summaries from that retained artifact, and migrates bench_runs additively for reasoning and estimated cost. Focused pricing, stream, summary, snapshot, and migration tests pass. Review follow-up also retains nullable base/tier reasoning rates with explicit output-rate fallback, completeness-gates every CLI usage field, gates non-v5 estimated summary surfaces on actual observations, decouples token eligibility from reported-cost completeness, applies hash and embedded model identity validation to every methodology, rejects ungrounded retained estimates, and directly exercises the user_version 2 to 3 migration. Mage check passes on 2026-07-15. Awaiting user confirmation.
+  decision: tjpgeboggp

@@ -1,0 +1,14 @@
+id: jxqgzxqimm
+artifact: plan
+record:
+  name: Produce authoritative portable fixtures
+  depends_on:
+    - cjjuanlxst
+  status: complete
+  acceptance:
+    - GIVEN a benchmark-parented recorded stream WHEN export runs THEN stream, session comparison, and benchmark evidence are read from one consistent source and their links and content integrity are validated before output.
+    - GIVEN unchanged authoritative evidence WHEN export repeats THEN it emits byte-identical canonical fixture content apart from no invocation-time metadata.
+    - GIVEN an explicit file destination or standard output WHEN export succeeds THEN result data goes only to that destination, diagnostics stay separate, and the source database is not mutated.
+    - GIVEN a parentless or inconsistent source WHEN export is requested THEN version 1 rejects it before writing and explains the supported source requirement.
+  evidence: "Retained progress 47 records authoritative export from one validated read-only database snapshot: focused export and fixture tests passed; mage check passed tests, vet, lint with 0 issues, and build; a built-binary smoke produced byte-identical stdout and file fixtures while the source database SHA-256 stayed unchanged; git diff --check passed. Progress 48 records TestRunBenchExportRejectsSourceDatabaseDestinationAliases passing for direct, relative, symlink, and hard-link aliases, with source bytes unchanged and PRAGMA integrity_check=ok after each rejection; all TestRunBenchExport tests and mage check passed."
+  plan: werahgotke

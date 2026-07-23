@@ -1,0 +1,14 @@
+id: syyqktftky
+artifact: plan
+record:
+  name: Replace stage
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a profile with a replace stage matching a literal prefix WHEN compression runs on input containing that prefix THEN the output has the prefix replaced
+    - GIVEN a profile with a replace stage matching a regex pattern WHEN compression runs on input containing matches THEN the output has matches replaced with the replacement string
+    - GIVEN a replace stage with an invalid regex WHEN compression runs THEN the stage passes input through unchanged (invariant 2)
+    - GIVEN a replace stage whose output is not smaller than input WHEN compression runs THEN the anti-worsening gate discards the pipeline result
+    - GIVEN a replace stage where pattern and replacement are same length WHEN compression runs THEN the anti-worsening gate discards the pipeline result (equal length is not smaller)
+  plan: booohunfhp

@@ -1,0 +1,6 @@
+id: ohrkglqqmf
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Cache negative controls** — Retain and compare same-prefix/same-key, same-prefix/different-key, changed-prefix/same-key, cold-fill-repeat, pre/post-TTL, direct-provider/OpenCode, sequential/concurrent, and one-request/multi-request attempts. Treat existing OpenAI `promptCacheKey` isolation claims as unproven until these controls establish them; distinguish runtime routing or key partitioning from true provider cache isolation. → [Benchmark](ARCHITECTURE.md#benchmark)"

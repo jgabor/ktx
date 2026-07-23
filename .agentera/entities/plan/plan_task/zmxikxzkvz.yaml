@@ -1,0 +1,14 @@
+id: zmxikxzkvz
+artifact: plan
+record:
+  name: Enforce the gate in tracked CI
+  depends_on:
+    - ijnkkazekk
+  status: complete
+  acceptance:
+    - GIVEN a push or pull request WHEN tracked CI runs THEN the repository verification command includes the portable fixture gate.
+    - GIVEN a clean hosted runner WHEN verification starts THEN no model key, network service, container daemon, user configuration, or mutable local database is required.
+    - GIVEN fixture or behavior drift WHEN the gate fails THEN CI exposes the failing evidence category and returns a failing status.
+    - GIVEN local and hosted verification WHEN both use the same commit THEN they invoke the same authoritative repository command.
+  evidence: Retained progress 52 records .github/workflows/ci.yml on push and pull_request installing Go from go.mod, Mage v1.15.0, and golangci-lint v2.12.2 before running mage verify. magefile.go composes mage check with mage replayFixture, and internal/ci/workflow_test.go guards that wiring. mage verify, mage check, go test ./internal/ci -count=1, Ruby YAML parsing, and git diff --check passed. No secrets or external runtime dependencies are configured; hosted execution remained explicitly unobserved because no push or pull request was made.
+  plan: werahgotke

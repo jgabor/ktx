@@ -1,0 +1,15 @@
+id: uppifmpohi
+artifact: plan
+record:
+  name: A/B compression measurement in --replay
+  depends_on:
+    - haydnpetvk
+  status: pending
+  acceptance:
+    - GIVEN a recorded session with tool_use events in the D20 recorded_streams table WHEN ktx bench run --replay <session-id> runs with a ktx.toml that configures compression stages THEN the replay envelope includes a 'compression' section with baseline_bytes, compressed_bytes, ratio, bytes_saved, and pipeline fields.
+    - GIVEN the same recorded session WHEN ktx bench run --replay runs with no ktx.toml (passthrough) THEN the compression section reports ratio=1.0 and bytes_saved=0 (baseline == compressed; the anti-worsening gate ensures passthrough is never worse).
+    - GIVEN the replay's compression measurement WHEN it runs THEN it uses compressPipeline with timeout=0 (off-line; the developer can Ctrl-C a hanging stage).
+    - GIVEN a recorded session where some tool_calls have is_error=true WHEN the replay measures compression THEN D15-gated calls are not compressed (counted in baseline_bytes only; compressed_bytes for those calls equals original).
+    - GIVEN the anti-worsening gate (Task 2) is in the runner WHEN a stage in the replay's A/B measurement grows output THEN the gate fires and compressed_bytes = original_bytes for that call (the pipeline didn't help).
+    - GIVEN go test ./... runs THEN every existing D20 replay test passes (the compression section is additive to the existing envelope; existing fields unchanged).
+  plan: lnsgjprfcm

@@ -1,0 +1,6 @@
+id: eflgpingek
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Benchmark evidence aggregation** — Run structured deliberation and record the choice for how call evidence, session roll-ups, and experiment artifacts compose. → [Question](ARCHITECTURE.md#benchmark-evidence-aggregation)"

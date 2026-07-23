@@ -1,0 +1,42 @@
+id: anaemecwba
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-06-18
+    status: archived
+    reviewed: 2026-06-18
+    critic_issues: 5 found, 5 addressed, 0 dismissed
+    title: M1 — First cost-aware invocation
+  what: "Implement M1: an agent call through ktx (wrapper or adapter) produces a database record with agent identity, input, and output. Both non-interactive (ktx run opencode run --format json) and interactive (ktx init opencode + TUI) paths."
+  why: M1 is the measurement contract's first proof. Without a record in the database, there's nothing to measure (M2), benchmark (M3), or compress (M4). This is the foundation everything else builds on.
+  constraints: "All firm decisions D1–D10 are hard constraints. Go stdlib first; pure-Go SQLite (no CGO). No cost fields (M2), no compression (M4), no config file (M5), no benchmark (M3). Transparent proxy: agent stdout untouched (D1). No daemon."
+  scope:
+    included:
+      - CLI scaffolding with subcommand dispatch and global flags
+      - SQLite database (sessions + tool_calls schema)
+      - "ktx write (I/O: flat JSON, event_type, ppid-aware session resolution)"
+      - "ktx read (I/O: raw JSON by nanoid)"
+      - "ktx run (wrapper: opencode --format json event parsing, KTX_SESSION_ID, passthrough)"
+      - "ktx init opencode (adapter: TS plugin, tool.execute.after, --project/--uninstall/--show)"
+      - ktx get + ktx list (minimal query, JSON default)
+      - "ktx doctor (basic health: database exists, schema valid, ID format valid)"
+      - End-to-end M1 acceptance verification
+    excluded:
+      - Token/cost measurement (M2)
+      - Compression/transform, ktx hook command (M4)
+      - ktx.toml config file (M5)
+      - ktx plugin registry (M5)
+      - ktx bench (M3)
+    deferred:
+      - ktx compress/decompress (M4)
+      - ktx db prune (post-M1)
+      - ktx hook bidirectional protocol (M4)
+  design: "Single Go binary with subcommand dispatch. Internal packages: internal/store (SQLite + nanoid + session file), internal/cli (dispatch + flags), internal/wrapper (ktx run), internal/adapter (ktx init). The wrapper parses OpenCode's --format json event stream and persists each tool event via the internal store function (not via ktx write subprocess). The adapter writes a TS plugin that shells out to ktx write per tool event. ktx write resolves session identity by ppid file lookup ($XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json) when no session_id is provided — this dual behavior serves both sidecar (auto-create) and adapter (ppid-resolved) paths. Implementation risk: OpenCode --format json event shape is not yet verified; realisera must discover the event schema empirically and map tool events to the D9 tool_call shape."
+  overall_acceptance:
+    - GIVEN an agent invocation through ktx (wrapper or adapter) WHEN the call completes THEN a record exists in the database with agent identity, input, and output
+    - GIVEN ktx list WHEN invoked after an agent invocation THEN the session and its tool_calls are visible
+    - GIVEN ktx read <id> WHEN invoked with any persisted record ID THEN it returns the raw JSON record
+    - GIVEN both integration paths WHEN exercised THEN both produce records in the same database with the same schema
+  surprises:
+    []

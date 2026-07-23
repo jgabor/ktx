@@ -1,0 +1,14 @@
+id: hdkvzfebca
+artifact: plan
+record:
+  name: Router function
+  depends_on:
+    - qdfhnivwyi
+  status: complete
+  acceptance:
+    - GIVEN a tool call from a bash tool with a command string matching a route rule's match condition WHEN the router evaluates it THEN the router returns the matched profile name
+    - GIVEN a tool call whose command matches no route rule WHEN the router evaluates it THEN the router returns the default profile name
+    - GIVEN a tool call with malformed or empty input JSON WHEN the router evaluates it THEN the router returns the default profile name without error
+    - GIVEN a tool call with a non-zero exit code WHEN a route rule matches on exit failure THEN the router returns that rule's profile name
+    - GIVEN a tool call from a non-bash tool WHEN the router evaluates it and a route rule matches on tool name THEN the router returns that rule's profile name
+  plan: hsvylrxjpg

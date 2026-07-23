@@ -1,0 +1,13 @@
+id: ghsxslzokr
+artifact: plan
+record:
+  name: Pipeline wiring and auditability
+  depends_on:
+    - hdkvzfebca
+  status: complete
+  acceptance:
+    - GIVEN a tool call that matches a route rule pointing to a profile with specific stages WHEN compression runs THEN the pipeline applies the routed profile's stages not the default profile's stages
+    - GIVEN a tool call that matches no route rule WHEN compression runs THEN the pipeline applies the default profile's stages
+    - GIVEN a compressed row created from a routed profile WHEN the row is inspected through the existing compressed-row access paths THEN the evidence shows which profile was selected
+    - GIVEN the router returns an empty or unknown profile name WHEN compression runs THEN the pipeline falls back to the default profile
+  plan: hsvylrxjpg

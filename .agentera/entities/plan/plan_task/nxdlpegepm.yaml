@@ -1,0 +1,16 @@
+id: nxdlpegepm
+artifact: plan
+record:
+  name: "ktx run (wrapper: opencode --format json, event parsing, KTX_SESSION_ID, passthrough)"
+  depends_on:
+    - cvqjtrxcjs
+  status: complete
+  acceptance:
+    - GIVEN ktx run opencode run --format json "explain closures" WHEN invoked THEN opencode's stdout passes through to the caller untouched
+    - GIVEN the wrapper WHEN it parses the JSON event stream THEN each tool event is persisted as a tool_call via the internal store function (not a ktx write subprocess)
+    - GIVEN the wrapper WHEN it starts THEN it exports KTX_SESSION_ID into the child environment
+    - GIVEN the wrapper WHEN the child process exits THEN the session is closed immediately (ended_at set)
+    - GIVEN --quiet flag WHEN passed to ktx run THEN no run summary is printed to stderr
+    - GIVEN no --quiet flag WHEN ktx run completes THEN a one-line run summary is printed to stderr
+    - GIVEN ktx run WHEN the child process exits THEN exit code matches the child's exit code
+  plan: zymsplszbm

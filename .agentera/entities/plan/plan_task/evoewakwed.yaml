@@ -1,0 +1,14 @@
+id: evoewakwed
+artifact: plan
+record:
+  name: "State sync: progress + decisions satisfaction"
+  depends_on:
+    - fwrnhnloib
+    - wrnfsbjgdm
+    - gayhtqphka
+    - riuspzxawn
+  status: complete
+  acceptance:
+    - GIVEN all prior tasks complete and verified WHEN the state sync runs THEN progress.yaml records the D23 implementation as complete with a one-line summary of what shipped.
+    - GIVEN D23 is implemented and verified WHEN the state sync runs THEN D23's satisfaction evidence captures what was built; the entry remains open for user-confirmed final satisfaction (only the user confirms).
+  plan: iodsixrygb

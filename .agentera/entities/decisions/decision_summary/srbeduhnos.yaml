@@ -1,0 +1,17 @@
+id: srbeduhnos
+artifact: decisions
+record:
+  summary: "Decision 7 (2026-06-16): Two-table schema in ktx.db: sessions and tool_calls. A session is the stored aggregate unit: it..."
+  date: 2026-06-16
+  choice: "Two-table schema in ktx.db: sessions and tool_calls. A session is the stored aggregate unit: it begins at the first tool call and ends at the last tool call in that engagement. tool_calls rows are append-only (one row per measured tool call) with input, output, content_hash, and per-call metrics. The sessions row is updated incrementally for roll-up counters and timestamps only, not by rewriting call payloads. ktx run is the wrapper CLI command for invoking an agent subprocess; it is not the name of a stored table or row type. Hooks record through the store write path (ktx write); ktx read reads raw stored JSON. Each table row is addressed by nanoid (Decision 3)."
+  feeds_into: Record store schema, M1 implementation, M2 cost fields, hook design, ktx write input format, ktx read output shape, session identity for hooks
+  satisfaction:
+    state: user_confirmed_satisfied
+    evidence: M1 closed with ktx write persisting rows to tool_calls via INSERT-only paths (internal/store/persist.go PersistToolCall), and ktx read / ktx get surfacing those rows without any UPDATE or DELETE codepath. M2 landed additive M2 columns (tokens_in, tokens_out, cost, latency_ms, model, provider) via in-place ALTER TABLE inside store.Open; existing rows untouched, NULL for new columns. Migration is idempotent (column-existence check) and forward-fixes partial sets. M2 verification log (.agentera/verification/m2-acceptance.md) confirms existing rows unchanged after migration. No UPDATE or DELETE statements exist in the project against tool_calls or sessions; the append-only contract is enforced by absence.
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-06-19
+  outcome: "Two-table schema in ktx.db: sessions and tool_calls. A session is the stored aggregate unit: it begins at the first tool call and ends at the last tool call in that engagement. tool_calls rows are append-only (one row per measured tool call) with input, output, content_hash, and per-call metrics. The sessions row is updated incrementally for roll-up counters and timestamps only, not by rewriting call payloads. ktx run is the wrapper CLI command for invoking an agent subprocess; it is not the name of a stored table or row type. Hooks record through the store write path (ktx write); ktx read reads raw stored JSON. Each table row is addressed by nanoid (Decision 3)."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: ede619979f86208cd37191a4b9b81a3bcb8297cfba8e40de50506c8a210e4709

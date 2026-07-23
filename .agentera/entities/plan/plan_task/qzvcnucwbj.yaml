@@ -1,0 +1,15 @@
+id: qzvcnucwbj
+artifact: plan
+record:
+  name: Anti-worsening gate in the pipeline Runner
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - "GIVEN a pipeline that produces output LARGER than input (e.g. a replace stage that expands every line) WHEN Runner.Run completes THEN the gate fires: input is returned unchanged and the output is NOT the expanded version."
+    - "GIVEN a pipeline that produces output SMALLER than input WHEN Runner.Run completes THEN the gate does NOT fire: the compressed output is returned (the pipeline helped)."
+    - "GIVEN a pipeline that produces output equal in length to input (e.g. strip-ansi on input with no ANSI codes) WHEN Runner.Run completes THEN the gate fires: input is returned unchanged (equal length is treated as 'not better')."
+    - GIVEN empty input WHEN Runner.Run completes THEN the gate does NOT fire (empty input → empty output is a legitimate result; D14 invariant 1 already handles non-empty→empty).
+    - GIVEN the existing three D14 invariants (empty-output guard, stage-error passthrough, unknown-stage skip) WHEN the gate is added THEN all three still fire per-stage as before; the gate is a pipeline-result-level invariant, not a replacement.
+    - GIVEN go test ./... runs THEN every existing pipeline test passes (the gate only fires when output >= input; existing tests that produce smaller output are unaffected).
+  plan: lnsgjprfcm

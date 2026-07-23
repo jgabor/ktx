@@ -1,0 +1,18 @@
+id: ucxqdvfqcy
+artifact: plan
+record:
+  name: Synchronize documentation and current state
+  depends_on:
+    - cjjuanlxst
+    - jxqgzxqimm
+    - uvarmdrrru
+    - xdymypngqh
+    - ijnkkazekk
+    - zmxikxzkvz
+  status: complete
+  acceptance:
+    - GIVEN portable replay is available WHEN users inspect command help and benchmark documentation THEN fixture format, source requirements, export and replay usage, refresh procedure, privacy review, compatibility, and failure semantics agree.
+    - GIVEN implementation is complete WHEN focused replay checks and the repository verification suite run THEN all supported paths pass.
+    - GIVEN retained acceptance evidence WHEN project state is synchronized THEN the matching TODO and plan show completion without duplicate open work and any discovered surprise is recorded.
+  evidence: README.md, docs/pipelines.md, command help, and retained fixture provenance now agree on selectors, fixture schema and source constraints, export destinations, refresh/privacy review, compatibility, integrity boundary, nullable evidence, controlled pipeline, CI, and exits. Focused race-enabled replay/help tests, mage replayFixture, mage verify, Prettier, 25 local link checks, and git diff --check passed. TODO.md no longer carries the completed portable replay item; progress entry 53 retains verification evidence.
+  plan: werahgotke

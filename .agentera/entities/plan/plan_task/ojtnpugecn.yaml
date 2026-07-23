@@ -1,0 +1,27 @@
+id: ojtnpugecn
+artifact: plan
+record:
+  name: Migrate namespace commands + final state sync
+  depends_on:
+    - umokqiagdw
+  status: complete
+  files:
+    - internal/cli/db.go
+    - internal/cli/prices.go
+    - internal/cli/doctor.go
+    - internal/cli/init.go
+    - .agentera/progress.yaml
+    - TODO.md
+  notes:
+    - ktx db does not need NeedsDB (it only resolves and prints the path).
+    - ktx prices update uses Prices.WithHTTPClient (Task 1 seam) so the hard-fail contract is testable via httptest.NewServer.
+    - ktx doctor uses PassthroughStdout=true to write its structured envelope directly.
+    - ktx init uses the PreParse hook to keep its hand-rolled parseInitArgs.
+    - For ktx doctor 'degraded -> exit 0' testing, the fixture constructs a pre-M2 schema by opening a fresh sql.Open('sqlite', ':memory:') with M1 columns only, skipping the migration.
+  acceptance:
+    - GIVEN `ktx db --path <tmp>/foo.db path`, WHEN invoked, THEN stdout is `<tmp>/foo.db`; on the next invocation without --path, the override is not persisted.
+    - GIVEN `ktx prices update` with WithHTTPClient set to a server returning 500, WHEN invoked, THEN exit 4 (manual-refresh hard-fail contract preserved).
+    - GIVEN a pre-M3 database fixture (M1+M2 tables, no bench_runs), WHEN `ktx doctor` runs, THEN the bench_runs check is warning and top-level status is degraded; exit 0.
+    - GIVEN `ktx init opencode --project`, WHEN invoked under testutil.WithTempXDG, THEN <cwd>/.opencode/plugins/ktx.ts is written; without --project, then $XDG_CONFIG_HOME/opencode/plugins/ktx.ts is written.
+    - GIVEN the full test suite at the end of this task, WHEN `go test ./...` runs, THEN every M1, M2, and M3 acceptance criterion passes, and the Register call site for any new subcommand added in this plan is <= 10 lines (down from ~100 LOC of glue).
+  plan: ppfsaqcxml

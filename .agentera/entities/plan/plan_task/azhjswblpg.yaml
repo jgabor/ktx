@@ -1,0 +1,13 @@
+id: azhjswblpg
+artifact: plan
+record:
+  name: Recommended profiles and documentation
+  depends_on:
+    - cofzlofluv
+  status: complete
+  acceptance:
+    - GIVEN a user reading ktx.example.toml WHEN they look for subcommand routing THEN they find commented examples showing the Subcommand field with git status git diff and git log
+    - GIVEN a user reading ktx.example.toml WHEN they look for bash profiles THEN they find commented examples showing command_prefix routing for ls and find
+    - GIVEN a user reading docs/pipelines.md WHEN they look for subcommand routing THEN they find an explanation of the Subcommand match field and how it differs from CommandPrefix
+    - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test ./... run THEN both exit zero
+  plan: mhodlnueob

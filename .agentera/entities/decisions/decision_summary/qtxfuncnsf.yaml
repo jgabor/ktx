@@ -1,0 +1,17 @@
+id: qtxfuncnsf
+artifact: decisions
+record:
+  summary: "Decision 2 (2026-06-15): Hybrid command tree with two layers. Store primitives: ktx read (raw JSON) and ktx write..."
+  date: 2026-06-15
+  choice: "Hybrid command tree with two layers. Store primitives: ktx read (raw JSON) and ktx write (create from sidecar events), always raw JSON, no --format flag. Query layer: ktx get, ktx list, and ktx bench — all JSON by default with --format text for human-readable output. Flat verbs for primary actions: run, write, read, get, list, compress, decompress — the `compress`/`decompress` pair is the user-facing entry to context engineering. Namespaces for managed resources: plugin (add/list/remove), bench (run/report/compare). Top-level verb `ktx init` for runtime adapter installation (supersedes former `ktx hook` namespace — not all runtimes use hooks; OpenCode uses plugins, Codex would use AGENTS.md injection). Diagnostics: ktx doctor — read-only health check for the store, config resolution, and ID format."
+  feeds_into: CLI command surface, help text structure, store implementation, query implementation, M3 bench design
+  satisfaction:
+    state: user_confirmed_satisfied
+    evidence: "M1 + M2 ship ktx read/write/get/list/doctor with the documented split: ktx read and ktx write are store primitives (raw JSON, no --format); ktx get and ktx list are query commands (JSON default, --format text). The hybrid flat-verb + namespace pattern is exercised in the M1 and M2 verification logs (.agentera/verification/m1-acceptance.md, m2-acceptance.md). ktx bench is M3 scope, namespaced per D2 design rule; M3 plan (.agentera/plan.yaml) confirms the bench/run/report/compare shape. --help cross-references between ktx read and ktx get observed in cmd/ktx help output."
+    user_confirmation:
+      confirmed_by: Jonathan Gabor <230093+jgabor@users.noreply.github.com>
+      confirmed_at: 2026-06-19
+  outcome: "Hybrid command tree with two layers. Store primitives: ktx read (raw JSON) and ktx write (create from sidecar events), always raw JSON, no --format flag. Query layer: ktx get, ktx list, and ktx bench — all JSON by default with --format text for human-readable output. Flat verbs for primary actions: run, write, read, get, list, compress, decompress — the `compress`/`decompress` pair is the user-facing entry to context engineering. Namespaces for managed resources: plugin (add/list/remove), bench (run/report/compare). Top-level verb `ktx init` for runtime adapter installation (supersedes former `ktx hook` namespace — not all runtimes use hooks; OpenCode uses plugins, Codex would use AGENTS.md injection). Diagnostics: ktx doctor — read-only health check for the store, config resolution, and ID format."
+  migration_provenance:
+    source_path: .agentera/decisions.yaml
+    source_record_sha256: 765eda379bb0a5a0ce22e592cc6196b72340b780bfa825dac7455145ae538464

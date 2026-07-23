@@ -1,0 +1,7 @@
+id: jlwrzdjwiv
+artifact: progress
+record:
+  summary: "Cycle 5 (2026-06-19): ktx get and ktx list now surface M2 cost-publication fields on the inspect surface. printGetText..."
+  migration_provenance:
+    source_path: .agentera/progress.yaml
+    source_record_sha256: 3d188e054cb67b23a4fd70b1f1fb3eb1bba49a1a0af5d872b77408ab1a30c944

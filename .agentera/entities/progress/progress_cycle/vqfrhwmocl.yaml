@@ -1,0 +1,16 @@
+id: vqfrhwmocl
+artifact: progress
+record:
+  timestamp: 2026-07-17 19:38
+  type: chore
+  phase: build
+  what: Added .github/workflows/ci.yml for push and pull_request events. It installs Go from go.mod, Mage v1.15.0, and golangci-lint v2.12.2, then runs mage verify. magefile.go composes mage check with mage replayFixture; internal/ci/workflow_test.go guards the wiring without duplicating fixture logic in YAML.
+  inspiration: Active portable replay fixture plan, tracked CI gate task.
+  discovered: actionlint was unavailable locally; Ruby parsed the workflow YAML successfully. No remote workflow ran.
+  verified: mage verify, mage check, go test ./internal/ci -count=1, Ruby YAML parsing, and git diff --check passed.
+  next: Run only the remaining documentation and plan closeout task; preserve historical degraded caveats and do not infer decision satisfaction.
+  context:
+    intent: Enforce the retained portable replay fixture gate in tracked hosted CI through the same authoritative command used locally.
+    constraints: No secrets, model calls, services, containers, user configuration, mutable pre-existing database, push, or remote workflow trigger. No broad documentation closeout.
+    unknowns: Hosted execution remains unobserved until a later push or pull request; local static and behavioral wiring checks passed.
+    scope: .github/workflows/ci.yml, magefile.go, internal/ci/workflow_test.go, and project progress/plan state.

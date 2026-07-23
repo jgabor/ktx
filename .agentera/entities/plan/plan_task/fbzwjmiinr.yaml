@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: dmbslbvrlk
   name: Retain optional ordered model-step telemetry
-  status: in_progress
+  status: complete
   depends_on:
     - dqndtgqhyi
   acceptance:
@@ -12,3 +12,13 @@ record:
     - GIVEN explicit zero telemetry WHEN it is retained and reloaded THEN zero remains distinguishable from unavailable data.
     - GIVEN legacy experiments and cache-less attempts WHEN summaries and validation regenerate THEN their serialized bytes remain unchanged.
     - GIVEN offline fixtures exercise benchmark and experiment paths WHEN tests run THEN both expose equivalent best-effort observations without manifest attestation or downgrade enforcement.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent optional-telemetry audit
+      recorded_at: 2026-07-23 14:38
+      writer_command: agentera state plan record-evaluation

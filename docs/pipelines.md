@@ -540,8 +540,10 @@ The source-event contract is the vocabulary for cache-aware evidence before it
 is rolled up to an attempt. It does not change the existing attempt-level
 fields or make an aggregate complete from partial telemetry. Each source event
 has a one-based ordinal in capture order and independently carries available
-uncached input, cache read, cache write, reasoning, cost, identity,
-cache-control, and retry metadata.
+uncached input, output, cache read, cache write, reasoning, cost, identity,
+cache-control, and retry metadata. Cache-aware attempts retain these ordered
+observations in `model_steps`; this additive attempt schema-v2 field is absent
+from cache-less and legacy attempts.
 
 | Source-event kind | Meaning                                                                                                                  | Native request count               |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |

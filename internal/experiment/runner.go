@@ -545,6 +545,11 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	}
 	newIDs := newSessionIDs(before, after)
 	metrics := ParseStream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
+	// Ordered model-step evidence is an additive cache-aware attempt contract.
+	// Keep cache-less attempts on their existing serialized schema.
+	if options.methodologyVersion != "v5-cache-aware" {
+		metrics.ModelSteps = nil
+	}
 	pricing, err := loadPricingSnapshot(experimentDir, manifest.Pricing)
 	if err != nil {
 		return Attempt{}, err
@@ -582,8 +587,12 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		"stderr": relativePath(experimentDir, stderrPath), "workspace": relativePath(experimentDir, workspace),
 		"sessions_before": relativePath(experimentDir, beforePath), "sessions_after": relativePath(experimentDir, afterPath),
 	}
+	schemaVersion := 1
+	if options.methodologyVersion == "v5-cache-aware" {
+		schemaVersion = 2
+	}
 	attempt := Attempt{
-		SchemaVersion: 1, ExperimentID: manifest.ExperimentID, AttemptID: attemptID, Side: side,
+		SchemaVersion: schemaVersion, ExperimentID: manifest.ExperimentID, AttemptID: attemptID, Side: side,
 		Role:       role,
 		PipelineID: manifest.Pipelines[side].PipelineID, Cycle: cycle, Ordinal: ordinal,
 		StartedAt: startedAt, EndedAt: endedAt, Status: status, ProcessExitCode: result.ExitCode,

@@ -59,6 +59,37 @@ func assertEquiv(t *testing.T, p usagePair) {
 	if p.cli.hasData != (p.exp.UsageEvidence.StepFinishEvents > 0) {
 		t.Errorf("hasData=%v but StepFinishEvents=%d", p.cli.hasData, p.exp.UsageEvidence.StepFinishEvents)
 	}
+	assertModelStepsEquivalent(t, p.cli.modelSteps, p.exp.ModelSteps)
+}
+
+func assertModelStepsEquivalent(t *testing.T, live []usage.ModelStep, retained []experiment.SourceEvent) {
+	t.Helper()
+	if len(live) != len(retained) {
+		t.Fatalf("model-step count mismatch: live=%d retained=%d", len(live), len(retained))
+	}
+	for i := range live {
+		if live[i].Ordinal != retained[i].Ordinal || retained[i].Kind != experiment.ModelStep {
+			t.Errorf("step %d identity mismatch: live=%#v retained=%#v", i, live[i], retained[i])
+		}
+		for _, field := range []struct {
+			name   string
+			live   usage.IntegerMeasurement
+			stored experiment.IntegerMeasurement
+		}{
+			{"uncached_input", live[i].UncachedInput, retained[i].UncachedInput},
+			{"output", live[i].Output, retained[i].Output},
+			{"reasoning", live[i].Reasoning, retained[i].Reasoning},
+			{"cache_read", live[i].CacheRead, retained[i].CacheRead},
+			{"cache_write", live[i].CacheWrite, retained[i].CacheWrite},
+		} {
+			if string(field.live.State) != string(field.stored.State) || !int64PtrEqual(field.live.Value, field.stored.Value) {
+				t.Errorf("step %d %s mismatch: live=%#v retained=%#v", i, field.name, field.live, field.stored)
+			}
+		}
+		if string(live[i].Cost.State) != string(retained[i].Cost.State) || !float64PtrEqual(live[i].Cost.Value, retained[i].Cost.Value) {
+			t.Errorf("step %d cost mismatch: live=%#v retained=%#v", i, live[i].Cost, retained[i].Cost)
+		}
+	}
 }
 
 func assertPtrEquivInt(t *testing.T, name string, cliVal *int64, expVal *float64) {

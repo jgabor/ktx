@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 )
 
 func ValidateExperiment(experimentDir string) (map[string]any, error) {
@@ -70,6 +71,19 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 				}
 			}
 		}
+		if attempt.SchemaVersion >= 2 {
+			if err := ValidateSourceEvents(attempt.ModelSteps); err != nil {
+				attemptValid = false
+				reasons = append(reasons, "invalid model_steps: "+err.Error())
+			}
+			if streamRel := attempt.Artifacts["stream"]; streamRel != "" {
+				streamMetrics := ParseStream(filepath.Join(experimentDir, filepath.FromSlash(streamRel)), nil, nil)
+				if !reflect.DeepEqual(attempt.ModelSteps, streamMetrics.ModelSteps) || !sameUsageTotals(attempt.Metrics, streamMetrics) {
+					attemptValid = false
+					reasons = append(reasons, "model_steps do not match retained stream usage")
+				}
+			}
+		}
 		if !attemptValid {
 			valid = false
 		}
@@ -104,6 +118,23 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report["methodology_reasons"] = methodologyReasons
 	}
 	return report, nil
+}
+
+func sameUsageTotals(recorded, parsed Metrics) bool {
+	return floatPointerEqual(recorded.TokensIn, parsed.TokensIn) &&
+		floatPointerEqual(recorded.TokensOut, parsed.TokensOut) &&
+		floatPointerEqual(recorded.Cost, parsed.Cost) &&
+		floatPointerEqual(recorded.CacheRead, parsed.CacheRead) &&
+		floatPointerEqual(recorded.CacheWrite, parsed.CacheWrite) &&
+		floatPointerEqual(recorded.Reasoning, parsed.Reasoning) &&
+		recorded.UsageEvidence == parsed.UsageEvidence
+}
+
+func floatPointerEqual(left, right *float64) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingSnapshot, summaryData []byte, counts map[string]int) []string {

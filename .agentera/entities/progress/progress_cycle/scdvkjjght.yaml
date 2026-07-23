@@ -1,0 +1,16 @@
+id: scdvkjjght
+artifact: progress
+record:
+  timestamp: 2026-07-23 13:38
+  type: feat
+  phase: build
+  what: Retained ordered model-step usage evidence for cache-aware attempts, including output and cache fields, with additive schema-v2 serialization and retained-stream validation.
+  context:
+    intent: Retain ordered cache-aware model-step observations without changing complete aggregate totals or legacy cache-less regeneration.
+    constraints: No provider calls or live benchmarks. Model steps remain distinct from native requests; legacy and cache-less serialized summaries remain unchanged.
+    unknowns: No live provider evidence was collected.
+    scope: docs/pipelines.md, internal/usage, internal/experiment, internal/cli usage-equivalence tests, and Agentera-managed state.
+  inspiration: Active cache-observability plan task hsfzssgczr.
+  discovered: The shared usage aggregator already owned total semantics but discarded per-step field availability, so retention belongs at that parser boundary.
+  verified: go test ./internal/usage ./internal/experiment ./internal/cli -count=1 passed. mage check passed all tests, vet, golangci-lint with 0 issues, and build. Focused coverage includes complete, missing, null, malformed, partial, zero, round-trip, stream validation, non-finite aggregate suppression, legacy summary stability, and live/experiment equivalence.
+  next: Keep methodology v5 opt-in and decision satisfaction provisional. Do not infer cache isolation or refresh bounded profile signals.

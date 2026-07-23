@@ -1,6 +1,9 @@
 package experiment
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestSourceEventContract(t *testing.T) {
 	zero := int64(0)
@@ -16,6 +19,7 @@ func TestSourceEventContract(t *testing.T) {
 			Ordinal:       1,
 			Kind:          ModelStep,
 			UncachedInput: MeasuredInteger(zero),
+			Output:        MeasuredInteger(zero),
 			CacheRead:     UnknownInteger(),
 			CacheWrite:    MalformedInteger(),
 			Reasoning:     MeasuredInteger(one),
@@ -25,6 +29,7 @@ func TestSourceEventContract(t *testing.T) {
 			Ordinal:       2,
 			Kind:          NativeRequest,
 			UncachedInput: MeasuredInteger(one),
+			Output:        MeasuredInteger(one),
 			CacheRead:     MeasuredInteger(zero),
 			CacheWrite:    MeasuredInteger(zero),
 			Reasoning:     MeasuredInteger(zero),
@@ -78,6 +83,11 @@ func TestSourceEventContract(t *testing.T) {
 	events[1].Control.Mode = &blank
 	if err := ValidateSourceEvents(events); err == nil {
 		t.Fatal("blank control metadata was accepted")
+	}
+	events[1].Control.Mode = &mode
+	events[0].Cost = MeasuredCost(math.Inf(1))
+	if err := ValidateSourceEvents(events); err == nil {
+		t.Fatal("non-finite cost was accepted")
 	}
 }
 

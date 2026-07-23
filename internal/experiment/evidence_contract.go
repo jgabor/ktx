@@ -2,6 +2,7 @@ package experiment
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -88,6 +89,7 @@ type SourceEvent struct {
 	Ordinal       uint64             `json:"ordinal"`
 	Kind          SourceEventKind    `json:"kind"`
 	UncachedInput IntegerMeasurement `json:"uncached_input"`
+	Output        IntegerMeasurement `json:"output"`
 	CacheRead     IntegerMeasurement `json:"cache_read"`
 	CacheWrite    IntegerMeasurement `json:"cache_write"`
 	Reasoning     IntegerMeasurement `json:"reasoning"`
@@ -119,7 +121,7 @@ func ValidateSourceEvents(events []SourceEvent) error {
 		if err := event.Retry.validate(event.Ordinal); err != nil {
 			return fmt.Errorf("source event %d: %w", event.Ordinal, err)
 		}
-		for _, measurement := range []IntegerMeasurement{event.UncachedInput, event.CacheRead, event.CacheWrite, event.Reasoning} {
+		for _, measurement := range []IntegerMeasurement{event.UncachedInput, event.Output, event.CacheRead, event.CacheWrite, event.Reasoning} {
 			if err := measurement.validate(); err != nil {
 				return fmt.Errorf("source event %d: %w", event.Ordinal, err)
 			}
@@ -189,7 +191,7 @@ func (m IntegerMeasurement) validate() error {
 }
 
 func (m CostMeasurement) validate() error {
-	if m.State == MeasurementMeasured && m.Value != nil {
+	if m.State == MeasurementMeasured && m.Value != nil && !math.IsInf(*m.Value, 0) && !math.IsNaN(*m.Value) {
 		return nil
 	}
 	if (m.State == MeasurementUnknown || m.State == MeasurementMalformed) && m.Value == nil {

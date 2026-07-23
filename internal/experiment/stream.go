@@ -82,6 +82,7 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	}
 	metrics.AnswerExcerpt = answer
 	ev := agg.Result()
+	metrics.ModelSteps = sourceEvents(ev.ModelSteps)
 	metrics.UsageEvidence.StepFinishEvents = ev.Steps
 	metrics.UsageEvidence.TokensInEvents = ev.TokensInEvents
 	metrics.UsageEvidence.TokensOutEvents = ev.TokensOutEvents
@@ -100,6 +101,34 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	metrics.CacheWrite = int64ToFloat64(ev.CacheWrite)
 	metrics.Reasoning = int64ToFloat64(ev.Reasoning)
 	return metrics
+}
+
+func sourceEvents(steps []usage.ModelStep) []SourceEvent {
+	if len(steps) == 0 {
+		return nil
+	}
+	events := make([]SourceEvent, len(steps))
+	for i, step := range steps {
+		events[i] = SourceEvent{
+			Ordinal: step.Ordinal, Kind: ModelStep,
+			UncachedInput: integerSourceMeasurement(step.UncachedInput),
+			Output:        integerSourceMeasurement(step.Output),
+			CacheRead:     integerSourceMeasurement(step.CacheRead),
+			CacheWrite:    integerSourceMeasurement(step.CacheWrite),
+			Reasoning:     integerSourceMeasurement(step.Reasoning),
+			Cost:          costSourceMeasurement(step.Cost),
+			Identity:      EventIdentity{Provider: step.Provider, Model: step.Model},
+		}
+	}
+	return events
+}
+
+func integerSourceMeasurement(measurement usage.IntegerMeasurement) IntegerMeasurement {
+	return IntegerMeasurement{State: MeasurementState(measurement.State), Value: measurement.Value}
+}
+
+func costSourceMeasurement(measurement usage.CostMeasurement) CostMeasurement {
+	return CostMeasurement{State: MeasurementState(measurement.State), Value: measurement.Value}
 }
 
 // int64ToFloat64 converts an exact-int64 evidence pointer to the

@@ -572,6 +572,7 @@ type streamMetrics struct {
 	cacheWrite *int64
 	reasoning  *int64
 	hasData    bool
+	modelSteps []usage.ModelStep
 }
 
 func (sm streamMetrics) completeTokens() bool {
@@ -624,6 +625,7 @@ func extractStreamMetrics(stdout []byte) streamMetrics {
 	sm.cacheRead = ev.CacheRead
 	sm.cacheWrite = ev.CacheWrite
 	sm.reasoning = ev.Reasoning
+	sm.modelSteps = ev.ModelSteps
 	// cost is *float64 in the shared result; pass through.
 	sm.cost = ev.Cost
 	return sm

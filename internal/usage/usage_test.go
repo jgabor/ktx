@@ -95,6 +95,18 @@ func TestParse_EmittedZeroPreserved(t *testing.T) {
 	}
 }
 
+func TestParse_NonFiniteCostAggregateUnavailable(t *testing.T) {
+	stream := `{"type":"step_finish","part":{"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":1.7976931348623157e308}}
+{"type":"step_finish","part":{"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":1.7976931348623157e308}}`
+	ev := Parse(strings.NewReader(stream))
+	if ev.Cost != nil {
+		t.Fatalf("Cost=%v, want nil after a non-finite aggregate", *ev.Cost)
+	}
+	if ev.CostEvents != 2 || len(ev.ModelSteps) != 2 || ev.ModelSteps[0].Cost.State != MeasurementMeasured {
+		t.Fatalf("cost evidence = %#v, want two finite source observations and no aggregate", ev)
+	}
+}
+
 // TestParse_NullIsAbsentNotZero locks that an explicit JSON null is
 // treated as absent (nil), not as an emitted zero.
 func TestParse_NullIsAbsentNotZero(t *testing.T) {

@@ -61,6 +61,7 @@ type Metrics struct {
 	EstimatedAPICost *float64      `json:"estimated_api_cost"`
 	AnswerExcerpt    string        `json:"answer_excerpt"`
 	UsageEvidence    UsageEvidence `json:"usage_evidence"`
+	ModelSteps       []SourceEvent `json:"model_steps,omitempty"`
 }
 
 type SessionLink struct {

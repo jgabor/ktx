@@ -30,7 +30,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"math"
 	"math/big"
+	"strings"
 )
 
 // MaxRecordSize is the maximum number of content bytes (excluding the
@@ -95,6 +97,49 @@ type Evidence struct {
 	CacheReadEvents  int
 	CacheWriteEvents int
 	ReasoningEvents  int
+
+	// ModelSteps preserves every identifiable step_finish event in capture
+	// order. Its per-field state records whether a value was measured,
+	// unavailable, or malformed; aggregate pointers above retain their existing
+	// all-events completeness gate.
+	ModelSteps []ModelStep
+}
+
+// MeasurementState describes one field on one model step. A measured zero is
+// a measurement; unknown and malformed measurements have no value.
+type MeasurementState string
+
+const (
+	MeasurementMeasured  MeasurementState = "measured"
+	MeasurementUnknown   MeasurementState = "unknown"
+	MeasurementMalformed MeasurementState = "malformed"
+)
+
+// IntegerMeasurement is one token measurement from one model step.
+type IntegerMeasurement struct {
+	State MeasurementState
+	Value *int64
+}
+
+// CostMeasurement is one reported cost measurement from one model step.
+type CostMeasurement struct {
+	State MeasurementState
+	Value *float64
+}
+
+// ModelStep is the source observation for one OpenCode step_finish event.
+// OpenCode does not provide authoritative provider request identity here, so
+// callers must retain it as a model step rather than a native request.
+type ModelStep struct {
+	Ordinal       uint64
+	UncachedInput IntegerMeasurement
+	Output        IntegerMeasurement
+	CacheRead     IntegerMeasurement
+	CacheWrite    IntegerMeasurement
+	Reasoning     IntegerMeasurement
+	Cost          CostMeasurement
+	Provider      *string
+	Model         *string
 }
 
 // Parse reads a JSONL stream from r and returns its aggregate
@@ -141,6 +186,7 @@ type Aggregator struct {
 	cacheWritePresent int
 	reasoningPresent  int
 	hasData           bool
+	modelSteps        []ModelStep
 }
 
 // AddLine processes one JSONL line and reports whether it was an
@@ -172,48 +218,108 @@ func (a *Aggregator) AddLine(line []byte) bool {
 	a.hasData = true
 	a.steps++
 
-	part := objectFields(partJSON)
-	tokens := objectFields(part["tokens"])
-	cache := objectFields(tokens["cache"])
-	if v := integerOrNull(tokens["input"]); v != nil {
+	step := parseModelStep(partJSON, uint64(a.steps))
+	a.modelSteps = append(a.modelSteps, step)
+	if v := step.UncachedInput.Value; step.UncachedInput.State == MeasurementMeasured {
 		addInt64(&a.tokensIn, *v)
 		a.tokensInPresent++
 	}
-	if v := integerOrNull(tokens["output"]); v != nil {
+	if v := step.Output.Value; step.Output.State == MeasurementMeasured {
 		addInt64(&a.tokensOut, *v)
 		a.tokensOutPresent++
 	}
-	if v := integerOrNull(tokens["reasoning"]); v != nil {
+	if v := step.Reasoning.Value; step.Reasoning.State == MeasurementMeasured {
 		addInt64(&a.reasoning, *v)
 		a.reasoningPresent++
 	}
-	if v := integerOrNull(cache["read"]); v != nil {
+	if v := step.CacheRead.Value; step.CacheRead.State == MeasurementMeasured {
 		addInt64(&a.cacheRead, *v)
 		a.cacheReadPresent++
 	}
-	if v := integerOrNull(cache["write"]); v != nil {
+	if v := step.CacheWrite.Value; step.CacheWrite.State == MeasurementMeasured {
 		addInt64(&a.cacheWrite, *v)
 		a.cacheWritePresent++
 	}
-	if v := numberOrNull(part["cost"]); v != nil {
+	if v := step.Cost.Value; step.Cost.State == MeasurementMeasured {
 		a.cost += *v
 		a.costPresent++
 	}
 	return true
 }
 
-// objectFields returns raw object fields. Missing, null, and malformed
-// containers have no fields, preserving sibling evidence outside them while
-// leaving their children unavailable for this event.
-func objectFields(raw json.RawMessage) map[string]json.RawMessage {
+func parseModelStep(partJSON []byte, ordinal uint64) ModelStep {
+	part, partState := objectFieldsState(partJSON)
+	tokens, tokensState := childObject(part, partState, "tokens")
+	cache, cacheState := childObject(tokens, tokensState, "cache")
+	return ModelStep{
+		Ordinal:       ordinal,
+		UncachedInput: integerMeasurement(tokens["input"], tokensState),
+		Output:        integerMeasurement(tokens["output"], tokensState),
+		Reasoning:     integerMeasurement(tokens["reasoning"], tokensState),
+		CacheRead:     integerMeasurement(cache["read"], cacheState),
+		CacheWrite:    integerMeasurement(cache["write"], cacheState),
+		Cost:          costMeasurement(part["cost"], partState),
+		Provider:      textMeasurement(part["provider"]),
+		Model:         textMeasurement(part["model"]),
+	}
+}
+
+func childObject(parent map[string]json.RawMessage, parentState MeasurementState, key string) (map[string]json.RawMessage, MeasurementState) {
+	if parentState != MeasurementMeasured {
+		return nil, parentState
+	}
+	return objectFieldsState(parent[key])
+}
+
+func objectFieldsState(raw json.RawMessage) (map[string]json.RawMessage, MeasurementState) {
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return nil
+		return nil, MeasurementUnknown
 	}
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) != nil {
+		return nil, MeasurementMalformed
+	}
+	return fields, MeasurementMeasured
+}
+
+func integerMeasurement(raw json.RawMessage, containerState MeasurementState) IntegerMeasurement {
+	if containerState != MeasurementMeasured {
+		return IntegerMeasurement{State: containerState}
+	}
+	v := integerOrNull(raw)
+	if v == nil {
+		if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+			return IntegerMeasurement{State: MeasurementUnknown}
+		}
+		return IntegerMeasurement{State: MeasurementMalformed}
+	}
+	return IntegerMeasurement{State: MeasurementMeasured, Value: v}
+}
+
+func costMeasurement(raw json.RawMessage, containerState MeasurementState) CostMeasurement {
+	if containerState != MeasurementMeasured {
+		return CostMeasurement{State: containerState}
+	}
+	v := numberOrNull(raw)
+	if v == nil {
+		if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+			return CostMeasurement{State: MeasurementUnknown}
+		}
+		return CostMeasurement{State: MeasurementMalformed}
+	}
+	return CostMeasurement{State: MeasurementMeasured, Value: v}
+}
+
+func textMeasurement(raw json.RawMessage) *string {
+	var value string
+	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil {
 		return nil
 	}
-	return fields
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func addInt64(sum *big.Int, value int64) {
@@ -236,10 +342,11 @@ func (a *Aggregator) Result() Evidence {
 		CacheReadEvents:  a.cacheReadPresent,
 		CacheWriteEvents: a.cacheWritePresent,
 		ReasoningEvents:  a.reasoningPresent,
+		ModelSteps:       append([]ModelStep(nil), a.modelSteps...),
 	}
 	e.TokensIn = exactAggregate(&a.tokensIn, a.tokensInPresent, a.steps)
 	e.TokensOut = exactAggregate(&a.tokensOut, a.tokensOutPresent, a.steps)
-	if a.steps > 0 && a.costPresent == a.steps {
+	if a.steps > 0 && a.costPresent == a.steps && !math.IsInf(a.cost, 0) && !math.IsNaN(a.cost) {
 		v := a.cost
 		e.Cost = &v
 	}
@@ -305,7 +412,7 @@ func numberOrNull(raw json.RawMessage) *float64 {
 		return nil
 	}
 	var f float64
-	if err := json.Unmarshal(raw, &f); err == nil {
+	if err := json.Unmarshal(raw, &f); err == nil && !math.IsInf(f, 0) && !math.IsNaN(f) {
 		return &f
 	}
 	return nil

@@ -12,3 +12,13 @@ record:
     - GIVEN provider documentation uses hit or miss terminology WHEN ktx defines its claims THEN cache reuse, cache fill, ineligible, no reported reuse, and unknown remain distinct, and a provider-internal miss is claimed only for a controlled eligible lookup.
     - GIVEN a source/version capability entry WHEN reviewed THEN it distinguishes authoritative source support, runtime normalization, live observation, and control-validated isolation with citations or retained artifact references.
   plan: dmbslbvrlk
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Request-level documentation contradicts the model-step boundary; malformed source events can be skipped so subset totals appear complete; cache claim validation accepts unsupported no-reuse or miss states; capability evidence accepts whitespace-only references. Existing tests pass but do not substantiate these acceptance boundaries.
+    provenance:
+      attempt_id: audit-1
+      source: independent audit report
+      recorded_at: 2026-07-23 13:11
+      writer_command: agentera state plan record-evaluation

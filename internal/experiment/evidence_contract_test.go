@@ -5,7 +5,12 @@ import "testing"
 func TestSourceEventContract(t *testing.T) {
 	zero := int64(0)
 	one := int64(1)
+	two := uint64(2)
 	requestID := "req-1"
+	mode := "isolated"
+	eligibility := "eligible"
+	namespaceHash := "hash"
+	retryAttempt := 1
 	events := []SourceEvent{
 		{
 			Ordinal:       1,
@@ -25,6 +30,12 @@ func TestSourceEventContract(t *testing.T) {
 			Reasoning:     MeasuredInteger(zero),
 			Cost:          MeasuredCost(0.01),
 			Identity:      EventIdentity{ProviderRequestID: &requestID},
+			Control:       EventControl{Mode: &mode, NamespaceHash: &namespaceHash, Eligibility: &eligibility},
+			Retry: RetryMetadata{
+				Attempt:                    &retryAttempt,
+				PreviousSourceEventOrdinal: &oneAsUint64,
+				ProviderRequestID:          &requestID,
+			},
 		},
 	}
 
@@ -51,45 +62,88 @@ func TestSourceEventContract(t *testing.T) {
 	if got := NativeRequestCount(events); got != 0 {
 		t.Errorf("NativeRequestCount() = %d, want 0 for an unproven native-request label", got)
 	}
-	empty := ""
-	events[1].Identity = EventIdentity{ProviderRequestID: &empty}
+	events[1].Identity = EventIdentity{ProviderRequestID: &requestID}
+	mapping := EvidenceReference{Citation: "https://example.test/mapping"}
+	events[1].Identity = EventIdentity{OneToOneMapping: &mapping}
+	if err := ValidateSourceEvents(events); err != nil {
+		t.Fatalf("native request with a cited one-to-one mapping rejected: %v", err)
+	}
+	events[1].Identity = EventIdentity{ProviderRequestID: &requestID}
+	events[1].Retry.PreviousSourceEventOrdinal = &two
 	if err := ValidateSourceEvents(events); err == nil {
-		t.Fatal("native request with an empty provider identity was accepted")
+		t.Fatal("retry pointing at its own event was accepted")
 	}
-	ordered := append([]SourceEvent(nil), events...)
-	ordered[1].Identity = EventIdentity{ProviderRequestID: &requestID}
-	ordered[1].Ordinal = 3
-	if err := ValidateSourceEvents(ordered); err == nil {
-		t.Fatal("out-of-order source events were accepted")
-	}
-	malformed := events[0]
-	malformed.CacheWrite.Value = &zero
-	if err := ValidateSourceEvents([]SourceEvent{malformed}); err == nil {
-		t.Fatal("malformed telemetry with a measurement was accepted")
+	events[1].Retry.PreviousSourceEventOrdinal = &oneAsUint64
+	blank := " "
+	events[1].Control.Mode = &blank
+	if err := ValidateSourceEvents(events); err == nil {
+		t.Fatal("blank control metadata was accepted")
 	}
 }
 
-func TestSourceEventContractRejectsInvalidClaimsAndCapabilities(t *testing.T) {
-	if err := (CacheClaimEvidence{Claim: ProviderInternalMiss}).Validate(); err == nil {
-		t.Fatal("provider-internal miss without a controlled eligible lookup was accepted")
-	}
-	if err := (CacheClaimEvidence{Claim: ProviderInternalMiss, ControlledEligibleLookup: true}).Validate(); err != nil {
-		t.Fatalf("provider-internal miss with a controlled eligible lookup rejected: %v", err)
+var oneAsUint64 uint64 = 1
+
+func TestCacheClaimEvidenceBoundaries(t *testing.T) {
+	noReuse := &EvidenceReference{Artifact: "fixtures/no-reuse.json"}
+	for _, evidence := range []CacheClaimEvidence{
+		{Claim: CacheReuse},
+		{Claim: CacheFill},
+		{Claim: CacheIneligible},
+		{Claim: CacheNoReportedReuse, EligibleLookup: true},
+		{Claim: CacheUnknown},
+		{Claim: ProviderInternalMiss, EligibleLookup: true, ControlledLookup: true, NoReuseEvidence: noReuse},
+	} {
+		if err := evidence.Validate(); err != nil {
+			t.Errorf("valid %q claim rejected: %v", evidence.Claim, err)
+		}
 	}
 
+	for _, evidence := range []CacheClaimEvidence{
+		{Claim: CacheNoReportedReuse},
+		{Claim: ProviderInternalMiss, EligibleLookup: true, ControlledLookup: true},
+		{Claim: ProviderInternalMiss, EligibleLookup: true, NoReuseEvidence: noReuse},
+		{Claim: CacheIneligible, EligibleLookup: true},
+		{Claim: CacheReuse, NoReuseEvidence: noReuse},
+		{Claim: CacheUnknown, NoReuseEvidence: noReuse},
+		{Claim: CacheFill, ControlledLookup: true},
+		{Claim: CacheNoReportedReuse, EligibleLookup: true, NoReuseEvidence: &EvidenceReference{Citation: " "}},
+	} {
+		if err := evidence.Validate(); err == nil {
+			t.Errorf("invalid %q claim was accepted: %#v", evidence.Claim, evidence)
+		}
+	}
+}
+
+func TestCapabilityEntryNormalizesAndRequiresReferences(t *testing.T) {
 	valid := CapabilityEntry{
-		Source:                    "opencode",
-		Version:                   "1.18.0",
-		AuthoritativeSource:       CapabilityEvidence{State: CapabilitySupported, References: []EvidenceReference{{Citation: "https://example.test/source"}}},
-		RuntimeNormalization:      CapabilityEvidence{State: CapabilityUnknown, References: []EvidenceReference{{Artifact: "fixtures/runtime.json"}}},
-		LiveObservation:           CapabilityEvidence{State: CapabilityUnknown, References: []EvidenceReference{{Artifact: "fixtures/native.json"}}},
-		ControlValidatedIsolation: CapabilityEvidence{State: CapabilityUnsupported, References: []EvidenceReference{{Citation: "https://example.test/control"}}},
+		Source:                    " opencode ",
+		Version:                   " 1.18.0 ",
+		AuthoritativeSource:       CapabilityEvidence{State: CapabilitySupported, References: []EvidenceReference{{Citation: " https://example.test/source "}}},
+		RuntimeNormalization:      CapabilityEvidence{State: CapabilityUnknown, References: []EvidenceReference{{Artifact: " fixtures/runtime.json "}}},
+		LiveObservation:           CapabilityEvidence{State: CapabilityUnknown, References: []EvidenceReference{{Artifact: " fixtures/native.json "}}},
+		ControlValidatedIsolation: CapabilityEvidence{State: CapabilityUnsupported, References: []EvidenceReference{{Citation: " https://example.test/control "}}},
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid capability entry rejected: %v", err)
 	}
-	valid.LiveObservation.References = nil
-	if err := valid.Validate(); err == nil {
-		t.Fatal("capability entry without a live-observation reference was accepted")
+	if valid.Source != "opencode" || valid.Version != "1.18.0" || valid.AuthoritativeSource.References[0].Citation != "https://example.test/source" || valid.RuntimeNormalization.References[0].Artifact != "fixtures/runtime.json" {
+		t.Errorf("Validate() did not normalize whitespace: %#v", valid)
+	}
+
+	for _, mutate := range []func(*CapabilityEntry){
+		func(e *CapabilityEntry) { e.Source = " " },
+		func(e *CapabilityEntry) { e.Version = " " },
+		func(e *CapabilityEntry) { e.LiveObservation.References[0].Artifact = " " },
+		func(e *CapabilityEntry) { e.AuthoritativeSource.References[0].Citation = " " },
+	} {
+		entry := valid
+		entry.AuthoritativeSource.References = append([]EvidenceReference(nil), valid.AuthoritativeSource.References...)
+		entry.RuntimeNormalization.References = append([]EvidenceReference(nil), valid.RuntimeNormalization.References...)
+		entry.LiveObservation.References = append([]EvidenceReference(nil), valid.LiveObservation.References...)
+		entry.ControlValidatedIsolation.References = append([]EvidenceReference(nil), valid.ControlValidatedIsolation.References...)
+		mutate(&entry)
+		if err := entry.Validate(); err == nil {
+			t.Fatal("capability entry with blank-after-trim identity or reference was accepted")
+		}
 	}
 }

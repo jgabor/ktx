@@ -1,0 +1,16 @@
+id: wzdplkqcya
+artifact: progress
+record:
+  timestamp: 2026-07-23 13:19
+  type: fix
+  phase: build
+  what: Corrected model-step cache terminology, malformed step_finish aggregation, claim validation, and capability-reference normalization after the independent audit.
+  context:
+    intent: Make ordered source-event evidence boundaries accurate without adding the separate retained-observation pipeline.
+    constraints: No provider calls, benchmarks, decision-satisfaction changes, or persisted-observation pipeline. Preserved the audit evaluation state and the previous immutable progress record.
+    unknowns: No live provider evidence was collected; capability matrix entries and controlled isolation probes remain future work.
+    scope: docs/pipelines.md, internal/usage, internal/experiment, internal/cli contract tests, and Agentera-managed progress/task state.
+  inspiration: Independent audit audit-1 for active cache-observability plan task dqndtgqhyi.
+  discovered: The shared aggregator treated a malformed typed leaf as grounds to drop its entire step_finish event, allowing the remaining events to look complete; the experiment parser repeated that behavior before invoking the aggregator.
+  verified: go test ./internal/usage ./internal/experiment ./internal/cli -count=1 passed. mage check passed all race tests, vet, golangci-lint with 0 issues, and build. Tests cover model-step versus native-request identity, ordered control and retry metadata, zero/absent/null/malformed/partial telemetry, all six cache claims and contradictory combinations, and trimmed capability references.
+  next: Retain ordered source events only in the separate cache-aware evidence task. Build capability entries and controls separately; do not infer provider isolation or internal misses without retained controlled evidence.

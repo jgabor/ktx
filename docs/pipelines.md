@@ -456,10 +456,10 @@ All metrics are derived from retained experiment evidence
 | `score`                                  | For multi-fact: `matched_facts / total_facts` in `[0, 1]`. For exact-match: `0` or `1`.  |
 | `full_pass`                              | `score == 1.0`                                                                           |
 | `facts_matched` / `facts_missed`         | Multi-fact detail                                                                        |
-| `tokens_in` / `tokens_out` / `reasoning` | SUM from stream `step_finish` usage when present on every request                        |
+| `tokens_in` / `tokens_out` / `reasoning` | SUM from stream `step_finish` model-step usage when present on every model step          |
 | `cost`                                   | Runtime-reported cost retained verbatim, including literal zero                          |
 | `estimated_api_cost`                     | Nullable cache-aware estimate from the experiment's retained models.dev pricing snapshot |
-| `cache_read` / `cache_write`             | SUM of `part.tokens.cache.{read,write}` across `step_finish` events (per-request counts) |
+| `cache_read` / `cache_write`             | SUM of `part.tokens.cache.{read,write}` across `step_finish` model steps                 |
 | `tool_call_count`                        | Count of `tool_use` events                                                               |
 | `session_id`                             | Linked only when exactly one new session appears                                         |
 | `role`                                   | v5 trial role: `cold_observation`, `warmup`, or `measured_warm`                          |
@@ -496,10 +496,12 @@ descriptive values; a singleton has standard deviation zero.
 `expected_cost_per_correct` is the ranking headline (tilth geometric form).
 A cheaper pipeline that loses facts ranks worse than a slightly costlier full-pass pipeline.
 
-`cache_read` / `cache_write` are provider-reported per-request token counts the
-runtime emits on `step_finish.part.tokens.cache`. For every event, tokens.total
+`cache_read` / `cache_write` are runtime-reported token counts emitted on
+`step_finish.part.tokens.cache`. An OpenCode `step_finish` is a model step, not
+a native provider request unless authoritative request identity or a documented
+one-to-one mapping proves otherwise. For every reported model step, tokens.total
 == tokens.input + tokens.output + tokens.reasoning + tokens.cache.read +
-tokens.cache.write, confirming cache values are per-request deltas (not
+tokens.cache.write, confirming cache values are event-local deltas (not
 cumulative). The summary includes them only
 when an attempt contains cache evidence (a runtime that does not emit cache
 fields leaves them NULL and the summary stays on its legacy shape). The
@@ -564,7 +566,7 @@ boundaries:
 | `ineligible`             | Authoritative source semantics show the request could not perform the relevant cache lookup.               |
 | `no_reported_reuse`      | An eligible lookup reports no reuse; it does not establish an internal miss.                               |
 | `unknown`                | The source omitted, nullified, malformed, or cannot authoritatively classify the relevant telemetry.       |
-| `provider_internal_miss` | Allowed only for a controlled eligible lookup.                                                             |
+| `provider_internal_miss` | Allowed only for a controlled eligible lookup with retained no-reuse evidence.                             |
 
 Every source/version capability entry keeps four evidence levels separate:
 authoritative source support, runtime normalization, live observation, and

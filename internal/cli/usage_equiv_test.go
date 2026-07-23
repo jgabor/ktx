@@ -203,7 +203,7 @@ not json
 	})
 }
 
-func TestUsageEvidence_CrossPathMalformedTypedStepSkipped(t *testing.T) {
+func TestUsageEvidence_CrossPathMalformedTypedStepRetained(t *testing.T) {
 	tests := map[string]string{
 		"tokens block": `"tokens":"bad"`,
 		"input":        `"tokens":{"input":"bad"}`,
@@ -219,14 +219,14 @@ func TestUsageEvidence_CrossPathMalformedTypedStepSkipped(t *testing.T) {
 			stream := `{"type":"step_finish","part":{"reason":"stop",` + fields + `}}`
 			p := runBoth(t, stream)
 			assertEquiv(t, p)
-			if p.cli.hasData {
-				t.Error("CLI hasData=true, want false for malformed step_finish")
+			if !p.cli.hasData {
+				t.Error("CLI hasData=false, want true for identifiable step_finish")
 			}
-			if p.exp.UsageEvidence.StepFinishEvents != 0 {
-				t.Errorf("experiment StepFinishEvents=%d, want 0", p.exp.UsageEvidence.StepFinishEvents)
+			if p.exp.UsageEvidence.StepFinishEvents != 1 {
+				t.Errorf("experiment StepFinishEvents=%d, want 1", p.exp.UsageEvidence.StepFinishEvents)
 			}
-			if p.exp.StreamComplete {
-				t.Error("experiment StreamComplete=true, want false; malformed step remains skipped")
+			if !p.exp.StreamComplete {
+				t.Error("experiment StreamComplete=false, want true for identifiable stop step")
 			}
 		})
 	}

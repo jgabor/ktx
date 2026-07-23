@@ -25,34 +25,10 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	agg := &usage.Aggregator{}
 	lastText := ""
 	usage.ReadDelimitedLines(file, usage.MaxRecordSize, func(line []byte) bool {
-		// The event struct includes the usage fields as strict *float64
-		// types so that a wrong-type cost or tokens value (e.g., a
-		// string where a number is expected) causes json.Unmarshal to
-		// fail and the entire line to be skipped — preserving the
-		// caller-specific behavior where a malformed text or
-		// step_finish event does not affect scoring, completion, or
-		// the step count. The aggregator re-parses validated lines for
-		// usage evidence; the struct fields exist only for this
-		// validation gate and for text/reason extraction, not for
-		// aggregation (that is the aggregator's sole responsibility).
 		var event struct {
 			Type    string          `json:"type"`
 			Content json.RawMessage `json:"content"`
-			Part    struct {
-				Reason  string   `json:"reason"`
-				Text    string   `json:"text"`
-				Content string   `json:"content"`
-				Cost    *float64 `json:"cost"`
-				Tokens  struct {
-					Input     *float64 `json:"input"`
-					Output    *float64 `json:"output"`
-					Reasoning *float64 `json:"reasoning"`
-					Cache     struct {
-						Read  *float64 `json:"read"`
-						Write *float64 `json:"write"`
-					} `json:"cache"`
-				} `json:"tokens"`
-			} `json:"part"`
+			Part    json.RawMessage `json:"part"`
 		}
 		if json.Unmarshal(line, &event) != nil {
 			return false // skip malformed line (preserves scoring/status)
@@ -61,25 +37,38 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 		case "tool_use":
 			metrics.ToolCallCount++
 		case "step_finish":
-			// The shared parser owns the minimal typed-usage validity
-			// gate. A malformed step is skipped here as it was by the
-			// legacy strict event decoder, preserving completion behavior
-			// without moving completion or scoring into usage.
 			if !agg.AddLine(line) {
 				return false
 			}
-			if event.Part.Reason == "stop" {
+			var part struct {
+				Reason string `json:"reason"`
+			}
+			if json.Unmarshal(event.Part, &part) == nil && part.Reason == "stop" {
 				metrics.StreamComplete = true
 			}
 		case "text":
+			// Text stays strict so malformed text metadata cannot replace a
+			// valid answer. Step telemetry follows the independent usage
+			// classification above instead.
+			var textEvent struct {
+				Content json.RawMessage `json:"content"`
+				Part    struct {
+					Text    string   `json:"text"`
+					Content string   `json:"content"`
+					Cost    *float64 `json:"cost"`
+				} `json:"part"`
+			}
+			if json.Unmarshal(line, &textEvent) != nil {
+				return false
+			}
 			switch {
-			case event.Part.Text != "":
-				lastText = event.Part.Text
-			case event.Part.Content != "":
-				lastText = event.Part.Content
+			case textEvent.Part.Text != "":
+				lastText = textEvent.Part.Text
+			case textEvent.Part.Content != "":
+				lastText = textEvent.Part.Content
 			default:
 				var content string
-				if json.Unmarshal(event.Content, &content) == nil {
+				if json.Unmarshal(textEvent.Content, &content) == nil {
 					lastText = content
 				}
 			}

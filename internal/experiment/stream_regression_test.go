@@ -16,16 +16,11 @@ func writeStream(t *testing.T, data string) string {
 	return path
 }
 
-// TestParseStream_MalformedTypedFieldsPreservesScoring locks the
-// caller-specific behavior that a wrong-type cost or tokens field on
-// a text or step_finish event causes the entire line to be skipped by
-// the strict event struct (preserving answer text extraction, step
-// counts, stream-complete detection, and thus scoring and completion
-// status), while a fractional numeric value on a step_finish is still
-// counted as a step (the completeness gate then drops the affected
-// aggregate to nil). This distinguishes "wrong JSON type" (line
-// skipped) from "fractional value" (aggregator rejects from
-// completeness but the step is still counted).
+// TestParseStream_MalformedTypedFieldsPreservesScoring keeps malformed text
+// events out of answer extraction while treating every structurally
+// identifiable step_finish as a model step. A malformed leaf makes only that
+// field unavailable; valid siblings remain available and completeness prevents
+// their partial totals from becoming attempt totals.
 func TestParseStream_MalformedTypedFieldsPreservesScoring(t *testing.T) {
 	t.Run("malformed cost on text event does not corrupt answer", func(t *testing.T) {
 		// Two text events: the malformed one is skipped, the valid
@@ -51,69 +46,63 @@ func TestParseStream_MalformedTypedFieldsPreservesScoring(t *testing.T) {
 		}
 	})
 
-	t.Run("malformed tokens on step_finish skips step (not counted)", func(t *testing.T) {
-		// A step_finish with a string-typed tokens.input is skipped
-		// entirely (the strict struct fails to unmarshal): the step
-		// is NOT counted, StreamComplete is NOT set, and usage
-		// evidence is nil. A subsequent valid step_finish provides
-		// complete evidence.
+	t.Run("malformed tokens on step_finish count the event but not a partial total", func(t *testing.T) {
 		expected := "done"
 		stream := `{"type":"step_finish","part":{"reason":"stop","tokens":{"input":"oops","output":2},"cost":0.01}}
 {"type":"text","part":{"text":"done"}}
 {"type":"step_finish","part":{"reason":"stop","tokens":{"input":10,"output":2},"cost":0.01}}`
 		path := writeStream(t, stream)
 		m := ParseStream(path, &expected, nil)
-		// Only 1 valid step_finish (the first was skipped).
-		if m.UsageEvidence.StepFinishEvents != 1 {
-			t.Errorf("StepFinishEvents=%d, want 1 (malformed step_finish skipped)", m.UsageEvidence.StepFinishEvents)
+		if m.UsageEvidence.StepFinishEvents != 2 {
+			t.Errorf("StepFinishEvents=%d, want 2 (both step_finish events counted)", m.UsageEvidence.StepFinishEvents)
 		}
 		if !m.StreamComplete {
 			t.Error("StreamComplete=false, want true (valid step_finish with reason=stop)")
 		}
-		if m.TokensIn == nil || *m.TokensIn != 10 {
-			t.Errorf("TokensIn=%v, want 10 (only valid step_finish counted)", m.TokensIn)
+		if m.TokensIn != nil {
+			t.Errorf("TokensIn=%v, want nil (malformed first event makes the total partial)", m.TokensIn)
+		}
+		if m.TokensOut == nil || *m.TokensOut != 4 {
+			t.Errorf("TokensOut=%v, want 4 (valid sibling fields are retained)", m.TokensOut)
 		}
 		if !m.FullPass {
 			t.Fatal("FullPass=false, want true (answer 'done' from valid text event)")
 		}
 	})
 
-	t.Run("malformed cost on all step_finish events yields nil evidence", func(t *testing.T) {
-		// Both step_finish events have wrong-type cost. Both are
-		// skipped entirely → no step_finish counted, no tokens,
-		// StreamComplete not set. Text event provides the answer.
+	t.Run("malformed cost on all step_finish events leaves only cost unavailable", func(t *testing.T) {
 		expected := "answer"
 		stream := `{"type":"step_finish","part":{"reason":"stop","tokens":{"input":10,"output":2},"cost":"bad"}}
 {"type":"step_finish","part":{"reason":"stop","tokens":{"input":5,"output":1},"cost":"bad"}}
 {"type":"text","part":{"text":"answer"}}`
 		path := writeStream(t, stream)
 		m := ParseStream(path, &expected, nil)
-		if m.UsageEvidence.StepFinishEvents != 0 {
-			t.Errorf("StepFinishEvents=%d, want 0 (both step_finish lines skipped)", m.UsageEvidence.StepFinishEvents)
+		if m.UsageEvidence.StepFinishEvents != 2 {
+			t.Errorf("StepFinishEvents=%d, want 2", m.UsageEvidence.StepFinishEvents)
 		}
-		if m.StreamComplete {
-			t.Error("StreamComplete=true, want false (no valid step_finish processed)")
+		if !m.StreamComplete {
+			t.Error("StreamComplete=false, want true (both identifiable steps stopped)")
 		}
-		if m.TokensIn != nil {
-			t.Errorf("TokensIn=%v, want nil (no valid step_finish)", m.TokensIn)
+		if m.TokensIn == nil || *m.TokensIn != 15 {
+			t.Errorf("TokensIn=%v, want 15 (valid token siblings retained)", m.TokensIn)
+		}
+		if m.Cost != nil {
+			t.Errorf("Cost=%v, want nil (malformed cost is unavailable)", m.Cost)
 		}
 		if !m.FullPass {
 			t.Fatal("FullPass=false, want true (answer from valid text event)")
 		}
 	})
 
-	t.Run("malformed step_finish with reason=stop does not set StreamComplete", func(t *testing.T) {
-		// A step_finish with reason=stop but malformed tokens.input
-		// (string type) is skipped → StreamComplete NOT set, even
-		// though reason=stop appears in the JSON.
+	t.Run("malformed step_finish with reason=stop remains complete", func(t *testing.T) {
 		stream := `{"type":"step_finish","part":{"reason":"stop","tokens":{"input":"bad","output":2},"cost":0.01}}`
 		path := writeStream(t, stream)
 		m := ParseStream(path, nil, nil)
-		if m.StreamComplete {
-			t.Error("StreamComplete=true, want false (malformed step_finish with reason=stop is skipped)")
+		if !m.StreamComplete {
+			t.Error("StreamComplete=false, want true (identifiable step_finish retains reason)")
 		}
-		if m.UsageEvidence.StepFinishEvents != 0 {
-			t.Errorf("StepFinishEvents=%d, want 0 (malformed step_finish skipped)", m.UsageEvidence.StepFinishEvents)
+		if m.UsageEvidence.StepFinishEvents != 1 {
+			t.Errorf("StepFinishEvents=%d, want 1", m.UsageEvidence.StepFinishEvents)
 		}
 	})
 

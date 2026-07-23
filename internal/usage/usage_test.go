@@ -115,6 +115,24 @@ func TestParse_NullIsAbsentNotZero(t *testing.T) {
 	}
 }
 
+func TestParse_MalformedLeafKeepsSiblingsButBlocksPartialTotals(t *testing.T) {
+	stream := `{"type":"step_finish","part":{"tokens":{"input":"bad","output":2,"reasoning":0,"cache":{"read":"bad","write":0}},"cost":"bad"}}
+{"type":"step_finish","part":{"tokens":{"input":10,"output":2,"reasoning":0,"cache":{"read":5,"write":0}},"cost":0.01}}`
+	ev := Parse(strings.NewReader(stream))
+	if ev.Steps != 2 {
+		t.Fatalf("Steps=%d, want 2 (malformed leaf does not erase its step)", ev.Steps)
+	}
+	if ev.TokensIn != nil || ev.CacheRead != nil || ev.Cost != nil {
+		t.Errorf("partial totals = input:%v cache_read:%v cost:%v, want nil", ev.TokensIn, ev.CacheRead, ev.Cost)
+	}
+	if ev.TokensOut == nil || *ev.TokensOut != 4 || ev.Reasoning == nil || *ev.Reasoning != 0 || ev.CacheWrite == nil || *ev.CacheWrite != 0 {
+		t.Errorf("valid sibling totals = output:%v reasoning:%v cache_write:%v, want 4/0/0", ev.TokensOut, ev.Reasoning, ev.CacheWrite)
+	}
+	if ev.TokensInEvents != 1 || ev.CacheReadEvents != 1 || ev.CostEvents != 1 {
+		t.Errorf("partial event counts = input:%d cache_read:%d cost:%d, want 1/1/1", ev.TokensInEvents, ev.CacheReadEvents, ev.CostEvents)
+	}
+}
+
 // TestParse_CompletenessGate locks that a field present on only some
 // step_finish events drops the aggregate to nil rather than reporting
 // a partial sum. Each per-field counter must equal Steps.
@@ -334,14 +352,14 @@ func TestParse_IntegerRejection(t *testing.T) {
 		}
 	})
 
-	t.Run("non-numeric token value skips structurally invalid step", func(t *testing.T) {
+	t.Run("non-numeric token value leaves only that measurement unavailable", func(t *testing.T) {
 		stream := `{"type":"step_finish","part":{"tokens":{"input":"oops","output":2},"cost":0.01}}`
 		ev := Parse(strings.NewReader(stream))
-		if ev.HasData || ev.Steps != 0 {
-			t.Errorf("HasData=%v Steps=%d, want false/0 (wrong typed usage skips event)", ev.HasData, ev.Steps)
+		if !ev.HasData || ev.Steps != 1 {
+			t.Errorf("HasData=%v Steps=%d, want true/1 (identifiable step retained)", ev.HasData, ev.Steps)
 		}
-		if ev.TokensIn != nil || ev.TokensOut != nil {
-			t.Errorf("TokensIn=%v TokensOut=%v, want nil/nil", ev.TokensIn, ev.TokensOut)
+		if ev.TokensIn != nil || !intEquals(ev.TokensOut, intPtr(2)) {
+			t.Errorf("TokensIn=%v TokensOut=%v, want nil/2", ev.TokensIn, ev.TokensOut)
 		}
 	})
 }

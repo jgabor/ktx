@@ -110,6 +110,15 @@ func ValidateSourceEvents(events []SourceEvent) error {
 		if event.Kind == NativeRequest && !event.Identity.hasNativeRequestIdentity() {
 			return fmt.Errorf("native request %d lacks provider request identity or one-to-one mapping", event.Ordinal)
 		}
+		if err := event.Identity.validate(); err != nil {
+			return fmt.Errorf("source event %d: %w", event.Ordinal, err)
+		}
+		if err := event.Control.validate(); err != nil {
+			return fmt.Errorf("source event %d: %w", event.Ordinal, err)
+		}
+		if err := event.Retry.validate(event.Ordinal); err != nil {
+			return fmt.Errorf("source event %d: %w", event.Ordinal, err)
+		}
 		for _, measurement := range []IntegerMeasurement{event.UncachedInput, event.CacheRead, event.CacheWrite, event.Reasoning} {
 			if err := measurement.validate(); err != nil {
 				return fmt.Errorf("source event %d: %w", event.Ordinal, err)
@@ -125,6 +134,48 @@ func ValidateSourceEvents(events []SourceEvent) error {
 func (i EventIdentity) hasNativeRequestIdentity() bool {
 	return (i.ProviderRequestID != nil && strings.TrimSpace(*i.ProviderRequestID) != "") ||
 		(i.OneToOneMapping != nil && strings.TrimSpace(i.OneToOneMapping.Citation) != "")
+}
+
+func (i EventIdentity) validate() error {
+	for name, value := range map[string]*string{
+		"provider": i.Provider, "runtime": i.Runtime, "model": i.Model, "provider request ID": i.ProviderRequestID,
+	} {
+		if err := validateOptionalText(name, value); err != nil {
+			return err
+		}
+	}
+	if i.OneToOneMapping != nil && strings.TrimSpace(i.OneToOneMapping.Citation) == "" {
+		return fmt.Errorf("one-to-one mapping requires a citation")
+	}
+	return nil
+}
+
+func (c EventControl) validate() error {
+	for name, value := range map[string]*string{
+		"control mode": c.Mode, "namespace hash": c.NamespaceHash, "breakpoint": c.Breakpoint, "eligibility": c.Eligibility,
+	} {
+		if err := validateOptionalText(name, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r RetryMetadata) validate(ordinal uint64) error {
+	if r.Attempt != nil && *r.Attempt < 0 {
+		return fmt.Errorf("retry attempt must not be negative")
+	}
+	if r.PreviousSourceEventOrdinal != nil && (*r.PreviousSourceEventOrdinal == 0 || *r.PreviousSourceEventOrdinal >= ordinal) {
+		return fmt.Errorf("previous source event ordinal must precede the event")
+	}
+	return validateOptionalText("retry provider request ID", r.ProviderRequestID)
+}
+
+func validateOptionalText(name string, value *string) error {
+	if value != nil && strings.TrimSpace(*value) == "" {
+		return fmt.Errorf("%s must not be blank", name)
+	}
+	return nil
 }
 
 func (m IntegerMeasurement) validate() error {
@@ -173,21 +224,46 @@ const (
 
 // CacheClaimEvidence describes the evidence boundary for a cache claim.
 type CacheClaimEvidence struct {
-	Claim                    CacheClaim `json:"claim"`
-	ControlledEligibleLookup bool       `json:"controlled_eligible_lookup"`
+	Claim            CacheClaim         `json:"claim"`
+	EligibleLookup   bool               `json:"eligible_lookup"`
+	ControlledLookup bool               `json:"controlled_lookup"`
+	NoReuseEvidence  *EvidenceReference `json:"no_reuse_evidence,omitempty"`
 }
 
-// Validate rejects a provider-internal miss unless a controlled eligible
-// lookup established it.
+// Validate enforces the boundary between reported reuse and an internal miss.
 func (e CacheClaimEvidence) Validate() error {
+	if e.ControlledLookup && !e.EligibleLookup {
+		return fmt.Errorf("controlled lookup requires an eligible lookup")
+	}
+	if e.NoReuseEvidence != nil && !e.NoReuseEvidence.valid() {
+		return fmt.Errorf("no-reuse evidence requires a citation or retained artifact")
+	}
 	switch e.Claim {
-	case CacheReuse, CacheFill, CacheIneligible, CacheNoReportedReuse, CacheUnknown:
+	case CacheReuse, CacheFill:
+		if e.NoReuseEvidence != nil {
+			return fmt.Errorf("%s contradicts no-reuse evidence", e.Claim)
+		}
+		return nil
+	case CacheIneligible:
+		if e.EligibleLookup || e.ControlledLookup || e.NoReuseEvidence != nil {
+			return fmt.Errorf("ineligible claim contradicts lookup evidence")
+		}
+		return nil
+	case CacheNoReportedReuse:
+		if !e.EligibleLookup {
+			return fmt.Errorf("no reported reuse requires an eligible lookup")
+		}
+		return nil
+	case CacheUnknown:
+		if e.NoReuseEvidence != nil {
+			return fmt.Errorf("unknown claim contradicts no-reuse evidence")
+		}
 		return nil
 	case ProviderInternalMiss:
-		if e.ControlledEligibleLookup {
+		if e.EligibleLookup && e.ControlledLookup && e.NoReuseEvidence != nil {
 			return nil
 		}
-		return fmt.Errorf("provider-internal miss requires a controlled eligible lookup")
+		return fmt.Errorf("provider-internal miss requires controlled eligible lookup and no-reuse evidence")
 	default:
 		return fmt.Errorf("invalid cache claim %q", e.Claim)
 	}
@@ -228,11 +304,13 @@ type CapabilityEntry struct {
 
 // Validate requires a source/version identity and a citation or artifact for
 // every independently stated evidence level.
-func (e CapabilityEntry) Validate() error {
+func (e *CapabilityEntry) Validate() error {
+	e.Source = strings.TrimSpace(e.Source)
+	e.Version = strings.TrimSpace(e.Version)
 	if e.Source == "" || e.Version == "" {
 		return fmt.Errorf("capability entry requires source and version")
 	}
-	for _, level := range []CapabilityEvidence{e.AuthoritativeSource, e.RuntimeNormalization, e.LiveObservation, e.ControlValidatedIsolation} {
+	for _, level := range []*CapabilityEvidence{&e.AuthoritativeSource, &e.RuntimeNormalization, &e.LiveObservation, &e.ControlValidatedIsolation} {
 		if err := level.validate(); err != nil {
 			return err
 		}
@@ -240,14 +318,27 @@ func (e CapabilityEntry) Validate() error {
 	return nil
 }
 
-func (e CapabilityEvidence) validate() error {
+func (e *CapabilityEvidence) validate() error {
 	if e.State != CapabilitySupported && e.State != CapabilityUnsupported && e.State != CapabilityUnknown {
 		return fmt.Errorf("invalid capability state %q", e.State)
 	}
-	for _, reference := range e.References {
-		if reference.Citation != "" || reference.Artifact != "" {
-			return nil
+	if len(e.References) == 0 {
+		return fmt.Errorf("capability evidence requires a citation or retained artifact")
+	}
+	for i := range e.References {
+		if !e.References[i].normalizeAndValidate() {
+			return fmt.Errorf("capability evidence requires a citation or retained artifact")
 		}
 	}
-	return fmt.Errorf("capability evidence requires a citation or retained artifact")
+	return nil
+}
+
+func (r *EvidenceReference) normalizeAndValidate() bool {
+	r.Citation = strings.TrimSpace(r.Citation)
+	r.Artifact = strings.TrimSpace(r.Artifact)
+	return r.Citation != "" || r.Artifact != ""
+}
+
+func (r EvidenceReference) valid() bool {
+	return strings.TrimSpace(r.Citation) != "" || strings.TrimSpace(r.Artifact) != ""
 }

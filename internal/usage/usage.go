@@ -143,13 +143,11 @@ type Aggregator struct {
 	hasData           bool
 }
 
-// AddLine processes one JSONL line and reports whether it was a
-// structurally valid step_finish event. Empty lines, malformed JSON,
-// non-step_finish events, and step_finish events whose typed usage
-// fields have incompatible JSON types are skipped. Numeric fields may
-// still be absent, null, fractional, or outside the shared integer
-// range; those events remain structurally valid but the affected field
-// fails completeness.
+// AddLine processes one JSONL line and reports whether it was an
+// identifiable step_finish event. Empty lines, malformed JSON, and
+// non-step_finish events are skipped. A malformed usage leaf leaves only
+// that measurement unavailable; it does not erase the event or valid
+// sibling measurements.
 func (a *Aggregator) AddLine(line []byte) bool {
 	if len(line) == 0 {
 		return false
@@ -171,77 +169,51 @@ func (a *Aggregator) AddLine(line []byte) bool {
 		// it is a valid step with absent usage fields.
 		partJSON = []byte("{}")
 	}
-	if !validStepFinishUsage(partJSON) {
-		return false
-	}
-	var part struct {
-		Cost   json.RawMessage `json:"cost"`
-		Tokens json.RawMessage `json:"tokens"`
-	}
-	if json.Unmarshal(partJSON, &part) != nil {
-		return false
-	}
 	a.hasData = true
 	a.steps++
 
-	var tokens struct {
-		Input     json.RawMessage `json:"input"`
-		Output    json.RawMessage `json:"output"`
-		Reasoning json.RawMessage `json:"reasoning"`
-		Cache     struct {
-			Read  json.RawMessage `json:"read"`
-			Write json.RawMessage `json:"write"`
-		} `json:"cache"`
-	}
-	// An absent or null tokens block leaves every token field absent for
-	// this otherwise-valid event. Incompatible JSON types were rejected
-	// by the structural gate above.
-	_ = json.Unmarshal(part.Tokens, &tokens)
-	if v := integerOrNull(tokens.Input); v != nil {
+	part := objectFields(partJSON)
+	tokens := objectFields(part["tokens"])
+	cache := objectFields(tokens["cache"])
+	if v := integerOrNull(tokens["input"]); v != nil {
 		addInt64(&a.tokensIn, *v)
 		a.tokensInPresent++
 	}
-	if v := integerOrNull(tokens.Output); v != nil {
+	if v := integerOrNull(tokens["output"]); v != nil {
 		addInt64(&a.tokensOut, *v)
 		a.tokensOutPresent++
 	}
-	if v := integerOrNull(tokens.Reasoning); v != nil {
+	if v := integerOrNull(tokens["reasoning"]); v != nil {
 		addInt64(&a.reasoning, *v)
 		a.reasoningPresent++
 	}
-	if v := integerOrNull(tokens.Cache.Read); v != nil {
+	if v := integerOrNull(cache["read"]); v != nil {
 		addInt64(&a.cacheRead, *v)
 		a.cacheReadPresent++
 	}
-	if v := integerOrNull(tokens.Cache.Write); v != nil {
+	if v := integerOrNull(cache["write"]); v != nil {
 		addInt64(&a.cacheWrite, *v)
 		a.cacheWritePresent++
 	}
-	if v := numberOrNull(part.Cost); v != nil {
+	if v := numberOrNull(part["cost"]); v != nil {
 		a.cost += *v
 		a.costPresent++
 	}
 	return true
 }
 
-// validStepFinishUsage applies the minimal structural contract inherited
-// from the experiment parser: when present, cost and token leaf fields
-// must be JSON numbers or null, while tokens and cache must be objects or
-// null. Value-level integer rules are applied separately by integerOrNull.
-func validStepFinishUsage(part json.RawMessage) bool {
-	var typed struct {
-		Cost   *float64 `json:"cost"`
-		Tokens struct {
-			Input     *float64 `json:"input"`
-			Output    *float64 `json:"output"`
-			Reasoning *float64 `json:"reasoning"`
-			Cache     struct {
-				Read  *float64 `json:"read"`
-				Write *float64 `json:"write"`
-			} `json:"cache"`
-		} `json:"tokens"`
+// objectFields returns raw object fields. Missing, null, and malformed
+// containers have no fields, preserving sibling evidence outside them while
+// leaving their children unavailable for this event.
+func objectFields(raw json.RawMessage) map[string]json.RawMessage {
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
 	}
-	return json.Unmarshal(part, &typed) == nil
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return nil
+	}
+	return fields
 }
 
 func addInt64(sum *big.Int, value int64) {

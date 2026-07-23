@@ -1,6 +1,7 @@
 package experiment
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -134,16 +135,25 @@ func incompleteStream(marker, form string) string {
 	return fmt.Sprintf("%s\n%s", first, second)
 }
 
-func TestModelStepsValidateAgainstRetainedStream(t *testing.T) {
+func TestOptionalModelStepsDoNotInvalidateAttempt(t *testing.T) {
 	for _, test := range []struct {
-		name   string
-		stream string
-		mutate func(*Metrics)
-		valid  bool
+		name      string
+		stream    string
+		telemetry json.RawMessage
+		mutate    func(*Attempt)
+		alter     func([]SourceEvent)
+		absent    bool
 	}{
-		{"complete", incompleteStream("INPUT", "complete"), nil, true},
-		{"incomplete", incompleteStream("READ", "malformed"), nil, true},
-		{"tampered", incompleteStream("READ", "malformed"), func(metrics *Metrics) { metrics.ModelSteps[1].CacheRead = MeasuredInteger(0) }, false},
+		{name: "missing", stream: incompleteStream("INPUT", "complete"), absent: true},
+		{name: "null", stream: incompleteStream("INPUT", "complete"), telemetry: json.RawMessage("null"), absent: true},
+		{name: "empty", stream: incompleteStream("INPUT", "complete"), telemetry: json.RawMessage("[]"), absent: true},
+		{name: "malformed", stream: incompleteStream("INPUT", "complete"), telemetry: json.RawMessage(`{"bad":true}`), absent: true},
+		{name: "partial", stream: incompleteStream("INPUT", "complete"), telemetry: json.RawMessage(`[{"ordinal":1,"kind":"model_step"}]`), absent: true},
+		{name: "invalid order", stream: incompleteStream("INPUT", "complete"), telemetry: json.RawMessage(`[{"ordinal":99,"kind":"model_step"}]`), absent: true},
+		{name: "stream mismatch", stream: incompleteStream("INPUT", "complete"), alter: func(events []SourceEvent) { events[0].CacheRead = MeasuredInteger(99) }},
+		{name: "empty timeout stream", stream: "", telemetry: json.RawMessage("[]"), mutate: func(attempt *Attempt) { attempt.Status = "timeout" }, absent: true},
+		{name: "no stream reference", stream: incompleteStream("INPUT", "complete"), mutate: func(attempt *Attempt) { delete(attempt.Artifacts, "stream") }},
+		{name: "schema one", stream: incompleteStream("INPUT", "complete"), mutate: func(attempt *Attempt) { attempt.SchemaVersion = 1 }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -152,8 +162,13 @@ func TestModelStepsValidateAgainstRetainedStream(t *testing.T) {
 				t.Fatal(err)
 			}
 			metrics := ParseStream(streamPath, nil, nil)
-			if test.mutate != nil {
-				test.mutate(&metrics)
+			if test.alter != nil {
+				test.alter(metrics.ModelSteps)
+				var err error
+				test.telemetry, err = json.Marshal(metrics.ModelSteps)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			manifest := fixtureManifest()
 			manifest.ExperimentID = "model-steps"
@@ -162,7 +177,26 @@ func TestModelStepsValidateAgainstRetainedStream(t *testing.T) {
 				t.Fatal(err)
 			}
 			attempt := Attempt{SchemaVersion: 2, ExperimentID: manifest.ExperimentID, AttemptID: test.name, Side: Baseline, Metrics: metrics, Artifacts: map[string]string{"stream": "stream.jsonl"}}
-			if err := AppendAttempt(dir, attempt); err != nil {
+			attempt.ModelSteps = nil
+			if test.mutate != nil {
+				test.mutate(&attempt)
+			}
+			encoded, err := json.Marshal(attempt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.telemetry != nil {
+				var fields map[string]json.RawMessage
+				if err := json.Unmarshal(encoded, &fields); err != nil {
+					t.Fatal(err)
+				}
+				fields["model_steps"] = test.telemetry
+				encoded, err = json.Marshal(fields)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(dir, "attempts.jsonl"), append(encoded, '\n'), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			if err := WriteJSON(filepath.Join(dir, "summary.json"), BuildSummary(manifest, []Attempt{attempt})); err != nil {
@@ -172,9 +206,26 @@ func TestModelStepsValidateAgainstRetainedStream(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if report["valid"] != test.valid {
-				t.Fatalf("valid = %v, want %v; report=%#v", report["valid"], test.valid, report)
+			if report["valid"] != true {
+				t.Fatalf("optional telemetry invalidated attempt: %#v", report)
+			}
+			loaded, err := LoadAttempts(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.absent && len(loaded[0].ModelSteps) != 0 {
+				t.Fatalf("unusable telemetry was not treated as unavailable: %#v", loaded[0].ModelSteps)
 			}
 		})
+	}
+}
+
+func TestAttemptStillRejectsMalformedRequiredFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "attempts.jsonl")
+	if err := os.WriteFile(path, []byte(`{"attempt_id":{"bad":true},"model_steps":{"bad":true}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadAttempts(filepath.Dir(path)); err == nil {
+		t.Fatal("malformed required attempt field was accepted")
 	}
 }

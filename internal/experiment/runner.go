@@ -406,9 +406,6 @@ func (runner *Runner) createManifest(ctx context.Context, options CompareOptions
 		Repository:              repository, Image: map[string]string{"name": options.Image, "id": runtime.ImageID},
 		Identities: runtime.Identities, Pipelines: configs, Methodology: methodology,
 	}
-	if methodology.Version == "v5-cache-aware" {
-		manifest.ModelStepEvidenceVersion = 1
-	}
 	return manifest, nil
 }
 

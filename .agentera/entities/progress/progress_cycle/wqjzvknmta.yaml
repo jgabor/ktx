@@ -1,0 +1,16 @@
+id: wqjzvknmta
+artifact: progress
+record:
+  timestamp: 2026-07-23 14:29
+  type: fix
+  phase: build
+  what: Replaced mandatory model-step attestation with optional ordered telemetry that degrades malformed or partial observations to unavailable data.
+  context:
+    intent: Retain useful cache-aware model-step observations without making optional observability an experiment-validity boundary.
+    constraints: No provider calls or paid benchmarks. Preserved non-telemetry artifact hashes, target counts, summaries, methodology checks, aggregate semantics, legacy and cache-less serialization, the blocked task history, and decision satisfaction state.
+    unknowns: No independent audit or live provider evidence was collected.
+    scope: Experiment attempt loading, manifest generation, validation, focused benchmark and compatibility tests, docs/pipelines.md, replacement task fbzwjmiinr, and this progress cycle.
+  inspiration: User clarification after two audits showed that the prior tamper-resistant authority model contradicted the intended best-effort observability contract.
+  discovered: The strict manifest capability and stream cross-attestation were the root cause; ordered observations and explicit zero handling do not depend on either mechanism.
+  verified: Focused model-step, optional-telemetry, cache-aware runner, legacy runner, and cross-path usage tests passed for internal/experiment and internal/cli. Full internal/experiment and internal/cli package tests passed. mage check passed all repository tests, vet, golangci-lint with 0 issues, and build. No provider calls or paid benchmarks ran.
+  next: Keep replacement task fbzwjmiinr in_progress for independent audit before completion.

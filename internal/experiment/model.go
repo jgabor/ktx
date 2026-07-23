@@ -1,5 +1,7 @@
 package experiment
 
+import "encoding/json"
+
 const (
 	Baseline        = "baseline"
 	Candidate       = "candidate"
@@ -100,6 +102,34 @@ type Attempt struct {
 	ContentHashes map[string]string `json:"content_hashes"`
 }
 
+// UnmarshalJSON keeps model-step observations best effort. A malformed optional
+// field is treated as unavailable without hiding errors in the attempt itself.
+func (attempt *Attempt) UnmarshalJSON(data []byte) error {
+	type plainAttempt Attempt
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	modelSteps := fields["model_steps"]
+	delete(fields, "model_steps")
+	withoutModelSteps, err := json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+	var decoded plainAttempt
+	if err := json.Unmarshal(withoutModelSteps, &decoded); err != nil {
+		return err
+	}
+	if len(modelSteps) > 0 {
+		var observations []SourceEvent
+		if json.Unmarshal(modelSteps, &observations) == nil && ValidateSourceEvents(observations) == nil {
+			decoded.ModelSteps = observations
+		}
+	}
+	*attempt = Attempt(decoded)
+	return nil
+}
+
 type CacheControlMetadata struct {
 	Mode            string `json:"mode,omitempty"`
 	NamespaceSHA256 string `json:"namespace_sha256,omitempty"`
@@ -164,23 +194,22 @@ type RepositoryMetadata struct {
 }
 
 type Manifest struct {
-	SchemaVersion            int                         `json:"schema_version"`
-	ExperimentID             string                      `json:"experiment_id"`
-	CreatedAt                string                      `json:"created_at"`
-	Task                     Task                        `json:"task"`
-	Model                    string                      `json:"model"`
-	Variant                  *string                     `json:"variant,omitempty"`
-	TargetValidPerPipeline   int                         `json:"target_valid_per_pipeline"`
-	MaxAttempts              int                         `json:"max_attempts"`
-	AttemptTimeout           string                      `json:"attempt_timeout"`
-	TerminationGrace         string                      `json:"termination_grace"`
-	PipelineExecutionPolicy  map[string]any              `json:"pipeline_execution_policy"`
-	Repository               RepositoryMetadata          `json:"repository"`
-	Image                    map[string]string           `json:"image"`
-	Identities               map[string]string           `json:"identities"`
-	Pipelines                map[string]PipelineMetadata `json:"pipelines"`
-	Methodology              MethodologyMetadata         `json:"methodology"`
-	Pricing                  *PricingSnapshotMetadata    `json:"pricing,omitempty"`
-	CacheControl             *CacheControlManifest       `json:"cache_control,omitempty"`
-	ModelStepEvidenceVersion int                         `json:"model_step_evidence_version,omitempty"`
+	SchemaVersion           int                         `json:"schema_version"`
+	ExperimentID            string                      `json:"experiment_id"`
+	CreatedAt               string                      `json:"created_at"`
+	Task                    Task                        `json:"task"`
+	Model                   string                      `json:"model"`
+	Variant                 *string                     `json:"variant,omitempty"`
+	TargetValidPerPipeline  int                         `json:"target_valid_per_pipeline"`
+	MaxAttempts             int                         `json:"max_attempts"`
+	AttemptTimeout          string                      `json:"attempt_timeout"`
+	TerminationGrace        string                      `json:"termination_grace"`
+	PipelineExecutionPolicy map[string]any              `json:"pipeline_execution_policy"`
+	Repository              RepositoryMetadata          `json:"repository"`
+	Image                   map[string]string           `json:"image"`
+	Identities              map[string]string           `json:"identities"`
+	Pipelines               map[string]PipelineMetadata `json:"pipelines"`
+	Methodology             MethodologyMetadata         `json:"methodology"`
+	Pricing                 *PricingSnapshotMetadata    `json:"pricing,omitempty"`
+	CacheControl            *CacheControlManifest       `json:"cache_control,omitempty"`
 }

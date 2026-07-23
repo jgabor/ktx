@@ -1,0 +1,14 @@
+id: fbzwjmiinr
+artifact: plan
+record:
+  plan: dmbslbvrlk
+  name: Retain optional ordered model-step telemetry
+  status: in_progress
+  depends_on:
+    - dqndtgqhyi
+  acceptance:
+    - GIVEN a cache-aware attempt with model-step telemetry WHEN it is retained THEN available observations remain ordered and existing aggregate behavior is unchanged.
+    - GIVEN telemetry is missing, empty, null, malformed, or partial WHEN an otherwise valid attempt is loaded or validated THEN the telemetry remains absent or unknown and does not invalidate the attempt.
+    - GIVEN explicit zero telemetry WHEN it is retained and reloaded THEN zero remains distinguishable from unavailable data.
+    - GIVEN legacy experiments and cache-less attempts WHEN summaries and validation regenerate THEN their serialized bytes remain unchanged.
+    - GIVEN offline fixtures exercise benchmark and experiment paths WHEN tests run THEN both expose equivalent best-effort observations without manifest attestation or downgrade enforcement.

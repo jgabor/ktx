@@ -543,9 +543,10 @@ has a one-based ordinal in capture order and independently carries available
 uncached input, output, cache read, cache write, reasoning, cost, identity,
 cache-control, and retry metadata. Cache-aware attempts retain these ordered
 observations in `model_steps`; this additive attempt schema-v2 field is absent
-from cache-less and legacy attempts. New cache-aware manifests declare
-`model_step_evidence_version: 1`; validation then requires schema-v2 attempts,
-a hashed stream artifact, and model-step observations that exactly reproduce it.
+from cache-less and legacy attempts. These observations are optional telemetry:
+missing, empty, partial, or malformed observations do not invalidate an attempt.
+When available, they are useful for inspecting event order and field availability;
+they are not an integrity or attestation mechanism.
 
 | Source-event kind | Meaning                                                                                                                  | Native request count               |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |

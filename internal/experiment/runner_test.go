@@ -170,8 +170,8 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	seenHashes := map[string]string{}
 	for _, attempt := range attempts {
-		if attempt.SchemaVersion != 2 || len(attempt.ModelSteps) != 1 || attempt.Artifacts["stream"] == "" || !isLowerSHA256(attempt.ContentHashes["stream"]) {
-			t.Fatalf("incomplete retained model-step evidence: %#v", attempt)
+		if attempt.SchemaVersion != 2 || len(attempt.ModelSteps) != 1 {
+			t.Fatalf("generated model-step telemetry = %#v", attempt.ModelSteps)
 		}
 		step := attempt.ModelSteps[0]
 		for _, measurement := range []IntegerMeasurement{step.UncachedInput, step.Output, step.Reasoning, step.CacheRead, step.CacheWrite} {
@@ -198,9 +198,12 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	retained, _ := os.ReadFile(filepath.Join(dir, "attempts.jsonl"))
 	manifestBytes, _ := os.ReadFile(filepath.Join(dir, "manifest.json"))
-	var manifest Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil || manifest.ModelStepEvidenceVersion != 1 {
-		t.Fatalf("model-step evidence manifest = %#v, err=%v", manifest, err)
+	var manifest map[string]any
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := manifest["model_step_evidence_version"]; exists {
+		t.Fatalf("optional telemetry gained manifest attestation: %s", manifestBytes)
 	}
 	rawBySide := map[string]string{}
 	for i, args := range fake.runArgs {
@@ -244,7 +247,6 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	if err != nil || report["valid"] != true || report["summary_byte_match"] != true {
 		t.Fatalf("validation report=%#v err=%v", report, err)
 	}
-	assertRetainedModelStepValidationRejects(t, dir)
 
 	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.17.15"}
 	observedRunner := &Runner{Executor: observedFake, Now: runner.Now, PID: 30, ResolvePrice: testPriceResolver}
@@ -292,86 +294,6 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	if defaults.TargetValid != 5 || defaults.Warmup != 1 || defaults.MaxAttempts < 14 {
 		t.Fatalf("v5 defaults = target %d warmup %d max %d", defaults.TargetValid, defaults.Warmup, defaults.MaxAttempts)
-	}
-}
-
-func assertRetainedModelStepValidationRejects(t *testing.T, directory string) {
-	t.Helper()
-	attemptPath := filepath.Join(directory, "attempts.jsonl")
-	original, err := os.ReadFile(attemptPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, test := range []struct {
-		name   string
-		mutate func(*Attempt)
-	}{
-		{"schema downgrade", func(attempt *Attempt) { attempt.SchemaVersion = 1 }},
-		{"missing stream", func(attempt *Attempt) { delete(attempt.Artifacts, "stream") }},
-		{"missing stream hash", func(attempt *Attempt) { delete(attempt.ContentHashes, "stream") }},
-		{"missing model steps", func(attempt *Attempt) { attempt.ModelSteps = nil }},
-		{"empty model steps", func(attempt *Attempt) { attempt.ModelSteps = []SourceEvent{} }},
-		{"unsupported attempt schema", func(attempt *Attempt) { attempt.SchemaVersion = 3 }},
-		{"tampered state", func(attempt *Attempt) { attempt.ModelSteps[0].CacheRead = MeasuredInteger(1) }},
-		{"mismatched total", func(attempt *Attempt) { *attempt.TokensIn++ }},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			if err := os.WriteFile(attemptPath, original, 0o644); err != nil {
-				t.Fatal(err)
-			}
-			attempts, err := LoadAttempts(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
-			test.mutate(&attempts[0])
-			if err := os.WriteFile(attemptPath, nil, 0o644); err != nil {
-				t.Fatal(err)
-			}
-			for _, attempt := range attempts {
-				if err := AppendAttempt(directory, attempt); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if _, err := WriteSummary(directory); err != nil {
-				t.Fatal(err)
-			}
-			report, err := ValidateExperiment(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if report["valid"] != false {
-				t.Fatalf("validation accepted %s: %#v", test.name, report)
-			}
-		})
-	}
-	if err := os.WriteFile(attemptPath, original, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	manifestPath := filepath.Join(directory, "manifest.json")
-	manifestData, err := os.ReadFile(manifestPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var manifest Manifest
-	if err := json.Unmarshal(manifestData, &manifest); err != nil {
-		t.Fatal(err)
-	}
-	manifest.ModelStepEvidenceVersion = 2
-	if err := WriteJSON(manifestPath, manifest); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := WriteSummary(directory); err != nil {
-		t.Fatal(err)
-	}
-	report, err := ValidateExperiment(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if report["valid"] != false {
-		t.Fatalf("validation accepted unsupported model_step_evidence_version: %#v", report)
-	}
-	if err := os.WriteFile(manifestPath, manifestData, 0o644); err != nil {
-		t.Fatal(err)
 	}
 }
 

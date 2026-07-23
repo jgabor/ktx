@@ -1,7 +1,7 @@
 header:
   level: full
   created: 2026-07-12
-  status: active
+  status: open
   reviewed: 2026-07-12
   critic_issues: 14 found, 10 addressed, 4 dismissed
   title: "Plan: Subcommand extraction and embedded default profiles"
@@ -20,7 +20,8 @@ scope:
     - TOML parsing of subcommand field in route blocks
     - Embedded default-profiles.toml compiled into binary
     - Include directive so user ktx.toml can reference embedded profiles
-    - "Config merge: user profiles override embedded by name; user routes evaluated first"
+    - "Config merge: user profiles override embedded by name; user routes
+      evaluated first"
     - Baseline profiles for git (status, diff, log)
     - Baseline profiles for bash (ls, find)
     - Example config and documentation updates
@@ -37,48 +38,80 @@ design: |
 tasks:
   - number: 1
     name: Subcommand extraction in router
-    depends_on:
-      []
+    depends_on: []
     status: pending
     acceptance:
-      - GIVEN ktx.toml with [[route]] subcommand = "status" profile = "x" WHEN config.Load() runs THEN cfg.Routes[0].Subcommand == "status"
-      - GIVEN a tool call with command "git status --short" WHEN a route rule has Subcommand "status" THEN the router returns that rule's profile name
-      - GIVEN a tool call with command "git diff" WHEN a route rule has Subcommand "status" THEN the router does not match that rule
-      - GIVEN a tool call with command "git" (no subcommand) WHEN a route rule has Subcommand "status" THEN the router does not match that rule
-      - GIVEN a tool call with command "git --no-pager log" WHEN a route rule has Subcommand "log" THEN the router returns that rule's profile name
-      - GIVEN a tool call with malformed or empty input JSON WHEN a route rule has Subcommand set THEN the rule does not match (mirrors CommandPrefix behavior)
+      - GIVEN ktx.toml with [[route]] subcommand = "status" profile = "x" WHEN
+        config.Load() runs THEN cfg.Routes[0].Subcommand == "status"
+      - GIVEN a tool call with command "git status --short" WHEN a route rule
+        has Subcommand "status" THEN the router returns that rule's profile name
+      - GIVEN a tool call with command "git diff" WHEN a route rule has
+        Subcommand "status" THEN the router does not match that rule
+      - GIVEN a tool call with command "git" (no subcommand) WHEN a route rule
+        has Subcommand "status" THEN the router does not match that rule
+      - GIVEN a tool call with command "git --no-pager log" WHEN a route rule
+        has Subcommand "log" THEN the router returns that rule's profile name
+      - GIVEN a tool call with malformed or empty input JSON WHEN a route rule
+        has Subcommand set THEN the rule does not match (mirrors CommandPrefix
+        behavior)
   - number: 2
     name: Embedded default profiles infrastructure
     depends_on:
       - "1"
     status: pending
     acceptance:
-      - GIVEN no ktx.toml exists WHEN config is loaded THEN the config object has no profiles and no routes (passthrough, D14 unchanged)
-      - GIVEN a ktx.toml with include_defaults = true WHEN config is loaded THEN the config object contains embedded profiles and route rules from the embedded defaults
-      - GIVEN a ktx.toml with include_defaults = true and a profile named "git-status" WHEN config is loaded THEN the user's "git-status" profile overrides the embedded one of the same name
-      - GIVEN a ktx.toml with include_defaults = true and route rules WHEN config is loaded THEN user route rules are evaluated before embedded route rules under first-match-wins
-      - GIVEN ktx config show --json WHEN include_defaults = true THEN the JSON output shows both embedded and user profiles with user profiles marked as overrides
+      - GIVEN no ktx.toml exists WHEN config is loaded THEN the config object
+        has no profiles and no routes (passthrough, D14 unchanged)
+      - GIVEN a ktx.toml with include_defaults = true WHEN config is loaded THEN
+        the config object contains embedded profiles and route rules from the
+        embedded defaults
+      - GIVEN a ktx.toml with include_defaults = true and a profile named
+        "git-status" WHEN config is loaded THEN the user's "git-status" profile
+        overrides the embedded one of the same name
+      - GIVEN a ktx.toml with include_defaults = true and route rules WHEN
+        config is loaded THEN user route rules are evaluated before embedded
+        route rules under first-match-wins
+      - GIVEN ktx config show --json WHEN include_defaults = true THEN the JSON
+        output shows both embedded and user profiles with user profiles marked
+        as overrides
   - number: 3
     name: Curate baseline profiles for git commands
     depends_on:
       - "2"
     status: pending
     acceptance:
-      - GIVEN a git status tool call with include_defaults enabled WHEN compression runs THEN the profile strips ANSI and deduplicates blank lines and output contains the file-status entries from the input
-      - GIVEN a git diff tool call with include_defaults enabled WHEN compression runs THEN the profile applies head or keep-ends stages and the diff body lines starting with + or - are preserved in the output
-      - GIVEN a git log tool call with include_defaults enabled WHEN compression runs THEN the profile applies head to limit output and the commit hash lines are preserved
-      - GIVEN a tool call that matches no embedded route rule WHEN include_defaults enabled THEN the passthrough pipeline applies (empty stages)
+      - GIVEN a git status tool call with include_defaults enabled WHEN
+        compression runs THEN the profile strips ANSI and deduplicates blank
+        lines and output contains the file-status entries from the input
+      - GIVEN a git diff tool call with include_defaults enabled WHEN
+        compression runs THEN the profile applies head or keep-ends stages and
+        the diff body lines starting with + or - are preserved in the output
+      - GIVEN a git log tool call with include_defaults enabled WHEN compression
+        runs THEN the profile applies head to limit output and the commit hash
+        lines are preserved
+      - GIVEN a tool call that matches no embedded route rule WHEN
+        include_defaults enabled THEN the passthrough pipeline applies (empty
+        stages)
   - number: 4
     name: Baseline profiles for bash commands and documentation
     depends_on:
       - "3"
     status: pending
     acceptance:
-      - GIVEN an ls tool call with include_defaults enabled WHEN compression runs THEN the profile strips ANSI and normalizes line endings and the file entries are preserved
-      - GIVEN a find tool call with include_defaults enabled WHEN compression runs THEN the profile strips ANSI and the path entries are preserved
-      - GIVEN a user reading ktx.example.toml WHEN they look for subcommand routing THEN they find examples showing the Subcommand field
-      - GIVEN a user reading ktx.example.toml WHEN they look for embedded defaults THEN they find the include_defaults directive and a list of what profiles ship built-in
-      - GIVEN a user reading docs/pipelines.md WHEN they look for embedded defaults THEN they find a section explaining the include mechanism, what profiles ship, and how user config overrides them
-      - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test ./... run THEN both exit zero
+      - GIVEN an ls tool call with include_defaults enabled WHEN compression
+        runs THEN the profile strips ANSI and normalizes line endings and the
+        file entries are preserved
+      - GIVEN a find tool call with include_defaults enabled WHEN compression
+        runs THEN the profile strips ANSI and the path entries are preserved
+      - GIVEN a user reading ktx.example.toml WHEN they look for subcommand
+        routing THEN they find examples showing the Subcommand field
+      - GIVEN a user reading ktx.example.toml WHEN they look for embedded
+        defaults THEN they find the include_defaults directive and a list of
+        what profiles ship built-in
+      - GIVEN a user reading docs/pipelines.md WHEN they look for embedded
+        defaults THEN they find a section explaining the include mechanism, what
+        profiles ship, and how user config overrides them
+      - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test
+        ./... run THEN both exit zero
 surprises: |
   D14 (firm) explicitly rejected always-on builtins. The original plan draft violated D14 by changing the no-config default from passthrough to embedded defaults. Revised to opt-in via an include directive in user ktx.toml, leaving D14 intact. Route precedence design originally said "prepend" embedded routes, which under first-match-wins would make embedded rules win over user rules; corrected to "append" so user rules evaluate first. Compound commands route on the first binary's subcommand only; documented as a known limitation, not a gap.

@@ -1,7 +1,7 @@
 header:
   level: full
   created: 2026-07-12
-  status: active
+  status: open
   reviewed: 2026-07-12
   critic_issues: 14 found, 10 addressed, 4 dismissed
   title: "Plan: Subcommand extraction and recommended default profiles"
@@ -18,7 +18,8 @@ scope:
     - Subcommand field on RouteRule and extraction logic
     - Subcommand match semantics (exact equality on second token)
     - TOML parsing of subcommand field in route blocks
-    - Recommended git profiles (status, diff, log) as comments in ktx.example.toml
+    - Recommended git profiles (status, diff, log) as comments in
+      ktx.example.toml
     - Recommended bash profiles (ls, find) as comments in ktx.example.toml
     - Documentation for subcommand routing in docs/pipelines.md
   excluded:
@@ -35,26 +36,39 @@ design: |
 tasks:
   - number: 1
     name: Subcommand extraction in router
-    depends_on:
-      []
+    depends_on: []
     status: complete
     acceptance:
-      - GIVEN ktx.toml with [[route]] subcommand = "status" profile = "x" WHEN config.Load() runs THEN cfg.Routes[0].Subcommand == "status"
-      - GIVEN a tool call with command "git status --short" WHEN a route rule has Subcommand "status" THEN the router returns that rule's profile name
-      - GIVEN a tool call with command "git diff" WHEN a route rule has Subcommand "status" THEN the router does not match that rule
-      - GIVEN a tool call with command "git" (no subcommand) WHEN a route rule has Subcommand "status" THEN the router does not match that rule
-      - GIVEN a tool call with command "git --no-pager log" WHEN a route rule has Subcommand "log" THEN the router returns that rule's profile name
-      - GIVEN a tool call with malformed or empty input JSON WHEN a route rule has Subcommand set THEN the rule does not match (mirrors CommandPrefix behavior)
+      - GIVEN ktx.toml with [[route]] subcommand = "status" profile = "x" WHEN
+        config.Load() runs THEN cfg.Routes[0].Subcommand == "status"
+      - GIVEN a tool call with command "git status --short" WHEN a route rule
+        has Subcommand "status" THEN the router returns that rule's profile name
+      - GIVEN a tool call with command "git diff" WHEN a route rule has
+        Subcommand "status" THEN the router does not match that rule
+      - GIVEN a tool call with command "git" (no subcommand) WHEN a route rule
+        has Subcommand "status" THEN the router does not match that rule
+      - GIVEN a tool call with command "git --no-pager log" WHEN a route rule
+        has Subcommand "log" THEN the router returns that rule's profile name
+      - GIVEN a tool call with malformed or empty input JSON WHEN a route rule
+        has Subcommand set THEN the rule does not match (mirrors CommandPrefix
+        behavior)
   - number: 2
     name: Recommended profiles and documentation
     depends_on:
       - "1"
     status: complete
     acceptance:
-      - GIVEN a user reading ktx.example.toml WHEN they look for subcommand routing THEN they find commented examples showing the Subcommand field with git status git diff and git log
-      - GIVEN a user reading ktx.example.toml WHEN they look for bash profiles THEN they find commented examples showing command_prefix routing for ls and find
-      - GIVEN a user reading docs/pipelines.md WHEN they look for subcommand routing THEN they find an explanation of the Subcommand match field and how it differs from CommandPrefix
-      - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test ./... run THEN both exit zero
+      - GIVEN a user reading ktx.example.toml WHEN they look for subcommand
+        routing THEN they find commented examples showing the Subcommand field
+        with git status git diff and git log
+      - GIVEN a user reading ktx.example.toml WHEN they look for bash profiles
+        THEN they find commented examples showing command_prefix routing for ls
+        and find
+      - GIVEN a user reading docs/pipelines.md WHEN they look for subcommand
+        routing THEN they find an explanation of the Subcommand match field and
+        how it differs from CommandPrefix
+      - GIVEN all prior tasks are complete WHEN go build ./cmd/ktx and go test
+        ./... run THEN both exit zero
 surprises: |
   Original plan included binary-embedded profiles with an include_defaults directive and config merge logic. User revised to recommended profiles in ktx.example.toml only — simpler, no infrastructure, D14 cleanly preserved.
 previous_plan_archived: .agentera/archive/PLAN-2026-07-12-subcommand-extraction-and-embedded-default-profiles.yaml

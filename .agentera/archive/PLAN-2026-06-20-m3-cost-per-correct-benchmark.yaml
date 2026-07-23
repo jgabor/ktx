@@ -1,36 +1,99 @@
 header:
   level: full
   created: "2026-06-19"
-  status: active
+  status: open
   reviewed: "2026-06-19"
   critic_issues: "11 found, 11 addressed, 0 dismissed"
   title: M3 — Cost-per-correct benchmark
-what: "Persist and surface a cost-per-correct-answer headline number for at least one (agent, model, task) triple, reproducible from a published methodology. M3 introduces `ktx bench run <agent> <model> <task>` (persists a benchmark run with the (agent, model, task, score, cost) tuple) and `ktx bench report` (emits the headline number plus methodology reference). The plan also lands the D11 implementation (HTTP fetch from https://models.dev, local price cache at $XDG_DATA_HOME/ktx/prices.json, derive cost from tokens+model when the caller omits it) and records the benchmark methodology as D12 so bench run can be implemented mechanically with no further deliberation."
-why: "M3 is the artifact that disputes or proves the vision's cost contract — 'meter, budget, dispute it.' Without a reproducible headline, M2's per-call cost remains an inventory rather than evidence. M3 also closes the 'report' loop in the conceptual system (observe → classify → transform → measure → persist → report) by surfacing the aggregated number. Bench is the only thing in the product that non-users will see quoted; getting the methodology on disk now is what lets the headline outlive the binary."
-constraints: "All firm decisions D1–D11 are hard constraints; D12 is recorded as part of M3 task 1 and becomes a constraint from task 2 onward. Go stdlib first; pure-Go SQLite (no CGO); no new external deps. M3 extends the existing flat-JSON payload pattern from M2 — `ktx bench run` accepts the flat envelope per D9 (no new payload shape). `ktx read` stays raw JSON; `ktx bench report` JSON default, `--format text` for humans. No compression (M4), no config file (M5), no `ktx bench compare` (out of scope this plan). SQLite ALTER TABLE / CREATE for in-place `bench_runs` migration; no custom migration framework. Cache TTL and auto-refresh policy are deferred; M3 ships fetch-on-first-use with a documented default and a manual refresh hook (`ktx prices update`), no auto-refresh."
+what: "Persist and surface a cost-per-correct-answer headline number for at
+  least one (agent, model, task) triple, reproducible from a published
+  methodology. M3 introduces `ktx bench run <agent> <model> <task>` (persists a
+  benchmark run with the (agent, model, task, score, cost) tuple) and `ktx bench
+  report` (emits the headline number plus methodology reference). The plan also
+  lands the D11 implementation (HTTP fetch from https://models.dev, local price
+  cache at $XDG_DATA_HOME/ktx/prices.json, derive cost from tokens+model when
+  the caller omits it) and records the benchmark methodology as D12 so bench run
+  can be implemented mechanically with no further deliberation."
+why: "M3 is the artifact that disputes or proves the vision's cost contract —
+  'meter, budget, dispute it.' Without a reproducible headline, M2's per-call
+  cost remains an inventory rather than evidence. M3 also closes the 'report'
+  loop in the conceptual system (observe → classify → transform → measure →
+  persist → report) by surfacing the aggregated number. Bench is the only thing
+  in the product that non-users will see quoted; getting the methodology on disk
+  now is what lets the headline outlive the binary."
+constraints: "All firm decisions D1–D11 are hard constraints; D12 is recorded as
+  part of M3 task 1 and becomes a constraint from task 2 onward. Go stdlib
+  first; pure-Go SQLite (no CGO); no new external deps. M3 extends the existing
+  flat-JSON payload pattern from M2 — `ktx bench run` accepts the flat envelope
+  per D9 (no new payload shape). `ktx read` stays raw JSON; `ktx bench report`
+  JSON default, `--format text` for humans. No compression (M4), no config file
+  (M5), no `ktx bench compare` (out of scope this plan). SQLite ALTER TABLE /
+  CREATE for in-place `bench_runs` migration; no custom migration framework.
+  Cache TTL and auto-refresh policy are deferred; M3 ships fetch-on-first-use
+  with a documented default and a manual refresh hook (`ktx prices update`), no
+  auto-refresh."
 scope:
   included:
-    - "D12 resonera session recorded in `.agentera/decisions.yaml` with `confidence: firm` and `feeds_into` covering bench commands + M4"
-    - "Published methodology artifact at `.agentera/bench/methodology-v1.yaml` (path committed by D12) referenced by `bench_runs` rows; the file lists every input that produced the headline (agent binary/version, model ID, task prompt, expected output, scoring function, trial count, ktx binary version)"
-    - "D11 implementation: HTTP GET https://models.dev, parse JSON, write `$XDG_DATA_HOME/ktx/prices.json` keyed by `(provider, model)` with input/output USD-per-million-token rates; atomic write (write-to-temp + rename); parent directory created if missing"
-    - "D11 derivation step: fill `cost` from `(tokens_in * in_price + tokens_out * out_price) / 1_000_000` against the cached `(provider, model)` price when the caller omitted it; soft-fail on fetch error (stored cost still surfaced, no error exit); NULL preserved when any of tokens_in/tokens_out/model is NULL (the reconstructability contract requires all three); derivation runs at write time, not at read time"
-    - "`bench_runs` table on the existing SQLite DB (in-place CREATE / ALTER inside `store.Open`, same idempotent pattern as M2's `tool_calls` migration): `id TEXT PRIMARY KEY` (D3 nanoid), `agent TEXT`, `model TEXT`, `task TEXT`, `score REAL`, `tokens_in INTEGER`, `tokens_out INTEGER`, `cost REAL`, `methodology_version TEXT`, `timestamp INTEGER`"
-    - "`ktx bench run <agent> <model> <task>` — consumes the D12 methodology, executes the task via the wrapper or sidecar (methodology decides), scores per the scoring function, persists a `bench_runs` row with cost derived per D11, prints the headline number to stdout and a one-line summary to stderr (D1 wrapper convention)"
-    - "`ktx bench report` — lists `bench_runs` rows in insertion order (oldest first); JSON default with `--format text`; emits a top-level headline number alongside a rows array; `--methodology <version>` filter for rows; positional `<id>` for single-row retrieval"
-    - "`ktx prices update` — manual refresh hook for the price cache: forces a refetch regardless of cache state, rewrites the cache atomically"
-    - "`ktx doctor` flags missing `bench_runs` on pre-M3 databases as a normal-severity warning (not hard error — M1/M2 records still queryable)"
-    - "M3 acceptance verification at `.agentera/verification/m3-acceptance.md`: reproducibility proof (two independent `bench run` invocations on the same inputs produce the same headline), M2 regression preserved, offline cost derivation works against a pre-seeded cache"
+    - "D12 resonera session recorded in `.agentera/decisions.yaml` with
+      `confidence: firm` and `feeds_into` covering bench commands + M4"
+    - "Published methodology artifact at `.agentera/bench/methodology-v1.yaml`
+      (path committed by D12) referenced by `bench_runs` rows; the file lists
+      every input that produced the headline (agent binary/version, model ID,
+      task prompt, expected output, scoring function, trial count, ktx binary
+      version)"
+    - "D11 implementation: HTTP GET https://models.dev, parse JSON, write
+      `$XDG_DATA_HOME/ktx/prices.json` keyed by `(provider, model)` with
+      input/output USD-per-million-token rates; atomic write (write-to-temp +
+      rename); parent directory created if missing"
+    - "D11 derivation step: fill `cost` from `(tokens_in * in_price + tokens_out
+      * out_price) / 1_000_000` against the cached `(provider, model)` price
+      when the caller omitted it; soft-fail on fetch error (stored cost still
+      surfaced, no error exit); NULL preserved when any of
+      tokens_in/tokens_out/model is NULL (the reconstructability contract
+      requires all three); derivation runs at write time, not at read time"
+    - "`bench_runs` table on the existing SQLite DB (in-place CREATE / ALTER
+      inside `store.Open`, same idempotent pattern as M2's `tool_calls`
+      migration): `id TEXT PRIMARY KEY` (D3 nanoid), `agent TEXT`, `model TEXT`,
+      `task TEXT`, `score REAL`, `tokens_in INTEGER`, `tokens_out INTEGER`,
+      `cost REAL`, `methodology_version TEXT`, `timestamp INTEGER`"
+    - "`ktx bench run <agent> <model> <task>` — consumes the D12 methodology,
+      executes the task via the wrapper or sidecar (methodology decides), scores
+      per the scoring function, persists a `bench_runs` row with cost derived
+      per D11, prints the headline number to stdout and a one-line summary to
+      stderr (D1 wrapper convention)"
+    - "`ktx bench report` — lists `bench_runs` rows in insertion order (oldest
+      first); JSON default with `--format text`; emits a top-level headline
+      number alongside a rows array; `--methodology <version>` filter for rows;
+      positional `<id>` for single-row retrieval"
+    - "`ktx prices update` — manual refresh hook for the price cache: forces a
+      refetch regardless of cache state, rewrites the cache atomically"
+    - "`ktx doctor` flags missing `bench_runs` on pre-M3 databases as a
+      normal-severity warning (not hard error — M1/M2 records still queryable)"
+    - "M3 acceptance verification at `.agentera/verification/m3-acceptance.md`:
+      reproducibility proof (two independent `bench run` invocations on the same
+      inputs produce the same headline), M2 regression preserved, offline cost
+      derivation works against a pre-seeded cache"
   excluded:
-    - "`ktx bench compare` (post-M3; D2 subcommand surface, M3 ships `run` and `report` only)"
-    - "Per-layer savings roll-up into the headline (post-M3; M3 measures cost-per-correct, not savings)"
-    - "Compression impact on the benchmark (M4+; M3 measures cost with no compression in the loop)"
-    - "Multi-task / multi-model sweeps (post-M3; methodology v1 commits to one task, one model, one agent)"
-    - "Statistical significance / confidence intervals (post-M3; trial count is methodology-defined, no formal CI)"
-    - "Cache TTL and auto-refresh (D11 deferral; M3 ships a static cache with a manual refresh hook — policy is a post-M3 resonera)"
-    - "Second scoring function beyond exact-match v1 (post-M3 resonera; LLM-as-judge is the flexible default acknowledged but not implemented)"
-    - "`ktx doctor` cost-coverage warning (deferred per D11 auto-populate policy)"
-    - "tilth-style external artifact format (post-M3; `bench report` JSON is the artifact)"
-    - "Filters beyond `--methodology <version>` on `bench report` (post-M3; agent/model/task filters are a UX nicety, not required for M3 acceptance)"
+    - "`ktx bench compare` (post-M3; D2 subcommand surface, M3 ships `run` and
+      `report` only)"
+    - "Per-layer savings roll-up into the headline (post-M3; M3 measures
+      cost-per-correct, not savings)"
+    - "Compression impact on the benchmark (M4+; M3 measures cost with no
+      compression in the loop)"
+    - "Multi-task / multi-model sweeps (post-M3; methodology v1 commits to one
+      task, one model, one agent)"
+    - "Statistical significance / confidence intervals (post-M3; trial count is
+      methodology-defined, no formal CI)"
+    - "Cache TTL and auto-refresh (D11 deferral; M3 ships a static cache with a
+      manual refresh hook — policy is a post-M3 resonera)"
+    - "Second scoring function beyond exact-match v1 (post-M3 resonera;
+      LLM-as-judge is the flexible default acknowledged but not implemented)"
+    - "`ktx doctor` cost-coverage warning (deferred per D11 auto-populate
+      policy)"
+    - "tilth-style external artifact format (post-M3; `bench report` JSON is the
+      artifact)"
+    - "Filters beyond `--methodology <version>` on `bench report` (post-M3;
+      agent/model/task filters are a UX nicety, not required for M3 acceptance)"
   deferred:
     - "`ktx bench compare` (post-M3)"
     - "Multi-task and multi-model sweeps (post-M3)"
@@ -39,79 +102,265 @@ scope:
     - "Second scoring function alongside exact-match v1 (post-M3 resonera)"
     - "`ktx doctor` cost-coverage warning (post-M3)"
     - "Per-layer savings roll-up into the benchmark headline (post-M3)"
-    - "D11 `kTX write` typo fix in `decisions.yaml` (cosmetic; fold into the next decisions.yaml touch)"
-design: "Four sequential phases, no sub-milestone split. Phase 1 — D12 resonera: records the benchmark methodology as a firm decision before any code lands. The methodology commits to (a) task shape — identifier, prompt, ground-truth location; single-task minimum for v1; (b) scoring v1 — exact match against a known good output (boring default, deterministic); (c) trial count — N≥1 with methodology-documented handling of non-determinism; (d) methodology versioning — a version string (e.g., 'v1') on every `bench_runs` row that points to a sibling methodology file; (e) `bench report` artifact shape — JSON default with `--format text` rendering the headline number and methodology reference. D12 must specify enough that `bench run` can be implemented mechanically with no further deliberation. Phase 2 — D11 implementation: lands the recorded D11 decision. HTTP GET https://models.dev on first use, parse the price table, write a local cache at `$XDG_DATA_HOME/ktx/prices.json` keyed by `(provider, model)` with input/output USD-per-million-token rates; atomic write so a partial file cannot be observed. Read the cache in a cost-derivation path that fills `cost` from `tokens_in + tokens_out + model` when the caller omitted it (deferred from M2 per the D11 auto-populate policy). Fetch failure is a soft failure — stored cost still surfaced, no error exit. Idempotent cache write — multiple invocations on a warm cache do not refetch and do not rewrite the file. `ktx prices update` forces a refetch. The M2 columns on `tool_calls` are sufficient; no schema change in phase 2. Phase 3 — `ktx bench run` + `ktx bench report`: a `bench_runs` table is added via the same in-place ALTER / CREATE pattern as M2's `tool_calls` migration (inside `store.Open`, idempotent, forward-fix on partial schemas). `ktx bench run <agent> <model> <task>` consumes the methodology, executes the task, scores per the scoring function, writes the `bench_runs` row with cost derived per D11 at write time (the published cost is derived, not guessed at read time), prints the headline to stdout and a one-line summary to stderr. `ktx bench report` reads `bench_runs`; JSON default with `--format text`; positional `<id>` for single-row retrieval; `--methodology <version>` filter. Same flat envelope per D9 — no new payload shape. Implementation risk: D12's task shape (file? flag? URL?) determines `bench run`'s input contract — realisera must implement defensively (missing or unreadable task definition or methodology file is exit 2 not-found, never a soft failure). Implementation risk: the M2 wrapper path leaves cost NULL for OpenCode `tool_use` events (OpenCode 1.17.8 emits tokens on `step_finish`, not `tool_use`, per M2 verification §3); D12 should commit to the sidecar path for the headline (agent, model, task) under test because it is the only path that supplies M2 fields per-call for OpenCode today; if D12 picks the wrapper path instead, the verification must document that cost is derived post-hoc via D11, not captured at write time. Phase 4 — M3 acceptance verification: `.agentera/verification/m3-acceptance.md`. Reproducibility proof: two independent `bench run` invocations on the same (agent, model, task) produce the same headline (modulo methodology-acknowledged non-determinism, which is zero for deterministic agents and exact-match scoring). M2 regression preserved — every M2 acceptance case still passes against the M3 binary. Offline cost derivation works without network access (cache is read, no fetch required). `bench_runs` migration on a pre-M3 database creates the table forward and leaves M1/M2 records intact. The verification log is the artifact that closes ROADMAP.md's M3 acceptance line ('the number is reproducible from the published methodology')."
+    - "D11 `kTX write` typo fix in `decisions.yaml` (cosmetic; fold into the
+      next decisions.yaml touch)"
+design: "Four sequential phases, no sub-milestone split. Phase 1 — D12 resonera:
+  records the benchmark methodology as a firm decision before any code lands.
+  The methodology commits to (a) task shape — identifier, prompt, ground-truth
+  location; single-task minimum for v1; (b) scoring v1 — exact match against a
+  known good output (boring default, deterministic); (c) trial count — N≥1 with
+  methodology-documented handling of non-determinism; (d) methodology versioning
+  — a version string (e.g., 'v1') on every `bench_runs` row that points to a
+  sibling methodology file; (e) `bench report` artifact shape — JSON default
+  with `--format text` rendering the headline number and methodology reference.
+  D12 must specify enough that `bench run` can be implemented mechanically with
+  no further deliberation. Phase 2 — D11 implementation: lands the recorded D11
+  decision. HTTP GET https://models.dev on first use, parse the price table,
+  write a local cache at `$XDG_DATA_HOME/ktx/prices.json` keyed by `(provider,
+  model)` with input/output USD-per-million-token rates; atomic write so a
+  partial file cannot be observed. Read the cache in a cost-derivation path that
+  fills `cost` from `tokens_in + tokens_out + model` when the caller omitted it
+  (deferred from M2 per the D11 auto-populate policy). Fetch failure is a soft
+  failure — stored cost still surfaced, no error exit. Idempotent cache write —
+  multiple invocations on a warm cache do not refetch and do not rewrite the
+  file. `ktx prices update` forces a refetch. The M2 columns on `tool_calls` are
+  sufficient; no schema change in phase 2. Phase 3 — `ktx bench run` + `ktx
+  bench report`: a `bench_runs` table is added via the same in-place ALTER /
+  CREATE pattern as M2's `tool_calls` migration (inside `store.Open`,
+  idempotent, forward-fix on partial schemas). `ktx bench run <agent> <model>
+  <task>` consumes the methodology, executes the task, scores per the scoring
+  function, writes the `bench_runs` row with cost derived per D11 at write time
+  (the published cost is derived, not guessed at read time), prints the headline
+  to stdout and a one-line summary to stderr. `ktx bench report` reads
+  `bench_runs`; JSON default with `--format text`; positional `<id>` for
+  single-row retrieval; `--methodology <version>` filter. Same flat envelope per
+  D9 — no new payload shape. Implementation risk: D12's task shape (file? flag?
+  URL?) determines `bench run`'s input contract — realisera must implement
+  defensively (missing or unreadable task definition or methodology file is exit
+  2 not-found, never a soft failure). Implementation risk: the M2 wrapper path
+  leaves cost NULL for OpenCode `tool_use` events (OpenCode 1.17.8 emits tokens
+  on `step_finish`, not `tool_use`, per M2 verification §3); D12 should commit
+  to the sidecar path for the headline (agent, model, task) under test because
+  it is the only path that supplies M2 fields per-call for OpenCode today; if
+  D12 picks the wrapper path instead, the verification must document that cost
+  is derived post-hoc via D11, not captured at write time. Phase 4 — M3
+  acceptance verification: `.agentera/verification/m3-acceptance.md`.
+  Reproducibility proof: two independent `bench run` invocations on the same
+  (agent, model, task) produce the same headline (modulo
+  methodology-acknowledged non-determinism, which is zero for deterministic
+  agents and exact-match scoring). M2 regression preserved — every M2 acceptance
+  case still passes against the M3 binary. Offline cost derivation works without
+  network access (cache is read, no fetch required). `bench_runs` migration on a
+  pre-M3 database creates the table forward and leaves M1/M2 records intact. The
+  verification log is the artifact that closes ROADMAP.md's M3 acceptance line
+  ('the number is reproducible from the published methodology')."
 tasks:
   - number: 1
     name: "Resonera — benchmark methodology (D12)"
     depends_on: []
     status: complete
     acceptance:
-      - "GIVEN the open deliberation 'Benchmark methodology v1' in ARCHITECTURE.md WHEN a resonera session records the choice THEN a new decision entry in `.agentera/decisions.yaml` documents: (a) task shape — identifier, prompt, ground-truth location, single-task minimum for v1; (b) scoring v1 — exact match against a known good output (boring default, deterministic); (c) trial count — N≥1 with methodology-documented handling of non-determinism; (d) methodology versioning — a version string on every `bench_runs` row; (e) `bench report` artifact shape — JSON default with `--format text` rendering the headline number and methodology reference"
-      - "GIVEN the decision WHEN recorded THEN ARCHITECTURE.md 'Measurement and benchmark' open-deliberation item 'Benchmark methodology v1' moves to Decided with a short paragraph citing D12"
-      - "GIVEN the decision WHEN recorded THEN a published methodology file exists at the path committed by D12 (recommended: `.agentera/bench/methodology-v1.yaml`) that a third party can read and follow"
-      - "GIVEN the decision WHEN recorded THEN the new entry has `confidence: firm` and a `feeds_into` list naming: schema migration (task 3), `ktx bench run`, `ktx bench report`, M4 compression impact on bench"
-      - "GIVEN the methodology file WHEN a third party reads it THEN they can name every input that produced the published headline number (agent binary/version, model ID, task prompt, expected output, scoring function, trial count, ktx binary version, `bench_runs` row id) — the file is the reproducibility contract"
+      - "GIVEN the open deliberation 'Benchmark methodology v1' in
+        ARCHITECTURE.md WHEN a resonera session records the choice THEN a new
+        decision entry in `.agentera/decisions.yaml` documents: (a) task shape —
+        identifier, prompt, ground-truth location, single-task minimum for v1;
+        (b) scoring v1 — exact match against a known good output (boring
+        default, deterministic); (c) trial count — N≥1 with
+        methodology-documented handling of non-determinism; (d) methodology
+        versioning — a version string on every `bench_runs` row; (e) `bench
+        report` artifact shape — JSON default with `--format text` rendering the
+        headline number and methodology reference"
+      - "GIVEN the decision WHEN recorded THEN ARCHITECTURE.md 'Measurement and
+        benchmark' open-deliberation item 'Benchmark methodology v1' moves to
+        Decided with a short paragraph citing D12"
+      - "GIVEN the decision WHEN recorded THEN a published methodology file
+        exists at the path committed by D12 (recommended:
+        `.agentera/bench/methodology-v1.yaml`) that a third party can read and
+        follow"
+      - "GIVEN the decision WHEN recorded THEN the new entry has `confidence:
+        firm` and a `feeds_into` list naming: schema migration (task 3), `ktx
+        bench run`, `ktx bench report`, M4 compression impact on bench"
+      - "GIVEN the methodology file WHEN a third party reads it THEN they can
+        name every input that produced the published headline number (agent
+        binary/version, model ID, task prompt, expected output, scoring
+        function, trial count, ktx binary version, `bench_runs` row id) — the
+        file is the reproducibility contract"
   - number: 2
     name: "D11 implementation — price cache and cost derivation"
     depends_on: []
     status: complete
     acceptance:
-      - "GIVEN a cold cache (no `$XDG_DATA_HOME/ktx/prices.json`) WHEN ktx needs a price and is invoked THEN ktx GETs https://models.dev, parses the JSON, writes the cache file keyed by `(provider, model)` with input/output USD-per-million-token rates; the parent directory (`$XDG_DATA_HOME/ktx/`) is created if missing"
-      - "GIVEN the cache file already exists and is non-empty WHEN ktx needs a price THEN ktx reads the cache and does not refetch; the cache file's content and mtime are preserved (idempotent cache write — second invocation on a warm cache is a no-op on disk)"
-      - "GIVEN a fetch failure (network error, non-2xx response, malformed JSON) WHEN ktx needs a price THEN ktx soft-fails: stored cost is still surfaced, no error exit, the cache file is not written or is left in its previous state, and the derivation step produces NULL cost when tokens cannot be priced"
-      - "GIVEN a tool_call with NULL `cost` + non-NULL `tokens_in`, `tokens_out`, `model` WHEN the D11 derivation step runs THEN `cost` is non-NULL and equals `(tokens_in * in_price + tokens_out * out_price) / 1_000_000` against the cached `(provider, model)` price, within USD rounding to 6 decimals"
-      - "GIVEN a tool_call with NULL `cost` AND any of `tokens_in`/`tokens_out`/`model` NULL WHEN the D11 derivation step runs THEN `cost` remains NULL (no inference from partial data; the D11 reconstructability contract requires all three)"
-      - "GIVEN a tool_call with non-NULL stored `cost` WHEN ktx reads or inspects it THEN the stored value is returned verbatim (D11 reconstructability contract — no derivation at read time; derivation is at write time only)"
-      - "GIVEN the M2 columns on `tool_calls` WHEN D11 derivation runs THEN the schema is unchanged — no new columns; the M2 columns are sufficient"
-      - "GIVEN `ktx prices update` WHEN invoked THEN ktx forces a refetch regardless of cache state and rewrites the cache file atomically (write-to-temp + rename); a fetch failure on the update command is a hard error (exit code 4) because the user explicitly requested the refresh"
+      - "GIVEN a cold cache (no `$XDG_DATA_HOME/ktx/prices.json`) WHEN ktx needs
+        a price and is invoked THEN ktx GETs https://models.dev, parses the
+        JSON, writes the cache file keyed by `(provider, model)` with
+        input/output USD-per-million-token rates; the parent directory
+        (`$XDG_DATA_HOME/ktx/`) is created if missing"
+      - "GIVEN the cache file already exists and is non-empty WHEN ktx needs a
+        price THEN ktx reads the cache and does not refetch; the cache file's
+        content and mtime are preserved (idempotent cache write — second
+        invocation on a warm cache is a no-op on disk)"
+      - "GIVEN a fetch failure (network error, non-2xx response, malformed JSON)
+        WHEN ktx needs a price THEN ktx soft-fails: stored cost is still
+        surfaced, no error exit, the cache file is not written or is left in its
+        previous state, and the derivation step produces NULL cost when tokens
+        cannot be priced"
+      - "GIVEN a tool_call with NULL `cost` + non-NULL `tokens_in`,
+        `tokens_out`, `model` WHEN the D11 derivation step runs THEN `cost` is
+        non-NULL and equals `(tokens_in * in_price + tokens_out * out_price) /
+        1_000_000` against the cached `(provider, model)` price, within USD
+        rounding to 6 decimals"
+      - "GIVEN a tool_call with NULL `cost` AND any of
+        `tokens_in`/`tokens_out`/`model` NULL WHEN the D11 derivation step runs
+        THEN `cost` remains NULL (no inference from partial data; the D11
+        reconstructability contract requires all three)"
+      - "GIVEN a tool_call with non-NULL stored `cost` WHEN ktx reads or
+        inspects it THEN the stored value is returned verbatim (D11
+        reconstructability contract — no derivation at read time; derivation is
+        at write time only)"
+      - "GIVEN the M2 columns on `tool_calls` WHEN D11 derivation runs THEN the
+        schema is unchanged — no new columns; the M2 columns are sufficient"
+      - "GIVEN `ktx prices update` WHEN invoked THEN ktx forces a refetch
+        regardless of cache state and rewrites the cache file atomically
+        (write-to-temp + rename); a fetch failure on the update command is a
+        hard error (exit code 4) because the user explicitly requested the
+        refresh"
   - number: 3
     name: "Schema migration — bench_runs table"
-    depends_on: ["1", "2"]
+    depends_on: [ "1", "2" ]
     status: complete
     acceptance:
-      - "GIVEN an M2-era database at the default path WHEN the new binary opens it THEN a new `bench_runs` table exists with columns: `id TEXT PRIMARY KEY` (D3 nanoid), `agent TEXT`, `model TEXT`, `task TEXT`, `score REAL`, `tokens_in INTEGER`, `tokens_out INTEGER`, `cost REAL`, `methodology_version TEXT`, `timestamp INTEGER`"
-      - "GIVEN the migration WHEN applied THEN existing `tool_calls` and `sessions` rows are unchanged; existing `bench_runs` rows (if any) are unchanged"
-      - "GIVEN a fresh database WHEN created THEN the schema includes `bench_runs` from the start (no migration needed)"
-      - "GIVEN `ktx doctor` WHEN invoked on a migrated DB THEN `schema_valid` reports `bench_runs` present AND on a pre-M3 database the doctor flags the missing `bench_runs` table as a normal-severity warning (not a hard error — M1/M2 records still queryable)"
-      - "GIVEN the migration logic WHEN run twice on the same DB THEN the second run is a no-op (idempotent)"
-      - "GIVEN a database with a partial `bench_runs` schema (some columns missing) WHEN the binary opens it THEN the missing columns are added on the next migration run (forward-fix, not an error)"
+      - "GIVEN an M2-era database at the default path WHEN the new binary opens
+        it THEN a new `bench_runs` table exists with columns: `id TEXT PRIMARY
+        KEY` (D3 nanoid), `agent TEXT`, `model TEXT`, `task TEXT`, `score REAL`,
+        `tokens_in INTEGER`, `tokens_out INTEGER`, `cost REAL`,
+        `methodology_version TEXT`, `timestamp INTEGER`"
+      - "GIVEN the migration WHEN applied THEN existing `tool_calls` and
+        `sessions` rows are unchanged; existing `bench_runs` rows (if any) are
+        unchanged"
+      - "GIVEN a fresh database WHEN created THEN the schema includes
+        `bench_runs` from the start (no migration needed)"
+      - "GIVEN `ktx doctor` WHEN invoked on a migrated DB THEN `schema_valid`
+        reports `bench_runs` present AND on a pre-M3 database the doctor flags
+        the missing `bench_runs` table as a normal-severity warning (not a hard
+        error — M1/M2 records still queryable)"
+      - "GIVEN the migration logic WHEN run twice on the same DB THEN the second
+        run is a no-op (idempotent)"
+      - "GIVEN a database with a partial `bench_runs` schema (some columns
+        missing) WHEN the binary opens it THEN the missing columns are added on
+        the next migration run (forward-fix, not an error)"
   - number: 4
     name: "ktx bench run"
-    depends_on: ["3"]
+    depends_on: [ "3" ]
     status: complete
     acceptance:
-      - "GIVEN a published methodology file + an (agent, model, task) triple WHEN `ktx bench run <agent> <model> <task>` is invoked THEN a new `bench_runs` row is persisted with `id`, `agent`, `model`, `task`, `score`, `tokens_in`, `tokens_out`, `cost`, `methodology_version`, `timestamp`"
-      - "GIVEN the bench run WHEN it completes THEN the headline number (per the D12 methodology's published metric) is printed to stdout and a one-line summary is printed to stderr (D1 wrapper convention)"
-      - "GIVEN the bench run WHEN the underlying task produces N trials (per D12 methodology) THEN the `bench_runs` row reflects the aggregate — `cost` is the sum across trials, `score` is the methodology-defined aggregate (mean for exact-match percentage by default), `tokens_in`/`tokens_out` are the sums"
-      - "GIVEN the bench run WHEN M2 fields on the underlying `tool_calls` are NULL but tokens + model are present AND the price cache is available THEN D11 derivation fills `cost` on the `bench_runs` row before the row is finalized (the published cost is derived at write time, not guessed at read time)"
-      - "GIVEN the bench run WHEN the price cache is unavailable AND tokens + model are present THEN bench run still completes: `cost` is NULL on the row, a stderr warning is emitted, the headline reflects the partial data (D11 soft-fail contract preserved)"
-      - "GIVEN the wrapper path WHEN bench run invokes `ktx run` THEN `KTX_SESSION_ID` is honored — the run does not double-record via the hook path (D1 / D10)"
-      - "GIVEN a missing or unreadable methodology file or task definition WHEN bench run is invoked THEN ktx exits with code 2 (not-found) and emits a machine-parseable JSON error to stderr — missing inputs are not a soft failure"
-      - "GIVEN the `methodology_version` field WHEN the `bench_runs` row is written THEN it references the D12-recorded methodology version string (e.g., 'v1'), not the ktx binary version"
+      - "GIVEN a published methodology file + an (agent, model, task) triple
+        WHEN `ktx bench run <agent> <model> <task>` is invoked THEN a new
+        `bench_runs` row is persisted with `id`, `agent`, `model`, `task`,
+        `score`, `tokens_in`, `tokens_out`, `cost`, `methodology_version`,
+        `timestamp`"
+      - "GIVEN the bench run WHEN it completes THEN the headline number (per the
+        D12 methodology's published metric) is printed to stdout and a one-line
+        summary is printed to stderr (D1 wrapper convention)"
+      - "GIVEN the bench run WHEN the underlying task produces N trials (per D12
+        methodology) THEN the `bench_runs` row reflects the aggregate — `cost`
+        is the sum across trials, `score` is the methodology-defined aggregate
+        (mean for exact-match percentage by default), `tokens_in`/`tokens_out`
+        are the sums"
+      - "GIVEN the bench run WHEN M2 fields on the underlying `tool_calls` are
+        NULL but tokens + model are present AND the price cache is available
+        THEN D11 derivation fills `cost` on the `bench_runs` row before the row
+        is finalized (the published cost is derived at write time, not guessed
+        at read time)"
+      - "GIVEN the bench run WHEN the price cache is unavailable AND tokens +
+        model are present THEN bench run still completes: `cost` is NULL on the
+        row, a stderr warning is emitted, the headline reflects the partial data
+        (D11 soft-fail contract preserved)"
+      - "GIVEN the wrapper path WHEN bench run invokes `ktx run` THEN
+        `KTX_SESSION_ID` is honored — the run does not double-record via the
+        hook path (D1 / D10)"
+      - "GIVEN a missing or unreadable methodology file or task definition WHEN
+        bench run is invoked THEN ktx exits with code 2 (not-found) and emits a
+        machine-parseable JSON error to stderr — missing inputs are not a soft
+        failure"
+      - "GIVEN the `methodology_version` field WHEN the `bench_runs` row is
+        written THEN it references the D12-recorded methodology version string
+        (e.g., 'v1'), not the ktx binary version"
   - number: 5
     name: "ktx bench report"
-    depends_on: ["4"]
+    depends_on: [ "4" ]
     status: complete
     acceptance:
-      - "GIVEN a database with one or more `bench_runs` rows WHEN `ktx bench report` is invoked THEN JSON output includes a top-level headline number (per the D12 methodology's published metric) alongside a rows array; each row carries `id`, `agent`, `model`, `task`, `score`, `cost`, `methodology_version`, `timestamp`"
-      - "GIVEN the same conditions WHEN `ktx bench report --format text` is invoked THEN the headline is rendered as a one-line summary with the methodology reference (e.g., 'v1') visible; rows are listed below in insertion order (oldest first)"
-      - "GIVEN a `bench_runs` id WHEN `ktx bench report <id>` is invoked THEN a single-row JSON is emitted for that `bench_runs` row (no rows array, headline is the row's value); if no row matches the id, ktx exits with code 2 (not-found)"
-      - "GIVEN a `bench_runs` row WHEN the JSON is emitted THEN the `methodology_version` field is present and non-NULL (the bench row is meaningless without a methodology reference)"
-      - "GIVEN two `bench_runs` rows with the same (agent, model, task) WHEN `ktx bench report` is invoked THEN the JSON includes both rows in insertion order (oldest first); the headline is the methodology-defined aggregate across rows"
-      - "GIVEN an empty `bench_runs` table WHEN `ktx bench report` is invoked THEN the headline is null, the rows array is empty, and ktx exits with code 0 — an empty benchmark is not an error"
-      - "GIVEN a methodology filter (`--methodology v1`) WHEN `ktx bench report` is invoked THEN only rows with that `methodology_version` are emitted; the headline is recomputed from the filtered set"
+      - "GIVEN a database with one or more `bench_runs` rows WHEN `ktx bench
+        report` is invoked THEN JSON output includes a top-level headline number
+        (per the D12 methodology's published metric) alongside a rows array;
+        each row carries `id`, `agent`, `model`, `task`, `score`, `cost`,
+        `methodology_version`, `timestamp`"
+      - "GIVEN the same conditions WHEN `ktx bench report --format text` is
+        invoked THEN the headline is rendered as a one-line summary with the
+        methodology reference (e.g., 'v1') visible; rows are listed below in
+        insertion order (oldest first)"
+      - "GIVEN a `bench_runs` id WHEN `ktx bench report <id>` is invoked THEN a
+        single-row JSON is emitted for that `bench_runs` row (no rows array,
+        headline is the row's value); if no row matches the id, ktx exits with
+        code 2 (not-found)"
+      - "GIVEN a `bench_runs` row WHEN the JSON is emitted THEN the
+        `methodology_version` field is present and non-NULL (the bench row is
+        meaningless without a methodology reference)"
+      - "GIVEN two `bench_runs` rows with the same (agent, model, task) WHEN
+        `ktx bench report` is invoked THEN the JSON includes both rows in
+        insertion order (oldest first); the headline is the methodology-defined
+        aggregate across rows"
+      - "GIVEN an empty `bench_runs` table WHEN `ktx bench report` is invoked
+        THEN the headline is null, the rows array is empty, and ktx exits with
+        code 0 — an empty benchmark is not an error"
+      - "GIVEN a methodology filter (`--methodology v1`) WHEN `ktx bench report`
+        is invoked THEN only rows with that `methodology_version` are emitted;
+        the headline is recomputed from the filtered set"
   - number: 6
     name: "M3 acceptance verification"
-    depends_on: ["1", "2", "3", "4", "5"]
+    depends_on: [ "1", "2", "3", "4", "5" ]
     status: complete
     acceptance:
-      - "GIVEN the full M3 implementation WHEN two independent `ktx bench run <agent> <model> <task>` invocations on the same inputs run to completion THEN both produce the same headline number (within methodology-acknowledged non-determinism, which is zero for deterministic agents and exact-match scoring)"
-      - "GIVEN the M2 acceptance verification (`.agentera/verification/m2-acceptance.md`) WHEN re-run with the M3 binary THEN all M2 cases still pass (regression check — M3 is additive, not breaking)"
-      - "GIVEN the D11 derivation WHEN the network is offline (no models.dev reachability) and the cache file is pre-seeded with known prices THEN cost derivation completes successfully and the `bench_runs` row has non-NULL `cost` (offline cost is the cache, not the fetch)"
-      - "GIVEN a real `ktx bench run` invocation on a published (agent, model, task) WHEN completed THEN a `bench_runs` row exists with non-NULL `tokens_in`, `tokens_out`, `model`, `cost`, `methodology_version`"
-      - "GIVEN a pre-M3 database WHEN the M3 binary opens it THEN the `bench_runs` table is created via migration AND existing M1/M2 records are intact AND `ktx doctor` flags the migration on the next doctor invocation (one-time normal-severity warning, not hard error)"
-      - "GIVEN a new verification log at `.agentera/verification/m3-acceptance.md` WHEN written THEN it documents: reproducibility proof (two runs → same headline), M2 regression pass, offline cost derivation, `bench_runs` schema migration on a pre-M3 database, `ktx bench report` headline rendering with methodology reference visible, `bench_runs` NULL-cost soft-fail path"
-      - "GIVEN the verification log WHEN complete THEN ROADMAP.md M3 acceptance is satisfied ('the number is reproducible from the published methodology')"
-overall_acceptance: "GIVEN a published methodology v1 + an (agent, model, task) triple WHEN `ktx bench run` is invoked THEN a `bench_runs` row is persisted with the headline number reproducible from the published methodology. GIVEN any persisted `bench_runs` row WHEN `ktx bench report` is invoked THEN the headline is emitted with the methodology reference visible (JSON default, `--format text` for humans). GIVEN the M2 evidence WHEN re-inspected via the M3 binary THEN every M2 record still loads and cost remains reconstructable (additive migration, no breakage). GIVEN a pre-seeded prices cache WHEN the network is offline THEN cost derivation completes successfully and `bench_runs` rows have non-NULL cost. GIVEN two independent `bench run` invocations on the same inputs WHEN compared THEN the headline is the same. GIVEN `ktx prices update` WHEN invoked THEN the cache is refreshed atomically regardless of cache state."
+      - "GIVEN the full M3 implementation WHEN two independent `ktx bench run
+        <agent> <model> <task>` invocations on the same inputs run to completion
+        THEN both produce the same headline number (within
+        methodology-acknowledged non-determinism, which is zero for
+        deterministic agents and exact-match scoring)"
+      - "GIVEN the M2 acceptance verification
+        (`.agentera/verification/m2-acceptance.md`) WHEN re-run with the M3
+        binary THEN all M2 cases still pass (regression check — M3 is additive,
+        not breaking)"
+      - "GIVEN the D11 derivation WHEN the network is offline (no models.dev
+        reachability) and the cache file is pre-seeded with known prices THEN
+        cost derivation completes successfully and the `bench_runs` row has
+        non-NULL `cost` (offline cost is the cache, not the fetch)"
+      - "GIVEN a real `ktx bench run` invocation on a published (agent, model,
+        task) WHEN completed THEN a `bench_runs` row exists with non-NULL
+        `tokens_in`, `tokens_out`, `model`, `cost`, `methodology_version`"
+      - "GIVEN a pre-M3 database WHEN the M3 binary opens it THEN the
+        `bench_runs` table is created via migration AND existing M1/M2 records
+        are intact AND `ktx doctor` flags the migration on the next doctor
+        invocation (one-time normal-severity warning, not hard error)"
+      - "GIVEN a new verification log at
+        `.agentera/verification/m3-acceptance.md` WHEN written THEN it
+        documents: reproducibility proof (two runs → same headline), M2
+        regression pass, offline cost derivation, `bench_runs` schema migration
+        on a pre-M3 database, `ktx bench report` headline rendering with
+        methodology reference visible, `bench_runs` NULL-cost soft-fail path"
+      - "GIVEN the verification log WHEN complete THEN ROADMAP.md M3 acceptance
+        is satisfied ('the number is reproducible from the published
+        methodology')"
+overall_acceptance: "GIVEN a published methodology v1 + an (agent, model, task)
+  triple WHEN `ktx bench run` is invoked THEN a `bench_runs` row is persisted
+  with the headline number reproducible from the published methodology. GIVEN
+  any persisted `bench_runs` row WHEN `ktx bench report` is invoked THEN the
+  headline is emitted with the methodology reference visible (JSON default,
+  `--format text` for humans). GIVEN the M2 evidence WHEN re-inspected via the
+  M3 binary THEN every M2 record still loads and cost remains reconstructable
+  (additive migration, no breakage). GIVEN a pre-seeded prices cache WHEN the
+  network is offline THEN cost derivation completes successfully and
+  `bench_runs` rows have non-NULL cost. GIVEN two independent `bench run`
+  invocations on the same inputs WHEN compared THEN the headline is the same.
+  GIVEN `ktx prices update` WHEN invoked THEN the cache is refreshed atomically
+  regardless of cache state."
 surprises: ""

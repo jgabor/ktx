@@ -164,22 +164,23 @@ type RepositoryMetadata struct {
 }
 
 type Manifest struct {
-	SchemaVersion           int                         `json:"schema_version"`
-	ExperimentID            string                      `json:"experiment_id"`
-	CreatedAt               string                      `json:"created_at"`
-	Task                    Task                        `json:"task"`
-	Model                   string                      `json:"model"`
-	Variant                 *string                     `json:"variant,omitempty"`
-	TargetValidPerPipeline  int                         `json:"target_valid_per_pipeline"`
-	MaxAttempts             int                         `json:"max_attempts"`
-	AttemptTimeout          string                      `json:"attempt_timeout"`
-	TerminationGrace        string                      `json:"termination_grace"`
-	PipelineExecutionPolicy map[string]any              `json:"pipeline_execution_policy"`
-	Repository              RepositoryMetadata          `json:"repository"`
-	Image                   map[string]string           `json:"image"`
-	Identities              map[string]string           `json:"identities"`
-	Pipelines               map[string]PipelineMetadata `json:"pipelines"`
-	Methodology             MethodologyMetadata         `json:"methodology"`
-	Pricing                 *PricingSnapshotMetadata    `json:"pricing,omitempty"`
-	CacheControl            *CacheControlManifest       `json:"cache_control,omitempty"`
+	SchemaVersion            int                         `json:"schema_version"`
+	ExperimentID             string                      `json:"experiment_id"`
+	CreatedAt                string                      `json:"created_at"`
+	Task                     Task                        `json:"task"`
+	Model                    string                      `json:"model"`
+	Variant                  *string                     `json:"variant,omitempty"`
+	TargetValidPerPipeline   int                         `json:"target_valid_per_pipeline"`
+	MaxAttempts              int                         `json:"max_attempts"`
+	AttemptTimeout           string                      `json:"attempt_timeout"`
+	TerminationGrace         string                      `json:"termination_grace"`
+	PipelineExecutionPolicy  map[string]any              `json:"pipeline_execution_policy"`
+	Repository               RepositoryMetadata          `json:"repository"`
+	Image                    map[string]string           `json:"image"`
+	Identities               map[string]string           `json:"identities"`
+	Pipelines                map[string]PipelineMetadata `json:"pipelines"`
+	Methodology              MethodologyMetadata         `json:"methodology"`
+	Pricing                  *PricingSnapshotMetadata    `json:"pricing,omitempty"`
+	CacheControl             *CacheControlManifest       `json:"cache_control,omitempty"`
+	ModelStepEvidenceVersion int                         `json:"model_step_evidence_version,omitempty"`
 }

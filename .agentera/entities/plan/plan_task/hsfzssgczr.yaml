@@ -12,3 +12,13 @@ record:
     - GIVEN legacy experiments and cache-less attempts WHEN summaries and validation regenerate THEN their serialized bytes remain unchanged.
     - GIVEN representative complete and incomplete streams for each ordered field WHEN offline verification runs THEN complete evidence is accepted, incomplete or invalid evidence remains unavailable, and live-benchmark and experiment paths produce equivalent observations and totals.
   plan: dmbslbvrlk
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Cache-aware retained evidence can bypass validation when an attempt self-declares schema 1 or schema 2 omits its retained stream/model_steps. Focused tests manually force the valid path, and the runner test does not assert end-to-end retained evidence or validation.
+    provenance:
+      attempt_id: audit-1
+      source: independent audit report
+      recorded_at: 2026-07-23 13:49
+      writer_command: agentera state plan record-evaluation

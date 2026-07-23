@@ -398,14 +398,18 @@ func (runner *Runner) createManifest(ctx context.Context, options CompareOptions
 		v := options.Variant
 		variant = &v
 	}
-	return Manifest{
+	manifest := Manifest{
 		SchemaVersion: 1, ExperimentID: experimentID, CreatedAt: runner.timestamp(), Task: options.Task,
 		Model: options.Model, Variant: variant, TargetValidPerPipeline: options.TargetValid, MaxAttempts: options.MaxAttempts,
 		AttemptTimeout: options.AttemptTimeout.String(), TerminationGrace: options.TerminationGrace.String(),
 		PipelineExecutionPolicy: map[string]any{"kind": "alternating_by_cycle", "first_cycle": []string{Baseline, Candidate}, "second_cycle": []string{Candidate, Baseline}},
 		Repository:              repository, Image: map[string]string{"name": options.Image, "id": runtime.ImageID},
 		Identities: runtime.Identities, Pipelines: configs, Methodology: methodology,
-	}, nil
+	}
+	if methodology.Version == "v5-cache-aware" {
+		manifest.ModelStepEvidenceVersion = 1
+	}
+	return manifest, nil
 }
 
 func methodologyMetadata(path string) (MethodologyMetadata, error) {

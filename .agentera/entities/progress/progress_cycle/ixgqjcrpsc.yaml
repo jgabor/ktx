@@ -1,0 +1,16 @@
+id: ixgqjcrpsc
+artifact: progress
+record:
+  timestamp: 2026-07-23 13:54
+  type: fix
+  phase: build
+  what: Required manifest-declared cache-aware model-step evidence, hashed streams, schema-v2 attempts, and exact stream revalidation.
+  context:
+    intent: Close the audit bypass where self-declared attempt schema or omitted retained evidence could evade cache-aware validation.
+    constraints: No provider calls or live benchmarks. Preserved legacy and cache-less regeneration behavior; no decision-satisfaction changes.
+    unknowns: No live provider evidence was collected.
+    scope: internal/experiment model, runner, validator, runner tests, docs/pipelines.md, and Agentera-managed task/progress state.
+  inspiration: Independent audit audit-1 for active cache-observability task hsfzssgczr.
+  discovered: Attempt schema is not an authority boundary; only a cache-aware manifest capability can make retention requirements unconditional.
+  verified: go test ./internal/experiment -run TestRunnerCacheAwarePhasesIsolationAndFallback, TestRunnerAlternatesAndCleansContainers, TestModelStepsValidateAgainstRetainedStream, and TestValidateV5ObservedAndMalformedEvidence -count=1 passed. mage check passed all tests, vet, golangci-lint with 0 issues, and build. The real cache-aware runner test validates generated attempts and rejects schema downgrade, missing stream/hash/model_steps, empty model_steps, unsupported evidence version, state tampering, and aggregate mismatch.
+  next: Keep methodology v5 opt-in and decision satisfaction provisional. Do not impose model-step retention on manifests that predate the declared capability.

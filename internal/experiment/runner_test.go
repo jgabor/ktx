@@ -48,6 +48,7 @@ type fakeExecutor struct {
 	phases               []string
 	opencodeIdentity     string
 	omitOpenCodeIdentity bool
+	fullStepUsage        bool
 }
 
 func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult, error) {
@@ -98,7 +99,12 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			fake.sessions[database] = side
 			fake.sides = append(fake.sides, side)
 			write(command.Stdout, `{"type":"tool_use","part":{}}`+"\n")
-			write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"reason":"stop","tokens":{"input":%d,"output":0},"cost":0}}`+"\n", map[string]int{Baseline: 100, Candidate: 40}[side]))
+			input := map[string]int{Baseline: 100, Candidate: 40}[side]
+			if fake.fullStepUsage {
+				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"reason":"stop","tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`+"\n", input))
+			} else {
+				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"reason":"stop","tokens":{"input":%d,"output":0},"cost":0}}`+"\n", input))
+			}
 			write(command.Stdout, `{"type":"text","part":{"text":"done"}}`+"\n")
 			return CommandResult{}, nil
 		}
@@ -135,7 +141,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
 	auth := writeFixture("auth.json", "{}\n")
 
-	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "opencode v1.18.0"}
+	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "opencode v1.18.0", fullStepUsage: true}
 	runner := &Runner{Executor: fake, Now: func() time.Time { return time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC) }, PID: 29, ResolvePrice: testPriceResolver}
 	dir, summary, code, err := runner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", Variant: "high", TaskFile: task, TargetValid: 2, MaxAttempts: 8, Warmup: 1, CacheControl: "auto",
@@ -164,6 +170,18 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	seenHashes := map[string]string{}
 	for _, attempt := range attempts {
+		if attempt.SchemaVersion != 2 || len(attempt.ModelSteps) != 1 || attempt.Artifacts["stream"] == "" || !isLowerSHA256(attempt.ContentHashes["stream"]) {
+			t.Fatalf("incomplete retained model-step evidence: %#v", attempt)
+		}
+		step := attempt.ModelSteps[0]
+		for _, measurement := range []IntegerMeasurement{step.UncachedInput, step.Output, step.Reasoning, step.CacheRead, step.CacheWrite} {
+			if measurement.State != MeasurementMeasured || measurement.Value == nil {
+				t.Fatalf("model-step token state = %#v", step)
+			}
+		}
+		if step.Cost.State != MeasurementMeasured || step.Cost.Value == nil {
+			t.Fatalf("model-step cost state = %#v", step)
+		}
 		if attempt.CacheControl == nil || attempt.CacheControl.Mode != "isolated" || attempt.CacheControl.Source != "runtime_adapter" {
 			t.Fatalf("cache metadata = %#v", attempt.CacheControl)
 		}
@@ -180,6 +198,10 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	retained, _ := os.ReadFile(filepath.Join(dir, "attempts.jsonl"))
 	manifestBytes, _ := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	var manifest Manifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil || manifest.ModelStepEvidenceVersion != 1 {
+		t.Fatalf("model-step evidence manifest = %#v, err=%v", manifest, err)
+	}
 	rawBySide := map[string]string{}
 	for i, args := range fake.runArgs {
 		content := dockerEnvironmentValue(args, "OPENCODE_CONFIG_CONTENT")
@@ -222,6 +244,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	if err != nil || report["valid"] != true || report["summary_byte_match"] != true {
 		t.Fatalf("validation report=%#v err=%v", report, err)
 	}
+	assertRetainedModelStepValidationRejects(t, dir)
 
 	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.17.15"}
 	observedRunner := &Runner{Executor: observedFake, Now: runner.Now, PID: 30, ResolvePrice: testPriceResolver}
@@ -269,6 +292,86 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	if defaults.TargetValid != 5 || defaults.Warmup != 1 || defaults.MaxAttempts < 14 {
 		t.Fatalf("v5 defaults = target %d warmup %d max %d", defaults.TargetValid, defaults.Warmup, defaults.MaxAttempts)
+	}
+}
+
+func assertRetainedModelStepValidationRejects(t *testing.T, directory string) {
+	t.Helper()
+	attemptPath := filepath.Join(directory, "attempts.jsonl")
+	original, err := os.ReadFile(attemptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*Attempt)
+	}{
+		{"schema downgrade", func(attempt *Attempt) { attempt.SchemaVersion = 1 }},
+		{"missing stream", func(attempt *Attempt) { delete(attempt.Artifacts, "stream") }},
+		{"missing stream hash", func(attempt *Attempt) { delete(attempt.ContentHashes, "stream") }},
+		{"missing model steps", func(attempt *Attempt) { attempt.ModelSteps = nil }},
+		{"empty model steps", func(attempt *Attempt) { attempt.ModelSteps = []SourceEvent{} }},
+		{"unsupported attempt schema", func(attempt *Attempt) { attempt.SchemaVersion = 3 }},
+		{"tampered state", func(attempt *Attempt) { attempt.ModelSteps[0].CacheRead = MeasuredInteger(1) }},
+		{"mismatched total", func(attempt *Attempt) { *attempt.TokensIn++ }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := os.WriteFile(attemptPath, original, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			attempts, err := LoadAttempts(directory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(&attempts[0])
+			if err := os.WriteFile(attemptPath, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			for _, attempt := range attempts {
+				if err := AppendAttempt(directory, attempt); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := WriteSummary(directory); err != nil {
+				t.Fatal(err)
+			}
+			report, err := ValidateExperiment(directory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report["valid"] != false {
+				t.Fatalf("validation accepted %s: %#v", test.name, report)
+			}
+		})
+	}
+	if err := os.WriteFile(attemptPath, original, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(directory, "manifest.json")
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest.ModelStepEvidenceVersion = 2
+	if err := WriteJSON(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteSummary(directory); err != nil {
+		t.Fatal(err)
+	}
+	report, err := ValidateExperiment(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report["valid"] != false {
+		t.Fatalf("validation accepted unsupported model_step_evidence_version: %#v", report)
+	}
+	if err := os.WriteFile(manifestPath, manifestData, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -33,6 +33,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	attempts = estimateAttempts(attempts, pricing)
 	methodologyVersion := manifest.Methodology.Version
 	cacheAware := methodologyVersion == "v5-cache-aware"
+	modelStepEvidence := manifest.ModelStepEvidenceVersion
 	seen := map[string]bool{}
 	checks := []map[string]any{}
 	valid := true
@@ -71,18 +72,23 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 				}
 			}
 		}
-		if attempt.SchemaVersion >= 2 {
+		if modelStepEvidence != 0 {
+			reasons = append(reasons, validateRetainedModelSteps(manifest, attempt, experimentDir)...)
+		} else if attempt.SchemaVersion >= 2 {
+			// Schema-2 attempts from older manifests retain their existing
+			// best-effort validation without changing legacy experiment rules.
 			if err := ValidateSourceEvents(attempt.ModelSteps); err != nil {
-				attemptValid = false
 				reasons = append(reasons, "invalid model_steps: "+err.Error())
 			}
 			if streamRel := attempt.Artifacts["stream"]; streamRel != "" {
 				streamMetrics := ParseStream(filepath.Join(experimentDir, filepath.FromSlash(streamRel)), nil, nil)
 				if !reflect.DeepEqual(attempt.ModelSteps, streamMetrics.ModelSteps) || !sameUsageTotals(attempt.Metrics, streamMetrics) {
-					attemptValid = false
 					reasons = append(reasons, "model_steps do not match retained stream usage")
 				}
 			}
+		}
+		if len(reasons) > 0 {
+			attemptValid = false
 		}
 		if !attemptValid {
 			valid = false
@@ -118,6 +124,45 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report["methodology_reasons"] = methodologyReasons
 	}
 	return report, nil
+}
+
+func validateRetainedModelSteps(manifest Manifest, attempt Attempt, experimentDir string) []string {
+	if manifest.Methodology.Version != "v5-cache-aware" {
+		return []string{"model_step_evidence_version requires v5-cache-aware methodology"}
+	}
+	if manifest.ModelStepEvidenceVersion != 1 {
+		return []string{fmt.Sprintf("unsupported model_step_evidence_version %d", manifest.ModelStepEvidenceVersion)}
+	}
+	if attempt.SchemaVersion != 2 {
+		return []string{fmt.Sprintf("model-step evidence requires attempt schema_version 2, got %d", attempt.SchemaVersion)}
+	}
+	streamRel := attempt.Artifacts["stream"]
+	if streamRel == "" {
+		return []string{"model-step evidence requires stream artifact"}
+	}
+	streamHash := attempt.ContentHashes["stream"]
+	if !isLowerSHA256(streamHash) {
+		return []string{"model-step evidence requires stream SHA-256 metadata"}
+	}
+	streamPath := filepath.Join(experimentDir, filepath.FromSlash(streamRel))
+	actualHash, err := fileSHA256(streamPath)
+	if err != nil || actualHash != streamHash {
+		return []string{"content hash mismatch stream"}
+	}
+	streamMetrics := ParseStream(streamPath, nil, nil)
+	if len(streamMetrics.ModelSteps) == 0 {
+		return []string{"model-step evidence stream has no source events"}
+	}
+	if len(attempt.ModelSteps) == 0 {
+		return []string{"model-step evidence requires nonempty model_steps"}
+	}
+	if err := ValidateSourceEvents(attempt.ModelSteps); err != nil {
+		return []string{"invalid model_steps: " + err.Error()}
+	}
+	if !reflect.DeepEqual(attempt.ModelSteps, streamMetrics.ModelSteps) || !sameUsageTotals(attempt.Metrics, streamMetrics) {
+		return []string{"model_steps do not match retained stream usage"}
+	}
+	return nil
 }
 
 func sameUsageTotals(recorded, parsed Metrics) bool {

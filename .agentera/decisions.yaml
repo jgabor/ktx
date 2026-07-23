@@ -1979,7 +1979,7 @@ decisions:
         Satisfaction stays provisional pending a real recover_footer-enabled
         session showing the agent invokes `ktx read <source_id>` after seeing
         the new footer.'
-  - number: 25
+  - number: 31
     date: 2026-07-14
     question: How does ktx capture, persist, and report OpenCode prompt-cache
       telemetry (cache_read / cache_write tokens) alongside the existing
@@ -2183,7 +2183,7 @@ decisions:
       interchangeable with provider-reported cost. That fails for
       subscription-backed runtimes such as Luna, where the runtime legitimately
       reports literal zero while the same usage has a non-zero API-equivalent
-      price. Decision 25 added cache token evidence but did not price it, and
+      price. Decision 31 added cache token evidence but did not price it, and
       reasoning tokens were not retained. Benchmark summaries must remain
       reproducible from retained evidence and legacy experiments must continue
       to regenerate byte-for-byte.

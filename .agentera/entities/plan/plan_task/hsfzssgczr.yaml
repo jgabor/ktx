@@ -4,7 +4,7 @@ record:
   name: Retain ordered model-step usage evidence
   depends_on:
     - dqndtgqhyi
-  status: complete
+  status: blocked
   acceptance:
     - GIVEN a valid multi-step stream WHEN a new cache-aware attempt is retained THEN its ordered model-step observations reproduce the existing uncached-input, output, reasoning, cache-read, cache-write, and cost totals exactly.
     - GIVEN any source event omits or invalidates a measured field WHEN the attempt aggregate is produced THEN the ordered observation shows the local absence and the aggregate preserves the existing completeness gate instead of summing a partial value.
@@ -13,12 +13,12 @@ record:
     - GIVEN representative complete and incomplete streams for each ordered field WHEN offline verification runs THEN complete evidence is accepted, incomplete or invalid evidence remains unavailable, and live-benchmark and experiment paths produce equivalent observations and totals.
   plan: dmbslbvrlk
   evaluation:
-    attempt_count: 1
-    failure_count: 1
+    attempt_count: 2
+    failure_count: 2
     last_verdict: fail
-    last_failure_evidence: Cache-aware retained evidence can bypass validation when an attempt self-declares schema 1 or schema 2 omits its retained stream/model_steps. Focused tests manually force the valid path, and the runner test does not assert end-to-end retained evidence or validation.
+    last_failure_evidence: Removing or zeroing the optional manifest evidence capability and downgrading an attempt to schema 1 reopens retained-evidence validation bypass. Capability-bearing timeout attempts with correctly hashed empty streams are also rejected instead of retaining explicitly unavailable evidence.
     provenance:
-      attempt_id: audit-1
-      source: independent audit report
-      recorded_at: 2026-07-23 13:49
+      attempt_id: audit-2
+      source: independent corrective re-audit
+      recorded_at: 2026-07-23 14:04
       writer_command: agentera state plan record-evaluation

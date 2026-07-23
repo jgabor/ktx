@@ -4,7 +4,7 @@ record:
   name: Define ordered source-event evidence and claim boundaries
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN an attempt containing multiple runtime model steps or native provider responses WHEN its cache evidence is reviewed THEN each source event remains ordered and independently reports available uncached input, cache read, cache write, reasoning, cost, identity, control, and retry metadata.
     - GIVEN an OpenCode step_finish lacks an authoritative provider request identifier or documented one-to-one mapping WHEN evidence is labeled THEN it remains a model_step with a source-event ordinal, and its count is never reported as a native request count.

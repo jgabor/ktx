@@ -1,0 +1,16 @@
+id: oigncuwcmx
+artifact: progress
+record:
+  timestamp: 2026-07-23 13:00
+  type: feat
+  phase: build
+  what: Defined the cache source-event contract in internal/experiment and documented source-event ordering, measurement states, cache claims, and capability-evidence levels.
+  context:
+    intent: Define ordered cache evidence and claim boundaries before retention, matrix, or live-control work.
+    constraints: No provider calls or benchmarks. Existing attempt aggregates and methodology-v5 opt-in behavior remain unchanged; decision satisfaction remains provisional awaiting user confirmation.
+    unknowns: No direct-provider or runtime probe was run; capability entries and controlled isolation evidence remain future work.
+    scope: internal/experiment/evidence_contract.go, internal/experiment/evidence_contract_test.go, docs/pipelines.md, and Agentera-managed progress/task state.
+  inspiration: Active cache-observability plan task dqndtgqhyi.
+  discovered: Existing usage aggregation already preserves explicit zero, treats absent/null as unavailable, rejects malformed numeric telemetry, and suppresses partial totals; it had no ordered source-event or native-request contract.
+  verified: go test ./internal/experiment ./internal/usage -count=1 passed; mage check passed tests, vet, golangci-lint with 0 issues, and build. Contract tests verify ordered model_step/native_request classification, measured zero, unknown and malformed telemetry, native identity requirements, provider-internal-miss gating, and cited capability evidence.
+  next: Retain ordered observations only in new cache-aware evidence; build the source/runtime capability matrix separately. Do not infer isolation, native request identities, provider-internal misses, or refresh legacy profile state.

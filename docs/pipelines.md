@@ -532,6 +532,47 @@ and requires its embedded provider/model and pricing metadata to match the
 manifest model. Estimated evidence without that retained pricing basis is
 rejected rather than trusted.
 
+### Cache source-event evidence and claims
+
+The source-event contract is the vocabulary for cache-aware evidence before it
+is rolled up to an attempt. It does not change the existing attempt-level
+fields or make an aggregate complete from partial telemetry. Each source event
+has a one-based ordinal in capture order and independently carries available
+uncached input, cache read, cache write, reasoning, cost, identity,
+cache-control, and retry metadata.
+
+| Source-event kind | Meaning                                                                                                                  | Native request count               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `model_step`      | A runtime model-step event, including an OpenCode `step_finish` without authoritative provider request identity.         | Never counted as a native request. |
+| `native_request`  | A provider response with an authoritative provider request identifier, or a cited documented one-to-one runtime mapping. | Counted as one native request.     |
+
+A source event records each numeric field as `measured`, `unknown`, or
+`malformed`. A measured zero is a measurement, not an absence. Missing and
+JSON-null fields are unknown. Malformed values are retained as malformed and
+never converted to a measurement. An attempt-level field is complete only when
+every relevant source event measured that field; otherwise its total is
+unknown. This prevents a sum over a subset of source events from appearing as
+a complete attempt total.
+
+Provider language such as _hit_ and _miss_ does not expand these claim
+boundaries:
+
+| Claim                    | Evidence boundary                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `cache_reuse`            | The source reports cache reuse, such as a cache-read token count. It is not a provider-internal hit count. |
+| `cache_fill`             | The source reports a cache write or creation. It is distinct from reuse.                                   |
+| `ineligible`             | Authoritative source semantics show the request could not perform the relevant cache lookup.               |
+| `no_reported_reuse`      | An eligible lookup reports no reuse; it does not establish an internal miss.                               |
+| `unknown`                | The source omitted, nullified, malformed, or cannot authoritatively classify the relevant telemetry.       |
+| `provider_internal_miss` | Allowed only for a controlled eligible lookup.                                                             |
+
+Every source/version capability entry keeps four evidence levels separate:
+authoritative source support, runtime normalization, live observation, and
+control-validated isolation. Each level must carry at least one official source
+citation or retained-artifact reference. Support at one level never implies
+support at another; in particular, runtime normalization and live telemetry do
+not prove cache isolation.
+
 Schema-v3 summaries annotate Tukey outliers using `1.5 * IQR` fences. With
 fewer than four observations, detection is marked `insufficient_sample` and no
 point is flagged. Every flagged point remains in `values`, means, standard

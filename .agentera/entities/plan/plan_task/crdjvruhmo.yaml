@@ -13,12 +13,12 @@ record:
     - GIVEN preflight and field-normalization rules are verified WHEN offline cases run THEN each testable rule has at least one accepted case and one rejected or unavailable case.
   plan: xpsaaraqbw
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Criterion 5 lacks rejected coverage for attempt ceilings, token/pricing bounds, missing runtime executable, malformed or negative measurements, and uncached-input underflow. Luna progress claims rely on ignored artifacts absent from the checkout; tracked evidence must retain redacted artifact names, hashes, commands, exits, timing, and sanitized startup failures, or downgrade unverifiable claims.
     provenance:
-      attempt_id: audit-1
-      source: Audit evaluation of task crdjvruhmo after OpenAI/OpenCode evidence commits
-      recorded_at: 2026-07-24 15:40
+      attempt_id: audit-2
+      source: Audit re-evaluation after OpenAI evidence corrections
+      recorded_at: 2026-07-24 15:56
       writer_command: agentera state plan record-evaluation

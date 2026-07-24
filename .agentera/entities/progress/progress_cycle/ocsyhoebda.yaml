@@ -1,0 +1,16 @@
+id: ocsyhoebda
+artifact: progress
+record:
+  timestamp: 2026-07-24 07:39
+  type: feat
+  phase: build
+  what: Extended the generated OpenCode plugin with serialized pinned-contract event collection, optional fail-open telemetry recording, and one wrapper ownership guard across telemetry and tool-result evidence. Repeated global and project installs produce identical adapter bytes and stable reports containing both candidate locations, the generated SHA-256 revision, declared event and tool.execute.after coverage, and an explicit not-verified activation state.
+  context:
+    intent: Capture model-step telemetry in ordinary unwrapped OpenCode sessions while preserving tool compression, passthrough, recovery, and failure behavior.
+    constraints: Adapter integration only; no final documentation synchronization or decision satisfaction updates.
+    unknowns: Runtime activation remains intentionally unverified by installation.
+    scope: internal/cli/init.go and internal/cli/init_opencode_adapter_test.go
+  inspiration: Plan task pyzenwhvhl and the pinned OpenCode 1.18.4 event contract.
+  discovered: Decision startup remained degraded at 4 of 31 returned and 27 omitted; no decision satisfaction was inferred or changed.
+  verified: Focused adapter and hook regression tests passed; go test ./internal/cli ./internal/opencodetelemetry -count=1 passed; mage check passed; repeated build/ktx init opencode smoke output was byte-identical and machine-checked.
+  next: Documentation synchronization remains for plan task zbxfnxxifz.

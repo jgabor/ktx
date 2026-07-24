@@ -5,7 +5,7 @@ record:
   depends_on:
     - vuhfexydfu
     - fekcqinvyc
-  status: pending
+  status: complete
   acceptance:
     - GIVEN an ordinary unwrapped OpenCode session emits an accepted model-step event WHEN the installed adapter receives it THEN ktx records the optional observation without changing model or tool output.
     - GIVEN a tool execution completes WHEN the existing tool-result hook runs THEN compression, passthrough, recovery, and failure behavior remain unchanged.

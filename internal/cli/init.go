@@ -9,9 +9,9 @@
 // TypeScript plugin; Codex uses a PostToolUse command hook merged into
 // the shared ~/.codex/hooks.json.
 //
-// `ktx init opencode` installs a plugin that subscribes to
-// `tool.execute.after` and calls `ktx hook` per event,
-// sending the raw callback object tagged with runtime="opencode".
+// `ktx init opencode` installs a plugin that subscribes to `event` for
+// optional model-step telemetry and `tool.execute.after` for tool-result
+// compression. It delegates both paths to the ktx binary.
 // The plugin noops when KTX_SESSION_ID is set so the wrapper
 // path remains the single source of truth — both paths active means
 // one of them wins.
@@ -57,6 +57,7 @@
 package cli
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,11 +85,13 @@ type initParsedArgs struct {
 // the installed file when users re-run `ktx init opencode`.
 //
 // Behaviour:
+//   - Listens on `event`, normalizes accepted OpenCode model-step events, and
+//     shells out to `ktx telemetry record`. Collection and persistence failures
+//     do not alter runtime events.
 //   - Listens on `tool.execute.after` and shells out to
 //     `ktx hook` via Bun.spawn, sending the raw callback object
-//     (input + output) tagged with `runtime: "opencode"`. No
-//     domain logic lives in the plugin: the binary owns all
-//     extraction, ID generation, and timestamps.
+//     (input + output) tagged with `runtime: "opencode"`. The binary owns
+//     tool-result extraction, ID generation, and timestamps.
 //   - `ktx hook` persists the original and returns a JSON envelope:
 //     {"output": string, "compressed_id": string|null, "source_id": string}.
 //   - The plugin mutates `output.output` to the envelope's `output`
@@ -101,7 +104,7 @@ type initParsedArgs struct {
 //     persistence and the plugin would otherwise double-record.
 //
 // Presence check: the plugin factory verifies the ktx
-// binary is in PATH before registering the tool.execute.after hook. If
+// binary is in PATH before registering either hook. If
 // ktx is missing, no hooks are registered and a one-line warn makes
 // the disabled state visible — without this, every tool call would
 // pay a `ktx hook` spawn cost and silently drop its payload.
@@ -142,6 +145,39 @@ const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
   }
 }
 
+const ktxTelemetry = async (payload: string): Promise<void> => {
+  try {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(payload))
+        controller.close()
+      },
+    })
+    const proc = Bun.spawn(["ktx", "telemetry", "record"], {
+      stdin: stream,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [stderr, exitCode] = await Promise.all([
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    if (stderr.trim()) console.error(stderr.trim())
+    if (exitCode !== 0) console.error("[ktx] telemetry record failed (exit " + exitCode + ")")
+  } catch (e) {
+    console.error("[ktx] telemetry record error: " + String(e))
+  }
+}
+
+const nonblank = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0
+
+const safeCount = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) >= 0
+
+const validCost = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0
+
 const KtxPlugin: Plugin = async ({ $ }) => {
   // Verify ktx is in PATH before registering the hook; otherwise every
   // tool call would pay a ktx hook spawn cost and silently noop.
@@ -152,7 +188,73 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     return {}
   }
 
+  const identities = new Map<string, { provider: string; model: string }>()
+  const seen = new Set<string>()
+  let ordinal = 0
+  let eventQueue: Promise<void> = Promise.resolve()
+
+  const collectEvent = async (event: any): Promise<void> => {
+    if (!event || typeof event !== "object") return
+    if (event.type === "message.updated") {
+      const info = event.properties?.info
+      if (!info || typeof info !== "object" || info.role !== "assistant" ||
+          !nonblank(info.sessionID) || !nonblank(info.id) ||
+          !nonblank(info.providerID) || !nonblank(info.modelID)) return
+      const key = JSON.stringify([info.sessionID, info.id])
+      const prior = identities.get(key)
+      if (prior && (prior.provider !== info.providerID || prior.model !== info.modelID)) return
+      identities.set(key, { provider: info.providerID, model: info.modelID })
+      return
+    }
+    if (event.type !== "message.part.updated") return
+
+    const part = event.properties?.part
+    const tokens = part?.tokens
+    const cache = tokens?.cache
+    if (!part || typeof part !== "object" || part.type !== "step-finish" ||
+        !nonblank(part.sessionID) || !nonblank(part.messageID) ||
+        !nonblank(part.id) || !nonblank(part.reason) || !validCost(part.cost) ||
+        !tokens || typeof tokens !== "object" || !cache || typeof cache !== "object" ||
+        !safeCount(tokens.input) || !safeCount(tokens.output) ||
+        !safeCount(tokens.reasoning) || !safeCount(cache.read) || !safeCount(cache.write)) return
+
+    const key = JSON.stringify([part.sessionID, part.messageID, part.id])
+    if (seen.has(key)) return
+    seen.add(key)
+    ordinal++
+    const identity = identities.get(JSON.stringify([part.sessionID, part.messageID]))
+    const observation: any = {
+      session_id: part.sessionID,
+      message_id: part.messageID,
+      part_id: part.id,
+      ordinal,
+      reason: part.reason,
+      cost: part.cost,
+      tokens: {
+        input: tokens.input,
+        output: tokens.output,
+        reasoning: tokens.reasoning,
+        cache_read: cache.read,
+        cache_write: cache.write,
+      },
+    }
+    if (identity) {
+      observation.provider = identity.provider
+      observation.model = identity.model
+    }
+    await ktxTelemetry(JSON.stringify(observation))
+  }
+
   return {
+    "event": async ({ event }: any) => {
+      // The wrapper owns all evidence when it supplies the session.
+      if (process.env.KTX_SESSION_ID) return
+      const next = eventQueue.then(() => collectEvent(event)).catch((e) => {
+        console.error("[ktx] telemetry collector error: " + String(e))
+      })
+      eventQueue = next
+      await next
+    },
     "tool.execute.after": async (input: any, output: any) => {
       // Noop when wrapper is active
       if (process.env.KTX_SESSION_ID) return
@@ -267,7 +369,7 @@ func initOpencodeLogic(f *initFlags, format string, stdout, stderr io.Writer) er
 		if f.project {
 			target = projectPath
 		}
-		return initOpencodeInstall(target, format, stdout)
+		return initOpencodeInstall(target, globalPath, projectPath, format, stdout)
 	}
 }
 
@@ -308,7 +410,7 @@ func opencodeProjectPluginPath() string {
 // The file is written with 0644 — readable by the agent process,
 // writable by the user. Any failure (mkdir, write) surfaces as an
 // internal error with the path included for the caller to act on.
-func initOpencodeInstall(target, format string, stdout io.Writer) error {
+func initOpencodeInstall(target, globalPath, projectPath, format string, stdout io.Writer) error {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return internalError("ktx init opencode: create directory %q: %v", filepath.Dir(target), err)
 	}
@@ -316,7 +418,7 @@ func initOpencodeInstall(target, format string, stdout io.Writer) error {
 		return internalError("ktx init opencode: write plugin %q: %v", target, err)
 	}
 
-	writeInstallReport(stdout, target, format)
+	writeInstallReport(stdout, target, globalPath, projectPath, format)
 	return nil
 }
 
@@ -387,17 +489,27 @@ func fileExists(path string) bool {
 	return !info.IsDir()
 }
 
-// writeInstallReport emits the install confirmation in the requested
-// format. JSON mode wraps the result in an `installed` envelope so the
-// caller can match on it; text mode is a single human-readable line.
-func writeInstallReport(w io.Writer, target, format string) {
+// writeInstallReport emits the installed file, both candidate locations, the
+// generated source revision, and the hooks declared by that source. It reports
+// file generation only and explicitly leaves runtime activation unverified.
+func writeInstallReport(w io.Writer, target, globalPath, projectPath, format string) {
+	revision := fmt.Sprintf("%x", sha256.Sum256([]byte(ktxOpencodePluginTemplate)))
+	hooks := []string{"event", "tool.execute.after"}
 	if format == FormatText {
 		fmt.Fprintf(w, "ktx opencode plugin installed at %s\n", target)
+		fmt.Fprintf(w, "generated revision: %s\n", revision)
+		fmt.Fprintf(w, "declared hooks: %s\n", strings.Join(hooks, ", "))
+		fmt.Fprintf(w, "candidate locations: global=%s project=%s\n", globalPath, projectPath)
+		fmt.Fprintln(w, "runtime activation: not verified")
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"installed": true,
-		"path":      target,
+		"installed":           true,
+		"path":                target,
+		"candidate_locations": map[string]string{"global": globalPath, "project": projectPath},
+		"generated_revision":  revision,
+		"declared_hooks":      hooks,
+		"runtime_activation":  "not_verified",
 	})
 }
 
@@ -566,9 +678,9 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  1  usage error (unknown runtime, conflicting flags)")
 	fmt.Fprintln(w, "  2  not found (--show found nothing, --uninstall found nothing)")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "The OpenCode plugin subscribes to tool.execute.after and shells out to")
-	fmt.Fprintln(w, "`ktx hook` for each event, sending the raw callback object tagged")
-	fmt.Fprintln(w, "with runtime=\"opencode\". When KTX_SESSION_ID is")
+	fmt.Fprintln(w, "The OpenCode plugin subscribes to event for optional model-step telemetry and")
+	fmt.Fprintln(w, "tool.execute.after for tool-result compression. It delegates to `ktx telemetry")
+	fmt.Fprintln(w, "record` and `ktx hook` respectively. When KTX_SESSION_ID is")
 	fmt.Fprintln(w, "set in the environment, the plugin noops so the wrapper")
 	fmt.Fprintln(w, "path remains the single source of truth.")
 	fmt.Fprintln(w)

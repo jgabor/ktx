@@ -1,0 +1,15 @@
+id: lmabuidega
+artifact: plan
+record:
+  plan: xpsaaraqbw
+  name: Verify portable runtime cache-control evidence
+  status: complete
+  depends_on:
+    - crdjvruhmo
+    - atauywjlaz
+    - zvbegohemo
+  acceptance:
+    - GIVEN retained OpenCode runtime controls WHEN evidence is reviewed from a clean tracked checkout THEN equal and changed prompts, cold-to-repeat ordering, and one/multi runtime-visible model-step sequencing remain verifiable while provider-native counts and fill stay unavailable when unreported.
+    - GIVEN tracked source excerpts, probe configuration, accounting, and preflight artifacts WHEN hashes and classifications are regenerated THEN every declared digest matches exact bytes and every live outcome derives from retained measurements and eligibility.
+    - GIVEN runtime-unexposed keys, prefixes, breakpoints, request identity/count, fill, and isolation WHEN claims are reviewed THEN they remain unavailable without hit ratios or provider-internal miss claims.
+    - GIVEN the repository and a clean tracked archive without ignored raw artifacts WHEN verification runs THEN focused cache-evidence tests and mage check pass.

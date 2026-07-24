@@ -1,0 +1,18 @@
+id: rmwzsiwnby
+artifact: plan
+record:
+  name: Characterize provider-visible prefixes and privacy limits
+  depends_on:
+    - crdjvruhmo
+    - atauywjlaz
+    - zvbegohemo
+    - nfusgeryyh
+    - cjanyznhqa
+  status: pending
+  acceptance:
+    - GIVEN current trusted provider and runtime sources WHEN prefix evidence is characterized THEN stable-prefix and changing-tail hashes or counts, instruction and tool-schema segments, breakpoint placement, compaction or truncation events, and TTL availability are reported separately by source and version.
+    - GIVEN content may contain instructions, tool schemas, prompts, secrets, or user data WHEN derived evidence is retained THEN it respects an explicit privacy boundary and retains no more sensitive content than required to reproduce the stated observation.
+    - GIVEN a segment, count, hash, breakpoint, or compaction event lacks a trusted source WHEN evidence is published THEN it remains unknown or unavailable rather than inferred from aggregate token movement.
+    - GIVEN the characterization is complete WHEN handed to deliberation THEN it presents evidence and incompatibilities without selecting storage, lifecycle, consumption, invalidation, or product behavior.
+    - GIVEN derived-evidence rules are verified WHEN offline cases run THEN each testable privacy or completeness rule has at least one accepted case and one rejected or unavailable case.
+  plan: xpsaaraqbw

@@ -1,0 +1,13 @@
+id: zvbegohemo
+artifact: plan
+record:
+  name: Retain Gemini native and runtime evidence
+  depends_on:
+    - crdjvruhmo
+  status: pending
+  acceptance:
+    - GIVEN the selected Gemini API family and current official source material WHEN its capability entry is reviewed THEN explicit cache objects, cached-token metadata, lifecycle, eligibility, TTL, identity, and retry semantics are source- and version-qualified.
+    - GIVEN direct Gemini and OpenCode access exists WHEN equivalent synthetic requests run THEN native and normalized evidence is retained separately and every dropped, renamed, rounded, or unavailable field is explicit.
+    - GIVEN Gemini access is unavailable WHEN the bounded preflight runs THEN no billable request occurs and source-backed plus offline-fixture evidence remains clearly distinguished from live observation.
+    - GIVEN supported and unsupported Gemini fixtures WHEN verification runs THEN at least one positive and one negative or unavailable case preserve measured-zero and absent-field semantics.
+  plan: xpsaaraqbw

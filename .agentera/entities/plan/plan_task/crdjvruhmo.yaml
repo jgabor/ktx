@@ -1,0 +1,14 @@
+id: crdjvruhmo
+artifact: plan
+record:
+  name: Establish the bounded OpenAI and OpenCode evidence path
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN a provider and model pair is considered for live evidence WHEN preflight runs THEN it reports the exact source and version, access state, maximum native requests and attempts, maximum spend, maximum wall time, artifact destination, and redaction policy before network activity.
+    - GIVEN a prerequisite is absent or a declared ceiling cannot be enforced WHEN preflight completes THEN no billable request occurs and the retained capability entry states the exact unavailable condition.
+    - GIVEN equivalent direct OpenAI and OpenCode requests are accessible WHEN evidence is retained THEN native and normalized input, cache-read, cache-write or creation, output, identity, control, and retry fields remain independently inspectable without rewriting either source.
+    - GIVEN routine OpenCode observation does not require priced evidence WHEN a model is selected THEN opencode/big-pickle is used; Luna/high is reserved for the priced OpenAI path.
+    - GIVEN preflight and field-normalization rules are verified WHEN offline cases run THEN each testable rule has at least one accepted case and one rejected or unavailable case.
+  plan: xpsaaraqbw

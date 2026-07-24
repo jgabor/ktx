@@ -1,0 +1,15 @@
+id: vkwcvnaywr
+artifact: plan
+record:
+  name: Adjudicate benchmark cache-control claims
+  depends_on:
+    - nfusgeryyh
+    - cjanyznhqa
+  status: pending
+  acceptance:
+    - GIVEN evidence shows routing affinity, cross-key reuse, incomplete separation, or nondeterministic ownership WHEN benchmark capability resolves THEN the path remains observed-only and explicit isolation fails before an agent or provider call.
+    - GIVEN authoritative semantics and retained controls establish stable within-side reuse and cross-side separation WHEN a path is enabled THEN runtime, provider, model or API family, version, and control assumptions are narrowly stated.
+    - GIVEN an enabled and an unsupported or contradictory path WHEN offline regression cases run THEN capability resolution preserves one accepted case and one rejected or observed-fallback case.
+    - GIVEN historical experiments carry earlier isolation labels WHEN current validation runs THEN artifact integrity and byte-identical regeneration remain independent from present-day capability, and historical evidence cannot enable isolation for a new run.
+    - GIVEN benchmark documentation and retained metadata are reviewed WHEN adjudication completes THEN observed evidence, confirmed isolation, unavailable capability, and historical claim caveats agree without selecting product-wide ownership.
+  plan: xpsaaraqbw

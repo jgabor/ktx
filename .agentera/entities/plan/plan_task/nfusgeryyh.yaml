@@ -1,0 +1,16 @@
+id: nfusgeryyh
+artifact: plan
+record:
+  name: Execute key, prefix, and request-count negative controls
+  depends_on:
+    - crdjvruhmo
+    - atauywjlaz
+    - zvbegohemo
+  status: pending
+  acceptance:
+    - GIVEN an eligible accessible provider/runtime pair WHEN controls run THEN retained evidence covers same-prefix/same-key, same-prefix/different-key, changed-prefix/same-key, cold-fill-repeat, and one-request/multi-request cases.
+    - GIVEN a controllable key, prefix, or request-count dimension and its expected opposite WHEN evidence is reviewed THEN at least one retained positive and one retained negative case identify execution order, request count, source, version, and field completeness.
+    - GIVEN the source reports reuse, creation, no reuse, or no applicable field WHEN a result is classified THEN cache reuse, cache fill, no reported reuse, ineligible, and unknown remain distinct without a generic hit ratio or provider-internal miss claim.
+    - GIVEN a provider or gateway drops or rewrites key, prefix, or request-count evidence WHEN the matrix is retained THEN the incompatibility remains explicit and cannot inherit another provider's capability.
+    - GIVEN supported and unsupported offline cases WHEN verification runs THEN every testable control dimension has at least one accepted case and one rejected or unavailable case.
+  plan: xpsaaraqbw

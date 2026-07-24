@@ -1,0 +1,56 @@
+id: xpsaaraqbw
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-24
+    status: open
+    reviewed: 2026-07-24
+    critic_issues: 3 found, 3 addressed, 0 dismissed
+    revised: Bounded live work before side effects, made unavailable-provider evidence a valid explicit outcome, split key/prefix controls from temporal/runtime controls and benchmark claim adjudication, and deferred both user-controlled deliberations to the next lifecycle.
+    title: "Plan: Establish cache-control and prefix evidence"
+  what: Establish source- and version-specific provider cache evidence, execute bounded negative controls, characterize provider-visible prefix signals, and correct benchmark isolation claims only where retained controls justify them so the provider-ownership and prefix-observability deliberations can proceed from trustworthy evidence.
+  why: The current matrix proves that ktx can retain ordered OpenCode cache observations, but it does not establish provider-native field semantics, key separation, TTL behavior, direct-versus-runtime parity, or a privacy-safe prefix contract. Those gaps must close before a retained cross-provider comparison can make reliable cache-control or savings claims.
+  constraints: Preserve captured streams and provider-native evidence without rewriting them; preserve measured-zero versus unavailable semantics, reported-cost independence, retained pricing, historical experiment bytes, and the existing methodology-v5 observed fallback. Every live action must be headless, opt-in, bounded before network activity, and use synthetic prompts. Never retain credentials or raw cache namespaces, infer provider-internal misses, publish a generic hit ratio, treat routing affinity as cache isolation, attach model-step cache evidence to tool calls, use github-copilot models, build a universal provider adapter, or implement contracts that remain under deliberation. Use opencode/big-pickle for free routine OpenCode observations and Luna/high only when priced OpenAI evidence is required.
+  overall_acceptance: GIVEN the plan's evidence and controls are complete WHEN an operator reviews the retained artifacts and current behavior THEN every cache-control and prefix claim is source- and version-qualified, unavailable evidence remains explicit, supported isolation is backed by authoritative semantics plus retained negative controls, unsupported isolation fails before side effects, privacy limits are characterized, historical evidence still regenerates byte-identically, and the provider-ownership and prefix-observability deliberations are ready without inheriting unproven claims.
+  scope:
+    included:
+      - Bounded source- and version-specific OpenAI, Anthropic, Gemini, and OpenCode cache evidence
+      - Provider-native versus runtime-normalized field comparison where access exists
+      - Key, prefix, cold-repeat, TTL, concurrency, runtime-parity, and request-count controls
+      - Evidence-gated benchmark isolation adjudication with historical compatibility
+      - Privacy-aware stable-prefix, changing-tail, segment, breakpoint, and compaction characterization
+      - Documentation, verification, backlog, progress, and plan-state synchronization
+    excluded:
+      - Cross-provider cost, quality, setup-cost, savings, or break-even comparison
+      - A product-wide provider registry or universal cache adapter
+      - Provider-internal lookup, eviction, or miss-reason inference
+      - A generic cache-hit-ratio metric or per-tool cache attribution
+      - Implementation selected by the two new decisions beyond correcting the settled benchmark claim boundary
+      - Running or resolving the provider-ownership and prefix-observability deliberations
+      - Live calls in ordinary CI or mandatory credentials for offline verification
+    deferred:
+      - Retained cache-aware provider comparison
+      - Savings-attribution deliberation
+      - Provider cache-control ownership deliberation
+      - Prefix observability and derived evidence deliberation
+      - Product implementation follow-ups selected by provider-ownership or prefix-observability decisions
+  design: First establish one bounded evidence path through the priced OpenAI case while retaining a free OpenCode control path. Then add provider-specific native evidence for Anthropic and Gemini under the same safety and provenance rules. Use the resulting capability evidence to run key and prefix controls separately from temporal and runtime-parity controls, then adjudicate only the settled benchmark isolation boundary. Characterize privacy-safe prefix signals without selecting a contract. Finally synchronize the three evidence TODOs and hand the retained evidence to the two deliberations while leaving the cross-provider comparison for a later lifecycle.
+  unknowns:
+    - question: Which eligible OpenAI, Anthropic, and Gemini credentials and models are currently accessible?
+      affects_task: 1-4
+      resolve_by: Run a no-call preflight for each pair; execute only accessible pairs and record every inaccessible pair with the exact missing prerequisite.
+    - question: Can provider TTL controls complete inside the approved request, spend, and wall-time limits?
+      affects_task: 5
+      resolve_by: Derive the documented TTL and declared probe ceiling before network activity; retain source-only or not-live-observed evidence when the wait exceeds the ceiling.
+    - question: Does any current key or breakpoint path prove stable reuse and cross-arm separation rather than routing affinity?
+      affects_task: 4,5,7
+      resolve_by: Require authoritative semantics plus retained positive and negative controls; otherwise keep the path observed-only and reject explicit isolation.
+    - question: Which trusted sources expose instruction, tool-schema, tail, breakpoint, and compaction information without retaining sensitive content?
+      affects_task: 6
+      resolve_by: Inspect current provider and runtime contracts and representative retained evidence; mark unavailable signals unknown rather than synthesizing them.
+    - question: Will the completed evidence leave either deliberation with a concrete unanswered prerequisite?
+      affects_task: 8
+      resolve_by: Name the missing prerequisite at final synchronization and leave the affected deliberation or provider comparison explicitly blocked rather than extending this plan.
+  surprises:
+    []

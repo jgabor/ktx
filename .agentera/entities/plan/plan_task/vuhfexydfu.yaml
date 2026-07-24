@@ -4,20 +4,10 @@ record:
   name: Pin the OpenCode telemetry contract
   depends_on:
     []
-  status: blocked
+  status: complete
   acceptance:
     - GIVEN supported OpenCode model-step events WHEN the contract is reviewed THEN accepted event shapes and available session, message, part, provider, model, cache-read, and cache-write fields are explicit.
     - GIVEN a field required for identity or ordering is unavailable WHEN the contract is established THEN the limitation and fallback are explicit and no value is synthesized.
     - GIVEN repeated, incomplete, and unsupported events WHEN correlation rules are evaluated THEN the deduplication key, ordering rule, and conservative rejection behavior are deterministic.
     - GIVEN representative accepted and rejected fixtures WHEN contract tests run THEN at least one passing and one failing case cover each testable event-shape rule.
   plan: abigkdluzd
-  evaluation:
-    attempt_count: 2
-    failure_count: 2
-    last_verdict: fail
-    last_failure_evidence: Decoder accepts cost null as zero because unmarshalling null into float64 succeeds, synthesizing a measurement contrary to the documented number requirement and conservative rejection rule. Criterion 3 and the evidence audit failed; add explicit null rejection and a rejected step.cost fixture.
-    provenance:
-      attempt_id: audit-2
-      source: independent Audit reevaluation ses_070dc08f6ffetQU20fofdDOJng
-      recorded_at: 2026-07-23 15:38
-      writer_command: agentera state plan record-evaluation

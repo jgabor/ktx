@@ -1,0 +1,13 @@
+id: lbpknqjrnq
+artifact: progress
+record:
+  timestamp: 2026-07-24 04:17
+  type: fix
+  phase: build
+  what: Rejected explicit JSON null for OpenCode model-step cost values and added a rule-tagged rejected contract fixture.
+  context:
+    intent: Resolve the accepted Audit finding for task vuhfexydfu without changing the pinned telemetry contract.
+    constraints: Keep the correction limited to explicit null rejection and contract coverage; preserve all identity, ordering, deduplication, and cache token semantics.
+    unknowns: none
+    scope: internal/opencodetelemetry/contract.go and testdata/contract_cases.json
+  verified: go test ./internal/opencodetelemetry -run 'TestContractFixtures|TestCollector' -count=1 passed (ok, 0.002s); mage check passed all tests, vet, lint, and build with 0 issues. Source inspection confirmed cache read/write use nonnegativeInteger, not the corrected float decoder; null already fails json.Number.Int64 and is rejected, matching the non-negative safe-integer contract.

@@ -280,7 +280,7 @@ func nonnegativeInteger(raw json.RawMessage, name string) (int64, error) {
 
 func nonnegativeNumber(raw json.RawMessage, name string) (float64, error) {
 	var value float64
-	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil || value < 0 || math.IsInf(value, 0) || math.IsNaN(value) {
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) || json.Unmarshal(raw, &value) != nil || value < 0 || math.IsInf(value, 0) || math.IsNaN(value) {
 		return 0, invalid(name + " must be a non-negative number")
 	}
 	return value, nil

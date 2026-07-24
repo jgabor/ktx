@@ -1,0 +1,15 @@
+id: eakpzmspqm
+artifact: progress
+record:
+  timestamp: 2026-07-24 10:28
+  type: refactor
+  phase: build
+  what: Moved OpenCode decoding and fixtures from internal/opencodetelemetry to internal/telemetry/opencode, added the runtime-neutral internal/telemetry contract, and changed internal/db/session_telemetry.go to import only that contract. internal/cli/telemetry.go assigns canonical OpenCode runtime/version after JSON decoding, so spoofed fields are ignored.
+  context:
+    intent: Freeze and verify trusted telemetry normalization for plan task tfhmbcdfgs without implementing the schema-version-5 tuple migration.
+    constraints: Kept schema version 4 and ON CONFLICT(source_session_id, message_id, part_id); no second runtime or source_kind.
+    unknowns: None for this task; runtime-qualified identity and migration remain in task zflpkvayzt.
+    scope: internal/telemetry, internal/telemetry/opencode, internal/cli/telemetry.go, internal/db/session_telemetry.go, tests, magefile.go, and current decision/plan entities.
+  inspiration: Plan task tfhmbcdfgs and firm decision zeirngqgcl.
+  verified: Focused go test -race for internal/telemetry, internal/db, and internal/cli passed. mage opencodeTelemetryFixture passed all four target packages. mage check passed tests, vet, lint with 0 issues, and build. Regression coverage preserves accepted, rejected, duplicate, missing, explicit-zero, spoofing, and diagnostic behavior.
+  next: Execute task zflpkvayzt separately; do not mix schema-version-5 migration work into this commit.

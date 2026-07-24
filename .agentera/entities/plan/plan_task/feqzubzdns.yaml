@@ -1,0 +1,15 @@
+id: feqzubzdns
+artifact: plan
+record:
+  name: Verify behavior and synchronize project state
+  depends_on:
+    - tfhmbcdfgs
+    - zflpkvayzt
+    - uxasxmjovb
+  status: pending
+  acceptance:
+    - GIVEN accepted, rejected, zero, missing, duplicate, wrapped, unwrapped, cross-runtime, migration-failure, and concurrent fixtures WHEN offline verification runs THEN behavior matches the recorded identity decision without provider credentials.
+    - GIVEN maintainers review canonical telemetry documentation WHEN the migration ships THEN local native identity, runtime-qualified persistence, version provenance, automatic migration, command-specific failure behavior, and rollback are explicit.
+    - GIVEN repository verification runs WHEN the plan closes THEN tests, race checks, vet, lint, build, documentation checks, and state validation pass.
+    - GIVEN final synchronization WHEN work is complete THEN plan and progress evidence are current while unrelated backlog and decision satisfaction remain unchanged.
+  plan: swvgbhhtbf

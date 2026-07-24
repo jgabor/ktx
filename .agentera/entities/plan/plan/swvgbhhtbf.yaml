@@ -1,0 +1,35 @@
+id: swvgbhhtbf
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-24
+    status: open
+    reviewed: 2026-07-24
+    critic_issues: 8 found, 8 addressed, 0 dismissed
+    title: "Plan: Qualify session telemetry identity by runtime"
+  what: Make normalized session telemetry runtime-neutral while ensuring persisted observations are identified within a trusted runtime namespace and existing databases migrate without evidence loss.
+  why: Native session, message, and part identifiers are not globally unique across runtimes. Qualifying the tuple now prevents future false deduplication and incorrect session ownership while existing telemetry is still governed by one known ingress contract.
+  constraints: Preserve current OpenCode event acceptance, fail-open recording, explicit-zero semantics, first-evidence authority, wrapper coexistence, bounded inspection, and all existing database evidence. Runtime identity comes from trusted ingress. Runtime version remains provenance. Existing nonblank legacy runtime namespaces are preserved exactly, not canonicalized. No second runtime, source-kind abstraction, provider-native claim, or reconstructed suppressed observation is included.
+  overall_acceptance: GIVEN an existing or fresh ktx database and valid normalized telemetry WHEN schema version 5 is used THEN existing evidence remains intact, equal native tuples from distinct runtime namespaces remain distinct, same-runtime conflicts retain one complete first observation and owner, inspection is deterministic, and current OpenCode behavior remains unchanged.
+  scope:
+    included:
+      - Runtime-neutral normalized telemetry boundary with OpenCode-specific ingestion kept separate
+      - Runtime-qualified persisted identity and deterministic bounded inspection
+      - Automatic migration of populated schema-version-4 and historically supported databases to version 5
+      - Migration rollback, concurrency, trust-boundary, documentation, and repository evidence
+    excluded:
+      - Implementing another telemetry runtime
+      - Adding source_kind before another independently keyed source category exists
+      - Changing benchmark, tool-call, or experiment identity contracts
+      - Reconstructing observations suppressed before migration
+    deferred:
+      - Source-kind qualification if one runtime later exposes multiple independent telemetry categories
+      - Runtime registry or capability negotiation
+  design: First freeze the normalized observation boundary and trusted provenance behavior. Then qualify persisted identity by runtime while migrating historical evidence atomically. Next make bounded inspection unambiguous across namespaces. Finally verify historical, concurrent, failure, documentation, and project-state behavior before closeout.
+  unknowns:
+    - question: Do any supported users or scripts parse the current telemetry text columns positionally?
+      affects_task: 3
+      resolve_by: Search shipped docs, tests, scripts, and retained usage evidence before changing text output; preserve positional compatibility or replan the text surface if a concrete consumer is found.
+  surprises:
+    []

@@ -53,8 +53,8 @@ func OpencodeTelemetryFixture() error {
 	if _, err := exec.LookPath("bun"); err != nil {
 		return errors.New("bun not found; it is required to execute the generated OpenCode plugin fixture")
 	}
-	pattern := "^Test(ContractFixtures|CollectorCorrelatesDeduplicatesAndOrders|CollectorKeepsFirstObservationAuthoritative|SessionTelemetryPersistsSeparatelyAndListsMeasurements|SessionTelemetryDuplicateConcurrentAndAtomicAssociation|TelemetryRecordAndBoundedJSONInspection|TelemetryRecordRequiresEveryNumericFieldAndPreservesZeros|TelemetryRejectsMalformedAndFailsOpenOnPersistenceError|OpencodeGeneratedAdapterEventAndToolIntegration)$"
-	return run("go", "test", "-race", "./internal/opencodetelemetry", "./internal/db", "./internal/cli", "-run", pattern, "-count=1", "-timeout=30s")
+	pattern := "^Test(ValidateObservationRequiresRuntimeIdentity|ContractFixtures|CollectorCorrelatesDeduplicatesAndOrders|CollectorKeepsFirstObservationAuthoritative|SessionTelemetryPersistsSeparatelyAndListsMeasurements|SessionTelemetryDuplicateConcurrentAndAtomicAssociation|TelemetryRecordAndBoundedJSONInspection|TelemetryRecordRequiresEveryNumericFieldAndPreservesZeros|TelemetryRejectsMalformedAndFailsOpenOnPersistenceError|OpencodeGeneratedAdapterEventAndToolIntegration)$"
+	return run("go", "test", "-race", "./internal/telemetry/...", "./internal/db", "./internal/cli", "-run", pattern, "-count=1", "-timeout=30s")
 }
 
 func Vet() error {

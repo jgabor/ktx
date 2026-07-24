@@ -1,0 +1,15 @@
+id: zflpkvayzt
+artifact: plan
+record:
+  name: Migrate and persist runtime-qualified identity
+  depends_on:
+    - tfhmbcdfgs
+  status: pending
+  acceptance:
+    - GIVEN fresh, empty version-4, populated version-4, and every historically supported database shape WHEN opened under the new release THEN each reaches schema version 5 and preserves field-for-field telemetry, ownership, and unrelated evidence.
+    - GIVEN two valid normalized observations with distinct runtime namespaces and identical native identifiers WHEN persisted THEN both remain independently inspectable.
+    - GIVEN the same runtime-qualified tuple arrives sequentially with different non-key evidence or owners WHEN persisted THEN every stored field remains from the first accepted observation.
+    - GIVEN concurrent inserts for one runtime-qualified tuple with different complete payloads or owners WHEN persistence resolves them THEN exactly one complete observation and one owner win without mixed fields.
+    - GIVEN runtime version, provider, or model changes for one runtime-qualified tuple WHEN redelivered THEN no duplicate logical observation is created.
+    - GIVEN blank legacy provenance, copy failure, or validation failure WHEN migration runs THEN the original rows, table shape, associations, unrelated evidence, and schema version remain unchanged; recording stays fail-open with stderr diagnostics while inspection fails nonzero without partial output.
+  plan: swvgbhhtbf

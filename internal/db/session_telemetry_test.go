@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/jgabor/ktx/internal/opencodetelemetry"
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 func TestOpenMigratesExistingDatabaseForSessionTelemetry(t *testing.T) {
@@ -78,6 +78,9 @@ func TestSessionTelemetryPersistsSeparatelyAndListsMeasurements(t *testing.T) {
 	}
 	if got.Provider == nil || *got.Provider != provider || got.Model == nil || *got.Model != model {
 		t.Fatalf("provider/model = %#v/%#v", got.Provider, got.Model)
+	}
+	if got.Runtime != "test-runtime" || got.RuntimeVersion != "1.0.0" {
+		t.Fatalf("runtime identity = %q/%q", got.Runtime, got.RuntimeVersion)
 	}
 	if got.CacheRead.State != MeasurementMeasured || got.CacheRead.Value == nil || *got.CacheRead.Value != 0 {
 		t.Fatalf("cache_read = %#v, want measured zero", got.CacheRead)
@@ -173,14 +176,16 @@ func TestSessionTelemetryFailurePreservesExistingEvidence(t *testing.T) {
 	}
 }
 
-func telemetryObservation(sessionID, messageID, partID string, ordinal uint64, read, write int64) *opencodetelemetry.Observation {
-	return &opencodetelemetry.Observation{
-		Key:     opencodetelemetry.Key{SessionID: sessionID, MessageID: messageID, PartID: partID},
+func telemetryObservation(sessionID, messageID, partID string, ordinal uint64, read, write int64) *telemetry.Observation {
+	return &telemetry.Observation{
+		Key:     telemetry.Key{SessionID: sessionID, MessageID: messageID, PartID: partID},
 		Ordinal: ordinal,
 		Reason:  "stop",
 		Cost:    0,
-		Tokens: opencodetelemetry.Tokens{
+		Tokens: telemetry.Tokens{
 			Input: 1, Output: 2, Reasoning: 0, CacheRead: read, CacheWrite: write,
 		},
+		Runtime:        "test-runtime",
+		RuntimeVersion: "1.0.0",
 	}
 }

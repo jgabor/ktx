@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
-	"github.com/jgabor/ktx/internal/opencodetelemetry"
+	"github.com/jgabor/ktx/internal/telemetry"
+	"github.com/jgabor/ktx/internal/telemetry/opencode"
 )
 
 const (
@@ -81,8 +83,9 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 	if err != nil {
 		return usageError("ktx telemetry record: %v", err)
 	}
-	if err := opencodetelemetry.ValidateObservation(observation); err != nil {
-		return usageError("ktx telemetry record: %v", err)
+	if err := telemetry.ValidateObservation(observation); err != nil {
+		detail := strings.TrimPrefix(err.Error(), telemetry.ErrInvalid.Error())
+		return usageError("ktx telemetry record: %s%s", opencode.ErrInvalid, detail)
 	}
 	capturedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	sessionID, err := db.ResolveSessionID(input.KtxSessionID, capturedAt)
@@ -97,7 +100,7 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 	return nil
 }
 
-func (input telemetryRecordInput) observation() (*opencodetelemetry.Observation, error) {
+func (input telemetryRecordInput) observation() (*telemetry.Observation, error) {
 	missing := ""
 	switch {
 	case input.Ordinal == nil:
@@ -118,8 +121,8 @@ func (input telemetryRecordInput) observation() (*opencodetelemetry.Observation,
 	if missing != "" {
 		return nil, fmt.Errorf("missing required field: %s", missing)
 	}
-	return &opencodetelemetry.Observation{
-		Key: opencodetelemetry.Key{
+	return &telemetry.Observation{
+		Key: telemetry.Key{
 			SessionID: input.SessionID,
 			MessageID: input.MessageID,
 			PartID:    input.PartID,
@@ -127,15 +130,17 @@ func (input telemetryRecordInput) observation() (*opencodetelemetry.Observation,
 		Ordinal: *input.Ordinal,
 		Reason:  input.Reason,
 		Cost:    *input.Cost,
-		Tokens: opencodetelemetry.Tokens{
+		Tokens: telemetry.Tokens{
 			Input:      *input.Tokens.Input,
 			Output:     *input.Tokens.Output,
 			Reasoning:  *input.Tokens.Reasoning,
 			CacheRead:  *input.Tokens.CacheRead,
 			CacheWrite: *input.Tokens.CacheWrite,
 		},
-		Provider: input.Provider,
-		Model:    input.Model,
+		Provider:       input.Provider,
+		Model:          input.Model,
+		Runtime:        opencode.Runtime,
+		RuntimeVersion: opencode.RuntimeVersion,
 	}, nil
 }
 

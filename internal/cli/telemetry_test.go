@@ -23,7 +23,7 @@ func TestTelemetryRecordAndBoundedJSONInspection(t *testing.T) {
 	if err := d.InsertSession(&dbpkg.Session{ID: sessionID, Agent: "opencode"}); err != nil {
 		t.Fatal(err)
 	}
-	record := `{"ktx_session_id":"` + sessionID + `","session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache_read":0,"cache_write":9}}`
+	record := `{"ktx_session_id":"` + sessionID + `","session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache_read":0,"cache_write":9},"runtime":"untrusted","runtime_version":"0"}`
 	var stdout, stderr bytes.Buffer
 	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(record), d, &stdout, &stderr); err != nil {
 		t.Fatal(err)
@@ -54,6 +54,9 @@ func TestTelemetryRecordAndBoundedJSONInspection(t *testing.T) {
 	}
 	if result.Observations[0].Provider != nil || result.Observations[0].Model != nil {
 		t.Fatalf("unavailable identity was invented: %#v", result.Observations[0])
+	}
+	if result.Observations[0].Runtime != "opencode" || result.Observations[0].RuntimeVersion != "1.18.4" {
+		t.Fatalf("runtime identity = %q/%q", result.Observations[0].Runtime, result.Observations[0].RuntimeVersion)
 	}
 }
 
@@ -222,6 +225,10 @@ func TestTelemetryRejectsMalformedAndFailsOpenOnPersistenceError(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
+	invalid := `{"ktx_session_id":"` + sessionID + `","session_id":" ","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache_read":0,"cache_write":9}}`
+	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(invalid), d, &stdout, &stderr); err == nil || !strings.Contains(err.Error(), "invalid OpenCode telemetry event: session_id must be a non-blank string") {
+		t.Fatalf("normalized validation error = %v", err)
+	}
 	malformed := `{"ktx_session_id":"` + sessionID + `","session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache_read":"bad","cache_write":9}}`
 	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(malformed), d, &stdout, &stderr); err == nil {
 		t.Fatal("malformed observation accepted")

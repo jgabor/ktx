@@ -1,4 +1,4 @@
-package opencodetelemetry
+package opencode
 
 import (
 	"encoding/json"

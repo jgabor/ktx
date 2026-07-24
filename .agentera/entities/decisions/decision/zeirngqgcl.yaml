@@ -1,0 +1,19 @@
+id: zeirngqgcl
+artifact: decisions
+record:
+  date: 2026-07-24
+  question: How should session telemetry define logical identity across runtimes and runtime versions?
+  context: internal/db/schema.go currently keys session_telemetry by (source_session_id, message_id, part_id), while internal/db/session_telemetry.go stores runtime separately. The runtime-neutral internal/telemetry split exposes that these IDs are authoritative only inside one runtime namespace. Adding another runtime without qualifying the tuple could silently suppress valid observations and assign first-session ownership incorrectly. Existing schema-version-4 data contains only trusted OpenCode observations and cannot contain collisions under the narrower key.
+  alternatives:
+    - name: Qualify the native tuple with trusted runtime and migrate schema now.
+      status: chosen
+    - name: Keep the OpenCode-only tuple until a second runtime is implemented.
+      status: rejected
+    - name: Include runtime version in logical identity.
+      status: rejected
+    - name: Add a speculative source-kind discriminator before another source category exists.
+      status: rejected
+  choice: Session telemetry identity is (runtime, source_session_id, message_id, part_id). Runtime is a canonical namespace assigned only by trusted ingress in internal/cli/telemetry.go. Runtime version, provider, model, local ordinal, KTX session ownership, measurements, and timestamps are provenance or evidence, not identity. Runtime version changes must not duplicate the same native event. Migrate schema version 4 to 5 now by transactionally rebuilding session_telemetry with the runtime-qualified primary key, strict row copying, corrected ON CONFLICT target, and deterministic ordering/indexes. Do not reconstruct observations previously suppressed by the old key. If one runtime later exposes multiple independently keyed source categories, decide and add an explicit source_kind then.
+  reasoning: Native IDs have no proven global namespace, so runtime is required to prevent false cross-runtime deduplication. Runtime version describes the interpreting contract rather than event identity; including it would duplicate retries across upgrades. Optional provider/model data and local ordering cannot safely identify an event. Migrating before a second runtime keeps the transition deterministic while all persisted rows are known OpenCode rows, avoids future mixed-state ambiguity, and preserves first-evidence authority without inventing data.
+  confidence: firm
+  feeds_into: internal/telemetry package split; internal/db/schema.go schema-v5 migration; session telemetry persistence, ordering, inspection, migration tests, and docs/opencode-telemetry.md

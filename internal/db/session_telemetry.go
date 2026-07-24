@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jgabor/ktx/internal/opencodetelemetry"
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 const (
@@ -26,8 +26,8 @@ type CostMeasurement struct {
 	Value *float64 `json:"value"`
 }
 
-// SessionTelemetry is one accepted OpenCode model-step observation associated
-// with a ktx session. Provider and model remain nil when correlation was not
+// SessionTelemetry is one accepted model-step observation associated with a
+// ktx session. Provider and model remain nil when correlation was not
 // available; accepted numeric fields are always measured, including zero.
 type SessionTelemetry struct {
 	SessionID       string             `json:"session_id"`
@@ -53,8 +53,8 @@ type SessionTelemetry struct {
 // is the idempotency key: the first accepted occurrence remains authoritative.
 // The session check and insert share one transaction, and the foreign key is
 // the final association guard.
-func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *opencodetelemetry.Observation) (bool, error) {
-	if err := opencodetelemetry.ValidateObservation(observation); err != nil {
+func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *telemetry.Observation) (bool, error) {
+	if err := telemetry.ValidateObservation(observation); err != nil {
 		return false, err
 	}
 	if sessionID == "" || capturedAt == "" {
@@ -81,7 +81,7 @@ func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *
 			observation.Ordinal, observation.Reason, observation.Cost,
 			observation.Tokens.Input, observation.Tokens.Output, observation.Tokens.Reasoning,
 			observation.Tokens.CacheRead, observation.Tokens.CacheWrite,
-			observation.Provider, observation.Model, "opencode", opencodetelemetry.RuntimeVersion, capturedAt,
+			observation.Provider, observation.Model, observation.Runtime, observation.RuntimeVersion, capturedAt,
 		)
 		if err != nil {
 			return err

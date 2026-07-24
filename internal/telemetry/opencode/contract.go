@@ -1,6 +1,6 @@
-// Package opencodetelemetry validates the pinned OpenCode plugin event shapes
-// used for optional model-step telemetry.
-package opencodetelemetry
+// Package opencode validates the pinned OpenCode plugin event shapes used for
+// optional model-step telemetry.
+package opencode
 
 import (
 	"bytes"
@@ -9,22 +9,20 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
-const RuntimeVersion = "1.18.4"
+const (
+	Runtime        = "opencode"
+	RuntimeVersion = "1.18.4"
+)
 
 var (
 	ErrInvalid     = errors.New("invalid OpenCode telemetry event")
 	ErrUnsupported = errors.New("unsupported OpenCode telemetry event")
 	ErrDuplicate   = errors.New("duplicate OpenCode telemetry event")
 )
-
-// Key is the authoritative model-step identity exposed by OpenCode.
-type Key struct {
-	SessionID string `json:"session_id"`
-	MessageID string `json:"message_id"`
-	PartID    string `json:"part_id"`
-}
 
 type messageKey struct {
 	SessionID string
@@ -38,91 +36,24 @@ type Identity struct {
 	Model    string
 }
 
-// Tokens contains OpenCode-normalized model-step token measurements.
-type Tokens struct {
-	Input      int64 `json:"input"`
-	Output     int64 `json:"output"`
-	Reasoning  int64 `json:"reasoning"`
-	CacheRead  int64 `json:"cache_read"`
-	CacheWrite int64 `json:"cache_write"`
-}
-
-// Observation is one accepted step-finish part. Ordinal is local collector
-// acceptance order, not a provider request number or source timestamp.
-type Observation struct {
-	Key
-	Ordinal  uint64  `json:"ordinal"`
-	Reason   string  `json:"reason"`
-	Cost     float64 `json:"cost"`
-	Tokens   Tokens  `json:"tokens"`
-	Provider *string `json:"provider"`
-	Model    *string `json:"model"`
-}
-
-// ValidateObservation checks a normalized observation before persistence.
-// DecodeModelStep and Collector produce this shape; the exported check keeps
-// callers that deserialize accepted observations from bypassing the contract.
-func ValidateObservation(observation *Observation) error {
-	if observation == nil {
-		return invalid("missing observation")
-	}
-	for _, field := range []struct{ name, value string }{
-		{"session_id", observation.SessionID},
-		{"message_id", observation.MessageID},
-		{"part_id", observation.PartID},
-		{"reason", observation.Reason},
-	} {
-		if strings.TrimSpace(field.value) == "" {
-			return invalid(field.name + " must be a non-blank string")
-		}
-	}
-	if observation.Ordinal == 0 || observation.Ordinal > math.MaxInt64 {
-		return invalid("ordinal must be a positive signed 64-bit integer")
-	}
-	if observation.Cost < 0 || math.IsInf(observation.Cost, 0) || math.IsNaN(observation.Cost) {
-		return invalid("cost must be a non-negative number")
-	}
-	for _, field := range []struct {
-		name  string
-		value int64
-	}{
-		{"tokens.input", observation.Tokens.Input},
-		{"tokens.output", observation.Tokens.Output},
-		{"tokens.reasoning", observation.Tokens.Reasoning},
-		{"tokens.cache_read", observation.Tokens.CacheRead},
-		{"tokens.cache_write", observation.Tokens.CacheWrite},
-	} {
-		if field.value < 0 || field.value >= 1<<53 {
-			return invalid(field.name + " must be a non-negative safe integer")
-		}
-	}
-	if (observation.Provider == nil) != (observation.Model == nil) {
-		return invalid("provider and model must both be available or both be absent")
-	}
-	if observation.Provider != nil && (strings.TrimSpace(*observation.Provider) == "" || strings.TrimSpace(*observation.Model) == "") {
-		return invalid("provider and model must be non-blank when available")
-	}
-	return nil
-}
-
 // Collector correlates message identity, deduplicates model steps, and assigns
 // contiguous ordinals. Callers must serialize concurrent calls to Add.
 type Collector struct {
 	identities map[messageKey]Identity
-	seen       map[Key]struct{}
+	seen       map[telemetry.Key]struct{}
 	next       uint64
 }
 
 func NewCollector() *Collector {
 	return &Collector{
 		identities: make(map[messageKey]Identity),
-		seen:       make(map[Key]struct{}),
+		seen:       make(map[telemetry.Key]struct{}),
 	}
 }
 
 // Add accepts an assistant identity event or returns one model-step
 // observation. A nil observation means an identity event was accepted.
-func (c *Collector) Add(data []byte) (*Observation, error) {
+func (c *Collector) Add(data []byte) (*telemetry.Observation, error) {
 	eventType, err := envelopeType(data)
 	if err != nil {
 		return nil, err
@@ -207,55 +138,55 @@ func DecodeMessageIdentity(data []byte) (messageKey, Identity, error) {
 }
 
 // DecodeModelStep validates one message.part.updated step-finish event.
-func DecodeModelStep(data []byte) (Observation, error) {
+func DecodeModelStep(data []byte) (telemetry.Observation, error) {
 	var event struct {
 		Type       string          `json:"type"`
 		Properties json.RawMessage `json:"properties"`
 	}
 	if err := json.Unmarshal(data, &event); err != nil {
-		return Observation{}, invalid("malformed JSON")
+		return telemetry.Observation{}, invalid("malformed JSON")
 	}
 	if event.Type != "message.part.updated" {
-		return Observation{}, fmt.Errorf("%w: type %q", ErrUnsupported, event.Type)
+		return telemetry.Observation{}, fmt.Errorf("%w: type %q", ErrUnsupported, event.Type)
 	}
 	properties, err := object(event.Properties, "properties")
 	if err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	part, err := object(properties["part"], "properties.part")
 	if err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	partType, err := requiredString(part["type"], "properties.part.type")
 	if err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	if partType != "step-finish" {
-		return Observation{}, fmt.Errorf("%w: part type %q", ErrUnsupported, partType)
+		return telemetry.Observation{}, fmt.Errorf("%w: part type %q", ErrUnsupported, partType)
 	}
-	observation := Observation{}
+	observation := telemetry.Observation{}
 	if observation.SessionID, err = requiredString(part["sessionID"], "properties.part.sessionID"); err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	if observation.MessageID, err = requiredString(part["messageID"], "properties.part.messageID"); err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	if observation.PartID, err = requiredString(part["id"], "properties.part.id"); err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	if observation.Reason, err = requiredString(part["reason"], "properties.part.reason"); err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	if observation.Cost, err = nonnegativeNumber(part["cost"], "properties.part.cost"); err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	tokens, err := object(part["tokens"], "properties.part.tokens")
 	if err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	cache, err := object(tokens["cache"], "properties.part.tokens.cache")
 	if err != nil {
-		return Observation{}, err
+		return telemetry.Observation{}, err
 	}
 	measurements := []struct {
 		raw  json.RawMessage
@@ -271,7 +202,7 @@ func DecodeModelStep(data []byte) (Observation, error) {
 	for _, measurement := range measurements {
 		*measurement.set, err = nonnegativeInteger(measurement.raw, measurement.name)
 		if err != nil {
-			return Observation{}, err
+			return telemetry.Observation{}, err
 		}
 	}
 	return observation, nil

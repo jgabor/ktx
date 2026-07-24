@@ -1,0 +1,13 @@
+id: tfhmbcdfgs
+artifact: plan
+record:
+  name: Freeze and verify trusted telemetry normalization
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a trusted OpenCode event WHEN it is normalized and persisted THEN its canonical runtime and supported version provenance are retained without changing accepted measurements.
+    - GIVEN caller input containing runtime or version fields WHEN OpenCode telemetry is recorded THEN caller values cannot override trusted provenance.
+    - GIVEN accepted, rejected, duplicate, missing, and explicit-zero OpenCode fixtures WHEN verification runs THEN behavior and diagnostics remain unchanged.
+    - GIVEN runtime-neutral persistence is reviewed WHEN the boundary is accepted THEN vendor-specific event interpretation remains outside the normalized persistence contract.
+  plan: swvgbhhtbf

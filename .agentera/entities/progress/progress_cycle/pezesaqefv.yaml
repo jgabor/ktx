@@ -1,0 +1,14 @@
+id: pezesaqefv
+artifact: progress
+record:
+  timestamp: 2026-07-24 12:34
+  type: docs
+  phase: build
+  what: Added the current retained cache-observability matrix to docs/opencode-telemetry.md and linked it from docs/pipelines.md. The table distinguishes benchmark recorded streams from OpenCode 1.18.4 session telemetry, including direct versus attempt-context fields, absent-versus-zero behavior, unavailable retry identity, retention paths, malformed evidence handling, and claim limits.
+  context:
+    intent: Document only the cache-observability capabilities of sources ktx currently retains without absorbing future provider-native work.
+    constraints: Documentation-only. Provider-native probes, negative controls, prefix characterization, isolation adjudication, machine-readable registries, TODO resolution, and decision satisfaction remain unchanged.
+    unknowns: None.
+    scope: docs/opencode-telemetry.md and docs/pipelines.md.
+  verified: go test ./internal/experiment ./internal/usage ./internal/telemetry/... passed; mage check passed tests, vet, lint, and build; git diff --check passed.
+  next: Use the separate backlog items for provider-native probes and negative controls; do not broaden this matrix retroactively.

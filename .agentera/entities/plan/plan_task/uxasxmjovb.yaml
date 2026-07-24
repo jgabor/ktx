@@ -11,3 +11,13 @@ record:
     - GIVEN current same-runtime observations WHEN inspected after the change THEN existing limits, field meanings, and ordering remain compatible.
     - GIVEN a concrete positional text consumer is found WHEN compatibility is assessed THEN the text change is revised or replanned before shipping.
   plan: swvgbhhtbf
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit evaluation ses_06c9913b2ffeIyLRClOKmxTf2G
+      recorded_at: 2026-07-24 11:21
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,15 @@
+id: rbhplfjqea
+artifact: progress
+record:
+  timestamp: 2026-07-24 18:00
+  type: fix
+  phase: build
+  what: Updated tools/bench/evidence/opencode-runtime-cache-controls.json with three exact SHA-256 values and restored the portable runtime-control gate.
+  context:
+    intent: Restore exact tracked-byte integrity without changing accepted runtime evidence.
+    constraints: Hash declarations and project state only; no runtime, provider, network, or credential access.
+    unknowns: None beyond the task's retained unavailable provider capabilities.
+    scope: The runtime-control evidence manifest and plan/progress state.
+  inspiration: The second independent audit failure recorded on task nfusgeryyh.
+  discovered: The prior success record did not cover final tracked evidence bytes; its runtime evidence remains unchanged.
+  verified: All 19 locally available declared artifact hashes matched. go test ./internal/cacheevidence -run '^TestOpenCodeRuntimeControl' -count=1 and mage check passed in the checkout and a clean git archive extraction without .bench-data.

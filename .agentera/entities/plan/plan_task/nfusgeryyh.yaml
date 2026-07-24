@@ -6,7 +6,7 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-  status: blocked
+  status: complete
   acceptance:
     - GIVEN an eligible OpenCode runtime and model path WHEN runtime-only controls run THEN retained evidence covers equal and changed submitted prompts within the same runtime session, cold-to-repeat ordering that retains any positive runtime-reported fill and otherwise marks cache-fill evidence unavailable, and one/multi runtime-visible model-step sequencing; native provider request count remains unavailable when the runtime does not expose it.
     - GIVEN a controllable runtime session, submitted-prompt, or model-step sequencing dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, runtime-visible model-step/request sequencing, runtime version, model identity, and field completeness while keeping native provider request identity and count unavailable.

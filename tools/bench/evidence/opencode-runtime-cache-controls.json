@@ -342,7 +342,7 @@
   "tracked_artifacts": [
     {
       "path": "tools/bench/evidence/opencode-runtime-cache-controls/probe-config.json",
-      "sha256": "43383b704b3fde1890f98ec1341a906e122257431fe6bb6093b1d191bd5af4ce"
+      "sha256": "2a7e7c0ff1c7e0b90c4b8b6096faaff086bc450e74fc6d83bfcff9e478e4a28b"
     },
     {
       "path": "tools/bench/evidence/opencode-runtime-cache-controls/probe.sh",
@@ -354,11 +354,11 @@
     },
     {
       "path": "tools/bench/evidence/opencode-runtime-cache-controls/new-probe-accounting.json",
-      "sha256": "6a8e8de6a2a2e84c817792b5520cefff8afb0821f6fb8a583ba61d38c9e8a26f"
+      "sha256": "23199523128880a466719ac56565d17ac206f9c112fa282ce44b7acba7bb1c03"
     },
     {
       "path": "tools/bench/evidence/opencode-runtime-cache-controls-preflight-2.json",
-      "sha256": "0ec7816405bc4b3b73117d9a8e861aa7cf3b62d7c3f73d7c4545feab42e5f8da"
+      "sha256": "91041f8c108b0009edc1e0bc23f278c4abf2ef3fc3b3b31590e426d7108fa74e"
     }
   ],
   "ignored_artifact_root": ".bench-data/cache-evidence/opencode-runtime-controls-20260724",

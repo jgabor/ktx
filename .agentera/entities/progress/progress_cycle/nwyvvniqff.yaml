@@ -1,0 +1,13 @@
+id: nwyvvniqff
+artifact: progress
+record:
+  timestamp: 2026-07-24 18:50
+  type: docs
+  phase: build
+  what: Added docs/runtime-visible-prefix-characterization.md, tools/bench/evidence/opencode-runtime-prefix-characterization.json, and an offline cacheevidence regression test.
+  context:
+    intent: Characterize only retained OpenCode runtime-visible session relationships, submitted-prompt hashes, execution order, and token/cache measurements while keeping provider-only signals unavailable and private data excluded.
+    constraints: Used only tracked sanitized OpenCode 1.18.4 source records and retained runtime events; added no provider-prefix reconstruction, segmentation, schema analysis, breakpoint inference, TTL experiment, effectiveness claim, or isolation claim.
+  discovered: The default golangci-lint cache referenced a removed sibling checkout; rerunning mage check with a disposable isolated cache passed with zero issues.
+  verified: Focused cacheevidence tests passed. mage check passed with an isolated lint cache. Agentera state validation, marker/secret review, and git diff --check passed. No provider call ran.
+  next: Use this bounded characterization as evidence for later deliberation without upgrading unavailable provider signals.

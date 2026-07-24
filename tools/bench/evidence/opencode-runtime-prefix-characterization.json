@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "status": "runtime_visible_prefix_characterized",
+  "source": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "runtime_commit": "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+    "evidence_kind": "retained_runtime_only",
+    "direct_provider_calls": 0
+  },
+  "references": [
+    {
+      "path": "tools/bench/evidence/opencode-runtime-cache-controls.json",
+      "sha256": "1eaa07c89027c31e92b1c1094a33fc5e1df589c435979e45c3af41f230af1075"
+    },
+    {
+      "path": "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
+      "sha256": "738504be1936b021a37e640367a71d0e12ee538e2cf062005d62ff741c56efe8"
+    },
+    {
+      "path": "tools/bench/evidence/opencode-runtime-temporal-controls.json",
+      "sha256": "d742c8923bf30d507e3ee354f967519b889d9fc391e3c8319562f9e5b660c729"
+    },
+    {
+      "path": "tools/bench/evidence/opencode-runtime-temporal-controls/source-events.jsonl",
+      "sha256": "debcccb6f3cba6759b387a59f1288b1fcf50280ac9dc39d1ff80dd74c6088c04"
+    }
+  ],
+  "observed": {
+    "runtime_session_relationship": {
+      "availability": "observed",
+      "source_reference": "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
+      "same_session_ordinals": [2, 3, 6],
+      "same_session_sha256": "3f2950682ffdb073e97c7816ac2bc949764973b123714eadd726e169b95a004d",
+      "distinct_session_ordinals": [4],
+      "distinct_session_sha256": "a2f63eb187c4b55063288c2376f8ce87c4c80a1b14585bd8fcf2373eff247adb"
+    },
+    "submitted_prompt_identity": {
+      "availability": "observed",
+      "source_reference": "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
+      "groups": [
+        {
+          "ordinals": [1, 2, 3, 4],
+          "sha256": "813a9772fd5bb4ccadd850bca203c9941afbf7be0e5e64d5e8b74a407a54c43f"
+        },
+        {
+          "ordinals": [5, 6],
+          "sha256": "b8facea9ebcf6bc74fced9642b05c679f2a81e7c013761ec41aba677da298b84"
+        }
+      ]
+    },
+    "execution_order": {
+      "availability": "observed",
+      "cache_control_event_ordinals": [1, 2, 3, 4, 5, 6],
+      "same_session_model_step_ordinals": [2, 3, 6],
+      "temporal_launch_order": [1, 2],
+      "runtime_event_order_scope": "within_each_captured_invocation",
+      "completion_order": "unavailable"
+    },
+    "token_cache_measurements": {
+      "availability": "observed",
+      "source_references": [
+        "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
+        "tools/bench/evidence/opencode-runtime-temporal-controls/source-events.jsonl"
+      ],
+      "cache_control_model_step_ordinals": [2, 3, 6],
+      "fields": [
+        "uncached_input",
+        "cache_read",
+        "cache_write",
+        "output",
+        "reasoning_when_emitted",
+        "cost_usd"
+      ]
+    }
+  },
+  "unavailable": {
+    "provider_visible_prefix": "unavailable",
+    "breakpoint": "unavailable",
+    "tool_schema_segmentation": "unavailable",
+    "ttl": "unavailable",
+    "provider_request_identity": "unavailable",
+    "provider_request_count": "unavailable",
+    "isolation": "unavailable"
+  },
+  "privacy": {
+    "prompt_content_retained": false,
+    "credentials_retained": false,
+    "raw_session_or_cache_namespaces_retained": false,
+    "message_or_part_ids_retained": false,
+    "additional_source_excerpts_retained": false
+  }
+}

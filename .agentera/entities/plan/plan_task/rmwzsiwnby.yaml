@@ -8,7 +8,7 @@ record:
     - zvbegohemo
     - lmabuidega
     - cjanyznhqa
-  status: pending
+  status: complete
   acceptance:
     - GIVEN existing trusted OpenCode sources and retained runtime streams WHEN prefix evidence is characterized THEN only runtime-visible session, submitted-prompt identity, token/cache measurements, and ordering are reported; provider-visible prefix, breakpoint, tool-schema segmentation, and TTL remain unavailable unless explicitly exposed.
     - GIVEN retained events may derive from sensitive prompts or runtime identifiers WHEN evidence is published THEN only sanitized counts, measurements, and hashes needed for reproduction are retained.

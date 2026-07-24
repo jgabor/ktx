@@ -11,3 +11,13 @@ record:
     - GIVEN accepted, rejected, duplicate, missing, and explicit-zero OpenCode fixtures WHEN verification runs THEN behavior and diagnostics remain unchanged.
     - GIVEN runtime-neutral persistence is reviewed WHEN the boundary is accepted THEN vendor-specific event interpretation remains outside the normalized persistence contract.
   plan: swvgbhhtbf
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit evaluation ses_06cc0d526ffeD9JGmRhI62oLn7
+      recorded_at: 2026-07-24 10:36
+      writer_command: agentera state plan record-evaluation

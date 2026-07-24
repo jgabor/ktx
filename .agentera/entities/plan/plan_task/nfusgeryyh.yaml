@@ -6,7 +6,7 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN an eligible OpenCode runtime and model path WHEN runtime-only controls run THEN retained evidence covers equal and changed submitted prompts within the same runtime session, cold-to-repeat ordering that retains any positive runtime-reported fill and otherwise marks cache-fill evidence unavailable, and one/multi runtime-visible model-step sequencing; native provider request count remains unavailable when the runtime does not expose it.
     - GIVEN a controllable runtime session, submitted-prompt, or model-step sequencing dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, runtime-visible model-step/request sequencing, runtime version, model identity, and field completeness while keeping native provider request identity and count unavailable.
@@ -24,3 +24,6 @@ record:
       source: Independent reaudit of corrected runtime controls
       recorded_at: 2026-07-24 17:49
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - lmabuidega
+  superseded_reason: The replacement preserves the runtime-only acceptance, repairs portable artifact integrity, passes focused and full checks in the checkout and clean archive, and retains both failed predecessor audits.

@@ -60,6 +60,11 @@ type EventIdentity struct {
 	Provider          *string            `json:"provider,omitempty"`
 	Runtime           *string            `json:"runtime,omitempty"`
 	Model             *string            `json:"model,omitempty"`
+	ResponseID        *string            `json:"response_id,omitempty"`
+	RequestID         *string            `json:"request_id,omitempty"`
+	SessionID         *string            `json:"session_id,omitempty"`
+	MessageID         *string            `json:"message_id,omitempty"`
+	PartID            *string            `json:"part_id,omitempty"`
 	ProviderRequestID *string            `json:"provider_request_id,omitempty"`
 	OneToOneMapping   *EvidenceReference `json:"one_to_one_mapping,omitempty"`
 }
@@ -68,16 +73,20 @@ type EventIdentity struct {
 // event. It deliberately retains only descriptive control metadata, not raw
 // cache namespaces or credentials.
 type EventControl struct {
-	Mode          *string `json:"mode,omitempty"`
-	NamespaceHash *string `json:"namespace_hash,omitempty"`
-	Breakpoint    *string `json:"breakpoint,omitempty"`
-	Eligibility   *string `json:"eligibility,omitempty"`
+	Mode            *string `json:"mode,omitempty"`
+	NamespaceHash   *string `json:"namespace_hash,omitempty"`
+	Breakpoint      *string `json:"breakpoint,omitempty"`
+	Eligibility     *string `json:"eligibility,omitempty"`
+	Availability    *string `json:"availability,omitempty"`
+	MaxOutputTokens *int64  `json:"max_output_tokens,omitempty"`
 }
 
 // RetryMetadata is retry data when the source reports it. Its absence does
 // not establish that an event was not retried.
 type RetryMetadata struct {
 	Attempt                    *int    `json:"attempt,omitempty"`
+	MaxAttempts                *int    `json:"max_attempts,omitempty"`
+	Availability               *string `json:"availability,omitempty"`
 	PreviousSourceEventOrdinal *uint64 `json:"previous_source_event_ordinal,omitempty"`
 	ProviderRequestID          *string `json:"provider_request_id,omitempty"`
 }
@@ -140,7 +149,9 @@ func (i EventIdentity) hasNativeRequestIdentity() bool {
 
 func (i EventIdentity) validate() error {
 	for name, value := range map[string]*string{
-		"provider": i.Provider, "runtime": i.Runtime, "model": i.Model, "provider request ID": i.ProviderRequestID,
+		"provider": i.Provider, "runtime": i.Runtime, "model": i.Model,
+		"response ID": i.ResponseID, "request ID": i.RequestID, "session ID": i.SessionID,
+		"message ID": i.MessageID, "part ID": i.PartID, "provider request ID": i.ProviderRequestID,
 	} {
 		if err := validateOptionalText(name, value); err != nil {
 			return err
@@ -154,11 +165,15 @@ func (i EventIdentity) validate() error {
 
 func (c EventControl) validate() error {
 	for name, value := range map[string]*string{
-		"control mode": c.Mode, "namespace hash": c.NamespaceHash, "breakpoint": c.Breakpoint, "eligibility": c.Eligibility,
+		"control mode": c.Mode, "namespace hash": c.NamespaceHash, "breakpoint": c.Breakpoint,
+		"eligibility": c.Eligibility, "control availability": c.Availability,
 	} {
 		if err := validateOptionalText(name, value); err != nil {
 			return err
 		}
+	}
+	if c.MaxOutputTokens != nil && *c.MaxOutputTokens <= 0 {
+		return fmt.Errorf("maximum output tokens must be positive")
 	}
 	return nil
 }
@@ -167,8 +182,17 @@ func (r RetryMetadata) validate(ordinal uint64) error {
 	if r.Attempt != nil && *r.Attempt < 0 {
 		return fmt.Errorf("retry attempt must not be negative")
 	}
+	if r.MaxAttempts != nil && *r.MaxAttempts <= 0 {
+		return fmt.Errorf("retry maximum attempts must be positive")
+	}
+	if r.Attempt != nil && r.MaxAttempts != nil && *r.Attempt > *r.MaxAttempts {
+		return fmt.Errorf("retry attempt exceeds maximum attempts")
+	}
 	if r.PreviousSourceEventOrdinal != nil && (*r.PreviousSourceEventOrdinal == 0 || *r.PreviousSourceEventOrdinal >= ordinal) {
 		return fmt.Errorf("previous source event ordinal must precede the event")
+	}
+	if err := validateOptionalText("retry availability", r.Availability); err != nil {
+		return err
 	}
 	return validateOptionalText("retry provider request ID", r.ProviderRequestID)
 }
@@ -298,6 +322,7 @@ type CapabilityEvidence struct {
 type CapabilityEntry struct {
 	Source                    string             `json:"source"`
 	Version                   string             `json:"version"`
+	UnavailableCondition      *string            `json:"unavailable_condition,omitempty"`
 	AuthoritativeSource       CapabilityEvidence `json:"authoritative_source"`
 	RuntimeNormalization      CapabilityEvidence `json:"runtime_normalization"`
 	LiveObservation           CapabilityEvidence `json:"live_observation"`
@@ -311,6 +336,13 @@ func (e *CapabilityEntry) Validate() error {
 	e.Version = strings.TrimSpace(e.Version)
 	if e.Source == "" || e.Version == "" {
 		return fmt.Errorf("capability entry requires source and version")
+	}
+	if e.UnavailableCondition != nil {
+		condition := strings.TrimSpace(*e.UnavailableCondition)
+		if condition == "" {
+			return fmt.Errorf("capability entry unavailable condition must not be blank")
+		}
+		e.UnavailableCondition = &condition
 	}
 	for _, level := range []*CapabilityEvidence{&e.AuthoritativeSource, &e.RuntimeNormalization, &e.LiveObservation, &e.ControlValidatedIsolation} {
 		if err := level.validate(); err != nil {

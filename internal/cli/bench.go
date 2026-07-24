@@ -93,6 +93,8 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		return runBenchCorpus(rest, opts, stdout, stderr)
 	case "agent":
 		return runBenchAgent(rest, opts, stdout, stderr)
+	case "evidence":
+		return runBenchEvidence(rest, opts, stdout, stderr)
 	default:
 		printError(stderr, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub), opts.Format)
 		return ExitUsage
@@ -137,6 +139,8 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 		return benchSubToExit(runBenchCorpus(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "agent":
 		return benchSubToExit(runBenchAgent(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "evidence":
+		return benchSubToExit(runBenchEvidence(tail, opts, ctx.Stdout, ctx.Stderr))
 	default:
 		return nil, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub)
 	}
@@ -232,6 +236,8 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
 	fmt.Fprintln(w, "  validate --experiment <directory>")
 	fmt.Fprintln(w, "      Verify retained artifacts, hashes, links, and summary bytes.")
+	fmt.Fprintln(w, "  evidence preflight --spec <path> [--output <path>]")
+	fmt.Fprintln(w, "      Run the no-network gate for bounded OpenAI/OpenCode cache evidence.")
 	fmt.Fprintln(w, "  corpus generate [--output <directory>]")
 	fmt.Fprintln(w, "      Regenerate the deterministic planted-fact corpus.")
 	fmt.Fprintln(w)

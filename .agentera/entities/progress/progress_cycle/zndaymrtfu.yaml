@@ -1,0 +1,14 @@
+id: zndaymrtfu
+artifact: progress
+record:
+  timestamp: 2026-07-24 15:03
+  type: feat
+  phase: build
+  what: Added build/ktx bench evidence preflight, a retained source/version/access report, and fixture-backed OpenAI native versus OpenCode normalized field preservation.
+  context:
+    intent: Establish every offline and source-backed safety rule before requesting approval for any provider or model call.
+    constraints: No provider/model request, credentials, raw cache keys, priced routine OpenCode observation, isolation inference, methodology-v5 default change, historical artifact rewrite, TODO change, or decision change.
+    unknowns: OPENAI_API_KEY is absent. OpenAI and opencode/big-pickle model entitlements remain unverified without a provider request.
+    scope: internal/cacheevidence, internal/experiment evidence fields, ktx bench evidence preflight, docs/cache-evidence-openai-opencode.md, and tools/bench evidence/fixtures.
+  verified: go test ./internal/cacheevidence ./internal/experiment ./internal/cli passed; mage check passed race tests, vet, lint, and build; build/ktx bench evidence preflight retained zero billable requests; agentera state validation and git diff --check passed.
+  next: Await explicit live-call approval and an available OPENAI_API_KEY; then rerun the exact preflight and execute at most the declared bounded synthetic requests. Keep this plan task pending until retained live evidence satisfies the conditional parity case.

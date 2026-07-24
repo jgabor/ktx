@@ -156,4 +156,9 @@ func TestCapabilityEntryNormalizesAndRequiresReferences(t *testing.T) {
 			t.Fatal("capability entry with blank-after-trim identity or reference was accepted")
 		}
 	}
+	blankCondition := " "
+	valid.UnavailableCondition = &blankCondition
+	if err := valid.Validate(); err == nil {
+		t.Fatal("capability entry with blank unavailable condition was accepted")
+	}
 }

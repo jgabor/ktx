@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "paths": [
+    {
+      "name": "priced_openai",
+      "source": "OpenAI Responses API and Prompt Caching guide",
+      "version": "2026-07-24 documentation snapshot",
+      "citation": "https://platform.openai.com/docs/guides/prompt-caching",
+      "transport": "direct_openai",
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "variant": "high",
+      "credential_environment": "OPENAI_API_KEY",
+      "required_native_requests": 2,
+      "required_attempts": 2,
+      "max_input_tokens": 8192,
+      "max_output_tokens": 64,
+      "input_usd_per_million": 1.0,
+      "cache_write_multiplier": 1.25,
+      "output_usd_per_million": 6.0
+    },
+    {
+      "name": "routine_opencode",
+      "source": "OpenCode step-finish event and request runtime",
+      "version": "1.18.4",
+      "citation": "https://github.com/anomalyco/opencode/tree/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+      "transport": "opencode",
+      "provider": "opencode",
+      "model": "big-pickle",
+      "credential_environment": "OPENCODE_API_KEY",
+      "runtime_binary": "opencode",
+      "required_native_requests": 2,
+      "required_attempts": 2,
+      "max_input_tokens": 8192,
+      "max_output_tokens": 64,
+      "input_usd_per_million": 0,
+      "cache_write_multiplier": 1,
+      "output_usd_per_million": 0
+    }
+  ],
+  "limits": {
+    "max_native_requests": 4,
+    "max_attempts": 4,
+    "max_spend_usd": 0.025,
+    "max_wall_time": "2m"
+  },
+  "artifact_destination": ".bench-data/cache-evidence/openai-opencode-luna-high-20260724",
+  "redaction_policy": [
+    "omit credentials and authorization headers",
+    "retain only SHA-256 of prompt cache keys",
+    "omit or SHA-256 sensitive correlation identifiers",
+    "retain synthetic prompts only",
+    "keep provider-native and OpenCode source records separate"
+  ]
+}

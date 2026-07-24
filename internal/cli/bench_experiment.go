@@ -106,7 +106,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	var target, maxAttempts, minimumToolCalls, warmup int
 	var timeout, grace time.Duration
 	var build bool
-	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. neuralwatt/glm-5.2-short-fast-flex)")
+	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. opencode/big-pickle)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
 	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")
@@ -261,7 +261,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	var model, variant, taskFile, pipelinesRaw, baselineID, dataDir, auth, image, campaignID, format string
 	var rounds, maxAttempts int
 	var timeout, grace time.Duration
-	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. neuralwatt/glm-5.2-short-fast-flex)")
+	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. opencode/big-pickle)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
 	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")

@@ -2,5 +2,5 @@ id: xzxfdpkjxr
 artifact: todo
 record:
   severity: normal
-  status: open
+  status: resolved
   description: "**Cache-observability capability matrix** — Before attempt-level aggregation, characterize and retain each request/model-step observation by source and version: request ordinal; cache read/write; uncached input; applicable cache-control metadata; provider, runtime, and model identity; available retry data; and absent-versus-zero completeness. Preserve the raw provider/runtime token evidence so cold/warm sequences remain inspectable; do not invent a generic hit ratio, infer provider-internal misses, or attach cache evidence to `tool_calls`. → [Prefix observability and derived evidence](ARCHITECTURE.md#prefix-observability-and-derived-evidence)"

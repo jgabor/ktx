@@ -1,0 +1,14 @@
+id: utebnxoqes
+artifact: progress
+record:
+  timestamp: 2026-07-24 13:32
+  type: docs
+  phase: build
+  what: Closed the cache-observability capability matrix after a retained OpenCode 1.18.4 observed-mode smoke. Four opencode/big-pickle attempts used schema 2 with two or three ordered model_steps; per-step uncached-input, cache-read, and cache-write sums matched attempt totals. Routine live-comparison examples and CLI help now use opencode/big-pickle, while Luna/high remains the priced alternative.
+  context:
+    intent: Prove the documented current-source matrix end to end with the smallest bounded live run and establish the free standard comparison model.
+    constraints: Current OpenCode sources only. No provider-native probe, negative control, prefix characterization, cache isolation, generic hit ratio, decision satisfaction change, or priced comparison.
+    unknowns: Provider-internal cache behavior remains intentionally unknown.
+    scope: AGENTS.md, TODO.md, docs/pipelines.md, internal/cli/bench_experiment.go, canonical TODO state, and retained local experiment evidence.
+  verified: Experiment .bench-data/cache-observability-opencode-big-pickle-20260724 validated with four valid attempts, target met, summary byte match, observed mode, no namespace fields, OpenCode 1.18.4 telemetry, and matching per-step sums. mage check, git diff --check, and agentera state validation passed.
+  next: Continue with Cache negative controls or Provider-native cache-control probes as separate work; use Luna/high only when non-zero pricing evidence is required.

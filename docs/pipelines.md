@@ -617,9 +617,9 @@ contract explicitly:
 ```bash
 ktx bench compare \
   --methodology tools/bench/methodology-v5-cache-aware.yaml \
-  --model neuralwatt/glm-5.2-short-fast-flex \
+  --model opencode/big-pickle \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
-  --cache-control auto \
+  --cache-control observed \
   --warmup 1 \
   --rounds 5
 ```
@@ -672,13 +672,13 @@ bytes.
 ```bash
 # Default: passthrough vs conservative-a
 ktx bench compare \
-  --model neuralwatt/glm-5.2-short-fast-flex \
+  --model opencode/big-pickle \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --rounds 3
 
 # Compare a different candidate
 ktx bench compare \
-  --model neuralwatt/glm-5.2-short-fast-flex \
+  --model opencode/big-pickle \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --baseline-config tools/bench/pipelines/passthrough.toml \
   --candidate-config tools/bench/pipelines/aggressive-head.toml \
@@ -689,7 +689,7 @@ Run the full matrix in-process:
 
 ```bash
 ktx bench rank \
-  --model neuralwatt/glm-5.2-short-fast-flex \
+  --model opencode/big-pickle \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --pipelines sanitize,keep-ends-mid,conservative-a,aggressive-head
 ```

@@ -73,11 +73,11 @@ Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go
 
 ```bash
 ktx bench compare \
-  --model neuralwatt/glm-5.2-short-fast-flex \
+  --model opencode/big-pickle \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --rounds 3
 
-# With a model variant (e.g. high):
+# Priced model/variant alternative:
 ktx bench compare \
   --model openai/gpt-5.6-luna \
   --variant high \

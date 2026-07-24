@@ -1,0 +1,16 @@
+id: ocvgwjsuga
+artifact: progress
+record:
+  timestamp: 2026-07-24 11:27
+  type: test
+  phase: build
+  what: Completed plan task feqzubzdns. magefile.go now includes cross-runtime identity, first-evidence conflicts, version 0-4 migration, rollback, command failures, inspection provenance, and concurrent winners in mage opencodeTelemetryFixture. internal/db/session_telemetry_migration_test.go now builds representative version 0-3 unrelated-table DDL and compares retained evidence before and after migration. docs/opencode-telemetry.md now explains local native IDs, runtime-qualified persistence, runtime-version provenance, automatic migration, rollback, and record-versus-list failure behavior.
+  context:
+    intent: Verify the complete offline telemetry contract and synchronize canonical documentation and project evidence without changing telemetry semantics.
+    constraints: Final docs, tests, and state synchronization only; no runtime, source-kind, identity-semantics, decision-satisfaction, or unrelated backlog changes.
+    unknowns: None. The prior positional text-consumer unknown was already resolved by task uxasxmjovb.
+    scope: docs/opencode-telemetry.md, internal/db/session_telemetry_migration_test.go, magefile.go, progress state, and task status.
+  inspiration: Plan task feqzubzdns and decision zeirngqgcl.
+  discovered: "The migration audit's nonblocking durability gap was proportional to close: prior version 0-3 cases changed only user_version after dropping telemetry from a current schema; they now permanently exercise representative historical benchmark table shapes and retained unrelated rows."
+  verified: go test -race ./internal/db -run '^TestSessionTelemetry(SchemaV5FreshAndHistorical|V4MigrationPreservesAllEvidence|V5MigrationRollsBack)$' -count=1 passed; mage opencodeTelemetryFixture passed four race-enabled packages; mage check passed all race tests, vet, lint with 0 issues, and build; Prettier, Agentera docs lint, markdown-link-check (3 links), git diff --check, and agentera check validate state passed.
+  next: Orchestrate owns terminal health closure and plan completion. Keep plan swvgbhhtbf open; do not alter decision satisfaction or unrelated backlog.

@@ -6,7 +6,7 @@ record:
     - tfhmbcdfgs
     - zflpkvayzt
     - uxasxmjovb
-  status: pending
+  status: complete
   acceptance:
     - GIVEN accepted, rejected, zero, missing, duplicate, wrapped, unwrapped, cross-runtime, migration-failure, and concurrent fixtures WHEN offline verification runs THEN behavior matches the recorded identity decision without provider credentials.
     - GIVEN maintainers review canonical telemetry documentation WHEN the migration ships THEN local native identity, runtime-qualified persistence, version provenance, automatic migration, command-specific failure behavior, and rollback are explicit.

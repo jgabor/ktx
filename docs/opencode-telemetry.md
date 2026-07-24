@@ -95,9 +95,19 @@ and the plugin's typed [`event` hook](https://github.com/anomalyco/opencode/blob
 
 ## Identity, deduplication, and ordering
 
-- The deduplication key is the exact `(sessionID, messageID, part.id)` tuple.
-  The first valid occurrence is authoritative; later occurrences are ignored,
-  even if their payload differs.
+- OpenCode's `sessionID`, `messageID`, and `part.id` are native identifiers
+  local to OpenCode. They are not assumed to be globally unique or used as KTX
+  record IDs.
+- The persisted deduplication key is the exact
+  `(runtime, sessionID, messageID, part.id)` tuple. The canonical `opencode`
+  runtime namespace is assigned by the trusted telemetry command, not accepted
+  from plugin input. Equal native tuples from another runtime remain distinct.
+- Runtime version is provenance for the contract that interpreted the event,
+  not identity. Re-delivery under a different OpenCode version does not create
+  another logical observation. Provider, model, ordinal, KTX session ownership,
+  measurements, and capture time are also evidence rather than key fields.
+- The first valid occurrence is authoritative; later same-runtime occurrences
+  are ignored, even if their owner, version, or other evidence differs.
 - Accepted model steps receive contiguous local ordinals in plugin callback
   acceptance order, after duplicates and rejected events are removed.
   OpenCode 1.18.4 supplies no event sequence or event timestamp in this plugin
@@ -137,9 +147,34 @@ mage opencodeTelemetryFixture
 ```
 
 The target requires Bun to execute the generated TypeScript plugin, but requires
-no provider credentials or network access. It covers complete and explicit-zero
-observations; missing and malformed fields; duplicate handling; wrapped and
-unwrapped plugin behavior; and concurrent callback and persistence behavior.
+no provider credentials or network access. It covers accepted, rejected,
+explicit-zero, missing, duplicate, wrapped, unwrapped, cross-runtime,
+migration-failure, and concurrent behavior. The migration cases include fresh
+databases, representative historical schema versions, populated version 4, and
+transaction rollback.
+
+## Database migration and failure behavior
+
+Opening a database with schema version 0 through 4 automatically migrates it to
+version 5. The migration preserves unrelated session, tool-call, benchmark,
+compressed, and recorded-stream evidence. Version-4 telemetry rows retain their
+runtime namespace and runtime-version provenance while the table is rebuilt
+with runtime-qualified identity.
+
+Migration is one SQLite transaction. Invalid legacy provenance, a copy error,
+or another migration failure rolls back the table shape, rows, associations,
+unrelated evidence, indexes, and schema version. There is no automatic downgrade
+from version 5; rollback here means the failed upgrade leaves the prior database
+intact so the cause can be corrected and the command retried. Back up the
+database file before upgrading if an operator needs release-level rollback.
+
+Failure behavior depends on the command:
+
+- `ktx telemetry record` is optional recording. Database open, migration, and
+  insert failures emit a diagnostic on stderr, produce no stdout, and fail open
+  so the OpenCode operation continues.
+- `ktx telemetry list` is inspection. Database open or migration failure exits
+  nonzero, emits the error on stderr, and produces no partial stdout.
 
 ## Troubleshooting
 

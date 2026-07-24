@@ -32,13 +32,8 @@ func TestSessionTelemetrySchemaV5FreshAndHistorical(t *testing.T) {
 	for version := 0; version <= 3; version++ {
 		t.Run(fmt.Sprintf("version-%d", version), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "historical.db")
-			raw := openRawTelemetryFixture(t, path)
-			if _, err := raw.Exec(`DROP TABLE session_telemetry`); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := raw.Exec(`PRAGMA user_version = ` + fmt.Sprint(version)); err != nil {
-				t.Fatal(err)
-			}
+			raw := openHistoricalTelemetryFixture(t, path, version)
+			before := snapshotHistoricalEvidence(t, raw)
 			raw.Close()
 			d, err := Open(path)
 			if err != nil {
@@ -48,6 +43,9 @@ func TestSessionTelemetrySchemaV5FreshAndHistorical(t *testing.T) {
 			assertSessionTelemetryV5Shape(t, d.db)
 			if count := tableRowCount(t, d.db, "sessions"); count != 2 {
 				t.Fatalf("sessions = %d, want 2", count)
+			}
+			if got := snapshotHistoricalEvidence(t, d.db); !reflect.DeepEqual(got, before) {
+				t.Fatalf("historical evidence changed:\n got %#v\nwant %#v", got, before)
 			}
 		})
 	}
@@ -188,6 +186,81 @@ func openRawTelemetryFixture(t *testing.T, path string) *sql.DB {
 	d.db = nil
 	raw.SetMaxOpenConns(1)
 	return raw
+}
+
+func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql.DB {
+	t.Helper()
+	raw, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw.SetMaxOpenConns(1)
+
+	benchExtra := ""
+	if version >= 2 {
+		benchExtra = ", cache_read INTEGER, cache_write INTEGER"
+	}
+	if version >= 3 {
+		benchExtra += ", reasoning INTEGER, estimated_api_cost REAL"
+	}
+	statements := []string{
+		`CREATE TABLE sessions (
+			id TEXT PRIMARY KEY, agent TEXT, started_at TEXT, ended_at TEXT,
+			last_seen_at TEXT, tool_call_count INTEGER DEFAULT 0)`,
+		`CREATE TABLE tool_calls (
+			id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), tool TEXT,
+			input TEXT, output TEXT, content_hash TEXT, timestamp TEXT,
+			event_type TEXT DEFAULT 'tool_call', tokens_in INTEGER, tokens_out INTEGER,
+			cost REAL, latency_ms INTEGER, model TEXT, provider TEXT,
+			exit_code INTEGER, is_error INTEGER, runtime TEXT)`,
+		`CREATE TABLE bench_runs (
+			id TEXT PRIMARY KEY, agent TEXT, model TEXT, task TEXT, score REAL,
+			tokens_in INTEGER, tokens_out INTEGER, cost REAL,
+			methodology_version TEXT, timestamp INTEGER` + benchExtra + `)`,
+		`CREATE TABLE compressed (
+			id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES tool_calls(id),
+			output TEXT, content_hash TEXT, pipeline TEXT, timestamp TEXT)`,
+		`CREATE TABLE recorded_streams (
+			id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+			bench_run_id TEXT REFERENCES bench_runs(id), stream_text TEXT,
+			content_hash TEXT, stream_format TEXT, captured_at TEXT)`,
+	}
+	for _, statement := range statements {
+		if _, err := raw.Exec(statement); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO sessions VALUES
+			('aaaaaaaaaaaaaaaa','opencode','start',NULL,'seen',1),
+			('bbbbbbbbbbbbbbbb','other','start-2','end-2','seen-2',0);
+		INSERT INTO tool_calls (id,session_id,tool,input,output,content_hash,timestamp,event_type,tokens_in,tokens_out,cost,latency_ms,model,provider,exit_code,is_error,runtime)
+			VALUES ('cccccccccccccccc','aaaaaaaaaaaaaaaa','bash','in','out','hash','time','tool_call',1,2,3.5,4,'m','p',0,0,'r');
+		INSERT INTO bench_runs (id,agent,model,task,score,tokens_in,tokens_out,cost,methodology_version,timestamp)
+			VALUES ('eeeeeeeeeeeeeeee','agent','model','task',1,2,3,4,'method',5);
+		INSERT INTO compressed VALUES ('dddddddddddddddd','cccccccccccccccc','small','hash2','["normalize"]','time2');
+		INSERT INTO recorded_streams VALUES ('ffffffffffffffff','aaaaaaaaaaaaaaaa','eeeeeeeeeeeeeeee','stream','hash3','format','time3');
+		PRAGMA user_version = ` + fmt.Sprint(version)); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func snapshotHistoricalEvidence(t *testing.T, db *sql.DB) [][]string {
+	t.Helper()
+	var snapshot [][]string
+	for _, query := range []string{
+		`SELECT id, agent, started_at, ended_at, last_seen_at, tool_call_count FROM sessions ORDER BY id`,
+		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type FROM tool_calls ORDER BY id`,
+		`SELECT id, agent, model, task, score, methodology_version, timestamp FROM bench_runs ORDER BY id`,
+		`SELECT id, source_id, output, content_hash, pipeline, timestamp FROM compressed ORDER BY id`,
+		`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at FROM recorded_streams ORDER BY id`,
+	} {
+		snapshot = append(snapshot, queryStrings(t, db, query)...)
+	}
+	return snapshot
 }
 
 func replaceTelemetryWithV4(t *testing.T, raw *sql.DB) {

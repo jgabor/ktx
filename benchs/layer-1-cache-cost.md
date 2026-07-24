@@ -1,8 +1,16 @@
 # Layer 1 cache and cost benchmark
 
+> **Historical benchmark.** This report and its numeric results are retained for
+> provenance. Its original telemetry and claim language is superseded by ktx's
+> runtime-only telemetry policy: current claims are limited to runtime-observed
+> fields and identity provenance. Every occurrence of `isolated` or
+> `--cache-control isolated` below is retained historical configuration metadata;
+> it does not prove runtime-managed or provider-internal isolation, provider
+> request boundaries, cache hits, misses, fills, or cache effectiveness.
+
 ## Question
 
-Does the Layer 1 shell-output compression used in the live ktx configuration reduce provider-reported cache-read token volume or make model calls more expensive?
+Does the Layer 1 shell-output compression used in the live ktx configuration reduce runtime-reported cache-read token volume or make model calls more expensive?
 
 ## Setup
 
@@ -71,7 +79,7 @@ Including cold and warm-up calls, the candidate was already cheaper before measu
 
 ## Conclusion
 
-This experiment did not reduce total provider-reported cache-read token volume per completed task. The compressed runs read more tokens from cache, and the cache-read share increased from 34.7% to 81.9%. The experiment does not measure cache-hit count or a cache hit/miss ratio.
+This experiment did not reduce total runtime-reported cache-read token volume per completed task. The compressed runs reported more cache-read tokens, and the cache-read share increased from 34.7% to 81.9%. These runtime observations do not establish provider request boundaries, cache hits, misses, fills, isolation, or effectiveness.
 
 Compression also did not raise estimated cost. Estimated API cost fell by about 60%, while answer quality stayed unchanged. The candidate used one extra tool call and more reasoning tokens, but that overhead was smaller than the input-token savings.
 

@@ -144,8 +144,9 @@ refresh requirements, absent-versus-zero semantics, threat boundary, and exit
 classes.
 
 Live runs accept any provider except `github-copilot/*`. The complete runbook is
-[`docs/pipelines.md`](docs/pipelines.md); the latest published exploratory result
-is the [Layer 1 cache and cost benchmark](benchs/layer-1-cache-cost.md).
+[`docs/pipelines.md`](docs/pipelines.md). The [Layer 1 cache and cost
+benchmark](benchs/layer-1-cache-cost.md) is a historical benchmark retained for
+provenance; current telemetry claims are runtime-observed only.
 
 ### Evidence from live use
 

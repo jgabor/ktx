@@ -655,9 +655,9 @@ provide a reliable request-start timestamp.
 Validation is methodology-aware. For v5 it requires summary schema 3, retained
 pricing metadata and its hash-bound snapshot, exactly one cold observation and
 the configured warm-up count per side, explicit roles, cache metadata consistent
-with the manifest, and measured-warm-only target counts. Isolated evidence must
+with the manifest, and measured-warm-only target counts. Historical isolated evidence must
 use one stable namespace hash per side and different hashes across sides.
-Observed evidence must not retain a namespace hash. Isolated manifest and
+Observed evidence must not retain a namespace hash. Historical isolated manifest and
 attempt hashes must be exactly 64 lowercase hexadecimal characters, agree for
 every attempt within a side, and differ across sides. This format check ensures
 only the SHA-256 digest—not the raw namespace—can occupy retained namespace

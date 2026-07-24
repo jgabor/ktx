@@ -1,0 +1,16 @@
+id: morjbedbmq
+artifact: progress
+record:
+  timestamp: 2026-07-24 11:12
+  type: feat
+  phase: build
+  what: Updated internal/cli/telemetry.go to append runtime and runtime-version columns to bounded text inspection while preserving the first eight columns. TestTelemetryInspectionOrdersRuntimeNamespacesAndShowsProvenance verifies deterministic cross-runtime ordering for equal ordinals and native IDs, JSON provenance, text provenance, and unchanged identity/measurement positions.
+  context:
+    intent: Qualify bounded telemetry inspection across runtime namespaces without changing limits, same-runtime semantics, existing text positions, or CLI errors.
+    constraints: Inspection output and focused tests only; no docs, schema, runtime, source-kind, or error-semantics changes.
+    unknowns: "Resolved: no concrete positional text consumer was found in shipped docs/tests/scripts or retained usage evidence."
+    scope: internal/cli/telemetry.go and internal/cli/telemetry_test.go.
+  inspiration: Plan task uxasxmjovb and decision zeirngqgcl.
+  discovered: "No positional consumer exists in the searched repository: docs/opencode-telemetry.md contains the sole shipped text invocation; no shipped test or script parses the table; .bench-data and benchs contain no telemetry-list invocation or table header."
+  verified: go test -race ./internal/cli ./internal/db -run 'TestTelemetry|TestSessionTelemetry' -count=1 passed; mage check passed tests, vet, lint, and build with 0 issues; git diff --check passed; a build/ktx telemetry record/list smoke displayed opencode and 1.18.4 in text output.
+  next: Execute feqzubzdns for documentation and plan closeout; do not broaden this completed inspection change.

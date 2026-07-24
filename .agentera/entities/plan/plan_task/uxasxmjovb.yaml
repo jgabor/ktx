@@ -4,7 +4,7 @@ record:
   name: Qualify bounded telemetry inspection
   depends_on:
     - zflpkvayzt
-  status: pending
+  status: complete
   acceptance:
     - GIVEN equal ordinals and native identifiers across runtime namespaces WHEN bounded inspection runs THEN results have one deterministic total order.
     - GIVEN a retained observation WHEN text or JSON inspection renders it THEN runtime and runtime-version provenance are available alongside the existing identity and measurement fields.

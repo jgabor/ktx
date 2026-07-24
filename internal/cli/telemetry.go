@@ -190,7 +190,7 @@ func listTelemetry(args []string, format string, db *dbpkg.DB, stdout io.Writer)
 
 func printTelemetryText(w io.Writer, observations []dbpkg.SessionTelemetry) {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ORDINAL\tSOURCE SESSION\tMESSAGE\tPART\tCACHE READ\tCACHE WRITE\tPROVIDER\tMODEL")
+	fmt.Fprintln(tw, "ORDINAL\tSOURCE SESSION\tMESSAGE\tPART\tCACHE READ\tCACHE WRITE\tPROVIDER\tMODEL\tRUNTIME\tRUNTIME VERSION")
 	for _, observation := range observations {
 		provider, model := "-", "-"
 		if observation.Provider != nil {
@@ -199,9 +199,10 @@ func printTelemetryText(w io.Writer, observations []dbpkg.SessionTelemetry) {
 		if observation.Model != nil {
 			model = *observation.Model
 		}
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			observation.Ordinal, observation.SourceSessionID, observation.MessageID, observation.PartID,
-			measurementText(observation.CacheRead), measurementText(observation.CacheWrite), provider, model)
+			measurementText(observation.CacheRead), measurementText(observation.CacheWrite), provider, model,
+			observation.Runtime, observation.RuntimeVersion)
 	}
 	_ = tw.Flush()
 }

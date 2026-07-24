@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 func TestTelemetryRecordAndBoundedJSONInspection(t *testing.T) {
@@ -57,6 +58,68 @@ func TestTelemetryRecordAndBoundedJSONInspection(t *testing.T) {
 	}
 	if result.Observations[0].Runtime != "opencode" || result.Observations[0].RuntimeVersion != "1.18.4" {
 		t.Fatalf("runtime identity = %q/%q", result.Observations[0].Runtime, result.Observations[0].RuntimeVersion)
+	}
+}
+
+func TestTelemetryInspectionOrdersRuntimeNamespacesAndShowsProvenance(t *testing.T) {
+	d, err := dbpkg.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	sessionID, err := dbpkg.NewID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertSession(&dbpkg.Session{ID: sessionID, Agent: "test"}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, provenance := range []struct {
+		runtime string
+		version string
+	}{
+		{runtime: "zeta-runtime", version: "2.0.0"},
+		{runtime: "alpha-runtime", version: "1.0.0"},
+	} {
+		observation := &telemetry.Observation{
+			Key:            telemetry.Key{SessionID: "source", MessageID: "message", PartID: "part"},
+			Ordinal:        7,
+			Reason:         "stop",
+			Runtime:        provenance.runtime,
+			RuntimeVersion: provenance.version,
+		}
+		if inserted, err := d.PersistSessionTelemetry(sessionID, "2026-07-24T10:00:00Z", observation); err != nil || !inserted {
+			t.Fatalf("persist %s = %t, %v", provenance.runtime, inserted, err)
+		}
+	}
+
+	var stdout bytes.Buffer
+	if _, err := telemetryLogic([]string{"list", "--session", sessionID, "--limit", "2"}, FormatJSON, strings.NewReader(""), d, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	var result telemetryListResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Observations) != 2 || result.Observations[0].Runtime != "alpha-runtime" || result.Observations[0].RuntimeVersion != "1.0.0" ||
+		result.Observations[1].Runtime != "zeta-runtime" || result.Observations[1].RuntimeVersion != "2.0.0" {
+		t.Fatalf("runtime-qualified order/provenance = %#v", result.Observations)
+	}
+
+	stdout.Reset()
+	if _, err := telemetryLogic([]string{"list", "--session", sessionID, "--limit", "2"}, FormatText, strings.NewReader(""), d, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 3 || !strings.Contains(lines[0], "RUNTIME") || !strings.Contains(lines[0], "RUNTIME VERSION") {
+		t.Fatalf("text header = %q", stdout.String())
+	}
+	if got := strings.Join(strings.Fields(lines[1]), "|"); got != "7|source|message|part|0|(measured)|0|(measured)|-|-|alpha-runtime|1.0.0" {
+		t.Fatalf("first text row fields = %q", got)
+	}
+	if got := strings.Join(strings.Fields(lines[2]), "|"); got != "7|source|message|part|0|(measured)|0|(measured)|-|-|zeta-runtime|2.0.0" {
+		t.Fatalf("text runtime-qualified order/provenance = %q", stdout.String())
 	}
 }
 

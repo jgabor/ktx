@@ -250,5 +250,6 @@ func printTelemetryHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "record accepts one normalized OpenCode model-step observation. Persistence")
 	fmt.Fprintln(w, "is best-effort: failures are reported on stderr without failing the command.")
+	fmt.Fprintf(w, "This is %s: %s.\n", opencodeTelemetryEvidence, opencodeTelemetryClaimBoundary)
 	fmt.Fprintln(w, "list returns at most 100 observations by default; --limit accepts 1 through 1000.")
 }

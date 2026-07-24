@@ -72,6 +72,13 @@ import (
 // loader; a .js sibling would not be loaded by the same code path.
 const ktxPluginFileName = "ktx.ts"
 
+const (
+	opencodeTelemetryEvidence      = "OpenCode-normalized optional model-step token evidence"
+	opencodeTelemetryClaimBoundary = "not raw provider responses; no cache hit, cache miss, native request, or cache isolation claims"
+	opencodeRefreshCommand         = "ktx init opencode"
+	opencodeTroubleshooting        = "docs/opencode-telemetry.md#troubleshooting"
+)
+
 // initParsedArgs carries command-specific arguments to initCommandFunc.
 type initParsedArgs struct {
 	flags   initFlags
@@ -499,7 +506,11 @@ func writeInstallReport(w io.Writer, target, globalPath, projectPath, format str
 		fmt.Fprintf(w, "ktx opencode plugin installed at %s\n", target)
 		fmt.Fprintf(w, "generated revision: %s\n", revision)
 		fmt.Fprintf(w, "declared hooks: %s\n", strings.Join(hooks, ", "))
+		fmt.Fprintf(w, "hook roles: event=%s; tool.execute.after=tool-result compression\n", opencodeTelemetryEvidence)
+		fmt.Fprintf(w, "telemetry claim boundary: %s\n", opencodeTelemetryClaimBoundary)
 		fmt.Fprintf(w, "candidate locations: global=%s project=%s\n", globalPath, projectPath)
+		fmt.Fprintf(w, "refresh command: %s\n", opencodeRefreshCommand)
+		fmt.Fprintf(w, "troubleshooting: %s\n", opencodeTroubleshooting)
 		fmt.Fprintln(w, "runtime activation: not verified")
 		return
 	}
@@ -509,7 +520,14 @@ func writeInstallReport(w io.Writer, target, globalPath, projectPath, format str
 		"candidate_locations": map[string]string{"global": globalPath, "project": projectPath},
 		"generated_revision":  revision,
 		"declared_hooks":      hooks,
-		"runtime_activation":  "not_verified",
+		"hook_roles": map[string]string{
+			"event":              opencodeTelemetryEvidence,
+			"tool.execute.after": "tool-result compression",
+		},
+		"telemetry_claim_boundary": opencodeTelemetryClaimBoundary,
+		"refresh_command":          opencodeRefreshCommand,
+		"troubleshooting":          opencodeTroubleshooting,
+		"runtime_activation":       "not_verified",
 	})
 }
 
@@ -683,6 +701,11 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "record` and `ktx hook` respectively. When KTX_SESSION_ID is")
 	fmt.Fprintln(w, "set in the environment, the plugin noops so the wrapper")
 	fmt.Fprintln(w, "path remains the single source of truth.")
+	fmt.Fprintln(w, "The wrapper does not replace event-hook model-step telemetry; that optional")
+	fmt.Fprintln(w, "evidence is not recorded while wrapped.")
+	fmt.Fprintf(w, "Telemetry is %s. It is %s.\n", opencodeTelemetryEvidence, opencodeTelemetryClaimBoundary)
+	fmt.Fprintf(w, "Re-run `%s` to refresh the generated global plugin, or add --project\n", opencodeRefreshCommand)
+	fmt.Fprintf(w, "for the project plugin. Troubleshooting: %s\n", opencodeTroubleshooting)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The Codex hook entry is identified by command \"ktx hook\" inside the")
 	fmt.Fprintln(w, "PostToolUse array of hooks.json. Install is idempotent (no-op when the")

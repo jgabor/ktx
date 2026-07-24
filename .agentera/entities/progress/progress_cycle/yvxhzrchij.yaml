@@ -1,0 +1,13 @@
+id: yvxhzrchij
+artifact: progress
+record:
+  timestamp: 2026-07-24 07:59
+  type: docs
+  phase: build
+  what: Documented docs/opencode-telemetry.md and README.md; synchronized ktx init/telemetry help and JSON install reports; added mage opencodeTelemetryFixture for the eight-case offline matrix.
+  context:
+    intent: Make the OpenCode telemetry integration discoverable, claim-bounded, and reproducible offline without changing unrelated backlog or decision satisfaction.
+    constraints: No provider credentials, paid probes, native-provider claims, unrelated backlog edits, or decision satisfaction changes.
+    unknowns: Agentera decision retrieval remained degraded at 4 of 31 records; omitted records were not treated as absent. The unrelated docs-state validator still reports inherited empty docs.yaml convention fields.
+    scope: README.md, docs/opencode-telemetry.md, OpenCode init/telemetry help and report tests, and the Mage offline fixture target.
+  verified: mage opencodeTelemetryFixture passed race-enabled complete, zero, missing, malformed, duplicate, wrapped, unwrapped, and concurrent fixtures in three packages without provider credentials. Focused install-report/help tests passed. mage check passed tests, vet, lint with 0 issues, and build. Prettier checked both changed docs; Agentera docs lint passed both; 9 local links resolved; gofmt and git diff --check passed.

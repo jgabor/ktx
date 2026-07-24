@@ -73,12 +73,50 @@ func TestOpencodeInstallIsIdempotentAndReportsGeneratedContract(t *testing.T) {
 			if hooks := firstReport["declared_hooks"]; !reflect.DeepEqual(hooks, []any{"event", "tool.execute.after"}) {
 				t.Fatalf("declared_hooks = %#v", hooks)
 			}
+			hookRoles, ok := firstReport["hook_roles"].(map[string]any)
+			if !ok || hookRoles["event"] != opencodeTelemetryEvidence || hookRoles["tool.execute.after"] != "tool-result compression" {
+				t.Fatalf("hook_roles = %#v", firstReport["hook_roles"])
+			}
+			if firstReport["telemetry_claim_boundary"] != opencodeTelemetryClaimBoundary ||
+				firstReport["refresh_command"] != opencodeRefreshCommand ||
+				firstReport["troubleshooting"] != opencodeTroubleshooting {
+				t.Fatalf("integration guidance = %#v", firstReport)
+			}
 			for _, forbidden := range []string{"active", "activated", "loaded", "running"} {
 				if _, exists := firstReport[forbidden]; exists {
 					t.Errorf("report makes unsupported runtime claim %q", forbidden)
 				}
 			}
 		})
+	}
+}
+
+func TestInitAndTelemetryHelpDocumentOpenCodeIntegration(t *testing.T) {
+	var initHelp bytes.Buffer
+	printInitHelp(&initHelp)
+	for _, want := range []string{
+		"$XDG_CONFIG_HOME/opencode/plugins/ktx.ts",
+		"./.opencode/plugins/ktx.ts",
+		"event for optional model-step telemetry",
+		"tool.execute.after for tool-result compression",
+		"KTX_SESSION_ID",
+		"evidence is not recorded while wrapped",
+		opencodeTelemetryEvidence,
+		opencodeTelemetryClaimBoundary,
+		opencodeRefreshCommand,
+		opencodeTroubleshooting,
+	} {
+		if !strings.Contains(initHelp.String(), want) {
+			t.Errorf("init help missing %q", want)
+		}
+	}
+
+	var telemetryHelp bytes.Buffer
+	printTelemetryHelp(&telemetryHelp)
+	for _, want := range []string{opencodeTelemetryEvidence, opencodeTelemetryClaimBoundary} {
+		if !strings.Contains(telemetryHelp.String(), want) {
+			t.Errorf("telemetry help missing %q", want)
+		}
 	}
 }
 

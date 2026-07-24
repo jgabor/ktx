@@ -43,6 +43,12 @@ The adapter calls `ktx hook` after tool execution. ktx persists the original,
 runs the selected pipeline, and returns the smaller result to the agent. With no
 configuration file, the pipeline is passthrough.
 
+The generated OpenCode plugin also records OpenCode-normalized optional
+model-step token evidence. See the [OpenCode integration and telemetry
+runbook](docs/opencode-telemetry.md) for plugin locations, both hooks, wrapper
+coexistence, refresh, offline verification, claim boundaries, and
+troubleshooting.
+
 Lossy profiles can opt into `recover_footer = true`. When compression succeeds
 and the result plus footer remains smaller than the original, the agent receives
 a compact `ktx read <source-id>` recovery cue. The original and compressed

@@ -6,7 +6,7 @@ record:
     - vuhfexydfu
     - fekcqinvyc
     - pyzenwhvhl
-  status: pending
+  status: complete
   acceptance:
     - GIVEN a maintainer looks for OpenCode support WHEN reading canonical docs or command help THEN the generator, candidate plugin locations, tool hook, model-step hook, wrapper coexistence, refresh command, and troubleshooting path are easy to find.
     - GIVEN cache telemetry semantics are reviewed WHEN documentation and output are compared THEN both describe OpenCode-normalized optional token evidence and explicitly avoid raw-response, hit, miss, native-request, and isolation claims.

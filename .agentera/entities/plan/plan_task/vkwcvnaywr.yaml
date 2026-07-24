@@ -11,3 +11,13 @@ record:
     - GIVEN documentation, capability metadata, and retained evidence WHEN reviewed THEN observed reuse, unavailable fields, and historical caveats agree without direct-provider or product-wide claims.
     - GIVEN focused accepted and unavailable cases WHEN verification runs THEN claim classification remains deterministic and historical labels cannot enable a new isolation claim.
   plan: xpsaaraqbw
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: Independent audit of runtime cache-claim adjudication
+      recorded_at: 2026-07-24 19:17
+      writer_command: agentera state plan record-evaluation

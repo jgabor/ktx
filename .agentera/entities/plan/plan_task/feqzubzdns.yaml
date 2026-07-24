@@ -13,3 +13,13 @@ record:
     - GIVEN repository verification runs WHEN the plan closes THEN tests, race checks, vet, lint, build, documentation checks, and state validation pass.
     - GIVEN final synchronization WHEN work is complete THEN plan and progress evidence are current while unrelated backlog and decision satisfaction remain unchanged.
   plan: swvgbhhtbf
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Historical migration fixtures do not populate and compare every retained tool-call and benchmark field. Token, cost, latency, provider/model, failure/runtime, cache, reasoning, and estimated-cost regressions could pass despite the field-for-field preservation requirement.
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit evaluation ses_06c8b4137ffeo1cfnIsxnyuidZ
+      recorded_at: 2026-07-24 11:38
+      writer_command: agentera state plan record-evaluation

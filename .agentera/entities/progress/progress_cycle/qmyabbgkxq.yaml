@@ -1,0 +1,16 @@
+id: qmyabbgkxq
+artifact: progress
+record:
+  timestamp: 2026-07-24 11:41
+  type: test
+  phase: build
+  what: Corrected audit-1 coverage in internal/db/session_telemetry_migration_test.go. Historical version 0-3 fixtures now seed every column present in each schema with non-NULL typed values, add NULL comparison rows, and snapshot SQLite typeof/quote pairs for all version-applicable session, tool-call, benchmark, compressed, and recorded-stream fields before and after migration. Version 2 covers cache fields; version 3 also covers reasoning and estimated API cost.
+  context:
+    intent: Close the historical field-fidelity coverage gap identified by audit-1 without changing migration or telemetry behavior.
+    constraints: Test and project-state correction only; no runtime, schema, migration, identity, documentation, backlog, or decision-satisfaction changes.
+    unknowns: No implementation unknowns remain; independent audit confirmation is pending.
+    scope: internal/db/session_telemetry_migration_test.go plus the orchestrator-owned audit evaluation/task state and this progress record.
+  inspiration: Audit-1 failure on plan task feqzubzdns.
+  discovered: The previous historical snapshot compared table presence and selected identity fields but omitted retained tool-call measurements and version-specific benchmark fields. SQLite typeof and quote make both storage class and exact NULL/value representation explicit.
+  verified: go test -race ./internal/db -run '^TestSessionTelemetry(SchemaV5FreshAndHistorical|V4MigrationPreservesAllEvidence|V5MigrationRollsBack)$' -count=1 passed; mage opencodeTelemetryFixture passed four race-enabled packages; mage check passed all race tests, vet, lint with 0 issues, and build; agentera check validate state, agentera check compact, and git diff --check passed. No independent post-correction audit was run.
+  next: Orchestrate may re-audit task feqzubzdns. Keep plan swvgbhhtbf open and decision zeirngqgcl satisfaction unchanged.

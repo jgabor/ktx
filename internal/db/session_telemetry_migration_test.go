@@ -33,7 +33,7 @@ func TestSessionTelemetrySchemaV5FreshAndHistorical(t *testing.T) {
 		t.Run(fmt.Sprintf("version-%d", version), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "historical.db")
 			raw := openHistoricalTelemetryFixture(t, path, version)
-			before := snapshotHistoricalEvidence(t, raw)
+			before := snapshotHistoricalEvidence(t, raw, version)
 			raw.Close()
 			d, err := Open(path)
 			if err != nil {
@@ -44,7 +44,7 @@ func TestSessionTelemetrySchemaV5FreshAndHistorical(t *testing.T) {
 			if count := tableRowCount(t, d.db, "sessions"); count != 2 {
 				t.Fatalf("sessions = %d, want 2", count)
 			}
-			if got := snapshotHistoricalEvidence(t, d.db); !reflect.DeepEqual(got, before) {
+			if got := snapshotHistoricalEvidence(t, d.db, version); !reflect.DeepEqual(got, before) {
 				t.Fatalf("historical evidence changed:\n got %#v\nwant %#v", got, before)
 			}
 		})
@@ -197,11 +197,17 @@ func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql
 	raw.SetMaxOpenConns(1)
 
 	benchExtra := ""
+	benchInsertColumns := "id,agent,model,task,score,tokens_in,tokens_out,cost,methodology_version,timestamp"
+	benchInsertValues := "'eeeeeeeeeeeeeeee','bench-agent','bench-model','bench-task',1.25,211,322,4.75,'method-v',1700000001"
 	if version >= 2 {
 		benchExtra = ", cache_read INTEGER, cache_write INTEGER"
+		benchInsertColumns += ",cache_read,cache_write"
+		benchInsertValues += ",433,544"
 	}
 	if version >= 3 {
 		benchExtra += ", reasoning INTEGER, estimated_api_cost REAL"
+		benchInsertColumns += ",reasoning,estimated_api_cost"
+		benchInsertValues += ",655,6.875"
 	}
 	statements := []string{
 		`CREATE TABLE sessions (
@@ -233,14 +239,21 @@ func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql
 	}
 	if _, err := raw.Exec(`
 		INSERT INTO sessions VALUES
-			('aaaaaaaaaaaaaaaa','opencode','start',NULL,'seen',1),
-			('bbbbbbbbbbbbbbbb','other','start-2','end-2','seen-2',0);
+			('aaaaaaaaaaaaaaaa','session-agent','2026-01-02T03:04:05Z','2026-01-02T04:05:06Z','2026-01-02T05:06:07Z',17),
+			('bbbbbbbbbbbbbbbb',NULL,NULL,NULL,NULL,NULL);
 		INSERT INTO tool_calls (id,session_id,tool,input,output,content_hash,timestamp,event_type,tokens_in,tokens_out,cost,latency_ms,model,provider,exit_code,is_error,runtime)
-			VALUES ('cccccccccccccccc','aaaaaaaaaaaaaaaa','bash','in','out','hash','time','tool_call',1,2,3.5,4,'m','p',0,0,'r');
-		INSERT INTO bench_runs (id,agent,model,task,score,tokens_in,tokens_out,cost,methodology_version,timestamp)
-			VALUES ('eeeeeeeeeeeeeeee','agent','model','task',1,2,3,4,'method',5);
-		INSERT INTO compressed VALUES ('dddddddddddddddd','cccccccccccccccc','small','hash2','["normalize"]','time2');
-		INSERT INTO recorded_streams VALUES ('ffffffffffffffff','aaaaaaaaaaaaaaaa','eeeeeeeeeeeeeeee','stream','hash3','format','time3');
+			VALUES
+			('cccccccccccccccc','aaaaaaaaaaaaaaaa','shell-tool','input-text','output-text','tool-hash','2026-02-03T04:05:06Z','tool-result',101,202,3.125,404,'tool-model','tool-provider',23,1,'tool-runtime'),
+			('hhhhhhhhhhhhhhhh','bbbbbbbbbbbbbbbb',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+		INSERT INTO bench_runs (` + benchInsertColumns + `) VALUES
+			(` + benchInsertValues + `),
+			('gggggggggggggggg',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL` + historicalBenchNullTail(version) + `);
+		INSERT INTO compressed VALUES
+			('dddddddddddddddd','cccccccccccccccc','compressed-output','compressed-hash','["normalize","head"]','2026-03-04T05:06:07Z'),
+			('iiiiiiiiiiiiiiii','hhhhhhhhhhhhhhhh',NULL,NULL,NULL,NULL);
+		INSERT INTO recorded_streams VALUES
+			('ffffffffffffffff','aaaaaaaaaaaaaaaa','eeeeeeeeeeeeeeee','stream-text','stream-hash','runtime-jsonl-v1','2026-04-05T06:07:08Z'),
+			('jjjjjjjjjjjjjjjj','bbbbbbbbbbbbbbbb',NULL,NULL,NULL,NULL,NULL);
 		PRAGMA user_version = ` + fmt.Sprint(version)); err != nil {
 		raw.Close()
 		t.Fatal(err)
@@ -248,16 +261,42 @@ func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql
 	return raw
 }
 
-func snapshotHistoricalEvidence(t *testing.T, db *sql.DB) [][]string {
+func historicalBenchNullTail(version int) string {
+	if version >= 3 {
+		return ",NULL,NULL,NULL,NULL"
+	}
+	if version >= 2 {
+		return ",NULL,NULL"
+	}
+	return ""
+}
+
+func snapshotHistoricalEvidence(t *testing.T, db *sql.DB, version int) [][]string {
 	t.Helper()
+	benchColumns := []string{"id", "agent", "model", "task", "score", "tokens_in", "tokens_out", "cost", "methodology_version", "timestamp"}
+	if version >= 2 {
+		benchColumns = append(benchColumns, "cache_read", "cache_write")
+	}
+	if version >= 3 {
+		benchColumns = append(benchColumns, "reasoning", "estimated_api_cost")
+	}
+	tables := []struct {
+		name    string
+		columns []string
+	}{
+		{name: "sessions", columns: []string{"id", "agent", "started_at", "ended_at", "last_seen_at", "tool_call_count"}},
+		{name: "tool_calls", columns: []string{"id", "session_id", "tool", "input", "output", "content_hash", "timestamp", "event_type", "tokens_in", "tokens_out", "cost", "latency_ms", "model", "provider", "exit_code", "is_error", "runtime"}},
+		{name: "bench_runs", columns: benchColumns},
+		{name: "compressed", columns: []string{"id", "source_id", "output", "content_hash", "pipeline", "timestamp"}},
+		{name: "recorded_streams", columns: []string{"id", "session_id", "bench_run_id", "stream_text", "content_hash", "stream_format", "captured_at"}},
+	}
 	var snapshot [][]string
-	for _, query := range []string{
-		`SELECT id, agent, started_at, ended_at, last_seen_at, tool_call_count FROM sessions ORDER BY id`,
-		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type FROM tool_calls ORDER BY id`,
-		`SELECT id, agent, model, task, score, methodology_version, timestamp FROM bench_runs ORDER BY id`,
-		`SELECT id, source_id, output, content_hash, pipeline, timestamp FROM compressed ORDER BY id`,
-		`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at FROM recorded_streams ORDER BY id`,
-	} {
+	for _, table := range tables {
+		fields := make([]string, 0, len(table.columns)*2)
+		for _, column := range table.columns {
+			fields = append(fields, "typeof("+column+")", "quote("+column+")")
+		}
+		query := "SELECT " + strings.Join(fields, ",") + " FROM " + table.name + " ORDER BY id"
 		snapshot = append(snapshot, queryStrings(t, db, query)...)
 	}
 	return snapshot

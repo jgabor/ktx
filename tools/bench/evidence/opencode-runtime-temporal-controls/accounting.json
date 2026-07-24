@@ -1,0 +1,42 @@
+{
+  "preflight": {
+    "network_activity": "none",
+    "model_calls": 0,
+    "status": "ready"
+  },
+  "bounds": {
+    "opencode_invocations": { "actual": 2, "maximum": 2 },
+    "invocation_attempts": { "actual": 2, "maximum": 2 },
+    "successful_model_steps": { "actual": 2, "maximum": 2 },
+    "intentional_retries": { "actual": 0, "maximum": 0 },
+    "spend_usd": { "actual": 0, "maximum": 0 },
+    "wall_time_seconds": { "actual": 25, "maximum": 60 }
+  },
+  "execution": {
+    "requested_mode": "concurrent",
+    "launch_order": [1, 2],
+    "collection_order": [1, 2],
+    "completion_order": "unavailable",
+    "authoritative_timestamps": "unavailable",
+    "concurrency_ownership": "unavailable"
+  },
+  "invocations": [
+    {
+      "ordinal": 1,
+      "exit_status": 0,
+      "elapsed_seconds": 25,
+      "observed_model_steps": 1,
+      "result": "observed"
+    },
+    {
+      "ordinal": 2,
+      "exit_status": 0,
+      "elapsed_seconds": 20,
+      "observed_model_steps": 1,
+      "result": "observed"
+    }
+  ],
+  "native_provider_request_count": "unavailable",
+  "retry_relationships": "unavailable",
+  "raw_artifact_root": ".bench-data/cache-evidence/opencode-runtime-temporal-controls-20260724"
+}

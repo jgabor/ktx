@@ -6,7 +6,7 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-  status: pending
+  status: complete
   acceptance:
     - GIVEN retained OpenCode evidence and at most one bounded free-runtime comparison WHEN temporal/concurrency behavior is reviewed THEN sequential versus concurrent execution is recorded only from runtime-visible model steps; TTL is source-only or unavailable when it exceeds the ceiling.
     - GIVEN OpenCode omits provider request identity, retry relationships, timestamps, or concurrency ownership WHEN evidence is classified THEN those fields remain unavailable and no separation claim is inferred.

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "published_at": "2026-07-24T16:21:39Z",
+  "status": "ready",
+  "authorization": "one runtime-only sequential-versus-concurrent comparison",
+  "network_activity": "none",
+  "model_calls": 0,
+  "source": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "runtime_commit": "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+    "model": "opencode/big-pickle",
+    "transport": "opencode_runtime_only",
+    "direct_provider_calls": false,
+    "credential_check": "OPENCODE_API_KEY presence only; value not read or retained"
+  },
+  "bounds": {
+    "opencode_invocations": { "actual_before_live": 0, "maximum": 2 },
+    "invocation_attempts": { "actual_before_live": 0, "maximum": 2 },
+    "successful_model_steps": { "actual_before_live": 0, "maximum": 2 },
+    "intentional_retries": { "actual_before_live": 0, "maximum": 0 },
+    "spend_usd": { "actual_before_live": 0, "maximum": 0 },
+    "wall_time_seconds": { "actual_before_live": 0, "maximum": 60 }
+  },
+  "comparison": {
+    "sequential_source": "tracked digest reference; no invocation",
+    "concurrent_source": "two fixed no-tool OpenCode invocations launched without waiting for either completion",
+    "successful_model_step_limit": "one configured model step per invocation"
+  },
+  "ttl": {
+    "classification": "unavailable",
+    "runtime_field": "not exposed by OpenCode step_finish",
+    "intentional_wait_seconds": 0,
+    "reason": "no runtime-visible TTL is testable within the 60-second comparison ceiling",
+    "source": "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/core/src/session/runner/publish-llm-event.ts"
+  },
+  "artifact_destination": ".bench-data/cache-evidence/opencode-runtime-temporal-controls-20260724",
+  "probe_configuration": "two fixed no-tool invocations, separate temporary runtime state, concurrent shell launch, 55-second per-invocation timeout, 60-second comparison timeout",
+  "live_command": "KTX_TEMPORAL_PROBE_LIVE=1 <ignored-preflight-authorized-probe> --live",
+  "stop_conditions": [
+    "stop after either authentication or runtime failure; do not expand or retry",
+    "do not exceed two OpenCode invocations, two successful model steps, zero intentional retries, zero dollars, or 60 seconds"
+  ],
+  "redaction_policy": [
+    "pass authentication through the inherited environment without reading or retaining its value",
+    "retain raw runtime output only below the ignored artifact destination",
+    "omit raw prompt content and prompt-derived identifiers from tracked evidence",
+    "omit credentials, session and cache namespaces, and message and part identifiers"
+  ],
+  "claim_limits": [
+    "concurrent describes shell launch setup and runtime-visible model steps, not authoritative provider or runtime concurrency ownership",
+    "provider request identity and count, retry relationships, authoritative timestamps, and separation remain unavailable",
+    "no hit ratio, provider-internal miss, cache-isolation, or cache-effectiveness claim is made"
+  ]
+}

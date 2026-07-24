@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "completed_at": "2026-07-24T16:24:00Z",
+  "status": "runtime_temporal_controls_complete",
+  "source": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "runtime_commit": "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+    "model": "opencode/big-pickle",
+    "evidence_kind": "opencode_runtime_only",
+    "direct_provider_calls": 0
+  },
+  "preflight_bounds": {
+    "opencode_invocations": 2,
+    "invocation_attempts": 2,
+    "successful_model_steps": 2,
+    "intentional_retries": 0,
+    "spend_usd": 0,
+    "wall_time_seconds": 60
+  },
+  "actual_live_accounting": {
+    "opencode_invocations": 2,
+    "invocation_attempts": 2,
+    "successful_model_steps": 2,
+    "intentional_retries": 0,
+    "spend_usd": 0,
+    "wall_time_seconds": 25
+  },
+  "sequential": {
+    "execution_classification": "observed",
+    "live_call_needed": false,
+    "evidence_path": "tools/bench/evidence/opencode-runtime-cache-controls.json",
+    "evidence_sha256": "1eaa07c89027c31e92b1c1094a33fc5e1df589c435979e45c3af41f230af1075",
+    "source_events_path": "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
+    "source_events_sha256": "738504be1936b021a37e640367a71d0e12ee538e2cf062005d62ff741c56efe8",
+    "execution_order": [2, 3],
+    "runtime_visible_model_steps": [1, 1],
+    "total_runtime_visible_model_steps": 2,
+    "scope": "retained same-session sequential pair only"
+  },
+  "concurrent": {
+    "execution_classification": "observed",
+    "requested_mode": "concurrent",
+    "launch_order": [1, 2],
+    "collection_order": [1, 2],
+    "runtime_visible_model_steps": [1, 1],
+    "total_runtime_visible_model_steps": 2,
+    "interpretation": "two shell-launched invocations each emitted one step_finish; runtime or provider concurrency ownership is unavailable"
+  },
+  "ttl": {
+    "classification": "unavailable",
+    "source_qualification": "OpenCode 1.18.4 step_finish source",
+    "source": "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/core/src/session/runner/publish-llm-event.ts",
+    "runtime_field": "unavailable",
+    "documented_ttl_seconds": null,
+    "comparison_ceiling_seconds": 60,
+    "intentional_wait_seconds": 0,
+    "ceiling_disposition": "source-only or unavailable; no TTL wait above the ceiling"
+  },
+  "classification_vocabulary": {
+    "observed": "a retained sanitized runtime event contains the stated measurement",
+    "unavailable": "the runtime evidence does not expose the field",
+    "failed-before-model-step": "an invocation exited without a step_finish event",
+    "unknown": "retained runtime data is insufficient to classify the result"
+  },
+  "classification_counts": {
+    "observed": 2,
+    "unavailable": 6,
+    "failed-before-model-step": 0,
+    "unknown": 0
+  },
+  "unavailable_fields": [
+    "provider_request_identity",
+    "provider_request_count",
+    "retry_relationships",
+    "authoritative_timestamps",
+    "concurrency_ownership",
+    "separation"
+  ],
+  "tracked_artifacts": [
+    {
+      "path": "tools/bench/evidence/opencode-runtime-temporal-controls-preflight.json",
+      "sha256": "cee6e8384236b762192059d0c0ed200fe74fe5da3ebc1f06ed0d9e6c4f773f31"
+    },
+    {
+      "path": "tools/bench/evidence/opencode-runtime-temporal-controls/source-events.jsonl",
+      "sha256": "debcccb6f3cba6759b387a59f1288b1fcf50280ac9dc39d1ff80dd74c6088c04"
+    },
+    {
+      "path": "tools/bench/evidence/opencode-runtime-temporal-controls/accounting.json",
+      "sha256": "d76d26c6f479d9268bdd63c77b317fa602327a5a43daefe6536e6def9b5c551d"
+    }
+  ],
+  "redaction": {
+    "credential_values_retained": false,
+    "raw_prompt_content_retained_in_evidence": false,
+    "session_or_cache_namespaces_retained": false,
+    "message_or_part_ids_retained": false,
+    "raw_artifacts_tracked": false
+  },
+  "claim_limits": [
+    "Sequential and concurrent labels describe runtime-visible model-step sequencing and the shell launch setup only",
+    "No provider request identity, retry relationship, authoritative timestamp, concurrency ownership, or separation is inferred",
+    "No hit ratio, provider-internal miss, cache-isolation, cache-effectiveness, stress, or load claim is made"
+  ]
+}

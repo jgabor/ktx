@@ -1,9 +1,8 @@
 // Package db owns database lifecycle, persistence, and schema evolution.
 // the on-disk SQLite schema.
 //
-// The database is a single SQLite file with five tables
-// (the core schema, the bench_runs table, the compressed table, and
-// the recorded_streams table):
+// The database is a single SQLite file with core, benchmark, reversible
+// artifact, recorded-stream, and optional session-telemetry tables:
 // sessions (aggregate, INSERT on open + UPDATE roll-up),
 // tool_calls (append-only, INSERT only), bench_runs (the benchmark
 // headline store; one row per `ktx bench run` invocation; same
@@ -14,8 +13,10 @@
 // opt-in `ktx run --record-stream`; holds the verbatim JSONL stream the
 // agent emitted — the authoritative cost evidence; references
 // sessions.id via a NOT NULL FK and bench_runs.id via a NULLABLE FK so a
-// ktx-run-captured stream can carry no bench parent). IDs are 16-char
-// lowercase alpha nanoids.
+// ktx-run-captured stream can carry no bench parent). session_telemetry keeps
+// accepted model-step observations separate from those evidence families and
+// associates them to sessions by foreign key. IDs are 16-char lowercase alpha
+// nanoids where a table has a standalone ID.
 // Content hashes are SHA-256 of the output field, stored as a separate
 // column for verification without being the primary key.
 //

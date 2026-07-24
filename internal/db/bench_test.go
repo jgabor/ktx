@@ -595,8 +595,8 @@ func TestOpen_BenchRunsCacheMigration(t *testing.T) {
 		if err := d.db.QueryRow(`PRAGMA user_version`).Scan(&gotVersion); err != nil {
 			t.Fatalf("read user_version: %v", err)
 		}
-		if gotVersion != 3 {
-			t.Fatalf("user_version = %d, want 3 after migration", gotVersion)
+		if gotVersion != schemaVersion {
+			t.Fatalf("user_version = %d, want %d after migration", gotVersion, schemaVersion)
 		}
 
 		for _, col := range []string{"cache_read", "cache_write", "reasoning", "estimated_api_cost"} {
@@ -677,7 +677,7 @@ func TestOpen_BenchRunsCacheMigration(t *testing.T) {
 	})
 }
 
-func TestOpen_BenchRunsUserVersion2To3Migration(t *testing.T) {
+func TestOpen_BenchRunsUserVersion2ToCurrentMigration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "v2.db")
 	raw, err := sql.Open(sqliteDriver, "file:"+path)
 	if err != nil {
@@ -709,7 +709,7 @@ func TestOpen_BenchRunsUserVersion2To3Migration(t *testing.T) {
 	}
 	defer database.Close()
 	var version int
-	if err := database.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 3 {
+	if err := database.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != schemaVersion {
 		t.Fatalf("version=%d err=%v", version, err)
 	}
 	var marker string

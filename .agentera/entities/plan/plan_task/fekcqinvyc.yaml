@@ -4,7 +4,7 @@ record:
   name: Persist and inspect optional session telemetry
   depends_on:
     - vuhfexydfu
-  status: pending
+  status: complete
   acceptance:
     - GIVEN an accepted model-step observation with authoritative session association WHEN it is recorded THEN it is retained separately from tool calls, benchmark runs, and experiment artifacts.
     - GIVEN retained cache-read or cache-write telemetry WHEN structured inspection is requested THEN a bounded JSON result exposes available identity, order, value, and measurement state.

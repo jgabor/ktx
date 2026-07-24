@@ -1,0 +1,13 @@
+id: htnjpeipwo
+artifact: progress
+record:
+  timestamp: 2026-07-24 07:05
+  type: feat
+  phase: build
+  what: Added separate session telemetry persistence with best-effort recording and bounded structured inspection.
+  context:
+    intent: Retain accepted OpenCode model-step cache observations without changing tool-call, benchmark, experiment, or adapter behavior.
+    constraints: No generated adapter integration, documentation closeout, provider-native claims, or decision satisfaction changes.
+  discovered: The startup decision slice returned 4 of 31 entries and omitted 27 for byte budget; omitted decisions were not treated as absent.
+  verified: internal/db/session_telemetry.go stores accepted observations under an atomic session foreign key and idempotent source tuple. go test -race ./internal/db ./internal/cli ./internal/opencodetelemetry -run 'SessionTelemetry|Telemetry|Contract|Collector' -count=1 passed zero, unavailable identity, malformed rejection, duplicate, concurrent, migration, association, bounded-list, and fail-open cases. mage check passed all tests, vet, lint, and build with 0 issues. A build/ktx smoke recorded cache_read 0/cache_write 23 and listed measured values with null provider/model.
+  next: Extend the generated OpenCode adapter only in the dependent integration task.

@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 // schemaStatements creates the current database schema. The statements remain
 // idempotent so stale and partially migrated databases can be repaired safely.
@@ -125,6 +125,27 @@ var schemaStatements = []string{
 	// JOIN to bench_runs (used by --replay to load the original
 	// comparison row).
 	`CREATE INDEX IF NOT EXISTS recorded_streams_bench_run_id_idx ON recorded_streams(bench_run_id)`,
+	`CREATE TABLE IF NOT EXISTS session_telemetry (
+		session_id        TEXT NOT NULL REFERENCES sessions(id),
+		source_session_id TEXT NOT NULL,
+		message_id        TEXT NOT NULL,
+		part_id           TEXT NOT NULL,
+		ordinal           INTEGER NOT NULL,
+		reason            TEXT NOT NULL,
+		cost              REAL NOT NULL,
+		tokens_input       INTEGER NOT NULL,
+		tokens_output      INTEGER NOT NULL,
+		tokens_reasoning   INTEGER NOT NULL,
+		cache_read         INTEGER NOT NULL,
+		cache_write        INTEGER NOT NULL,
+		provider           TEXT,
+		model              TEXT,
+		runtime            TEXT NOT NULL,
+		runtime_version    TEXT NOT NULL,
+		captured_at        TEXT NOT NULL,
+		PRIMARY KEY (source_session_id, message_id, part_id)
+	)`,
+	`CREATE INDEX IF NOT EXISTS session_telemetry_session_order_idx ON session_telemetry(session_id, ordinal)`,
 }
 
 // costColumn enumerates a single cost-publication column on tool_calls.

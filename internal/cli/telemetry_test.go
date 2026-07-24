@@ -174,6 +174,37 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 				return path
 			},
 		},
+		{
+			name: "malformed-v4-provenance",
+			prepare: func(t *testing.T) string {
+				path := filepath.Join(t.TempDir(), "malformed-v4.db")
+				d, err := dbpkg.Open(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := d.InsertSession(&dbpkg.Session{ID: "abcdefghijklmnop", Agent: "opencode"}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := d.DB().Exec(`DROP TABLE session_telemetry;
+					CREATE TABLE session_telemetry (
+						session_id TEXT NOT NULL REFERENCES sessions(id), source_session_id TEXT NOT NULL,
+						message_id TEXT NOT NULL, part_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
+						reason TEXT NOT NULL, cost REAL NOT NULL, tokens_input INTEGER NOT NULL,
+						tokens_output INTEGER NOT NULL, tokens_reasoning INTEGER NOT NULL,
+						cache_read INTEGER NOT NULL, cache_write INTEGER NOT NULL, provider TEXT, model TEXT,
+						runtime TEXT NOT NULL, runtime_version TEXT NOT NULL, captured_at TEXT NOT NULL,
+						PRIMARY KEY (source_session_id, message_id, part_id));
+					INSERT INTO session_telemetry VALUES
+						('abcdefghijklmnop','source','message','part',1,'stop',0,1,2,3,4,5,NULL,NULL,' ','1','captured');
+					PRAGMA user_version = 4`); err != nil {
+					t.Fatal(err)
+				}
+				if err := d.Close(); err != nil {
+					t.Fatal(err)
+				}
+				return path
+			},
+		},
 	} {
 		t.Run(failure.name+"/record", func(t *testing.T) {
 			t.Setenv("KTX_DB", failure.prepare(t))
@@ -193,6 +224,9 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			if code := runWith([]string{"telemetry", "list", "--session", "abcdefghijklmnop"}, &stdout, &stderr); code != ExitInternal {
 				t.Fatalf("list exit = %d, want %d; stdout=%q stderr=%q", code, ExitInternal, stdout.String(), stderr.String())
+			}
+			if stdout.Len() != 0 || stderr.Len() == 0 {
+				t.Fatalf("list failure output stdout=%q stderr=%q", stdout.String(), stderr.String())
 			}
 		})
 	}

@@ -4,7 +4,7 @@ record:
   name: Migrate and persist runtime-qualified identity
   depends_on:
     - tfhmbcdfgs
-  status: pending
+  status: complete
   acceptance:
     - GIVEN fresh, empty version-4, populated version-4, and every historically supported database shape WHEN opened under the new release THEN each reaches schema version 5 and preserves field-for-field telemetry, ownership, and unrelated evidence.
     - GIVEN two valid normalized observations with distinct runtime namespaces and identical native identifiers WHEN persisted THEN both remain independently inspectable.

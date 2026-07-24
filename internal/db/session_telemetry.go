@@ -49,8 +49,8 @@ type SessionTelemetry struct {
 	CapturedAt      string             `json:"captured_at"`
 }
 
-// PersistSessionTelemetry inserts one accepted observation. The source tuple
-// is the idempotency key: the first accepted occurrence remains authoritative.
+// PersistSessionTelemetry inserts one accepted observation. Runtime plus the
+// source tuple is the idempotency key; the first accepted occurrence remains authoritative.
 // The session check and insert share one transaction, and the foreign key is
 // the final association guard.
 func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *telemetry.Observation) (bool, error) {
@@ -76,7 +76,7 @@ func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *
 			tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
 			provider, model, runtime, runtime_version, captured_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(source_session_id, message_id, part_id) DO NOTHING`,
+		ON CONFLICT(runtime, source_session_id, message_id, part_id) DO NOTHING`,
 			sessionID, observation.SessionID, observation.MessageID, observation.PartID,
 			observation.Ordinal, observation.Reason, observation.Cost,
 			observation.Tokens.Input, observation.Tokens.Output, observation.Tokens.Reasoning,
@@ -110,7 +110,7 @@ func (d *DB) ListSessionTelemetry(sessionID string, limit int) ([]SessionTelemet
 		tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
 		provider, model, runtime, runtime_version, captured_at
 		FROM session_telemetry WHERE session_id = ?
-		ORDER BY ordinal, source_session_id, message_id, part_id LIMIT ?`, sessionID, limit)
+		ORDER BY ordinal, runtime, source_session_id, message_id, part_id LIMIT ?`, sessionID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("db: list session telemetry: %w", err)
 	}

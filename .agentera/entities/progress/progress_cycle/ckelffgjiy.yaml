@@ -1,0 +1,15 @@
+id: ckelffgjiy
+artifact: progress
+record:
+  timestamp: 2026-07-24 10:45
+  type: feat
+  phase: build
+  what: "Updated internal/db/schema.go and session_telemetry.go to schema version 5: runtime now leads the native tuple primary key, version-4 rows copy transactionally after nonblank provenance validation, and conflicts remain INSERT-only. Added migration, rollback, cross-runtime, sequential, concurrent, and CLI fail-open tests."
+  context:
+    intent: Persist telemetry independently per trusted runtime namespace without changing OpenCode behavior or losing historical evidence.
+    constraints: Persistence, schema, and migration only; no inspection output or documentation changes.
+    unknowns: None; no positional telemetry text consumer affected this persistence-only task.
+    scope: internal/db/schema.go, internal/db/session_telemetry.go, database regressions, and migration fail-open CLI regressions.
+  inspiration: Plan task zflpkvayzt and firm decision zeirngqgcl.
+  verified: go test -race ./internal/db ./internal/cli -run 'SessionTelemetry|TelemetryCommandDatabaseFailures'; go test ./...; mage check; built CLI telemetry record smoke. All passed.
+  next: Execute task uxasxmjovb for inspection surface changes; preserve the schema version 5 identity contract.

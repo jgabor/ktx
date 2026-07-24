@@ -143,6 +143,148 @@ func TestSessionTelemetryDuplicateConcurrentAndAtomicAssociation(t *testing.T) {
 	}
 }
 
+func TestSessionTelemetryRuntimeQualifiedIdentityAndFirstEvidence(t *testing.T) {
+	d, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	firstOwner := mustNewID(t)
+	secondOwner := mustNewID(t)
+	for _, sessionID := range []string{firstOwner, secondOwner} {
+		if err := d.InsertSession(&Session{ID: sessionID, Agent: "opencode"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	first := telemetryObservation("ses_source", "msg_1", "prt_1", 1, 3, 4)
+	provider, model := "provider-first", "model-first"
+	first.Provider, first.Model = &provider, &model
+	if inserted, err := d.PersistSessionTelemetry(firstOwner, "2026-07-24T10:00:00Z", first); err != nil || !inserted {
+		t.Fatalf("first insert = %t, %v", inserted, err)
+	}
+
+	conflict := telemetryObservation("ses_source", "msg_1", "prt_1", 99, 30, 40)
+	conflict.Reason = "conflicting"
+	conflict.Cost = 9.5
+	conflict.Tokens.Input, conflict.Tokens.Output, conflict.Tokens.Reasoning = 10, 20, 30
+	conflict.RuntimeVersion = "2.0.0"
+	otherProvider, otherModel := "provider-second", "model-second"
+	conflict.Provider, conflict.Model = &otherProvider, &otherModel
+	if inserted, err := d.PersistSessionTelemetry(secondOwner, "2026-07-24T11:00:00Z", conflict); err != nil || inserted {
+		t.Fatalf("conflicting retry = %t, %v", inserted, err)
+	}
+
+	otherRuntime := *conflict
+	otherRuntime.Runtime = "other-runtime"
+	if inserted, err := d.PersistSessionTelemetry(secondOwner, "2026-07-24T12:00:00Z", &otherRuntime); err != nil || !inserted {
+		t.Fatalf("other runtime insert = %t, %v", inserted, err)
+	}
+
+	rows, err := d.ListSessionTelemetry(firstOwner, 10)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("first owner rows = %#v, %v", rows, err)
+	}
+	got := rows[0]
+	if got.SessionID != firstOwner || got.Ordinal != 1 || got.Reason != "stop" || got.RuntimeVersion != "1.0.0" ||
+		got.Provider == nil || *got.Provider != provider || got.Model == nil || *got.Model != model ||
+		got.Cost.Value == nil || *got.Cost.Value != 0 || got.CacheRead.Value == nil || *got.CacheRead.Value != 3 ||
+		got.CacheWrite.Value == nil || *got.CacheWrite.Value != 4 || got.CapturedAt != "2026-07-24T10:00:00Z" {
+		t.Fatalf("first evidence changed: %#v", got)
+	}
+	rows, err = d.ListSessionTelemetry(secondOwner, 10)
+	if err != nil || len(rows) != 1 || rows[0].Runtime != "other-runtime" {
+		t.Fatalf("second runtime rows = %#v, %v", rows, err)
+	}
+}
+
+func TestSessionTelemetryConcurrentConflictHasOneCompleteWinner(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "telemetry-conflict.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	owners := []string{mustNewID(t), mustNewID(t)}
+	for _, owner := range owners {
+		if err := d.InsertSession(&Session{ID: owner, Agent: "opencode"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	observations := []*telemetry.Observation{
+		telemetryObservation("ses_source", "msg_1", "prt_1", 1, 11, 12),
+		telemetryObservation("ses_source", "msg_1", "prt_1", 2, 21, 22),
+	}
+	for i, observation := range observations {
+		observation.Reason = []string{"winner-a", "winner-b"}[i]
+		observation.Cost = []float64{1.25, 2.5}[i]
+		observation.Tokens.Input = int64(100 + i)
+		observation.RuntimeVersion = []string{"1.0.0", "2.0.0"}[i]
+		provider, model := []string{"provider-a", "provider-b"}[i], []string{"model-a", "model-b"}[i]
+		observation.Provider, observation.Model = &provider, &model
+	}
+
+	start := make(chan struct{})
+	results := make(chan bool, 2)
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := range observations {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			inserted, err := d.PersistSessionTelemetry(owners[i], []string{"captured-a", "captured-b"}[i], observations[i])
+			results <- inserted
+			errs <- err
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	close(errs)
+	inserted := 0
+	for result := range results {
+		if result {
+			inserted++
+		}
+	}
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if inserted != 1 {
+		t.Fatalf("successful inserts = %d, want 1", inserted)
+	}
+
+	var owner, sourceSessionID, messageID, partID, reason, provider, model, runtime, runtimeVersion, capturedAt string
+	var ordinal, input, output, reasoning, cacheRead, cacheWrite int64
+	var cost float64
+	if err := d.db.QueryRow(`SELECT session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
+		tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
+		provider, model, runtime, runtime_version, captured_at FROM session_telemetry`).Scan(
+		&owner, &sourceSessionID, &messageID, &partID, &ordinal, &reason, &cost,
+		&input, &output, &reasoning, &cacheRead, &cacheWrite,
+		&provider, &model, &runtime, &runtimeVersion, &capturedAt,
+	); err != nil {
+		t.Fatal(err)
+	}
+	winner := 0
+	if owner == owners[1] {
+		winner = 1
+	} else if owner != owners[0] {
+		t.Fatalf("unexpected owner %q", owner)
+	}
+	if sourceSessionID != "ses_source" || messageID != "msg_1" || partID != "prt_1" || runtime != "test-runtime" ||
+		ordinal != int64(winner+1) || reason != []string{"winner-a", "winner-b"}[winner] ||
+		cost != []float64{1.25, 2.5}[winner] || input != int64(100+winner) || output != 2 || reasoning != 0 ||
+		cacheRead != []int64{11, 21}[winner] || cacheWrite != []int64{12, 22}[winner] ||
+		provider != []string{"provider-a", "provider-b"}[winner] || model != []string{"model-a", "model-b"}[winner] ||
+		runtimeVersion != []string{"1.0.0", "2.0.0"}[winner] || capturedAt != []string{"captured-a", "captured-b"}[winner] {
+		t.Fatalf("mixed concurrent winner: owner=%q source=%q message=%q part=%q ordinal=%d reason=%q cost=%v input=%d output=%d reasoning=%d read=%d write=%d provider=%q model=%q runtime=%q version=%q captured=%q",
+			owner, sourceSessionID, messageID, partID, ordinal, reason, cost, input, output, reasoning, cacheRead, cacheWrite, provider, model, runtime, runtimeVersion, capturedAt)
+	}
+}
+
 func TestSessionTelemetryFailurePreservesExistingEvidence(t *testing.T) {
 	d, err := OpenMemory()
 	if err != nil {

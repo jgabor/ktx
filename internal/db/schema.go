@@ -4,9 +4,34 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
-const schemaVersion = 4
+const schemaVersion = 5
+
+const createSessionTelemetryTable = `CREATE TABLE IF NOT EXISTS session_telemetry (
+		session_id        TEXT NOT NULL REFERENCES sessions(id),
+		source_session_id TEXT NOT NULL,
+		message_id        TEXT NOT NULL,
+		part_id           TEXT NOT NULL,
+		ordinal           INTEGER NOT NULL,
+		reason            TEXT NOT NULL,
+		cost              REAL NOT NULL,
+		tokens_input       INTEGER NOT NULL,
+		tokens_output      INTEGER NOT NULL,
+		tokens_reasoning   INTEGER NOT NULL,
+		cache_read         INTEGER NOT NULL,
+		cache_write        INTEGER NOT NULL,
+		provider           TEXT,
+		model              TEXT,
+		runtime            TEXT NOT NULL,
+		runtime_version    TEXT NOT NULL,
+		captured_at        TEXT NOT NULL,
+		PRIMARY KEY (runtime, source_session_id, message_id, part_id)
+	)`
+
+const createSessionTelemetryOrderIndex = `CREATE INDEX IF NOT EXISTS session_telemetry_session_order_idx
+	ON session_telemetry(session_id, ordinal, runtime, source_session_id, message_id, part_id)`
 
 // schemaStatements creates the current database schema. The statements remain
 // idempotent so stale and partially migrated databases can be repaired safely.
@@ -125,27 +150,8 @@ var schemaStatements = []string{
 	// JOIN to bench_runs (used by --replay to load the original
 	// comparison row).
 	`CREATE INDEX IF NOT EXISTS recorded_streams_bench_run_id_idx ON recorded_streams(bench_run_id)`,
-	`CREATE TABLE IF NOT EXISTS session_telemetry (
-		session_id        TEXT NOT NULL REFERENCES sessions(id),
-		source_session_id TEXT NOT NULL,
-		message_id        TEXT NOT NULL,
-		part_id           TEXT NOT NULL,
-		ordinal           INTEGER NOT NULL,
-		reason            TEXT NOT NULL,
-		cost              REAL NOT NULL,
-		tokens_input       INTEGER NOT NULL,
-		tokens_output      INTEGER NOT NULL,
-		tokens_reasoning   INTEGER NOT NULL,
-		cache_read         INTEGER NOT NULL,
-		cache_write        INTEGER NOT NULL,
-		provider           TEXT,
-		model              TEXT,
-		runtime            TEXT NOT NULL,
-		runtime_version    TEXT NOT NULL,
-		captured_at        TEXT NOT NULL,
-		PRIMARY KEY (source_session_id, message_id, part_id)
-	)`,
-	`CREATE INDEX IF NOT EXISTS session_telemetry_session_order_idx ON session_telemetry(session_id, ordinal)`,
+	createSessionTelemetryTable,
+	createSessionTelemetryOrderIndex,
 }
 
 // costColumn enumerates a single cost-publication column on tool_calls.
@@ -383,6 +389,9 @@ func migrateTx(tx *sql.Tx) error {
 			return fmt.Errorf("db: create schema: %w", err)
 		}
 	}
+	if err := migrateSessionTelemetryV5(tx); err != nil {
+		return err
+	}
 
 	have, err := tableColumns(tx, "tool_calls")
 	if err != nil {
@@ -493,5 +502,77 @@ func migrateTx(tx *sql.Tx) error {
 		}
 	}
 
+	return nil
+}
+
+func migrateSessionTelemetryV5(tx *sql.Tx) error {
+	rows, err := tx.Query(`SELECT name FROM pragma_table_info('session_telemetry') WHERE pk > 0 ORDER BY pk`)
+	if err != nil {
+		return fmt.Errorf("db: inspect session_telemetry primary key: %w", err)
+	}
+	var primaryKey []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return fmt.Errorf("db: inspect session_telemetry primary key: %w", err)
+		}
+		primaryKey = append(primaryKey, name)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("db: inspect session_telemetry primary key: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("db: inspect session_telemetry primary key: %w", err)
+	}
+
+	provenance, err := tx.Query(`SELECT runtime, runtime_version FROM session_telemetry`)
+	if err != nil {
+		return fmt.Errorf("db: validate legacy session_telemetry provenance: %w", err)
+	}
+	for provenance.Next() {
+		var runtime, runtimeVersion string
+		if err := provenance.Scan(&runtime, &runtimeVersion); err != nil {
+			provenance.Close()
+			return fmt.Errorf("db: validate legacy session_telemetry provenance: %w", err)
+		}
+		if strings.TrimSpace(runtime) == "" || strings.TrimSpace(runtimeVersion) == "" {
+			provenance.Close()
+			return fmt.Errorf("db: migrate session_telemetry: blank runtime or runtime_version")
+		}
+	}
+	if err := provenance.Err(); err != nil {
+		provenance.Close()
+		return fmt.Errorf("db: validate legacy session_telemetry provenance: %w", err)
+	}
+	if err := provenance.Close(); err != nil {
+		return fmt.Errorf("db: validate legacy session_telemetry provenance: %w", err)
+	}
+	if len(primaryKey) == 4 && primaryKey[0] == "runtime" && primaryKey[1] == "source_session_id" &&
+		primaryKey[2] == "message_id" && primaryKey[3] == "part_id" {
+		return nil
+	}
+
+	statements := []string{
+		`ALTER TABLE session_telemetry RENAME TO session_telemetry_v4`,
+		createSessionTelemetryTable,
+		`INSERT INTO session_telemetry (
+			session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
+			tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
+			provider, model, runtime, runtime_version, captured_at
+		) SELECT
+			session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
+			tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
+			provider, model, runtime, runtime_version, captured_at
+		FROM session_telemetry_v4`,
+		`DROP TABLE session_telemetry_v4`,
+		createSessionTelemetryOrderIndex,
+	}
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("db: rebuild session_telemetry: %w", err)
+		}
+	}
 	return nil
 }

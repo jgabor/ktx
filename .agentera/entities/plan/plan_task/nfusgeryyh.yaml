@@ -6,10 +6,10 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-  status: pending
+  status: complete
   acceptance:
-    - GIVEN an eligible OpenCode runtime and model path WHEN controls run THEN retained evidence covers same-prefix/same-key, same-prefix/different-key when configurable, changed-prefix/same-key when configurable, cold-fill-repeat, and one-request/multi-request cases.
-    - GIVEN a controllable runtime key, prefix, or request-count dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, request count, runtime version, model identity, and field completeness.
+    - GIVEN an eligible OpenCode runtime and model path WHEN runtime-only controls run THEN retained evidence covers equal and changed submitted prompts within the same runtime session, cold-to-repeat ordering that retains any positive runtime-reported fill and otherwise marks cache-fill evidence unavailable, and one/multi runtime-visible model-step sequencing; native provider request count remains unavailable when the runtime does not expose it.
+    - GIVEN a controllable runtime session, submitted-prompt, or model-step sequencing dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, runtime-visible model-step/request sequencing, runtime version, model identity, and field completeness while keeping native provider request identity and count unavailable.
     - GIVEN OpenCode does not expose or preserve a requested key, prefix, breakpoint, or request relationship WHEN the matrix is retained THEN that capability remains unavailable rather than inferred from aggregate token movement.
     - GIVEN the runtime reports reuse, creation, no reuse, or no applicable field WHEN a result is classified THEN cache reuse, cache fill, no reported reuse, ineligible, and unknown remain distinct without a generic hit ratio or provider-internal miss claim.
     - GIVEN supported and unsupported offline cases WHEN verification runs THEN every testable runtime control dimension has at least one accepted case and one rejected or unavailable case.

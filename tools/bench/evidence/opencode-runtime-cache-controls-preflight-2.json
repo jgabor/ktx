@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "published_at": "2026-07-24T15:22:57Z",
+  "status": "ready",
+  "network_activity": "none",
+  "model_calls": 0,
+  "source": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "image": "ktx-bench:opencode-1.18.4",
+    "image_id": "sha256:d40f07d48010c5fbd4a5c9a562a40bffb126042613cb8b14a2d0297b052139a5",
+    "model": "opencode/big-pickle",
+    "credential_check": "OPENCODE_API_KEY presence only; value not read or retained"
+  },
+  "bounds": {
+    "opencode_invocations": { "actual_before_live": 0, "maximum": 2 },
+    "successful_model_steps": { "actual_before_live": 0, "maximum": 2 },
+    "intentional_retries": { "actual_before_live": 0, "maximum": 0 },
+    "spend_usd": { "actual_before_live": 0, "maximum": 0 },
+    "wall_time_seconds": { "actual_before_live": 0, "maximum": 120 }
+  },
+  "invocation_plan": [
+    {
+      "ordinal": 1,
+      "case": "session-a changed submitted prompt",
+      "session": "resume session-a through untracked runtime identifier",
+      "prompt": "synthetic changed-b"
+    }
+  ],
+  "artifact_destination": ".bench-data/cache-evidence/opencode-runtime-controls-changed-20260724",
+  "probe_configuration": "tools/bench/evidence/opencode-runtime-cache-controls/probe.sh",
+  "live_command": "KTX_CACHE_PROBE_LIVE=1 OPENCODE_SESSION_ID=<untracked-runtime-id> tools/bench/evidence/opencode-runtime-cache-controls/probe.sh --live-changed",
+  "stop_conditions": [
+    "stop immediately on authentication or provider failure",
+    "do not intentionally retry",
+    "do not exceed two OpenCode invocations, two successful model steps, 120 seconds, or zero dollars"
+  ],
+  "redaction_policy": [
+    "pass authentication as an inherited environment variable without reading or retaining its value",
+    "retain raw runtime output only below the ignored artifact destination",
+    "retain source-event excerpts only after removing raw session, message, part, cache namespace, and prompt content",
+    "retain submitted prompts and runtime session identifiers only as SHA-256 in normalized evidence",
+    "use synthetic prompts only"
+  ],
+  "claim_limits": [
+    "model-step sequencing is runtime-visible; native provider request identity and count remain unavailable",
+    "cache fill is reported only when a runtime cache-write field is available and positive; otherwise the fill field is explicitly unavailable",
+    "provider-visible prefix, breakpoint, key, isolation, and provider-internal miss reasons remain unavailable"
+  ]
+}

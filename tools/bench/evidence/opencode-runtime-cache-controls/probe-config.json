@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "cache-probe": {
+      "description": "Synthetic runtime cache evidence probe",
+      "mode": "primary",
+      "prompt": "Do not use tools. Follow the final synthetic instruction exactly.",
+      "tools": { "*": false },
+      "temperature": 0
+    }
+  }
+}

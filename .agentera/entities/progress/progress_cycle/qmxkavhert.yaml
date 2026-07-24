@@ -1,0 +1,16 @@
+id: qmxkavhert
+artifact: progress
+record:
+  timestamp: 2026-07-24 17:30
+  type: test
+  phase: build
+  what: Closed the runtime-only OpenCode control task after a second no-call preflight and two bounded additional invocations retained the changed submitted-prompt opposite. The first additional invocation used fresh runtime state and produced Session not found with no model step; the second reused the ignored runtime state and produced one step_finish with cache_read 14144, cache_write 0, uncached_input 6377, output 6, and cost 0.
+  context:
+    intent: Correct the failed audit without direct-provider requests or provider-native parity claims.
+    constraints: OpenCode 1.18.4 and opencode/big-pickle only; at most two additional runtime invocations, two successful model steps, zero intentional retries, 120 seconds, and zero dollars; stop on authentication or provider failure.
+    scope: Narrowed runtime-only acceptance, sanitized tracked source-event excerpts, executable probe configuration, measurement-derived classifications, optional ignored-raw checks, documentation, and exact accounting.
+    unknowns: Provider-visible prefix, breakpoint, cache key, cache isolation, positive fill behavior, native provider request identity/count, and successful separate-session model-step behavior remain unavailable.
+  inspiration: Audit attempt 1 recorded on plan task nfusgeryyh.
+  discovered: The changed submitted prompt retained the same hashed OpenCode session and reported runtime cache reuse. This does not identify the provider-visible prefix, a provider-internal hit, or generic cache effectiveness.
+  verified: Focused cache-evidence tests, shell syntax, retained JSON parsing, git diff --check, tracked diff project-memory marker review, tracked secret/raw-identifier review, and mage check passed. The secret scan matched only its own regression-test patterns; no credential value or raw runtime identifier was retained.
+  next: Do not promote runtime model-step sequencing to native provider request counts or infer unavailable provider controls from token movement.

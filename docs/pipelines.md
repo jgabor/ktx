@@ -536,6 +536,10 @@ rejected rather than trusted.
 
 ### Cache source-event evidence and claims
 
+For the field-by-field differences between benchmark recorded-stream evidence
+and ordinary unwrapped OpenCode session telemetry, see the
+[current retained cache-observability matrix](opencode-telemetry.md#current-retained-cache-observability-matrix).
+
 The source-event contract is the vocabulary for cache-aware evidence before it
 is rolled up to an attempt. It does not change the existing attempt-level
 fields or make an aggregate complete from partial telemetry. Each source event

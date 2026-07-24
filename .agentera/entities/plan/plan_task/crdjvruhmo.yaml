@@ -4,7 +4,7 @@ record:
   name: Establish the bounded OpenAI and OpenCode evidence path
   depends_on:
     []
-  status: complete
+  status: pending
   acceptance:
     - GIVEN a provider and model pair is considered for live evidence WHEN preflight runs THEN it reports the exact source and version, access state, maximum native requests and attempts, maximum spend, maximum wall time, artifact destination, and redaction policy before network activity.
     - GIVEN a prerequisite is absent or a declared ceiling cannot be enforced WHEN preflight completes THEN no billable request occurs and the retained capability entry states the exact unavailable condition.
@@ -12,3 +12,13 @@ record:
     - GIVEN routine OpenCode observation does not require priced evidence WHEN a model is selected THEN opencode/big-pickle is used; Luna/high is reserved for the priced OpenAI path.
     - GIVEN preflight and field-normalization rules are verified WHEN offline cases run THEN each testable rule has at least one accepted case and one rejected or unavailable case.
   plan: xpsaaraqbw
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Criterion 5 lacks rejected coverage for attempt ceilings, token/pricing bounds, missing runtime executable, malformed or negative measurements, and uncached-input underflow. Luna progress claims rely on ignored artifacts absent from the checkout; tracked evidence must retain redacted artifact names, hashes, commands, exits, timing, and sanitized startup failures, or downgrade unverifiable claims.
+    provenance:
+      attempt_id: audit-1
+      source: Audit evaluation of task crdjvruhmo after OpenAI/OpenCode evidence commits
+      recorded_at: 2026-07-24 15:40
+      writer_command: agentera state plan record-evaluation

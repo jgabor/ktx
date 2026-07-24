@@ -1,0 +1,15 @@
+id: sidlvoinsf
+artifact: progress
+record:
+  timestamp: 2026-07-24 15:16
+  type: fix
+  phase: build
+  what: Updated tools/bench/evidence/openai-opencode-preflight.json to record OpenCode ChatGPT OAuth accurately and retain direct public Responses API evidence as source-backed unsupported.
+  context:
+    intent: Correct the credential assumption without mislabeling an OpenCode-mediated ChatGPT Codex request as direct-provider evidence or requesting an API key.
+    constraints: No token value was printed, copied, or retained. No API key request, provider call, model call, limit increase, raw cache key, generic hit ratio, isolation inference, historical rewrite, TODO change, or decision change.
+    unknowns: None for this task; direct public Responses access through the installed ChatGPT OAuth credential is not a documented supported flow.
+    scope: internal/cacheevidence preflight metadata, retained OpenAI/OpenCode proposal and report, authentication documentation, task state, and progress state.
+  discovered: Secret-free metadata reports an OpenAI oauth record. OpenCode 1.18.4 consumes it through CodexAuthPlugin, adds ChatGPT account metadata, and rewrites Responses requests to the ChatGPT Codex endpoint. OpenAI documents API keys or workload-identity access tokens for its public API; ChatGPT subscription API usage is separate.
+  verified: No provider/model request occurred. go test ./internal/cacheevidence ./internal/experiment ./internal/cli passed; mage check passed race tests, vet, lint, and build; the no-call preflight retained zero billable requests; agentera state validation and git diff --check passed.
+  next: No live approval is needed for this task. Continue dependent provider-control work from the retained unavailable direct path, offline native fixture, and OpenCode-normalized evidence; do not reinterpret ChatGPT OAuth traffic as direct public API evidence.

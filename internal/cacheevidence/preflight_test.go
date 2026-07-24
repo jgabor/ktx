@@ -8,11 +8,17 @@ import (
 )
 
 type fakeEnvironment struct {
-	credentials map[string]bool
+	credentials map[string]CredentialMetadata
 	versions    map[string]string
 }
 
-func (f fakeEnvironment) CredentialPresent(name string) bool { return f.credentials[name] }
+func (f fakeEnvironment) Credential(source, expectedType string) CredentialMetadata {
+	if value, ok := f.credentials[source]; ok {
+		return value
+	}
+	return CredentialMetadata{State: "absent", Type: expectedType}
+}
+
 func (f fakeEnvironment) RuntimeVersion(name string) (string, error) {
 	version, ok := f.versions[name]
 	if !ok {
@@ -26,14 +32,14 @@ func validProposal() Proposal {
 		SchemaVersion: SchemaVersion,
 		Paths: []Path{
 			{
-				Name: "priced_openai", Source: "OpenAI Responses API", Version: "2026-07-24 docs", Citation: "https://example.test/openai",
-				Transport: "direct_openai", Provider: "openai", Model: "gpt-5.6-luna", Variant: "high", CredentialEnvironment: "OPENAI_API_KEY",
+				Name: "priced_openai", Source: "OpenAI Responses API", Version: "2026-07-24 docs", References: []string{"https://example.test/openai"},
+				Transport: "direct_openai", Provider: "openai", Model: "gpt-5.6-luna", Variant: "high", AccessMode: "documented_direct", CredentialSource: "environment:OPENAI_API_KEY", CredentialType: "api",
 				RequiredNativeRequests: 2, RequiredAttempts: 2, MaxInputTokens: 8192, MaxOutputTokens: 64,
 				InputUSDPerMillion: 1, CacheWriteMultiplier: 1.25, OutputUSDPerMillion: 6,
 			},
 			{
-				Name: "routine_opencode", Source: "OpenCode", Version: "1.18.4", Citation: "https://example.test/opencode",
-				Transport: "opencode", Provider: "opencode", Model: "big-pickle", CredentialEnvironment: "OPENCODE_API_KEY", RuntimeBinary: "opencode",
+				Name: "routine_opencode", Source: "OpenCode", Version: "1.18.4", References: []string{"https://example.test/opencode"},
+				Transport: "opencode", Provider: "opencode", Model: "big-pickle", AccessMode: "runtime", CredentialSource: "environment:OPENCODE_API_KEY", CredentialType: "api", RuntimeBinary: "opencode",
 				RequiredNativeRequests: 2, RequiredAttempts: 2, MaxInputTokens: 8192, MaxOutputTokens: 64,
 				CacheWriteMultiplier: 1,
 			},
@@ -47,8 +53,11 @@ func validProposal() Proposal {
 func TestPreflightAcceptedAndUnavailableCases(t *testing.T) {
 	proposal := validProposal()
 	available := fakeEnvironment{
-		credentials: map[string]bool{"OPENAI_API_KEY": true, "OPENCODE_API_KEY": true},
-		versions:    map[string]string{"opencode": "1.18.4"},
+		credentials: map[string]CredentialMetadata{
+			"environment:OPENAI_API_KEY":   {State: "present", Type: "api"},
+			"environment:OPENCODE_API_KEY": {State: "present", Type: "api"},
+		},
+		versions: map[string]string{"opencode": "1.18.4"},
 	}
 	report, err := Preflight(proposal, available)
 	if err != nil {
@@ -61,13 +70,13 @@ func TestPreflightAcceptedAndUnavailableCases(t *testing.T) {
 		t.Fatalf("capabilities = %#v", report.Capabilities)
 	}
 	for _, entry := range report.Capabilities {
-		if entry.Source == "" || entry.Version == "" || entry.NativeRequestMaximum != 2 || entry.AttemptMaximum != 2 || entry.WallTimeMaximum != "2m" || entry.ArtifactDestination == "" || len(entry.RedactionPolicy) == 0 {
+		if entry.Source == "" || entry.Version == "" || len(entry.References) == 0 || entry.NativeRequestMaximum != 2 || entry.AttemptMaximum != 2 || entry.WallTimeMaximum != "2m" || entry.ArtifactDestination == "" || len(entry.RedactionPolicy) == 0 {
 			t.Errorf("incomplete preflight entry: %#v", entry)
 		}
 	}
 
 	unavailable := fakeEnvironment{
-		credentials: map[string]bool{"OPENCODE_API_KEY": true},
+		credentials: map[string]CredentialMetadata{"environment:OPENCODE_API_KEY": {State: "present", Type: "api"}},
 		versions:    map[string]string{"opencode": "1.18.3"},
 	}
 	report, err = Preflight(proposal, unavailable)
@@ -77,11 +86,35 @@ func TestPreflightAcceptedAndUnavailableCases(t *testing.T) {
 	if report.Ready || report.BillableRequests != 0 {
 		t.Fatalf("unavailable report = %#v", report)
 	}
-	if got := report.Capabilities[0].Access.UnavailableCondition; got != "OPENAI_API_KEY is not set" {
+	if got := report.Capabilities[0].Access.UnavailableCondition; got != "required api credential from environment:OPENAI_API_KEY is absent" {
 		t.Errorf("OpenAI unavailable condition = %q", got)
 	}
 	if got := report.Capabilities[1].Access.UnavailableCondition; got != "opencode version is 1.18.3; required 1.18.4" {
 		t.Errorf("OpenCode unavailable condition = %q", got)
+	}
+}
+
+func TestPreflightRetainsChatGPTOAuthAsUnsupportedForDirectEvidence(t *testing.T) {
+	proposal := validProposal()
+	condition := "OpenCode ChatGPT OAuth is adapter-scoped and is not a documented direct public Responses API credential"
+	proposal.Paths[0].AccessMode = "source_only_unavailable"
+	proposal.Paths[0].CredentialSource = "opencode:OpenAI"
+	proposal.Paths[0].CredentialType = "oauth"
+	proposal.Paths[0].UnavailableCondition = condition
+	env := fakeEnvironment{
+		credentials: map[string]CredentialMetadata{
+			"opencode:OpenAI":              {State: "present", Type: "oauth"},
+			"environment:OPENCODE_API_KEY": {State: "present", Type: "api"},
+		},
+		versions: map[string]string{"opencode": "1.18.4"},
+	}
+	report, err := Preflight(proposal, env)
+	if err != nil {
+		t.Fatalf("Preflight() error = %v", err)
+	}
+	got := report.Capabilities[0]
+	if report.Ready || report.BillableRequests != 0 || got.Access.State != "unsupported" || got.Access.Credential != "present" || got.Access.CredentialType != "oauth" || got.Access.ModelAccess != "not_applicable" || got.Access.UnavailableCondition != condition {
+		t.Fatalf("ChatGPT OAuth capability = %#v; report ready=%t billable=%d", got, report.Ready, report.BillableRequests)
 	}
 }
 
@@ -99,7 +132,7 @@ func TestPreflightRetainsUnenforceableCeilings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			proposal := validProposal()
 			tt.mutate(&proposal)
-			report, err := Preflight(proposal, fakeEnvironment{credentials: map[string]bool{"OPENAI_API_KEY": true, "OPENCODE_API_KEY": true}, versions: map[string]string{"opencode": "1.18.4"}})
+			report, err := Preflight(proposal, fakeEnvironment{credentials: map[string]CredentialMetadata{"environment:OPENAI_API_KEY": {State: "present", Type: "api"}, "environment:OPENCODE_API_KEY": {State: "present", Type: "api"}}, versions: map[string]string{"opencode": "1.18.4"}})
 			if err != nil {
 				t.Fatalf("Preflight() error = %v", err)
 			}
@@ -128,6 +161,8 @@ func TestPreflightRejectsWrongPathOrRetentionPolicy(t *testing.T) {
 		{"copilot", func(p *Proposal) { p.Paths[1].Provider = "github-copilot" }, "requires opencode/big-pickle"},
 		{"artifact", func(p *Proposal) { p.ArtifactDestination = "evidence/output" }, "below .bench-data/cache-evidence"},
 		{"redaction", func(p *Proposal) { p.RedactionPolicy = nil }, "redaction policy"},
+		{"reference", func(p *Proposal) { p.Paths[0].References = []string{" "} }, "references must not be blank"},
+		{"unsupported reason", func(p *Proposal) { p.Paths[0].AccessMode = "source_only_unavailable" }, "exact unavailable condition"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -148,5 +183,15 @@ func TestLoadProposalRejectsUnknownFields(t *testing.T) {
 	}
 	if _, err := LoadProposal(path); err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("LoadProposal() error = %v", err)
+	}
+}
+
+func TestOpenCodeCredentialMetadataUsesOnlyProviderAndType(t *testing.T) {
+	out := []byte("\x1b[0m●  OpenAI \x1b[90moauth\n●  Other \x1b[90mapi\n")
+	if got := credentialFromOpenCodeAuthList(out, "OpenAI", "oauth"); got.State != "present" || got.Type != "oauth" {
+		t.Fatalf("credential metadata = %#v", got)
+	}
+	if got := credentialFromOpenCodeAuthList(out, "OpenAI", "api"); got.State != "absent" || got.Type != "api" {
+		t.Fatalf("wrong-type credential metadata = %#v", got)
 	}
 }

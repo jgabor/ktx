@@ -3,14 +3,21 @@
   "paths": [
     {
       "name": "priced_openai",
-      "source": "OpenAI Responses API and Prompt Caching guide",
-      "version": "2026-07-24 documentation snapshot",
-      "citation": "https://platform.openai.com/docs/guides/prompt-caching",
+      "source": "OpenAI public Responses API and OpenCode ChatGPT OAuth adapter",
+      "version": "OpenAI REST 2020-10-01 / OpenCode 1.18.4 (49c69c5)",
+      "references": [
+        "https://developers.openai.com/api/reference/overview/",
+        "https://github.com/anomalyco/opencode/blob/v1.18.4/packages/opencode/src/plugin/openai/codex.ts",
+        "https://help.openai.com/en/articles/6950777-what-is-chatgpt-plus"
+      ],
       "transport": "direct_openai",
       "provider": "openai",
       "model": "gpt-5.6-luna",
       "variant": "high",
-      "credential_environment": "OPENAI_API_KEY",
+      "access_mode": "source_only_unavailable",
+      "credential_source": "opencode:OpenAI",
+      "credential_type": "oauth",
+      "unavailable_condition": "OpenCode 1.18.4 ChatGPT OAuth is consumed by its adapter, which adds ChatGPT account metadata and rewrites requests to the ChatGPT Codex endpoint; the OpenAI public Responses API documents API keys or workload-identity access tokens, not reuse of this ChatGPT OAuth credential, so no documented supported direct public Responses API path is available",
       "required_native_requests": 2,
       "required_attempts": 2,
       "max_input_tokens": 8192,
@@ -23,11 +30,15 @@
       "name": "routine_opencode",
       "source": "OpenCode step-finish event and request runtime",
       "version": "1.18.4",
-      "citation": "https://github.com/anomalyco/opencode/tree/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+      "references": [
+        "https://github.com/anomalyco/opencode/tree/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e"
+      ],
       "transport": "opencode",
       "provider": "opencode",
       "model": "big-pickle",
-      "credential_environment": "OPENCODE_API_KEY",
+      "access_mode": "runtime",
+      "credential_source": "environment:OPENCODE_API_KEY",
+      "credential_type": "api",
       "runtime_binary": "opencode",
       "required_native_requests": 2,
       "required_attempts": 2,

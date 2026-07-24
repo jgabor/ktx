@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -25,23 +26,26 @@ type Proposal struct {
 }
 
 type Path struct {
-	Name                   string  `json:"name"`
-	Source                 string  `json:"source"`
-	Version                string  `json:"version"`
-	Citation               string  `json:"citation"`
-	Transport              string  `json:"transport"`
-	Provider               string  `json:"provider"`
-	Model                  string  `json:"model"`
-	Variant                string  `json:"variant,omitempty"`
-	CredentialEnvironment  string  `json:"credential_environment"`
-	RuntimeBinary          string  `json:"runtime_binary,omitempty"`
-	RequiredNativeRequests int     `json:"required_native_requests"`
-	RequiredAttempts       int     `json:"required_attempts"`
-	MaxInputTokens         int64   `json:"max_input_tokens"`
-	MaxOutputTokens        int64   `json:"max_output_tokens"`
-	InputUSDPerMillion     float64 `json:"input_usd_per_million"`
-	CacheWriteMultiplier   float64 `json:"cache_write_multiplier"`
-	OutputUSDPerMillion    float64 `json:"output_usd_per_million"`
+	Name                   string   `json:"name"`
+	Source                 string   `json:"source"`
+	Version                string   `json:"version"`
+	References             []string `json:"references"`
+	Transport              string   `json:"transport"`
+	Provider               string   `json:"provider"`
+	Model                  string   `json:"model"`
+	Variant                string   `json:"variant,omitempty"`
+	AccessMode             string   `json:"access_mode"`
+	CredentialSource       string   `json:"credential_source"`
+	CredentialType         string   `json:"credential_type"`
+	UnavailableCondition   string   `json:"unavailable_condition,omitempty"`
+	RuntimeBinary          string   `json:"runtime_binary,omitempty"`
+	RequiredNativeRequests int      `json:"required_native_requests"`
+	RequiredAttempts       int      `json:"required_attempts"`
+	MaxInputTokens         int64    `json:"max_input_tokens"`
+	MaxOutputTokens        int64    `json:"max_output_tokens"`
+	InputUSDPerMillion     float64  `json:"input_usd_per_million"`
+	CacheWriteMultiplier   float64  `json:"cache_write_multiplier"`
+	OutputUSDPerMillion    float64  `json:"output_usd_per_million"`
 }
 
 type Limits struct {
@@ -54,6 +58,8 @@ type Limits struct {
 type AccessState struct {
 	State                string `json:"state"`
 	Credential           string `json:"credential"`
+	CredentialSource     string `json:"credential_source"`
+	CredentialType       string `json:"credential_type"`
 	Runtime              string `json:"runtime,omitempty"`
 	ModelAccess          string `json:"model_access"`
 	UnavailableCondition string `json:"unavailable_condition,omitempty"`
@@ -63,6 +69,7 @@ type CapabilityEntry struct {
 	Name                 string      `json:"name"`
 	Source               string      `json:"source"`
 	Version              string      `json:"version"`
+	References           []string    `json:"references"`
 	Provider             string      `json:"provider"`
 	Model                string      `json:"model"`
 	Variant              string      `json:"variant,omitempty"`
@@ -85,13 +92,48 @@ type Report struct {
 }
 
 type Environment interface {
-	CredentialPresent(string) bool
+	Credential(string, string) CredentialMetadata
 	RuntimeVersion(string) (string, error)
+}
+
+type CredentialMetadata struct {
+	State string
+	Type  string
 }
 
 type LocalEnvironment struct{}
 
-func (LocalEnvironment) CredentialPresent(name string) bool { return os.Getenv(name) != "" }
+func (LocalEnvironment) Credential(source, expectedType string) CredentialMetadata {
+	if name, ok := strings.CutPrefix(source, "environment:"); ok {
+		return CredentialMetadata{State: availability(os.Getenv(name) != ""), Type: expectedType}
+	}
+	provider, ok := strings.CutPrefix(source, "opencode:")
+	if !ok {
+		return CredentialMetadata{State: "unavailable", Type: expectedType}
+	}
+	out, err := exec.Command("opencode", "auth", "list").Output()
+	if err != nil {
+		return CredentialMetadata{State: "unavailable", Type: expectedType}
+	}
+	return credentialFromOpenCodeAuthList(out, provider, expectedType)
+}
+
+func credentialFromOpenCodeAuthList(out []byte, provider, expectedType string) CredentialMetadata {
+	plain := ansiEscape.ReplaceAllString(string(out), "")
+	for _, line := range strings.Split(plain, "\n") {
+		fields := strings.Fields(line)
+		providerPresent := false
+		for _, field := range fields[:max(0, len(fields)-1)] {
+			providerPresent = providerPresent || strings.EqualFold(field, provider)
+		}
+		if len(fields) >= 2 && providerPresent && fields[len(fields)-1] == expectedType {
+			return CredentialMetadata{State: "present", Type: expectedType}
+		}
+	}
+	return CredentialMetadata{State: "absent", Type: expectedType}
+}
+
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func (LocalEnvironment) RuntimeVersion(binary string) (string, error) {
 	out, err := exec.Command(binary, "--version").Output()
@@ -125,22 +167,31 @@ func Preflight(proposal Proposal, env Environment) (Report, error) {
 	for i, path := range proposal.Paths {
 		entry := CapabilityEntry{
 			Name: path.Name, Source: path.Source, Version: path.Version,
-			Provider: path.Provider, Model: path.Model, Variant: path.Variant,
+			References: append([]string(nil), path.References...),
+			Provider:   path.Provider, Model: path.Model, Variant: path.Variant,
 			NativeRequestMaximum: path.RequiredNativeRequests,
 			AttemptMaximum:       path.RequiredAttempts,
 			SpendMaximumUSD:      spendByPath[i], WallTimeMaximum: proposal.Limits.MaxWallTime,
 			ArtifactDestination: proposal.ArtifactDestination,
 			RedactionPolicy:     append([]string(nil), proposal.RedactionPolicy...),
 		}
-		entry.Access.Credential = availability(env.CredentialPresent(path.CredentialEnvironment))
+		credential := env.Credential(path.CredentialSource, path.CredentialType)
+		entry.Access.Credential = credential.State
+		entry.Access.CredentialSource = path.CredentialSource
+		entry.Access.CredentialType = credential.Type
 		entry.Access.ModelAccess = "unverified_without_provider_request"
-		if ceilingConditions[i] != "" {
+		if path.AccessMode == "source_only_unavailable" {
+			entry.Access.State = "unsupported"
+			entry.Access.ModelAccess = "not_applicable"
+			entry.Access.UnavailableCondition = path.UnavailableCondition
+			report.Ready = false
+		} else if ceilingConditions[i] != "" {
 			entry.Access.State = "unavailable"
 			entry.Access.UnavailableCondition = ceilingConditions[i]
 			report.Ready = false
-		} else if entry.Access.Credential == "absent" {
+		} else if entry.Access.Credential != "present" {
 			entry.Access.State = "unavailable"
-			entry.Access.UnavailableCondition = path.CredentialEnvironment + " is not set"
+			entry.Access.UnavailableCondition = fmt.Sprintf("required %s credential from %s is %s", path.CredentialType, path.CredentialSource, entry.Access.Credential)
 			report.Ready = false
 		} else if path.RuntimeBinary != "" {
 			version, err := env.RuntimeVersion(path.RuntimeBinary)
@@ -182,8 +233,16 @@ func validateProposal(p Proposal) error {
 	}
 	seen := map[string]bool{}
 	for _, path := range p.Paths {
-		if strings.TrimSpace(path.Source) == "" || strings.TrimSpace(path.Version) == "" || strings.TrimSpace(path.Citation) == "" {
-			return fmt.Errorf("each path requires exact source, version, and citation")
+		if strings.TrimSpace(path.Source) == "" || strings.TrimSpace(path.Version) == "" || len(path.References) == 0 {
+			return fmt.Errorf("each path requires exact source, version, and references")
+		}
+		for _, reference := range path.References {
+			if strings.TrimSpace(reference) == "" {
+				return fmt.Errorf("evidence references must not be blank")
+			}
+		}
+		if strings.TrimSpace(path.CredentialSource) == "" || strings.TrimSpace(path.CredentialType) == "" {
+			return fmt.Errorf("each path requires credential source and type")
 		}
 		key := path.Provider + "/" + path.Model + "/" + path.Variant
 		switch path.Transport {
@@ -191,10 +250,19 @@ func validateProposal(p Proposal) error {
 			if key != "openai/gpt-5.6-luna/high" {
 				return fmt.Errorf("priced OpenAI evidence requires openai/gpt-5.6-luna with variant high")
 			}
+			if path.AccessMode != "documented_direct" && path.AccessMode != "source_only_unavailable" {
+				return fmt.Errorf("direct OpenAI path has invalid access mode %q", path.AccessMode)
+			}
+			if path.AccessMode == "source_only_unavailable" && strings.TrimSpace(path.UnavailableCondition) == "" {
+				return fmt.Errorf("source-only direct path requires an exact unavailable condition")
+			}
 			seen[path.Transport] = true
 		case "opencode":
 			if key != "opencode/big-pickle/" {
 				return fmt.Errorf("routine OpenCode evidence requires opencode/big-pickle without a variant")
+			}
+			if path.AccessMode != "runtime" {
+				return fmt.Errorf("OpenCode path requires runtime access mode")
 			}
 			seen[path.Transport] = true
 		default:

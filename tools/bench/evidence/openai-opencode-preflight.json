@@ -12,16 +12,23 @@
   "capabilities": [
     {
       "name": "priced_openai",
-      "source": "OpenAI Responses API and Prompt Caching guide",
-      "version": "2026-07-24 documentation snapshot",
+      "source": "OpenAI public Responses API and OpenCode ChatGPT OAuth adapter",
+      "version": "OpenAI REST 2020-10-01 / OpenCode 1.18.4 (49c69c5)",
+      "references": [
+        "https://developers.openai.com/api/reference/overview/",
+        "https://github.com/anomalyco/opencode/blob/v1.18.4/packages/opencode/src/plugin/openai/codex.ts",
+        "https://help.openai.com/en/articles/6950777-what-is-chatgpt-plus"
+      ],
       "provider": "openai",
       "model": "gpt-5.6-luna",
       "variant": "high",
       "access": {
-        "state": "unavailable",
-        "credential": "absent",
-        "model_access": "unverified_without_provider_request",
-        "unavailable_condition": "OPENAI_API_KEY is not set"
+        "state": "unsupported",
+        "credential": "present",
+        "credential_source": "opencode:OpenAI",
+        "credential_type": "oauth",
+        "model_access": "not_applicable",
+        "unavailable_condition": "OpenCode 1.18.4 ChatGPT OAuth is consumed by its adapter, which adds ChatGPT account metadata and rewrites requests to the ChatGPT Codex endpoint; the OpenAI public Responses API documents API keys or workload-identity access tokens, not reuse of this ChatGPT OAuth credential, so no documented supported direct public Responses API path is available"
       },
       "native_request_maximum": 2,
       "attempt_maximum": 2,
@@ -40,11 +47,16 @@
       "name": "routine_opencode",
       "source": "OpenCode step-finish event and request runtime",
       "version": "1.18.4",
+      "references": [
+        "https://github.com/anomalyco/opencode/tree/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e"
+      ],
       "provider": "opencode",
       "model": "big-pickle",
       "access": {
         "state": "credential_present",
         "credential": "present",
+        "credential_source": "environment:OPENCODE_API_KEY",
+        "credential_type": "api",
         "runtime": "1.18.4",
         "model_access": "unverified_without_provider_request"
       },

@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "ready": false,
+  "network_activity": "none",
+  "billable_requests": 0,
+  "limits": {
+    "max_native_requests": 4,
+    "max_attempts": 4,
+    "max_spend_usd": 0.035,
+    "max_wall_time": "2m"
+  },
+  "capabilities": [
+    {
+      "name": "direct_anthropic",
+      "source": "Anthropic public Messages API",
+      "version": "anthropic-version 2023-06-01; official docs retrieved 2026-07-24",
+      "references": [
+        "https://platform.claude.com/docs/en/api/versioning",
+        "https://platform.claude.com/docs/en/api/messages",
+        "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+        "https://platform.claude.com/docs/en/api/errors"
+      ],
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "access": {
+        "state": "unavailable",
+        "credential": "absent",
+        "credential_source": "environment:ANTHROPIC_API_KEY",
+        "credential_type": "api",
+        "model_access": "unverified_without_provider_request",
+        "unavailable_condition": "required api credential from environment:ANTHROPIC_API_KEY is absent"
+      },
+      "native_request_maximum": 2,
+      "attempt_maximum": 2,
+      "spend_maximum_usd": 0.017024,
+      "wall_time_maximum": "2m",
+      "artifact_destination": ".bench-data/cache-evidence/anthropic-opencode-sonnet-5-20260724",
+      "redaction_policy": [
+        "omit credentials and authorization headers",
+        "omit raw cache namespaces and account or workspace identifiers",
+        "omit or SHA-256 sensitive correlation identifiers",
+        "retain synthetic prompts only",
+        "keep provider-native and OpenCode source records separate"
+      ]
+    },
+    {
+      "name": "opencode_anthropic",
+      "source": "OpenCode Anthropic request runtime and step-finish event",
+      "version": "OpenCode 1.18.4 (49c69c5)",
+      "references": [
+        "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/opencode/src/session/llm/ai-sdk.ts",
+        "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/opencode/src/session/processor.ts"
+      ],
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "access": {
+        "state": "unavailable",
+        "credential": "absent",
+        "credential_source": "opencode:Anthropic",
+        "credential_type": "api",
+        "model_access": "unverified_without_provider_request",
+        "unavailable_condition": "required api credential from opencode:Anthropic is absent"
+      },
+      "native_request_maximum": 2,
+      "attempt_maximum": 2,
+      "spend_maximum_usd": 0.017024,
+      "wall_time_maximum": "2m",
+      "artifact_destination": ".bench-data/cache-evidence/anthropic-opencode-sonnet-5-20260724",
+      "redaction_policy": [
+        "omit credentials and authorization headers",
+        "omit raw cache namespaces and account or workspace identifiers",
+        "omit or SHA-256 sensitive correlation identifiers",
+        "retain synthetic prompts only",
+        "keep provider-native and OpenCode source records separate"
+      ]
+    }
+  ]
+}

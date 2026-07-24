@@ -1,0 +1,14 @@
+id: pnxjvlnnkf
+artifact: progress
+record:
+  timestamp: 2026-07-24 16:08
+  type: feat
+  phase: build
+  what: Added docs/cache-evidence-anthropic-opencode.md, a source-qualified Anthropic capability record, bounded zero-request preflight evidence, provider-specific normalization, and positive/unavailable sanitized fixtures.
+  context:
+    intent: Retain Anthropic native and OpenCode-normalized cache evidence without making a model request when both supported credential paths are absent.
+    constraints: No live provider/model request, universal adapter, cache hit ratio, miss inference, raw credential or namespace, tool attribution, or isolation claim.
+    unknowns: Direct Anthropic and OpenCode Anthropic model entitlement remain unverified because ANTHROPIC_API_KEY and an OpenCode Anthropic credential are absent.
+    scope: internal/cacheevidence, docs/cache-evidence-anthropic-opencode.md, and provider-specific tools/bench evidence and fixtures.
+  verified: go test ./internal/cacheevidence ./internal/cli ./internal/experiment passed; mage check passed tests, race tests, vet, lint, and build; preflight retained network_activity none and billable_requests 0; fixture SHA-256 assertions and git diff --check passed.
+  next: Use the retained provider-specific evidence in dependent plan tasks. Do not make a live Anthropic request unless a new exact preflight is produced and the user approves it.

@@ -1,0 +1,1 @@
+{"type":"step_finish","sessionID":"ses_synthetic_anthropic_1","part":{"id":"prt_synthetic_anthropic_1","sessionID":"ses_synthetic_anthropic_1","messageID":"msg_synthetic_runtime_1","type":"step-finish","reason":"stop","provider":"anthropic","model":"claude-sonnet-5","cost":0.004288,"tokens":{"input":24,"output":8,"reasoning":0,"cache":{"read":0,"write":1024}}}}

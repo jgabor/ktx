@@ -1,4 +1,4 @@
-// Package cacheevidence implements the bounded, offline gate for OpenAI and
+// Package cacheevidence implements bounded, offline gates for provider and
 // OpenCode cache evidence. It never performs provider or model requests.
 package cacheevidence
 
@@ -158,7 +158,14 @@ func LoadProposal(path string) (Proposal, error) {
 }
 
 func Preflight(proposal Proposal, env Environment) (Report, error) {
-	if err := validateProposal(proposal); err != nil {
+	validate := validateProposal
+	for _, path := range proposal.Paths {
+		if path.Transport == "direct_anthropic" {
+			validate = validateAnthropicProposal
+			break
+		}
+	}
+	if err := validate(proposal); err != nil {
 		return Report{}, err
 	}
 	report := Report{SchemaVersion: SchemaVersion, Ready: true, NetworkActivity: "none", BillableRequests: 0, Limits: proposal.Limits}

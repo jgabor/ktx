@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-07-24",
+  "api_family": "Anthropic public Messages API POST /v1/messages",
+  "api_version": "anthropic-version: 2023-06-01",
+  "selected_model": "claude-sonnet-5",
+  "authoritative_semantics": {
+    "cache_control": {
+      "state": "supported",
+      "detail": "The request may use top-level automatic cache_control or explicit cache_control on cacheable content blocks; type ephemeral is the only supported cache type.",
+      "references": [
+        "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+        "https://platform.claude.com/docs/en/api/messages"
+      ]
+    },
+    "cache_creation": {
+      "state": "supported",
+      "field": "usage.cache_creation_input_tokens",
+      "detail": "Provider-reported tokens written to a new cache entry; current detail may split 5-minute and 1-hour writes under usage.cache_creation, whose sum equals this field.",
+      "references": [
+        "https://platform.claude.com/docs/en/build-with-claude/prompt-caching#tracking-cache-performance"
+      ]
+    },
+    "cache_read": {
+      "state": "supported",
+      "field": "usage.cache_read_input_tokens",
+      "detail": "Provider-reported tokens retrieved from cache for this request.",
+      "references": [
+        "https://platform.claude.com/docs/en/build-with-claude/prompt-caching#tracking-cache-performance"
+      ]
+    },
+    "eligibility": {
+      "state": "supported",
+      "detail": "Claude Sonnet 5 on the public Claude API requires at least 1024 cacheable prompt tokens. Shorter marked prompts are processed without an error; zero creation and zero read are the documented observation, not proof of an internal miss reason.",
+      "references": [
+        "https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-limitations"
+      ]
+    },
+    "ttl": {
+      "state": "supported",
+      "detail": "Ephemeral entries default to five minutes and refresh without additional charge when used. ttl 1h requests a one-hour entry at the documented higher write price.",
+      "references": [
+        "https://platform.claude.com/docs/en/build-with-claude/prompt-caching#1-hour-cache-duration"
+      ]
+    },
+    "identity": {
+      "state": "supported",
+      "detail": "A successful Message has a body id. Every API response separately carries a unique request-id header. No one-to-one relationship beyond the retained response is inferred.",
+      "references": [
+        "https://platform.claude.com/docs/en/api/messages",
+        "https://platform.claude.com/docs/en/api/errors#request-id"
+      ]
+    },
+    "retry": {
+      "state": "supported",
+      "detail": "Official SDKs retry transient connection, rate-limit, and 5xx failures with exponential backoff twice by default and honor retry-after. The proposed probe disables automatic retries and permits one attempt for each of two equivalent requests per path.",
+      "references": [
+        "https://platform.claude.com/docs/en/api/errors#http-errors"
+      ]
+    }
+  },
+  "token_accounting": "total_input_tokens = input_tokens + cache_creation_input_tokens + cache_read_input_tokens; input_tokens is already the uncached suffix after the last breakpoint",
+  "runtime_normalization": {
+    "source": "OpenCode step-finish event",
+    "version": "1.18.4 (49c69c5)",
+    "fields": [
+      {
+        "native": "usage.input_tokens",
+        "opencode": "tokens.input",
+        "operation": "renamed",
+        "rounding": "none; integer token count"
+      },
+      {
+        "native": "usage.cache_creation_input_tokens",
+        "opencode": "tokens.cache.write",
+        "operation": "renamed",
+        "rounding": "none; integer token count"
+      },
+      {
+        "native": "usage.cache_read_input_tokens",
+        "opencode": "tokens.cache.read",
+        "operation": "renamed",
+        "rounding": "none; integer token count"
+      },
+      {
+        "native": "usage.output_tokens",
+        "opencode": "tokens.output",
+        "operation": "renamed",
+        "rounding": "none; integer token count"
+      },
+      {
+        "native": "usage.cache_creation.ephemeral_5m_input_tokens",
+        "opencode": null,
+        "operation": "dropped/unavailable"
+      },
+      {
+        "native": "usage.cache_creation.ephemeral_1h_input_tokens",
+        "opencode": null,
+        "operation": "dropped/unavailable"
+      },
+      {
+        "native": "response.id",
+        "opencode": null,
+        "operation": "dropped/unavailable in step-finish; runtime message and part IDs are not substitutes"
+      },
+      {
+        "native": "response header request-id",
+        "opencode": null,
+        "operation": "dropped/unavailable in step-finish"
+      },
+      {
+        "native": "request cache_control and ttl",
+        "opencode": null,
+        "operation": "dropped/unavailable in step-finish"
+      },
+      {
+        "native": "cache eligibility threshold",
+        "opencode": null,
+        "operation": "not reported by step-finish"
+      },
+      {
+        "native": "probe attempt and maximum attempts",
+        "opencode": null,
+        "operation": "unavailable in step-finish"
+      },
+      {
+        "native": null,
+        "opencode": "cost",
+        "operation": "runtime-derived decimal; not a native reported-cost field and not used to rewrite native evidence"
+      }
+    ],
+    "references": [
+      "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/opencode/src/session/llm/ai-sdk.ts",
+      "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/opencode/src/session/processor.ts"
+    ]
+  },
+  "offline_fixture_artifacts": [
+    {
+      "path": "tools/bench/fixtures/anthropic-messages-cache-write-sanitized.json",
+      "sha256": "99162156a13be904f37d975165017daf4fb0d9cfaee5421ff24ad56d3c39a383",
+      "case": "supported cache creation with measured-zero cache read"
+    },
+    {
+      "path": "tools/bench/fixtures/anthropic-messages-cache-unavailable-sanitized.json",
+      "sha256": "544ea4eca874b0793a178e0b0bd5b8cb1c80e03a486a2468804dea00a489477c",
+      "case": "below-minimum structural unavailable fields"
+    },
+    {
+      "path": "tools/bench/fixtures/opencode-anthropic-cache-step-sanitized.jsonl",
+      "sha256": "4de09e22c7d515831967c518464181c4cf632c099f5e1f70026555110ddc91b7",
+      "case": "OpenCode normalized equivalent of the supported native fixture"
+    }
+  ],
+  "evidence_state": {
+    "official_source": "retained",
+    "offline_fixtures": "retained structural examples; not live observations",
+    "direct_live": "unavailable: ANTHROPIC_API_KEY absent at bounded preflight",
+    "opencode_live": "unavailable: OpenCode Anthropic api credential absent at bounded preflight",
+    "claims_not_made": [
+      "cache hit ratio",
+      "provider-internal hit or miss reason",
+      "tool-call cache attribution",
+      "cache isolation or namespace behavior"
+    ]
+  }
+}

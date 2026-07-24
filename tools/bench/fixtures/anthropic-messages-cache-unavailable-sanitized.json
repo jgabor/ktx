@@ -1,0 +1,18 @@
+{
+  "request": {
+    "model": "claude-sonnet-5",
+    "anthropic_version": "2023-06-01",
+    "max_tokens": 32,
+    "cache_control": { "type": "ephemeral", "ttl": "5m" },
+    "breakpoint": "system[0]",
+    "eligibility": "below_1024_token_minimum_offline_fixture",
+    "retry_attempt": 1,
+    "max_attempts": 1
+  },
+  "response": {
+    "id": "msg_synthetic_anthropic_short",
+    "model": "claude-sonnet-5",
+    "usage": { "input_tokens": 100, "output_tokens": 8 }
+  },
+  "response_headers": { "request-id": "req_synthetic_anthropic_short" }
+}

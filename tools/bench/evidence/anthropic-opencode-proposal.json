@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "paths": [
+    {
+      "name": "direct_anthropic",
+      "source": "Anthropic public Messages API",
+      "version": "anthropic-version 2023-06-01; official docs retrieved 2026-07-24",
+      "references": [
+        "https://platform.claude.com/docs/en/api/versioning",
+        "https://platform.claude.com/docs/en/api/messages",
+        "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+        "https://platform.claude.com/docs/en/api/errors"
+      ],
+      "transport": "direct_anthropic",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "access_mode": "documented_direct",
+      "credential_source": "environment:ANTHROPIC_API_KEY",
+      "credential_type": "api",
+      "required_native_requests": 2,
+      "required_attempts": 2,
+      "max_input_tokens": 2048,
+      "max_output_tokens": 32,
+      "input_usd_per_million": 2,
+      "cache_write_multiplier": 2,
+      "output_usd_per_million": 10
+    },
+    {
+      "name": "opencode_anthropic",
+      "source": "OpenCode Anthropic request runtime and step-finish event",
+      "version": "OpenCode 1.18.4 (49c69c5)",
+      "references": [
+        "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/opencode/src/session/llm/ai-sdk.ts",
+        "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/opencode/src/session/processor.ts"
+      ],
+      "transport": "opencode_anthropic",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "access_mode": "runtime",
+      "credential_source": "opencode:Anthropic",
+      "credential_type": "api",
+      "runtime_binary": "opencode",
+      "required_native_requests": 2,
+      "required_attempts": 2,
+      "max_input_tokens": 2048,
+      "max_output_tokens": 32,
+      "input_usd_per_million": 2,
+      "cache_write_multiplier": 2,
+      "output_usd_per_million": 10
+    }
+  ],
+  "limits": {
+    "max_native_requests": 4,
+    "max_attempts": 4,
+    "max_spend_usd": 0.035,
+    "max_wall_time": "2m"
+  },
+  "artifact_destination": ".bench-data/cache-evidence/anthropic-opencode-sonnet-5-20260724",
+  "redaction_policy": [
+    "omit credentials and authorization headers",
+    "omit raw cache namespaces and account or workspace identifiers",
+    "omit or SHA-256 sensitive correlation identifiers",
+    "retain synthetic prompts only",
+    "keep provider-native and OpenCode source records separate"
+  ]
+}

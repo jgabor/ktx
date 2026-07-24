@@ -1,16 +1,16 @@
 id: cjanyznhqa
 artifact: plan
 record:
-  name: Execute temporal, concurrency, and runtime-parity controls
+  name: Execute runtime temporal and concurrency controls
   depends_on:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
   status: pending
   acceptance:
-    - GIVEN an eligible accessible provider/runtime pair WHEN controls run THEN retained evidence compares pre/post-TTL where it fits the declared ceiling, sequential/concurrent execution, and direct-provider/OpenCode behavior.
-    - GIVEN a temporal, concurrency, or runtime-parity dimension and its expected opposite WHEN evidence is reviewed THEN at least one retained positive and one retained negative case identify execution order, intentional delay, native request count when authoritative, source, version, and completeness.
-    - GIVEN documented TTL exceeds the approved wall-time ceiling WHEN preflight completes THEN no over-ceiling wait or request occurs and the matrix records source-only or not-live-observed evidence.
-    - GIVEN direct and runtime-normalized evidence diverges WHEN parity is evaluated THEN retry, rounding, field-loss, routing, and key-partition explanations remain observations rather than isolation claims.
-    - GIVEN supported and unsupported offline cases WHEN verification runs THEN every testable temporal, concurrency, and parity rule has at least one accepted case and one rejected or unavailable case.
+    - GIVEN an eligible OpenCode runtime and model path WHEN controls run THEN retained evidence compares pre/post-TTL where it fits the declared ceiling and sequential/concurrent execution.
+    - GIVEN a temporal or concurrency dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, intentional delay, runtime-visible request or model-step count, source version, model identity, and completeness.
+    - GIVEN documented or observed TTL exceeds the approved wall-time ceiling WHEN preflight completes THEN no over-ceiling wait or request occurs and the matrix records source-only or not-live-observed evidence.
+    - GIVEN OpenCode omits authoritative provider request identity, retry relationships, timestamps, or concurrency ownership WHEN evidence is classified THEN those fields remain unavailable rather than reconstructed from sessions or aggregate token movement.
+    - GIVEN supported and unsupported offline cases WHEN verification runs THEN every testable runtime temporal or concurrency rule has at least one accepted case and one rejected or unavailable case.
   plan: xpsaaraqbw

@@ -1,7 +1,7 @@
 id: apprdoufwr
 artifact: plan
 record:
-  name: Verify and synchronize current state
+  name: Verify and synchronize runtime evidence state
   depends_on:
     - crdjvruhmo
     - atauywjlaz
@@ -12,9 +12,9 @@ record:
     - vkwcvnaywr
   status: pending
   acceptance:
-    - GIVEN retained fixtures, controls, characterization, and historical experiments WHEN repository verification runs headlessly THEN tests, race checks where applicable, vet, lint, build, state validation, evidence validation, and deterministic regeneration pass without mandatory provider credentials.
-    - GIVEN source citations, retained artifacts, and capability entries WHEN freshness checks run THEN stale hashes, missing evidence, semantic mismatches, raw namespaces, credentials, and unsupported claims are reported before any isolated path can be enabled.
-    - GIVEN all three evidence TODOs satisfy their contracts WHEN backlog state is synchronized THEN only Cache negative controls, Provider-native cache-control probes, and Provider-visible prefix characterization are resolved and progress is recorded.
-    - GIVEN the two related deliberations are reviewed WHEN the plan closes THEN each is explicitly unblocked by retained evidence or names the specific missing prerequisite, while the retained provider comparison remains open behind those decisions.
-    - GIVEN all plan tasks are complete WHEN the final state is inspected THEN documentation, command behavior, retained evidence, TODO state, progress, and plan status agree without rewriting historical artifacts.
+    - GIVEN retained runtime fixtures, controls, characterization, and historical experiments WHEN repository verification runs headlessly THEN tests, race checks where applicable, vet, lint, build, state validation, evidence validation, and deterministic regeneration pass without mandatory provider credentials.
+    - GIVEN runtime source citations, retained artifacts, and capability entries WHEN freshness checks run THEN stale hashes, missing evidence, semantic mismatches, raw namespaces, credentials, and unsupported claims are reported before any runtime-managed separation claim can be stated.
+    - GIVEN runtime negative controls and runtime-visible prefix characterization satisfy their contracts WHEN backlog state is synchronized THEN Cache negative controls and Provider-visible prefix characterization are resolved, while Provider-native cache-control probes remains open or is explicitly deferred by user scope.
+    - GIVEN the two related deliberations are reviewed WHEN the plan closes THEN each is unblocked by retained runtime evidence or names the specific missing prerequisite, while the retained provider comparison remains open behind those decisions.
+    - GIVEN all plan tasks are complete WHEN final state is inspected THEN documentation, command behavior, retained runtime evidence, TODO state, progress, and plan status agree without rewriting historical artifacts or implying direct-provider evidence.
   plan: xpsaaraqbw

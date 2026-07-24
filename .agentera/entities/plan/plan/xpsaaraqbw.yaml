@@ -52,5 +52,4 @@ record:
     - question: Will the completed evidence leave either deliberation with a concrete unanswered prerequisite?
       affects_task: 8
       resolve_by: Name the missing prerequisite at final synchronization and leave the affected deliberation or provider comparison explicitly blocked rather than extending this plan.
-  surprises:
-    []
+  surprises: User narrowed remaining execution to runtime-provided evidence only; direct-provider calls and parity work are deferred, while already-completed source/offline provider evidence remains retained.

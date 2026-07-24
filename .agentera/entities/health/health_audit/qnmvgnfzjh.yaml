@@ -1,0 +1,24 @@
+id: qnmvgnfzjh
+artifact: health
+record:
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: stable
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    []
+  trends:
+    comparison_target: "not-applicable: limited terminal closure check"
+    stable: All expected product, test, documentation, plan, and progress artifacts were modified after the plan creation date; independent closure Audit returned PASS.
+  patterns:
+    - "Limited terminal closure only: all four telemetry plan tasks have independent PASS evaluations and expected artifacts are fresh."
+  date: 2026-07-24
+  appended_at: 2026-07-24T06:13:44.337Z

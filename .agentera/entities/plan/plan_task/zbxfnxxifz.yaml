@@ -13,3 +13,13 @@ record:
     - GIVEN complete, zero, missing, malformed, duplicate, wrapped, unwrapped, and concurrent fixtures WHEN offline verification runs THEN behavior matches the contract without provider credentials.
     - GIVEN repository verification and plan closeout run WHEN the work is complete THEN tests, vet, lint, build, documentation checks, and state synchronization pass while unrelated backlog and provisional decision satisfaction remain unchanged.
   plan: abigkdluzd
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit evaluation ses_06d494e78ffelTE1FXWGti6BYb
+      recorded_at: 2026-07-24 08:10
+      writer_command: agentera state plan record-evaluation

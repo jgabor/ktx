@@ -12,12 +12,12 @@ record:
     - GIVEN optional telemetry persistence fails WHEN an OpenCode session continues THEN existing evidence is not corrupted and the failure does not alter tool output or session success.
   plan: abigkdluzd
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Missing required numeric measurements are decoded as zero and persisted as measured, inventing unknown telemetry. Database-open or migration failures occur before record-path fail-open handling and exit internally. Criteria 3 and 4 and the verification evidence audit failed.
     provenance:
-      attempt_id: audit-1
-      source: independent Audit evaluation ses_06d7af71affevSJ3WZCD7TUycw
-      recorded_at: 2026-07-24 07:18
+      attempt_id: audit-2
+      source: independent Audit reevaluation ses_06d7af71affevSJ3WZCD7TUycw
+      recorded_at: 2026-07-24 07:31
       writer_command: agentera state plan record-evaluation

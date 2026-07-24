@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -54,6 +55,157 @@ func TestTelemetryRecordAndBoundedJSONInspection(t *testing.T) {
 	if result.Observations[0].Provider != nil || result.Observations[0].Model != nil {
 		t.Fatalf("unavailable identity was invented: %#v", result.Observations[0])
 	}
+}
+
+func TestTelemetryRecordRequiresEveryNumericFieldAndPreservesZeros(t *testing.T) {
+	d, err := dbpkg.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	sessionID, err := dbpkg.NewID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertSession(&dbpkg.Session{ID: sessionID, Agent: "opencode"}); err != nil {
+		t.Fatal(err)
+	}
+	complete := map[string]any{
+		"ktx_session_id": sessionID,
+		"session_id":     "ses_source",
+		"message_id":     "msg_1",
+		"part_id":        "prt_1",
+		"ordinal":        1,
+		"reason":         "stop",
+		"cost":           0,
+		"tokens": map[string]any{
+			"input": 0, "output": 0, "reasoning": 0, "cache_read": 0, "cache_write": 0,
+		},
+	}
+	for _, field := range []string{"ordinal", "cost", "tokens.input", "tokens.output", "tokens.reasoning", "tokens.cache_read", "tokens.cache_write"} {
+		for _, form := range []string{"missing", "null"} {
+			t.Run(form+"_"+strings.ReplaceAll(field, ".", "_"), func(t *testing.T) {
+				payload := cloneTelemetryInput(t, complete)
+				name := field
+				target := payload
+				if strings.HasPrefix(field, "tokens.") {
+					name = strings.TrimPrefix(field, "tokens.")
+					target = payload["tokens"].(map[string]any)
+				}
+				if form == "missing" {
+					delete(target, name)
+				} else {
+					target[name] = nil
+				}
+				encoded, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := telemetryLogic([]string{"record"}, FormatJSON, bytes.NewReader(encoded), d, &bytes.Buffer{}, &bytes.Buffer{}); err == nil {
+					t.Fatalf("record accepted %s %s", form, field)
+				}
+			})
+		}
+	}
+	rows, err := d.ListSessionTelemetry(sessionID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("omitted fields persisted %d observations", len(rows))
+	}
+	encoded, err := json.Marshal(complete)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := telemetryLogic([]string{"record"}, FormatJSON, bytes.NewReader(encoded), d, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = d.ListSessionTelemetry(sessionID, 10)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("explicit-zero rows = %d, %v", len(rows), err)
+	}
+	row := rows[0]
+	for name, measurement := range map[string]dbpkg.IntegerMeasurement{
+		"input": row.UncachedInput, "output": row.Output, "reasoning": row.Reasoning,
+		"cache_read": row.CacheRead, "cache_write": row.CacheWrite,
+	} {
+		if measurement.State != dbpkg.MeasurementMeasured || measurement.Value == nil || *measurement.Value != 0 {
+			t.Errorf("%s = %#v, want measured zero", name, measurement)
+		}
+	}
+	if row.Cost.State != dbpkg.MeasurementMeasured || row.Cost.Value == nil || *row.Cost.Value != 0 {
+		t.Errorf("cost = %#v, want measured zero", row.Cost)
+	}
+}
+
+func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
+	if dispatchRegistry["telemetry"].opts.NeedsDB {
+		t.Fatal("telemetry database open still runs in the dispatcher")
+	}
+	valid := `{"session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache_read":0,"cache_write":0}}`
+	for _, failure := range []struct {
+		name    string
+		prepare func(t *testing.T) string
+	}{
+		{
+			name: "open",
+			prepare: func(t *testing.T) string {
+				return t.TempDir()
+			},
+		},
+		{
+			name: "migration",
+			prepare: func(t *testing.T) string {
+				path := filepath.Join(t.TempDir(), "newer.db")
+				d, err := dbpkg.Open(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := d.DB().Exec(`PRAGMA user_version = 999`); err != nil {
+					t.Fatal(err)
+				}
+				if err := d.Close(); err != nil {
+					t.Fatal(err)
+				}
+				return path
+			},
+		},
+	} {
+		t.Run(failure.name+"/record", func(t *testing.T) {
+			t.Setenv("KTX_DB", failure.prepare(t))
+			var stdout, stderr bytes.Buffer
+			_, err := telemetryCommandFunc(&DispatchContext{
+				Args: []string{"record"}, Format: FormatJSON, Stdin: strings.NewReader(valid), Stdout: &stdout, Stderr: &stderr,
+			})
+			if err != nil {
+				t.Fatalf("record database failure escaped: %v", err)
+			}
+			if stdout.Len() != 0 || !strings.Contains(stderr.String(), "telemetry not recorded") {
+				t.Fatalf("record output stdout=%q stderr=%q", stdout.String(), stderr.String())
+			}
+		})
+		t.Run(failure.name+"/list", func(t *testing.T) {
+			t.Setenv("KTX_DB", failure.prepare(t))
+			var stdout, stderr bytes.Buffer
+			if code := runWith([]string{"telemetry", "list", "--session", "abcdefghijklmnop"}, &stdout, &stderr); code != ExitInternal {
+				t.Fatalf("list exit = %d, want %d; stdout=%q stderr=%q", code, ExitInternal, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
+func cloneTelemetryInput(t *testing.T, input map[string]any) map[string]any {
+	t.Helper()
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clone map[string]any
+	if err := json.Unmarshal(encoded, &clone); err != nil {
+		t.Fatal(err)
+	}
+	return clone
 }
 
 func TestTelemetryRejectsMalformedAndFailsOpenOnPersistenceError(t *testing.T) {

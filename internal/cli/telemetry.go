@@ -19,8 +19,22 @@ const (
 )
 
 type telemetryRecordInput struct {
-	KtxSessionID string `json:"ktx_session_id"`
-	opencodetelemetry.Observation
+	KtxSessionID string   `json:"ktx_session_id"`
+	SessionID    string   `json:"session_id"`
+	MessageID    string   `json:"message_id"`
+	PartID       string   `json:"part_id"`
+	Ordinal      *uint64  `json:"ordinal"`
+	Reason       string   `json:"reason"`
+	Cost         *float64 `json:"cost"`
+	Tokens       struct {
+		Input      *int64 `json:"input"`
+		Output     *int64 `json:"output"`
+		Reasoning  *int64 `json:"reasoning"`
+		CacheRead  *int64 `json:"cache_read"`
+		CacheWrite *int64 `json:"cache_write"`
+	} `json:"tokens"`
+	Provider *string `json:"provider"`
+	Model    *string `json:"model"`
 }
 
 type telemetryListResult struct {
@@ -63,13 +77,17 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 	if err := json.Unmarshal(body, &input); err != nil {
 		return usageError("ktx telemetry record: parse JSON: %v", err)
 	}
-	if err := opencodetelemetry.ValidateObservation(&input.Observation); err != nil {
+	observation, err := input.observation()
+	if err != nil {
+		return usageError("ktx telemetry record: %v", err)
+	}
+	if err := opencodetelemetry.ValidateObservation(observation); err != nil {
 		return usageError("ktx telemetry record: %v", err)
 	}
 	capturedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	sessionID, err := db.ResolveSessionID(input.KtxSessionID, capturedAt)
 	if err == nil {
-		_, err = db.PersistSessionTelemetry(sessionID, capturedAt, &input.Observation)
+		_, err = db.PersistSessionTelemetry(sessionID, capturedAt, observation)
 	}
 	if err != nil {
 		// Session telemetry is optional. Keep the failure visible to the operator,
@@ -77,6 +95,48 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 		fmt.Fprintf(stderr, "ktx: telemetry not recorded: %v\n", err)
 	}
 	return nil
+}
+
+func (input telemetryRecordInput) observation() (*opencodetelemetry.Observation, error) {
+	missing := ""
+	switch {
+	case input.Ordinal == nil:
+		missing = "ordinal"
+	case input.Cost == nil:
+		missing = "cost"
+	case input.Tokens.Input == nil:
+		missing = "tokens.input"
+	case input.Tokens.Output == nil:
+		missing = "tokens.output"
+	case input.Tokens.Reasoning == nil:
+		missing = "tokens.reasoning"
+	case input.Tokens.CacheRead == nil:
+		missing = "tokens.cache_read"
+	case input.Tokens.CacheWrite == nil:
+		missing = "tokens.cache_write"
+	}
+	if missing != "" {
+		return nil, fmt.Errorf("missing required field: %s", missing)
+	}
+	return &opencodetelemetry.Observation{
+		Key: opencodetelemetry.Key{
+			SessionID: input.SessionID,
+			MessageID: input.MessageID,
+			PartID:    input.PartID,
+		},
+		Ordinal: *input.Ordinal,
+		Reason:  input.Reason,
+		Cost:    *input.Cost,
+		Tokens: opencodetelemetry.Tokens{
+			Input:      *input.Tokens.Input,
+			Output:     *input.Tokens.Output,
+			Reasoning:  *input.Tokens.Reasoning,
+			CacheRead:  *input.Tokens.CacheRead,
+			CacheWrite: *input.Tokens.CacheWrite,
+		},
+		Provider: input.Provider,
+		Model:    input.Model,
+	}, nil
 }
 
 func listTelemetry(args []string, format string, db *dbpkg.DB, stdout io.Writer) error {
@@ -149,13 +209,32 @@ func measurementText(measurement dbpkg.IntegerMeasurement) string {
 }
 
 func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
-	return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, ctx.DB, ctx.Stdout, ctx.Stderr)
+	if len(ctx.Args) == 0 || (ctx.Args[0] != "record" && ctx.Args[0] != "list") {
+		return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, nil, ctx.Stdout, ctx.Stderr)
+	}
+	path, err := dbpkg.ResolvePath("")
+	if err != nil {
+		return telemetryDatabaseFailure(ctx, fmt.Errorf("resolve database path: %w", err))
+	}
+	db, err := dbpkg.Open(path)
+	if err != nil {
+		return telemetryDatabaseFailure(ctx, fmt.Errorf("open database: %w", err))
+	}
+	defer db.Close()
+	return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, db, ctx.Stdout, ctx.Stderr)
+}
+
+func telemetryDatabaseFailure(ctx *DispatchContext, err error) (any, error) {
+	if len(ctx.Args) > 0 && ctx.Args[0] == "record" {
+		fmt.Fprintf(ctx.Stderr, "ktx: telemetry not recorded: %v\n", err)
+		return nil, nil
+	}
+	return nil, internalError("ktx telemetry: %v", err)
 }
 
 func init() {
 	Register("telemetry", RegisterOptions{
 		Description:   "record and inspect optional session telemetry",
-		NeedsDB:       true,
 		NeedsStdin:    true,
 		FormatDefault: FormatJSON,
 		Help:          printTelemetryHelp,

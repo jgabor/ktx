@@ -1,0 +1,13 @@
+id: cdocrymcue
+artifact: progress
+record:
+  timestamp: 2026-07-24 07:23
+  type: fix
+  phase: build
+  what: Corrected normalized telemetry decoding and database fail-open behavior after independent audit failure.
+  context:
+    intent: Restore absent-versus-zero semantics and ensure optional recording survives database open or migration failure without changing output or session success.
+    constraints: Limited to task fekcqinvyc corrections; no generated adapter integration, documentation closeout, or decision satisfaction changes.
+  inspiration: Independent audit-1 found omitted numeric measurements becoming measured zero and dispatcher-owned database failures escaping the record fail-open boundary.
+  verified: go test -race ./internal/db ./internal/cli ./internal/opencodetelemetry -run 'SessionTelemetry|Telemetry|Contract|Collector' -count=1 passed. Regressions reject omitted and null ordinal, cost, input, output, reasoning, cache_read, and cache_write; explicit zero round-trips as measured. Open-directory and schema-version-999 fixtures make record succeed with diagnostic-only stderr/no stdout and make list exit 4. mage check passed all tests, vet, lint, and build with 0 issues. A build/ktx smoke confirmed zero inspection, omitted-cost exit 1, migration-failed record exit 0/no stdout, and migration-failed list exit 4.
+  next: Proceed to generated adapter integration only in the dependent task after this correction is independently audited.

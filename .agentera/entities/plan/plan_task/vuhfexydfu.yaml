@@ -11,3 +11,13 @@ record:
     - GIVEN repeated, incomplete, and unsupported events WHEN correlation rules are evaluated THEN the deduplication key, ordering rule, and conservative rejection behavior are deterministic.
     - GIVEN representative accepted and rejected fixtures WHEN contract tests run THEN at least one passing and one failing case cover each testable event-shape rule.
   plan: abigkdluzd
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-reset-1
+      source: independent Audit evaluation ses_06e14759fffezUixzAgWjfK9tb
+      recorded_at: 2026-07-24 04:25
+      writer_command: agentera state plan record-evaluation

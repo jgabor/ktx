@@ -16,3 +16,13 @@ record:
     - GIVEN the runtime controls and prefix characterization are satisfied WHEN backlog state is synchronized THEN only their matching TODO items are resolved; direct-provider probes remain open or explicitly deferred.
     - GIVEN all active plan tasks are complete WHEN the plan closes THEN documentation, retained evidence, TODO state, progress, and plan status agree without expanding into new experiments or deliberations.
   plan: xpsaaraqbw
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: Independent final audit of runtime evidence plan
+      recorded_at: 2026-07-24 19:32
+      writer_command: agentera state plan record-evaluation

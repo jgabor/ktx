@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-24",
+  "status": "unavailable",
+  "evidence_kind": "opencode_mediated",
+  "direct_provider_claim": false,
+  "source": {
+    "image": "ktx-bench:opencode-1.18.4",
+    "image_id": "sha256:d40f07d48010c5fbd4a5c9a562a40bffb126042613cb8b14a2d0297b052139a5",
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "model": "openai/gpt-5.6-luna",
+    "variant": "high",
+    "credential": "OpenCode OAuth metadata; value not inspected or retained"
+  },
+  "bounds": {
+    "opencode_invocations": { "actual": 2, "maximum": 2 },
+    "intentional_retries": { "actual": 0, "maximum": 0 },
+    "wall_time_seconds": { "actual": 0, "maximum": 120 },
+    "spend_or_estimated_cost_usd": { "maximum": 0.025 }
+  },
+  "result": {
+    "successful_invocations": 0,
+    "model_steps": 0,
+    "reported_cost_usd": { "state": "unavailable" },
+    "estimated_api_cost_usd": { "state": "unavailable" },
+    "telemetry": { "state": "unavailable" },
+    "conditions": [
+      "EACCES creating /home/node/.local/share/opencode/repos",
+      "EROFS creating /home/node/.local/state"
+    ]
+  },
+  "retained_local_artifact": {
+    "path": ".bench-data/cache-evidence/openai-opencode-luna-high-20260724/opencode-mediated",
+    "manifest_sha256": "904642686d09d6b69c4b1993042f4d8517bacdbe2955ddaac4f21c4e067b8543",
+    "redaction_scan": "pass"
+  },
+  "claim_limits": [
+    "No model-step token, cache, identity, control, or retry evidence was produced",
+    "No cache hit, miss, fill, reuse, or isolation claim is supported",
+    "The invocation ceiling is exhausted; no further live call was made"
+  ]
+}

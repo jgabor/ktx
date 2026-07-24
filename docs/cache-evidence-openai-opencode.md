@@ -73,3 +73,23 @@ retry behavior is pinned to
 
 Methodology v5 remains opt-in. This path does not change historical experiment
 artifacts or upgrade observed evidence to confirmed isolation.
+
+## Bounded OpenCode-mediated Luna probe
+
+An approved OpenCode-mediated probe used the existing
+`ktx-bench:opencode-1.18.4` image (`d40f07d…`) with
+`openai/gpt-5.6-luna`, variant `high`, a synthetic exact-response prompt, no
+tools, one configured agent step, read-only authentication, and no intentional
+retries. Raw output and normalized status are retained separately under the
+ignored `.bench-data/cache-evidence/openai-opencode-luna-high-20260724/opencode-mediated`
+directory; the tracked summary is
+`tools/bench/evidence/openai-opencode-mediated-luna-probe.json`.
+
+Both permitted OpenCode invocations failed during local container startup. The
+first could not create OpenCode's `repos` directory; the second passed that
+mount check but could not create `/home/node/.local/state` under the read-only
+root. Both exited before a model step and emitted empty JSONL. The two-invocation
+ceiling was therefore exhausted without another call. Reported and estimated
+cost, token/cache fields, model-step identity, controls, and retry metadata are
+unavailable rather than zero. The result supports no cache hit, miss, fill,
+reuse, or isolation claim and does not alter the unsupported-direct conclusion.

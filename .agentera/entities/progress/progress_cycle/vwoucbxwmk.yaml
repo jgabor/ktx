@@ -1,0 +1,15 @@
+id: vwoucbxwmk
+artifact: progress
+record:
+  timestamp: 2026-07-24 15:25
+  type: test
+  phase: build
+  what: Ran the bounded Dockerfile.benchmark Luna/high probe summarized in tools/bench/evidence/openai-opencode-mediated-luna-probe.json; both allowed OpenCode invocations failed during local container startup and produced zero model steps.
+  context:
+    intent: Obtain reproducible OpenCode-mediated Luna/high telemetry without changing the unsupported-direct conclusion or exceeding the approved ceilings.
+    constraints: At most two OpenCode invocations, zero intentional retries, under two minutes, under /bin/bash.025, synthetic prompt, no tools, read-only auth, no credential values, no direct-provider claim, and no task-status regression.
+    unknowns: Luna model access, reported cost, estimated API cost, token/cache fields, identity, controls, and retry metadata remain unobserved because no model step began.
+    scope: Ignored OpenCode-mediated raw/normalized evidence, tracked evidence summary, authentication/cache evidence documentation, and progress state.
+  discovered: The tagged image reports OpenCode 1.18.4, but its runtime needs writable /home/node/.local/share/opencode/repos and /home/node/.local/state. The first invocation exposed the former; after a mount-only preflight corrected it, the second exposed the latter. The two-invocation ceiling then prohibited another call.
+  verified: Local evidence manifest validation passed for 10 hashed artifacts; redaction validation passed; focused cacheevidence, experiment, and CLI tests passed; mage check passed tests, vet, lint, and build; agentera state validation and git diff --check passed. No experiment validation was possible because no model step or experiment was produced.
+  next: Keep this unavailable probe as evidence. Any retry requires a new live-call approval and a preflight that makes both OpenCode state paths writable while retaining read-only auth; do not infer cache behavior or cost from these startup failures.

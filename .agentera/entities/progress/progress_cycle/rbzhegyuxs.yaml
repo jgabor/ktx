@@ -1,0 +1,14 @@
+id: rbzhegyuxs
+artifact: progress
+record:
+  timestamp: 2026-07-24 15:25
+  type: chore
+  phase: build
+  what: Corrected the spend ceiling text in progress vwoucbxwmk; the live-probe facts and verification are unchanged.
+  context:
+    intent: Keep project progress numerically truthful after shell expansion altered the prior text.
+    constraints: The approved maximum was $0.025, two OpenCode invocations, zero intentional retries, and two minutes.
+    unknowns: None introduced by this metadata correction.
+    scope: Progress state only.
+  verified: tools/bench/evidence/openai-opencode-mediated-luna-probe.json and the retained preflight both declare the unchanged $0.025 ceiling.
+  next: Use vwoucbxwmk together with this correction; no further live invocation is authorized.

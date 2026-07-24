@@ -2,5 +2,5 @@ id: eawpcmamxj
 artifact: todo
 record:
   severity: normal
-  status: open
+  status: resolved
   description: "**Provider-visible prefix characterization** — Characterize trusted sources for stable-prefix and changing-tail hashes/counts; instruction and tool-schema segments; breakpoint placement; compaction or truncation events; TTL; and the privacy boundary. Feed the resulting evidence to the prefix-observability deliberation without selecting its contract. → [Prefix observability and derived evidence](ARCHITECTURE.md#prefix-observability-and-derived-evidence)"

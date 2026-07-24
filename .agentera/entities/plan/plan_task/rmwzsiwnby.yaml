@@ -14,3 +14,13 @@ record:
     - GIVEN retained events may derive from sensitive prompts or runtime identifiers WHEN evidence is published THEN only sanitized counts, measurements, and hashes needed for reproduction are retained.
     - GIVEN focused offline verification WHEN the characterization is checked THEN retained hashes and availability labels reproduce without a new live model call or provider assumptions.
   plan: xpsaaraqbw
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: Independent audit of runtime-visible prefix characterization
+      recorded_at: 2026-07-24 19:00
+      writer_command: agentera state plan record-evaluation

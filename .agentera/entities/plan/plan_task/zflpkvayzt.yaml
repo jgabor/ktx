@@ -13,3 +13,13 @@ record:
     - GIVEN runtime version, provider, or model changes for one runtime-qualified tuple WHEN redelivered THEN no duplicate logical observation is created.
     - GIVEN blank legacy provenance, copy failure, or validation failure WHEN migration runs THEN the original rows, table shape, associations, unrelated evidence, and schema version remain unchanged; recording stays fail-open with stderr diagnostics while inspection fails nonzero without partial output.
   plan: swvgbhhtbf
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit evaluation ses_06cb14116ffe4gbd5TXUVrGRFr
+      recorded_at: 2026-07-24 11:05
+      writer_command: agentera state plan record-evaluation

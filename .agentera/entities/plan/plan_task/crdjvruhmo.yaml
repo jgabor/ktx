@@ -4,7 +4,7 @@ record:
   name: Establish the bounded OpenAI and OpenCode evidence path
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN a provider and model pair is considered for live evidence WHEN preflight runs THEN it reports the exact source and version, access state, maximum native requests and attempts, maximum spend, maximum wall time, artifact destination, and redaction policy before network activity.
     - GIVEN a prerequisite is absent or a declared ceiling cannot be enforced WHEN preflight completes THEN no billable request occurs and the retained capability entry states the exact unavailable condition.

@@ -56,6 +56,45 @@ func TestNormalizationRejectsInvalidOrUnavailableCases(t *testing.T) {
 	}
 }
 
+func TestOpenAINormalizationPreservesInvalidTokenStates(t *testing.T) {
+	original := string(fixture(t, "openai-responses-cache-sanitized.json"))
+	tests := []struct {
+		name        string
+		old         string
+		replacement string
+		measurement func(experiment.SourceEvent) experiment.IntegerMeasurement
+	}{
+		{
+			name: "malformed fractional cache read", old: `"cached_tokens": 1024`, replacement: `"cached_tokens": 1024.5`,
+			measurement: func(event experiment.SourceEvent) experiment.IntegerMeasurement { return event.CacheRead },
+		},
+		{
+			name: "negative output", old: `"output_tokens": 12`, replacement: `"output_tokens": -1`,
+			measurement: func(event experiment.SourceEvent) experiment.IntegerMeasurement { return event.Output },
+		},
+		{
+			name: "uncached input underflow", old: `"input_tokens": 2124`, replacement: `"input_tokens": 1000`,
+			measurement: func(event experiment.SourceEvent) experiment.IntegerMeasurement { return event.UncachedInput },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw := []byte(strings.Replace(original, tt.old, tt.replacement, 1))
+			retained, err := NormalizeOpenAI(raw, "snapshot")
+			if err != nil {
+				t.Fatalf("NormalizeOpenAI() error = %v", err)
+			}
+			if len(retained.Observations) != 1 {
+				t.Fatalf("observations = %d, want 1", len(retained.Observations))
+			}
+			measurement := tt.measurement(retained.Observations[0])
+			if measurement.State != experiment.MeasurementMalformed || measurement.Value != nil {
+				t.Fatalf("measurement = %#v, want malformed without value", measurement)
+			}
+		})
+	}
+}
+
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
 	path := filepath.Join("..", "..", "tools", "bench", "fixtures", name)

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "date": "2026-07-24",
   "status": "unavailable",
   "evidence_kind": "opencode_mediated",
@@ -16,28 +16,124 @@
   "bounds": {
     "opencode_invocations": { "actual": 2, "maximum": 2 },
     "intentional_retries": { "actual": 0, "maximum": 0 },
-    "wall_time_seconds": { "actual": 0, "maximum": 120 },
+    "wall_time_seconds": {
+      "actual": 0,
+      "maximum": 120,
+      "measurement_resolution_seconds": 1
+    },
     "spend_or_estimated_cost_usd": { "maximum": 0.025 }
   },
+  "invocations": [
+    {
+      "ordinal": 1,
+      "command": "AUTH=\"$HOME/.local/share/opencode/auth.json\"; DEST=\"$PWD/.bench-data/cache-evidence/openai-opencode-luna-high-20260724/opencode-mediated\"; CONFIG_CONTENT=\"$(<\"$DEST/config/opencode.json\")\"; PROMPT=\"$(<\"$DEST/config/prompt.txt\")\"; START=$(date +%s); set +e; timeout --signal=TERM 55s docker run --rm --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --tmpfs /home/node/.cache:rw,nosuid,size=256m --tmpfs /home/node/.local/share/opencode:rw,nosuid,size=256m -e OPENCODE_CONFIG_CONTENT=\"$CONFIG_CONTENT\" -v \"$AUTH:/home/node/.local/share/opencode/auth.json:ro\" -v \"$DEST/config/ktx.toml:/home/node/.config/ktx/ktx.toml:ro\" -v \"$DEST/normalized:/home/node/.local/share/ktx:rw\" -v \"$PWD:/work:ro\" --entrypoint /usr/local/bin/opencode ktx-bench:opencode-1.18.4 run --format json --model openai/gpt-5.6-luna --variant high --agent cache-probe --title ktx-cache-evidence-1 \"$PROMPT\" >\"$DEST/raw/invocation-1.jsonl\" 2>\"$DEST/raw/invocation-1.stderr\"; STATUS=$?; set -e; END=$(date +%s); printf 'invocation=1 status=%d elapsed_seconds=%d\\n' \"$STATUS\" \"$((END-START))\"; exit \"$STATUS\"",
+      "exit_status": 1,
+      "elapsed_seconds": 0,
+      "model_steps": 0,
+      "provider_requests_observed": 0,
+      "failure_class": "container_startup_unavailable",
+      "sanitized_stderr_excerpt": [
+        "EACCES: permission denied, mkdir '/home/node/.local/share/opencode/repos'",
+        "path: /home/node/.local/share/opencode/repos",
+        "syscall: mkdir",
+        "errno: -13",
+        "code: EACCES",
+        "Bun v1.3.14 (Linux x64 baseline)"
+      ]
+    },
+    {
+      "ordinal": 2,
+      "command": "AUTH=\"$HOME/.local/share/opencode/auth.json\"; DEST=\"$PWD/.bench-data/cache-evidence/openai-opencode-luna-high-20260724/opencode-mediated\"; CONFIG_CONTENT=\"$(<\"$DEST/config/opencode.json\")\"; PROMPT=\"$(<\"$DEST/config/prompt.txt\")\"; START=$(date +%s); set +e; timeout --signal=TERM 55s docker run --rm --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m,uid=1000,gid=1000,mode=0700 --tmpfs /home/node/.cache:rw,nosuid,size=256m,uid=1000,gid=1000,mode=0700 --tmpfs /home/node/.local/share/opencode:rw,nosuid,size=256m,uid=1000,gid=1000,mode=0700 -e OPENCODE_CONFIG_CONTENT=\"$CONFIG_CONTENT\" -v \"$AUTH:/home/node/.local/share/opencode/auth.json:ro\" -v \"$DEST/config/ktx.toml:/home/node/.config/ktx/ktx.toml:ro\" -v \"$DEST/normalized:/home/node/.local/share/ktx:rw\" -v \"$PWD:/work:ro\" --entrypoint /usr/local/bin/opencode ktx-bench:opencode-1.18.4 run --format json --model openai/gpt-5.6-luna --variant high --agent cache-probe --title ktx-cache-evidence-2 \"$PROMPT\" >\"$DEST/raw/invocation-2.jsonl\" 2>\"$DEST/raw/invocation-2.stderr\"; STATUS=$?; set -e; END=$(date +%s); printf 'invocation=2 status=%d elapsed_seconds=%d\\n' \"$STATUS\" \"$((END-START))\"; exit \"$STATUS\"",
+      "exit_status": 1,
+      "elapsed_seconds": 0,
+      "model_steps": 0,
+      "provider_requests_observed": 0,
+      "failure_class": "container_startup_unavailable",
+      "sanitized_stderr_excerpt": [
+        "EROFS: read-only file system, mkdir '/home/node/.local/state'",
+        "path: /home/node/.local/state",
+        "syscall: mkdir",
+        "errno: -30",
+        "code: EROFS",
+        "Bun v1.3.14 (Linux x64 baseline)"
+      ]
+    }
+  ],
   "result": {
     "successful_invocations": 0,
     "model_steps": 0,
+    "provider_requests_observed": 0,
     "reported_cost_usd": { "state": "unavailable" },
     "estimated_api_cost_usd": { "state": "unavailable" },
-    "telemetry": { "state": "unavailable" },
-    "conditions": [
-      "EACCES creating /home/node/.local/share/opencode/repos",
-      "EROFS creating /home/node/.local/state"
-    ]
+    "uncached_input": { "state": "unavailable" },
+    "cache_read": { "state": "unavailable" },
+    "cache_write": { "state": "unavailable" },
+    "output": { "state": "unavailable" },
+    "identity": { "state": "unavailable" },
+    "control": { "state": "unavailable" },
+    "retry": { "state": "unavailable_in_no_model_step" }
   },
-  "retained_local_artifact": {
-    "path": ".bench-data/cache-evidence/openai-opencode-luna-high-20260724/opencode-mediated",
-    "manifest_sha256": "904642686d09d6b69c4b1993042f4d8517bacdbe2955ddaac4f21c4e067b8543",
-    "redaction_scan": "pass"
+  "ignored_artifact_root": ".bench-data/cache-evidence/openai-opencode-luna-high-20260724/opencode-mediated",
+  "artifacts": [
+    {
+      "path": "preflight.json",
+      "sha256": "fa4de26062afd96b198f18432de12e20086777d07b8efd11c193b328c145428b"
+    },
+    {
+      "path": "config/ktx.toml",
+      "sha256": "03b9095ff425b28575bd94cd73297157ea2529430e0d0c2894fae66880d3e9f4"
+    },
+    {
+      "path": "config/opencode.json",
+      "sha256": "ca3f70260c50ea147bfd65d4bc7ab8b882f76cef0db7b385b342c8e0660dd4f1"
+    },
+    {
+      "path": "config/prompt.txt",
+      "sha256": "535c1ce084ec1bb622202ccfd84588fcb6ef931995d0f100b662d12f37211c31"
+    },
+    {
+      "path": "raw/invocation-1.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "raw/invocation-1.stderr",
+      "sha256": "d87e93339ec02a17f1c2481a02e9e3d19d8766428fd6acbff112d637e8dfc6db"
+    },
+    {
+      "path": "raw/invocation-2.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "raw/invocation-2.stderr",
+      "sha256": "5ac1442a60f8323a65fc7c52a31c625d7fddabd98fc624404d4cf041f5365081"
+    },
+    {
+      "path": "normalized/observations.json",
+      "sha256": "f08476788dd7ac9bbfd0c044fa39fc7322e7bd9394a98abee724136f6967c012"
+    },
+    {
+      "path": "redaction.json",
+      "sha256": "5e40b3b81ae247d5f81dfcff40665d6a5402c0f0dfab39f0c91ee213c563e197"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "904642686d09d6b69c4b1993042f4d8517bacdbe2955ddaac4f21c4e067b8543"
+    }
+  ],
+  "redaction": {
+    "scope": ["raw", "normalized"],
+    "command": "rg -q '(Authorization:|Bearer[[:space:]]+[A-Za-z0-9._-]{8,}|\"access\"[[:space:]]*:[[:space:]]*\"|\"refresh\"[[:space:]]*:[[:space:]]*\"|sk-[A-Za-z0-9])' raw normalized",
+    "result": "pass",
+    "auth_mount": "read_only",
+    "credential_values_retained": false,
+    "raw_cache_namespace_retained": false,
+    "synthetic_prompt_only": true
   },
   "claim_limits": [
+    "OpenCode-mediated only; not direct-provider evidence",
     "No model-step token, cache, identity, control, or retry evidence was produced",
     "No cache hit, miss, fill, reuse, or isolation claim is supported",
+    "Reported and estimated costs are unavailable because no model step occurred",
     "The invocation ceiling is exhausted; no further live call was made"
   ]
 }

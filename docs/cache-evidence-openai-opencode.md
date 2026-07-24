@@ -84,6 +84,12 @@ retries. Raw output and normalized status are retained separately under the
 ignored `.bench-data/cache-evidence/openai-opencode-luna-high-20260724/opencode-mediated`
 directory; the tracked summary is
 `tools/bench/evidence/openai-opencode-mediated-luna-probe.json`.
+That redacted tracked record includes both exact shell commands, exit statuses,
+one-second-resolution elapsed measurements, sanitized startup errors, all
+retained artifact names and SHA-256 values, the redaction command and result,
+and explicit unavailable cost/cache fields. Its test verifies the tracked
+contract everywhere and also checks every ignored artifact hash when the local
+evidence directory is present.
 
 Both permitted OpenCode invocations failed during local container startup. The
 first could not create OpenCode's `repos` directory; the second passed that

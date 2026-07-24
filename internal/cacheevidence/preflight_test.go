@@ -75,22 +75,33 @@ func TestPreflightAcceptedAndUnavailableCases(t *testing.T) {
 		}
 	}
 
-	unavailable := fakeEnvironment{
-		credentials: map[string]CredentialMetadata{"environment:OPENCODE_API_KEY": {State: "present", Type: "api"}},
-		versions:    map[string]string{"opencode": "1.18.3"},
-	}
-	report, err = Preflight(proposal, unavailable)
-	if err != nil {
-		t.Fatalf("unavailable Preflight() error = %v", err)
-	}
-	if report.Ready || report.BillableRequests != 0 {
-		t.Fatalf("unavailable report = %#v", report)
-	}
-	if got := report.Capabilities[0].Access.UnavailableCondition; got != "required api credential from environment:OPENAI_API_KEY is absent" {
-		t.Errorf("OpenAI unavailable condition = %q", got)
-	}
-	if got := report.Capabilities[1].Access.UnavailableCondition; got != "opencode version is 1.18.3; required 1.18.4" {
-		t.Errorf("OpenCode unavailable condition = %q", got)
+	for _, tt := range []struct {
+		name      string
+		versions  map[string]string
+		condition string
+	}{
+		{name: "runtime version mismatch", versions: map[string]string{"opencode": "1.18.3"}, condition: "opencode version is 1.18.3; required 1.18.4"},
+		{name: "runtime executable unavailable", versions: nil, condition: "opencode executable is unavailable"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			unavailable := fakeEnvironment{
+				credentials: map[string]CredentialMetadata{"environment:OPENCODE_API_KEY": {State: "present", Type: "api"}},
+				versions:    tt.versions,
+			}
+			report, err := Preflight(proposal, unavailable)
+			if err != nil {
+				t.Fatalf("unavailable Preflight() error = %v", err)
+			}
+			if report.Ready || report.BillableRequests != 0 {
+				t.Fatalf("unavailable report = %#v", report)
+			}
+			if got := report.Capabilities[0].Access.UnavailableCondition; got != "required api credential from environment:OPENAI_API_KEY is absent" {
+				t.Errorf("OpenAI unavailable condition = %q", got)
+			}
+			if got := report.Capabilities[1].Access.UnavailableCondition; got != tt.condition {
+				t.Errorf("OpenCode unavailable condition = %q, want %q", got, tt.condition)
+			}
+		})
 	}
 }
 
@@ -126,7 +137,13 @@ func TestPreflightRetainsUnenforceableCeilings(t *testing.T) {
 	}{
 		{"spend ceiling", func(p *Proposal) { p.Limits.MaxSpendUSD = 0.01 }, "below worst-case spend"},
 		{"request ceiling", func(p *Proposal) { p.Limits.MaxNativeRequests = 3 }, "cannot cover 4 required requests"},
+		{"attempt ceiling", func(p *Proposal) { p.Limits.MaxAttempts = 3 }, "cannot cover 4 required attempts"},
 		{"retry", func(p *Proposal) { p.Paths[0].RequiredAttempts = 3 }, "does not disable retries"},
+		{"non-positive input tokens", func(p *Proposal) { p.Paths[0].MaxInputTokens = 0 }, "token ceiling is not positive"},
+		{"non-positive output tokens", func(p *Proposal) { p.Paths[1].MaxOutputTokens = -1 }, "token ceiling is not positive"},
+		{"negative input price", func(p *Proposal) { p.Paths[0].InputUSDPerMillion = -1 }, "pricing bound is invalid"},
+		{"cache-write multiplier below one", func(p *Proposal) { p.Paths[0].CacheWriteMultiplier = 0.5 }, "pricing bound is invalid"},
+		{"negative output price", func(p *Proposal) { p.Paths[0].OutputUSDPerMillion = -1 }, "pricing bound is invalid"},
 		{"wall time", func(p *Proposal) { p.Limits.MaxWallTime = "0s" }, "not a positive duration"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

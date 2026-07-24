@@ -1,0 +1,15 @@
+id: lkbdglbfdn
+artifact: progress
+record:
+  timestamp: 2026-07-24 15:49
+  type: test
+  phase: build
+  what: "Closed audit-1 gaps in internal/cacheevidence tests and tools/bench/evidence/openai-opencode-mediated-luna-probe.json: all named unavailable branches now have regression cases, and Luna evidence is independently reviewable from tracked content."
+  context:
+    intent: Satisfy every offline acceptance branch and replace manifest-only Luna claims with redacted tracked evidence derived from the retained ignored artifacts.
+    constraints: No live calls, credential values, raw cache namespaces, direct-provider relabeling, cache hit or miss inference, isolation claim, TODO change, or unrelated plan change.
+    unknowns: No implementation unknown remains for this task; independent audit confirmation is pending.
+    scope: Preflight and normalization regression tests, tracked Luna evidence, cache evidence documentation, task status, and progress state.
+  discovered: The ignored Luna directory remained available. Its 11 tracked artifact hashes match, both empty JSONL files and startup stderr files remain intact, and the tracked sanitized excerpts match the retained failures.
+  verified: The focused verbose test passed runtime-missing, attempt-ceiling, both token-ceiling, three pricing-bound, malformed-cache-read, negative-output, and uncached-underflow cases; TestTrackedLunaEvidenceIsIndependentlyReviewable verified 11 hashes and redaction scope. go test ./internal/cacheevidence ./internal/experiment ./internal/cli passed; mage check passed tests, vet, lint, and build; state validation passed with zero issues; git diff --check passed.
+  next: Task crdjvruhmo is complete and ready for independent re-audit. Preserve the historical audit-1 failure record and do not make another Luna call without new authorization.

@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Prefix observability and derived evidence** — Run structured deliberation and record trusted sources, hashes and counts, stable-prefix versus tail evidence, compaction-event treatment, and privacy limits. → [Question](ARCHITECTURE.md#prefix-observability-and-derived-evidence)"
+  description: "**Prefix observability and derived evidence** — Run structured deliberation within the runtime-only boundary and record which runtime-emitted fields or explicit runtime configuration may support privacy-safe stable/changing-context observations, hashes and counts, segment treatment, compaction-event treatment, and privacy limits without claiming provider prefix composition or request boundaries. → [Question](ARCHITECTURE.md#prefix-observability-and-derived-evidence)"

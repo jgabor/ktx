@@ -49,7 +49,7 @@ These controls have narrower meanings than their convenient labels:
 - A `step_finish` is an ordered `model_step`. The one/multi cases refer only to
   runtime-visible model-step/request sequencing. A step does not expose a
   provider request identifier, retry relationship, or documented one-to-one
-  native request mapping. Requested turn counts and observed model-step counts
+  provider-request mapping. Requested turn counts and observed model-step counts
   remain separate from native provider request count, which is unavailable.
 - A measured positive `tokens.cache.read` is reported as cache reuse. A
   measured positive `tokens.cache.write` is reported as cache fill. Measured

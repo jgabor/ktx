@@ -497,9 +497,8 @@ descriptive values; a singleton has standard deviation zero.
 A cheaper pipeline that loses facts ranks worse than a slightly costlier full-pass pipeline.
 
 `cache_read` / `cache_write` are runtime-reported token counts emitted on
-`step_finish.part.tokens.cache`. An OpenCode `step_finish` is a model step, not
-a native provider request unless authoritative request identity or a documented
-one-to-one mapping proves otherwise. For every reported model step, tokens.total
+`step_finish.part.tokens.cache`. An OpenCode `step_finish` is a runtime model
+step, not a provider request. For every reported model step, tokens.total
 == tokens.input + tokens.output + tokens.reasoning + tokens.cache.read +
 tokens.cache.write, confirming cache values are event-local deltas (not
 cumulative). The summary includes them only
@@ -552,10 +551,11 @@ missing, empty, partial, or malformed observations do not invalidate an attempt.
 When available, they are useful for inspecting event order and field availability;
 they are not an integrity or attestation mechanism.
 
-| Source-event kind | Meaning                                                                                                                  | Native request count               |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| `model_step`      | A runtime model-step event, including an OpenCode `step_finish` without authoritative provider request identity.         | Never counted as a native request. |
-| `native_request`  | A provider response with an authoritative provider request identifier, or a cited documented one-to-one runtime mapping. | Counted as one native request.     |
+Live source events are runtime model-step observations only. The schema value
+`model_step` identifies such an observation; it is never a provider request
+count. A retained `native_request` record is historical/offline compatibility
+evidence from an unsupported former collection path. It is not accepted as live
+telemetry and cannot authorize future provider collection.
 
 A source event records each numeric field as `measured`, `unknown`, or
 `malformed`. A measured zero is a measurement, not an absence. Missing and
@@ -568,21 +568,19 @@ a complete attempt total.
 Provider language such as _hit_ and _miss_ does not expand these claim
 boundaries:
 
-| Claim                    | Evidence boundary                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `cache_reuse`            | The source reports cache reuse, such as a cache-read token count. It is not a provider-internal hit count. |
-| `cache_fill`             | The source reports a cache write or creation. It is distinct from reuse.                                   |
-| `ineligible`             | Authoritative source semantics show the request could not perform the relevant cache lookup.               |
-| `no_reported_reuse`      | An eligible lookup reports no reuse; it does not establish an internal miss.                               |
-| `unknown`                | The source omitted, nullified, malformed, or cannot authoritatively classify the relevant telemetry.       |
-| `provider_internal_miss` | Allowed only for a controlled eligible lookup with retained no-reuse evidence.                             |
+| Claim               | Evidence boundary                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `cache_reuse`       | The source reports cache reuse, such as a cache-read token count. It is not a provider-internal hit count. |
+| `cache_write`       | The runtime reports cache-write tokens. It does not establish a provider-internal fill.                    |
+| `no_reported_reuse` | The runtime reports zero reuse. It does not establish an internal miss or request eligibility.             |
+| `unknown`           | The source omitted, nullified, malformed, or cannot authoritatively classify the relevant telemetry.       |
 
-Every source/version capability entry keeps four evidence levels separate:
-authoritative source support, runtime normalization, live observation, and
-control-validated isolation. Each level must carry at least one official source
-citation or retained-artifact reference. Support at one level never implies
-support at another; in particular, runtime normalization and live telemetry do
-not prove cache isolation.
+Every source/version capability entry keeps runtime-emitted telemetry, identity
+inferred from explicit runtime configuration, official semantic references,
+pricing estimates, and historical/offline fixtures separate, with provenance.
+Only the first two are current collection inputs. None proves provider-internal
+hits, misses, fills, eviction, request boundaries, isolation, or prefix
+composition.
 
 Schema-v3 summaries annotate Tukey outliers using `1.5 * IQR` fences. With
 fewer than four observations, detection is marked `insufficient_sample` and no
@@ -630,10 +628,9 @@ attempts, and then `--rounds` `measured_warm` attempts. Setup attempts remain in
 or headline quality/cost distributions. Measured cycles continue alternating
 side order. Fewer than five measured attempts is labeled `exploratory`.
 
-`--cache-control isolated` requires a confirmed adapter and fails before an
-agent call when unsupported. `auto` uses isolation only when confirmed and
-otherwise records `observed`. In observed mode, phase names describe the role
-of a trial; they do not prove a provider cache hit or miss. Retained cache
+Provider-internal isolation is unsupported. `--cache-control isolated` fails
+before an agent call, and `auto` records `observed`. Phase names describe the
+role of a trial; they do not prove a provider cache hit or miss. Retained cache
 metadata contains only a namespace hash. The raw namespace, when required by an
 adapter, exists only in ephemeral runtime configuration/command state.
 `idle_gap_ms` records the intentional harness delay and is zero when no delay is

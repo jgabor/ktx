@@ -43,8 +43,11 @@ The adapter calls `ktx hook` after tool execution. ktx persists the original,
 runs the selected pipeline, and returns the smaller result to the agent. With no
 configuration file, the pipeline is passthrough.
 
-The generated OpenCode plugin also records OpenCode-normalized optional
-model-step token evidence. See the [OpenCode integration and telemetry
+The generated OpenCode plugin also records optional runtime model-step token
+evidence. ktx collects telemetry only from the agent runtime. Provider and
+model identity may come from runtime events or explicit runtime configuration,
+with provenance; provider documentation and pricing catalogs are reference and
+estimate inputs, not telemetry. See the [OpenCode integration and telemetry
 runbook](docs/opencode-telemetry.md) for plugin locations, both hooks, wrapper
 coexistence, refresh, offline verification, claim boundaries, and
 troubleshooting.
@@ -134,7 +137,9 @@ uses only the fixture and a controlled built-in pipeline. Any integrity,
 parser, usage, cost, cache, or compression divergence is a strict failure.
 Fixture contents include raw recorded stream data, so review them for secrets,
 personal data, machine-local identifiers, and repository content before
-sharing or committing them. See the runbook for the fixture schema, source and
+sharing or committing them. Historical direct-provider fixtures may remain for
+offline compatibility and provenance, but are not a supported collection path.
+See the runbook for the fixture schema, source and
 refresh requirements, absent-versus-zero semantics, threat boundary, and exit
 classes.
 
@@ -150,8 +155,9 @@ avoiding about 5.47 million tokens under its four-characters-per-token estimate.
 At the models.dev uncached-input price for `openai/gpt-5.6-sol`, that is about
 $27.33 of gross input cost avoided if each saved token would have been included
 once. This is a model-priced estimate rather than a billing claim: ordinary live
-calls did not retain enough cache telemetry to measure cache-adjusted savings or
-changes in prompt-cache hit behavior.
+calls did not retain enough cache telemetry to measure cache-adjusted savings.
+Aggregate runtime token counts cannot establish provider-internal cache hits,
+misses, fills, eviction, request boundaries, isolation, or prefix composition.
 
 ## Development
 

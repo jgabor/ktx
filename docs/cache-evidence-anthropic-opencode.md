@@ -1,6 +1,9 @@
-# Bounded Anthropic and OpenCode cache evidence
+# Retained historical Anthropic and OpenCode cache investigation
 
-This evidence path selects the Anthropic public Messages API
+This document preserves a completed official-source and offline-fixture
+investigation. It is not a supported direct-provider collection path, and no
+provider credential or probe work follows from it. The historical scope
+selected the Anthropic public Messages API
 `POST /v1/messages`, header `anthropic-version: 2023-06-01`, and model alias
 `claude-sonnet-5`. Official source material was retrieved on 2026-07-24. The
 machine-readable capability record is
@@ -34,9 +37,10 @@ The guide also states that a concurrent follower cannot use a new entry until
 the first response begins. This task makes no concurrency, isolation, cache
 namespace, or provider-internal hit/miss claim.
 
-## Native versus OpenCode evidence
+## Historical provider-format versus OpenCode evidence
 
-Provider-native JSON and OpenCode JSONL are retained as separate sources. The
+Historical provider-format JSON fixtures and OpenCode JSONL are retained as
+separate offline sources. The
 normalizer adds observations and never rewrites either input. OpenCode 1.18.4
 is pinned to commit
 [`49c69c5`](https://github.com/anomalyco/opencode/tree/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e);
@@ -62,18 +66,10 @@ The positive fixture preserves a measured-zero cache read beside a measured
 normalizer preserves them as unavailable, not zero. These are sanitized
 structural fixtures, not live provider evidence.
 
-## Bounded access result
+## Historical no-call result
 
-The no-request gate is:
-
-```bash
-mage build
-build/ktx bench evidence preflight \
-  --spec tools/bench/evidence/anthropic-opencode-proposal.json \
-  --output tools/bench/evidence/anthropic-opencode-preflight.json
-```
-
-It inspects only credential presence/type and `opencode --version`. It fixes a
+The retained no-request preflight inspected only credential presence/type and
+`opencode --version`. It fixed a
 maximum of four native requests, four attempts, USD 0.035 worst-case spend, two
 minutes wall time, the ignored artifact destination, and redaction policy. It
 always reports `network_activity: none` and `billable_requests: 0`.
@@ -81,5 +77,6 @@ always reports `network_activity: none` and `billable_requests: 0`.
 On 2026-07-24, `ANTHROPIC_API_KEY` was absent and `opencode auth list` contained
 no Anthropic API credential. OpenCode 1.18.4 itself was present. Therefore no
 model request was proposed for execution, no approval was requested, and both
-live paths remain unavailable. Official-source evidence, offline fixtures, and
-live-unavailable state remain separately labeled.
+historical live paths remained unavailable. Official-source evidence, offline
+fixtures, and that unavailable result remain separately labeled. Current
+collection uses runtime observations only.

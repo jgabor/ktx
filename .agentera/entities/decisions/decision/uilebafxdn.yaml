@@ -1,0 +1,17 @@
+id: uilebafxdn
+artifact: decisions
+record:
+  date: 2026-07-24
+  question: What collection boundary governs ktx telemetry and the interpretation of runtime model-step evidence?
+  context: The user established a runtime-only telemetry policy that clarifies and supersedes the broader collection paths permitted by decisions ghpoujuxci and ymghvfzdck. Existing provider documentation, pricing catalogs, historical provider-format fixtures, and completed investigations still have reference, estimate, compatibility, or provenance value, but they are not current telemetry.
+  alternatives:
+    - name: Collect telemetry only from the agent runtime, with provider/model identity from runtime-emitted fields or explicit runtime configuration and provenance.
+      status: chosen
+    - name: Support direct-provider telemetry or probes alongside runtime collection.
+      status: rejected
+    - name: Treat runtime model steps, aggregate token fields, configured identity, or historical fixtures as provider requests or provider-internal cache evidence.
+      status: rejected
+  choice: ktx supports telemetry collected only from the agent runtime. Provider/model identity may be runtime-emitted or inferred from explicit runtime configuration, with provenance. Provider documentation and pricing catalogs remain semantic/reference/estimate sources; historical direct-provider/offline fixtures remain compatibility and provenance evidence labeled historical and unsupported for current collection. No provider credentials or direct-provider telemetry/probe path remains supported future work.
+  reasoning: Runtime events are the product collection boundary and can be retained without introducing provider credentials or a parallel provider integration surface. A runtime model step is not a provider request. Aggregate runtime tokens, labels, configured identity, and historical fixtures cannot establish provider-internal cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition. This preserves useful historical evidence while preventing source semantics and estimates from being misrepresented as telemetry.
+  confidence: firm
+  feeds_into: Telemetry documentation; cache-aware benchmark comparison backlog; prefix observability, cache-control ownership, and savings-attribution deliberations; supersedes ghpoujuxci and ymghvfzdck only where they permit broader collection or call runtime model steps provider signals.

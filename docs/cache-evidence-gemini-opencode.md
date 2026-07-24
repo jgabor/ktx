@@ -1,6 +1,9 @@
-# Bounded Gemini and OpenCode cache evidence
+# Retained historical Gemini and OpenCode cache investigation
 
-This evidence path is pinned to the Gemini Developer API `v1beta`
+This document preserves a completed official-source and offline-fixture
+investigation. It is not a supported direct-provider collection path, and no
+provider credential or probe work follows from it. The historical scope was
+pinned to the Gemini Developer API `v1beta`
 `cachedContents` and `generateContent` REST resources, `gemini-2.5-flash`, and
 OpenCode 1.18.4 at commit `49c69c5`. Official source material was retrieved on
 2026-07-24. It is provider-specific; it does not add a universal provider
@@ -66,28 +69,18 @@ fixtures under `tools/bench/fixtures/` are synthetic structural examples, not
 live observations. The unavailable fixture retains the exact synthetic error
 without creating zero-valued observations.
 
-## No-call preflight and current access
+## Historical no-call result
 
-Run the gate from the repository root:
-
-```bash
-mage build
-build/ktx bench evidence gemini-preflight \
-  --spec tools/bench/evidence/gemini-opencode-proposal.json \
-  --output tools/bench/evidence/gemini-opencode-preflight.json
-```
-
-The gate reads environment-variable presence, secret-free `opencode auth list`
-metadata, and `opencode --version`. It makes no network or model request. The
+The retained preflight read environment-variable presence, secret-free
+`opencode auth list` metadata, and `opencode --version`. It made no network or model request. The
 retained 2026-07-24 result has `network_activity: none` and
 `billable_requests: 0`: `GEMINI_API_KEY` is absent, while Google OAuth metadata
 and OpenCode 1.18.4 are present. Direct Gemini is therefore unavailable and
 OpenCode model entitlement remains `unverified_without_provider_request`.
 No live probe ran.
 
-Any later live action requires a new approval after presenting the exact
-preflight: at most five native requests, five attempts with no retries, $0.025,
-two minutes, the ignored `.bench-data/cache-evidence/gemini-opencode-20260724`
-destination, and the listed redaction policy. This evidence makes no cache hit
-ratio, miss, isolation, namespace, tool-call attribution, or provider-internal
-eviction claim.
+The historical proposal's limits and ignored artifact destination remain
+retained provenance, not a future approval path. This evidence makes no cache
+hit ratio, miss, fill, isolation, namespace, request-boundary, prefix-composition,
+tool-call attribution, or provider-internal eviction claim. Current collection
+uses runtime observations only.

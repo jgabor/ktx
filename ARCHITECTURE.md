@@ -232,11 +232,11 @@ Writes session-scoped and call-scoped records to the database: inputs, outputs, 
 
 ### Measurement
 
-Ingests provider/runtime-reported token and cost figures without rewriting them. Reported cost, including literal zero, remains billing evidence. A separate nullable API-equivalent estimate is reconstructed from cache-aware models.dev prices for uncached input, cache reads, cache writes, output, and reasoning. Benchmark experiments retain the exact resolved pricing record so estimates can be regenerated without consulting mutable live data.
+Ingests telemetry only from the agent runtime without rewriting it. Provider and model identity may be emitted by the runtime or inferred from explicit runtime configuration, with provenance. Reported cost, including literal zero, remains runtime evidence. Provider documentation and pricing catalogs remain semantic/reference/estimate sources, not telemetry. A separate nullable API-equivalent estimate is reconstructed from cache-aware models.dev prices for uncached input, cache reads, cache writes, output, and reasoning. Benchmark experiments retain the exact resolved pricing record so estimates can be regenerated without consulting mutable live data. Historical direct-provider fixtures may remain for offline compatibility and provenance, clearly labeled unsupported for current collection. Aggregate runtime tokens, labels, configured identity, and historical fixtures never establish provider-internal cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition.
 
 ### Benchmark
 
-Aggregates persisted evidence into comparable headline metrics—reported cost per correct answer, estimated API cost per correct answer, savings over baseline, and related reports—using a published methodology. New evidence summaries use deterministic descriptive distributions, pair baseline and candidate attempts by execution cycle, and annotate rather than remove outliers; they do not make inferential significance claims. Cache-aware comparisons retain cold observation and warm-up evidence separately from measured-warm headline attempts. Cache namespaces are isolated between strategies only through a confirmed runtime/provider adapter; otherwise the evidence is explicitly observed-only and makes no hit/miss claim. Rebuild penalties and cumulative break-even use the retained API-cost estimates. The Go experiment module owns tasks, scoring, retained manifests and attempts, retained pricing snapshots, deterministic summaries, live comparison, and ranking. SQLite remains product evidence; experiment-side assignment, cache-control metadata, and orchestration metadata remain file artifacts outside the database.
+Aggregates persisted evidence into comparable headline metrics—reported cost per correct answer, estimated API cost per correct answer, savings over baseline, and related reports—using a published methodology. New evidence summaries use deterministic descriptive distributions, pair baseline and candidate attempts by execution cycle, and annotate rather than remove outliers; they do not make inferential significance claims. Cache-aware comparisons retain cold observation and warm-up evidence separately from measured-warm headline attempts. Comparisons vary runtime, model, and provider configurations while collecting only runtime observations and identity provenance; they remain observed-only and make no provider-internal hit, miss, fill, request-boundary, isolation, or prefix-composition claim. Rebuild penalties and cumulative break-even use the retained API-cost estimates. The Go experiment module owns tasks, scoring, retained manifests and attempts, retained pricing snapshots, deterministic summaries, live comparison, and ranking. SQLite remains product evidence; experiment-side assignment, cache-control metadata, and orchestration metadata remain file artifacts outside the database.
 
 ### Extension registry
 
@@ -329,19 +329,19 @@ Where is the boundary between in-session history compression and cross-session m
 
 ### Prefix observability and derived evidence
 
-Which trusted runtime or provider source can describe request-prefix composition and compaction events? Which hashes and counts can evidence stable-prefix versus changing-tail behavior without retaining more sensitive content, how are instruction and tool-schema segments distinguished, and what privacy boundary applies to derived prefix telemetry?
+Which runtime-emitted fields or explicit runtime configuration, if any, can support privacy-safe observations about runtime-visible stable and changing context without claiming provider prefix composition or request boundaries? Which hashes and counts are useful, how are instruction and tool-schema segments distinguished, and what privacy boundary applies?
 
 → [Deliberation task](TODO.md#deliberate-prefix-observability-and-derived-evidence)
 
 ### Provider cache-control ownership
 
-Outside the settled cache-aware benchmark methodology and its confirmed benchmark adapters, where should product/runtime cache-control policy and adapter versioning live: ktx, the agent runtime, or a shared contract? How should non-benchmark capability negotiation fail or fall back without extending benchmark isolation claims to unconfirmed runtime/provider adapters?
+Within runtime-only collection, where should product/runtime cache-control configuration and adapter versioning live: ktx, the agent runtime, or a shared contract? How should capability negotiation fail or fall back while keeping all observations explicitly separate from provider-internal isolation or request semantics?
 
 → [Deliberation task](TODO.md#deliberate-provider-cache-control-ownership)
 
 ### Savings attribution
 
-How should tool-output reduction, logical input, provider-reported cost, independently estimated API cost, cache reads, cache writes, setup cost, and quality effects be attributed across layers and attempts without double-counting? Raw `cache_read` and `cache_write` distributions remain authoritative; a generic cache-hit ratio is not a headline.
+How should tool-output reduction, logical input, runtime-reported cost, independently estimated API cost, runtime-emitted cache-read/cache-write tokens, setup cost, and quality effects be attributed across layers and attempts without double-counting? How should identity provenance and estimate sources be shown while avoiding provider-internal cache or request claims?
 
 → [Deliberation task](TODO.md#deliberate-savings-attribution)
 

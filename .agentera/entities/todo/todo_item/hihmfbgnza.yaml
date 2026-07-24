@@ -2,5 +2,5 @@ id: hihmfbgnza
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Provider-native cache-control probes** — Build source- and version-specific evidence for OpenAI explicit breakpoints, mode, and read/write fields; Anthropic explicit `cache_control` plus creation/read fields; and Gemini explicit cache objects plus cached-token metadata. Where feasible, compare direct-provider results with runtime-normalized evidence. This is capability and evidence work, not a universal adapter design. → [Provider cache-control ownership](ARCHITECTURE.md#provider-cache-control-ownership)"
+  status: resolved
+  description: "**Removed by runtime-only telemetry policy** — Direct-provider cache-control probes are not supported current or future collection work. Historical source/offline evidence remains provenance, not completion evidence."

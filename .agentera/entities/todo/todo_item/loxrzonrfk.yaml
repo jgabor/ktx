@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Provider cache-control ownership** — Run structured deliberation and record product/runtime ownership, adapter versioning, capability negotiation, and fallback behavior outside the settled benchmark contract and confirmed benchmark adapters. → [Question](ARCHITECTURE.md#provider-cache-control-ownership)"
+  description: "**Provider cache-control ownership** — Run structured deliberation within runtime-only collection and record product/runtime configuration ownership, adapter versioning, capability negotiation, and fallback behavior without extending runtime observations into provider-internal cache or request claims. → [Question](ARCHITECTURE.md#provider-cache-control-ownership)"

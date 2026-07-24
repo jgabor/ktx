@@ -4,8 +4,7 @@ This document is the canonical executable backlog for implementation, evidence, 
 
 ## Immediately actionable
 
-- [ ] **Provider-native cache-control probes** — Build source- and version-specific evidence for OpenAI explicit breakpoints, mode, and read/write fields; Anthropic explicit `cache_control` plus creation/read fields; and Gemini explicit cache objects plus cached-token metadata. Where feasible, compare direct-provider results with runtime-normalized evidence. This is capability and evidence work, not a universal adapter design. → [Provider cache-control ownership](ARCHITECTURE.md#provider-cache-control-ownership)
-- [ ] **Retained cache-aware provider comparison** — After the capability matrix, negative controls, native probes, and prefix characterization, retain a methodology-v5 comparison across selected cache-aware providers. Use isolated mode only when negative controls confirm a runtime/provider adapter; otherwise label evidence observed-only. Report raw `cache_read` and `cache_write` distributions, reported and estimated costs, quality, setup cost, and break-even evidence without a generic cache-hit-ratio headline or provider-internal hit/miss claim. → [Benchmark](ARCHITECTURE.md#benchmark)
+- [ ] **Retained runtime-telemetry comparison** — Retain a methodology-v5 comparison across selected runtime, model, and provider configurations using only runtime observations and provider/model identity provenance. Report raw runtime-emitted `cache_read` and `cache_write` distributions, runtime-reported and estimated costs, quality, setup cost, and break-even evidence. Keep provider documentation and pricing as context, label historical fixtures unsupported for current collection, and make no provider-internal cache, request-boundary, isolation, or prefix-composition claim. → [Benchmark](ARCHITECTURE.md#benchmark)
 - [ ] **JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. → [Pipeline](ARCHITECTURE.md#pipeline)
 - [ ] **Routing-candidate evidence characterization** — Use retained calls and benchmark fixtures to measure candidate content signals, ambiguous cases, residual spend, and fallback outcomes. Publish evidence for deliberation without selecting a taxonomy or profile mapping. → [Router taxonomy and profile selection](ARCHITECTURE.md#router-taxonomy-and-profile-selection)
 - [ ] **Unified hook processing flow** — Separate Codex, OpenCode, and flat payload extraction from the common session resolution, source persistence, compression, artifact persistence, recovery-cue, and envelope-rendering flow. Preserve trusted-ingress identity, first-evidence ownership, and first-compressed-artifact authority. → [Ingress](ARCHITECTURE.md#ingress)
@@ -21,15 +20,15 @@ Each task must run a structured deliberation, append the resulting choice to the
 
 <a id="deliberate-prefix-observability-and-derived-evidence"></a>
 
-- [ ] **Prefix observability and derived evidence** — Run structured deliberation and record trusted sources, hashes and counts, stable-prefix versus tail evidence, compaction-event treatment, and privacy limits. → [Question](ARCHITECTURE.md#prefix-observability-and-derived-evidence)
+- [ ] **Prefix observability and derived evidence** — Run structured deliberation within the runtime-only boundary and record which runtime-emitted fields or explicit runtime configuration may support privacy-safe stable/changing-context observations, hashes and counts, segment treatment, compaction-event treatment, and privacy limits without claiming provider prefix composition or request boundaries. → [Question](ARCHITECTURE.md#prefix-observability-and-derived-evidence)
 
 <a id="deliberate-provider-cache-control-ownership"></a>
 
-- [ ] **Provider cache-control ownership** — Run structured deliberation and record product/runtime ownership, adapter versioning, capability negotiation, and fallback behavior outside the settled benchmark contract and confirmed benchmark adapters. → [Question](ARCHITECTURE.md#provider-cache-control-ownership)
+- [ ] **Provider cache-control ownership** — Run structured deliberation within runtime-only collection and record product/runtime configuration ownership, adapter versioning, capability negotiation, and fallback behavior without extending runtime observations into provider-internal cache or request claims. → [Question](ARCHITECTURE.md#provider-cache-control-ownership)
 
 <a id="deliberate-savings-attribution"></a>
 
-- [ ] **Savings attribution** — Run structured deliberation and record the attribution and aggregation contract without double-counting or replacing raw cache distributions with a generic hit ratio. → [Question](ARCHITECTURE.md#savings-attribution)
+- [ ] **Savings attribution** — Run structured deliberation and record the attribution and aggregation contract for runtime observations, identity provenance, and reference/estimate sources without double-counting or inferring provider-internal cache or request behavior. → [Question](ARCHITECTURE.md#savings-attribution)
 
 <a id="deliberate-benchmark-evidence-aggregation"></a>
 

@@ -12,3 +12,13 @@ record:
     - GIVEN OpenCode omits provider request identity, retry relationships, timestamps, or concurrency ownership WHEN evidence is classified THEN those fields remain unavailable and no separation claim is inferred.
     - GIVEN the retained observed and unavailable cases WHEN focused verification runs THEN their measurements, ordering, hashes, and classifications reproduce without provider credentials.
   plan: xpsaaraqbw
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: Independent audit of bounded OpenCode temporal controls
+      recorded_at: 2026-07-24 18:42
+      writer_command: agentera state plan record-evaluation

@@ -6,13 +6,11 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-    - nfusgeryyh
+    - lmabuidega
     - cjanyznhqa
   status: pending
   acceptance:
-    - GIVEN current trusted OpenCode runtime sources and retained streams WHEN prefix evidence is characterized THEN stable-prefix and changing-tail hashes or counts, instruction and tool-schema segments, breakpoint placement, compaction or truncation events, and TTL availability are reported separately by runtime version and model path.
-    - GIVEN content may contain instructions, tool schemas, prompts, secrets, or user data WHEN runtime-derived evidence is retained THEN it respects an explicit privacy limit and retains no more sensitive content than required to reproduce the observation.
-    - GIVEN a segment, count, hash, breakpoint, compaction event, or TTL lacks a trusted runtime source WHEN evidence is published THEN it remains unknown or unavailable rather than inferred from provider-native assumptions or aggregate token movement.
-    - GIVEN prior provider source fixtures exist WHEN runtime characterization is produced THEN they remain contextual source evidence and are not promoted into direct-provider or live parity claims.
-    - GIVEN derived-evidence rules are verified WHEN offline cases run THEN each testable privacy or completeness rule has at least one accepted case and one rejected or unavailable case.
+    - GIVEN existing trusted OpenCode sources and retained runtime streams WHEN prefix evidence is characterized THEN only runtime-visible session, submitted-prompt identity, token/cache measurements, and ordering are reported; provider-visible prefix, breakpoint, tool-schema segmentation, and TTL remain unavailable unless explicitly exposed.
+    - GIVEN retained events may derive from sensitive prompts or runtime identifiers WHEN evidence is published THEN only sanitized counts, measurements, and hashes needed for reproduction are retained.
+    - GIVEN focused offline verification WHEN the characterization is checked THEN retained hashes and availability labels reproduce without a new live model call or provider assumptions.
   plan: xpsaaraqbw

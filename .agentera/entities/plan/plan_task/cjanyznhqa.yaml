@@ -8,9 +8,7 @@ record:
     - zvbegohemo
   status: pending
   acceptance:
-    - GIVEN an eligible OpenCode runtime and model path WHEN controls run THEN retained evidence compares pre/post-TTL where it fits the declared ceiling and sequential/concurrent execution.
-    - GIVEN a temporal or concurrency dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, intentional delay, runtime-visible request or model-step count, source version, model identity, and completeness.
-    - GIVEN documented or observed TTL exceeds the approved wall-time ceiling WHEN preflight completes THEN no over-ceiling wait or request occurs and the matrix records source-only or not-live-observed evidence.
-    - GIVEN OpenCode omits authoritative provider request identity, retry relationships, timestamps, or concurrency ownership WHEN evidence is classified THEN those fields remain unavailable rather than reconstructed from sessions or aggregate token movement.
-    - GIVEN supported and unsupported offline cases WHEN verification runs THEN every testable runtime temporal or concurrency rule has at least one accepted case and one rejected or unavailable case.
+    - GIVEN retained OpenCode evidence and at most one bounded free-runtime comparison WHEN temporal/concurrency behavior is reviewed THEN sequential versus concurrent execution is recorded only from runtime-visible model steps; TTL is source-only or unavailable when it exceeds the ceiling.
+    - GIVEN OpenCode omits provider request identity, retry relationships, timestamps, or concurrency ownership WHEN evidence is classified THEN those fields remain unavailable and no separation claim is inferred.
+    - GIVEN the retained observed and unavailable cases WHEN focused verification runs THEN their measurements, ordering, hashes, and classifications reproduce without provider credentials.
   plan: xpsaaraqbw

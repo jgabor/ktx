@@ -6,15 +6,13 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-    - nfusgeryyh
+    - lmabuidega
     - cjanyznhqa
     - rmwzsiwnby
     - vkwcvnaywr
   status: pending
   acceptance:
-    - GIVEN retained runtime fixtures, controls, characterization, and historical experiments WHEN repository verification runs headlessly THEN tests, race checks where applicable, vet, lint, build, state validation, evidence validation, and deterministic regeneration pass without mandatory provider credentials.
-    - GIVEN runtime source citations, retained artifacts, and capability entries WHEN freshness checks run THEN stale hashes, missing evidence, semantic mismatches, raw namespaces, credentials, and unsupported claims are reported before any runtime-managed separation claim can be stated.
-    - GIVEN runtime negative controls and runtime-visible prefix characterization satisfy their contracts WHEN backlog state is synchronized THEN Cache negative controls and Provider-visible prefix characterization are resolved, while Provider-native cache-control probes remains open or is explicitly deferred by user scope.
-    - GIVEN the two related deliberations are reviewed WHEN the plan closes THEN each is unblocked by retained runtime evidence or names the specific missing prerequisite, while the retained provider comparison remains open behind those decisions.
-    - GIVEN all plan tasks are complete WHEN final state is inspected THEN documentation, command behavior, retained runtime evidence, TODO state, progress, and plan status agree without rewriting historical artifacts or implying direct-provider evidence.
+    - GIVEN the retained runtime evidence touched by this plan WHEN final verification runs THEN focused evidence tests, mage check, and Agentera state validation pass without provider credentials.
+    - GIVEN the runtime controls and prefix characterization are satisfied WHEN backlog state is synchronized THEN only their matching TODO items are resolved; direct-provider probes remain open or explicitly deferred.
+    - GIVEN all active plan tasks are complete WHEN the plan closes THEN documentation, retained evidence, TODO state, progress, and plan status agree without expanding into new experiments or deliberations.
   plan: xpsaaraqbw

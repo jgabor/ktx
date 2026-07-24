@@ -12,3 +12,13 @@ record:
     - GIVEN the wrapper owns a session WHEN both integration paths are available THEN the adapter emits no duplicate tool or telemetry evidence.
     - GIVEN global or project installation runs repeatedly WHEN the adapter is refreshed THEN installation is idempotent and reports candidate locations, generated revision, and declared hook coverage without claiming runtime activation.
   plan: abigkdluzd
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit evaluation ses_06d5b9fdfffeouxSP30HUGgS4o
+      recorded_at: 2026-07-24 07:53
+      writer_command: agentera state plan record-evaluation

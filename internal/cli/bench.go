@@ -238,6 +238,8 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Verify retained artifacts, hashes, links, and summary bytes.")
 	fmt.Fprintln(w, "  evidence preflight --spec <path> [--output <path>]")
 	fmt.Fprintln(w, "      Run the no-network gate for bounded OpenAI/OpenCode cache evidence.")
+	fmt.Fprintln(w, "  evidence gemini-preflight --spec <path> [--output <path>]")
+	fmt.Fprintln(w, "      Run the no-network gate for bounded Gemini/OpenCode cache evidence.")
 	fmt.Fprintln(w, "  corpus generate [--output <directory>]")
 	fmt.Fprintln(w, "      Regenerate the deterministic planted-fact corpus.")
 	fmt.Fprintln(w)

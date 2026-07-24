@@ -1,0 +1,15 @@
+id: zsegjjoqqq
+artifact: progress
+record:
+  timestamp: 2026-07-24 16:17
+  type: feat
+  phase: build
+  what: Added docs/cache-evidence-gemini-opencode.md, provider-specific internal/cacheevidence/gemini files, three synthetic fixtures, and retained Gemini capability, proposal, and preflight JSON.
+  context:
+    intent: Retain version-qualified Gemini native and OpenCode-normalized cache evidence without a universal adapter or an unapproved provider request.
+    constraints: No live model call, raw credential, cache resource name, hit ratio, miss inference, isolation claim, tool-call attribution, or change outside the Gemini evidence task.
+    unknowns: Direct Gemini model access remains unavailable because GEMINI_API_KEY is absent. OpenCode Google OAuth metadata is present, but model entitlement and transport behavior remain unverified without an approved request.
+    scope: Gemini-specific cache evidence code, tests, fixtures, documentation, CLI preflight route, capability records, task status, and progress state.
+  discovered: Official generateContent documentation now labels that API legacy beside Interactions, but explicit cachedContents objects remain available only through generateContent v1beta. OpenCode 1.18.4 intentionally leaves explicit CachedContent out-of-band while normalizing cachedContentTokenCount as cache read.
+  verified: build/ktx bench evidence gemini-preflight retained network_activity=none and billable_requests=0 under five-request, five-attempt, 0.025 USD, and two-minute ceilings. Focused Gemini tests passed positive, unavailable, measured-zero, absent, malformed, field-accounting, and five-hash checks; go test ./internal/cacheevidence ./internal/experiment ./internal/cli passed; mage check passed tests, vet, lint, and build; git diff --check passed.
+  next: Task zvbegohemo is complete and ready for independent audit. Any live Gemini or OpenCode request requires a fresh exact preflight and user approval.

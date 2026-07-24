@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "ready": false,
+  "network_activity": "none",
+  "billable_requests": 0,
+  "limits": {
+    "max_native_requests": 5,
+    "max_attempts": 5,
+    "max_spend_usd": 0.025,
+    "max_wall_time": "2m"
+  },
+  "capabilities": [
+    {
+      "name": "direct_gemini_explicit",
+      "source": "Gemini Developer API cachedContents and generateContent REST endpoints",
+      "version": "v1beta; documentation retrieved 2026-07-24",
+      "references": [
+        "https://ai.google.dev/gemini-api/docs/generate-content/caching",
+        "https://ai.google.dev/api/caching",
+        "https://ai.google.dev/api/generate-content",
+        "https://ai.google.dev/gemini-api/docs/troubleshooting",
+        "https://ai.google.dev/gemini-api/docs/pricing"
+      ],
+      "provider": "google",
+      "model": "gemini-2.5-flash",
+      "access": {
+        "state": "unavailable",
+        "credential": "absent",
+        "credential_source": "environment:GEMINI_API_KEY",
+        "credential_type": "api",
+        "model_access": "unverified_without_provider_request",
+        "unavailable_condition": "required api credential from environment:GEMINI_API_KEY is absent"
+      },
+      "native_request_maximum": 3,
+      "attempt_maximum": 3,
+      "spend_maximum_usd": 0.016044799999999998,
+      "wall_time_maximum": "2m",
+      "artifact_destination": ".bench-data/cache-evidence/gemini-opencode-20260724",
+      "redaction_policy": [
+        "omit credentials and authorization headers",
+        "retain only SHA-256 of CachedContent resource names",
+        "omit or SHA-256 sensitive request and correlation identifiers",
+        "retain synthetic prompts only",
+        "keep Gemini-native and OpenCode source records separate"
+      ]
+    },
+    {
+      "name": "opencode_google_gemini",
+      "source": "OpenCode Gemini protocol and step-finish event",
+      "version": "1.18.4 (49c69c5ed3ccf706b61b3febb43c8aaff7f8325e)",
+      "references": [
+        "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/llm/src/protocols/gemini.ts",
+        "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/llm/test/provider/gemini-cache.recorded.test.ts",
+        "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/core/src/session/runner/publish-llm-event.ts"
+      ],
+      "provider": "google",
+      "model": "gemini-2.5-flash",
+      "access": {
+        "state": "credential_present",
+        "credential": "present",
+        "credential_source": "opencode:Google",
+        "credential_type": "oauth",
+        "runtime": "1.18.4",
+        "model_access": "unverified_without_provider_request"
+      },
+      "native_request_maximum": 2,
+      "attempt_maximum": 2,
+      "spend_maximum_usd": 0.0052352,
+      "wall_time_maximum": "2m",
+      "artifact_destination": ".bench-data/cache-evidence/gemini-opencode-20260724",
+      "redaction_policy": [
+        "omit credentials and authorization headers",
+        "retain only SHA-256 of CachedContent resource names",
+        "omit or SHA-256 sensitive request and correlation identifiers",
+        "retain synthetic prompts only",
+        "keep Gemini-native and OpenCode source records separate"
+      ]
+    }
+  ]
+}

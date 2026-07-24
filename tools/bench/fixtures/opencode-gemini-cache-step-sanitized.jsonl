@@ -1,0 +1,1 @@
+{"type":"step_finish","sessionID":"ses_gemini_synthetic_1","part":{"id":"prt_gemini_synthetic_1","sessionID":"ses_gemini_synthetic_1","messageID":"msg_gemini_synthetic_1","type":"step-finish","reason":"stop","provider":"google","model":"gemini-2.5-flash","cost":0.001234,"tokens":{"input":64,"output":12,"reasoning":0,"cache":{"read":4096,"write":0}}}}

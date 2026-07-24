@@ -1,0 +1,37 @@
+{
+  "outcome": "unavailable",
+  "cache_create": {
+    "request": {
+      "model": "models/gemini-2.5-flash",
+      "ttl": "3600s",
+      "retry_attempt": 1,
+      "max_attempts": 1
+    },
+    "response": {
+      "name_sha256": "",
+      "model": "",
+      "create_time": "",
+      "update_time": "",
+      "expire_time": "",
+      "usage_metadata": {}
+    }
+  },
+  "generate": {
+    "request": {
+      "model": "gemini-2.5-flash",
+      "cached_content_name_sha256": "",
+      "max_output_tokens": 64,
+      "retry_attempt": 1,
+      "max_attempts": 1
+    },
+    "response": {
+      "response_id": "",
+      "model_version": "",
+      "usage_metadata": {}
+    }
+  },
+  "error": {
+    "status": "INVALID_ARGUMENT",
+    "message": "synthetic fixture: cached content is below the documented model minimum"
+  }
+}

@@ -1,5 +1,6 @@
-// Package cacheevidence implements bounded, offline gates for provider and
-// OpenCode cache evidence. It never performs provider or model requests.
+// Package cacheevidence implements bounded offline gates and source retention
+// for provider and runtime cache evidence. It never performs provider or model
+// requests.
 package cacheevidence
 
 import (

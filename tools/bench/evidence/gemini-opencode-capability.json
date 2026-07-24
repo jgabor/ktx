@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-07-24",
+  "gemini": {
+    "api_family": "Gemini Developer API generateContent and cachedContents REST v1beta",
+    "model": "gemini-2.5-flash",
+    "explicit_cache_objects": {
+      "create": "POST /v1beta/cachedContents",
+      "identity": "CachedContent.name; retained only as SHA-256",
+      "immutable": [
+        "contents",
+        "tools",
+        "displayName",
+        "model",
+        "systemInstruction",
+        "toolConfig"
+      ],
+      "lifecycle": [
+        "create",
+        "get",
+        "list",
+        "update expiration",
+        "delete",
+        "automatic deletion at expiration"
+      ],
+      "ttl": "caller ttl or expireTime; default one hour when omitted; expireTime always returned",
+      "usage": "CachedContent.usageMetadata.totalTokenCount reports tokens consumed by the cached content"
+    },
+    "generate_usage": {
+      "promptTokenCount": "total effective prompt including cached content",
+      "cachedContentTokenCount": "cached portion of the effective prompt",
+      "candidatesTokenCount": "visible candidate output",
+      "thoughtsTokenCount": "thinking tokens when present",
+      "totalTokenCount": "total request usage"
+    },
+    "eligibility": "explicit cache minimum varies by model; gemini-2.5-flash is 2048 input tokens on the retrieved guide; cached tokens count against token limits",
+    "retry": "REST has no response attempt field; official SDKs retry transient timeouts, network errors, 429, and 5xx with exponential backoff by default; the bounded probe disables retries with one attempt per native request",
+    "references": [
+      "https://ai.google.dev/gemini-api/docs/generate-content/caching",
+      "https://ai.google.dev/api/caching",
+      "https://ai.google.dev/api/generate-content",
+      "https://ai.google.dev/gemini-api/docs/troubleshooting",
+      "https://ai.google.dev/gemini-api/docs/pricing"
+    ]
+  },
+  "opencode": {
+    "version": "1.18.4",
+    "commit": "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+    "semantics": "Gemini protocol maps promptTokenCount minus cachedContentTokenCount to non-cached input, cachedContentTokenCount to cache read, candidatesTokenCount to visible output, and thoughtsTokenCount to reasoning. Explicit CachedContent control is out-of-band and not wired; step-finish has no cache-object identity, TTL, responseId, resolved modelVersion, provider request identity, or retry count.",
+    "references": [
+      "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/llm/src/protocols/gemini.ts",
+      "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/llm/test/provider/gemini-cache.recorded.test.ts",
+      "https://github.com/anomalyco/opencode/blob/49c69c5ed3ccf706b61b3febb43c8aaff7f8325e/packages/core/src/session/runner/publish-llm-event.ts"
+    ]
+  },
+  "evidence_state": {
+    "official_source": "observed from current official documentation on 2026-07-24",
+    "offline_fixtures": "synthetic structural examples; not live provider observations",
+    "live_direct": "unavailable: GEMINI_API_KEY absent",
+    "live_opencode": "not run: Google OAuth metadata and OpenCode 1.18.4 are present, but model entitlement and transport behavior remain unverified without an approved provider request"
+  },
+  "artifact_sha256": {
+    "tools/bench/fixtures/gemini-v1beta-explicit-cache-sanitized.json": "93888cf1af39344960790a347b0d42fced866beb9c8d1897e773dd7e004ae8dd",
+    "tools/bench/fixtures/gemini-v1beta-explicit-cache-unavailable-sanitized.json": "1b3adc2131ee1180724014635941935dece76c10767d336d183f684666d2f1d2",
+    "tools/bench/fixtures/opencode-gemini-cache-step-sanitized.jsonl": "cfefd534f19563e2047cd0e80ed466897fe0bdacdb4248b61fa021f1bf070792",
+    "tools/bench/evidence/gemini-opencode-proposal.json": "fdd003035245a450d4844ddda389e9a99df175dd404b6c9382c6418068770ad7",
+    "tools/bench/evidence/gemini-opencode-preflight.json": "21340693e2dac357ec83095c55a159dd4ec575a727adc2486380f957b8b54840"
+  }
+}

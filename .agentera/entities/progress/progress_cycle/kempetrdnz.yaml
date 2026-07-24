@@ -1,0 +1,15 @@
+id: kempetrdnz
+artifact: progress
+record:
+  timestamp: 2026-07-24 16:27
+  type: fix
+  phase: build
+  what: Rebased the Gemini evidence branch onto current main, retained Anthropic preflight dispatch, and corrected two stale Anthropic fixture SHA-256 expectations exposed by the combined suite.
+  context:
+    intent: Integrate completed Gemini evidence with current Anthropic evidence while preserving provider-specific preflight implementations and all three provider contracts.
+    constraints: Integration conflict only; no provider request, universal adapter, task-status regression, unrelated cleanup, push, or force operation.
+    unknowns: None. The two Anthropic expected hashes predated the committed fixture bytes; the committed artifacts remain unchanged and now have matching retained hashes.
+    scope: Shared cacheevidence package contract comment, Anthropic fixture hash metadata/tests, integration progress, and branch ancestry.
+  discovered: The textual rebase conflict was limited to the package comment. After resolution, the authoritative combined test exposed two Anthropic hash expectations that did not match the committed formatted fixture bytes on main.
+  verified: go test ./internal/cacheevidence ./internal/experiment ./internal/cli -count=1 passed. Provider-focused OpenAI, Anthropic, and Gemini preflight/normalization tests passed. mage check passed tests, vet, lint, and build with its existing non-failing stale sibling-worktree warning.
+  next: Keep Gemini task zvbegohemo complete; this branch is ready for integration after final state and diff validation.

@@ -150,8 +150,8 @@ func TestTrackedAnthropicEvidenceIsOfflineAndFixtureHashesMatch(t *testing.T) {
 	}
 
 	wants := map[string]string{
-		"anthropic-messages-cache-write-sanitized.json":       "99162156a13be904f37d975165017daf4fb0d9cfaee5421ff24ad56d3c39a383",
-		"anthropic-messages-cache-unavailable-sanitized.json": "544ea4eca874b0793a178e0b0bd5b8cb1c80e03a486a2468804dea00a489477c",
+		"anthropic-messages-cache-write-sanitized.json":       "87f432b1ef197bdcc9edae629d26aab4490ae157e5382e04f677cf50b44e8fe8",
+		"anthropic-messages-cache-unavailable-sanitized.json": "ce7cca1b50302669570d5dc330abbd0c053553956d7986efa7e2b30e6946c77b",
 		"opencode-anthropic-cache-step-sanitized.jsonl":       "4de09e22c7d515831967c518464181c4cf632c099f5e1f70026555110ddc91b7",
 	}
 	for name, want := range wants {

@@ -6,7 +6,7 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-  status: complete
+  status: pending
   acceptance:
     - GIVEN an eligible OpenCode runtime and model path WHEN controls run THEN retained evidence covers same-prefix/same-key, same-prefix/different-key when configurable, changed-prefix/same-key when configurable, cold-fill-repeat, and one-request/multi-request cases.
     - GIVEN a controllable runtime key, prefix, or request-count dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, request count, runtime version, model identity, and field completeness.
@@ -14,3 +14,13 @@ record:
     - GIVEN the runtime reports reuse, creation, no reuse, or no applicable field WHEN a result is classified THEN cache reuse, cache fill, no reported reuse, ineligible, and unknown remain distinct without a generic hit ratio or provider-internal miss claim.
     - GIVEN supported and unsupported offline cases WHEN verification runs THEN every testable runtime control dimension has at least one accepted case and one rejected or unavailable case.
   plan: xpsaaraqbw
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Changed-prompt opposite was not executed; cold-fill-repeat and runtime-visible one/multi-step coverage were incomplete. Ignored raw artifacts made live hashes/redaction nonportable, and regression tests did not derive each live classification from retained measurements. Retain a bounded changed-prompt observation, sanitized tracked source excerpts/config, and measurement-linked classifications; keep native request count unavailable.
+    provenance:
+      attempt_id: audit-1
+      source: Audit evaluation of runtime key/prefix controls
+      recorded_at: 2026-07-24 17:18
+      writer_command: agentera state plan record-evaluation

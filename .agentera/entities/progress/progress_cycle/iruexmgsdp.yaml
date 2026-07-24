@@ -1,0 +1,13 @@
+id: iruexmgsdp
+artifact: progress
+record:
+  timestamp: 2026-07-24 19:07
+  type: fix
+  phase: build
+  what: Changed internal/experiment cache capability resolution so OpenCode runs remain observed-only, aligned methodology and docs with retained runtime reuse evidence, and added pre-attempt isolation rejection coverage.
+  context:
+    intent: Limit benchmark claims to retained OpenCode runtime-reported reuse while preserving historical evidence validation.
+    constraints: No direct-provider work, experiments, additional models, backlog synchronization, or deliberation.
+    scope: Cache capability resolution and tests, cache-aware methodology metadata, README, and cache evidence documentation.
+  verified: Focused cache evidence and experiment tests, mage check, marker and secret review, and git diff --check passed; no live calls.
+  next: Run the plan's final evidence-state synchronization task; unavailable direct-provider and isolation evidence remains out of scope.

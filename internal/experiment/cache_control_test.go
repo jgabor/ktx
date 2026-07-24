@@ -17,14 +17,13 @@ func TestCacheCapabilityAdapterSeam(t *testing.T) {
 	}
 }
 
-func TestOpenCodeCacheCapabilityRequiresExactSupportedVersion(t *testing.T) {
+func TestRuntimeVersionNormalization(t *testing.T) {
 	tests := []struct {
-		name, raw     string
-		wantVersion   string
-		wantSupported bool
+		name, raw   string
+		wantVersion string
 	}{
-		{name: "exact", raw: "1.18.0", wantVersion: "1.18.0", wantSupported: true},
-		{name: "prefixed", raw: "opencode v1.18.0", wantVersion: "1.18.0", wantSupported: true},
+		{name: "exact", raw: "1.18.0", wantVersion: "1.18.0"},
+		{name: "prefixed", raw: "opencode v1.18.0", wantVersion: "1.18.0"},
 		{name: "prior pinned unsupported", raw: "1.17.15", wantVersion: "1.17.15"},
 		{name: "unsupported", raw: "1.17.20", wantVersion: "1.17.20"},
 		{name: "malformed", raw: "version banana", wantVersion: "version banana"},
@@ -36,20 +35,24 @@ func TestOpenCodeCacheCapabilityRequiresExactSupportedVersion(t *testing.T) {
 			if identities["opencode"] != test.wantVersion {
 				t.Fatalf("normalized version = %q", identities["opencode"])
 			}
-			capability := OpenCodeCacheCapability(CacheCapabilityRequest{Runtime: "opencode", RuntimeVersion: identities["opencode"], Provider: "openai", Model: "test"})
-			if capability.Supported != test.wantSupported {
-				t.Fatalf("capability = %#v", capability)
-			}
 		})
 	}
 }
 
-func TestCacheControlVersionGateModes(t *testing.T) {
-	supported, err := resolveCacheControl("auto", "experiment", CacheCapabilityRequest{Runtime: "opencode", RuntimeVersion: "1.18.0", Provider: "openai", Model: "test"}, nil)
-	if err != nil || supported.mode != "isolated" {
-		t.Fatalf("supported = %#v, err=%v", supported, err)
+func TestOpenCodeCacheCapabilityKeepsIsolationUnavailable(t *testing.T) {
+	for _, request := range []CacheCapabilityRequest{
+		{Runtime: "opencode", RuntimeVersion: "1.18.0", Provider: "openai", Model: "test"},
+		{Runtime: "opencode", RuntimeVersion: "1.18.0", Provider: "azure", Model: "test"},
+		{Runtime: "opencode", RuntimeVersion: "1.18.4", Provider: "opencode", Model: "big-pickle"},
+	} {
+		if capability := OpenCodeCacheCapability(request); capability.Supported || capability.Source != "unavailable" {
+			t.Fatalf("capability for %#v = %#v", request, capability)
+		}
 	}
-	for _, version := range []string{"1.17.15", "1.17.20", "version banana", "unknown"} {
+}
+
+func TestCacheControlModesDoNotPromoteHistoricalMetadata(t *testing.T) {
+	for _, version := range []string{"1.18.0", "1.18.4", "1.17.15", "version banana", "unknown"} {
 		auto, err := resolveCacheControl("auto", "experiment", CacheCapabilityRequest{Runtime: "opencode", RuntimeVersion: version, Provider: "openai", Model: "test"}, nil)
 		if err != nil || auto.mode != "observed" || auto.source != "unavailable" {
 			t.Fatalf("auto version %q = %#v, err=%v", version, auto, err)

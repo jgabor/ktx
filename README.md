@@ -97,7 +97,7 @@ ktx bench compare \
   --variant high \
   --task-file tools/bench/tasks/ephemeral-midfact-v1.toml \
   --methodology tools/bench/methodology-v5-cache-aware.yaml \
-  --cache-control isolated \
+  --cache-control observed \
   --warmup 1 \
   --rounds 3
 ```

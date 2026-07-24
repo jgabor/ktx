@@ -54,16 +54,16 @@ cache_control:
     harness imposes no delay), model, provider, variant,
     and runtime version. A raw namespace may exist only in ephemeral generated
     runtime configuration or command state.
-  opencode_1_18_0: |
-    OpenCode config accepts arbitrary per-model options. Request preparation
-    merges model options after runtime defaults, so model.options.promptCacheKey
-    can override the session-derived default. provider.options.setCacheKey only
-    sets promptCacheKey to the OpenCode session id and does not isolate arms.
-    The built-in adapter therefore enables fixed-key isolation only for provider
-    paths whose promptCacheKey support is confirmed and only when the inspected,
-    normalized benchmark runtime version is exactly 1.18.0. Unknown, malformed,
-    custom, and other OpenCode versions remain observed under auto and reject an
-    explicit isolated request before a paid attempt.
+  opencode_runtime: |
+    OpenCode config accepts arbitrary per-model options. In 1.18.0, request
+    preparation merges model options after runtime defaults, so
+    model.options.promptCacheKey can override the session-derived default.
+    provider.options.setCacheKey only sets promptCacheKey to the OpenCode session
+    id. This source-level configurability does not establish runtime-managed arm
+    separation or provider-internal isolation. No built-in OpenCode adapter is
+    currently confirmed: auto selects observed, and explicit isolated requests
+    fail before an agent attempt. Historical isolated metadata remains
+    validation input only and cannot enable a new run.
 
 computation: |
   Phase distributions use evaluated attempts from that phase. Headline and

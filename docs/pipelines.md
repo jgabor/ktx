@@ -639,14 +639,14 @@ adapter, exists only in ephemeral runtime configuration/command state.
 `idle_gap_ms` records the intentional harness delay and is zero when no delay is
 imposed; it is not inferred from orchestration overhead.
 
-For OpenCode 1.18.0, `provider.options.setCacheKey=true` is not arm isolation:
-source sets `promptCacheKey` to the OpenCode session id. Source also confirms
-that arbitrary per-model options are merged after that default, allowing a
-generated `model.options.promptCacheKey` override. ktx enables this adapter only
-for provider paths with confirmed support for that request option and only when
-the inspected image reports OpenCode exactly `1.18.0`. Other, unknown, or
-malformed runtime versions and other providers remain observed-only under
-`auto`; explicit isolation fails before an agent attempt.
+No built-in OpenCode runtime/provider adapter currently establishes arm
+separation or provider-internal isolation. OpenCode 1.18.0 source shows that
+`provider.options.setCacheKey=true` derives `promptCacheKey` from the OpenCode
+session id and that per-model options can override that value, but source-level
+configurability alone does not prove effective separation. `auto` therefore
+records OpenCode runs as observed-only, and explicit isolation fails before an
+agent attempt. Historical retained artifacts with isolated metadata remain
+validatable evidence; their labels do not enable isolation for a new run.
 
 Schema-v3 cache-aware summaries expose distributions for each phase while
 keeping `measured_warm` as the headline, a cold-to-warm estimated-cost rebuild

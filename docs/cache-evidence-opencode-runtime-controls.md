@@ -5,6 +5,11 @@ This evidence path uses OpenCode 1.18.4 and the free
 not call a provider directly, export authentication, or treat OpenCode session
 routing as provider cache isolation.
 
+The supported claim is only: **OpenCode runtime reported cache reuse in these
+retained observations.** Runtime-managed separation, provider-internal
+isolation, provider hit/miss, cache effectiveness, and generalization to other
+versions, models, or runs are unavailable.
+
 The original retained no-call preflight is
 `tools/bench/evidence/opencode-runtime-cache-controls-preflight.json`. It fixed
 four OpenCode invocations and four invocation attempts, zero intentional

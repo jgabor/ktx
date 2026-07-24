@@ -5,7 +5,7 @@ record:
   depends_on:
     - lmabuidega
     - cjanyznhqa
-  status: pending
+  status: complete
   acceptance:
     - GIVEN retained runtime controls WHEN claims are adjudicated THEN the supported claim is limited to observed runtime-reported reuse; runtime-managed separation and provider-internal isolation remain unavailable unless already proven by authoritative source and controls.
     - GIVEN documentation, capability metadata, and retained evidence WHEN reviewed THEN observed reuse, unavailable fields, and historical caveats agree without direct-provider or product-wide claims.

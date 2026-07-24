@@ -142,7 +142,9 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	auth := writeFixture("auth.json", "{}\n")
 
 	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "opencode v1.18.0", fullStepUsage: true}
-	runner := &Runner{Executor: fake, Now: func() time.Time { return time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC) }, PID: 29, ResolvePrice: testPriceResolver}
+	runner := &Runner{Executor: fake, Now: func() time.Time { return time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC) }, PID: 29, ResolvePrice: testPriceResolver, ResolveCacheCapability: func(CacheCapabilityRequest) CacheCapability {
+		return CacheCapability{Supported: true, Source: "runtime_adapter"}
+	}}
 	dir, summary, code, err := runner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", Variant: "high", TaskFile: task, TargetValid: 2, MaxAttempts: 8, Warmup: 1, CacheControl: "auto",
 		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "cache-aware",
@@ -248,7 +250,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		t.Fatalf("validation report=%#v err=%v", report, err)
 	}
 
-	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.17.15"}
+	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.0"}
 	observedRunner := &Runner{Executor: observedFake, Now: runner.Now, PID: 30, ResolvePrice: testPriceResolver}
 	observedDir, _, code, err := observedRunner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", TaskFile: task, TargetValid: 1, MaxAttempts: 6, Warmup: 1, CacheControl: "auto",
@@ -274,6 +276,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		name, identity string
 		omit           bool
 	}{
+		{name: "historical_version", identity: "1.18.0"},
 		{name: "unsupported_version", identity: "1.17.15"},
 		{name: "unsupported_newer", identity: "1.17.20"},
 		{name: "malformed_version", identity: "version banana"},

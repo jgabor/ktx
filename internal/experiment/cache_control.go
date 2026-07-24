@@ -31,19 +31,10 @@ type resolvedCacheControl struct {
 	hashes map[string]string
 }
 
-func OpenCodeCacheCapability(request CacheCapabilityRequest) CacheCapability {
-	// OpenCode 1.18.0 merges arbitrary per-model options after its
-	// session-derived defaults. Restrict the built-in adapter to provider paths
-	// whose OpenCode source explicitly uses promptCacheKey.
-	if request.Runtime != "opencode" || request.RuntimeVersion != "1.18.0" {
-		return CacheCapability{Source: "unavailable"}
-	}
-	switch request.Provider {
-	case "openai", "azure":
-		return CacheCapability{Supported: true, Source: "runtime_adapter"}
-	default:
-		return CacheCapability{Source: "unavailable"}
-	}
+func OpenCodeCacheCapability(CacheCapabilityRequest) CacheCapability {
+	// Retained OpenCode observations report cache reuse, but do not establish
+	// runtime-managed separation or provider-internal cache isolation.
+	return CacheCapability{Source: "unavailable"}
 }
 
 func resolveCacheControl(requested, experimentID string, request CacheCapabilityRequest, resolver CacheCapabilityResolver) (resolvedCacheControl, error) {

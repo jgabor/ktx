@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "completed_at": "2026-07-24T15:02:47Z",
+  "status": "partial_success_bound_exhausted",
+  "source": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "runtime_commit": "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+    "image": "ktx-bench:opencode-1.18.4",
+    "image_id": "sha256:d40f07d48010c5fbd4a5c9a562a40bffb126042613cb8b14a2d0297b052139a5",
+    "model": "opencode/big-pickle",
+    "evidence_kind": "opencode_runtime_only"
+  },
+  "bounds": {
+    "opencode_invocations": { "actual": 4, "maximum": 4 },
+    "invocation_attempts": { "actual": 4, "maximum": 4 },
+    "intentional_retries": { "actual": 0, "maximum": 0 },
+    "startup_path_corrections": 1,
+    "spend_usd": { "actual": 0, "maximum": 0 },
+    "wall_time_seconds": { "actual": 21, "maximum": 300 },
+    "successful_invocations": 2,
+    "model_steps": 2
+  },
+  "commands": {
+    "pre_network_launcher_check": "DEST=\"$PWD/.bench-data/cache-evidence/opencode-runtime-controls-20260724\"; timeout --signal=TERM 300s bash \"$DEST/config/run.sh\"",
+    "first_live": "export DEST=\"$PWD/.bench-data/cache-evidence/opencode-runtime-controls-20260724\"; timeout --signal=TERM 300s bash \"$DEST/config/run.sh\"",
+    "remaining_with_config_state_fix": "export DEST=\"$PWD/.bench-data/cache-evidence/opencode-runtime-controls-20260724\"; timeout --signal=TERM 299s bash \"$DEST/config/run-remaining.sh\""
+  },
+  "observations": [
+    {
+      "ordinal": 1,
+      "case": "startup unavailable",
+      "exit_status": 1,
+      "elapsed_seconds": 1,
+      "requested_turn": 0,
+      "observed_model_steps": 0,
+      "runtime_version": "1.18.4",
+      "model": "opencode/big-pickle",
+      "session_state": "unknown",
+      "prompt_sha256": "813a9772fd5bb4ccadd850bca203c9941afbf7be0e5e64d5e8b74a407a54c43f",
+      "cache_outcomes": ["unknown"],
+      "field_completeness": {
+        "uncached_input": "unknown",
+        "cache_read": "unknown",
+        "cache_write": "unknown",
+        "output": "unknown",
+        "cost": "unknown"
+      },
+      "unavailable_condition": "OpenCode tried to write /home/node/.config/opencode/.gitignore on the read-only container root before creating a session or model step"
+    },
+    {
+      "ordinal": 2,
+      "case": "session-a cold observation",
+      "exit_status": 0,
+      "elapsed_seconds": 5,
+      "requested_turn": 1,
+      "observed_model_steps": 1,
+      "runtime_version": "1.18.4",
+      "model": "opencode/big-pickle",
+      "session_state": "measured",
+      "session_sha256": "3f2950682ffdb073e97c7816ac2bc949764973b123714eadd726e169b95a004d",
+      "prompt_sha256": "813a9772fd5bb4ccadd850bca203c9941afbf7be0e5e64d5e8b74a407a54c43f",
+      "cache_outcomes": ["no_reported_reuse"],
+      "measurements": {
+        "uncached_input": 7855,
+        "cache_read": 0,
+        "cache_write": 0,
+        "output": 6,
+        "reasoning": 12,
+        "cost_usd": 0
+      },
+      "field_completeness": {
+        "uncached_input": "measured",
+        "cache_read": "measured",
+        "cache_write": "measured",
+        "output": "measured",
+        "cost": "measured"
+      }
+    },
+    {
+      "ordinal": 3,
+      "case": "session-a repeated submitted prompt",
+      "exit_status": 0,
+      "elapsed_seconds": 13,
+      "requested_turn": 2,
+      "observed_model_steps": 1,
+      "runtime_version": "1.18.4",
+      "model": "opencode/big-pickle",
+      "session_state": "measured",
+      "session_sha256": "3f2950682ffdb073e97c7816ac2bc949764973b123714eadd726e169b95a004d",
+      "prompt_sha256": "813a9772fd5bb4ccadd850bca203c9941afbf7be0e5e64d5e8b74a407a54c43f",
+      "cache_outcomes": ["cache_reuse"],
+      "measurements": {
+        "uncached_input": 6380,
+        "cache_read": 7808,
+        "cache_write": 0,
+        "output": 6,
+        "reasoning": 12,
+        "cost_usd": 0
+      },
+      "field_completeness": {
+        "uncached_input": "measured",
+        "cache_read": "measured",
+        "cache_write": "measured",
+        "output": "measured",
+        "cost": "measured"
+      }
+    },
+    {
+      "ordinal": 4,
+      "case": "session-b same submitted prompt",
+      "exit_status": 1,
+      "elapsed_seconds": 2,
+      "requested_turn": 1,
+      "observed_model_steps": 0,
+      "runtime_version": "1.18.4",
+      "model": "opencode/big-pickle",
+      "session_state": "measured",
+      "session_sha256": "a2f63eb187c4b55063288c2376f8ce87c4c80a1b14585bd8fcf2373eff247adb",
+      "prompt_sha256": "813a9772fd5bb4ccadd850bca203c9941afbf7be0e5e64d5e8b74a407a54c43f",
+      "cache_outcomes": ["ineligible"],
+      "field_completeness": {
+        "uncached_input": "unknown",
+        "cache_read": "unknown",
+        "cache_write": "unknown",
+        "output": "unknown",
+        "cost": "unknown"
+      },
+      "unavailable_condition": "OpenCode returned non-retryable 401 No provider available before a model step; no token or cache field applies"
+    }
+  ],
+  "controls": [
+    {
+      "dimension": "runtime_session_key",
+      "accepted_cases": [
+        {
+          "case": "ordinals 2 and 3 retain the same hashed OpenCode session identifier in execution order"
+        },
+        {
+          "case": "ordinal 4 retains a distinct hashed OpenCode session identifier"
+        }
+      ],
+      "unavailable_cases": [
+        {
+          "case": "step-finish does not expose a cache key, cache namespace, or x-opencode-session request header; session identity is runtime routing evidence only"
+        }
+      ]
+    },
+    {
+      "dimension": "submitted_user_prefix",
+      "accepted_cases": [
+        {
+          "case": "ordinals 2, 3, and 4 retain the same synthetic prompt SHA-256"
+        },
+        {
+          "case": "a distinct synthetic prompt is retained only as prompt-b SHA-256 b8facea9ebcf6bc74fced9642b05c679f2a81e7c013761ec41aba677da298b84"
+        }
+      ],
+      "unavailable_cases": [
+        {
+          "case": "the changed prompt was not sent after the four-invocation ceiling was exhausted; no changed-prompt token outcome is inferred"
+        }
+      ]
+    },
+    {
+      "dimension": "provider_visible_prefix",
+      "accepted_cases": [
+        {
+          "case": "pinned request-preparation source confirms system, history, and user messages are composed for each turn"
+        }
+      ],
+      "unavailable_cases": [
+        {
+          "case": "OpenCode JSONL does not expose or preserve the composed provider-visible prefix or explicit breakpoint"
+        },
+        {
+          "case": "ordinal 3 necessarily includes prior session history, so equal submitted prompt hashes are not asserted to be equal provider-visible prefixes"
+        }
+      ]
+    },
+    {
+      "dimension": "request_count",
+      "accepted_cases": [
+        {
+          "case": "ordinal 2 is requested turn 1 and ordinals 2-3 form an ordered two-turn same-session sequence"
+        },
+        {
+          "case": "each successful invocation contains exactly one observed model_step"
+        }
+      ],
+      "unavailable_cases": [
+        {
+          "case": "native provider request count and retry relationships are unavailable in step-finish"
+        },
+        {
+          "case": "ordinals 1 and 4 produced no model step, so requested turns are not converted into native request counts"
+        }
+      ]
+    },
+    {
+      "dimension": "cache_classification",
+      "accepted_cases": [
+        {
+          "case": "ordinal 2 measured cache_read zero and is no_reported_reuse"
+        },
+        { "case": "ordinal 3 measured cache_read 7808 and is cache_reuse" }
+      ],
+      "unavailable_cases": [
+        {
+          "case": "no live model step reported positive cache_write, so no live cache_fill is claimed"
+        },
+        {
+          "case": "startup absence is unknown and the no-provider model path is ineligible; neither is a provider-internal miss"
+        }
+      ]
+    }
+  ],
+  "classification_cases": [
+    {
+      "input": { "cache_read": 1, "cache_write": 0, "eligible": true },
+      "expected": "cache_reuse"
+    },
+    {
+      "input": { "cache_read": 0, "cache_write": 1, "eligible": true },
+      "expected": "cache_fill"
+    },
+    {
+      "input": { "cache_read": 0, "cache_write": 0, "eligible": true },
+      "expected": "no_reported_reuse"
+    },
+    {
+      "input": { "cache_read": null, "cache_write": null, "eligible": false },
+      "expected": "ineligible"
+    },
+    {
+      "input": { "cache_read": null, "cache_write": null, "eligible": null },
+      "expected": "unknown"
+    }
+  ],
+  "ignored_artifact_root": ".bench-data/cache-evidence/opencode-runtime-controls-20260724",
+  "artifacts": [
+    {
+      "path": "config/opencode.json",
+      "sha256": "115832c7fc08f1abbc2a9b02a31bf9a25ee6913b8916d65c3d938a5bb0761b16"
+    },
+    {
+      "path": "config/prompt-a.txt",
+      "sha256": "813a9772fd5bb4ccadd850bca203c9941afbf7be0e5e64d5e8b74a407a54c43f"
+    },
+    {
+      "path": "config/prompt-b.txt",
+      "sha256": "b8facea9ebcf6bc74fced9642b05c679f2a81e7c013761ec41aba677da298b84"
+    },
+    {
+      "path": "config/run.sh",
+      "sha256": "77ac65ef3074513cccf75f88e5a4c6bcfaceeff738bc9c45d887b9cfa75833bf"
+    },
+    {
+      "path": "config/run-remaining.sh",
+      "sha256": "8d0076869bb73079f64d9bea892ab34550cc5feb859da38e456496fce927c8c3"
+    },
+    {
+      "path": "raw/invocation-1.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "raw/invocation-1.stderr",
+      "sha256": "f04689ef435d95731a2779f61f1f8a95ce2b0cef173405234eb82ecf0c8b3c70"
+    },
+    {
+      "path": "raw/invocation-2.jsonl",
+      "sha256": "e448c3dd27bd212798f43f4dff38765bf38b3b9a45d7fbb4883bd40e6622f6c7"
+    },
+    {
+      "path": "raw/invocation-2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "raw/invocation-3.jsonl",
+      "sha256": "e4ee70240740509f590f89277f7a1380b97f9d85e7f87987742dd71cba272994"
+    },
+    {
+      "path": "raw/invocation-3.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "raw/invocation-4.jsonl",
+      "sha256": "c40f018274305db1f2b7c1e9c9f3da0f8ae7038130c17d97d58944302851a8d3"
+    },
+    {
+      "path": "raw/invocation-4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "raw/invocations.tsv",
+      "sha256": "98d3cd0ae1ebcf9c9b75c7ce5e3465c1542489b75590e407ed45381ea7ace375"
+    }
+  ],
+  "redaction": {
+    "scope": ["raw"],
+    "command": "rg -n '(Authorization:|Bearer[[:space:]]+[A-Za-z0-9._-]{8,}|\"access\"[[:space:]]*:[[:space:]]*\"|\"refresh\"[[:space:]]*:[[:space:]]*\"|sk-[A-Za-z0-9]|OPENCODE_API_KEY=)' .bench-data/cache-evidence/opencode-runtime-controls-20260724/raw",
+    "result": "pass",
+    "auth_mode": "read_only",
+    "credential_values_retained": false,
+    "raw_keys_or_namespaces_retained": false,
+    "synthetic_prompts_only": true
+  },
+  "claim_limits": [
+    "The positive 7808 cache-read observation is runtime-reported cache reuse, not proof of provider cache-key isolation",
+    "The cold zero is no reported reuse, not a provider-internal miss",
+    "No generic hit ratio is calculated",
+    "No provider-visible prefix, breakpoint, cache key, native request count, provider request identity, or retry relationship is inferred",
+    "The four-invocation ceiling is exhausted; the changed submitted-prompt and successful separate-session outcomes remain unavailable"
+  ]
+}

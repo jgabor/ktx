@@ -1,0 +1,16 @@
+id: pvaqnfbwod
+artifact: progress
+record:
+  timestamp: 2026-07-24 17:08
+  type: test
+  phase: build
+  what: Added tools/bench/evidence/opencode-runtime-cache-controls.json and its no-call preflight for four OpenCode 1.18.4 invocations with opencode/big-pickle. Two same-session turns reported cache_read 0 then 7808; one startup path failure and one fresh-session No provider available result exhausted the bound. internal/cacheevidence/runtime_controls_test.go verifies classifications, hashes, redaction, accepted cases, and explicit unavailable controls.
+  context:
+    intent: Execute the runtime-only key, prefix, cold-repeat, and request-count matrix without direct-provider access, credentials in tracked artifacts, spend, retries, or provider-internal cache claims.
+    constraints: Runtime-provided OpenCode data only; OpenCode 1.18.4; opencode/big-pickle; four-invocation ceiling; zero spend; no direct-provider calls, token export, API keys in artifacts, generic hit ratio, or provider isolation claim.
+    unknowns: Provider-visible composed prefix and cache key remain unexposed. Fresh-session model availability was not stable within the exhausted bound.
+    scope: Runtime cache-control documentation, tracked preflight and normalized evidence, ignored raw artifact hashes, focused offline regression coverage, and plan/progress entities.
+  inspiration: Active plan task nfusgeryyh and the runtime-only scope correction.
+  discovered: OpenCode also writes /home/node/.config/opencode at startup. After that path was made writable, the same-session repeat reported cache_read 7808. The fresh-session opposite returned non-retryable No provider available before a model step.
+  verified: mage check, mage replayFixture, mage opencodeTelemetryFixture, focused cache-evidence tests, JSON parsing, artifact hash/redaction checks, and git diff --check passed. The first mage check lint failed only from stale deleted-sibling paths in golangci-lint cache; cache clean plus rerun passed with 0 issues.
+  next: Keep separate-session success, changed submitted prompt, provider-visible prefix, cache key/breakpoint, native request count, and retry relationships unavailable until a new bounded task explicitly permits more observations.

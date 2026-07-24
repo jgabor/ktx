@@ -6,7 +6,7 @@ record:
     - crdjvruhmo
     - atauywjlaz
     - zvbegohemo
-  status: pending
+  status: complete
   acceptance:
     - GIVEN an eligible OpenCode runtime and model path WHEN controls run THEN retained evidence covers same-prefix/same-key, same-prefix/different-key when configurable, changed-prefix/same-key when configurable, cold-fill-repeat, and one-request/multi-request cases.
     - GIVEN a controllable runtime key, prefix, or request-count dimension and its expected opposite WHEN evidence is reviewed THEN retained positive and negative cases identify execution order, request count, runtime version, model identity, and field completeness.

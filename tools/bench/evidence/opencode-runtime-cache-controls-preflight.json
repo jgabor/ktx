@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "published_at": "2026-07-24T14:56:33Z",
+  "status": "ready",
+  "network_activity": "none",
+  "model_calls": 0,
+  "source": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "image": "ktx-bench:opencode-1.18.4",
+    "image_id": "sha256:d40f07d48010c5fbd4a5c9a562a40bffb126042613cb8b14a2d0297b052139a5",
+    "model": "opencode/big-pickle",
+    "credential_check": "OPENCODE_API_KEY presence only; value not read or retained",
+    "runtime_state_check": "writable with network disabled: /home/node/.local/share/opencode/repos and /home/node/.local/state/opencode"
+  },
+  "bounds": {
+    "opencode_invocations": { "actual_before_live": 0, "maximum": 4 },
+    "invocation_attempts": { "actual_before_live": 0, "maximum": 4 },
+    "intentional_retries": { "actual_before_live": 0, "maximum": 0 },
+    "spend_usd": { "actual_before_live": 0, "maximum": 0 },
+    "wall_time_seconds": { "actual_before_live": 0, "maximum": 300 },
+    "per_invocation_timeout_seconds": 55
+  },
+  "invocation_plan": [
+    {
+      "ordinal": 1,
+      "case": "session-a cold fill",
+      "session": "new",
+      "prompt": "stable-a"
+    },
+    {
+      "ordinal": 2,
+      "case": "session-a changed prompt",
+      "session": "resume session-a",
+      "prompt": "changed-b"
+    },
+    {
+      "ordinal": 3,
+      "case": "session-a repeated prompt",
+      "session": "resume session-a",
+      "prompt": "stable-a"
+    },
+    {
+      "ordinal": 4,
+      "case": "session-b same prompt",
+      "session": "new",
+      "prompt": "stable-a"
+    }
+  ],
+  "artifact_destination": ".bench-data/cache-evidence/opencode-runtime-controls-20260724",
+  "live_command": "export DEST=\"$PWD/.bench-data/cache-evidence/opencode-runtime-controls-20260724\"; timeout --signal=TERM 300s bash \"$DEST/config/run.sh\"",
+  "redaction_policy": [
+    "mount or pass authentication read-only and never inspect credential values",
+    "retain raw OpenCode JSONL and stderr only below the ignored artifact destination",
+    "retain prompt and runtime session identifiers only as SHA-256 in tracked evidence",
+    "omit authorization headers, credential values, raw cache keys, and namespaces",
+    "use synthetic prompts only",
+    "retain normalized evidence separately from raw OpenCode output"
+  ],
+  "claim_limits": [
+    "OpenCode model steps are not native provider request counts",
+    "OpenCode does not expose the provider-visible composed prefix or a cache key in step-finish",
+    "session continuity is runtime routing or key-partition evidence, not provider cache isolation",
+    "aggregate token movement cannot supply an unavailable control or provider-internal miss reason"
+  ]
+}

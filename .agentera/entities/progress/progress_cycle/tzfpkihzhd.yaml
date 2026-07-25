@@ -1,0 +1,15 @@
+id: tzfpkihzhd
+artifact: progress
+record:
+  timestamp: 2026-07-25 06:33
+  type: test
+  phase: audit
+  what: Retained and validated the operator-approved methodology-v5 runtime-telemetry comparison for OpenCode, with all cold observation, warmup, and measured-warm evidence preserved separately for passthrough and conservative compression.
+  context:
+    intent: Execute only the finite approved runtime workload, preserve runtime identity and evidence provenance, and report cache, cost, quality, setup, and break-even evidence without combining source classes.
+    constraints: Runtime-only OpenCode collection; fixed model, variant, task, pipelines, observed cache mode, three measured rounds, ten benchmark attempts, zero retries, and a 0.50 USD price-derived approval ceiling. No direct-provider calls or provider-internal cache claims.
+    unknowns: Runtime-reported costs are literal zero but do not explain billing semantics. Runtime cache token observations do not establish provider request boundaries, hits, misses, fills, isolation, or prefix composition.
+    scope: .bench-data/runtime-telemetry-v5-luna-high-20260725-a0c268a retained experiment plus typed progress, TODO, and plan-task state.
+  discovered: Ten benchmark attempts produced twenty runtime-visible model steps, two per attempt. All attempts completed with full quality; the candidate reduced the total price-derived estimate while observed cache-read values varied and cache-write remained zero.
+  verified: ktx bench validate reported valid=true, all ten attempt checks valid, target counts baseline=3 and candidate=3, no methodology reasons, and summary_byte_match=true. Runtime identity was OpenCode 1.18.0. Price-derived total was 0.167186 USD versus the approved 0.50 USD ceiling; runtime-reported total was 0 USD. Setup estimates were baseline 0.055148 USD and candidate 0.013600 USD; break-even occurred on measured turn one.
+  next: Use this retained experiment in evidence aggregation and savings-attribution work. No retry or product-contract change is required for this task.

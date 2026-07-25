@@ -4,7 +4,7 @@ record:
   name: Retain the runtime-telemetry comparison
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN an estimated-costed manifest naming a finite runtime, model, provider, task corpus, round count, and setup topology WHEN paid execution is about to begin THEN explicit operator approval exists and the workload cannot expand without renewed approval.
     - GIVEN the approved manifest WHEN the comparison completes THEN every prescribed setup and measured attempt is retained with runtime and identity provenance sufficient for independent validation.

@@ -11,12 +11,12 @@ record:
     - GIVEN the deliberation outcome WHEN project memory is synchronized THEN a supported choice resolves the question and unblocks only selected work, or insufficient evidence preserves the question and adds one bounded evidence follow-up.
   plan: extlbalndx
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: ARCHITECTURE.md:90,98,102,110 still describes layers/content classification as router behavior after metadata-only decision; verify with grep -nE 'taxonomy the router classifies by|classifies content|content-type profile selection not yet|layers -.-> C' ARCHITECTURE.md
     provenance:
-      attempt_id: router-taxonomy-audit-1
-      source: "orchestrate audit: router taxonomy synchronization"
-      recorded_at: 2026-07-25 06:02
+      attempt_id: router-taxonomy-audit-2
+      source: "orchestrate audit: corrected router taxonomy synchronization"
+      recorded_at: 2026-07-25 06:05
       writer_command: agentera state plan record-evaluation

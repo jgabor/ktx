@@ -87,7 +87,7 @@ Two steps in the loop have internal structure worth seeing on their own. Classif
 
 ```mermaid
 flowchart LR
-  subgraph layers["Five layers — kinds of context waste<br/>(taxonomy the router classifies by; not code modules)"]
+  subgraph layers["Five layers — conceptual context-waste categories<br/>(not router inputs or code modules)"]
     L1["L1 Shell — command stdout and stderr"]
     L2["L2 Tool — large tool and MCP payloads"]
     L3["L3 Code — file reads, diffs, dumps"]
@@ -95,11 +95,12 @@ flowchart LR
     L5["L5 Memory — history, cross-session carry"]
   end
 
-  C["Router<br/>classifies content,<br/>selects one profile"]
+  RM["Supported route metadata<br/>tool name, command prefix,<br/>subcommand, exit status"]
+  C["Router<br/>evaluates ordered rules;<br/>first match or default"]
 
   subgraph profiles["Profiles — named stage lists in ktx.toml"]
     P0["pipeline.default<br/>passthrough when no ktx.toml exists"]
-    PX["pipeline.shell / tool / code /<br/>instructions / session<br/>(content-type profile selection not yet<br/>specified; see deliberation)"]
+    PX["pipeline.&lt;name&gt;<br/>configured named profile"]
   end
 
   subgraph stages["Stages — bytes in, bytes out, error or nil"]
@@ -107,12 +108,9 @@ flowchart LR
     U["User plugins — ktx.toml plugin blocks<br/>subprocess: stdin in, stdout out<br/>same name shadows a built-in<br/>(last writer wins)"]
   end
 
-  layers -.-> C
+  RM --> C
   C --> profiles
   profiles --> stages
-
-  classDef unspecified fill:#374151,color:#f9fafb,stroke:#4b5563
-  class PX unspecified
 ```
 
 ### Grammar

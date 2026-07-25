@@ -8,9 +8,10 @@ record:
     - kfmjgcuydt
     - kjryqvxjyb
     - mxidhirmvf
-  status: pending
+  status: complete
   acceptance:
     - GIVEN all prior tasks complete WHEN final state is audited THEN retained artifacts and hashes validate, summaries regenerate, and repository checks pass with no unresolved plan-owned failure.
     - GIVEN three deliberation outcomes WHEN architecture and backlog state are compared THEN supported choices have removed and completed their matching questions and tasks, while insufficient-evidence outcomes preserve them and represent one bounded evidence follow-up exactly once.
     - GIVEN the completed plan WHEN progress and plan state are inspected THEN verification evidence, limitations, surprises, and next executable work are current and mutually consistent.
   plan: extlbalndx
+  evidence: All five dependencies have final PASS evaluations; offline retained-experiment validation passed 10 attempts, measured counts 3/3, target_met and byte-identical summary regeneration; routing hashes and digest passed twice; isolated-cache mage check, canonical state validation, docs formatting/links, and git diff check passed; typed decisions/TODOs and ARCHITECTURE.md/TODO.md are synchronized.

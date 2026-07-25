@@ -43,5 +43,4 @@ record:
     - question: Which finite runtime, model, provider, corpus, round, and setup manifest should govern the paid comparison?
       affects_task: 1
       resolve_by: Record an estimated-costed finite manifest and obtain operator approval before any paid execution; no comparison runs while the manifest or cost exposure remains unapproved.
-  surprises:
-    []
+  surprises: TODO.md still listed resolved retained comparison ylcqppvyaw as actionable; removed that sole plan-owned projection drift. Initial shared-cache mage check referenced a removed sibling worktree; isolated-cache retry passed.

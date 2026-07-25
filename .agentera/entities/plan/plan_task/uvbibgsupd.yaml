@@ -10,3 +10,13 @@ record:
     - GIVEN an unavailable provider-internal semantic WHEN attribution is reported THEN it remains unavailable rather than being inferred from runtime observations, configured identity, documentation, or estimates.
     - GIVEN the deliberation outcome WHEN project memory is synchronized THEN a supported choice resolves the question and unblocks only selected work, or insufficient evidence preserves the question and adds one bounded evidence follow-up.
   plan: extlbalndx
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: savings-attribution-audit-1
+      source: "orchestrate audit: savings attribution contract"
+      recorded_at: 2026-07-25 07:09
+      writer_command: agentera state plan record-evaluation

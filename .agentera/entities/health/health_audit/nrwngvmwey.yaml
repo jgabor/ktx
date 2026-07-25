@@ -1,0 +1,24 @@
+id: nrwngvmwey
+artifact: health
+record:
+  date: 2026-07-25
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: stable
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    []
+  trends:
+    comparison_target: "not-applicable: limited terminal closure check for plan extlbalndx"
+    stable: All tracked plan artifacts postdate plan creation; the intentionally ignored retained experiment has matching hashes, ten retained attempts, byte-identical regeneration, and a fresh successful validation. Independent closure Audit returned PASS.
+  patterns:
+    - "Limited terminal closure only: all six tasks have final PASS evaluations, plan-owned evidence is current, and no unresolved plan-owned failure remains."
+  appended_at: 2026-07-25T05:26:02.397Z

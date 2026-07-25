@@ -4,7 +4,7 @@ record:
   header:
     level: full
     created: 2026-07-24
-    status: open
+    status: complete
     reviewed: 2026-07-24
     critic_issues: 8 found, 8 addressed, 0 dismissed
     revised: Added finite evidence manifests, honest insufficient-evidence outcomes, complete unknown dependencies, scenario-based deliberation criteria, candidate mapping evidence, decision-owned worked examples, bounded evidence verification, and explicit evidence-class separation.

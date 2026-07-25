@@ -15,3 +15,13 @@ record:
     - GIVEN the completed plan WHEN progress and plan state are inspected THEN verification evidence, limitations, surprises, and next executable work are current and mutually consistent.
   plan: extlbalndx
   evidence: All five dependencies have final PASS evaluations; offline retained-experiment validation passed 10 attempts, measured counts 3/3, target_met and byte-identical summary regeneration; routing hashes and digest passed twice; isolated-cache mage check, canonical state validation, docs formatting/links, and git diff check passed; typed decisions/TODOs and ARCHITECTURE.md/TODO.md are synchronized.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: final-state-sync-audit-1
+      source: "orchestrate audit: final evidence and project state"
+      recorded_at: 2026-07-25 07:22
+      writer_command: agentera state plan record-evaluation

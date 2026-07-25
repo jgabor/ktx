@@ -1,8 +1,8 @@
 # ktx Architecture
 
-Conceptual architecture for ktx. This document describes **what the system is for**, **how its parts relate**, and the unresolved architectural questions. It is not an executable work backlog. Actionable work and deliberation tasks live in [`TODO.md`](TODO.md).
+Conceptual architecture for ktx. This document describes **what the system is for**, **how its parts relate**, and the unresolved architectural questions. It is not an executable work backlog. Actionable work and discussion tasks live in [`TODO.md`](TODO.md).
 
-For product direction, see `.agentera/vision.yaml`. For recorded choices already made in deliberation, see `.agentera/decisions.yaml`. For agent workflow and document maintenance, see `AGENTS.md`.
+For product direction, see `.agentera/vision.yaml`. For recorded choices already made in discussion, see `.agentera/decisions.yaml`. For agent workflow and document maintenance, see `AGENTS.md`.
 
 ---
 
@@ -206,7 +206,7 @@ Layer 5 names the cross-turn and cross-session context problem. Whether and how 
 
 ## Core components (conceptual)
 
-These are logical roles, not implementation modules. Names may change as deliberation proceeds.
+These are logical roles, not implementation modules. Names may change as discussion proceeds.
 
 ### Ingress
 
@@ -214,7 +214,7 @@ Accepts observations from wrapper, sidecar, or hook paths. Normalizes them into 
 
 ### Router
 
-Inspects incoming bytes (or metadata about them) and selects a pipeline profile. This is the deliberate center of gravity: ktx optimizes for **correct dispatch**, not for owning the best compression algorithm in every category.
+Inspects incoming bytes (or metadata about them) and selects a pipeline profile. This is the intentional center of gravity: ktx optimizes for **correct dispatch**, not for owning the best compression algorithm in every category.
 
 ### Pipeline
 
@@ -273,63 +273,63 @@ The CLI surface stays narrow. The space behind the router stays wide.
 
 ---
 
-## Open deliberations
+## Open discussions
 
-These questions do not select an implementation. Each has one executable deliberation task in [`TODO.md`](TODO.md#architectural-deliberations). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
+These questions do not select an implementation. Each has one executable discussion task in [`TODO.md`](TODO.md#architectural-discussions). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
 ### Evidence maintenance boundary
 
 Given that originals are append-only and retained, the first compressed artifact and retry evidence remain authoritative, and `ktx doctor` is read-only, which non-authoritative derived, index, or orchestration artifacts may be compacted, reconciled, or pruned? If maintenance is permitted, what explicit command boundary keeps mutation outside `ktx doctor`?
 
-→ [Deliberation task](TODO.md#deliberate-evidence-maintenance-boundary)
+→ [Discussion task](TODO.md#discuss-evidence-maintenance-boundary)
 
 ### Pipeline stage semantics
 
 What stage metadata, ordering guarantees, and terminal-versus-continuable semantics are needed beyond the established bytes-in, bytes-out, error-or-nil runner contract?
 
-→ [Deliberation task](TODO.md#deliberate-pipeline-stage-semantics)
+→ [Discussion task](TODO.md#discuss-pipeline-stage-semantics)
 
 ### Universal preprocessing and filter-pack composition
 
 Should universal preprocessing exist, and if so, how should it compose with profile stages, command-aware routing, recovery cues, and the pipeline gate? Are wildcard stage lists, declarative filter packs, or explicit duplication the appropriate configuration model, and how are precedence and inspection defined?
 
-→ [Deliberation task](TODO.md#deliberate-universal-preprocessing-and-filter-pack-composition)
+→ [Discussion task](TODO.md#discuss-universal-preprocessing-and-filter-pack-composition)
 
 ### Instruction and tool-schema normalization
 
 Which deterministic normalizations, if any, are semantically safe for stable instructions and tool schemas; where should canonical ordering and serialization occur; and how should byte identity, semantic equivalence, provider-specific behavior, and invalidation be evidenced?
 
-→ [Deliberation task](TODO.md#deliberate-instruction-and-tool-schema-normalization)
+→ [Discussion task](TODO.md#discuss-instruction-and-tool-schema-normalization)
 
 ### Instruction indexing and retrieval
 
 Should instruction context be indexed and retrieved selectively rather than always loaded, and if so, what retrieval unit, relevance signal, safety floor, freshness rule, and recovery path prevent omission of applicable constraints?
 
-→ [Deliberation task](TODO.md#deliberate-instruction-indexing-and-retrieval)
+→ [Discussion task](TODO.md#discuss-instruction-indexing-and-retrieval)
 
 ### Layer 5 boundary
 
 Where is the boundary between in-session history compression and cross-session memory? If distillation is part of ktx, what is distilled, when it runs, where it is stored, how later sessions consume it, and what role may external tools play without adding a required runtime or opaque behavior?
 
-→ [Deliberation task](TODO.md#deliberate-layer-5-boundary)
+→ [Discussion task](TODO.md#discuss-layer-5-boundary)
 
-### Prefix observability and derived evidence
+### Runtime context observability and derived evidence
 
-Which runtime-emitted fields or explicit runtime configuration, if any, can support privacy-safe observations about runtime-visible stable and changing context without claiming provider prefix composition or request boundaries? Which hashes and counts are useful, how are instruction and tool-schema segments distinguished, and what privacy boundary applies?
+Which runtime-emitted fields or explicit runtime configuration, if any, should ktx retain to describe runtime-visible stable and changing context? Which privacy-safe hashes and counts can distinguish instruction, tool-schema, and compaction segments, and which unavailable observations must remain explicitly unavailable rather than be used to infer provider prefix composition or request boundaries?
 
-→ [Deliberation task](TODO.md#deliberate-prefix-observability-and-derived-evidence)
+→ [Discussion task](TODO.md#discuss-runtime-context-observability-and-derived-evidence)
 
-### Provider cache-control ownership
+### Runtime cache telemetry configuration
 
-Within runtime-only collection, where should product/runtime cache-control configuration and adapter versioning live: ktx, the agent runtime, or a shared contract? How should capability negotiation fail or fall back while keeping all observations explicitly separate from provider-internal isolation or request semantics?
+Which runtime-emitted cache fields and explicit runtime configuration should ktx retain in benchmark manifests and attempts, where should runtime-adapter version provenance live, and how should missing or unsupported fields be labeled unavailable? The contract must not imply control or observation of provider-internal cache behavior or provider requests.
 
-→ [Deliberation task](TODO.md#deliberate-provider-cache-control-ownership)
+→ [Discussion task](TODO.md#discuss-runtime-cache-telemetry-configuration)
 
 ### Trust, redaction, and audit
 
-What threat model governs user-configured stages, scripts, and plugins; which secrets must be redacted from originals, compressed output, hashes, and derived prefix evidence; and what integrity and audit guarantees are required beyond per-record fingerprints while originals remain retrievable?
+What threat model governs user-configured stages, scripts, and plugins; which secrets must be redacted from originals, compressed output, hashes, and derived context evidence; and what integrity and audit guarantees are required beyond per-record fingerprints while originals remain retrievable?
 
-→ [Deliberation task](TODO.md#deliberate-trust-redaction-and-audit)
+→ [Discussion task](TODO.md#discuss-trust-redaction-and-audit)
 
 ---
 
@@ -337,4 +337,4 @@ What threat model governs user-configured stages, scripts, and plugins; which se
 
 See [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
-Until deliberations are resolved, treat this file as the map of intent—not the blueprint.
+Until discussions are resolved, treat this file as the map of intent—not the blueprint.

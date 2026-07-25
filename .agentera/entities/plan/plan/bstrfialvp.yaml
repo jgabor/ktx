@@ -1,0 +1,40 @@
+id: bstrfialvp
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-25
+    status: open
+    reviewed: 2026-07-25
+    critic_issues: 8 found, 8 addressed, 0 dismissed
+    title: "Plan: Runtime cache and compression evidence"
+  what: Finish the runtime-only contract for context and cache observations, make retained benchmark evidence authoritative, expose field-scoped compression comparisons, and produce validated telemetry showing how compression changes runtime-observed usage, quality, and cost.
+  why: ktx already retains useful compression and runtime cache evidence, but unresolved context/configuration choices and derived reporting gaps prevent users from seeing one trustworthy, reproducible account of the effect.
+  constraints: Collect telemetry only from the agent runtime. Preserve first-evidence authority, privacy boundaries, deterministic regeneration, phase separation, and non-additive field attribution. Never infer provider hits, misses, fills, requests, boundaries, isolation, eviction, prefix composition, or billing semantics. Use retained evidence before paid collection, require explicit approval before any paid run, and preserve legacy output bytes where promised.
+  overall_acceptance: GIVEN the plan is complete WHEN a user inspects a validated compression comparison THEN every delivery, runtime usage, cache, quality, reported-cost, and estimated-cost value names its authority, evidence class, phase, provenance, and comparison unit; unavailable provider semantics remain unavailable; and the result regenerates deterministically from retained evidence.
+  scope:
+    included:
+      - Runtime context observability and derived evidence discussion
+      - Runtime cache telemetry configuration discussion
+      - Authoritative benchmark regeneration
+      - Field-scoped savings attribution reporting
+      - Validated runtime-only compression comparison evidence
+      - Final decision, backlog, documentation, and plan-state synchronization
+    excluded:
+      - Direct-provider telemetry, probes, credentials, or provider-response collection
+      - Provider-internal cache or request claims
+      - Additive causal decomposition across bytes, tokens, cache fields, and costs
+      - Automatic paid model execution
+      - General benchmark-summary refactoring unrelated to evidence correctness
+    deferred:
+      - Per-tool model-step cost enrichment unless the resolved contract demonstrates a concrete need
+  design: Resolve the two remaining runtime-boundary choices while independently establishing one authoritative evidence projection. Expose parallel field-scoped comparisons only after regeneration is trustworthy, then assess the retained ten-attempt evidence offline against the resolved contract. Close by verifying synchronized decisions, documentation, backlog, and plan evidence and by creating a separate follow-up only for a demonstrated unmet collection objective.
+  unknowns:
+    - question: Will the resolved runtime-only contract expose a concrete measurement objective that truthful unavailable labels and the validated retained experiment cannot satisfy?
+      affects_task: 6
+      resolve_by: Tasks 1 and 2 define the contract; task 5 evaluates retained evidence offline; task 6 creates a separate costed collection follow-up only if a demonstrable objective remains unmet.
+    - question: Can authoritative regeneration preserve promised legacy bytes while reporting derived-projection divergence separately and rejecting only conflicting authoritative duplicates?
+      affects_task: 4
+      resolve_by: Task 3 proves regeneration and compatibility before task 4 adopts the authoritative projection.
+  surprises:
+    []

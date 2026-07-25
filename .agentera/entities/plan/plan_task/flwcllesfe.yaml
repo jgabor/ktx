@@ -1,0 +1,16 @@
+id: flwcllesfe
+artifact: plan
+record:
+  name: Validate retained compression telemetry evidence
+  depends_on:
+    - hhvivlwwhr
+    - zcwkgwddmu
+    - dvoyfbnphu
+    - flqcwvauyn
+  status: pending
+  acceptance:
+    - GIVEN the resolved observation contract WHEN retained telemetry is assessed THEN every required field is classified as available, unavailable, malformed, or missing with provenance.
+    - GIVEN the validated ten-attempt experiment WHEN the comparison is regenerated THEN no model call is made, retained artifacts validate, and compression effects remain separate for delivery, runtime usage/cache, quality, and cost.
+    - GIVEN an observation is contractually unavailable WHEN sufficiency is assessed THEN unavailability is retained and does not itself trigger new collection.
+    - GIVEN malformed, missing, or contradictory retained evidence WHEN validation runs THEN the affected claim is withheld and the exact evidence gap is reported.
+  plan: bstrfialvp

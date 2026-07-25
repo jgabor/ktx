@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Trust, redaction, and audit** — Run structured deliberation and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)"
+  description: "**Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)"

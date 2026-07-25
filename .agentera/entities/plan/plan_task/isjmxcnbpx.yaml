@@ -1,0 +1,13 @@
+id: isjmxcnbpx
+artifact: plan
+record:
+  name: Establish authoritative benchmark regeneration
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN retained first evidence and changed derived projections WHEN a benchmark is regenerated THEN each measurement is materialized once from its field authority, canonical output is unchanged, and projection divergence is reported separately.
+    - GIVEN supported retained legacy experiments WHEN regeneration runs THEN promised serialized outputs remain byte-identical.
+    - GIVEN an exact duplicate authoritative observation WHEN aggregates are produced THEN it is idempotent and contributes exactly once; a conflicting authoritative duplicate fails visibly without replacing first evidence.
+    - GIVEN each testable authority rule WHEN verification runs THEN it includes at least one passing and one conflicting or malformed case.
+  plan: yahzukxthf

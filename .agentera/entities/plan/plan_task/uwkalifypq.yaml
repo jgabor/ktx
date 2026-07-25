@@ -1,0 +1,13 @@
+id: uwkalifypq
+artifact: plan
+record:
+  name: Expose field-scoped compression attribution
+  depends_on:
+    - isjmxcnbpx
+  status: pending
+  acceptance:
+    - GIVEN the retained measured baseline and compressed candidate pair WHEN the public benchmark report and retained summary are inspected THEN delivery bytes, runtime uncached input, cache read/write, quality, reported cost, and estimated cost appear as separate evidence classes with authority and provenance.
+    - GIVEN setup, warm measured, and unsupported observations WHEN the same surfaces are inspected THEN phase, comparison unit, and truthful unavailable labels are visible.
+    - GIVEN logical input or break-even views WHEN the report is regenerated THEN they are identified as derived, no cross-field total is emitted, and output is deterministic.
+    - GIVEN correlated compression and usage movement WHEN conclusions are rendered THEN they do not claim causal shares or provider-internal behavior.
+  plan: yahzukxthf

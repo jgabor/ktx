@@ -1,0 +1,13 @@
+id: zcwkgwddmu
+artifact: plan
+record:
+  name: Resolve runtime cache telemetry configuration
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN runtime cache fields and explicit runtime configuration WHEN the decision is recorded THEN retained values, adapter-version provenance, and unsupported-field behavior are explicit.
+    - GIVEN a runtime omits or cannot support a cache field WHEN evidence is presented THEN the field is labeled unavailable rather than reconstructed.
+    - GIVEN provider cache control, capability negotiation, or provider-request semantics WHEN scope is evaluated THEN none becomes product work or evidence.
+    - GIVEN the choice is accepted WHEN the discussion cycle closes THEN the decision is recorded, its Architecture question is removed, its TODO item is completed, only selected follow-ups are added or unblocked, and reciprocal links remain valid.
+  plan: bstrfialvp

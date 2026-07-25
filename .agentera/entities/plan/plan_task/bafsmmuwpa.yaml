@@ -1,0 +1,13 @@
+id: bafsmmuwpa
+artifact: plan
+record:
+  name: Resolve runtime context observability
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN the runtime-only boundary WHEN stable and changing context observations are considered THEN the decision names only runtime-emitted fields or explicit runtime configuration with provenance.
+    - GIVEN privacy-safe hashes, counts, segments, and compaction observations WHEN the decision is recorded THEN retention, privacy, and truthful unavailable behavior are explicit.
+    - GIVEN provider prefix composition or request boundaries WHEN conclusions are written THEN they remain unavailable and are not inferred from derived context evidence.
+    - GIVEN the choice is accepted WHEN the discussion cycle closes THEN the decision is recorded, its Architecture question is removed, its TODO item is completed, only selected follow-ups are added or unblocked, and reciprocal links remain valid.
+  plan: yahzukxthf

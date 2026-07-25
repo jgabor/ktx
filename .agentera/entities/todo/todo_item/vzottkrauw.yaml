@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Evidence maintenance boundary** — Run structured deliberation and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)"
+  description: "**Evidence maintenance boundary** — Run a structured discussion and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)"

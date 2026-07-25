@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Pipeline stage semantics** — Run structured deliberation and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)"
+  description: "**Pipeline stage semantics** — Run a structured discussion and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)"

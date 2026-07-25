@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Instruction indexing and retrieval** — Run structured deliberation and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)"
+  description: "**Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)"

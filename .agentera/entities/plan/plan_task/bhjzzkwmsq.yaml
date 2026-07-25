@@ -1,0 +1,18 @@
+id: bhjzzkwmsq
+artifact: plan
+record:
+  name: Synchronize final project state
+  depends_on:
+    - hhvivlwwhr
+    - zcwkgwddmu
+    - dvoyfbnphu
+    - flqcwvauyn
+    - flwcllesfe
+  status: pending
+  acceptance:
+    - GIVEN all preceding tasks are evaluated WHEN project state is checked THEN each discussion already synchronized its decision, resolved question, TODO state, and selected follow-ups, and reciprocal links remain valid.
+    - GIVEN implementation and evidence outputs WHEN final verification runs THEN documentation, tests, retained evidence validation, and repository checks agree.
+    - GIVEN the resolved contracts and retained evidence WHEN the per-tool cost trigger is evaluated THEN wrapper enrichment remains deferred unless a concrete requirement is demonstrated; any selected follow-up keeps model-step cache and cost fields stream-authoritative and out of tool-call records.
+    - GIVEN a concrete measurement objective remains unsupported after truthful unavailable labels WHEN follow-up work is recorded THEN a separate task specifies model, runtime, task, rounds, privacy boundary, and estimated cost and requires explicit approval before any paid execution.
+    - GIVEN the completed plan WHEN an independent audit runs THEN every task has evidence against its acceptance criteria and no provider-internal claim has entered the product contract.
+  plan: bstrfialvp

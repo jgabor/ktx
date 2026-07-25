@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Prefix observability and derived evidence** — Run structured deliberation within the runtime-only boundary and record which runtime-emitted fields or explicit runtime configuration may support privacy-safe stable/changing-context observations, hashes and counts, segment treatment, compaction-event treatment, and privacy limits without claiming provider prefix composition or request boundaries. → [Question](ARCHITECTURE.md#prefix-observability-and-derived-evidence)"
+  description: "**Runtime context observability and derived evidence** — Run a structured discussion within the runtime-only boundary and record which runtime-emitted fields or explicit runtime configuration ktx should retain for privacy-safe stable/changing-context observations, segment hashes and counts, compaction treatment, privacy limits, and truthful unavailable labels. Do not treat the resulting evidence as provider prefix composition or request-boundary evidence. → [Question](ARCHITECTURE.md#runtime-context-observability-and-derived-evidence)"

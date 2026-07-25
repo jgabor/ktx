@@ -19,8 +19,8 @@ ktx is a runtime-agnostic CLI that makes coding agents measurable and cheaper. O
 
 When adding an unresolved architectural question:
 
-1. **Add the question** to [ARCHITECTURE.md — Open deliberations](ARCHITECTURE.md#open-deliberations) as a named heading and neutral question block. Do not encode a preferred implementation.
-2. **Add one deliberation task** to [TODO.md — Architectural deliberations](TODO.md#architectural-deliberations) with a stable explicit HTML anchor and reciprocal links between the question and task.
+1. **Add the question** to [ARCHITECTURE.md — Open discussions](ARCHITECTURE.md#open-discussions) as a named heading and neutral question block. Do not encode a preferred implementation.
+2. **Add one discussion task** to [TODO.md — Architectural discussions](TODO.md#architectural-discussions) with a stable explicit HTML anchor and reciprocal links between the question and task.
 
 When an open question is resolved in resonera or equivalent structured discussion:
 

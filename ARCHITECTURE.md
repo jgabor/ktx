@@ -325,12 +325,6 @@ Within runtime-only collection, where should product/runtime cache-control confi
 
 → [Deliberation task](TODO.md#deliberate-provider-cache-control-ownership)
 
-### Savings attribution
-
-How should tool-output reduction, logical input, runtime-reported cost, independently estimated API cost, runtime-emitted cache-read/cache-write tokens, setup cost, and quality effects be attributed across layers and attempts without double-counting? How should identity provenance and estimate sources be shown while avoiding provider-internal cache or request claims?
-
-→ [Deliberation task](TODO.md#deliberate-savings-attribution)
-
 ### Trust, redaction, and audit
 
 What threat model governs user-configured stages, scripts, and plugins; which secrets must be redacted from originals, compressed output, hashes, and derived prefix evidence; and what integrity and audit guarantees are required beyond per-record fingerprints while originals remain retrievable?

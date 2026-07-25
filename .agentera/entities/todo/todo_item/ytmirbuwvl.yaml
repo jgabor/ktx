@@ -1,0 +1,6 @@
+id: ytmirbuwvl
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Field-scoped savings attribution reporting** — Report tool-delivery bytes, runtime uncached and cache token observations, phase-separated setup and measured quality/cost, runtime-reported cost, and price-derived estimates with field authority, evidence class, provenance, and comparison unit. Keep logical totals and break-even as derived views; never add cross-field deltas or infer provider-internal cache, request, or billing semantics. → [Benchmark](ARCHITECTURE.md#benchmark)"

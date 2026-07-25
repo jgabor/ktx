@@ -1,0 +1,16 @@
+id: ipzflnnjpp
+artifact: progress
+record:
+  timestamp: 2026-07-25 07:02
+  type: docs
+  phase: deliberate
+  what: Resolved the savings-attribution contract with a firm field-scoped, non-additive ledger; synchronized the decision, reciprocal architecture question, canonical TODO, and one selected reporting follow-up without changing product behavior.
+  context:
+    intent: Use retained runtime-only evidence to assign tool delivery, runtime usage, quality, setup, reported cost, and estimated cost once at field authority while preserving provenance and unavailable provider semantics.
+    constraints: No additive causal decomposition, setup/measured or call/session/attempt projection double counting, provider-internal inference, product implementation, paid work, direct-provider collection, or unrelated backlog change.
+    unknowns: Provider hits, misses, fills, request boundaries or counts, isolation, eviction, prefix composition, billing meaning of runtime zero, and causal shares remain unavailable; the contract does not require them.
+    scope: Decision tdffoqjkxp; TODO entities vdjnnxeylx and ytmirbuwvl; ARCHITECTURE.md; TODO.md; plan task uvbibgsupd. Preserved the pending benchmark-aggregation evaluator record.
+  inspiration: Plan task uvbibgsupd, retained progress tzfpkihzhd, runtime-only decision uilebafxdn, and field-authority decision knzmjhynxa.
+  discovered: The representative pair reduced delivered output from 50,118 to 1,819 bytes and logical input from 32,650 to 13,162 with equal cache_read 11,264, cache_write 0, quality 1, runtime cost 0, and price-derived estimates 0.026682 versus 0.005316 USD. The evidence supports parallel field deltas but not additive causal shares.
+  verified: Decision lint and typed writer dry-runs/writes passed. ktx bench validate reported valid=true for all ten attempts, measured counts 3/3, target_met=true, and summary_byte_match=true. Focused SQLite and raw-stream checks passed the delivery vector, two-step input/cache/write/reported-cost sums, setup 0.055148/0.013600, measured means 0.025400/0.007413, total estimate 0.167186, equal quality, first-turn break-even, and unavailable cache-control source. Prettier passed ARCHITECTURE.md and TODO.md; markdown-link-check passed 13 and 16 links; Agentera state validation passed 337 entities with zero issues; git diff --check passed.
+  next: Implement only TODO ytmirbuwvl to expose field authority, evidence class, provenance, phase, and non-additive reporting. No additional evidence collection is required for this contract.

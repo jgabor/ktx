@@ -10,3 +10,13 @@ record:
     - GIVEN unchanged authoritative evidence and changed mutable or duplicated derivations WHEN the choice's regeneration test vector is evaluated THEN the expected aggregate remains unchanged and reproducible.
     - GIVEN the deliberation outcome WHEN project memory is synchronized THEN a supported choice resolves the question and unblocks only selected work, or insufficient evidence preserves the question and adds one bounded evidence follow-up.
   plan: extlbalndx
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: benchmark-aggregation-audit-1
+      source: "orchestrate audit: benchmark evidence aggregation"
+      recorded_at: 2026-07-25 06:53
+      writer_command: agentera state plan record-evaluation

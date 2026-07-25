@@ -10,6 +10,7 @@ This document is the canonical executable backlog for implementation, evidence, 
 - [ ] **Unified hook processing flow** — Separate Codex, OpenCode, and flat payload extraction from the common session resolution, source persistence, compression, artifact persistence, recovery-cue, and envelope-rendering flow. Preserve trusted-ingress identity, first-evidence ownership, and first-compressed-artifact authority. → [Ingress](ARCHITECTURE.md#ingress)
 - [ ] **Structured experiment summary model** — Replace internal `map[string]any` traversal between summary generation, validation, ranking, and rendering with a defined Go representation. Preserve serialized schemas and byte-for-byte regeneration of retained experiments. → [Benchmark](ARCHITECTURE.md#benchmark)
 - [ ] **Authoritative benchmark regeneration** — Materialize each benchmark attempt and aggregate once from retained tool-call rows, raw runtime streams, the first append-only orchestration envelope, manifest, and pricing snapshot. Treat session counters, copied measurement fields, summaries, rankings, and reports as validation-only projections; reject conflicting duplicates; preserve byte-for-byte regeneration for retained legacy schemas. → [Benchmark](ARCHITECTURE.md#benchmark)
+- [ ] **Field-scoped savings attribution reporting** — Report tool-delivery bytes, runtime uncached and cache token observations, phase-separated setup and measured quality/cost, runtime-reported cost, and price-derived estimates with field authority, evidence class, provenance, and comparison unit. Keep logical totals and break-even as derived views; never add cross-field deltas or infer provider-internal cache, request, or billing semantics. → [Benchmark](ARCHITECTURE.md#benchmark)
 - [ ] **Single pipeline resolution per operation** — Load configuration once for each hook or replay operation, resolve routing and profile settings through one path, and report the profiles and stages that ran. Do not expand the stage contract. → [Pipeline](ARCHITECTURE.md#pipeline)
 - [ ] **Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. → [Pipeline](ARCHITECTURE.md#pipeline)
 - [ ] **Consolidated CLI argument handling** — Give run, init, db, stats, bench, plugin, and shared format handling one consistent interpretation of owned flags, consumed values, and passthrough arguments. Cover flags before and after a wrapped executable. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)
@@ -26,10 +27,6 @@ Each task must run a structured deliberation, append the resulting choice to the
 <a id="deliberate-provider-cache-control-ownership"></a>
 
 - [ ] **Provider cache-control ownership** — Run structured deliberation within runtime-only collection and record product/runtime configuration ownership, adapter versioning, capability negotiation, and fallback behavior without extending runtime observations into provider-internal cache or request claims. → [Question](ARCHITECTURE.md#provider-cache-control-ownership)
-
-<a id="deliberate-savings-attribution"></a>
-
-- [ ] **Savings attribution** — Run structured deliberation and record the attribution and aggregation contract for runtime observations, identity provenance, and reference/estimate sources without double-counting or inferring provider-internal cache or request behavior. → [Question](ARCHITECTURE.md#savings-attribution)
 
 <a id="deliberate-evidence-maintenance-boundary"></a>
 

@@ -1,0 +1,15 @@
+id: ycrbryvpcv
+artifact: progress
+record:
+  timestamp: 2026-07-25 05:57
+  type: docs
+  phase: deliberate
+  what: "Recorded an evidence-bounded router taxonomy decision: configured metadata rules remain the only supported profile selectors, conceptual layers do not imply profiles, and unsupported content/session dimensions preserve the default fallback. Synchronized architecture and resolved the matching deliberation TODO without implementing routing changes."
+  context:
+    intent: Resolve router taxonomy and profile selection from the independently audited retained characterization while preserving conservative behavior where evidence cannot distinguish candidates.
+    constraints: Runtime-only telemetry boundary; historical and fixture evidence labels preserved; no provider-internal claims; no scores, thresholds, semantic classifier, automatic layer mapping, or router implementation; exit-status typo behavior remains isolated in TODO atwyurusrl; degraded startup decision coverage remains explicit.
+    unknowns: Twenty-eight of thirty-three startup decisions remained omitted by byte budget. Exact CLI retrieval exposed only a degraded migrated summary for the prior content-routing choice; full historical detail is unavailable. Memory/session remains unevidenced.
+    scope: Decision luqmguqnom, ARCHITECTURE.md routing grammar and resolved open question, TODO.md deliberation projection, TODO entity lynhsfjoce, and plan task mxidhirmvf. Pending audited dependency evaluation state for kjryqvxjyb was preserved.
+  discovered: Migrated decision summary juxcewxpkq had a user-confirmed byte-detected content-routing clause; the new decision explicitly supersedes only that unsupported routing and memory-pipeline clause while preserving its config-format choices.
+  verified: Decision lint passed all three checks. go test ./internal/router -run TestRoutingCandidateCharacterization -count=2 -v passed twice with findings digest d67f0db622a1e6bfd2f7ccd0bd716554e8001f0613787c95d71f62ebdd5abadd and stable profile/fallback vectors. GOLANGCI_LINT_CACHE=/tmp/opencode/ktx-routing-lint-cache mage check passed all tests, vet, lint with 0 issues, and build after the shared cache exposed stale sibling-worktree entries. Agentera check validate state passed with 329 entities and 0 issues. Prettier checks passed. markdown-link-check passed 15 ARCHITECTURE.md links and 18 TODO.md links. git diff --check passed.
+  next: No router implementation follows from this decision. Keep route exit-status validation separately scoped under atwyurusrl and continue only with another active plan task.

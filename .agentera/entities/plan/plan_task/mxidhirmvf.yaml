@@ -4,7 +4,7 @@ record:
   name: Resolve router taxonomy and profile selection
   depends_on:
     - kjryqvxjyb
-  status: pending
+  status: complete
   acceptance:
     - GIVEN characterized outcomes for candidate signals and layer-to-profile mappings WHEN the choice is recorded THEN its contract test vectors show the same supported input selecting the same profile or fallback.
     - GIVEN evidence that cannot distinguish candidate behavior WHEN the choice is recorded THEN the contract preserves a conservative fallback and does not encode unsupported confidence, thresholds, or mappings.

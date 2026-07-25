@@ -38,10 +38,6 @@ Each task must run a structured deliberation, append the resulting choice to the
 
 - [ ] **Evidence maintenance boundary** — Run structured deliberation and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)
 
-<a id="deliberate-router-taxonomy-and-profile-selection"></a>
-
-- [ ] **Router taxonomy and profile selection** — Run structured deliberation and record the taxonomy, signal, layer-to-profile, ambiguity, and fallback choice using the routing-candidate evidence. → [Question](ARCHITECTURE.md#router-taxonomy-and-profile-selection)
-
 <a id="deliberate-pipeline-stage-semantics"></a>
 
 - [ ] **Pipeline stage semantics** — Run structured deliberation and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)

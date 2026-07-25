@@ -12,3 +12,13 @@ record:
     - GIVEN documentation, pricing, or historical fixtures WHEN they inform the report THEN each is labeled as context, estimate, compatibility evidence, or unsupported for current collection rather than runtime telemetry.
     - GIVEN the retained experiment WHEN existing validation and regeneration checks run THEN the evidence validates and its summary regenerates exactly; any required product-contract change becomes separately scoped follow-up.
   plan: extlbalndx
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: runtime-telemetry-audit-1
+      source: "orchestrate audit: retained runtime telemetry comparison"
+      recorded_at: 2026-07-25 06:39
+      writer_command: agentera state plan record-evaluation

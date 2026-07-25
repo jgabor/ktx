@@ -1,0 +1,16 @@
+id: bjmlkgyhuh
+artifact: progress
+record:
+  timestamp: 2026-07-25 06:46
+  type: docs
+  phase: deliberate
+  what: "Resolved benchmark evidence aggregation with firm decision knzmjhynxa: field-scoped authority and deterministic projection count each measurement once. Removed the resolved architecture question, resolved TODO eflgpingek, and selected only authoritative benchmark regeneration follow-up llwoemgcky."
+  context:
+    intent: Use retained runtime-only evidence to decide how call rows, session roll-ups, raw streams, orchestration records, and experiment views compose without duplicate or mutable truth.
+    constraints: No product code or benchmark artifact changes; runtime-only telemetry; no provider-internal claims; no reconstruction of omitted decision detail; no parallel mutable truth.
+    unknowns: Implementation behavior for canonical materialization and legacy compatibility remains intentionally unimplemented in this deliberation.
+    scope: ARCHITECTURE.md, TODO.md, decision knzmjhynxa, TODO entities eflgpingek and llwoemgcky, plan/progress orchestration state, plus pre-existing audited evaluation state for pbzadvduoe.
+  inspiration: Active plan task kfmjgcuydt and audited retained evidence progress tzfpkihzhd.
+  discovered: Current validation reparses cache and reasoning from raw streams but still trusts other copied attempt measurements, so implementation is separately scoped. Startup decision state was degraded; exact migrated summaries srbeduhnos and ukduzdmvtv remain compacted and their omitted detail was not reconstructed.
+  verified: Decision lint passed; typed decision and TODO dry-runs and writes passed. Prettier passed ARCHITECTURE.md and TODO.md; markdown-link-check passed 14 architecture and 17 TODO links; Agentera canonical entity-state validation passed with 334 entities and zero issues; git diff --check passed. ktx bench validate reported all 10 attempts valid, measured counts baseline=3 and candidate=3, target_met=true, and summary_byte_match=true. Retained baseline-003 authority checks found one source call, two runtime model steps, tokens_in=21386, cache_read=11264, cache_write=0, and cost=0. Mutation and duplicate-projection vectors returned equal=true and preserved measured counts 3/3. Legacy aggregate decisions.yaml validation still reports inherited high confidence labels and ordering; canonical entity state and the new typed entity are valid.
+  next: Implement only TODO llwoemgcky to materialize canonical benchmark attempts from retained authorities and preserve legacy byte regeneration; savings attribution remains a separate pending deliberation.

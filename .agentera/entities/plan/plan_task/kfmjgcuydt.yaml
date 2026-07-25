@@ -4,7 +4,7 @@ record:
   name: Resolve benchmark evidence aggregation
   depends_on:
     - pbzadvduoe
-  status: pending
+  status: complete
   acceptance:
     - GIVEN one observation appears in append-only call evidence, a session roll-up, and an experiment artifact WHEN the choice is recorded THEN its contract test vector identifies the authority and counts the measurement exactly once.
     - GIVEN unchanged authoritative evidence and changed mutable or duplicated derivations WHEN the choice's regeneration test vector is evaluated THEN the expected aggregate remains unchanged and reproducible.

@@ -277,12 +277,6 @@ The CLI surface stays narrow. The space behind the router stays wide.
 
 These questions do not select an implementation. Each has one executable deliberation task in [`TODO.md`](TODO.md#architectural-deliberations). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
-### Benchmark evidence aggregation
-
-How should append-only call evidence, session roll-ups, and experiment artifacts compose into benchmark aggregates without allowing mutable counters or duplicated observations to become a parallel truth?
-
-→ [Deliberation task](TODO.md#deliberate-benchmark-evidence-aggregation)
-
 ### Evidence maintenance boundary
 
 Given that originals are append-only and retained, the first compressed artifact and retry evidence remain authoritative, and `ktx doctor` is read-only, which non-authoritative derived, index, or orchestration artifacts may be compacted, reconciled, or pruned? If maintenance is permitted, what explicit command boundary keeps mutation outside `ktx doctor`?

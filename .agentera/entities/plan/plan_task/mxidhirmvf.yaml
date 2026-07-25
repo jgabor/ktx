@@ -1,0 +1,12 @@
+id: mxidhirmvf
+artifact: plan
+record:
+  name: Resolve router taxonomy and profile selection
+  depends_on:
+    - kjryqvxjyb
+  status: pending
+  acceptance:
+    - GIVEN characterized outcomes for candidate signals and layer-to-profile mappings WHEN the choice is recorded THEN its contract test vectors show the same supported input selecting the same profile or fallback.
+    - GIVEN evidence that cannot distinguish candidate behavior WHEN the choice is recorded THEN the contract preserves a conservative fallback and does not encode unsupported confidence, thresholds, or mappings.
+    - GIVEN the deliberation outcome WHEN project memory is synchronized THEN a supported choice resolves the question and unblocks only selected work, or insufficient evidence preserves the question and adds one bounded evidence follow-up.
+  plan: extlbalndx

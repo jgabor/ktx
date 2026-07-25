@@ -1,0 +1,15 @@
+id: imhuxfjsfd
+artifact: progress
+record:
+  timestamp: 2026-07-25 05:44
+  type: docs
+  phase: build
+  what: Published a frozen routing-candidate evidence manifest, read-only retained-call query, characterization document, and deterministic regression test covering current routing, candidate signals, mapping ambiguity, evidence classes, residual estimates, and fallback behavior.
+  context:
+    intent: Characterize retained routing evidence for later deliberation without choosing a taxonomy, profile mapping, threshold, semantic classifier, or implementation.
+    constraints: Runtime-only collection; historical fixtures remain compatibility and provenance evidence; character-count token values remain estimates; no provider-internal cache or request claims; no reconstruction of 28 omitted decisions; absent orchestration profile and vision were not used as evidence.
+    unknowns: The omitted decision entries remain unknown by design; memory/session has no supporting case in the frozen manifest.
+    scope: Routing characterization documentation, frozen JSON and SQL evidence artifacts, test-only validation, canonical backlog synchronization, and typed plan/progress/TODO state.
+  discovered: Unrecognized route exit_status values currently pass configuration loading and behave as wildcards despite the documented value set; follow-up atwyurusrl scopes that product-contract change separately.
+  verified: go test ./internal/router -run TestRoutingCandidateCharacterization -count=2 -v passed twice with findings digest d67f0db622a1e6bfd2f7ccd0bd716554e8001f0613787c95d71f62ebdd5abadd; repeated read-only SQL outputs matched; mage check passed with an isolated golangci-lint cache; git diff --check passed; Agentera state validation passed with 327 entities and 0 issues.
+  next: Use the retained characterization in the router-taxonomy deliberation; address route exit-status validation only in its separate TODO.

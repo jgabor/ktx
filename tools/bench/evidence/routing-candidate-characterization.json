@@ -1,0 +1,507 @@
+{
+  "schema_version": 1,
+  "status": "routing_candidate_evidence_characterized",
+  "scope": {
+    "collection_boundary": "supported_agent_runtimes_only",
+    "decision_startup": {
+      "status": "degraded",
+      "returned": 5,
+      "total": 33,
+      "omitted": 28,
+      "omission_reason": "serialized_byte_budget"
+    },
+    "orchestration_startup": {
+      "profile": "absent",
+      "vision": "absent"
+    },
+    "purpose": "Publish finite routing-candidate evidence for later deliberation without choosing a taxonomy, profile mapping, threshold, or semantic classifier."
+  },
+  "manifest": {
+    "frozen_at": "2026-07-25T03:35:14.591422717Z",
+    "references": [
+      {
+        "path": "internal/router/router.go",
+        "sha256": "19aaf19449b72ee7c1d4c39ca0ef96e5fc1c526d54241f288accaeecb81a1b9c",
+        "evidence_class": "implemented_behavior"
+      },
+      {
+        "path": "internal/router/router_test.go",
+        "sha256": "9419593584a93d83d86f243e33dae81ef68b0563dec8ce04827729a4aa289561",
+        "evidence_class": "implemented_behavior"
+      },
+      {
+        "path": "internal/config/config.go",
+        "sha256": "f49c291d5e40a87547ead62dd86953f40d955f4b2ad179bd253313c1aea4b18f",
+        "evidence_class": "implemented_behavior"
+      },
+      {
+        "path": "ktx.example.toml",
+        "sha256": "164dac568d3d6bdc469c3aec21ba6406b7870cd81393b5941cd7ee72829512b3",
+        "evidence_class": "documented_contract"
+      },
+      {
+        "path": "tools/bench/corpus/MANIFEST.json",
+        "sha256": "637e3bdd6399538406723d960cb6b2d58e93f1e8b55aed6818addcc6f018b4ca",
+        "evidence_class": "benchmark_fixture"
+      },
+      {
+        "path": "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
+        "sha256": "738504be1936b021a37e640367a71d0e12ee538e2cf062005d62ff741c56efe8",
+        "evidence_class": "runtime_observation"
+      },
+      {
+        "path": "tools/bench/evidence/opencode-runtime-cache-controls.json",
+        "sha256": "1eaa07c89027c31e92b1c1094a33fc5e1df589c435979e45c3af41f230af1075",
+        "evidence_class": "runtime_observation"
+      }
+    ],
+    "retained_call_snapshot": {
+      "source": "ktx_runtime_database",
+      "schema_version": 5,
+      "call_cutoff": "2026-07-25T03:35:14.591422717Z",
+      "artifact_cutoff": "2026-07-25T03:34:27.68361733Z",
+      "calls_at_cutoff": 136770,
+      "artifacts_at_cutoff": 34571,
+      "reproduction_query": "tools/bench/evidence/routing-candidate-characterization.sql",
+      "calls": [
+        {
+          "id": "mjdxjpmddqazywuy",
+          "evidence_class": "historical_product_record",
+          "runtime": null,
+          "tool": "grep",
+          "command_binary": "",
+          "content_sha256": "d8866772a38006ece134aa148e3fa430a621c52f7ab10c9881dc4c72048856aa",
+          "output_chars": 173285,
+          "lines": 150,
+          "signals": ["diff_markers"],
+          "candidate_layers": ["code"],
+          "candidate_profiles": ["code"],
+          "mapping_outcome": "single_candidate"
+        },
+        {
+          "id": "bucunrqhxszwijyd",
+          "evidence_class": "runtime_observation",
+          "runtime": "opencode",
+          "tool": "bash",
+          "command_binary": "git",
+          "content_sha256": "ed1fd81d1d889be9854e63f08de011c654ee3b0484aceca455ce0812aa6fe6cc",
+          "output_chars": 51316,
+          "lines": 668,
+          "signals": [],
+          "candidate_layers": [],
+          "candidate_profiles": [],
+          "mapping_outcome": "no_content_candidate"
+        },
+        {
+          "id": "mhtkmnclftrcixqz",
+          "evidence_class": "runtime_observation",
+          "runtime": "opencode",
+          "tool": "grep",
+          "command_binary": "",
+          "content_sha256": "258e29a7327bf21aa5f58996e00d6ac5ecf56063ee99a04b0309f6535fc17e3a",
+          "output_chars": 120085,
+          "lines": 358,
+          "signals": [],
+          "candidate_layers": [],
+          "candidate_profiles": [],
+          "mapping_outcome": "no_content_candidate"
+        },
+        {
+          "id": "knwqasghrqjygpzt",
+          "evidence_class": "runtime_observation",
+          "runtime": "opencode",
+          "tool": "grep",
+          "command_binary": "",
+          "content_sha256": "5639d3e1e6b1d6070ded780c35dc3672866c1a1d395675f9be1af086d83b3025",
+          "output_chars": 100742,
+          "lines": 332,
+          "signals": ["instruction_markers"],
+          "candidate_layers": ["instructions"],
+          "candidate_profiles": ["instructions"],
+          "mapping_outcome": "single_candidate"
+        },
+        {
+          "id": "zhbmruwpmmglxlfk",
+          "case_id": "retained-json-and-instruction-markers",
+          "evidence_class": "runtime_observation",
+          "runtime": "opencode",
+          "tool": "kagi_kagi_search_fetch",
+          "command_binary": "",
+          "content_sha256": "75b8b8f0030b87c4056b03bfd4807088375c08786f5683c6d5818e1c61d1691e",
+          "output_chars": 489584,
+          "lines": 1,
+          "signals": ["json_document", "instruction_markers"],
+          "candidate_layers": ["tool", "instructions"],
+          "candidate_profiles": ["tool", "instructions"],
+          "mapping_outcome": "ambiguous"
+        },
+        {
+          "id": "rtwiwhlavvxamsdq",
+          "evidence_class": "runtime_observation",
+          "runtime": "opencode",
+          "tool": "read",
+          "command_binary": "",
+          "content_sha256": "19d5d27b8160391733494c72e942ed74d2aa9bf753b9817ec3cfd7462bb60481",
+          "output_chars": 61962,
+          "lines": 2006,
+          "signals": [],
+          "candidate_layers": [],
+          "candidate_profiles": [],
+          "mapping_outcome": "no_content_candidate"
+        }
+      ]
+    },
+    "fixtures": [
+      {
+        "id": "build-log",
+        "path": "tools/bench/corpus/build_log.txt",
+        "sha256": "fbca5ca2481e313b2bc6a747a903bdcd4de5fd79f14ae6d4fe1dc3ae9cafeb66",
+        "evidence_class": "benchmark_fixture"
+      },
+      {
+        "id": "search-hits",
+        "path": "tools/bench/corpus/search_hits.txt",
+        "sha256": "7d519a74caf1486f30634787997724acc15f061f0ac93d351d10e6d69360d66a",
+        "evidence_class": "benchmark_fixture"
+      },
+      {
+        "id": "synthetic-source",
+        "path": "tools/bench/corpus/src_alpha.txt",
+        "sha256": "95c63298e073868d7af52fe08afee511afb3a18532ad7282154bc9db1431b885",
+        "evidence_class": "benchmark_fixture"
+      },
+      {
+        "id": "historical-opencode-tool-use",
+        "path": "tools/bench/fixtures/opencode-tool-use.jsonl",
+        "sha256": "ad5ec5375be7a0b75a0817eeedf323e1b97d480f1343af441b18a71279222453",
+        "evidence_class": "historical_runtime_fixture_unsupported_for_current_collection"
+      }
+    ],
+    "candidate_signals": [
+      { "id": "tool_name", "status": "implemented" },
+      { "id": "command_prefix", "status": "implemented" },
+      { "id": "subcommand", "status": "implemented" },
+      { "id": "exit_status", "status": "implemented" },
+      { "id": "json_document", "status": "characterized_candidate" },
+      { "id": "diff_markers", "status": "characterized_candidate" },
+      { "id": "log_markers", "status": "characterized_candidate" },
+      { "id": "instruction_markers", "status": "characterized_candidate" },
+      { "id": "ndjson_record_count", "status": "characterized_candidate" },
+      { "id": "output_chars", "status": "exact_measurement_only" },
+      { "id": "line_count", "status": "exact_measurement_only" }
+    ],
+    "candidate_layer_profile_mappings": [
+      {
+        "layer": "shell",
+        "profile": "shell",
+        "status": "unselected_candidate"
+      },
+      { "layer": "tool", "profile": "tool", "status": "unselected_candidate" },
+      { "layer": "code", "profile": "code", "status": "unselected_candidate" },
+      {
+        "layer": "instructions",
+        "profile": "instructions",
+        "status": "unselected_candidate"
+      },
+      {
+        "layer": "memory",
+        "profile": "session",
+        "status": "unselected_candidate"
+      }
+    ],
+    "ambiguity_cases": [
+      "retained-json-and-instruction-markers",
+      "route-first-match-overlap",
+      "route-command-prefix-overmatch",
+      "route-command-prefix-subcommand-disagreement"
+    ],
+    "fallback_cases": [
+      "route-no-rules",
+      "route-malformed-command-input",
+      "route-catch-all-malformed-input",
+      "route-unrecognized-exit-status"
+    ]
+  },
+  "findings": {
+    "fixture_cases": [
+      {
+        "id": "build-log",
+        "bytes": 149843,
+        "lines": 4320,
+        "json_document": false,
+        "diff_markers": false,
+        "log_markers": true,
+        "instruction_markers": false,
+        "ndjson_records": 0,
+        "candidate_layers": ["shell"],
+        "candidate_profiles": ["shell"],
+        "mapping_basis": "lexical_signal",
+        "mapping_outcome": "single_candidate"
+      },
+      {
+        "id": "search-hits",
+        "bytes": 100031,
+        "lines": 1686,
+        "json_document": false,
+        "diff_markers": false,
+        "log_markers": false,
+        "instruction_markers": false,
+        "ndjson_records": 0,
+        "candidate_layers": ["tool"],
+        "candidate_profiles": ["tool"],
+        "mapping_basis": "fixture_task_provenance",
+        "mapping_outcome": "single_candidate"
+      },
+      {
+        "id": "synthetic-source",
+        "bytes": 119722,
+        "lines": 1911,
+        "json_document": false,
+        "diff_markers": false,
+        "log_markers": false,
+        "instruction_markers": false,
+        "ndjson_records": 0,
+        "candidate_layers": ["code"],
+        "candidate_profiles": ["code"],
+        "mapping_basis": "fixture_task_provenance",
+        "mapping_outcome": "single_candidate"
+      },
+      {
+        "id": "historical-opencode-tool-use",
+        "bytes": 2167,
+        "lines": 6,
+        "json_document": false,
+        "diff_markers": false,
+        "log_markers": false,
+        "instruction_markers": false,
+        "ndjson_records": 6,
+        "candidate_layers": ["shell"],
+        "candidate_profiles": ["shell"],
+        "mapping_basis": "historical_fixture_metadata",
+        "mapping_outcome": "single_candidate"
+      }
+    ],
+    "routing_cases": [
+      {
+        "id": "route-tool-name",
+        "tool_call": { "tool": "bash", "input": "", "is_error": null },
+        "routes": [{ "tool": "bash", "profile": "tool-profile" }],
+        "default_profile": "default",
+        "expected_profile": "tool-profile",
+        "outcome": "implemented_match"
+      },
+      {
+        "id": "route-command-prefix",
+        "tool_call": {
+          "tool": "bash",
+          "input": "{\"command\":\"git status\"}",
+          "is_error": false
+        },
+        "routes": [{ "command_prefix": "git", "profile": "prefix-profile" }],
+        "default_profile": "default",
+        "expected_profile": "prefix-profile",
+        "outcome": "implemented_match"
+      },
+      {
+        "id": "route-command-prefix-subcommand-disagreement",
+        "tool_call": {
+          "tool": "bash",
+          "input": "{\"command\":\"git --no-pager status\"}",
+          "is_error": false
+        },
+        "routes": [
+          { "command_prefix": "git status", "profile": "prefix-profile" },
+          { "subcommand": "status", "profile": "subcommand-profile" }
+        ],
+        "default_profile": "default",
+        "expected_profile": "subcommand-profile",
+        "outcome": "signals_disagree"
+      },
+      {
+        "id": "route-command-prefix-overmatch",
+        "tool_call": {
+          "tool": "bash",
+          "input": "{\"command\":\"git status-extra\"}",
+          "is_error": false
+        },
+        "routes": [
+          { "command_prefix": "git status", "profile": "prefix-profile" },
+          { "subcommand": "status", "profile": "subcommand-profile" }
+        ],
+        "default_profile": "default",
+        "expected_profile": "prefix-profile",
+        "outcome": "raw_prefix_match"
+      },
+      {
+        "id": "route-exit-failure",
+        "tool_call": { "tool": "bash", "input": "", "is_error": true },
+        "routes": [{ "exit_status": "failure", "profile": "failure-profile" }],
+        "default_profile": "default",
+        "expected_profile": "failure-profile",
+        "outcome": "implemented_match"
+      },
+      {
+        "id": "route-first-match-overlap",
+        "tool_call": {
+          "tool": "bash",
+          "input": "{\"command\":\"git status\"}",
+          "is_error": false
+        },
+        "routes": [
+          { "tool": "bash", "profile": "broad-profile" },
+          {
+            "tool": "bash",
+            "command_prefix": "git",
+            "profile": "specific-profile"
+          }
+        ],
+        "default_profile": "default",
+        "expected_profile": "broad-profile",
+        "outcome": "first_match_wins"
+      },
+      {
+        "id": "route-no-rules",
+        "tool_call": {
+          "tool": "bash",
+          "input": "{\"command\":\"git status\"}",
+          "is_error": false
+        },
+        "routes": [],
+        "default_profile": "default",
+        "expected_profile": "default",
+        "outcome": "default_fallback"
+      },
+      {
+        "id": "route-malformed-command-input",
+        "tool_call": {
+          "tool": "bash",
+          "input": "{\"command\":",
+          "is_error": false
+        },
+        "routes": [{ "command_prefix": "git", "profile": "prefix-profile" }],
+        "default_profile": "default",
+        "expected_profile": "default",
+        "outcome": "default_fallback"
+      },
+      {
+        "id": "route-catch-all-malformed-input",
+        "tool_call": {
+          "tool": "bash",
+          "input": "{\"command\":",
+          "is_error": false
+        },
+        "routes": [{ "profile": "catch-all" }],
+        "default_profile": "default",
+        "expected_profile": "catch-all",
+        "outcome": "catch_all_match"
+      },
+      {
+        "id": "route-nil-error-is-success",
+        "tool_call": { "tool": "bash", "input": "", "is_error": null },
+        "routes": [{ "exit_status": "success", "profile": "success-profile" }],
+        "default_profile": "default",
+        "expected_profile": "success-profile",
+        "outcome": "nil_error_matches_success"
+      },
+      {
+        "id": "route-unrecognized-exit-status",
+        "tool_call": { "tool": "bash", "input": "", "is_error": true },
+        "routes": [{ "exit_status": "succes", "profile": "typo-profile" }],
+        "default_profile": "default",
+        "expected_profile": "typo-profile",
+        "outcome": "unrecognized_value_is_wildcard"
+      }
+    ],
+    "residual_spend_estimates": {
+      "evidence_class": "estimate",
+      "method": "sum_per_call_ceil_characters_div_4",
+      "not_runtime_tokens": true,
+      "groups": [
+        {
+          "tool": "read",
+          "command": "",
+          "calls": 48866,
+          "raw_estimated_tokens": 94922634,
+          "delivered_estimated_tokens": 60497479
+        },
+        {
+          "tool": "grep",
+          "command": "",
+          "calls": 16980,
+          "raw_estimated_tokens": 22464854,
+          "delivered_estimated_tokens": 11488545
+        },
+        {
+          "tool": "bash",
+          "command": "git",
+          "calls": 13845,
+          "raw_estimated_tokens": 18487799,
+          "delivered_estimated_tokens": 7163007
+        },
+        {
+          "tool": "bash",
+          "command": "node",
+          "calls": 8950,
+          "raw_estimated_tokens": 12312857,
+          "delivered_estimated_tokens": 6733181
+        },
+        {
+          "tool": "bash",
+          "command": "npx",
+          "calls": 3253,
+          "raw_estimated_tokens": 9275779,
+          "delivered_estimated_tokens": 4417237
+        },
+        {
+          "tool": "bash",
+          "command": "pnpm",
+          "calls": 5935,
+          "raw_estimated_tokens": 8528724,
+          "delivered_estimated_tokens": 3900053
+        }
+      ]
+    },
+    "runtime_reported_spend": {
+      "evidence_class": "runtime_observation",
+      "runtime": "opencode",
+      "source_event_ordinals": [2, 3, 6],
+      "cost_usd": [0, 0, 0],
+      "interpretation": "runtime_reported_zero"
+    },
+    "historical_fixture_spend": {
+      "evidence_class": "historical_runtime_fixture_unsupported_for_current_collection",
+      "fixture": "historical-opencode-tool-use",
+      "step_finish_cost_usd": [0, 0]
+    },
+    "comparison": {
+      "retained_calls": 6,
+      "retained_calls_with_no_candidate_content_signal": 3,
+      "retained_calls_with_one_candidate_content_signal": 2,
+      "retained_calls_with_overlapping_candidate_content_signals": 1,
+      "implemented_routing_cases": 11,
+      "implemented_default_fallback_cases": 2,
+      "implemented_order_dependent_cases": 1,
+      "candidate_mapping_status": "unselected",
+      "taxonomy_status": "unselected",
+      "threshold_status": "unselected",
+      "semantic_classifier_status": "unsupported_and_unselected"
+    },
+    "product_contract_followups": [
+      {
+        "id": "validate-route-exit-status-values",
+        "required": true,
+        "scope": "Align configuration validation and documentation for unrecognized route exit_status values; do not change routing behavior in this characterization."
+      }
+    ]
+  },
+  "claim_limits": [
+    "Runtime-emitted fields are observations; exact byte and line counts are derived characterization.",
+    "Character-count token figures are estimates and are not runtime token observations.",
+    "Historical fixtures are compatibility and provenance evidence and are unsupported for current collection.",
+    "No provider-internal cache hit, miss, fill, eviction, request boundary, isolation, or prefix composition is claimed.",
+    "No taxonomy, layer-to-profile mapping, threshold, semantic classifier, or implementation is selected."
+  ],
+  "determinism": {
+    "findings_sha256": "d67f0db622a1e6bfd2f7ccd0bd716554e8001f0613787c95d71f62ebdd5abadd"
+  }
+}

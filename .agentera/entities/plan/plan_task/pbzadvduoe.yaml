@@ -1,0 +1,14 @@
+id: pbzadvduoe
+artifact: plan
+record:
+  name: Retain the runtime-telemetry comparison
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN an estimated-costed manifest naming a finite runtime, model, provider, task corpus, round count, and setup topology WHEN paid execution is about to begin THEN explicit operator approval exists and the workload cannot expand without renewed approval.
+    - GIVEN the approved manifest WHEN the comparison completes THEN every prescribed setup and measured attempt is retained with runtime and identity provenance sufficient for independent validation.
+    - GIVEN retained measured and setup attempts WHEN the comparison is reported THEN raw runtime-emitted cache-read and cache-write distributions, runtime- reported and estimated costs, quality, setup cost, and break-even evidence are shown without combining unlike evidence classes.
+    - GIVEN documentation, pricing, or historical fixtures WHEN they inform the report THEN each is labeled as context, estimate, compatibility evidence, or unsupported for current collection rather than runtime telemetry.
+    - GIVEN the retained experiment WHEN existing validation and regeneration checks run THEN the evidence validates and its summary regenerates exactly; any required product-contract change becomes separately scoped follow-up.
+  plan: extlbalndx

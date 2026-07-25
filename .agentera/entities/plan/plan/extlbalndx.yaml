@@ -1,0 +1,47 @@
+id: extlbalndx
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-24
+    status: open
+    reviewed: 2026-07-24
+    critic_issues: 8 found, 8 addressed, 0 dismissed
+    revised: Added finite evidence manifests, honest insufficient-evidence outcomes, complete unknown dependencies, scenario-based deliberation criteria, candidate mapping evidence, decision-owned worked examples, bounded evidence verification, and explicit evidence-class separation.
+    title: "Plan: Turn retained runtime evidence into benchmark and routing decisions"
+  what: Produce retained runtime-only comparison and routing evidence, then use that evidence to deliberate the savings-attribution, benchmark-aggregation, and router-taxonomy questions without implementing any unsettled choice or forcing a conclusion that the retained evidence cannot support.
+  why: The benchmark is ktx's headline contract and routing is its leverage point. Both need reproducible observations before architectural choices can be made, while the current backlog otherwise leaves the evidence and deliberations as separate items with implicit dependencies.
+  constraints: Collect telemetry only through supported agent runtimes. Treat runtime-emitted fields as observations, explicit configuration as identity provenance, provider documentation and pricing as context or estimates, and historical fixtures as unsupported for current collection. Do not claim provider-internal cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition. Preserve retained originals, first-evidence authority, byte-for-byte summary regeneration, conservative failure, and the existing CLI surface. Each open architectural question must receive structured deliberation before any selected implementation work is added. When evidence is insufficient, the question remains open and receives one bounded evidence follow-up rather than a manufactured choice.
+  overall_acceptance: GIVEN the runtime-only collection boundary and the five selected backlog items WHEN the plan completes THEN retained comparison and routing evidence are independently reproducible, each deliberation either records a supported choice or explicitly preserves the open question with one bounded evidence follow-up, project state reflects those outcomes, and no unsupported provider-internal claim or premature implementation is introduced.
+  scope:
+    included:
+      - Retained methodology-v5 runtime, model, and provider comparison evidence
+      - Runtime-emitted cache token, cost, quality, setup-cost, and break-even reporting
+      - Routing-candidate signal, ambiguity, residual-spend, and fallback characterization
+      - Structured savings-attribution, benchmark-aggregation, and router-taxonomy deliberations
+      - Reciprocal architecture, decision-history, TODO, progress, and plan-state synchronization
+    excluded:
+      - Direct-provider clients, credentials, probes, or telemetry collection
+      - Provider-internal cache, request-boundary, isolation, or prefix-composition claims
+      - Implementation selected by the three deliberations
+      - Prefix-observability, cache-control-ownership, evidence-maintenance, and pipeline-semantics deliberations
+      - Unrelated pipeline, CLI argument, JSON guard, instruction, memory, and deferred backlog work
+    deferred:
+      - Implementation work selected by recorded deliberation outcomes
+      - Additional runtime observations requested by a deliberation because retained evidence is insufficient
+  design: "Freeze an operator-approved finite manifest for each evidence track before it runs: one for benchmark comparison and one for routing candidates. The comparison then feeds independent attribution and aggregation deliberations, while routing characterization feeds taxonomy selection. Every deliberation must distinguish observations, estimates, and unavailable provider semantics and may preserve its question when evidence is insufficient. The final task reconciles all authoritative project state and verifies that only work selected by supported recorded choices is unblocked."
+  unknowns:
+    - question: Will the retained runtime evidence be sufficient to resolve every downstream deliberation without another collection cycle?
+      affects_task: 2
+      resolve_by: Audit the retained comparison against both attribution and aggregation questions before Tasks 2 and 3; if a consequential field is unavailable, preserve the affected question and add one bounded evidence follow-up rather than infer or select an unsupported contract.
+    - question: Will the retained comparison distinguish authoritative call evidence from session and experiment derivations well enough to settle aggregation?
+      affects_task: 3
+      resolve_by: Audit provenance and deduplication evidence before Task 3; if authority or composition cannot be established, preserve the question and add one bounded evidence follow-up instead of treating a derived aggregate as parallel truth.
+    - question: Will the characterized routing signals distinguish enough cases to support a deterministic taxonomy and fallback choice?
+      affects_task: 5
+      resolve_by: Require the router-taxonomy deliberation to evaluate ambiguity and fallback evidence explicitly; if the evidence cannot distinguish alternatives, retain the current routing contract and add a narrower evidence task.
+    - question: Which finite runtime, model, provider, corpus, round, and setup manifest should govern the paid comparison?
+      affects_task: 1
+      resolve_by: Record an estimated-costed finite manifest and obtain operator approval before any paid execution; no comparison runs while the manifest or cost exposure remains unapproved.
+  surprises:
+    []

@@ -1,0 +1,12 @@
+id: kfmjgcuydt
+artifact: plan
+record:
+  name: Resolve benchmark evidence aggregation
+  depends_on:
+    - pbzadvduoe
+  status: pending
+  acceptance:
+    - GIVEN one observation appears in append-only call evidence, a session roll-up, and an experiment artifact WHEN the choice is recorded THEN its contract test vector identifies the authority and counts the measurement exactly once.
+    - GIVEN unchanged authoritative evidence and changed mutable or duplicated derivations WHEN the choice's regeneration test vector is evaluated THEN the expected aggregate remains unchanged and reproducible.
+    - GIVEN the deliberation outcome WHEN project memory is synchronized THEN a supported choice resolves the question and unblocks only selected work, or insufficient evidence preserves the question and adds one bounded evidence follow-up.
+  plan: extlbalndx

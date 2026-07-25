@@ -1,0 +1,13 @@
+id: kjryqvxjyb
+artifact: plan
+record:
+  name: Characterize routing-candidate evidence
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a frozen finite manifest naming retained calls, fixtures, candidate signals, candidate layer-to-profile mappings, ambiguity cases, and fallback cases WHEN characterization runs THEN every prescribed case is reported with reproducible source provenance.
+    - GIVEN current implemented routing behavior WHEN evidence is characterized THEN signal and candidate-mapping outcomes are compared without selecting a taxonomy, profile mapping, threshold, or unsupported semantic classifier.
+    - GIVEN runtime observations, historical fixtures, runtime-reported spend, and estimates WHEN results are reported THEN each evidence class remains separately labeled and no estimate is presented as an observation.
+    - GIVEN the frozen manifest and retained characterization WHEN evidence validation is repeated THEN the same inputs produce the same findings and any required product-contract change becomes separately scoped follow-up.
+  plan: extlbalndx

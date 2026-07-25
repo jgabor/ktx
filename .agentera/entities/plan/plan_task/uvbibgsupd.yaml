@@ -1,0 +1,12 @@
+id: uvbibgsupd
+artifact: plan
+record:
+  name: Resolve the savings-attribution contract
+  depends_on:
+    - pbzadvduoe
+  status: pending
+  acceptance:
+    - GIVEN a representative retained observation containing tool-output reduction, logical input, cache tokens, setup cost, quality, and reported or estimated cost WHEN the choice is recorded THEN its worked example assigns each contribution once and retains evidence class and provenance.
+    - GIVEN an unavailable provider-internal semantic WHEN attribution is reported THEN it remains unavailable rather than being inferred from runtime observations, configured identity, documentation, or estimates.
+    - GIVEN the deliberation outcome WHEN project memory is synchronized THEN a supported choice resolves the question and unblocks only selected work, or insufficient evidence preserves the question and adds one bounded evidence follow-up.
+  plan: extlbalndx

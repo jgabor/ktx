@@ -527,6 +527,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		result["phase_distributions"] = phaseDistributions(attempts, minimum)
 		result["cold_to_warm_rebuild_penalty"] = rebuildPenalty(attempts, minimum)
 		result["estimated_api_cost_break_even"] = estimatedCostBreakEven(attempts, minimum, manifest.CacheControl)
+		result["compression_attribution"] = buildCompressionAttribution(manifest, attempts)
 		result["ttft_ms"] = nil
 	}
 	return result
@@ -732,7 +733,30 @@ func RenderSummary(summary map[string]any) string {
 	if inflation := summaryValue(summary["tool_call_inflation"]); inflation != nil {
 		lines = append(lines, fmt.Sprintf("tool_call_inflation=%v", *inflation))
 	}
+	if attribution, ok := summary["compression_attribution"].(map[string]any); ok {
+		lines = append(lines, "attribution: evidence classes are parallel and non-additive; no cross-field total")
+		classes, _ := attribution["evidence_classes"].(map[string]any)
+		for _, name := range []string{"tool_delivery", "runtime_usage", "quality", "runtime_reported_cost", "estimated_cost"} {
+			class, _ := classes[name].(map[string]any)
+			observations, _ := class["observations"].([]any)
+			for _, raw := range observations {
+				observation, _ := raw.(map[string]any)
+				lines = append(lines, fmt.Sprintf("evidence %s attempt=%v side=%v phase=%v unit=%v value=%s authority=%v provenance=%s",
+					name, observation["attempt_id"], observation["side"], observation["phase"], class["comparison_unit"], compactJSON(observation["value"]), class["authority"], compactJSON(observation["provenance"])))
+			}
+		}
+		lines = append(lines,
+			"derived logical_input=uncached_input+cache_read (runtime-emitted tokens per attempt)",
+			"derived estimated_cost_break_even=setup estimated cost plus paired measured turns (cumulative price-derived USD by measured turn)",
+			"unavailable provider cache hits/misses/fills, request count/boundaries, isolation, eviction, prefix composition, runtime-cost billing semantics",
+			"interpretation: correlated delivery and runtime movement does not identify causal shares or provider-internal behavior")
+	}
 	return strings.Join(lines, "\n")
+}
+
+func compactJSON(value any) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
 }
 
 func formatValue(value *float64) string {

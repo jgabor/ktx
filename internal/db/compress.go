@@ -70,6 +70,62 @@ type Compressed struct {
 	Timestamp   string `json:"timestamp"`
 }
 
+// DeliveryObservation identifies the retained rows that determine how many
+// bytes a tool call delivered. The first compressed artifact is authoritative;
+// without one, the original tool-call output was delivered unchanged.
+type DeliveryObservation struct {
+	SourceID       string
+	OriginalBytes  int64
+	CompressedID   *string
+	DeliveredBytes int64
+}
+
+// QueryDeliveryObservations returns one observation per tool call in stable
+// source order. A later recompression cannot replace the first delivered
+// artifact.
+func (d *DB) QueryDeliveryObservations(sessionID string) ([]DeliveryObservation, error) {
+	return QueryDeliveryObservations(d.db, sessionID)
+}
+
+type deliveryQueryer interface {
+	Query(string, ...any) (*sql.Rows, error)
+}
+
+// QueryDeliveryObservations reads delivery evidence from either a managed DB
+// or a read-only SQL snapshot.
+func QueryDeliveryObservations(database deliveryQueryer, sessionID string) ([]DeliveryObservation, error) {
+	rows, err := database.Query(`
+		SELECT t.id,
+		       length(CAST(t.output AS BLOB)),
+		       c.id,
+		       COALESCE(length(CAST(c.output AS BLOB)), length(CAST(t.output AS BLOB)))
+		FROM tool_calls t
+		LEFT JOIN compressed c ON c.id = (
+			SELECT first.id FROM compressed first
+			WHERE first.source_id = t.id
+			ORDER BY first.timestamp ASC, first.id ASC
+			LIMIT 1
+		)
+		WHERE t.session_id = ?
+		ORDER BY t.timestamp ASC, t.id ASC`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("db: query delivery observations: %w", err)
+	}
+	defer rows.Close()
+	result := []DeliveryObservation{}
+	for rows.Next() {
+		var observation DeliveryObservation
+		if err := rows.Scan(&observation.SourceID, &observation.OriginalBytes, &observation.CompressedID, &observation.DeliveredBytes); err != nil {
+			return nil, fmt.Errorf("db: scan delivery observation: %w", err)
+		}
+		result = append(result, observation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: query delivery observations: %w", err)
+	}
+	return result, nil
+}
+
 // ErrSourceNotFound is a typed sentinel returned by InsertCompressed
 // when the SQLite FK rejects a row referencing a non-existent
 // tool_calls.id. The modernc.org/sqlite FK error is a generic

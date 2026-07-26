@@ -4,7 +4,7 @@ record:
   name: Expose field-scoped compression attribution
   depends_on:
     - dvoyfbnphu
-  status: pending
+  status: complete
   acceptance:
     - GIVEN retained pair baseline-003 and candidate-003 WHEN the public benchmark report and retained summary are inspected THEN delivery bytes, runtime uncached input, cache read/write, quality, reported cost, and estimated cost match their authoritative retained evidence and appear as separate evidence classes with authority and provenance.
     - GIVEN setup, warm measured, and unsupported observations WHEN the same surfaces are inspected THEN phase, comparison unit, and truthful unavailable labels are visible.

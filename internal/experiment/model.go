@@ -100,6 +100,7 @@ type Attempt struct {
 	ConfigSHA256  string            `json:"config_sha256"`
 	Artifacts     map[string]string `json:"artifacts"`
 	ContentHashes map[string]string `json:"content_hashes"`
+	delivery      *deliveryEvidence
 }
 
 // UnmarshalJSON keeps model-step observations best effort. A malformed optional

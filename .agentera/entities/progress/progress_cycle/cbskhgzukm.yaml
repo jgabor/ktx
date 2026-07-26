@@ -1,0 +1,14 @@
+id: cbskhgzukm
+artifact: progress
+record:
+  timestamp: 2026-07-26 08:59
+  type: feat
+  phase: build
+  what: Exposed field-scoped compression attribution on regenerated benchmark summaries and text reports. Delivery, runtime usage, quality, runtime-reported cost, and price-derived cost now carry explicit authority, provenance, phase, comparison unit, and unavailable states. Logical input and break-even are labeled derived, while evidence classes remain parallel and non-additive.
+  context:
+    intent: Complete plan task flqcwvauyn and TODO ytmirbuwvl without adding telemetry collection or resolving open runtime cache discussions.
+    constraints: No live model calls; no provider-internal claims; no cross-field total; retained evidence remains the sole authority.
+  inspiration: Firm field-authority and savings-attribution decisions; retained runtime-telemetry v5 experiment.
+  discovered: The retained baseline-003 and candidate-003 databases preserve 50,118 original bytes on both sides, with candidate delivery owned by first compressed artifact ojldcmcdmwfwmefq at 1,819 bytes.
+  verified: go test ./internal/experiment ./internal/db passed; mage build passed; two ./build/ktx benchmark regenerations produced identical summary SHA-256 93d6262b6f976cd6535aef45b95ef51589c90b2793e7583a88c3b83b1b162c80; ./build/ktx bench validate reported valid=true, summary_byte_match=true, target_met=true, and 3/3 valid per side; mage check passed with 0 lint issues.
+  next: Independent orchestration may audit the completed implementation. Do not infer provider cache behavior or resolve the separate runtime context/cache discussion tasks from this result.

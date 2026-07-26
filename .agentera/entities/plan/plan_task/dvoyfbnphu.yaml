@@ -12,12 +12,12 @@ record:
     - GIVEN each testable authority rule WHEN verification runs THEN it includes at least one passing and one conflicting or malformed case.
   plan: bstrfialvp
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Cache-aware timeout/retry attempts without linked session identity cannot regenerate; add deterministic handling and negative database/session authority coverage.
     provenance:
-      attempt_id: audit-1
+      attempt_id: audit-2
       source: Audit ses_062df8430ffet4PpHYqcavrlVq
-      recorded_at: 2026-07-26 08:42
+      recorded_at: 2026-07-26 08:49
       writer_command: agentera state plan record-evaluation

@@ -95,6 +95,11 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 	}
 	metrics.ToolCallCount = count
 	attempt.Metrics = metrics
+	deliveryRows, err := db.QueryDeliveryObservations(database, *attempt.SessionID)
+	if err != nil {
+		return Attempt{}, fmt.Errorf("attempt %q read delivery authority: %w", attempt.AttemptID, err)
+	}
+	attempt.delivery = newDeliveryEvidence(databaseRel, deliveryRows)
 	return attempt, nil
 }
 

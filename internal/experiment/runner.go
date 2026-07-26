@@ -191,6 +191,15 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 			valid = CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)
 		}
 	}
+	materialized, _, err := materializeAttempts(experimentDir, manifest, attempts)
+	if err != nil {
+		return experimentDir, nil, 2, err
+	}
+	pricingEvidence, err := preparePricingEvidence(experimentDir, manifest, materialized, nil)
+	if err != nil {
+		return experimentDir, nil, 2, err
+	}
+	attempts = estimateAttempts(materialized, pricingEvidence)
 	summary := BuildSummary(manifest, attempts)
 	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
 		return experimentDir, nil, 2, err

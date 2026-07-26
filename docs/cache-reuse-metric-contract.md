@@ -349,19 +349,30 @@ as machine policy only and are never emitted as supported statements.
 
 ## Current live-validation status
 
-The first bounded OpenCode 1.18.5 and `openai/gpt-5.6-luna` high run exercised
-schema 4 and retained complete direct buckets for all 14 attempts. It did not
-satisfy comparative completion: measured valid counts were 2/5 for baseline and
-4/5 for candidate, controlled complete pairs were zero, and the Pi-style method
-had zero eligible pairs. Summary regeneration was byte-identical. The exact
-evidence, hashes, authorization result, and integration blockers are recorded
-in [the live validation report](cache-reuse-live-validation.md).
+The retained OpenCode 1.18.5 and `openai/gpt-5.6-luna` high v3 experiment
+passed validation: `valid=true`, `summary_byte_match=true`, 14/14 valid attempt
+checks, measured targets 5/5 per side, five complete pairs, protocol compliance,
+and no methodology reasons or projection divergences. Every attempt interval
+was complete with zero contradictions and exactly three accepted model steps.
+No exact or conflicting duplicate occurred live; duplicate behavior is covered
+by regression tests rather than this live observation.
 
-The explicit owner, fail-closed event-hook interval, epoch ledger, and offline
-image capability preflight are now implemented. They do not retroactively
-upgrade that archive. Comparative and secondary wording remains unauthorized
-until a new bounded live experiment retains a complete interval, meets measured
-targets, regenerates byte-identically, and passes validation.
+For the five measured-warm pairs, baseline mean direct share was
+0.5299901044108349 and candidate mean was 0.7212058731757298. The paired
+candidate-minus-baseline mean was 0.19121576876489477 with a two-sided 95%
+Student-t interval of [0.19057450330802284, 0.1918570342217667]. Both sides had
+count 5, full-pass rate 1, and mean fact score 1. This authorizes only “higher
+OpenCode-reported cached-input share under the retained protocol”; the interval
+is descriptive uncertainty and does not authorize significance or causal
+wording.
+
+The estimated consecutive-step view had 28 eligible and 14 ineligible units,
+all ineligible because they were first steps. It remains descriptive and
+non-ranking. Source identity was `configured_only` because source events omitted
+runtime-emitted model and provider fields; configured identity did not backfill
+those events. Exact provenance, estimates, hashes, and the two unchanged failed
+historical archives are recorded in
+[the live validation report](cache-reuse-live-validation.md).
 
 ## Historical boundary
 

@@ -1,0 +1,16 @@
+id: vqgqsnxmks
+artifact: progress
+record:
+  timestamp: 2026-07-26 20:39
+  type: fix
+  phase: build
+  what: Fixed required callback duplicate handling and queue recovery, preserved legacy regeneration, hardened source attestation, completed one valid bounded Luna/high comparison, and synchronized the final evidence report.
+  context:
+    intent: Close the runtime-only cache-reuse plan with a corrected collector and one retained, independently audited live evidence path.
+    constraints: Keep runtime evidence distinct from provider-native behavior; make no request, hit, miss, isolation, prefix, TTL, significance, or causal claim.
+    unknowns: None for this plan; source events still omit runtime-emitted model/provider identity and remain configured_only.
+    scope: Collector and schema fixes, source preflight, ignored v3 archive, docs/cache-reuse-live-validation.md, coupled user documentation, and canonical plan/progress state.
+  inspiration: The final validation gap exposed by two retained failed archives and their evaluator evidence.
+  discovered: The v2 failure came from an exact repeated step callback being compared with its new callback ordinal, which poisoned the queue. The valid v3 run emitted no duplicate callbacks, so tests remain the authority for duplicate classification while v3 proves the complete normal live path.
+  verified: mage check passed on the integrated implementation. ./build/ktx bench compare --preflight --build returned eligible=true with zero model attempts and no artifact. Validation of .bench-data/cache-reuse-luna-high-oc-1-18-5-20260726-v3 returned valid=true, target_met=true, summary_byte_match=true, fourteen valid attempts, five complete pairs, preserved quality, twenty-eight eligible secondary units, no projection divergence, and an independent audit with no findings.
+  next: Preserve all three archives. Re-run live evidence only when the runtime, collector contract, methodology, model context, or compared pipelines materially change.

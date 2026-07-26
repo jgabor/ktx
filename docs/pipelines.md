@@ -691,10 +691,19 @@ in the same order. Any missing, partial, reordered, duplicated, mismatched, open
 incomplete, contradictory, or corrupt required evidence makes attempt and
 experiment validation fail; regeneration cannot promote it into valid evidence.
 
-The offline path is now capable of producing controlled comparative and
-Pi-style evidence, but those outcomes remain pending until a new bounded live
-run passes validation. The prior OpenCode 1.18.5 direct-only archive and exact
-failed validation remain documented in
+The retained OpenCode 1.18.5 Luna/high run now provides validated controlled
+and secondary evidence. Five measured pairs were complete and protocol
+compliant; candidate mean OpenCode-reported cached-input share was
+0.7212058731757298 versus 0.5299901044108349 for baseline. The paired
+candidate-minus-baseline mean was 0.19121576876489477 with a descriptive
+two-sided 95% Student-t interval of [0.19057450330802284,
+0.1918570342217667], while both sides retained full-pass rate and mean fact
+score of 1. The authorized scope is only “higher OpenCode-reported cached-input
+share under the retained protocol.” The result does not authorize significance
+or causal wording and says nothing about provider-native cache behavior. The
+separately labeled Pi-style estimate had 28 eligible and 14 ineligible units and
+remains descriptive and non-ranking. Exact provenance, validation, hashes, and
+both unchanged failed archives are in
 [the live validation report](cache-reuse-live-validation.md).
 
 Each strategy runs one `cold_observation`, the requested number of `warmup`

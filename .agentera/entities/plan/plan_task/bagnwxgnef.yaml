@@ -1,0 +1,29 @@
+id: bagnwxgnef
+artifact: plan
+record:
+  plan: jffafkheqj
+  name: Validate corrected evidence and synchronize final state
+  status: complete
+  depends_on:
+    - gparsxmzfx
+    - afpivyyvyt
+    - nlpevkynie
+    - trthspdbkb
+    - jgfpuyiirl
+    - ipomtqhxuq
+    - buizbsuqpv
+  acceptance:
+    - GIVEN the corrected collector and newly built local artifact WHEN offline verification runs THEN focused suites, historical and current regeneration, and the full project check pass.
+    - GIVEN green offline preflight WHEN live completion is evaluated THEN one bounded comparison retains exact accounting, artifacts, five measured pairs, eligible secondary evidence, and byte-identical valid output.
+    - GIVEN the retained result WHEN documentation and project state are synchronized THEN supported wording, limitations, failed history, backlog, and completion status agree.
+    - GIVEN independent final review WHEN the replacement task is evaluated THEN no material finding remains and another paid run is unnecessary absent contradictory evidence.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: bagnwxgnef-audit-1
+      source: retained v3 validation and independent final evidence audit
+      recorded_at: 2026-07-26 20:38
+      writer_command: agentera state plan record-evaluation

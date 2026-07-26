@@ -116,10 +116,17 @@ kinds. It also requires strict acknowledgements, exact wrapper/event model-step
 identity, fail-closed interval validation, and capability attestation before auth
 readiness. Every normal comparison runs the same gate before its first attempt.
 
-The offline collector integration is complete, but controlled and secondary
-evidence remains pending until a new bounded live comparison passes validation.
-The earlier OpenCode 1.18.5 archive remains direct-only historical evidence; see
-the [live validation report](docs/cache-reuse-live-validation.md).
+The retained OpenCode 1.18.5 Luna/high comparison passed validation with five
+complete measured pairs and full quality on both sides. Under that retained
+protocol, candidate mean OpenCode-reported cached-input share was
+0.7212058731757298 versus 0.5299901044108349 for baseline; the paired
+candidate-minus-baseline mean was 0.19121576876489477 with a descriptive
+two-sided 95% Student-t interval of [0.19057450330802284,
+0.1918570342217667]. This supports only “higher OpenCode-reported cached-input
+share under the retained protocol,” not significance, causality, generic cache
+effectiveness, or provider-native cache behavior. The [live validation
+report](docs/cache-reuse-live-validation.md) records exact provenance, cost and
+secondary estimates, hashes, and both earlier failed archives.
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
 summaries. Validate retained evidence with:

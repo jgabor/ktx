@@ -10,7 +10,7 @@ record:
     - jgfpuyiirl
     - ipomtqhxuq
     - buizbsuqpv
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN all feature tasks complete WHEN offline validation runs against the newly built local artifact THEN focused suites, historical regeneration, new regeneration, and the full project check pass.
     - GIVEN offline validation is green WHEN completion is evaluated THEN a preflight-bounded live comparison, exact runtime accounting, retained artifacts, and byte-identical validation are mandatory; unavailable live eligibility leaves the plan blocked.
@@ -27,3 +27,6 @@ record:
       source: final tracked-state audit and .bench-data/cache-reuse-luna-high-oc-1-18-5-20260726
       recorded_at: 2026-07-26 17:31
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - bagnwxgnef
+  superseded_reason: A fresh bounded v3 run passed after collector corrections; this replacement preserves both failed evaluations and owns final validation.

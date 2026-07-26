@@ -1,0 +1,16 @@
+id: rqkjoiovcl
+artifact: progress
+record:
+  timestamp: 2026-07-26 09:17
+  type: docs
+  phase: deliberate
+  what: Recorded the runtime context observability decision, resolved the canonical discussion TODO, removed the resolved Architecture question, and synchronized TODO.md. The selected contract retains runtime-emitted identities, local order, measurements, and tightly scoped equality hashes/counts while keeping unsupported segments, compaction, provider prefix composition, and provider request boundaries unavailable. No implementation follow-up was selected.
+  context:
+    intent: Resolve runtime context observability within the firm runtime-only boundary using only retained runtime evidence and explicit runtime configuration provenance.
+    constraints: Documentation and typed project-memory state only. No product code, provider calls, provider documentation as telemetry, profile refresh, hypothetical instrumentation, or reconstruction of omitted decision detail.
+    unknowns: General unsanitized content-hash retention remains intentionally unresolved pending the separate trust/redaction discussion. Current evidence does not expose instruction normalization, tool schemas, compaction events, completion order, or provider request/prefix semantics.
+    scope: ARCHITECTURE.md, TODO.md, canonical decision/TODO/progress entities, active plan task state, and the preserved pre-existing flqcwvauyn evaluator update.
+  inspiration: Active plan task hhvivlwwhr, firm runtime-only decision uilebafxdn, and the retained OpenCode runtime-visible prefix characterization.
+  discovered: The pinned plugin exposes native identity, local acceptance order, optional runtime provider/model identity, and model-step measurements but no composed context segments. The retained synthetic config provides an exact instruction and disables tools, yet the current characterization does not normalize instructions and tools-disabled is not a tool schema. Existing SHA-256 equality values are pseudonymous fixture-scoped evidence, not anonymous general telemetry.
+  verified: "The decision append writer returned status=pass with zero violations and exact get returned full current detail for ufrltsdlaw; targeted decision lint passed for its canonical entity. Exact evidence inspected: uilebafxdn, docs/runtime-visible-prefix-characterization.md, tools/bench/evidence/opencode-runtime-prefix-characterization.json and its retained source references, tools/bench/evidence/opencode-runtime-cache-controls/probe-config.json, docs/opencode-telemetry.md, internal/telemetry/opencode/contract.go, and the generated plugin collector in internal/cli/init.go. Prettier checked the changed Markdown/YAML; markdown-link-check passed 12 Architecture and 16 TODO links; agentera state validation passed 359 entities with 0 issues; git diff --check passed."
+  next: Proceed to the separate runtime cache telemetry configuration discussion. Keep instructions, tool schemas, compaction, completion order, and provider request/prefix semantics unavailable unless future runtime-emitted or explicit sanitized configuration evidence supports them; no context-observability implementation task was added.

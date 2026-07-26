@@ -12,12 +12,12 @@ record:
     - GIVEN correlated compression and usage movement WHEN conclusions are rendered THEN they do not claim causal shares or provider-internal behavior.
   plan: bstrfialvp
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: TODO.md still marks field-scoped savings attribution reporting open while its canonical TODO entity is resolved.
     provenance:
-      attempt_id: audit-1
+      attempt_id: audit-2
       source: Audit ses_062c53387ffeZWWv9XjWVRpKWd
-      recorded_at: 2026-07-26 09:09
+      recorded_at: 2026-07-26 09:12
       writer_command: agentera state plan record-evaluation

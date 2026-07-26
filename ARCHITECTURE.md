@@ -313,12 +313,6 @@ Where is the boundary between in-session history compression and cross-session m
 
 → [Discussion task](TODO.md#discuss-layer-5-boundary)
 
-### Runtime context observability and derived evidence
-
-Which runtime-emitted fields or explicit runtime configuration, if any, should ktx retain to describe runtime-visible stable and changing context? Which privacy-safe hashes and counts can distinguish instruction, tool-schema, and compaction segments, and which unavailable observations must remain explicitly unavailable rather than be used to infer provider prefix composition or request boundaries?
-
-→ [Discussion task](TODO.md#discuss-runtime-context-observability-and-derived-evidence)
-
 ### Runtime cache telemetry configuration
 
 Which runtime-emitted cache fields and explicit runtime configuration should ktx retain in benchmark manifests and attempts, where should runtime-adapter version provenance live, and how should missing or unsupported fields be labeled unavailable? The contract must not imply control or observation of provider-internal cache behavior or provider requests.

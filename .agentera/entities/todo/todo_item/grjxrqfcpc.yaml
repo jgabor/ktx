@@ -2,5 +2,5 @@ id: grjxrqfcpc
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Runtime context observability and derived evidence** — Run a structured discussion within the runtime-only boundary and record which runtime-emitted fields or explicit runtime configuration ktx should retain for privacy-safe stable/changing-context observations, segment hashes and counts, compaction treatment, privacy limits, and truthful unavailable labels. Do not treat the resulting evidence as provider prefix composition or request-boundary evidence. → [Question](ARCHITECTURE.md#runtime-context-observability-and-derived-evidence)"
+  status: resolved
+  description: "**Runtime context observability and derived evidence** — Retain runtime-emitted identity, local order, and measurement fields plus provenance-scoped equality hashes and counts only for exact sanitized runtime-visible or explicitly configured segments. Keep unsupported segments, compaction, provider prefix composition, and provider request boundaries unavailable. General content-derived retention remains gated by the trust/redaction discussion. → [Recorded decision](.agentera/entities/decisions/decision/ufrltsdlaw.yaml)"

@@ -19,9 +19,7 @@ This document is the canonical executable backlog for implementation, evidence, 
 
 Each task must run a structured discussion, append the resulting choice to the recorded decision history, remove the resolved question from `ARCHITECTURE.md`, complete this task, and add or unblock only the implementation work selected by the choice.
 
-<a id="discuss-runtime-context-observability-and-derived-evidence"></a>
-
-- [ ] **Runtime context observability and derived evidence** — Run a structured discussion within the runtime-only boundary and record which runtime-emitted fields or explicit runtime configuration ktx should retain for privacy-safe stable/changing-context observations, segment hashes and counts, compaction treatment, privacy limits, and truthful unavailable labels. Do not treat the resulting evidence as provider prefix composition or request-boundary evidence. → [Question](ARCHITECTURE.md#runtime-context-observability-and-derived-evidence)
+- [x] **Runtime context observability and derived evidence** — Retain runtime-emitted identity, local order, and measurement fields plus provenance-scoped equality hashes and counts only for exact sanitized runtime-visible or explicitly configured segments. Keep unsupported segments, compaction, provider prefix composition, and provider request boundaries unavailable. General content-derived retention remains gated by the trust/redaction discussion. → [Recorded decision](.agentera/entities/decisions/decision/ufrltsdlaw.yaml)
 
 <a id="discuss-runtime-cache-telemetry-configuration"></a>
 

@@ -1,0 +1,16 @@
+id: aqhrjifvdd
+artifact: progress
+record:
+  timestamp: 2026-07-26 09:30
+  type: docs
+  phase: deliberate
+  what: Recorded the runtime cache telemetry configuration decision, resolved the canonical discussion TODO, removed the Architecture question, and synchronized TODO.md. The selected contract retains independent runtime-emitted cache fields with measured zero distinct from unavailable or malformed, keeps explicit configuration and runtime provenance at attempt/manifest authority, leaves adapter provenance unavailable in observed mode, and forbids reconstruction or provider-control claims. No implementation follow-up was selected.
+  context:
+    intent: Resolve runtime cache telemetry configuration within the firm runtime-only boundary using finite retained runtime evidence and existing benchmark authorities.
+    constraints: Documentation and typed project-memory state only. No product code, provider control or capability negotiation work, provider-request semantics, provider docs or pricing as telemetry, profile refresh, reconstruction of omitted fields/state, or direct entity edits.
+    unknowns: A later retained-evidence validation task will verify concrete archived observations. Observed mode has no supported adapter source or adapter version; provider-internal behavior remains unavailable.
+    scope: ARCHITECTURE.md, TODO.md, the canonical decision/TODO/progress entities, active plan task state, and attempted typed recovery of prior evaluator provenance.
+  inspiration: Active plan task zcwkgwddmu, firm runtime-only decision uilebafxdn, prior context decision ufrltsdlaw, OpenCode telemetry documentation, retained runtime controls, and current benchmark manifest/attempt contracts.
+  discovered: The current benchmark contract already retains per-step measured/unknown/malformed fields, complete-only totals, stream links, configuration hashes, attempt roles, observed source unavailable, and runtime-version context. The typed evaluator writer rejects evaluation on a complete task; reopening hhvivlwwhr through the typed set-status writer is itself blocked by an ownership-change guard before replacement, so audit-1 PASS provenance cannot be safely persisted without changing that file.
+  verified: "Decision draft and canonical entity lint passed. The decision append and TODO resolve writers returned pass with zero violations. Prettier passed all changed Markdown/YAML. markdown-link-check passed 11 Architecture and 16 TODO links. agentera check validate state passed 361 entities with zero issues. git diff --check passed. Exact retained evidence and authorities inspected: decisions uilebafxdn and ufrltsdlaw, docs/opencode-telemetry.md, docs/cache-evidence-opencode-runtime-controls.md, tools/bench/evidence/opencode-runtime-cache-controls.json and probe-config.json, tools/bench/methodology-v4-eval-matrix.yaml, tools/bench/methodology-v5-cache-aware.yaml, and current experiment model/stream/cache-control code."
+  next: Validate retained runtime cache evidence in task flwcllesfe. Do not add provider cache control, negotiation, reconstruction, or provider-request semantics. The hhvivlwwhr audit-1 PASS remains blocked from typed persistence until the writer can replace its legacy bytes safely.

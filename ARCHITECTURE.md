@@ -313,12 +313,6 @@ Where is the boundary between in-session history compression and cross-session m
 
 → [Discussion task](TODO.md#discuss-layer-5-boundary)
 
-### Runtime cache telemetry configuration
-
-Which runtime-emitted cache fields and explicit runtime configuration should ktx retain in benchmark manifests and attempts, where should runtime-adapter version provenance live, and how should missing or unsupported fields be labeled unavailable? The contract must not imply control or observation of provider-internal cache behavior or provider requests.
-
-→ [Discussion task](TODO.md#discuss-runtime-cache-telemetry-configuration)
-
 ### Trust, redaction, and audit
 
 What threat model governs user-configured stages, scripts, and plugins; which secrets must be redacted from originals, compressed output, hashes, and derived context evidence; and what integrity and audit guarantees are required beyond per-record fingerprints while originals remain retrievable?

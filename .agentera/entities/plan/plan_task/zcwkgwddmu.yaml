@@ -4,7 +4,7 @@ record:
   name: Resolve runtime cache telemetry configuration
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN runtime cache fields and explicit runtime configuration WHEN the decision is recorded THEN retained values, adapter-version provenance, and unsupported-field behavior are explicit.
     - GIVEN a runtime omits or cannot support a cache field WHEN evidence is presented THEN the field is labeled unavailable rather than reconstructed.

@@ -2,5 +2,5 @@ id: loxrzonrfk
 artifact: todo
 record:
   severity: normal
-  status: open
+  status: resolved
   description: "**Runtime cache telemetry configuration** — Run a structured discussion within runtime-only collection and record which runtime-emitted cache fields and explicit runtime configuration ktx should retain in benchmark manifests and attempts, runtime-adapter version provenance, and truthful unavailable labels for missing or unsupported fields. Do not add provider cache control, capability negotiation, or provider-request semantics. → [Question](ARCHITECTURE.md#runtime-cache-telemetry-configuration)"

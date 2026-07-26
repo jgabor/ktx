@@ -21,9 +21,7 @@ Each task must run a structured discussion, append the resulting choice to the r
 
 - [x] **Runtime context observability and derived evidence** — Retain runtime-emitted identity, local order, and measurement fields plus provenance-scoped equality hashes and counts only for exact sanitized runtime-visible or explicitly configured segments. Keep unsupported segments, compaction, provider prefix composition, and provider request boundaries unavailable. General content-derived retention remains gated by the trust/redaction discussion. → [Recorded decision](.agentera/entities/decisions/decision/ufrltsdlaw.yaml)
 
-<a id="discuss-runtime-cache-telemetry-configuration"></a>
-
-- [ ] **Runtime cache telemetry configuration** — Run a structured discussion within runtime-only collection and record which runtime-emitted cache fields and explicit runtime configuration ktx should retain in benchmark manifests and attempts, runtime-adapter version provenance, and truthful unavailable labels for missing or unsupported fields. Do not add provider cache control, capability negotiation, or provider-request semantics. → [Question](ARCHITECTURE.md#runtime-cache-telemetry-configuration)
+- [x] **Runtime cache telemetry configuration** — Retain runtime-emitted cache fields independently at per-observation authority, with measured zero distinct from unavailable or malformed. Keep explicit identity/configuration and runtime-version provenance at attempt and manifest authority; observed mode has no adapter source/version, unsupported control produces no evidence, and omitted fields are never reconstructed. → [Recorded decision](.agentera/entities/decisions/decision/zcdzpzguri.yaml)
 
 <a id="discuss-evidence-maintenance-boundary"></a>
 

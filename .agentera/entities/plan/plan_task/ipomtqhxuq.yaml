@@ -1,0 +1,14 @@
+id: ipomtqhxuq
+artifact: plan
+record:
+  name: Compare strategy arms under a controlled protocol
+  depends_on:
+    - trthspdbkb
+    - jgfpuyiirl
+  status: pending
+  acceptance:
+    - GIVEN baseline and candidate strategies WHEN comparison runs THEN setup observations are separate from measured paired cycles and execution order is balanced.
+    - GIVEN measured attempts WHEN retained THEN configuration, pipeline identity, cache provenance, raw usage, quality, cost, delivery evidence, and identity source remain inspectable.
+    - GIVEN complete pairs WHEN summarized THEN direct and estimated distributions, paired differences, sample size, and deterministic two-sided 95% intervals are reported without cross-provider pooling.
+    - GIVEN incomplete evidence or temporal, identity, retry, reset, or quality confounding WHEN comparison completes THEN descriptive observations remain while comparative or success authorization is blocked.
+  plan: jffafkheqj

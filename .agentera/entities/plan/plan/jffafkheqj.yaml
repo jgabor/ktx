@@ -1,0 +1,43 @@
+id: jffafkheqj
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-26
+    status: open
+    reviewed: 2026-07-26
+    critic_issues: 10 found, 10 addressed, 0 dismissed
+    revised: Resolved metric, aggregation, eligibility, uncertainty, identity, and claim rules before dependent work; split collection parity from sequence characterization; retained small estimates; removed causal wording; and made bounded live evidence mandatory.
+    title: "Plan: Compare Compression and Runtime-Reported Cache Reuse"
+  what: Deliver a validated runtime-only evidence path that compares compression strategies using OpenCode-reported cached-input share, preserves the raw observations behind every derived result, adds a Pi-style cache-reuse-shortfall estimate as secondary evidence, and permits only claims supported by retained evidence.
+  why: ktx needs a reproducible way to compare compression with runtime-reported cache reuse without relabeling model steps or normalized token counts as provider-native requests, hits, misses, eligibility, or causal cache effects.
+  constraints: Preserve the firm runtime-only boundary. Keep configured identity distinct from runtime-emitted identity. Preserve measured zero, unavailable, and malformed states. Show raw values beside ratios. Preserve historical regeneration bytes. Keep the Pi-style estimate secondary and outside ranking. Retain no prompt content, credentials, or raw cache namespaces. Make no provider-native request, hit, miss, isolation, prefix, TTL-cause, missed-cost, or causal claim.
+  overall_acceptance: GIVEN a complete controlled baseline and candidate experiment WHEN ktx regenerates and validates its evidence THEN it reports raw cache observations, direct cached-input-share differences, an explicitly secondary Pi-style estimate where eligible, uncertainty and quality context, provenance-qualified identity, and only authorized runtime-level statements while historical experiments remain unchanged.
+  scope:
+    included:
+      - Runtime metric, aggregation, uncertainty, identity, and claim contract
+      - Equivalent OpenCode model-step evidence across applicable ingress paths
+      - Positive sequence, retry, reset, and coverage evidence for estimate eligibility
+      - Direct cached-input-share derivation with complete availability states
+      - Pi-style cache-reuse-shortfall derivation with retained small values and skip reasons
+      - Paired controlled comparison with setup and measured phases
+      - Machine-readable and human-readable claim authorization
+      - Historical compatibility, offline fixtures, bounded live evidence, and final state synchronization
+    excluded:
+      - Direct provider APIs or wire interception
+      - Provider request or eligible-prefix reconstruction
+      - Prompt reconstruction or tokenizer emulation
+      - Raw prompt or cache-namespace retention
+      - Pi-style cost or TTL-cause estimates
+      - Changes to cost-per-correct ranking
+    deferred:
+      - Provider-specific prefix reconstruction if future runtime evidence supports it
+      - Cross-provider aggregate cache comparisons
+  design: Resolve the evidence vocabulary and authorization matrix first. Align collection paths without crossing model-step and tool-call authorities. Establish positive coverage for sequence-based eligibility. Derive direct and estimated views from complete retained observations. Compare paired strategy arms under one versioned protocol. Generate statements from deterministic evidence gates. Finish with offline validation, mandatory bounded live evidence, and synchronized project state.
+  unknowns:
+    - question: Are cache-write tokens disjoint from OpenCode's normalized uncached-input and cache-read buckets for every supported runtime and provider configuration?
+      affects_task: 1
+      resolve_by: Verify the pinned normalization contract and retained fixtures before finalizing the denominator; contradictory evidence blocks dependent tasks and requires replanning or a narrower runtime/version scope.
+    - question: Does the pinned OpenCode event contract provide complete, timely retry and compaction coverage for consecutive model-step estimates?
+      affects_task: 3
+      resolve_by: Characterize the full event segment before estimation; incomplete, late, or contradictory coverage makes affected pairs ineligible rather than proving that no boundary occurred.

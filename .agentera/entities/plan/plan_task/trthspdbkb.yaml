@@ -1,0 +1,14 @@
+id: trthspdbkb
+artifact: plan
+record:
+  name: Derive direct cached-input share
+  depends_on:
+    - gparsxmzfx
+    - afpivyyvyt
+  status: pending
+  acceptance:
+    - GIVEN every contributing model step has measured required fields WHEN per-attempt logical input is positive THEN cached-input share is reproducible from retained sums.
+    - GIVEN missing or malformed contributing evidence WHEN derivation runs THEN the result is unavailable with exact gaps; a measured zero denominator is separately not applicable.
+    - GIVEN a share is displayed WHEN inspected THEN cache-read, logical-input, formula, unit, source, and identity provenance appear beside it.
+    - GIVEN current and historical fixtures WHEN verified THEN measured, zero, missing, malformed, and legacy cases pass without changing historical bytes.
+  plan: jffafkheqj

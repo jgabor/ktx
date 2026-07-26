@@ -1,0 +1,15 @@
+id: jgfpuyiirl
+artifact: plan
+record:
+  name: Derive the Pi-style secondary estimate
+  depends_on:
+    - gparsxmzfx
+    - nlpevkynie
+    - trthspdbkb
+  status: pending
+  acceptance:
+    - GIVEN compatible consecutive steps with prior reported cache activity and complete continuity evidence WHEN estimation runs THEN reusable-token basis, shortfall, and reuse share are retained as secondary evidence.
+    - GIVEN first-step, reset, retry, identity, coverage, completeness, or inconsistent-count failure WHEN estimation runs THEN a deterministic reason replaces the value.
+    - GIVEN a valid zero or small estimate WHEN retained THEN its value and raw basis remain measured while interpretation records whether it crosses the documented noise floor.
+    - GIVEN any rendered estimate WHEN inspected THEN it is labeled estimated, reports eligible and ineligible counts, assigns no expiry cause, and cannot affect ranking.
+  plan: jffafkheqj

@@ -1,0 +1,13 @@
+id: nlpevkynie
+artifact: plan
+record:
+  name: Establish sequence and boundary coverage
+  depends_on:
+    - afpivyyvyt
+  status: pending
+  acceptance:
+    - GIVEN a captured runtime segment WHEN order, retry, reset, or identity continuity is claimed THEN each fact has positive runtime-event coverage and explicit provenance.
+    - GIVEN missing, late, or contradictory boundary evidence WHEN a pair is assessed THEN it is ineligible rather than treated as proof that no event occurred.
+    - GIVEN interruption, restart, compaction, retry, or concurrent sessions WHEN coverage is inspected THEN segment boundaries and availability remain deterministic.
+    - GIVEN each boundary class WHEN tested THEN one covered and one unavailable or contradictory case demonstrate the eligibility rule.
+  plan: jffafkheqj

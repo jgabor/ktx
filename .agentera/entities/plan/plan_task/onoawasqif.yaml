@@ -1,0 +1,19 @@
+id: onoawasqif
+artifact: plan
+record:
+  name: Validate evidence and synchronize final state
+  depends_on:
+    - gparsxmzfx
+    - afpivyyvyt
+    - nlpevkynie
+    - trthspdbkb
+    - jgfpuyiirl
+    - ipomtqhxuq
+    - buizbsuqpv
+  status: pending
+  acceptance:
+    - GIVEN all feature tasks complete WHEN offline validation runs against the newly built local artifact THEN focused suites, historical regeneration, new regeneration, and the full project check pass.
+    - GIVEN offline validation is green WHEN completion is evaluated THEN a preflight-bounded live comparison, exact runtime accounting, retained artifacts, and byte-identical validation are mandatory; unavailable live eligibility leaves the plan blocked.
+    - GIVEN verified behavior and retained evidence WHEN state is synchronized THEN documentation, decisions, backlog, limitations, and completion status agree.
+    - GIVEN verification scope WHEN tests run THEN focused task coverage, one full check, and one bounded live evidence path suffice unless contradictory evidence requires more.
+  plan: jffafkheqj

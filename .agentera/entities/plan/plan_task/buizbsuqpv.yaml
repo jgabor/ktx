@@ -1,0 +1,14 @@
+id: buizbsuqpv
+artifact: plan
+record:
+  name: Authorize only evidence-backed statements
+  depends_on:
+    - gparsxmzfx
+    - ipomtqhxuq
+  status: pending
+  acceptance:
+    - GIVEN at least five complete pairs, stable provenance, protocol compliance, and an interval excluding zero WHEN statements are generated THEN they describe an observed cached-input-share difference under the retained protocol, not a causal provider effect.
+    - GIVEN quality is not preserved WHEN results are rendered THEN no improvement or success statement is authorized, although valid descriptive differences remain visible.
+    - GIVEN eligible secondary evidence WHEN rendered THEN the statement says estimated and names its method and eligibility counts.
+    - GIVEN any blocked state or configured-only identity WHEN rendered THEN machine reasons and identity provenance are explicit, and no provider-native hit, miss, request, isolation, or prefix statement appears.
+  plan: jffafkheqj

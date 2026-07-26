@@ -1,0 +1,13 @@
+id: gparsxmzfx
+artifact: plan
+record:
+  name: Resolve the metric and claim contract
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN pinned OpenCode evidence WHEN the contract is finalized THEN direct share uses per-attempt sums across every contributing measured step, with cache-read divided by positive logical input and cache-write treatment explicitly resolved.
+    - GIVEN consecutive eligible steps WHEN the secondary method is defined THEN estimated reusable tokens, shortfall, reuse share, small-value treatment, and every ineligibility reason are deterministic.
+    - GIVEN identical retained evidence WHEN claim eligibility is evaluated THEN completeness, five-pair minimum, two-sided 95% uncertainty, direction, quality, identity provenance, and primary-versus-secondary outcomes follow one recorded matrix.
+    - GIVEN prior decisions and historical experiments WHEN the contract is recorded THEN provider-native claims remain forbidden and historical meaning and bytes remain unchanged.
+  plan: jffafkheqj

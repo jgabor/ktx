@@ -1,0 +1,13 @@
+id: afpivyyvyt
+artifact: plan
+record:
+  name: Align runtime collection and persistence
+  depends_on:
+    - gparsxmzfx
+  status: pending
+  acceptance:
+    - GIVEN applicable wrapper and hook observations WHEN normalized THEN accepted event counts, field states, identities, ordinals, provenance, and rejection behavior agree without duplicating evidence.
+    - GIVEN model-step telemetry WHEN it is retained THEN it remains separate from tool-call evidence and first accepted evidence remains authoritative.
+    - GIVEN historical telemetry or concurrent delivery WHEN the evidence model evolves THEN prior rows remain readable and duplicate or conflicting delivery cannot silently alter authority.
+    - GIVEN each new evidence unit WHEN tested THEN at least one accepted and rejected case exists, with focused concurrency and migration coverage.
+  plan: jffafkheqj

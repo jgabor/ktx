@@ -15,12 +15,12 @@ record:
     - GIVEN malformed, missing, or contradictory retained evidence WHEN validation runs THEN the affected claim is withheld and the exact evidence gap is reported.
   plan: bstrfialvp
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Required-field inventory omits completion order, retry identity, and exploratory classification; malformed numeric evidence collapses to reasonless unavailable instead of reporting exact field/event gap.
     provenance:
-      attempt_id: audit-1
+      attempt_id: audit-2
       source: Audit ses_06299db2fffeaFDp1Dp8G2b3za
-      recorded_at: 2026-07-26 10:00
+      recorded_at: 2026-07-26 10:10
       writer_command: agentera state plan record-evaluation

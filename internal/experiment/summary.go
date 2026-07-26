@@ -537,6 +537,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 	if directCacheShare {
 		result["direct_cached_input_share"] = buildDirectCachedInputShare(manifest, attempts)
 		result["estimated_consecutive_step_reuse"] = buildSecondaryCacheEstimate(attempts)
+		result["cached_input_share_comparison"] = buildCachedInputShareComparison(manifest, attempts)
 	}
 	return result
 }
@@ -802,6 +803,13 @@ func RenderSummary(summary map[string]any) string {
 					pair["estimated_reusable_tokens"], pair["shortfall"], compactJSON(pair["reuse_share"]), pair["interpretation"], attempt["source"].(map[string]any)["artifact"]))
 			}
 		}
+	}
+	if comparison, ok := summary["cached_input_share_comparison"].(map[string]any); ok {
+		direct := comparison["direct"].(map[string]any)
+		paired := direct["paired_difference"].(map[string]any)
+		lines = append(lines, fmt.Sprintf("cached_input_share_comparison complete_pairs=%v mean_difference=%s interval=%s direction=%v descriptive_only=%v quality_preserved=%v blocking_reasons=%s",
+			comparison["complete_pair_count"], compactJSON(paired["mean"]), compactJSON(paired["interval"]), paired["direction"], paired["descriptive_only"],
+			comparison["quality"].(map[string]any)["preserved"], compactJSON(comparison["blocking_reasons"])))
 	}
 	return strings.Join(lines, "\n")
 }

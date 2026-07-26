@@ -243,6 +243,40 @@ native request, hit, miss, fill, eviction, eligibility, prefix, isolation, TTL-
 cause, missed-cost, cross-provider pooled, and causal wording is permanently
 unsupported.
 
+New schema-4 summaries expose this descriptive view at
+`cached_input_share_comparison`. `setup.observations` retains cold and warm-up
+attempts but marks them excluded. `pairs` contains only cycles with exactly one
+comparable measured-warm attempt per side, including exact reduced direct-share
+fractions, candidate-minus-baseline fractions, raw buckets, execution order,
+quality, cost, delivery/artifact, configuration, pipeline, and identity
+provenance. Incomplete or confounded cycles remain under `observations` with
+machine-readable reasons. Direct distributions, paired uncertainty, and quality
+use those same complete pairs. The separately labeled `secondary_estimated`
+view reports the Pi-style method and eligibility counts over measured-warm
+attempts and has no effect on direct direction, quality, or ranking.
+
+Comparison eligibility applies the retained experiment identity and full
+evaluation predicate, role/phase agreement, cache mode, source, idle gap and
+side-specific namespace, configuration and pipeline identity, runtime and
+configured identity, and source-event identity rules through one attempt path.
+Retry, reset, segment, and concurrency coverage must be positively retained for
+each attempt; silence is unavailable even for a single model step. Execution
+order is then assessed over exactly the provisionally eligible pair subset. If
+that subset is unbalanced, every provisional pair is moved to descriptive
+observations with protocol reasons; pairs are never selectively removed to
+manufacture balance. Per-cycle order must also match the retained alternating
+policy.
+
+For at least five complete pairs, an interval containing zero adds
+`two_sided_95_percent_interval_contains_zero`; worse candidate same-pair quality
+adds `quality_not_preserved`. These reasons follow the machine contract's
+declared precedence and remain descriptive inputs rather than statement
+authorization.
+
+The descriptive comparison reports blocking and confound reasons but does not
+authorize a user-facing success or improvement statement. Statement
+authorization is a separate contract and is not implemented here.
+
 ## Historical boundary
 
 This contract is additive. Existing methodologies, retained summaries,

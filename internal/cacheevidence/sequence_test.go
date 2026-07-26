@@ -127,6 +127,72 @@ func TestSequenceCoverageDeterministicUnderConcurrency(t *testing.T) {
 	wg.Wait()
 }
 
+func TestAttemptBoundaryAssessmentIncludesCoveredPrefix(t *testing.T) {
+	step := modelFact(10, 1, "session-a")
+	coverage := coveredFacts(1, 10)
+	tests := []struct {
+		name   string
+		event  SequenceFact
+		assert func(*testing.T, PairCoverage)
+	}{
+		{"clean", SequenceFact{}, func(t *testing.T, got PairCoverage) {
+			if got.RetryCoverage != "covered_no_boundary" || got.ResetCoverage != "covered_no_boundary" || got.SegmentCoverage != CoverageCovered || got.ConcurrentCoverage != CoverageCovered || got.Concurrent {
+				t.Fatalf("clean prefix = %#v", got)
+			}
+		}},
+		{"retry", boundaryFact(5, "session-a", BoundaryRetry), func(t *testing.T, got PairCoverage) {
+			if got.RetryCoverage != "boundary_observed" {
+				t.Fatalf("retry prefix = %#v", got)
+			}
+		}},
+		{"compaction", boundaryFact(5, "session-a", BoundaryCompaction), func(t *testing.T, got PairCoverage) {
+			if got.ResetCoverage != "boundary_observed" {
+				t.Fatalf("compaction prefix = %#v", got)
+			}
+		}},
+		{"interruption", boundaryFact(5, "session-a", BoundaryInterruption), func(t *testing.T, got PairCoverage) {
+			if got.SegmentBoundary != "interruption" {
+				t.Fatalf("interruption prefix = %#v", got)
+			}
+		}},
+		{"concurrent", boundaryFact(5, "session-b", ""), func(t *testing.T, got PairCoverage) {
+			if !got.Concurrent {
+				t.Fatalf("concurrent prefix = %#v", got)
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			events := []SequenceFact(nil)
+			if test.event.Ordinal != 0 {
+				events = append(events, test.event)
+			}
+			got, err := AssessAttemptBoundaries(step, step, events, coverage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.assert(t, got)
+		})
+	}
+}
+
+func TestAttemptBoundaryAssessmentRejectsConflictingCoverageIntervals(t *testing.T) {
+	step := modelFact(10, 1, "session-a")
+	coverage := coveredFacts(1, 10)
+	for i := range coverage {
+		if coverage[i].Class == "segment" {
+			coverage[i].Provenance.StartOrdinal = 2
+		}
+	}
+	got, err := AssessAttemptBoundaries(step, step, nil, coverage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RetryCoverage != "unavailable" || got.ResetCoverage != "unavailable" || got.SegmentCoverage != CoverageContradictory || got.ConcurrentCoverage != CoverageContradictory {
+		t.Fatalf("conflicting intervals = %#v", got)
+	}
+}
+
 func TestEveryCoverageClassMustMatchPairProvenance(t *testing.T) {
 	prior := modelFact(10, 1, "session-a")
 	current := modelFact(20, 2, "session-a")

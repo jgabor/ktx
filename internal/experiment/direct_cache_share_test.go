@@ -250,6 +250,10 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	if estimate["label"] != "estimated" || estimate["ranking_effect"] != "none" {
 		t.Fatalf("validated secondary estimate = %#v", estimate)
 	}
+	comparison := report["cached_input_share_comparison"].(map[string]any)
+	if comparison["purpose"] != "controlled_descriptive_non_ranking" {
+		t.Fatalf("validated comparison = %#v", comparison)
+	}
 }
 
 func TestDirectCachedInputSharePreservesHistoricalSchemaThreeBytes(t *testing.T) {

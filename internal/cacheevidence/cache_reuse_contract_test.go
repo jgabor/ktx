@@ -138,7 +138,7 @@ func TestCacheReuseMetricContract(t *testing.T) {
 	var contract cacheReuseContract
 	readJSON(t, path, &contract)
 
-	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_and_secondary_implemented_comparison_pending" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.4" || contract.Scope.RuntimeCommit != "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e" {
+	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_secondary_and_descriptive_comparison_implemented" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.4" || contract.Scope.RuntimeCommit != "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e" {
 		t.Fatalf("unexpected contract identity: %#v", contract.Scope)
 	}
 	if contract.Scope.RankingEffect != "none" || contract.Scope.HistoricalOutputMutation {

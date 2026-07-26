@@ -1,4 +1,130 @@
 cycles:
+  - number: 58
+    timestamp: 2026-07-26 15:13
+    type: fix
+    phase: audit
+    what: Closed the two material cache-share comparison defects. Comparison and
+      evidence validation now consume one retained cache-control authority, so
+      OpenCode 1.18.4 runtime-adapter isolation cannot enter complete pairs while
+      valid provider-adapter isolation remains eligible. Attempt-level temporal
+      assessment now reuses the sequence authority to inspect the positively
+      covered prefix before the first accepted model step and all later covered
+      boundaries before any singleton success path.
+    inspiration: Bounded Audit re-review of commits 693df22 and ece67b1 for plan
+      task ipomtqhxuq.
+    discovered: The prior correction duplicated cache-control validity in the
+      comparison and therefore missed the validator's pinned runtime-adapter
+      exception. Its singleton return also occurred after coverage declarations
+      were checked but before retained sequence events were assessed. The same
+      omission applied to the prefix before the first step of multi-step attempts.
+      The worktree used local source tests and the locally built build/ktx; no
+      installed or cached binary supplied verification evidence. The task was
+      returned to in-progress before product edits and closed only after all
+      required verification passed.
+    verified: Focused race tests passed for internal/cacheevidence and
+      internal/experiment, including shared comparison/validation evidence,
+      retry, compaction, interruption, restart, concurrent interleaving,
+      contradictory provenance, clean singleton, and clean multi-step controls.
+      mage check passed the full race suite, vet, lint with 0 issues, and local
+      build. Python JSON parsing and TestCacheReuseMetricContract passed. The
+      local build/ktx root, bench, and bench validate help smokes passed. gofmt
+      cleanliness and git diff --check passed.
+    next: Statement authorization remains outside this task under buizbsuqpv. No
+      paid live experiment was run.
+    context:
+      intent: Admit only retained measured-warm pairs whose cache isolation and
+        complete temporal interval are positively controlled under schema 4.
+      constraints: Preserved final eligible-subset balance, full evaluation and
+        protocol gates, identity conflict checks, blocker precedence, exact
+        statistics, same-pair quality, secondary non-ranking isolation, and
+        historical schemas. No output or machine-contract shape changed.
+      unknowns: Real event-hook attempts remain ineligible whenever retained
+        coverage cannot establish one consistent runtime, version, source, and
+        enclosing attempt interval.
+      scope: Shared retained cache-control validity, attempt-prefix boundary
+        assessment, focused adversarial and clean-control tests, and audit
+        closeout evidence.
+  - number: 57
+    timestamp: 2026-07-26 14:55
+    type: fix
+    phase: audit
+    what: Corrected all five independent audit findings for plan task ipomtqhxuq.
+      Order balance now evaluates only the final provisionally eligible pair
+      subset and reclassifies the whole subset when unbalanced. One shared
+      eligibility path now enforces complete evaluation, experiment, cache
+      protocol, namespace, pipeline, configured identity, source identity, and
+      positive temporal-coverage provenance. Runtime-only conflicts are checked
+      before configured-only identity handling. Interval-containing-zero and
+      quality-not-preserved blockers now follow contract precedence.
+    inspiration: Independent audit failure of commit 693df22 and its five bounded
+      correction findings.
+    discovered: Raw-cycle balance can hide one-sided order after unrelated pair
+      exclusions, and one-step runtime streams still require positive retry,
+      reset, segment, and concurrency coverage because silence is not evidence.
+      The validation path already checked most retained cache protocol fields,
+      but comparison eligibility had implemented only a subset.
+    verified: Adversarial tests reproduce every audit case and retain a valid
+      positively covered five-cycle runner sequence. Focused race tests for
+      internal/experiment and internal/cacheevidence passed. mage check passed
+      all tests, vet, lint with 0 issues, and build; golangci-lint emitted only a
+      non-failing stale sibling-path warning.
+    next: Run final JSON, local binary, diff, and clean-tree verification, then
+      record a new correction commit without amending 693df22. Task buizbsuqpv
+      remains unimplemented.
+    context:
+      intent: Restore the descriptive comparison to the retained controlled
+        protocol without manufacturing balance or treating missing provenance as
+        clean evidence.
+      constraints: Bounded correction only; no statement authorization, ranking,
+        cost-per-correct, legacy schema, direct-share, or secondary-estimate
+        semantic changes.
+      unknowns: No paid live experiment was run. Wrapper streams remain
+        conservatively ineligible where the runtime contract cannot positively
+        retain boundary coverage.
+      scope: Comparison eligibility and balancing, temporal and identity checks,
+        blockers, adversarial tests, narrow cache-reuse contract updates, and
+        audit progress evidence.
+  - number: 56
+    timestamp: 2026-07-26 14:37
+    type: feat
+    phase: build
+    what: Completed plan task ipomtqhxuq by adding the additive schema-4
+      controlled cached-input-share comparison. The summary now excludes setup,
+      detects incomplete and duplicate cycle sides, verifies retained alternating
+      order and configuration/runtime/pipeline provenance, preserves exact
+      per-pair rational values and full evidence context, reports same-pair
+      quality, computes deterministic paired Student-t uncertainty, and keeps
+      Pi-style estimates separate and non-ranking. Statement authorization
+      remains pending under task buizbsuqpv.
+    inspiration: The reviewed cache-reuse metric contract and the retained
+      measured-warm comparison task.
+    discovered: Wrapper streams cannot positively cover retry, reset, restart,
+      or concurrent-session silence, so multi-step attempts with unavailable
+      sequence coverage remain descriptive confounded observations rather than
+      entering direct paired statistics. Configured-only provider/model identity
+      remains context and does not backfill source-event identity.
+    verified: Focused race tests for internal/experiment and
+      internal/cacheevidence passed. mage check passed all tests, vet, lint with
+      0 issues, and build; golangci-lint emitted a non-failing stale sibling-path
+      warning. mage build produced build/ktx, whose root and bench validate help
+      paths passed local binary smoke checks. Summary regeneration/validation and
+      historical schema compatibility are covered by focused tests.
+    next: Task buizbsuqpv may add statement authorization from the retained
+      descriptive view; do not infer success or improvement authorization from
+      this task.
+    context:
+      intent: Compare baseline and candidate runtime-reported cached-input share
+        under retained measured-warm cycle pairing without provider-native or
+        causal claims.
+      constraints: Preserved schemas 1-3, ranking, cost-per-correct, direct and
+        secondary views, configured-versus-runtime identity separation, and the
+        stdlib-first implementation boundary.
+      unknowns: No live paid experiment was run. Real wrapper multi-step attempts
+        remain comparison-ineligible when their retained stream cannot establish
+        absence of retry, reset, restart, or interleaving boundaries.
+      scope: Schema-4 summary/regeneration/validation, statistical and protocol
+        comparison logic, focused tests, cache-reuse contract documentation and
+        machine status, and plan/progress state.
   - number: 55
     timestamp: 2026-07-17 20:38
     type: fix

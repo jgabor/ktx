@@ -108,6 +108,73 @@ func AssessPair(prior, current SequenceFact, events []SequenceFact, coverage []C
 	result.Adjacent = result.OrderCoverage == CoverageCovered && current.ModelStepOrdinal == prior.ModelStepOrdinal+1
 	result.SameSession = result.IdentityCoverage == CoverageCovered && prior.SessionID != "" && prior.SessionID == current.SessionID
 
+	assessBoundaryEvents(&result, prior.Ordinal, current.Ordinal, false, prior.SessionID, events)
+	return result, nil
+}
+
+// AssessAttemptBoundaries assesses retry, reset, segment, and concurrency
+// events from the start of one positively covered attempt interval through its
+// last accepted model step. All four coverage declarations must identify the
+// same retained interval and collection authority.
+func AssessAttemptBoundaries(first, last SequenceFact, events []SequenceFact, coverage []CoverageFact) (PairCoverage, error) {
+	if first.Ordinal == 0 || last.Ordinal < first.Ordinal || first.ModelStepOrdinal == 0 || last.ModelStepOrdinal == 0 {
+		return PairCoverage{}, fmt.Errorf("invalid model-step interval")
+	}
+	for _, fact := range []SequenceFact{first, last} {
+		if fact.Provenance.Runtime != RequiredRuntime || fact.Provenance.RuntimeVersion != RequiredRuntimeVersion ||
+			(fact.Provenance.Source != "event_hook" && fact.Provenance.Source != "wrapper_stream") || !usableEventProvenance(fact) {
+			return PairCoverage{}, fmt.Errorf("invalid model-step provenance")
+		}
+	}
+	result := PairCoverage{
+		RetryCoverage: "unavailable", ResetCoverage: "unavailable", SegmentCoverage: CoverageUnavailable,
+		SegmentBoundary: "none", ConcurrentCoverage: CoverageUnavailable, Provenance: map[string]SequenceProvenance{},
+	}
+	var interval *SequenceProvenance
+	for _, class := range []string{"retry", "reset", "segment", "concurrency"} {
+		state, provenance := coverageFor(class, first.Ordinal, last.Ordinal, coverage)
+		if provenance != nil {
+			result.Provenance[class] = *provenance
+		}
+		if state == CoverageCovered && (provenance == nil || !matchesProvenance(first.Provenance, *provenance) || !matchesProvenance(last.Provenance, *provenance)) {
+			state = CoverageContradictory
+		}
+		switch class {
+		case "retry":
+			if state == CoverageCovered {
+				result.RetryCoverage = "covered_no_boundary"
+			}
+		case "reset":
+			if state == CoverageCovered {
+				result.ResetCoverage = "covered_no_boundary"
+			}
+		case "segment":
+			result.SegmentCoverage = state
+		case "concurrency":
+			result.ConcurrentCoverage = state
+		}
+		if state != CoverageCovered || provenance == nil {
+			continue
+		}
+		if interval == nil {
+			retained := *provenance
+			interval = &retained
+		} else if *interval != *provenance {
+			result.RetryCoverage = "unavailable"
+			result.ResetCoverage = "unavailable"
+			result.SegmentCoverage = CoverageContradictory
+			result.ConcurrentCoverage = CoverageContradictory
+			return result, nil
+		}
+	}
+	if interval != nil && result.RetryCoverage == "covered_no_boundary" && result.ResetCoverage == "covered_no_boundary" &&
+		result.SegmentCoverage == CoverageCovered && result.ConcurrentCoverage == CoverageCovered {
+		assessBoundaryEvents(&result, interval.StartOrdinal, last.Ordinal, true, first.SessionID, events)
+	}
+	return result, nil
+}
+
+func assessBoundaryEvents(result *PairCoverage, start, end uint64, includeStart bool, sessionID string, events []SequenceFact) {
 	sorted := append([]SequenceFact(nil), events...)
 	sort.Slice(sorted, func(i, j int) bool {
 		if sorted[i].Ordinal != sorted[j].Ordinal {
@@ -119,10 +186,10 @@ func AssessPair(prior, current SequenceFact, events []SequenceFact, coverage []C
 		return sorted[i].SessionID < sorted[j].SessionID
 	})
 	for _, event := range sorted {
-		if event.Ordinal <= prior.Ordinal || event.Ordinal >= current.Ordinal {
+		if event.Ordinal >= end || event.Ordinal < start || (!includeStart && event.Ordinal == start) {
 			continue
 		}
-		concurrent := event.SessionID != "" && event.SessionID != prior.SessionID
+		concurrent := event.SessionID != "" && event.SessionID != sessionID
 		if !usableEventProvenance(event) {
 			switch event.Boundary {
 			case BoundaryRetry:
@@ -165,7 +232,6 @@ func AssessPair(prior, current SequenceFact, events []SequenceFact, coverage []C
 			}
 		}
 	}
-	return result, nil
 }
 
 func usableEventProvenance(event SequenceFact) bool {

@@ -1,6 +1,6 @@
 {
   "contract_version": "cache-reuse-v1",
-  "status": "direct_and_secondary_implemented_comparison_pending",
+  "status": "direct_secondary_and_descriptive_comparison_implemented",
   "scope": {
     "runtime": "opencode",
     "runtime_version": "1.18.4",
@@ -320,7 +320,22 @@
     },
     "quality_preserved": "candidate_mean_fact_score >= baseline_mean_fact_score && candidate_full_pass_rate >= baseline_full_pass_rate_on_same_complete_pairs",
     "identity_provenance": "stable_runtime_name_version_and_configured_model_provider_variant; runtime_emitted_identity_must_not_conflict; configured_identity_never_backfills_source_events",
-    "cross_provider_pooling": "forbidden"
+    "cross_provider_pooling": "forbidden",
+    "output": {
+      "summary_schema_version": 4,
+      "path": "cached_input_share_comparison",
+      "complete_pair_inputs": "measured_warm attempts with one baseline and one candidate in the same cycle that pass shared retained evaluation, protocol, direct-evidence, provenance, and positive temporal-coverage checks",
+      "execution_order_balance": "assess the final provisionally eligible subset; if it is unbalanced, reclassify every provisional pair as a descriptive protocol exclusion without selective dropping",
+      "temporal_coverage": "retry, reset, segment, and concurrency coverage must be positively retained for each attempt; silence is unavailable even for one model step",
+      "protocol_provenance": "retain experiment and evaluation context, role and phase, cache mode/source/idle gap/namespace, configuration and pipeline identity, runtime and configured identity, and source-event identity",
+      "exact_pair_representation": "reduced rational plus numeric token fraction",
+      "direct_distributions": "baseline and candidate values from the exact complete comparable pairs",
+      "quality_basis": "the exact complete comparable pairs",
+      "secondary_distribution": "separate estimated method and eligibility counts over measured_warm attempts",
+      "statement_authorization": "not_implemented",
+      "validation_report": "same descriptive comparison view",
+      "legacy_schema_versions_unchanged": [1, 2, 3]
+    }
   },
   "claim_matrix": [
     {

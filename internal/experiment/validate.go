@@ -119,6 +119,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if supportsDirectCachedInputShare(manifest) {
 		report["direct_cached_input_share"] = expectedSummaryValue["direct_cached_input_share"]
 		report["estimated_consecutive_step_reuse"] = expectedSummaryValue["estimated_consecutive_step_reuse"]
+		report["cached_input_share_comparison"] = expectedSummaryValue["cached_input_share_comparison"]
 	}
 	return report, nil
 }
@@ -153,16 +154,17 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	if control == nil {
 		return append(reasons, "v5 cache_control manifest metadata is required")
 	}
-	if control.Mode != "isolated" && control.Mode != "observed" {
+	controlIssues := retainedCacheControlIssues(control)
+	if hasRetainedCacheControlIssue(controlIssues, cacheControlInvalidMode) {
 		reasons = append(reasons, "invalid cache control mode")
 	}
-	if control.Source != "runtime_adapter" && control.Source != "provider_adapter" && control.Source != "unavailable" {
+	if hasRetainedCacheControlIssue(controlIssues, cacheControlInvalidSource) {
 		reasons = append(reasons, "invalid cache control source")
 	}
-	if control.Mode == "observed" && control.Source != "unavailable" {
+	if hasRetainedCacheControlIssue(controlIssues, cacheControlObservedSource) {
 		reasons = append(reasons, "observed cache control source must be unavailable")
 	}
-	if control.Mode == "isolated" && control.Source == "unavailable" {
+	if hasRetainedCacheControlIssue(controlIssues, cacheControlIsolatedSource) {
 		reasons = append(reasons, "isolated cache control requires an adapter source")
 	}
 	if control.WarmupCount < 0 {
@@ -186,7 +188,7 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	} else if control.RuntimeVersion != manifest.Identities["opencode"] {
 		reasons = append(reasons, "cache control runtime version does not match manifest identity")
 	}
-	if control.Mode == "isolated" && control.Source == "runtime_adapter" && control.RuntimeVersion != "1.18.0" {
+	if hasRetainedCacheControlIssue(controlIssues, cacheControlRuntimeIsolationMismatch) {
 		reasons = append(reasons, "retained runtime-adapter isolation metadata requires OpenCode 1.18.0")
 	}
 	if control.Mode == "observed" && len(control.NamespaceSHA256) != 0 {

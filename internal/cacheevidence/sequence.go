@@ -22,6 +22,7 @@ const (
 )
 
 var (
+	AssessAttemptBoundaries    = sequenceevidence.AssessAttemptBoundaries
 	AssessPair                 = sequenceevidence.AssessPair
 	DecodeOpenCodeSequenceFact = sequenceevidence.DecodeOpenCodeSequenceFact
 )

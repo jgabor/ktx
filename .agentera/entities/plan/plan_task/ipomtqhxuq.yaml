@@ -5,7 +5,7 @@ record:
   depends_on:
     - trthspdbkb
     - jgfpuyiirl
-  status: pending
+  status: complete
   acceptance:
     - GIVEN baseline and candidate strategies WHEN comparison runs THEN setup observations are separate from measured paired cycles and execution order is balanced.
     - GIVEN measured attempts WHEN retained THEN configuration, pipeline identity, cache provenance, raw usage, quality, cost, delivery evidence, and identity source remain inspectable.

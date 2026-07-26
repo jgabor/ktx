@@ -187,15 +187,24 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	if err := database.QueryRow(`SELECT ended_at FROM sessions WHERE id = ?`, owner).Scan(&ownerEndedAt); err != nil || !ownerEndedAt.Valid || ownerEndedAt.String != closedAt.String {
 		return nil, "schema 3 owner closure does not match the runtime event interval"
 	}
-	if runtime != cacheevidence.RequiredRuntime || runtimeVersion != cacheevidence.RequiredRuntimeVersion || source != "event_hook" || contract != benchcontract.ContractVersion {
+	if runtime != cacheevidence.RequiredRuntime || runtimeVersion != cacheevidence.RequiredRuntimeVersion || source != "event_hook" {
+		return nil, "schema 3 runtime event interval provenance does not match the required contract"
+	}
+	classificationColumn := `CASE WHEN kind = 'model_step' THEN 'accepted' ELSE NULL END`
+	acceptedPredicate := "kind = 'model_step'"
+	switch contract {
+	case benchcontract.LegacyContractVersion:
+	case benchcontract.ContractVersion:
+		if !classifiedEvents {
+			return nil, "schema 3 v2 runtime events are missing duplicate classifications"
+		}
+		classificationColumn = "model_step_classification"
+		acceptedPredicate += " AND model_step_classification = 'accepted'"
+	default:
 		return nil, "schema 3 runtime event interval provenance does not match the required contract"
 	}
 	if !first.Valid || first.Int64 != 1 || !last.Valid || last.Int64 != int64(eventCount) || eventCount < 1 || epochs < 1 {
 		return nil, "schema 3 runtime event interval counters are invalid"
-	}
-	classificationColumn := `CASE WHEN kind = 'model_step' THEN 'accepted' ELSE NULL END`
-	if classifiedEvents {
-		classificationColumn = "model_step_classification"
 	}
 	rows, err := database.Query(`SELECT ordinal, epoch_id, epoch_ordinal, kind, source_session_id, message_id, part_id, ` + classificationColumn + ` FROM runtime_events ORDER BY ordinal`)
 	if err != nil {
@@ -281,10 +290,6 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		return result, "schema 3 wrapper and event-hook model-step counts do not match"
 	}
 	modelIndex := 0
-	acceptedPredicate := "kind = 'model_step'"
-	if classifiedEvents {
-		acceptedPredicate += " AND model_step_classification = 'accepted'"
-	}
 	rows, err = database.Query(`SELECT source_session_id, message_id, part_id FROM runtime_events WHERE ` + acceptedPredicate + ` ORDER BY ordinal`)
 	if err != nil {
 		return result, "schema 3 event-hook model-step identities are unreadable"

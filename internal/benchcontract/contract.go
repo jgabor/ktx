@@ -7,14 +7,15 @@ import (
 )
 
 const (
-	AttemptSessionEnv = "KTX_ATTEMPT_SESSION_ID"
-	IntervalEnv       = "KTX_BENCH_EVENT_INTERVAL_ID"
-	ContractEnv       = "KTX_BENCH_EVENT_CONTRACT"
-	CollectorModeEnv  = "KTX_BENCH_COLLECTOR_MODE"
-	ContractVersion   = "opencode-event-v2"
-	CollectorRequired = "required"
-	Runtime           = "opencode"
-	RuntimeVersion    = "1.18.5"
+	AttemptSessionEnv     = "KTX_ATTEMPT_SESSION_ID"
+	IntervalEnv           = "KTX_BENCH_EVENT_INTERVAL_ID"
+	ContractEnv           = "KTX_BENCH_EVENT_CONTRACT"
+	CollectorModeEnv      = "KTX_BENCH_COLLECTOR_MODE"
+	ContractVersion       = "opencode-event-v2"
+	LegacyContractVersion = "opencode-event-v1"
+	CollectorRequired     = "required"
+	Runtime               = "opencode"
+	RuntimeVersion        = "1.18.5"
 )
 
 var idPattern = regexp.MustCompile(`^[a-z]{16}$`)

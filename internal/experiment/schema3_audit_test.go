@@ -145,6 +145,91 @@ func TestSchema3IncompleteIntervalsCannotRegenerateIntoValidEvidence(t *testing.
 	}
 }
 
+func TestSchema3RetainedContractVersionControlsLedgerInterpretation(t *testing.T) {
+	tests := []struct {
+		name       string
+		contract   string
+		classified bool
+		wantReason string
+	}{
+		{name: "unmigrated schema 7 v1", contract: benchcontract.LegacyContractVersion},
+		{name: "schema 8 migrated v1", contract: benchcontract.LegacyContractVersion, classified: true},
+		{name: "unknown contract", contract: "opencode-event-v3", classified: true, wantReason: "schema 3 runtime event interval provenance does not match the required contract"},
+		{name: "v2 without classifications", contract: benchcontract.ContractVersion, wantReason: "schema 3 v2 runtime events are missing duplicate classifications"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := db.OpenMemory()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer database.Close()
+			interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, "open")
+			if err != nil {
+				t.Fatal(err)
+			}
+			installRetainedSchema3Ledger(t, database, interval, test.contract, test.classified)
+			attempt := Attempt{SchemaVersion: 3, AttemptID: "attempt", SessionID: &interval.SessionID, RuntimeEventIntervalID: &interval.ID}
+			metrics := Metrics{ModelSteps: make([]SourceEvent, 2), wrapperModelIdentities: []modelStepIdentity{
+				{SessionID: "runtime", MessageID: "message-w1", PartID: "w1"},
+				{SessionID: "runtime", MessageID: "message-w2", PartID: "w2"},
+			}}
+			sequence, reason := materializeEventHookSequence(database.DB(), attempt, metrics)
+			if reason != test.wantReason {
+				t.Fatalf("reason=%q want=%q sequence=%#v", reason, test.wantReason, sequence)
+			}
+			if test.wantReason == "" && (sequence == nil || len(sequence.Facts) != 2 || len(sequence.Events) != 3 || len(sequence.Coverage) != 6) {
+				t.Fatalf("valid retained v1 sequence=%#v", sequence)
+			}
+		})
+	}
+}
+
+func installRetainedSchema3Ledger(t *testing.T, database *db.DB, interval *db.RuntimeEventInterval, contract string, classified bool) {
+	t.Helper()
+	intervalColumns := "collector_epoch_count INTEGER, failure_reason TEXT"
+	eventColumns := "captured_at TEXT"
+	if classified {
+		intervalColumns = "collector_epoch_count INTEGER, contradiction_count INTEGER DEFAULT 0, failure_reason TEXT"
+		eventColumns = "captured_at TEXT, model_step_classification TEXT"
+	}
+	if _, err := database.DB().Exec(`DROP TABLE runtime_events; DROP TABLE runtime_event_intervals;
+		CREATE TABLE runtime_event_intervals (
+			id TEXT, session_id TEXT, attempt_id TEXT, runtime TEXT, runtime_version TEXT, source TEXT,
+			contract_version TEXT, opened_at TEXT, closed_at TEXT, close_state TEXT,
+			first_ordinal INTEGER, last_ordinal INTEGER, event_count INTEGER, ` + intervalColumns + `);
+		CREATE TABLE runtime_events (
+			interval_id TEXT, ordinal INTEGER, epoch_id TEXT, epoch_ordinal INTEGER, kind TEXT, event_type TEXT,
+			source_session_id TEXT, message_id TEXT, part_id TEXT, ` + eventColumns + `)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.DB().Exec(`UPDATE sessions SET ended_at = 'closed' WHERE id = ?`, interval.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.DB().Exec(`INSERT INTO runtime_event_intervals
+		(id,session_id,attempt_id,runtime,runtime_version,source,contract_version,opened_at,closed_at,close_state,first_ordinal,last_ordinal,event_count,collector_epoch_count,failure_reason)
+		VALUES (?,?,'attempt',?,?,'event_hook',?,'open','closed','complete',1,3,3,1,NULL)`, interval.ID, interval.SessionID, benchcontract.Runtime, benchcontract.RuntimeVersion, contract); err != nil {
+		t.Fatal(err)
+	}
+	if classified {
+		_, err := database.DB().Exec(`INSERT INTO runtime_events VALUES
+			(?,1,'epoch',0,'collector_open','collector.open',NULL,NULL,NULL,'open',NULL),
+			(?,2,'epoch',1,'model_step','message.part.updated','runtime','message-w1','w1','event','accepted'),
+			(?,3,'epoch',2,'model_step','message.part.updated','runtime','message-w2','w2','event','accepted')`, interval.ID, interval.ID, interval.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		_, err := database.DB().Exec(`INSERT INTO runtime_events VALUES
+			(?,1,'epoch',0,'collector_open','collector.open',NULL,NULL,NULL,'open'),
+			(?,2,'epoch',1,'model_step','message.part.updated','runtime','message-w1','w1','event'),
+			(?,3,'epoch',2,'model_step','message.part.updated','runtime','message-w2','w2','event')`, interval.ID, interval.ID, interval.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestSchema3LegacyLedgerWithMissingDuplicateOccurrenceRemainsInvalid(t *testing.T) {
 	database, err := db.OpenMemory()
 	if err != nil {
@@ -168,7 +253,7 @@ func TestSchema3LegacyLedgerWithMissingDuplicateOccurrenceRemainsInvalid(t *test
 	if _, err := database.DB().Exec(`UPDATE sessions SET ended_at = 'closed' WHERE id = ?`, interval.SessionID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.DB().Exec(`INSERT INTO runtime_event_intervals VALUES (?,?,'attempt',?,?,'event_hook',?,'open','closed','complete',1,3,3,1,NULL)`, interval.ID, interval.SessionID, benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion); err != nil {
+	if _, err := database.DB().Exec(`INSERT INTO runtime_event_intervals VALUES (?,?,'attempt',?,?,'event_hook',?,'open','closed','complete',1,3,3,1,NULL)`, interval.ID, interval.SessionID, benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.LegacyContractVersion); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := database.DB().Exec(`INSERT INTO runtime_events VALUES

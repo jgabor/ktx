@@ -62,6 +62,9 @@ func TestDirectCachedInputShareUsesRetainedStepSums(t *testing.T) {
 		t.Fatalf("schema_version = %v, want 4", summary["schema_version"])
 	}
 	view := directAttempts(summary)[0].(map[string]any)
+	if view["attempt_id"] != attempt.AttemptID || view["side"] != attempt.Side || view["phase"] != attempt.Role || view["cycle"] != attempt.Cycle {
+		t.Fatalf("attempt coordinates = %#v", view)
+	}
 	for field, want := range map[string]int64{"uncached_input": 30, "cache_read": 20, "cache_write": 5, "logical_input": 55} {
 		measurement := view[field].(map[string]any)
 		value, ok := measurement["value"].(*big.Int)
@@ -254,6 +257,11 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	if comparison["purpose"] != "controlled_descriptive_non_ranking" {
 		t.Fatalf("validated comparison = %#v", comparison)
 	}
+	authorization := report["statement_authorization"].(map[string]any)
+	outcomes := authorization["outcomes"].(map[string]any)
+	if authorization["contract_version"] != directCacheContractVersion || outcomes["direct_available"].(map[string]any)["authorized"] != true {
+		t.Fatalf("validated statement authorization = %#v", authorization)
+	}
 }
 
 func TestDirectCachedInputSharePreservesHistoricalSchemaThreeBytes(t *testing.T) {
@@ -301,5 +309,8 @@ func TestDirectCachedInputSharePreservesHistoricalSchemaThreeBytes(t *testing.T)
 	}
 	if _, ok := summary["direct_cached_input_share"]; ok {
 		t.Fatalf("historical schema gained direct output: %#v", summary)
+	}
+	if _, ok := summary["statement_authorization"]; ok {
+		t.Fatalf("historical schema gained statement authorization: %#v", summary)
 	}
 }

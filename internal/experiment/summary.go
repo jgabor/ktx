@@ -535,9 +535,13 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		result["ttft_ms"] = nil
 	}
 	if directCacheShare {
-		result["direct_cached_input_share"] = buildDirectCachedInputShare(manifest, attempts)
-		result["estimated_consecutive_step_reuse"] = buildSecondaryCacheEstimate(attempts)
-		result["cached_input_share_comparison"] = buildCachedInputShareComparison(manifest, attempts)
+		direct := buildDirectCachedInputShare(manifest, attempts)
+		secondary := buildSecondaryCacheEstimate(attempts)
+		comparison := buildCachedInputShareComparison(manifest, attempts)
+		result["direct_cached_input_share"] = direct
+		result["estimated_consecutive_step_reuse"] = secondary
+		result["cached_input_share_comparison"] = comparison
+		result["statement_authorization"] = buildCacheStatementAuthorization(direct, secondary, comparison)
 	}
 	return result
 }
@@ -810,6 +814,17 @@ func RenderSummary(summary map[string]any) string {
 		lines = append(lines, fmt.Sprintf("cached_input_share_comparison complete_pairs=%v mean_difference=%s interval=%s direction=%v descriptive_only=%v quality_preserved=%v blocking_reasons=%s",
 			comparison["complete_pair_count"], compactJSON(paired["mean"]), compactJSON(paired["interval"]), paired["direction"], paired["descriptive_only"],
 			comparison["quality"].(map[string]any)["preserved"], compactJSON(comparison["blocking_reasons"])))
+	}
+	if authorization, ok := summary["statement_authorization"].(map[string]any); ok {
+		identity := anyMap(authorization["identity_provenance"])
+		lines = append(lines, fmt.Sprintf("statement_identity configured_context_classification=%v source_identity_classification=%v stable_nonconflicting=%v conflicts=%s configured_identity_backfills_source_events=%v",
+			identity["configured_context_classification"], identity["source_identity_classification"], identity["stable_nonconflicting"], compactJSON(identity["source_identity_conflicts"]), identity["configured_identity_backfills_source_events"]))
+		outcomes := anyMap(authorization["outcomes"])
+		for _, name := range []string{"direct_available", "comparative_descriptive", "candidate_higher_success", "candidate_lower", "inconclusive", "secondary_available"} {
+			outcome := anyMap(outcomes[name])
+			lines = append(lines, fmt.Sprintf("statement_authorization outcome=%s authorized=%v reasons=%s gates=%s evidence=%s scope=%v statement=%s",
+				name, outcome["authorized"], compactJSON(outcome["reasons"]), compactJSON(outcome["gates"]), compactJSON(outcome["evidence"]), outcome["scope"], compactJSON(outcome["statement"])))
+		}
 	}
 	return strings.Join(lines, "\n")
 }

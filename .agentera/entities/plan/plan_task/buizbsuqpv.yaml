@@ -5,7 +5,7 @@ record:
   depends_on:
     - gparsxmzfx
     - ipomtqhxuq
-  status: pending
+  status: complete
   acceptance:
     - GIVEN at least five complete pairs, stable provenance, protocol compliance, and an interval excluding zero WHEN statements are generated THEN they describe an observed cached-input-share difference under the retained protocol, not a causal provider effect.
     - GIVEN quality is not preserved WHEN results are rendered THEN no improvement or success statement is authorized, although valid descriptive differences remain visible.

@@ -106,7 +106,8 @@ func TestCachedInputShareComparisonRetainsExactPairsAndSamePairQuality(t *testin
 		t.Fatalf("exact difference = %v", got)
 	}
 	base := pair["baseline"].(map[string]any)
-	if base["direct_share"].(map[string]any)["ratio"] != "1/100" || base["configuration_sha256"] != "plain-sha" {
+	if pair["cycle"] != 1 || base["cycle"] != 1 || pair["candidate"].(map[string]any)["cycle"] != 1 ||
+		base["direct_share"].(map[string]any)["ratio"] != "1/100" || base["configuration_sha256"] != "plain-sha" {
 		t.Fatalf("inspectable pair = %#v", pair)
 	}
 	quality := comparison["quality"].(map[string]any)

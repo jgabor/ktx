@@ -120,6 +120,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report["direct_cached_input_share"] = expectedSummaryValue["direct_cached_input_share"]
 		report["estimated_consecutive_step_reuse"] = expectedSummaryValue["estimated_consecutive_step_reuse"]
 		report["cached_input_share_comparison"] = expectedSummaryValue["cached_input_share_comparison"]
+		report["statement_authorization"] = expectedSummaryValue["statement_authorization"]
 	}
 	return report, nil
 }

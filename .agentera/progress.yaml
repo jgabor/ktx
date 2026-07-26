@@ -1,4 +1,145 @@
 cycles:
+  - number: 61
+    timestamp: 2026-07-26 16:14
+    type: fix
+    phase: audit
+    what: Closed the remaining material statement-authorization defect. A
+      comparison pair now contributes only when its positive cycle is unique,
+      its baseline and candidate IDs are distinct and globally unused, each ID
+      resolves exactly once to a direct attempt row, and nested and direct side,
+      measured-warm phase, cycle, exact share, and identity projections agree.
+      Schema-4 direct and nested pair rows now retain factual cycle coordinates.
+    inspiration: Accepted audit reproductions showing that five copies of one
+      retained pair manufactured the minimum sample and that a pair-local share
+      plus internally consistent statistics could diverge from the authoritative
+      direct attempt row while still authorizing higher wording.
+    discovered: The previous correction rederived arithmetic but still treated
+      the pair array as a set and the nested direct share as authority. It
+      deduplicated identical direct IDs instead of rejecting ambiguous
+      resolution, did not retain cycle on direct or nested rows, and checked
+      identity but not side, phase, cycle, or exact share across the two views.
+      The prior terminal progress claim therefore exceeded the evidence; this
+      correction was recorded only after the new audit matrix and full
+      verification passed, without rewriting the historical commits.
+    verified: The accepted duplicate-row and cross-view-share reproductions
+      failed before the fix. Adversarial race tests now cover duplicate pair
+      rows, duplicate cycles with different IDs, reused and same-side attempt
+      IDs, duplicate direct IDs, wrong nested or direct side/phase/cycle,
+      nonpositive cycles, missing direct rows, and pair/direct share divergence;
+      valid five-pair higher, lower, and inconclusive controls remain green.
+      Focused malformed, quality, identity, normalization, wording,
+      regeneration, validation, schemas 1-3, and ranking tests passed. mage
+      check passed all race tests, vet, lint with 0 issues, and a local build.
+      The exact rebuilt build/ktx passed schema-3 and synthetic schema-4 text,
+      JSON, regeneration, and validation smokes; the schema-4 smoke retained ten
+      factual cycle-bearing direct rows with valid=true and byte match. The
+      machine contract parsed and its focused test passed; git diff --check
+      passed. No installed, cached, or published binary supplied evidence.
+    next: Commit this bounded correction as a new commit after e24876d; do not
+      amend or rewrite prior history. No paid live experiment was run.
+    context:
+      intent: Authorize every comparative outcome only from a genuine set of
+        unique retained cycle pairs whose exact shares match authoritative
+        direct attempt rows.
+      constraints: Preserved direct attempt-level descriptive behavior where
+        its own rows remain valid, schemas 1-3 bytes, valid schema-4 direction
+        and quality semantics, rankings, forbidden-word boundaries, and
+        secondary non-ranking isolation.
+      unknowns: No new provider evidence was collected. Real comparisons remain
+        conservatively blocked when retained protocol or temporal coverage is
+        incomplete.
+      scope: Pair/direct projection validation, factual schema-4 cycle fields,
+        adversarial regressions, narrow contract documentation, and audited
+        progress evidence only.
+  - number: 60
+    timestamp: 2026-07-26 15:56
+    type: fix
+    phase: audit
+    what: Corrected all three independent audit findings for plan task
+      buizbsuqpv. Authorization now fails closed by rederiving pair count, exact
+      differences, paired statistics and direction, same-pair quality, paired
+      source identity, direct runtime scope, and secondary counts and contract
+      labels from retained detail. One normalized foundation now supplies every
+      comparison outcome, and identity classification uses all deduplicated
+      direct attempt rows with a separate complete-pair scope.
+    inspiration: Independent audit failure of commit e4f3e56 and its bounded
+      projection, reason-normalization, and blocked-identity findings.
+    discovered: Aggregate projections cannot be authorization authority even
+      when they were originally derived from the same rows, because retained
+      artifacts can be malformed or contradictory. The narrow
+      evidence_projection_inconsistent reason is needed to distinguish that
+      failure from incomplete direct measurement while retaining raw confound
+      reasons separately for diagnosis.
+    verified: Adversarial regressions cover interval/direction contradiction,
+      aggregate/pair quality contradiction, provider/model/runtime identity
+      conflicts with empty blockers, direct contract and runtime mismatch,
+      secondary method/ranking/count mismatch, pair-count mismatch, malformed
+      and non-finite projections, empty and temporal reason normalization, and
+      incomplete-cycle identity recovery. Focused race tests passed for
+      internal/experiment and internal/cacheevidence. mage check passed all
+      tests, vet, lint with 0 issues, and build after removal of one initially
+      reported unused helper; the remaining stale sibling-path warning was
+      non-failing. Python JSON parsing and the focused machine-contract test
+      passed. mage build produced build/ktx, whose exact local artifact passed
+      text summary, JSON summary, and JSON validation smokes. git diff --check
+      passed.
+    next: Submit the bounded correction as a new commit without amending
+      e4f3e56. Plan task onoawasqif remains pending; no paid live experiment was
+      run in this correction.
+    context:
+      intent: Ensure no statement can be authorized by a contradictory,
+        malformed, incomplete, or mislabeled evidence projection.
+      constraints: Preserved valid outcome semantics, schema 1-3 bytes,
+        rankings, cost-per-correct, existing schema-4 evidence, narrow wording,
+        configured/source identity separation, and secondary non-ranking
+        isolation.
+      unknowns: No new live provider evidence was collected. Valid direction
+        still depends on retained positive protocol and temporal coverage.
+      scope: Authorization derivation and taxonomy, shared quality derivation,
+        identity scope, contract documentation, adversarial regression coverage,
+        and audit task state.
+  - number: 59
+    timestamp: 2026-07-26 15:30
+    type: feat
+    phase: build
+    what: Completed plan task buizbsuqpv with additive schema-4 statement
+      authorization derived only from the retained direct, secondary, and paired
+      comparison evidence objects. Every outcome now records authorization,
+      ordered reasons, evaluated gates, evidence basis, scope, and nullable
+      wording. Human rendering exposes the same policy and identity provenance;
+      validation and regeneration retain the identical machine object.
+    inspiration: The reviewed claim matrix, paired uncertainty and historical
+      boundary contract, and the already-audited schema-4 evidence views.
+    discovered: Outcome-specific blockers are necessary. Quality loss blocks
+      only higher-share success wording, while a valid descriptive comparison
+      and lower observed direction remain available. Configured-only source
+      identity can remain comparison-eligible without being promoted to runtime
+      evidence, and secondary eligibility never changes a direct outcome.
+    verified: Focused race tests passed for internal/experiment and
+      internal/cacheevidence across all authorization boundaries, identity
+      classes, blocker precedence, forbidden wording, regeneration, validation,
+      and historical schemas. mage check passed all tests, vet, lint with 0
+      issues, and build; golangci-lint emitted only a non-failing stale
+      sibling-path warning. Python parsed the machine contract, its focused
+      contract test passed, mage build produced build/ktx, and that exact local
+      artifact generated text and JSON summaries and JSON validation containing
+      the authorization object.
+    next: Plan task onoawasqif remains pending for final retained-evidence and
+      bounded live validation and project-state synchronization. No paid live
+      experiment was run for this task.
+    context:
+      intent: Emit only narrowly scoped OpenCode-reported cached-input-share
+        statements authorized by retained schema-4 evidence.
+      constraints: Preserved schema 1-3 bytes, schema-4 evidence and comparison
+        semantics, rankings, cost-per-correct, configured/source identity
+        separation, secondary non-ranking isolation, and unsupported claim
+        categories.
+      unknowns: No new live provider evidence was collected. Real attempts remain
+        unable to authorize direction whenever retained protocol, temporal, or
+        identity evidence is incomplete or conflicting.
+      scope: Statement policy and rendering, identity classification, validation
+        and regeneration projection, contract documentation and machine status,
+        focused regression coverage, and task progress state.
   - number: 58
     timestamp: 2026-07-26 15:13
     type: fix

@@ -232,7 +232,7 @@ func comparisonAttemptView(manifest Manifest, attempt Attempt, direct map[string
 	}
 	return map[string]any{
 		"attempt_id": attempt.AttemptID, "experiment_id": attempt.ExperimentID, "side": attempt.Side, "phase": attempt.Role,
-		"execution_order": executionOrder(attempt), "direct_share": direct["share"],
+		"cycle": attempt.Cycle, "execution_order": executionOrder(attempt), "direct_share": direct["share"],
 		"protocol_provenance": map[string]any{
 			"expected_experiment_id": manifest.ExperimentID, "status": attempt.Status, "session_id": attempt.SessionID,
 			"stream_complete": attempt.StreamComplete, "tool_call_count": attempt.ToolCallCount, "minimum_tool_calls": manifest.Task.MinimumToolCalls,
@@ -426,12 +426,26 @@ func rationalView(value *big.Rat) map[string]any {
 }
 
 func pairedQuality(attempts []Attempt) map[string]any {
+	observations := make([]pairedQualityObservation, 0, len(attempts))
+	for _, attempt := range attempts {
+		observations = append(observations, pairedQualityObservation{side: attempt.Side, score: attempt.Score.Score, fullPass: attempt.FullPass})
+	}
+	return pairedQualityFromObservations(observations)
+}
+
+type pairedQualityObservation struct {
+	side     string
+	score    float64
+	fullPass bool
+}
+
+func pairedQualityFromObservations(observations []pairedQualityObservation) map[string]any {
 	scores := map[string][]float64{Baseline: {}, Candidate: {}}
 	passes := map[string]int{Baseline: 0, Candidate: 0}
-	for _, attempt := range attempts {
-		scores[attempt.Side] = append(scores[attempt.Side], attempt.Score.Score)
-		if attempt.FullPass {
-			passes[attempt.Side]++
+	for _, observation := range observations {
+		scores[observation.side] = append(scores[observation.side], observation.score)
+		if observation.fullPass {
+			passes[observation.side]++
 		}
 	}
 	view := map[string]any{}

@@ -51,8 +51,9 @@ provenance beside the share.
 The direct view is emitted only when a cache-aware experiment identifies both
 its manifest runtime and cache-control runtime as OpenCode 1.18.4. Such a
 summary uses additive schema 4 and retains one row per attempt under
-`direct_cached_input_share.attempts`. Each row contains the three bucket sums,
-logical input, and share as state/value records. Incomplete records carry exact
+`direct_cached_input_share.attempts`. Each row retains its attempt ID, side,
+phase, and cycle along with the three bucket sums, logical input, and share as
+state/value records. Incomplete records carry exact
 field and source-event-ordinal gaps; an attempt with no retained model steps
 carries a missing gap for each required bucket with a null ordinal. A complete
 zero logical input has share state `not_applicable` and reason
@@ -273,9 +274,67 @@ adds `quality_not_preserved`. These reasons follow the machine contract's
 declared precedence and remain descriptive inputs rather than statement
 authorization.
 
-The descriptive comparison reports blocking and confound reasons but does not
-authorize a user-facing success or improvement statement. Statement
-authorization is a separate contract and is not implemented here.
+Schema-4 summaries derive `statement_authorization` only from the retained
+`direct_cached_input_share`, `estimated_consecutive_step_reuse`, and
+`cached_input_share_comparison` objects. Each outcome records `authorized`,
+ordered machine reasons, evaluated gates, evidence references and basis, scope,
+and a statement that is null unless authorized. Validation includes the same
+object and regeneration derives it deterministically from those evidence views.
+
+Authorization fails closed on a contradictory projection. It derives complete
+pair count only from rows with a unique positive cycle, one correctly labeled
+measured-warm row per side, and distinct globally unreused attempt IDs. Each ID
+must resolve exactly once under `direct_cached_input_share.attempts`; the direct
+row and nested pair row must agree on side, phase, cycle, exact measured share,
+and paired identity. It then rederives every candidate-minus-baseline fraction,
+paired statistic, and same-pair quality value from that verified set. Declared
+counts, differences, statistics, direction, and aggregate quality must agree
+with that derivation. Direct authorization also requires the named contract and
+OpenCode 1.18.4 runtime scope. Secondary authorization requires the exact estimated
+method, no ranking effect, and eligible and ineligible totals consistent with
+the retained attempt and pair rows. Missing, malformed, non-finite, or
+contradictory projections add `evidence_projection_inconsistent`; malformed
+pair shares remain `direct_evidence_incomplete`. Neither state can produce an
+authorized statement.
+
+The direct outcome may describe available attempt shares. The comparative
+descriptive outcome may report the exact complete-pair count, per-pair
+candidate-minus-baseline fractions, mean, and interval without directional,
+significance, or causal interpretation. Directional outcomes apply their own
+gates rather than requiring every comparison blocker to be absent. Foundational
+runtime, direct-evidence, cycle, protocol, and identity blockers prevent every
+directional statement. Fewer than five pairs prevent higher, lower, and
+inconclusive wording. A wholly positive interval authorizes the higher wording
+only when same-pair mean fact score and full-pass rate are each no lower for the
+candidate. `quality_not_preserved` does not erase the descriptive comparison. A
+wholly negative interval may authorize only the observed lower wording,
+regardless of quality preservation. An interval containing zero authorizes only
+the explicit no-direction statement.
+
+Authorization normalizes foundational reasons before evaluating any comparison
+outcome. Missing or duplicate cycle sides become `cycle_pair_incomplete`.
+Temporal, retry, reset, order, and execution-policy confounds become
+`protocol_noncompliant`. Direct incompleteness and identity conflicts retain
+their declared taxonomy. Raw observed reasons remain in the evidence basis for
+diagnosis, but unknown detail is never emitted as an authorization reason or
+allowed to displace the declared precedence.
+
+Authorization identity provenance separately classifies configured context and
+runtime-emitted source identity from all deduplicated direct attempt rows, even
+when a cycle is incomplete or blocked. A separate comparison scope covers only
+the attempt IDs in complete pair rows. Source identity is `configured_only`, `absent`,
+`partial`, or `present`; per-class event counts and conflicts remain visible.
+Configured-only identity is not promoted to source evidence, and
+`configured_identity_backfills_source_events=false` remains explicit. Present
+runtime-emitted identity must agree with the configured comparison context;
+source identity may remain absent when the controlled comparison otherwise
+qualifies.
+
+The secondary outcome is authorized only with at least one eligible pair. Its
+wording says `estimated`, names `pi_consecutive_step_reusable_basis`, reports
+eligible and ineligible counts, and remains descriptive and non-ranking. It has
+no input to any direct outcome. Unsupported claim categories remain available
+as machine policy only and are never emitted as supported statements.
 
 ## Historical boundary
 

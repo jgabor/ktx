@@ -118,6 +118,26 @@ type cacheReuseContract struct {
 		} `json:"uncertainty"`
 		Direction map[string]string `json:"direction"`
 	} `json:"comparison"`
+	StatementAuthorization struct {
+		SummarySchemaVersion   int      `json:"summary_schema_version"`
+		Path                   string   `json:"path"`
+		InputAuthority         []string `json:"input_authority"`
+		Outcomes               []string `json:"outcomes"`
+		OutcomeShape           []string `json:"outcome_shape"`
+		ReasonPrecedence       []string `json:"reason_precedence"`
+		ProjectionVerification string   `json:"projection_verification"`
+		ProjectionReason       string   `json:"projection_inconsistency_reason"`
+		ReasonNormalization    string   `json:"reason_normalization"`
+		NullWhenUnauthorized   bool     `json:"statement_null_when_not_authorized"`
+		WordingScope           string   `json:"wording_scope"`
+		IdentityClasses        []string `json:"identity_classifications"`
+		ConfiguredBackfill     bool     `json:"configured_identity_backfills_source_events"`
+		AbsentPermitted        bool     `json:"absent_runtime_emitted_identity_permitted"`
+		PresentMustAgree       bool     `json:"present_runtime_emitted_identity_must_agree"`
+		SecondaryCannotAffect  bool     `json:"secondary_cannot_influence_direct_authorization"`
+		ValidationReport       string   `json:"validation_report"`
+		LegacySchemas          []int    `json:"legacy_schema_versions_unchanged"`
+	} `json:"statement_authorization"`
 	ClaimMatrix []struct {
 		Outcome, Authorizes string
 		Requires            []string
@@ -138,7 +158,7 @@ func TestCacheReuseMetricContract(t *testing.T) {
 	var contract cacheReuseContract
 	readJSON(t, path, &contract)
 
-	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_secondary_and_descriptive_comparison_implemented" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.4" || contract.Scope.RuntimeCommit != "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e" {
+	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_secondary_comparison_and_statement_authorization_implemented" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.4" || contract.Scope.RuntimeCommit != "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e" {
 		t.Fatalf("unexpected contract identity: %#v", contract.Scope)
 	}
 	if contract.Scope.RankingEffect != "none" || contract.Scope.HistoricalOutputMutation {
@@ -149,6 +169,32 @@ func TestCacheReuseMetricContract(t *testing.T) {
 	validateSequenceContract(t, contract)
 	validateDirectAndSecondaryContract(t, contract)
 	validateClaimContract(t, contract)
+	validateStatementAuthorizationContract(t, contract)
+}
+
+func validateStatementAuthorizationContract(t *testing.T, contract cacheReuseContract) {
+	t.Helper()
+	authorization := contract.StatementAuthorization
+	wantInputs := []string{"direct_cached_input_share", "estimated_consecutive_step_reuse", "cached_input_share_comparison"}
+	wantOutcomes := []string{"direct_available", "comparative_descriptive", "candidate_higher_success", "candidate_lower", "inconclusive", "secondary_available"}
+	wantShape := []string{"authorized", "reasons", "gates", "evidence", "scope", "statement"}
+	wantReasons := []string{"unsupported_runtime_accounting", "direct_evidence_incomplete", "evidence_projection_inconsistent", "cycle_pair_incomplete", "protocol_noncompliant", "identity_provenance_unstable", "runtime_emitted_identity_conflict", "fewer_than_five_complete_pairs", "two_sided_95_percent_interval_unavailable", "two_sided_95_percent_interval_contains_zero", "candidate_not_higher", "candidate_not_lower", "two_sided_95_percent_interval_excludes_zero", "quality_not_preserved", "no_eligible_consecutive_step_pairs"}
+	wantIdentity := []string{"configured_only", "absent", "partial", "present"}
+	if authorization.SummarySchemaVersion != 4 || authorization.Path != "statement_authorization" ||
+		!reflect.DeepEqual(authorization.InputAuthority, wantInputs) || !reflect.DeepEqual(authorization.Outcomes, wantOutcomes) ||
+		!reflect.DeepEqual(authorization.OutcomeShape, wantShape) || !reflect.DeepEqual(authorization.ReasonPrecedence, wantReasons) || !authorization.NullWhenUnauthorized ||
+		authorization.ProjectionVerification == "" || authorization.ProjectionReason != "evidence_projection_inconsistent" || authorization.ReasonNormalization == "" ||
+		authorization.WordingScope != "OpenCode-reported cached-input share under the retained protocol" ||
+		!reflect.DeepEqual(authorization.IdentityClasses, wantIdentity) || authorization.ConfiguredBackfill ||
+		!authorization.AbsentPermitted || !authorization.PresentMustAgree || !authorization.SecondaryCannotAffect ||
+		authorization.ValidationReport != "same statement authorization" || !reflect.DeepEqual(authorization.LegacySchemas, []int{1, 2, 3}) {
+		t.Fatalf("statement authorization contract is incomplete: %#v", authorization)
+	}
+	for _, required := range []string{"unique positive cycles", "globally unreused attempt IDs", "authoritative direct attempt rows", "matching side", "measured-warm phase", "cycle", "exact measured share", "identity"} {
+		if !strings.Contains(authorization.ProjectionVerification, required) {
+			t.Errorf("projection verification omits %q: %q", required, authorization.ProjectionVerification)
+		}
+	}
 }
 
 func validateSequenceContract(t *testing.T, contract cacheReuseContract) {

@@ -74,6 +74,7 @@ func directCachedInputShareAttempt(manifest Manifest, attempt Attempt) map[strin
 		"attempt_id":     attempt.AttemptID,
 		"side":           attempt.Side,
 		"phase":          attempt.Role,
+		"cycle":          attempt.Cycle,
 		"uncached_input": measurements["uncached_input"],
 		"cache_read":     measurements["cache_read"],
 		"cache_write":    measurements["cache_write"],

@@ -1,6 +1,6 @@
 {
   "contract_version": "cache-reuse-v1",
-  "status": "direct_secondary_and_descriptive_comparison_implemented",
+  "status": "direct_secondary_comparison_and_statement_authorization_implemented",
   "scope": {
     "runtime": "opencode",
     "runtime_version": "1.18.4",
@@ -79,6 +79,7 @@
       "summary_schema_version": 4,
       "gate": "v5-cache-aware manifest and cache-control runtime both identify opencode 1.18.4",
       "path": "direct_cached_input_share.attempts",
+      "attempt_coordinates": ["attempt_id", "side", "phase", "cycle"],
       "attempt_states": "measured | missing | malformed | not_applicable",
       "no_model_steps": "one missing gap per required bucket with null source_event_ordinal",
       "validation_report": "same direct view",
@@ -329,13 +330,73 @@
       "temporal_coverage": "retry, reset, segment, and concurrency coverage must be positively retained for each attempt; silence is unavailable even for one model step",
       "protocol_provenance": "retain experiment and evaluation context, role and phase, cache mode/source/idle gap/namespace, configuration and pipeline identity, runtime and configured identity, and source-event identity",
       "exact_pair_representation": "reduced rational plus numeric token fraction",
+      "pair_coordinates": "unique positive outer cycle; one baseline and one candidate nested row each retaining the same cycle",
       "direct_distributions": "baseline and candidate values from the exact complete comparable pairs",
       "quality_basis": "the exact complete comparable pairs",
       "secondary_distribution": "separate estimated method and eligibility counts over measured_warm attempts",
-      "statement_authorization": "not_implemented",
+      "statement_authorization": "statement_authorization",
       "validation_report": "same descriptive comparison view",
       "legacy_schema_versions_unchanged": [1, 2, 3]
     }
+  },
+  "statement_authorization": {
+    "summary_schema_version": 4,
+    "path": "statement_authorization",
+    "input_authority": [
+      "direct_cached_input_share",
+      "estimated_consecutive_step_reuse",
+      "cached_input_share_comparison"
+    ],
+    "outcomes": [
+      "direct_available",
+      "comparative_descriptive",
+      "candidate_higher_success",
+      "candidate_lower",
+      "inconclusive",
+      "secondary_available"
+    ],
+    "outcome_shape": [
+      "authorized",
+      "reasons",
+      "gates",
+      "evidence",
+      "scope",
+      "statement"
+    ],
+    "reason_precedence": [
+      "unsupported_runtime_accounting",
+      "direct_evidence_incomplete",
+      "evidence_projection_inconsistent",
+      "cycle_pair_incomplete",
+      "protocol_noncompliant",
+      "identity_provenance_unstable",
+      "runtime_emitted_identity_conflict",
+      "fewer_than_five_complete_pairs",
+      "two_sided_95_percent_interval_unavailable",
+      "two_sided_95_percent_interval_contains_zero",
+      "candidate_not_higher",
+      "candidate_not_lower",
+      "two_sided_95_percent_interval_excludes_zero",
+      "quality_not_preserved",
+      "no_eligible_consecutive_step_pairs"
+    ],
+    "projection_verification": "authorize comparisons only from unique positive cycles whose baseline and candidate rows use distinct globally unreused attempt IDs that each resolve exactly once to authoritative direct attempt rows with matching side, measured-warm phase, cycle, exact measured share, and identity; then rederive exact differences, paired statistics, and same-pair quality; malformed, non-finite, missing, duplicate, reused, or contradictory projections are unauthorized",
+    "projection_inconsistency_reason": "evidence_projection_inconsistent",
+    "reason_normalization": "map duplicate or missing cycle sides to cycle_pair_incomplete; map temporal, retry, reset, order, and execution-policy confounds to protocol_noncompliant; retain observed detail separately",
+    "statement_null_when_not_authorized": true,
+    "wording_scope": "OpenCode-reported cached-input share under the retained protocol",
+    "identity_classifications": [
+      "configured_only",
+      "absent",
+      "partial",
+      "present"
+    ],
+    "configured_identity_backfills_source_events": false,
+    "absent_runtime_emitted_identity_permitted": true,
+    "present_runtime_emitted_identity_must_agree": true,
+    "secondary_cannot_influence_direct_authorization": true,
+    "validation_report": "same statement authorization",
+    "legacy_schema_versions_unchanged": [1, 2, 3]
   },
   "claim_matrix": [
     {

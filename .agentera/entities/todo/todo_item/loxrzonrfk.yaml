@@ -3,4 +3,4 @@ artifact: todo
 record:
   severity: normal
   status: resolved
-  description: "**Runtime cache telemetry configuration** — Run a structured discussion within runtime-only collection and record which runtime-emitted cache fields and explicit runtime configuration ktx should retain in benchmark manifests and attempts, runtime-adapter version provenance, and truthful unavailable labels for missing or unsupported fields. Do not add provider cache control, capability negotiation, or provider-request semantics. → [Question](ARCHITECTURE.md#runtime-cache-telemetry-configuration)"
+  description: "**Runtime cache telemetry configuration** — Retain runtime-emitted cache fields independently at per-observation authority, with measured zero distinct from unavailable or malformed. Keep explicit identity/configuration and runtime-version provenance at attempt and manifest authority; observed mode has no adapter source/version, unsupported control produces no evidence, and omitted fields are never reconstructed. → [Recorded decision](.agentera/entities/decisions/decision/zcdzpzguri.yaml)"

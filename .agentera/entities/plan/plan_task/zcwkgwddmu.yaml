@@ -11,3 +11,13 @@ record:
     - GIVEN provider cache control, capability negotiation, or provider-request semantics WHEN scope is evaluated THEN none becomes product work or evidence.
     - GIVEN the choice is accepted WHEN the discussion cycle closes THEN the decision is recorded, its Architecture question is removed, its TODO item is completed, only selected follow-ups are added or unblocked, and reciprocal links remain valid.
   plan: bstrfialvp
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Resolved TODO entity retains removed Architecture link; durable Prettier claim includes a writer-formatted task entity that does not pass Prettier.
+    provenance:
+      attempt_id: audit-1
+      source: Audit ses_062a9514affewaqVlS65Es5sYk
+      recorded_at: 2026-07-26 09:37
+      writer_command: agentera state plan record-evaluation

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -425,10 +426,9 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 
 func validateLocalCollectorSource(root string) error {
 	checks := map[string][]string{
-		"Dockerfile.benchmark": {"ARG OPENCODE_VERSION=" + benchcontract.RuntimeVersion, "RUN ktx init opencode", `ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]`},
-		filepath.Join("internal", "benchcontract", "contract.go"): {`ContractVersion   = "` + benchcontract.ContractVersion + `"`, `CollectorRequired = "required"`},
-		filepath.Join("internal", "cli", "init.go"):               {`["telemetry", "collector-open"]`, `["telemetry", "event-record"]`, "eventQueue.then", "next.catch(() => undefined)"},
-		filepath.Join("internal", "db", "schema.go"):              {"runtime_event_intervals", "runtime_events", "model_step_classification", "contradiction_count"},
+		"Dockerfile.benchmark":                       {"ARG OPENCODE_VERSION=" + benchcontract.RuntimeVersion, "RUN ktx init opencode", `ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]`},
+		filepath.Join("internal", "cli", "init.go"):  {`["telemetry", "collector-open"]`, `["telemetry", "event-record"]`, "eventQueue.then", "next.catch(() => undefined)"},
+		filepath.Join("internal", "db", "schema.go"): {"runtime_event_intervals", "runtime_events", "model_step_classification", "contradiction_count"},
 	}
 	for relative, markers := range checks {
 		data, err := os.ReadFile(filepath.Join(root, relative))
@@ -441,7 +441,25 @@ func validateLocalCollectorSource(root string) error {
 			}
 		}
 	}
+	contractPath := filepath.Join("internal", "benchcontract", "contract.go")
+	contractSource, err := os.ReadFile(filepath.Join(root, contractPath))
+	if err != nil {
+		return err
+	}
+	for _, declaration := range []struct{ identifier, value string }{
+		{"ContractVersion", benchcontract.ContractVersion},
+		{"CollectorRequired", benchcontract.CollectorRequired},
+	} {
+		if !hasStringDeclaration(contractSource, declaration.identifier, declaration.value) {
+			return fmt.Errorf("%w: %s", errLocalCollectorContract, contractPath)
+		}
+	}
 	return nil
+}
+
+func hasStringDeclaration(source []byte, identifier, value string) bool {
+	pattern := `(?m)^[\t ]*` + regexp.QuoteMeta(identifier) + `[\t ]*=[\t ]*"` + regexp.QuoteMeta(value) + `"[\t ]*(?://[^\r\n]*)?\r?$`
+	return regexp.MustCompile(pattern).Match(source)
 }
 
 func snapshotConfigs(experimentDir, baseline, candidate string) (map[string]PipelineMetadata, error) {

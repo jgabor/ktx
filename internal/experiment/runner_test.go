@@ -3,6 +3,7 @@ package experiment
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -564,6 +565,90 @@ func TestCompareAttestsCapabilitiesBeforeAuthAndArtifacts(t *testing.T) {
 	_, _, code, err = runner.Compare(context.Background(), options)
 	if err == nil || !strings.Contains(err.Error(), "runtime_or_event_contract_mismatch") || code != 2 || stale.capabilityRuns != 1 || stale.attemptRuns != 0 {
 		t.Fatalf("stale collector code=%d err=%v capabilities=%d attempts=%d", code, err, stale.capabilityRuns, stale.attemptRuns)
+	}
+}
+
+func TestValidateLocalCollectorSourceAcceptsCurrentSource(t *testing.T) {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateLocalCollectorSource(filepath.Join(workingDirectory, "..", "..")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBenchcontractDeclarationsIgnoreAlignmentAndNeighbors(t *testing.T) {
+	source := []byte(`const (
+	ContractVersion = "opencode-event-v2"
+	LegacyContractVersion     = "opencode-event-v1"
+	CollectorRequired	=     "required" // benchmark mode
+)
+`)
+	if !hasStringDeclaration(source, "ContractVersion", benchcontract.ContractVersion) {
+		t.Fatal("ContractVersion declaration was not recognized")
+	}
+	if !hasStringDeclaration(source, "CollectorRequired", benchcontract.CollectorRequired) {
+		t.Fatal("CollectorRequired declaration was not recognized")
+	}
+}
+
+func TestBenchcontractDeclarationsRejectWrongValues(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		source     string
+		identifier string
+		value      string
+	}{
+		{"contract version", `ContractVersion = "opencode-event-v1"`, "ContractVersion", benchcontract.ContractVersion},
+		{"collector mode", `CollectorRequired = "optional"`, "CollectorRequired", benchcontract.CollectorRequired},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if hasStringDeclaration([]byte(test.source), test.identifier, test.value) {
+				t.Fatalf("accepted wrong declaration %q", test.source)
+			}
+		})
+	}
+}
+
+type forbiddenExecutor struct {
+	calls int
+}
+
+func (executor *forbiddenExecutor) Run(context.Context, Command) (CommandResult, error) {
+	executor.calls++
+	return CommandResult{}, errors.New("unexpected command")
+}
+
+func TestPreflightLocalSourceMismatchPreventsDockerCommands(t *testing.T) {
+	root := t.TempDir()
+	write := func(relative, content string) {
+		path := filepath.Join(root, relative)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("Dockerfile.benchmark", "ARG OPENCODE_VERSION="+benchcontract.RuntimeVersion+"\nRUN ktx init opencode\nENTRYPOINT [\"/usr/local/bin/ktx\", \"bench\", \"agent\"]\n")
+	write(filepath.Join("internal", "cli", "init.go"), `["telemetry", "collector-open"] ["telemetry", "event-record"] eventQueue.then next.catch(() => undefined)`)
+	write(filepath.Join("internal", "db", "schema.go"), "runtime_event_intervals runtime_events model_step_classification contradiction_count")
+	write(filepath.Join("internal", "benchcontract", "contract.go"), `const (
+	ContractVersion = "wrong"
+	CollectorRequired = "required"
+)`)
+	executor := &forbiddenExecutor{}
+	runner := &Runner{Executor: executor}
+	report, _, err := runner.preflightPrepared(context.Background(), CompareOptions{RepoRoot: root, Image: "image", DockerBin: "docker", BuildImage: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(report.Reasons, ","); got != "local_source_contract_mismatch" {
+		t.Fatalf("reasons = %q", got)
+	}
+	if executor.calls != 0 {
+		t.Fatalf("executed %d Docker commands after local-source failure", executor.calls)
 	}
 }
 

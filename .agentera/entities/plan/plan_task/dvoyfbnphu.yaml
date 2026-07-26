@@ -4,7 +4,7 @@ record:
   name: Establish authoritative benchmark regeneration
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN retained first evidence and changed derived projections WHEN a benchmark is regenerated THEN each measurement is materialized once from its field authority, canonical output is unchanged, and projection divergence is reported separately.
     - GIVEN supported retained legacy experiments WHEN regeneration runs THEN promised serialized outputs remain byte-identical.

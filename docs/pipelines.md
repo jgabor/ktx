@@ -471,6 +471,22 @@ An attempt is **evaluated** when:
 `status=completed`, session linked, stream complete, and
 `tool_call_count >= minimum_tool_calls`.
 
+Summary regeneration does not add the copied measurements in
+`attempts.jsonl` to retained evidence. For cache-aware attempts that retain the
+standard `database` and `stream` artifacts, tool-call rows own the call count
+and the raw runtime stream owns completion, answer scoring, token, cache,
+reasoning, and runtime-reported cost measurements. The manifest owns cohort,
+pipeline, methodology, identity, and pricing-snapshot inputs. The first attempt
+record owns only orchestration facts and artifact links that cannot be obtained
+from those lower-level artifacts.
+
+A repeated attempt record with the same identity and orchestration facts is
+idempotent. Differences confined to copied measurements are reported as
+projection divergence and do not change the regenerated summary. A repeated
+identity with different orchestration facts is an error; the first record is
+not replaced. Legacy attempts without the cache-aware retained-artifact
+contract continue to regenerate from their historical serialized shape.
+
 Partial fact scores are kept; they are not discarded.
 
 For schema-v3 summaries, every applicable metric is a deterministic

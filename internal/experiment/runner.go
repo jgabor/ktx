@@ -191,8 +191,8 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 			valid = CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)
 		}
 	}
-	summary, err := WriteSummary(experimentDir)
-	if err != nil {
+	summary := BuildSummary(manifest, attempts)
+	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
 		return experimentDir, nil, 2, err
 	}
 	valid := CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)

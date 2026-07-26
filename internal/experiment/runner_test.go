@@ -97,6 +97,25 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			database, config := mountSource(command.Args, "/home/node/.local/share/ktx/ktx.db"), mountSource(command.Args, "/home/node/.config/ktx/ktx.toml")
 			side := strings.TrimPrefix(filepath.Ext(config), ".")
 			fake.sessions[database] = side
+			store, err := db.Open(database)
+			if err != nil {
+				return CommandResult{}, err
+			}
+			if err := store.InsertSession(&db.Session{ID: side, Agent: "test"}); err != nil {
+				_ = store.Close()
+				return CommandResult{}, err
+			}
+			toolID, err := db.NewID()
+			if err == nil {
+				_, err = store.PersistToolCallOnce(&db.ToolCall{ID: toolID, SessionID: side, Tool: "bash", Output: "done", ContentHash: db.ContentHash("done")})
+			}
+			closeErr := store.Close()
+			if err != nil {
+				return CommandResult{}, err
+			}
+			if closeErr != nil {
+				return CommandResult{}, closeErr
+			}
 			fake.sides = append(fake.sides, side)
 			write(command.Stdout, `{"type":"tool_use","part":{}}`+"\n")
 			input := map[string]int{Baseline: 100, Candidate: 40}[side]

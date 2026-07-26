@@ -14,47 +14,6 @@ func LoadAttempts(experimentDir string) ([]Attempt, error) {
 	return loadJSONLines[Attempt](filepath.Join(experimentDir, "attempts.jsonl"))
 }
 
-// reconcileCacheFromStream re-parses the retained stream artifact for
-// attempts that already carry cache evidence in attempts.jsonl and
-// overrides the cache fields with the authoritative stream-derived
-// SUM. The raw stream is the ground truth for cache aggregation;
-// stale cache values from a superseded method (e.g. MAX) must not
-// survive into the regenerated summary or the validator's byte-match
-// check.
-//
-// The reparsing fires ONLY for attempts that already declare cache
-// evidence in attempts.jsonl (non-nil CacheRead/CacheWrite pointer or
-// non-zero CacheReadEvents/CacheWriteEvents counter). Pre-cache
-// cacheless attempts are left untouched even if their retained raw
-// stream happens to contain cache fields — this preserves the v1
-// byte-match contract for legacy experiments so they continue to
-// validate against their original summaries.
-func reconcileCacheFromStream(attempts []Attempt, experimentDir string) []Attempt {
-	for i := range attempts {
-		hasCacheEvidence := attempts[i].CacheRead != nil ||
-			attempts[i].CacheWrite != nil ||
-			attempts[i].UsageEvidence.CacheReadEvents > 0 ||
-			attempts[i].UsageEvidence.CacheWriteEvents > 0 ||
-			attempts[i].Reasoning != nil || attempts[i].UsageEvidence.ReasoningEvents > 0
-		if !hasCacheEvidence {
-			continue
-		}
-		streamRel, ok := attempts[i].Artifacts["stream"]
-		if !ok || streamRel == "" {
-			continue
-		}
-		streamPath := filepath.Join(experimentDir, filepath.FromSlash(streamRel))
-		metrics := ParseStream(streamPath, nil, nil)
-		attempts[i].CacheRead = metrics.CacheRead
-		attempts[i].CacheWrite = metrics.CacheWrite
-		attempts[i].UsageEvidence.CacheReadEvents = metrics.UsageEvidence.CacheReadEvents
-		attempts[i].UsageEvidence.CacheWriteEvents = metrics.UsageEvidence.CacheWriteEvents
-		attempts[i].Reasoning = metrics.Reasoning
-		attempts[i].UsageEvidence.ReasoningEvents = metrics.UsageEvidence.ReasoningEvents
-	}
-	return attempts
-}
-
 func AppendAttempt(experimentDir string, attempt Attempt) error {
 	return appendJSONLine(filepath.Join(experimentDir, "attempts.jsonl"), attempt)
 }
@@ -702,34 +661,47 @@ func summaryValue(value any) *float64 {
 	}
 }
 
-func WriteSummary(experimentDir string) (map[string]any, error) {
+type SummaryRegeneration struct {
+	Summary               map[string]any
+	ProjectionDivergences []ProjectionDivergence
+}
+
+func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	manifestBytes, err := os.ReadFile(filepath.Join(experimentDir, "manifest.json"))
 	if err != nil {
-		return nil, fmt.Errorf("read manifest: %w", err)
+		return SummaryRegeneration{}, fmt.Errorf("read manifest: %w", err)
 	}
 	var manifest Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("decode manifest: %w", err)
+		return SummaryRegeneration{}, fmt.Errorf("decode manifest: %w", err)
 	}
 	attempts, err := LoadAttempts(experimentDir)
 	if err != nil {
-		return nil, err
+		return SummaryRegeneration{}, err
 	}
-	attempts = reconcileCacheFromStream(attempts, experimentDir)
+	attempts, divergences, err := materializeAttempts(experimentDir, manifest, attempts)
+	if err != nil {
+		return SummaryRegeneration{}, err
+	}
 	existingSummary, readSummaryErr := os.ReadFile(filepath.Join(experimentDir, "summary.json"))
 	if readSummaryErr != nil && !os.IsNotExist(readSummaryErr) {
-		return nil, readSummaryErr
+		return SummaryRegeneration{}, readSummaryErr
 	}
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, existingSummary)
 	if err != nil {
-		return nil, err
+		return SummaryRegeneration{}, err
 	}
 	attempts = estimateAttempts(attempts, pricing)
 	summary := BuildSummary(manifest, attempts)
 	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
-		return nil, err
+		return SummaryRegeneration{}, err
 	}
-	return summary, nil
+	return SummaryRegeneration{Summary: summary, ProjectionDivergences: divergences}, nil
+}
+
+func WriteSummary(experimentDir string) (map[string]any, error) {
+	regeneration, err := RegenerateSummary(experimentDir)
+	return regeneration.Summary, err
 }
 
 func RenderSummary(summary map[string]any) string {

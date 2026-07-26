@@ -146,12 +146,15 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		}
 	})
 	if summarize != "" {
-		summary, err := experiment.WriteSummary(summarize)
+		regeneration, err := experiment.RegenerateSummary(summarize)
 		if err != nil {
 			printError(stderr, internalError("ktx bench compare: %v", err), opts.Format)
 			return ExitInternal
 		}
-		return renderExperimentValue(stdout, summary, format, experiment.RenderSummary)
+		if len(regeneration.ProjectionDivergences) > 0 {
+			fmt.Fprintf(stderr, "ktx bench compare: %d copied measurement projection divergences ignored\n", len(regeneration.ProjectionDivergences))
+		}
+		return renderExperimentValue(stdout, regeneration.Summary, format, experiment.RenderSummary)
 	}
 	if model == "" || (taskFile == "" && (taskID == "" || prompt == "")) {
 		printError(stderr, usageError("ktx bench compare: --model and either --task-file or --task-id/--prompt are required"), opts.Format)

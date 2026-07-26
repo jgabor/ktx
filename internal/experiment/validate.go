@@ -20,7 +20,10 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	attempts = reconcileCacheFromStream(attempts, experimentDir)
+	attempts, divergences, err := materializeAttempts(experimentDir, manifest, attempts)
+	if err != nil {
+		return nil, err
+	}
 	actualSummary, err := os.ReadFile(filepath.Join(experimentDir, "summary.json"))
 	if err != nil {
 		return nil, err
@@ -102,6 +105,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		"schema_version": 1, "experiment_id": manifest.ExperimentID, "valid": valid,
 		"summary_byte_match": summaryMatches, "target_met": targetMet,
 		"valid_counts": counts, "attempt_checks": checks,
+		"projection_divergences": divergences,
 	}
 	if cacheAware {
 		report["methodology_reasons"] = methodologyReasons

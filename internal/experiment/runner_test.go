@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 func testPriceResolver(_, _ string) (db.Price, error) {
@@ -44,6 +46,7 @@ type fakeExecutor struct {
 	cleanup              []string
 	timeoutFirst         bool
 	attemptRuns          int
+	capabilityRuns       int
 	runArgs              [][]string
 	phases               []string
 	opencodeIdentity     string
@@ -76,15 +79,16 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			fake.cleanup = append(fake.cleanup, command.Args[len(command.Args)-1])
 			return CommandResult{}, nil
 		}
-		if contains(command.Args, "--identity") {
+		if contains(command.Args, "--capabilities") {
+			fake.capabilityRuns++
 			identity := fake.opencodeIdentity
 			if identity == "" {
-				identity = "test"
+				identity = benchcontract.RuntimeVersion
 			}
-			write(command.Stdout, "ktx\ttest\n")
-			if !fake.omitOpenCodeIdentity {
-				write(command.Stdout, "opencode\t"+identity+"\n")
+			if fake.omitOpenCodeIdentity {
+				identity = ""
 			}
+			write(command.Stdout, fmt.Sprintf(`{"ktx_version":"test","opencode_version":%q,"generated_plugin_sha256":"%s","generated_plugin_matches_binary":true,"event_collector_contract":"%s","explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`+"\n", identity, strings.Repeat("a", 64), benchcontract.ContractVersion))
 			return CommandResult{}, nil
 		}
 		if len(command.Args) > 1 && command.Args[1] == "run" {
@@ -96,18 +100,36 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			}
 			database, config := mountSource(command.Args, "/home/node/.local/share/ktx/ktx.db"), mountSource(command.Args, "/home/node/.config/ktx/ktx.toml")
 			side := strings.TrimPrefix(filepath.Ext(config), ".")
-			fake.sessions[database] = side
+			owner := dockerEnvironmentValue(command.Args, benchcontract.AttemptSessionEnv)
+			intervalID := dockerEnvironmentValue(command.Args, benchcontract.IntervalEnv)
+			fake.sessions[database] = owner
 			store, err := db.Open(database)
 			if err != nil {
 				return CommandResult{}, err
 			}
-			if err := store.InsertSession(&db.Session{ID: side, Agent: "test"}); err != nil {
+			captured := "2026-07-15T12:00:00Z"
+			_, _, err = store.PersistRuntimeEvent(db.RuntimeEventInput{IntervalID: intervalID, SessionID: owner, EpochID: "epoch", Kind: "collector_open", EventType: "collector.open", CapturedAt: captured})
+			if err != nil {
+				_ = store.Close()
+				return CommandResult{}, err
+			}
+			runtimeSession := "runtime-" + side
+			messageID, partID := "message", "part"
+			zero := int64(0)
+			cost := float64(0)
+			inputTokens := int64(map[string]int{Baseline: 100, Candidate: 40}[side])
+			observation := &telemetry.Observation{Key: telemetry.Key{SessionID: runtimeSession, MessageID: messageID, PartID: partID}, Ordinal: 1, Reason: "stop", Runtime: benchcontract.Runtime, RuntimeVersion: benchcontract.RuntimeVersion, Source: telemetry.SourceEventHook, Cost: telemetry.CostMeasurement{State: telemetry.MeasurementMeasured, Value: &cost}, Tokens: telemetry.Tokens{Input: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &inputTokens}, Output: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, Reasoning: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, CacheRead: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, CacheWrite: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}}}
+			_, _, err = store.PersistRuntimeEvent(db.RuntimeEventInput{IntervalID: intervalID, SessionID: owner, EpochID: "epoch", EpochOrdinal: 1, Kind: "model_step", EventType: "message.part.updated", SourceSessionID: &runtimeSession, MessageID: &messageID, PartID: &partID, CapturedAt: captured, Telemetry: observation})
+			if err != nil {
 				_ = store.Close()
 				return CommandResult{}, err
 			}
 			toolID, err := db.NewID()
 			if err == nil {
-				_, err = store.PersistToolCallOnce(&db.ToolCall{ID: toolID, SessionID: side, Tool: "bash", Output: "done", ContentHash: db.ContentHash("done")})
+				_, err = store.PersistToolCallOnce(&db.ToolCall{ID: toolID, SessionID: owner, Tool: "bash", Output: "done", ContentHash: db.ContentHash("done")})
+			}
+			if err == nil {
+				err = store.SealRuntimeEventInterval(intervalID, owner, captured, db.RuntimeComplete, "")
 			}
 			closeErr := store.Close()
 			if err != nil {
@@ -120,9 +142,9 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			write(command.Stdout, `{"type":"tool_use","part":{}}`+"\n")
 			input := map[string]int{Baseline: 100, Candidate: 40}[side]
 			if fake.fullStepUsage {
-				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"reason":"stop","tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`+"\n", input))
+				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"sessionID":%q,"messageID":"message","id":"part","type":"step-finish","reason":"stop","tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`+"\n", runtimeSession, input))
 			} else {
-				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"reason":"stop","tokens":{"input":%d,"output":0},"cost":0}}`+"\n", input))
+				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"sessionID":%q,"messageID":"message","id":"part","type":"step-finish","reason":"stop","tokens":{"input":%d,"output":0},"cost":0}}`+"\n", runtimeSession, input))
 			}
 			write(command.Stdout, `{"type":"text","part":{"text":"done"}}`+"\n")
 			return CommandResult{}, nil
@@ -133,7 +155,17 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 		if session := fake.sessions[database]; session != "" {
 			write(command.Stdout, fmt.Sprintf(`[{"id":%q}]`+"\n", session))
 		} else {
-			write(command.Stdout, "[]\n")
+			handle, err := db.OpenReadOnly(database)
+			if err != nil {
+				return CommandResult{}, err
+			}
+			var session string
+			err = handle.QueryRow(`SELECT id FROM sessions`).Scan(&session)
+			handle.Close()
+			if err != nil {
+				return CommandResult{}, err
+			}
+			write(command.Stdout, fmt.Sprintf(`[{"id":%q}]`+"\n", session))
 		}
 		return CommandResult{}, nil
 	}
@@ -160,9 +192,9 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
 	auth := writeFixture("auth.json", "{}\n")
 
-	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "opencode v1.18.0", fullStepUsage: true}
+	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.5", fullStepUsage: true}
 	runner := &Runner{Executor: fake, Now: func() time.Time { return time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC) }, PID: 29, ResolvePrice: testPriceResolver, ResolveCacheCapability: func(CacheCapabilityRequest) CacheCapability {
-		return CacheCapability{Supported: true, Source: "runtime_adapter"}
+		return CacheCapability{Supported: true, Source: "provider_adapter"}
 	}}
 	dir, summary, code, err := runner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", Variant: "high", TaskFile: task, TargetValid: 2, MaxAttempts: 8, Warmup: 1, CacheControl: "auto",
@@ -191,10 +223,13 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	seenHashes := map[string]string{}
 	for _, attempt := range attempts {
-		if attempt.SchemaVersion != 2 || len(attempt.ModelSteps) != 1 {
+		if attempt.SchemaVersion != 3 || len(attempt.ModelSteps) != 1 {
 			t.Fatalf("generated model-step telemetry = %#v", attempt.ModelSteps)
 		}
 		step := attempt.ModelSteps[0]
+		if step.Identity.SessionID == nil || *step.Identity.SessionID != "runtime-"+attempt.Side || step.Identity.MessageID == nil || *step.Identity.MessageID != "message" || step.Identity.PartID == nil || *step.Identity.PartID != "part" {
+			t.Fatalf("schema 3 wrapper identity = %#v", step.Identity)
+		}
 		for _, measurement := range []IntegerMeasurement{step.UncachedInput, step.Output, step.Reasoning, step.CacheRead, step.CacheWrite} {
 			if measurement.State != MeasurementMeasured || measurement.Value == nil {
 				t.Fatalf("model-step token state = %#v", step)
@@ -203,10 +238,10 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		if step.Cost.State != MeasurementMeasured || step.Cost.Value == nil {
 			t.Fatalf("model-step cost state = %#v", step)
 		}
-		if attempt.CacheControl == nil || attempt.CacheControl.Mode != "isolated" || attempt.CacheControl.Source != "runtime_adapter" {
+		if attempt.CacheControl == nil || attempt.CacheControl.Mode != "isolated" || attempt.CacheControl.Source != "provider_adapter" {
 			t.Fatalf("cache metadata = %#v", attempt.CacheControl)
 		}
-		if attempt.CacheControl.Phase != attempt.Role || attempt.CacheControl.ExecutionOrder == 0 || attempt.CacheControl.Model != "openai/test" || attempt.CacheControl.Provider != "openai" || attempt.CacheControl.Variant != "high" || attempt.CacheControl.RuntimeVersion != "1.18.0" || attempt.CacheControl.IdleGapMS != 0 {
+		if attempt.CacheControl.Phase != attempt.Role || attempt.CacheControl.ExecutionOrder == 0 || attempt.CacheControl.Model != "openai/test" || attempt.CacheControl.Provider != "openai" || attempt.CacheControl.Variant != "high" || attempt.CacheControl.RuntimeVersion != "1.18.5" || attempt.CacheControl.IdleGapMS != 0 {
 			t.Fatalf("incomplete cache metadata = %#v", attempt.CacheControl)
 		}
 		if prior := seenHashes[attempt.Side]; prior != "" && prior != attempt.CacheControl.NamespaceSHA256 {
@@ -258,7 +293,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		t.Fatalf("headline phase = %v", summary["headline_phase"])
 	}
 	summaryCache := summary["cache_control"].(*CacheControlManifest)
-	if summaryCache.Model != "openai/test" || summaryCache.Provider != "openai" || summaryCache.Variant != "high" || summaryCache.RuntimeVersion != "1.18.0" {
+	if summaryCache.Model != "openai/test" || summaryCache.Provider != "openai" || summaryCache.Variant != "high" || summaryCache.RuntimeVersion != "1.18.5" {
 		t.Fatalf("summary cache metadata = %#v", summaryCache)
 	}
 	if summary["pipelines"].(map[string]any)[Baseline].(map[string]any)["sample_classification"] != "exploratory" {
@@ -269,7 +304,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		t.Fatalf("validation report=%#v err=%v", report, err)
 	}
 
-	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.0"}
+	observedFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.5"}
 	observedRunner := &Runner{Executor: observedFake, Now: runner.Now, PID: 30, ResolvePrice: testPriceResolver}
 	observedDir, _, code, err := observedRunner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", TaskFile: task, TargetValid: 1, MaxAttempts: 6, Warmup: 1, CacheControl: "auto",
@@ -285,39 +320,22 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		t.Fatalf("observed metadata = %#v", observed[0].CacheControl)
 	}
 
-	timeoutFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.0", timeoutFirst: true, fullStepUsage: true}
+	timeoutFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.5", timeoutFirst: true, fullStepUsage: true}
 	timeoutRunner := &Runner{Executor: timeoutFake, Now: runner.Now, PID: 32, ResolvePrice: testPriceResolver}
-	timeoutDir, timeoutSummary, code, err := timeoutRunner.Compare(context.Background(), CompareOptions{
+	_, _, code, err = timeoutRunner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", TaskFile: task, TargetValid: 1, MaxAttempts: 6, Warmup: 1, CacheControl: "auto",
 		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "cache-timeout-retry",
 		DataDir: filepath.Join(root, "cache-timeout-data"), Image: "image", AuthPath: auth, RepoRoot: root, MethodologyPath: methodology,
 		BaselineConfig: baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
 	})
-	if err != nil || code != 0 {
-		t.Fatalf("cache-aware timeout retry code=%d err=%v", code, err)
-	}
-	before, err := os.ReadFile(filepath.Join(timeoutDir, "summary.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := RegenerateSummary(timeoutDir); err != nil {
-		t.Fatalf("cache-aware timeout retry regeneration: %v", err)
-	}
-	after, err := os.ReadFile(filepath.Join(timeoutDir, "summary.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(before) != string(after) || timeoutSummary["headline_phase"] != MeasuredWarm {
-		t.Fatal("cache-aware timeout retry changed canonical summary")
-	}
-	if report, err := ValidateExperiment(timeoutDir); err != nil || report["valid"] != true {
-		t.Fatalf("cache-aware timeout retry validation report=%#v err=%v", report, err)
+	if err == nil || code != 2 || timeoutFake.attemptRuns != 1 {
+		t.Fatalf("unsealed timeout code=%d err=%v attempts=%d", code, err, timeoutFake.attemptRuns)
 	}
 
 	unsupported := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "custom-build"}
 	unsupportedRunner := &Runner{Executor: unsupported, Now: runner.Now, PID: 31, ResolvePrice: testPriceResolver}
 	_, _, code, err = unsupportedRunner.Compare(context.Background(), CompareOptions{Model: "openai/test", TaskFile: task, CacheControl: "isolated", RepoRoot: root, MethodologyPath: methodology, AuthPath: auth, BaselineConfig: baseline, CandidateConfig: candidate, DockerBin: "docker", KTXBin: "ktx"})
-	if err == nil || !strings.Contains(err.Error(), "unsupported") || code != 2 || unsupported.attemptRuns != 0 {
+	if err == nil || code != 2 || unsupported.attemptRuns != 0 {
 		t.Fatalf("unsupported isolation code=%d err=%v paid=%d", code, err, unsupported.attemptRuns)
 	}
 	for _, test := range []struct {
@@ -429,24 +447,15 @@ func TestRunnerAlternatesAndCleansContainers(t *testing.T) {
 
 	timeoutFake := &fakeExecutor{sessions: map[string]string{}, timeoutFirst: true}
 	timeoutRunner := &Runner{Executor: timeoutFake, Now: runner.Now, PID: 8, ResolvePrice: testPriceResolver}
-	_, timeoutSummary, code, err := timeoutRunner.Compare(context.Background(), CompareOptions{
+	_, _, code, err = timeoutRunner.Compare(context.Background(), CompareOptions{
 		Model: "neuralwatt/test", TaskFile: task, TargetValid: 1, MaxAttempts: 3,
 		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "timeout-retry",
 		DataDir: filepath.Join(root, "timeout-data"), Image: "image", AuthPath: auth, RepoRoot: root,
 		MethodologyPath: filepath.Join(root, "tools/bench/methodology-v4-eval-matrix.yaml"),
 		BaselineConfig:  baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
 	})
-	if err != nil || code != 0 {
-		t.Fatalf("timeout retry code=%d err=%v", code, err)
-	}
-	if len(timeoutFake.cleanup) != 3 {
-		t.Fatalf("timeout cleanup calls = %d", len(timeoutFake.cleanup))
-	}
-	pipelines := timeoutSummary["pipelines"].(map[string]any)
-	baselineSummary := pipelines[Baseline].(map[string]any)
-	statusCounts := baselineSummary["status_counts"].(map[string]int)
-	if statusCounts["timeout"] != 1 || baselineSummary["valid_count"] != 1 {
-		t.Fatalf("timeout summary = %#v", baselineSummary)
+	if err == nil || code != 2 || timeoutFake.attemptRuns != 1 {
+		t.Fatalf("unsealed timeout code=%d err=%v attempts=%d", code, err, timeoutFake.attemptRuns)
 	}
 }
 
@@ -503,6 +512,46 @@ func TestRunnerAcceptsNonNeuralwattProviders(t *testing.T) {
 	})
 	if err != nil || code != 0 {
 		t.Fatalf("openai model should be accepted, got code=%d err=%v", code, err)
+	}
+}
+
+func TestCompareAttestsCapabilitiesBeforeAuthAndArtifacts(t *testing.T) {
+	root := t.TempDir()
+	write := func(relative, content string) string {
+		path := filepath.Join(root, relative)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	methodology := write("tools/bench/methodology-v5-cache-aware.yaml", "methodology_version: v5-cache-aware\n")
+	task := write("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"prompt\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
+	baseline := write("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
+	candidate := write("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = []\n")
+	missingAuth := filepath.Join(root, "missing-auth.json")
+	options := CompareOptions{Model: "openai/test", TaskFile: task, RepoRoot: root, MethodologyPath: methodology, BaselineConfig: baseline, CandidateConfig: candidate, AuthPath: missingAuth, DockerBin: "docker", KTXBin: "ktx", DataDir: filepath.Join(root, "artifacts"), ExperimentID: "ordering", CacheControl: "observed"}
+
+	capable := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: benchcontract.RuntimeVersion}
+	runner := &Runner{Executor: capable, ResolvePrice: testPriceResolver}
+	_, _, code, err := runner.Compare(context.Background(), options)
+	if err == nil || !strings.Contains(err.Error(), "auth file not found") || code != 2 || capable.capabilityRuns != 1 || capable.attemptRuns != 0 {
+		t.Fatalf("capable code=%d err=%v capabilities=%d attempts=%d", code, err, capable.capabilityRuns, capable.attemptRuns)
+	}
+	if _, err := os.Stat(options.DataDir); !os.IsNotExist(err) {
+		t.Fatalf("artifact directory created: %v", err)
+	}
+
+	mismatch := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "wrong-version"}
+	runner = &Runner{Executor: mismatch, ResolvePrice: testPriceResolver}
+	_, _, code, err = runner.Compare(context.Background(), options)
+	if err == nil || !strings.Contains(err.Error(), "benchmark preflight failed") || strings.Contains(err.Error(), "auth") || code != 2 || mismatch.capabilityRuns != 1 || mismatch.attemptRuns != 0 {
+		t.Fatalf("mismatch code=%d err=%v capabilities=%d attempts=%d", code, err, mismatch.capabilityRuns, mismatch.attemptRuns)
+	}
+	if _, err := os.Stat(options.DataDir); !os.IsNotExist(err) {
+		t.Fatalf("artifact directory created after mismatch: %v", err)
 	}
 }
 

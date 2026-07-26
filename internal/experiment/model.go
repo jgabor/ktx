@@ -53,18 +53,19 @@ type UsageEvidence struct {
 type Metrics struct {
 	StreamComplete bool `json:"stream_complete"`
 	Score
-	ToolCallCount    int           `json:"tool_call_count"`
-	TokensIn         *float64      `json:"tokens_in"`
-	TokensOut        *float64      `json:"tokens_out"`
-	Cost             *float64      `json:"cost"`
-	CacheRead        *float64      `json:"cache_read"`
-	CacheWrite       *float64      `json:"cache_write"`
-	Reasoning        *float64      `json:"reasoning"`
-	EstimatedAPICost *float64      `json:"estimated_api_cost"`
-	AnswerExcerpt    string        `json:"answer_excerpt"`
-	UsageEvidence    UsageEvidence `json:"usage_evidence"`
-	ModelSteps       []SourceEvent `json:"model_steps,omitempty"`
-	sequence         *attemptSequence
+	ToolCallCount          int           `json:"tool_call_count"`
+	TokensIn               *float64      `json:"tokens_in"`
+	TokensOut              *float64      `json:"tokens_out"`
+	Cost                   *float64      `json:"cost"`
+	CacheRead              *float64      `json:"cache_read"`
+	CacheWrite             *float64      `json:"cache_write"`
+	Reasoning              *float64      `json:"reasoning"`
+	EstimatedAPICost       *float64      `json:"estimated_api_cost"`
+	AnswerExcerpt          string        `json:"answer_excerpt"`
+	UsageEvidence          UsageEvidence `json:"usage_evidence"`
+	ModelSteps             []SourceEvent `json:"model_steps,omitempty"`
+	sequence               *attemptSequence
+	wrapperModelIdentities []modelStepIdentity
 }
 
 type SessionLink struct {
@@ -79,29 +80,37 @@ type RecordedStreamLink struct {
 }
 
 type Attempt struct {
-	SchemaVersion    int                   `json:"schema_version"`
-	ExperimentID     string                `json:"experiment_id"`
-	AttemptID        string                `json:"attempt_id"`
-	Side             string                `json:"side"`
-	Role             string                `json:"role,omitempty"`
-	CacheControl     *CacheControlMetadata `json:"cache_control,omitempty"`
-	PipelineID       string                `json:"pipeline_id"`
-	Cycle            int                   `json:"cycle"`
-	Ordinal          int                   `json:"ordinal"`
-	StartedAt        string                `json:"started_at"`
-	EndedAt          string                `json:"ended_at"`
-	Status           string                `json:"status"`
-	ProcessExitCode  int                   `json:"process_exit_code"`
-	SessionLink      SessionLink           `json:"session_link"`
-	SessionID        *string               `json:"session_id"`
-	RecordedStreams  []RecordedStreamLink  `json:"recorded_streams"`
-	RecordedStreamID *string               `json:"recorded_stream_id"`
-	BenchRunID       *string               `json:"bench_run_id"`
+	SchemaVersion          int                   `json:"schema_version"`
+	ExperimentID           string                `json:"experiment_id"`
+	AttemptID              string                `json:"attempt_id"`
+	Side                   string                `json:"side"`
+	Role                   string                `json:"role,omitempty"`
+	CacheControl           *CacheControlMetadata `json:"cache_control,omitempty"`
+	PipelineID             string                `json:"pipeline_id"`
+	Cycle                  int                   `json:"cycle"`
+	Ordinal                int                   `json:"ordinal"`
+	StartedAt              string                `json:"started_at"`
+	EndedAt                string                `json:"ended_at"`
+	Status                 string                `json:"status"`
+	ProcessExitCode        int                   `json:"process_exit_code"`
+	SessionLink            SessionLink           `json:"session_link"`
+	SessionID              *string               `json:"session_id"`
+	RuntimeEventIntervalID *string               `json:"runtime_event_interval_id,omitempty"`
+	RecordedStreams        []RecordedStreamLink  `json:"recorded_streams"`
+	RecordedStreamID       *string               `json:"recorded_stream_id"`
+	BenchRunID             *string               `json:"bench_run_id"`
 	Metrics
-	ConfigSHA256  string            `json:"config_sha256"`
-	Artifacts     map[string]string `json:"artifacts"`
-	ContentHashes map[string]string `json:"content_hashes"`
-	delivery      *deliveryEvidence
+	ConfigSHA256      string            `json:"config_sha256"`
+	Artifacts         map[string]string `json:"artifacts"`
+	ContentHashes     map[string]string `json:"content_hashes"`
+	delivery          *deliveryEvidence
+	validationReasons []string
+}
+
+type modelStepIdentity struct {
+	SessionID string
+	MessageID string
+	PartID    string
 }
 
 // UnmarshalJSON keeps model-step observations best effort. A malformed optional

@@ -355,9 +355,13 @@ satisfy comparative completion: measured valid counts were 2/5 for baseline and
 4/5 for candidate, controlled complete pairs were zero, and the Pi-style method
 had zero eligible pairs. Summary regeneration was byte-identical. The exact
 evidence, hashes, authorization result, and integration blockers are recorded
-in [the live validation report](cache-reuse-live-validation.md). Until positive
-event-hook temporal coverage and one benchmark session owner are implemented,
-another identical paid run cannot authorize comparative or secondary wording.
+in [the live validation report](cache-reuse-live-validation.md).
+
+The explicit owner, fail-closed event-hook interval, epoch ledger, and offline
+image capability preflight are now implemented. They do not retroactively
+upgrade that archive. Comparative and secondary wording remains unauthorized
+until a new bounded live experiment retains a complete interval, meets measured
+targets, regenerates byte-identically, and passes validation.
 
 ## Historical boundary
 

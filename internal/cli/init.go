@@ -121,6 +121,9 @@ interface KtxEnvelope {
   output: string
   compressed_id: string | null
   source_id: string
+	ktx_session_id?: string
+	runtime_session_id?: string
+	call_id?: string
 }
 
 const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
@@ -176,6 +179,82 @@ const ktxTelemetry = async (payload: string): Promise<void> => {
   }
 }
 
+const ktxRequiredCommand = async (args: string[], payload: string): Promise<unknown> => {
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(payload))
+      controller.close()
+    },
+  })
+  const proc = Bun.spawn(["ktx", ...args], { stdin: stream, stdout: "pipe", stderr: "pipe" })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
+  })
+  try {
+    const [stdout, stderr, exitCode] = await Promise.race([
+      Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]),
+      timeout,
+    ])
+    if (exitCode !== 0) throw new Error("ktx command exited " + exitCode + ": " + stderr.trim())
+    const result = JSON.parse(stdout)
+    if (!result || typeof result !== "object") throw new Error("malformed ktx acknowledgement")
+    return result
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+const requiredEventKind = (event: any): string => {
+  const partType = event?.properties?.part?.type
+  if (event?.type === "message.part.updated" && partType === "step-finish") return "model_step"
+  if ((event?.type === "message.part.updated" && partType === "retry") ||
+      (event?.type === "session.status" && event?.properties?.status?.type === "retry")) return "retry"
+  if ((event?.type === "message.part.updated" && partType === "compaction") || event?.type === "session.compacted") return "compaction"
+  if (event?.type === "session.error" || event?.type === "server.instance.disposed") return "interruption"
+  return "other"
+}
+
+const requiredAck = (value: unknown, expected: {
+  sessionID: string, intervalID: string, epochID: string, epochOrdinal: number,
+  kind: string, contract: string, afterOrdinal?: number,
+}): number => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("malformed ktx acknowledgement")
+  const ack = value as Record<string, unknown>
+  const ordinal = ack.ordinal
+  const ordinalMatches = Number.isSafeInteger(ordinal) && (ordinal as number) > 0 &&
+    (expected.afterOrdinal === undefined ||
+      (Number.isSafeInteger(expected.afterOrdinal) && expected.afterOrdinal >= 0 &&
+       expected.afterOrdinal < Number.MAX_SAFE_INTEGER && ordinal === expected.afterOrdinal + 1))
+  if (ack.ok !== true || ack.session_id !== expected.sessionID || ack.interval_id !== expected.intervalID ||
+      ack.epoch_id !== expected.epochID || ack.epoch_ordinal !== expected.epochOrdinal ||
+      ack.kind !== expected.kind || ack.contract !== expected.contract ||
+      !ordinalMatches) {
+    throw new Error("ktx acknowledgement contract mismatch")
+  }
+  return ordinal as number
+}
+
+const requiredEnvelope = (value: unknown, input: any, sessionID: string): KtxEnvelope => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("malformed ktx hook envelope")
+  const envelope = value as Record<string, unknown>
+  if (typeof envelope.output !== "string" ||
+      !(envelope.compressed_id === null || typeof envelope.compressed_id === "string") ||
+      !nonblank(envelope.source_id) || envelope.ktx_session_id !== sessionID ||
+      !nonblank(input?.sessionID) || envelope.runtime_session_id !== input.sessionID ||
+      !nonblank(input?.callID) || envelope.call_id !== input.callID) {
+    throw new Error("ktx hook envelope contract mismatch")
+  }
+  return {
+    output: envelope.output,
+    compressed_id: envelope.compressed_id as string | null,
+    source_id: envelope.source_id,
+    ktx_session_id: envelope.ktx_session_id as string,
+    runtime_session_id: envelope.runtime_session_id as string,
+    call_id: envelope.call_id as string,
+  }
+}
+
 const nonblank = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0
 
@@ -210,9 +289,21 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     return {}
   }
 
+  const required = process.env.KTX_BENCH_COLLECTOR_MODE === "required"
+	const requiredSessionID = process.env.KTX_ATTEMPT_SESSION_ID || ""
+	const requiredIntervalID = process.env.KTX_BENCH_EVENT_INTERVAL_ID || ""
+	const requiredContract = process.env.KTX_BENCH_EVENT_CONTRACT || ""
+  const epochID = crypto.randomUUID()
+	let globalOrdinal = 0
+  if (required) {
+    const ack = await ktxRequiredCommand(["telemetry", "collector-open"], JSON.stringify({ epoch_id: epochID }))
+    globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: 0, kind: "collector_open", contract: requiredContract })
+  }
+
   const identities = new Map<string, { provider: string; model: string }>()
   const seen = new Set<string>()
   let ordinal = 0
+	let epochOrdinal = 0
   let eventQueue: Promise<void> = Promise.resolve()
 
   const collectEvent = async (event: any): Promise<void> => {
@@ -270,6 +361,17 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     "event": async ({ event }: any) => {
       // The wrapper owns all evidence when it supplies the session.
       if (process.env.KTX_SESSION_ID) return
+	  if (required) {
+		epochOrdinal++
+		const acceptedOrdinal = epochOrdinal
+		const next = eventQueue.then(async () => {
+		  const ack = await ktxRequiredCommand(["telemetry", "event-record"], JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
+		  globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: acceptedOrdinal, kind: requiredEventKind(event), contract: requiredContract, afterOrdinal: globalOrdinal })
+		})
+		eventQueue = next
+		await next
+		return
+	  }
       const next = eventQueue.then(() => collectEvent(event)).catch((e) => {
         console.error("[ktx] telemetry collector error: " + String(e))
       })
@@ -286,7 +388,17 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         output: output,
       }
 
-      const envelope = await ktxHook(JSON.stringify(record))
+	  let envelope: KtxEnvelope | null
+	  if (required) {
+		const next = eventQueue.then(async () => {
+		  const strict = await ktxRequiredCommand(["hook"], JSON.stringify(record))
+		  return requiredEnvelope(strict, input, requiredSessionID)
+		})
+		eventQueue = next.then(() => undefined)
+		envelope = await next
+	  } else {
+		envelope = await ktxHook(JSON.stringify(record))
+	  }
       if (envelope) {
         // Mutate output.output to the compressed bytes.
         // The agent sees the compressed output instead of the original.

@@ -70,14 +70,25 @@ func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *
 	defer cancel()
 	inserted := false
 	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
-		var exists int
-		if err := tx.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ?`, sessionID).Scan(&exists); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrSessionTelemetrySourceNotFound
-			}
-			return err
+		var err error
+		inserted, err = persistSessionTelemetryTx(ctx, tx, sessionID, capturedAt, observation)
+		return err
+	})
+	if err != nil {
+		return false, fmt.Errorf("db: persist session telemetry: %w", err)
+	}
+	return inserted, nil
+}
+
+func persistSessionTelemetryTx(ctx context.Context, tx *sql.Tx, sessionID, capturedAt string, observation *telemetry.Observation) (bool, error) {
+	var exists int
+	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ?`, sessionID).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrSessionTelemetrySourceNotFound
 		}
-		result, err := tx.ExecContext(ctx, `INSERT INTO session_telemetry (
+		return false, err
+	}
+	result, err := tx.ExecContext(ctx, `INSERT INTO session_telemetry (
 			session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
 			tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
 			provider, model, runtime, runtime_version, source, captured_at,
@@ -85,49 +96,44 @@ func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *
 			cache_read_state, cache_write_state
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(runtime, source_session_id, message_id, part_id) DO NOTHING`,
-			sessionID, observation.SessionID, observation.MessageID, observation.PartID,
-			observation.Ordinal, observation.Reason, observation.Cost.Value,
-			observation.Tokens.Input.Value, observation.Tokens.Output.Value, observation.Tokens.Reasoning.Value,
-			observation.Tokens.CacheRead.Value, observation.Tokens.CacheWrite.Value,
-			observation.Provider, observation.Model, observation.Runtime, observation.RuntimeVersion, observation.Source, capturedAt,
-			observation.Cost.State, observation.Tokens.Input.State, observation.Tokens.Output.State,
-			observation.Tokens.Reasoning.State, observation.Tokens.CacheRead.State, observation.Tokens.CacheWrite.State,
-		)
-		if err != nil {
-			return err
-		}
-		rows, err := result.RowsAffected()
-		inserted = rows == 1
-		if err != nil || inserted {
-			return err
-		}
-		var matching int
-		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM session_telemetry WHERE
+		sessionID, observation.SessionID, observation.MessageID, observation.PartID,
+		observation.Ordinal, observation.Reason, observation.Cost.Value,
+		observation.Tokens.Input.Value, observation.Tokens.Output.Value, observation.Tokens.Reasoning.Value,
+		observation.Tokens.CacheRead.Value, observation.Tokens.CacheWrite.Value,
+		observation.Provider, observation.Model, observation.Runtime, observation.RuntimeVersion, observation.Source, capturedAt,
+		observation.Cost.State, observation.Tokens.Input.State, observation.Tokens.Output.State,
+		observation.Tokens.Reasoning.State, observation.Tokens.CacheRead.State, observation.Tokens.CacheWrite.State,
+	)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	inserted := rows == 1
+	if err != nil || inserted {
+		return inserted, err
+	}
+	var matching int
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM session_telemetry WHERE
 			runtime = ? AND source_session_id = ? AND message_id = ? AND part_id = ? AND
 			ordinal IS ? AND reason IS ? AND cost IS ? AND tokens_input IS ? AND tokens_output IS ? AND
 			tokens_reasoning IS ? AND cache_read IS ? AND cache_write IS ? AND provider IS ? AND model IS ? AND
 			runtime_version IS ? AND cost_state IS ? AND tokens_input_state IS ? AND tokens_output_state IS ? AND
 			tokens_reasoning_state IS ? AND cache_read_state IS ? AND cache_write_state IS ?)`,
-			observation.Runtime, observation.SessionID, observation.MessageID, observation.PartID,
-			observation.Ordinal, observation.Reason, observation.Cost.Value,
-			observation.Tokens.Input.Value, observation.Tokens.Output.Value, observation.Tokens.Reasoning.Value,
-			observation.Tokens.CacheRead.Value, observation.Tokens.CacheWrite.Value,
-			observation.Provider, observation.Model, observation.RuntimeVersion, observation.Cost.State,
-			observation.Tokens.Input.State, observation.Tokens.Output.State, observation.Tokens.Reasoning.State,
-			observation.Tokens.CacheRead.State, observation.Tokens.CacheWrite.State,
-		).Scan(&matching)
-		if err != nil {
-			return err
-		}
-		if matching == 0 {
-			return ErrSessionTelemetryConflict
-		}
-		return nil
-	})
+		observation.Runtime, observation.SessionID, observation.MessageID, observation.PartID,
+		observation.Ordinal, observation.Reason, observation.Cost.Value,
+		observation.Tokens.Input.Value, observation.Tokens.Output.Value, observation.Tokens.Reasoning.Value,
+		observation.Tokens.CacheRead.Value, observation.Tokens.CacheWrite.Value,
+		observation.Provider, observation.Model, observation.RuntimeVersion, observation.Cost.State,
+		observation.Tokens.Input.State, observation.Tokens.Output.State, observation.Tokens.Reasoning.State,
+		observation.Tokens.CacheRead.State, observation.Tokens.CacheWrite.State,
+	).Scan(&matching)
 	if err != nil {
-		return false, fmt.Errorf("db: persist session telemetry: %w", err)
+		return false, err
 	}
-	return inserted, nil
+	if matching == 0 {
+		return false, ErrSessionTelemetryConflict
+	}
+	return false, nil
 }
 
 // ListSessionTelemetry returns at most limit observations in local acceptance

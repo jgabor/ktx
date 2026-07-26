@@ -19,7 +19,7 @@ func AppendAttempt(experimentDir string, attempt Attempt) error {
 }
 
 func AttemptIsEvaluated(attempt Attempt, minimumToolCalls int) bool {
-	return attempt.Status == "completed" && attempt.SessionID != nil && attempt.StreamComplete && attempt.ToolCallCount >= minimumToolCalls
+	return len(attempt.validationReasons) == 0 && attempt.Status == "completed" && attempt.SessionID != nil && attempt.StreamComplete && attempt.ToolCallCount >= minimumToolCalls
 }
 
 func AttemptIsFullPass(attempt Attempt, minimumToolCalls int) bool {

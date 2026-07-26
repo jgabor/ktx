@@ -39,6 +39,21 @@ unchanged. Without the wrapper, the plugin handles both hooks. The persisted
 runtime tuple deduplicates a model step seen through both paths, and the first
 accepted row—including its collection provenance—remains authoritative.
 
+Benchmark collection does not repurpose `KTX_SESSION_ID`. It supplies the exact
+precreated `KTX_ATTEMPT_SESSION_ID` owner with a required event interval and
+contract. In that mode hooks remain active, never read or write parent-process
+session files, serialize every callback, and reject ownership, acknowledgement,
+or persistence failures instead of failing open. A collector-open acknowledgement
+must carry its positive allocated global ordinal. Every event acknowledgement
+must carry exactly the preceding accepted global ordinal plus one; gaps,
+duplicates, backwards values, and non-safe-integer values fail the callback.
+Acknowledgements and tool envelopes must also match the exact owner, interval,
+epoch, epoch ordinal, normalized kind, native tool-call identity, and contract
+before a callback succeeds or tool output changes. A later, sequential collector
+epoch is an explicit restart boundary; callbacks from an older epoch after that
+boundary make the interval incomplete. Go normalizes callback kinds; raw
+callback and error bodies are not retained.
+
 ## Accepted events
 
 A model-step observation comes from one `message.part.updated` event with this

@@ -41,7 +41,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	valid := true
 	for _, attempt := range attempts {
 		attemptValid := true
-		reasons := []string{}
+		reasons := append([]string(nil), attempt.validationReasons...)
 		if attempt.AttemptID == "" || seen[attempt.AttemptID] {
 			attemptValid = false
 			reasons = append(reasons, "missing or duplicate attempt_id")
@@ -208,6 +208,9 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	phaseCounts := map[string]map[string]int{ColdObservation: {Baseline: 0, Candidate: 0}, Warmup: {Baseline: 0, Candidate: 0}, MeasuredWarm: {Baseline: 0, Candidate: 0}}
 	executionOrders := map[int]bool{}
 	for _, attempt := range attempts {
+		for _, reason := range attempt.validationReasons {
+			reasons = append(reasons, fmt.Sprintf("attempt %s: %s", attempt.AttemptID, reason))
+		}
 		if attempt.ExperimentID != manifest.ExperimentID {
 			reasons = append(reasons, fmt.Sprintf("attempt %s experiment id does not match manifest", attempt.AttemptID))
 		}

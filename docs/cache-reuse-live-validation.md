@@ -12,6 +12,13 @@ the comparison contract.
 No provider request, cache hit, cache miss, isolation, prefix, TTL, missed-cost,
 significance, or causal conclusion follows from this run.
 
+The offline integration that this run blocked is now implemented: each attempt
+has one precreated owner, required OpenCode callbacks are synchronously retained
+in a normalized fail-closed interval with explicit epochs, and compare performs
+offline image capability preflight before artifact creation. This does not alter
+or upgrade the retained run below. A new bounded live comparison and validation
+are still mandatory before controlled or secondary evidence is eligible.
+
 ## Vehicle and scope
 
 | Field               | Retained value                                                                                         |
@@ -76,16 +83,13 @@ telemetry.
 | `summary.json`   | `416666541479526e1086ff7053d4dbc38cf301b4f1d44b34e88e5fe79c9ed107` |
 | `pricing.json`   | `a65bf830edb66cce0b66bff57c9139e8a0fe43a364707d8a4fcfd1f8fbac9c7c` |
 
-## Required next work
+## Required next validation
 
-1. Give each benchmark attempt one explicit KTX session owner so concurrent
-   OpenCode hooks cannot split authoritative tool-call rows across sessions.
-2. Retain positive event-hook coverage for retry, reset/compaction,
-   interruption/restart, and concurrent-session boundaries over the exact
-   attempt interval.
-3. Fail offline preflight before a paid run when the selected collection path
-   cannot produce controlled-comparison eligibility.
+1. Run the explicit no-model preflight against the freshly built image and
+   retain its capability result.
+2. Run one bounded live comparison only after offline verification and audit.
+3. Validate retained owner and interval closure, target counts, controlled
+   pairs, secondary eligibility, hashes, and byte-identical regeneration.
 
-Another unchanged live run might vary the number of session-linked attempts,
-but it cannot create temporal eligibility. Re-run only after the source changes
-above pass offline verification.
+Until that live validation passes, the plan remains blocked and the historical
+direct-only conclusions above remain the latest live evidence.

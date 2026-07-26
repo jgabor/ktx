@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/config"
 	"github.com/jgabor/ktx/internal/correlation"
 	dbpkg "github.com/jgabor/ktx/internal/db"
@@ -20,9 +21,12 @@ import (
 // developer-facing (for reversibility via `ktx decompress`) and are
 // never injected into the agent's context (invisibility).
 type hookEnvelope struct {
-	Output       string  `json:"output"`
-	CompressedID *string `json:"compressed_id"`
-	SourceID     string  `json:"source_id"`
+	Output           string  `json:"output"`
+	CompressedID     *string `json:"compressed_id"`
+	SourceID         string  `json:"source_id"`
+	KTXSessionID     string  `json:"ktx_session_id,omitempty"`
+	RuntimeSessionID string  `json:"runtime_session_id,omitempty"`
+	CallID           string  `json:"call_id,omitempty"`
 }
 
 // codexPostToolUseEvent is the sole hook_event_name value the hook
@@ -231,6 +235,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	}
 
 	var isCodex, isOpenCode bool
+	var runtimeSessionID, runtimeCallID string
 	var src correlation.Source
 	if peek.HookEventName != nil && *peek.HookEventName != "" {
 		if *peek.HookEventName != codexPostToolUseEvent {
@@ -309,6 +314,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 			return nil, usageError("ktx hook: parse JSON: %v", err)
 		}
 		tool, input, output, sessionID, callID := extractOpenCodeFields(inputRaw, outputRaw)
+		runtimeSessionID, runtimeCallID = sessionID, callID
 		tc.Tool = tool
 		tc.Input = input
 		tc.Output = output
@@ -348,7 +354,17 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		tc.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 
-	sessionID, err := db.ResolveSessionID(tc.SessionID, tc.Timestamp)
+	sessionHint := tc.SessionID
+	if benchmarkEnv, present, envErr := benchcontract.ReadEnvironment(); present {
+		if envErr != nil {
+			return nil, usageError("ktx hook: %v", envErr)
+		}
+		if sessionHint != "" && sessionHint != benchmarkEnv.SessionID {
+			return nil, usageError("ktx hook: payload session conflicts with benchmark attempt owner")
+		}
+		sessionHint = benchmarkEnv.SessionID
+	}
+	sessionID, err := db.ResolveSessionID(sessionHint, tc.Timestamp)
 	if err != nil {
 		return nil, internalError("ktx hook: resolve session: %v", err)
 	}
@@ -470,6 +486,11 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 			Output:       finalOutput,
 			CompressedID: compressedID,
 			SourceID:     result.SourceID,
+		}
+		if benchmarkEnv, present, _ := benchcontract.ReadEnvironment(); present {
+			envelope.KTXSessionID = benchmarkEnv.SessionID
+			envelope.RuntimeSessionID = runtimeSessionID
+			envelope.CallID = runtimeCallID
 		}
 		if err := enc.Encode(envelope); err != nil {
 			return nil, internalError("ktx hook: write envelope: %v", err)

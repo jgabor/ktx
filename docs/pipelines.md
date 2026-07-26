@@ -573,8 +573,10 @@ fields or make an aggregate complete from partial telemetry. Each source event
 has a one-based ordinal in capture order and independently carries available
 uncached input, output, cache read, cache write, reasoning, cost, identity,
 cache-control, and retry metadata. Cache-aware attempts retain these ordered
-observations in `model_steps`; this additive attempt schema-v2 field is absent
-from cache-less and legacy attempts. These observations are optional telemetry:
+observations in `model_steps`. Historical attempt schema 2 carries wrapper-only
+observations. New attempt schema 3 also binds the attempt to one explicit KTX
+session and a schema-7 event-hook interval. Cache-less and legacy attempts omit
+the additive fields. Ordinary observations are optional telemetry:
 missing, empty, partial, or malformed observations do not invalidate an attempt.
 When available, they are useful for inspecting event order and field availability;
 they are not an integrity or attestation mechanism.
@@ -641,6 +643,8 @@ Methodology v4 remains the default for compatibility. Select the cache-aware
 contract explicitly:
 
 ```bash
+./build/ktx bench compare --preflight --build --format json
+
 ./build/ktx bench compare \
   --build \
   --methodology tools/bench/methodology-v5-cache-aware.yaml \
@@ -652,13 +656,38 @@ contract explicitly:
   --rounds 5
 ```
 
-This is the intended vehicle, but the current wrapper collection path is not
-yet eligible for controlled comparative or Pi-style evidence. It positively
-covers model-step order and identity only; retry, reset/compaction,
-interruption/restart, and concurrent-session coverage remain unavailable. The
-benchmark also needs one explicit KTX session owner per attempt. Another
-unchanged paid run cannot resolve those gaps. The retained OpenCode 1.18.5 run
-and exact validation result are documented in
+The explicit preflight is offline: it requires no auth or model, creates no
+experiment artifact, and exits nonzero with deterministic capability reasons.
+With `--build`, it checks the local Docker source before building and then asks
+only the resulting image for `bench agent --capabilities`. Normal comparisons
+run the same gate automatically before checking auth, creating an experiment,
+or starting an attempt. Images that do not advertise strict acknowledgements,
+exact model-step identity, fail-closed interval validation, and this ordering
+are rejected even if they advertise the older base collector fields.
+
+Each fresh attempt database starts with exactly one `agent=opencode` owner and
+one open event interval. The container receives that owner, interval, contract,
+and required-collector mode explicitly. The generated plugin opens a random
+collector epoch before exposing callbacks, serializes callback commands, and
+waits for valid acknowledgements. The supervisor alone seals a complete or
+incomplete interval and closes the owner. An open, incomplete, replaced, or
+extra owner or interval aborts the experiment before another attempt.
+
+On a complete interval, regeneration derives model-step order and positive
+retry, reset, segment, concurrency, and identity coverage from normalized
+schema-7 rows through the last accepted model step. Restarts are explicit extra
+epochs. Raw callbacks, error bodies, prompts, credentials, and cache namespaces
+are not retained. New attempts must have one consistently closed owner and one
+complete, contiguous interval with at least one epoch and model step. Wrapper
+and event-hook model steps must have the same native session/message/part tuples
+in the same order. Any missing, partial, reordered, duplicated, mismatched, open,
+incomplete, contradictory, or corrupt required evidence makes attempt and
+experiment validation fail; regeneration cannot promote it into valid evidence.
+
+The offline path is now capable of producing controlled comparative and
+Pi-style evidence, but those outcomes remain pending until a new bounded live
+run passes validation. The prior OpenCode 1.18.5 direct-only archive and exact
+failed validation remain documented in
 [the live validation report](cache-reuse-live-validation.md).
 
 Each strategy runs one `cold_observation`, the requested number of `warmup`

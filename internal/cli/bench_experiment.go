@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,12 +15,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/config"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/experiment"
 	"github.com/jgabor/ktx/internal/version"
 )
 
 func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
+	if len(args) == 1 && args[0] == "--capabilities" {
+		return printBenchAgentCapabilities(opts.Format, stdout, stderr)
+	}
 	if len(args) == 1 && args[0] == "--identity" {
 		fmt.Fprintf(stdout, "ktx\t%s\n", version.Version)
 		command := exec.Command("opencode", "--version")
@@ -48,6 +54,29 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 	if strings.HasPrefix(model, "github-copilot/") {
 		printError(stderr, usageError("ktx bench agent: github-copilot/* models are not permitted for this repo; use --model openai/gpt-5.6-luna --variant high"), opts.Format)
 		return ExitUsage
+	}
+	collectorEnv, collectorPresent, err := benchcontract.ReadEnvironment()
+	if err != nil {
+		printError(stderr, usageError("ktx bench agent: %v", err), opts.Format)
+		return ExitUsage
+	}
+	var collectorDB *dbpkg.DB
+	if collectorPresent {
+		path, pathErr := dbpkg.ResolvePath("")
+		if pathErr != nil {
+			printError(stderr, usageError("ktx bench agent: resolve collector database: %v", pathErr), opts.Format)
+			return ExitUsage
+		}
+		collectorDB, err = dbpkg.Open(path)
+		if err != nil {
+			printError(stderr, usageError("ktx bench agent: open collector database: %v", err), opts.Format)
+			return ExitUsage
+		}
+		defer collectorDB.Close()
+		if err := validateBenchAgentCollector(collectorDB, collectorEnv); err != nil {
+			printError(stderr, usageError("ktx bench agent: %v", err), opts.Format)
+			return ExitUsage
+		}
 	}
 	auth := os.Getenv("OPENCODE_AUTH_PATH")
 	if auth == "" {
@@ -89,12 +118,117 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 	if err := command.Run(); err != nil {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
+			if collectorDB != nil {
+				if closeErr := collectorDB.SealRuntimeEventInterval(collectorEnv.IntervalID, collectorEnv.SessionID, time.Now().UTC().Format(time.RFC3339Nano), dbpkg.RuntimeIncomplete, fmt.Sprintf("opencode exit %d", exitError.ExitCode())); closeErr != nil {
+					printError(stderr, internalError("ktx bench agent: seal incomplete collector interval: %v", closeErr), opts.Format)
+					return ExitInternal
+				}
+			}
 			return exitError.ExitCode()
+		}
+		if collectorDB != nil {
+			_ = collectorDB.SealRuntimeEventInterval(collectorEnv.IntervalID, collectorEnv.SessionID, time.Now().UTC().Format(time.RFC3339Nano), dbpkg.RuntimeIncomplete, "opencode startup failure")
 		}
 		printError(stderr, internalError("ktx bench agent: %v", err), opts.Format)
 		return ExitInternal
 	}
+	if collectorDB != nil {
+		interval, loadErr := collectorDB.LoadRuntimeEventInterval(collectorEnv.IntervalID)
+		if loadErr == nil {
+			loadErr = validateCompleteCollectorInterval(interval, collectorEnv)
+		}
+		state, reason := dbpkg.RuntimeComplete, ""
+		if loadErr != nil {
+			state, reason = dbpkg.RuntimeIncomplete, loadErr.Error()
+		}
+		if closeErr := collectorDB.SealRuntimeEventInterval(collectorEnv.IntervalID, collectorEnv.SessionID, time.Now().UTC().Format(time.RFC3339Nano), state, reason); closeErr != nil {
+			printError(stderr, internalError("ktx bench agent: seal collector interval: %v", closeErr), opts.Format)
+			return ExitInternal
+		}
+		if loadErr != nil {
+			printError(stderr, internalError("ktx bench agent: collector interval incomplete: %v", loadErr), opts.Format)
+			return ExitInternal
+		}
+	}
 	return ExitOK
+}
+
+func printBenchAgentCapabilities(format string, stdout, stderr io.Writer) int {
+	output, err := exec.Command("opencode", "--version").Output()
+	if err != nil {
+		printError(stderr, internalError("ktx bench agent capabilities: opencode --version: %v", err), format)
+		return ExitInternal
+	}
+	opencodeVersion := strings.TrimSpace(string(output))
+	pluginPath, pathErr := opencodeGlobalPluginPath()
+	pluginBytes, readErr := os.ReadFile(pluginPath)
+	if pathErr != nil || readErr != nil {
+		printError(stderr, internalError("ktx bench agent capabilities: read generated plugin: %v", errors.Join(pathErr, readErr)), format)
+		return ExitInternal
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(pluginBytes))
+	expectedDigest := fmt.Sprintf("%x", sha256.Sum256([]byte(ktxOpencodePluginTemplate)))
+	capabilities := map[string]any{
+		"ktx_version": version.Version, "opencode_version": opencodeVersion, "generated_plugin_sha256": digest,
+		"generated_plugin_matches_binary": digest == expectedDigest,
+		"event_collector_contract":        benchcontract.ContractVersion, "explicit_session_ownership": true,
+		"serialized_callbacks": true, "complete_interval_lifecycle": true, "epoch_tracking": true,
+		"strict_acknowledgements": true, "exact_model_step_identity": true,
+		"fail_closed_interval_validation": true, "preflight_before_auth": true,
+		"normalized_kinds": []string{"collector_open", "model_step", "retry", "compaction", "interruption", "other"},
+	}
+	if format == FormatText {
+		fmt.Fprintf(stdout, "ktx=%s opencode=%s contract=%s plugin_sha256=%s generated_plugin_matches_binary=%t explicit_session_ownership=true serialized_callbacks=true complete_interval_lifecycle=true epoch_tracking=true strict_acknowledgements=true exact_model_step_identity=true fail_closed_interval_validation=true preflight_before_auth=true\n", version.Version, opencodeVersion, benchcontract.ContractVersion, digest, digest == expectedDigest)
+		return ExitOK
+	}
+	if err := json.NewEncoder(stdout).Encode(capabilities); err != nil {
+		return ExitInternal
+	}
+	return ExitOK
+}
+
+func validateBenchAgentCollector(database *dbpkg.DB, env benchcontract.Environment) error {
+	interval, err := database.LoadRuntimeEventInterval(env.IntervalID)
+	if err != nil {
+		return fmt.Errorf("load collector interval: %w", err)
+	}
+	if interval.SessionID != env.SessionID || interval.Runtime != benchcontract.Runtime || interval.RuntimeVersion != benchcontract.RuntimeVersion || interval.Source != dbpkg.RuntimeEventSource || interval.ContractVersion != env.Contract || interval.CloseState != dbpkg.RuntimeOpen {
+		return errors.New("collector owner or interval contract mismatch")
+	}
+	var count int
+	if err := database.DB().QueryRow(`SELECT count(*) FROM sessions`).Scan(&count); err != nil {
+		return err
+	}
+	if count != 1 {
+		return fmt.Errorf("collector database contains %d sessions; want exactly one", count)
+	}
+	var intervalCount int
+	if err := database.DB().QueryRow(`SELECT count(*) FROM runtime_event_intervals`).Scan(&intervalCount); err != nil {
+		return err
+	}
+	if intervalCount != 1 {
+		return fmt.Errorf("collector database contains %d intervals; want exactly one", intervalCount)
+	}
+	return nil
+}
+
+func validateCompleteCollectorInterval(interval *dbpkg.RuntimeEventInterval, env benchcontract.Environment) error {
+	if interval.SessionID != env.SessionID || interval.ID != env.IntervalID || interval.Runtime != benchcontract.Runtime || interval.RuntimeVersion != benchcontract.RuntimeVersion || interval.Source != dbpkg.RuntimeEventSource || interval.ContractVersion != env.Contract {
+		return errors.New("collector provenance mismatch")
+	}
+	if err := dbpkg.ValidateRuntimeEventInterval(interval); err != nil {
+		return err
+	}
+	steps := 0
+	for _, event := range interval.Events {
+		if event.Kind == "model_step" {
+			steps++
+		}
+	}
+	if steps == 0 {
+		return errors.New("collector retained no model steps")
+	}
+	return nil
 }
 
 func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int {
@@ -105,7 +239,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	var cacheControl string
 	var target, maxAttempts, minimumToolCalls, warmup int
 	var timeout, grace time.Duration
-	var build bool
+	var build, preflight bool
 	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. openai/gpt-5.6-luna with --variant high)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
@@ -135,6 +269,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs.DurationVar(&timeout, "attempt-timeout", 10*time.Minute, "per-attempt timeout")
 	fs.DurationVar(&grace, "termination-grace", 30*time.Second, "termination grace period")
 	fs.BoolVar(&build, "build", false, "build the benchmark image")
+	fs.BoolVar(&preflight, "preflight", false, "attest benchmark evidence capability without a model call")
 	if err := fs.Parse(args); err != nil {
 		printError(stderr, usageError("ktx bench compare: %v", err), opts.Format)
 		return ExitUsage
@@ -155,6 +290,23 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 			fmt.Fprintf(stderr, "ktx bench compare: %d copied measurement projection divergences ignored\n", len(regeneration.ProjectionDivergences))
 		}
 		return renderExperimentValue(stdout, regeneration.Summary, format, experiment.RenderSummary)
+	}
+	if preflight {
+		runner := experiment.NewRunner()
+		report, err := runner.Preflight(context.Background(), experiment.CompareOptions{Image: image, RepoRoot: repoRoot, BuildImage: build})
+		if err != nil {
+			printError(stderr, internalError("ktx bench compare preflight: %v", err), opts.Format)
+			return ExitInternal
+		}
+		if format == FormatText {
+			fmt.Fprintf(stdout, "eligible=%t direct=%t controlled=%t secondary=%t model_attempts=%d artifact_creation=%t reasons=%s\n", report.Eligible, report.DirectEvidence, report.ControlledComparison, report.SecondaryEvidence, report.ModelAttempts, report.ArtifactCreation, strings.Join(report.Reasons, ","))
+		} else if code := encodeExperimentJSON(stdout, report); code != ExitOK {
+			return code
+		}
+		if !report.Eligible {
+			return 1
+		}
+		return ExitOK
 	}
 	if model == "" || (taskFile == "" && (taskID == "" || prompt == "")) {
 		printError(stderr, usageError("ktx bench compare: --model and either --task-file or --task-id/--prompt are required"), opts.Format)

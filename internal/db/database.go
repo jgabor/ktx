@@ -2,7 +2,7 @@
 // the on-disk SQLite schema.
 //
 // The database is a single SQLite file with core, benchmark, reversible
-// artifact, recorded-stream, and optional session-telemetry tables:
+// artifact, recorded-stream, optional session-telemetry, and runtime-event tables:
 // sessions (aggregate, INSERT on open + UPDATE roll-up),
 // tool_calls (append-only, INSERT only), bench_runs (the benchmark
 // headline store; one row per `ktx bench run` invocation; same
@@ -15,7 +15,9 @@
 // sessions.id via a NOT NULL FK and bench_runs.id via a NULLABLE FK so a
 // ktx-run-captured stream can carry no bench parent). session_telemetry keeps
 // accepted model-step observations separate from those evidence families and
-// associates them to sessions by foreign key. IDs are 16-char lowercase alpha
+// associates them to sessions by foreign key. runtime_event_intervals and
+// runtime_events retain normalized fail-closed benchmark callback order without
+// retaining raw callback bodies. IDs are 16-char lowercase alpha
 // nanoids where a table has a standalone ID.
 // Content hashes are SHA-256 of the output field, stored as a separate
 // column for verification without being the primary key.

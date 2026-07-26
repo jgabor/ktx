@@ -318,8 +318,8 @@ func replaceTelemetryWithV4(t *testing.T, raw *sql.DB) {
 func assertSessionTelemetryV6Shape(t *testing.T, db *sql.DB) {
 	t.Helper()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
-		t.Fatalf("user_version = %d, %v; want 6", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != schemaVersion {
+		t.Fatalf("user_version = %d, %v; want %d", version, err, schemaVersion)
 	}
 	rows, err := db.Query(`SELECT name, pk FROM pragma_table_info('session_telemetry') WHERE pk > 0 ORDER BY pk`)
 	if err != nil {

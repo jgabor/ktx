@@ -10,6 +10,14 @@ import (
 )
 
 func ParseStream(path string, expectedOutput *string, expectedFacts []string) Metrics {
+	return parseStream(path, expectedOutput, expectedFacts, false)
+}
+
+func parseSchema3Stream(path string, expectedOutput *string, expectedFacts []string) Metrics {
+	return parseStream(path, expectedOutput, expectedFacts, true)
+}
+
+func parseStream(path string, expectedOutput *string, expectedFacts []string, retainModelIdentity bool) Metrics {
 	metrics := Metrics{Score: Score{FactsMatched: []string{}, FactsMissed: []string{}}}
 	file, err := os.Open(path)
 	if err != nil {
@@ -27,6 +35,7 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	lastText := ""
 	var streamOrdinal, modelStepOrdinal uint64
 	sequenceFacts := []cacheevidence.SequenceFact{}
+	wrapperIdentities := []modelStepIdentity{}
 	usage.ReadDelimitedLines(file, usage.MaxRecordSize, func(line []byte) bool {
 		streamOrdinal++
 		var event struct {
@@ -45,6 +54,15 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				return false
 			}
 			modelStepOrdinal++
+			if retainModelIdentity {
+				var identity struct {
+					SessionID string `json:"sessionID"`
+					MessageID string `json:"messageID"`
+					PartID    string `json:"id"`
+				}
+				_ = json.Unmarshal(event.Part, &identity)
+				wrapperIdentities = append(wrapperIdentities, modelStepIdentity{SessionID: identity.SessionID, MessageID: identity.MessageID, PartID: identity.PartID})
+			}
 			if fact, ok := cacheevidence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
 				sequenceFacts = append(sequenceFacts, fact)
 			}
@@ -95,7 +113,8 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	}
 	metrics.AnswerExcerpt = answer
 	ev := agg.Result()
-	metrics.ModelSteps = sourceEvents(ev.ModelSteps)
+	metrics.ModelSteps = sourceEvents(ev.ModelSteps, wrapperIdentities, retainModelIdentity)
+	metrics.wrapperModelIdentities = wrapperIdentities
 	metrics.sequence = wrapperAttemptSequence(sequenceFacts, len(metrics.ModelSteps))
 	metrics.UsageEvidence.StepFinishEvents = ev.Steps
 	metrics.UsageEvidence.TokensInEvents = ev.TokensInEvents
@@ -117,12 +136,18 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	return metrics
 }
 
-func sourceEvents(steps []usage.ModelStep) []SourceEvent {
+func sourceEvents(steps []usage.ModelStep, identities []modelStepIdentity, retainIdentity bool) []SourceEvent {
 	if len(steps) == 0 {
 		return nil
 	}
 	events := make([]SourceEvent, len(steps))
 	for i, step := range steps {
+		identity := EventIdentity{Provider: step.Provider, Model: step.Model}
+		if retainIdentity && i < len(identities) {
+			identity.SessionID = nonblankPointer(identities[i].SessionID)
+			identity.MessageID = nonblankPointer(identities[i].MessageID)
+			identity.PartID = nonblankPointer(identities[i].PartID)
+		}
 		events[i] = SourceEvent{
 			Ordinal: step.Ordinal, Kind: ModelStep,
 			UncachedInput: integerSourceMeasurement(step.UncachedInput),
@@ -131,10 +156,17 @@ func sourceEvents(steps []usage.ModelStep) []SourceEvent {
 			CacheWrite:    integerSourceMeasurement(step.CacheWrite),
 			Reasoning:     integerSourceMeasurement(step.Reasoning),
 			Cost:          costSourceMeasurement(step.Cost),
-			Identity:      EventIdentity{Provider: step.Provider, Model: step.Model},
+			Identity:      identity,
 		}
 	}
 	return events
+}
+
+func nonblankPointer(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return &value
 }
 
 func integerSourceMeasurement(measurement usage.IntegerMeasurement) IntegerMeasurement {

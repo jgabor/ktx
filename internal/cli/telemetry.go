@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/telemetry"
 	"github.com/jgabor/ktx/internal/telemetry/opencode"
@@ -52,11 +54,175 @@ func telemetryLogic(args []string, format string, stdin io.Reader, db *dbpkg.DB,
 	switch args[0] {
 	case "record":
 		return nil, recordTelemetry(args[1:], stdin, db, stderr)
+	case "collector-open":
+		return nil, recordCollectorOpen(args[1:], stdin, db, stdout)
+	case "event-record":
+		return nil, recordRuntimeEvent(args[1:], stdin, db, stdout)
 	case "list":
 		return nil, listTelemetry(args[1:], format, db, stdout)
 	default:
 		return nil, usageError("ktx telemetry: unknown subcommand %q (want record or list)", args[0])
 	}
+}
+
+type collectorOpenInput struct {
+	EpochID    string `json:"epoch_id"`
+	SessionID  string `json:"ktx_session_id,omitempty"`
+	IntervalID string `json:"interval_id,omitempty"`
+}
+
+type runtimeEventRecordInput struct {
+	EpochID      string          `json:"epoch_id"`
+	EpochOrdinal uint64          `json:"epoch_ordinal"`
+	AfterOrdinal *uint64         `json:"after_ordinal"`
+	SessionID    string          `json:"ktx_session_id,omitempty"`
+	IntervalID   string          `json:"interval_id,omitempty"`
+	Event        json.RawMessage `json:"event"`
+}
+
+type runtimeEventAck struct {
+	OK           bool   `json:"ok"`
+	SessionID    string `json:"session_id"`
+	IntervalID   string `json:"interval_id"`
+	EpochID      string `json:"epoch_id"`
+	EpochOrdinal uint64 `json:"epoch_ordinal"`
+	Ordinal      uint64 `json:"ordinal"`
+	Kind         string `json:"kind"`
+	Contract     string `json:"contract"`
+}
+
+func requiredCollectorEnvironment(db *dbpkg.DB) (benchcontract.Environment, error) {
+	env, present, err := benchcontract.ReadEnvironment()
+	if err != nil {
+		return env, err
+	}
+	if !present {
+		return env, errors.New("required benchmark collector environment is absent")
+	}
+	interval, err := db.LoadRuntimeEventInterval(env.IntervalID)
+	if err != nil {
+		return env, err
+	}
+	if interval.SessionID != env.SessionID || interval.Runtime != benchcontract.Runtime || interval.RuntimeVersion != benchcontract.RuntimeVersion || interval.Source != telemetry.SourceEventHook || interval.ContractVersion != env.Contract || interval.CloseState != dbpkg.RuntimeOpen {
+		return env, errors.New("benchmark collector owner or interval contract does not match the database")
+	}
+	return env, nil
+}
+
+func decodeSingleJSON(stdin io.Reader, target any) error {
+	decoder := json.NewDecoder(io.LimitReader(stdin, 8<<20))
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var extra any
+	if decoder.Decode(&extra) != io.EOF {
+		return errors.New("input must contain one JSON value")
+	}
+	return nil
+}
+
+func recordCollectorOpen(args []string, stdin io.Reader, db *dbpkg.DB, stdout io.Writer) error {
+	if len(args) != 0 {
+		return usageError("ktx telemetry collector-open: unexpected argument %q", args[0])
+	}
+	env, err := requiredCollectorEnvironment(db)
+	if err != nil {
+		return usageError("ktx telemetry collector-open: %v", err)
+	}
+	var input collectorOpenInput
+	if err := decodeSingleJSON(stdin, &input); err != nil {
+		return usageError("ktx telemetry collector-open: parse JSON: %v", err)
+	}
+	if input.EpochID == "" || input.SessionID != "" && input.SessionID != env.SessionID || input.IntervalID != "" && input.IntervalID != env.IntervalID {
+		return usageError("ktx telemetry collector-open: owner, interval, or epoch conflict")
+	}
+	event, _, err := db.PersistRuntimeEvent(dbpkg.RuntimeEventInput{IntervalID: env.IntervalID, SessionID: env.SessionID, EpochID: input.EpochID, Kind: "collector_open", EventType: "collector.open", CapturedAt: time.Now().UTC().Format(time.RFC3339Nano)})
+	if err != nil {
+		return internalError("ktx telemetry collector-open: %v", err)
+	}
+	return json.NewEncoder(stdout).Encode(runtimeEventAck{OK: true, SessionID: env.SessionID, IntervalID: env.IntervalID, EpochID: input.EpochID, Ordinal: event.Ordinal, Kind: event.Kind, Contract: env.Contract})
+}
+
+func recordRuntimeEvent(args []string, stdin io.Reader, db *dbpkg.DB, stdout io.Writer) error {
+	if len(args) != 0 {
+		return usageError("ktx telemetry event-record: unexpected argument %q", args[0])
+	}
+	env, err := requiredCollectorEnvironment(db)
+	if err != nil {
+		return usageError("ktx telemetry event-record: %v", err)
+	}
+	var input runtimeEventRecordInput
+	if err := decodeSingleJSON(stdin, &input); err != nil {
+		return usageError("ktx telemetry event-record: parse JSON: %v", err)
+	}
+	if input.EpochID == "" || input.EpochOrdinal == 0 || input.AfterOrdinal == nil || len(input.Event) == 0 || input.SessionID != "" && input.SessionID != env.SessionID || input.IntervalID != "" && input.IntervalID != env.IntervalID {
+		return usageError("ktx telemetry event-record: owner, interval, epoch, or event conflict")
+	}
+	normalized, observation, err := normalizeRuntimeEvent(input.Event)
+	if err != nil {
+		return usageError("ktx telemetry event-record: %v", err)
+	}
+	normalized.IntervalID, normalized.SessionID, normalized.EpochID, normalized.EpochOrdinal = env.IntervalID, env.SessionID, input.EpochID, input.EpochOrdinal
+	normalized.AfterOrdinal = input.AfterOrdinal
+	normalized.CapturedAt, normalized.Telemetry = time.Now().UTC().Format(time.RFC3339Nano), observation
+	event, _, err := db.PersistRuntimeEvent(normalized)
+	if err != nil {
+		return internalError("ktx telemetry event-record: %v", err)
+	}
+	return json.NewEncoder(stdout).Encode(runtimeEventAck{OK: true, SessionID: env.SessionID, IntervalID: env.IntervalID, EpochID: input.EpochID, EpochOrdinal: input.EpochOrdinal, Ordinal: event.Ordinal, Kind: event.Kind, Contract: env.Contract})
+}
+
+func normalizeRuntimeEvent(raw json.RawMessage) (dbpkg.RuntimeEventInput, *telemetry.Observation, error) {
+	var event struct {
+		Type       string `json:"type"`
+		Properties struct {
+			SessionID string `json:"sessionID"`
+			Info      struct {
+				SessionID string `json:"sessionID"`
+			} `json:"info"`
+			Status struct {
+				Type string `json:"type"`
+			} `json:"status"`
+			Part struct {
+				Type      string `json:"type"`
+				SessionID string `json:"sessionID"`
+				MessageID string `json:"messageID"`
+				ID        string `json:"id"`
+			} `json:"part"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &event); err != nil || strings.TrimSpace(event.Type) == "" {
+		return dbpkg.RuntimeEventInput{}, nil, errors.New("event must be an object with a non-blank type")
+	}
+	sessionID := event.Properties.Part.SessionID
+	if sessionID == "" {
+		sessionID = event.Properties.SessionID
+	}
+	if sessionID == "" {
+		sessionID = event.Properties.Info.SessionID
+	}
+	input := dbpkg.RuntimeEventInput{Kind: "other", EventType: event.Type}
+	if sessionID != "" {
+		input.SourceSessionID = &sessionID
+	}
+	partType := event.Properties.Part.Type
+	switch {
+	case event.Type == "message.part.updated" && partType == "step-finish":
+		observation, err := opencode.DecodeModelStep(raw)
+		if err != nil {
+			return input, nil, err
+		}
+		observation.Ordinal, observation.Source = 1, telemetry.SourceEventHook
+		input.Kind, input.SourceSessionID, input.MessageID, input.PartID = "model_step", &observation.SessionID, &observation.MessageID, &observation.PartID
+		return input, &observation, nil
+	case event.Type == "message.part.updated" && partType == "retry", event.Type == "session.status" && event.Properties.Status.Type == "retry":
+		input.Kind = "retry"
+	case event.Type == "message.part.updated" && partType == "compaction", event.Type == "session.compacted":
+		input.Kind = "compaction"
+	case event.Type == "session.error", event.Type == "server.instance.disposed":
+		input.Kind = "interruption"
+	}
+	return input, nil, nil
 }
 
 func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Writer) error {
@@ -88,11 +254,25 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 		return usageError("ktx telemetry record: %s%s", opencode.ErrInvalid, detail)
 	}
 	capturedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	sessionID, err := db.ResolveSessionID(input.KtxSessionID, capturedAt)
+	sessionHint := input.KtxSessionID
+	benchmarkEnv, required, envErr := benchcontract.ReadEnvironment()
+	if required {
+		if envErr != nil {
+			return usageError("ktx telemetry record: %v", envErr)
+		}
+		if sessionHint != "" && sessionHint != benchmarkEnv.SessionID {
+			return usageError("ktx telemetry record: payload session conflicts with benchmark attempt owner")
+		}
+		sessionHint = benchmarkEnv.SessionID
+	}
+	sessionID, err := db.ResolveSessionID(sessionHint, capturedAt)
 	if err == nil {
 		_, err = db.PersistSessionTelemetry(sessionID, capturedAt, observation)
 	}
 	if err != nil {
+		if required {
+			return internalError("ktx telemetry record: required persistence failed: %v", err)
+		}
 		// Session telemetry is optional. Keep the failure visible to the operator,
 		// but do not turn this side channel into a failed agent operation.
 		fmt.Fprintf(stderr, "ktx: telemetry not recorded: %v\n", err)
@@ -215,7 +395,7 @@ func measurementText(measurement dbpkg.IntegerMeasurement) string {
 }
 
 func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
-	if len(ctx.Args) == 0 || (ctx.Args[0] != "record" && ctx.Args[0] != "list") {
+	if len(ctx.Args) == 0 || (ctx.Args[0] != "record" && ctx.Args[0] != "list" && ctx.Args[0] != "collector-open" && ctx.Args[0] != "event-record") {
 		return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, nil, ctx.Stdout, ctx.Stderr)
 	}
 	path, err := dbpkg.ResolvePath("")
@@ -232,6 +412,12 @@ func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
 
 func telemetryDatabaseFailure(ctx *DispatchContext, err error) (any, error) {
 	if len(ctx.Args) > 0 && ctx.Args[0] == "record" {
+		if _, present, envErr := benchcontract.ReadEnvironment(); present {
+			if envErr != nil {
+				return nil, usageError("ktx telemetry: %v", envErr)
+			}
+			return nil, internalError("ktx telemetry: required collector database unavailable: %v", err)
+		}
 		fmt.Fprintf(ctx.Stderr, "ktx: telemetry not recorded: %v\n", err)
 		return nil, nil
 	}

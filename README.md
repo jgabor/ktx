@@ -95,6 +95,8 @@ A cache-aware live comparison separates cold observation, warm-up, and measured
 attempts:
 
 ```bash
+./build/ktx bench compare --preflight --build --format json
+
 ./build/ktx bench compare \
   --build \
   --methodology tools/bench/methodology-v5-cache-aware.yaml \
@@ -106,12 +108,18 @@ attempts:
   --rounds 5
 ```
 
-The current wrapper path can collect exact attempt-level direct shares, but it
-cannot yet produce comparison-eligible retry, reset, segment, and concurrency
-coverage. A retained OpenCode 1.18.5 run therefore authorizes only the direct
-descriptive view. Do not repeat the paid command for comparative evidence until
-the session-owner and temporal-coverage backlog items are complete. See the
-[live validation report](docs/cache-reuse-live-validation.md).
+Preflight makes no model call and creates no experiment artifact. It checks the
+local source before `--build`, then requires the image to attest the pinned
+OpenCode version, generated plugin digest, explicit attempt owner, serialized
+fail-closed callbacks, complete interval lifecycle, epochs, and normalized event
+kinds. It also requires strict acknowledgements, exact wrapper/event model-step
+identity, fail-closed interval validation, and capability attestation before auth
+readiness. Every normal comparison runs the same gate before its first attempt.
+
+The offline collector integration is complete, but controlled and secondary
+evidence remains pending until a new bounded live comparison passes validation.
+The earlier OpenCode 1.18.5 archive remains direct-only historical evidence; see
+the [live validation report](docs/cache-reuse-live-validation.md).
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
 summaries. Validate retained evidence with:

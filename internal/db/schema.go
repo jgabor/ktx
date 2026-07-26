@@ -7,7 +7,54 @@ import (
 	"strings"
 )
 
-const schemaVersion = 6
+const schemaVersion = 7
+
+const createRuntimeEventIntervalsTable = `CREATE TABLE IF NOT EXISTS runtime_event_intervals (
+		id                    TEXT PRIMARY KEY,
+		session_id            TEXT NOT NULL UNIQUE REFERENCES sessions(id),
+		attempt_id            TEXT NOT NULL UNIQUE,
+		runtime               TEXT NOT NULL,
+		runtime_version       TEXT NOT NULL,
+		source                TEXT NOT NULL CHECK (source = 'event_hook'),
+		contract_version      TEXT NOT NULL,
+		opened_at             TEXT NOT NULL,
+		closed_at             TEXT,
+		close_state           TEXT NOT NULL CHECK (close_state IN ('open','complete','incomplete','contradictory')),
+		first_ordinal         INTEGER,
+		last_ordinal          INTEGER,
+		event_count           INTEGER NOT NULL DEFAULT 0 CHECK (event_count >= 0),
+		collector_epoch_count INTEGER NOT NULL DEFAULT 0 CHECK (collector_epoch_count >= 0),
+		failure_reason        TEXT,
+		CHECK ((close_state = 'open') = (closed_at IS NULL)),
+		CHECK ((event_count = 0 AND first_ordinal IS NULL AND last_ordinal IS NULL) OR
+		       (event_count > 0 AND first_ordinal = 1 AND last_ordinal = event_count))
+	)`
+
+const createRuntimeEventsTable = `CREATE TABLE IF NOT EXISTS runtime_events (
+		interval_id       TEXT NOT NULL REFERENCES runtime_event_intervals(id),
+		ordinal           INTEGER NOT NULL CHECK (ordinal > 0),
+		epoch_id          TEXT NOT NULL,
+		epoch_ordinal     INTEGER NOT NULL CHECK (epoch_ordinal >= 0),
+		kind              TEXT NOT NULL CHECK (kind IN ('collector_open','model_step','retry','compaction','interruption','other')),
+		event_type        TEXT NOT NULL,
+		source_session_id TEXT,
+		message_id        TEXT,
+		part_id           TEXT,
+		captured_at       TEXT NOT NULL,
+		PRIMARY KEY (interval_id, ordinal),
+		UNIQUE (interval_id, epoch_id, epoch_ordinal),
+		CHECK ((kind = 'collector_open' AND epoch_ordinal = 0) OR
+		       (kind <> 'collector_open' AND epoch_ordinal > 0)),
+		CHECK (kind <> 'model_step' OR
+		       (source_session_id IS NOT NULL AND source_session_id <> '' AND
+		        message_id IS NOT NULL AND message_id <> '' AND part_id IS NOT NULL AND part_id <> ''))
+	)`
+
+const createRuntimeEventIndexes = `CREATE INDEX IF NOT EXISTS runtime_events_interval_session_idx
+	ON runtime_events(interval_id, source_session_id, ordinal)`
+
+const createRuntimeEventMessageIndex = `CREATE INDEX IF NOT EXISTS runtime_events_interval_message_part_idx
+	ON runtime_events(interval_id, message_id, part_id, ordinal)`
 
 const createSessionTelemetryTable = `CREATE TABLE IF NOT EXISTS session_telemetry (
 		session_id        TEXT NOT NULL REFERENCES sessions(id),
@@ -165,6 +212,10 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS recorded_streams_bench_run_id_idx ON recorded_streams(bench_run_id)`,
 	createSessionTelemetryTable,
 	createSessionTelemetryOrderIndex,
+	createRuntimeEventIntervalsTable,
+	createRuntimeEventsTable,
+	createRuntimeEventIndexes,
+	createRuntimeEventMessageIndex,
 }
 
 // costColumn enumerates a single cost-publication column on tool_calls.

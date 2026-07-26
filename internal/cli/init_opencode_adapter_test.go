@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -148,12 +149,68 @@ if [ "$1" = "telemetry" ] && [ "$KTX_TEST_TELEMETRY_FAIL" = "1" ]; then
   printf 'telemetry unavailable\n' >&2
   exit 8
 fi
+if [ "$1 $2" = "telemetry collector-open" ]; then
+  epoch=$(printf '%s' "$payload" | sed -n 's/.*"epoch_id":"\([^"]*\)".*/\1/p')
+  state="$KTX_TEST_LOG.ordinal"
+  current=0; [ ! -f "$state" ] || read current < "$state"
+  allocated=$((current + 1)); printf '%s\n' "$allocated" > "$state"
+  case "$KTX_TEST_BAD_RESPONSE" in
+    collector-session) session=wrongwrongwrongwr ;;
+    *) session=aaaaaaaaaaaaaaaa ;;
+  esac
+  interval=bbbbbbbbbbbbbbbb; [ "$KTX_TEST_BAD_RESPONSE" = collector-interval ] && interval=wrongwrongwrongwr
+  [ "$KTX_TEST_BAD_RESPONSE" = collector-epoch ] && epoch=wrong-epoch
+  kind=collector_open; [ "$KTX_TEST_BAD_RESPONSE" = collector-kind ] && kind=other
+  ordinal=$allocated; [ "$KTX_TEST_BAD_RESPONSE" = collector-ordinal ] && ordinal=0
+	[ "$KTX_TEST_BAD_RESPONSE" = collector-type ] && ordinal='"1"'
+	contract=opencode-event-v1; [ "$KTX_TEST_BAD_RESPONSE" = collector-contract ] && contract=wrong-contract
+  if [ "$KTX_TEST_BAD_RESPONSE" = collector-malformed ]; then printf '[]\n'
+  elif [ "$KTX_TEST_BAD_RESPONSE" = collector-missing ]; then printf '{"ok":true}\n'
+	else printf '{"ok":true,"session_id":"%s","interval_id":"%s","epoch_id":"%s","epoch_ordinal":0,"ordinal":%s,"kind":"%s","contract":"%s"}\n' "$session" "$interval" "$epoch" "$ordinal" "$kind" "$contract"
+  fi
+fi
+if [ "$1 $2" = "telemetry event-record" ]; then
+  epoch=$(printf '%s' "$payload" | sed -n 's/.*"epoch_id":"\([^"]*\)".*/\1/p')
+  epoch_ordinal=$(printf '%s' "$payload" | sed -n 's/.*"epoch_ordinal":\([0-9]*\).*/\1/p')
+  after_ordinal=$(printf '%s' "$payload" | sed -n 's/.*"after_ordinal":\([0-9]*\).*/\1/p')
+  state="$KTX_TEST_LOG.ordinal"
+  current=0; [ ! -f "$state" ] || read current < "$state"
+  if [ -z "$after_ordinal" ] || [ "$after_ordinal" -ne "$current" ]; then
+    printf 'stale global ordinal: after=%s current=%s\n' "$after_ordinal" "$current" >&2
+    exit 9
+  fi
+  allocated=$((current + 1)); printf '%s\n' "$allocated" > "$state"
+  ordinal=$allocated
+  kind=other
+  printf '%s' "$payload" | grep -q '"type":"step-finish"' && kind=model_step
+  [ "$KTX_TEST_BAD_RESPONSE" = event-kind ] && kind=other
+  session=aaaaaaaaaaaaaaaa; [ "$KTX_TEST_BAD_RESPONSE" = event-session ] && session=wrongwrongwrongwr
+	interval=bbbbbbbbbbbbbbbb; [ "$KTX_TEST_BAD_RESPONSE" = event-interval ] && interval=wrongwrongwrongwr
+	[ "$KTX_TEST_BAD_RESPONSE" = event-epoch ] && epoch=wrong-epoch
+	case "$KTX_TEST_BAD_RESPONSE" in
+	  event-same) ordinal=1 ;;
+	  event-backward) ordinal=0 ;;
+	  event-gap-two) ordinal=3 ;;
+	  event-gap-99) ordinal=99 ;;
+	  event-large) ordinal=9007199254740992 ;;
+	  event-fractional) ordinal=2.5 ;;
+	  event-string) ordinal='"2"' ;;
+	  event-null) ordinal=null ;;
+	  event-nonfinite) ordinal=1e999 ;;
+	esac
+	contract=opencode-event-v1; [ "$KTX_TEST_BAD_RESPONSE" = event-contract ] && contract=wrong-contract
+  if [ "$KTX_TEST_BAD_RESPONSE" = event-missing ]; then printf '{"ok":true}\n'
+	else printf '{"ok":true,"session_id":"%s","interval_id":"%s","epoch_id":"%s","epoch_ordinal":%s,"ordinal":%s,"kind":"%s","contract":"%s"}\n' "$session" "$interval" "$epoch" "$epoch_ordinal" "$ordinal" "$kind" "$contract"
+  fi
+fi
 if [ "$1" = "hook" ]; then
   if [ "$KTX_TEST_HOOK_FAIL" = "1" ]; then
     printf 'hook unavailable\n' >&2
     exit 7
   fi
-  printf '{"output":"compressed tool output","compressed_id":"compressedid","source_id":"sourceid"}\n'
+  if [ "$KTX_TEST_BAD_RESPONSE" = hook-envelope ]; then printf '{"output":7,"compressed_id":false,"source_id":""}\n'
+  else printf '{"output":"compressed tool output","compressed_id":"compressedid","source_id":"sourceid","ktx_session_id":"aaaaaaaaaaaaaaaa","runtime_session_id":"ses_1","call_id":"call_1"}\n'
+  fi
 fi
 `
 	if err := os.WriteFile(filepath.Join(binDir, "ktx"), []byte(fakeKtx), 0o755); err != nil {
@@ -270,6 +327,137 @@ console.log(JSON.stringify(output))
 			t.Fatalf("output=%#v calls=%q", output, calls)
 		}
 	})
+
+	t.Run("required benchmark mode retains and serializes every callback", func(t *testing.T) {
+		output, calls, _ := run(t,
+			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa",
+			"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1",
+			"KTX_BENCH_COLLECTOR_MODE=required",
+		)
+		if output["output"] != "compressed tool output" || len(calls) != 11 {
+			t.Fatalf("output=%#v calls=%q", output, calls)
+		}
+		if !strings.HasPrefix(calls[0], "telemetry collector-open\t") || !strings.HasPrefix(calls[10], "hook\t") {
+			t.Fatalf("required call boundaries=%q", calls)
+		}
+		for index, call := range calls[1:10] {
+			if !strings.HasPrefix(call, "telemetry event-record\t") || !strings.Contains(call, fmt.Sprintf(`"epoch_ordinal":%d`, index+1)) {
+				t.Fatalf("required call %d=%q", index+1, call)
+			}
+		}
+	})
+
+	epochDriverPath := filepath.Join(dir, "epoch-driver.ts")
+	epochDriver := `import plugin from ` + strconv.Quote(pluginPath) + `
+const load = () => plugin({ $: () => ({ quiet: async () => {} }) } as any)
+const event = {type:"message.updated",properties:{info:{id:"msg",sessionID:"ses",role:"user"}}}
+const first: any = await load()
+if (process.env.KTX_TEST_EPOCH_SCENARIO === "sequential") {
+  await first.event({event})
+  const second: any = await load()
+  await second.event({event})
+} else {
+  await load()
+  let rejected = false
+  try { await first.event({event}) } catch { rejected = true }
+  if (!rejected) throw new Error("overlapping epoch callback succeeded")
+}
+console.log("ok")
+`
+	if err := os.WriteFile(epochDriverPath, []byte(epochDriver), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runEpochDriver := func(t *testing.T, scenario string) ([]string, string) {
+		t.Helper()
+		logPath := filepath.Join(t.TempDir(), "calls.log")
+		cmd := exec.Command(bun, epochDriverPath)
+		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
+			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EPOCH_SCENARIO="+scenario)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("epoch driver: %v\n%s", err, output)
+		}
+		data, err := os.ReadFile(logPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Split(strings.TrimSpace(string(data)), "\n"), logPath
+	}
+
+	t.Run("required second sequential epoch is a restart", func(t *testing.T) {
+		calls, _ := runEpochDriver(t, "sequential")
+		if len(calls) != 4 || !strings.HasPrefix(calls[0], "telemetry collector-open\t") ||
+			!strings.Contains(calls[1], `"after_ordinal":1`) ||
+			!strings.HasPrefix(calls[2], "telemetry collector-open\t") ||
+			!strings.Contains(calls[3], `"after_ordinal":3`) {
+			t.Fatalf("sequential epoch calls=%q", calls)
+		}
+	})
+
+	t.Run("required overlapping old epoch callback fails before allocation", func(t *testing.T) {
+		calls, logPath := runEpochDriver(t, "overlap")
+		if len(calls) != 3 || !strings.Contains(calls[2], `"after_ordinal":1`) {
+			t.Fatalf("overlapping epoch calls=%q", calls)
+		}
+		state, err := os.ReadFile(logPath + ".ordinal")
+		if err != nil || strings.TrimSpace(string(state)) != "2" {
+			t.Fatalf("ledger state=%q err=%v, want unchanged ordinal 2", state, err)
+		}
+	})
+
+	t.Run("required benchmark failure rejects plugin startup", func(t *testing.T) {
+		logPath := filepath.Join(t.TempDir(), "calls.log")
+		cmd := exec.Command(bun, driverPath)
+		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
+			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_TELEMETRY_FAIL=1")
+		if err := cmd.Run(); err == nil {
+			t.Fatal("required collector failure did not reject plugin startup")
+		}
+	})
+
+	for _, bad := range []string{
+		"collector-session", "collector-interval", "collector-epoch", "collector-kind", "collector-ordinal", "collector-type", "collector-contract", "collector-malformed", "collector-missing",
+		"event-session", "event-interval", "event-epoch", "event-kind", "event-contract", "event-missing", "hook-envelope",
+	} {
+		t.Run("required rejects "+bad, func(t *testing.T) {
+			logPath := filepath.Join(t.TempDir(), "calls.log")
+			cmd := exec.Command(bun, driverPath)
+			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
+				"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+bad)
+			if err := cmd.Run(); err == nil {
+				t.Fatalf("required mode accepted %s", bad)
+			}
+		})
+	}
+
+	for _, test := range []struct {
+		name, response string
+	}{
+		{"same ordinal", "event-same"},
+		{"backward ordinal", "event-backward"},
+		{"gap of two", "event-gap-two"},
+		{"audit jump from one to ninety nine", "event-gap-99"},
+		{"unsafe large ordinal", "event-large"},
+		{"fractional ordinal", "event-fractional"},
+		{"string ordinal", "event-string"},
+		{"null ordinal", "event-null"},
+		{"non finite ordinal", "event-nonfinite"},
+	} {
+		t.Run("required rejects "+test.name, func(t *testing.T) {
+			logPath := filepath.Join(t.TempDir(), "calls.log")
+			cmd := exec.Command(bun, driverPath)
+			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
+				"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+test.response)
+			if err := cmd.Run(); err == nil {
+				t.Fatalf("required mode accepted %s", test.name)
+			}
+		})
+	}
 
 	t.Run("telemetry and tool failures remain fail open", func(t *testing.T) {
 		output, calls, stderr := run(t, "KTX_TEST_TELEMETRY_FAIL=1", "KTX_TEST_HOOK_FAIL=1")

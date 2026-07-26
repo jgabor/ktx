@@ -13,11 +13,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/db"
 )
 
@@ -55,29 +56,46 @@ type Runner struct {
 	ResolveCacheCapability CacheCapabilityResolver
 }
 
+type PreflightReport struct {
+	Eligible               bool     `json:"eligible"`
+	DirectEvidence         bool     `json:"direct_evidence"`
+	ControlledComparison   bool     `json:"controlled_comparison"`
+	SecondaryEvidence      bool     `json:"secondary_evidence"`
+	ModelAttempts          int      `json:"model_attempts"`
+	ArtifactCreation       bool     `json:"artifact_creation"`
+	Image                  string   `json:"image"`
+	KTXVersion             string   `json:"ktx_version,omitempty"`
+	OpenCodeVersion        string   `json:"opencode_version,omitempty"`
+	PluginSHA256           string   `json:"generated_plugin_sha256,omitempty"`
+	EventCollectorContract string   `json:"event_collector_contract,omitempty"`
+	Reasons                []string `json:"reasons"`
+}
+
+var errLocalCollectorContract = errors.New("local collector source contract mismatch")
+
 func NewRunner() *Runner {
 	return &Runner{Executor: OSExecutor{}, Now: time.Now, PID: os.Getpid(), ResolvePrice: db.ResolvePrice}
 }
 
 func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (string, map[string]any, int, error) {
-	if err := runner.prepareOptions(&options); err != nil {
+	if err := runner.prepareStructuralOptions(&options); err != nil {
 		return "", nil, 2, err
 	}
 	provider, model, err := splitModel(options.Model)
 	if err != nil {
 		return "", nil, 2, err
 	}
-	if options.BuildImage {
-		result, err := runner.Executor.Run(ctx, Command{Args: []string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark"), "-t", options.Image, options.RepoRoot}, Stdout: os.Stdout, Stderr: os.Stderr})
-		if err != nil {
-			return "", nil, 2, fmt.Errorf("build benchmark image: %w", err)
-		}
-		if result.ExitCode != 0 {
-			return "", nil, 2, fmt.Errorf("build benchmark image: exit %d", result.ExitCode)
-		}
-	}
-	runtime, err := runner.inspectBenchmarkRuntime(ctx, options)
+	preflight, runtime, err := runner.preflightPrepared(ctx, options)
 	if err != nil {
+		return "", nil, 2, err
+	}
+	if !preflight.Eligible {
+		return "", nil, 2, fmt.Errorf("benchmark preflight failed: %s", strings.Join(preflight.Reasons, "; "))
+	}
+	if err := runner.preparePaidRun(&options); err != nil {
+		return "", nil, 2, err
+	}
+	if err := os.MkdirAll(options.DataDir, 0o755); err != nil {
 		return "", nil, 2, err
 	}
 	experimentID := options.ExperimentID
@@ -211,7 +229,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	return experimentDir, summary, 1, nil
 }
 
-func (runner *Runner) prepareOptions(options *CompareOptions) error {
+func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 	if options.RepoRoot == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -317,9 +335,6 @@ func (runner *Runner) prepareOptions(options *CompareOptions) error {
 	if setupAttempts+options.TargetValid*2 > options.MaxAttempts {
 		return errors.New("max attempts must allow setup and requested measured completions")
 	}
-	if _, err := os.Stat(options.AuthPath); err != nil {
-		return fmt.Errorf("OpenCode auth file not found: %s", options.AuthPath)
-	}
 	if options.DockerBin == "" {
 		options.DockerBin, err = exec.LookPath("docker")
 		if err != nil {
@@ -332,7 +347,101 @@ func (runner *Runner) prepareOptions(options *CompareOptions) error {
 			return err
 		}
 	}
-	return os.MkdirAll(options.DataDir, 0o755)
+	return nil
+}
+
+func (runner *Runner) preparePaidRun(options *CompareOptions) error {
+	if _, err := os.Stat(options.AuthPath); err != nil {
+		return fmt.Errorf("OpenCode auth file not found: %s", options.AuthPath)
+	}
+	return nil
+}
+
+func (runner *Runner) prepareOptions(options *CompareOptions) error {
+	if err := runner.prepareStructuralOptions(options); err != nil {
+		return err
+	}
+	return runner.preparePaidRun(options)
+}
+
+func (runner *Runner) Preflight(ctx context.Context, options CompareOptions) (PreflightReport, error) {
+	if options.RepoRoot == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return PreflightReport{}, err
+		}
+		options.RepoRoot = cwd
+	}
+	var err error
+	options.RepoRoot, err = filepath.Abs(options.RepoRoot)
+	if err != nil {
+		return PreflightReport{}, err
+	}
+	if options.Image == "" {
+		options.Image = "ktx-bench"
+	}
+	if options.DockerBin == "" {
+		options.DockerBin, err = exec.LookPath("docker")
+		if err != nil {
+			return PreflightReport{}, errors.New("required executable not found: docker")
+		}
+	}
+	report, _, err := runner.preflightPrepared(ctx, options)
+	return report, err
+}
+
+func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOptions) (PreflightReport, benchmarkRuntime, error) {
+	report := PreflightReport{Image: options.Image, ModelAttempts: 0, ArtifactCreation: false, Reasons: []string{}}
+	if options.BuildImage {
+		if err := validateLocalCollectorSource(options.RepoRoot); err != nil {
+			reason := "local_source_unavailable"
+			if errors.Is(err, errLocalCollectorContract) {
+				reason = "local_source_contract_mismatch"
+			}
+			report.Reasons = append(report.Reasons, reason)
+			return report, benchmarkRuntime{}, nil
+		}
+		result, err := runner.Executor.Run(ctx, Command{Args: []string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark"), "-t", options.Image, options.RepoRoot}, Stdout: os.Stdout, Stderr: os.Stderr})
+		if err != nil {
+			return report, benchmarkRuntime{}, fmt.Errorf("build benchmark image: %w", err)
+		}
+		if result.ExitCode != 0 {
+			return report, benchmarkRuntime{}, fmt.Errorf("build benchmark image: exit %d", result.ExitCode)
+		}
+	}
+	runtime, capabilities, err := runner.inspectBenchmarkRuntime(ctx, options)
+	if err != nil {
+		report.Reasons = append(report.Reasons, "image_capability_unavailable")
+		return report, benchmarkRuntime{}, nil
+	}
+	report.KTXVersion, report.OpenCodeVersion, report.PluginSHA256, report.EventCollectorContract = capabilities.KTXVersion, capabilities.OpenCodeVersion, capabilities.GeneratedPluginSHA256, capabilities.EventCollectorContract
+	if reason := validateBenchmarkCapabilities(capabilities); reason != "" {
+		report.Reasons = append(report.Reasons, reason)
+		return report, runtime, nil
+	}
+	report.Eligible, report.DirectEvidence, report.ControlledComparison, report.SecondaryEvidence = true, true, true, true
+	return report, runtime, nil
+}
+
+func validateLocalCollectorSource(root string) error {
+	checks := map[string][]string{
+		"Dockerfile.benchmark": {"ARG OPENCODE_VERSION=" + benchcontract.RuntimeVersion, "RUN ktx init opencode", `ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]`},
+		filepath.Join("internal", "benchcontract", "contract.go"): {`ContractVersion   = "` + benchcontract.ContractVersion + `"`, `CollectorRequired = "required"`},
+		filepath.Join("internal", "cli", "init.go"):               {`["telemetry", "collector-open"]`, `["telemetry", "event-record"]`, "eventQueue.then"},
+		filepath.Join("internal", "db", "schema.go"):              {"runtime_event_intervals", "runtime_events"},
+	}
+	for relative, markers := range checks {
+		data, err := os.ReadFile(filepath.Join(root, relative))
+		if err != nil {
+			return err
+		}
+		for _, marker := range markers {
+			if !strings.Contains(string(data), marker) {
+				return fmt.Errorf("%w: %s", errLocalCollectorContract, relative)
+			}
+		}
+	}
+	return nil
 }
 
 func snapshotConfigs(experimentDir, baseline, candidate string) (map[string]PipelineMetadata, error) {
@@ -376,23 +485,56 @@ type benchmarkRuntime struct {
 	Identities map[string]string
 }
 
-func (runner *Runner) inspectBenchmarkRuntime(ctx context.Context, options CompareOptions) (benchmarkRuntime, error) {
+type benchmarkCapabilities struct {
+	KTXVersion                   string   `json:"ktx_version"`
+	OpenCodeVersion              string   `json:"opencode_version"`
+	GeneratedPluginSHA256        string   `json:"generated_plugin_sha256"`
+	GeneratedPluginMatchesBinary bool     `json:"generated_plugin_matches_binary"`
+	EventCollectorContract       string   `json:"event_collector_contract"`
+	ExplicitSessionOwnership     bool     `json:"explicit_session_ownership"`
+	SerializedCallbacks          bool     `json:"serialized_callbacks"`
+	CompleteIntervalLifecycle    bool     `json:"complete_interval_lifecycle"`
+	EpochTracking                bool     `json:"epoch_tracking"`
+	StrictAcknowledgements       bool     `json:"strict_acknowledgements"`
+	ExactModelStepIdentity       bool     `json:"exact_model_step_identity"`
+	FailClosedIntervalValidation bool     `json:"fail_closed_interval_validation"`
+	PreflightBeforeAuth          bool     `json:"preflight_before_auth"`
+	NormalizedKinds              []string `json:"normalized_kinds"`
+}
+
+func (runner *Runner) inspectBenchmarkRuntime(ctx context.Context, options CompareOptions) (benchmarkRuntime, benchmarkCapabilities, error) {
 	imageID, err := runner.output(ctx, Command{Args: []string{options.DockerBin, "image", "inspect", options.Image, "--format", "{{.Id}}"}})
 	if err != nil {
-		return benchmarkRuntime{}, fmt.Errorf("inspect benchmark image: %w", err)
+		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("inspect benchmark image: %w", err)
 	}
-	identityOutput, err := runner.output(ctx, Command{Args: []string{options.DockerBin, "run", "--rm", "-v", options.BaselineConfig + ":/home/node/.config/ktx/ktx.toml:ro", options.Image, "--identity"}})
+	capabilityOutput, err := runner.output(ctx, Command{Args: []string{options.DockerBin, "run", "--rm", options.Image, "--capabilities"}})
 	if err != nil {
-		return benchmarkRuntime{}, fmt.Errorf("inspect benchmark identity: %w", err)
+		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("inspect benchmark capabilities: %w", err)
 	}
-	identities := map[string]string{}
-	for _, line := range strings.Split(identityOutput, "\n") {
-		parts := strings.SplitN(line, "\t", 2)
-		if len(parts) == 2 {
-			identities[parts[0]] = parts[1]
-		}
+	var capabilities benchmarkCapabilities
+	if err := json.Unmarshal([]byte(capabilityOutput), &capabilities); err != nil {
+		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("decode benchmark capabilities: %w", err)
 	}
-	return benchmarkRuntime{ImageID: strings.TrimSpace(imageID), Identities: normalizeRuntimeIdentities(identities)}, nil
+	identities := normalizeRuntimeIdentities(map[string]string{"ktx": capabilities.KTXVersion, "opencode": capabilities.OpenCodeVersion})
+	return benchmarkRuntime{ImageID: strings.TrimSpace(imageID), Identities: identities}, capabilities, nil
+}
+
+func validateBenchmarkCapabilities(capabilities benchmarkCapabilities) string {
+	if capabilities.OpenCodeVersion != benchcontract.RuntimeVersion || capabilities.EventCollectorContract != benchcontract.ContractVersion {
+		return "runtime_or_event_contract_mismatch"
+	}
+	if capabilities.KTXVersion == "" || len(capabilities.GeneratedPluginSHA256) != 64 || !capabilities.GeneratedPluginMatchesBinary {
+		return "binary_or_plugin_identity_missing"
+	}
+	if !capabilities.ExplicitSessionOwnership || !capabilities.SerializedCallbacks || !capabilities.CompleteIntervalLifecycle || !capabilities.EpochTracking ||
+		!capabilities.StrictAcknowledgements || !capabilities.ExactModelStepIdentity || !capabilities.FailClosedIntervalValidation || !capabilities.PreflightBeforeAuth {
+		return "collector_lifecycle_capability_missing"
+	}
+	want := []string{"collector_open", "model_step", "retry", "compaction", "interruption", "other"}
+	if !slices.Equal(capabilities.NormalizedKinds, want) {
+		return "normalized_event_kinds_mismatch"
+	}
+	return ""
 }
 
 func (runner *Runner) createManifest(ctx context.Context, options CompareOptions, experimentID string, configs map[string]PipelineMetadata, snapshot SnapshotMetadata, runtime benchmarkRuntime) (Manifest, error) {
@@ -482,6 +624,19 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	if err := os.WriteFile(database, nil, 0o644); err != nil {
 		return Attempt{}, err
 	}
+	startedAt := runner.timestamp()
+	attemptDB, err := db.Open(database)
+	if err != nil {
+		return Attempt{}, fmt.Errorf("initialize attempt database: %w", err)
+	}
+	interval, err := attemptDB.CreateBenchmarkEventInterval(attemptID, benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, startedAt)
+	closeErr := attemptDB.Close()
+	if err != nil {
+		return Attempt{}, err
+	}
+	if closeErr != nil {
+		return Attempt{}, closeErr
+	}
 	repositoryRoot := filepath.Join(experimentDir, manifest.Repository.Snapshot.Path)
 	if _, err := prepareWorkspace(repositoryRoot, workspace, manifest.Task.WorkspaceMode, manifest.Task.CorpusFiles); err != nil {
 		return Attempt{}, err
@@ -489,6 +644,9 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	before, err := runner.listSessions(ctx, options, database)
 	if err != nil {
 		return Attempt{}, err
+	}
+	if len(before) != 1 || before[0]["id"] != interval.SessionID {
+		return Attempt{}, fmt.Errorf("attempt %q precreated owner is not the database singleton", attemptID)
 	}
 	beforePath, afterPath := filepath.Join(attemptDir, "sessions-before.json"), filepath.Join(attemptDir, "sessions-after.json")
 	if err := WriteJSON(beforePath, before); err != nil {
@@ -508,6 +666,10 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	command := []string{
 		options.DockerBin, "run", "--rm", "--name", containerName,
 		"-e", "KTX_EXPECTED_STAGES_JSON=" + string(stages),
+		"-e", benchcontract.AttemptSessionEnv + "=" + interval.SessionID,
+		"-e", benchcontract.IntervalEnv + "=" + interval.ID,
+		"-e", benchcontract.ContractEnv + "=" + benchcontract.ContractVersion,
+		"-e", benchcontract.CollectorModeEnv + "=" + benchcontract.CollectorRequired,
 	}
 	if role != "" {
 		command = append(command, "-e", "KTX_BENCH_CACHE_PHASE="+role)
@@ -530,7 +692,6 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		command = append(command, "--variant", options.Variant)
 	}
 	command = append(command, manifest.Task.Prompt)
-	startedAt := runner.timestamp()
 	result, runErr := runner.Executor.Run(ctx, Command{Args: command, Stdout: stream, Stderr: stderr, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
 	streamErr, stderrErr := stream.Close(), stderr.Close()
 	// A killed Docker client can leave the container alive. Cleanup is
@@ -553,8 +714,18 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	if err := WriteJSON(afterPath, after); err != nil {
 		return Attempt{}, err
 	}
-	newIDs := newSessionIDs(before, after)
+	if err := validateAttemptDatabase(database, attemptID, interval.SessionID, interval.ID); err != nil {
+		return Attempt{}, err
+	}
+	newIDs := []string{interval.SessionID}
 	metrics := ParseStream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
+	if options.methodologyVersion == "v5-cache-aware" {
+		metrics = parseSchema3Stream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
+	}
+	metrics.ToolCallCount, err = attemptToolCallCount(database, interval.SessionID)
+	if err != nil {
+		return Attempt{}, err
+	}
 	// Ordered model-step evidence is an additive cache-aware attempt contract.
 	// Keep cache-less attempts on their existing serialized schema.
 	if options.methodologyVersion != "v5-cache-aware" {
@@ -567,10 +738,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	estimated := estimateAttempts([]Attempt{{Metrics: metrics}}, pricing)
 	metrics.EstimatedAPICost = estimated[0].EstimatedAPICost
 	status := AttemptStatus(result.ExitCode, newIDs, metrics)
-	var sessionID *string
-	if len(newIDs) == 1 {
-		sessionID = &newIDs[0]
-	}
+	sessionID := &interval.SessionID
 	links := []RecordedStreamLink{}
 	if sessionID != nil {
 		links, _ = recordedStreamLinks(database, *sessionID)
@@ -599,7 +767,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	}
 	schemaVersion := 1
 	if options.methodologyVersion == "v5-cache-aware" {
-		schemaVersion = 2
+		schemaVersion = 3
 	}
 	attempt := Attempt{
 		SchemaVersion: schemaVersion, ExperimentID: manifest.ExperimentID, AttemptID: attemptID, Side: side,
@@ -607,7 +775,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		PipelineID: manifest.Pipelines[side].PipelineID, Cycle: cycle, Ordinal: ordinal,
 		StartedAt: startedAt, EndedAt: endedAt, Status: status, ProcessExitCode: result.ExitCode,
 		SessionLink: SessionLink{State: map[bool]string{true: "linked", false: "unlinked"}[sessionID != nil], NewSessionCount: len(newIDs), NewSessionIDs: newIDs},
-		SessionID:   sessionID, RecordedStreams: links, RecordedStreamID: streamID, BenchRunID: benchRunID,
+		SessionID:   sessionID, RuntimeEventIntervalID: &interval.ID, RecordedStreams: links, RecordedStreamID: streamID, BenchRunID: benchRunID,
 		Metrics: metrics, ConfigSHA256: manifest.Pipelines[side].SHA256, Artifacts: artifacts,
 		ContentHashes: map[string]string{"stream": streamHash, "stderr": stderrHash, "workspace": workspaceHash},
 	}
@@ -680,21 +848,48 @@ func recordedStreamLinks(database, sessionID string) ([]RecordedStreamLink, erro
 	return links, rows.Err()
 }
 
-func newSessionIDs(before, after []map[string]any) []string {
-	seen := map[string]bool{}
-	for _, session := range before {
-		if id, ok := session["id"].(string); ok {
-			seen[id] = true
-		}
+func validateAttemptDatabase(path, attemptID, sessionID, intervalID string) error {
+	database, err := db.OpenReadOnly(path)
+	if err != nil {
+		return fmt.Errorf("validate attempt database: %w", err)
 	}
-	result := []string{}
-	for _, session := range after {
-		if id, ok := session["id"].(string); ok && !seen[id] {
-			result = append(result, id)
-		}
+	defer database.Close()
+	var count int
+	if err := database.QueryRow(`SELECT count(*) FROM sessions`).Scan(&count); err != nil {
+		return err
 	}
-	sort.Strings(result)
-	return result
+	if count != 1 {
+		return fmt.Errorf("attempt %q database contains %d sessions; want the explicit singleton owner", attemptID, count)
+	}
+	var owner string
+	var ended sql.NullString
+	if err := database.QueryRow(`SELECT id, ended_at FROM sessions`).Scan(&owner, &ended); err != nil {
+		return err
+	}
+	if owner != sessionID || !ended.Valid || ended.String == "" {
+		return fmt.Errorf("attempt %q explicit owner was replaced or left open", attemptID)
+	}
+	var gotInterval, gotAttempt, gotOwner, state string
+	if err := database.QueryRow(`SELECT id, attempt_id, session_id, close_state FROM runtime_event_intervals`).Scan(&gotInterval, &gotAttempt, &gotOwner, &state); err != nil {
+		return fmt.Errorf("attempt %q interval unavailable: %w", attemptID, err)
+	}
+	if gotInterval != intervalID || gotAttempt != attemptID || gotOwner != sessionID || state != db.RuntimeComplete {
+		return fmt.Errorf("attempt %q interval ownership or completion mismatch", attemptID)
+	}
+	return nil
+}
+
+func attemptToolCallCount(path, sessionID string) (int, error) {
+	database, err := db.OpenReadOnly(path)
+	if err != nil {
+		return 0, err
+	}
+	defer database.Close()
+	var count int
+	if err := database.QueryRow(`SELECT count(*) FROM tool_calls WHERE session_id = ?`, sessionID).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func sanitizeContainerName(value string) string {

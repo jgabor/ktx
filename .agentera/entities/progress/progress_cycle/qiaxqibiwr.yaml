@@ -1,0 +1,16 @@
+id: qiaxqibiwr
+artifact: progress
+record:
+  timestamp: 2026-07-26 17:23
+  type: feat
+  phase: audit
+  what: Migrated the active cache-reuse vehicle and schema-4 gate to OpenCode 1.18.5 with openai/gpt-5.6-luna variant high, built the committed local source into an inspected benchmark image, and ran one bounded 14-attempt live experiment. Direct shares were retained for every attempt, but final comparative validation is blocked.
+  context:
+    intent: Prove the complete runtime-only cache-reuse path with a newly built local artifact, retained live evidence, byte-identical regeneration, and only evidence-authorized statements.
+    constraints: No provider-native, causal, significance, isolation, TTL, or missed-cost claim; no second paid run without source changes; preserve historical runtime/model evidence; do not install while the plan remains blocked.
+    unknowns: Whether one explicit benchmark session owner plus complete event-hook coverage will make five-pair live validation eligible; prove offline before another run.
+    scope: Active OpenCode/cache-reuse contract and benchmark vehicle; ignored .bench-data/cache-reuse-luna-high-oc-1-18-5-20260726 evidence; final plan state and follow-up backlog.
+  inspiration: The open final validation task and the user's explicit OpenCode 1.18.5/Luna-high selection.
+  discovered: Five attempts created multiple KTX sessions because benchmark execution lacks one explicit attempt session owner. Independently, wrapper streams cover order and identity but cannot positively cover retry, reset/compaction, restart/segment, or concurrency, so more unchanged paid attempts cannot produce a controlled or Pi-eligible pair.
+  verified: Image sha256:53c75e15e1b5be2bbf8b89007391e8bea4a6230d238e4f4814110dc2827cb237 reported KTX 0.1.0-dev and OpenCode 1.18.5. The retained schema-4 archive has manifest hash e77e7287756740d148eaa626daf47cc9a553f5da071a6bc90a188813b668cc2b, attempts hash 697c3f8dba23370e727c85f6c7e9ccc3eebcc62f0cdf89972e82e9cace94456a, and summary hash 416666541479526e1086ff7053d4dbc38cf301b4f1d44b34e88e5fe79c9ed107. All 14 direct shares were measured and summary bytes matched; validator target counts were baseline 2 and candidate 4, complete comparison pairs 0, Pi eligible 0, and valid=false.
+  next: Unify benchmark attempt session ownership, retain positive event-hook temporal coverage, and fail preflight before paid execution when the selected path cannot produce eligible comparisons. Rebuild and rerun only after those fixes pass offline.

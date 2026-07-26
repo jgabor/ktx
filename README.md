@@ -106,6 +106,13 @@ attempts:
   --rounds 5
 ```
 
+The current wrapper path can collect exact attempt-level direct shares, but it
+cannot yet produce comparison-eligible retry, reset, segment, and concurrency
+coverage. A retained OpenCode 1.18.5 run therefore authorizes only the direct
+descriptive view. Do not repeat the paid command for comparative evidence until
+the session-owner and temporal-coverage backlog items are complete. See the
+[live validation report](docs/cache-reuse-live-validation.md).
+
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
 summaries. Validate retained evidence with:
 

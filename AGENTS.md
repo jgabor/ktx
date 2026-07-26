@@ -71,6 +71,13 @@ Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go
 
 ### Live comparison
 
+The current wrapper path is not eligible for controlled comparative or Pi-style
+evidence: it lacks positive retry, reset, segment, and concurrency coverage, and
+the benchmark still needs one explicit session owner per attempt. Do not spend
+another live-run budget until those backlog items pass offline preflight. The
+retained evidence and exact blockers are in
+`docs/cache-reuse-live-validation.md`.
+
 ```bash
 ./build/ktx bench compare \
   --build \

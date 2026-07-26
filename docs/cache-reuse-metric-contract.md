@@ -347,6 +347,18 @@ eligible and ineligible counts, and remains descriptive and non-ranking. It has
 no input to any direct outcome. Unsupported claim categories remain available
 as machine policy only and are never emitted as supported statements.
 
+## Current live-validation status
+
+The first bounded OpenCode 1.18.5 and `openai/gpt-5.6-luna` high run exercised
+schema 4 and retained complete direct buckets for all 14 attempts. It did not
+satisfy comparative completion: measured valid counts were 2/5 for baseline and
+4/5 for candidate, controlled complete pairs were zero, and the Pi-style method
+had zero eligible pairs. Summary regeneration was byte-identical. The exact
+evidence, hashes, authorization result, and integration blockers are recorded
+in [the live validation report](cache-reuse-live-validation.md). Until positive
+event-hook temporal coverage and one benchmark session owner are implemented,
+another identical paid run cannot authorize comparative or secondary wording.
+
 ## Historical boundary
 
 This contract is additive. Existing methodologies, retained summaries,

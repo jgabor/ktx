@@ -652,6 +652,15 @@ contract explicitly:
   --rounds 5
 ```
 
+This is the intended vehicle, but the current wrapper collection path is not
+yet eligible for controlled comparative or Pi-style evidence. It positively
+covers model-step order and identity only; retry, reset/compaction,
+interruption/restart, and concurrent-session coverage remain unavailable. The
+benchmark also needs one explicit KTX session owner per attempt. Another
+unchanged paid run cannot resolve those gaps. The retained OpenCode 1.18.5 run
+and exact validation result are documented in
+[the live validation report](cache-reuse-live-validation.md).
+
 Each strategy runs one `cold_observation`, the requested number of `warmup`
 attempts, and then `--rounds` `measured_warm` attempts. Setup attempts remain in
 `attempts.jsonl` and retain their artifacts, but do not count toward the target

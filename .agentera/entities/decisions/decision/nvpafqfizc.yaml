@@ -1,0 +1,19 @@
+id: nvpafqfizc
+artifact: decisions
+record:
+  date: 2026-07-26
+  question: Which active runtime and model context should own new schema-4 cache-reuse evidence after the OpenCode patch update?
+  context: The existing firm metric decision pinned OpenCode 1.18.4. The user explicitly selected OpenCode 1.18.5 and openai/gpt-5.6-luna variant high for current benchmark work. Official 1.18.5 source retains byte-identical accounting, event-union, formatter, and OpenAI cache-mapping blobs, so the formulas and claim boundary remain valid. Historical 1.18.0 and 1.18.4 evidence must keep its recorded provenance.
+  alternatives:
+    - name: Migrate the active contract and live benchmark vehicle to OpenCode 1.18.5 with openai/gpt-5.6-luna variant high while preserving historical records.
+      status: chosen
+    - name: Keep OpenCode 1.18.4 or opencode/big-pickle as the active live context.
+      status: rejected
+    - name: Rewrite retained historical evidence and legacy methodologies to the new runtime or model.
+      status: rejected
+    - name: Admit multiple active runtime versions under one unqualified schema-4 gate.
+      status: rejected
+  choice: Use OpenCode exactly 1.18.5 and openai/gpt-5.6-luna variant high for new schema-4 collection, derivation, comparison, statement authorization, benchmark commands, and the default benchmark image. Preserve prior formulas and unsupported-claim rules because their cited upstream blobs are unchanged. Keep every historical artifact labeled with the runtime and model that produced it.
+  reasoning: The explicit user choice fixes the active execution context. Byte-identical upstream authorities preserve the accounting and sequence semantics without extrapolating across changed code, while one exact active version keeps eligibility deterministic. Preserving old artifacts avoids falsifying provenance. The bounded live run confirms the new image and model path execute, although final comparative eligibility remains blocked by separate session and temporal-coverage integration gaps.
+  confidence: firm
+  feeds_into: Active cache-reuse contract, OpenCode telemetry, benchmark image and methodology, live evidence validation, and the open final plan task.

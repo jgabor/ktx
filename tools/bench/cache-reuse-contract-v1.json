@@ -32,6 +32,36 @@
     },
     "other_runtime_or_version": "ineligible_without_pinned_equivalent_disjoint_invariant"
   },
+  "sequence_evidence": {
+    "provenance_required": [
+      "runtime",
+      "runtime_version",
+      "source",
+      "start_ordinal",
+      "end_ordinal"
+    ],
+    "coverage_rule": "a covered fact must enclose the exact pair window; missing, late, early-ending, or conflicting facts are unavailable or contradictory",
+    "event_hook": {
+      "order": "message.part.updated step-finish events in serialized callback acceptance order",
+      "retry": "message.part.updated RetryPart or session.status retry events",
+      "reset": "message.part.updated CompactionPart or session.compacted events",
+      "identity": "runtime-emitted part.sessionID",
+      "interruption": "session.error or server.instance.disposed events",
+      "restart": "unavailable_without_explicit_collector_lifecycle_fact",
+      "concurrency": "other-session events inside the positively covered callback interval"
+    },
+    "wrapper_stream": {
+      "order": "serialized JSONL collection order for emitted step_finish events",
+      "identity": "runtime-emitted sessionID",
+      "interruption": "emitted error records",
+      "retry": "unavailable_because_opencode_run_json_filters_retry_parts",
+      "reset": "unavailable_because_opencode_run_json_filters_compaction_events",
+      "restart": "unavailable_without_explicit_collector_lifecycle_fact",
+      "concurrency": "unavailable_because_opencode_run_filters_to_the_active_session"
+    },
+    "collector_boundary_facts": "may establish interruption or restart coverage only when retained with the same runtime/version/source and exact enclosing ordinals",
+    "silence": "never_coverage"
+  },
   "direct": {
     "unit": "attempt",
     "contributing_steps": "all_accepted_model_steps",
@@ -74,6 +104,9 @@
       "order.adjacent": "boolean; meaningful only when order.coverage == covered",
       "retry.coverage": "covered_no_boundary | unavailable | boundary_observed",
       "reset.coverage": "covered_no_boundary | unavailable | boundary_observed",
+      "segment.coverage": "covered | unavailable | contradictory",
+      "segment.boundary": "none | interruption | restart",
+      "order.concurrent_coverage": "covered | unavailable | contradictory",
       "order.concurrent_interleaving": "boolean",
       "prior.session_identity.state": "measured | unknown | malformed",
       "current.session_identity.state": "measured | unknown | malformed",
@@ -121,8 +154,32 @@
         "predicate": "prior.exists && reset.coverage == 'boundary_observed'"
       },
       {
+        "reason": "segment_coverage_unavailable",
+        "predicate": "prior.exists && segment.coverage == 'unavailable'"
+      },
+      {
+        "reason": "segment_coverage_contradictory",
+        "predicate": "prior.exists && segment.coverage == 'contradictory'"
+      },
+      {
+        "reason": "interruption_boundary_observed",
+        "predicate": "prior.exists && segment.coverage == 'covered' && segment.boundary == 'interruption'"
+      },
+      {
+        "reason": "restart_boundary_observed",
+        "predicate": "prior.exists && segment.coverage == 'covered' && segment.boundary == 'restart'"
+      },
+      {
+        "reason": "concurrent_coverage_unavailable",
+        "predicate": "prior.exists && order.concurrent_coverage == 'unavailable'"
+      },
+      {
+        "reason": "concurrent_coverage_contradictory",
+        "predicate": "prior.exists && order.concurrent_coverage == 'contradictory'"
+      },
+      {
         "reason": "concurrent_interleaving",
-        "predicate": "prior.exists && order.concurrent_interleaving == true"
+        "predicate": "prior.exists && order.concurrent_coverage == 'covered' && order.concurrent_interleaving == true"
       },
       {
         "reason": "runtime_session_identity_unavailable",

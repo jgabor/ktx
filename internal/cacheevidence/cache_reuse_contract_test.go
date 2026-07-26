@@ -41,6 +41,14 @@ type cacheReuseContract struct {
 		} `json:"local_retained_evidence"`
 		OtherRuntime string `json:"other_runtime_or_version"`
 	} `json:"accounting_evidence"`
+	Sequence struct {
+		ProvenanceRequired []string          `json:"provenance_required"`
+		CoverageRule       string            `json:"coverage_rule"`
+		EventHook          map[string]string `json:"event_hook"`
+		WrapperStream      map[string]string `json:"wrapper_stream"`
+		CollectorFacts     string            `json:"collector_boundary_facts"`
+		Silence            string            `json:"silence"`
+	} `json:"sequence_evidence"`
 	Direct struct {
 		Unit              string `json:"unit"`
 		ContributingSteps string `json:"contributing_steps"`
@@ -124,8 +132,22 @@ func TestCacheReuseMetricContract(t *testing.T) {
 	}
 
 	validateAccountingContract(t, root, contract)
+	validateSequenceContract(t, contract)
 	validateDirectAndSecondaryContract(t, contract)
 	validateClaimContract(t, contract)
+}
+
+func validateSequenceContract(t *testing.T, contract cacheReuseContract) {
+	t.Helper()
+	want := []string{"runtime", "runtime_version", "source", "start_ordinal", "end_ordinal"}
+	if !reflect.DeepEqual(contract.Sequence.ProvenanceRequired, want) || contract.Sequence.CoverageRule == "" || contract.Sequence.CollectorFacts == "" || contract.Sequence.Silence != "never_coverage" {
+		t.Fatalf("sequence provenance contract = %#v", contract.Sequence)
+	}
+	for _, class := range []string{"order", "retry", "reset", "identity", "interruption", "restart", "concurrency"} {
+		if contract.Sequence.EventHook[class] == "" || contract.Sequence.WrapperStream[class] == "" {
+			t.Errorf("sequence class %q is not explicit on both collection paths", class)
+		}
+	}
 }
 
 func validateAccountingContract(t *testing.T, root string, contract cacheReuseContract) {
@@ -170,7 +192,7 @@ func validateDirectAndSecondaryContract(t *testing.T, contract cacheReuseContrac
 	if secondary.NoiseFloorTokens != 1024 || secondary.SmallValueTreatment != "retain_exact_value; shortfall <= 1024 is within_noise_floor; shortfall > 1024 is above_noise_floor" || secondary.RankingEffect != "none" || secondary.TTLCause != "unsupported" || secondary.MissedCost != "unsupported" {
 		t.Errorf("secondary interpretation changed: %#v", secondary)
 	}
-	if secondary.IneligibilitySelection != "evaluate ineligibility_rules in array order and retain the first rule whose predicate is true; no matching rule means eligible" || len(secondary.PredicateInputs) != 20 {
+	if secondary.IneligibilitySelection != "evaluate ineligibility_rules in array order and retain the first rule whose predicate is true; no matching rule means eligible" || len(secondary.PredicateInputs) != 23 {
 		t.Errorf("ineligibility selection contract is incomplete: selection=%q inputs=%v", secondary.IneligibilitySelection, secondary.PredicateInputs)
 	}
 	validateSecondaryRules(t, secondary.IneligibilityRules)
@@ -194,8 +216,8 @@ func validateSecondaryRules(t *testing.T, rules []struct {
 		seen[rule.Reason] = true
 	}
 	wantActivity := "prior.exists && prior.cache_read.state == 'measured' && prior.cache_write.state == 'measured' && prior.cache_read.value + prior.cache_write.value == 0"
-	if rules[12].Reason != "prior_cache_activity_absent" || rules[12].Predicate != wantActivity {
-		t.Errorf("prior activity predicate = %#v", rules[12])
+	if rules[18].Reason != "prior_cache_activity_absent" || rules[18].Predicate != wantActivity {
+		t.Errorf("prior activity predicate = %#v", rules[18])
 	}
 }
 
@@ -216,6 +238,9 @@ type secondaryPairInput struct {
 	retryCoverage           string
 	resetCoverage           string
 	concurrentInterleaving  bool
+	concurrentCoverage      string
+	segmentCoverage         string
+	segmentBoundary         string
 	priorSession            secondaryIdentity
 	currentSession          secondaryIdentity
 	priorRuntimeContract    string
@@ -241,6 +266,22 @@ func TestSecondaryIneligibilityPrecedence(t *testing.T) {
 		{"nonconsecutive precedes retry", func(in *secondaryPairInput) { in.adjacent = false; in.retryCoverage = "boundary_observed" }, "non_consecutive_order", 2},
 		{"unavailable order precedes retry", func(in *secondaryPairInput) { in.orderCoverage = "unavailable"; in.retryCoverage = "boundary_observed" }, "order_coverage_unavailable", 2},
 		{"retry unavailable precedes reset", func(in *secondaryPairInput) { in.retryCoverage = "unavailable"; in.resetCoverage = "boundary_observed" }, "retry_coverage_unavailable", 2},
+		{"segment unavailable precedes concurrency", func(in *secondaryPairInput) {
+			in.segmentCoverage = "unavailable"
+			in.concurrentCoverage = "unavailable"
+		}, "segment_coverage_unavailable", 2},
+		{"segment contradiction precedes interruption", func(in *secondaryPairInput) {
+			in.segmentCoverage = "contradictory"
+			in.segmentBoundary = "interruption"
+		}, "segment_coverage_contradictory", 1},
+		{"interruption precedes concurrent coverage", func(in *secondaryPairInput) {
+			in.segmentBoundary = "interruption"
+			in.concurrentCoverage = "unavailable"
+		}, "interruption_boundary_observed", 2},
+		{"restart boundary", func(in *secondaryPairInput) { in.segmentBoundary = "restart" }, "restart_boundary_observed", 1},
+		{"concurrent coverage unavailable", func(in *secondaryPairInput) { in.concurrentCoverage = "unavailable" }, "concurrent_coverage_unavailable", 1},
+		{"concurrent coverage contradictory", func(in *secondaryPairInput) { in.concurrentCoverage = "contradictory" }, "concurrent_coverage_contradictory", 1},
+		{"concurrent interleaving", func(in *secondaryPairInput) { in.concurrentInterleaving = true }, "concurrent_interleaving", 1},
 		{"identity unavailable precedes runtime mismatch", func(in *secondaryPairInput) { in.priorSession.state = "unknown"; in.currentRuntimeContract = "other" }, "runtime_session_identity_unavailable", 2},
 		{"measured absent activity precedes unknown uncached", func(in *secondaryPairInput) { in.priorRead.value = 0; in.priorUncached.state = "unknown" }, "prior_cache_activity_absent", 2},
 		{"unknown read cannot mean absent activity", func(in *secondaryPairInput) { in.priorRead.state = "unknown"; in.priorWrite.state = "malformed" }, "prior_cache_read_unknown", 2},
@@ -285,7 +326,7 @@ func TestSecondaryIneligibilityPrecedence(t *testing.T) {
 func validSecondaryPair() secondaryPairInput {
 	measured := func(value float64) secondaryValue { return secondaryValue{state: "measured", value: value} }
 	return secondaryPairInput{
-		priorExists: true, orderCoverage: "covered", adjacent: true,
+		priorExists: true, orderCoverage: "covered", adjacent: true, concurrentCoverage: "covered", segmentCoverage: "covered", segmentBoundary: "none",
 		retryCoverage: "covered_no_boundary", resetCoverage: "covered_no_boundary",
 		priorSession: secondaryIdentity{state: "measured", value: "session"}, currentSession: secondaryIdentity{state: "measured", value: "session"},
 		priorRuntimeContract: "required", currentRuntimeContract: "required", requiredRuntimeContract: "required",
@@ -298,7 +339,8 @@ func secondaryReasonNames() []string {
 	return []string{
 		"first_step", "non_consecutive_order", "order_coverage_unavailable", "order_coverage_contradictory",
 		"retry_coverage_unavailable", "retry_boundary_observed", "reset_coverage_unavailable", "reset_or_compaction_boundary_observed",
-		"concurrent_interleaving", "runtime_session_identity_unavailable", "runtime_session_identity_changed", "runtime_contract_mismatch",
+		"segment_coverage_unavailable", "segment_coverage_contradictory", "interruption_boundary_observed", "restart_boundary_observed",
+		"concurrent_coverage_unavailable", "concurrent_coverage_contradictory", "concurrent_interleaving", "runtime_session_identity_unavailable", "runtime_session_identity_changed", "runtime_contract_mismatch",
 		"prior_cache_activity_absent", "prior_uncached_input_unknown", "prior_uncached_input_malformed", "prior_cache_read_unknown",
 		"prior_cache_read_malformed", "prior_cache_write_unknown", "prior_cache_write_malformed", "current_uncached_input_unknown",
 		"current_uncached_input_malformed", "current_cache_read_unknown", "current_cache_read_malformed", "current_cache_write_unknown",
@@ -322,7 +364,13 @@ func secondaryRuleMatches(in secondaryPairInput) []string {
 	add("retry_boundary_observed", in.priorExists && in.retryCoverage == "boundary_observed")
 	add("reset_coverage_unavailable", in.priorExists && in.resetCoverage == "unavailable")
 	add("reset_or_compaction_boundary_observed", in.priorExists && in.resetCoverage == "boundary_observed")
-	add("concurrent_interleaving", in.priorExists && in.concurrentInterleaving)
+	add("segment_coverage_unavailable", in.priorExists && in.segmentCoverage == "unavailable")
+	add("segment_coverage_contradictory", in.priorExists && in.segmentCoverage == "contradictory")
+	add("interruption_boundary_observed", in.priorExists && in.segmentCoverage == "covered" && in.segmentBoundary == "interruption")
+	add("restart_boundary_observed", in.priorExists && in.segmentCoverage == "covered" && in.segmentBoundary == "restart")
+	add("concurrent_coverage_unavailable", in.priorExists && in.concurrentCoverage == "unavailable")
+	add("concurrent_coverage_contradictory", in.priorExists && in.concurrentCoverage == "contradictory")
+	add("concurrent_interleaving", in.priorExists && in.concurrentCoverage == "covered" && in.concurrentInterleaving)
 	add("runtime_session_identity_unavailable", in.priorExists && (in.priorSession.state != "measured" || in.currentSession.state != "measured"))
 	add("runtime_session_identity_changed", in.priorExists && in.priorSession.state == "measured" && in.currentSession.state == "measured" && in.priorSession.value != in.currentSession.value)
 	add("runtime_contract_mismatch", in.priorExists && (in.priorRuntimeContract != in.requiredRuntimeContract || in.currentRuntimeContract != in.requiredRuntimeContract))

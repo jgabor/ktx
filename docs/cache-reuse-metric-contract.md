@@ -79,13 +79,46 @@ labeled `within_noise_floor`; a larger value is `above_noise_floor`. The label
 affects interpretation only: it never censors a value or changes eligibility.
 No cost or TTL cause is estimated.
 
+### Pinned sequence availability
+
+The OpenCode 1.18.4 event union resolves the collection unknown without a live
+provider call. The plugin `event` hook receives `message.part.updated` events
+whose part union includes `step-finish`, `retry`, and `compaction`; it also
+receives retry `session.status`, `session.compacted`, `session.error`, and
+`server.instance.disposed`. Those runtime events can positively establish local
+callback order or an observed boundary when the
+collector serializes and retains the complete enclosing interval. Native
+`part.sessionID` supplies runtime-session identity. Process restart continuity
+still requires an explicit retained collector-lifecycle fact; a connection or
+new session is not relabeled as a restart.
+
+OpenCode's pinned `run --format json` formatter emits step starts/finishes,
+completed text/tool records, and errors, but filters retry parts, compaction
+parts/events, and events from sessions other than the active session. Therefore
+the wrapper can retain step order and native session identity, but it must mark
+retry, reset/compaction, restart, and concurrent-session coverage unavailable
+unless an independent explicit collector fact covers the exact interval. An
+error is an observed interruption boundary, but absence of an error is not
+interruption coverage. Neither path derives a boundary from token movement,
+IDs sorted after capture, or silence.
+
 The machine contract defines the predicate inputs and the following ordered
 rules. Evaluate them from top to bottom and retain the first true rule; no true
 rule means the pair is eligible. Field states are exactly `measured`, `unknown`,
 or `malformed`. Order coverage is `covered`, `unavailable`, or `contradictory`;
 retry and reset coverage are `covered_no_boundary`, `unavailable`, or
-`boundary_observed`. Every rule after `first_step` also requires that a prior
-step exists.
+`boundary_observed`. Segment and concurrent-session coverage are `covered`,
+`unavailable`, or `contradictory`. Coverage is positive only when a retained
+runtime event stream or explicit collector coverage fact names the runtime,
+version, `event_hook` or `wrapper_stream` source, and exact enclosing event
+ordinals. Every coverage class must match both pair members on runtime, version,
+collection source, and enclosing ordinal window. A missing declaration, a
+declaration that starts late or ends early, or a cross-runtime, cross-version,
+cross-source, or otherwise conflicting declaration cannot establish a clean
+interval. A recognized in-window retry, compaction, interruption, restart, or
+other-session event with incomplete provenance makes its applicable class
+unavailable or contradictory; it is not discarded as silence. Every rule after
+`first_step` also requires that a prior step exists.
 
 | Reason                                                 | Exact match condition                                                                                                                                         |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -97,6 +130,12 @@ step exists.
 | `retry_boundary_observed`                              | A prior step exists and retry coverage is `boundary_observed`.                                                                                                |
 | `reset_coverage_unavailable`                           | A prior step exists and reset/compaction coverage is `unavailable`.                                                                                           |
 | `reset_or_compaction_boundary_observed`                | A prior step exists and reset/compaction coverage is `boundary_observed`.                                                                                     |
+| `segment_coverage_unavailable`                         | A prior step exists and interruption/restart segment coverage is `unavailable`.                                                                               |
+| `segment_coverage_contradictory`                       | A prior step exists and interruption/restart segment coverage is `contradictory`.                                                                             |
+| `interruption_boundary_observed`                       | A prior step exists and positively covered segment evidence contains an interruption between the pair members.                                                |
+| `restart_boundary_observed`                            | A prior step exists and positively covered segment evidence contains a restart between the pair members.                                                      |
+| `concurrent_coverage_unavailable`                      | A prior step exists and concurrent-session coverage is `unavailable`.                                                                                         |
+| `concurrent_coverage_contradictory`                    | A prior step exists and concurrent-session coverage is `contradictory`.                                                                                       |
 | `concurrent_interleaving`                              | A prior step exists and a retained interleaving event occurs between the pair members.                                                                        |
 | `runtime_session_identity_unavailable`                 | A prior step exists and either native runtime-session identity state is not `measured`.                                                                       |
 | `runtime_session_identity_changed`                     | Both native runtime-session identities are measured and unequal.                                                                                              |

@@ -1,0 +1,16 @@
+id: rgsatokhnr
+artifact: progress
+record:
+  timestamp: 2026-07-26 13:47
+  type: fix
+  phase: build
+  what: Corrected internal/cacheevidence/sequence.go so all six coverage classes match both pair members' runtime, version, collection source, and enclosing ordinal window. Recognized malformed in-window boundaries now degrade eligibility instead of disappearing; added cross-provenance and malformed-event regressions.
+  context:
+    intent: Resolve audit nlpevkynie-audit-1 without expanding sequence evidence into derivation or reporting.
+    constraints: No estimates, direct share, database, summary, comparison, claim, ranking, or provider-call changes.
+    unknowns: None for the bounded correction. Decision state remains degraded with older entries omitted; no omitted state was reconstructed or satisfaction claimed.
+    scope: internal/cacheevidence/sequence.go; internal/cacheevidence/sequence_test.go; docs/cache-reuse-metric-contract.md; preserved audit evaluation state.
+  inspiration: Audit nlpevkynie-audit-1 identified cross-source certification and malformed-boundary silence.
+  discovered: Uniform pair-provenance validation was missing for retry, reset, segment, and concurrency. Event recognition also occurred after provenance validation, allowing malformed positive evidence to vanish.
+  verified: go test -race ./internal/cacheevidence passed; go test -race ./internal/telemetry/... ./internal/experiment/... passed; mage opencodeTelemetryFixture passed; mage build produced build/ktx and build/ktx --version returned dev; mage check passed with zero issues and one non-failing stale sibling-worktree linter warning; git diff --check passed.
+  next: Independent audit may reassess the corrected provenance and malformed-event gates.

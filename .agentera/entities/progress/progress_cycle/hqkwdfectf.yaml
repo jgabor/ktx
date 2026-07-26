@@ -1,0 +1,16 @@
+id: hqkwdfectf
+artifact: progress
+record:
+  timestamp: 2026-07-26 13:27
+  type: feat
+  phase: build
+  what: Added internal/cacheevidence/sequence.go with provenance-scoped pair coverage and pinned OpenCode 1.18.4 event decoding; extended the cache-reuse contract so missing, partial, or conflicting boundaries remain unavailable or contradictory.
+  context:
+    intent: Establish deterministic sequence and segment eligibility inputs without deriving cache-share outcomes or inferring provider behavior.
+    constraints: No model/provider calls, direct-share derivation, secondary estimate, comparison, report, database, or experiment summary changes. Preserved first evidence, numeric authority, field states, and event_hook/wrapper_stream provenance.
+    unknowns: Resolved from pinned OpenCode 1.18.4 generated event types and run JSON formatter. Decision listing remained degraded with 33 older entries omitted; no omitted state was reconstructed or satisfaction claimed.
+    scope: docs/cache-reuse-metric-contract.md; tools/bench/cache-reuse-contract-v1.json; internal/cacheevidence sequence model and tests.
+  inspiration: Plan task nlpevkynie and the runtime-only cache-reuse contract.
+  discovered: Pinned event-hook events expose retry and compaction facts, while run --format json filters those facts and other sessions; wrapper coverage therefore remains unavailable for retry, reset, restart, and concurrency unless an explicit collector fact covers the interval.
+  verified: go test -race ./internal/cacheevidence passed; go test -race ./internal/telemetry/... ./internal/experiment/... passed; mage opencodeTelemetryFixture passed; mage build produced build/ktx and build/ktx --version returned dev; mage check passed with one non-failing stale external-worktree linter warning; git diff --check passed.
+  next: Downstream secondary derivation may consume these neutral eligibility inputs; wrapper evidence must remain unavailable where the pinned formatter filters boundary events.

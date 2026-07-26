@@ -11,3 +11,13 @@ record:
     - GIVEN an exact duplicate authoritative observation WHEN aggregates are produced THEN it is idempotent and contributes exactly once; a conflicting authoritative duplicate fails visibly without replacing first evidence.
     - GIVEN each testable authority rule WHEN verification runs THEN it includes at least one passing and one conflicting or malformed case.
   plan: bstrfialvp
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Cache-aware timeout/retry attempts without linked session identity cannot regenerate; add deterministic handling and negative database/session authority coverage.
+    provenance:
+      attempt_id: audit-1
+      source: Audit ses_062df8430ffet4PpHYqcavrlVq
+      recorded_at: 2026-07-26 08:42
+      writer_command: agentera state plan record-evaluation

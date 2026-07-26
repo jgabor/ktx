@@ -86,6 +86,66 @@ func TestAuthoritativeRegenerationRejectsMalformedAuthorityLink(t *testing.T) {
 	}
 }
 
+func TestAuthoritativeRegenerationMaterializesUnlinkedNonContributingAttempt(t *testing.T) {
+	dir, manifest, attempt := writeAuthorityFixture(t)
+	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
+		t.Fatal(err)
+	}
+	attempt.Status = "timeout"
+	attempt.SessionID = nil
+	attempt.SessionLink = SessionLink{State: "unlinked"}
+	attempt.Artifacts["database"] = "attempts/baseline-001/unavailable.db"
+	attempt.ToolCallCount = 99
+	attempt.TokensIn = float64Pointer(99)
+	writeAttemptRecords(t, dir, attempt)
+	regeneration, err := RegenerateSummary(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipeline := regeneration.Summary["pipelines"].(map[string]any)[Baseline].(map[string]any)
+	if pipeline["evaluated_count"] != 0 || pipeline["attempt_count"] != 1 {
+		t.Fatalf("pipeline = %#v, want one non-contributing attempt", pipeline)
+	}
+	if len(regeneration.ProjectionDivergences) == 0 {
+		t.Fatal("copied timeout measurements were not reported as divergence")
+	}
+}
+
+func TestAuthoritativeRegenerationRejectsUnavailableContributingAuthority(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(string, *Attempt)
+		want   string
+	}{
+		{name: "missing session identity", mutate: func(_ string, attempt *Attempt) { attempt.SessionID = nil }, want: "requires a session identity"},
+		{name: "unavailable database", mutate: func(_ string, attempt *Attempt) { attempt.Artifacts["database"] = "missing.db" }, want: "open database authority"},
+		{name: "malformed database", mutate: func(dir string, attempt *Attempt) {
+			path := filepath.Join(dir, "malformed.db")
+			if err := os.WriteFile(path, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			attempt.Artifacts["database"] = "malformed.db"
+		}, want: "read session authority"},
+		{name: "unknown session", mutate: func(_ string, attempt *Attempt) {
+			missing := "missing-session"
+			attempt.SessionID = &missing
+		}, want: "session authority is unavailable"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir, manifest, attempt := writeAuthorityFixture(t)
+			if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(dir, &attempt)
+			writeAttemptRecords(t, dir, attempt)
+			if _, err := RegenerateSummary(dir); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestLegacyRegenerationPreservesSerializedBytes(t *testing.T) {
 	dir := t.TempDir()
 	manifest := Manifest{ExperimentID: "legacy", Methodology: MethodologyMetadata{Version: "v4"}, Task: Task{MinimumToolCalls: 1}}

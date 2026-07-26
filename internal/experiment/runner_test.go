@@ -285,6 +285,35 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 		t.Fatalf("observed metadata = %#v", observed[0].CacheControl)
 	}
 
+	timeoutFake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.0", timeoutFirst: true, fullStepUsage: true}
+	timeoutRunner := &Runner{Executor: timeoutFake, Now: runner.Now, PID: 32, ResolvePrice: testPriceResolver}
+	timeoutDir, timeoutSummary, code, err := timeoutRunner.Compare(context.Background(), CompareOptions{
+		Model: "openai/test", TaskFile: task, TargetValid: 1, MaxAttempts: 6, Warmup: 1, CacheControl: "auto",
+		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "cache-timeout-retry",
+		DataDir: filepath.Join(root, "cache-timeout-data"), Image: "image", AuthPath: auth, RepoRoot: root, MethodologyPath: methodology,
+		BaselineConfig: baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
+	})
+	if err != nil || code != 0 {
+		t.Fatalf("cache-aware timeout retry code=%d err=%v", code, err)
+	}
+	before, err := os.ReadFile(filepath.Join(timeoutDir, "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RegenerateSummary(timeoutDir); err != nil {
+		t.Fatalf("cache-aware timeout retry regeneration: %v", err)
+	}
+	after, err := os.ReadFile(filepath.Join(timeoutDir, "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) || timeoutSummary["headline_phase"] != MeasuredWarm {
+		t.Fatal("cache-aware timeout retry changed canonical summary")
+	}
+	if report, err := ValidateExperiment(timeoutDir); err != nil || report["valid"] != true {
+		t.Fatalf("cache-aware timeout retry validation report=%#v err=%v", report, err)
+	}
+
 	unsupported := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "custom-build"}
 	unsupportedRunner := &Runner{Executor: unsupported, Now: runner.Now, PID: 31, ResolvePrice: testPriceResolver}
 	_, _, code, err = unsupportedRunner.Compare(context.Background(), CompareOptions{Model: "openai/test", TaskFile: task, CacheControl: "isolated", RepoRoot: root, MethodologyPath: methodology, AuthPath: auth, BaselineConfig: baseline, CandidateConfig: candidate, DockerBin: "docker", KTXBin: "ktx"})

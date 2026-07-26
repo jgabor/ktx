@@ -486,6 +486,10 @@ projection divergence and do not change the regenerated summary. A repeated
 identity with different orchestration facts is an error; the first record is
 not replaced. Legacy attempts without the cache-aware retained-artifact
 contract continue to regenerate from their historical serialized shape.
+For a timeout, failure, invalid result, or unlinked attempt with no session
+identity, regeneration still materializes stream-owned fields and assigns no
+tool-call evidence; the copied call count is ignored. A completed attempt must
+have a retained session and readable database authority.
 
 Partial fact scores are kept; they are not discarded.
 

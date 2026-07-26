@@ -59,27 +59,41 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 	if attempt.SchemaVersion < 2 || !hasDatabase || databaseRel == "" || !hasStream || streamRel == "" {
 		return reconcileLegacyStreamProjection(experimentDir, attempt), nil
 	}
-	if attempt.SessionID == nil || *attempt.SessionID == "" {
-		return Attempt{}, fmt.Errorf("attempt %q requires a session identity for tool-call authority", attempt.AttemptID)
-	}
-
 	streamPath := filepath.Join(experimentDir, filepath.FromSlash(streamRel))
 	if _, err := fileSHA256(streamPath); err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q read stream authority: %w", attempt.AttemptID, err)
 	}
 	metrics := ParseStream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
+	metrics.EstimatedAPICost = nil
+	if attempt.SessionID == nil || *attempt.SessionID == "" {
+		if attempt.Status == "completed" {
+			return Attempt{}, fmt.Errorf("attempt %q requires a session identity for tool-call authority", attempt.AttemptID)
+		}
+		// A non-completed attempt cannot contribute to evaluated aggregates.
+		// With no session identity there is no authoritative tool-call set, so
+		// materialize an explicit zero rather than retaining its copied count.
+		metrics.ToolCallCount = 0
+		attempt.Metrics = metrics
+		return attempt, nil
+	}
 
 	database, err := db.OpenReadOnly(filepath.Join(experimentDir, filepath.FromSlash(databaseRel)))
 	if err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q open database authority: %w", attempt.AttemptID, err)
 	}
 	defer database.Close()
+	var sessions int
+	if err := database.QueryRow("SELECT count(*) FROM sessions WHERE id = ?", *attempt.SessionID).Scan(&sessions); err != nil {
+		return Attempt{}, fmt.Errorf("attempt %q read session authority: %w", attempt.AttemptID, err)
+	}
+	if sessions != 1 {
+		return Attempt{}, fmt.Errorf("attempt %q session authority is unavailable for %q", attempt.AttemptID, *attempt.SessionID)
+	}
 	var count int
 	if err := database.QueryRow("SELECT count(*) FROM tool_calls WHERE session_id = ?", *attempt.SessionID).Scan(&count); err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q read tool-call authority: %w", attempt.AttemptID, err)
 	}
 	metrics.ToolCallCount = count
-	metrics.EstimatedAPICost = nil
 	attempt.Metrics = metrics
 	return attempt, nil
 }

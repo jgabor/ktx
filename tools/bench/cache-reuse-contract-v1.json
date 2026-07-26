@@ -1,6 +1,6 @@
 {
   "contract_version": "cache-reuse-v1",
-  "status": "contract_only",
+  "status": "direct_implemented_secondary_pending",
   "scope": {
     "runtime": "opencode",
     "runtime_version": "1.18.4",
@@ -74,7 +74,20 @@
     "measured_zero": "retained",
     "unknown": "unavailable_not_backfilled",
     "malformed": "malformed_not_backfilled",
-    "purpose": "descriptive_non_ranking"
+    "purpose": "descriptive_non_ranking",
+    "output": {
+      "summary_schema_version": 4,
+      "gate": "v5-cache-aware manifest and cache-control runtime both identify opencode 1.18.4",
+      "path": "direct_cached_input_share.attempts",
+      "attempt_states": "measured | missing | malformed | not_applicable",
+      "no_model_steps": "one missing gap per required bucket with null source_event_ordinal",
+      "validation_report": "same direct view",
+      "integer_representation": "arbitrary-precision exact JSON integers",
+      "share_representation": "numeric token fraction with exact reduced ratio retained beside it",
+      "configured_identity_backfills_source_events": false,
+      "legacy_schema_versions_unchanged": [1, 2, 3],
+      "historical_regeneration_gate": "an already-retained schema 1, 2, or 3 summary remains on that schema"
+    }
   },
   "secondary": {
     "method": "pi_consecutive_step_reusable_basis",

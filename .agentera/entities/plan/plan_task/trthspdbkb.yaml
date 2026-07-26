@@ -5,10 +5,20 @@ record:
   depends_on:
     - gparsxmzfx
     - afpivyyvyt
-  status: pending
+  status: complete
   acceptance:
     - GIVEN every contributing model step has measured required fields WHEN per-attempt logical input is positive THEN cached-input share is reproducible from retained sums.
     - GIVEN missing or malformed contributing evidence WHEN derivation runs THEN the result is unavailable with exact gaps; a measured zero denominator is separately not applicable.
     - GIVEN a share is displayed WHEN inspected THEN cache-read, logical-input, formula, unit, source, and identity provenance appear beside it.
     - GIVEN current and historical fixtures WHEN verified THEN measured, zero, missing, malformed, and legacy cases pass without changing historical bytes.
   plan: jffafkheqj
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Direct-share bucket sums are checked individually, but U+R+W can overflow int64 and be mislabeled not_applicable. Use overflow-safe logical-input and ratio arithmetic and add the boundary regression; also correct contradictory runtime-version provenance naming.
+    provenance:
+      attempt_id: trthspdbkb-audit-2
+      source: audit ses_061cd58f2ffe9PhyrCCDn0cwAu bounded re-review
+      recorded_at: 2026-07-26 13:56
+      writer_command: agentera state plan record-evaluation

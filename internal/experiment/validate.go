@@ -28,6 +28,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	preserveHistoricalSummarySchema(&manifest, actualSummary)
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, actualSummary)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,8 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		}
 		checks = append(checks, check)
 	}
-	expectedSummary, err := MarshalJSON(BuildSummary(manifest, attempts))
+	expectedSummaryValue := BuildSummary(manifest, attempts)
+	expectedSummary, err := MarshalJSON(expectedSummaryValue)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +116,9 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if cacheAware {
 		report["methodology_reasons"] = methodologyReasons
 	}
+	if supportsDirectCachedInputShare(manifest) {
+		report["direct_cached_input_share"] = expectedSummaryValue["direct_cached_input_share"]
+	}
 	return report, nil
 }
 
@@ -123,8 +128,12 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	if err := json.Unmarshal(summaryData, &summary); err != nil {
 		return append(reasons, "summary is not valid JSON")
 	}
-	if schema, ok := summary["schema_version"].(float64); !ok || schema != 3 {
-		reasons = append(reasons, "v5 summary schema_version must be 3")
+	expectedSchema := float64(3)
+	if supportsDirectCachedInputShare(manifest) {
+		expectedSchema = 4
+	}
+	if schema, ok := summary["schema_version"].(float64); !ok || schema != expectedSchema {
+		reasons = append(reasons, fmt.Sprintf("v5 summary schema_version must be %.0f", expectedSchema))
 	}
 	if manifest.Pricing == nil || pricing == nil {
 		reasons = append(reasons, "v5 pricing snapshot is required")

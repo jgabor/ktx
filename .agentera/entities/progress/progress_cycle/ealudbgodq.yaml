@@ -1,0 +1,14 @@
+id: ealudbgodq
+artifact: progress
+record:
+  timestamp: 2026-07-26 13:30
+  type: feat
+  phase: build
+  what: Added schema-4 direct cached-input-share derivation in internal/experiment/direct_cache_share.go for new OpenCode 1.18.4 cache-aware summaries. Per-attempt rows sum every retained model step, preserve measured zero, distinguish not-applicable zero logical input, carry exact missing/malformed ordinal gaps, and expose formula, unit, stream, runtime, configured context, and source-event identity provenance. Existing schema 1-3 summaries remain byte-stable during regeneration.
+  context:
+    intent: Derive the descriptive direct share from retained complete model-step evidence without changing historical schemas, rankings, or provider-level semantics.
+    constraints: Sequence, retry, reset, compaction, secondary estimates, comparisons, claims, ranking, provider calls, and telemetry collection stayed out of scope.
+    unknowns: Decision startup retained the caveat that 33 older entries were omitted; no omitted state was reconstructed and no satisfaction claim was made.
+    scope: internal/experiment derivation, summary, validation, rendering, direct-contract tests, docs/cache-reuse-metric-contract.md, and tools/bench/cache-reuse-contract-v1.json.
+  verified: go test ./internal/experiment and focused direct/gap/golden targets passed; local build/ktx emitted schema 4 and repeat-regenerated SHA-256 29d176e3161efc3254943b48ad2d355a2f85c3556e8c54e23430d64857cd229a; mage check passed; agentera check compact and git diff --check passed.
+  next: Sequence coverage and secondary/comparative work remain with their separate plan tasks.

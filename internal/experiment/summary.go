@@ -357,6 +357,10 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 	if v3Required {
 		schemaVersion = 3
 	}
+	directCacheShare := supportsDirectCachedInputShare(manifest)
+	if directCacheShare {
+		schemaVersion = 4
+	}
 	pipelines := map[string]any{}
 	exclusions := []any{}
 	allEvaluated := []Attempt{}
@@ -530,6 +534,9 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		result["compression_attribution"] = buildCompressionAttribution(manifest, attempts)
 		result["ttft_ms"] = nil
 	}
+	if directCacheShare {
+		result["direct_cached_input_share"] = buildDirectCachedInputShare(manifest, attempts)
+	}
 	return result
 }
 
@@ -688,6 +695,7 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	if readSummaryErr != nil && !os.IsNotExist(readSummaryErr) {
 		return SummaryRegeneration{}, readSummaryErr
 	}
+	preserveHistoricalSummarySchema(&manifest, existingSummary)
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, existingSummary)
 	if err != nil {
 		return SummaryRegeneration{}, err
@@ -698,6 +706,15 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 		return SummaryRegeneration{}, err
 	}
 	return SummaryRegeneration{Summary: summary, ProjectionDivergences: divergences}, nil
+}
+
+func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {
+	var existing struct {
+		SchemaVersion int `json:"schema_version"`
+	}
+	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 3 {
+		manifest.historicalSummarySchema = existing.SchemaVersion
+	}
 }
 
 func WriteSummary(experimentDir string) (map[string]any, error) {
@@ -745,11 +762,31 @@ func RenderSummary(summary map[string]any) string {
 					name, observation["attempt_id"], observation["side"], observation["phase"], class["comparison_unit"], compactJSON(observation["value"]), class["authority"], compactJSON(observation["provenance"])))
 			}
 		}
+		logicalInputFormula := "uncached_input+cache_read"
+		if _, ok := summary["direct_cached_input_share"]; ok {
+			logicalInputFormula = "uncached_input+cache_read+cache_write"
+		}
 		lines = append(lines,
-			"derived logical_input=uncached_input+cache_read (runtime-emitted tokens per attempt)",
+			"derived logical_input="+logicalInputFormula+" (runtime-emitted tokens per attempt)",
 			"derived estimated_cost_break_even=setup estimated cost plus paired measured turns (cumulative price-derived USD by measured turn)",
 			"unavailable provider cache hits/misses/fills, request count/boundaries, isolation, eviction, prefix composition, runtime-cost billing semantics",
 			"interpretation: correlated delivery and runtime movement does not identify causal shares or provider-internal behavior")
+	}
+	if direct, ok := summary["direct_cached_input_share"].(map[string]any); ok {
+		for _, raw := range direct["attempts"].([]any) {
+			attempt := raw.(map[string]any)
+			identity := attempt["identity_provenance"].(map[string]any)
+			runtime := identity["runtime"].(map[string]any)
+			configured := identity["configured_attempt"].(map[string]any)
+			source := attempt["source"].(map[string]any)
+			lines = append(lines, fmt.Sprintf("direct_cached_input_share attempt=%v state=%v share=%v cache_read=%v logical_input=%v uncached_input=%v cache_write=%v formula=%v unit=%v source=%v runtime=%v/%v configured_identity=%v variant=%v provider=%v source_event_identities=%s configured_identity_backfills_source_events=%v purpose=descriptive_non_ranking",
+				attempt["attempt_id"], attempt["share"].(map[string]any)["state"], attempt["share"].(map[string]any)["value"],
+				attempt["cache_read"].(map[string]any)["value"], attempt["logical_input"].(map[string]any)["value"],
+				attempt["uncached_input"].(map[string]any)["value"], attempt["cache_write"].(map[string]any)["value"],
+				attempt["formula"], attempt["unit"], source["artifact"], runtime["name"], runtime["version"],
+				configured["model"], configured["variant"], configured["provider"], compactJSON(identity["source_events"]),
+				identity["configured_identity_backfills_source_events"]))
+		}
 	}
 	return strings.Join(lines, "\n")
 }

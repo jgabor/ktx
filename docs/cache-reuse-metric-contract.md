@@ -48,6 +48,35 @@ reconstructed. The share is not applicable when `L_a <= 0`. Reports must show
 `U_a`, `R_a`, `W_a`, `L_a`, the formula, runtime/version, and identity
 provenance beside the share.
 
+The direct view is emitted only when a cache-aware experiment identifies both
+its manifest runtime and cache-control runtime as OpenCode 1.18.4. Such a
+summary uses additive schema 4 and retains one row per attempt under
+`direct_cached_input_share.attempts`. Each row contains the three bucket sums,
+logical input, and share as state/value records. Incomplete records carry exact
+field and source-event-ordinal gaps; an attempt with no retained model steps
+carries a missing gap for each required bucket with a null ordinal. A complete
+zero logical input has share state `not_applicable` and reason
+`logical_input_not_positive`, while a zero numerator with positive logical
+input remains a measured zero share. The same direct view is included in the
+validation report.
+
+Bucket and logical-input sums use arbitrary-precision integer arithmetic and
+serialize as exact JSON integers, including values beyond signed 64-bit range.
+The share is formed as an exact reduced rational before its numeric
+token-fraction value is rendered; the reduced fraction is retained beside it
+as `ratio` (for example, `1/3`). Classification therefore never depends on a
+wrapped or rounded logical-input sum.
+
+Each row also keeps the retained stream path and accepted model-step count,
+configured attempt and manifest identity context, runtime contract source, and
+the provider/model/runtime identity actually present on every source event.
+Configured identity is labeled as context and a false
+`configured_identity_backfills_source_events` marker makes the non-backfill
+rule machine-readable. Runtime/version mismatches remain on their existing
+schema 1–3 output and gain no direct field. Regeneration and validation also
+honor an already-retained schema 1–3 summary as the historical boundary, so a
+pinned runtime identity does not rewrite an older summary into schema 4.
+
 This is an OpenCode-reported cached-input share, not the previously rejected
 generic cache-miss ratio. It is descriptive, non-ranking, and valid only under
 the named accounting contract.

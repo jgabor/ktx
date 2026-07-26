@@ -213,4 +213,5 @@ type Manifest struct {
 	Methodology             MethodologyMetadata         `json:"methodology"`
 	Pricing                 *PricingSnapshotMetadata    `json:"pricing,omitempty"`
 	CacheControl            *CacheControlManifest       `json:"cache_control,omitempty"`
+	historicalSummarySchema int
 }

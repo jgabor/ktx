@@ -24,6 +24,10 @@ func newDeliveryEvidence(databasePath string, rows []dbpkg.DeliveryObservation) 
 }
 
 func buildCompressionAttribution(manifest Manifest, attempts []Attempt) map[string]any {
+	logicalInputFormula := "uncached_input + cache_read"
+	if supportsDirectCachedInputShare(manifest) {
+		logicalInputFormula = "uncached_input + cache_read + cache_write"
+	}
 	classes := map[string]any{
 		"tool_delivery": map[string]any{
 			"authority":       "first retained tool-call source row and first retained compressed artifact",
@@ -79,7 +83,7 @@ func buildCompressionAttribution(manifest Manifest, attempts []Attempt) map[stri
 		"relationship":     "parallel_non_additive",
 		"evidence_classes": classes,
 		"derived_views": map[string]any{
-			"logical_input":             map[string]any{"state": "derived", "formula": "uncached_input + cache_read", "comparison_unit": "runtime-emitted tokens per attempt"},
+			"logical_input":             map[string]any{"state": "derived", "formula": logicalInputFormula, "comparison_unit": "runtime-emitted tokens per attempt"},
 			"estimated_cost_break_even": map[string]any{"state": "derived", "formula": "setup estimated cost plus paired measured turns", "comparison_unit": "cumulative price-derived USD by measured turn"},
 		},
 		"non_additivity": map[string]any{"reason": "evidence classes overlap; no cross-field total is defined"},

@@ -1,0 +1,16 @@
+id: klrasldmxd
+artifact: progress
+record:
+  timestamp: 2026-07-26 14:13
+  type: feat
+  phase: build
+  what: Added the schema-4 estimated consecutive-step reuse view. Eligible pairs retain exact logical inputs, current cache read, reusable-token basis, shortfall, reduced reuse-share ratio, and noise-floor interpretation; ineligible steps retain one ordered reason with aggregate per-reason counts. Summary text and validation expose the estimated label, method, counts, unsupported TTL/expiry causes, and no ranking effect.
+  context:
+    intent: Derive secondary reuse-shortfall evidence from retained OpenCode 1.18.4 model-step buckets and positively covered runtime sequence facts without changing ranking or claiming provider-native or causal behavior.
+    constraints: Preserved direct cached-input-share behavior, schema 1-3 regeneration bytes, the schema-4 gate, runtime/session provenance boundaries, field states, exact arithmetic, and wrapper silence as unavailable coverage. Paired comparison and claim authorization remain out of scope.
+    unknowns: The wrapper stream establishes serialized step order and native session identity but filters retry, reset/compaction, and other-session events and has no restart lifecycle fact. Wrapper pairs remain ineligible unless independent complete coverage exists.
+    scope: Sequence primitive packaging; exact secondary derivation; stream integration; schema-4 summary, text rendering, validation, tests; cache-reuse contract documentation and machine status.
+  inspiration: Plan jffafkheqj task jgfpuyiirl and the cache-reuse-v1 runtime contract.
+  discovered: The sequence primitive package already imported experiment, so summary code could not consume it without a cycle. The neutral implementation now lives in an importable subpackage while aliases preserve existing callers.
+  verified: go test -race ./internal/cacheevidence ./internal/cacheevidence/sequence ./internal/experiment passed; JSON parsing and git diff checks passed; mage build produced build/ktx; local build/ktx schema-4 regeneration exposed deterministic estimated output; mage check passed tests, vet, lint, and build with zero issues and one non-failing stale sibling-worktree warning.
+  next: Independent evaluation may audit this task. Paired comparison, claim authorization, bounded live evidence, and final plan synchronization remain separate tasks.

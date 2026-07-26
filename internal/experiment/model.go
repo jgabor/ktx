@@ -64,6 +64,7 @@ type Metrics struct {
 	AnswerExcerpt    string        `json:"answer_excerpt"`
 	UsageEvidence    UsageEvidence `json:"usage_evidence"`
 	ModelSteps       []SourceEvent `json:"model_steps,omitempty"`
+	sequence         *attemptSequence
 }
 
 type SessionLink struct {

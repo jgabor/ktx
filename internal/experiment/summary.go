@@ -536,6 +536,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 	}
 	if directCacheShare {
 		result["direct_cached_input_share"] = buildDirectCachedInputShare(manifest, attempts)
+		result["estimated_consecutive_step_reuse"] = buildSecondaryCacheEstimate(attempts)
 	}
 	return result
 }
@@ -786,6 +787,20 @@ func RenderSummary(summary map[string]any) string {
 				attempt["formula"], attempt["unit"], source["artifact"], runtime["name"], runtime["version"],
 				configured["model"], configured["variant"], configured["provider"], compactJSON(identity["source_events"]),
 				identity["configured_identity_backfills_source_events"]))
+		}
+	}
+	if estimate, ok := summary["estimated_consecutive_step_reuse"].(map[string]any); ok {
+		lines = append(lines, fmt.Sprintf("estimated_consecutive_step_reuse label=%v method=%v eligible=%v ineligible=%v ineligible_counts=%s noise_floor_tokens=%v ranking_effect=%v ttl_cause=%v expiry_cause=%v",
+			estimate["label"], estimate["method"], estimate["eligible_count"], estimate["ineligible_count"], compactJSON(estimate["ineligible_counts"]),
+			estimate["noise_floor_tokens"], estimate["ranking_effect"], estimate["ttl_cause"], estimate["expiry_cause"]))
+		for _, rawAttempt := range estimate["attempts"].([]any) {
+			attempt := rawAttempt.(map[string]any)
+			for _, rawPair := range attempt["pairs"].([]any) {
+				pair := rawPair.(map[string]any)
+				lines = append(lines, fmt.Sprintf("estimated_reuse_pair attempt=%v prior=%v current=%v eligible=%v reason=%v reusable_tokens=%v shortfall=%v reuse_share=%s interpretation=%v source=%v",
+					attempt["attempt_id"], pair["prior_source_event_ordinal"], pair["current_source_event_ordinal"], pair["eligible"], pair["reason"],
+					pair["estimated_reusable_tokens"], pair["shortfall"], compactJSON(pair["reuse_share"]), pair["interpretation"], attempt["source"].(map[string]any)["artifact"]))
+			}
 		}
 	}
 	return strings.Join(lines, "\n")

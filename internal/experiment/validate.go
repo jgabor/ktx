@@ -118,6 +118,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	}
 	if supportsDirectCachedInputShare(manifest) {
 		report["direct_cached_input_share"] = expectedSummaryValue["direct_cached_input_share"]
+		report["estimated_consecutive_step_reuse"] = expectedSummaryValue["estimated_consecutive_step_reuse"]
 	}
 	return report, nil
 }

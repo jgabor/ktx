@@ -1,6 +1,6 @@
 {
   "contract_version": "cache-reuse-v1",
-  "status": "direct_implemented_secondary_pending",
+  "status": "direct_and_secondary_implemented_comparison_pending",
   "scope": {
     "runtime": "opencode",
     "runtime_version": "1.18.4",
@@ -110,6 +110,30 @@
     "ranking_effect": "none",
     "ttl_cause": "unsupported",
     "missed_cost": "unsupported",
+    "output": {
+      "summary_schema_version": 4,
+      "gate": "same additive OpenCode 1.18.4 cache-aware gate as direct_cached_input_share",
+      "path": "estimated_consecutive_step_reuse",
+      "label": "estimated",
+      "per_pair_values": [
+        "prior_logical_input",
+        "current_logical_input",
+        "current_cache_read",
+        "estimated_reusable_tokens",
+        "shortfall",
+        "reuse_share",
+        "interpretation"
+      ],
+      "counts": "eligible total, ineligible total, and every declared ineligibility reason",
+      "validation_report": "same secondary view",
+      "integer_representation": "arbitrary-precision exact JSON integers",
+      "share_representation": "numeric token fraction with exact reduced ratio retained beside it",
+      "ranking_effect": "none",
+      "ttl_cause": "unsupported",
+      "expiry_cause": "unsupported",
+      "legacy_schema_versions_unchanged": [1, 2, 3],
+      "historical_regeneration_gate": "an already-retained schema 1, 2, or 3 summary remains on that schema"
+    },
     "ineligibility_selection": "evaluate ineligibility_rules in array order and retain the first rule whose predicate is true; no matching rule means eligible",
     "predicate_inputs": {
       "prior.exists": "boolean",

@@ -50,7 +50,8 @@ func directAttempts(summary map[string]any) []any {
 }
 
 func TestDirectCachedInputShareUsesRetainedStepSums(t *testing.T) {
-	attempt := directShareAttempt("measured",
+	attempt := directShareAttempt(
+		"measured",
 		directStep(1, MeasuredInteger(10), MeasuredInteger(5), MeasuredInteger(2)),
 		directStep(2, MeasuredInteger(20), MeasuredInteger(15), MeasuredInteger(3)),
 	)
@@ -115,7 +116,8 @@ func TestDirectCachedInputShareKeepsLogicalInputBeyondInt64Exact(t *testing.T) {
 	const largestExactFloatInteger = int64(1<<53 - 1)
 	events := make([]SourceEvent, steps)
 	for i := range events {
-		events[i] = directStep(uint64(i+1),
+		events[i] = directStep(
+			uint64(i+1),
 			MeasuredInteger(largestExactFloatInteger),
 			MeasuredInteger(largestExactFloatInteger),
 			MeasuredInteger(largestExactFloatInteger),
@@ -163,7 +165,8 @@ func TestDirectCachedInputShareKeepsLogicalInputBeyondInt64Exact(t *testing.T) {
 }
 
 func TestDirectCachedInputShareReportsExactMissingAndMalformedGaps(t *testing.T) {
-	attempt := directShareAttempt("gaps",
+	attempt := directShareAttempt(
+		"gaps",
 		directStep(1, MeasuredInteger(10), MeasuredInteger(2), MeasuredInteger(0)),
 		directStep(2, UnknownInteger(), MalformedInteger(), MeasuredInteger(0)),
 	)
@@ -242,6 +245,10 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	direct := report["direct_cached_input_share"].(map[string]any)
 	if len(direct["attempts"].([]any)) != 6 {
 		t.Fatalf("validated direct attempts = %#v", direct)
+	}
+	estimate := report["estimated_consecutive_step_reuse"].(map[string]any)
+	if estimate["label"] != "estimated" || estimate["ranking_effect"] != "none" {
+		t.Fatalf("validated secondary estimate = %#v", estimate)
 	}
 }
 

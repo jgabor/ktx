@@ -6,7 +6,7 @@ record:
     - gparsxmzfx
     - nlpevkynie
     - trthspdbkb
-  status: pending
+  status: complete
   acceptance:
     - GIVEN compatible consecutive steps with prior reported cache activity and complete continuity evidence WHEN estimation runs THEN reusable-token basis, shortfall, and reuse share are retained as secondary evidence.
     - GIVEN first-step, reset, retry, identity, coverage, completeness, or inconsistent-count failure WHEN estimation runs THEN a deterministic reason replaces the value.

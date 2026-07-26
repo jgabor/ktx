@@ -64,24 +64,38 @@ type cacheReuseContract struct {
 		Purpose           string `json:"purpose"`
 	} `json:"direct"`
 	Secondary struct {
-		Method                   string            `json:"method"`
-		Unit                     string            `json:"unit"`
-		PriorCacheActivity       string            `json:"prior_cache_activity"`
-		PriorLogicalInput        string            `json:"prior_logical_input"`
-		CurrentLogicalInput      string            `json:"current_logical_input"`
-		EstimatedReusableTokens  string            `json:"estimated_reusable_tokens"`
-		Shortfall                string            `json:"shortfall"`
-		ReuseShare               string            `json:"reuse_share"`
-		Consistency              string            `json:"consistency"`
-		SmallValueTreatment      string            `json:"small_value_treatment"`
-		RankingEffect            string            `json:"ranking_effect"`
-		TTLCause                 string            `json:"ttl_cause"`
-		MissedCost               string            `json:"missed_cost"`
-		NoiseFloorTokens         int               `json:"noise_floor_tokens"`
-		PositiveCoverageRequired []string          `json:"positive_coverage_required"`
-		IneligibilitySelection   string            `json:"ineligibility_selection"`
-		PredicateInputs          map[string]string `json:"predicate_inputs"`
-		IneligibilityRules       []struct {
+		Method                   string   `json:"method"`
+		Unit                     string   `json:"unit"`
+		PriorCacheActivity       string   `json:"prior_cache_activity"`
+		PriorLogicalInput        string   `json:"prior_logical_input"`
+		CurrentLogicalInput      string   `json:"current_logical_input"`
+		EstimatedReusableTokens  string   `json:"estimated_reusable_tokens"`
+		Shortfall                string   `json:"shortfall"`
+		ReuseShare               string   `json:"reuse_share"`
+		Consistency              string   `json:"consistency"`
+		SmallValueTreatment      string   `json:"small_value_treatment"`
+		RankingEffect            string   `json:"ranking_effect"`
+		TTLCause                 string   `json:"ttl_cause"`
+		MissedCost               string   `json:"missed_cost"`
+		NoiseFloorTokens         int      `json:"noise_floor_tokens"`
+		PositiveCoverageRequired []string `json:"positive_coverage_required"`
+		Output                   struct {
+			SummarySchemaVersion  int      `json:"summary_schema_version"`
+			Path                  string   `json:"path"`
+			Label                 string   `json:"label"`
+			PerPairValues         []string `json:"per_pair_values"`
+			Counts                string   `json:"counts"`
+			ValidationReport      string   `json:"validation_report"`
+			IntegerRepresentation string   `json:"integer_representation"`
+			ShareRepresentation   string   `json:"share_representation"`
+			RankingEffect         string   `json:"ranking_effect"`
+			TTLCause              string   `json:"ttl_cause"`
+			ExpiryCause           string   `json:"expiry_cause"`
+			LegacySchemas         []int    `json:"legacy_schema_versions_unchanged"`
+		} `json:"output"`
+		IneligibilitySelection string            `json:"ineligibility_selection"`
+		PredicateInputs        map[string]string `json:"predicate_inputs"`
+		IneligibilityRules     []struct {
 			Reason    string `json:"reason"`
 			Predicate string `json:"predicate"`
 		} `json:"ineligibility_rules"`
@@ -124,7 +138,7 @@ func TestCacheReuseMetricContract(t *testing.T) {
 	var contract cacheReuseContract
 	readJSON(t, path, &contract)
 
-	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_implemented_secondary_pending" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.4" || contract.Scope.RuntimeCommit != "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e" {
+	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_and_secondary_implemented_comparison_pending" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.4" || contract.Scope.RuntimeCommit != "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e" {
 		t.Fatalf("unexpected contract identity: %#v", contract.Scope)
 	}
 	if contract.Scope.RankingEffect != "none" || contract.Scope.HistoricalOutputMutation {
@@ -192,6 +206,10 @@ func validateDirectAndSecondaryContract(t *testing.T, contract cacheReuseContrac
 	if secondary.NoiseFloorTokens != 1024 || secondary.SmallValueTreatment != "retain_exact_value; shortfall <= 1024 is within_noise_floor; shortfall > 1024 is above_noise_floor" || secondary.RankingEffect != "none" || secondary.TTLCause != "unsupported" || secondary.MissedCost != "unsupported" {
 		t.Errorf("secondary interpretation changed: %#v", secondary)
 	}
+	wantPairValues := []string{"prior_logical_input", "current_logical_input", "current_cache_read", "estimated_reusable_tokens", "shortfall", "reuse_share", "interpretation"}
+	if secondary.Output.SummarySchemaVersion != 4 || secondary.Output.Path != "estimated_consecutive_step_reuse" || secondary.Output.Label != "estimated" || !reflect.DeepEqual(secondary.Output.PerPairValues, wantPairValues) || secondary.Output.Counts == "" || secondary.Output.ValidationReport != "same secondary view" || secondary.Output.IntegerRepresentation == "" || secondary.Output.ShareRepresentation == "" || secondary.Output.RankingEffect != "none" || secondary.Output.TTLCause != "unsupported" || secondary.Output.ExpiryCause != "unsupported" || !reflect.DeepEqual(secondary.Output.LegacySchemas, []int{1, 2, 3}) {
+		t.Errorf("secondary output contract is incomplete: %#v", secondary.Output)
+	}
 	if secondary.IneligibilitySelection != "evaluate ineligibility_rules in array order and retain the first rule whose predicate is true; no matching rule means eligible" || len(secondary.PredicateInputs) != 23 {
 		t.Errorf("ineligibility selection contract is incomplete: selection=%q inputs=%v", secondary.IneligibilitySelection, secondary.PredicateInputs)
 	}
@@ -205,6 +223,9 @@ func validateSecondaryRules(t *testing.T, rules []struct {
 ) {
 	t.Helper()
 	wantNames := secondaryReasonNames()
+	if !reflect.DeepEqual(IneligibilityReasons, wantNames) {
+		t.Fatalf("implemented ineligibility reasons = %v, contract = %v", IneligibilityReasons, wantNames)
+	}
 	if len(rules) != len(wantNames) {
 		t.Fatalf("ineligibility rules=%d, want %d", len(rules), len(wantNames))
 	}

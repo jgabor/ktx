@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	cacheevidence "github.com/jgabor/ktx/internal/cacheevidence/sequence"
 	"github.com/jgabor/ktx/internal/usage"
 )
 
@@ -24,7 +25,10 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	// not usage evidence.
 	agg := &usage.Aggregator{}
 	lastText := ""
+	var streamOrdinal, modelStepOrdinal uint64
+	sequenceFacts := []cacheevidence.SequenceFact{}
 	usage.ReadDelimitedLines(file, usage.MaxRecordSize, func(line []byte) bool {
+		streamOrdinal++
 		var event struct {
 			Type    string          `json:"type"`
 			Content json.RawMessage `json:"content"`
@@ -39,6 +43,10 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 		case "step_finish":
 			if !agg.AddLine(line) {
 				return false
+			}
+			modelStepOrdinal++
+			if fact, ok := cacheevidence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
+				sequenceFacts = append(sequenceFacts, fact)
 			}
 			var part struct {
 				Reason string `json:"reason"`
@@ -73,6 +81,11 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 				}
 			}
 		}
+		if event.Type == "error" {
+			if fact, ok := cacheevidence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
+				sequenceFacts = append(sequenceFacts, fact)
+			}
+		}
 		return false
 	})
 	metrics.Score = ScoreAnswer(lastText, expectedOutput, expectedFacts)
@@ -83,6 +96,7 @@ func ParseStream(path string, expectedOutput *string, expectedFacts []string) Me
 	metrics.AnswerExcerpt = answer
 	ev := agg.Result()
 	metrics.ModelSteps = sourceEvents(ev.ModelSteps)
+	metrics.sequence = wrapperAttemptSequence(sequenceFacts, len(metrics.ModelSteps))
 	metrics.UsageEvidence.StepFinishEvents = ev.Steps
 	metrics.UsageEvidence.TokensInEvents = ev.TokensInEvents
 	metrics.UsageEvidence.TokensOutEvents = ev.TokensOutEvents

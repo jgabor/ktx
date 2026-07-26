@@ -193,6 +193,17 @@ unknown prior uncached input selects `prior_cache_activity_absent`, while an
 unknown cache-read field selects `prior_cache_read_unknown`. Reports include
 eligible and per-reason ineligible counts.
 
+New eligible output is additive under the same schema-4 OpenCode 1.18.4 gate
+as the direct view, at `estimated_consecutive_step_reuse`. It is labeled
+`estimated`, names `pi_consecutive_step_reusable_basis`, and retains each
+eligible pair's prior and current logical input, current cache read, exact
+reusable-token basis, exact shortfall, exact reduced reuse-share ratio, and
+noise-floor interpretation. The summary and validation report also retain the
+eligible total, ineligible total, and a count for every declared reason. Human
+rendering identifies the method and source stream and states that ranking has
+no effect and TTL and expiry causes are unsupported. Existing schema 1–3
+summaries remain byte-stable.
+
 ## Paired comparison and uncertainty
 
 Only measured attempts paired by cycle enter a comparison. Setup observations

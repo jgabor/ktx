@@ -79,7 +79,11 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		if !attemptValid {
 			valid = false
 		}
-		checks = append(checks, map[string]any{"attempt_id": attempt.AttemptID, "valid": attemptValid, "reasons": reasons})
+		check := map[string]any{"attempt_id": attempt.AttemptID, "valid": attemptValid, "reasons": reasons}
+		if gaps := modelStepEvidenceGaps(attempt.ModelSteps); len(gaps) > 0 {
+			check["evidence_gaps"] = gaps
+		}
+		checks = append(checks, check)
 	}
 	expectedSummary, err := MarshalJSON(BuildSummary(manifest, attempts))
 	if err != nil {

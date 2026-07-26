@@ -553,6 +553,13 @@ and requires its embedded provider/model and pricing metadata to match the
 manifest model. Estimated evidence without that retained pricing basis is
 rejected rather than trusted.
 
+When a model-step numeric field is missing or malformed, the affected
+attribution aggregate remains null and carries `state: missing` or
+`state: malformed` plus `evidence_gaps` entries naming the field and
+`source_event_ordinal`. Validation exposes the same gaps on the affected attempt.
+Contractually unsupported telemetry remains `state: unavailable` and does not
+acquire a fabricated source-event gap.
+
 ### Cache source-event evidence and claims
 
 For the field-by-field differences between benchmark recorded-stream evidence

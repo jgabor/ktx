@@ -25,6 +25,8 @@ an expected field or artifact is absent. These states are not interchangeable.
 | Task quality                                                                                                                                          | available      | Retained runtime output scored against `manifest.json#task`; ten of ten attempts score 1 and pass                                                                      |
 | Price-derived cost estimate                                                                                                                           | available      | Complete retained runtime usage plus `pricing.json` and its manifest SHA-256; ten of ten estimates are usable                                                          |
 | Submitted benchmark prompt and launch order                                                                                                           | available      | Exact sanitized task configuration in `manifest.json` and attempt `cache_control.execution_order`; neither describes a provider-visible composed prefix                |
+| Completion order                                                                                                                                      | unavailable    | Retained execution ordinals establish launch/capture order only; they do not establish provider completion order                                                       |
+| Retry and provider-request identity                                                                                                                   | unavailable    | No retry or provider-request identity was recorded. A native-request count of zero means no proven native-request events, not zero retries                             |
 | Instruction segment, tool-schema segmentation, compaction/truncation events, and before/after context counts                                          | unavailable    | The retained runtime events expose none of these segment or mutation observations; token movement is not substituted                                                   |
 | Reliable request start and time to first token                                                                                                        | unavailable    | `manifest.json#cache_control` records that retained stream timestamps do not provide a reliable request start                                                          |
 | Cache adapter source/version and isolation controls                                                                                                   | unavailable    | Observed mode records source as `unavailable`; runtime version is not relabeled as adapter version                                                                     |
@@ -41,7 +43,9 @@ no source-event identity claim.
 ## Measured comparison
 
 The comparison keeps delivery, runtime usage/cache, quality, runtime-reported
-cost, and estimated cost parallel and non-additive.
+cost, and estimated cost parallel and non-additive. Both measured cohorts and
+the three paired comparisons are classified `exploratory` because each sample
+contains three observations, fewer than the five required for `descriptive`.
 
 | Evidence class                                              |   Baseline |  Candidate | Baseline minus candidate |
 | ----------------------------------------------------------- | ---------: | ---------: | -----------------------: |
@@ -77,4 +81,9 @@ sha256  93d6262b6f976cd6535aef45b95ef51589c90b2793e7583a88c3b83b1b162c80
 attempt checks valid, and measured valid counts of baseline 3 and candidate 3.
 The checked-in focused mutation tests additionally require missing authority,
 malformed fields, and contradictory duplicate authority to withhold the
-affected aggregate and report the evidence gap.
+affected aggregate and report the evidence gap. For example, missing
+`uncached_input` on source event 2 is reported as
+`{"state":"missing","value":null,"evidence_gaps":[{"field":"uncached_input","source_event_ordinal":2,"state":"missing"}]}`;
+the corresponding malformed input uses `state: malformed`. Contractual
+unavailability remains `{"state":"unavailable","value":null}` without a
+fabricated source-event gap.

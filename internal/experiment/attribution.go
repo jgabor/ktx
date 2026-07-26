@@ -40,9 +40,9 @@ func buildCompressionAttribution(manifest Manifest, attempts []Attempt) map[stri
 			"comparison_unit": "runtime-emitted tokens per attempt",
 			"observations": attributionObservations(attempts, func(attempt Attempt) (any, any) {
 				return map[string]any{
-					"uncached_input": attributedNumber(attempt.TokensIn),
-					"cache_read":     attributedNumber(attempt.CacheRead),
-					"cache_write":    attributedNumber(attempt.CacheWrite),
+					"uncached_input": attributedMeasurement(attempt.TokensIn, attempt.ModelSteps, "uncached_input", func(event SourceEvent) MeasurementState { return event.UncachedInput.State }),
+					"cache_read":     attributedMeasurement(attempt.CacheRead, attempt.ModelSteps, "cache_read", func(event SourceEvent) MeasurementState { return event.CacheRead.State }),
+					"cache_write":    attributedMeasurement(attempt.CacheWrite, attempt.ModelSteps, "cache_write", func(event SourceEvent) MeasurementState { return event.CacheWrite.State }),
 				}, map[string]any{"stream": attempt.Artifacts["stream"], "step_finish_events": attempt.UsageEvidence.StepFinishEvents}
 			}),
 		},
@@ -61,14 +61,17 @@ func buildCompressionAttribution(manifest Manifest, attempts []Attempt) map[stri
 			"comparison_unit":   "runtime-reported USD per attempt",
 			"billing_semantics": "unavailable",
 			"observations": attributionObservations(attempts, func(attempt Attempt) (any, any) {
-				return attributedNumber(attempt.Cost), map[string]any{"stream": attempt.Artifacts["stream"], "cost_events": attempt.UsageEvidence.CostEvents}
+				return attributedMeasurement(attempt.Cost, attempt.ModelSteps, "cost", func(event SourceEvent) MeasurementState { return event.Cost.State }), map[string]any{"stream": attempt.Artifacts["stream"], "cost_events": attempt.UsageEvidence.CostEvents}
 			}),
 		},
 		"estimated_cost": map[string]any{
 			"authority":       "retained runtime usage and retained pricing snapshot",
 			"comparison_unit": "price-derived USD per attempt",
 			"observations": attributionObservations(attempts, func(attempt Attempt) (any, any) {
-				return attributedNumber(attempt.EstimatedAPICost), map[string]any{"stream": attempt.Artifacts["stream"], "pricing_snapshot": pricingPath(manifest)}
+				if attempt.EstimatedAPICost != nil {
+					return attributedNumber(attempt.EstimatedAPICost), map[string]any{"stream": attempt.Artifacts["stream"], "pricing_snapshot": pricingPath(manifest)}
+				}
+				return evidenceGapValue(modelStepEvidenceGaps(attempt.ModelSteps)), map[string]any{"stream": attempt.Artifacts["stream"], "pricing_snapshot": pricingPath(manifest)}
 			}),
 		},
 	}
@@ -103,6 +106,62 @@ func attributedNumber(value *float64) map[string]any {
 		return unavailableValue()
 	}
 	return map[string]any{"state": "measured", "value": *value}
+}
+
+func attributedMeasurement(value *float64, events []SourceEvent, field string, state func(SourceEvent) MeasurementState) map[string]any {
+	if value != nil {
+		return attributedNumber(value)
+	}
+	return evidenceGapValue(measurementEvidenceGaps(events, field, state))
+}
+
+func modelStepEvidenceGaps(events []SourceEvent) []any {
+	fields := []struct {
+		name  string
+		state func(SourceEvent) MeasurementState
+	}{
+		{"uncached_input", func(event SourceEvent) MeasurementState { return event.UncachedInput.State }},
+		{"output", func(event SourceEvent) MeasurementState { return event.Output.State }},
+		{"cache_read", func(event SourceEvent) MeasurementState { return event.CacheRead.State }},
+		{"cache_write", func(event SourceEvent) MeasurementState { return event.CacheWrite.State }},
+		{"reasoning", func(event SourceEvent) MeasurementState { return event.Reasoning.State }},
+		{"cost", func(event SourceEvent) MeasurementState { return event.Cost.State }},
+	}
+	gaps := []any{}
+	for _, field := range fields {
+		gaps = append(gaps, measurementEvidenceGaps(events, field.name, field.state)...)
+	}
+	return gaps
+}
+
+func measurementEvidenceGaps(events []SourceEvent, field string, state func(SourceEvent) MeasurementState) []any {
+	gaps := []any{}
+	for _, event := range events {
+		classification := state(event)
+		if classification == MeasurementMeasured {
+			continue
+		}
+		label := "missing"
+		if classification == MeasurementMalformed {
+			label = "malformed"
+		}
+		gaps = append(gaps, map[string]any{"field": field, "source_event_ordinal": event.Ordinal, "state": label})
+	}
+	return gaps
+}
+
+func evidenceGapValue(gaps []any) map[string]any {
+	if len(gaps) == 0 {
+		return unavailableValue()
+	}
+	state := "missing"
+	for _, raw := range gaps {
+		if raw.(map[string]any)["state"] == "malformed" {
+			state = "malformed"
+			break
+		}
+	}
+	return map[string]any{"state": state, "value": nil, "evidence_gaps": gaps}
 }
 
 func unavailableValue() map[string]any { return map[string]any{"state": "unavailable", "value": nil} }

@@ -1,0 +1,16 @@
+id: koyoqovpqm
+artifact: progress
+record:
+  timestamp: 2026-07-26 10:06
+  type: fix
+  phase: build
+  what: Corrected retained compression attribution and validation so missing or malformed model-step measurements carry exact field and source-event ordinal gaps, while contractually unavailable telemetry remains distinct. Completed the required evidence inventory additions without a model call.
+  context:
+    intent: Resolve audit ses_06299db2fffeaFDp1Dp8G2b3za blockers for exact malformed/missing evidence gaps and complete required-field reporting.
+    constraints: No live model call; preserve historical runtime-only caveats, valid retained summary bytes, parallel evidence classes, and the audit-1 evaluator provenance.
+    unknowns: None.
+    scope: Internal experiment attribution and validation, focused regression tests, retained telemetry report, pipeline evidence-gap documentation, progress and plan task state.
+  inspiration: Retry of plan task flwcllesfe after audit-1 failure.
+  discovered: "Before code changes, new missing and malformed stream tests failed because attribution emitted only {state: unavailable, value: null} and validation emitted no evidence_gaps. The corrected shape is {state: missing|malformed, value: null, evidence_gaps: [{field, source_event_ordinal, state}]}; estimate evidence carries the same source gaps. Validation exposes identical gaps per attempt without turning contractual unavailability into missing evidence. The report now classifies completion order and retry/provider-request identity unavailable, states that native request count zero is not zero retries, and identifies measured and paired n=3 samples as exploratory because n<5."
+  verified: DTC regression tests first reproduced both blockers, then TestCompressionAttributionReportsExactModelStepGaps and TestValidationReportsExactModelStepGaps passed for internally consistent missing and malformed source event 2 fixtures; focused attribution/model-step/regeneration/v5 tests passed. mage build produced ~/git/ktx/build/ktx version dev. Two offline './build/ktx bench compare --summarize .bench-data/runtime-telemetry-v5-luna-high-20260725-a0c268a --format json' runs with MODEL unset and nonexistent auth matched each other and retained summary SHA-256 93d6262b6f976cd6535aef45b95ef51589c90b2793e7583a88c3b83b1b162c80. Local bench validate returned valid=true, summary_byte_match=true, target_met=true, 10 valid attempts, baseline=3, candidate=3, no reasons or divergences; validation output SHA-256 e3f02bb34e1b0a3543bf61f8efd591e669723738c63deaca892f74ec71f0aa96. mage check passed all tests, vet, lint with 0 issues, and build. Prettier and two documentation link checks passed.
+  next: Mark flwcllesfe complete without replacing its audit-1 evaluation record, validate state and diff, and commit the correction with the orchestrator-written failure state.

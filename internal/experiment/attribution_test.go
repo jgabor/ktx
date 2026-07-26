@@ -2,6 +2,7 @@ package experiment
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -65,6 +66,45 @@ func TestCompressionAttributionLabelsUnavailableEvidence(t *testing.T) {
 	warm := classes["tool_delivery"].(map[string]any)["observations"].([]any)[1].(map[string]any)
 	if warm["phase"] != Warmup || warm["value"].(map[string]any)["state"] != "unavailable" {
 		t.Fatalf("unavailable warmup delivery = %#v", warm)
+	}
+}
+
+func TestCompressionAttributionReportsExactModelStepGaps(t *testing.T) {
+	for _, test := range []struct {
+		name, form, state string
+	}{
+		{name: "missing", form: "missing", state: "missing"},
+		{name: "malformed", form: "malformed", state: "malformed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			metrics := ParseStream(writeStream(t, incompleteStream("INPUT", test.form)), nil, nil)
+			attempt := Attempt{
+				AttemptID: "affected", Side: Baseline, Role: MeasuredWarm,
+				Metrics: metrics, Artifacts: map[string]string{"stream": "attempts/affected/stream.jsonl"},
+			}
+			manifest := Manifest{Methodology: MethodologyMetadata{Version: "v5-cache-aware"}}
+			classes := BuildSummary(manifest, []Attempt{attempt})["compression_attribution"].(map[string]any)["evidence_classes"].(map[string]any)
+			observation := classes["runtime_usage"].(map[string]any)["observations"].([]any)[0].(map[string]any)
+			value := observation["value"].(map[string]any)["uncached_input"].(map[string]any)
+			if value["state"] != test.state || value["value"] != nil {
+				t.Fatalf("uncached input = %#v", value)
+			}
+			wantGap := map[string]any{"field": "uncached_input", "source_event_ordinal": uint64(2), "state": test.state}
+			gaps, _ := value["evidence_gaps"].([]any)
+			if len(gaps) != 1 || !reflect.DeepEqual(gaps[0], wantGap) {
+				t.Fatalf("evidence gaps = %#v, want %#v", gaps, wantGap)
+			}
+			estimate := classes["estimated_cost"].(map[string]any)["observations"].([]any)[0].(map[string]any)["value"].(map[string]any)
+			if estimate["state"] != test.state || !reflect.DeepEqual(estimate["evidence_gaps"], gaps) {
+				t.Fatalf("estimated cost gap = %#v", estimate)
+			}
+			report := RenderSummary(BuildSummary(manifest, []Attempt{attempt}))
+			for _, want := range []string{`"state":"` + test.state + `"`, `"field":"uncached_input"`, `"source_event_ordinal":2`} {
+				if !strings.Contains(report, want) {
+					t.Fatalf("report missing %s:\n%s", want, report)
+				}
+			}
+		})
 	}
 }
 

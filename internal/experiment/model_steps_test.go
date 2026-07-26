@@ -89,6 +89,54 @@ func TestModelStepMeasurementStatesAndCompleteness(t *testing.T) {
 	}
 }
 
+func TestValidationReportsExactModelStepGaps(t *testing.T) {
+	for _, test := range []struct {
+		name, form, state string
+	}{
+		{name: "missing", form: "missing", state: "missing"},
+		{name: "malformed", form: "malformed", state: "malformed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			stream := incompleteStream("INPUT", test.form)
+			if err := os.WriteFile(filepath.Join(dir, "stream.jsonl"), []byte(stream), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			manifest := fixtureManifest()
+			manifest.ExperimentID = "exact-gap"
+			manifest.TargetValidPerPipeline = 0
+			if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
+				t.Fatal(err)
+			}
+			metrics := ParseStream(filepath.Join(dir, "stream.jsonl"), nil, nil)
+			attempt := Attempt{
+				SchemaVersion: 1, ExperimentID: manifest.ExperimentID, AttemptID: test.name,
+				Side: Baseline, Status: "failed", Metrics: metrics,
+				Artifacts: map[string]string{"stream": "stream.jsonl"},
+			}
+			if err := AppendAttempt(dir, attempt); err != nil {
+				t.Fatal(err)
+			}
+			if err := WriteJSON(filepath.Join(dir, "summary.json"), BuildSummary(manifest, []Attempt{attempt})); err != nil {
+				t.Fatal(err)
+			}
+			report, err := ValidateExperiment(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report["valid"] != true || report["summary_byte_match"] != true {
+				t.Fatalf("exact gap changed otherwise-valid evidence: %#v", report)
+			}
+			checks := report["attempt_checks"].([]map[string]any)
+			gaps, _ := checks[0]["evidence_gaps"].([]any)
+			want := map[string]any{"field": "uncached_input", "source_event_ordinal": uint64(2), "state": test.state}
+			if len(gaps) != 1 || !reflect.DeepEqual(gaps[0], want) {
+				t.Fatalf("validation gaps = %#v, want %#v; report=%#v", gaps, want, report)
+			}
+		})
+	}
+}
+
 func TestModelStepZeroRoundTrip(t *testing.T) {
 	metrics := ParseStream(writeStream(t, `{"type":"step_finish","part":{"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`), nil, nil)
 	dir := t.TempDir()

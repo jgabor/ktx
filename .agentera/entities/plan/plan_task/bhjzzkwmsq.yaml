@@ -16,3 +16,13 @@ record:
     - GIVEN a concrete measurement objective remains unsupported after truthful unavailable labels WHEN follow-up work is recorded THEN a separate task specifies model, runtime, task, rounds, privacy boundary, and estimated cost and requires explicit approval before any paid execution.
     - GIVEN the completed plan WHEN an independent audit runs THEN every task has evidence against its acceptance criteria and no provider-internal claim has entered the product contract.
   plan: bstrfialvp
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: Audit ses_06280f68affecz4yQ0ADtHKoTp
+      recorded_at: 2026-07-26 10:24
+      writer_command: agentera state plan record-evaluation

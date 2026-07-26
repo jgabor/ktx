@@ -4,10 +4,20 @@ record:
   name: Resolve the metric and claim contract
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN pinned OpenCode evidence WHEN the contract is finalized THEN direct share uses per-attempt sums across every contributing measured step, with cache-read divided by positive logical input and cache-write treatment explicitly resolved.
     - GIVEN consecutive eligible steps WHEN the secondary method is defined THEN estimated reusable tokens, shortfall, reuse share, small-value treatment, and every ineligibility reason are deterministic.
     - GIVEN identical retained evidence WHEN claim eligibility is evaluated THEN completeness, five-pair minimum, two-sided 95% uncertainty, direction, quality, identity provenance, and primary-versus-secondary outcomes follow one recorded matrix.
     - GIVEN prior decisions and historical experiments WHEN the contract is recorded THEN provider-native claims remain forbidden and historical meaning and bytes remain unchanged.
   plan: jffafkheqj
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Secondary ineligibility reasons are ordered but lack deterministic matching predicates; define every predicate, require both activity fields measured for prior_cache_activity_absent, and add overlap/precedence cases.
+    provenance:
+      attempt_id: gparsxmzfx-audit-2
+      source: audit ses_06215a6d7ffeQnUUDdJK09V1rg bounded re-review
+      recorded_at: 2026-07-26 12:32
+      writer_command: agentera state plan record-evaluation

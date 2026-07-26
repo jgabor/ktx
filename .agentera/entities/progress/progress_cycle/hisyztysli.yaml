@@ -1,0 +1,16 @@
+id: hisyztysli
+artifact: progress
+record:
+  timestamp: 2026-07-26 12:27
+  type: fix
+  phase: build
+  what: Corrected tools/bench/cache-reuse-contract-v1.json by replacing bare reason names with 29 ordered reason/predicate rules and an exact first-match selection contract. Updated matching prose and added table-driven overlap coverage in TestSecondaryIneligibilityPrecedence. The prior-cache-activity-absent predicate now requires measured prior cache-read and cache-write values summing to zero.
+  context:
+    intent: Resolve audit attempt gparsxmzfx-audit-1 by making every secondary ineligibility reason deterministic for identical retained evidence.
+    constraints: Preserved audit evaluation state, metric formulas, provider-native prohibitions, historical output semantics, rankings, and task scope.
+    unknowns: none
+    scope: Machine contract predicates, matching methodology prose, regression tests, task state, and progress evidence.
+  inspiration: Audit attempt gparsxmzfx-audit-1 identified ambiguity between prior_cache_activity_absent and unknown or malformed prior activity fields.
+  discovered: The existing prior logical-input and reusable-basis reasons are retained with explicit predicates; precedence makes overlapping all-zero cases select prior_cache_activity_absent deterministically.
+  verified: python -m json.tool tools/bench/cache-reuse-contract-v1.json passed; go test ./internal/cacheevidence ./internal/experiment ./internal/methodology passed; focused TestCacheReuseMetricContract and TestSecondaryIneligibilityPrecedence passed; final mage check passed with tests, vet, lint, and build green; git diff --check passed.
+  next: Proceed only to dependent active-plan tasks after evaluator review of the corrected predicate matrix.

@@ -1,0 +1,16 @@
+id: nvkvofwcqq
+artifact: progress
+record:
+  timestamp: 2026-07-26 12:11
+  type: docs
+  phase: build
+  what: Added docs/cache-reuse-metric-contract.md, tools/bench/cache-reuse-contract-v1.json, and internal/cacheevidence/cache_reuse_contract_test.go. Recorded decision ksfsxbvbkq. The contract pins OpenCode 1.18.4 blobs 98fcc9a and 33652a6, includes cache write in logical input, and fixes direct, consecutive-step, uncertainty, quality, identity, claim, and compatibility gates.
+  context:
+    intent: Resolve the metric and claim contract before collection, derivation, comparison, or rendering work.
+    constraints: No collection, derivation, runner, renderer, ranking, provider call, historical output mutation, provider-native semantics, credentials, prompt content, or raw cache namespaces.
+    unknowns: Resolved cache-write treatment for OpenCode 1.18.4 from the pinned normalization invariant; positive cache-write behavior is not locally demonstrated and remains a scope caveat.
+    scope: Versioned contract documentation, machine-readable contract, focused contract test, recorded decision, plan task state, and progress evidence only.
+  inspiration: Plan jffafkheqj task gparsxmzfx and runtime-only decisions uilebafxdn, ufrltsdlaw, and zcdzpzguri.
+  discovered: Pinned OpenCode usage makes cache write disjoint, but retained local evidence contains zero positive cache-write steps. The startup decision listing remained degraded with 33 older entries omitted; no omitted fields were reconstructed.
+  verified: python -m json.tool tools/bench/cache-reuse-contract-v1.json passed; go test ./internal/cacheevidence ./internal/experiment ./internal/methodology passed; mage check passed with all tests, vet, lint, and build green; git diff --check passed.
+  next: Implement only the dependent active-plan tasks; require an equivalent pinned disjoint accounting invariant before extending the direct denominator to another runtime/version.

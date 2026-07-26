@@ -1,0 +1,316 @@
+{
+  "contract_version": "cache-reuse-v1",
+  "status": "contract_only",
+  "scope": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.4",
+    "runtime_commit": "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+    "evidence_kind": "runtime_reported_model_steps",
+    "ranking_effect": "none",
+    "historical_output_mutation": false
+  },
+  "accounting_evidence": {
+    "conclusion": "cache_write_is_disjoint",
+    "invariant": "nonCachedInputTokens + cacheReadInputTokens + cacheWriteInputTokens = inputTokens",
+    "usage_contract": {
+      "path": "packages/llm/src/schema/events.ts",
+      "git_blob": "98fcc9a24d417e70589e529fa1a1dd21ef35769c"
+    },
+    "event_mapping": {
+      "path": "packages/core/src/session/runner/publish-llm-event.ts",
+      "git_blob": "33652a618c93ebc6edd1a54410983d361e8f5e48",
+      "uncached_input": "usage.nonCachedInputTokens",
+      "cache_read": "usage.cacheReadInputTokens",
+      "cache_write": "usage.cacheWriteInputTokens"
+    },
+    "local_retained_evidence": {
+      "path": "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
+      "sha256": "738504be1936b021a37e640367a71d0e12ee538e2cf062005d62ff741c56efe8",
+      "measured_model_steps": 3,
+      "positive_cache_write_steps": 0,
+      "limitation": "agrees_with_the_invariant_but_does_not_demonstrate_positive_cache_write"
+    },
+    "other_runtime_or_version": "ineligible_without_pinned_equivalent_disjoint_invariant"
+  },
+  "direct": {
+    "unit": "attempt",
+    "contributing_steps": "all_accepted_model_steps",
+    "uncached_input": "sum(step.uncached_input)",
+    "cache_read": "sum(step.cache_read)",
+    "cache_write": "sum(step.cache_write)",
+    "logical_input": "uncached_input + cache_read + cache_write",
+    "share": "cache_read / logical_input",
+    "availability": "every_contributing_bucket_measured_and_logical_input_positive",
+    "measured_zero": "retained",
+    "unknown": "unavailable_not_backfilled",
+    "malformed": "malformed_not_backfilled",
+    "purpose": "descriptive_non_ranking"
+  },
+  "secondary": {
+    "method": "pi_consecutive_step_reusable_basis",
+    "unit": "adjacent_accepted_model_step_pair_in_one_covered_segment",
+    "positive_coverage_required": [
+      "adjacent_runtime_order",
+      "no_retry_boundary",
+      "no_reset_or_compaction_boundary",
+      "native_runtime_session_continuity"
+    ],
+    "prior_cache_activity": "prior.cache_read.state == 'measured' && prior.cache_write.state == 'measured' && prior.cache_read.value + prior.cache_write.value > 0",
+    "prior_logical_input": "prior.uncached_input + prior.cache_read + prior.cache_write",
+    "current_logical_input": "current.uncached_input + current.cache_read + current.cache_write",
+    "estimated_reusable_tokens": "min(prior_logical_input, current_logical_input)",
+    "shortfall": "estimated_reusable_tokens - current.cache_read",
+    "reuse_share": "current.cache_read / estimated_reusable_tokens",
+    "consistency": "0 <= current.cache_read <= estimated_reusable_tokens",
+    "noise_floor_tokens": 1024,
+    "small_value_treatment": "retain_exact_value; shortfall <= 1024 is within_noise_floor; shortfall > 1024 is above_noise_floor",
+    "ranking_effect": "none",
+    "ttl_cause": "unsupported",
+    "missed_cost": "unsupported",
+    "ineligibility_selection": "evaluate ineligibility_rules in array order and retain the first rule whose predicate is true; no matching rule means eligible",
+    "predicate_inputs": {
+      "prior.exists": "boolean",
+      "order.coverage": "covered | unavailable | contradictory",
+      "order.adjacent": "boolean; meaningful only when order.coverage == covered",
+      "retry.coverage": "covered_no_boundary | unavailable | boundary_observed",
+      "reset.coverage": "covered_no_boundary | unavailable | boundary_observed",
+      "order.concurrent_interleaving": "boolean",
+      "prior.session_identity.state": "measured | unknown | malformed",
+      "current.session_identity.state": "measured | unknown | malformed",
+      "prior.session_identity.value": "runtime-native identity; meaningful only when state == measured",
+      "current.session_identity.value": "runtime-native identity; meaningful only when state == measured",
+      "prior.runtime_contract": "runtime name, runtime version, and accounting-contract tuple",
+      "current.runtime_contract": "runtime name, runtime version, and accounting-contract tuple",
+      "required_runtime_contract": "opencode 1.18.4 cache-reuse-v1 accounting tuple",
+      "prior.uncached_input.state": "measured | unknown | malformed",
+      "prior.cache_read.state": "measured | unknown | malformed",
+      "prior.cache_write.state": "measured | unknown | malformed",
+      "current.uncached_input.state": "measured | unknown | malformed",
+      "current.cache_read.state": "measured | unknown | malformed",
+      "current.cache_write.state": "measured | unknown | malformed",
+      "*.value": "non-negative numeric value; meaningful only when the corresponding state == measured"
+    },
+    "ineligibility_rules": [
+      { "reason": "first_step", "predicate": "prior.exists == false" },
+      {
+        "reason": "non_consecutive_order",
+        "predicate": "prior.exists && order.coverage == 'covered' && order.adjacent == false"
+      },
+      {
+        "reason": "order_coverage_unavailable",
+        "predicate": "prior.exists && order.coverage == 'unavailable'"
+      },
+      {
+        "reason": "order_coverage_contradictory",
+        "predicate": "prior.exists && order.coverage == 'contradictory'"
+      },
+      {
+        "reason": "retry_coverage_unavailable",
+        "predicate": "prior.exists && retry.coverage == 'unavailable'"
+      },
+      {
+        "reason": "retry_boundary_observed",
+        "predicate": "prior.exists && retry.coverage == 'boundary_observed'"
+      },
+      {
+        "reason": "reset_coverage_unavailable",
+        "predicate": "prior.exists && reset.coverage == 'unavailable'"
+      },
+      {
+        "reason": "reset_or_compaction_boundary_observed",
+        "predicate": "prior.exists && reset.coverage == 'boundary_observed'"
+      },
+      {
+        "reason": "concurrent_interleaving",
+        "predicate": "prior.exists && order.concurrent_interleaving == true"
+      },
+      {
+        "reason": "runtime_session_identity_unavailable",
+        "predicate": "prior.exists && (prior.session_identity.state != 'measured' || current.session_identity.state != 'measured')"
+      },
+      {
+        "reason": "runtime_session_identity_changed",
+        "predicate": "prior.exists && prior.session_identity.state == 'measured' && current.session_identity.state == 'measured' && prior.session_identity.value != current.session_identity.value"
+      },
+      {
+        "reason": "runtime_contract_mismatch",
+        "predicate": "prior.exists && (prior.runtime_contract != required_runtime_contract || current.runtime_contract != required_runtime_contract)"
+      },
+      {
+        "reason": "prior_cache_activity_absent",
+        "predicate": "prior.exists && prior.cache_read.state == 'measured' && prior.cache_write.state == 'measured' && prior.cache_read.value + prior.cache_write.value == 0"
+      },
+      {
+        "reason": "prior_uncached_input_unknown",
+        "predicate": "prior.exists && prior.uncached_input.state == 'unknown'"
+      },
+      {
+        "reason": "prior_uncached_input_malformed",
+        "predicate": "prior.exists && prior.uncached_input.state == 'malformed'"
+      },
+      {
+        "reason": "prior_cache_read_unknown",
+        "predicate": "prior.exists && prior.cache_read.state == 'unknown'"
+      },
+      {
+        "reason": "prior_cache_read_malformed",
+        "predicate": "prior.exists && prior.cache_read.state == 'malformed'"
+      },
+      {
+        "reason": "prior_cache_write_unknown",
+        "predicate": "prior.exists && prior.cache_write.state == 'unknown'"
+      },
+      {
+        "reason": "prior_cache_write_malformed",
+        "predicate": "prior.exists && prior.cache_write.state == 'malformed'"
+      },
+      {
+        "reason": "current_uncached_input_unknown",
+        "predicate": "prior.exists && current.uncached_input.state == 'unknown'"
+      },
+      {
+        "reason": "current_uncached_input_malformed",
+        "predicate": "prior.exists && current.uncached_input.state == 'malformed'"
+      },
+      {
+        "reason": "current_cache_read_unknown",
+        "predicate": "prior.exists && current.cache_read.state == 'unknown'"
+      },
+      {
+        "reason": "current_cache_read_malformed",
+        "predicate": "prior.exists && current.cache_read.state == 'malformed'"
+      },
+      {
+        "reason": "current_cache_write_unknown",
+        "predicate": "prior.exists && current.cache_write.state == 'unknown'"
+      },
+      {
+        "reason": "current_cache_write_malformed",
+        "predicate": "prior.exists && current.cache_write.state == 'malformed'"
+      },
+      {
+        "reason": "prior_logical_input_not_positive",
+        "predicate": "prior.exists && prior.uncached_input.state == 'measured' && prior.cache_read.state == 'measured' && prior.cache_write.state == 'measured' && prior.uncached_input.value + prior.cache_read.value + prior.cache_write.value <= 0"
+      },
+      {
+        "reason": "current_logical_input_not_positive",
+        "predicate": "prior.exists && current.uncached_input.state == 'measured' && current.cache_read.state == 'measured' && current.cache_write.state == 'measured' && current.uncached_input.value + current.cache_read.value + current.cache_write.value <= 0"
+      },
+      {
+        "reason": "estimated_reusable_tokens_not_positive",
+        "predicate": "prior.exists && prior.uncached_input.state == 'measured' && prior.cache_read.state == 'measured' && prior.cache_write.state == 'measured' && current.uncached_input.state == 'measured' && current.cache_read.state == 'measured' && current.cache_write.state == 'measured' && min(prior.uncached_input.value + prior.cache_read.value + prior.cache_write.value, current.uncached_input.value + current.cache_read.value + current.cache_write.value) <= 0"
+      },
+      {
+        "reason": "current_cache_read_exceeds_estimated_reusable_tokens",
+        "predicate": "prior.exists && prior.uncached_input.state == 'measured' && prior.cache_read.state == 'measured' && prior.cache_write.state == 'measured' && current.uncached_input.state == 'measured' && current.cache_read.state == 'measured' && current.cache_write.state == 'measured' && prior.uncached_input.value + prior.cache_read.value + prior.cache_write.value > 0 && current.uncached_input.value + current.cache_read.value + current.cache_write.value > 0 && current.cache_read.value > min(prior.uncached_input.value + prior.cache_read.value + prior.cache_write.value, current.uncached_input.value + current.cache_read.value + current.cache_write.value)"
+      }
+    ]
+  },
+  "comparison": {
+    "unit": "measured_cycle_pair",
+    "setup_excluded": true,
+    "difference": "candidate_direct_share - baseline_direct_share",
+    "minimum_complete_pairs": 5,
+    "uncertainty": {
+      "coverage": 0.95,
+      "sides": 2,
+      "method": "student_t_interval_on_paired_differences",
+      "center": "arithmetic_mean",
+      "spread": "sample_standard_deviation_denominator_n_minus_1",
+      "zero_variance": "interval_equals_mean"
+    },
+    "direction": {
+      "higher": "lower_bound > 0",
+      "lower": "upper_bound < 0",
+      "inconclusive": "lower_bound <= 0 && upper_bound >= 0"
+    },
+    "quality_preserved": "candidate_mean_fact_score >= baseline_mean_fact_score && candidate_full_pass_rate >= baseline_full_pass_rate_on_same_complete_pairs",
+    "identity_provenance": "stable_runtime_name_version_and_configured_model_provider_variant; runtime_emitted_identity_must_not_conflict; configured_identity_never_backfills_source_events",
+    "cross_provider_pooling": "forbidden"
+  },
+  "claim_matrix": [
+    {
+      "outcome": "direct_available",
+      "requires": [
+        "complete_measured_step_buckets",
+        "positive_logical_input",
+        "supported_runtime_accounting"
+      ],
+      "authorizes": "descriptive_opencode_reported_cached_input_share"
+    },
+    {
+      "outcome": "comparative_descriptive",
+      "requires": [
+        "direct_available_both_sides",
+        "complete_cycle_pair",
+        "protocol_compliant",
+        "stable_nonconflicting_identity_provenance"
+      ],
+      "authorizes": "paired_difference_with_raw_values"
+    },
+    {
+      "outcome": "candidate_higher_success",
+      "requires": [
+        "comparative_descriptive",
+        "at_least_five_complete_pairs",
+        "two_sided_95_percent_interval_lower_bound_above_zero",
+        "quality_preserved"
+      ],
+      "authorizes": "candidate_had_higher_opencode_reported_cached_input_share_under_retained_protocol"
+    },
+    {
+      "outcome": "candidate_lower",
+      "requires": [
+        "comparative_descriptive",
+        "at_least_five_complete_pairs",
+        "two_sided_95_percent_interval_upper_bound_below_zero"
+      ],
+      "authorizes": "candidate_had_lower_opencode_reported_cached_input_share_under_retained_protocol"
+    },
+    {
+      "outcome": "inconclusive",
+      "requires": [
+        "comparative_descriptive",
+        "at_least_five_complete_pairs",
+        "two_sided_95_percent_interval_contains_zero"
+      ],
+      "authorizes": "no_directional_claim"
+    },
+    {
+      "outcome": "secondary_available",
+      "requires": ["eligible_consecutive_step_pair"],
+      "authorizes": "estimated_reusable_basis_shortfall_and_reuse_share_with_method_and_eligibility_counts"
+    }
+  ],
+  "comparative_blocking_reason_precedence": [
+    "unsupported_runtime_accounting",
+    "direct_evidence_incomplete",
+    "cycle_pair_incomplete",
+    "protocol_noncompliant",
+    "identity_provenance_unstable",
+    "runtime_emitted_identity_conflict",
+    "fewer_than_five_complete_pairs",
+    "two_sided_95_percent_interval_unavailable",
+    "two_sided_95_percent_interval_contains_zero",
+    "quality_not_preserved"
+  ],
+  "permanently_unsupported_claims": [
+    "provider_request",
+    "provider_cache_hit",
+    "provider_cache_miss",
+    "provider_cache_fill",
+    "provider_cache_eviction",
+    "provider_cache_eligibility",
+    "provider_visible_prefix",
+    "provider_cache_isolation",
+    "ttl_cause",
+    "missed_cost",
+    "causal_compression_effect"
+  ],
+  "compatibility": {
+    "existing_summary_schemas_unchanged": true,
+    "historical_bytes_unchanged": true,
+    "cost_per_correct_ranking_unchanged": true,
+    "historical_provider_fixtures": "compatibility_and_provenance_only"
+  }
+}

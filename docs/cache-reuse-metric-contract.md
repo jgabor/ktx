@@ -1,0 +1,173 @@
+# Runtime-reported cache reuse metric contract
+
+This contract defines two non-ranking views of retained OpenCode model-step
+evidence. The primary view is a direct cached-input share. The secondary view
+is a consecutive-step estimate adapted from Pi's cache-waste calculation. Both
+describe runtime-reported token fields; neither describes provider requests,
+cache hits or misses, eligible prefixes, isolation, expiry, or causality.
+
+The machine-readable authority is
+`tools/bench/cache-reuse-contract-v1.json`. Future collection, derivation, and
+rendering work must implement that versioned contract rather than changing an
+existing summary schema or historical artifact in place.
+
+## Accounting boundary and direct share
+
+OpenCode 1.18.4 commit
+`49c69c5ed3ccf706b61b3febb43c8aaff7f8325e` gives the three input fields a
+disjoint meaning. Its `Usage` contract states this invariant:
+
+```text
+nonCachedInputTokens + cacheReadInputTokens + cacheWriteInputTokens = inputTokens
+```
+
+The pinned event publisher independently maps those three fields to
+`tokens.input`, `tokens.cache.read`, and `tokens.cache.write`. Therefore, for
+OpenCode 1.18.4, cache-write tokens are a disjoint input bucket and are included
+in logical input. The retained local observations agree with the invariant but
+all have measured cache write zero, so they do not independently demonstrate a
+positive cache-write case. This conclusion is intentionally scoped to the
+pinned runtime contract. Another runtime or version is ineligible until an
+equivalent disjoint accounting invariant is pinned; configured provider or
+model context cannot supply it.
+
+For attempt `a`, include every contributing model step, not only a selected or
+last step:
+
+```text
+U_a = sum(step.uncached_input)
+R_a = sum(step.cache_read)
+W_a = sum(step.cache_write)
+L_a = U_a + R_a + W_a
+direct_cached_input_share_a = R_a / L_a
+```
+
+Every contributing value must be measured. A measured zero participates in the
+sums. Missing or null is unknown, malformed remains malformed, and neither is
+reconstructed. The share is not applicable when `L_a <= 0`. Reports must show
+`U_a`, `R_a`, `W_a`, `L_a`, the formula, runtime/version, and identity
+provenance beside the share.
+
+This is an OpenCode-reported cached-input share, not the previously rejected
+generic cache-miss ratio. It is descriptive, non-ranking, and valid only under
+the named accounting contract.
+
+## Consecutive-step estimate
+
+One estimate unit is the ordered pair `(p, c)` of adjacent accepted model steps
+within one positively covered runtime segment. Adjacency, retry absence, reset
+absence, and native runtime-session continuity must each be established by
+retained runtime events. Silence is not coverage. A reset, retry, interruption,
+restart, compaction boundary, concurrent interleaving, unavailable coverage, or
+contradiction makes the pair ineligible.
+
+The prior step must have measured cache-read and cache-write fields whose values
+establish positive cache activity (`R_p + W_p > 0`). With complete measured
+input buckets and positive logical inputs:
+
+```text
+P_i = min(L_p, L_c)
+shortfall_i = P_i - R_c
+estimated_reuse_share_i = R_c / P_i
+```
+
+`P_i` is the estimated reusable-token basis, not a reconstructed provider
+prefix. `R_c > P_i` is inconsistent with this estimate and makes the pair
+ineligible rather than being clamped. Otherwise zero and all positive
+shortfalls are retained exactly. A shortfall from 0 through 1,024 tokens is
+labeled `within_noise_floor`; a larger value is `above_noise_floor`. The label
+affects interpretation only: it never censors a value or changes eligibility.
+No cost or TTL cause is estimated.
+
+The machine contract defines the predicate inputs and the following ordered
+rules. Evaluate them from top to bottom and retain the first true rule; no true
+rule means the pair is eligible. Field states are exactly `measured`, `unknown`,
+or `malformed`. Order coverage is `covered`, `unavailable`, or `contradictory`;
+retry and reset coverage are `covered_no_boundary`, `unavailable`, or
+`boundary_observed`. Every rule after `first_step` also requires that a prior
+step exists.
+
+| Reason                                                 | Exact match condition                                                                                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `first_step`                                           | No prior accepted model step exists.                                                                                                                          |
+| `non_consecutive_order`                                | A prior step exists, order coverage is `covered`, and the two accepted ordinals are not adjacent.                                                             |
+| `order_coverage_unavailable`                           | A prior step exists and order coverage is `unavailable`.                                                                                                      |
+| `order_coverage_contradictory`                         | A prior step exists and order coverage is `contradictory`.                                                                                                    |
+| `retry_coverage_unavailable`                           | A prior step exists and retry coverage is `unavailable`.                                                                                                      |
+| `retry_boundary_observed`                              | A prior step exists and retry coverage is `boundary_observed`.                                                                                                |
+| `reset_coverage_unavailable`                           | A prior step exists and reset/compaction coverage is `unavailable`.                                                                                           |
+| `reset_or_compaction_boundary_observed`                | A prior step exists and reset/compaction coverage is `boundary_observed`.                                                                                     |
+| `concurrent_interleaving`                              | A prior step exists and a retained interleaving event occurs between the pair members.                                                                        |
+| `runtime_session_identity_unavailable`                 | A prior step exists and either native runtime-session identity state is not `measured`.                                                                       |
+| `runtime_session_identity_changed`                     | Both native runtime-session identities are measured and unequal.                                                                                              |
+| `runtime_contract_mismatch`                            | Either pair member's runtime name, version, and accounting-contract tuple differs from the required tuple.                                                    |
+| `prior_cache_activity_absent`                          | **Both** prior cache-read and cache-write states are `measured`, and their values sum to zero. Unknown or malformed activity fields cannot match this reason. |
+| `prior_uncached_input_unknown`                         | Prior uncached-input state is `unknown`.                                                                                                                      |
+| `prior_uncached_input_malformed`                       | Prior uncached-input state is `malformed`.                                                                                                                    |
+| `prior_cache_read_unknown`                             | Prior cache-read state is `unknown`.                                                                                                                          |
+| `prior_cache_read_malformed`                           | Prior cache-read state is `malformed`.                                                                                                                        |
+| `prior_cache_write_unknown`                            | Prior cache-write state is `unknown`.                                                                                                                         |
+| `prior_cache_write_malformed`                          | Prior cache-write state is `malformed`.                                                                                                                       |
+| `current_uncached_input_unknown`                       | Current uncached-input state is `unknown`.                                                                                                                    |
+| `current_uncached_input_malformed`                     | Current uncached-input state is `malformed`.                                                                                                                  |
+| `current_cache_read_unknown`                           | Current cache-read state is `unknown`.                                                                                                                        |
+| `current_cache_read_malformed`                         | Current cache-read state is `malformed`.                                                                                                                      |
+| `current_cache_write_unknown`                          | Current cache-write state is `unknown`.                                                                                                                       |
+| `current_cache_write_malformed`                        | Current cache-write state is `malformed`.                                                                                                                     |
+| `prior_logical_input_not_positive`                     | All prior input buckets are measured and their sum is at most zero.                                                                                           |
+| `current_logical_input_not_positive`                   | All current input buckets are measured and their sum is at most zero.                                                                                         |
+| `estimated_reusable_tokens_not_positive`               | All six buckets are measured and `min(L_p, L_c)` is at most zero.                                                                                             |
+| `current_cache_read_exceeds_estimated_reusable_tokens` | All six buckets are measured, both logical inputs are positive, and current cache read exceeds `min(L_p, L_c)`.                                               |
+
+The prior-activity rule intentionally precedes other prior-field rules but can
+match only from two measured activity fields. Thus measured read/write zero plus
+unknown prior uncached input selects `prior_cache_activity_absent`, while an
+unknown cache-read field selects `prior_cache_read_unknown`. Reports include
+eligible and per-reason ineligible counts.
+
+## Paired comparison and uncertainty
+
+Only measured attempts paired by cycle enter a comparison. Setup observations
+remain separate. A pair is complete for the primary comparison only when both
+attempts have an available direct share and stable, non-conflicting
+runtime/version/configuration provenance under the same protocol. Runtime-
+emitted provider/model identity, when present, must agree; configured identity
+may describe experiment context but never backfills a source event.
+
+For each complete cycle, define
+`d_i = candidate_share_i - baseline_share_i`. Positive direction means the
+candidate has the larger runtime-reported cached-input share. With at least five
+complete pairs, report the arithmetic mean and the two-sided 95% Student-t
+interval:
+
+```text
+mean(d) +/- t(0.975, n-1) * sample_standard_deviation(d) / sqrt(n)
+```
+
+Sample standard deviation uses denominator `n-1`; zero variance produces the
+degenerate interval `[mean(d), mean(d)]`. Fewer than five pairs is descriptive
+only. An interval wholly above zero supports “higher”; wholly below zero
+supports “lower”; an interval containing zero is inconclusive. No significance
+wording or causal wording is authorized.
+
+Quality is preserved only when, over those same complete pairs, candidate mean
+fact score and candidate full-pass rate are each at least the corresponding
+baseline value. A direct success or improvement statement additionally requires
+protocol compliance, at least five complete pairs, an interval wholly above
+zero, stable identity provenance, and preserved quality. Otherwise valid values
+remain descriptive and the recorded blocking reasons explain why no success
+claim is authorized.
+
+Secondary outcomes are always labeled `estimated`, name the method and
+eligibility counts, and cannot authorize or rescue a primary claim. Provider-
+native request, hit, miss, fill, eviction, eligibility, prefix, isolation, TTL-
+cause, missed-cost, cross-provider pooled, and causal wording is permanently
+unsupported.
+
+## Historical boundary
+
+This contract is additive. Existing methodologies, retained summaries,
+rankings, cost-per-correct behavior, schemas, and bytes keep their historical
+meaning. Historical direct-provider fixtures remain compatibility/provenance
+material only and cannot authorize current collection or provider-native
+claims.

@@ -21,19 +21,19 @@ const (
 )
 
 type telemetryRecordInput struct {
-	KtxSessionID string   `json:"ktx_session_id"`
-	SessionID    string   `json:"session_id"`
-	MessageID    string   `json:"message_id"`
-	PartID       string   `json:"part_id"`
-	Ordinal      *uint64  `json:"ordinal"`
-	Reason       string   `json:"reason"`
-	Cost         *float64 `json:"cost"`
+	KtxSessionID string          `json:"ktx_session_id"`
+	SessionID    string          `json:"session_id"`
+	MessageID    string          `json:"message_id"`
+	PartID       string          `json:"part_id"`
+	Ordinal      *uint64         `json:"ordinal"`
+	Reason       string          `json:"reason"`
+	Cost         json.RawMessage `json:"cost"`
 	Tokens       struct {
-		Input      *int64 `json:"input"`
-		Output     *int64 `json:"output"`
-		Reasoning  *int64 `json:"reasoning"`
-		CacheRead  *int64 `json:"cache_read"`
-		CacheWrite *int64 `json:"cache_write"`
+		Input      json.RawMessage `json:"input"`
+		Output     json.RawMessage `json:"output"`
+		Reasoning  json.RawMessage `json:"reasoning"`
+		CacheRead  json.RawMessage `json:"cache_read"`
+		CacheWrite json.RawMessage `json:"cache_write"`
 	} `json:"tokens"`
 	Provider *string `json:"provider"`
 	Model    *string `json:"model"`
@@ -101,25 +101,8 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 }
 
 func (input telemetryRecordInput) observation() (*telemetry.Observation, error) {
-	missing := ""
-	switch {
-	case input.Ordinal == nil:
-		missing = "ordinal"
-	case input.Cost == nil:
-		missing = "cost"
-	case input.Tokens.Input == nil:
-		missing = "tokens.input"
-	case input.Tokens.Output == nil:
-		missing = "tokens.output"
-	case input.Tokens.Reasoning == nil:
-		missing = "tokens.reasoning"
-	case input.Tokens.CacheRead == nil:
-		missing = "tokens.cache_read"
-	case input.Tokens.CacheWrite == nil:
-		missing = "tokens.cache_write"
-	}
-	if missing != "" {
-		return nil, fmt.Errorf("missing required field: %s", missing)
+	if input.Ordinal == nil {
+		return nil, fmt.Errorf("missing required field: ordinal")
 	}
 	return &telemetry.Observation{
 		Key: telemetry.Key{
@@ -129,19 +112,36 @@ func (input telemetryRecordInput) observation() (*telemetry.Observation, error) 
 		},
 		Ordinal: *input.Ordinal,
 		Reason:  input.Reason,
-		Cost:    *input.Cost,
+		Cost:    decodeRecordCost(input.Cost),
 		Tokens: telemetry.Tokens{
-			Input:      *input.Tokens.Input,
-			Output:     *input.Tokens.Output,
-			Reasoning:  *input.Tokens.Reasoning,
-			CacheRead:  *input.Tokens.CacheRead,
-			CacheWrite: *input.Tokens.CacheWrite,
+			Input:      decodeRecordInteger(input.Tokens.Input),
+			Output:     decodeRecordInteger(input.Tokens.Output),
+			Reasoning:  decodeRecordInteger(input.Tokens.Reasoning),
+			CacheRead:  decodeRecordInteger(input.Tokens.CacheRead),
+			CacheWrite: decodeRecordInteger(input.Tokens.CacheWrite),
 		},
 		Provider:       input.Provider,
 		Model:          input.Model,
 		Runtime:        opencode.Runtime,
 		RuntimeVersion: opencode.RuntimeVersion,
+		Source:         telemetry.SourceEventHook,
 	}, nil
+}
+
+func decodeRecordInteger(raw json.RawMessage) telemetry.IntegerMeasurement {
+	var measurement telemetry.IntegerMeasurement
+	if len(raw) > 0 && json.Unmarshal(raw, &measurement) == nil && measurement.State != "" {
+		return measurement
+	}
+	return telemetry.DecodeIntegerMeasurement(raw, telemetry.MeasurementMeasured)
+}
+
+func decodeRecordCost(raw json.RawMessage) telemetry.CostMeasurement {
+	var measurement telemetry.CostMeasurement
+	if len(raw) > 0 && json.Unmarshal(raw, &measurement) == nil && measurement.State != "" {
+		return measurement
+	}
+	return telemetry.DecodeCostMeasurement(raw, telemetry.MeasurementMeasured)
 }
 
 func listTelemetry(args []string, format string, db *dbpkg.DB, stdout io.Writer) error {
@@ -190,7 +190,7 @@ func listTelemetry(args []string, format string, db *dbpkg.DB, stdout io.Writer)
 
 func printTelemetryText(w io.Writer, observations []dbpkg.SessionTelemetry) {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ORDINAL\tSOURCE SESSION\tMESSAGE\tPART\tCACHE READ\tCACHE WRITE\tPROVIDER\tMODEL\tRUNTIME\tRUNTIME VERSION")
+	fmt.Fprintln(tw, "ORDINAL\tSOURCE SESSION\tMESSAGE\tPART\tCACHE READ\tCACHE WRITE\tPROVIDER\tMODEL\tRUNTIME\tRUNTIME VERSION\tSOURCE")
 	for _, observation := range observations {
 		provider, model := "-", "-"
 		if observation.Provider != nil {
@@ -199,10 +199,10 @@ func printTelemetryText(w io.Writer, observations []dbpkg.SessionTelemetry) {
 		if observation.Model != nil {
 			model = *observation.Model
 		}
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			observation.Ordinal, observation.SourceSessionID, observation.MessageID, observation.PartID,
 			measurementText(observation.CacheRead), measurementText(observation.CacheWrite), provider, model,
-			observation.Runtime, observation.RuntimeVersion)
+			observation.Runtime, observation.RuntimeVersion, observation.Source)
 	}
 	_ = tw.Flush()
 }

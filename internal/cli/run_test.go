@@ -77,6 +77,44 @@ func TestExecuteRun_RunCmdInjection(t *testing.T) {
 	})
 }
 
+func TestWrapperRetainsModelStepsSeparatelyWithFirstEvidenceAuthority(t *testing.T) {
+	d, err := dbpkg.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	sessionID := "abcdefghijklmnop"
+	if err := d.InsertSession(&dbpkg.Session{ID: sessionID, Agent: "opencode"}); err != nil {
+		t.Fatal(err)
+	}
+	first := `{"type":"step_finish","part":{"id":"prt_1","sessionID":"ses_1","messageID":"msg_1","type":"step-finish","reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache":{"read":0,"write":7}}}}`
+	conflict := `{"type":"step_finish","part":{"id":"prt_1","sessionID":"ses_1","messageID":"msg_1","type":"step-finish","reason":"changed","cost":9,"tokens":{"input":9,"output":9,"reasoning":9,"cache":{"read":9,"write":9}}}}`
+	incomplete := `{"type":"step_finish","part":{"id":"prt_2","sessionID":"ses_1","messageID":"msg_2","type":"step-finish","reason":"stop","cost":null,"tokens":{"input":0,"output":"bad","cache":{"read":null,"write":4}}}}`
+	rejected := `{"type":"step_finish","part":{"type":"step-finish"}}`
+	stream := strings.Join([]string{first, conflict, incomplete, rejected}, "\n") + "\n"
+	var stdout, stderr bytes.Buffer
+	if got := teeAndParseRuntime(strings.NewReader(stream), &stdout, d, sessionID, &stderr, "opencode"); got != 0 {
+		t.Fatalf("tool calls = %d, want 0", got)
+	}
+	rows, err := d.ListSessionTelemetry(sessionID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 || rows[0].Reason != "stop" || rows[0].Ordinal != 1 || rows[1].Ordinal != 2 {
+		t.Fatalf("wrapper observations = %#v", rows)
+	}
+	if rows[0].CacheWrite.Value == nil || *rows[0].CacheWrite.Value != 7 || rows[0].Source != "wrapper_stream" {
+		t.Fatalf("first evidence changed: %#v", rows[0])
+	}
+	if rows[1].UncachedInput.Value == nil || *rows[1].UncachedInput.Value != 0 || rows[1].Output.State != dbpkg.MeasurementMalformed || rows[1].CacheRead.State != dbpkg.MeasurementUnknown {
+		t.Fatalf("field states changed: %#v", rows[1])
+	}
+	session, err := d.GetSession(sessionID)
+	if err != nil || session.ToolCallCount != 0 {
+		t.Fatalf("model-step evidence affected tool calls: %#v, %v", session, err)
+	}
+}
+
 // funcName returns the qualified name of fn (e.g.
 // "exec.CommandContext") so tests can assert against the canonical
 // production binding without depending on Go's unstable func-value

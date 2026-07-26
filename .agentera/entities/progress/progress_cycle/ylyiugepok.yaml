@@ -1,0 +1,16 @@
+id: ylyiugepok
+artifact: progress
+record:
+  timestamp: 2026-07-26 13:10
+  type: fix
+  phase: build
+  what: Corrected generated OpenCode hook normalization so malformed token and cache containers propagate malformed to every child, while missing/null containers propagate unknown and valid leaves retain measured zero. Added explicit state objects for all numeric fields and parity fixtures against canonical wrapper decoding.
+  context:
+    intent: Resolve audit afpivyyvyt-audit-1 without weakening first-evidence authority or expanding into deferred sequence and derived-metric behavior.
+    constraints: Preserved the recorded afpivyyvyt-audit-1 failure evaluation, runtime-only semantics, source identity boundaries, separate tool-call authority, and first accepted evidence. Decision listing remains degraded with 33 older entries omitted; no omitted fields were reconstructed and no satisfaction is claimed.
+    unknowns: No correction-blocking unknown remains; evaluator acceptance is external.
+    scope: internal/cli/init.go generated plugin; generated integration and cross-ingress first-evidence tests; docs/opencode-telemetry.md; focused mage fixture.
+  inspiration: The recorded audit found tokens arrays and cache arrays were serialized as omitted leaves and persisted as unknown instead of canonical malformed.
+  discovered: Raw optional chaining erased the distinction between a missing container and a present non-object container before telemetry record could normalize it.
+  verified: mage opencodeTelemetryFixture passed race-enabled generated-plugin, contract, migration, dedup, concurrency, and first-evidence tests; mage build produced build/ktx; the local build ran --version and init opencode --show; mage check passed tests with race detection, vet, golangci-lint, and build.
+  next: Independent audit may re-evaluate task afpivyyvyt. Sequence, retry, reset, compaction, derived metrics, claims, and ranking remain out of scope.

@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/jgabor/ktx/internal/telemetry"
+	telemetryopencode "github.com/jgabor/ktx/internal/telemetry/opencode"
 )
 
 func TestOpencodeInstallIsIdempotentAndReportsGeneratedContract(t *testing.T) {
@@ -100,7 +103,7 @@ func TestInitAndTelemetryHelpDocumentOpenCodeIntegration(t *testing.T) {
 		"event for optional model-step telemetry",
 		"tool.execute.after for tool-result compression",
 		"KTX_SESSION_ID",
-		"evidence is not recorded while wrapped",
+		"preventing duplicate evidence",
 		opencodeTelemetryEvidence,
 		opencodeTelemetryClaimBoundary,
 		opencodeRefreshCommand,
@@ -163,10 +166,15 @@ const hooks: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
 const identity = {type:"message.updated",properties:{info:{id:"msg_1",sessionID:"ses_1",role:"assistant",providerID:"openai",modelID:"gpt-5"}}}
 const first = {type:"message.part.updated",properties:{part:{id:"prt_1",sessionID:"ses_1",messageID:"msg_1",type:"step-finish",reason:"stop",cost:0,tokens:{input:116,output:3,reasoning:2,cache:{read:15232,write:0}}}}}
 const second = {type:"message.part.updated",properties:{part:{id:"prt_2",sessionID:"ses_1",messageID:"msg_2",type:"step-finish",reason:"stop",cost:1.25,tokens:{input:8,output:5,reasoning:0,cache:{read:0,write:4}}}}}
-const originalEvents = JSON.stringify([identity, first, second])
+const incomplete = {type:"message.part.updated",properties:{part:{id:"prt_3",sessionID:"ses_1",messageID:"msg_3",type:"step-finish",reason:"stop",cost:null,tokens:{input:0,output:"bad",cache:{read:null,write:4}}}}}
+const malformedTokens = {type:"message.part.updated",properties:{part:{id:"prt_4",sessionID:"ses_1",messageID:"msg_4",type:"step-finish",reason:"stop",cost:0,tokens:[]}}}
+const malformedCache = {type:"message.part.updated",properties:{part:{id:"prt_5",sessionID:"ses_1",messageID:"msg_5",type:"step-finish",reason:"stop",cost:0,tokens:{input:1,output:2,reasoning:3,cache:[]}}}}
+const malformedLeaves = {type:"message.part.updated",properties:{part:{id:"prt_6",sessionID:"ses_1",messageID:"msg_6",type:"step-finish",reason:"stop",cost:Number.POSITIVE_INFINITY,tokens:{input:-1,output:1.5,reasoning:0,cache:{read:"bad",write:0}}}}}
+const rejected = {type:"message.part.updated",properties:{part:{type:"step-finish"}}}
+const originalEvents = JSON.stringify([identity, first, second, incomplete, malformedTokens, malformedCache, malformedLeaves, rejected])
 await hooks.event({event: identity})
-await Promise.all([hooks.event({event: first}), hooks.event({event: first}), hooks.event({event: second})])
-if (JSON.stringify([identity, first, second]) !== originalEvents) throw new Error("event hook mutated model events")
+await Promise.all([hooks.event({event: first}), hooks.event({event: first}), hooks.event({event: second}), hooks.event({event: incomplete}), hooks.event({event: malformedTokens}), hooks.event({event: malformedCache}), hooks.event({event: malformedLeaves}), hooks.event({event: rejected})])
+if (JSON.stringify([identity, first, second, incomplete, malformedTokens, malformedCache, malformedLeaves, rejected]) !== originalEvents) throw new Error("event hook mutated model events")
 const output: any = {title:"tool",output:"original tool output",metadata:{kept:true}}
 await hooks["tool.execute.after"]({tool:"bash",sessionID:"ses_1",callID:"call_1",args:{}}, output)
 console.log(JSON.stringify(output))
@@ -206,10 +214,11 @@ console.log(JSON.stringify(output))
 		if output["output"] != "compressed tool output" {
 			t.Fatalf("tool output = %#v", output)
 		}
-		if len(calls) != 3 {
-			t.Fatalf("calls = %q, want two telemetry records and one tool hook", calls)
+		if len(calls) != 7 {
+			t.Fatalf("calls = %q, want six telemetry records and one tool hook", calls)
 		}
-		for ordinal, call := range calls[:2] {
+		var observations []map[string]any
+		for ordinal, call := range calls[:6] {
 			fields := strings.SplitN(call, "\t", 2)
 			if len(fields) != 2 || fields[0] != "telemetry record" {
 				t.Fatalf("telemetry call = %q", call)
@@ -221,9 +230,37 @@ console.log(JSON.stringify(output))
 			if observation["ordinal"] != float64(ordinal+1) {
 				t.Fatalf("ordinal = %#v, want %d", observation["ordinal"], ordinal+1)
 			}
+			observations = append(observations, observation)
 		}
-		if !strings.HasPrefix(calls[2], "hook\t") {
-			t.Fatalf("tool call = %q", calls[2])
+		assertGeneratedMeasurementStates(t, observations[2], map[string]string{
+			"cost": "unknown", "input": "measured", "output": "malformed", "reasoning": "unknown", "cache_read": "unknown", "cache_write": "measured",
+		})
+		assertGeneratedMeasurementStates(t, observations[3], map[string]string{
+			"cost": "measured", "input": "malformed", "output": "malformed", "reasoning": "malformed", "cache_read": "malformed", "cache_write": "malformed",
+		})
+		assertGeneratedMeasurementStates(t, observations[4], map[string]string{
+			"cost": "measured", "input": "measured", "output": "measured", "reasoning": "measured", "cache_read": "malformed", "cache_write": "malformed",
+		})
+		assertGeneratedMeasurementStates(t, observations[5], map[string]string{
+			"cost": "malformed", "input": "malformed", "output": "malformed", "reasoning": "measured", "cache_read": "malformed", "cache_write": "measured",
+		})
+		wrapperCases := []string{
+			`{"type":"step_finish","part":{"id":"prt_3","sessionID":"ses_1","messageID":"msg_3","type":"step-finish","reason":"stop","cost":null,"tokens":{"input":0,"output":"bad","cache":{"read":null,"write":4}}}}`,
+			`{"type":"step_finish","part":{"id":"prt_4","sessionID":"ses_1","messageID":"msg_4","type":"step-finish","reason":"stop","cost":0,"tokens":[]}}`,
+			`{"type":"step_finish","part":{"id":"prt_5","sessionID":"ses_1","messageID":"msg_5","type":"step-finish","reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":3,"cache":[]}}}`,
+			`{"type":"step_finish","part":{"id":"prt_6","sessionID":"ses_1","messageID":"msg_6","type":"step-finish","reason":"stop","cost":"bad","tokens":{"input":-1,"output":1.5,"reasoning":0,"cache":{"read":"bad","write":0}}}}`,
+		}
+		for i, payload := range wrapperCases {
+			canonical, err := telemetryopencode.DecodeStreamModelStep([]byte(payload))
+			if err != nil {
+				t.Fatalf("canonical wrapper case %d: %v", i, err)
+			}
+			if got, want := generatedMeasurementStates(observations[i+2]), canonicalMeasurementStates(canonical); !reflect.DeepEqual(got, want) {
+				t.Errorf("generated/wrapper states differ for case %d: got %v want %v", i, got, want)
+			}
+		}
+		if !strings.HasPrefix(calls[6], "hook\t") {
+			t.Fatalf("tool call = %q", calls[6])
 		}
 	})
 
@@ -239,8 +276,44 @@ console.log(JSON.stringify(output))
 		if output["output"] != "original tool output" {
 			t.Fatalf("tool output changed on failure: %#v", output)
 		}
-		if len(calls) != 3 || !strings.Contains(stderr, "telemetry unavailable") || !strings.Contains(stderr, "hook failed") {
+		if len(calls) != 7 || !strings.Contains(stderr, "telemetry unavailable") || !strings.Contains(stderr, "hook failed") {
 			t.Fatalf("calls=%q stderr=%q", calls, stderr)
 		}
 	})
+}
+
+func assertGeneratedMeasurementStates(t *testing.T, observation map[string]any, want map[string]string) {
+	t.Helper()
+	measurements := generatedMeasurementStates(observation)
+	for field, state := range want {
+		if measurements[field] != state {
+			t.Errorf("%s state = %q, want %q", field, measurements[field], state)
+		}
+	}
+}
+
+func generatedMeasurementStates(observation map[string]any) map[string]string {
+	tokens := observation["tokens"].(map[string]any)
+	measurements := map[string]any{"cost": observation["cost"]}
+	for _, field := range []string{"input", "output", "reasoning", "cache_read", "cache_write"} {
+		measurements[field] = tokens[field]
+	}
+	states := make(map[string]string, len(measurements))
+	for field, value := range measurements {
+		measurement, ok := value.(map[string]any)
+		if !ok {
+			states[field] = "invalid"
+			continue
+		}
+		states[field], _ = measurement["state"].(string)
+	}
+	return states
+}
+
+func canonicalMeasurementStates(observation telemetry.Observation) map[string]string {
+	return map[string]string{
+		"cost": string(observation.Cost.State), "input": string(observation.Tokens.Input.State),
+		"output": string(observation.Tokens.Output.State), "reasoning": string(observation.Tokens.Reasoning.State),
+		"cache_read": string(observation.Tokens.CacheRead.State), "cache_write": string(observation.Tokens.CacheWrite.State),
+	}
 }

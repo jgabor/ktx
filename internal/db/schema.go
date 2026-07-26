@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 5
+const schemaVersion = 6
 
 const createSessionTelemetryTable = `CREATE TABLE IF NOT EXISTS session_telemetry (
 		session_id        TEXT NOT NULL REFERENCES sessions(id),
@@ -16,17 +16,30 @@ const createSessionTelemetryTable = `CREATE TABLE IF NOT EXISTS session_telemetr
 		part_id           TEXT NOT NULL,
 		ordinal           INTEGER NOT NULL,
 		reason            TEXT NOT NULL,
-		cost              REAL NOT NULL,
-		tokens_input       INTEGER NOT NULL,
-		tokens_output      INTEGER NOT NULL,
-		tokens_reasoning   INTEGER NOT NULL,
-		cache_read         INTEGER NOT NULL,
-		cache_write        INTEGER NOT NULL,
+		cost              REAL,
+		tokens_input       INTEGER,
+		tokens_output      INTEGER,
+		tokens_reasoning   INTEGER,
+		cache_read         INTEGER,
+		cache_write        INTEGER,
 		provider           TEXT,
 		model              TEXT,
 		runtime            TEXT NOT NULL,
 		runtime_version    TEXT NOT NULL,
+		source             TEXT NOT NULL DEFAULT 'legacy',
 		captured_at        TEXT NOT NULL,
+		cost_state              TEXT NOT NULL DEFAULT 'measured' CHECK (cost_state IN ('measured','unknown','malformed')),
+		tokens_input_state       TEXT NOT NULL DEFAULT 'measured' CHECK (tokens_input_state IN ('measured','unknown','malformed')),
+		tokens_output_state      TEXT NOT NULL DEFAULT 'measured' CHECK (tokens_output_state IN ('measured','unknown','malformed')),
+		tokens_reasoning_state   TEXT NOT NULL DEFAULT 'measured' CHECK (tokens_reasoning_state IN ('measured','unknown','malformed')),
+		cache_read_state         TEXT NOT NULL DEFAULT 'measured' CHECK (cache_read_state IN ('measured','unknown','malformed')),
+		cache_write_state        TEXT NOT NULL DEFAULT 'measured' CHECK (cache_write_state IN ('measured','unknown','malformed')),
+		CHECK ((cost_state = 'measured') = (cost IS NOT NULL)),
+		CHECK ((tokens_input_state = 'measured') = (tokens_input IS NOT NULL)),
+		CHECK ((tokens_output_state = 'measured') = (tokens_output IS NOT NULL)),
+		CHECK ((tokens_reasoning_state = 'measured') = (tokens_reasoning IS NOT NULL)),
+		CHECK ((cache_read_state = 'measured') = (cache_read IS NOT NULL)),
+		CHECK ((cache_write_state = 'measured') = (cache_write IS NOT NULL)),
 		PRIMARY KEY (runtime, source_session_id, message_id, part_id)
 	)`
 
@@ -392,6 +405,9 @@ func migrateTx(tx *sql.Tx) error {
 	if err := migrateSessionTelemetryV5(tx); err != nil {
 		return err
 	}
+	if err := migrateSessionTelemetryV6(tx); err != nil {
+		return err
+	}
 
 	have, err := tableColumns(tx, "tool_calls")
 	if err != nil {
@@ -572,6 +588,45 @@ func migrateSessionTelemetryV5(tx *sql.Tx) error {
 	for _, statement := range statements {
 		if _, err := tx.Exec(statement); err != nil {
 			return fmt.Errorf("db: rebuild session_telemetry: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateSessionTelemetryV6(tx *sql.Tx) error {
+	columns, err := tableColumns(tx, "session_telemetry")
+	if err != nil {
+		return fmt.Errorf("db: inspect session_telemetry fields: %w", err)
+	}
+	required := []string{"source", "cost_state", "tokens_input_state", "tokens_output_state", "tokens_reasoning_state", "cache_read_state", "cache_write_state"}
+	complete := true
+	for _, name := range required {
+		if _, ok := columns[name]; !ok {
+			complete = false
+			break
+		}
+	}
+	if complete {
+		return nil
+	}
+	statements := []string{
+		`ALTER TABLE session_telemetry RENAME TO session_telemetry_v5`,
+		createSessionTelemetryTable,
+		`INSERT INTO session_telemetry (
+			session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
+			tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
+			provider, model, runtime, runtime_version, captured_at
+		) SELECT
+			session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
+			tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
+			provider, model, runtime, runtime_version, captured_at
+		FROM session_telemetry_v5`,
+		`DROP TABLE session_telemetry_v5`,
+		createSessionTelemetryOrderIndex,
+	}
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("db: add session_telemetry field states: %w", err)
 		}
 	}
 	return nil

@@ -179,11 +179,26 @@ const ktxTelemetry = async (payload: string): Promise<void> => {
 const nonblank = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0
 
-const safeCount = (value: unknown): value is number =>
-  Number.isSafeInteger(value) && (value as number) >= 0
+type MeasurementState = "measured" | "unknown" | "malformed"
+type Measurement = { state: MeasurementState; value: number | null }
 
-const validCost = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0
+const objectMeasurementState = (value: unknown): MeasurementState => {
+  if (value === undefined || value === null) return "unknown"
+  return typeof value === "object" && !Array.isArray(value) ? "measured" : "malformed"
+}
+
+const integerMeasurement = (value: unknown, container: MeasurementState): Measurement => {
+  if (container !== "measured") return { state: container, value: null }
+  if (value === undefined || value === null) return { state: "unknown", value: null }
+  if (Number.isSafeInteger(value) && (value as number) >= 0) return { state: "measured", value: value as number }
+  return { state: "malformed", value: null }
+}
+
+const costMeasurement = (value: unknown): Measurement => {
+  if (value === undefined || value === null) return { state: "unknown", value: null }
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return { state: "measured", value }
+  return { state: "malformed", value: null }
+}
 
 const KtxPlugin: Plugin = async ({ $ }) => {
   // Verify ktx is in PATH before registering the hook; otherwise every
@@ -220,29 +235,28 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     const cache = tokens?.cache
     if (!part || typeof part !== "object" || part.type !== "step-finish" ||
         !nonblank(part.sessionID) || !nonblank(part.messageID) ||
-        !nonblank(part.id) || !nonblank(part.reason) || !validCost(part.cost) ||
-        !tokens || typeof tokens !== "object" || !cache || typeof cache !== "object" ||
-        !safeCount(tokens.input) || !safeCount(tokens.output) ||
-        !safeCount(tokens.reasoning) || !safeCount(cache.read) || !safeCount(cache.write)) return
+        !nonblank(part.id) || !nonblank(part.reason)) return
 
     const key = JSON.stringify([part.sessionID, part.messageID, part.id])
     if (seen.has(key)) return
     seen.add(key)
     ordinal++
     const identity = identities.get(JSON.stringify([part.sessionID, part.messageID]))
+    const tokensState = objectMeasurementState(tokens)
+    const cacheState = tokensState === "measured" ? objectMeasurementState(cache) : tokensState
     const observation: any = {
       session_id: part.sessionID,
       message_id: part.messageID,
       part_id: part.id,
       ordinal,
       reason: part.reason,
-      cost: part.cost,
+      cost: costMeasurement(part.cost),
       tokens: {
-        input: tokens.input,
-        output: tokens.output,
-        reasoning: tokens.reasoning,
-        cache_read: cache.read,
-        cache_write: cache.write,
+        input: integerMeasurement(tokens?.input, tokensState),
+        output: integerMeasurement(tokens?.output, tokensState),
+        reasoning: integerMeasurement(tokens?.reasoning, tokensState),
+        cache_read: integerMeasurement(cache?.read, cacheState),
+        cache_write: integerMeasurement(cache?.write, cacheState),
       },
     }
     if (identity) {
@@ -701,8 +715,8 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "record` and `ktx hook` respectively. When KTX_SESSION_ID is")
 	fmt.Fprintln(w, "set in the environment, the plugin noops so the wrapper")
 	fmt.Fprintln(w, "path remains the single source of truth.")
-	fmt.Fprintln(w, "The wrapper does not replace event-hook model-step telemetry; that optional")
-	fmt.Fprintln(w, "evidence is not recorded while wrapped.")
+	fmt.Fprintln(w, "The wrapper records identifiable OpenCode step_finish model telemetry itself")
+	fmt.Fprintln(w, "while the generated hooks noop, preventing duplicate evidence.")
 	fmt.Fprintf(w, "Telemetry is %s. It is %s.\n", opencodeTelemetryEvidence, opencodeTelemetryClaimBoundary)
 	fmt.Fprintf(w, "Re-run `%s` to refresh the generated global plugin, or add --project\n", opencodeRefreshCommand)
 	fmt.Fprintf(w, "for the project plugin. Troubleshooting: %s\n", opencodeTroubleshooting)

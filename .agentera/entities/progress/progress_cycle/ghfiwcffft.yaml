@@ -1,0 +1,16 @@
+id: ghfiwcffft
+artifact: progress
+record:
+  timestamp: 2026-07-26 12:55
+  type: feat
+  phase: build
+  what: Aligned OpenCode hook and wrapper model-step normalization and persisted measured, unknown, and malformed field states in schema version 6. Added collection provenance, wrapper retention outside tool_calls, idempotent exact duplicates, and visible conflicts that preserve the first row.
+  context:
+    intent: Make applicable runtime collection paths agree on accepted model-step evidence while preserving runtime-only semantics, historical databases, and first-evidence authority.
+    constraints: Preserved benchmark raw-stream numeric authority, ordinary session database authority, model-step separation from tool_calls, configured-versus-source identity boundaries, historical row readability, and retained experiment bytes. Decision listing remained degraded with 33 older entries omitted; no omitted fields were reconstructed and no satisfaction is claimed.
+    unknowns: No task-blocking unknown remained. The startup decision listing caveat remains unresolved and preserved.
+    scope: docs/opencode-telemetry.md; internal/telemetry; internal/db session telemetry and schema migration; internal/cli telemetry, wrapper, generated plugin, tests; mage telemetry fixture.
+  inspiration: Plan jffafkheqj task afpivyyvyt and the cache-reuse-v1 runtime contract.
+  discovered: The generated hook previously rejected incomplete numeric evidence, and ktx run disabled the hook without replacing model-step retention. Session telemetry stored only measured values and silently ignored conflicting duplicates.
+  verified: mage opencodeTelemetryFixture passed the race-enabled accepted/rejected, generated-plugin, dedup/concurrency, and migration/rollback matrix; mage build produced build/ktx and its telemetry help ran; mage check passed tests with race detection, vet, golangci-lint, and build.
+  next: Dependent derivation work may consume the aligned model-step evidence. Sequence eligibility, provider-request semantics, retry/reset/compaction behavior, derived shares, claims, comparison, ranking, and direct provider collection remain out of scope.

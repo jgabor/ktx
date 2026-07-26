@@ -150,126 +150,126 @@
   {
     "name": "step missing cost",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cost"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\"}}}"
   },
   {
     "name": "step negative cost",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cost"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":-1}}}"
   },
   {
     "name": "step null cost",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cost"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":null}}}"
   },
   {
     "name": "step malformed cost",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cost"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":\"free\"}}}"
   },
   {
     "name": "step missing tokens",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.tokens"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0}}}"
   },
   {
     "name": "step non-object tokens",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.tokens"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":[]}}}"
   },
   {
     "name": "step missing input",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.input"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step negative input",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.input"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":-1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step missing output",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.output"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step malformed output",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.output"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":\"one\",\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step missing reasoning",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.reasoning"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step unsafe reasoning",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.reasoning"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":9007199254740992,\"cache\":{\"read\":0,\"write\":0}}}}}"
   },
   {
     "name": "step missing cache",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cache"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0}}}}"
   },
   {
     "name": "step non-object cache",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cache"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":[]}}}}"
   },
   {
     "name": "step missing cache read",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cache_read"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"write\":0}}}}}"
   },
   {
     "name": "step fractional cache read",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cache_read"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0.5,\"write\":0}}}}}"
   },
   {
     "name": "step missing cache write",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cache_write"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0}}}}}"
   },
   {
     "name": "step unsafe cache write",
     "decoder": "step",
-    "accepted": false,
+    "accepted": true,
     "rules": ["step.cache_write"],
     "payload": "{\"type\":\"message.part.updated\",\"properties\":{\"part\":{\"id\":\"prt_1\",\"sessionID\":\"ses_1\",\"messageID\":\"msg_1\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1,\"output\":1,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":9007199254740992}}}}}"
   },

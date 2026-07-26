@@ -1,6 +1,7 @@
 // `ktx run` — the wrapper integration path. Spawns an agent subprocess,
 // captures its stdout, parses newline-delimited JSON events for tool-call
-// shapes, persists each tool event via the internal db.Open function, and
+// shapes and identifiable OpenCode model steps, persists each evidence kind in
+// its own table via the internal db.Open function, and
 // transparently passes the agent's stdout through to ktx's stdout.
 //
 // The wrapper is a transparent proxy:
@@ -25,7 +26,8 @@
 //
 //	The agent is expected to emit newline-delimited JSON events on
 //	stdout. Each line is forwarded to internal/parser.ParseEvent,
-//	which is the single source of truth for the ktx tool_call shape.
+//	which is the single source of truth for the ktx tool_call shape. OpenCode
+//	step_finish records use the pinned telemetry normalizer and remain separate.
 //	ParseEvent returns (tool_call, true) for tool-shaped events
 //	(OpenCode tool_use and the flat fallback) and (nil, false) for
 //	non-tool events (text, step lifecycle, malformed JSON, empty lines).
@@ -49,6 +51,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -57,6 +60,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/evidence"
 	"github.com/jgabor/ktx/internal/parser"
+	telemetryopencode "github.com/jgabor/ktx/internal/telemetry/opencode"
 )
 
 // maxAgentLine caps a single emitted JSON line. Agent tool outputs (e.g.,
@@ -328,7 +332,7 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	if opts.RecordStream {
 		teeOut = io.MultiWriter(stdout, &streamBuf)
 	}
-	toolCalls := teeAndParse(stdoutR, teeOut, db, sessionID, stderr)
+	toolCalls := teeAndParseRuntime(stdoutR, teeOut, db, sessionID, stderr, filepath.Base(agent))
 
 	waitErr := cmd.Wait()
 
@@ -485,9 +489,17 @@ func parseRunDispatchArgs(args []string) ([]string, any, error) {
 // before the next line is read. A persist failure is logged to stderr
 // and the next line is processed.
 func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, stderr io.Writer) int {
+	return teeAndParseRuntime(r, stdout, db, sessionID, stderr, "")
+}
+
+func teeAndParseRuntime(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, stderr io.Writer, runtimeName string) int {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), maxAgentLine)
 	var persisted int
+	var telemetryCollector *telemetryopencode.Collector
+	if runtimeName == telemetryopencode.Runtime {
+		telemetryCollector = telemetryopencode.NewCollector()
+	}
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		// Passthrough: write the line as-is, then a newline so the
@@ -495,6 +507,21 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, 
 		// (scanner.Bytes() strips the trailing newline).
 		_, _ = stdout.Write(line)
 		_, _ = stdout.Write([]byte{'\n'})
+
+		if telemetryCollector != nil {
+			observation, err := telemetryCollector.AddStream(line)
+			switch {
+			case err == nil:
+				capturedAt := time.Now().UTC().Format(time.RFC3339Nano)
+				if _, persistErr := db.PersistSessionTelemetry(sessionID, capturedAt, observation); persistErr != nil {
+					fmt.Fprintf(stderr, "ktx: warning: persist session telemetry: %v\n", persistErr)
+				}
+			case errors.Is(err, telemetryopencode.ErrDuplicate), errors.Is(err, telemetryopencode.ErrUnsupported), errors.Is(err, telemetryopencode.ErrInvalid):
+				// Rejected and duplicate model-step records do not affect tool evidence.
+			default:
+				fmt.Fprintf(stderr, "ktx: warning: normalize session telemetry: %v\n", err)
+			}
+		}
 
 		tc, nc, ok := parser.ParseEventWithCorrelation(line)
 		if !ok {
@@ -575,7 +602,8 @@ func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w, "Spawns <agent> as a child process with KTX_SESSION_ID exported into")
 	fmt.Fprintln(w, "the environment. The agent's stdout passes through to ktx's stdout")
 	fmt.Fprintln(w, "untouched. Each newline-delimited JSON event is parsed; tool events")
-	fmt.Fprintln(w, "are persisted to the database as tool_calls.")
+	fmt.Fprintln(w, "are persisted as tool_calls and identifiable OpenCode model steps as")
+	fmt.Fprintln(w, "separate session telemetry.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "When the child exits, the session is closed immediately (ended_at set).")
 	fmt.Fprintln(w, "ktx run's exit code matches the child's exit code.")

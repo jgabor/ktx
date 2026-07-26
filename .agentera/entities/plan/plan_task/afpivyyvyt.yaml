@@ -4,10 +4,20 @@ record:
   name: Align runtime collection and persistence
   depends_on:
     - gparsxmzfx
-  status: pending
+  status: complete
   acceptance:
     - GIVEN applicable wrapper and hook observations WHEN normalized THEN accepted event counts, field states, identities, ordinals, provenance, and rejection behavior agree without duplicating evidence.
     - GIVEN model-step telemetry WHEN it is retained THEN it remains separate from tool-call evidence and first accepted evidence remains authoritative.
     - GIVEN historical telemetry or concurrent delivery WHEN the evidence model evolves THEN prior rows remain readable and duplicate or conflicting delivery cannot silently alter authority.
     - GIVEN each new evidence unit WHEN tested THEN at least one accepted and rejected case exists, with focused concurrency and migration coverage.
   plan: jffafkheqj
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Generated OpenCode hook serializes malformed tokens or tokens.cache containers as missing leaves, persisting unknown where the canonical Go decoder records malformed; emit explicit malformed states and add container fixtures.
+    provenance:
+      attempt_id: afpivyyvyt-audit-2
+      source: audit ses_061ed20aeffedsb1USYSCRVZ1r bounded re-review
+      recorded_at: 2026-07-26 13:16
+      writer_command: agentera state plan record-evaluation

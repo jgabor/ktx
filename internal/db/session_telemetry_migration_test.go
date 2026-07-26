@@ -19,14 +19,14 @@ const legacySessionTelemetryTable = `CREATE TABLE session_telemetry (
 	runtime TEXT NOT NULL, runtime_version TEXT NOT NULL, captured_at TEXT NOT NULL,
 	PRIMARY KEY (source_session_id, message_id, part_id))`
 
-func TestSessionTelemetrySchemaV5FreshAndHistorical(t *testing.T) {
+func TestSessionTelemetrySchemaV6FreshAndHistorical(t *testing.T) {
 	t.Run("fresh", func(t *testing.T) {
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { d.Close() })
-		assertSessionTelemetryV5Shape(t, d.db)
+		assertSessionTelemetryV6Shape(t, d.db)
 	})
 
 	for version := 0; version <= 3; version++ {
@@ -40,7 +40,7 @@ func TestSessionTelemetrySchemaV5FreshAndHistorical(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { d.Close() })
-			assertSessionTelemetryV5Shape(t, d.db)
+			assertSessionTelemetryV6Shape(t, d.db)
 			if count := tableRowCount(t, d.db, "sessions"); count != 2 {
 				t.Fatalf("sessions = %d, want 2", count)
 			}
@@ -60,7 +60,7 @@ func TestSessionTelemetrySchemaV5FreshAndHistorical(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { d.Close() })
-		assertSessionTelemetryV5Shape(t, d.db)
+		assertSessionTelemetryV6Shape(t, d.db)
 	})
 }
 
@@ -72,7 +72,8 @@ func TestSessionTelemetryV4MigrationPreservesAllEvidence(t *testing.T) {
 		('aaaaaaaaaaaaaaaa','native-session','message','part',7,'stop',1.25,10,20,30,40,50,'provider','model','custom/runtime','v 1','captured')`); err != nil {
 		t.Fatal(err)
 	}
-	beforeTelemetry := queryStrings(t, raw, `SELECT * FROM session_telemetry`)
+	legacyColumns := `session_id,source_session_id,message_id,part_id,ordinal,reason,cost,tokens_input,tokens_output,tokens_reasoning,cache_read,cache_write,provider,model,runtime,runtime_version,captured_at`
+	beforeTelemetry := queryStrings(t, raw, `SELECT `+legacyColumns+` FROM session_telemetry`)
 	beforeUnrelated := snapshotUnrelatedEvidence(t, raw)
 	raw.Close()
 
@@ -81,16 +82,19 @@ func TestSessionTelemetryV4MigrationPreservesAllEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
-	assertSessionTelemetryV5Shape(t, d.db)
-	if got := queryStrings(t, d.db, `SELECT * FROM session_telemetry`); !reflect.DeepEqual(got, beforeTelemetry) {
+	assertSessionTelemetryV6Shape(t, d.db)
+	if got := queryStrings(t, d.db, `SELECT `+legacyColumns+` FROM session_telemetry`); !reflect.DeepEqual(got, beforeTelemetry) {
 		t.Fatalf("telemetry changed:\n got %#v\nwant %#v", got, beforeTelemetry)
+	}
+	if got := queryStrings(t, d.db, `SELECT source,cost_state,tokens_input_state,tokens_output_state,tokens_reasoning_state,cache_read_state,cache_write_state FROM session_telemetry`); !reflect.DeepEqual(got, [][]string{{"legacy", "measured", "measured", "measured", "measured", "measured", "measured"}}) {
+		t.Fatalf("migrated state/provenance = %#v", got)
 	}
 	if got := snapshotUnrelatedEvidence(t, d.db); !reflect.DeepEqual(got, beforeUnrelated) {
 		t.Fatalf("unrelated evidence changed:\n got %#v\nwant %#v", got, beforeUnrelated)
 	}
 }
 
-func TestSessionTelemetryV5MigrationRollsBack(t *testing.T) {
+func TestSessionTelemetryV6MigrationRollsBack(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		runtime string
@@ -311,11 +315,11 @@ func replaceTelemetryWithV4(t *testing.T, raw *sql.DB) {
 	}
 }
 
-func assertSessionTelemetryV5Shape(t *testing.T, db *sql.DB) {
+func assertSessionTelemetryV6Shape(t *testing.T, db *sql.DB) {
 	t.Helper()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 5 {
-		t.Fatalf("user_version = %d, %v; want 5", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
+		t.Fatalf("user_version = %d, %v; want 6", version, err)
 	}
 	rows, err := db.Query(`SELECT name, pk FROM pragma_table_info('session_telemetry') WHERE pk > 0 ORDER BY pk`)
 	if err != nil {
@@ -341,6 +345,15 @@ func assertSessionTelemetryV5Shape(t *testing.T, db *sql.DB) {
 	wantColumns := "(session_id, ordinal, runtime, source_session_id, message_id, part_id)"
 	if !strings.Contains(indexSQL, wantColumns) {
 		t.Fatalf("ordering index = %q, want columns %s", indexSQL, wantColumns)
+	}
+	columns, err := tableColumns(db, "session_telemetry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"source", "cost_state", "tokens_input_state", "tokens_output_state", "tokens_reasoning_state", "cache_read_state", "cache_write_state"} {
+		if _, ok := columns[name]; !ok {
+			t.Errorf("missing column %q", name)
+		}
 	}
 }
 

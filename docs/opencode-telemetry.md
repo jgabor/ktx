@@ -33,10 +33,11 @@ The generated plugin declares two OpenCode hooks:
 
 When OpenCode runs under `ktx run`, the wrapper sets `KTX_SESSION_ID`. The
 plugin then noops both hooks, leaving the wrapper as the single evidence path.
-The wrapper does not replace the event hook's model-step telemetry, so that
-optional evidence is not recorded while wrapped. Without the wrapper, the
-plugin handles both hooks. This allows the installed plugin and wrapper to
-coexist without double-recording.
+The wrapper normalizes identifiable `step_finish` records into the same model-
+step evidence contract while continuing to pass the original JSONL through
+unchanged. Without the wrapper, the plugin handles both hooks. The persisted
+runtime tuple deduplicates a model step seen through both paths, and the first
+accepted row—including its collection provenance—remains authoritative.
 
 ## Accepted events
 
@@ -111,7 +112,10 @@ and the plugin's typed [`event` hook](https://github.com/anomalyco/opencode/blob
   another logical observation. Provider, model, ordinal, KTX session ownership,
   measurements, and capture time are also evidence rather than key fields.
 - The first valid occurrence is authoritative; later same-runtime occurrences
-  are ignored, even if their owner, version, or other evidence differs.
+  with equal authoritative evidence are idempotent. A changed ordinal,
+  identity, measurement, field state, reason, or runtime-version provenance is
+  reported as a conflict and leaves the first row unchanged. A duplicate from
+  the other collection path does not replace the first collection provenance.
 - Accepted model steps receive contiguous local ordinals in plugin callback
   acceptance order, after duplicates and rejected events are removed.
   OpenCode 1.18.4 supplies no event sequence or event timestamp in this plugin
@@ -126,10 +130,16 @@ and the plugin's typed [`event` hook](https://github.com/anomalyco/opencode/blob
 ## Rejection and claim boundary
 
 Malformed JSON, unsupported event or part types, a missing/non-object
-`properties`, a missing/non-object `part`, blank required IDs, missing token or
-cache objects, missing required measurements, and malformed measurements are
-rejected without a partial observation. Missing provider/model correlation is
-the sole accepted identity limitation and remains absent.
+`properties`, a missing/non-object `part`, and blank required IDs or reason are
+rejected without an observation. Once an identifiable model step is accepted,
+each numeric leaf is retained independently: a non-negative emitted number,
+including zero, is `measured`; missing or null is `unknown`; and an invalid,
+negative, non-finite, fractional token count, or unsafe integer is `malformed`.
+The generated hook sends these states explicitly. A missing or null `tokens` or
+`tokens.cache` container makes its children `unknown`; a non-object container
+makes its children `malformed`, matching wrapper normalization.
+Missing provider/model correlation remains absent. A later identity event or
+configured identity does not backfill the accepted source event.
 
 The cache values are runtime per-model-step token observations. They are
 optional evidence, not raw provider responses. They do not establish provider
@@ -142,17 +152,17 @@ The two current OpenCode evidence paths retain different contracts. Fields
 described as direct below belong to one observation; attempt and manifest
 context applies to a benchmark run but is not source-event evidence.
 
-| Capability                          | Benchmark recorded stream and `model_steps`                                                                                                                                                                                                                                                                                               | Ordinary unwrapped session telemetry plugin                                                                                                                                                                                                                                          |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Source and version                  | Source is the OpenCode JSONL `step_finish` stream. OpenCode runtime version is attempt/manifest context (`cache_control.runtime_version` and `manifest.identities.opencode`), not a direct `model_steps` field.                                                                                                                           | The generated plugin and ingestion contract are pinned to OpenCode 1.18.4. Persisted observations directly carry `runtime=opencode` and `runtime_version=1.18.4`, assigned at ingestion.                                                                                             |
-| Ordinal                             | One-based recorded-stream order of identifiable `step_finish` events after malformed JSON and other event types are skipped. An identifiable step with missing or malformed usage still consumes an ordinal.                                                                                                                              | One-based contiguous plugin callback acceptance order after rejected events and duplicates are removed. It is local capture order, not a provider request number or timestamp.                                                                                                       |
-| Uncached input and cache tokens     | Direct per-step `tokens.input` and `tokens.cache.{read,write}` fields become `uncached_input`, `cache_read`, and `cache_write`. Explicit zero is `measured`; missing or JSON null is `unknown`; malformed is `malformed`. An attempt total is present only when every model step measured that field.                                     | Direct per-observation `tokens.input`, `tokens.cache_read`, and `tokens.cache_write` are required non-negative safe integers. Explicit zero is retained; absence, null, or malformed input rejects the whole observation, so persisted rows do not represent missing numeric fields. |
-| Cache-control metadata              | Not reported on a `step_finish`; each `model_steps[].control` is empty. Mode, namespace hash, phase, execution order, idle gap, and associated model/provider/variant/runtime version live on attempt `cache_control`, with experiment-wide context in manifest `cache_control`.                                                          | Unavailable: the accepted plugin events and persisted observation have no cache-control field, and there is no attempt/manifest context on this path.                                                                                                                                |
-| Provider, runtime, and model        | Optional provider/model are read directly from each stream part. Runtime and runtime version are not direct source-event fields; selected model plus provider/model/runtime-version control context live on the manifest or attempt.                                                                                                      | Runtime/version are assigned directly at ingestion. Provider/model are optional correlated context from a preceding matching assistant `message.updated`; both remain absent if it was not already accepted.                                                                         |
-| Retry and provider-request identity | Unavailable. `step_finish` supplies neither retry metadata nor authoritative provider-request identity; live `model_steps` remains `model_step`. A retained `native_request` schema record is historical/offline compatibility only, not supported collection.                                                                            | Unavailable. OpenCode 1.18.4 supplies no provider request ID or retry relationship on these events.                                                                                                                                                                                  |
-| Retained evidence and inspection    | The raw JSONL stream is retained and hashed; follow `attempts.jsonl` → `artifacts.stream` to inspect it. Normalized ordered observations are retained in that attempt's `model_steps`; `ktx bench validate --experiment .bench-data/<experiment-id>` checks retained artifacts and regeneration.                                          | Only the normalized database observation is retained; the raw plugin event is not. Inspect with `ktx telemetry list --session <ktx-session-id> --format json` (or `text`).                                                                                                           |
-| Incomplete or malformed behavior    | Malformed JSON and non-step events are skipped. An identifiable step is retained while each missing/null/malformed usage leaf is independently `unknown`/`malformed`; incomplete fields suppress only their attempt totals. Malformed optional `model_steps` loaded from `attempts.jsonl` are discarded without invalidating the attempt. | Strict event validation rejects malformed or incomplete model steps without a partial observation; missing provider/model correlation is the only accepted absence. Recording and persistence failures fail open and may leave no row.                                               |
-| Claim limit                         | Values are runtime stream model-step observations. They do not prove provider requests or request counts, provider-request/retry identity, provider-internal cache outcomes, request boundaries, isolation, or prefix composition.                                                                                                        | Values are runtime model-step observations, not raw provider responses. They carry the same claim limits.                                                                                                                                                                            |
+| Capability                          | Benchmark recorded stream and `model_steps`                                                                                                                                                                                                                                                                                               | Ordinary unwrapped session telemetry plugin                                                                                                                                                                                                                                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source and version                  | Source is the OpenCode JSONL `step_finish` stream. OpenCode runtime version is attempt/manifest context (`cache_control.runtime_version` and `manifest.identities.opencode`), not a direct `model_steps` field.                                                                                                                           | The generated plugin and ingestion contract are pinned to OpenCode 1.18.4. Persisted observations directly carry `runtime=opencode` and `runtime_version=1.18.4`, assigned at ingestion.                                                                                                                              |
+| Ordinal                             | One-based recorded-stream order of identifiable `step_finish` events after malformed JSON and other event types are skipped. An identifiable step with missing or malformed usage still consumes an ordinal.                                                                                                                              | One-based contiguous callback acceptance order after structurally rejected events and duplicates are removed. The wrapper applies the same rule to its OpenCode stream. It is local capture order, not a provider request number or timestamp.                                                                        |
+| Uncached input and cache tokens     | Direct per-step `tokens.input` and `tokens.cache.{read,write}` fields become `uncached_input`, `cache_read`, and `cache_write`. Explicit zero is `measured`; missing or JSON null is `unknown`; malformed is `malformed`. An attempt total is present only when every model step measured that field.                                     | The normalized database row uses the same per-field states. Missing or malformed one field does not erase measured siblings or the model step. Explicit zero remains measured.                                                                                                                                        |
+| Cache-control metadata              | Not reported on a `step_finish`; each `model_steps[].control` is empty. Mode, namespace hash, phase, execution order, idle gap, and associated model/provider/variant/runtime version live on attempt `cache_control`, with experiment-wide context in manifest `cache_control`.                                                          | Unavailable: the accepted plugin events and persisted observation have no cache-control field, and there is no attempt/manifest context on this path.                                                                                                                                                                 |
+| Provider, runtime, and model        | Optional provider/model are read directly from each stream part. Runtime and runtime version are not direct source-event fields; selected model plus provider/model/runtime-version control context live on the manifest or attempt.                                                                                                      | Runtime/version are assigned directly at ingestion. Provider/model are optional correlated context from a preceding matching assistant `message.updated`; both remain absent if it was not already accepted.                                                                                                          |
+| Retry and provider-request identity | Unavailable. `step_finish` supplies neither retry metadata nor authoritative provider-request identity; live `model_steps` remains `model_step`. A retained `native_request` schema record is historical/offline compatibility only, not supported collection.                                                                            | Unavailable. OpenCode 1.18.4 supplies no provider request ID or retry relationship on these events.                                                                                                                                                                                                                   |
+| Retained evidence and inspection    | The raw JSONL stream is retained and hashed; follow `attempts.jsonl` → `artifacts.stream` to inspect it. Normalized ordered observations are retained in that attempt's `model_steps`; `ktx bench validate --experiment .bench-data/<experiment-id>` checks retained artifacts and regeneration.                                          | The normalized database observation retains runtime/version and `event_hook` or `wrapper_stream` collection provenance. Raw plugin events are not retained; wrapper bytes remain separately opt-in through `--record-stream`. Inspect with `ktx telemetry list --session <ktx-session-id> --format json` (or `text`). |
+| Incomplete or malformed behavior    | Malformed JSON and non-step events are skipped. An identifiable step is retained while each missing/null/malformed usage leaf is independently `unknown`/`malformed`; incomplete fields suppress only their attempt totals. Malformed optional `model_steps` loaded from `attempts.jsonl` are discarded without invalidating the attempt. | The same identifiable-step and independent-field rules apply. Structurally rejected records produce no row. Recording and persistence failures fail open and may leave no row.                                                                                                                                        |
+| Claim limit                         | Values are runtime stream model-step observations. They do not prove provider requests or request counts, provider-request/retry identity, provider-internal cache outcomes, request boundaries, isolation, or prefix composition.                                                                                                        | Values are runtime model-step observations, not raw provider responses. They carry the same claim limits.                                                                                                                                                                                                             |
 
 ## Inspect and verify offline
 
@@ -177,16 +187,16 @@ transaction rollback.
 
 ## Database migration and failure behavior
 
-Opening a database with schema version 0 through 4 automatically migrates it to
-version 5. The migration preserves unrelated session, tool-call, benchmark,
-compressed, and recorded-stream evidence. Version-4 telemetry rows retain their
-runtime namespace and runtime-version provenance while the table is rebuilt
-with runtime-qualified identity.
+Opening an older database automatically migrates it to version 6. The migration
+preserves unrelated session, tool-call, benchmark, compressed, and recorded-
+stream evidence. Existing telemetry values become measured fields, retain their
+runtime namespace and runtime-version provenance, and receive `legacy`
+collection provenance because their original ingress was not stored.
 
 Migration is one SQLite transaction. Invalid legacy provenance, a copy error,
 or another migration failure rolls back the table shape, rows, associations,
 unrelated evidence, indexes, and schema version. There is no automatic downgrade
-from version 5; rollback here means the failed upgrade leaves the prior database
+from version 6; rollback here means the failed upgrade leaves the prior database
 intact so the cause can be corrected and the command retried. Back up the
 database file before upgrading if an operator needs release-level rollback.
 

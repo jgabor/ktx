@@ -1,10 +1,15 @@
 package opencode
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 func TestContractFixtures(t *testing.T) {
@@ -53,9 +58,24 @@ func TestContractFixtures(t *testing.T) {
 		})
 	}
 	for rule, state := range covered {
+		if strings.HasPrefix(rule, "step.") && measurementRule(rule) {
+			if !state.accepted {
+				t.Errorf("measurement rule %q has no accepted model-step case", rule)
+			}
+			continue
+		}
 		if !state.accepted || !state.rejected {
 			t.Errorf("rule %q coverage = accepted:%t rejected:%t, want both", rule, state.accepted, state.rejected)
 		}
+	}
+}
+
+func measurementRule(rule string) bool {
+	switch rule {
+	case "step.cost", "step.tokens", "step.input", "step.output", "step.reasoning", "step.cache", "step.cache_read", "step.cache_write":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -111,8 +131,53 @@ func TestCollectorKeepsFirstObservationAuthoritative(t *testing.T) {
 	if _, err := collector.Add(modelStep("prt_1", "msg_1", 9, 9)); !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("changed duplicate error = %v, want ErrDuplicate", err)
 	}
-	if first.Provider != nil || first.Model != nil || first.Tokens.CacheRead != 1 || first.Tokens.CacheWrite != 2 {
+	if first.Provider != nil || first.Model != nil || first.Tokens.CacheRead.Value == nil || *first.Tokens.CacheRead.Value != 1 || first.Tokens.CacheWrite.Value == nil || *first.Tokens.CacheWrite.Value != 2 {
 		t.Fatalf("first observation changed: %#v", first)
+	}
+}
+
+func TestHookAndWrapperModelStepsNormalizeWithParity(t *testing.T) {
+	hook := modelStep("prt_1", "msg_1", 0, 7)
+	wrapper := []byte(`{"type":"step_finish","sessionID":"ses_1","part":{"id":"prt_1","sessionID":"ses_1","messageID":"msg_1","type":"step-finish","reason":"stop","cost":0,"tokens":{"input":1,"output":1,"reasoning":0,"cache":{"read":0,"write":7}}}}`)
+	hookObservation, err := DecodeModelStep(hook)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapperObservation, err := DecodeStreamModelStep(wrapper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hookObservation.Key != wrapperObservation.Key || !reflect.DeepEqual(hookObservation.Tokens, wrapperObservation.Tokens) || !reflect.DeepEqual(hookObservation.Cost, wrapperObservation.Cost) {
+		t.Fatalf("normalization differs:\n hook %#v\nwrapper %#v", hookObservation, wrapperObservation)
+	}
+
+	incompleteHook := []byte(`{"type":"message.part.updated","properties":{"part":{"id":"prt_2","sessionID":"ses_1","messageID":"msg_2","type":"step-finish","reason":"stop","cost":null,"tokens":{"input":0,"output":"bad","cache":{"read":null,"write":4}}}}}`)
+	incompleteWrapper := []byte(`{"type":"step_finish","part":{"id":"prt_2","sessionID":"ses_1","messageID":"msg_2","type":"step-finish","reason":"stop","cost":null,"tokens":{"input":0,"output":"bad","cache":{"read":null,"write":4}}}}`)
+	hookObservation, err = DecodeModelStep(incompleteHook)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapperObservation, err = DecodeStreamModelStep(incompleteWrapper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(hookObservation.Tokens, wrapperObservation.Tokens) || !reflect.DeepEqual(hookObservation.Cost, wrapperObservation.Cost) {
+		t.Fatalf("field states differ:\n hook %#v\nwrapper %#v", hookObservation, wrapperObservation)
+	}
+	if hookObservation.Tokens.Input.State != telemetry.MeasurementMeasured || hookObservation.Tokens.Output.State != telemetry.MeasurementMalformed || hookObservation.Tokens.Reasoning.State != telemetry.MeasurementUnknown || hookObservation.Tokens.CacheRead.State != telemetry.MeasurementUnknown {
+		t.Fatalf("unexpected field states: %#v", hookObservation.Tokens)
+	}
+
+	for _, payload := range [][]byte{[]byte(`{"type":"message.part.updated","properties":{"part":{"type":"step-finish"}}}`), []byte(`{"type":"step_finish","part":{"type":"step-finish"}}`)} {
+		var decodeErr error
+		if bytes.Contains(payload, []byte("message.part.updated")) {
+			_, decodeErr = DecodeModelStep(payload)
+		} else {
+			_, decodeErr = DecodeStreamModelStep(payload)
+		}
+		if !errors.Is(decodeErr, ErrInvalid) {
+			t.Fatalf("structurally invalid payload error = %v, want ErrInvalid", decodeErr)
+		}
 	}
 }
 

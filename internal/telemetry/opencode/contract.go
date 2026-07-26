@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 
 	"github.com/jgabor/ktx/internal/telemetry"
@@ -74,20 +73,35 @@ func (c *Collector) Add(data []byte) (*telemetry.Observation, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, exists := c.seen[observation.Key]; exists {
-			return nil, ErrDuplicate
-		}
-		c.seen[observation.Key] = struct{}{}
-		c.next++
-		observation.Ordinal = c.next
+		observation.Source = telemetry.SourceEventHook
 		if identity, ok := c.identities[messageKey{SessionID: observation.SessionID, MessageID: observation.MessageID}]; ok {
 			observation.Provider = stringPtr(identity.Provider)
 			observation.Model = stringPtr(identity.Model)
 		}
-		return &observation, nil
+		return c.accept(observation)
 	default:
 		return nil, fmt.Errorf("%w: type %q", ErrUnsupported, eventType)
 	}
+}
+
+// AddStream accepts one OpenCode JSONL step_finish record from the wrapper.
+func (c *Collector) AddStream(data []byte) (*telemetry.Observation, error) {
+	observation, err := DecodeStreamModelStep(data)
+	if err != nil {
+		return nil, err
+	}
+	observation.Source = telemetry.SourceWrapperStream
+	return c.accept(observation)
+}
+
+func (c *Collector) accept(observation telemetry.Observation) (*telemetry.Observation, error) {
+	if _, exists := c.seen[observation.Key]; exists {
+		return nil, ErrDuplicate
+	}
+	c.seen[observation.Key] = struct{}{}
+	c.next++
+	observation.Ordinal = c.next
+	return &observation, nil
 }
 
 // DecodeMessageIdentity validates the assistant message shape used only for
@@ -157,53 +171,68 @@ func DecodeModelStep(data []byte) (telemetry.Observation, error) {
 	if err != nil {
 		return telemetry.Observation{}, err
 	}
-	partType, err := requiredString(part["type"], "properties.part.type")
+	return normalizePart(part, "properties.part")
+}
+
+// DecodeStreamModelStep normalizes the wrapper's OpenCode JSONL envelope.
+func DecodeStreamModelStep(data []byte) (telemetry.Observation, error) {
+	var event struct {
+		Type string          `json:"type"`
+		Part json.RawMessage `json:"part"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return telemetry.Observation{}, invalid("malformed JSON")
+	}
+	if event.Type != "step_finish" {
+		return telemetry.Observation{}, fmt.Errorf("%w: type %q", ErrUnsupported, event.Type)
+	}
+	part, err := object(event.Part, "part")
+	if err != nil {
+		return telemetry.Observation{}, err
+	}
+	observation, err := normalizePart(part, "part")
+	if err != nil {
+		return telemetry.Observation{}, err
+	}
+	provider, providerOK := optionalString(part["provider"])
+	model, modelOK := optionalString(part["model"])
+	if providerOK && modelOK {
+		observation.Provider = stringPtr(provider)
+		observation.Model = stringPtr(model)
+	}
+	return observation, nil
+}
+
+func normalizePart(part map[string]json.RawMessage, path string) (telemetry.Observation, error) {
+	partType, err := requiredString(part["type"], path+".type")
 	if err != nil {
 		return telemetry.Observation{}, err
 	}
 	if partType != "step-finish" {
 		return telemetry.Observation{}, fmt.Errorf("%w: part type %q", ErrUnsupported, partType)
 	}
-	observation := telemetry.Observation{}
-	if observation.SessionID, err = requiredString(part["sessionID"], "properties.part.sessionID"); err != nil {
+	observation := telemetry.Observation{Runtime: Runtime, RuntimeVersion: RuntimeVersion}
+	if observation.SessionID, err = requiredString(part["sessionID"], path+".sessionID"); err != nil {
 		return telemetry.Observation{}, err
 	}
-	if observation.MessageID, err = requiredString(part["messageID"], "properties.part.messageID"); err != nil {
+	if observation.MessageID, err = requiredString(part["messageID"], path+".messageID"); err != nil {
 		return telemetry.Observation{}, err
 	}
-	if observation.PartID, err = requiredString(part["id"], "properties.part.id"); err != nil {
+	if observation.PartID, err = requiredString(part["id"], path+".id"); err != nil {
 		return telemetry.Observation{}, err
 	}
-	if observation.Reason, err = requiredString(part["reason"], "properties.part.reason"); err != nil {
+	if observation.Reason, err = requiredString(part["reason"], path+".reason"); err != nil {
 		return telemetry.Observation{}, err
 	}
-	if observation.Cost, err = nonnegativeNumber(part["cost"], "properties.part.cost"); err != nil {
-		return telemetry.Observation{}, err
-	}
-	tokens, err := object(part["tokens"], "properties.part.tokens")
-	if err != nil {
-		return telemetry.Observation{}, err
-	}
-	cache, err := object(tokens["cache"], "properties.part.tokens.cache")
-	if err != nil {
-		return telemetry.Observation{}, err
-	}
-	measurements := []struct {
-		raw  json.RawMessage
-		name string
-		set  *int64
-	}{
-		{tokens["input"], "properties.part.tokens.input", &observation.Tokens.Input},
-		{tokens["output"], "properties.part.tokens.output", &observation.Tokens.Output},
-		{tokens["reasoning"], "properties.part.tokens.reasoning", &observation.Tokens.Reasoning},
-		{cache["read"], "properties.part.tokens.cache.read", &observation.Tokens.CacheRead},
-		{cache["write"], "properties.part.tokens.cache.write", &observation.Tokens.CacheWrite},
-	}
-	for _, measurement := range measurements {
-		*measurement.set, err = nonnegativeInteger(measurement.raw, measurement.name)
-		if err != nil {
-			return telemetry.Observation{}, err
-		}
+	tokens, tokensState := objectState(part["tokens"])
+	cache, cacheState := childObjectState(tokens, tokensState, "cache")
+	observation.Cost = telemetry.DecodeCostMeasurement(part["cost"], telemetry.MeasurementMeasured)
+	observation.Tokens = telemetry.Tokens{
+		Input:      telemetry.DecodeIntegerMeasurement(tokens["input"], tokensState),
+		Output:     telemetry.DecodeIntegerMeasurement(tokens["output"], tokensState),
+		Reasoning:  telemetry.DecodeIntegerMeasurement(tokens["reasoning"], tokensState),
+		CacheRead:  telemetry.DecodeIntegerMeasurement(cache["read"], cacheState),
+		CacheWrite: telemetry.DecodeIntegerMeasurement(cache["write"], cacheState),
 	}
 	return observation, nil
 }
@@ -232,33 +261,36 @@ func object(raw json.RawMessage, name string) (map[string]json.RawMessage, error
 	return value, nil
 }
 
+func objectState(raw json.RawMessage) (map[string]json.RawMessage, telemetry.MeasurementState) {
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return nil, telemetry.MeasurementUnknown
+	}
+	var value map[string]json.RawMessage
+	if json.Unmarshal(raw, &value) != nil || value == nil {
+		return nil, telemetry.MeasurementMalformed
+	}
+	return value, telemetry.MeasurementMeasured
+}
+
+func childObjectState(parent map[string]json.RawMessage, state telemetry.MeasurementState, key string) (map[string]json.RawMessage, telemetry.MeasurementState) {
+	if state != telemetry.MeasurementMeasured {
+		return nil, state
+	}
+	return objectState(parent[key])
+}
+
+func optionalString(raw json.RawMessage) (string, bool) {
+	var value string
+	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil || strings.TrimSpace(value) == "" {
+		return "", false
+	}
+	return value, true
+}
+
 func requiredString(raw json.RawMessage, name string) (string, error) {
 	var value string
 	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil || strings.TrimSpace(value) == "" {
 		return "", invalid(name + " must be a non-blank string")
-	}
-	return value, nil
-}
-
-func nonnegativeInteger(raw json.RawMessage, name string) (int64, error) {
-	if len(raw) == 0 {
-		return 0, invalid("missing " + name)
-	}
-	var number json.Number
-	if json.Unmarshal(raw, &number) != nil {
-		return 0, invalid(name + " must be a non-negative safe integer")
-	}
-	value, err := number.Int64()
-	if err != nil || value < 0 || value >= 1<<53 {
-		return 0, invalid(name + " must be a non-negative safe integer")
-	}
-	return value, nil
-}
-
-func nonnegativeNumber(raw json.RawMessage, name string) (float64, error) {
-	var value float64
-	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) || json.Unmarshal(raw, &value) != nil || value < 0 || math.IsInf(value, 0) || math.IsNaN(value) {
-		return 0, invalid(name + " must be a non-negative number")
 	}
 	return value, nil
 }

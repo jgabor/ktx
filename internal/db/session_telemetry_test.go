@@ -82,6 +82,9 @@ func TestSessionTelemetryPersistsSeparatelyAndListsMeasurements(t *testing.T) {
 	if got.Runtime != "test-runtime" || got.RuntimeVersion != "1.0.0" {
 		t.Fatalf("runtime identity = %q/%q", got.Runtime, got.RuntimeVersion)
 	}
+	if got.Source != telemetry.SourceEventHook {
+		t.Fatalf("source = %q, want %q", got.Source, telemetry.SourceEventHook)
+	}
 	if got.CacheRead.State != MeasurementMeasured || got.CacheRead.Value == nil || *got.CacheRead.Value != 0 {
 		t.Fatalf("cache_read = %#v, want measured zero", got.CacheRead)
 	}
@@ -92,6 +95,37 @@ func TestSessionTelemetryPersistsSeparatelyAndListsMeasurements(t *testing.T) {
 		if count := tableRowCount(t, d.db, table); count != 0 {
 			t.Errorf("%s rows = %d, want 0", table, count)
 		}
+	}
+}
+
+func TestSessionTelemetryPersistsUnknownAndMalformedFields(t *testing.T) {
+	d, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	sessionID := mustNewID(t)
+	if err := d.InsertSession(&Session{ID: sessionID, Agent: "opencode"}); err != nil {
+		t.Fatal(err)
+	}
+	observation := telemetryObservation("ses_source", "msg_1", "prt_1", 1, 0, 7)
+	observation.Tokens.Output = telemetry.IntegerMeasurement{State: telemetry.MeasurementUnknown}
+	observation.Tokens.Reasoning = telemetry.IntegerMeasurement{State: telemetry.MeasurementMalformed}
+	observation.Cost = telemetry.CostMeasurement{State: telemetry.MeasurementUnknown}
+	observation.Source = telemetry.SourceWrapperStream
+	if inserted, err := d.PersistSessionTelemetry(sessionID, "2026-07-24T10:00:00Z", observation); err != nil || !inserted {
+		t.Fatalf("PersistSessionTelemetry() = %t, %v", inserted, err)
+	}
+	rows, err := d.ListSessionTelemetry(sessionID, 10)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("ListSessionTelemetry() = %#v, %v", rows, err)
+	}
+	got := rows[0]
+	if got.Output.State != MeasurementUnknown || got.Output.Value != nil || got.Reasoning.State != MeasurementMalformed || got.Reasoning.Value != nil || got.Cost.State != MeasurementUnknown || got.Cost.Value != nil {
+		t.Fatalf("incomplete measurements changed: %#v", got)
+	}
+	if got.UncachedInput.Value == nil || *got.UncachedInput.Value != 1 || got.Source != telemetry.SourceWrapperStream {
+		t.Fatalf("measured sibling/provenance changed: %#v", got)
 	}
 }
 
@@ -135,6 +169,11 @@ func TestSessionTelemetryDuplicateConcurrentAndAtomicAssociation(t *testing.T) {
 	if rows[0].Provider != nil || rows[0].Model != nil {
 		t.Fatalf("unavailable identity was invented: %#v", rows[0])
 	}
+	crossIngress := *observation
+	crossIngress.Source = telemetry.SourceWrapperStream
+	if inserted, err := d.PersistSessionTelemetry(sessionID, "2026-07-24T11:00:00Z", &crossIngress); err != nil || inserted {
+		t.Fatalf("cross-ingress exact duplicate = %t, %v", inserted, err)
+	}
 	if _, err := d.PersistSessionTelemetry("aaaaaaaaaaaaaaaa", "2026-07-24T10:00:00Z", telemetryObservation("ses_other", "msg_2", "prt_2", 2, 1, 1)); !errors.Is(err, ErrSessionTelemetrySourceNotFound) {
 		t.Fatalf("unknown session error = %v", err)
 	}
@@ -166,13 +205,16 @@ func TestSessionTelemetryRuntimeQualifiedIdentityAndFirstEvidence(t *testing.T) 
 
 	conflict := telemetryObservation("ses_source", "msg_1", "prt_1", 99, 30, 40)
 	conflict.Reason = "conflicting"
-	conflict.Cost = 9.5
-	conflict.Tokens.Input, conflict.Tokens.Output, conflict.Tokens.Reasoning = 10, 20, 30
+	conflict.Cost = telemetry.CostMeasurement{State: telemetry.MeasurementMeasured, Value: float64Pointer(9.5)}
+	conflict.Tokens.Input = telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: int64Pointer(10)}
+	conflict.Tokens.Output = telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: int64Pointer(20)}
+	conflict.Tokens.Reasoning = telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: int64Pointer(30)}
 	conflict.RuntimeVersion = "2.0.0"
+	conflict.Source = telemetry.SourceWrapperStream
 	otherProvider, otherModel := "provider-second", "model-second"
 	conflict.Provider, conflict.Model = &otherProvider, &otherModel
-	if inserted, err := d.PersistSessionTelemetry(secondOwner, "2026-07-24T11:00:00Z", conflict); err != nil || inserted {
-		t.Fatalf("conflicting retry = %t, %v", inserted, err)
+	if inserted, err := d.PersistSessionTelemetry(secondOwner, "2026-07-24T11:00:00Z", conflict); !errors.Is(err, ErrSessionTelemetryConflict) || inserted {
+		t.Fatalf("conflicting retry = %t, %v; want conflict", inserted, err)
 	}
 
 	otherRuntime := *conflict
@@ -187,6 +229,7 @@ func TestSessionTelemetryRuntimeQualifiedIdentityAndFirstEvidence(t *testing.T) 
 	}
 	got := rows[0]
 	if got.SessionID != firstOwner || got.Ordinal != 1 || got.Reason != "stop" || got.RuntimeVersion != "1.0.0" ||
+		got.Source != telemetry.SourceEventHook ||
 		got.Provider == nil || *got.Provider != provider || got.Model == nil || *got.Model != model ||
 		got.Cost.Value == nil || *got.Cost.Value != 0 || got.CacheRead.Value == nil || *got.CacheRead.Value != 3 ||
 		got.CacheWrite.Value == nil || *got.CacheWrite.Value != 4 || got.CapturedAt != "2026-07-24T10:00:00Z" {
@@ -216,9 +259,10 @@ func TestSessionTelemetryConcurrentConflictHasOneCompleteWinner(t *testing.T) {
 	}
 	for i, observation := range observations {
 		observation.Reason = []string{"winner-a", "winner-b"}[i]
-		observation.Cost = []float64{1.25, 2.5}[i]
-		observation.Tokens.Input = int64(100 + i)
+		observation.Cost = telemetry.CostMeasurement{State: telemetry.MeasurementMeasured, Value: float64Pointer([]float64{1.25, 2.5}[i])}
+		observation.Tokens.Input = telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: int64Pointer(int64(100 + i))}
 		observation.RuntimeVersion = []string{"1.0.0", "2.0.0"}[i]
+		observation.Source = []string{telemetry.SourceEventHook, telemetry.SourceWrapperStream}[i]
 		provider, model := []string{"provider-a", "provider-b"}[i], []string{"model-a", "model-b"}[i]
 		observation.Provider, observation.Model = &provider, &model
 	}
@@ -247,24 +291,27 @@ func TestSessionTelemetryConcurrentConflictHasOneCompleteWinner(t *testing.T) {
 			inserted++
 		}
 	}
+	conflicts := 0
 	for err := range errs {
-		if err != nil {
+		if errors.Is(err, ErrSessionTelemetryConflict) {
+			conflicts++
+		} else if err != nil {
 			t.Fatal(err)
 		}
 	}
-	if inserted != 1 {
-		t.Fatalf("successful inserts = %d, want 1", inserted)
+	if inserted != 1 || conflicts != 1 {
+		t.Fatalf("successful inserts/conflicts = %d/%d, want 1/1", inserted, conflicts)
 	}
 
-	var owner, sourceSessionID, messageID, partID, reason, provider, model, runtime, runtimeVersion, capturedAt string
+	var owner, sourceSessionID, messageID, partID, reason, provider, model, runtime, runtimeVersion, source, capturedAt string
 	var ordinal, input, output, reasoning, cacheRead, cacheWrite int64
 	var cost float64
 	if err := d.db.QueryRow(`SELECT session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
 		tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
-		provider, model, runtime, runtime_version, captured_at FROM session_telemetry`).Scan(
+		provider, model, runtime, runtime_version, source, captured_at FROM session_telemetry`).Scan(
 		&owner, &sourceSessionID, &messageID, &partID, &ordinal, &reason, &cost,
 		&input, &output, &reasoning, &cacheRead, &cacheWrite,
-		&provider, &model, &runtime, &runtimeVersion, &capturedAt,
+		&provider, &model, &runtime, &runtimeVersion, &source, &capturedAt,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +326,7 @@ func TestSessionTelemetryConcurrentConflictHasOneCompleteWinner(t *testing.T) {
 		cost != []float64{1.25, 2.5}[winner] || input != int64(100+winner) || output != 2 || reasoning != 0 ||
 		cacheRead != []int64{11, 21}[winner] || cacheWrite != []int64{12, 22}[winner] ||
 		provider != []string{"provider-a", "provider-b"}[winner] || model != []string{"model-a", "model-b"}[winner] ||
-		runtimeVersion != []string{"1.0.0", "2.0.0"}[winner] || capturedAt != []string{"captured-a", "captured-b"}[winner] {
+		runtimeVersion != []string{"1.0.0", "2.0.0"}[winner] || source != []string{telemetry.SourceEventHook, telemetry.SourceWrapperStream}[winner] || capturedAt != []string{"captured-a", "captured-b"}[winner] {
 		t.Fatalf("mixed concurrent winner: owner=%q source=%q message=%q part=%q ordinal=%d reason=%q cost=%v input=%d output=%d reasoning=%d read=%d write=%d provider=%q model=%q runtime=%q version=%q captured=%q",
 			owner, sourceSessionID, messageID, partID, ordinal, reason, cost, input, output, reasoning, cacheRead, cacheWrite, provider, model, runtime, runtimeVersion, capturedAt)
 	}
@@ -323,11 +370,19 @@ func telemetryObservation(sessionID, messageID, partID string, ordinal uint64, r
 		Key:     telemetry.Key{SessionID: sessionID, MessageID: messageID, PartID: partID},
 		Ordinal: ordinal,
 		Reason:  "stop",
-		Cost:    0,
+		Cost:    telemetry.CostMeasurement{State: telemetry.MeasurementMeasured, Value: float64Pointer(0)},
 		Tokens: telemetry.Tokens{
-			Input: 1, Output: 2, Reasoning: 0, CacheRead: read, CacheWrite: write,
+			Input:      telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: int64Pointer(1)},
+			Output:     telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: int64Pointer(2)},
+			Reasoning:  telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: int64Pointer(0)},
+			CacheRead:  telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &read},
+			CacheWrite: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &write},
 		},
 		Runtime:        "test-runtime",
 		RuntimeVersion: "1.0.0",
+		Source:         telemetry.SourceEventHook,
 	}
 }
+
+func int64Pointer(value int64) *int64       { return &value }
+func float64Pointer(value float64) *float64 { return &value }

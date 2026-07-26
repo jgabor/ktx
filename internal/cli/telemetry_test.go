@@ -3,12 +3,14 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/telemetry"
+	telemetryopencode "github.com/jgabor/ktx/internal/telemetry/opencode"
 )
 
 func TestTelemetryRecordAndBoundedJSONInspection(t *testing.T) {
@@ -83,11 +85,17 @@ func TestTelemetryInspectionOrdersRuntimeNamespacesAndShowsProvenance(t *testing
 		{runtime: "alpha-runtime", version: "1.0.0"},
 	} {
 		observation := &telemetry.Observation{
-			Key:            telemetry.Key{SessionID: "source", MessageID: "message", PartID: "part"},
-			Ordinal:        7,
-			Reason:         "stop",
+			Key:     telemetry.Key{SessionID: "source", MessageID: "message", PartID: "part"},
+			Ordinal: 7,
+			Reason:  "stop",
+			Cost:    telemetry.DecodeCostMeasurement(json.RawMessage("0"), telemetry.MeasurementMeasured),
+			Tokens: telemetry.Tokens{
+				Input: telemetry.DecodeIntegerMeasurement(json.RawMessage("0"), telemetry.MeasurementMeasured), Output: telemetry.DecodeIntegerMeasurement(json.RawMessage("0"), telemetry.MeasurementMeasured),
+				Reasoning: telemetry.DecodeIntegerMeasurement(json.RawMessage("0"), telemetry.MeasurementMeasured), CacheRead: telemetry.DecodeIntegerMeasurement(json.RawMessage("0"), telemetry.MeasurementMeasured), CacheWrite: telemetry.DecodeIntegerMeasurement(json.RawMessage("0"), telemetry.MeasurementMeasured),
+			},
 			Runtime:        provenance.runtime,
 			RuntimeVersion: provenance.version,
+			Source:         telemetry.SourceEventHook,
 		}
 		if inserted, err := d.PersistSessionTelemetry(sessionID, "2026-07-24T10:00:00Z", observation); err != nil || !inserted {
 			t.Fatalf("persist %s = %t, %v", provenance.runtime, inserted, err)
@@ -115,15 +123,15 @@ func TestTelemetryInspectionOrdersRuntimeNamespacesAndShowsProvenance(t *testing
 	if len(lines) != 3 || !strings.Contains(lines[0], "RUNTIME") || !strings.Contains(lines[0], "RUNTIME VERSION") {
 		t.Fatalf("text header = %q", stdout.String())
 	}
-	if got := strings.Join(strings.Fields(lines[1]), "|"); got != "7|source|message|part|0|(measured)|0|(measured)|-|-|alpha-runtime|1.0.0" {
+	if got := strings.Join(strings.Fields(lines[1]), "|"); got != "7|source|message|part|0|(measured)|0|(measured)|-|-|alpha-runtime|1.0.0|event_hook" {
 		t.Fatalf("first text row fields = %q", got)
 	}
-	if got := strings.Join(strings.Fields(lines[2]), "|"); got != "7|source|message|part|0|(measured)|0|(measured)|-|-|zeta-runtime|2.0.0" {
+	if got := strings.Join(strings.Fields(lines[2]), "|"); got != "7|source|message|part|0|(measured)|0|(measured)|-|-|zeta-runtime|2.0.0|event_hook" {
 		t.Fatalf("text runtime-qualified order/provenance = %q", stdout.String())
 	}
 }
 
-func TestTelemetryRecordRequiresEveryNumericFieldAndPreservesZeros(t *testing.T) {
+func TestTelemetryRecordDistinguishesUnavailableFieldsAndPreservesZeros(t *testing.T) {
 	d, err := dbpkg.OpenMemory()
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +156,7 @@ func TestTelemetryRecordRequiresEveryNumericFieldAndPreservesZeros(t *testing.T)
 			"input": 0, "output": 0, "reasoning": 0, "cache_read": 0, "cache_write": 0,
 		},
 	}
-	for _, field := range []string{"ordinal", "cost", "tokens.input", "tokens.output", "tokens.reasoning", "tokens.cache_read", "tokens.cache_write"} {
+	for _, field := range []string{"cost", "tokens.input", "tokens.output", "tokens.reasoning", "tokens.cache_read", "tokens.cache_write"} {
 		for _, form := range []string{"missing", "null"} {
 			t.Run(form+"_"+strings.ReplaceAll(field, ".", "_"), func(t *testing.T) {
 				payload := cloneTelemetryInput(t, complete)
@@ -167,8 +175,16 @@ func TestTelemetryRecordRequiresEveryNumericFieldAndPreservesZeros(t *testing.T)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := telemetryLogic([]string{"record"}, FormatJSON, bytes.NewReader(encoded), d, &bytes.Buffer{}, &bytes.Buffer{}); err == nil {
-					t.Fatalf("record accepted %s %s", form, field)
+				var input telemetryRecordInput
+				if err := json.Unmarshal(encoded, &input); err != nil {
+					t.Fatal(err)
+				}
+				observation, err := input.observation()
+				if err != nil {
+					t.Fatalf("record input rejected %s %s: %v", form, field, err)
+				}
+				if state := telemetryInputState(observation, field); state != telemetry.MeasurementUnknown {
+					t.Fatalf("%s %s state = %q, want unknown", form, field, state)
 				}
 			})
 		}
@@ -178,7 +194,7 @@ func TestTelemetryRecordRequiresEveryNumericFieldAndPreservesZeros(t *testing.T)
 		t.Fatal(err)
 	}
 	if len(rows) != 0 {
-		t.Fatalf("omitted fields persisted %d observations", len(rows))
+		t.Fatalf("input-only checks persisted %d observations", len(rows))
 	}
 	encoded, err := json.Marshal(complete)
 	if err != nil {
@@ -202,6 +218,59 @@ func TestTelemetryRecordRequiresEveryNumericFieldAndPreservesZeros(t *testing.T)
 	}
 	if row.Cost.State != dbpkg.MeasurementMeasured || row.Cost.Value == nil || *row.Cost.Value != 0 {
 		t.Errorf("cost = %#v, want measured zero", row.Cost)
+	}
+}
+
+func TestTelemetryExplicitStatesPreserveCrossIngressFirstEvidence(t *testing.T) {
+	d, err := dbpkg.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	sessionID, err := dbpkg.NewID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertSession(&dbpkg.Session{ID: sessionID, Agent: "opencode"}); err != nil {
+		t.Fatal(err)
+	}
+	hookPayload := `{"ktx_session_id":"` + sessionID + `","session_id":"ses_1","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":{"state":"measured","value":0},"tokens":{"input":{"state":"malformed","value":null},"output":{"state":"malformed","value":null},"reasoning":{"state":"malformed","value":null},"cache_read":{"state":"malformed","value":null},"cache_write":{"state":"malformed","value":null}}}`
+	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(hookPayload), d, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("record explicit hook states: %v", err)
+	}
+	collector := telemetryopencode.NewCollector()
+	wrapper, err := collector.AddStream([]byte(`{"type":"step_finish","part":{"id":"prt_1","sessionID":"ses_1","messageID":"msg_1","type":"step-finish","reason":"stop","cost":0,"tokens":[]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inserted, err := d.PersistSessionTelemetry(sessionID, "later", wrapper); err != nil || inserted {
+		t.Fatalf("equivalent wrapper duplicate = %t, %v", inserted, err)
+	}
+	weaker := *wrapper
+	weaker.Tokens.Input = telemetry.IntegerMeasurement{State: telemetry.MeasurementUnknown}
+	if inserted, err := d.PersistSessionTelemetry(sessionID, "later-still", &weaker); !errors.Is(err, dbpkg.ErrSessionTelemetryConflict) || inserted {
+		t.Fatalf("weaker conflicting duplicate = %t, %v", inserted, err)
+	}
+	rows, err := d.ListSessionTelemetry(sessionID, 10)
+	if err != nil || len(rows) != 1 || rows[0].Source != telemetry.SourceEventHook || rows[0].UncachedInput.State != dbpkg.MeasurementMalformed {
+		t.Fatalf("first hook evidence changed: %#v, %v", rows, err)
+	}
+}
+
+func telemetryInputState(observation *telemetry.Observation, field string) telemetry.MeasurementState {
+	switch field {
+	case "cost":
+		return observation.Cost.State
+	case "tokens.input":
+		return observation.Tokens.Input.State
+	case "tokens.output":
+		return observation.Tokens.Output.State
+	case "tokens.reasoning":
+		return observation.Tokens.Reasoning.State
+	case "tokens.cache_read":
+		return observation.Tokens.CacheRead.State
+	default:
+		return observation.Tokens.CacheWrite.State
 	}
 }
 
@@ -327,13 +396,17 @@ func TestTelemetryRejectsMalformedAndFailsOpenOnPersistenceError(t *testing.T) {
 		t.Fatalf("normalized validation error = %v", err)
 	}
 	malformed := `{"ktx_session_id":"` + sessionID + `","session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache_read":"bad","cache_write":9}}`
-	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(malformed), d, &stdout, &stderr); err == nil {
-		t.Fatal("malformed observation accepted")
+	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(malformed), d, &stdout, &stderr); err != nil {
+		t.Fatalf("identifiable observation with malformed field rejected: %v", err)
+	}
+	rows, err := d.ListSessionTelemetry(sessionID, 10)
+	if err != nil || len(rows) != 1 || rows[0].CacheRead.State != dbpkg.MeasurementMalformed || rows[0].CacheRead.Value != nil {
+		t.Fatalf("malformed field persistence = %#v, %v", rows, err)
 	}
 	if _, err := d.DB().Exec(`CREATE TRIGGER fail_optional_telemetry BEFORE INSERT ON session_telemetry BEGIN SELECT RAISE(ABORT, 'optional failure'); END`); err != nil {
 		t.Fatal(err)
 	}
-	valid := `{"ktx_session_id":"` + sessionID + `","session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache_read":0,"cache_write":9}}`
+	valid := `{"ktx_session_id":"` + sessionID + `","session_id":"ses_source","message_id":"msg_2","part_id":"prt_2","ordinal":2,"reason":"stop","cost":0,"tokens":{"input":1,"output":2,"reasoning":0,"cache_read":0,"cache_write":9}}`
 	stdout.Reset()
 	stderr.Reset()
 	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(valid), d, &stdout, &stderr); err != nil {

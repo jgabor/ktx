@@ -2,6 +2,8 @@
 package telemetry
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -17,27 +19,49 @@ type Key struct {
 	PartID    string `json:"part_id"`
 }
 
+type MeasurementState string
+
+const (
+	MeasurementMeasured  MeasurementState = "measured"
+	MeasurementUnknown   MeasurementState = "unknown"
+	MeasurementMalformed MeasurementState = "malformed"
+
+	SourceEventHook     = "event_hook"
+	SourceWrapperStream = "wrapper_stream"
+)
+
+type IntegerMeasurement struct {
+	State MeasurementState `json:"state"`
+	Value *int64           `json:"value"`
+}
+
+type CostMeasurement struct {
+	State MeasurementState `json:"state"`
+	Value *float64         `json:"value"`
+}
+
 // Tokens contains normalized model-step token measurements.
 type Tokens struct {
-	Input      int64 `json:"input"`
-	Output     int64 `json:"output"`
-	Reasoning  int64 `json:"reasoning"`
-	CacheRead  int64 `json:"cache_read"`
-	CacheWrite int64 `json:"cache_write"`
+	Input      IntegerMeasurement `json:"input"`
+	Output     IntegerMeasurement `json:"output"`
+	Reasoning  IntegerMeasurement `json:"reasoning"`
+	CacheRead  IntegerMeasurement `json:"cache_read"`
+	CacheWrite IntegerMeasurement `json:"cache_write"`
 }
 
 // Observation is one normalized model-step observation. Runtime identity is
 // assigned by the trusted ingestion boundary, not decoded from user input.
 type Observation struct {
 	Key
-	Ordinal        uint64  `json:"ordinal"`
-	Reason         string  `json:"reason"`
-	Cost           float64 `json:"cost"`
-	Tokens         Tokens  `json:"tokens"`
-	Provider       *string `json:"provider"`
-	Model          *string `json:"model"`
-	Runtime        string  `json:"runtime"`
-	RuntimeVersion string  `json:"runtime_version"`
+	Ordinal        uint64          `json:"ordinal"`
+	Reason         string          `json:"reason"`
+	Cost           CostMeasurement `json:"cost"`
+	Tokens         Tokens          `json:"tokens"`
+	Provider       *string         `json:"provider"`
+	Model          *string         `json:"model"`
+	Runtime        string          `json:"runtime"`
+	RuntimeVersion string          `json:"runtime_version"`
+	Source         string          `json:"source"`
 }
 
 // ValidateObservation checks a normalized observation before persistence.
@@ -52,6 +76,7 @@ func ValidateObservation(observation *Observation) error {
 		{"reason", observation.Reason},
 		{"runtime", observation.Runtime},
 		{"runtime_version", observation.RuntimeVersion},
+		{"source", observation.Source},
 	} {
 		if strings.TrimSpace(field.value) == "" {
 			return invalid(field.name + " must be a non-blank string")
@@ -60,12 +85,15 @@ func ValidateObservation(observation *Observation) error {
 	if observation.Ordinal == 0 || observation.Ordinal > math.MaxInt64 {
 		return invalid("ordinal must be a positive signed 64-bit integer")
 	}
-	if observation.Cost < 0 || math.IsInf(observation.Cost, 0) || math.IsNaN(observation.Cost) {
-		return invalid("cost must be a non-negative number")
+	if observation.Source != SourceEventHook && observation.Source != SourceWrapperStream {
+		return invalid("source must identify a supported collection path")
+	}
+	if err := validateCostMeasurement("cost", observation.Cost); err != nil {
+		return err
 	}
 	for _, field := range []struct {
-		name  string
-		value int64
+		name        string
+		measurement IntegerMeasurement
 	}{
 		{"tokens.input", observation.Tokens.Input},
 		{"tokens.output", observation.Tokens.Output},
@@ -73,8 +101,8 @@ func ValidateObservation(observation *Observation) error {
 		{"tokens.cache_read", observation.Tokens.CacheRead},
 		{"tokens.cache_write", observation.Tokens.CacheWrite},
 	} {
-		if field.value < 0 || field.value >= 1<<53 {
-			return invalid(field.name + " must be a non-negative safe integer")
+		if err := validateIntegerMeasurement(field.name, field.measurement); err != nil {
+			return err
 		}
 	}
 	if (observation.Provider == nil) != (observation.Model == nil) {
@@ -82,6 +110,64 @@ func ValidateObservation(observation *Observation) error {
 	}
 	if observation.Provider != nil && (strings.TrimSpace(*observation.Provider) == "" || strings.TrimSpace(*observation.Model) == "") {
 		return invalid("provider and model must be non-blank when available")
+	}
+	return nil
+}
+
+func DecodeIntegerMeasurement(raw json.RawMessage, containerState MeasurementState) IntegerMeasurement {
+	if containerState != MeasurementMeasured {
+		return IntegerMeasurement{State: containerState}
+	}
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return IntegerMeasurement{State: MeasurementUnknown}
+	}
+	var number json.Number
+	if json.Unmarshal(raw, &number) != nil {
+		return IntegerMeasurement{State: MeasurementMalformed}
+	}
+	value, err := number.Int64()
+	if err != nil || value < 0 || value >= 1<<53 {
+		return IntegerMeasurement{State: MeasurementMalformed}
+	}
+	return IntegerMeasurement{State: MeasurementMeasured, Value: &value}
+}
+
+func DecodeCostMeasurement(raw json.RawMessage, containerState MeasurementState) CostMeasurement {
+	if containerState != MeasurementMeasured {
+		return CostMeasurement{State: containerState}
+	}
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return CostMeasurement{State: MeasurementUnknown}
+	}
+	var value float64
+	if json.Unmarshal(raw, &value) != nil || value < 0 || math.IsInf(value, 0) || math.IsNaN(value) {
+		return CostMeasurement{State: MeasurementMalformed}
+	}
+	return CostMeasurement{State: MeasurementMeasured, Value: &value}
+}
+
+func validateIntegerMeasurement(name string, measurement IntegerMeasurement) error {
+	if measurement.State == MeasurementMeasured {
+		if measurement.Value == nil || *measurement.Value < 0 || *measurement.Value >= 1<<53 {
+			return invalid(name + " measured value must be a non-negative safe integer")
+		}
+		return nil
+	}
+	if (measurement.State != MeasurementUnknown && measurement.State != MeasurementMalformed) || measurement.Value != nil {
+		return invalid(name + " has an invalid measurement state/value")
+	}
+	return nil
+}
+
+func validateCostMeasurement(name string, measurement CostMeasurement) error {
+	if measurement.State == MeasurementMeasured {
+		if measurement.Value == nil || *measurement.Value < 0 || math.IsInf(*measurement.Value, 0) || math.IsNaN(*measurement.Value) {
+			return invalid(name + " measured value must be a non-negative number")
+		}
+		return nil
+	}
+	if (measurement.State != MeasurementUnknown && measurement.State != MeasurementMalformed) || measurement.Value != nil {
+		return invalid(name + " has an invalid measurement state/value")
 	}
 	return nil
 }

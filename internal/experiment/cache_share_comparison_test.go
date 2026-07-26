@@ -193,7 +193,7 @@ func TestCachedInputShareComparisonReportsResetBoundary(t *testing.T) {
 	attempt.sequence = coveredAttemptSequence(2)
 	attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
 		Ordinal: 15, Boundary: cacheevidence.BoundaryCompaction,
-		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: 15, EndOrdinal: 15},
+		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 15, EndOrdinal: 15},
 	})
 	comparison := cacheComparison(t, attempts)
 	found := false
@@ -227,7 +227,7 @@ func TestCachedInputShareComparisonRejectsBoundariesBeforeFirstModelStep(t *test
 			}
 			attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
 				Ordinal: 5, SessionID: test.session, Boundary: test.boundary,
-				Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
+				Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
 			})
 			comparison := cacheComparison(t, attempts)
 			if comparison["complete_pair_count"] != 1 {
@@ -252,7 +252,7 @@ func TestCachedInputShareComparisonRejectsBoundaryBeforeFirstOfMultipleSteps(t *
 	}
 	attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
 		Ordinal: 5, SessionID: "session-a", Boundary: cacheevidence.BoundaryRetry,
-		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
+		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
 	})
 	comparison := cacheComparison(t, attempts)
 	if comparison["complete_pair_count"] != 1 {
@@ -289,7 +289,7 @@ func TestCachedInputShareComparisonRejectsContradictoryPrefixEventProvenance(t *
 	}
 	attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
 		Ordinal: 5, SessionID: "session-a", Boundary: cacheevidence.BoundaryRetry,
-		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "wrapper_stream", StartOrdinal: 5, EndOrdinal: 5},
+		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "wrapper_stream", StartOrdinal: 5, EndOrdinal: 5},
 	})
 	comparison := cacheComparison(t, attempts)
 	observation := comparison["observations"].([]any)[0].(map[string]any)

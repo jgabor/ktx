@@ -493,7 +493,7 @@ have a retained session and readable database authority.
 
 Partial fact scores are kept; they are not discarded.
 
-For schema-v3 summaries, every applicable metric is a deterministic
+For schema-v3 and schema-v4 summaries, every applicable metric is a deterministic
 distribution with `count`, sorted `values`, `min`, `p25`, `median`, `mean`,
 `p75`, `max`, and `population_standard_deviation`. Quantiles use linear
 interpolation at rank `q*(n-1)` in the sorted values. Population standard
@@ -542,8 +542,9 @@ SHA-256, and summary regeneration uses that snapshot rather than live data.
 If the warm local cache lacks the model or cache rates, run `ktx prices update`.
 The retained pricing snapshot alone does not enable estimated-cost summary
 fields: those appear only when at least one attempt has a non-NULL estimate.
-Cache-aware methodology v5 independently retains summary schema v3 even when
-all estimates are NULL.
+New cache-aware methodology v5 runs under the pinned OpenCode 1.18.5 contract
+use summary schema v4 even when all estimates are NULL. Retained schema-v3
+experiments keep their historical schema and bytes.
 
 Reported cost and estimated API cost have independent completeness gates.
 Estimation requires complete input, output, reasoning, cache-read, and
@@ -609,7 +610,7 @@ Only the first two are current collection inputs. None proves provider-internal
 hits, misses, fills, eviction, request boundaries, isolation, or prefix
 composition.
 
-Schema-v3 summaries annotate Tukey outliers using `1.5 * IQR` fences. With
+Schema-v3 and schema-v4 summaries annotate Tukey outliers using `1.5 * IQR` fences. With
 fewer than four observations, detection is marked `insufficient_sample` and no
 point is flagged. Every flagged point remains in `values`, means, standard
 deviations, paired deltas, and all other aggregates. Outlier reporting is not an
@@ -640,9 +641,11 @@ Methodology v4 remains the default for compatibility. Select the cache-aware
 contract explicitly:
 
 ```bash
-ktx bench compare \
+./build/ktx bench compare \
+  --build \
   --methodology tools/bench/methodology-v5-cache-aware.yaml \
-  --model opencode/big-pickle \
+  --model openai/gpt-5.6-luna \
+  --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --cache-control observed \
   --warmup 1 \
@@ -664,7 +667,7 @@ adapter, exists only in ephemeral runtime configuration/command state.
 imposed; it is not inferred from orchestration overhead.
 
 No built-in OpenCode runtime/provider adapter currently establishes arm
-separation or provider-internal isolation. OpenCode 1.18.0 source shows that
+separation or provider-internal isolation. OpenCode 1.18.5 source shows that
 `provider.options.setCacheKey=true` derives `promptCacheKey` from the OpenCode
 session id and that per-model options can override that value, but source-level
 configurability alone does not prove effective separation. `auto` therefore
@@ -672,37 +675,48 @@ records OpenCode runs as observed-only, and explicit isolation fails before an
 agent attempt. Historical retained artifacts with isolated metadata remain
 validatable evidence; their labels do not enable isolation for a new run.
 
-Schema-v3 cache-aware summaries expose distributions for each phase while
+Schema-v4 cache-aware summaries expose distributions for each phase while
 keeping `measured_warm` as the headline, a cold-to-warm estimated-cost rebuild
 penalty, and the first cumulative measured turn where candidate estimated API
 cost is below baseline after setup cost. Unavailable estimates produce null
-values with reasons. TTFT is null: retained OpenCode 1.18.0 JSONL does not
-provide a reliable request-start timestamp.
+values with reasons. They also expose the OpenCode-reported direct cached-input
+share, the separately labeled estimated Pi consecutive-step method, controlled
+measured-cycle pairs, and deterministic statement authorization. TTFT is null:
+the OpenCode 1.18.5 JSONL format does not provide a reliable request-start
+timestamp.
 
-Validation is methodology-aware. For v5 it requires summary schema 3, retained
-pricing metadata and its hash-bound snapshot, exactly one cold observation and
-the configured warm-up count per side, explicit roles, cache metadata consistent
+Validation is methodology-aware. For a new OpenCode 1.18.5 v5 run it requires
+summary schema 4, retained pricing metadata and its hash-bound snapshot, exactly
+one cold observation and the configured warm-up count per side, explicit roles,
+cache metadata consistent
 with the manifest, and measured-warm-only target counts. Historical isolated evidence must
 use one stable namespace hash per side and different hashes across sides.
 Observed evidence must not retain a namespace hash. Historical isolated manifest and
 attempt hashes must be exactly 64 lowercase hexadecimal characters, agree for
 every attempt within a side, and differ across sides. This format check ensures
 only the SHA-256 digest—not the raw namespace—can occupy retained namespace
-metadata. Methodologies v1-v4 retain the legacy validation predicate and summary
-bytes.
+metadata. Methodologies v1-v4 and retained schema-v3 v5 experiments preserve
+their historical validation and summary bytes.
+
+All cache-reuse views are derived from runtime-reported model-step fields.
+Cold, warm-up, and measured phase labels do not prove provider cache hits,
+misses, fills, eviction, eligibility, prefixes, isolation, or TTL behavior. The
+paired interval is descriptive and authorizes no significance or causal claim.
 
 ### Live quality ranking (one candidate pipeline)
 
 ```bash
 # Default: passthrough vs conservative-a
 ktx bench compare \
-  --model opencode/big-pickle \
+  --model openai/gpt-5.6-luna \
+  --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --rounds 3
 
 # Compare a different candidate
 ktx bench compare \
-  --model opencode/big-pickle \
+  --model openai/gpt-5.6-luna \
+  --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --baseline-config tools/bench/pipelines/passthrough.toml \
   --candidate-config tools/bench/pipelines/aggressive-head.toml \
@@ -713,7 +727,8 @@ Run the full matrix in-process:
 
 ```bash
 ktx bench rank \
-  --model opencode/big-pickle \
+  --model openai/gpt-5.6-luna \
+  --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --pipelines sanitize,keep-ends-mid,conservative-a,aggressive-head
 ```
@@ -734,8 +749,7 @@ golden test and must remain consistent with every task TOML file.
 ## Non-goals
 
 - LLM-as-judge scoring
-- Statistical confidence intervals
-- P-values, significance claims, or other inferential statistics
+- P-values, significance claims, causal claims, or other inferential claims
 - Automatic exclusion of outliers
 - Content-type taxonomy routing (separate follow-up; command-aware routing by tool name, command prefix, subcommand, and exit status is available — see [Command-aware routing](#command-aware-routing))
 - Changing the product default pipeline (still opt-in empty/passthrough)

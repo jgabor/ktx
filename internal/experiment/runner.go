@@ -237,7 +237,7 @@ func (runner *Runner) prepareOptions(options *CompareOptions) error {
 		return errors.New("task expected output or facts are required")
 	}
 	if strings.HasPrefix(options.Model, "github-copilot/") {
-		return errors.New("github-copilot/* models are not permitted for this repo; use a different provider such as neuralwatt/* or openai/*")
+		return errors.New("github-copilot/* models are not permitted for this repo; use --model openai/gpt-5.6-luna --variant high")
 	}
 	if options.AttemptTimeout <= 0 {
 		options.AttemptTimeout = 10 * time.Minute

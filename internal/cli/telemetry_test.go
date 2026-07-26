@@ -58,7 +58,7 @@ func TestTelemetryRecordAndBoundedJSONInspection(t *testing.T) {
 	if result.Observations[0].Provider != nil || result.Observations[0].Model != nil {
 		t.Fatalf("unavailable identity was invented: %#v", result.Observations[0])
 	}
-	if result.Observations[0].Runtime != "opencode" || result.Observations[0].RuntimeVersion != "1.18.4" {
+	if result.Observations[0].Runtime != "opencode" || result.Observations[0].RuntimeVersion != "1.18.5" {
 		t.Fatalf("runtime identity = %q/%q", result.Observations[0].Runtime, result.Observations[0].RuntimeVersion)
 	}
 }

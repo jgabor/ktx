@@ -28,7 +28,7 @@ func TestSequenceBoundaryEligibilityInputs(t *testing.T) {
 				t.Fatalf("order = %#v", got)
 			}
 		}},
-		{"order contradictory", current, nil, append(covered, CoverageFact{Class: "order", State: CoverageCovered, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "wrapper_stream", StartOrdinal: 10, EndOrdinal: 20}}), func(t *testing.T, got PairCoverage) {
+		{"order contradictory", current, nil, append(covered, CoverageFact{Class: "order", State: CoverageCovered, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "wrapper_stream", StartOrdinal: 10, EndOrdinal: 20}}), func(t *testing.T, got PairCoverage) {
 			if got.OrderCoverage != CoverageContradictory {
 				t.Fatalf("order = %#v", got)
 			}
@@ -88,7 +88,7 @@ func TestSequenceBoundaryEligibilityInputs(t *testing.T) {
 				t.Fatalf("concurrency = %#v", got)
 			}
 		}},
-		{"boundary provenance contradictory", current, []SequenceFact{{Ordinal: 15, SessionID: "session-a", Boundary: BoundaryInterruption, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "wrapper_stream", StartOrdinal: 15, EndOrdinal: 15}}}, covered, func(t *testing.T, got PairCoverage) {
+		{"boundary provenance contradictory", current, []SequenceFact{{Ordinal: 15, SessionID: "session-a", Boundary: BoundaryInterruption, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "wrapper_stream", StartOrdinal: 15, EndOrdinal: 15}}}, covered, func(t *testing.T, got PairCoverage) {
 			if got.SegmentCoverage != CoverageContradictory {
 				t.Fatalf("segment = %#v", got)
 			}
@@ -256,17 +256,17 @@ func TestMalformedBoundaryCannotBecomeSilence(t *testing.T) {
 				t.Fatalf("retry = %#v", got)
 			}
 		}},
-		{"compaction", SequenceFact{Ordinal: 15, SessionID: "session-a", Boundary: BoundaryCompaction, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: 15}}, func(t *testing.T, got PairCoverage) {
+		{"compaction", SequenceFact{Ordinal: 15, SessionID: "session-a", Boundary: BoundaryCompaction, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 15}}, func(t *testing.T, got PairCoverage) {
 			if got.ResetCoverage != "unavailable" {
 				t.Fatalf("reset = %#v", got)
 			}
 		}},
-		{"interruption", SequenceFact{Ordinal: 15, SessionID: "session-a", Boundary: BoundaryInterruption, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", StartOrdinal: 15, EndOrdinal: 15}}, func(t *testing.T, got PairCoverage) {
+		{"interruption", SequenceFact{Ordinal: 15, SessionID: "session-a", Boundary: BoundaryInterruption, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", StartOrdinal: 15, EndOrdinal: 15}}, func(t *testing.T, got PairCoverage) {
 			if got.SegmentCoverage != CoverageContradictory {
 				t.Fatalf("segment = %#v", got)
 			}
 		}},
-		{"restart", SequenceFact{Ordinal: 15, Boundary: BoundaryRestart, Provenance: SequenceProvenance{RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: 15, EndOrdinal: 15}}, func(t *testing.T, got PairCoverage) {
+		{"restart", SequenceFact{Ordinal: 15, Boundary: BoundaryRestart, Provenance: SequenceProvenance{RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 15, EndOrdinal: 15}}, func(t *testing.T, got PairCoverage) {
 			if got.SegmentCoverage != CoverageContradictory {
 				t.Fatalf("segment = %#v", got)
 			}
@@ -292,7 +292,7 @@ func TestCrossSourcePositiveEventsCannotCertifyPair(t *testing.T) {
 	prior := modelFact(10, 1, "session-a")
 	current := modelFact(20, 2, "session-a")
 	foreign := func(boundary BoundaryKind, session string) SequenceFact {
-		return SequenceFact{Ordinal: 15, SessionID: session, Boundary: boundary, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "wrapper_stream", StartOrdinal: 15, EndOrdinal: 15}}
+		return SequenceFact{Ordinal: 15, SessionID: session, Boundary: boundary, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "wrapper_stream", StartOrdinal: 15, EndOrdinal: 15}}
 	}
 	tests := []struct {
 		name  string
@@ -367,7 +367,7 @@ func coveredFacts(start, end uint64) []CoverageFact {
 }
 
 func provenance(start, end uint64) SequenceProvenance {
-	return SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: start, EndOrdinal: end}
+	return SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: start, EndOrdinal: end}
 }
 
 func boundaryFact(ordinal uint64, session string, boundary BoundaryKind) SequenceFact {

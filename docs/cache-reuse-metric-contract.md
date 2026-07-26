@@ -11,10 +11,14 @@ The machine-readable authority is
 rendering work must implement that versioned contract rather than changing an
 existing summary schema or historical artifact in place.
 
+The active benchmark context is `openai/gpt-5.6-luna` with CLI variant
+`--variant high`. This configured context is retained as provenance but never
+backfills runtime-emitted source identity or changes the accounting rules.
+
 ## Accounting boundary and direct share
 
-OpenCode 1.18.4 commit
-`49c69c5ed3ccf706b61b3febb43c8aaff7f8325e` gives the three input fields a
+OpenCode 1.18.5 commit
+`e5cc278dec9294a627a7b05f47ce6a564408c1a2` gives the three input fields a
 disjoint meaning. Its `Usage` contract states this invariant:
 
 ```text
@@ -23,13 +27,20 @@ nonCachedInputTokens + cacheReadInputTokens + cacheWriteInputTokens = inputToken
 
 The pinned event publisher independently maps those three fields to
 `tokens.input`, `tokens.cache.read`, and `tokens.cache.write`. Therefore, for
-OpenCode 1.18.4, cache-write tokens are a disjoint input bucket and are included
-in logical input. The retained local observations agree with the invariant but
-all have measured cache write zero, so they do not independently demonstrate a
-positive cache-write case. This conclusion is intentionally scoped to the
+OpenCode 1.18.5, cache-write tokens are a disjoint input bucket and are included
+in logical input. The retained local OpenCode 1.18.4 observations are historical
+corroboration: they agree with the invariant but all have measured cache write
+zero, so they neither constitute a 1.18.5 live run nor independently demonstrate
+a positive cache-write case. This conclusion is intentionally scoped to the
 pinned runtime contract. Another runtime or version is ineligible until an
 equivalent disjoint accounting invariant is pinned; configured provider or
 model context cannot supply it.
+
+The 1.18.5 accounting and event-mapping blobs are byte-identical to 1.18.4. The
+machine contract also pins the generated event union, plugin event hook, run
+JSON formatter, OpenAI cached-token mapping, and Codex adapter blobs. Together
+these authorities preserve the sequence, wrapper-filtering, session-identity,
+retry/reset-availability, and OpenAI mapping conclusions under the new tag.
 
 For attempt `a`, include every contributing model step, not only a selected or
 last step:
@@ -49,7 +60,7 @@ reconstructed. The share is not applicable when `L_a <= 0`. Reports must show
 provenance beside the share.
 
 The direct view is emitted only when a cache-aware experiment identifies both
-its manifest runtime and cache-control runtime as OpenCode 1.18.4. Such a
+its manifest runtime and cache-control runtime as OpenCode 1.18.5. Such a
 summary uses additive schema 4 and retains one row per attempt under
 `direct_cached_input_share.attempts`. Each row retains its attempt ID, side,
 phase, and cycle along with the three bucket sums, logical input, and share as
@@ -111,7 +122,7 @@ No cost or TTL cause is estimated.
 
 ### Pinned sequence availability
 
-The OpenCode 1.18.4 event union resolves the collection unknown without a live
+The OpenCode 1.18.5 event union resolves the collection unknown without a live
 provider call. The plugin `event` hook receives `message.part.updated` events
 whose part union includes `step-finish`, `retry`, and `compaction`; it also
 receives retry `session.status`, `session.compacted`, `session.error`, and
@@ -194,7 +205,7 @@ unknown prior uncached input selects `prior_cache_activity_absent`, while an
 unknown cache-read field selects `prior_cache_read_unknown`. Reports include
 eligible and per-reason ineligible counts.
 
-New eligible output is additive under the same schema-4 OpenCode 1.18.4 gate
+New eligible output is additive under the same schema-4 OpenCode 1.18.5 gate
 as the direct view, at `estimated_consecutive_step_reuse`. It is labeled
 `estimated`, names `pi_consecutive_step_reusable_basis`, and retains each
 eligible pair's prior and current logical input, current cache read, exact
@@ -290,7 +301,7 @@ and paired identity. It then rederives every candidate-minus-baseline fraction,
 paired statistic, and same-pair quality value from that verified set. Declared
 counts, differences, statistics, direction, and aggregate quality must agree
 with that derivation. Direct authorization also requires the named contract and
-OpenCode 1.18.4 runtime scope. Secondary authorization requires the exact estimated
+OpenCode 1.18.5 runtime scope. Secondary authorization requires the exact estimated
 method, no ranking effect, and eligible and ineligible totals consistent with
 the retained attempt and pair rows. Missing, malformed, non-finite, or
 contradictory projections add `evidence_projection_inconsistent`; malformed

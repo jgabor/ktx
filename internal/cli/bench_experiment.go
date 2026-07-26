@@ -46,7 +46,7 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	if strings.HasPrefix(model, "github-copilot/") {
-		printError(stderr, usageError("ktx bench agent: github-copilot/* models are not permitted for this repo; use a different provider such as neuralwatt/* or openai/*"), opts.Format)
+		printError(stderr, usageError("ktx bench agent: github-copilot/* models are not permitted for this repo; use --model openai/gpt-5.6-luna --variant high"), opts.Format)
 		return ExitUsage
 	}
 	auth := os.Getenv("OPENCODE_AUTH_PATH")
@@ -106,7 +106,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	var target, maxAttempts, minimumToolCalls, warmup int
 	var timeout, grace time.Duration
 	var build bool
-	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. opencode/big-pickle)")
+	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. openai/gpt-5.6-luna with --variant high)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
 	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")
@@ -264,7 +264,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	var model, variant, taskFile, pipelinesRaw, baselineID, dataDir, auth, image, campaignID, format string
 	var rounds, maxAttempts int
 	var timeout, grace time.Duration
-	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. opencode/big-pickle)")
+	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. openai/gpt-5.6-luna with --variant high)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
 	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")

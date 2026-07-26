@@ -18,11 +18,11 @@ func coveredAttemptSequence(stepCount int) *attemptSequence {
 		ordinal := uint64((i + 1) * 10)
 		facts[i] = cacheevidence.SequenceFact{
 			Ordinal: ordinal, ModelStepOrdinal: uint64(i + 1), SessionID: "session-a",
-			Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: ordinal, EndOrdinal: ordinal},
+			Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: ordinal, EndOrdinal: ordinal},
 		}
 	}
 	coverage := make([]cacheevidence.CoverageFact, 0, 6)
-	provenance := cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: "event_hook", StartOrdinal: facts[0].Ordinal, EndOrdinal: facts[len(facts)-1].Ordinal}
+	provenance := cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: facts[0].Ordinal, EndOrdinal: facts[len(facts)-1].Ordinal}
 	for _, class := range []string{"order", "retry", "reset", "segment", "concurrency", "identity"} {
 		coverage = append(coverage, cacheevidence.CoverageFact{Class: class, State: cacheevidence.CoverageCovered, Provenance: provenance})
 	}

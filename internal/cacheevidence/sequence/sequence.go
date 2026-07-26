@@ -256,7 +256,7 @@ func DecodeOpenCodeSequenceFact(data []byte, source string, ordinal, modelStepOr
 	if json.Unmarshal(data, &envelope) != nil {
 		return SequenceFact{}, false
 	}
-	fact := SequenceFact{Ordinal: ordinal, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.4", Source: source, StartOrdinal: ordinal, EndOrdinal: ordinal}}
+	fact := SequenceFact{Ordinal: ordinal, Provenance: SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: source, StartOrdinal: ordinal, EndOrdinal: ordinal}}
 	part := envelope.Part
 	if source == "event_hook" {
 		if envelope.Type == "server.instance.disposed" {

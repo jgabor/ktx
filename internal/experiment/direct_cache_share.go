@@ -5,7 +5,7 @@ import "math/big"
 const (
 	directCacheContractVersion = "cache-reuse-v1"
 	directCacheRuntime         = "opencode"
-	directCacheRuntimeVersion  = "1.18.4"
+	directCacheRuntimeVersion  = "1.18.5"
 )
 
 func supportsDirectCachedInputShare(manifest Manifest) bool {

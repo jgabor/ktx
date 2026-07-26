@@ -266,8 +266,11 @@ func validateProposal(p Proposal) error {
 			}
 			seen[path.Transport] = true
 		case "opencode":
-			if key != "opencode/big-pickle/" {
-				return fmt.Errorf("routine OpenCode evidence requires opencode/big-pickle without a variant")
+			if strings.TrimSpace(path.Provider) == "" || strings.TrimSpace(path.Model) == "" {
+				return fmt.Errorf("OpenCode evidence requires a provider and model")
+			}
+			if path.Provider == "github-copilot" {
+				return fmt.Errorf("github-copilot/* models are not permitted; use openai/gpt-5.6-luna with variant high")
 			}
 			if path.AccessMode != "runtime" {
 				return fmt.Errorf("OpenCode path requires runtime access mode")

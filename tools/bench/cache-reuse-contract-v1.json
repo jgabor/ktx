@@ -3,9 +3,14 @@
   "status": "direct_secondary_comparison_and_statement_authorization_implemented",
   "scope": {
     "runtime": "opencode",
-    "runtime_version": "1.18.4",
-    "runtime_commit": "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e",
+    "runtime_version": "1.18.5",
+    "runtime_commit": "e5cc278dec9294a627a7b05f47ce6a564408c1a2",
     "evidence_kind": "runtime_reported_model_steps",
+    "model_context": {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "variant": "high"
+    },
     "ranking_effect": "none",
     "historical_output_mutation": false
   },
@@ -26,11 +31,43 @@
     "local_retained_evidence": {
       "path": "tools/bench/evidence/opencode-runtime-cache-controls/source-events.jsonl",
       "sha256": "738504be1936b021a37e640367a71d0e12ee538e2cf062005d62ff741c56efe8",
+      "classification": "historical_corroboration",
+      "runtime_version": "1.18.4",
       "measured_model_steps": 3,
       "positive_cache_write_steps": 0,
       "limitation": "agrees_with_the_invariant_but_does_not_demonstrate_positive_cache_write"
     },
     "other_runtime_or_version": "ineligible_without_pinned_equivalent_disjoint_invariant"
+  },
+  "source_authorities": {
+    "usage_contract": {
+      "path": "packages/llm/src/schema/events.ts",
+      "git_blob": "98fcc9a24d417e70589e529fa1a1dd21ef35769c"
+    },
+    "event_mapping": {
+      "path": "packages/core/src/session/runner/publish-llm-event.ts",
+      "git_blob": "33652a618c93ebc6edd1a54410983d361e8f5e48"
+    },
+    "event_union": {
+      "path": "packages/sdk/js/src/gen/types.gen.ts",
+      "git_blob": "5e4fd8906155b9c88d29cda1c44adafcb09b4aaf"
+    },
+    "plugin_event_hook": {
+      "path": "packages/plugin/src/index.ts",
+      "git_blob": "edfa0139dfcaf0e877ab906fabe8e0527afc3915"
+    },
+    "run_json_formatter": {
+      "path": "packages/opencode/src/cli/cmd/run.ts",
+      "git_blob": "3927f615a08053a0c631e8baaa1cbd0337a37127"
+    },
+    "openai_cached_token_mapping": {
+      "path": "packages/llm/src/protocols/openai-responses.ts",
+      "git_blob": "4936d31c921b229d3e56a43e0c831d5bdd1d1790"
+    },
+    "openai_codex_adapter": {
+      "path": "packages/opencode/src/plugin/openai/codex.ts",
+      "git_blob": "d16b7495654c8da0bc1522d9e96118162ff9489f"
+    }
   },
   "sequence_evidence": {
     "provenance_required": [
@@ -77,7 +114,7 @@
     "purpose": "descriptive_non_ranking",
     "output": {
       "summary_schema_version": 4,
-      "gate": "v5-cache-aware manifest and cache-control runtime both identify opencode 1.18.4",
+      "gate": "v5-cache-aware manifest and cache-control runtime both identify opencode 1.18.5",
       "path": "direct_cached_input_share.attempts",
       "attempt_coordinates": ["attempt_id", "side", "phase", "cycle"],
       "attempt_states": "measured | missing | malformed | not_applicable",
@@ -113,7 +150,7 @@
     "missed_cost": "unsupported",
     "output": {
       "summary_schema_version": 4,
-      "gate": "same additive OpenCode 1.18.4 cache-aware gate as direct_cached_input_share",
+      "gate": "same additive OpenCode 1.18.5 cache-aware gate as direct_cached_input_share",
       "path": "estimated_consecutive_step_reuse",
       "label": "estimated",
       "per_pair_values": [
@@ -152,7 +189,7 @@
       "current.session_identity.value": "runtime-native identity; meaningful only when state == measured",
       "prior.runtime_contract": "runtime name, runtime version, and accounting-contract tuple",
       "current.runtime_contract": "runtime name, runtime version, and accounting-contract tuple",
-      "required_runtime_contract": "opencode 1.18.4 cache-reuse-v1 accounting tuple",
+      "required_runtime_contract": "opencode 1.18.5 cache-reuse-v1 accounting tuple",
       "prior.uncached_input.state": "measured | unknown | malformed",
       "prior.cache_read.state": "measured | unknown | malformed",
       "prior.cache_write.state": "measured | unknown | malformed",

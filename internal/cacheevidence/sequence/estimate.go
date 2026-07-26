@@ -4,7 +4,7 @@ import "math/big"
 
 const (
 	RequiredRuntime         = "opencode"
-	RequiredRuntimeVersion  = "1.18.4"
+	RequiredRuntimeVersion  = "1.18.5"
 	RequiredContractVersion = "cache-reuse-v1"
 )
 

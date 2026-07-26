@@ -95,14 +95,15 @@ A cache-aware live comparison separates cold observation, warm-up, and measured
 attempts:
 
 ```bash
-ktx bench compare \
+./build/ktx bench compare \
+  --build \
+  --methodology tools/bench/methodology-v5-cache-aware.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/ephemeral-midfact-v1.toml \
-  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
   --cache-control observed \
   --warmup 1 \
-  --rounds 3
+  --rounds 5
 ```
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic

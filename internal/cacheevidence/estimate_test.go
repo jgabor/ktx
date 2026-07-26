@@ -46,7 +46,8 @@ func TestEstimatePairSelectsFirstReasonInContractOrder(t *testing.T) {
 		{"interleaving", "concurrent_interleaving", func(v *EstimatePairInput) { v.ConcurrentInterleaving = true }},
 		{"identity unavailable", "runtime_session_identity_unavailable", func(v *EstimatePairInput) { v.Current.SessionIdentity = TextField{State: FieldUnknown} }},
 		{"identity changed", "runtime_session_identity_changed", func(v *EstimatePairInput) { v.Current.SessionIdentity.Value = "session-b" }},
-		{"runtime contract", "runtime_contract_mismatch", func(v *EstimatePairInput) { v.Current.RuntimeContract.RuntimeVersion = "1.18.3" }},
+		{"prior runtime contract", "runtime_contract_mismatch", func(v *EstimatePairInput) { v.Prior.RuntimeContract.RuntimeVersion = "1.18.4" }},
+		{"current runtime contract", "runtime_contract_mismatch", func(v *EstimatePairInput) { v.Current.RuntimeContract.RuntimeVersion = "1.18.4" }},
 		{"prior activity absent before uncached unknown", "prior_cache_activity_absent", func(v *EstimatePairInput) {
 			v.Prior.CacheRead = measuredField(0)
 			v.Prior.CacheWrite = measuredField(0)

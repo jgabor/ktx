@@ -72,17 +72,15 @@ Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go
 ### Live comparison
 
 ```bash
-ktx bench compare \
-  --model opencode/big-pickle \
-  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
-  --rounds 3
-
-# Priced model/variant alternative:
-ktx bench compare \
+./build/ktx bench compare \
+  --build \
+  --methodology tools/bench/methodology-v5-cache-aware.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
-  --rounds 3
+  --cache-control observed \
+  --warmup 1 \
+  --rounds 5
 ```
 
 **Model policy:** any provider is allowed except `github-copilot/*` models — they are on an enterprise plan and not permitted for this repo. The CLI rejects `github-copilot/*` at validation time.

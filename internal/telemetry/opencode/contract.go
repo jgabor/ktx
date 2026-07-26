@@ -14,7 +14,7 @@ import (
 
 const (
 	Runtime        = "opencode"
-	RuntimeVersion = "1.18.4"
+	RuntimeVersion = "1.18.5"
 )
 
 var (

@@ -13,7 +13,7 @@ func TestValidateObservationRequiresRuntimeIdentity(t *testing.T) {
 		Cost:           measuredCost(0),
 		Tokens:         measuredTokens(0, 0, 0, 0, 0),
 		Runtime:        "opencode",
-		RuntimeVersion: "1.18.4",
+		RuntimeVersion: "1.18.5",
 		Source:         SourceEventHook,
 	}
 	if err := ValidateObservation(&valid); err != nil {
@@ -50,7 +50,7 @@ func TestValidateObservationPreservesMeasurementStates(t *testing.T) {
 			CacheRead:  IntegerMeasurement{State: MeasurementMeasured, Value: &zero},
 			CacheWrite: IntegerMeasurement{State: MeasurementUnknown},
 		},
-		Runtime: "opencode", RuntimeVersion: "1.18.4", Source: SourceWrapperStream,
+		Runtime: "opencode", RuntimeVersion: "1.18.5", Source: SourceWrapperStream,
 	}
 	if err := ValidateObservation(&observation); err != nil {
 		t.Fatalf("valid states rejected: %v", err)

@@ -17,10 +17,10 @@ import (
 func directShareManifest() Manifest {
 	manifest := cacheAwareManifest()
 	manifest.Model = "openai/test"
-	manifest.Identities = map[string]string{"opencode": "1.18.4"}
+	manifest.Identities = map[string]string{"opencode": "1.18.5"}
 	manifest.CacheControl = &CacheControlManifest{
 		Mode: "observed", Source: "unavailable", Model: "openai/test",
-		Provider: "openai", Variant: "high", RuntimeVersion: "1.18.4",
+		Provider: "openai", Variant: "high", RuntimeVersion: "1.18.5",
 	}
 	return manifest
 }
@@ -31,7 +31,7 @@ func directShareAttempt(id string, steps ...SourceEvent) Attempt {
 		Artifacts: map[string]string{"stream": "artifacts/" + id + "/stream.jsonl"},
 		CacheControl: &CacheControlMetadata{
 			Mode: "observed", Source: "unavailable", Phase: MeasuredWarm,
-			Model: "openai/test", Provider: "openai", Variant: "high", RuntimeVersion: "1.18.4",
+			Model: "openai/test", Provider: "openai", Variant: "high", RuntimeVersion: "1.18.5",
 		},
 		Metrics: Metrics{ModelSteps: steps},
 	}
@@ -88,7 +88,7 @@ func TestDirectCachedInputShareUsesRetainedStepSums(t *testing.T) {
 		t.Fatalf("identity provenance = %#v", identity)
 	}
 	runtime := identity["runtime"].(map[string]any)
-	if runtime["required_runtime_version"] != "1.18.4" {
+	if runtime["required_runtime_version"] != "1.18.5" {
 		t.Fatalf("runtime provenance = %#v", runtime)
 	}
 	if _, misleading := runtime["required_contract_version"]; misleading {
@@ -195,15 +195,15 @@ func TestDirectCachedInputShareIsVersionGatedAndRendered(t *testing.T) {
 	for _, fragment := range []string{
 		"direct_cached_input_share attempt=rendered", "cache_read=5", "logical_input=15",
 		"formula=cache_read / logical_input", "unit=token_fraction", "source=artifacts/rendered/stream.jsonl",
-		"runtime=opencode/1.18.4", "configured_identity=openai/test variant=high", "source_event_identities=",
+		"runtime=opencode/1.18.5", "configured_identity=openai/test variant=high", "source_event_identities=",
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Errorf("rendered summary missing %q:\n%s", fragment, text)
 		}
 	}
 
-	manifest.CacheControl.RuntimeVersion = "1.18.3"
-	manifest.Identities["opencode"] = "1.18.3"
+	manifest.CacheControl.RuntimeVersion = "1.18.4"
+	manifest.Identities["opencode"] = "1.18.4"
 	legacy := BuildSummary(manifest, []Attempt{attempt})
 	if legacy["schema_version"] != 3 {
 		t.Fatalf("unsupported runtime schema = %v, want historical schema 3", legacy["schema_version"])
@@ -215,11 +215,11 @@ func TestDirectCachedInputShareIsVersionGatedAndRendered(t *testing.T) {
 
 func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	dir := writeV5ValidationFixture(t, func(manifest *Manifest, attempts *[]Attempt) {
-		manifest.CacheControl.RuntimeVersion = "1.18.4"
-		manifest.Identities["opencode"] = "1.18.4"
+		manifest.CacheControl.RuntimeVersion = "1.18.5"
+		manifest.Identities["opencode"] = "1.18.5"
 		for i := range *attempts {
 			attempt := &(*attempts)[i]
-			attempt.CacheControl.RuntimeVersion = "1.18.4"
+			attempt.CacheControl.RuntimeVersion = "1.18.5"
 			attempt.ModelSteps = []SourceEvent{directStep(1, MeasuredInteger(10), MeasuredInteger(5), MeasuredInteger(0))}
 		}
 	}, true)
@@ -267,6 +267,8 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 func TestDirectCachedInputSharePreservesHistoricalSchemaThreeBytes(t *testing.T) {
 	dir := t.TempDir()
 	manifest := directShareManifest()
+	manifest.CacheControl.RuntimeVersion = "1.18.4"
+	manifest.Identities["opencode"] = "1.18.4"
 	manifest.ExperimentID = "historical-schema-three"
 	rate := .5
 	pricing, err := writePricingSnapshot(dir, "openai", "test", db.Price{Input: 1, Output: 2, CacheRead: &rate, CacheWrite: &rate, InputSet: true, OutputSet: true})
@@ -275,6 +277,7 @@ func TestDirectCachedInputSharePreservesHistoricalSchemaThreeBytes(t *testing.T)
 	}
 	manifest.Pricing = pricing
 	attempt := directShareAttempt("historical", directStep(1, MeasuredInteger(10), MeasuredInteger(5), MeasuredInteger(0)))
+	attempt.CacheControl.RuntimeVersion = "1.18.4"
 	attempt.ExperimentID = manifest.ExperimentID
 	manifest.historicalSummarySchema = 3
 	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {

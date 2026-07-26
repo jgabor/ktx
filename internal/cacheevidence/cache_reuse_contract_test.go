@@ -1,20 +1,31 @@
 package cacheevidence
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 type cacheReuseContract struct {
 	Version string `json:"contract_version"`
 	Status  string `json:"status"`
 	Scope   struct {
-		Runtime                  string `json:"runtime"`
-		RuntimeVersion           string `json:"runtime_version"`
-		RuntimeCommit            string `json:"runtime_commit"`
+		Runtime        string `json:"runtime"`
+		RuntimeVersion string `json:"runtime_version"`
+		RuntimeCommit  string `json:"runtime_commit"`
+		EvidenceKind   string `json:"evidence_kind"`
+		ModelContext   struct {
+			Provider string `json:"provider"`
+			Model    string `json:"model"`
+			Variant  string `json:"variant"`
+		} `json:"model_context"`
 		RankingEffect            string `json:"ranking_effect"`
 		HistoricalOutputMutation bool   `json:"historical_output_mutation"`
 	} `json:"scope"`
@@ -35,12 +46,18 @@ type cacheReuseContract struct {
 		Local struct {
 			Path                   string `json:"path"`
 			SHA256                 string `json:"sha256"`
+			Classification         string `json:"classification"`
+			RuntimeVersion         string `json:"runtime_version"`
 			MeasuredModelSteps     int    `json:"measured_model_steps"`
 			PositiveCacheWriteStep int    `json:"positive_cache_write_steps"`
 			Limitation             string `json:"limitation"`
 		} `json:"local_retained_evidence"`
 		OtherRuntime string `json:"other_runtime_or_version"`
 	} `json:"accounting_evidence"`
+	SourceAuthorities map[string]struct {
+		Path    string `json:"path"`
+		GitBlob string `json:"git_blob"`
+	} `json:"source_authorities"`
 	Sequence struct {
 		ProvenanceRequired []string          `json:"provenance_required"`
 		CoverageRule       string            `json:"coverage_rule"`
@@ -62,6 +79,10 @@ type cacheReuseContract struct {
 		Unknown           string `json:"unknown"`
 		Malformed         string `json:"malformed"`
 		Purpose           string `json:"purpose"`
+		Output            struct {
+			SummarySchemaVersion int    `json:"summary_schema_version"`
+			Path                 string `json:"path"`
+		} `json:"output"`
 	} `json:"direct"`
 	Secondary struct {
 		Method                   string   `json:"method"`
@@ -117,6 +138,9 @@ type cacheReuseContract struct {
 			ZeroVariance string  `json:"zero_variance"`
 		} `json:"uncertainty"`
 		Direction map[string]string `json:"direction"`
+		Output    struct {
+			SummarySchemaVersion int `json:"summary_schema_version"`
+		} `json:"output"`
 	} `json:"comparison"`
 	StatementAuthorization struct {
 		SummarySchemaVersion   int      `json:"summary_schema_version"`
@@ -152,14 +176,74 @@ type cacheReuseContract struct {
 	} `json:"compatibility"`
 }
 
+type benchmarkMethodology struct {
+	MethodologyVersion string `yaml:"methodology_version"`
+	Date               string `yaml:"date"`
+	Scope              string `yaml:"scope"`
+	Inputs             struct {
+		Agent struct {
+			Binary  string `yaml:"binary"`
+			Version string `yaml:"version"`
+		} `yaml:"agent"`
+		Model struct {
+			ID       string `yaml:"id"`
+			Provider string `yaml:"provider"`
+			Variant  string `yaml:"variant"`
+		} `yaml:"model"`
+		Task struct {
+			Identifier     string `yaml:"identifier"`
+			Prompt         string `yaml:"prompt"`
+			ExpectedOutput string `yaml:"expected_output"`
+		} `yaml:"task"`
+		Scoring struct {
+			Function string `yaml:"function"`
+		} `yaml:"scoring"`
+	} `yaml:"inputs"`
+	Trials struct {
+		Phases struct {
+			ColdObservation     int `yaml:"cold_observation"`
+			WarmupDefault       int `yaml:"warmup_default"`
+			MeasuredWarmDefault int `yaml:"measured_warm_default"`
+		} `yaml:"phases"`
+		Accounting string `yaml:"accounting"`
+		Order      string `yaml:"order"`
+	} `yaml:"trials"`
+	CacheControl struct {
+		Modes            []string `yaml:"modes"`
+		Contract         string   `yaml:"contract"`
+		RetainedMetadata string   `yaml:"retained_metadata"`
+		OpenCodeRuntime  string   `yaml:"opencode_runtime"`
+	} `yaml:"cache_control"`
+	Computation string `yaml:"computation"`
+	ClaimScope  struct {
+		EvidenceKind           string `yaml:"evidence_kind"`
+		DirectMetric           string `yaml:"direct_metric"`
+		SecondaryMethod        string `yaml:"secondary_method"`
+		ComparisonUnit         string `yaml:"comparison_unit"`
+		StatementAuthorization string `yaml:"statement_authorization"`
+		ProviderNativeClaims   string `yaml:"provider_native_claims"`
+		SignificanceClaims     string `yaml:"significance_claims"`
+		CausalClaims           string `yaml:"causal_claims"`
+	} `yaml:"claim_scope"`
+	Output struct {
+		SummarySchema int    `yaml:"summary_schema"`
+		HeadlinePhase string `yaml:"headline_phase"`
+		Validation    string `yaml:"validation"`
+	} `yaml:"output"`
+	OutOfScope []string `yaml:"out_of_scope"`
+}
+
 func TestCacheReuseMetricContract(t *testing.T) {
 	root := filepath.Join("..", "..")
 	path := filepath.Join(root, "tools", "bench", "cache-reuse-contract-v1.json")
 	var contract cacheReuseContract
 	readJSON(t, path, &contract)
 
-	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_secondary_comparison_and_statement_authorization_implemented" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.4" || contract.Scope.RuntimeCommit != "49c69c5ed3ccf706b61b3febb43c8aaff7f8325e" {
+	if contract.Version != "cache-reuse-v1" || contract.Status != "direct_secondary_comparison_and_statement_authorization_implemented" || contract.Scope.Runtime != "opencode" || contract.Scope.RuntimeVersion != "1.18.5" || contract.Scope.RuntimeCommit != "e5cc278dec9294a627a7b05f47ce6a564408c1a2" {
 		t.Fatalf("unexpected contract identity: %#v", contract.Scope)
+	}
+	if contract.Scope.ModelContext.Provider != "openai" || contract.Scope.ModelContext.Model != "gpt-5.6-luna" || contract.Scope.ModelContext.Variant != "high" {
+		t.Fatalf("unexpected contract model context: %#v", contract.Scope.ModelContext)
 	}
 	if contract.Scope.RankingEffect != "none" || contract.Scope.HistoricalOutputMutation {
 		t.Fatalf("contract changes ranking or historical output: %#v", contract.Scope)
@@ -170,6 +254,94 @@ func TestCacheReuseMetricContract(t *testing.T) {
 	validateDirectAndSecondaryContract(t, contract)
 	validateClaimContract(t, contract)
 	validateStatementAuthorizationContract(t, contract)
+}
+
+func TestCacheAwareBenchmarkVehicleMatchesMetricContract(t *testing.T) {
+	root := filepath.Join("..", "..")
+	var contract cacheReuseContract
+	readJSON(t, filepath.Join(root, "tools", "bench", "cache-reuse-contract-v1.json"), &contract)
+
+	schema := contract.Direct.Output.SummarySchemaVersion
+	if schema == 0 || contract.Secondary.Output.SummarySchemaVersion != schema || contract.Comparison.Output.SummarySchemaVersion != schema || contract.StatementAuthorization.SummarySchemaVersion != schema {
+		t.Fatalf("cache-reuse contract summary schemas disagree: direct=%d secondary=%d comparison=%d authorization=%d", schema, contract.Secondary.Output.SummarySchemaVersion, contract.Comparison.Output.SummarySchemaVersion, contract.StatementAuthorization.SummarySchemaVersion)
+	}
+
+	dockerfile := readText(t, filepath.Join(root, "Dockerfile.benchmark"))
+	versionMatch := regexp.MustCompile(`(?m)^ARG\s+OPENCODE_VERSION\s*=\s*([^\s#]+)`).FindStringSubmatch(dockerfile)
+	if len(versionMatch) != 2 || versionMatch[1] != contract.Scope.RuntimeVersion {
+		t.Fatalf("Dockerfile benchmark OpenCode version = %q, want contract version %q", matchedValue(versionMatch), contract.Scope.RuntimeVersion)
+	}
+	for name, pattern := range map[string]string{
+		"pinned OpenCode install": `(?m)^RUN\s+npm install -g opencode-ai@\$\{OPENCODE_VERSION\}\s*$`,
+		"local source copy":       `(?m)^COPY\s+\.\s+\.\s*$`,
+		"local ktx build":         `(?m)^RUN\s+go build\s+[^\n]*-o\s+/out/ktx\s+\./cmd/ktx\s*$`,
+		"local binary copy":       `(?m)^COPY\s+--from=ktx-build\s+/out/ktx\s+/usr/local/bin/ktx\s*$`,
+		"embedded plugin install": `(?m)^RUN\s+ktx init opencode\s*$`,
+	} {
+		if !regexp.MustCompile(pattern).MatchString(dockerfile) {
+			t.Errorf("Dockerfile benchmark omits %s", name)
+		}
+	}
+
+	methodologyText := readText(t, filepath.Join(root, "tools", "bench", "methodology-v5-cache-aware.yaml"))
+	methodology, err := decodeBenchmarkMethodology(strings.NewReader(methodologyText))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if methodology.MethodologyVersion != "v5-cache-aware" || methodology.Inputs.Agent.Binary != contract.Scope.Runtime || methodology.Inputs.Agent.Version != contract.Scope.RuntimeVersion ||
+		methodology.Inputs.Model.Provider != contract.Scope.ModelContext.Provider || methodology.Inputs.Model.ID != contract.Scope.ModelContext.Model || methodology.Inputs.Model.Variant != contract.Scope.ModelContext.Variant || methodology.Output.SummarySchema != schema {
+		t.Fatalf("methodology runtime/model/schema does not match machine contract: %#v", methodology)
+	}
+	if methodology.ClaimScope.EvidenceKind != contract.Scope.EvidenceKind || methodology.ClaimScope.DirectMetric != strings.Split(contract.Direct.Output.Path, ".")[0] ||
+		methodology.ClaimScope.SecondaryMethod != contract.Secondary.Method || methodology.ClaimScope.ComparisonUnit != contract.Comparison.Unit ||
+		methodology.ClaimScope.StatementAuthorization != contract.StatementAuthorization.Path || methodology.ClaimScope.ProviderNativeClaims != "unsupported" ||
+		methodology.ClaimScope.SignificanceClaims != "unsupported" || methodology.ClaimScope.CausalClaims != "unsupported" {
+		t.Fatalf("methodology claim scope does not match machine contract: %#v", methodology.ClaimScope)
+	}
+}
+
+func TestBenchmarkMethodologyRejectsDuplicateKeysAndExtraDocuments(t *testing.T) {
+	valid := readText(t, filepath.Join("..", "..", "tools", "bench", "methodology-v5-cache-aware.yaml"))
+	duplicate := strings.Replace(valid, `    version: "1.18.5"`, "    version: \"1.18.5\"\n    version: \"1.18.5\"", 1)
+	if _, err := decodeBenchmarkMethodology(strings.NewReader(duplicate)); err == nil || !strings.Contains(err.Error(), "already defined") {
+		t.Fatalf("duplicate-key decode error = %v", err)
+	}
+	if _, err := decodeBenchmarkMethodology(strings.NewReader(valid + "\n---\nmethodology_version: second\n")); err == nil || !strings.Contains(err.Error(), "extra YAML document") {
+		t.Fatalf("extra-document decode error = %v", err)
+	}
+}
+
+func decodeBenchmarkMethodology(reader io.Reader) (benchmarkMethodology, error) {
+	decoder := yaml.NewDecoder(reader)
+	decoder.KnownFields(true)
+	var methodology benchmarkMethodology
+	if err := decoder.Decode(&methodology); err != nil {
+		return methodology, err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err != nil {
+			return methodology, err
+		}
+		return methodology, errors.New("extra YAML document")
+	}
+	return methodology, nil
+}
+
+func readText(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(data)
+}
+
+func matchedValue(match []string) string {
+	if len(match) == 2 {
+		return match[1]
+	}
+	return ""
 }
 
 func validateStatementAuthorizationContract(t *testing.T, contract cacheReuseContract) {
@@ -222,12 +394,30 @@ func validateAccountingContract(t *testing.T, root string, contract cacheReuseCo
 	if accounting.Mapping.Path != "packages/core/src/session/runner/publish-llm-event.ts" || accounting.Mapping.GitBlob != "33652a618c93ebc6edd1a54410983d361e8f5e48" || accounting.Mapping.UncachedInput != "usage.nonCachedInputTokens" || accounting.Mapping.CacheRead != "usage.cacheReadInputTokens" || accounting.Mapping.CacheWrite != "usage.cacheWriteInputTokens" {
 		t.Errorf("event mapping is not pinned: %#v", accounting.Mapping)
 	}
-	if accounting.Local.MeasuredModelSteps != 3 || accounting.Local.PositiveCacheWriteStep != 0 || accounting.Local.Limitation != "agrees_with_the_invariant_but_does_not_demonstrate_positive_cache_write" {
+	if accounting.Local.Classification != "historical_corroboration" || accounting.Local.RuntimeVersion != "1.18.4" || accounting.Local.MeasuredModelSteps != 3 || accounting.Local.PositiveCacheWriteStep != 0 || accounting.Local.Limitation != "agrees_with_the_invariant_but_does_not_demonstrate_positive_cache_write" {
 		t.Errorf("local evidence limitation changed: %#v", accounting.Local)
 	}
 	checkHash(t, filepath.Join(root, filepath.FromSlash(accounting.Local.Path)), accounting.Local.SHA256)
 	if accounting.OtherRuntime != "ineligible_without_pinned_equivalent_disjoint_invariant" {
 		t.Errorf("other runtime fallback = %q", accounting.OtherRuntime)
+	}
+	wantAuthorities := map[string]struct{ path, blob string }{
+		"usage_contract":              {"packages/llm/src/schema/events.ts", "98fcc9a24d417e70589e529fa1a1dd21ef35769c"},
+		"event_mapping":               {"packages/core/src/session/runner/publish-llm-event.ts", "33652a618c93ebc6edd1a54410983d361e8f5e48"},
+		"event_union":                 {"packages/sdk/js/src/gen/types.gen.ts", "5e4fd8906155b9c88d29cda1c44adafcb09b4aaf"},
+		"plugin_event_hook":           {"packages/plugin/src/index.ts", "edfa0139dfcaf0e877ab906fabe8e0527afc3915"},
+		"run_json_formatter":          {"packages/opencode/src/cli/cmd/run.ts", "3927f615a08053a0c631e8baaa1cbd0337a37127"},
+		"openai_cached_token_mapping": {"packages/llm/src/protocols/openai-responses.ts", "4936d31c921b229d3e56a43e0c831d5bdd1d1790"},
+		"openai_codex_adapter":        {"packages/opencode/src/plugin/openai/codex.ts", "d16b7495654c8da0bc1522d9e96118162ff9489f"},
+	}
+	if len(contract.SourceAuthorities) != len(wantAuthorities) {
+		t.Fatalf("source authorities = %#v", contract.SourceAuthorities)
+	}
+	for name, want := range wantAuthorities {
+		got := contract.SourceAuthorities[name]
+		if got.Path != want.path || got.GitBlob != want.blob {
+			t.Errorf("source authority %s = %#v, want %s at %s", name, got, want.path, want.blob)
+		}
 	}
 }
 

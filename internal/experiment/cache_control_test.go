@@ -43,7 +43,7 @@ func TestOpenCodeCacheCapabilityKeepsIsolationUnavailable(t *testing.T) {
 	for _, request := range []CacheCapabilityRequest{
 		{Runtime: "opencode", RuntimeVersion: "1.18.0", Provider: "openai", Model: "test"},
 		{Runtime: "opencode", RuntimeVersion: "1.18.0", Provider: "azure", Model: "test"},
-		{Runtime: "opencode", RuntimeVersion: "1.18.4", Provider: "opencode", Model: "big-pickle"},
+		{Runtime: "opencode", RuntimeVersion: "1.18.5", Provider: "openai", Model: "gpt-5.6-luna"},
 	} {
 		if capability := OpenCodeCacheCapability(request); capability.Supported || capability.Source != "unavailable" {
 			t.Fatalf("capability for %#v = %#v", request, capability)
@@ -52,7 +52,7 @@ func TestOpenCodeCacheCapabilityKeepsIsolationUnavailable(t *testing.T) {
 }
 
 func TestCacheControlModesDoNotPromoteHistoricalMetadata(t *testing.T) {
-	for _, version := range []string{"1.18.0", "1.18.4", "1.17.15", "version banana", "unknown"} {
+	for _, version := range []string{"1.18.0", "1.18.4", "1.18.5", "1.17.15", "version banana", "unknown"} {
 		auto, err := resolveCacheControl("auto", "experiment", CacheCapabilityRequest{Runtime: "opencode", RuntimeVersion: version, Provider: "openai", Model: "test"}, nil)
 		if err != nil || auto.mode != "observed" || auto.source != "unavailable" {
 			t.Fatalf("auto version %q = %#v, err=%v", version, auto, err)

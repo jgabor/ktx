@@ -16,7 +16,7 @@
 #     -v /path/to/ktx.toml:/home/node/.config/ktx/ktx.toml:ro \
 #     -v /path/to/target/repo:/work:rw \
 #     ktx-bench \
-#     -m neuralwatt/glm-5.2-short-fast-flex \
+#     -m openai/gpt-5.6-luna --variant high \
 #     "Read /work/README.md and respond: done"
 #
 # Treatment (compression): same command, different ktx.toml mount.
@@ -29,7 +29,7 @@
 
 ARG GO_VERSION=1.26
 ARG NODE_VARIANT=22-bookworm-slim
-ARG OPENCODE_VERSION=1.18.0
+ARG OPENCODE_VERSION=1.18.5
 
 FROM golang:${GO_VERSION}-bookworm AS ktx-build
 WORKDIR /src

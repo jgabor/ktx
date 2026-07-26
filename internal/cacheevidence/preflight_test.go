@@ -38,8 +38,8 @@ func validProposal() Proposal {
 				InputUSDPerMillion: 1, CacheWriteMultiplier: 1.25, OutputUSDPerMillion: 6,
 			},
 			{
-				Name: "routine_opencode", Source: "OpenCode", Version: "1.18.4", References: []string{"https://example.test/opencode"},
-				Transport: "opencode", Provider: "opencode", Model: "big-pickle", AccessMode: "runtime", CredentialSource: "environment:OPENCODE_API_KEY", CredentialType: "api", RuntimeBinary: "opencode",
+				Name: "routine_opencode", Source: "OpenCode", Version: "1.18.5", References: []string{"https://example.test/opencode"},
+				Transport: "opencode", Provider: "openai", Model: "gpt-5.6-luna", Variant: "high", AccessMode: "runtime", CredentialSource: "environment:OPENCODE_API_KEY", CredentialType: "api", RuntimeBinary: "opencode",
 				RequiredNativeRequests: 2, RequiredAttempts: 2, MaxInputTokens: 8192, MaxOutputTokens: 64,
 				CacheWriteMultiplier: 1,
 			},
@@ -57,7 +57,7 @@ func TestPreflightAcceptedAndUnavailableCases(t *testing.T) {
 			"environment:OPENAI_API_KEY":   {State: "present", Type: "api"},
 			"environment:OPENCODE_API_KEY": {State: "present", Type: "api"},
 		},
-		versions: map[string]string{"opencode": "1.18.4"},
+		versions: map[string]string{"opencode": "1.18.5"},
 	}
 	report, err := Preflight(proposal, available)
 	if err != nil {
@@ -80,7 +80,7 @@ func TestPreflightAcceptedAndUnavailableCases(t *testing.T) {
 		versions  map[string]string
 		condition string
 	}{
-		{name: "runtime version mismatch", versions: map[string]string{"opencode": "1.18.3"}, condition: "opencode version is 1.18.3; required 1.18.4"},
+		{name: "runtime version mismatch", versions: map[string]string{"opencode": "1.18.4"}, condition: "opencode version is 1.18.4; required 1.18.5"},
 		{name: "runtime executable unavailable", versions: nil, condition: "opencode executable is unavailable"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestPreflightRetainsChatGPTOAuthAsUnsupportedForDirectEvidence(t *testing.T
 			"opencode:OpenAI":              {State: "present", Type: "oauth"},
 			"environment:OPENCODE_API_KEY": {State: "present", Type: "api"},
 		},
-		versions: map[string]string{"opencode": "1.18.4"},
+		versions: map[string]string{"opencode": "1.18.5"},
 	}
 	report, err := Preflight(proposal, env)
 	if err != nil {
@@ -149,7 +149,7 @@ func TestPreflightRetainsUnenforceableCeilings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			proposal := validProposal()
 			tt.mutate(&proposal)
-			report, err := Preflight(proposal, fakeEnvironment{credentials: map[string]CredentialMetadata{"environment:OPENAI_API_KEY": {State: "present", Type: "api"}, "environment:OPENCODE_API_KEY": {State: "present", Type: "api"}}, versions: map[string]string{"opencode": "1.18.4"}})
+			report, err := Preflight(proposal, fakeEnvironment{credentials: map[string]CredentialMetadata{"environment:OPENAI_API_KEY": {State: "present", Type: "api"}, "environment:OPENCODE_API_KEY": {State: "present", Type: "api"}}, versions: map[string]string{"opencode": "1.18.5"}})
 			if err != nil {
 				t.Fatalf("Preflight() error = %v", err)
 			}
@@ -174,8 +174,8 @@ func TestPreflightRejectsWrongPathOrRetentionPolicy(t *testing.T) {
 		want   string
 	}{
 		{"priced model", func(p *Proposal) { p.Paths[0].Model = "gpt-5.6" }, "requires openai/gpt-5.6-luna"},
-		{"routine model", func(p *Proposal) { p.Paths[1].Model = "gpt-5.6-luna" }, "requires opencode/big-pickle"},
-		{"copilot", func(p *Proposal) { p.Paths[1].Provider = "github-copilot" }, "requires opencode/big-pickle"},
+		{"routine model", func(p *Proposal) { p.Paths[1].Model = "" }, "requires a provider and model"},
+		{"copilot", func(p *Proposal) { p.Paths[1].Provider = "github-copilot" }, "use openai/gpt-5.6-luna with variant high"},
 		{"artifact", func(p *Proposal) { p.ArtifactDestination = "evidence/output" }, "below .bench-data/cache-evidence"},
 		{"redaction", func(p *Proposal) { p.RedactionPolicy = nil }, "redaction policy"},
 		{"reference", func(p *Proposal) { p.Paths[0].References = []string{" "} }, "references must not be blank"},

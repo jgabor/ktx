@@ -1,18 +1,22 @@
 methodology_version: "v5-cache-aware"
-date: "2026-07-15"
+date: "2026-07-26"
 
 scope: |
-  Compare compression strategies while separating cache setup from the
-  measured warm sample. Preserve every paid attempt and make only claims
-  supported by the selected runtime/provider cache-control adapter.
+  Compare compression strategies from retained runtime-reported model steps,
+  separating cache setup from measured attempts. Report direct cached-input
+  share, the secondary estimated Pi method, controlled paired comparison, and
+  only statements authorized from that evidence. Trial phases do not establish
+  provider cache state or isolation. The model variant below describes the
+  required run context; the runner receives it from the CLI `--variant high`.
 
 inputs:
   agent:
     binary: opencode
-    version: "1.18.0"
+    version: "1.18.5"
   model:
-    id: "glm-5.2-short-fast-flex"
-    provider: "neuralwatt"
+    id: "gpt-5.6-luna"
+    provider: "openai"
+    variant: "high"
   task:
     identifier: "crossfile-nav-v1"
     prompt: "Use the task file supplied to ktx bench compare."
@@ -55,7 +59,7 @@ cache_control:
     and runtime version. A raw namespace may exist only in ephemeral generated
     runtime configuration or command state.
   opencode_runtime: |
-    OpenCode config accepts arbitrary per-model options. In 1.18.0, request
+    OpenCode config accepts arbitrary per-model options. In 1.18.5, request
     preparation merges model options after runtime defaults, so
     model.options.promptCacheKey can override the session-derived default.
     provider.options.setCacheKey only sets promptCacheKey to the OpenCode session
@@ -77,24 +81,36 @@ computation: |
   Estimated API cost uses the retained selected base/context-tier reasoning rate
   when present and otherwise falls back deterministically to its output rate.
   An explicit zero reasoning rate remains zero. TTFT is
-  null because OpenCode 1.18.0 retained JSONL does not expose a reliable request
+  null because OpenCode 1.18.5 retained JSONL does not expose a reliable request
   start timestamp from which to derive it.
 
+claim_scope:
+  evidence_kind: runtime_reported_model_steps
+  direct_metric: direct_cached_input_share
+  secondary_method: pi_consecutive_step_reusable_basis
+  comparison_unit: measured_cycle_pair
+  statement_authorization: statement_authorization
+  provider_native_claims: unsupported
+  significance_claims: unsupported
+  causal_claims: unsupported
+
 output:
-  summary_schema: 3
+  summary_schema: 4
   headline_phase: measured_warm
   validation: |
     Regenerate byte-identically from manifest.json, attempts.jsonl, retained
-    streams, and the retained pricing snapshot. Legacy methodology summaries
-    preserve their historical schemas and bytes. V5 additionally requires schema
-    3, its pricing snapshot, exact setup topology per side, measured_warm-only
-    target counts, and cache metadata on every role. Observed mode forbids any
-    retained namespace hash. Isolated manifest and attempt namespace hashes must
-    be exactly 64 lowercase hexadecimal characters, stable within each side,
-    distinct across sides, and consistent with each other.
+    streams, and the retained pricing snapshot. Legacy summaries preserve their
+    historical schemas and bytes. A new OpenCode 1.18.5 cache-aware summary uses
+    schema 4 for direct share, estimated consecutive-step reuse, paired
+    comparison, and statement authorization. Validation also requires the exact
+    setup topology per side, measured_warm-only target counts, and cache metadata
+    on every role. Observed mode forbids any retained namespace hash. Historical
+    isolated manifest and attempt namespace hashes must be exactly 64 lowercase
+    hexadecimal characters, stable within each side, distinct across sides, and
+    consistent with each other.
 
 out_of_scope:
-  - definitive hit/miss claims in observed mode
-  - inferential significance claims
+  - provider-native request, hit, miss, fill, eviction, eligibility, prefix, isolation, or TTL claims
+  - significance or causal claims
   - raw cache namespaces in retained evidence
   - SQLite orchestration metadata

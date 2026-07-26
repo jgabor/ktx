@@ -119,7 +119,11 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
 			if collectorDB != nil {
-				if closeErr := collectorDB.SealRuntimeEventInterval(collectorEnv.IntervalID, collectorEnv.SessionID, time.Now().UTC().Format(time.RFC3339Nano), dbpkg.RuntimeIncomplete, fmt.Sprintf("opencode exit %d", exitError.ExitCode())); closeErr != nil {
+				state := dbpkg.RuntimeIncomplete
+				if interval, loadErr := collectorDB.LoadRuntimeEventInterval(collectorEnv.IntervalID); loadErr == nil && interval.ContradictionCount > 0 {
+					state = dbpkg.RuntimeContradictory
+				}
+				if closeErr := collectorDB.SealRuntimeEventInterval(collectorEnv.IntervalID, collectorEnv.SessionID, time.Now().UTC().Format(time.RFC3339Nano), state, fmt.Sprintf("opencode exit %d", exitError.ExitCode())); closeErr != nil {
 					printError(stderr, internalError("ktx bench agent: seal incomplete collector interval: %v", closeErr), opts.Format)
 					return ExitInternal
 				}
@@ -140,6 +144,9 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 		state, reason := dbpkg.RuntimeComplete, ""
 		if loadErr != nil {
 			state, reason = dbpkg.RuntimeIncomplete, loadErr.Error()
+			if interval != nil && interval.ContradictionCount > 0 {
+				state = dbpkg.RuntimeContradictory
+			}
 		}
 		if closeErr := collectorDB.SealRuntimeEventInterval(collectorEnv.IntervalID, collectorEnv.SessionID, time.Now().UTC().Format(time.RFC3339Nano), state, reason); closeErr != nil {
 			printError(stderr, internalError("ktx bench agent: seal collector interval: %v", closeErr), opts.Format)
@@ -174,11 +181,12 @@ func printBenchAgentCapabilities(format string, stdout, stderr io.Writer) int {
 		"event_collector_contract":        benchcontract.ContractVersion, "explicit_session_ownership": true,
 		"serialized_callbacks": true, "complete_interval_lifecycle": true, "epoch_tracking": true,
 		"strict_acknowledgements": true, "exact_model_step_identity": true,
+		"retained_duplicate_callbacks": true, "accepted_model_step_projection": true, "callback_queue_continuation": true,
 		"fail_closed_interval_validation": true, "preflight_before_auth": true,
 		"normalized_kinds": []string{"collector_open", "model_step", "retry", "compaction", "interruption", "other"},
 	}
 	if format == FormatText {
-		fmt.Fprintf(stdout, "ktx=%s opencode=%s contract=%s plugin_sha256=%s generated_plugin_matches_binary=%t explicit_session_ownership=true serialized_callbacks=true complete_interval_lifecycle=true epoch_tracking=true strict_acknowledgements=true exact_model_step_identity=true fail_closed_interval_validation=true preflight_before_auth=true\n", version.Version, opencodeVersion, benchcontract.ContractVersion, digest, digest == expectedDigest)
+		fmt.Fprintf(stdout, "ktx=%s opencode=%s contract=%s plugin_sha256=%s generated_plugin_matches_binary=%t explicit_session_ownership=true serialized_callbacks=true complete_interval_lifecycle=true epoch_tracking=true strict_acknowledgements=true exact_model_step_identity=true retained_duplicate_callbacks=true accepted_model_step_projection=true callback_queue_continuation=true fail_closed_interval_validation=true preflight_before_auth=true\n", version.Version, opencodeVersion, benchcontract.ContractVersion, digest, digest == expectedDigest)
 		return ExitOK
 	}
 	if err := json.NewEncoder(stdout).Encode(capabilities); err != nil {

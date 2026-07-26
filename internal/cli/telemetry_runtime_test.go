@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -96,5 +97,96 @@ func TestBenchAgentRejectsPartialCollectorEnvironmentBeforeAuth(t *testing.T) {
 	code := runBenchAgent([]string{"-m", "openai/test", "prompt"}, Options{Format: FormatText}, &stdout, &stderr)
 	if code != ExitUsage || !strings.Contains(stderr.String(), "benchmark event collection requires") || strings.Contains(stderr.String(), "auth missing") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRequiredCollectorAcknowledgesExactDuplicateAndContinues(t *testing.T) {
+	database, err := dbpkg.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, "open")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(benchcontract.AttemptSessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.IntervalEnv, interval.ID)
+	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
+	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
+	var stdout, stderr bytes.Buffer
+	if _, err := telemetryLogic([]string{"collector-open"}, FormatJSON, strings.NewReader(`{"epoch_id":"epoch"}`), database, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	step := func(epoch, after int, part string, input int) runtimeEventAck {
+		t.Helper()
+		stdout.Reset()
+		payload := fmt.Sprintf(`{"epoch_id":"epoch","epoch_ordinal":%d,"after_ordinal":%d,"event":{"type":"message.part.updated","properties":{"part":{"type":"step-finish","sessionID":"runtime","messageID":"message-%s","id":"%s","reason":"stop","cost":0,"tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}}}}}`, epoch, after, part, part, input)
+		if _, err := telemetryLogic([]string{"event-record"}, FormatJSON, strings.NewReader(payload), database, &stdout, &stderr); err != nil {
+			t.Fatalf("event %d: %v", epoch, err)
+		}
+		var ack runtimeEventAck
+		if err := json.Unmarshal(stdout.Bytes(), &ack); err != nil {
+			t.Fatal(err)
+		}
+		return ack
+	}
+	for index, input := range []struct {
+		part  string
+		value int
+		class string
+	}{{"w1", 10, dbpkg.ModelStepAccepted}, {"w2", 20, dbpkg.ModelStepAccepted}, {"w2", 20, dbpkg.ModelStepExactDuplicate}, {"w3", 30, dbpkg.ModelStepAccepted}} {
+		ack := step(index+1, index+1, input.part, input.value)
+		if ack.Ordinal != uint64(index+2) || ack.ModelStepClassification == nil || *ack.ModelStepClassification != input.class {
+			t.Fatalf("ack %d=%#v", index, ack)
+		}
+	}
+	loaded, err := database.LoadRuntimeEventInterval(interval.ID)
+	if err != nil || loaded.EventCount != 5 || loaded.ContradictionCount != 0 {
+		t.Fatalf("interval=%#v err=%v", loaded, err)
+	}
+	observations, err := database.ListSessionTelemetry(interval.SessionID, 10)
+	if err != nil || len(observations) != 3 || observations[0].PartID != "w1" || observations[1].PartID != "w2" || observations[2].PartID != "w3" {
+		t.Fatalf("accepted observations=%#v err=%v", observations, err)
+	}
+}
+
+func TestRequiredCollectorConflictingDuplicateFailsAfterCommit(t *testing.T) {
+	database, err := dbpkg.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, "open")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(benchcontract.AttemptSessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.IntervalEnv, interval.ID)
+	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
+	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
+	var stdout, stderr bytes.Buffer
+	if _, err := telemetryLogic([]string{"collector-open"}, FormatJSON, strings.NewReader(`{"epoch_id":"epoch"}`), database, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	record := func(epoch, after, input int) error {
+		stdout.Reset()
+		payload := fmt.Sprintf(`{"epoch_id":"epoch","epoch_ordinal":%d,"after_ordinal":%d,"event":{"type":"message.part.updated","properties":{"part":{"type":"step-finish","sessionID":"runtime","messageID":"message","id":"part","reason":"stop","cost":0,"tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}}}}}`, epoch, after, input)
+		_, err := telemetryLogic([]string{"event-record"}, FormatJSON, strings.NewReader(payload), database, &stdout, &stderr)
+		return err
+	}
+	if err := record(1, 1, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := record(2, 2, 11); err == nil || !strings.Contains(err.Error(), "conflicting duplicate model step retained") {
+		t.Fatalf("conflicting callback err=%v", err)
+	}
+	loaded, err := database.LoadRuntimeEventInterval(interval.ID)
+	if err != nil || loaded.EventCount != 3 || loaded.ContradictionCount != 1 || loaded.Events[2].ModelStepClassification == nil || *loaded.Events[2].ModelStepClassification != dbpkg.ModelStepConflictingDuplicate {
+		t.Fatalf("retained conflict=%#v err=%v", loaded, err)
+	}
+	observations, err := database.ListSessionTelemetry(interval.SessionID, 10)
+	if err != nil || len(observations) != 1 || observations[0].UncachedInput.Value == nil || *observations[0].UncachedInput.Value != 10 {
+		t.Fatalf("first telemetry=%#v err=%v", observations, err)
 	}
 }

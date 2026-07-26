@@ -11,12 +11,15 @@ import (
 )
 
 const (
-	RuntimeEventSource            = "event_hook"
-	RuntimeOpen                   = "open"
-	RuntimeComplete               = "complete"
-	RuntimeIncomplete             = "incomplete"
-	RuntimeContradictory          = "contradictory"
-	maxRuntimeEventOrdinal uint64 = 1<<53 - 1
+	RuntimeEventSource                   = "event_hook"
+	RuntimeOpen                          = "open"
+	RuntimeComplete                      = "complete"
+	RuntimeIncomplete                    = "incomplete"
+	RuntimeContradictory                 = "contradictory"
+	ModelStepAccepted                    = "accepted"
+	ModelStepExactDuplicate              = "exact_duplicate"
+	ModelStepConflictingDuplicate        = "conflicting_duplicate"
+	maxRuntimeEventOrdinal        uint64 = 1<<53 - 1
 )
 
 var (
@@ -39,21 +42,23 @@ type RuntimeEventInterval struct {
 	LastOrdinal         *uint64
 	EventCount          uint64
 	CollectorEpochCount uint64
+	ContradictionCount  uint64
 	FailureReason       *string
 	Events              []RuntimeEvent
 }
 
 type RuntimeEvent struct {
-	IntervalID      string
-	Ordinal         uint64
-	EpochID         string
-	EpochOrdinal    uint64
-	Kind            string
-	EventType       string
-	SourceSessionID *string
-	MessageID       *string
-	PartID          *string
-	CapturedAt      string
+	IntervalID              string
+	Ordinal                 uint64
+	EpochID                 string
+	EpochOrdinal            uint64
+	Kind                    string
+	EventType               string
+	SourceSessionID         *string
+	MessageID               *string
+	PartID                  *string
+	CapturedAt              string
+	ModelStepClassification *string
 }
 
 type RuntimeEventInput struct {
@@ -134,7 +139,7 @@ func (d *DB) PersistRuntimeEvent(input RuntimeEventInput) (RuntimeEvent, bool, e
 			return fmt.Errorf("%w: interval owner/state mismatch", ErrRuntimeIntervalInvalid)
 		}
 		var existing RuntimeEvent
-		err := scanRuntimeEvent(tx.QueryRowContext(ctx, `SELECT interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type, source_session_id, message_id, part_id, captured_at FROM runtime_events WHERE interval_id = ? AND epoch_id = ? AND epoch_ordinal = ?`, input.IntervalID, input.EpochID, input.EpochOrdinal), &existing)
+		err := scanRuntimeEvent(tx.QueryRowContext(ctx, `SELECT interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type, source_session_id, message_id, part_id, captured_at, model_step_classification FROM runtime_events WHERE interval_id = ? AND epoch_id = ? AND epoch_ordinal = ?`, input.IntervalID, input.EpochID, input.EpochOrdinal), &existing)
 		if err == nil {
 			if !runtimeEventMatches(existing, input) {
 				return ErrRuntimeEventConflict
@@ -145,8 +150,13 @@ func (d *DB) PersistRuntimeEvent(input RuntimeEventInput) (RuntimeEvent, bool, e
 			if input.Telemetry != nil {
 				observation := *input.Telemetry
 				observation.Ordinal = existing.Ordinal
-				if _, err := persistSessionTelemetryTx(ctx, tx, input.SessionID, existing.CapturedAt, &observation); err != nil {
+				matching, err := sessionTelemetryMatchesTx(ctx, tx, &observation, false)
+				if err != nil {
 					return err
+				}
+				conflicting := existing.ModelStepClassification != nil && *existing.ModelStepClassification == ModelStepConflictingDuplicate
+				if matching == conflicting {
+					return ErrRuntimeEventConflict
 				}
 			}
 			event = existing
@@ -167,26 +177,41 @@ func (d *DB) PersistRuntimeEvent(input RuntimeEventInput) (RuntimeEvent, bool, e
 		}
 		next := count + 1
 		event = RuntimeEvent{IntervalID: input.IntervalID, Ordinal: next, EpochID: input.EpochID, EpochOrdinal: input.EpochOrdinal, Kind: input.Kind, EventType: input.EventType, SourceSessionID: input.SourceSessionID, MessageID: input.MessageID, PartID: input.PartID, CapturedAt: input.CapturedAt}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO runtime_events (interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type, source_session_id, message_id, part_id, captured_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, event.IntervalID, event.Ordinal, event.EpochID, event.EpochOrdinal, event.Kind, event.EventType, event.SourceSessionID, event.MessageID, event.PartID, event.CapturedAt); err != nil {
+		contradictionDelta := 0
+		if input.Telemetry != nil {
+			observation := *input.Telemetry
+			observation.Ordinal = next
+			telemetryInserted, err := insertSessionTelemetryTx(ctx, tx, input.SessionID, input.CapturedAt, &observation)
+			if err != nil {
+				return err
+			}
+			classification := ModelStepAccepted
+			if !telemetryInserted {
+				matching, err := sessionTelemetryMatchesTx(ctx, tx, &observation, false)
+				if err != nil {
+					return err
+				}
+				classification = ModelStepExactDuplicate
+				if !matching {
+					classification = ModelStepConflictingDuplicate
+					contradictionDelta = 1
+				}
+			}
+			event.ModelStepClassification = &classification
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO runtime_events (interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type, source_session_id, message_id, part_id, captured_at, model_step_classification) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, event.IntervalID, event.Ordinal, event.EpochID, event.EpochOrdinal, event.Kind, event.EventType, event.SourceSessionID, event.MessageID, event.PartID, event.CapturedAt, event.ModelStepClassification); err != nil {
 			return err
 		}
 		epochDelta := 0
 		if input.Kind == "collector_open" {
 			epochDelta = 1
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE runtime_event_intervals SET first_ordinal = COALESCE(first_ordinal, 1), last_ordinal = ?, event_count = ?, collector_epoch_count = collector_epoch_count + ? WHERE id = ? AND event_count = ?`, next, next, epochDelta, input.IntervalID, count)
+		result, err := tx.ExecContext(ctx, `UPDATE runtime_event_intervals SET first_ordinal = COALESCE(first_ordinal, 1), last_ordinal = ?, event_count = ?, collector_epoch_count = collector_epoch_count + ?, contradiction_count = contradiction_count + ? WHERE id = ? AND event_count = ?`, next, next, epochDelta, contradictionDelta, input.IntervalID, count)
 		if err != nil {
 			return err
 		}
 		if rows, err := result.RowsAffected(); err != nil || rows != 1 {
 			return fmt.Errorf("%w: global ordinal allocation conflict", ErrRuntimeIntervalInvalid)
-		}
-		if input.Telemetry != nil {
-			observation := *input.Telemetry
-			observation.Ordinal = next
-			if _, err := persistSessionTelemetryTx(ctx, tx, input.SessionID, input.CapturedAt, &observation); err != nil {
-				return err
-			}
 		}
 		inserted = true
 		return nil
@@ -250,6 +275,9 @@ func (d *DB) SealRuntimeEventInterval(id, sessionID, closedAt, state, reason str
 		if state == RuntimeComplete && validationErr != nil {
 			return validationErr
 		}
+		if state == RuntimeContradictory && interval.ContradictionCount == 0 {
+			return fmt.Errorf("%w: interval has no retained contradiction", ErrRuntimeIntervalInvalid)
+		}
 		var failure any
 		if reason != "" {
 			failure = reason
@@ -285,8 +313,8 @@ func loadRuntimeEventInterval(ctx context.Context, q rowQueryer, id string) (*Ru
 	interval := &RuntimeEventInterval{}
 	var closed, failure sql.NullString
 	var first, last sql.NullInt64
-	var eventCount, epochCount int64
-	err := q.QueryRowContext(ctx, `SELECT id, session_id, attempt_id, runtime, runtime_version, source, contract_version, opened_at, closed_at, close_state, first_ordinal, last_ordinal, event_count, collector_epoch_count, failure_reason FROM runtime_event_intervals WHERE id = ?`, id).Scan(&interval.ID, &interval.SessionID, &interval.AttemptID, &interval.Runtime, &interval.RuntimeVersion, &interval.Source, &interval.ContractVersion, &interval.OpenedAt, &closed, &interval.CloseState, &first, &last, &eventCount, &epochCount, &failure)
+	var eventCount, epochCount, contradictionCount int64
+	err := q.QueryRowContext(ctx, `SELECT id, session_id, attempt_id, runtime, runtime_version, source, contract_version, opened_at, closed_at, close_state, first_ordinal, last_ordinal, event_count, collector_epoch_count, contradiction_count, failure_reason FROM runtime_event_intervals WHERE id = ?`, id).Scan(&interval.ID, &interval.SessionID, &interval.AttemptID, &interval.Runtime, &interval.RuntimeVersion, &interval.Source, &interval.ContractVersion, &interval.OpenedAt, &closed, &interval.CloseState, &first, &last, &eventCount, &epochCount, &contradictionCount, &failure)
 	if err != nil {
 		return nil, err
 	}
@@ -304,8 +332,8 @@ func loadRuntimeEventInterval(ctx context.Context, q rowQueryer, id string) (*Ru
 		value := uint64(last.Int64)
 		interval.LastOrdinal = &value
 	}
-	interval.EventCount, interval.CollectorEpochCount = uint64(eventCount), uint64(epochCount)
-	rows, err := q.QueryContext(ctx, `SELECT interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type, source_session_id, message_id, part_id, captured_at FROM runtime_events WHERE interval_id = ? ORDER BY ordinal`, id)
+	interval.EventCount, interval.CollectorEpochCount, interval.ContradictionCount = uint64(eventCount), uint64(epochCount), uint64(contradictionCount)
+	rows, err := q.QueryContext(ctx, `SELECT interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type, source_session_id, message_id, part_id, captured_at, model_step_classification FROM runtime_events WHERE interval_id = ? ORDER BY ordinal`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -324,8 +352,8 @@ type scanner interface{ Scan(...any) error }
 
 func scanRuntimeEvent(row scanner, event *RuntimeEvent) error {
 	var ordinal, epochOrdinal int64
-	var source, message, part sql.NullString
-	if err := row.Scan(&event.IntervalID, &ordinal, &event.EpochID, &epochOrdinal, &event.Kind, &event.EventType, &source, &message, &part, &event.CapturedAt); err != nil {
+	var source, message, part, classification sql.NullString
+	if err := row.Scan(&event.IntervalID, &ordinal, &event.EpochID, &epochOrdinal, &event.Kind, &event.EventType, &source, &message, &part, &event.CapturedAt, &classification); err != nil {
 		return err
 	}
 	event.Ordinal, event.EpochOrdinal = uint64(ordinal), uint64(epochOrdinal)
@@ -338,6 +366,9 @@ func scanRuntimeEvent(row scanner, event *RuntimeEvent) error {
 	if part.Valid {
 		event.PartID = &part.String
 	}
+	if classification.Valid {
+		event.ModelStepClassification = &classification.String
+	}
 	return nil
 }
 
@@ -348,6 +379,9 @@ func ValidateRuntimeEventInterval(interval *RuntimeEventInterval) error {
 func validateLoadedRuntimeInterval(interval *RuntimeEventInterval) error {
 	if interval == nil || interval.EventCount != uint64(len(interval.Events)) || interval.CollectorEpochCount == 0 || interval.EventCount == 0 {
 		return fmt.Errorf("%w: missing events or collector epoch", ErrRuntimeIntervalInvalid)
+	}
+	if interval.ContradictionCount != 0 {
+		return fmt.Errorf("%w: retained contradictory model-step callback", ErrRuntimeIntervalInvalid)
 	}
 	epochNext := map[string]uint64{}
 	activeEpoch := ""
@@ -366,6 +400,13 @@ func validateLoadedRuntimeInterval(interval *RuntimeEventInterval) error {
 			activeEpoch = event.EpochID
 		} else if event.EpochID != activeEpoch {
 			return fmt.Errorf("%w: collector epochs overlap", ErrRuntimeIntervalInvalid)
+		}
+		if event.Kind == "model_step" {
+			if event.ModelStepClassification == nil || (*event.ModelStepClassification != ModelStepAccepted && *event.ModelStepClassification != ModelStepExactDuplicate) {
+				return fmt.Errorf("%w: invalid model-step classification", ErrRuntimeIntervalInvalid)
+			}
+		} else if event.ModelStepClassification != nil {
+			return fmt.Errorf("%w: non-model event has model-step classification", ErrRuntimeIntervalInvalid)
 		}
 		epochNext[event.EpochID] = next + 1
 	}

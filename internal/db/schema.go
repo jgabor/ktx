@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 7
+const schemaVersion = 8
 
 const createRuntimeEventIntervalsTable = `CREATE TABLE IF NOT EXISTS runtime_event_intervals (
 		id                    TEXT PRIMARY KEY,
@@ -24,6 +24,7 @@ const createRuntimeEventIntervalsTable = `CREATE TABLE IF NOT EXISTS runtime_eve
 		last_ordinal          INTEGER,
 		event_count           INTEGER NOT NULL DEFAULT 0 CHECK (event_count >= 0),
 		collector_epoch_count INTEGER NOT NULL DEFAULT 0 CHECK (collector_epoch_count >= 0),
+		contradiction_count   INTEGER NOT NULL DEFAULT 0 CHECK (contradiction_count >= 0),
 		failure_reason        TEXT,
 		CHECK ((close_state = 'open') = (closed_at IS NULL)),
 		CHECK ((event_count = 0 AND first_ordinal IS NULL AND last_ordinal IS NULL) OR
@@ -41,10 +42,12 @@ const createRuntimeEventsTable = `CREATE TABLE IF NOT EXISTS runtime_events (
 		message_id        TEXT,
 		part_id           TEXT,
 		captured_at       TEXT NOT NULL,
+		model_step_classification TEXT CHECK (model_step_classification IN ('accepted','exact_duplicate','conflicting_duplicate')),
 		PRIMARY KEY (interval_id, ordinal),
 		UNIQUE (interval_id, epoch_id, epoch_ordinal),
 		CHECK ((kind = 'collector_open' AND epoch_ordinal = 0) OR
 		       (kind <> 'collector_open' AND epoch_ordinal > 0)),
+		CHECK ((kind = 'model_step') = (model_step_classification IS NOT NULL)),
 		CHECK (kind <> 'model_step' OR
 		       (source_session_id IS NOT NULL AND source_session_id <> '' AND
 		        message_id IS NOT NULL AND message_id <> '' AND part_id IS NOT NULL AND part_id <> ''))
@@ -459,6 +462,9 @@ func migrateTx(tx *sql.Tx) error {
 	if err := migrateSessionTelemetryV6(tx); err != nil {
 		return err
 	}
+	if err := migrateRuntimeEventsV8(tx); err != nil {
+		return err
+	}
 
 	have, err := tableColumns(tx, "tool_calls")
 	if err != nil {
@@ -569,6 +575,47 @@ func migrateTx(tx *sql.Tx) error {
 		}
 	}
 
+	return nil
+}
+
+func migrateRuntimeEventsV8(tx *sql.Tx) error {
+	intervalColumns, err := tableColumns(tx, "runtime_event_intervals")
+	if err != nil {
+		return fmt.Errorf("db: inspect runtime event interval fields: %w", err)
+	}
+	if _, ok := intervalColumns["contradiction_count"]; !ok {
+		if _, err := tx.Exec(`ALTER TABLE runtime_event_intervals ADD COLUMN contradiction_count INTEGER NOT NULL DEFAULT 0 CHECK (contradiction_count >= 0)`); err != nil {
+			return fmt.Errorf("db: add runtime event contradiction count: %w", err)
+		}
+	}
+
+	eventColumns, err := tableColumns(tx, "runtime_events")
+	if err != nil {
+		return fmt.Errorf("db: inspect runtime event fields: %w", err)
+	}
+	if _, ok := eventColumns["model_step_classification"]; ok {
+		return nil
+	}
+	statements := []string{
+		`ALTER TABLE runtime_events RENAME TO runtime_events_v7`,
+		createRuntimeEventsTable,
+		`INSERT INTO runtime_events (
+			interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type,
+			source_session_id, message_id, part_id, captured_at, model_step_classification
+		) SELECT
+			interval_id, ordinal, epoch_id, epoch_ordinal, kind, event_type,
+			source_session_id, message_id, part_id, captured_at,
+			CASE WHEN kind = 'model_step' THEN 'accepted' ELSE NULL END
+		  FROM runtime_events_v7`,
+		`DROP TABLE runtime_events_v7`,
+		createRuntimeEventIndexes,
+		createRuntimeEventMessageIndex,
+	}
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("db: classify existing runtime events: %w", err)
+		}
+	}
 	return nil
 }
 

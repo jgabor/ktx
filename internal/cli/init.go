@@ -368,7 +368,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		  const ack = await ktxRequiredCommand(["telemetry", "event-record"], JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
 		  globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: acceptedOrdinal, kind: requiredEventKind(event), contract: requiredContract, afterOrdinal: globalOrdinal })
 		})
-		eventQueue = next
+		eventQueue = next.catch(() => undefined)
 		await next
 		return
 	  }
@@ -394,7 +394,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		  const strict = await ktxRequiredCommand(["hook"], JSON.stringify(record))
 		  return requiredEnvelope(strict, input, requiredSessionID)
 		})
-		eventQueue = next.then(() => undefined)
+		eventQueue = next.then(() => undefined, () => undefined)
 		envelope = await next
 	  } else {
 		envelope = await ktxHook(JSON.stringify(record))

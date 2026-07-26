@@ -575,7 +575,7 @@ uncached input, output, cache read, cache write, reasoning, cost, identity,
 cache-control, and retry metadata. Cache-aware attempts retain these ordered
 observations in `model_steps`. Historical attempt schema 2 carries wrapper-only
 observations. New attempt schema 3 also binds the attempt to one explicit KTX
-session and a schema-7 event-hook interval. Cache-less and legacy attempts omit
+session and a current event-hook interval. Cache-less and legacy attempts omit
 the additive fields. Ordinary observations are optional telemetry:
 missing, empty, partial, or malformed observations do not invalidate an attempt.
 When available, they are useful for inspecting event order and field availability;
@@ -662,8 +662,10 @@ With `--build`, it checks the local Docker source before building and then asks
 only the resulting image for `bench agent --capabilities`. Normal comparisons
 run the same gate automatically before checking auth, creating an experiment,
 or starting an attempt. Images that do not advertise strict acknowledgements,
-exact model-step identity, fail-closed interval validation, and this ordering
-are rejected even if they advertise the older base collector fields.
+retained duplicate callbacks, accepted-model-step projection, callback-queue
+continuation, exact model-step identity, fail-closed interval validation, and
+this ordering are rejected even if they advertise the older base collector
+fields.
 
 Each fresh attempt database starts with exactly one `agent=opencode` owner and
 one open event interval. The container receives that owner, interval, contract,
@@ -675,10 +677,15 @@ extra owner or interval aborts the experiment before another attempt.
 
 On a complete interval, regeneration derives model-step order and positive
 retry, reset, segment, concurrency, and identity coverage from normalized
-schema-7 rows through the last accepted model step. Restarts are explicit extra
-epochs. Raw callbacks, error bodies, prompts, credentials, and cache namespaces
-are not retained. New attempts must have one consistently closed owner and one
-complete, contiguous interval with at least one epoch and model step. Wrapper
+schema-8 rows through the last accepted model step. Every acknowledged callback
+occurrence has a contiguous global ordinal. Exact duplicate model-step
+occurrences remain in the ledger but are excluded from accepted measurement and
+wrapper identity projection. A conflicting duplicate remains classified,
+preserves first telemetry, and prevents complete sealing. Restarts are explicit
+extra epochs. Raw callbacks, error bodies, prompts, credentials, and cache
+namespaces are not retained. New attempts must have one consistently closed
+owner and one complete, contiguous interval with at least one epoch and model
+step. Wrapper
 and event-hook model steps must have the same native session/message/part tuples
 in the same order. Any missing, partial, reordered, duplicated, mismatched, open,
 incomplete, contradictory, or corrupt required evidence makes attempt and

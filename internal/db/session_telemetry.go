@@ -81,6 +81,21 @@ func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *
 }
 
 func persistSessionTelemetryTx(ctx context.Context, tx *sql.Tx, sessionID, capturedAt string, observation *telemetry.Observation) (bool, error) {
+	inserted, err := insertSessionTelemetryTx(ctx, tx, sessionID, capturedAt, observation)
+	if err != nil || inserted {
+		return inserted, err
+	}
+	matching, err := sessionTelemetryMatchesTx(ctx, tx, observation, true)
+	if err != nil {
+		return false, err
+	}
+	if !matching {
+		return false, ErrSessionTelemetryConflict
+	}
+	return false, nil
+}
+
+func insertSessionTelemetryTx(ctx context.Context, tx *sql.Tx, sessionID, capturedAt string, observation *telemetry.Observation) (bool, error) {
 	var exists int
 	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ?`, sessionID).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -108,32 +123,36 @@ func persistSessionTelemetryTx(ctx context.Context, tx *sql.Tx, sessionID, captu
 		return false, err
 	}
 	rows, err := result.RowsAffected()
-	inserted := rows == 1
-	if err != nil || inserted {
-		return inserted, err
+	return rows == 1, err
+}
+
+func sessionTelemetryMatchesTx(ctx context.Context, tx *sql.Tx, observation *telemetry.Observation, includeOrdinal bool) (bool, error) {
+	ordinalClause := ""
+	args := []any{observation.Runtime, observation.SessionID, observation.MessageID, observation.PartID}
+	if includeOrdinal {
+		ordinalClause = "ordinal IS ? AND "
+		args = append(args, observation.Ordinal)
 	}
-	var matching int
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM session_telemetry WHERE
-			runtime = ? AND source_session_id = ? AND message_id = ? AND part_id = ? AND
-			ordinal IS ? AND reason IS ? AND cost IS ? AND tokens_input IS ? AND tokens_output IS ? AND
-			tokens_reasoning IS ? AND cache_read IS ? AND cache_write IS ? AND provider IS ? AND model IS ? AND
-			runtime_version IS ? AND cost_state IS ? AND tokens_input_state IS ? AND tokens_output_state IS ? AND
-			tokens_reasoning_state IS ? AND cache_read_state IS ? AND cache_write_state IS ?)`,
-		observation.Runtime, observation.SessionID, observation.MessageID, observation.PartID,
-		observation.Ordinal, observation.Reason, observation.Cost.Value,
+	args = append(args,
+		observation.Reason, observation.Cost.Value,
 		observation.Tokens.Input.Value, observation.Tokens.Output.Value, observation.Tokens.Reasoning.Value,
 		observation.Tokens.CacheRead.Value, observation.Tokens.CacheWrite.Value,
 		observation.Provider, observation.Model, observation.RuntimeVersion, observation.Cost.State,
 		observation.Tokens.Input.State, observation.Tokens.Output.State, observation.Tokens.Reasoning.State,
 		observation.Tokens.CacheRead.State, observation.Tokens.CacheWrite.State,
-	).Scan(&matching)
+	)
+	var matching int
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM session_telemetry WHERE
+			runtime = ? AND source_session_id = ? AND message_id = ? AND part_id = ? AND
+			`+ordinalClause+`reason IS ? AND cost IS ? AND tokens_input IS ? AND tokens_output IS ? AND
+			tokens_reasoning IS ? AND cache_read IS ? AND cache_write IS ? AND provider IS ? AND model IS ? AND
+			runtime_version IS ? AND cost_state IS ? AND tokens_input_state IS ? AND tokens_output_state IS ? AND
+			tokens_reasoning_state IS ? AND cache_read_state IS ? AND cache_write_state IS ?)`,
+		args...).Scan(&matching)
 	if err != nil {
 		return false, err
 	}
-	if matching == 0 {
-		return false, ErrSessionTelemetryConflict
-	}
-	return false, nil
+	return matching == 1, nil
 }
 
 // ListSessionTelemetry returns at most limit observations in local acceptance

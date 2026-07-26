@@ -81,14 +81,15 @@ type runtimeEventRecordInput struct {
 }
 
 type runtimeEventAck struct {
-	OK           bool   `json:"ok"`
-	SessionID    string `json:"session_id"`
-	IntervalID   string `json:"interval_id"`
-	EpochID      string `json:"epoch_id"`
-	EpochOrdinal uint64 `json:"epoch_ordinal"`
-	Ordinal      uint64 `json:"ordinal"`
-	Kind         string `json:"kind"`
-	Contract     string `json:"contract"`
+	OK                      bool    `json:"ok"`
+	SessionID               string  `json:"session_id"`
+	IntervalID              string  `json:"interval_id"`
+	EpochID                 string  `json:"epoch_id"`
+	EpochOrdinal            uint64  `json:"epoch_ordinal"`
+	Ordinal                 uint64  `json:"ordinal"`
+	Kind                    string  `json:"kind"`
+	Contract                string  `json:"contract"`
+	ModelStepClassification *string `json:"model_step_classification,omitempty"`
 }
 
 func requiredCollectorEnvironment(db *dbpkg.DB) (benchcontract.Environment, error) {
@@ -103,7 +104,7 @@ func requiredCollectorEnvironment(db *dbpkg.DB) (benchcontract.Environment, erro
 	if err != nil {
 		return env, err
 	}
-	if interval.SessionID != env.SessionID || interval.Runtime != benchcontract.Runtime || interval.RuntimeVersion != benchcontract.RuntimeVersion || interval.Source != telemetry.SourceEventHook || interval.ContractVersion != env.Contract || interval.CloseState != dbpkg.RuntimeOpen {
+	if interval.SessionID != env.SessionID || interval.Runtime != benchcontract.Runtime || interval.RuntimeVersion != benchcontract.RuntimeVersion || interval.Source != telemetry.SourceEventHook || interval.ContractVersion != env.Contract || interval.CloseState != dbpkg.RuntimeOpen || interval.ContradictionCount != 0 {
 		return env, errors.New("benchmark collector owner or interval contract does not match the database")
 	}
 	return env, nil
@@ -169,7 +170,10 @@ func recordRuntimeEvent(args []string, stdin io.Reader, db *dbpkg.DB, stdout io.
 	if err != nil {
 		return internalError("ktx telemetry event-record: %v", err)
 	}
-	return json.NewEncoder(stdout).Encode(runtimeEventAck{OK: true, SessionID: env.SessionID, IntervalID: env.IntervalID, EpochID: input.EpochID, EpochOrdinal: input.EpochOrdinal, Ordinal: event.Ordinal, Kind: event.Kind, Contract: env.Contract})
+	if event.ModelStepClassification != nil && *event.ModelStepClassification == dbpkg.ModelStepConflictingDuplicate {
+		return internalError("ktx telemetry event-record: conflicting duplicate model step retained at callback ordinal %d", event.Ordinal)
+	}
+	return json.NewEncoder(stdout).Encode(runtimeEventAck{OK: true, SessionID: env.SessionID, IntervalID: env.IntervalID, EpochID: input.EpochID, EpochOrdinal: input.EpochOrdinal, Ordinal: event.Ordinal, Kind: event.Kind, Contract: env.Contract, ModelStepClassification: event.ModelStepClassification})
 }
 
 func normalizeRuntimeEvent(raw json.RawMessage) (dbpkg.RuntimeEventInput, *telemetry.Observation, error) {

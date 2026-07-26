@@ -45,8 +45,16 @@ contract. In that mode hooks remain active, never read or write parent-process
 session files, serialize every callback, and reject ownership, acknowledgement,
 or persistence failures instead of failing open. A collector-open acknowledgement
 must carry its positive allocated global ordinal. Every event acknowledgement
-must carry exactly the preceding accepted global ordinal plus one; gaps,
-duplicates, backwards values, and non-safe-integer values fail the callback.
+must carry exactly the preceding acknowledged global ordinal plus one; gaps,
+backwards values, and non-safe-integer values fail the callback. Every callback
+occurrence, including an exact duplicate model step, receives and retains one
+global ordinal. The ledger classifies model steps as accepted, exact duplicate,
+or conflicting duplicate. Exact duplicates acknowledge success but do not add a
+second model-step measurement. Conflicting duplicates retain the occurrence,
+preserve the first measurement, make the interval non-sealable as complete, and
+fail the callback. A failed callback does not leave the serialized plugin queue
+permanently rejected, so a later callback can expose an epoch or global-order
+gap.
 Acknowledgements and tool envelopes must also match the exact owner, interval,
 epoch, epoch ordinal, normalized kind, native tool-call identity, and contract
 before a callback succeeds or tool output changes. A later, sequential collector
@@ -128,17 +136,24 @@ Those source blobs are byte-identical to the pinned 1.18.4 versions.
   another logical observation. Provider, model, ordinal, KTX session ownership,
   measurements, and capture time are also evidence rather than key fields.
 - The first valid occurrence is authoritative; later same-runtime occurrences
-  with equal authoritative evidence are idempotent. A changed ordinal,
-  identity, measurement, field state, reason, or runtime-version provenance is
-  reported as a conflict and leaves the first row unchanged. A duplicate from
-  the other collection path does not replace the first collection provenance.
-- Accepted model steps receive contiguous local ordinals in plugin callback
-  acceptance order, after duplicates and rejected events are removed.
+  with equal authoritative evidence are idempotent. On ordinary optional paths,
+  a changed ordinal, identity, measurement, field state, reason, or runtime-
+  version provenance is reported as a conflict and leaves the first row
+  unchanged. A duplicate from the other collection path does not replace the
+  first collection provenance. Required benchmark equality is scoped below.
+- Outside required benchmark collection, accepted model steps receive
+  contiguous local ordinals in plugin callback acceptance order, after
+  duplicates and rejected events are removed.
   OpenCode 1.18.5 supplies no event sequence or event timestamp in this plugin
   event. The ordinal is local capture order, not a provider request number or
   provider timestamp.
 - Concurrent callbacks must be serialized at the collector boundary before an
   ordinal is assigned. No ordering is inferred from lexicographic IDs.
+- Required benchmark collection uses the ledger's global callback ordinal for
+  accepted telemetry order. Duplicate equality ignores that allocated ordinal
+  while comparing the stable runtime tuple and every normalized reason,
+  token/cost value and state, provider/model value, and runtime-version field.
+  Ordinary optional telemetry retains its existing stricter ordinal comparison.
 - OpenCode exposes no provider request ID, retry relationship, or documented
   one-to-one model-step-to-provider-request mapping on these events. ktx does
   not synthesize them and does not label a model step as a provider request.
@@ -203,16 +218,19 @@ transaction rollback.
 
 ## Database migration and failure behavior
 
-Opening an older database automatically migrates it to version 6. The migration
+Opening an older database automatically migrates it to version 8. The migration
 preserves unrelated session, tool-call, benchmark, compressed, and recorded-
 stream evidence. Existing telemetry values become measured fields, retain their
 runtime namespace and runtime-version provenance, and receive `legacy`
 collection provenance because their original ingress was not stored.
+Version-7 runtime event rows migrate as accepted model steps where applicable;
+they cannot be reinterpreted as duplicate callback occurrences that were never
+stored.
 
 Migration is one SQLite transaction. Invalid legacy provenance, a copy error,
 or another migration failure rolls back the table shape, rows, associations,
 unrelated evidence, indexes, and schema version. There is no automatic downgrade
-from version 6; rollback here means the failed upgrade leaves the prior database
+from version 8; rollback here means the failed upgrade leaves the prior database
 intact so the cause can be corrected and the command retried. Back up the
 database file before upgrading if an operator needs release-level rollback.
 

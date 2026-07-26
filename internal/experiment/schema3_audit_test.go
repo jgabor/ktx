@@ -60,8 +60,9 @@ func TestSchema3RequiresExactWrapperEventModelStepIdentityOrder(t *testing.T) {
 	}
 	zero := int64(0)
 	cost := float64(0)
-	identities := []modelStepIdentity{{SessionID: "session-a", MessageID: "message-a", PartID: "part-a"}, {SessionID: "session-b", MessageID: "message-b", PartID: "part-b"}}
-	for index, identity := range identities {
+	identities := []modelStepIdentity{{SessionID: "session-a", MessageID: "message-a", PartID: "part-a"}, {SessionID: "session-b", MessageID: "message-b", PartID: "part-b"}, {SessionID: "session-c", MessageID: "message-c", PartID: "part-c"}}
+	callbackIdentities := []modelStepIdentity{identities[0], identities[1], identities[1], identities[2]}
+	for index, identity := range callbackIdentities {
 		observation := &telemetry.Observation{Key: telemetry.Key{SessionID: identity.SessionID, MessageID: identity.MessageID, PartID: identity.PartID}, Ordinal: uint64(index + 1), Reason: "stop", Runtime: benchcontract.Runtime, RuntimeVersion: benchcontract.RuntimeVersion, Source: telemetry.SourceEventHook, Cost: telemetry.CostMeasurement{State: telemetry.MeasurementMeasured, Value: &cost}, Tokens: telemetry.Tokens{Input: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, Output: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, Reasoning: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, CacheRead: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, CacheWrite: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}}}
 		if _, _, err := database.PersistRuntimeEvent(db.RuntimeEventInput{IntervalID: interval.ID, SessionID: interval.SessionID, EpochID: "epoch", EpochOrdinal: uint64(index + 1), Kind: "model_step", EventType: "message.part.updated", SourceSessionID: &identity.SessionID, MessageID: &identity.MessageID, PartID: &identity.PartID, CapturedAt: "event", Telemetry: observation}); err != nil {
 			t.Fatal(err)
@@ -77,15 +78,15 @@ func TestSchema3RequiresExactWrapperEventModelStepIdentityOrder(t *testing.T) {
 		steps      int
 		wantReason string
 	}{
-		{name: "exact", identities: identities, steps: 2},
-		{name: "missing", identities: []modelStepIdentity{{}, identities[1]}, steps: 2, wantReason: "schema 3 wrapper model-step identity is missing or partial"},
-		{name: "partial", identities: []modelStepIdentity{{SessionID: "session-a", MessageID: "message-a"}, identities[1]}, steps: 2, wantReason: "schema 3 wrapper model-step identity is missing or partial"},
-		{name: "reordered", identities: []modelStepIdentity{identities[1], identities[0]}, steps: 2, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
-		{name: "duplicate", identities: []modelStepIdentity{identities[0], identities[0]}, steps: 2, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
-		{name: "mismatch", identities: []modelStepIdentity{{SessionID: "foreign", MessageID: "message-a", PartID: "part-a"}, identities[1]}, steps: 2, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
-		{name: "message-mismatch", identities: []modelStepIdentity{{SessionID: "session-a", MessageID: "foreign-message", PartID: "part-a"}, identities[1]}, steps: 2, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
-		{name: "part-mismatch", identities: []modelStepIdentity{{SessionID: "session-a", MessageID: "message-a", PartID: "foreign-part"}, identities[1]}, steps: 2, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
-		{name: "count", identities: identities[:1], steps: 1, wantReason: "schema 3 wrapper and event-hook model-step counts do not match"},
+		{name: "exact duplicate occurrence is not a second measurement", identities: identities, steps: 3},
+		{name: "missing", identities: []modelStepIdentity{{}, identities[1], identities[2]}, steps: 3, wantReason: "schema 3 wrapper model-step identity is missing or partial"},
+		{name: "partial", identities: []modelStepIdentity{{SessionID: "session-a", MessageID: "message-a"}, identities[1], identities[2]}, steps: 3, wantReason: "schema 3 wrapper model-step identity is missing or partial"},
+		{name: "reordered", identities: []modelStepIdentity{identities[1], identities[0], identities[2]}, steps: 3, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
+		{name: "duplicate", identities: []modelStepIdentity{identities[0], identities[0], identities[2]}, steps: 3, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
+		{name: "mismatch", identities: []modelStepIdentity{{SessionID: "foreign", MessageID: "message-a", PartID: "part-a"}, identities[1], identities[2]}, steps: 3, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
+		{name: "message-mismatch", identities: []modelStepIdentity{{SessionID: "session-a", MessageID: "foreign-message", PartID: "part-a"}, identities[1], identities[2]}, steps: 3, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
+		{name: "part-mismatch", identities: []modelStepIdentity{{SessionID: "session-a", MessageID: "message-a", PartID: "foreign-part"}, identities[1], identities[2]}, steps: 3, wantReason: "schema 3 wrapper and event-hook model-step identity order does not match"},
+		{name: "count", identities: identities[:2], steps: 2, wantReason: "schema 3 wrapper and event-hook model-step counts do not match"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -94,7 +95,7 @@ func TestSchema3RequiresExactWrapperEventModelStepIdentityOrder(t *testing.T) {
 			if reason != test.wantReason {
 				t.Fatalf("reason=%q want=%q sequence=%#v", reason, test.wantReason, sequence)
 			}
-			if test.wantReason == "" && (sequence == nil || len(sequence.Coverage) != 6) {
+			if test.wantReason == "" && (sequence == nil || len(sequence.Coverage) != 6 || len(sequence.Facts) != 3 || len(sequence.Events) != 5) {
 				t.Fatalf("valid sequence=%#v", sequence)
 			}
 		})
@@ -141,5 +142,50 @@ func TestSchema3IncompleteIntervalsCannotRegenerateIntoValidEvidence(t *testing.
 	methodologyReasons := report["methodology_reasons"].([]string)
 	if len(methodologyReasons) != len(attempts) {
 		t.Fatalf("methodology reasons=%v", methodologyReasons)
+	}
+}
+
+func TestSchema3LegacyLedgerWithMissingDuplicateOccurrenceRemainsInvalid(t *testing.T) {
+	database, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, "open")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.DB().Exec(`DROP TABLE runtime_events; DROP TABLE runtime_event_intervals;
+		CREATE TABLE runtime_event_intervals (
+			id TEXT, session_id TEXT, attempt_id TEXT, runtime TEXT, runtime_version TEXT, source TEXT,
+			contract_version TEXT, opened_at TEXT, closed_at TEXT, close_state TEXT,
+			first_ordinal INTEGER, last_ordinal INTEGER, event_count INTEGER, collector_epoch_count INTEGER, failure_reason TEXT);
+		CREATE TABLE runtime_events (
+			interval_id TEXT, ordinal INTEGER, epoch_id TEXT, epoch_ordinal INTEGER, kind TEXT, event_type TEXT,
+			source_session_id TEXT, message_id TEXT, part_id TEXT, captured_at TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.DB().Exec(`UPDATE sessions SET ended_at = 'closed' WHERE id = ?`, interval.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.DB().Exec(`INSERT INTO runtime_event_intervals VALUES (?,?,'attempt',?,?,'event_hook',?,'open','closed','complete',1,3,3,1,NULL)`, interval.ID, interval.SessionID, benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.DB().Exec(`INSERT INTO runtime_events VALUES
+			(?,1,'epoch',0,'collector_open','collector.open',NULL,NULL,NULL,'open'),
+			(?,2,'epoch',1,'model_step','message.part.updated','runtime','message-w1','w1','event'),
+			(?,3,'epoch',2,'model_step','message.part.updated','runtime','message-w2','w2','event')`, interval.ID, interval.ID, interval.ID); err != nil {
+		t.Fatal(err)
+	}
+	owner, intervalID := interval.SessionID, interval.ID
+	attempt := Attempt{SchemaVersion: 3, AttemptID: "attempt", SessionID: &owner, RuntimeEventIntervalID: &intervalID}
+	metrics := Metrics{ModelSteps: make([]SourceEvent, 3), wrapperModelIdentities: []modelStepIdentity{
+		{SessionID: "runtime", MessageID: "message-w1", PartID: "w1"},
+		{SessionID: "runtime", MessageID: "message-w2", PartID: "w2"},
+		{SessionID: "runtime", MessageID: "message-w3", PartID: "w3"},
+	}}
+	_, reason := materializeEventHookSequence(database.DB(), attempt, metrics)
+	if reason != "schema 3 wrapper and event-hook model-step counts do not match" {
+		t.Fatalf("legacy failed archive reason=%q", reason)
 	}
 }

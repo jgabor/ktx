@@ -163,7 +163,7 @@ if [ "$1 $2" = "telemetry collector-open" ]; then
   kind=collector_open; [ "$KTX_TEST_BAD_RESPONSE" = collector-kind ] && kind=other
   ordinal=$allocated; [ "$KTX_TEST_BAD_RESPONSE" = collector-ordinal ] && ordinal=0
 	[ "$KTX_TEST_BAD_RESPONSE" = collector-type ] && ordinal='"1"'
-	contract=opencode-event-v1; [ "$KTX_TEST_BAD_RESPONSE" = collector-contract ] && contract=wrong-contract
+	contract=opencode-event-v2; [ "$KTX_TEST_BAD_RESPONSE" = collector-contract ] && contract=wrong-contract
   if [ "$KTX_TEST_BAD_RESPONSE" = collector-malformed ]; then printf '[]\n'
   elif [ "$KTX_TEST_BAD_RESPONSE" = collector-missing ]; then printf '{"ok":true}\n'
 	else printf '{"ok":true,"session_id":"%s","interval_id":"%s","epoch_id":"%s","epoch_ordinal":0,"ordinal":%s,"kind":"%s","contract":"%s"}\n' "$session" "$interval" "$epoch" "$ordinal" "$kind" "$contract"
@@ -173,6 +173,10 @@ if [ "$1 $2" = "telemetry event-record" ]; then
   epoch=$(printf '%s' "$payload" | sed -n 's/.*"epoch_id":"\([^"]*\)".*/\1/p')
   epoch_ordinal=$(printf '%s' "$payload" | sed -n 's/.*"epoch_ordinal":\([0-9]*\).*/\1/p')
   after_ordinal=$(printf '%s' "$payload" | sed -n 's/.*"after_ordinal":\([0-9]*\).*/\1/p')
+  if [ -n "$KTX_TEST_EVENT_FAIL_ORDINAL" ] && [ "$epoch_ordinal" -eq "$KTX_TEST_EVENT_FAIL_ORDINAL" ]; then
+    printf 'event callback unavailable\n' >&2
+    exit 8
+  fi
   state="$KTX_TEST_LOG.ordinal"
   current=0; [ ! -f "$state" ] || read current < "$state"
   if [ -z "$after_ordinal" ] || [ "$after_ordinal" -ne "$current" ]; then
@@ -198,7 +202,7 @@ if [ "$1 $2" = "telemetry event-record" ]; then
 	  event-null) ordinal=null ;;
 	  event-nonfinite) ordinal=1e999 ;;
 	esac
-	contract=opencode-event-v1; [ "$KTX_TEST_BAD_RESPONSE" = event-contract ] && contract=wrong-contract
+	contract=opencode-event-v2; [ "$KTX_TEST_BAD_RESPONSE" = event-contract ] && contract=wrong-contract
   if [ "$KTX_TEST_BAD_RESPONSE" = event-missing ]; then printf '{"ok":true}\n'
 	else printf '{"ok":true,"session_id":"%s","interval_id":"%s","epoch_id":"%s","epoch_ordinal":%s,"ordinal":%s,"kind":"%s","contract":"%s"}\n' "$session" "$interval" "$epoch" "$epoch_ordinal" "$ordinal" "$kind" "$contract"
   fi
@@ -332,7 +336,7 @@ console.log(JSON.stringify(output))
 		output, calls, _ := run(t,
 			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa",
 			"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1",
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2",
 			"KTX_BENCH_COLLECTOR_MODE=required",
 		)
 		if output["output"] != "compressed tool output" || len(calls) != 11 {
@@ -345,6 +349,41 @@ console.log(JSON.stringify(output))
 			if !strings.HasPrefix(call, "telemetry event-record\t") || !strings.Contains(call, fmt.Sprintf(`"epoch_ordinal":%d`, index+1)) {
 				t.Fatalf("required call %d=%q", index+1, call)
 			}
+		}
+	})
+
+	queueDriverPath := filepath.Join(dir, "queue-driver.ts")
+	queueDriver := `import plugin from ` + strconv.Quote(pluginPath) + `
+const hooks: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
+const step = (part: string, input: number) => ({type:"message.part.updated",properties:{part:{id:part,sessionID:"ses",messageID:"msg-"+part,type:"step-finish",reason:"stop",cost:0,tokens:{input,output:0,reasoning:0,cache:{read:0,write:0}}}}})
+await hooks.event({event:step("w1", 10)})
+await hooks.event({event:step("w2", 20)})
+let rejected = false
+try { await hooks.event({event:step("w2", 20)}) } catch { rejected = true }
+if (!rejected) throw new Error("injected duplicate callback failure was not returned")
+await hooks.event({event:step("w3", 30)})
+console.log("ok")
+`
+	if err := os.WriteFile(queueDriverPath, []byte(queueDriver), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("required callback failure does not poison later queue work", func(t *testing.T) {
+		logPath := filepath.Join(t.TempDir(), "calls.log")
+		cmd := exec.Command(bun, queueDriverPath)
+		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
+			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EVENT_FAIL_ORDINAL=3")
+		output, err := cmd.CombinedOutput()
+		if err != nil || strings.TrimSpace(string(output)) != "ok" {
+			t.Fatalf("queue driver: %v\n%s", err, output)
+		}
+		data, err := os.ReadFile(logPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if len(calls) != 5 || !strings.Contains(calls[3], `"id":"w2"`) || !strings.Contains(calls[4], `"id":"w3"`) || !strings.Contains(calls[4], `"epoch_ordinal":4`) || !strings.Contains(calls[4], `"after_ordinal":3`) {
+			t.Fatalf("queue calls=%q", calls)
 		}
 	})
 
@@ -374,7 +413,7 @@ console.log("ok")
 		cmd := exec.Command(bun, epochDriverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EPOCH_SCENARIO="+scenario)
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EPOCH_SCENARIO="+scenario)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("epoch driver: %v\n%s", err, output)
@@ -412,7 +451,7 @@ console.log("ok")
 		cmd := exec.Command(bun, driverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_TELEMETRY_FAIL=1")
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_TELEMETRY_FAIL=1")
 		if err := cmd.Run(); err == nil {
 			t.Fatal("required collector failure did not reject plugin startup")
 		}
@@ -427,7 +466,7 @@ console.log("ok")
 			cmd := exec.Command(bun, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 				"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+bad)
+				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+bad)
 			if err := cmd.Run(); err == nil {
 				t.Fatalf("required mode accepted %s", bad)
 			}
@@ -452,7 +491,7 @@ console.log("ok")
 			cmd := exec.Command(bun, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 				"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v1", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+test.response)
+				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+test.response)
 			if err := cmd.Run(); err == nil {
 				t.Fatalf("required mode accepted %s", test.name)
 			}

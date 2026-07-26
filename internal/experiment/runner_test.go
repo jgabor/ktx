@@ -50,6 +50,7 @@ type fakeExecutor struct {
 	runArgs              [][]string
 	phases               []string
 	opencodeIdentity     string
+	collectorContract    string
 	omitOpenCodeIdentity bool
 	fullStepUsage        bool
 }
@@ -88,7 +89,11 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			if fake.omitOpenCodeIdentity {
 				identity = ""
 			}
-			write(command.Stdout, fmt.Sprintf(`{"ktx_version":"test","opencode_version":%q,"generated_plugin_sha256":"%s","generated_plugin_matches_binary":true,"event_collector_contract":"%s","explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`+"\n", identity, strings.Repeat("a", 64), benchcontract.ContractVersion))
+			contract := fake.collectorContract
+			if contract == "" {
+				contract = benchcontract.ContractVersion
+			}
+			write(command.Stdout, fmt.Sprintf(`{"ktx_version":"test","opencode_version":%q,"generated_plugin_sha256":"%s","generated_plugin_matches_binary":true,"event_collector_contract":"%s","explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"retained_duplicate_callbacks":true,"accepted_model_step_projection":true,"callback_queue_continuation":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`+"\n", identity, strings.Repeat("a", 64), contract))
 			return CommandResult{}, nil
 		}
 		if len(command.Args) > 1 && command.Args[1] == "run" {
@@ -552,6 +557,13 @@ func TestCompareAttestsCapabilitiesBeforeAuthAndArtifacts(t *testing.T) {
 	}
 	if _, err := os.Stat(options.DataDir); !os.IsNotExist(err) {
 		t.Fatalf("artifact directory created after mismatch: %v", err)
+	}
+
+	stale := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: benchcontract.RuntimeVersion, collectorContract: "opencode-event-v1"}
+	runner = &Runner{Executor: stale, ResolvePrice: testPriceResolver}
+	_, _, code, err = runner.Compare(context.Background(), options)
+	if err == nil || !strings.Contains(err.Error(), "runtime_or_event_contract_mismatch") || code != 2 || stale.capabilityRuns != 1 || stale.attemptRuns != 0 {
+		t.Fatalf("stale collector code=%d err=%v capabilities=%d attempts=%d", code, err, stale.capabilityRuns, stale.attemptRuns)
 	}
 }
 

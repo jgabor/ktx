@@ -11,7 +11,7 @@ const (
 	IntervalEnv       = "KTX_BENCH_EVENT_INTERVAL_ID"
 	ContractEnv       = "KTX_BENCH_EVENT_CONTRACT"
 	CollectorModeEnv  = "KTX_BENCH_COLLECTOR_MODE"
-	ContractVersion   = "opencode-event-v1"
+	ContractVersion   = "opencode-event-v2"
 	CollectorRequired = "required"
 	Runtime           = "opencode"
 	RuntimeVersion    = "1.18.5"

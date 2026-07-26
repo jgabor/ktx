@@ -427,8 +427,8 @@ func validateLocalCollectorSource(root string) error {
 	checks := map[string][]string{
 		"Dockerfile.benchmark": {"ARG OPENCODE_VERSION=" + benchcontract.RuntimeVersion, "RUN ktx init opencode", `ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]`},
 		filepath.Join("internal", "benchcontract", "contract.go"): {`ContractVersion   = "` + benchcontract.ContractVersion + `"`, `CollectorRequired = "required"`},
-		filepath.Join("internal", "cli", "init.go"):               {`["telemetry", "collector-open"]`, `["telemetry", "event-record"]`, "eventQueue.then"},
-		filepath.Join("internal", "db", "schema.go"):              {"runtime_event_intervals", "runtime_events"},
+		filepath.Join("internal", "cli", "init.go"):               {`["telemetry", "collector-open"]`, `["telemetry", "event-record"]`, "eventQueue.then", "next.catch(() => undefined)"},
+		filepath.Join("internal", "db", "schema.go"):              {"runtime_event_intervals", "runtime_events", "model_step_classification", "contradiction_count"},
 	}
 	for relative, markers := range checks {
 		data, err := os.ReadFile(filepath.Join(root, relative))
@@ -497,6 +497,9 @@ type benchmarkCapabilities struct {
 	EpochTracking                bool     `json:"epoch_tracking"`
 	StrictAcknowledgements       bool     `json:"strict_acknowledgements"`
 	ExactModelStepIdentity       bool     `json:"exact_model_step_identity"`
+	RetainedDuplicateCallbacks   bool     `json:"retained_duplicate_callbacks"`
+	AcceptedModelStepProjection  bool     `json:"accepted_model_step_projection"`
+	CallbackQueueContinuation    bool     `json:"callback_queue_continuation"`
 	FailClosedIntervalValidation bool     `json:"fail_closed_interval_validation"`
 	PreflightBeforeAuth          bool     `json:"preflight_before_auth"`
 	NormalizedKinds              []string `json:"normalized_kinds"`
@@ -527,7 +530,8 @@ func validateBenchmarkCapabilities(capabilities benchmarkCapabilities) string {
 		return "binary_or_plugin_identity_missing"
 	}
 	if !capabilities.ExplicitSessionOwnership || !capabilities.SerializedCallbacks || !capabilities.CompleteIntervalLifecycle || !capabilities.EpochTracking ||
-		!capabilities.StrictAcknowledgements || !capabilities.ExactModelStepIdentity || !capabilities.FailClosedIntervalValidation || !capabilities.PreflightBeforeAuth {
+		!capabilities.StrictAcknowledgements || !capabilities.ExactModelStepIdentity || !capabilities.RetainedDuplicateCallbacks ||
+		!capabilities.AcceptedModelStepProjection || !capabilities.CallbackQueueContinuation || !capabilities.FailClosedIntervalValidation || !capabilities.PreflightBeforeAuth {
 		return "collector_lifecycle_capability_missing"
 	}
 	want := []string{"collector_open", "model_step", "retry", "compaction", "interruption", "other"}

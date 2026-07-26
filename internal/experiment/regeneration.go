@@ -163,8 +163,14 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	var intervalID, owner, attemptID, runtime, runtimeVersion, source, contract, state string
 	var first, last sql.NullInt64
 	var closedAt, failureReason sql.NullString
-	var eventCount, epochs int
-	err := database.QueryRow(`SELECT id, session_id, attempt_id, runtime, runtime_version, source, contract_version, close_state, closed_at, first_ordinal, last_ordinal, event_count, collector_epoch_count, failure_reason FROM runtime_event_intervals`).Scan(&intervalID, &owner, &attemptID, &runtime, &runtimeVersion, &source, &contract, &state, &closedAt, &first, &last, &eventCount, &epochs, &failureReason)
+	classifiedEvents := sqliteColumnExists(database, "runtime_events", "model_step_classification")
+	intervalContradictions := sqliteColumnExists(database, "runtime_event_intervals", "contradiction_count")
+	contradictionColumn := "0"
+	if intervalContradictions {
+		contradictionColumn = "contradiction_count"
+	}
+	var eventCount, epochs, contradictions int
+	err := database.QueryRow(`SELECT id, session_id, attempt_id, runtime, runtime_version, source, contract_version, close_state, closed_at, first_ordinal, last_ordinal, event_count, collector_epoch_count, `+contradictionColumn+`, failure_reason FROM runtime_event_intervals`).Scan(&intervalID, &owner, &attemptID, &runtime, &runtimeVersion, &source, &contract, &state, &closedAt, &first, &last, &eventCount, &epochs, &contradictions, &failureReason)
 	if err != nil {
 		return nil, "schema 3 runtime event interval is unreadable"
 	}
@@ -173,6 +179,9 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	}
 	if state != db.RuntimeComplete || !closedAt.Valid || failureReason.Valid {
 		return nil, "schema 3 runtime event interval is not complete"
+	}
+	if contradictions != 0 {
+		return nil, "schema 3 runtime event interval is contradictory"
 	}
 	var ownerEndedAt sql.NullString
 	if err := database.QueryRow(`SELECT ended_at FROM sessions WHERE id = ?`, owner).Scan(&ownerEndedAt); err != nil || !ownerEndedAt.Valid || ownerEndedAt.String != closedAt.String {
@@ -184,7 +193,11 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	if !first.Valid || first.Int64 != 1 || !last.Valid || last.Int64 != int64(eventCount) || eventCount < 1 || epochs < 1 {
 		return nil, "schema 3 runtime event interval counters are invalid"
 	}
-	rows, err := database.Query(`SELECT ordinal, epoch_id, epoch_ordinal, kind, source_session_id, message_id, part_id FROM runtime_events ORDER BY ordinal`)
+	classificationColumn := `CASE WHEN kind = 'model_step' THEN 'accepted' ELSE NULL END`
+	if classifiedEvents {
+		classificationColumn = "model_step_classification"
+	}
+	rows, err := database.Query(`SELECT ordinal, epoch_id, epoch_ordinal, kind, source_session_id, message_id, part_id, ` + classificationColumn + ` FROM runtime_events ORDER BY ordinal`)
 	if err != nil {
 		return nil, "schema 3 runtime events are unreadable"
 	}
@@ -199,8 +212,8 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	for rows.Next() {
 		var ordinal, epochOrdinal uint64
 		var epoch, kind string
-		var session, message, part sql.NullString
-		if err := rows.Scan(&ordinal, &epoch, &epochOrdinal, &kind, &session, &message, &part); err != nil {
+		var session, message, part, classification sql.NullString
+		if err := rows.Scan(&ordinal, &epoch, &epochOrdinal, &kind, &session, &message, &part, &classification); err != nil {
 			return nil, "schema 3 runtime events are unreadable"
 		}
 		if ordinal != uint64(len(result.Events)+1) || epochOrdinal != epochNext[epoch] {
@@ -216,11 +229,19 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		}
 		switch kind {
 		case "model_step":
-			if !session.Valid || session.String == "" || !message.Valid || message.String == "" || !part.Valid || part.String == "" {
+			if !session.Valid || session.String == "" || !message.Valid || message.String == "" || !part.Valid || part.String == "" || !classification.Valid {
 				structureValid = false
 			}
-			modelOrdinal++
-			fact.ModelStepOrdinal, lastModelOrdinal = modelOrdinal, ordinal
+			switch classification.String {
+			case db.ModelStepAccepted:
+				modelOrdinal++
+				fact.ModelStepOrdinal, lastModelOrdinal = modelOrdinal, ordinal
+			case db.ModelStepExactDuplicate:
+			case db.ModelStepConflictingDuplicate:
+				structureValid = false
+			default:
+				structureValid = false
+			}
 		case "retry":
 			fact.Boundary = cacheevidence.BoundaryRetry
 		case "compaction":
@@ -260,7 +281,11 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		return result, "schema 3 wrapper and event-hook model-step counts do not match"
 	}
 	modelIndex := 0
-	rows, err = database.Query(`SELECT source_session_id, message_id, part_id FROM runtime_events WHERE kind = 'model_step' ORDER BY ordinal`)
+	acceptedPredicate := "kind = 'model_step'"
+	if classifiedEvents {
+		acceptedPredicate += " AND model_step_classification = 'accepted'"
+	}
+	rows, err = database.Query(`SELECT source_session_id, message_id, part_id FROM runtime_events WHERE ` + acceptedPredicate + ` ORDER BY ordinal`)
 	if err != nil {
 		return result, "schema 3 event-hook model-step identities are unreadable"
 	}
@@ -297,6 +322,11 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		result.Coverage = append(result.Coverage, cacheevidence.CoverageFact{Class: class, State: cacheevidence.CoverageCovered, Provenance: provenance})
 	}
 	return result, ""
+}
+
+func sqliteColumnExists(database *sql.DB, table, column string) bool {
+	var count int
+	return database.QueryRow(`SELECT count(*) FROM pragma_table_info(?) WHERE name = ?`, table, column).Scan(&count) == nil && count == 1
 }
 
 func reconcileLegacyStreamProjection(experimentDir string, attempt Attempt) Attempt {

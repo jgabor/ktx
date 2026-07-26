@@ -7,7 +7,7 @@ record:
     - zcwkgwddmu
     - dvoyfbnphu
     - flqcwvauyn
-  status: pending
+  status: complete
   acceptance:
     - GIVEN the resolved observation contract WHEN retained telemetry is assessed THEN every required field is classified as available, unavailable, malformed, or missing with provenance.
     - GIVEN the validated ten-attempt experiment WHEN the comparison is regenerated THEN no model call is made, retained artifacts validate, and compression effects remain separate for delivery, runtime usage/cache, quality, and cost.

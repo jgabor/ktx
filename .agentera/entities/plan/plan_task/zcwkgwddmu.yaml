@@ -2,8 +2,7 @@ id: zcwkgwddmu
 artifact: plan
 record:
   name: Resolve runtime cache telemetry configuration
-  depends_on:
-    []
+  depends_on: []
   status: complete
   acceptance:
     - GIVEN runtime cache fields and explicit runtime configuration WHEN the decision is recorded THEN retained values, adapter-version provenance, and unsupported-field behavior are explicit.
@@ -12,12 +11,12 @@ record:
     - GIVEN the choice is accepted WHEN the discussion cycle closes THEN the decision is recorded, its Architecture question is removed, its TODO item is completed, only selected follow-ups are added or unblocked, and reciprocal links remain valid.
   plan: bstrfialvp
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Resolved TODO entity retains removed Architecture link; durable Prettier claim includes a writer-formatted task entity that does not pass Prettier.
     provenance:
-      attempt_id: audit-1
+      attempt_id: audit-2
       source: Audit ses_062a9514affewaqVlS65Es5sYk
-      recorded_at: 2026-07-26 09:37
+      recorded_at: 2026-07-26 09:40
       writer_command: agentera state plan record-evaluation

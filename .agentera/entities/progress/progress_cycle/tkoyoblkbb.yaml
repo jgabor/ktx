@@ -1,0 +1,16 @@
+id: tkoyoblkbb
+artifact: progress
+record:
+  timestamp: 2026-07-26 09:47
+  type: docs
+  phase: build
+  what: Validated the retained ten-attempt runtime compression experiment offline and published docs/runtime-compression-telemetry-evidence.md. No product code changed and no paid run occurred because retained evidence satisfied the resolved contract.
+  context:
+    intent: Classify every required retained observation with provenance, prove deterministic no-model regeneration, validate retained authorities, and preserve unavailable fields without collecting replacement evidence.
+    constraints: Runtime-only retained evidence; no provider-internal or causal claim; no reconstruction of unavailable or omitted fields; no model call unless a concrete unsupported objective remained.
+    unknowns: None. Truthful unavailability leaves no concrete collection objective unsupported.
+    scope: README.md, docs/runtime-compression-telemetry-evidence.md, retained plan/evaluation state, and progress state.
+  inspiration: Plan task flwcllesfe and the resolved runtime-only, context-observability, cache-telemetry, field-authority, and non-additive attribution contracts.
+  discovered: "Available: experiment/attempt/cohort/task identity; configured runtime identity and configuration hashes; native runtime identities/order; all 20 model-step uncached-input, output, reasoning, cache-read, cache-write, and reported-cost fields; ten attempt totals, delivery observations, quality scores, and estimates; exact configured task prompt and launch order. Explicit zero: all 20 cache-write and reported-cost fields. Missing: provider/model identity in all normalized source-event identity objects, so no source-event identity claim is made. Unavailable: instruction/tool-schema segmentation, compaction counts, reliable request start/TTFT, adapter source/version, provider request/cache internals, billing meaning, and causal shares. Malformed: none in contributing retained evidence."
+  verified: mage build produced ~/git/ktx/build/ktx version dev. Two exact './build/ktx bench compare --summarize .bench-data/runtime-telemetry-v5-luna-high-20260725-a0c268a --format json' runs with MODEL unset and nonexistent OPENCODE_AUTH_PATH matched retained summary bytes and SHA-256 93d6262b6f976cd6535aef45b95ef51589c90b2793e7583a88c3b83b1b162c80. './build/ktx bench validate --experiment .bench-data/runtime-telemetry-v5-luna-high-20260725-a0c268a --format json' returned valid=true, summary_byte_match=true, target_met=true, baseline=3, candidate=3, ten valid attempts, zero reasons/divergences. Focused go test ./internal/experiment mutation/attribution/model-step/v5 cases passed, including missing, null, malformed, conflicting duplicate, unavailable authority, explicit zero, and parallel attribution. Prettier passed changed docs and the retained evaluator entity; markdown-link-check passed 8 README links and the report has none; git diff --check passed.
+  next: Run final state and diff validation, mark flwcllesfe complete, and commit this evidence cycle together with the pre-existing evaluator update.

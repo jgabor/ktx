@@ -112,6 +112,10 @@ summaries. Validate retained evidence with:
 ktx bench validate --experiment .bench-data/<experiment-id>
 ```
 
+The [retained runtime compression telemetry report](docs/runtime-compression-telemetry-evidence.md)
+shows one historical ten-attempt comparison, its field-by-field availability,
+and an offline deterministic validation.
+
 Replay a database capture by session ID without another agent call:
 
 ```bash

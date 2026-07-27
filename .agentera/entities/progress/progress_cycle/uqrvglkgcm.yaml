@@ -1,0 +1,16 @@
+id: uqrvglkgcm
+artifact: progress
+record:
+  timestamp: 2026-07-27 07:34
+  type: fix
+  phase: build
+  what: Removed the final namespace-wide DB-free contradiction and added a source-scoped classification invariant for the db dispatch wrapper.
+  context:
+    intent: Make every active developer-facing ktx db classification distinguish DB-free path/prune from report-owned genuinely read-only access, without changing runtime behavior.
+    constraints: Comment, focused test, and typed state only; no runtime, doctor, workflow, schema, CI, install/open, exit-code, suppression, decision-satisfaction, profile, startup-state, or live-database changes.
+    unknowns: None within the accepted finding.
+    scope: internal/cli/db.go, internal/cli/database_safety_docs_test.go, replacement task evidence, and this progress entity.
+  inspiration: Accepted replacement task mqnggvnjbk after lygrbrfcvw exhausted two Audit attempts.
+  discovered: "The prior correction updated the file-level and runDBWith comments but missed the later dbCommandFunc comment, while the documentation invariant never inspected db.go. No authority mismatch occurred: Audit evaluated current checkout source. No lifecycle mismatch remains: the original task is blocked and the replacement stays in_progress pending independent Audit."
+  verified: The focused TestDatabaseSafetyGuidanceContract and TestDBDispatchCommentClassifiesOwnedOpen targets passed under a unique disposable HOME/XDG root with KTX_DB unset. The source-scoped test requires dispatcher-managed-open, path/prune DB-free, and report-owned read-only classifications and rejects blanket namespace claims. The prior contradictory text is absent. gofmt produced no diff; git diff --check passed; Agentera state validation passed 409 entities with 0 issues; compact check passed with no repair needed.
+  next: Keep mqnggvnjbk in_progress for independent Audit. Do not change lygrbrfcvw, resolve lupwczoajm, or supersede the original task until independent PASS.

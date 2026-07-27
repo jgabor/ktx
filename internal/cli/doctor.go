@@ -4,20 +4,23 @@
 //  1. The database file exists at the resolved path.
 //  2. The database is openable (sqlite3 file is valid; not a directory,
 //     not a corrupt blob).
-//  3. The schema matches the expected shape: `sessions` and `tool_calls`
+//  3. The schema version is current, requires a supported forward upgrade, or
+//     is newer than this binary supports.
+//  4. The schema matches the expected shape: `sessions` and `tool_calls`
 //     tables exist with the expected base columns. Hard requirement — a
 //     missing column is an error because record I/O cannot function.
-//  4. The cost-publication columns are present on `tool_calls`.
+//  5. The cost-publication columns are present on `tool_calls`.
 //     Soft requirement — a missing cost column is a warning because the
 //     system still functions; records load, cost fields stay NULL on
-//     insert. The next ktx invocation applies the in-place migration.
-//  5. The `bench_runs` table exists with all 14 expected columns.
+//     insert. A deliberate Open-backed invocation applies the migration after
+//     a compatible binary is installed and verified.
+//  6. The `bench_runs` table exists with all 14 expected columns.
 //     Soft requirement — a missing or partial `bench_runs`
 //     is a warning because the system still functions; records
 //     are queryable, `ktx bench run` is the only feature that
-//     requires the table. The next ktx invocation applies the in-place
-//     CREATE / ALTER migration.
-//  6. The ID format is valid: sampled IDs from the database match the
+//     requires the table. A deliberate Open-backed invocation applies the
+//     migration after binary verification.
+//  7. The ID format is valid: sampled IDs from the database match the
 //     expected shape (16-char lowercase alpha).
 //
 // Doctor is read-only. It does not create the database if it is missing —
@@ -36,13 +39,13 @@
 //	  ]
 //	}
 //
-// Top-level status is "degraded" when at least one check is "warning"
-// and no check is "error" (the pre-migration case); "ok" when every
-// check passed; "error" when at least one hard check failed.
+// Top-level status is "degraded" when at least one check is "warning" and no
+// check is "error" (including a supported older schema); "ok" when every check
+// passed; "error" when at least one hard check failed.
 //
 // Exit codes:
 //
-//	0  status: ok or degraded (records still queryable)
+//	0  status: ok or degraded (read-only diagnosis completed)
 //	1  usage error (invalid flag, unexpected argument)
 //	4  internal error (status == "error")
 //
@@ -74,12 +77,12 @@ import (
 const doctorSampleLimit = 100
 
 // doctorStatus values. These are the canonical per-check and top-level
-// status values exposed in the JSON output. The schema migration
-// introduces "warning" and "degraded":
+// status values exposed in the JSON output:
 //
 //   - "warning" is a per-check status: the database still functions
 //     (records are queryable), but a soft requirement is unmet (e.g.
-//     cost columns are missing on an unmigrated database).
+//     an installed compatible binary must deliberately upgrade an older
+//     database).
 //   - "degraded" is a top-level status: at least one check is "warning"
 //     and no check is "error". The CLI exits 0 because the system still
 //     works — degraded is informational, not a hard failure.
@@ -182,13 +185,9 @@ func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, i
 		// check represents a system failure, not invalid user input.
 		return nil, ExitInternal
 	}
-	// "ok" and "degraded" both exit 0: degraded means a soft warning
-	// (e.g. cost columns missing on an unmigrated database) that does not
-	// prevent the system from working. Records still query, cost
-	// fields stay NULL on insert, and the next ktx invocation applies
-	// the migration. Returning a non-zero exit would break that
-	// "doctor says it works" signal for CI scripts and shell wrappers
-	// that already invoke `ktx run` / `ktx write` to fix the issue.
+	// "ok" and "degraded" both exit 0. Degraded means diagnosis completed
+	// and an actionable soft warning, such as a required supported upgrade,
+	// was reported without changing the database.
 	return nil, ExitOK
 }
 
@@ -199,10 +198,9 @@ func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, i
 // apply doctorLogic and surface the appropriate typed error to the
 // dispatcher's exitCodeOf pipeline.
 //
-// PassthroughStdout=true: the verb writes its structured JSON
-// envelope directly to ctx.Stdout (the dispatcher's printError path
-// is for stderr; PassthroughStdout means the dispatcher does not
-// impose any envelope on stdout).
+// The verb writes its structured JSON envelope directly to ctx.Stdout. It is
+// not registered as command passthrough because --format belongs to doctor,
+// not to a child process, and must be consumed by the dispatcher.
 //
 // NeedsDB=false: the verb opens its own database via the existing
 // buildDoctorReport helper. The dispatcher's dbpkg.ResolvePath +
@@ -228,11 +226,10 @@ func doctorCommandFunc(ctx *DispatchContext) (any, error) {
 // runs, the verb is reachable through runWith.
 func init() {
 	Register("doctor", RegisterOptions{
-		Description:       "check ktx health",
-		NeedsDB:           false,
-		PassthroughStdout: true,
-		FormatDefault:     FormatJSON,
-		Help:              printDoctorHelp,
+		Description:   "check ktx health",
+		NeedsDB:       false,
+		FormatDefault: FormatJSON,
+		Help:          printDoctorHelp,
 	}, doctorCommandFunc)
 }
 
@@ -246,15 +243,11 @@ func init() {
 //
 // Top-level status precedence (most severe wins):
 //  1. any check "error"    → top-level "error"    (exit ExitInternal)
-//  2. any check "warning"  → top-level "degraded" (exit ExitOK — system still works)
+//  2. any check "warning"  → top-level "degraded" (exit ExitOK — action may be required)
 //  3. all checks "ok"      → top-level "ok"       (exit ExitOK)
 //
-// The "degraded" branch is the schema migration's user-visible
-// surface: an unmigrated database has every base column (so schema_valid is
-// ok) but missing cost columns (so m2_columns is warning). The system is
-// still functional — records load, cost fields stay NULL — but the
-// user benefits from a clear signal that the migration has not yet
-// run.
+// The "degraded" branch is the supported forward-upgrade surface. Doctor
+// reports the required action but never applies it.
 func buildDoctorReport() *doctorReport {
 	report := &doctorReport{}
 
@@ -297,12 +290,9 @@ func buildDoctorReport() *doctorReport {
 		Detail: fmt.Sprintf("file present at %q", path),
 	})
 
-	// Check 2: openable. dbpkg.Open runs migrations on first open, but
-	// the file already exists at this point so the migrations are
-	// no-ops (CREATE TABLE IF NOT EXISTS is idempotent; the
-	// ALTER TABLE step is column-existence-guarded so a re-open is a
-	// pure no-op on a fully migrated database).
-	db, err := dbpkg.Open(path)
+	// Check 2: openable through SQLite's enforced read-only mode. Wrapping the
+	// pool exposes the existing inspection helpers without running migrations.
+	sqlDB, err := dbpkg.OpenReadOnly(path)
 	if err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "database_openable",
@@ -312,14 +302,64 @@ func buildDoctorReport() *doctorReport {
 		report.Status = doctorStatusError
 		return report
 	}
+	db, err := dbpkg.OpenWithoutMigration(sqlDB)
+	if err != nil {
+		sqlDB.Close()
+		report.Checks = append(report.Checks, doctorCheck{
+			Name:   "database_openable",
+			Status: doctorStatusError,
+			Detail: fmt.Sprintf("open %q read-only: %v", path, err),
+		})
+		report.Status = doctorStatusError
+		return report
+	}
 	defer db.Close()
 	report.Checks = append(report.Checks, doctorCheck{
 		Name:   "database_openable",
 		Status: doctorStatusOK,
-		Detail: fmt.Sprintf("opened %q", path),
+		Detail: fmt.Sprintf("opened %q read-only", path),
 	})
 
-	// Check 3: schema. Expected base tables + columns match the expected shape.
+	// Check 3: schema version. Older supported schemas require a deliberate
+	// Open-backed upgrade after installation; newer schemas require a newer
+	// runtime. Neither condition is changed by doctor.
+	version, err := db.SchemaVersion()
+	if err != nil {
+		report.Checks = append(report.Checks, doctorCheck{
+			Name:   "schema_version",
+			Status: doctorStatusError,
+			Detail: fmt.Sprintf("%v", err),
+		})
+		report.Status = doctorStatusError
+	} else {
+		maximum := dbpkg.MaxSupportedSchema()
+		switch {
+		case version < maximum:
+			report.Checks = append(report.Checks, doctorCheck{
+				Name:   "schema_version",
+				Status: doctorStatusWarning,
+				Detail: fmt.Sprintf("database schema %d requires upgrade to %d; install and verify the compatible binary, then deliberately run an Open-backed command against this path", version, maximum),
+			})
+			if report.Status != doctorStatusError {
+				report.Status = doctorStatusDegraded
+			}
+		case version > maximum:
+			report.Checks = append(report.Checks, doctorCheck{
+				Name:   "schema_version",
+				Status: doctorStatusError,
+				Detail: fmt.Sprintf("database schema %d is newer than this binary's maximum supported schema %d; install and verify a binary supporting schema %d or newer; do not lower user_version", version, maximum, version),
+			})
+			report.Status = doctorStatusError
+		default:
+			report.Checks = append(report.Checks, doctorCheck{
+				Name:   "schema_version",
+				Status: doctorStatusOK,
+				Detail: fmt.Sprintf("database uses supported schema %d", version),
+			})
+		}
+	}
+
+	// Check 4: schema. Expected base tables + columns match the expected shape.
 	// This is the hard requirement — a missing column is a hard
 	// error because record I/O cannot function without it. The cost
 	// columns are checked separately in checkCostColumns below.
@@ -423,7 +463,7 @@ func checkCostColumns(db *dbpkg.DB) doctorCheck {
 	return doctorCheck{
 		Name:   "cost_columns",
 		Status: doctorStatusWarning,
-		Detail: fmt.Sprintf("missing cost columns on tool_calls: %s (records still queryable; cost fields will be NULL on insert — run any ktx command to apply the migration)", strings.Join(missing, ", ")),
+		Detail: fmt.Sprintf("missing cost columns on tool_calls: %s (upgrade required; after installing and verifying a compatible binary, deliberately run an Open-backed command)", strings.Join(missing, ", ")),
 	}
 }
 
@@ -464,7 +504,7 @@ func checkBenchRuns(db *dbpkg.DB) doctorCheck {
 		return doctorCheck{
 			Name:   "bench_runs_table",
 			Status: doctorStatusWarning,
-			Detail: "bench_runs table is missing (records still queryable — run any ktx command to apply the migration)",
+			Detail: "bench_runs table is missing (upgrade required; after installing and verifying a compatible binary, deliberately run an Open-backed command)",
 		}
 	}
 	missing, err := db.HasBenchRunsColumns()
@@ -479,7 +519,7 @@ func checkBenchRuns(db *dbpkg.DB) doctorCheck {
 		return doctorCheck{
 			Name:   "bench_runs_table",
 			Status: doctorStatusWarning,
-			Detail: fmt.Sprintf("partial bench_runs schema; missing columns: %s (forward-fixed on next open)", strings.Join(missing, ", ")),
+			Detail: fmt.Sprintf("partial bench_runs schema; missing columns: %s (upgrade required on a deliberate Open-backed command after binary verification)", strings.Join(missing, ", ")),
 		}
 	}
 	return doctorCheck{
@@ -579,6 +619,7 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "Runs a read-only health check on the ktx installation. Verifies:")
 	fmt.Fprintln(w, "  - the database file exists at the resolved path")
 	fmt.Fprintln(w, "  - the database is openable")
+	fmt.Fprintln(w, "  - the schema version is current, requires upgrade, or is newer than this binary supports")
 	fmt.Fprintln(w, "  - the schema matches the expected shape (sessions + tool_calls tables, hard requirement)")
 	fmt.Fprintln(w, "  - the cost-publication columns are present on tool_calls (soft requirement: warning if missing)")
 	fmt.Fprintln(w, "  - the bench_runs table is present with all 14 columns (soft requirement: warning if missing or partial)")
@@ -590,21 +631,20 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Status values:")
 	fmt.Fprintln(w, "  ok        all checks passed")
-	fmt.Fprintln(w, "  degraded  one or more checks are warnings (e.g. cost columns missing on")
-	fmt.Fprintln(w, "            an unmigrated database, or bench_runs table missing);")
-	fmt.Fprintln(w, "            the system still works")
+	fmt.Fprintln(w, "  degraded  one or more checks are warnings; diagnosis completed without")
+	fmt.Fprintln(w, "            changing the database, but an upgrade may be required")
 	fmt.Fprintln(w, "  error     one or more checks failed; the system cannot continue")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
-	fmt.Fprintln(w, "  0  status: ok or degraded (records still queryable)")
+	fmt.Fprintln(w, "  0  status: ok or degraded (read-only diagnosis completed)")
 	fmt.Fprintln(w, "  1  usage error (invalid flag, unexpected argument)")
 	fmt.Fprintln(w, "  4  status: error (one or more hard checks failed)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Doctor is read-only. It does not create the database if it is missing,")
-	fmt.Fprintln(w, "does not migrate, and does not repair. Use 'ktx run' or 'ktx write' to")
-	fmt.Fprintln(w, "create a new database; use 'ktx db prune' (when implemented) for cleanup.")
+	fmt.Fprintln(w, "does not migrate, and does not repair. For an older schema, first install")
+	fmt.Fprintln(w, "and verify a compatible binary, then deliberately use an Open-backed command.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
 }

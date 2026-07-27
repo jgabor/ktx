@@ -6,10 +6,8 @@
 // probe returns a plain error (or nil) so the cli can format the detail
 // without coupling to a specific error type.
 //
-// These helpers are read-only — they query but never mutate. `db.Open`
-// is the one place that creates the database file and runs migrations;
-// doctor only invokes Open after a pre-flight existence check in cli,
-// so a missing database is reported rather than silently created.
+// These helpers are read-only — they query but never mutate. Doctor opens the
+// database through OpenReadOnly and wraps that connection without migration.
 //
 // Core vs cost-publication schema checks: the core columns are a hard
 // requirement for `ktx doctor` (a missing core column means the
@@ -26,10 +24,9 @@
 // database predates the bench_runs schema; core + cost-publication
 // records are still queryable). The doctor reports an
 // unmigrated database as a normal-severity warning — degraded,
-// not error — and the next ktx invocation applies the in-place CREATE
-// / ALTER migration. A partial bench_runs schema (some columns missing)
-// is also a warning: the forward-fix path in migrate() adds the missing
-// columns on the next open.
+// not error. A partial bench_runs schema (some columns missing) is also a
+// warning. After a compatible binary is installed and verified, migrate()
+// repairs either state on a deliberate Open-backed invocation.
 package db
 
 import (
@@ -45,6 +42,15 @@ import (
 // path inspects outside any transaction (read-only).
 type queryer interface {
 	Query(query string, args ...any) (*sql.Rows, error)
+}
+
+// SchemaVersion returns PRAGMA user_version without changing the database.
+func (d *DB) SchemaVersion() (int, error) {
+	var version int
+	if err := d.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return 0, fmt.Errorf("read schema version: %w", err)
+	}
+	return version, nil
 }
 
 // expectedSchema mirrors the core two-table schema. Each
@@ -189,14 +195,13 @@ func (d *DB) HasCostColumns() (bool, []string, error) {
 // probe to distinguish three states:
 //
 //   - Table present + all 14 columns present → "ok"
-//   - Table present + some columns missing → "warning" (forward-fix on next open)
+//   - Table present + some columns missing → "warning" (upgrade required)
 //   - Table absent entirely → "warning" (unmigrated database; core and cost-publication records
-//     still queryable, the migration creates the table on next open)
+//     still queryable, migration creates the table on a deliberate Open-backed invocation)
 //
 // The split matters because the three states have different remediation
-// messages: forward-fix is automatic on next open for a partial table,
-// while a missing table is an unmigrated marker that disappears on the
-// very next ktx invocation that opens the database.
+// messages, but both require a deliberate Open-backed invocation after the
+// compatible binary has been installed and verified.
 func (d *DB) HasBenchRunsTable() (bool, error) {
 	var name string
 	err := d.db.QueryRow(

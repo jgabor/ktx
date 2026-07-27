@@ -85,6 +85,13 @@ See [`ktx.example.toml`](ktx.example.toml) for a working configuration and
 [`docs/pipelines.md`](docs/pipelines.md) for stage, routing, and benchmark
 guidance. Originals remain addressable through `ktx read` and `ktx decompress`.
 
+Database access is forward-only. See the
+[database safety contract](docs/database-safety.md) for the command access
+classes and the install-first upgrade procedure. In particular, rehearse only
+on a seeded temporary database, verify the effective installed binary before
+live access, and recover from a database newer than the binary by installing a
+binary that supports that schema or newer. Never lower `PRAGMA user_version`.
+
 ## Benchmarking
 
 `ktx bench run`, `report`, `compare`, `rank`, `validate`, and `corpus generate`
@@ -188,6 +195,11 @@ Aggregate runtime token counts cannot establish provider-internal cache hits,
 misses, fills, eviction, request boundaries, isolation, or prefix composition.
 
 ## Development
+
+Development and CI verification must not resolve an ambient live database.
+Use the per-invocation disposable `HOME` and XDG wrapper in the
+[database safety contract](docs/database-safety.md); it unsets `KTX_DB` and
+keeps reusable language and tool caches separate.
 
 ```bash
 mage replayFixture # bounded offline gate for the retained portable fixture

@@ -46,10 +46,19 @@ isolation, or prefix composition.
 - Four ambiguity cases and four fallback cases.
 - Six residual-spend groups frozen at explicit source and artifact cutoffs.
 
-The read-only reproduction query emits no input or output bodies:
+The read-only reproduction query emits no input or output bodies. It must run
+only against an explicit generated fixture or operator-provided sanitized snapshot
+that is known to be non-live. The snapshot must already exist; never
+derive it from `ktx db path`, and never create it by copying or opening the
+ambient live database.
 
 ```bash
-sqlite3 -readonly "$(build/ktx db path)" \
+snapshot=${KTX_ROUTING_SNAPSHOT:?set KTX_ROUTING_SNAPSHOT to a sanitized non-live snapshot}
+test -f "$snapshot"
+root=$(mktemp -d "${TMPDIR:-/tmp}/ktx-routing.XXXXXX")
+trap 'rm -rf "$root"' EXIT HUP INT TERM
+install -m 0600 "$snapshot" "$root/routing-characterization.db"
+sqlite3 -readonly "$root/routing-characterization.db" \
   < tools/bench/evidence/routing-candidate-characterization.sql
 ```
 
@@ -99,9 +108,14 @@ separately scoped task.
 
 ## Verification
 
+Define `ktx_verify` exactly as shown in the canonical
+[database safety contract](database-safety.md#hermetic-development-and-ci-verification),
+then run both the focused and full checks through it. Each call gets a new
+disposable application root and starts with `KTX_DB` unset.
+
 ```bash
-go test ./internal/router -run TestRoutingCandidateCharacterization -count=2 -v
-mage check
+ktx_verify go test ./internal/router -run TestRoutingCandidateCharacterization -count=2 -v
+ktx_verify mage check
 ```
 
 The focused test verifies every referenced hash and fixture measurement, runs

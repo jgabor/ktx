@@ -1,0 +1,15 @@
+id: uqxzydjfyd
+artifact: progress
+record:
+  timestamp: 2026-07-27 06:51
+  type: fix
+  phase: build
+  what: Published the canonical forward-only database safety contract and changed doctor from migration-capable Open access to enforced read-only inspection with schema-version diagnostics.
+  context:
+    intent: Make database guidance truthful across developer, agent, CI, operator, and CLI surfaces while preserving ordinary safe auto-migration in intended Open-backed commands.
+    constraints: Did not access or install against a live database, alter schema 8, disable ordinary Open-backed auto-migration, add exit 5, or change callback handling.
+    unknowns: None within this task; automated full-suite root allocation remains deferred.
+    scope: Canonical safety documentation and pointers; doctor implementation, help, inspection primitive, dispatch registration, and seeded regression coverage.
+  discovered: Doctor's passthrough registration also caused its documented subcommand-local --format flag to be rejected; registration now lets the dispatcher consume that doctor-owned flag.
+  verified: "Criteria 1-2: docs/database-safety.md plus AGENTS, README, CI pointers define DB-free, read-only, Open-backed, isolated, and forbidden classes and a unique disposable HOME/XDG procedure with KTX_DB unset and seeded-only rehearsal. Criteria 3-4: upgrade steps verify rehearsal before install and effective identity before deliberate live open; Y>X recovery forbids writes, downgrade, and lowering user_version. Criterion 5: doctor uses OpenReadOnly, reports schema 7/8/9 as degraded/ok/error, and seeded missing/current/older/newer/malformed tests plus the ./build/ktx runtime matrix prove no creation or byte changes. Focused tests, mage build, and hermetic mage check passed."
+  next: Keep the plan task in progress for Audit. Broad Mage/CI disposable-root automation, controlled live opening, exit 5, and callback suppression remain separate work.

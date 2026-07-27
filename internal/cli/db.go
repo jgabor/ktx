@@ -8,7 +8,10 @@
 // The --path flag is per-invocation only; nothing is persisted. Path
 // precedence: --path flag > KTX_DB env > $XDG_DATA_HOME/ktx/ktx.db.
 //
-// The command resolves and prints paths without opening the database.
+// `db path` resolves and prints a path without opening the database. The
+// unavailable `db prune` returns before opening one. `db report` opens the
+// selected existing database through genuinely read-only access and never
+// creates or migrates it.
 package cli
 
 import (
@@ -25,8 +28,9 @@ import (
 // runDBWith is the testable core of `ktx db`.
 // stdout/stderr are injected so the path-resolution flow can be
 // exercised without touching os.Stdout. The body parses the
-// subcommand's --path flag and dispatches on the subcommand name
-// (path -> dbPathLogic; prune -> usage error).
+// subcommand's --path flag and dispatches on the subcommand name. Path is
+// DB-free, report opens read-only, and unavailable prune returns a usage error
+// without opening a database.
 func runDBWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	_, err := dbLogic(args, opts.Format, stdout, stderr)
 	if err != nil {
@@ -138,10 +142,9 @@ func dbPathLogic(pathOverride string, stdout io.Writer) (any, error) {
 // parsed --help/-h (via the Help hook) and --format; the verb
 // receives a context carrying a clean positional tail and parsed path override.
 //
-// NeedsDB=false: ktx db never touches the database — it only
-// resolves and prints the path. The dispatcher's dbpkg.ResolvePath
-// + dbpkg.Open calls are skipped, so a missing or unreadable
-// database file does not block this verb.
+// NeedsDB=false skips only the dispatcher-managed database open. `db path`
+// and unavailable `db prune` are DB-free; `db report` owns its genuinely
+// read-only open.
 func dbCommandFunc(ctx *DispatchContext) (any, error) {
 	parsed, ok := ctx.ParsedArgs.(dbParsedArgs)
 	if !ok {

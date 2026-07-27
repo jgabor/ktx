@@ -273,18 +273,9 @@ func TestRunWith_PricesDispatched(t *testing.T) {
 // (the public seam) so the migration is skipped; the doctor
 // checks the underlying schema state directly.
 //
-// Why not exercise through runWith? The dispatch path's
-// doctorCommandFunc → doctorLogic → buildDoctorReport opens
-// the database via dbpkg.Open which applies the migration. The
-// migration's CREATE TABLE IF NOT EXISTS bench_runs creates
-// the table on first open, defeating the
-// fixture. The intent is to verify the
-// "degraded → exit 0" behavior, which buildDoctorReport
-// provides directly. We exercise buildDoctorReport through
-// the legacy runDoctorWith seam (the same code path
-// runWith uses, just with a test-injected DB) so the test
-// covers the production logic without the migration
-// interference.
+// The in-memory fixture exercises the individual inspection checks without
+// filesystem path resolution. End-to-end doctor tests separately cover the
+// production OpenReadOnly path and immutable database bytes.
 func TestRunWith_DoctorDispatched(t *testing.T) {
 	t.Run("database without bench_runs → bench_runs warning, top-level degraded, exit 0", func(t *testing.T) {
 		// Construct a database without bench_runs: base + cost columns but no
@@ -339,12 +330,9 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		d := dbpkgDBFromSQL(raw)
 
 		// Build the report from the fixture. The
-		// buildDoctorReportForDB helper mirrors the production
-		// buildDoctorReport's per-check construction
-		// (CheckSchema → checkCostColumns → checkBenchRuns →
-		// checkIDFormat) so the contract is verified
-		// against the same production logic that runs in
-		// the dispatch path.
+		// buildDoctorReportForDB composes the production schema-shape,
+		// cost, bench, and ID checks. End-to-end tests own the path,
+		// schema-version, and read-only-open contract.
 		report := buildDoctorReportForDB(t, d)
 		if report.Status != "degraded" {
 			t.Errorf("report.status = %q, want degraded", report.Status)

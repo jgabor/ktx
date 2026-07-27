@@ -4,7 +4,7 @@ record:
   name: Publish the forward-only database safety contract
   depends_on:
     - pitdhqcgsp
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN developer, agent, CI, and operator guidance WHEN consulted THEN DB-free, migration-capable, and forbidden ambient-live operations are distinguished consistently.
     - GIVEN development verification WHEN instructions are followed THEN KTX_DB is unset, application HOME and XDG state is disposable, and rehearsal uses seeded temporary databases only.
@@ -12,3 +12,17 @@ record:
     - GIVEN live schema Y newer than supported X WHEN recovery guidance is followed THEN no write or downgrade occurs and the runtime rolls forward to Y or newer.
     - GIVEN doctor and other inspection surfaces WHEN documented and tested THEN no command is described as read-only or DB-free if it can migrate.
   plan: xszoenfrqu
+  evidence: Canonical contract and pointers classify DB-free, read-only, Open-backed, isolated, and forbidden operations; doctor remains immutable across missing, schema 7/8/9, and malformed fixtures. Upgrade ordering and Y>X roll-forward guidance remain explicit. Audit corrections require routing characterization to use an explicit sanitized non-live snapshot under a temporary root and run focused/full verification through ktx_verify; that wrapper unsets KTX_DB, creates distinct HOME/XDG roots, and preserves explicit Go, Bun, and linter caches outside them. DB comments now classify path/prune as DB-free and report as read-only. Invariant, routing, cache-probe, focused, and hermetic mage checks passed.
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: One later dbCommandFunc comment still says the entire ktx db namespace never touches the database, contradicting the db report read-only implementation and the completed guidance claim.
+    provenance:
+      attempt_id: lygrbrfcvw-audit-2
+      source: audit ses_05dfc729dffe2LZ3M4mpGX3Bsi
+      recorded_at: 2026-07-27 07:29
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - mqnggvnjbk
+  superseded_reason: The independently audited replacement removes the final contradictory database-namespace classification while retaining the original task's completed safety contract and read-only doctor work.

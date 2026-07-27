@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -166,4 +167,207 @@ func TestRunDoctorWith_HealthCheck(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitUsage, stderr.String())
 		}
 	})
+}
+
+func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
+	tests := []struct {
+		name        string
+		seed        func(*testing.T, string)
+		wantStatus  string
+		wantCode    int
+		checkName   string
+		checkStatus string
+		detail      string
+	}{
+		{
+			name: "supported older schema requires upgrade",
+			seed: func(t *testing.T, path string) {
+				seedDoctorDatabase(t, path, func(d *dbpkg.DB) {
+					if _, err := d.DB().Exec(`PRAGMA user_version = 7`); err != nil {
+						t.Fatalf("set older user_version: %v", err)
+					}
+				})
+			},
+			wantStatus:  doctorStatusDegraded,
+			wantCode:    ExitOK,
+			checkName:   "schema_version",
+			checkStatus: doctorStatusWarning,
+			detail:      "requires upgrade",
+		},
+		{
+			name:        "current schema remains healthy",
+			seed:        func(t *testing.T, path string) { seedDoctorDatabase(t, path, nil) },
+			wantStatus:  doctorStatusOK,
+			wantCode:    ExitOK,
+			checkName:   "schema_version",
+			checkStatus: doctorStatusOK,
+			detail:      "supported schema 8",
+		},
+		{
+			name: "newer schema is incompatible",
+			seed: func(t *testing.T, path string) {
+				seedDoctorDatabase(t, path, func(d *dbpkg.DB) {
+					if _, err := d.DB().Exec(`PRAGMA user_version = 9`); err != nil {
+						t.Fatalf("set newer user_version: %v", err)
+					}
+				})
+			},
+			wantStatus:  doctorStatusError,
+			wantCode:    ExitInternal,
+			checkName:   "schema_version",
+			checkStatus: doctorStatusError,
+			detail:      "do not lower user_version",
+		},
+		{
+			name: "older malformed schema is not partially repaired",
+			seed: func(t *testing.T, path string) {
+				seedDoctorDatabase(t, path, func(d *dbpkg.DB) {
+					if _, err := d.DB().Exec(`ALTER TABLE tool_calls DROP COLUMN tool; PRAGMA user_version = 7`); err != nil {
+						t.Fatalf("malform older database: %v", err)
+					}
+				})
+			},
+			wantStatus:  doctorStatusError,
+			wantCode:    ExitInternal,
+			checkName:   "schema_valid",
+			checkStatus: doctorStatusError,
+			detail:      "tool",
+		},
+		{
+			name: "corrupt input remains unchanged",
+			seed: func(t *testing.T, path string) {
+				if err := os.WriteFile(path, []byte("not a sqlite database"), 0o600); err != nil {
+					t.Fatalf("write corrupt database: %v", err)
+				}
+			},
+			wantStatus:  doctorStatusError,
+			wantCode:    ExitInternal,
+			checkName:   "database_openable",
+			checkStatus: doctorStatusError,
+			detail:      "open",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "seeded.db")
+			t.Setenv("KTX_DB", path)
+			t.Setenv("HOME", filepath.Join(root, "home"))
+			t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+			t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+			t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+
+			tt.seed(t, path)
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read database before doctor: %v", err)
+			}
+
+			var stdout, stderr bytes.Buffer
+			code := runDoctorWith(nil, Options{Format: FormatJSON}, &stdout, &stderr)
+			if code != tt.wantCode {
+				t.Fatalf("exit code = %d, want %d (stdout=%q stderr=%q)", code, tt.wantCode, stdout.String(), stderr.String())
+			}
+			report := decodeDoctorReport(t, stdout.Bytes())
+			if report.Status != tt.wantStatus {
+				t.Errorf("report status = %q, want %q", report.Status, tt.wantStatus)
+			}
+			assertDoctorCheck(t, report, tt.checkName, tt.checkStatus, tt.detail)
+
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read database after doctor: %v", err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Fatal("doctor changed the database bytes")
+			}
+		})
+	}
+}
+
+func TestDoctorMissingDisposableDefaultIsNotCreated(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KTX_DB", "")
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	wantPath := filepath.Join(root, "data", "ktx", "ktx.db")
+
+	var stdout, stderr bytes.Buffer
+	code := runDoctorWith(nil, Options{Format: FormatJSON}, &stdout, &stderr)
+	if code != ExitInternal {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
+	}
+	report := decodeDoctorReport(t, stdout.Bytes())
+	if report.Path != wantPath {
+		t.Fatalf("report path = %q, want disposable default %q", report.Path, wantPath)
+	}
+	if _, err := os.Stat(wantPath); !os.IsNotExist(err) {
+		t.Fatalf("doctor created missing default database: stat error = %v", err)
+	}
+}
+
+func TestRunWithDoctorAcceptsSubcommandFormat(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "seeded.db")
+	t.Setenv("KTX_DB", path)
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	seedDoctorDatabase(t, path, nil)
+
+	var stdout, stderr bytes.Buffer
+	code := runWith([]string{"doctor", "--format", "json"}, &stdout, &stderr)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+	}
+	report := decodeDoctorReport(t, stdout.Bytes())
+	if report.Status != doctorStatusOK {
+		t.Fatalf("report status = %q, want %q", report.Status, doctorStatusOK)
+	}
+}
+
+func seedDoctorDatabase(t *testing.T, path string, mutate func(*dbpkg.DB)) {
+	t.Helper()
+	d, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatalf("seed database: %v", err)
+	}
+	if mutate != nil {
+		mutate(d)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatalf("close seeded database: %v", err)
+	}
+}
+
+func decodeDoctorReport(t *testing.T, data []byte) *doctorReport {
+	t.Helper()
+	var report doctorReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("decode doctor report: %v\nstdout=%q", err, data)
+	}
+	return &report
+}
+
+func assertDoctorCheck(t *testing.T, report *doctorReport, name, status, detail string) {
+	t.Helper()
+	for _, check := range report.Checks {
+		if check.Name == name {
+			if check.Status != status {
+				t.Errorf("check %q status = %q, want %q", name, check.Status, status)
+			}
+			if !strings.Contains(check.Detail, detail) {
+				t.Errorf("check %q detail = %q, want substring %q", name, check.Detail, detail)
+			}
+			return
+		}
+	}
+	t.Errorf("doctor report missing check %q: %#v", name, report.Checks)
 }

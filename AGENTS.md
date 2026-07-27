@@ -67,6 +67,24 @@ mage install    # go install to GOPATH/bin
 
 Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go build ./cmd/ktx` — it drops the binary in the repo root.
 
+## Database safety
+
+Follow [`docs/database-safety.md`](docs/database-safety.md) for the canonical
+DB-free, genuinely read-only, migration-capable, isolated-owner, and forbidden
+ambient-live command classes. During development, tests, CI reproduction, and
+migration rehearsal:
+
+- never access the ambient live database;
+- unset `KTX_DB` for each verification invocation;
+- allocate a new disposable `HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`,
+  `XDG_CACHE_HOME`, and `XDG_STATE_HOME` per invocation; and
+- rehearse migration only against an explicitly seeded temporary database.
+
+Build and verify `./build/ktx`, rehearse seeded migration, then verify the
+effective installed binary's canonical identity before deliberately allowing
+the first live Open-backed command. A database newer than the binary is
+recovered by rolling the runtime forward, never by lowering `user_version`.
+
 ## Testing
 
 ### Live comparison
@@ -98,7 +116,7 @@ no duplicate callback occurred live in v3.
 ### Evidence validation
 
 ```bash
-ktx bench validate --experiment .bench-data/<experiment-id>
+./build/ktx bench validate --experiment .bench-data/<experiment-id>
 ```
 
 The validator checks retained artifacts and hashes, session-linked attempts,

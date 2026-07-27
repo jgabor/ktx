@@ -1,0 +1,15 @@
+id: lupwczoajm
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Complete the database safety guidance by removing the remaining namespace-wide DB-free comment after the original task exhausted two audit attempts.
+  readiness:
+    capability: build
+    reason: A contradictory dbCommandFunc comment still misclassifies db report; an isolated replacement task can correct and independently verify the accepted finding.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 1
+    order_reason: This blocks the forward-only safety contract and all dependent database tasks.

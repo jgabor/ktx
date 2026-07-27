@@ -1,0 +1,22 @@
+id: mqnggvnjbk
+artifact: plan
+record:
+  plan: xszoenfrqu
+  name: Correct remaining database namespace guidance
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN every active ktx db developer-facing classification WHEN reviewed THEN db path and unavailable db prune are DB-free, db report is genuinely read-only, and no namespace-wide comment contradicts those facts.
+    - GIVEN the bounded correction WHEN focused invariants and independent Audit run THEN the prior contradictory line is absent, no runtime behavior changes, and the original blocked safety task can be superseded with evidence.
+  evidence: "Corrected every active ktx db classification so dispatcher-managed opening is distinguished from command-owned access: db path and unavailable db prune are DB-free, while db report owns a genuinely read-only open. A source-scoped invariant requires all classifications and rejects the prior blanket claim. Independent Audit mutation-tested the invariant, confirmed the contradiction absent, verified no runtime statements changed, and passed focused hermetic checks."
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: mqnggvnjbk-audit-1
+      source: audit ses_05dec328bffeh6ISIknqxqJ5HT
+      recorded_at: 2026-07-27 07:42
+      writer_command: agentera state plan record-evaluation

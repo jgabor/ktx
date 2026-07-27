@@ -1,0 +1,15 @@
+id: pqgrtboygs
+artifact: progress
+record:
+  timestamp: 2026-07-27 07:15
+  type: fix
+  phase: build
+  what: Corrected the three accepted database-safety audit findings in the active routing runbook, canonical hermetic wrapper, DB namespace comments, and guidance invariants.
+  context:
+    intent: Remove the remaining ambient-database instruction and make disposable application roots preserve the reusable tool caches the contract promises.
+    constraints: State, docs, comments, and tests only; no live database access, installed ktx, schema change, Mage/CI automation, live opening, exit 5, or callback suppression.
+    unknowns: None within the accepted correction scope.
+    scope: docs/database-safety.md, docs/routing-candidate-characterization.md, internal/cli/db.go, documentation invariants, and typed task/progress state.
+  discovered: With ambient settings, Go reported ~/.cache/go-build and ~/.local/share/go/pkg/mod, Bun 1.3.14 reported ~/.cache/.bun/install/cache, and golangci-lint 2.12.2 reported ~/.cache/golangci-lint. Explicit cache variables are required because redirected HOME/XDG defaults otherwise move them.
+  verified: Routing guidance now requires KTX_ROUTING_SNAPSHOT to name an existing sanitized non-live snapshot, copies only that input under a temporary root, never invokes db path, and wraps focused/full verification with ktx_verify. The strengthened invariant test rejects ambient sqlite db-path derivation and bare commands in that procedure. Two cache probes used distinct roots (/tmp/ktx-cache-proof.ouxnHz and .qgrRpV), observed KTX_DB absent and all HOME/XDG directories present, and confirmed GOCACHE, GOMODCACHE, BUN_INSTALL_CACHE_DIR, and GOLANGCI_LINT_CACHE stayed at the captured paths outside each root. Focused CLI/docs tests, routing characterization twice with identical digest, and full hermetic mage check passed.
+  next: Keep the task in progress for bounded re-review; do not alter the retained failed evaluation or decision satisfaction.

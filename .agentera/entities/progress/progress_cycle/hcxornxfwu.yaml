@@ -1,0 +1,16 @@
+id: hcxornxfwu
+artifact: progress
+record:
+  timestamp: 2026-07-27 11:05
+  type: fix
+  phase: build
+  what: internal/db/schema.go now returns a typed schema-too-new error; internal/cli/runtime_proof.go maps it to exit 5 and one structured contract. internal/cli/init.go contains matching ordinary OpenCode callbacks per plugin instance while required collection bypasses suppression.
+  context:
+    intent: Expose one stable schema-incompatibility contract, stop duplicate ordinary OpenCode diagnostics and database opens, preserve tool output, and retain benchmark fail-closed behavior.
+    constraints: No schema bump, install, live migration, provider change, durable suppression, decision-satisfaction update, or ambient live database access.
+    unknowns: Independent Audit remains pending; operation counts are observations, not deterministic promises.
+    scope: internal/db schema/open identity, central CLI errors, generated OpenCode plugin and fixtures, telemetry expectations, database safety documentation, and typed project evidence.
+  inspiration: The active containment task and recorded forward-upgrade/runtime-proof contracts.
+  discovered: "Bun subprocesses require env: process.env for in-process database-target environment changes to reach the pinned candidate."
+  verified: "./build/ktx schema-9 checks covered dispatcher, run, telemetry, bench, and collector agent; proof precedence was 3/3/1 and database bytes/entries were unchanged. Generated fixtures measured identical/concurrent 1 diagnostic/1 invocation, distinct/reset 2/2, malformed/non-schema 2/2, and required rejection/invocation 2/2. Focused and race tests passed. Self-hermetic and exact-CI mage verify passed: 794 attempts, inspect 19, open 444, open_read_only 209, resolve 122, forbidden 0."
+  next: Keep the task in progress for independent Audit; do not mark decision satisfaction or access a live database.

@@ -13,6 +13,17 @@ const schemaVersion = 8
 // It is DB-free and shares the migration code's single schema-version owner.
 func MaxSupportedSchema() int { return schemaVersion }
 
+// SchemaTooNewError reports that the database was created by a newer ktx
+// schema. Callers can classify this failure without parsing its message.
+type SchemaTooNewError struct {
+	Actual  int
+	Maximum int
+}
+
+func (e *SchemaTooNewError) Error() string {
+	return fmt.Sprintf("db: schema version %d is newer than supported version %d; install and verify a runtime supporting schema %d or newer, then retry; do not lower PRAGMA user_version", e.Actual, e.Maximum, e.Actual)
+}
+
 const createRuntimeEventIntervalsTable = `CREATE TABLE IF NOT EXISTS runtime_event_intervals (
 		id                    TEXT PRIMARY KEY,
 		session_id            TEXT NOT NULL UNIQUE REFERENCES sessions(id),
@@ -439,7 +450,7 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 }
 
 func newerSchemaError(actual int) error {
-	return fmt.Errorf("db: schema version %d is newer than supported version %d; install and verify a runtime supporting schema %d or newer, then retry; do not lower PRAGMA user_version", actual, schemaVersion, actual)
+	return &SchemaTooNewError{Actual: actual, Maximum: schemaVersion}
 }
 
 // readSchemaVersionWithRetry is deliberately limited to migration's initial

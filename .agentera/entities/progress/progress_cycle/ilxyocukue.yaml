@@ -1,0 +1,14 @@
+id: ilxyocukue
+artifact: progress
+record:
+  timestamp: 2026-07-27 11:10
+  type: test
+  phase: build
+  what: "Final-source verification supersedes the preceding pre-final gate observation: focused Go/Bun tests and the exact CI toolchain route passed after proof-precedence and malformed-envelope hardening."
+  context:
+    intent: Record final-source evidence without changing the task status pending independent Audit.
+    constraints: Observation counts are not deterministic promises. No live database, decision satisfaction, install, or schema bump.
+    unknowns: Independent Audit remains pending.
+    scope: Final verification and typed evidence only.
+  verified: "go test ./internal/db ./internal/cli passed. Mage v1.15.0 with golangci-lint v2.12.2 ran mage verify successfully: 795 attempts; inspect 19, open 444, open_read_only 209, resolve 123, forbidden 0; caches external and KTX_DB unset."
+  next: Independent Audit; keep the active task in progress.

@@ -119,7 +119,8 @@ type initParsedArgs struct {
 // and a one-line warning makes the disabled state and correction visible.
 const ktxOpencodePluginTemplateSource = `import type { Plugin } from "@opencode-ai/plugin"
 import { createHash } from "node:crypto"
-import { readFile, realpath } from "node:fs/promises"
+import { lstat, readFile, realpath, stat } from "node:fs/promises"
+import { resolve } from "node:path"
 
 interface KtxEnvelope {
   output: string
@@ -138,70 +139,53 @@ interface KtxBinaryCapabilities {
   max_database_schema: number
 }
 
-let ktxExecutable = ""
-let ktxExecutableSHA256 = ""
+interface KtxSchemaIncompatibility {
+  code: "schema-incompatible"
+  actual_schema: number
+  maximum_schema: number
+  database_path: string
+  executable_path: string
+  executable_sha256: string
+  build_version: string
+  message: string
+  correction: string
+}
 
-const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
+interface KtxCommandResult {
+  stdout: string
+  stderr: string
+  exitCode: number
+}
+
+const parseSchemaIncompatibility = (
+  stderr: string, databasePath: string, executablePath: string, executableSHA256: string,
+): KtxSchemaIncompatibility | null => {
   try {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(payload))
-        controller.close()
-      },
-    })
-    const proc = Bun.spawn([ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, "hook"], {
-      stdin: stream,
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ])
-    if (exitCode !== 0) {
-      console.error("[ktx] hook failed (exit " + exitCode + "): " + stderr.trim())
-      return null
-    }
-    return JSON.parse(stdout) as KtxEnvelope
-  } catch (e) {
-    console.error("[ktx] hook error: " + String(e))
+    const value = JSON.parse(stderr) as { error?: Partial<KtxSchemaIncompatibility> }
+    const error = value?.error
+    if (!error || error.code !== "schema-incompatible" ||
+        !Number.isSafeInteger(error.actual_schema) || !Number.isSafeInteger(error.maximum_schema) ||
+        (error.actual_schema as number) < 0 || (error.maximum_schema as number) < 0 ||
+        (error.actual_schema as number) <= (error.maximum_schema as number) ||
+        error.database_path !== databasePath || error.executable_path !== executablePath ||
+        error.executable_sha256 !== executableSHA256 || !nonblank(error.build_version) ||
+        !nonblank(error.message) || !nonblank(error.correction)) return null
+    return error as KtxSchemaIncompatibility
+  } catch {
     return null
   }
 }
 
-const ktxTelemetry = async (payload: string): Promise<void> => {
-  try {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(payload))
-        controller.close()
-      },
-    })
-    const proc = Bun.spawn([ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, "telemetry", "record"], {
-      stdin: stream,
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-    const [stderr, exitCode] = await Promise.all([
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ])
-    if (stderr.trim()) console.error(stderr.trim())
-    if (exitCode !== 0) console.error("[ktx] telemetry record failed (exit " + exitCode + ")")
-  } catch (e) {
-    console.error("[ktx] telemetry record error: " + String(e))
-  }
-}
-
-const ktxRequiredCommand = async (args: string[], payload: string): Promise<unknown> => {
+const ktxRequiredCommand = async (
+  executablePath: string, executableSHA256: string, args: string[], payload: string,
+): Promise<unknown> => {
   const stream = new ReadableStream({
     start(controller) {
       controller.enqueue(new TextEncoder().encode(payload))
       controller.close()
     },
   })
-  const proc = Bun.spawn([ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, ...args], { stdin: stream, stdout: "pipe", stderr: "pipe" })
+  const proc = Bun.spawn([executablePath, "--expect-runtime-sha256", executableSHA256, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
@@ -218,6 +202,43 @@ const ktxRequiredCommand = async (args: string[], payload: string): Promise<unkn
   } finally {
     if (timer) clearTimeout(timer)
   }
+}
+
+const metadata = async (path: string, follow: boolean): Promise<Record<string, unknown>> => {
+  try {
+    const value = await (follow ? stat(path) : lstat(path))
+    const field = (name: string): string | number | null => {
+      const candidate = (value as unknown as Record<string, unknown>)[name]
+      if (typeof candidate === "bigint") return candidate.toString()
+      return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null
+    }
+    return {
+      exists: true,
+      dev: field("dev"), ino: field("ino"), mode: field("mode"), nlink: field("nlink"),
+      uid: field("uid"), gid: field("gid"), rdev: field("rdev"), size: field("size"),
+      blksize: field("blksize"), blocks: field("blocks"),
+      mtime_ms: field("mtimeMs"), ctime_ms: field("ctimeMs"),
+      birthtime_ms: field("birthtimeMs"),
+    }
+  } catch (error) {
+    if ((error as { code?: string })?.code === "ENOENT") return { exists: false }
+    throw error
+  }
+}
+
+const databaseFingerprint = async (databasePath: string): Promise<string> => {
+  const databaseLink = await metadata(databasePath, false)
+  if (databaseLink.exists !== true) throw new Error("database disappeared before fingerprinting")
+  const physicalDatabase = await realpath(databasePath)
+  const paths = new Set([
+    databasePath, databasePath + "-wal", databasePath + "-shm",
+    physicalDatabase, physicalDatabase + "-wal", physicalDatabase + "-shm",
+  ])
+  const entries: unknown[] = []
+  for (const path of [...paths].sort()) {
+    entries.push({ path, link: await metadata(path, false), target: await metadata(path, true) })
+  }
+  return JSON.stringify(entries)
 }
 
 const requiredEventKind = (event: any): string => {
@@ -296,10 +317,12 @@ const costMeasurement = (value: unknown): Measurement => {
 
 const KtxPlugin: Plugin = async ({ $ }) => {
   const required = process.env.KTX_BENCH_COLLECTOR_MODE === "required"
+  let ktxExecutable = ""
+  let ktxExecutableSHA256 = ""
   // Resolve one candidate, verify its self-report against independently read
   // executable bytes, and pin its canonical path for this plugin instance.
   try {
-    const candidate = Bun.which("ktx")
+    const candidate = Bun.which("ktx", { PATH: process.env.PATH })
     if (!candidate) throw new Error("ktx binary not found in PATH")
     const canonical = await realpath(candidate)
     const digest = createHash("sha256").update(await readFile(canonical)).digest("hex")
@@ -325,13 +348,128 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     return {}
   }
 
+  const runOrdinaryProcess = async (args: string[], payload?: string, runtimeProof = true): Promise<KtxCommandResult> => {
+    let stream: ReadableStream<Uint8Array> | "ignore" = "ignore"
+    if (payload !== undefined) {
+      stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(payload))
+          controller.close()
+        },
+      })
+    }
+    const command = runtimeProof
+      ? [ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, ...args]
+      : [ktxExecutable, ...args]
+    const proc = Bun.spawn(command, { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
+    })
+    try {
+      const [stdout, stderr, exitCode] = await Promise.race([
+        Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]),
+        timeout,
+      ])
+      return { stdout, stderr, exitCode }
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  const databasePaths = new Map<string, string>()
+  const schemaByTarget = new Map<string, { key: string; fingerprint: string }>()
+  const emittedSchemaKeys = new Set<string>()
+  let ordinaryQueue: Promise<void> = Promise.resolve()
+
+  const currentDatabasePath = async (): Promise<string> => {
+    const signature = JSON.stringify([
+      process.env.KTX_DB || "", process.env.XDG_DATA_HOME || "",
+      process.env.HOME || "", process.env.USERPROFILE || "",
+      process.env.HOMEDRIVE || "", process.env.HOMEPATH || "", process.cwd(),
+    ])
+    const cached = databasePaths.get(signature)
+    if (cached) return cached
+    const result = await runOrdinaryProcess(["db", "path"], undefined, false)
+    if (result.exitCode !== 0) throw new Error("ktx db path exited " + result.exitCode + ": " + result.stderr.trim())
+    const reported = result.stdout.trim()
+    if (!nonblank(reported) || reported.includes("\n")) throw new Error("ktx db path returned a malformed path")
+    const canonical = resolve(reported)
+    databasePaths.set(signature, canonical)
+    return canonical
+  }
+
+  const ordinaryCommand = (args: string[], payload: string, label: string): Promise<KtxCommandResult | null> => {
+    let result: KtxCommandResult | null = null
+    const next = ordinaryQueue.then(async () => {
+      const databasePath = await currentDatabasePath()
+      const target = JSON.stringify([ktxExecutableSHA256, databasePath])
+      const cached = schemaByTarget.get(target)
+      if (cached) {
+        try {
+          if (await databaseFingerprint(databasePath) === cached.fingerprint) {
+            emittedSchemaKeys.add(cached.key)
+            return
+          }
+        } catch {
+          // A failed metadata probe cannot prove the target is unchanged.
+        }
+        schemaByTarget.delete(target)
+      }
+      let fingerprintBefore: string | null = null
+      try {
+        fingerprintBefore = await databaseFingerprint(databasePath)
+      } catch {
+        // Suppression requires a complete stable observation around the command.
+      }
+      const commandResult = await runOrdinaryProcess(args, payload)
+      let fingerprintAfter: string | null = null
+      try {
+        fingerprintAfter = await databaseFingerprint(databasePath)
+      } catch {
+        // Command diagnostics remain authoritative when metadata cannot be observed.
+      }
+      if (commandResult.exitCode === 5) {
+        const incompatibility = parseSchemaIncompatibility(
+          commandResult.stderr.trim(), databasePath, ktxExecutable, ktxExecutableSHA256,
+        )
+        if (incompatibility) {
+          const key = JSON.stringify([
+            incompatibility.code, incompatibility.executable_sha256,
+            incompatibility.database_path, incompatibility.actual_schema,
+            incompatibility.maximum_schema,
+          ])
+          if (fingerprintBefore !== null && fingerprintBefore === fingerprintAfter) {
+            schemaByTarget.set(target, { key, fingerprint: fingerprintBefore })
+          } else {
+            schemaByTarget.delete(target)
+          }
+          if (!emittedSchemaKeys.has(key)) {
+            emittedSchemaKeys.add(key)
+            console.error(commandResult.stderr.trim())
+          }
+          return
+        }
+      }
+      if (commandResult.exitCode !== 0) {
+        console.error("[ktx] " + label + " failed (exit " + commandResult.exitCode + "): " + commandResult.stderr.trim())
+        return
+      }
+      result = commandResult
+    }).catch((e) => {
+      console.error("[ktx] " + label + " error: " + String(e))
+    })
+    ordinaryQueue = next
+    return next.then(() => result)
+  }
+
 	const requiredSessionID = process.env.KTX_BENCH_SESSION_ID || ""
 	const requiredIntervalID = process.env.KTX_BENCH_EVENT_INTERVAL_ID || ""
 	const requiredContract = process.env.KTX_BENCH_EVENT_CONTRACT || ""
   const epochID = crypto.randomUUID()
 	let globalOrdinal = 0
   if (required) {
-    const ack = await ktxRequiredCommand(["telemetry", "collector-open"], JSON.stringify({ epoch_id: epochID }))
+    const ack = await ktxRequiredCommand(ktxExecutable, ktxExecutableSHA256, ["telemetry", "collector-open"], JSON.stringify({ epoch_id: epochID }))
     globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: 0, kind: "collector_open", contract: requiredContract })
   }
 
@@ -389,7 +527,8 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       observation.provider = identity.provider
       observation.model = identity.model
     }
-    await ktxTelemetry(JSON.stringify(observation))
+		const result = await ordinaryCommand(["telemetry", "record"], JSON.stringify(observation), "telemetry record")
+		if (result?.stderr.trim()) console.error(result.stderr.trim())
   }
 
   return {
@@ -400,7 +539,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		epochOrdinal++
 		const acceptedOrdinal = epochOrdinal
 		const next = eventQueue.then(async () => {
-		  const ack = await ktxRequiredCommand(["telemetry", "event-record"], JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
+		  const ack = await ktxRequiredCommand(ktxExecutable, ktxExecutableSHA256, ["telemetry", "event-record"], JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
 		  globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: acceptedOrdinal, kind: requiredEventKind(event), contract: requiredContract, afterOrdinal: globalOrdinal })
 		})
 		eventQueue = next.catch(() => undefined)
@@ -426,13 +565,23 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 	  let envelope: KtxEnvelope | null
 	  if (required) {
 		const next = eventQueue.then(async () => {
-		  const strict = await ktxRequiredCommand(["hook"], JSON.stringify(record))
+		  const strict = await ktxRequiredCommand(ktxExecutable, ktxExecutableSHA256, ["hook"], JSON.stringify(record))
 		  return requiredEnvelope(strict, input, requiredSessionID)
 		})
 		eventQueue = next.then(() => undefined, () => undefined)
 		envelope = await next
 	  } else {
-		envelope = await ktxHook(JSON.stringify(record))
+		const result = await ordinaryCommand(["hook"], JSON.stringify(record), "hook")
+		if (result) {
+		  try {
+			envelope = JSON.parse(result.stdout) as KtxEnvelope
+		  } catch (e) {
+			console.error("[ktx] hook error: " + String(e))
+			envelope = null
+		  }
+		} else {
+		  envelope = null
+		}
 	  }
       if (envelope) {
         // Mutate output.output to the compressed bytes.

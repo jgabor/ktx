@@ -1,0 +1,14 @@
+id: avaplhbjkn
+artifact: progress
+record:
+  timestamp: 2026-07-27 12:27
+  type: fix
+  phase: build
+  what: Generated OpenCode ordinary containment now brackets each Open-backed child with bounded storage fingerprints and installs target suppression only from an equal pre/post pair. Added deterministic child-exit mutation and probe-failure regressions.
+  context:
+    intent: Close the schema-observation race without changing the exact incompatibility key or passed containment behavior.
+    constraints: Required mode performs no ordinary path resolution or fingerprint suppression. No schema bump, installed ktx, ambient database, live runtime, decision satisfaction, original-task lifecycle, TODO resolution, merge, or publication.
+    unknowns: Independent Audit remains pending; verification operation counts are observations, not promises.
+    scope: Generated OpenCode template ordering and its deterministic Go/Bun integration fixtures.
+  verified: "The focused generated Bun integration passed under go test -race. The observation-race case produced 2 Open-backed calls and 2 diagnostics across 3 deep-equal callbacks; pre-failure stabilized at 2 calls, while persistent post-failure and mismatch cases stayed at 3 calls. Existing stable sequential, concurrent, and cross-hook cases remained 1/1; required remained two rejected hook calls plus collector-open with zero ordinary path resolutions. Exact CI Mage 1.15.0 verify passed tests, vet, lint with 0 issues, build, replay, and database audit: 795 attempts; inspect 19, open 444, open_read_only 209, resolve 123, forbidden 0."
+  next: Keep aggsgsymxy in_progress for Audit; preserve xhzvaxrquk blocked after its second failed evaluation, gzgxxtbcky open, and satisfaction null.

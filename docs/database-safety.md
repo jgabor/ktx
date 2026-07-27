@@ -33,8 +33,44 @@ claim. Never put an ambient live path in `KTX_DB` to bypass the proof.
 
 `doctor` reports a supported older schema as `degraded` with an upgrade-required
 check and exits 0. It reports a newer schema, malformed database, or other hard
-failure as `error` and exits 4. It never creates or migrates a database. Exit 5
-is not yet implemented for general schema-incompatibility handling.
+failure as `error` and exits 4. It never creates or migrates a database. Doctor
+is a read-only health surface; it does not use the Open-backed exit contract
+below.
+
+An Open-backed command that finds database schema `Y` above the binary's maximum
+schema `X` exits `5` with error code `schema-incompatible`. Its JSON diagnostic
+on stderr has these stable fields:
+
+```json
+{
+  "error": {
+    "code": "schema-incompatible",
+    "message": "...",
+    "actual_schema": 9,
+    "maximum_schema": 8,
+    "database_path": "/canonical/path/to/ktx.db",
+    "executable_path": "/canonical/path/to/ktx",
+    "executable_sha256": "<64 lowercase hexadecimal characters>",
+    "build_version": "<version>",
+    "correction": "..."
+  }
+}
+```
+
+The generated OpenCode plugin emits the first valid matching diagnostic in one
+loaded plugin instance. Later ordinary callbacks for the same error code,
+binary digest, canonical database path, actual schema, and maximum schema skip
+the Open-backed call and leave tool output unchanged only while a bounded
+metadata fingerprint of the database and its SQLite WAL/SHM sidecars remains
+unchanged. Fingerprinting uses filesystem metadata, follows a database symlink
+for target and sidecar coverage, and never opens or reads SQLite. A changed,
+missing, or uninspectable target invalidates containment so one Open-backed call
+can discover a distinct exact key. A different database target is resolved
+again without opening it. Fingerprint fields are invalidation signals and are
+not part of the deduplication key. Malformed exit-5 output and other errors
+remain visible and are not cached. Required benchmark collection bypasses both
+containment and fingerprinting and fails closed on every incompatible callback.
+A new plugin instance starts with empty identity and containment state.
 
 ## Hermetic development and CI verification
 
@@ -114,7 +150,8 @@ digests, and the canonical executable path. An executable that cannot be
 resolved or hashed exits `4` with
 `failure_class=runtime-proof-unverifiable`. These failures emit structured JSON
 on stderr by default, no result on stdout, and do not inspect, open, create, or
-migrate the database. Exit `5` is reserved for later work and is not used here.
+migrate the database. A later schema incompatibility exits `5` only after the
+proof succeeds; missing or mismatched proof therefore retains precedence.
 
 The correction is:
 

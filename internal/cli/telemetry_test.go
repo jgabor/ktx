@@ -280,8 +280,9 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 	}
 	valid := `{"session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache_read":0,"cache_write":0}}`
 	for _, failure := range []struct {
-		name    string
-		prepare func(t *testing.T) string
+		name               string
+		prepare            func(t *testing.T) string
+		schemaIncompatible bool
 	}{
 		{
 			name: "open",
@@ -290,7 +291,8 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 			},
 		},
 		{
-			name: "migration",
+			name:               "migration",
+			schemaIncompatible: true,
 			prepare: func(t *testing.T) string {
 				path := filepath.Join(t.TempDir(), "newer.db")
 				d, err := dbpkg.Open(path)
@@ -344,18 +346,26 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 			_, err := telemetryCommandFunc(&DispatchContext{
 				Args: []string{"record"}, Format: FormatJSON, Stdin: strings.NewReader(valid), Stdout: &stdout, Stderr: &stderr,
 			})
-			if err != nil {
+			if failure.schemaIncompatible {
+				if err == nil || exitCodeOf(err) != ExitSchemaIncompatible {
+					t.Fatalf("record schema failure = %v, want exit %d", err, ExitSchemaIncompatible)
+				}
+			} else if err != nil {
 				t.Fatalf("record database failure escaped: %v", err)
 			}
-			if stdout.Len() != 0 || !strings.Contains(stderr.String(), "telemetry not recorded") {
+			if stdout.Len() != 0 || (!failure.schemaIncompatible && !strings.Contains(stderr.String(), "telemetry not recorded")) {
 				t.Fatalf("record output stdout=%q stderr=%q", stdout.String(), stderr.String())
 			}
 		})
 		t.Run(failure.name+"/list", func(t *testing.T) {
 			t.Setenv("KTX_DB", failure.prepare(t))
 			var stdout, stderr bytes.Buffer
-			if code := runWith([]string{"telemetry", "list", "--session", "abcdefghijklmnop"}, &stdout, &stderr); code != ExitInternal {
-				t.Fatalf("list exit = %d, want %d; stdout=%q stderr=%q", code, ExitInternal, stdout.String(), stderr.String())
+			wantCode := ExitInternal
+			if failure.schemaIncompatible {
+				wantCode = ExitSchemaIncompatible
+			}
+			if code := runWith([]string{"telemetry", "list", "--session", "abcdefghijklmnop"}, &stdout, &stderr); code != wantCode {
+				t.Fatalf("list exit = %d, want %d; stdout=%q stderr=%q", code, wantCode, stdout.String(), stderr.String())
 			}
 			if stdout.Len() != 0 || stderr.Len() == 0 {
 				t.Fatalf("list failure output stdout=%q stderr=%q", stdout.String(), stderr.String())

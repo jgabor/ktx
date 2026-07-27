@@ -1,0 +1,22 @@
+id: aggsgsymxy
+artifact: plan
+record:
+  plan: xszoenfrqu
+  name: Close schema containment observation race
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN an ordinary Open-backed callback WHEN storage metadata changes after schema observation but before child exit THEN pre/post fingerprints differ, suppression state is not installed, and the next callback surfaces the new exact schema key.
+    - GIVEN stable storage before and after a valid incompatibility WHEN later identical callbacks arrive THEN one suppression record is installed, duplicates skip Open-backed work, output remains unchanged, and required mode still bypasses suppression.
+  evidence: Ordinary containment now brackets the pinned child with pre/post database-sidecar fingerprints and installs suppression only for equal successful probes, leaving the exact schema key unchanged. Independent Audit reproduced a mutation-before-exit sequence with schemas 9 then 10, two calls/two diagnostics across three deep-equal callbacks, followed by suppression; stable, probe-failure recovery, concurrent, required, factory, Windows, sidecar, malformed, and reset cases passed.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: aggsgsymxy-audit-1
+      source: audit ses_05cdef5c7ffeYvjbNGOi9rQJts
+      recorded_at: 2026-07-27 12:39
+      writer_command: agentera state plan record-evaluation

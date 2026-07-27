@@ -267,6 +267,12 @@ func TestRejectedMigrationInputsRemainUnchanged(t *testing.T) {
 			if test.wantErrContains != "" && (err == nil || !strings.Contains(err.Error(), test.wantErrContains)) {
 				t.Fatalf("Open error = %v, want text %q", err, test.wantErrContains)
 			}
+			if test.name == "newer schema" {
+				var typed *SchemaTooNewError
+				if !errors.As(err, &typed) || typed.Actual != schemaVersion+1 || typed.Maximum != schemaVersion {
+					t.Fatalf("Open error = %#v, want typed schema %d > %d", err, schemaVersion+1, schemaVersion)
+				}
+			}
 			if !test.wantErr && err != nil {
 				t.Fatal(err)
 			}

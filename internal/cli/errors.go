@@ -16,12 +16,14 @@ import (
 //	2 = not-found
 //	3 = conflict
 //	4 = internal
+//	5 = schema-incompatible
 const (
-	ExitOK       = 0
-	ExitUsage    = 1
-	ExitNotFound = 2
-	ExitConflict = 3
-	ExitInternal = 4
+	ExitOK                 = 0
+	ExitUsage              = 1
+	ExitNotFound           = 2
+	ExitConflict           = 3
+	ExitInternal           = 4
+	ExitSchemaIncompatible = 5
 )
 
 // ErrorCode is the machine-readable failure class carried in the error
@@ -29,10 +31,11 @@ const (
 type ErrorCode string
 
 const (
-	CodeUsage    ErrorCode = "usage"
-	CodeNotFound ErrorCode = "not-found"
-	CodeConflict ErrorCode = "conflict"
-	CodeInternal ErrorCode = "internal"
+	CodeUsage              ErrorCode = "usage"
+	CodeNotFound           ErrorCode = "not-found"
+	CodeConflict           ErrorCode = "conflict"
+	CodeInternal           ErrorCode = "internal"
+	CodeSchemaIncompatible ErrorCode = "schema-incompatible"
 )
 
 // ExitCode returns the process exit code for the error class.
@@ -46,6 +49,8 @@ func (c ErrorCode) ExitCode() int {
 		return ExitConflict
 	case CodeInternal:
 		return ExitInternal
+	case CodeSchemaIncompatible:
+		return ExitSchemaIncompatible
 	default:
 		return ExitInternal
 	}

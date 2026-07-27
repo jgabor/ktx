@@ -6,10 +6,24 @@ record:
     - pitdhqcgsp
     - ccvxyztrkl
     - uurczbybmy
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN repeated identical schema incompatibility callbacks WHEN the plugin remains alive THEN the first structured diagnostic is visible and later duplicates do not flood the TUI or tool output.
     - GIVEN a known incompatibility WHEN later callbacks arrive THEN repeated database-opening work stops and original tool output remains unchanged in ordinary mode.
     - GIVEN required benchmark collection WHEN persistence is incompatible THEN collection remains fail-closed rather than silently suppressed.
     - GIVEN a distinct error or the selected reset boundary WHEN it occurs THEN it is not hidden by prior suppression state.
   plan: xszoenfrqu
+  evidence: "Audit corrections landed: database/WAL/SHM metadata plus symlink-target fingerprinting invalidates suppression without changing exact class+digest+database+actual+max keys. Unchanged callbacks stayed 1 diagnostic/1 call; DB/WAL/symlink mutations exposed actual 9 then 10 at 2/2 across three callbacks. Factory A/B retained independent paths, proof digests, maps, and queues at 2/2. USERPROFILE/HOMEDRIVE/HOMEPATH changes each re-resolved DB-free and produced 2/2. Required hooks remained fail-closed. Binary docs now specify exit5 fields/recovery. Focused/race/local-artifact tests passed; exact CI observed 795 attempts, inspect19/open444/open_read_only209/resolve123, forbidden0. Temporary paths only; no live access."
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Ordinary containment fingerprints only after ktx returns, so storage can change after schema observation but before fingerprint capture, binding an old exact key to new metadata and hiding the next distinct schema.
+    provenance:
+      attempt_id: xhzvaxrquk-audit-2
+      source: audit ses_05cf5a7a1ffe7XJ6aJcXFcNO0V
+      recorded_at: 2026-07-27 12:16
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - aggsgsymxy
+  superseded_reason: The independently audited replacement closes the observation/fingerprint race while retaining the original task's passed exit-5, containment, required-mode, identity, and documentation behavior.

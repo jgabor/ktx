@@ -13,7 +13,8 @@
 //
 // Exit codes:
 //
-//	0 = ok, 1 = usage, 2 = not-found, 3 = conflict, 4 = internal
+//	0 = ok, 1 = usage, 2 = not-found, 3 = conflict, 4 = internal,
+//	5 = schema-incompatible
 package cli
 
 import (

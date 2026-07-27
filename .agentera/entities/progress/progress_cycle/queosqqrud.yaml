@@ -1,0 +1,16 @@
+id: queosqqrud
+artifact: progress
+record:
+  timestamp: 2026-07-27 12:04
+  type: fix
+  phase: build
+  what: internal/cli/init.go now invalidates ordinary suppression with bounded database/WAL/SHM metadata fingerprints, keeps candidate identity factory-local, and includes all Windows home inputs in DB-path cache signatures. Binary and database safety docs now agree with exit 5 and roll-forward recovery.
+  context:
+    intent: Correct all four accepted Audit findings without changing the exact schema-incompatibility key or weakening required benchmark failure propagation.
+    constraints: Fingerprint fields invalidate only and never enter the exact dedup key. Required mode does not fingerprint. No schema bump, receipt, live migration, provider change, real runtime, or ambient live-state probe.
+    unknowns: Bounded re-review remains pending; operation counts are observations rather than deterministic promises.
+    scope: Generated OpenCode template and fixtures, binary-capability/database-safety documentation, task evidence, and progress history.
+  inspiration: Failed bounded Audit identified same-path key hiding, module-global candidate identity, incomplete Windows invalidation inputs, and obsolete binary-capability documentation.
+  discovered: Bun.which needs an explicit current PATH option for deterministic in-process factory changes; filesystem identity fields vary by platform, so unavailable metadata is represented as null while size and available identity/time fields remain stable.
+  verified: Unchanged sequential/concurrent/cross-hook callbacks remained 1 diagnostic/1 Open-backed call. Database, WAL, and symlink-target mutations exposed actual 9 then 10 at 2 diagnostics/2 calls across three callbacks; the third suppressed. Candidate factories A/B invoked their own proof digests and remained isolated at 2/2. USERPROFILE, HOMEDRIVE, and HOMEPATH changes each caused 2 DB-free path resolutions and 2/2 visible calls. Required mode retained two rejected hooks plus collector-open. Focused Go/Bun and race tests passed; local artifact retained proof exit3/schema exit5/no-write. Exact CI observed 795 attempts, inspect19/open444/open_read_only209/resolve123, forbidden0.
+  next: Keep the task in progress for bounded re-review; preserve failed evaluation history and satisfaction-null.

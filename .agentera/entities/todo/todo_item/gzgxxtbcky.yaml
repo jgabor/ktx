@@ -1,0 +1,15 @@
+id: gzgxxtbcky
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Close the schema-containment observation race after the original task exhausted two audits.
+  readiness:
+    capability: build
+    reason: Suppression must compare pre- and post-invocation storage fingerprints so a schema change during child execution cannot bind an old exact key to new metadata.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 1
+    order_reason: This race blocks final diagnostic containment and plan validation.

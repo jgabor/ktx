@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -156,6 +157,11 @@ if [ "$1" = "binary-capabilities" ]; then
   printf '{"schema":"ktx.binary-capabilities/v1","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","max_database_schema":%s}\n' "$path" "$digest" "$schema"
   exit 0
 fi
+if [ "$1 $2" = "db path" ]; then
+  [ -z "$KTX_TEST_PATH_LOG" ] || printf 'db-path\n' >> "$KTX_TEST_PATH_LOG"
+  printf '%s\n' "${KTX_TEST_DB_PATH:-$PWD/ktx.db}"
+  exit 0
+fi
 proof_prefix=""
 if [ "$1" = "--expect-runtime-sha256" ]; then
   proof_prefix="$1 $2 "
@@ -163,6 +169,35 @@ if [ "$1" = "--expect-runtime-sha256" ]; then
 fi
 payload=$(cat)
 printf '%s%s\t%s\n' "$proof_prefix" "$*" "$payload" >> "$KTX_TEST_LOG"
+if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
+  case "$KTX_TEST_SCHEMA_MODE" in
+    valid)
+      path=$(readlink -f "$0"); digest=$(sha256sum "$path" | cut -d' ' -f1)
+      schema_actual=${KTX_TEST_SCHEMA_ACTUAL:-9}
+      case "$KTX_TEST_FINGERPRINT_CASE" in
+        observed-race)
+          marker="$KTX_TEST_LOG.observed-race"
+          if [ ! -f "$marker" ]; then
+            schema_actual=9
+            printf 'changed after schema 9 observation' > "$KTX_TEST_DB_PATH"
+            : > "$marker"
+          else
+            schema_actual=10
+          fi ;;
+        probe-pre-failure)
+          [ -e "$KTX_TEST_DB_PATH" ] || printf 'created during invocation' > "$KTX_TEST_DB_PATH" ;;
+        probe-post-failure)
+          rm -f "$KTX_TEST_DB_PATH" "$KTX_TEST_DB_PATH-wal" "$KTX_TEST_DB_PATH-shm" ;;
+        probe-mismatch)
+          printf x >> "$KTX_TEST_DB_PATH" ;;
+      esac
+      schema_max=${KTX_TEST_SCHEMA_MAX:-8}
+      printf '{"error":{"code":"schema-incompatible","message":"schema too new","actual_schema":%s,"maximum_schema":%s,"database_path":"%s","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","correction":"install a newer binary"}}\n' "$schema_actual" "$schema_max" "$KTX_TEST_DB_PATH" "$path" "$digest" >&2
+      exit 5 ;;
+    malformed) printf '{"error":{"code":"schema-incompatible"}}\n' >&2; exit 5 ;;
+    other) printf 'ordinary failure\n' >&2; exit 7 ;;
+  esac
+fi
 if [ "$1" = "telemetry" ] && [ "$KTX_TEST_TELEMETRY_FAIL" = "1" ]; then
   printf 'telemetry unavailable\n' >&2
   exit 8
@@ -364,6 +399,268 @@ console.log(JSON.stringify(output))
 		output, calls, stderr := run(t, "KTX_TEST_PATH_AFTER_LOAD="+otherBin)
 		if output["output"] != "compressed tool output" || len(calls) != 7 || strings.Contains(stderr, "PATH drift selected") {
 			t.Fatalf("output=%#v calls=%q stderr=%q", output, calls, stderr)
+		}
+	})
+
+	containmentDriverPath := filepath.Join(dir, "containment-driver.ts")
+	containmentDriver := `import plugin from ` + strconv.Quote(pluginPath) + `
+const input = {tool:"bash",sessionID:"ses_1",callID:"call_1",args:{}}
+const invoke = async (hooks: any) => {
+  const output: any = {title:"tool",output:"original tool output",metadata:{kept:true}}
+  const before = JSON.stringify(output)
+  let rejected = false
+  let rejection = ""
+  try { await hooks["tool.execute.after"](input, output) } catch (error) { rejected = true; rejection = String(error) }
+  if (JSON.stringify(output) !== before) throw new Error("ordinary output changed")
+  return {output, rejected, rejection}
+}
+const load = () => plugin({ $: () => ({ quiet: async () => {} }) } as any)
+const scenario = process.env.KTX_TEST_CONTAINMENT
+const results: any[] = []
+if (scenario === "restart") {
+  results.push(await invoke(await load()))
+  results.push(await invoke(await load()))
+} else {
+  const hooks: any = await load()
+  if (scenario === "concurrent") {
+    results.push(...await Promise.all([invoke(hooks), invoke(hooks)]))
+  } else {
+    results.push(await invoke(hooks))
+    if (scenario === "cross-callback") {
+    const event = {type:"message.part.updated",properties:{part:{id:"prt_1",sessionID:"ses_1",messageID:"msg_1",type:"step-finish",reason:"stop",cost:0,tokens:{input:1,output:1,reasoning:0,cache:{read:0,write:0}}}}}
+    await hooks.event({event})
+    results.push({output:{title:"tool",output:"original tool output",metadata:{kept:true}},rejected:false,rejection:""})
+    } else {
+      if (scenario === "distinct") {
+        process.env.KTX_TEST_DB_PATH = process.env.KTX_TEST_DB_PATH_2
+        process.env.KTX_DB = process.env.KTX_TEST_DB_PATH_2
+        process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
+      } else if (scenario === "same-path-database") {
+        await Bun.write(process.env.KTX_TEST_DB_PATH!, "changed database metadata")
+        process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
+      } else if (scenario === "same-path-symlink") {
+        await Bun.write(process.env.KTX_TEST_DB_PATH!, "changed symlink target metadata")
+        process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
+      } else if (scenario === "same-path-wal") {
+        await Bun.write(process.env.KTX_TEST_DB_PATH! + "-wal", "new wal metadata")
+        process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
+      } else if (scenario?.startsWith("windows-")) {
+        const variable = scenario.slice("windows-".length).toUpperCase()
+        process.env[variable] = (process.env[variable] || "") + "-changed"
+        process.env.KTX_TEST_DB_PATH = process.env.KTX_TEST_DB_PATH_2
+        await Bun.write(process.env.KTX_TEST_DB_PATH!, "second database")
+      }
+      results.push(await invoke(hooks))
+      if (scenario === "same-path-database" || scenario === "same-path-symlink" || scenario === "same-path-wal" ||
+          scenario === "observed-race" || scenario?.startsWith("probe-")) {
+        results.push(await invoke(hooks))
+      }
+    }
+  }
+}
+console.log(JSON.stringify(results))
+`
+	if err := os.WriteFile(containmentDriverPath, []byte(containmentDriver), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("schema incompatibility containment", func(t *testing.T) {
+		for _, test := range []struct {
+			name            string
+			scenario        string
+			mode            string
+			required        bool
+			wantCalls       int
+			wantPathCalls   int
+			wantDiagnostics int
+			wantRejected    bool
+			wantDeepEqual   bool
+		}{
+			{name: "identical ordinary callbacks", scenario: "repeat", mode: "valid", wantCalls: 1, wantPathCalls: 1, wantDiagnostics: 1},
+			{name: "concurrent ordinary callbacks", scenario: "concurrent", mode: "valid", wantCalls: 1, wantPathCalls: 1, wantDiagnostics: 1},
+			{name: "later telemetry callback", scenario: "cross-callback", mode: "valid", wantCalls: 1, wantPathCalls: 1, wantDiagnostics: 1},
+			{name: "new plugin instance", scenario: "restart", mode: "valid", wantCalls: 2, wantPathCalls: 2, wantDiagnostics: 2},
+			{name: "distinct database and schema", scenario: "distinct", mode: "valid", wantCalls: 2, wantPathCalls: 2, wantDiagnostics: 2},
+			{name: "same path database metadata change", scenario: "same-path-database", mode: "valid", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
+			{name: "same path symlink target metadata change", scenario: "same-path-symlink", mode: "valid", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
+			{name: "same path wal metadata change", scenario: "same-path-wal", mode: "valid", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
+			{name: "metadata changes after observed schema", scenario: "observed-race", mode: "valid", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2, wantDeepEqual: true},
+			{name: "pre invocation fingerprint failure", scenario: "probe-pre-failure", mode: "valid", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 1},
+			{name: "post invocation fingerprint failure", scenario: "probe-post-failure", mode: "valid", wantCalls: 3, wantPathCalls: 1, wantDiagnostics: 1},
+			{name: "pre post fingerprint mismatch", scenario: "probe-mismatch", mode: "valid", wantCalls: 3, wantPathCalls: 1, wantDiagnostics: 1},
+			{name: "USERPROFILE path change", scenario: "windows-userprofile", mode: "valid", wantCalls: 2, wantPathCalls: 2, wantDiagnostics: 2},
+			{name: "HOMEDRIVE path change", scenario: "windows-homedrive", mode: "valid", wantCalls: 2, wantPathCalls: 2, wantDiagnostics: 2},
+			{name: "HOMEPATH path change", scenario: "windows-homepath", mode: "valid", wantCalls: 2, wantPathCalls: 2, wantDiagnostics: 2},
+			{name: "malformed exit five", scenario: "repeat", mode: "malformed", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
+			{name: "non schema errors", scenario: "repeat", mode: "other", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
+			{name: "required benchmark", scenario: "repeat", mode: "valid", required: true, wantCalls: 3, wantPathCalls: 0, wantDiagnostics: 2, wantRejected: true},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				fixture := t.TempDir()
+				logPath := filepath.Join(fixture, "calls.log")
+				pathLog := filepath.Join(fixture, "paths.log")
+				dbPath := filepath.Join(fixture, "first.db")
+				secondDBPath := filepath.Join(fixture, "second.db")
+				if test.scenario != "probe-pre-failure" {
+					if err := os.WriteFile(dbPath, []byte("first database"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := os.WriteFile(secondDBPath, []byte("second database"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if test.scenario == "same-path-symlink" {
+					physical := filepath.Join(fixture, "physical.db")
+					if err := os.WriteFile(physical, []byte("physical database"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Remove(dbPath); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(physical, dbPath); err != nil {
+						t.Skipf("symlink fixture unavailable: %v", err)
+					}
+				}
+				cmd := exec.Command(bun, containmentDriverPath)
+				cmd.Env = append(os.Environ(),
+					"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+					"KTX_TEST_LOG="+logPath,
+					"KTX_TEST_PATH_LOG="+pathLog,
+					"KTX_TEST_DB_PATH="+dbPath,
+					"KTX_TEST_DB_PATH_2="+secondDBPath,
+					"KTX_DB="+dbPath,
+					"USERPROFILE=profile-a",
+					"HOMEDRIVE=drive-a",
+					"HOMEPATH=path-a",
+					"KTX_TEST_SCHEMA_MODE="+test.mode,
+					"KTX_TEST_CONTAINMENT="+test.scenario,
+					"KTX_TEST_FINGERPRINT_CASE="+test.scenario,
+				)
+				if test.required {
+					cmd.Env = append(cmd.Env,
+						"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa",
+						"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+						"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2",
+						"KTX_BENCH_COLLECTOR_MODE=required",
+					)
+				}
+				var stdout, stderr bytes.Buffer
+				cmd.Stdout, cmd.Stderr = &stdout, &stderr
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("containment driver: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+				}
+				var results []struct {
+					Output    map[string]any `json:"output"`
+					Rejected  bool           `json:"rejected"`
+					Rejection string         `json:"rejection"`
+				}
+				if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &results); err != nil {
+					t.Fatalf("decode results: %v: %q", err, stdout.String())
+				}
+				for _, result := range results {
+					if result.Output["output"] != "original tool output" || result.Output["title"] != "tool" || result.Rejected != test.wantRejected {
+						t.Fatalf("result=%#v, want original output and rejected=%v", result, test.wantRejected)
+					}
+					if test.required && (!strings.Contains(result.Rejection, "exited 5") || !strings.Contains(result.Rejection, "schema-incompatible")) {
+						t.Errorf("required rejection lost exit or fields: %q", result.Rejection)
+					}
+				}
+				if test.wantDeepEqual {
+					for index := 1; index < len(results); index++ {
+						if !reflect.DeepEqual(results[index], results[0]) {
+							t.Errorf("callback %d result changed: first=%#v current=%#v", index+1, results[0], results[index])
+						}
+					}
+				}
+				if got := countFixtureLines(t, logPath); got != test.wantCalls {
+					t.Errorf("DB-opening calls = %d, want %d", got, test.wantCalls)
+				}
+				if got := countFixtureLines(t, pathLog); got != test.wantPathCalls {
+					t.Errorf("db path calls = %d, want %d", got, test.wantPathCalls)
+				}
+				diagnostic := "schema-incompatible"
+				if test.mode == "other" {
+					diagnostic = "ordinary failure"
+				}
+				if got := strings.Count(stderr.String()+stdout.String(), diagnostic); got != test.wantDiagnostics {
+					t.Errorf("diagnostics = %d, want %d; stdout=%q stderr=%q", got, test.wantDiagnostics, stdout.String(), stderr.String())
+				}
+				if (strings.HasPrefix(test.scenario, "same-path-") || test.scenario == "observed-race") &&
+					(strings.Count(stderr.String(), `"actual_schema":9`) != 1 || strings.Count(stderr.String(), `"actual_schema":10`) != 1) {
+					t.Errorf("same-path diagnostics did not expose both exact keys: %q", stderr.String())
+				}
+			})
+		}
+	})
+
+	t.Run("plugin factories pin independent candidates and containment state", func(t *testing.T) {
+		fixture := t.TempDir()
+		binB := filepath.Join(fixture, "bin-b")
+		if err := os.Mkdir(binB, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		candidateBBytes := []byte(fakeKtx + "\n# candidate B\n")
+		candidateB := filepath.Join(binB, "ktx")
+		if err := os.WriteFile(candidateB, candidateBBytes, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		factoryDriverPath := filepath.Join(fixture, "factory-driver.ts")
+		factoryDriver := `import plugin from ` + strconv.Quote(pluginPath) + `
+const input = {tool:"bash",sessionID:"ses_1",callID:"call_1",args:{}}
+const invoke = async (hooks: any) => {
+  const output: any = {title:"tool",output:"original tool output",metadata:{kept:true}}
+  await hooks["tool.execute.after"](input, output)
+  if (output.output !== "original tool output") throw new Error("schema failure changed output")
+}
+process.env.PATH = process.env.KTX_TEST_BIN_A!
+const factoryA: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
+await invoke(factoryA)
+process.env.PATH = process.env.KTX_TEST_BIN_B!
+const factoryB: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
+await invoke(factoryB)
+await invoke(factoryA)
+console.log("ok")
+`
+		if err := os.WriteFile(factoryDriverPath, []byte(factoryDriver), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		dbPath := filepath.Join(fixture, "factory.db")
+		if err := os.WriteFile(dbPath, []byte("factory database"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		logPath := filepath.Join(fixture, "calls.log")
+		pathLog := filepath.Join(fixture, "paths.log")
+		cmd := exec.Command(bun, factoryDriverPath)
+		cmd.Env = append(os.Environ(),
+			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"KTX_TEST_BIN_A="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"KTX_TEST_BIN_B="+binB+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"KTX_TEST_LOG="+logPath,
+			"KTX_TEST_PATH_LOG="+pathLog,
+			"KTX_TEST_DB_PATH="+dbPath,
+			"KTX_DB="+dbPath,
+			"KTX_TEST_SCHEMA_MODE=valid",
+		)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		if err := cmd.Run(); err != nil || strings.TrimSpace(stdout.String()) != "ok" {
+			t.Fatalf("factory driver: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+		}
+		data, err := os.ReadFile(logPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := strings.Split(strings.TrimSpace(string(data)), "\n")
+		candidateABytes, err := os.ReadFile(filepath.Join(binDir, "ktx"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		digestA, digestB := fmt.Sprintf("%x", sha256.Sum256(candidateABytes)), fmt.Sprintf("%x", sha256.Sum256(candidateBBytes))
+		if len(calls) != 2 || !strings.HasPrefix(calls[0], "--expect-runtime-sha256 "+digestA+" ") || !strings.HasPrefix(calls[1], "--expect-runtime-sha256 "+digestB+" ") {
+			t.Fatalf("factory calls=%q, want candidate A then B and no third call", calls)
+		}
+		if got := countFixtureLines(t, pathLog); got != 2 || strings.Count(stderr.String(), "schema-incompatible") != 2 {
+			t.Fatalf("path calls=%d stderr=%q, want two isolated first failures", got, stderr.String())
 		}
 	})
 
@@ -583,6 +880,22 @@ func generatedMeasurementStates(observation map[string]any) map[string]string {
 		states[field], _ = measurement["state"].(string)
 	}
 	return states
+}
+
+func countFixtureLines(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return 0
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return 0
+	}
+	return len(strings.Split(trimmed, "\n"))
 }
 
 func canonicalMeasurementStates(observation telemetry.Observation) map[string]string {

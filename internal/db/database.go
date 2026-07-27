@@ -124,6 +124,20 @@ func ResolvePath(override string) (string, error) {
 	return target.Path, nil
 }
 
+// CanonicalPath returns the absolute, cleaned spelling of a database path.
+// It is lexical and DB-free: it does not inspect the target or resolve
+// filesystem symlinks.
+func CanonicalPath(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("db: target path is empty")
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("db: canonicalize target path: %w", err)
+	}
+	return filepath.Clean(absolute), nil
+}
+
 // ResolveTarget applies database path precedence without discarding whether
 // the result came from ambient defaults or an explicit ownership declaration.
 func ResolveTarget(override string) (Target, error) {

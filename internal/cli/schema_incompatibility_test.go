@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/jgabor/ktx/internal/binarycap"
@@ -96,7 +97,7 @@ func TestOpenBackedCommandsShareSchemaIncompatibilityContract(t *testing.T) {
 	}
 }
 
-func TestRuntimeProofPrecedesSchemaInspection(t *testing.T) {
+func TestLegacyRuntimeProofFlagDoesNotChangeSchemaInspection(t *testing.T) {
 	dataHome := t.TempDir()
 	dbDir := filepath.Join(dataHome, "ktx")
 	if err := os.Mkdir(dbDir, 0o755); err != nil {
@@ -109,24 +110,51 @@ func TestRuntimeProofPrecedesSchemaInspection(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		args []string
-		code int
 	}{
-		{name: "missing", args: []string{"list"}, code: ExitConflict},
-		{name: "mismatch", args: []string{"--expect-runtime-sha256", otherRuntimeDigest, "list"}, code: ExitConflict},
-		{name: "malformed", args: []string{"--expect-runtime-sha256", "bad", "list"}, code: ExitUsage},
+		{name: "absent compatibility flag", args: []string{"list"}},
+		{name: "digest-shaped compatibility value", args: []string{"--expect-runtime-sha256", otherRuntimeDigest, "list"}},
+		{name: "arbitrary compatibility value", args: []string{"--expect-runtime-sha256", "bad", "list"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			if code := runWith(test.args, &stdout, &stderr); code != test.code {
-				t.Fatalf("exit = %d, want %d; stderr=%q", code, test.code, stderr.String())
+			if code := runWith(test.args, &stdout, &stderr); code != ExitSchemaIncompatible {
+				t.Fatalf("exit = %d, want %d; stderr=%q", code, ExitSchemaIncompatible, stderr.String())
 			}
-			if stdout.Len() != 0 || !bytes.Contains(stderr.Bytes(), []byte(`"code":"`)) {
+			if stdout.Len() != 0 || !bytes.Contains(stderr.Bytes(), []byte(`"code":"schema-incompatible"`)) {
 				t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 			}
 		})
 	}
 	if after := directorySnapshot(t, dbDir); !reflect.DeepEqual(after, before) {
-		t.Fatalf("ambient target changed before proof:\nbefore=%#v\nafter=%#v", before, after)
+		t.Fatalf("schema inspection changed ambient target:\nbefore=%#v\nafter=%#v", before, after)
+	}
+}
+
+func TestReadOnlyCommandRequiresExplicitMigrationForOlderSchema(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "schema-7.db")
+	seedSchemaVersion(t, path, dbpkg.MaxSupportedSchema()-1)
+	t.Setenv("KTX_DB", path)
+	before := directorySnapshot(t, dir)
+
+	var stdout, stderr bytes.Buffer
+	if code := runWith([]string{"list"}, &stdout, &stderr); code != ExitSchemaIncompatible {
+		t.Fatalf("exit = %d, want %d; stdout=%q stderr=%q", code, ExitSchemaIncompatible, stdout.String(), stderr.String())
+	}
+	var envelope struct {
+		Error map[string]any `json:"error"`
+	}
+	if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Error["code"] != string(CodeSchemaMigration) ||
+		envelope.Error["actual_schema"] != float64(dbpkg.MaxSupportedSchema()-1) ||
+		envelope.Error["required_schema"] != float64(dbpkg.MaxSupportedSchema()) ||
+		!strings.Contains(envelope.Error["correction"].(string), "ktx db migrate") {
+		t.Fatalf("error = %#v", envelope.Error)
+	}
+	if after := directorySnapshot(t, dir); !reflect.DeepEqual(after, before) {
+		t.Fatalf("migration-required query changed storage:\nbefore=%#v\nafter=%#v", before, after)
 	}
 }
 

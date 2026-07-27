@@ -202,10 +202,10 @@ func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, i
 // not registered as command passthrough because --format belongs to doctor,
 // not to a child process, and must be consumed by the dispatcher.
 //
-// NeedsDB=false: the verb opens its own database via the existing
+// DatabaseNone: the verb opens its own database via the existing
 // buildDoctorReport helper. The dispatcher's dbpkg.ResolvePath +
 // dbpkg.Open calls are skipped — doctor's read-only semantics don't
-// fit the dispatcher's "always open the DB if NeedsDB" pattern
+// fit the dispatcher's single database-access mode for a registered verb
 // because doctor must inspect a database that may not yet exist
 // (the database_exists check is stat-only).
 func doctorCommandFunc(ctx *DispatchContext) (any, error) {
@@ -227,7 +227,6 @@ func doctorCommandFunc(ctx *DispatchContext) (any, error) {
 func init() {
 	Register("doctor", RegisterOptions{
 		Description:   "check ktx health",
-		NeedsDB:       false,
 		FormatDefault: FormatJSON,
 		Help:          printDoctorHelp,
 	}, doctorCommandFunc)

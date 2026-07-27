@@ -44,12 +44,12 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		format = opts.Format
 	}
 
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx list: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
+	db, err := openQueryDatabase(path)
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)
@@ -154,7 +154,7 @@ type sessionListRow struct {
 }
 
 // listCommandFunc is the dispatch wrapper. The dispatcher already
-// opened the DB (NeedsDB=true), parsed --help/--format, and resolved
+// opened the DB read-only, parsed --help/--format, and resolved
 // the format. The verb receives a *DispatchContext carrying the
 // populated DB, the resolved format, and a clean positional Args
 // tail. The verb's only responsibility is to apply listLogic and
@@ -168,10 +168,10 @@ func listCommandFunc(ctx *DispatchContext) (any, error) {
 // runs, the verb is reachable through runWith.
 func init() {
 	Register("list", RegisterOptions{
-		Description:   "list all sessions",
-		NeedsDB:       true,
-		FormatDefault: FormatJSON,
-		Help:          printListHelp,
+		Description:    "list all sessions",
+		DatabaseAccess: DatabaseReadOnly,
+		FormatDefault:  FormatJSON,
+		Help:           printListHelp,
 	}, listCommandFunc)
 }
 

@@ -66,12 +66,12 @@ const sourceFailureWarning = "ktx: warning: source tool_call indicates failure, 
 // registry), and translates the returned error into an exit-code +
 // stderr envelope.
 func runCompressWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx compress: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
+	db, err := openDatabase(path)
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
@@ -323,7 +323,7 @@ func buildCompressRunner(reg *pipeline.Registry, cfg *config.Config, pipelineSta
 }
 
 // compressCommandFunc is the dispatch wrapper. The dispatcher already
-// opened the DB (NeedsDB=true), parsed --help/--format, and exposed a
+// opened the DB for writes, parsed --help/--format, and exposed a
 // clean positional Args tail. The verb's only responsibility is to
 // apply compressLogic (with a nil Registry — the default built-in
 // stages) and surface the typed error to the dispatcher's printError
@@ -334,7 +334,7 @@ func compressCommandFunc(ctx *DispatchContext) (any, error) {
 
 // init registers `ktx compress` with the dispatch module.
 //
-// NeedsDB=true: compress reads a source tool_call and writes a
+// DatabaseReadWrite: compress reads a source tool_call and writes a
 // compressed row in one invocation.
 // PassthroughStdout=true: the verb writes the compressed id as raw
 // JSON (I/O primitive). The dispatcher's printError still
@@ -342,7 +342,7 @@ func compressCommandFunc(ctx *DispatchContext) (any, error) {
 func init() {
 	Register("compress", RegisterOptions{
 		Description:       "compress a tool_call's output (reversible via ktx decompress)",
-		NeedsDB:           true,
+		DatabaseAccess:    DatabaseReadWrite,
 		PassthroughStdout: true,
 		Help:              printCompressHelp,
 	}, compressCommandFunc)

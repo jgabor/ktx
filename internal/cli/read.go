@@ -28,12 +28,12 @@ import (
 // readLogic for the actual work, and translates the returned error
 // into an exit-code + stderr envelope.
 func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx read: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
+	db, err := openQueryDatabase(path)
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
@@ -103,7 +103,7 @@ func readLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
 }
 
 // readCommandFunc is the dispatch wrapper. The dispatcher already
-// opened the DB (NeedsDB=true) and parsed --help/--format; the verb
+// opened the DB read-only and parsed --help/--format; the verb
 // receives a *DispatchContext carrying the populated DB and a clean
 // positional Args tail. The verb's only responsibility is to apply
 // readLogic and surface the typed error to the dispatcher's
@@ -117,7 +117,7 @@ func readCommandFunc(ctx *DispatchContext) (any, error) {
 func init() {
 	Register("read", RegisterOptions{
 		Description:       "fetch a persisted record by ID (raw JSON)",
-		NeedsDB:           true,
+		DatabaseAccess:    DatabaseReadOnly,
 		PassthroughStdout: true,
 		Help:              printReadHelp,
 	}, readCommandFunc)

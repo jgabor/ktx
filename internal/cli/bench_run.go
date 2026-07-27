@@ -142,12 +142,12 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	// Open the database. The dbpkg.Open call applies the bench_runs
 	// migration if the database predates the bench_runs table (forward-fix).
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
+	db, err := openDatabase(path)
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)
@@ -184,9 +184,6 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	modelSpec := m.ModelProvider + "/" + m.ModelID
 	commandArgs := []string{"run", agentArg, "run", "--format", "json", "-m", modelSpec, m.TaskPrompt}
-	if opts.ExpectedRuntimeSHA256 != "" {
-		commandArgs = append([]string{"--expect-runtime-sha256", opts.ExpectedRuntimeSHA256}, commandArgs...)
-	}
 	cmd := exec.Command(exe, commandArgs...)
 	var agentStdout, agentStderr bytes.Buffer
 	cmd.Stdout = &agentStdout

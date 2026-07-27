@@ -120,7 +120,7 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 
 	sub := rest[0]
 	tail := rest[1:]
-	opts := Options{Format: ctx.Format, ExpectedRuntimeSHA256: ctx.ExpectedRuntimeSHA256}
+	opts := Options{Format: ctx.Format}
 
 	switch sub {
 	case "run":
@@ -175,7 +175,6 @@ func benchSubToExit(code int) (any, error) {
 func init() {
 	Register("bench", RegisterOptions{
 		Description:   "benchmark runs, experiments, and reports",
-		NeedsDB:       false,
 		FormatDefault: FormatJSON,
 		Help:          printBenchHelp,
 	}, benchCommandFunc)

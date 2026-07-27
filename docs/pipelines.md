@@ -236,18 +236,11 @@ calls — uncompressed calls appear with delivered tokens equal to
 raw tokens, so the command is useful before any profiles are
 configured.
 
-The ambient examples below use the digest recorded while independently
-verifying the effective installed binary. Do not substitute a digest computed
-from an uninstalled checkout.
-
 ```bash
-: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
-: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
-"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats --format text
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats --limit 5
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats summary --window 30m --format json
+ktx stats
+ktx stats --format text
+ktx stats --limit 5
+ktx stats summary --window 30m --format json
 ```
 
 Groups with fewer than 2 calls or fewer than 50 delivered tokens
@@ -352,11 +345,8 @@ session ID and is never interpreted as a file.
 ### Database session replay
 
 ```bash
-: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
-: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
 : "${KTX_TARGET_SESSION_ID:?set this to the database session ID to replay}"
-"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" bench run --replay "$KTX_TARGET_SESSION_ID"
+ktx bench run --replay "$KTX_TARGET_SESSION_ID"
 ```
 
 This path opens the configured database, loads the recorded stream by session

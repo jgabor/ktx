@@ -139,11 +139,11 @@ func parseStatsWindow(value string) (time.Duration, error) {
 
 func init() {
 	Register("stats", RegisterOptions{
-		Description:   "per-tool-call statistics ranked by delivered tokens",
-		NeedsDB:       true,
-		FormatDefault: FormatJSON,
-		Help:          printStatsHelp,
-		ParseArgs:     parseStatsArgs,
+		Description:    "per-tool-call statistics ranked by delivered tokens",
+		DatabaseAccess: DatabaseReadOnly,
+		FormatDefault:  FormatJSON,
+		Help:           printStatsHelp,
+		ParseArgs:      parseStatsArgs,
 	}, statsCommandFunc)
 }
 

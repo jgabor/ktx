@@ -1,0 +1,130 @@
+package cli
+
+import (
+	"bytes"
+	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	dbpkg "github.com/jgabor/ktx/internal/db"
+)
+
+const otherRuntimeDigest = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+func TestCommandDatabaseAccessDeclarations(t *testing.T) {
+	for _, command := range []string{"get", "read", "list", "stats", "decompress"} {
+		if got := dispatchRegistry[command].opts.DatabaseAccess; got != DatabaseReadOnly {
+			t.Errorf("%s database access = %d, want read-only", command, got)
+		}
+	}
+	for _, command := range []string{"write", "compress", "hook"} {
+		if got := dispatchRegistry[command].opts.DatabaseAccess; got != DatabaseReadWrite {
+			t.Errorf("%s database access = %d, want read-write", command, got)
+		}
+	}
+	for _, command := range []string{"bench", "telemetry", "doctor", "db", "binary-capabilities"} {
+		if got := dispatchRegistry[command].opts.DatabaseAccess; got != DatabaseNone {
+			t.Errorf("%s database access = %d, want command-owned or none", command, got)
+		}
+	}
+}
+
+func TestLegacyRuntimeProofFlagIsIgnoredAndHidden(t *testing.T) {
+	for _, value := range []string{testBinaryDigest, "bad", strings.Repeat("A", 64)} {
+		parsed, rest, err := parseGlobalFlags([]string{"--expect-runtime-sha256", value, "--version"})
+		if err != nil {
+			t.Fatalf("value %q: %v", value, err)
+		}
+		if len(rest) != 0 || !parsed.showVersion {
+			t.Fatalf("value %q: parsed=%#v rest=%#v", value, parsed, rest)
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runWith([]string{"--expect-runtime-sha256", "legacy-plugin-value", "--version"}, &stdout, &stderr); code != ExitOK {
+		t.Fatalf("exit = %d; stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := runWith([]string{"--help"}, &stdout, &stderr); code != ExitOK {
+		t.Fatalf("help exit = %d; stderr=%s", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "expect-runtime-sha256") {
+		t.Fatalf("deprecated compatibility flag is public: %q", stdout.String())
+	}
+}
+
+func TestAmbientQueryDoesNotCreateDatabase(t *testing.T) {
+	dataHome := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dataHome)
+	t.Setenv("KTX_DB", "")
+
+	for _, args := range [][]string{
+		{"list"},
+		{"stats", "summary", "--window", "30m"},
+		{"bench", "report"},
+		{"get", "aaaaaaaaaaaaaaaa"},
+		{"read", "aaaaaaaaaaaaaaaa"},
+		{"decompress", "aaaaaaaaaaaaaaaa"},
+		{"telemetry", "list", "--session", "aaaaaaaaaaaaaaaa"},
+		{"--expect-runtime-sha256", "legacy-plugin-value", "list"},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := runWith(args, &stdout, &stderr)
+		if code != ExitOK && code != ExitNotFound {
+			t.Fatalf("%v exit = %d; stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
+		}
+		path := filepath.Join(dataHome, "ktx", "ktx.db")
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%v created ambient database: %v", args, err)
+		}
+	}
+}
+
+func TestQueryCommandsPreservePersistentDatabase(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "ktx.db")
+	database, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := "aaaaaaaaaaaaaaaa"
+	callID := "bbbbbbbbbbbbbbbb"
+	compressedID := "cccccccccccccccc"
+	if err := database.InsertSession(&dbpkg.Session{ID: sessionID, Agent: "test", StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.PersistToolCall(&dbpkg.ToolCall{ID: callID, SessionID: sessionID, Tool: "read", Input: "{}", Output: "original", Timestamp: time.Now().UTC().Format(time.RFC3339Nano)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InsertCompressed(&dbpkg.Compressed{ID: compressedID, SourceID: callID, Output: "short", ContentHash: dbpkg.ContentHash("short"), Pipeline: "[]", Timestamp: time.Now().UTC().Format(time.RFC3339Nano)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KTX_DB", path)
+	before := directorySnapshot(t, directory)
+
+	for _, args := range [][]string{
+		{"list"},
+		{"stats", "summary", "--window", "30m"},
+		{"get", callID},
+		{"read", callID},
+		{"decompress", compressedID},
+		{"bench", "report"},
+		{"telemetry", "list", "--session", sessionID},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := runWith(args, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("%v exit = %d; stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
+		}
+		if after := directorySnapshot(t, directory); !reflect.DeepEqual(after, before) {
+			t.Fatalf("%v changed persistent database:\nbefore=%#v\nafter=%#v", args, before, after)
+		}
+	}
+}

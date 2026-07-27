@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -162,13 +161,8 @@ if [ "$1 $2" = "db path" ]; then
   printf '%s\n' "${KTX_TEST_DB_PATH:-$PWD/ktx.db}"
   exit 0
 fi
-proof_prefix=""
-if [ "$1" = "--expect-runtime-sha256" ]; then
-  proof_prefix="$1 $2 "
-  shift 2
-fi
 payload=$(cat)
-printf '%s%s\t%s\n' "$proof_prefix" "$*" "$payload" >> "$KTX_TEST_LOG"
+printf '%s\t%s\n' "$*" "$payload" >> "$KTX_TEST_LOG"
 if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
   case "$KTX_TEST_SCHEMA_MODE" in
     valid)
@@ -339,8 +333,7 @@ console.log(JSON.stringify(output))
 		var observations []map[string]any
 		for ordinal, call := range calls[:6] {
 			fields := strings.SplitN(call, "\t", 2)
-			if len(fields) != 2 || !strings.HasSuffix(fields[0], " telemetry record") ||
-				!strings.HasPrefix(fields[0], "--expect-runtime-sha256 ") {
+			if len(fields) != 2 || fields[0] != "telemetry record" {
 				t.Fatalf("telemetry call = %q", call)
 			}
 			var observation map[string]any
@@ -379,7 +372,7 @@ console.log(JSON.stringify(output))
 				t.Errorf("generated/wrapper states differ for case %d: got %v want %v", i, got, want)
 			}
 		}
-		if !strings.HasPrefix(calls[6], "--expect-runtime-sha256 ") || !strings.Contains(calls[6], " hook\t") {
+		if !strings.HasPrefix(calls[6], "hook\t") {
 			t.Fatalf("tool call = %q", calls[6])
 		}
 	})
@@ -651,15 +644,13 @@ console.log("ok")
 			t.Fatal(err)
 		}
 		calls := strings.Split(strings.TrimSpace(string(data)), "\n")
-		candidateABytes, err := os.ReadFile(filepath.Join(binDir, "ktx"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		digestA, digestB := fmt.Sprintf("%x", sha256.Sum256(candidateABytes)), fmt.Sprintf("%x", sha256.Sum256(candidateBBytes))
-		if len(calls) != 2 || !strings.HasPrefix(calls[0], "--expect-runtime-sha256 "+digestA+" ") || !strings.HasPrefix(calls[1], "--expect-runtime-sha256 "+digestB+" ") {
+		if len(calls) != 2 || !strings.HasPrefix(calls[0], "hook\t") || !strings.HasPrefix(calls[1], "hook\t") {
 			t.Fatalf("factory calls=%q, want candidate A then B and no third call", calls)
 		}
-		if got := countFixtureLines(t, pathLog); got != 2 || strings.Count(stderr.String(), "schema-incompatible") != 2 {
+		canonicalA, _ := filepath.Abs(filepath.Join(binDir, "ktx"))
+		canonicalB, _ := filepath.Abs(candidateB)
+		if got := countFixtureLines(t, pathLog); got != 2 || strings.Count(stderr.String(), "schema-incompatible") != 2 ||
+			!strings.Contains(stderr.String(), canonicalA) || !strings.Contains(stderr.String(), canonicalB) {
 			t.Fatalf("path calls=%d stderr=%q, want two isolated first failures", got, stderr.String())
 		}
 	})
@@ -684,13 +675,11 @@ console.log("ok")
 		if output["output"] != "compressed tool output" || len(calls) != 11 {
 			t.Fatalf("output=%#v calls=%q", output, calls)
 		}
-		proof := "--expect-runtime-sha256 "
-		if !strings.HasPrefix(calls[0], proof) || !strings.Contains(calls[0], " telemetry collector-open\t") ||
-			!strings.HasPrefix(calls[10], proof) || !strings.Contains(calls[10], " hook\t") {
+		if !strings.HasPrefix(calls[0], "telemetry collector-open\t") || !strings.HasPrefix(calls[10], "hook\t") {
 			t.Fatalf("required call boundaries=%q", calls)
 		}
 		for index, call := range calls[1:10] {
-			if !strings.HasPrefix(call, proof) || !strings.Contains(call, " telemetry event-record\t") || !strings.Contains(call, fmt.Sprintf(`"epoch_ordinal":%d`, index+1)) {
+			if !strings.HasPrefix(call, "telemetry event-record\t") || !strings.Contains(call, fmt.Sprintf(`"epoch_ordinal":%d`, index+1)) {
 				t.Fatalf("required call %d=%q", index+1, call)
 			}
 		}
@@ -771,9 +760,9 @@ console.log("ok")
 
 	t.Run("required second sequential epoch is a restart", func(t *testing.T) {
 		calls, _ := runEpochDriver(t, "sequential")
-		if len(calls) != 4 || !strings.Contains(calls[0], " telemetry collector-open\t") ||
+		if len(calls) != 4 || !strings.HasPrefix(calls[0], "telemetry collector-open\t") ||
 			!strings.Contains(calls[1], `"after_ordinal":1`) ||
-			!strings.Contains(calls[2], " telemetry collector-open\t") ||
+			!strings.HasPrefix(calls[2], "telemetry collector-open\t") ||
 			!strings.Contains(calls[3], `"after_ordinal":3`) {
 			t.Fatalf("sequential epoch calls=%q", calls)
 		}

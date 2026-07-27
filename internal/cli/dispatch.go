@@ -15,7 +15,7 @@
 //
 //   - flag.NewFlagSet + SetOutput(io.Discard) + --help/-h
 //   - subcommand-local --format extraction (via flags.extractFormat)
-//   - dbpkg.ResolvePath + dbpkg.Open + defer db.Close when NeedsDB
+//   - database resolution and read-only/read-write open from DatabaseAccess
 //   - error envelope rendering (printError(stderr, toKtxError(err), format))
 //   - exit-code mapping (exitCodeOf; dbpkg.ErrNotFound → 2,
 //     *Error{CodeUsage} → 1, *Error{CodeNotFound} → 2, etc.)
@@ -57,12 +57,10 @@ type RegisterOptions struct {
 	// while remaining callable.
 	Description string
 
-	// NeedsDB asks the dispatcher to open the ktx database before
-	// invoking the verb. The opened *dbpkg.DB lives at ctx.DB; the
-	// dispatcher defers db.Close. If NeedsDB is false the verb never
-	// touches the database, which is the contract that keeps
-	// ktx db / ktx prices / ktx init fast and side-effect-free.
-	NeedsDB bool
+	// DatabaseAccess asks the dispatcher to skip the database, open a
+	// persistent read-only query handle, or use the normal create/migrate/write
+	// path. The opened *dbpkg.DB lives at ctx.DB and is closed by the dispatcher.
+	DatabaseAccess DatabaseAccess
 
 	// NeedsStdin asks the dispatcher to expose os.Stdin as ctx.Stdin.
 	// Verbs that read sidecar JSON (ktx write) set this; verbs that
@@ -94,6 +92,15 @@ type RegisterOptions struct {
 	ParseArgs func(args []string) (rest []string, parsed any, err error)
 }
 
+// DatabaseAccess describes a command's persistent database behavior.
+type DatabaseAccess uint8
+
+const (
+	DatabaseNone DatabaseAccess = iota
+	DatabaseReadOnly
+	DatabaseReadWrite
+)
+
 // CommandFunc is a command's logic. Commands write success output to
 // ctx.Stdout and return errors for the dispatcher to render.
 type CommandFunc func(ctx *DispatchContext) (any, error)
@@ -124,7 +131,7 @@ type DispatchContext struct {
 	Stdout io.Writer
 	Stderr io.Writer
 
-	// DB is the opened *dbpkg.DB when NeedsDB is true; nil otherwise.
+	// DB is the opened *dbpkg.DB when DatabaseAccess is not DatabaseNone; nil otherwise.
 	// The dispatcher owns the Close; the verb must not call it.
 	DB *dbpkg.DB
 
@@ -140,10 +147,6 @@ type DispatchContext struct {
 	// flag so ctx.Args never sees it; verbs that respect --quiet
 	// read this field rather than re-parsing ctx.Args.
 	Quiet bool
-
-	// ExpectedRuntimeSHA256 is the root proof supplied for an ambient
-	// Open-backed invocation. DB-free and explicit-target commands ignore it.
-	ExpectedRuntimeSHA256 string
 }
 
 // registeredVerb pairs the per-verb options with the verb's logic.
@@ -227,7 +230,7 @@ func runDispatchWithOptions(verb string, args []string, global Options, stdout, 
 //     is an error. --quiet/-q is consumed so
 //     ctx.Args never sees it; the resolved
 //     value is exposed via ctx.Quiet.
-//  4. DB open             — only when NeedsDB.
+//  4. DB open             — according to DatabaseAccess.
 //  5. Stdin capture       — only when NeedsStdin.
 //  6. Invoke the verb     — pass *DispatchContext.
 //  7. Render + exit       — printError + exitCodeOf on err.
@@ -290,16 +293,23 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 		return renderHelp(reg.opts.Help, stdout)
 	}
 
-	// 4. Open the database when NeedsDB. Resolution and open failures are
-	// internal errors.
+	// 4. Open the database according to the command's declared access mode.
 	var db *dbpkg.DB
-	if reg.opts.NeedsDB {
-		target, err := dbpkg.ResolveTarget("")
+	if reg.opts.DatabaseAccess != DatabaseNone {
+		path, err := dbpkg.ResolvePath("")
 		if err != nil {
 			printError(stderr, internalError("dispatch: resolve db path: %v", err), formatStr)
 			return ExitInternal
 		}
-		opened, err := openDatabase(target, global.ExpectedRuntimeSHA256)
+		var opened *dbpkg.DB
+		switch reg.opts.DatabaseAccess {
+		case DatabaseReadOnly:
+			opened, err = openQueryDatabase(path)
+		case DatabaseReadWrite:
+			opened, err = openDatabase(path)
+		default:
+			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
+		}
 		if err != nil {
 			printError(stderr, err, formatStr)
 			return exitCodeOf(err)
@@ -316,16 +326,15 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 
 	// 6. Build the context and invoke the verb.
 	ctx := &DispatchContext{
-		Args:                  fs.Args(),
-		ParsedArgs:            parsedArgs,
-		Format:                formatStr,
-		Stdin:                 stdin,
-		Stdout:                stdout,
-		Stderr:                stderr,
-		DB:                    db,
-		Passthrough:           reg.opts.PassthroughStdout,
-		Quiet:                 global.Quiet || subQuiet,
-		ExpectedRuntimeSHA256: global.ExpectedRuntimeSHA256,
+		Args:        fs.Args(),
+		ParsedArgs:  parsedArgs,
+		Format:      formatStr,
+		Stdin:       stdin,
+		Stdout:      stdout,
+		Stderr:      stderr,
+		DB:          db,
+		Passthrough: reg.opts.PassthroughStdout,
+		Quiet:       global.Quiet || subQuiet,
 	}
 	if _, err := reg.do(ctx); err != nil {
 		var status *commandExit

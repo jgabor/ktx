@@ -45,12 +45,12 @@ import (
 // decompressLogic, and translates the returned error into an exit-code +
 // stderr envelope.
 func runDecompressWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx decompress: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
+	db, err := openQueryDatabase(path)
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
@@ -133,7 +133,7 @@ func decompressLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error)
 }
 
 // decompressCommandFunc is the dispatch wrapper. The dispatcher
-// already opened the DB (NeedsDB=true), parsed --help/--format, and
+// already opened the DB read-only, parsed --help/--format, and
 // exposed a clean positional Args tail. The verb's only
 // responsibility is to apply decompressLogic and surface the typed
 // error to the dispatcher's printError + exitCodeOf pipeline.
@@ -144,14 +144,14 @@ func decompressCommandFunc(ctx *DispatchContext) (any, error) {
 // init registers `ktx decompress` with the dispatch module. After
 // init runs, the verb is reachable through runWith.
 //
-// NeedsDB=true: decompress reads a compressed row + the source
+// DatabaseReadOnly: decompress reads a compressed row + the source
 // tool_call row.
 // PassthroughStdout=true: the verb writes the raw source output
 // bytes (distinct from `ktx compress`, which JSON-encodes the id).
 func init() {
 	Register("decompress", RegisterOptions{
 		Description:       "reverse a compression (return source output verbatim)",
-		NeedsDB:           true,
+		DatabaseAccess:    DatabaseReadOnly,
 		PassthroughStdout: true,
 		Help:              printDecompressHelp,
 	}, decompressCommandFunc)

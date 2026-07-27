@@ -13,7 +13,7 @@
 // JSON output includes "profiles" (per-profile stage lists) and
 // "routes" (route rules mapping tool-call metadata to profiles) keys.
 //
-// NeedsDB=false: config inspection operates on ktx.toml only.
+// DatabaseNone: config inspection operates on ktx.toml only.
 package cli
 
 import (
@@ -139,7 +139,6 @@ func configShowText(stdout io.Writer, profiles map[string]config.Profile) (any, 
 func init() {
 	Register("config", RegisterOptions{
 		Description:   "inspect active pipeline configuration",
-		NeedsDB:       false,
 		FormatDefault: FormatJSON,
 		Help:          printConfigHelp,
 	}, configCommandFunc)

@@ -62,12 +62,12 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	var collectorDB *dbpkg.DB
 	if collectorPresent {
-		target, pathErr := dbpkg.ResolveTarget("")
+		path, pathErr := dbpkg.ResolvePath("")
 		if pathErr != nil {
 			printError(stderr, usageError("ktx bench agent: resolve collector database: %v", pathErr), opts.Format)
 			return ExitUsage
 		}
-		collectorDB, err = openDatabase(target, opts.ExpectedRuntimeSHA256)
+		collectorDB, err = openDatabase(path)
 		if err != nil {
 			var typed *Error
 			if errors.As(err, &typed) {

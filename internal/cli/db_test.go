@@ -20,6 +20,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -154,6 +155,81 @@ func TestRunDBWith_PathResolution(t *testing.T) {
 		}
 		if !strings.Contains(stdout.String(), "ktx db") {
 			t.Errorf("stdout missing ktx db header: %q", stdout.String())
+		}
+		if !strings.Contains(stdout.String(), "migrate") {
+			t.Errorf("stdout missing migrate subcommand: %q", stdout.String())
+		}
+	})
+}
+
+func TestDBMigrate(t *testing.T) {
+	t.Run("upgrades an existing older schema", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "ktx.db")
+		database, err := dbpkg.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.DB().Exec(`PRAGMA user_version = 7`); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var stdout, stderr bytes.Buffer
+		if code := runDBWith([]string{"--path", path, "migrate"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("exit = %d; stderr=%s", code, stderr.String())
+		}
+		var result dbMigrateResult
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("decode result: %v\n%s", err, stdout.String())
+		}
+		if result.DatabasePath != path || result.FromSchema != 7 || result.ToSchema != dbpkg.MaxSupportedSchema() || !result.Migrated {
+			t.Fatalf("result = %+v", result)
+		}
+		opened, err := dbpkg.OpenQuery(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := opened.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("does not create an absent database", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing", "ktx.db")
+		var stdout, stderr bytes.Buffer
+		if code := runDBWith([]string{"--path", path, "migrate"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitNotFound {
+			t.Fatalf("exit = %d, want %d; stderr=%s", code, ExitNotFound, stderr.String())
+		}
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("migration created absent database: %v", err)
+		}
+	})
+
+	t.Run("current schema is a no-op", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "current.db")
+		database, err := dbpkg.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := database.Close(); err != nil {
+			t.Fatal(err)
+		}
+		before := directorySnapshot(t, filepath.Dir(path))
+		var stdout, stderr bytes.Buffer
+		if code := runDBWith([]string{"--path", path, "migrate"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("exit = %d; stderr=%s", code, stderr.String())
+		}
+		var result dbMigrateResult
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Migrated || result.FromSchema != dbpkg.MaxSupportedSchema() || result.ToSchema != dbpkg.MaxSupportedSchema() {
+			t.Fatalf("result = %+v", result)
+		}
+		if after := directorySnapshot(t, filepath.Dir(path)); !reflect.DeepEqual(after, before) {
+			t.Fatalf("current-schema migration changed storage:\nbefore=%#v\nafter=%#v", before, after)
 		}
 	})
 }

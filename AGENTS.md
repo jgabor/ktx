@@ -80,13 +80,13 @@ migration rehearsal:
   `XDG_CACHE_HOME`, and `XDG_STATE_HOME` per invocation; and
 - rehearse migration only against an explicitly seeded temporary database.
 
-Build and verify `./build/ktx`, rehearse seeded migration, then verify the
-effective installed binary's canonical identity before deliberately allowing
-the first live Open-backed command. Every ambient Open-backed invocation must
-carry that exact digest through `--expect-runtime-sha256`. `KTX_DB` declares
-operator ownership of an explicit path; it does not prove disposability. A
-database newer than the binary is recovered by rolling the runtime forward,
-never by lowering `user_version`.
+Build and verify `./build/ktx`, then rehearse migration against an explicitly
+seeded temporary database. Query commands use enforced read-only access and do
+not create or migrate persistent state; run `ktx db migrate` when an older
+schema must be upgraded explicitly. Write-capable commands retain transactional
+forward migration. `KTX_DB` selects an explicit path but does not prove
+disposability. A database newer than the binary is recovered by rolling the
+runtime forward, never by lowering `user_version`.
 
 ## Testing
 

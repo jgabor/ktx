@@ -16,19 +16,11 @@ Mage, use `go build -o build/ktx ./cmd/ktx`.
 
 ### Wrap a process
 
-Ambient database commands require the digest recorded while independently
-verifying the effective installed binary. Set these variables from that
-install-verification result; a digest computed from an uninstalled checkout is
-not authorization for ambient access.
-
 ```bash
-: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
-: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
-"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" run opencode run --format json "What is 2+2?"
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" list --format text
+ktx run opencode run --format json "What is 2+2?"
+ktx list --format text
 : "${KTX_TARGET_SESSION_ID:?set this to a session ID returned by list}"
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" get "$KTX_TARGET_SESSION_ID" --format text
+ktx get "$KTX_TARGET_SESSION_ID" --format text
 ```
 
 ### Compress tool output in flight
@@ -94,15 +86,14 @@ See [`ktx.example.toml`](ktx.example.toml) for a working configuration and
 [`docs/pipelines.md`](docs/pipelines.md) for stage, routing, and benchmark
 guidance. Originals remain addressable through `ktx read` and `ktx decompress`.
 
-Database access is forward-only. See the
-[database safety contract](docs/database-safety.md) for the command access
-classes and the install-first upgrade procedure. In particular, rehearse only
-on a seeded temporary database, verify the effective installed binary before
-live access, and pass its digest through `--expect-runtime-sha256` on every
-ambient Open-backed invocation. A nonempty `KTX_DB` is an explicit operator
-ownership declaration, not proof that a path is disposable. Recover from a
-database newer than the binary by installing a binary that supports that schema
-or newer. Never lower `PRAGMA user_version`.
+Database access is forward-only. Query commands use enforced read-only SQLite
+access and never create or migrate persistent state. Write-capable commands may
+create a database and transactionally migrate an older supported schema. If a
+query reports `schema-migration-required`, run `ktx db migrate`. See the
+[database safety contract](docs/database-safety.md) for command classes,
+hermetic development, and seeded migration rehearsal. Recover from a database
+newer than the binary by installing a binary that supports that schema or newer.
+Never lower `PRAGMA user_version`.
 
 ## Benchmarking
 
@@ -161,11 +152,8 @@ and an offline deterministic validation.
 Replay a database capture by session ID without another agent call:
 
 ```bash
-: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
-: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
 : "${KTX_TARGET_SESSION_ID:?set this to the database session ID to replay}"
-"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
-"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" bench run --replay "$KTX_TARGET_SESSION_ID"
+ktx bench run --replay "$KTX_TARGET_SESSION_ID"
 ```
 
 This compatibility path preserves the existing database-backed envelope and
@@ -177,11 +165,10 @@ For strict, portable verification, export a benchmark-parented capture and
 replay the resulting file without the source database:
 
 ```bash
-: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
 : "${KTX_OWNED_DB:?set this to an explicitly operator-owned database path}"
 : "${KTX_TARGET_SESSION_ID:?set this to the database session ID to export}"
-KTX_DB="$KTX_OWNED_DB" "$KTX_VERIFIED_BIN" bench export --output replay-v1.json "$KTX_TARGET_SESSION_ID"
-"$KTX_VERIFIED_BIN" bench run --replay-file replay-v1.json
+KTX_DB="$KTX_OWNED_DB" ktx bench export --output replay-v1.json "$KTX_TARGET_SESSION_ID"
+ktx bench run --replay-file replay-v1.json
 ```
 
 `KTX_OWNED_DB` declares which path the operator owns; it does not prove that the

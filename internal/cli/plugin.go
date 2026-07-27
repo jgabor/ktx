@@ -18,7 +18,7 @@
 // removable=true). Precedence: RegisterExternalBuilder last-writer-wins
 // so a user plugin named 'head' overrides the built-in head.
 //
-// NeedsDB=false: plugin management operates on ktx.toml only; no
+// DatabaseNone: plugin management operates on ktx.toml only; no
 // database access required.
 package cli
 
@@ -379,7 +379,6 @@ func matchesPluginName(blockText, name string) bool {
 func init() {
 	Register("plugin", RegisterOptions{
 		Description:   "manage compression plugins",
-		NeedsDB:       false,
 		FormatDefault: FormatJSON,
 		Help:          printPluginHelp,
 	}, pluginCommandFunc)

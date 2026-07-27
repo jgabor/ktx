@@ -169,7 +169,6 @@ func pricesCommandFunc(ctx *DispatchContext) (any, error) {
 func init() {
 	Register("prices", RegisterOptions{
 		Description:   "price cache operations (update)",
-		NeedsDB:       false,
 		FormatDefault: FormatJSON,
 		Help:          printPricesHelp,
 	}, pricesCommandFunc)

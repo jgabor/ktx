@@ -20,6 +20,17 @@ type SchemaTooNewError struct {
 	Maximum int
 }
 
+// SchemaTooOldError reports that a read-only query cannot use an older schema
+// without first running the normal forward migration path.
+type SchemaTooOldError struct {
+	Actual   int
+	Required int
+}
+
+func (e *SchemaTooOldError) Error() string {
+	return fmt.Sprintf("db: schema version %d requires migration to version %d before read-only queries; run `ktx db migrate` and retry", e.Actual, e.Required)
+}
+
 func (e *SchemaTooNewError) Error() string {
 	return fmt.Sprintf("db: schema version %d is newer than supported version %d; install and verify a runtime supporting schema %d or newer, then retry; do not lower PRAGMA user_version", e.Actual, e.Maximum, e.Actual)
 }

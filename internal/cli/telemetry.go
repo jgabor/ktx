@@ -402,11 +402,16 @@ func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
 	if len(ctx.Args) == 0 || (ctx.Args[0] != "record" && ctx.Args[0] != "list" && ctx.Args[0] != "collector-open" && ctx.Args[0] != "event-record") {
 		return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, nil, ctx.Stdout, ctx.Stderr)
 	}
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		return telemetryDatabaseFailure(ctx, fmt.Errorf("resolve database path: %w", err))
 	}
-	db, err := openDatabase(target, ctx.ExpectedRuntimeSHA256)
+	var db *dbpkg.DB
+	if ctx.Args[0] == "list" {
+		db, err = openQueryDatabase(path)
+	} else {
+		db, err = openDatabase(path)
+	}
 	if err != nil {
 		if _, ok := err.(*Error); ok {
 			return nil, err

@@ -177,7 +177,7 @@ const parseSchemaIncompatibility = (
 }
 
 const ktxRequiredCommand = async (
-  executablePath: string, executableSHA256: string, args: string[], payload: string,
+  executablePath: string, args: string[], payload: string,
 ): Promise<unknown> => {
   const stream = new ReadableStream({
     start(controller) {
@@ -185,7 +185,7 @@ const ktxRequiredCommand = async (
       controller.close()
     },
   })
-  const proc = Bun.spawn([executablePath, "--expect-runtime-sha256", executableSHA256, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
+  const proc = Bun.spawn([executablePath, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
@@ -348,7 +348,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     return {}
   }
 
-  const runOrdinaryProcess = async (args: string[], payload?: string, runtimeProof = true): Promise<KtxCommandResult> => {
+  const runOrdinaryProcess = async (args: string[], payload?: string): Promise<KtxCommandResult> => {
     let stream: ReadableStream<Uint8Array> | "ignore" = "ignore"
     if (payload !== undefined) {
       stream = new ReadableStream({
@@ -358,10 +358,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         },
       })
     }
-    const command = runtimeProof
-      ? [ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, ...args]
-      : [ktxExecutable, ...args]
-    const proc = Bun.spawn(command, { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
+    const proc = Bun.spawn([ktxExecutable, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
     let timer: ReturnType<typeof setTimeout> | undefined
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
@@ -390,7 +387,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     ])
     const cached = databasePaths.get(signature)
     if (cached) return cached
-    const result = await runOrdinaryProcess(["db", "path"], undefined, false)
+    const result = await runOrdinaryProcess(["db", "path"])
     if (result.exitCode !== 0) throw new Error("ktx db path exited " + result.exitCode + ": " + result.stderr.trim())
     const reported = result.stdout.trim()
     if (!nonblank(reported) || reported.includes("\n")) throw new Error("ktx db path returned a malformed path")
@@ -469,7 +466,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
   const epochID = crypto.randomUUID()
 	let globalOrdinal = 0
   if (required) {
-    const ack = await ktxRequiredCommand(ktxExecutable, ktxExecutableSHA256, ["telemetry", "collector-open"], JSON.stringify({ epoch_id: epochID }))
+    const ack = await ktxRequiredCommand(ktxExecutable, ["telemetry", "collector-open"], JSON.stringify({ epoch_id: epochID }))
     globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: 0, kind: "collector_open", contract: requiredContract })
   }
 
@@ -539,7 +536,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		epochOrdinal++
 		const acceptedOrdinal = epochOrdinal
 		const next = eventQueue.then(async () => {
-		  const ack = await ktxRequiredCommand(ktxExecutable, ktxExecutableSHA256, ["telemetry", "event-record"], JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
+		  const ack = await ktxRequiredCommand(ktxExecutable, ["telemetry", "event-record"], JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
 		  globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: acceptedOrdinal, kind: requiredEventKind(event), contract: requiredContract, afterOrdinal: globalOrdinal })
 		})
 		eventQueue = next.catch(() => undefined)
@@ -565,7 +562,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 	  let envelope: KtxEnvelope | null
 	  if (required) {
 		const next = eventQueue.then(async () => {
-		  const strict = await ktxRequiredCommand(ktxExecutable, ktxExecutableSHA256, ["hook"], JSON.stringify(record))
+		  const strict = await ktxRequiredCommand(ktxExecutable, ["hook"], JSON.stringify(record))
 		  return requiredEnvelope(strict, input, requiredSessionID)
 		})
 		eventQueue = next.then(() => undefined, () => undefined)
@@ -899,7 +896,7 @@ func parseInitDispatchArgs(args []string) ([]string, any, error) {
 // initCommandFunc is the dispatch wrapper. The dispatcher already
 // parsed the init-specific arguments and carries them on the context.
 //
-// NeedsDB=false: ktx init never touches the ktx database — it
+// DatabaseNone: ktx init never touches the ktx database — it
 // only writes/reads/removes plugin files on disk.
 func initCommandFunc(ctx *DispatchContext) (any, error) {
 	parsed, ok := ctx.ParsedArgs.(initParsedArgs)
@@ -940,7 +937,6 @@ func initCommandFunc(ctx *DispatchContext) (any, error) {
 func init() {
 	Register("init", RegisterOptions{
 		Description: "install a runtime adapter",
-		NeedsDB:     false,
 		ParseArgs:   parseInitDispatchArgs,
 		Help:        printInitHelp,
 	}, initCommandFunc)

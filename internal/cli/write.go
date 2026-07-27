@@ -34,12 +34,12 @@ import (
 // delegates to writeLogic for the actual work, and translates the
 // returned error into an exit-code + stderr envelope.
 func runWriteWith(args []string, opts Options, stdin io.Reader, stdout, stderr io.Writer) int {
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx write: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
+	db, err := openDatabase(path)
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
@@ -172,7 +172,7 @@ func writeCloseLogic(tc *dbpkg.ToolCall, db *dbpkg.DB, stdout io.Writer) (any, e
 }
 
 // writeCommandFunc is the dispatch wrapper. The dispatcher already
-// opened the DB (NeedsDB=true), exposed os.Stdin via ctx.Stdin
+// opened the DB with write access, exposed os.Stdin via ctx.Stdin
 // (NeedsStdin=true), and parsed --help/--format. The verb receives a
 // *DispatchContext carrying the populated DB, stdin, and a clean
 // positional Args tail. The verb's only responsibility is to apply
@@ -187,7 +187,7 @@ func writeCommandFunc(ctx *DispatchContext) (any, error) {
 func init() {
 	Register("write", RegisterOptions{
 		Description:       "persist a tool_call record from sidecar input",
-		NeedsDB:           true,
+		DatabaseAccess:    DatabaseReadWrite,
 		NeedsStdin:        true,
 		PassthroughStdout: true,
 		Help:              printWriteHelp,

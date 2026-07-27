@@ -50,8 +50,8 @@ type codexHookOutput struct {
 }
 
 // hookCommandFunc is the dispatch entry point for `ktx hook`. The
-// dispatcher opens the DB and exposes stdin (NeedsDB=true,
-// NeedsStdin=true, PassthroughStdout=true).
+// dispatcher opens the DB for writes and exposes stdin
+// (NeedsStdin=true, PassthroughStdout=true).
 func hookCommandFunc(ctx *DispatchContext) (any, error) {
 	return hookLogic(ctx.Stdin, ctx.DB, ctx.Stdout, ctx.Stderr)
 }
@@ -560,7 +560,7 @@ func buildRecoveryFooter(sourceID string, originalBytes, compressedBytes int) st
 func init() {
 	Register("hook", RegisterOptions{
 		Description:       "in-flight tool_call compression (persist original, return compressed)",
-		NeedsDB:           true,
+		DatabaseAccess:    DatabaseReadWrite,
 		NeedsStdin:        true,
 		PassthroughStdout: true,
 		Help:              printHookHelp,

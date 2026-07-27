@@ -175,7 +175,7 @@ func TestDispatch_PassthroughStdout(t *testing.T) {
 	}
 }
 
-// TestDispatch_NoDB covers: a verb with NeedsDB=false never
+// TestDispatch_NoDB covers: a verb with DatabaseNone never
 // touches the database, so an unreadable database file at the resolved
 // path is irrelevant. The verb runs and exits 0; the dispatcher's
 // dbpkg.ResolvePath + dbpkg.Open calls are not made.
@@ -203,14 +203,14 @@ func TestDispatch_NoDB(t *testing.T) {
 	}
 	// As root (the only case where chmod 0o000 doesn't bite) the test
 	// is weakened but not invalidated: the verb still runs and exits 0
-	// because NeedsDB=false, which is the contract under test.
+	// because DatabaseAccess is DatabaseNone, which is the contract under test.
 	t.Cleanup(func() { _ = os.Chmod(dbPath, 0o644) })
 	t.Setenv("XDG_DATA_HOME", dataHome)
 	t.Setenv("KTX_DB", filepath.Join(dataHome, "ktx", "ktx.db"))
 
 	registerFor(t, "stdin_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		if ctx.DB != nil {
-			t.Errorf("ctx.DB should be nil when NeedsDB=false, got %v", ctx.DB)
+			t.Errorf("ctx.DB should be nil with DatabaseNone, got %v", ctx.DB)
 		}
 		return nil, nil
 	})
@@ -454,9 +454,9 @@ func TestDispatch_ParseArgsError(t *testing.T) {
 	}
 }
 
-// TestDispatch_PassthroughWithDB covers the passthrough + NeedsDB combination:
+// TestDispatch_PassthroughWithDB covers passthrough plus database access:
 // a verb that needs the database and writes its own raw output. The
-// dispatcher opens the DB (NeedsDB=true) but does not wrap stdout
+// dispatcher opens the DB for writes but does not wrap stdout
 // (PassthroughStdout=true). The test asserts ctx.DB is non-nil and the
 // verb's literal envelope is byte-identical on stdout.
 func TestDispatch_PassthroughWithDB(t *testing.T) {
@@ -474,7 +474,7 @@ func TestDispatch_PassthroughWithDB(t *testing.T) {
 		fmt.Fprintln(ctx.Stdout, `{"ok":true}`)
 		return nil, nil
 	}
-	registerFor(t, "passthrough_db", RegisterOptions{NeedsDB: true, PassthroughStdout: true}, do)
+	registerFor(t, "passthrough_db", RegisterOptions{DatabaseAccess: DatabaseReadWrite, PassthroughStdout: true}, do)
 
 	var stdout, stderr bytes.Buffer
 	code := runDispatch("passthrough_db", nil, false, &stdout, &stderr)
@@ -482,7 +482,7 @@ func TestDispatch_PassthroughWithDB(t *testing.T) {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 	}
 	if captured == nil || captured.DB == nil {
-		t.Errorf("ctx.DB should be non-nil when NeedsDB=true, captured=%v", captured)
+		t.Errorf("ctx.DB should be non-nil with database access, captured=%v", captured)
 	}
 	if !strings.Contains(stdout.String(), `{"ok":true}`) {
 		t.Errorf("stdout missing verb's raw output: %q", stdout.String())
@@ -521,11 +521,11 @@ func TestDispatch_PassthroughFlag(t *testing.T) {
 	}
 }
 
-// TestDispatch_NeedsDBFalse covers the negative of the NeedsDB case at the context
-// level: a verb with NeedsDB=false sees ctx.DB == nil. The check is
+// TestDispatch_DatabaseNone covers the no-database case at the context
+// level: a verb with DatabaseNone sees ctx.DB == nil. The check is
 // redundant with the earlier case (which proves the dispatcher never opens
 // the DB) but it documents the contract the verb can rely on.
-func TestDispatch_NeedsDBFalse(t *testing.T) {
+func TestDispatch_DatabaseNone(t *testing.T) {
 	var captured *DispatchContext
 	registerFor(t, "no_db_ctx", RegisterOptions{}, captureVerb(t, "no_db_ctx", RegisterOptions{}, &captured))
 
@@ -535,7 +535,7 @@ func TestDispatch_NeedsDBFalse(t *testing.T) {
 		t.Fatalf("exit code = %d, want %d", code, ExitOK)
 	}
 	if captured == nil || captured.DB != nil {
-		t.Errorf("ctx.DB = %v, want nil when NeedsDB=false", captured)
+		t.Errorf("ctx.DB = %v, want nil with DatabaseNone", captured)
 	}
 }
 

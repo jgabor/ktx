@@ -45,12 +45,12 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		format = opts.Format
 	}
 
-	target, err := dbpkg.ResolveTarget("")
+	path, err := dbpkg.ResolvePath("")
 	if err != nil {
 		printError(stderr, internalError("ktx get: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
+	db, err := openQueryDatabase(path)
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)
@@ -130,7 +130,7 @@ func getLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) (any
 }
 
 // getCommandFunc is the dispatch wrapper. The dispatcher already opened
-// the DB (NeedsDB=true), parsed --help/--format, and resolved the
+// the DB read-only, parsed --help/--format, and resolved the
 // format. The verb receives a *DispatchContext carrying the populated
 // DB, the resolved format, and a clean positional Args tail. The verb's
 // only responsibility is to apply getLogic and surface the typed
@@ -143,10 +143,10 @@ func getCommandFunc(ctx *DispatchContext) (any, error) {
 // the verb is reachable through runWith.
 func init() {
 	Register("get", RegisterOptions{
-		Description:   "query a record by ID (formatted)",
-		NeedsDB:       true,
-		FormatDefault: FormatJSON,
-		Help:          printGetHelp,
+		Description:    "query a record by ID (formatted)",
+		DatabaseAccess: DatabaseReadOnly,
+		FormatDefault:  FormatJSON,
+		Help:           printGetHelp,
 	}, getCommandFunc)
 }
 

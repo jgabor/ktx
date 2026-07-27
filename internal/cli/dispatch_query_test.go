@@ -29,7 +29,7 @@ import (
 )
 
 // queryDispatchTestDB opens a per-test KTX_DB database. The dispatch
-// path's NeedsDB verbs (ktx get, ktx list) open the DB through the
+// path's query verbs (ktx get, ktx list) open the DB through the
 // dispatcher, so the file must exist and have the schema migrated
 // before the verb runs. The dispatcher calls dbpkg.Open (which
 // migrates) so a missing file is fine; we just need KTX_DB pointing

@@ -1,8 +1,10 @@
 package db
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -75,6 +77,122 @@ func TestOpenReadOnly(t *testing.T) {
 			t.Fatalf("nonexistent database was created: %v", err)
 		}
 	})
+}
+
+func TestOpenExistingDoesNotCreateDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing", "ktx.db")
+	if database, err := OpenExisting(path); err == nil {
+		database.Close()
+		t.Fatal("OpenExisting created a missing database")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing database was created: %v", err)
+	}
+}
+
+func TestOpenQuery(t *testing.T) {
+	t.Run("missing database is an ephemeral empty current schema", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing", "ktx.db")
+		database, err := OpenQuery(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		sessions, err := database.ListSessions()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sessions) != 0 {
+			t.Fatalf("sessions = %d, want 0", len(sessions))
+		}
+		if _, err := database.db.Exec("CREATE TABLE forbidden (id INTEGER)"); err == nil {
+			t.Fatal("write through missing-database query handle succeeded")
+		}
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("query created missing database: %v", err)
+		}
+	})
+
+	t.Run("current database is immutable", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "current.db")
+		created, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := created.Close(); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		database, err := OpenQuery(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.db.Exec("CREATE TABLE forbidden (id INTEGER)"); err == nil {
+			t.Fatal("write through current-database query handle succeeded")
+		}
+		if err := database.Close(); err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatal("read-only query changed database bytes")
+		}
+	})
+
+	for _, test := range []struct {
+		name    string
+		version int
+		check   func(error) bool
+	}{
+		{name: "older schema requires migration", version: MaxSupportedSchema() - 1, check: func(err error) bool {
+			var target *SchemaTooOldError
+			return errors.As(err, &target) && target.Actual == MaxSupportedSchema()-1 && target.Required == MaxSupportedSchema()
+		}},
+		{name: "newer schema requires newer binary", version: MaxSupportedSchema() + 1, check: func(err error) bool {
+			var target *SchemaTooNewError
+			return errors.As(err, &target) && target.Actual == MaxSupportedSchema()+1 && target.Maximum == MaxSupportedSchema()
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "versioned.db")
+			raw, err := sql.Open(sqliteDriver, "file:"+path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := raw.Exec("PRAGMA user_version = " + fmt.Sprint(test.version)); err != nil {
+				raw.Close()
+				t.Fatal(err)
+			}
+			if err := raw.Close(); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			database, err := OpenQuery(path)
+			if database != nil {
+				database.Close()
+			}
+			if err == nil || !test.check(err) {
+				t.Fatalf("OpenQuery error = %v", err)
+			}
+			after, readErr := os.ReadFile(path)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if !bytes.Equal(after, before) {
+				t.Fatal("rejected query changed database bytes")
+			}
+		})
+	}
 }
 
 // TestOpenMemory_BackendAndForeignKeys covers the first three legs of the

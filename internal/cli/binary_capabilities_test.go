@@ -26,7 +26,7 @@ func TestBinaryCapabilitiesJSONAndComparison(t *testing.T) {
 	if !ok {
 		t.Fatal("binary-capabilities is not registered")
 	}
-	if reg.opts.NeedsDB {
+	if reg.opts.DatabaseAccess != DatabaseNone {
 		t.Fatal("binary-capabilities must not resolve or open a database")
 	}
 

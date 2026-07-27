@@ -275,14 +275,15 @@ func telemetryInputState(observation *telemetry.Observation, field string) telem
 }
 
 func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
-	if dispatchRegistry["telemetry"].opts.NeedsDB {
+	if dispatchRegistry["telemetry"].opts.DatabaseAccess != DatabaseNone {
 		t.Fatal("telemetry database open still runs in the dispatcher")
 	}
 	valid := `{"session_id":"ses_source","message_id":"msg_1","part_id":"prt_1","ordinal":1,"reason":"stop","cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache_read":0,"cache_write":0}}`
 	for _, failure := range []struct {
-		name               string
-		prepare            func(t *testing.T) string
-		schemaIncompatible bool
+		name                   string
+		prepare                func(t *testing.T) string
+		schemaIncompatible     bool
+		queryMigrationRequired bool
 	}{
 		{
 			name: "open",
@@ -309,7 +310,8 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 			},
 		},
 		{
-			name: "malformed-v4-provenance",
+			name:                   "malformed-v4-provenance",
+			queryMigrationRequired: true,
 			prepare: func(t *testing.T) string {
 				path := filepath.Join(t.TempDir(), "malformed-v4.db")
 				d, err := dbpkg.Open(path)
@@ -361,7 +363,7 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 			t.Setenv("KTX_DB", failure.prepare(t))
 			var stdout, stderr bytes.Buffer
 			wantCode := ExitInternal
-			if failure.schemaIncompatible {
+			if failure.schemaIncompatible || failure.queryMigrationRequired {
 				wantCode = ExitSchemaIncompatible
 			}
 			if code := runWith([]string{"telemetry", "list", "--session", "abcdefghijklmnop"}, &stdout, &stderr); code != wantCode {

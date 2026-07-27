@@ -27,7 +27,7 @@ const (
 )
 
 // ErrorCode is the machine-readable failure class carried in the error
-// envelope. It maps 1:1 to an exit code.
+// envelope. Multiple schema failures share the stable schema exit status.
 type ErrorCode string
 
 const (
@@ -36,6 +36,7 @@ const (
 	CodeConflict           ErrorCode = "conflict"
 	CodeInternal           ErrorCode = "internal"
 	CodeSchemaIncompatible ErrorCode = "schema-incompatible"
+	CodeSchemaMigration    ErrorCode = "schema-migration-required"
 )
 
 // ExitCode returns the process exit code for the error class.
@@ -49,7 +50,7 @@ func (c ErrorCode) ExitCode() int {
 		return ExitConflict
 	case CodeInternal:
 		return ExitInternal
-	case CodeSchemaIncompatible:
+	case CodeSchemaIncompatible, CodeSchemaMigration:
 		return ExitSchemaIncompatible
 	default:
 		return ExitInternal

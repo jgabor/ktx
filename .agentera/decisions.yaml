@@ -3247,3 +3247,78 @@ archive:
       compatibility alias, or upgrade contract. This supersedes the initial
       automatic-migration design, which would have added a permanent
       compatibility surface for no released users.
+  - number: 32
+    date: 2026-07-27
+    question: Should ambient database access continue to require a caller-supplied
+      executable digest on every invocation, or should safety be enforced without
+      user-visible runtime proof?
+    context: The per-invocation digest proof selected on 2026-07-27 makes ordinary
+      commands such as `ktx stats summary` fail until the user asks the running
+      binary for its own hash and supplies that hash back. This is a deliberateness
+      check, not a trust boundary: the expected value has no independent trust root,
+      an explicit KTX_DB bypasses it, and a modified binary can report its own hash.
+      Generated OpenCode code already pins one canonical executable path. Database
+      integrity is independently protected by read-only SQLite mode, forward-only
+      schema checks, transactional migration, rollback coverage, and hermetic
+      development and CI boundaries. Existing generated plugins may continue to
+      pass the old root flag after the binary is upgraded.
+    alternatives:
+      - name: Remove runtime-proof authorization, make query commands genuinely
+          read-only, and preserve a hidden no-op compatibility flag.
+        status: chosen
+        description: Delete digest comparison and all proof propagation. Query
+          commands open an existing current-schema database with SQLite read-only
+          enforcement and use an ephemeral empty database when the persistent file
+          is absent. Older schemas require an explicit migration-capable path;
+          newer schemas remain rejected before writes. Keep parsing the old flag
+          without advertising or enforcing it so already-generated integrations do
+          not break.
+      - name: Retain digest proof only for write-capable commands.
+        status: rejected
+        description: Removes friction from inspection but preserves a caller-supplied
+          value that still does not establish independent trust and retains most of
+          the propagation machinery.
+      - name: Replace the digest with a durable receipt or install marker.
+        status: rejected
+        description: Hides the ceremony but adds mutable authorization state,
+          revocation and stale-state semantics without creating a cryptographic
+          trust root.
+      - name: Verify signed release artifacts automatically.
+        status: rejected
+        description: Would create meaningful provenance but requires signing,
+          distribution, key-rotation, and development-build policy outside the
+          current product requirement.
+    choice: Supersede the per-invocation ambient runtime-proof choice. Remove the
+      executable digest as a database authorization input and remove it from public
+      help, documentation, command plumbing, nested invocations, and newly generated
+      OpenCode code. Retain `--expect-runtime-sha256` only as a hidden ignored string
+      flag for compatibility with already-generated plugins and scripts. Preserve
+      `binary-capabilities` and executable identity in automatic diagnostics; they
+      remain inspection evidence, not authorization. Make get, read, list, stats,
+      decompress, benchmark report, and telemetry list use a current-schema
+      read-only database handle that cannot create or migrate persistent state.
+      Preserve their absent-database result semantics through an ephemeral empty
+      current-schema handle. A read-only open of an older schema fails with a
+      structured migration-required correction; an explicit database migration
+      command and existing write-capable commands retain transactional forward
+      migration. A newer schema remains a roll-forward error and is never lowered.
+      Write-capable commands continue to create and migrate their selected database
+      without an additional proof flag. Development, tests, CI, and rehearsal remain
+      forbidden from ambient live access and continue to use disposable hermetic
+      roots and explicit seeded databases.
+    reasoning: Automatically comparing the running executable with a digest derived
+      from those same bytes is tautological. Requiring a human to relay that value
+      adds recurring failure and documentation surface without authenticating a
+      release. The durable safety properties already live at better boundaries:
+      SQLite read-only mode prevents query-side mutation, schema version checks stop
+      incompatible binaries, migration transactions and rollback tests protect
+      upgrades, and Mage prevents development verification from discovering live
+      state. A hidden ignored flag is justified only by the concrete installed
+      generated-plugin compatibility requirement. This replacement makes normal use
+      invisible while making the implementation's claims match what it can actually
+      prove.
+    confidence: firm
+    feeds_into: Root CLI parsing and help; dispatcher database modes; read-only query
+      opening; explicit database migration; schema diagnostics; generated OpenCode
+      invocation; database safety, binary capability, telemetry, pipeline, README,
+      and agent guidance; runtime-proof and migration regression tests.

@@ -3,6 +3,7 @@
 //	ktx db                    -> ktx db path (print current database path)
 //	ktx db path               -> print current database path
 //	ktx db --path <file> path -> print <file> (per-invocation override)
+//	ktx db migrate            -> migrate an existing database
 //	ktx db prune              -> unavailable
 //
 // The --path flag is per-invocation only; nothing is persisted. Path
@@ -11,13 +12,16 @@
 // `db path` resolves and prints a path without opening the database. The
 // unavailable `db prune` returns before opening one. `db report` opens the
 // selected existing database through genuinely read-only access and never
-// creates or migrates it.
+// creates or migrates it. `db migrate` owns the explicit forward migration.
 package cli
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -77,12 +81,74 @@ func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error
 		return dbPathLogic(pathOverride, stdout)
 	case "report":
 		return dbReportLogic(pathOverride, rest, stdout)
+	case "migrate":
+		return dbMigrateLogic(pathOverride, rest, format, stdout)
 	case "prune":
 		// The namespace reserves prune but does not implement it.
 		return nil, usageError("ktx db prune: not implemented")
 	default:
 		return nil, usageError("ktx db: unknown subcommand %q; run 'ktx db --help'", sub)
 	}
+}
+
+type dbMigrateResult struct {
+	DatabasePath string `json:"database_path"`
+	FromSchema   int    `json:"from_schema"`
+	ToSchema     int    `json:"to_schema"`
+	Migrated     bool   `json:"migrated"`
+}
+
+func dbMigrateLogic(pathOverride string, args []string, format string, stdout io.Writer) (any, error) {
+	if len(args) > 0 {
+		return nil, usageError("ktx db migrate: unexpected argument %q", args[0])
+	}
+	path, err := dbpkg.ResolvePath(pathOverride)
+	if err != nil {
+		return nil, internalError("ktx db migrate: resolve database path: %v", err)
+	}
+	canonical, err := dbpkg.CanonicalPath(path)
+	if err != nil {
+		return nil, internalError("ktx db migrate: canonicalize database path: %v", err)
+	}
+	readOnly, err := dbpkg.OpenReadOnly(path)
+	if err != nil {
+		if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
+			return nil, notFoundError("ktx db migrate: database %q does not exist", canonical)
+		}
+		return nil, internalError("ktx db migrate: open database read-only: %v", err)
+	}
+	var before int
+	readErr := readOnly.QueryRow(`PRAGMA user_version`).Scan(&before)
+	closeErr := readOnly.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		return nil, internalError("ktx db migrate: read schema version: %v", err)
+	}
+	if before > dbpkg.MaxSupportedSchema() {
+		return nil, databaseOpenError(path, &dbpkg.SchemaTooNewError{Actual: before, Maximum: dbpkg.MaxSupportedSchema()})
+	}
+
+	after := before
+	if before < dbpkg.MaxSupportedSchema() {
+		database, err := openExistingDatabase(path)
+		if err != nil {
+			return nil, err
+		}
+		after, err = database.SchemaVersion()
+		closeErr := database.Close()
+		if err := errors.Join(err, closeErr); err != nil {
+			return nil, internalError("ktx db migrate: verify migrated schema: %v", err)
+		}
+	}
+
+	result := dbMigrateResult{DatabasePath: canonical, FromSchema: before, ToSchema: after, Migrated: after != before}
+	if format == FormatText {
+		fmt.Fprintf(stdout, "database: %s\nfrom_schema: %d\nto_schema: %d\nmigrated: %t\n", result.DatabasePath, result.FromSchema, result.ToSchema, result.Migrated)
+		return nil, nil
+	}
+	if err := json.NewEncoder(stdout).Encode(result); err != nil {
+		return nil, internalError("ktx db migrate: encode result: %v", err)
+	}
+	return nil, nil
 }
 
 // dbReportLogic renders a read-only database evidence report. It uses a
@@ -149,9 +215,9 @@ func dbPathLogic(pathOverride string, stdout io.Writer) (any, error) {
 // parsed --help/-h (via the Help hook) and --format; the verb
 // receives a context carrying a clean positional tail and parsed path override.
 //
-// NeedsDB=false skips only the dispatcher-managed database open. `db path`
+// DatabaseNone skips the dispatcher-managed database open. `db path`
 // and unavailable `db prune` are DB-free; `db report` owns its genuinely
-// read-only open.
+// read-only open; `db migrate` owns its migration-capable open.
 func dbCommandFunc(ctx *DispatchContext) (any, error) {
 	parsed, ok := ctx.ParsedArgs.(dbParsedArgs)
 	if !ok {
@@ -198,7 +264,6 @@ type dbParsedArgs struct {
 func init() {
 	Register("db", RegisterOptions{
 		Description: "database path, reporting, and maintenance",
-		NeedsDB:     false,
 		ParseArgs:   parseDBDispatchArgs,
 		Help:        printDBHelp,
 	}, dbCommandFunc)
@@ -219,6 +284,7 @@ func printDBHelp(w io.Writer) {
 	fmt.Fprintln(w, "  path    print the current database path (default when no subcommand given)")
 	fmt.Fprintln(w, "  report  emit a read-only evidence report (--output <path>|-)")
 	fmt.Fprintln(w, "          output must not alias the source database by path, symlink, or hard link")
+	fmt.Fprintln(w, "  migrate upgrade an existing database to the current schema")
 	fmt.Fprintln(w, "  prune   remove orphaned sessions (not yet implemented)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")

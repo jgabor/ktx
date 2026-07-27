@@ -4,10 +4,21 @@ record:
   name: Expose DB-free runtime compatibility identity
   depends_on:
     - pitdhqcgsp
-  status: pending
+  status: complete
   acceptance:
     - GIVEN a checkout, installed, or runtime-resolved binary WHEN identity is queried THEN structured path, digest, version, and maximum supported schema are returned without database access.
     - GIVEN the binary resolved by OpenCode WHEN compared with the verified artifact THEN equality or mismatch is deterministic and machine-readable.
     - GIVEN compatible, stale, or unverifiable identity WHEN queried THEN documented output and exit behavior provide a working correction.
     - GIVEN positive and negative identity fixtures WHEN tested THEN no database path is resolved or opened.
   plan: xszoenfrqu
+  evidence: Implemented and documented DB-free ktx.binary-capabilities/v1 identity with canonical executable path, independently hashed SHA-256, build version, and maximum schema from the migration owner. Deterministic equality, conflict, invalid-input, and unverifiable behavior has structured exits and correction guidance. Generated OpenCode integration verifies candidate bytes and reported capabilities, pins the canonical path, and handles ordinary versus required startup. Independent Audit passed focused/full gates and traced positive and negative executions with no database access.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: ccvxyztrkl-audit-1
+      source: audit ses_05e2bbe33ffeImryObM9Rppuuf
+      recorded_at: 2026-07-27 06:36
+      writer_command: agentera state plan record-evaluation

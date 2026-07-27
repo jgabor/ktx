@@ -24,6 +24,13 @@ ktx. Installation is idempotent and overwrites only the selected generated
 `ktx.ts` file. `ktx init opencode --show` reports candidate files found on disk;
 it does not claim that OpenCode loaded or activated either file.
 
+At startup, the generated plugin resolves and canonicalizes one `ktx` candidate,
+verifies its DB-free `binary-capabilities` response against the candidate's
+actual path and SHA-256, and pins that absolute path for every later callback.
+This prevents a later `PATH` change from selecting a different binary. See
+[Binary compatibility identity](binary-capabilities.md) for the response,
+comparison, correction, and exit contracts.
+
 The generated plugin declares two OpenCode hooks:
 
 | Hook                 | Role                                                                                               |
@@ -250,8 +257,10 @@ Failure behavior depends on the command:
   generated file in the intended scope. If both scopes contain `ktx.ts`, remove
   the unintended copy with `ktx init opencode --uninstall`, then reinstall the
   intended scope.
-- Ensure `ktx` is on OpenCode's `PATH`. If it is absent, the plugin reports that
-  it is disabled and registers neither hook.
+- Ensure a readable `ktx` is on OpenCode's startup `PATH`. If it is absent or
+  its identity cannot be verified, the plugin reports that it is disabled and
+  registers neither hook. Reinstall ktx at a stable path, re-run
+  `ktx init opencode`, and restart OpenCode.
 - If OpenCode is wrapped by `ktx run`, `KTX_SESSION_ID` intentionally disables
   the plugin hooks. Test the unwrapped path without `ktx run` when diagnosing
   plugin loading.

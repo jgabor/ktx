@@ -143,6 +143,19 @@ func TestOpencodeGeneratedAdapterEventAndToolIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	fakeKtx := `#!/bin/sh
+if [ "$1" = "binary-capabilities" ]; then
+  path=$(readlink -f "$0")
+  digest=$(sha256sum "$path" | cut -d' ' -f1)
+  case "$KTX_TEST_BAD_RESPONSE" in
+    identity-malformed) printf '[]\n'; exit 0 ;;
+    identity-path) path=/wrong/ktx ;;
+    identity-digest) digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
+    identity-schema) schema=7 ;;
+  esac
+  : "${schema:=8}"
+  printf '{"schema":"ktx.binary-capabilities/v1","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","max_database_schema":%s}\n' "$path" "$digest" "$schema"
+  exit 0
+fi
 payload=$(cat)
 printf '%s\t%s\n' "$*" "$payload" >> "$KTX_TEST_LOG"
 if [ "$1" = "telemetry" ] && [ "$KTX_TEST_TELEMETRY_FAIL" = "1" ]; then
@@ -224,6 +237,11 @@ fi
 	driverPath := filepath.Join(dir, "driver.ts")
 	driver := `import plugin from ` + strconv.Quote(pluginPath) + `
 const hooks: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
+if (process.env.KTX_TEST_PATH_AFTER_LOAD) process.env.PATH = process.env.KTX_TEST_PATH_AFTER_LOAD
+if (!hooks.event) {
+  console.log(JSON.stringify({title:"tool",output:"original tool output",metadata:{kept:true}}))
+  process.exit(0)
+}
 const identity = {type:"message.updated",properties:{info:{id:"msg_1",sessionID:"ses_1",role:"assistant",providerID:"openai",modelID:"gpt-5"}}}
 const first = {type:"message.part.updated",properties:{part:{id:"prt_1",sessionID:"ses_1",messageID:"msg_1",type:"step-finish",reason:"stop",cost:0,tokens:{input:116,output:3,reasoning:2,cache:{read:15232,write:0}}}}}
 const second = {type:"message.part.updated",properties:{part:{id:"prt_2",sessionID:"ses_1",messageID:"msg_2",type:"step-finish",reason:"stop",cost:1.25,tokens:{input:8,output:5,reasoning:0,cache:{read:0,write:4}}}}}
@@ -331,6 +349,27 @@ console.log(JSON.stringify(output))
 			t.Fatalf("output=%#v calls=%q", output, calls)
 		}
 	})
+
+	t.Run("resolved candidate stays pinned after PATH changes", func(t *testing.T) {
+		otherBin := t.TempDir()
+		if err := os.WriteFile(filepath.Join(otherBin, "ktx"), []byte("#!/bin/sh\nprintf 'PATH drift selected\\n' >&2\nexit 99\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		output, calls, stderr := run(t, "KTX_TEST_PATH_AFTER_LOAD="+otherBin)
+		if output["output"] != "compressed tool output" || len(calls) != 7 || strings.Contains(stderr, "PATH drift selected") {
+			t.Fatalf("output=%#v calls=%q stderr=%q", output, calls, stderr)
+		}
+	})
+
+	for _, bad := range []string{"identity-malformed", "identity-path", "identity-digest", "identity-schema"} {
+		t.Run("ordinary mode disables unverifiable candidate "+bad, func(t *testing.T) {
+			output, calls, stderr := run(t, "KTX_TEST_BAD_RESPONSE="+bad)
+			if output["output"] != "original tool output" || len(calls) != 0 ||
+				!strings.Contains(stderr, "plugin disabled") || !strings.Contains(stderr, "reinstall") {
+				t.Fatalf("output=%#v calls=%q stderr=%q", output, calls, stderr)
+			}
+		})
+	}
 
 	t.Run("required benchmark mode retains and serializes every callback", func(t *testing.T) {
 		output, calls, _ := run(t,
@@ -458,6 +497,7 @@ console.log("ok")
 	})
 
 	for _, bad := range []string{
+		"identity-malformed", "identity-path", "identity-digest", "identity-schema",
 		"collector-session", "collector-interval", "collector-epoch", "collector-kind", "collector-ordinal", "collector-type", "collector-contract", "collector-malformed", "collector-missing",
 		"event-session", "event-interval", "event-epoch", "event-kind", "event-contract", "event-missing", "hook-envelope",
 	} {

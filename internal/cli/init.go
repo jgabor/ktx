@@ -64,7 +64,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // ktxPluginFileName is the name of the OpenCode plugin file installed by
@@ -110,12 +113,13 @@ type initParsedArgs struct {
 //     is also running the agent under `ktx run`, the wrapper owns
 //     persistence and the plugin would otherwise double-record.
 //
-// Presence check: the plugin factory verifies the ktx
-// binary is in PATH before registering either hook. If
-// ktx is missing, no hooks are registered and a one-line warn makes
-// the disabled state visible — without this, every tool call would
-// pay a `ktx hook` spawn cost and silently drop its payload.
-const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
+// Candidate check: the plugin factory resolves one ktx from PATH, verifies its
+// canonical path, digest, version, response schema, and database capability,
+// then invokes that pinned path. If verification fails, no hooks are registered
+// and a one-line warning makes the disabled state and correction visible.
+const ktxOpencodePluginTemplateSource = `import type { Plugin } from "@opencode-ai/plugin"
+import { createHash } from "node:crypto"
+import { readFile, realpath } from "node:fs/promises"
 
 interface KtxEnvelope {
   output: string
@@ -126,6 +130,16 @@ interface KtxEnvelope {
 	call_id?: string
 }
 
+interface KtxBinaryCapabilities {
+  schema: "ktx.binary-capabilities/v1"
+  executable_path: string
+  executable_sha256: string
+  build_version: string
+  max_database_schema: number
+}
+
+let ktxExecutable = ""
+
 const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
   try {
     const stream = new ReadableStream({
@@ -134,7 +148,7 @@ const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
         controller.close()
       },
     })
-    const proc = Bun.spawn(["ktx", "hook"], {
+    const proc = Bun.spawn([ktxExecutable, "hook"], {
       stdin: stream,
       stdout: "pipe",
       stderr: "pipe",
@@ -163,7 +177,7 @@ const ktxTelemetry = async (payload: string): Promise<void> => {
         controller.close()
       },
     })
-    const proc = Bun.spawn(["ktx", "telemetry", "record"], {
+    const proc = Bun.spawn([ktxExecutable, "telemetry", "record"], {
       stdin: stream,
       stdout: "pipe",
       stderr: "pipe",
@@ -186,7 +200,7 @@ const ktxRequiredCommand = async (args: string[], payload: string): Promise<unkn
       controller.close()
     },
   })
-  const proc = Bun.spawn(["ktx", ...args], { stdin: stream, stdout: "pipe", stderr: "pipe" })
+  const proc = Bun.spawn([ktxExecutable, ...args], { stdin: stream, stdout: "pipe", stderr: "pipe" })
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
@@ -280,16 +294,35 @@ const costMeasurement = (value: unknown): Measurement => {
 }
 
 const KtxPlugin: Plugin = async ({ $ }) => {
-  // Verify ktx is in PATH before registering the hook; otherwise every
-  // tool call would pay a ktx hook spawn cost and silently noop.
+  const required = process.env.KTX_BENCH_COLLECTOR_MODE === "required"
+  // Resolve one candidate, verify its self-report against independently read
+  // executable bytes, and pin its canonical path for this plugin instance.
   try {
-    await $` + "`which ktx`" + `.quiet()
-  } catch {
-    console.warn("[ktx] ktx binary not found in PATH \u2014 plugin disabled")
+    const candidate = Bun.which("ktx")
+    if (!candidate) throw new Error("ktx binary not found in PATH")
+    const canonical = await realpath(candidate)
+    const digest = createHash("sha256").update(await readFile(canonical)).digest("hex")
+    const proc = Bun.spawn([canonical, "binary-capabilities"], { stdout: "pipe", stderr: "pipe" })
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    if (exitCode !== 0) throw new Error("binary-capabilities exited " + exitCode + ": " + stderr.trim())
+    const value = JSON.parse(stdout) as Partial<KtxBinaryCapabilities>
+    if (!value || Array.isArray(value) || value.schema !== "ktx.binary-capabilities/v1" ||
+        value.executable_path !== canonical || value.executable_sha256 !== digest ||
+        !nonblank(value.build_version) || value.max_database_schema !== __MAX_SCHEMA__) {
+      throw new Error("binary-capabilities response does not match the resolved candidate")
+    }
+    ktxExecutable = canonical
+  } catch (e) {
+    const correction = "reinstall ktx at a readable stable path, run ktx init opencode, and restart OpenCode"
+    if (required) throw new Error("ktx candidate identity is unverifiable: " + String(e) + "; " + correction)
+    console.warn("[ktx] ktx candidate identity is unverifiable; plugin disabled: " + String(e) + "; " + correction)
     return {}
   }
 
-  const required = process.env.KTX_BENCH_COLLECTOR_MODE === "required"
 	const requiredSessionID = process.env.KTX_BENCH_SESSION_ID || ""
 	const requiredIntervalID = process.env.KTX_BENCH_EVENT_INTERVAL_ID || ""
 	const requiredContract = process.env.KTX_BENCH_EVENT_CONTRACT || ""
@@ -414,6 +447,12 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 
 export default KtxPlugin
 `
+
+var ktxOpencodePluginTemplate = strings.ReplaceAll(
+	ktxOpencodePluginTemplateSource,
+	"__MAX_SCHEMA__",
+	strconv.Itoa(dbpkg.MaxSupportedSchema()),
+)
 
 // initFlags captures the flags shared across all `ktx init <runtime>`
 // subcommands. Each flag selects a distinct action; combining them is

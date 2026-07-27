@@ -9,6 +9,10 @@ import (
 
 const schemaVersion = 8
 
+// MaxSupportedSchema returns the newest database schema this binary can open.
+// It is DB-free and shares the migration code's single schema-version owner.
+func MaxSupportedSchema() int { return schemaVersion }
+
 const createRuntimeEventIntervalsTable = `CREATE TABLE IF NOT EXISTS runtime_event_intervals (
 		id                    TEXT PRIMARY KEY,
 		session_id            TEXT NOT NULL UNIQUE REFERENCES sessions(id),

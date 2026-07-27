@@ -20,12 +20,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/big"
 	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/jgabor/ktx/internal/cache/reuse"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/router"
 )
@@ -166,11 +168,12 @@ func statsCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 type statsSummary struct {
-	SchemaVersion int                `json:"schema_version"`
-	GeneratedAt   string             `json:"generated_at"`
-	Window        statsSummaryWindow `json:"window"`
-	Calls         statsSummaryCalls  `json:"calls"`
-	Tokens        statsSummaryTokens `json:"tokens"`
+	SchemaVersion int                    `json:"schema_version"`
+	GeneratedAt   string                 `json:"generated_at"`
+	Window        statsSummaryWindow     `json:"window"`
+	Calls         statsSummaryCalls      `json:"calls"`
+	Tokens        statsSummaryTokens     `json:"tokens"`
+	CacheReuse    statsSummaryCacheReuse `json:"cache_reuse"`
 }
 
 type statsSummaryWindow struct {
@@ -191,6 +194,45 @@ type statsSummaryTokens struct {
 	DeliveredEstimatedPerSecond float64  `json:"delivered_estimated_per_second"`
 	ReductionPercent            *float64 `json:"reduction_percent"`
 }
+
+type statsSummaryCacheReuse struct {
+	ContractVersion        string                         `json:"contract_version"`
+	Runtime                string                         `json:"runtime"`
+	RuntimeVersion         string                         `json:"runtime_version"`
+	ContributingModelSteps int                            `json:"contributing_model_steps"`
+	UncachedInput          statsSummaryIntegerMeasurement `json:"uncached_input"`
+	CacheRead              statsSummaryIntegerMeasurement `json:"cache_read"`
+	CacheWrite             statsSummaryIntegerMeasurement `json:"cache_write"`
+	LogicalInput           statsSummaryIntegerMeasurement `json:"logical_input"`
+	CachedInputShare       statsSummaryShareMeasurement   `json:"cached_input_share"`
+	Formula                string                         `json:"formula"`
+	Unit                   string                         `json:"unit"`
+}
+
+type statsSummaryIntegerMeasurement struct {
+	State string   `json:"state"`
+	Value *big.Int `json:"value"`
+}
+
+type statsSummaryShareMeasurement struct {
+	State  string   `json:"state"`
+	Value  *float64 `json:"value"`
+	Ratio  *string  `json:"ratio"`
+	Reason *string  `json:"reason"`
+}
+
+type statsSummaryIntegerAccumulator struct {
+	value     big.Int
+	missing   bool
+	malformed bool
+}
+
+const (
+	statsSummaryMeasured      = "measured"
+	statsSummaryMissing       = "missing"
+	statsSummaryMalformed     = "malformed"
+	statsSummaryNotApplicable = "not_applicable"
+)
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
 	var showHelp bool
@@ -221,15 +263,20 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 	if err != nil {
 		return nil, internalError("ktx stats summary: %v", err)
 	}
+	cacheRows, err := db.StatsSummaryCacheRows(from, now, reuse.RequiredRuntime, reuse.RequiredRuntimeVersion)
+	if err != nil {
+		return nil, internalError("ktx stats summary: %v", err)
+	}
 
 	summary := statsSummary{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		GeneratedAt:   now.Format(time.RFC3339Nano),
 		Window: statsSummaryWindow{
 			Seconds: window.Seconds(),
 			From:    from.Format(time.RFC3339Nano),
 			To:      now.Format(time.RFC3339Nano),
 		},
+		CacheReuse: aggregateStatsSummaryCache(cacheRows),
 	}
 	for _, row := range rows {
 		summary.Calls.TotalWithOutput++
@@ -257,6 +304,99 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 
 func estimatedTokens(characters int) int {
 	return (characters + 3) / 4
+}
+
+func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryCacheReuse {
+	var uncachedInput, cacheRead, cacheWrite statsSummaryIntegerAccumulator
+	for _, row := range rows {
+		uncachedInput.add(row.UncachedInput)
+		cacheRead.add(row.CacheRead)
+		cacheWrite.add(row.CacheWrite)
+	}
+
+	uncachedInputTotal := uncachedInput.measurement(len(rows))
+	cacheReadTotal := cacheRead.measurement(len(rows))
+	cacheWriteTotal := cacheWrite.measurement(len(rows))
+	logicalInput := unavailableStatsSummaryInteger(aggregateStatsSummaryState(uncachedInputTotal.State, cacheReadTotal.State, cacheWriteTotal.State))
+	share := unavailableStatsSummaryShare(logicalInput.State)
+	if uncachedInputTotal.State == statsSummaryMeasured && cacheReadTotal.State == statsSummaryMeasured && cacheWriteTotal.State == statsSummaryMeasured {
+		logical := new(big.Int).Add(uncachedInputTotal.Value, cacheReadTotal.Value)
+		logical.Add(logical, cacheWriteTotal.Value)
+		logicalInput = statsSummaryIntegerMeasurement{State: statsSummaryMeasured, Value: logical}
+		if logical.Sign() > 0 {
+			ratio := new(big.Rat).SetFrac(cacheReadTotal.Value, logical)
+			value, _ := ratio.Float64()
+			ratioText := ratio.RatString()
+			share = statsSummaryShareMeasurement{State: statsSummaryMeasured, Value: &value, Ratio: &ratioText}
+		} else {
+			reason := "logical_input_not_positive"
+			share = statsSummaryShareMeasurement{State: statsSummaryNotApplicable, Reason: &reason}
+		}
+	}
+
+	return statsSummaryCacheReuse{
+		ContractVersion:        reuse.RequiredContractVersion,
+		Runtime:                reuse.RequiredRuntime,
+		RuntimeVersion:         reuse.RequiredRuntimeVersion,
+		ContributingModelSteps: len(rows),
+		UncachedInput:          uncachedInputTotal,
+		CacheRead:              cacheReadTotal,
+		CacheWrite:             cacheWriteTotal,
+		LogicalInput:           logicalInput,
+		CachedInputShare:       share,
+		Formula:                "cache_read / logical_input",
+		Unit:                   "token_fraction",
+	}
+}
+
+func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasurement) {
+	switch measurement.State {
+	case dbpkg.MeasurementMeasured:
+		if measurement.Value == nil || *measurement.Value < 0 {
+			a.malformed = true
+			return
+		}
+		a.value.Add(&a.value, big.NewInt(*measurement.Value))
+	case dbpkg.MeasurementMalformed:
+		a.malformed = true
+	default:
+		a.missing = true
+	}
+}
+
+func (a *statsSummaryIntegerAccumulator) measurement(count int) statsSummaryIntegerMeasurement {
+	state := statsSummaryMeasured
+	switch {
+	case a.malformed:
+		state = statsSummaryMalformed
+	case count == 0 || a.missing:
+		state = statsSummaryMissing
+	}
+	if state != statsSummaryMeasured {
+		return unavailableStatsSummaryInteger(state)
+	}
+	return statsSummaryIntegerMeasurement{State: state, Value: new(big.Int).Set(&a.value)}
+}
+
+func aggregateStatsSummaryState(states ...string) string {
+	result := statsSummaryMeasured
+	for _, state := range states {
+		if state == statsSummaryMalformed {
+			return statsSummaryMalformed
+		}
+		if state != statsSummaryMeasured {
+			result = statsSummaryMissing
+		}
+	}
+	return result
+}
+
+func unavailableStatsSummaryInteger(state string) statsSummaryIntegerMeasurement {
+	return statsSummaryIntegerMeasurement{State: state}
+}
+
+func unavailableStatsSummaryShare(state string) statsSummaryShareMeasurement {
+	return statsSummaryShareMeasurement{State: state}
 }
 
 // statsLogic reads, aggregates, and renders the stats groups.
@@ -377,14 +517,33 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 		reduction = strconv.FormatFloat(*summary.Tokens.ReductionPercent, 'f', 2, 64)
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT")
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%.4f\t%.4f\t%s\n",
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tMODEL_STEPS\tUNCACHED_INPUT\tCACHE_READ\tCACHE_WRITE\tLOGICAL_INPUT\tCACHED_INPUT_PCT")
+	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%.4f\t%.4f\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n",
 		summary.Window.From, summary.Window.To,
 		summary.Calls.TotalWithOutput, summary.Calls.WithCompressedArtifact,
 		summary.Tokens.RawEstimated, summary.Tokens.DeliveredEstimated,
 		summary.Tokens.RawEstimatedPerSecond, summary.Tokens.DeliveredEstimatedPerSecond,
-		reduction)
+		reduction, summary.CacheReuse.ContributingModelSteps,
+		formatStatsSummaryInteger(summary.CacheReuse.UncachedInput),
+		formatStatsSummaryInteger(summary.CacheReuse.CacheRead),
+		formatStatsSummaryInteger(summary.CacheReuse.CacheWrite),
+		formatStatsSummaryInteger(summary.CacheReuse.LogicalInput),
+		formatStatsSummarySharePercent(summary.CacheReuse.CachedInputShare))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
+}
+
+func formatStatsSummaryInteger(measurement statsSummaryIntegerMeasurement) string {
+	if measurement.State == statsSummaryMeasured && measurement.Value != nil {
+		return measurement.Value.String()
+	}
+	return measurement.State
+}
+
+func formatStatsSummarySharePercent(measurement statsSummaryShareMeasurement) string {
+	if measurement.State == statsSummaryMeasured && measurement.Value != nil {
+		return strconv.FormatFloat(*measurement.Value*100, 'f', 2, 64)
+	}
+	return measurement.State
 }
 
 // printStatsHelp writes the `ktx stats` help.
@@ -430,12 +589,15 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "[now-window, now] interval. Rates use the full configured window duration.")
 	fmt.Fprintln(w, "Each call uses its latest retained compressed artifact; equal timestamps use")
 	fmt.Fprintln(w, "the lexicographically greatest artifact ID. Calls without one use raw output.")
+	fmt.Fprintln(w, "Accepted OpenCode 1.18.5 model steps use their captured_at timestamp in the")
+	fmt.Fprintln(w, "same interval. Cache token totals require every contributing value to be")
+	fmt.Fprintln(w, "measured. The cached-input share is cache_read / logical_input; it is not a provider hit rate.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 1 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 2 JSON object")
 	fmt.Fprintln(w, "  text            one tab-aligned summary row")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")

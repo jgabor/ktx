@@ -79,6 +79,15 @@ type StatsSummaryRow struct {
 	HasCompressedArtifact bool
 }
 
+// StatsSummaryCacheRow is one accepted runtime model-step observation in a
+// bounded stats summary. Numeric fields preserve their measured, unknown, or
+// malformed state so callers cannot mistake a partial sum for a complete one.
+type StatsSummaryCacheRow struct {
+	UncachedInput IntegerMeasurement
+	CacheRead     IntegerMeasurement
+	CacheWrite    IntegerMeasurement
+}
+
 type statsSummarySelectedRow struct {
 	row               StatsSummaryRow
 	rawSet            bool
@@ -97,6 +106,48 @@ func (d *DB) StatsSummaryRows(from, to time.Time) ([]StatsSummaryRow, error) {
 		return nil, fmt.Errorf("db: stats summary: database is nil")
 	}
 	return statsSummaryRowsFor(d.db, from, to, nil)
+}
+
+// StatsSummaryCacheRows returns accepted runtime model-step observations whose
+// capture timestamp is in the inclusive [from, to] interval and whose runtime
+// identity matches the requested accounting contract.
+func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion string) ([]StatsSummaryCacheRow, error) {
+	if d == nil || d.db == nil {
+		return nil, fmt.Errorf("db: stats summary cache: database is nil")
+	}
+	from = from.UTC()
+	to = to.UTC()
+	rows, err := d.db.Query(`SELECT captured_at,
+			tokens_input, cache_read, cache_write,
+			tokens_input_state, cache_read_state, cache_write_state
+		FROM session_telemetry
+		WHERE runtime = ? AND runtime_version = ?`, runtime, runtimeVersion)
+	if err != nil {
+		return nil, fmt.Errorf("db: stats summary cache query: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]StatsSummaryCacheRow, 0)
+	for rows.Next() {
+		var capturedAt, inputState, cacheReadState, cacheWriteState string
+		var input, cacheRead, cacheWrite sql.NullInt64
+		if err := rows.Scan(&capturedAt, &input, &cacheRead, &cacheWrite, &inputState, &cacheReadState, &cacheWriteState); err != nil {
+			return nil, fmt.Errorf("db: stats summary cache scan: %w", err)
+		}
+		captured, err := time.Parse(time.RFC3339Nano, capturedAt)
+		if err != nil || captured.Before(from) || captured.After(to) {
+			continue
+		}
+		result = append(result, StatsSummaryCacheRow{
+			UncachedInput: databaseIntegerMeasurement(inputState, input),
+			CacheRead:     databaseIntegerMeasurement(cacheReadState, cacheRead),
+			CacheWrite:    databaseIntegerMeasurement(cacheWriteState, cacheWrite),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: stats summary cache iterate: %w", err)
+	}
+	return result, nil
 }
 
 // statsSummaryRowsFor reads source IDs before reading output lengths so that

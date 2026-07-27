@@ -263,12 +263,18 @@ artifact by timestamp, breaking timestamp ties by the lexicographically greatest
 artifact ID; calls without an artifact use their raw output. Recompressions are
 therefore never double-counted.
 
+The same interval independently selects accepted OpenCode 1.18.5 model-step
+telemetry by `captured_at`. `cache_reuse` pools those steps' runtime-reported
+uncached-input, cache-read, and cache-write token buckets. It does not read
+benchmark aggregates or reconstruct provider requests.
+
 To avoid holding a long rollback-journal read while clients poll this summary,
 the query first scans eligible source IDs and timestamps, closes that read, then
 fetches output lengths and artifacts for those IDs in batches. No transaction
 spans those phases: an artifact committed after the source scan can appear in
 the result. Source calls are append-only, so the selected source set remains
-stable.
+stable. The model-step query is also independent; no transaction spans the
+tool-call and telemetry views.
 
 The default window is `30m`; `--window` accepts a positive Go duration. Token
 estimates apply `ceil(character count / 4)` to each call before summing, matching
@@ -277,7 +283,7 @@ contract is:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -294,6 +300,24 @@ contract is:
     "raw_estimated_per_second": 20.761111111111113,
     "delivered_estimated_per_second": 7.888888888888889,
     "reduction_percent": 62.001605565962
+  },
+  "cache_reuse": {
+    "contract_version": "cache-reuse-v1",
+    "runtime": "opencode",
+    "runtime_version": "1.18.5",
+    "contributing_model_steps": 6,
+    "uncached_input": { "state": "measured", "value": 1000 },
+    "cache_read": { "state": "measured", "value": 3500 },
+    "cache_write": { "state": "measured", "value": 500 },
+    "logical_input": { "state": "measured", "value": 5000 },
+    "cached_input_share": {
+      "state": "measured",
+      "value": 0.7,
+      "ratio": "7/10",
+      "reason": null
+    },
+    "formula": "cache_read / logical_input",
+    "unit": "token_fraction"
   }
 }
 ```
@@ -303,6 +327,21 @@ raw_estimated * 100`, and is `null` when `raw_estimated` is zero. Calls with an
 empty (but non-NULL) output are included in the call counts and contribute zero
 tokens. `with_compressed_artifact` measures retained-artifact coverage, not
 whether compression reduced output size.
+
+Each cache bucket total is `measured` only when every contributing model step
+measured that bucket. A measured zero participates in the sum. Missing or null
+runtime fields produce a `missing` total; malformed fields produce a
+`malformed` total and take precedence. Values remain `null` in either state and
+are never reconstructed from neighboring fields. `logical_input` is
+`uncached_input + cache_read + cache_write` only when all three totals are
+measured. `cached_input_share` pools the window totals rather than averaging
+per-step percentages. It is `not_applicable` when measured logical input is
+zero, otherwise it includes both a numeric token fraction and its exact reduced
+`ratio`. The text format renders that fraction as `CACHED_INPUT_PCT`.
+
+This is OpenCode-reported cached-input share, not a provider hit rate. A runtime
+model step is not a provider request, and the retained evidence does not prove
+provider hits, misses, eligibility, eviction, or request boundaries.
 
 ## Portable offline replay
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"sort"
@@ -10,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jgabor/ktx/internal/cache/reuse"
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 // TestStatsLogic exercises the aggregation, filtering,
@@ -285,7 +288,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
-		if got.SchemaVersion != 1 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
+		if got.SchemaVersion != 2 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
 			t.Errorf("metadata = %+v", got)
 		}
 		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != got.GeneratedAt {
@@ -296,6 +299,9 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 		if got.Tokens.RawEstimatedPerSecond != 0 || got.Tokens.DeliveredEstimatedPerSecond != 0 || got.Tokens.ReductionPercent != nil {
 			t.Errorf("tokens = %+v", got.Tokens)
+		}
+		if got.CacheReuse.ContributingModelSteps != 0 || got.CacheReuse.UncachedInput.State != "missing" || got.CacheReuse.CachedInputShare.State != "missing" {
+			t.Errorf("cache_reuse = %+v", got.CacheReuse)
 		}
 	})
 
@@ -330,7 +336,89 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("JSON schema has only the version 1 contract keys", func(t *testing.T) {
+	t.Run("aggregates complete runtime cache telemetry with an exact share", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		seedStatsTelemetry(t, db, sid, 1, now.Add(-2*time.Minute), measuredStatsToken(20), measuredStatsToken(80), measuredStatsToken(0))
+		seedStatsTelemetry(t, db, sid, 2, now.Add(-time.Minute), measuredStatsToken(30), measuredStatsToken(70), measuredStatsToken(0))
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v", err)
+		}
+		cache := got.CacheReuse
+		if cache.ContractVersion != reuse.RequiredContractVersion || cache.Runtime != reuse.RequiredRuntime || cache.RuntimeVersion != reuse.RequiredRuntimeVersion || cache.ContributingModelSteps != 2 {
+			t.Fatalf("cache metadata = %+v", cache)
+		}
+		for name, measurement := range map[string]statsSummaryIntegerMeasurement{
+			"uncached_input": cache.UncachedInput,
+			"cache_read":     cache.CacheRead,
+			"cache_write":    cache.CacheWrite,
+			"logical_input":  cache.LogicalInput,
+		} {
+			if measurement.State != "measured" || measurement.Value == nil {
+				t.Fatalf("%s = %+v, want measured", name, measurement)
+			}
+		}
+		if cache.UncachedInput.Value.String() != "50" || cache.CacheRead.Value.String() != "150" || cache.CacheWrite.Value.String() != "0" || cache.LogicalInput.Value.String() != "200" {
+			t.Errorf("cache totals = input %v read %v write %v logical %v", cache.UncachedInput.Value, cache.CacheRead.Value, cache.CacheWrite.Value, cache.LogicalInput.Value)
+		}
+		if cache.CachedInputShare.State != "measured" || cache.CachedInputShare.Value == nil || math.Abs(*cache.CachedInputShare.Value-0.75) > 1e-12 || cache.CachedInputShare.Ratio == nil || *cache.CachedInputShare.Ratio != "3/4" {
+			t.Errorf("cached_input_share = %+v, want measured 3/4", cache.CachedInputShare)
+		}
+	})
+
+	t.Run("does not reconstruct incomplete cache totals", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		seedStatsTelemetry(t, db, sid, 1, now.Add(-2*time.Minute), measuredStatsToken(5), measuredStatsToken(7), measuredStatsToken(11))
+		seedStatsTelemetry(t, db, sid, 2, now.Add(-time.Minute),
+			telemetry.IntegerMeasurement{State: telemetry.MeasurementUnknown}, measuredStatsToken(13), telemetry.IntegerMeasurement{State: telemetry.MeasurementMalformed})
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v", err)
+		}
+		cache := got.CacheReuse
+		if cache.UncachedInput.State != "missing" || cache.UncachedInput.Value != nil {
+			t.Errorf("uncached_input = %+v, want missing", cache.UncachedInput)
+		}
+		if cache.CacheRead.State != "measured" || cache.CacheRead.Value == nil || cache.CacheRead.Value.String() != "20" {
+			t.Errorf("cache_read = %+v, want measured 20", cache.CacheRead)
+		}
+		if cache.CacheWrite.State != "malformed" || cache.CacheWrite.Value != nil || cache.LogicalInput.State != "malformed" || cache.CachedInputShare.State != "malformed" {
+			t.Errorf("cache states = write %+v logical %+v share %+v", cache.CacheWrite, cache.LogicalInput, cache.CachedInputShare)
+		}
+	})
+
+	t.Run("zero logical input makes the share not applicable", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		seedStatsTelemetry(t, db, sid, 1, now.Add(-time.Minute), measuredStatsToken(0), measuredStatsToken(0), measuredStatsToken(0))
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v", err)
+		}
+		share := got.CacheReuse.CachedInputShare
+		if share.State != "not_applicable" || share.Value != nil || share.Reason == nil || *share.Reason != "logical_input_not_positive" {
+			t.Errorf("cached_input_share = %+v", share)
+		}
+	})
+
+	t.Run("JSON schema has only the version 2 contract keys", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -340,10 +428,16 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "cache_reuse")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
 		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated", "raw_estimated_per_second", "delivered_estimated_per_second", "reduction_percent")
+		cache := got["cache_reuse"].(map[string]any)
+		assertStatsJSONKeys(t, cache, "contract_version", "runtime", "runtime_version", "contributing_model_steps", "uncached_input", "cache_read", "cache_write", "logical_input", "cached_input_share", "formula", "unit")
+		for _, field := range []string{"uncached_input", "cache_read", "cache_write", "logical_input"} {
+			assertStatsJSONKeys(t, cache[field].(map[string]any), "state", "value")
+		}
+		assertStatsJSONKeys(t, cache["cached_input_share"].(map[string]any), "state", "value", "ratio", "reason")
 	})
 
 	t.Run("text and summary help follow command conventions", func(t *testing.T) {
@@ -352,7 +446,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &text); err != nil {
 			t.Fatalf("text: %v", err)
 		}
-		if !strings.Contains(text.String(), "WINDOW") || !strings.Contains(text.String(), "RAW_TOK") {
+		if !strings.Contains(text.String(), "WINDOW") || !strings.Contains(text.String(), "RAW_TOK") || !strings.Contains(text.String(), "CACHE_READ") || !strings.Contains(text.String(), "CACHED_INPUT_PCT") {
 			t.Errorf("text output missing fields: %q", text.String())
 		}
 		var help bytes.Buffer
@@ -361,6 +455,9 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 		if !strings.Contains(help.String(), "ktx stats summary") {
 			t.Errorf("summary help missing command: %q", help.String())
+		}
+		if !strings.Contains(help.String(), "schema_version 2") || !strings.Contains(help.String(), "cached-input share") || !strings.Contains(help.String(), "not a provider hit rate") {
+			t.Errorf("summary help missing cache contract: %q", help.String())
 		}
 	})
 }
@@ -487,4 +584,33 @@ func seedCompressedRow(t *testing.T, db *dbpkg.DB, sourceID, output, timestamp s
 	}); err != nil {
 		t.Fatalf("InsertCompressed: %v", err)
 	}
+}
+
+func seedStatsTelemetry(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt time.Time, input, read, write telemetry.IntegerMeasurement) {
+	t.Helper()
+	name := fmt.Sprintf("%d", ordinal)
+	observation := &telemetry.Observation{
+		Key:     telemetry.Key{SessionID: "source_" + name, MessageID: "message_" + name, PartID: "part_" + name},
+		Ordinal: ordinal,
+		Reason:  "stop",
+		Cost:    telemetry.CostMeasurement{State: telemetry.MeasurementUnknown},
+		Tokens: telemetry.Tokens{
+			Input:      input,
+			Output:     telemetry.IntegerMeasurement{State: telemetry.MeasurementUnknown},
+			Reasoning:  telemetry.IntegerMeasurement{State: telemetry.MeasurementUnknown},
+			CacheRead:  read,
+			CacheWrite: write,
+		},
+		Runtime:        reuse.RequiredRuntime,
+		RuntimeVersion: reuse.RequiredRuntimeVersion,
+		Source:         telemetry.SourceEventHook,
+	}
+	inserted, err := db.PersistSessionTelemetry(sessionID, capturedAt.Format(time.RFC3339Nano), observation)
+	if err != nil || !inserted {
+		t.Fatalf("PersistSessionTelemetry(%d) = %t, %v", ordinal, inserted, err)
+	}
+}
+
+func measuredStatsToken(value int64) telemetry.IntegerMeasurement {
+	return telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &value}
 }

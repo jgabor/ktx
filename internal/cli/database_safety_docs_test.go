@@ -22,17 +22,18 @@ func TestDatabaseSafetyGuidanceContract(t *testing.T) {
 		"Genuinely read-only",
 		"Creation and existing-upgrade capable",
 		"Forbidden ambient-live development access",
-		"env -u KTX_DB",
+		"removes `KTX_DB`",
 		"HOME=",
 		"XDG_DATA_HOME=",
 		"XDG_CONFIG_HOME=",
 		"XDG_CACHE_HOME=",
 		"XDG_STATE_HOME=",
-		"GOCACHE=",
-		"GOMODCACHE=",
-		"BUN_INSTALL_CACHE_DIR=",
-		"GOLANGCI_LINT_CACHE=",
-		"ktx_verify()",
+		"GOCACHE",
+		"GOMODCACHE",
+		"BUN_INSTALL_CACHE_DIR",
+		"GOLANGCI_LINT_CACHE",
+		"verification-only database access audit",
+		"forbidden=0",
 		"seeded temporary database",
 		"Do not install yet",
 		"effective installed binary",
@@ -43,6 +44,11 @@ func TestDatabaseSafetyGuidanceContract(t *testing.T) {
 	} {
 		if !strings.Contains(contract, required) {
 			t.Errorf("database safety contract missing %q", required)
+		}
+	}
+	for _, target := range []string{"`mage test`", "`mage check`", "`mage verify`"} {
+		if !strings.Contains(contract, target) {
+			t.Errorf("database safety contract missing self-hermetic target %q", target)
 		}
 	}
 

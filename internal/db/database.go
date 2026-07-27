@@ -90,13 +90,22 @@ func DefaultPath() (string, error) {
 //
 // The --path flag is per-invocation only; nothing is persisted.
 func ResolvePath(override string) (string, error) {
+	var path string
 	if override != "" {
-		return override, nil
+		path = override
+	} else if envPath := os.Getenv("KTX_DB"); envPath != "" {
+		path = envPath
+	} else {
+		var err error
+		path, err = DefaultPath()
+		if err != nil {
+			return "", err
+		}
 	}
-	if envPath := os.Getenv("KTX_DB"); envPath != "" {
-		return envPath, nil
+	if err := auditDatabaseAccess("resolve", path); err != nil {
+		return "", err
 	}
-	return DefaultPath()
+	return path, nil
 }
 
 // IDPattern is the canonical regex for ktx IDs. Exported so
@@ -116,6 +125,9 @@ var IDPattern = regexp.MustCompile(`^[a-z]{16}$`)
 func Open(path string) (*DB, error) {
 	if path == "" {
 		return nil, errors.New("db: open: path is empty")
+	}
+	if err := auditDatabaseAccess("open", path); err != nil {
+		return nil, err
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -144,6 +156,9 @@ func Open(path string) (*DB, error) {
 // SQLite's mode=ro is the write-enforcement boundary; query_only adds defense
 // in depth. The caller owns the returned pool and must close it.
 func OpenReadOnly(path string) (*sql.DB, error) {
+	if err := auditDatabaseAccess("open_read_only", path); err != nil {
+		return nil, err
+	}
 	absolute, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err

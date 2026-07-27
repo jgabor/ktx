@@ -3,16 +3,37 @@
 package main
 
 import (
+	"bufio"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
 var Default = Check
+
+const (
+	hermeticMarkerEnv         = "KTX_VERIFY_HERMETIC"
+	hermeticRootEnv           = "KTX_VERIFY_ROOT"
+	hermeticBoundaryIDEnv     = "KTX_VERIFY_BOUNDARY_ID"
+	hermeticCapabilityEnv     = "KTX_VERIFY_CAPABILITY"
+	hermeticNonceEnv          = "KTX_VERIFY_NONCE"
+	databaseAuditEnv          = "KTX_VERIFY_DB_AUDIT"
+	forbiddenDBPathsEnv       = "KTX_VERIFY_FORBIDDEN_DB_PATHS"
+	boundaryNonceHexLength    = 32
+	maxForbiddenPayloadBytes  = 8192
+	maxForbiddenDatabasePaths = 16
+)
+
+var applicationRootVariables = []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
+var toolCacheVariables = []string{"GOCACHE", "GOMODCACHE", "BUN_INSTALL_CACHE_DIR", "GOLANGCI_LINT_CACHE"}
 
 func Build() error {
 	if err := os.MkdirAll("build", 0o755); err != nil {
@@ -40,11 +61,19 @@ func Clean() error {
 }
 
 func Test() error {
-	return run("go", "test", "-race", "./...")
+	return hermeticTarget("test", test)
+}
+
+func test() error {
+	return run("go", "test", "-race", "-tags=mage", "./...")
 }
 
 // ReplayFixture runs the bounded, offline repository gate for the retained fixture.
 func ReplayFixture() error {
+	return hermeticTarget("replayFixture", replayFixture)
+}
+
+func replayFixture() error {
 	return run("go", "test", "-race", "./internal/cli", "-run", "^TestRetainedReplayFixtureGate$", "-count=1", "-timeout=30s")
 }
 
@@ -73,11 +102,15 @@ func Lint() error {
 }
 
 func Check() error {
+	return hermeticTarget("check", check)
+}
+
+func check() error {
 	steps := []struct {
 		name string
 		run  func() error
 	}{
-		{name: "test", run: Test},
+		{name: "test", run: test},
 		{name: "vet", run: Vet},
 		{name: "lint", run: Lint},
 		{name: "build", run: Build},
@@ -93,10 +126,419 @@ func Check() error {
 
 // Verify runs the complete repository verification used locally and in CI.
 func Verify() error {
-	if err := Check(); err != nil {
+	return hermeticTarget("verify", verify)
+}
+
+func verify() error {
+	if err := check(); err != nil {
 		return err
 	}
-	return ReplayFixture()
+	return replayFixture()
+}
+
+type accessAuditRecord struct {
+	Operation string `json:"operation"`
+	Forbidden bool   `json:"forbidden"`
+}
+
+func hermeticTarget(target string, body func() error) error {
+	if os.Getenv(hermeticMarkerEnv) == "1" {
+		if err := validateHermeticReentry(); err != nil {
+			return fmt.Errorf("invalid hermetic reentry: %w", err)
+		}
+		return body()
+	}
+	caches, err := captureToolCaches()
+	if err != nil {
+		return err
+	}
+	root, err := os.MkdirTemp("", "ktx-verify-")
+	if err != nil {
+		return fmt.Errorf("create disposable verification root: %w", err)
+	}
+	defer os.RemoveAll(root)
+	directories := map[string]string{
+		"HOME": filepath.Join(root, "home"), "XDG_DATA_HOME": filepath.Join(root, "data"),
+		"XDG_CONFIG_HOME": filepath.Join(root, "config"), "XDG_CACHE_HOME": filepath.Join(root, "cache"),
+		"XDG_STATE_HOME": filepath.Join(root, "state"),
+	}
+	for _, directory := range directories {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			return fmt.Errorf("create disposable verification directory: %w", err)
+		}
+	}
+	for name, path := range caches {
+		if pathWithin(root, path) {
+			return fmt.Errorf("%s must remain outside disposable application root", name)
+		}
+	}
+	forbidden, err := ambientDatabasePaths()
+	if err != nil {
+		return err
+	}
+	forbiddenJSON, err := json.Marshal(forbidden)
+	if err != nil {
+		return err
+	}
+	boundaryID, err := newBoundaryID()
+	if err != nil {
+		return err
+	}
+	auditPath := filepath.Join(root, "database-access.jsonl")
+	capabilityPath, nonce, err := createReentryCapability(root, boundaryID)
+	if err != nil {
+		return err
+	}
+	values := map[string]string{
+		hermeticMarkerEnv: "1", hermeticRootEnv: root, hermeticBoundaryIDEnv: boundaryID,
+		hermeticCapabilityEnv: capabilityPath, hermeticNonceEnv: nonce,
+		databaseAuditEnv: auditPath, forbiddenDBPathsEnv: string(forbiddenJSON),
+	}
+	for name, value := range directories {
+		values[name] = value
+	}
+	for name, value := range caches {
+		values[name] = value
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve current Mage executable: %w", err)
+	}
+	command := exec.Command(executable, target)
+	command.Env = verificationEnvironment(os.Environ(), values)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	command.Stdin = nil
+	commandErr := command.Run()
+	attempts, operations, forbiddenCount, auditErr := summarizeAccessAudit(auditPath)
+	fmt.Fprintf(os.Stderr, "ktx verification audit: boundary=%s target=%s attempts=%d operations=%s forbidden=%d caches=external ktx_db=unset\n",
+		boundaryID, target, attempts, strings.Join(operations, ","), forbiddenCount)
+	if commandErr == nil && attempts == 0 {
+		auditErr = errors.New("database access audit recorded no production database path surfaces")
+	}
+	if forbiddenCount != 0 {
+		auditErr = fmt.Errorf("database access audit recorded %d forbidden attempt(s)", forbiddenCount)
+	}
+	if commandErr != nil {
+		if auditErr != nil {
+			return fmt.Errorf("%w; access audit: %v", commandErr, auditErr)
+		}
+		return commandErr
+	}
+	return auditErr
+}
+
+type reentryCapability struct {
+	BoundaryID string `json:"boundary_id"`
+	Nonce      string `json:"nonce"`
+}
+
+func createReentryCapability(root, boundaryID string) (string, string, error) {
+	nonce, err := newHexToken(boundaryNonceHexLength / 2)
+	if err != nil {
+		return "", "", fmt.Errorf("create verification nonce: %w", err)
+	}
+	data, err := json.Marshal(reentryCapability{BoundaryID: boundaryID, Nonce: nonce})
+	if err != nil {
+		return "", "", err
+	}
+	path := filepath.Join(root, "reentry-capability.json")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return "", "", fmt.Errorf("create verification reentry capability: %w", err)
+	}
+	_, writeErr := file.Write(data)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return "", "", fmt.Errorf("write verification reentry capability: %w", writeErr)
+	}
+	if closeErr != nil {
+		return "", "", fmt.Errorf("close verification reentry capability: %w", closeErr)
+	}
+	return path, nonce, nil
+}
+
+func validateHermeticReentry() error {
+	if _, present := os.LookupEnv("KTX_DB"); present {
+		return errors.New("KTX_DB must be absent")
+	}
+	boundaryID := os.Getenv(hermeticBoundaryIDEnv)
+	if !validHexToken(boundaryID, 16) {
+		return errors.New("boundary identifier must be 16 lowercase hexadecimal characters")
+	}
+	root := os.Getenv(hermeticRootEnv)
+	if root == "" || !filepath.IsAbs(root) {
+		return errors.New("disposable root must be absolute")
+	}
+	if err := validateDirectory(root, "disposable root"); err != nil {
+		return err
+	}
+	directories := map[string]bool{}
+	for _, name := range applicationRootVariables {
+		path := os.Getenv(name)
+		if path == "" || !filepath.IsAbs(path) || !strictPathWithin(root, path) {
+			return fmt.Errorf("%s must be contained under disposable root", name)
+		}
+		if err := validateDirectory(path, name); err != nil {
+			return err
+		}
+		clean := filepath.Clean(path)
+		if directories[clean] {
+			return fmt.Errorf("application directories must be distinct: %s", name)
+		}
+		directories[clean] = true
+	}
+	auditPath := os.Getenv(databaseAuditEnv)
+	if auditPath == "" || !filepath.IsAbs(auditPath) || !strictPathWithin(root, auditPath) {
+		return errors.New("database audit path must be contained under disposable root")
+	}
+	if info, err := os.Lstat(auditPath); err == nil && (!info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) {
+		return errors.New("database audit path exists but is not a regular file")
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect database audit path: %w", err)
+	}
+	if err := validateForbiddenPayload(os.Getenv(forbiddenDBPathsEnv)); err != nil {
+		return err
+	}
+	for _, name := range toolCacheVariables {
+		path := strings.TrimSpace(os.Getenv(name))
+		if path == "" || !filepath.IsAbs(path) {
+			return fmt.Errorf("%s must be a nonempty absolute path", name)
+		}
+		if pathWithin(root, path) {
+			return fmt.Errorf("%s must remain outside disposable application root", name)
+		}
+	}
+	capabilityPath := os.Getenv(hermeticCapabilityEnv)
+	nonce := os.Getenv(hermeticNonceEnv)
+	if !validHexToken(nonce, boundaryNonceHexLength) {
+		return errors.New("verification nonce is malformed")
+	}
+	if capabilityPath == "" || !filepath.IsAbs(capabilityPath) || !strictPathWithin(root, capabilityPath) {
+		return errors.New("reentry capability must be contained under disposable root")
+	}
+	info, err := os.Lstat(capabilityPath)
+	if err != nil {
+		return fmt.Errorf("inspect reentry capability: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm() != 0o600 || info.Size() > 512 {
+		return errors.New("reentry capability has invalid type, mode, or size")
+	}
+	data, err := os.ReadFile(capabilityPath)
+	if err != nil {
+		return fmt.Errorf("read reentry capability: %w", err)
+	}
+	var capability reentryCapability
+	if err := json.Unmarshal(data, &capability); err != nil {
+		return fmt.Errorf("decode reentry capability: %w", err)
+	}
+	if capability.BoundaryID != boundaryID || capability.Nonce != nonce {
+		return errors.New("reentry capability does not match declared boundary")
+	}
+	if err := os.Remove(capabilityPath); err != nil {
+		return fmt.Errorf("consume reentry capability: %w", err)
+	}
+	return nil
+}
+
+func validateDirectory(path, name string) error {
+	if path == "" {
+		return fmt.Errorf("%s is empty", name)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", name, err)
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s must be an existing non-symlink directory", name)
+	}
+	return nil
+}
+
+func validateForbiddenPayload(raw string) error {
+	if raw == "" || len(raw) > maxForbiddenPayloadBytes {
+		return errors.New("forbidden database path payload is empty or oversized")
+	}
+	var paths []string
+	if err := json.Unmarshal([]byte(raw), &paths); err != nil {
+		return fmt.Errorf("decode forbidden database paths: %w", err)
+	}
+	if len(paths) > maxForbiddenDatabasePaths {
+		return fmt.Errorf("forbidden database path count exceeds %d", maxForbiddenDatabasePaths)
+	}
+	for _, path := range paths {
+		if path == "" || len(path) > 2048 {
+			return errors.New("forbidden database path is empty or oversized")
+		}
+	}
+	return nil
+}
+
+func validHexToken(value string, length int) bool {
+	if len(value) != length {
+		return false
+	}
+	for _, character := range value {
+		if !strings.ContainsRune("0123456789abcdef", character) {
+			return false
+		}
+	}
+	return true
+}
+
+func newHexToken(bytes int) (string, error) {
+	value := make([]byte, bytes)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(value), nil
+}
+
+func captureToolCaches() (map[string]string, error) {
+	gocache := os.Getenv("GOCACHE")
+	if gocache == "" {
+		var err error
+		gocache, err = output("go", "env", "GOCACHE")
+		if err != nil {
+			return nil, fmt.Errorf("resolve Go build cache: %w", err)
+		}
+	}
+	gomodcache := os.Getenv("GOMODCACHE")
+	if gomodcache == "" {
+		var err error
+		gomodcache, err = output("go", "env", "GOMODCACHE")
+		if err != nil {
+			return nil, fmt.Errorf("resolve Go module cache: %w", err)
+		}
+	}
+	cacheHome := os.Getenv("XDG_CACHE_HOME")
+	if cacheHome == "" {
+		cacheHome = filepath.Join(os.Getenv("HOME"), ".cache")
+	}
+	bunCache := readEnv("BUN_INSTALL_CACHE_DIR", filepath.Join(cacheHome, ".bun", "install", "cache"))
+	lintCache := readEnv("GOLANGCI_LINT_CACHE", filepath.Join(cacheHome, "golangci-lint"))
+	return map[string]string{"GOCACHE": gocache, "GOMODCACHE": gomodcache, "BUN_INSTALL_CACHE_DIR": bunCache, "GOLANGCI_LINT_CACHE": lintCache}, nil
+}
+
+func ambientDatabasePaths() ([]string, error) {
+	paths := []string{}
+	if explicit := os.Getenv("KTX_DB"); explicit != "" {
+		paths = append(paths, explicit)
+	}
+	dataHome := os.Getenv("XDG_DATA_HOME")
+	if dataHome == "" {
+		home := os.Getenv("HOME")
+		if home == "" {
+			var err error
+			home, err = os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("resolve ambient home: %w", err)
+			}
+		}
+		dataHome = filepath.Join(home, ".local", "share")
+	}
+	defaultPath := filepath.Join(dataHome, "ktx", "ktx.db")
+	for _, path := range paths {
+		if filepath.Clean(path) == filepath.Clean(defaultPath) {
+			return paths, nil
+		}
+	}
+	return append(paths, defaultPath), nil
+}
+
+func verificationEnvironment(base []string, values map[string]string) []string {
+	remove := map[string]bool{"KTX_DB": true}
+	for name := range values {
+		remove[name] = true
+	}
+	result := make([]string, 0, len(base)+len(values))
+	for _, entry := range base {
+		name, _, _ := strings.Cut(entry, "=")
+		if !remove[name] {
+			result = append(result, entry)
+		}
+	}
+	keys := make([]string, 0, len(values))
+	for name := range values {
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+	for _, name := range keys {
+		result = append(result, name+"="+values[name])
+	}
+	return result
+}
+
+func summarizeAccessAudit(path string) (int, []string, int, error) {
+	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil, 0, nil
+	}
+	if err != nil {
+		return 0, nil, 0, err
+	}
+	defer file.Close()
+	counts := map[string]int{}
+	forbidden := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var record accessAuditRecord
+		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+			return 0, nil, 0, fmt.Errorf("decode database access audit: %w", err)
+		}
+		counts[record.Operation]++
+		if record.Forbidden {
+			forbidden++
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, nil, 0, err
+	}
+	operations := make([]string, 0, len(counts))
+	total := 0
+	for operation, count := range counts {
+		operations = append(operations, fmt.Sprintf("%s:%d", operation, count))
+		total += count
+	}
+	sort.Strings(operations)
+	return total, operations, forbidden, nil
+}
+
+func newBoundaryID() (string, error) {
+	identifier, err := newHexToken(8)
+	if err != nil {
+		return "", fmt.Errorf("create verification boundary identifier: %w", err)
+	}
+	return identifier, nil
+}
+
+func pathWithin(root, path string) bool {
+	rootAbsolute, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	pathAbsolute, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	relative, err := filepath.Rel(rootAbsolute, pathAbsolute)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+func strictPathWithin(root, path string) bool {
+	if !filepath.IsAbs(path) {
+		return false
+	}
+	rootAbsolute, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	pathAbsolute, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	relative, err := filepath.Rel(rootAbsolute, pathAbsolute)
+	return err == nil && relative != "." && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func run(name string, args ...string) error {

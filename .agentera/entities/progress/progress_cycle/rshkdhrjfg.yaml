@@ -1,0 +1,16 @@
+id: rshkdhrjfg
+artifact: progress
+record:
+  timestamp: 2026-07-27 08:01
+  type: fix
+  phase: build
+  what: Made standard Mage verification self-hermetic, added fail-closed production database-path access auditing, and added a complete seeded forward-migration and rejection matrix.
+  context:
+    intent: Prevent development and CI verification from attempting ambient live database access while proving every supported forward migration and failure path against explicit temporary fixtures.
+    constraints: Kept schema 8 and ordinary product auto-migration. Did not install ktx, open or inspect live state, implement live opening, add general exit 5, change callback suppression, alter decision satisfaction, or refresh profile/context.
+    unknowns: None remaining in build scope; independent Audit still owns task completion.
+    scope: Mage and CI verification boundary, database path/open/inspection audit seam, migration tests, canonical safety/development docs, coupled workflow/guidance tests, task evidence, and this progress entity.
+  inspiration: Plan task phwznpicfh and firm database-safety decision iklzthoapi at its effective revision.
+  discovered: Mage's current compiled checkout executable can safely re-enter one named target, giving nested check/verify steps one boundary without invoking published project logic. The production database-copy inventory has no database-copy primitive; bench export's source alias inspection was the only pre-open file inspection surface and is now audited before stat.
+  verified: "Criterion 1: bare mage test/check/verify passed under distinct boundaries ad05beb5fdf73dd2, 8f91a569f596af0d, and 9860320bc376a684; an invocation with ambient KTX_DB set to the prohibited string passed at c4172247ab7c980c with 767 audited resolve/open/read-only/inspect operations and forbidden=0. Criterion 2: root tests proved KTX_DB absent, five unique application directories under one disposable invocation root, one non-recursive boundary, and four external cache paths. Criterion 3: eight table rows migrated schema 0 legacy benchmark, 1 pre-cache, 2 cache, 3 cost fields, 4 unqualified telemetry, 5 runtime-qualified telemetry, 6 telemetry states, and 7 runtime-event classification to schema 8 while preserving typed rows, metadata, and markers. Criterion 4: current reopen was byte-idempotent; newer, partial recorded-stream, malformed SQLite, and injected post-migration failure cases retained byte-for-byte files and identical directory entries, explicitly including any SQLite sidecars. Criterion 5: local mage verify passed with 768 audited operations and external caches; exact CI Mage 1.15 verify passed at 9aea48cc18c11dad with 768 operations, forbidden=0, KTX_DB unset, and caches external; tracked CI still runs mage verify. Focused race tests passed, mage check built build/ktx, and ./build/ktx binary-capabilities reported schema 8."
+  next: Keep phwznpicfh in_progress for independent Audit. Do not install, open live state, or begin later controlled-live-open, exit-code, or callback work.

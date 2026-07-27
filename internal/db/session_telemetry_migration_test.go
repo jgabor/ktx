@@ -19,6 +19,16 @@ const legacySessionTelemetryTable = `CREATE TABLE session_telemetry (
 	runtime TEXT NOT NULL, runtime_version TEXT NOT NULL, captured_at TEXT NOT NULL,
 	PRIMARY KEY (source_session_id, message_id, part_id))`
 
+const telemetryLegacyColumns = `session_id,source_session_id,message_id,part_id,ordinal,reason,cost,tokens_input,tokens_output,tokens_reasoning,cache_read,cache_write,provider,model,runtime,runtime_version,captured_at`
+
+const historicalSessionTelemetryV5Table = `CREATE TABLE session_telemetry (
+	session_id TEXT NOT NULL REFERENCES sessions(id), source_session_id TEXT NOT NULL,
+	message_id TEXT NOT NULL, part_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
+	reason TEXT NOT NULL, cost REAL, tokens_input INTEGER, tokens_output INTEGER,
+	tokens_reasoning INTEGER, cache_read INTEGER, cache_write INTEGER, provider TEXT, model TEXT,
+	runtime TEXT NOT NULL, runtime_version TEXT NOT NULL, captured_at TEXT NOT NULL,
+	PRIMARY KEY (runtime, source_session_id, message_id, part_id))`
+
 func TestSessionTelemetrySchemaV6FreshAndHistorical(t *testing.T) {
 	t.Run("fresh", func(t *testing.T) {
 		d, err := OpenMemory()
@@ -52,8 +62,7 @@ func TestSessionTelemetrySchemaV6FreshAndHistorical(t *testing.T) {
 
 	t.Run("empty-version-4", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "empty-v4.db")
-		raw := openRawTelemetryFixture(t, path)
-		replaceTelemetryWithV4(t, raw)
+		raw := openHistoricalTelemetryFixtureWithoutTelemetryRows(t, path, 4)
 		raw.Close()
 		d, err := Open(path)
 		if err != nil {
@@ -66,12 +75,7 @@ func TestSessionTelemetrySchemaV6FreshAndHistorical(t *testing.T) {
 
 func TestSessionTelemetryV4MigrationPreservesAllEvidence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "populated-v4.db")
-	raw := openRawTelemetryFixture(t, path)
-	replaceTelemetryWithV4(t, raw)
-	if _, err := raw.Exec(`INSERT INTO session_telemetry VALUES
-		('aaaaaaaaaaaaaaaa','native-session','message','part',7,'stop',1.25,10,20,30,40,50,'provider','model','custom/runtime','v 1','captured')`); err != nil {
-		t.Fatal(err)
-	}
+	raw := openHistoricalTelemetryFixture(t, path, 4)
 	legacyColumns := `session_id,source_session_id,message_id,part_id,ordinal,reason,cost,tokens_input,tokens_output,tokens_reasoning,cache_read,cache_write,provider,model,runtime,runtime_version,captured_at`
 	beforeTelemetry := queryStrings(t, raw, `SELECT `+legacyColumns+` FROM session_telemetry`)
 	beforeUnrelated := snapshotUnrelatedEvidence(t, raw)
@@ -109,8 +113,7 @@ func TestSessionTelemetryV6MigrationRollsBack(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "rollback.db")
-			raw := openRawTelemetryFixture(t, path)
-			replaceTelemetryWithV4(t, raw)
+			raw := openHistoricalTelemetryFixtureWithoutTelemetryRows(t, path, 4)
 			owner := "aaaaaaaaaaaaaaaa"
 			if tc.orphan {
 				owner = "zzzzzzzzzzzzzzzz"
@@ -162,37 +165,15 @@ func TestSessionTelemetryV6MigrationRollsBack(t *testing.T) {
 	}
 }
 
-func openRawTelemetryFixture(t *testing.T, path string) *sql.DB {
-	t.Helper()
-	d, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{"aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"} {
-		if err := d.InsertSession(&Session{ID: id, Agent: "opencode", StartedAt: "start", LastSeenAt: "seen"}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := d.db.Exec(`INSERT INTO tool_calls (id,session_id,tool,input,output,content_hash,timestamp,event_type,tokens_in,tokens_out,cost,latency_ms,model,provider,exit_code,is_error,runtime)
-		VALUES ('cccccccccccccccc','aaaaaaaaaaaaaaaa','bash','in','out','hash','time','tool_call',1,2,3.5,4,'m','p',0,0,'r')`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.db.Exec(`INSERT INTO compressed VALUES ('dddddddddddddddd','cccccccccccccccc','small','hash2','["normalize"]','time2')`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.db.Exec(`INSERT INTO bench_runs VALUES ('eeeeeeeeeeeeeeee','agent','model','task',1,2,3,4,'method',5,6,7,8,9)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.db.Exec(`INSERT INTO recorded_streams VALUES ('ffffffffffffffff','aaaaaaaaaaaaaaaa','eeeeeeeeeeeeeeee','stream','hash3','format','time3')`); err != nil {
-		t.Fatal(err)
-	}
-	raw := d.db
-	d.db = nil
-	raw.SetMaxOpenConns(1)
-	return raw
+func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql.DB {
+	return openHistoricalTelemetryFixtureWithRows(t, path, version, true)
 }
 
-func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql.DB {
+func openHistoricalTelemetryFixtureWithoutTelemetryRows(t *testing.T, path string, version int) *sql.DB {
+	return openHistoricalTelemetryFixtureWithRows(t, path, version, false)
+}
+
+func openHistoricalTelemetryFixtureWithRows(t *testing.T, path string, version int, populateTelemetry bool) *sql.DB {
 	t.Helper()
 	raw, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
@@ -235,6 +216,17 @@ func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql
 			bench_run_id TEXT REFERENCES bench_runs(id), stream_text TEXT,
 			content_hash TEXT, stream_format TEXT, captured_at TEXT)`,
 	}
+	if version == 4 {
+		statements = append(statements, legacySessionTelemetryTable,
+			`CREATE INDEX session_telemetry_session_order_idx ON session_telemetry(session_id, ordinal)`)
+	}
+	if version == 5 {
+		statements = append(statements, historicalSessionTelemetryV5Table,
+			`CREATE INDEX session_telemetry_session_order_idx ON session_telemetry(session_id, ordinal, runtime, source_session_id, message_id, part_id)`)
+	}
+	if version == 6 {
+		statements = append(statements, createSessionTelemetryTable, createSessionTelemetryOrderIndex)
+	}
 	for _, statement := range statements {
 		if _, err := raw.Exec(statement); err != nil {
 			raw.Close()
@@ -261,6 +253,13 @@ func openHistoricalTelemetryFixture(t *testing.T, path string, version int) *sql
 		PRAGMA user_version = ` + fmt.Sprint(version)); err != nil {
 		raw.Close()
 		t.Fatal(err)
+	}
+	if version >= 4 && populateTelemetry {
+		if _, err := raw.Exec(`INSERT INTO session_telemetry (` + telemetryLegacyColumns + `) VALUES
+			('aaaaaaaaaaaaaaaa','native-session','message','part',7,'stop',1.25,10,20,30,40,50,'provider','model','opencode','1','captured')`); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
 	}
 	return raw
 }
@@ -303,16 +302,10 @@ func snapshotHistoricalEvidence(t *testing.T, db *sql.DB, version int) [][]strin
 		query := "SELECT " + strings.Join(fields, ",") + " FROM " + table.name + " ORDER BY id"
 		snapshot = append(snapshot, queryStrings(t, db, query)...)
 	}
-	return snapshot
-}
-
-func replaceTelemetryWithV4(t *testing.T, raw *sql.DB) {
-	t.Helper()
-	if _, err := raw.Exec(`DROP TABLE session_telemetry; ` + legacySessionTelemetryTable + `;
-		CREATE INDEX session_telemetry_session_order_idx ON session_telemetry(session_id, ordinal);
-		PRAGMA user_version = 4`); err != nil {
-		t.Fatal(err)
+	if version >= 4 {
+		snapshot = append(snapshot, queryStrings(t, db, `SELECT `+telemetryLegacyColumns+` FROM session_telemetry ORDER BY runtime,source_session_id,message_id,part_id`)...)
 	}
+	return snapshot
 }
 
 func assertSessionTelemetryV6Shape(t *testing.T, db *sql.DB) {

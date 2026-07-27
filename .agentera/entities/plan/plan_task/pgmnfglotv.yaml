@@ -1,0 +1,22 @@
+id: pgmnfglotv
+artifact: plan
+record:
+  plan: xszoenfrqu
+  name: Correct hermetic verification evidence
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN immutable progress iuallgjjgm WHEN evidence is corrected THEN a new append-only record explicitly supersedes only its 780-attempt assertions with 774 attempts and inspect:19, open:436, open_read_only:209, resolve:110, forbidden=0 from three independent full runs.
+    - GIVEN the original hermetic task's implementation acceptance passed WHEN the replacement is audited THEN no product files or behavioral claims change, provenance remains truthful, and the blocked task can be superseded.
+  evidence: Append-only correction oxafquguek supersedes only iuallgjjgm's two unsupported 780-attempt assertions. Independent Audit confirmed three full runs produced 774 attempts with inspect:19, open:436, open_read_only:209, resolve:110, forbidden=0, external caches, and KTX_DB unset; arithmetic and provenance match. Prior records remain immutable, Resolve claimed no rerun, no product files changed, and original implementation acceptance remains passed.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: pgmnfglotv-audit-1
+      source: audit ses_05d93213bffe3jtc32HDgr661R
+      recorded_at: 2026-07-27 09:18
+      writer_command: agentera state plan record-evaluation

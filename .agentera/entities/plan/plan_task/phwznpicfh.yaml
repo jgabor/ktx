@@ -5,7 +5,7 @@ record:
   depends_on:
     - pitdhqcgsp
     - lygrbrfcvw
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN ambient developer state WHEN standard test, check, and verify targets run THEN an access audit records no attempt to open, inspect, copy, or mutate the live database.
     - GIVEN one full suite invocation WHEN tests use database state THEN disposable roots prevent cross-test contamination without a shared KTX_DB.
@@ -13,3 +13,17 @@ record:
     - GIVEN current, newer, partial, malformed, and injected-failure databases WHEN tested THEN current is idempotent and every rejected case remains unchanged.
     - GIVEN local and CI toolchains WHEN the full gate runs THEN application state is disposable while reusable language-tool caches remain separate.
   plan: xszoenfrqu
+  evidence: Correction supersedes the earlier policy-invalid probe; it is not acceptance evidence. Inert-temp regressions prove forged markers with KTX_DB fail before target execution, malformed boundaries fail closed, capabilities work once, and outer environments strip KTX_DB. Historical DDL drives schemas 0-7; the 12-row matrix adds populated required-link recorded-stream rebuilding and three supported partial shapes, all preserving data to schema 8. Doctor records inspect before read-only open and rejects inert forbidden/audit failures before stat. Focused race tests and final KTX_DB-unset Mage verify plus CI Mage 1.15 passed with 774 attempts, inspect:19, forbidden=0, external caches. Pending re-review.
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: All implementation criteria pass, but append-only progress iuallgjjgm claims 780 attempts while three independent full runs reproducibly emitted 774 with inspect:19, open:436, open_read_only:209, resolve:110, forbidden=0.
+    provenance:
+      attempt_id: phwznpicfh-audit-2
+      source: audit ses_05da350cefferu48xknYJhNd4v
+      recorded_at: 2026-07-27 09:08
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - pgmnfglotv
+  superseded_reason: All hermetic implementation criteria passed; the audited replacement corrects the sole immutable evidence-count defect while preserving the original task's failed evaluations and implementation evidence.

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -309,6 +310,106 @@ func TestDoctorMissingDisposableDefaultIsNotCreated(t *testing.T) {
 	if _, err := os.Stat(wantPath); !os.IsNotExist(err) {
 		t.Fatalf("doctor created missing default database: stat error = %v", err)
 	}
+}
+
+func TestDoctorAuditsInspectionBeforeReadOnlyOpen(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "seeded.db")
+	seedDoctorDatabase(t, path, nil)
+	audit := filepath.Join(root, "audit.jsonl")
+	t.Setenv("KTX_DB", path)
+	t.Setenv("KTX_VERIFY_DB_AUDIT", audit)
+	t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", "[]")
+
+	report := buildDoctorReport()
+	if report.Status != doctorStatusOK {
+		t.Fatalf("doctor status = %q", report.Status)
+	}
+	records := readDoctorAudit(t, audit)
+	if got := doctorAuditOperations(records); !reflect.DeepEqual(got, []string{"resolve", "inspect", "open_read_only"}) {
+		t.Fatalf("audit operations = %v", got)
+	}
+}
+
+func TestDoctorAuditRejectsBeforeInspectionSideEffects(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "inert", "ktx.db")
+	audit := filepath.Join(root, "audit.jsonl")
+	forbidden, err := json.Marshal([]string{path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KTX_DB", path)
+	t.Setenv("KTX_VERIFY_DB_AUDIT", audit)
+	t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", string(forbidden))
+
+	report := buildDoctorReport()
+	if report.Status != doctorStatusError {
+		t.Fatalf("doctor status = %q, want error", report.Status)
+	}
+	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+		t.Fatalf("doctor touched forbidden inert path: %v", err)
+	}
+	records := readDoctorAudit(t, audit)
+	if len(records) != 1 || records[0].Operation != "resolve" || !records[0].Forbidden {
+		t.Fatalf("forbidden audit records = %#v", records)
+	}
+}
+
+func TestDoctorAuditFailuresAreFailClosed(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		auditPath func(string) string
+		forbidden string
+	}{
+		{name: "invalid payload", auditPath: func(root string) string { return filepath.Join(root, "audit.jsonl") }, forbidden: "{"},
+		{name: "unwritable audit path", auditPath: func(root string) string { return filepath.Join(root, "missing", "audit.jsonl") }, forbidden: "[]"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "inert", "ktx.db")
+			t.Setenv("KTX_DB", path)
+			t.Setenv("KTX_VERIFY_DB_AUDIT", test.auditPath(root))
+			t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", test.forbidden)
+			report := buildDoctorReport()
+			if report.Status != doctorStatusError || len(report.Checks) != 1 || report.Checks[0].Name != "database_path" {
+				t.Fatalf("doctor report = %#v", report)
+			}
+			if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+				t.Fatalf("doctor touched inert path after audit failure: %v", err)
+			}
+		})
+	}
+}
+
+type doctorAuditRecord struct {
+	Operation string `json:"operation"`
+	Forbidden bool   `json:"forbidden"`
+}
+
+func readDoctorAudit(t *testing.T, path string) []doctorAuditRecord {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []doctorAuditRecord
+	for _, line := range bytes.Split(bytes.TrimSpace(data), []byte{'\n'}) {
+		var record doctorAuditRecord
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatal(err)
+		}
+		records = append(records, record)
+	}
+	return records
+}
+
+func doctorAuditOperations(records []doctorAuditRecord) []string {
+	operations := make([]string, len(records))
+	for index, record := range records {
+		operations[index] = record.Operation
+	}
+	return operations
 }
 
 func TestRunWithDoctorAcceptsSubcommandFormat(t *testing.T) {

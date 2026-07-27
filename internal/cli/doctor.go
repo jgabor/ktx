@@ -267,6 +267,15 @@ func buildDoctorReport() *doctorReport {
 	// would create the file as a side effect). A missing file is a
 	// configuration signal — the user has not recorded anything yet,
 	// or KTX_DB points at a non-existent path.
+	if err := dbpkg.AuditPathInspection(path); err != nil {
+		report.Checks = append(report.Checks, doctorCheck{
+			Name:   "database_exists",
+			Status: doctorStatusError,
+			Detail: fmt.Sprintf("audit database inspection %q: %v", path, err),
+		})
+		report.Status = doctorStatusError
+		return report
+	}
 	if _, statErr := os.Stat(path); statErr != nil {
 		if os.IsNotExist(statErr) {
 			report.Checks = append(report.Checks, doctorCheck{

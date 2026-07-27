@@ -1,0 +1,15 @@
+id: ayyhybwoii
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Correct the hermetic verification progress count after the implementation passed but the original task exhausted two audits on immutable evidence accuracy.
+  readiness:
+    capability: build
+    reason: Append-only progress must supersede the unsupported 780-attempt claim with three independently reproduced 774-attempt results and exact operation counts.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 1
+    order_reason: The evidence-only discrepancy blocks dependent install-first work despite all hermetic behavior passing.

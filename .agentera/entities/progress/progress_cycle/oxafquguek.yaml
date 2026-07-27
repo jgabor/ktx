@@ -1,0 +1,16 @@
+id: oxafquguek
+artifact: progress
+record:
+  timestamp: 2026-07-27 09:11
+  type: fix
+  phase: audit
+  what: Corrected one immutable hermetic-verification progress count by superseding only iuallgjjgm's unsupported 780-attempt assertions with the independently reproduced 774-attempt result.
+  context:
+    intent: Repair the sole unsupported count in immutable progress while preserving all passed implementation evidence, behavioral claims, and lifecycle state.
+    constraints: State-only correction. No product code, tests, docs, configuration, decision satisfaction, profile, startup context, original task completion, or TODO resolution changes.
+    unknowns: Independent Audit has not yet evaluated this replacement task.
+    scope: One append-only progress entity and replacement-task evidence only; existing second-failure, TODO, and replacement-task state remain included.
+  inspiration: Failed evaluation phwznpicfh-audit-2 from Audit session ses_05da350cefferu48xknYJhNd4v.
+  discovered: Audit independently reproduced the same 774-attempt operation distribution in three full runs across the local and exact CI Mage versions; the implementation and task evidence already stated 774 accurately.
+  verified: "Observed independent evidence: Audit ses_05da350cefferu48xknYJhNd4v reproduced 774 attempts in three full runs—two with Mage 1.17.2 and one with exact CI Mage 1.15.0—with inspect:19, open:436, open_read_only:209, resolve:110, forbidden=0, external caches, and KTX_DB unset. This Resolve session ran no full verification and made no product claim; it only inspected Agentera state and Git and dry-ran this typed append before publication. This record supersedes only iuallgjjgm's two unsupported 780-attempt assertions. All other implementation evidence and task evidence already use 774 accurately and remain unchanged. The policy-invalid progress rshkdhrjfg remains superseded."
+  next: Keep pgmnfglotv in_progress pending independent Audit, phwznpicfh blocked, and ayyhybwoii open. Do not alter immutable prior records, product files, or behavioral claims.

@@ -20,17 +20,23 @@ func TestTrackedWorkflowUsesRepositoryVerification(t *testing.T) {
 	}
 
 	magefile := readRepositoryFile(t, "magefile.go")
-	verifyStart := strings.Index(magefile, "func Verify() error {")
+	publicVerify := strings.Index(magefile, `func Verify() error {
+	return hermeticTarget("verify", verify)
+}`)
+	if publicVerify < 0 {
+		t.Fatal("Verify target does not enforce the hermetic invocation boundary")
+	}
+	verifyStart := strings.Index(magefile, "func verify() error {")
 	if verifyStart < 0 {
-		t.Fatal("magefile has no Verify target")
+		t.Fatal("magefile has no nested Verify implementation")
 	}
 	verifyEnd := strings.Index(magefile[verifyStart:], "\n}")
 	if verifyEnd < 0 {
 		t.Fatal("cannot locate end of Verify target")
 	}
 	verify := magefile[verifyStart : verifyStart+verifyEnd]
-	check := strings.Index(verify, "Check()")
-	fixture := strings.Index(verify, "ReplayFixture()")
+	check := strings.Index(verify, "check()")
+	fixture := strings.Index(verify, "replayFixture()")
 	if check < 0 || fixture < 0 || check > fixture {
 		t.Errorf("Verify target must run Check before ReplayFixture:\n%s", verify)
 	}

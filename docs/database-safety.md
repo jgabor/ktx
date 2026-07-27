@@ -25,61 +25,44 @@ is not yet implemented for general schema-incompatibility handling.
 
 ## Hermetic development and CI verification
 
-Every full verification invocation needs a newly allocated application root.
-Unset `KTX_DB`; set `HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`,
-`XDG_CACHE_HOME`, and `XDG_STATE_HOME` beneath that root. Capture reusable tool
-cache paths before redirecting those application variables, then pass the
-paths explicitly. Current Go uses `GOCACHE` and `GOMODCACHE`; Bun uses
-`BUN_INSTALL_CACHE_DIR`; golangci-lint uses `GOLANGCI_LINT_CACHE`.
+`mage test`, `mage check`, and `mage verify` are the standard verification entry
+points. Each outer invocation automatically allocates one unique disposable
+application root, removes `KTX_DB`, and runs the complete nested target inside
+that boundary. `HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and
+`XDG_STATE_HOME` are distinct directories beneath the root. Nested targets use
+the same boundary rather than recursively allocating or escaping it, and the
+root is removed when the command exits.
+
+Before redirecting application state, Mage captures the effective Go module and
+build caches, Bun install cache, and golangci-lint cache. It passes `GOCACHE`,
+`GOMODCACHE`, `BUN_INSTALL_CACHE_DIR`, and `GOLANGCI_LINT_CACHE` explicitly and
+rejects any cache path inside the disposable application root. Language and
+tool caches therefore remain reusable while application state does not.
+
+The boundary also enables a verification-only database access audit. Production
+database path resolution, read-only inspection, and Open-backed access record
+their intended operation and path before filesystem or SQLite side effects.
+The audit compares paths lexically with the ambient default database and any
+incoming `KTX_DB`; it never stats, opens, or copies a forbidden path to prove
+non-access. The target fails closed if audit recording fails or any forbidden
+attempt is recorded. On success Mage emits one bounded summary containing the
+invocation identifier, operation counts, and `forbidden=0`.
+
+Re-entry into the compiled Mage target treats its environment marker only as a
+hint. Before any project command runs, Mage validates the absent `KTX_DB`, the
+boundary identifier, root and five distinct application directories, contained
+audit path, bounded forbidden-path payload, external cache paths, and a
+single-use parent capability stored inside the disposable root. Missing,
+malformed, inherited, or already-consumed boundary state fails closed.
+
+Focused manual Go commands that bypass these Mage entry points still need an
+equivalent fresh disposable root. Standard local and CI verification should use:
 
 ```sh
-ktx_tool_gocache=$(go env GOCACHE)
-ktx_tool_gomodcache=$(go env GOMODCACHE)
-ktx_tool_cache_home=${XDG_CACHE_HOME:-"$HOME/.cache"}
-ktx_tool_bun_cache=${BUN_INSTALL_CACHE_DIR:-"$ktx_tool_cache_home/.bun/install/cache"}
-ktx_tool_lint_cache=${GOLANGCI_LINT_CACHE:-"$ktx_tool_cache_home/golangci-lint"}
-
-ktx_verify() (
-  root=$(mktemp -d "${TMPDIR:-/tmp}/ktx-verify.XXXXXX") || exit
-  trap 'rm -rf "$root"' EXIT HUP INT TERM
-  mkdir -p "$root/home" "$root/data" "$root/config" "$root/cache" "$root/state" || exit
-
-  for tool_cache in \
-    "$ktx_tool_gocache" "$ktx_tool_gomodcache" \
-    "$ktx_tool_bun_cache" "$ktx_tool_lint_cache"
-  do
-    case "$tool_cache" in
-      "$root"|"$root"/*)
-        printf 'tool cache must be outside disposable root: %s\n' "$tool_cache" >&2
-        exit 1
-        ;;
-    esac
-  done
-
-  env -u KTX_DB \
-    HOME="$root/home" \
-    XDG_DATA_HOME="$root/data" \
-    XDG_CONFIG_HOME="$root/config" \
-    XDG_CACHE_HOME="$root/cache" \
-    XDG_STATE_HOME="$root/state" \
-    GOCACHE="$ktx_tool_gocache" \
-    GOMODCACHE="$ktx_tool_gomodcache" \
-    BUN_INSTALL_CACHE_DIR="$ktx_tool_bun_cache" \
-    GOLANGCI_LINT_CACHE="$ktx_tool_lint_cache" \
-    "$@"
-)
-
-ktx_verify go test ./internal/cli -run '^TestDatabaseSafetyGuidanceContract$' -count=1
-ktx_verify mage check
+mage test
+mage check
+mage verify
 ```
-
-Each `ktx_verify` call runs in a subshell, allocates a distinct root, starts its
-command with `KTX_DB` removed, and cleans up afterward. Use the same function
-for other focused commands and `mage verify`. The explicit tool-cache variables
-keep Go compilation and module caches, Bun's install cache, and golangci-lint's
-cache reusable outside the disposable application root. Current tests enforce
-the doctor contract and this published procedure; Mage and CI do not yet
-allocate these roots automatically.
 
 Migration rehearsal uses only an explicit seeded temporary database copied
 into a new temporary root. The seed must be a generated fixture or an operator-provided,

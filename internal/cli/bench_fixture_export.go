@@ -64,6 +64,9 @@ func destinationAliasesSource(sourcePath, outputPath string) (bool, error) {
 	if outputPath == "-" {
 		return false, nil
 	}
+	if err := dbpkg.AuditPathInspection(sourcePath); err != nil {
+		return false, err
+	}
 	sourceAbsolute, err := filepath.Abs(sourcePath)
 	if err != nil {
 		return false, err

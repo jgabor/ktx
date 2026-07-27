@@ -26,7 +26,6 @@ jobs:
           go install github.com/magefile/mage@v1.15.0
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
       - name: Verify repository
-        # Database access classes and the required disposable-root reproduction
-        # procedure are canonical in docs/database-safety.md. Root allocation in
-        # Mage/CI remains follow-up work; the hosted runner itself is ephemeral.
+        # mage verify allocates and audits its own disposable application root;
+        # docs/database-safety.md is the canonical contract.
         run: mage verify

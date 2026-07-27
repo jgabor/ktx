@@ -197,9 +197,10 @@ misses, fills, eviction, request boundaries, isolation, or prefix composition.
 ## Development
 
 Development and CI verification must not resolve an ambient live database.
-Use the per-invocation disposable `HOME` and XDG wrapper in the
-[database safety contract](docs/database-safety.md); it unsets `KTX_DB` and
-keeps reusable language and tool caches separate.
+The standard Mage verification targets automatically allocate a per-invocation
+disposable `HOME` and XDG root, unset `KTX_DB`, audit database access attempts,
+and keep reusable language and tool caches separate. The
+[database safety contract](docs/database-safety.md) defines the boundary.
 
 ```bash
 mage replayFixture # bounded offline gate for the retained portable fixture

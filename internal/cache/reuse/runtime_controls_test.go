@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"bufio"
@@ -98,7 +98,7 @@ type sourceExcerpt struct {
 }
 
 func TestOpenCodeRuntimeControlEvidence(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	validatePreflight(t, filepath.Join(root, "tools", "bench", "evidence", "opencode-runtime-cache-controls-preflight.json"), 4, 300)
 	validatePreflight(t, filepath.Join(root, "tools", "bench", "evidence", "opencode-runtime-cache-controls-preflight-2.json"), 2, 120)
 
@@ -171,7 +171,7 @@ func validateUnavailableCapabilities(t *testing.T, got []string) {
 }
 
 func TestOpenCodeRuntimeControlIgnoredRawHashes(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	var evidence runtimeControlEvidence
 	readJSON(t, filepath.Join(root, "tools", "bench", "evidence", "opencode-runtime-cache-controls.json"), &evidence)
 	artifactRoot := filepath.Join(root, filepath.FromSlash(evidence.IgnoredRoot))

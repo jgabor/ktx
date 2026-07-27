@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"os"

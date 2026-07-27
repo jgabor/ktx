@@ -4,7 +4,7 @@ record:
   header:
     level: full
     created: 2026-07-26
-    status: complete
+    status: archived
     reviewed: 2026-07-26
     critic_issues: 10 found, 10 addressed, 0 dismissed
     revised: Resolved metric, aggregation, eligibility, uncertainty, identity, and claim rules before dependent work; split collection parity from sequence characterization; retained small estimates; removed causal wording; and made bounded live evidence mandatory.

@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"crypto/sha256"
@@ -143,7 +143,7 @@ func TestGeminiCapabilityEvidenceIsVersionAndSourceQualified(t *testing.T) {
 		t.Fatalf("artifact hashes = %#v", capability.ArtifactSHA256)
 	}
 	for path, want := range capability.ArtifactSHA256 {
-		data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(path)))
+		data, err := os.ReadFile(filepath.Join("..", "..", "..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal(err)
 		}

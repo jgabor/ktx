@@ -1,0 +1,13 @@
+id: pitdhqcgsp
+artifact: plan
+record:
+  name: Resolve forward-upgrade contracts
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN every production database surface WHEN characterized THEN DB-free, read-only, creation-capable, and migration-capable behavior is explicit, including fresh creation versus existing upgrades.
+    - GIVEN candidate runtime binaries WHEN identity is evaluated THEN one DB-free path, digest, version, and maximum-schema contract identifies the effective OpenCode binary.
+    - GIVEN schema incompatibility WHEN diagnostics are designed THEN a stable class, deduplication key, lifetime, reset boundary, and ordinary-versus-required behavior are selected.
+    - GIVEN consequential choices WHEN characterization completes THEN they are recorded before dependent implementation starts.
+  plan: xszoenfrqu

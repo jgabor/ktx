@@ -1,0 +1,19 @@
+id: zoqgydeaqj
+artifact: plan
+record:
+  name: Validate and synchronize final state
+  depends_on:
+    - pitdhqcgsp
+    - kvfwnknmtk
+    - lygrbrfcvw
+    - phwznpicfh
+    - ccvxyztrkl
+    - uurczbybmy
+    - xhzvaxrquk
+  status: pending
+  acceptance:
+    - GIVEN all tasks complete WHEN the hermetic gate and seeded migration matrix run THEN all supported upgrades pass, all rejected cases remain unchanged, and no live-path access is observed.
+    - GIVEN production database call sites WHEN audited THEN their classification agrees with behavior and only verified post-install live opening can initiate intended auto-migration.
+    - GIVEN current source and guidance WHEN reviewed THEN namespace, safety workflow, identity contract, doctor behavior, diagnostics, help, and recovery instructions agree.
+    - GIVEN historical fixtures and canonical state WHEN final validation runs THEN retained bytes remain unchanged, no live migration occurred, and every enumerated plan assertion has evidence.
+  plan: xszoenfrqu

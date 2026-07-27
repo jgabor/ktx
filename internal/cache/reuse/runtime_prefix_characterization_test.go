@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"bytes"
@@ -53,7 +53,7 @@ type prefixCharacterization struct {
 }
 
 func TestRuntimePrefixCharacterization(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	path := filepath.Join(root, "tools", "bench", "evidence", "opencode-runtime-prefix-characterization.json")
 	var characterization prefixCharacterization
 	readJSON(t, path, &characterization)

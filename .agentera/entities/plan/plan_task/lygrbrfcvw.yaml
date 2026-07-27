@@ -1,0 +1,14 @@
+id: lygrbrfcvw
+artifact: plan
+record:
+  name: Publish the forward-only database safety contract
+  depends_on:
+    - pitdhqcgsp
+  status: pending
+  acceptance:
+    - GIVEN developer, agent, CI, and operator guidance WHEN consulted THEN DB-free, migration-capable, and forbidden ambient-live operations are distinguished consistently.
+    - GIVEN development verification WHEN instructions are followed THEN KTX_DB is unset, application HOME and XDG state is disposable, and rehearsal uses seeded temporary databases only.
+    - GIVEN upgrade ordering WHEN followed THEN rehearsal and verification precede installation, effective identity precedes live access, and the first live open is deliberate.
+    - GIVEN live schema Y newer than supported X WHEN recovery guidance is followed THEN no write or downgrade occurs and the runtime rolls forward to Y or newer.
+    - GIVEN doctor and other inspection surfaces WHEN documented and tested THEN no command is described as read-only or DB-free if it can migrate.
+  plan: xszoenfrqu

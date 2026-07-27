@@ -62,7 +62,7 @@ version, provider request identity, and retry count. It may emit a measured
 `cache.write: 0`; that runtime value does not turn absent native cache-creation
 telemetry into a measured native zero.
 
-`internal/cacheevidence` retains the sanitized Gemini source and OpenCode JSONL
+`internal/cache/reuse` retains the sanitized Gemini source and OpenCode JSONL
 separately. `field_accounting` names every split, rename, dropped field,
 weakened identity, and unavailable field. No token value is rounded. The
 fixtures under `tools/bench/fixtures/` are synthetic structural examples, not

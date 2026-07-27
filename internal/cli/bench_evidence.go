@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jgabor/ktx/internal/cacheevidence"
+	"github.com/jgabor/ktx/internal/cache/reuse"
 )
 
 func runBenchEvidence(args []string, opts Options, stdout, stderr io.Writer) int {
@@ -32,12 +32,12 @@ func runBenchEvidence(args []string, opts Options, stdout, stderr io.Writer) int
 		printError(stderr, usageError("ktx bench evidence preflight: --spec is required and positional arguments are not accepted"), opts.Format)
 		return ExitUsage
 	}
-	proposal, err := cacheevidence.LoadProposal(specPath)
+	proposal, err := reuse.LoadProposal(specPath)
 	if err != nil {
 		printError(stderr, usageError("ktx bench evidence preflight: %v", err), opts.Format)
 		return ExitUsage
 	}
-	report, err := cacheevidence.Preflight(proposal, cacheevidence.LocalEnvironment{})
+	report, err := reuse.Preflight(proposal, reuse.LocalEnvironment{})
 	if err != nil {
 		printError(stderr, usageError("ktx bench evidence preflight: %v", err), opts.Format)
 		return ExitUsage
@@ -82,12 +82,12 @@ func runBenchGeminiPreflight(args []string, opts Options, stdout, stderr io.Writ
 		printError(stderr, usageError("ktx bench evidence gemini-preflight: --spec is required and positional arguments are not accepted"), opts.Format)
 		return ExitUsage
 	}
-	proposal, err := cacheevidence.LoadGeminiProposal(specPath)
+	proposal, err := reuse.LoadGeminiProposal(specPath)
 	if err != nil {
 		printError(stderr, usageError("ktx bench evidence gemini-preflight: %v", err), opts.Format)
 		return ExitUsage
 	}
-	report, err := cacheevidence.GeminiPreflight(proposal, cacheevidence.LocalEnvironment{})
+	report, err := reuse.GeminiPreflight(proposal, reuse.LocalEnvironment{})
 	if err != nil {
 		printError(stderr, usageError("ktx bench evidence gemini-preflight: %v", err), opts.Format)
 		return ExitUsage

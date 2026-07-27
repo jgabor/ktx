@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"crypto/sha256"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestTrackedLunaEvidenceIsIndependentlyReviewable(t *testing.T) {
-	trackedPath := filepath.Join("..", "..", "tools", "bench", "evidence", "openai-opencode-mediated-luna-probe.json")
+	trackedPath := filepath.Join("..", "..", "..", "tools", "bench", "evidence", "openai-opencode-mediated-luna-probe.json")
 	b, err := os.ReadFile(trackedPath)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestTrackedLunaEvidenceIsIndependentlyReviewable(t *testing.T) {
 		seen[artifact.Path] = true
 	}
 
-	root := filepath.Join("..", "..", filepath.FromSlash(evidence.IgnoredRoot))
+	root := filepath.Join("..", "..", "..", filepath.FromSlash(evidence.IgnoredRoot))
 	if _, err := os.Stat(root); err != nil {
 		if os.IsNotExist(err) {
 			return

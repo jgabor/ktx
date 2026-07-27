@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"os"
@@ -97,7 +97,7 @@ func TestOpenAINormalizationPreservesInvalidTokenStates(t *testing.T) {
 
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
-	path := filepath.Join("..", "..", "tools", "bench", "fixtures", name)
+	path := filepath.Join("..", "..", "..", "tools", "bench", "fixtures", name)
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

@@ -3,17 +3,17 @@ package experiment
 import (
 	"math/big"
 
-	cacheevidence "github.com/jgabor/ktx/internal/cacheevidence/sequence"
+	reusesequence "github.com/jgabor/ktx/internal/cache/reuse/sequence"
 )
 
 type attemptSequence struct {
-	Facts    []cacheevidence.SequenceFact
-	Events   []cacheevidence.SequenceFact
-	Coverage []cacheevidence.CoverageFact
+	Facts    []reusesequence.SequenceFact
+	Events   []reusesequence.SequenceFact
+	Coverage []reusesequence.CoverageFact
 }
 
-func wrapperAttemptSequence(facts []cacheevidence.SequenceFact, modelStepCount int) *attemptSequence {
-	result := &attemptSequence{Events: append([]cacheevidence.SequenceFact(nil), facts...)}
+func wrapperAttemptSequence(facts []reusesequence.SequenceFact, modelStepCount int) *attemptSequence {
+	result := &attemptSequence{Events: append([]reusesequence.SequenceFact(nil), facts...)}
 	for _, fact := range facts {
 		if fact.ModelStepOrdinal > 0 {
 			result.Facts = append(result.Facts, fact)
@@ -24,20 +24,20 @@ func wrapperAttemptSequence(facts []cacheevidence.SequenceFact, modelStepCount i
 	}
 	start := result.Facts[0].Ordinal
 	end := result.Facts[len(result.Facts)-1].Ordinal
-	provenance := cacheevidence.SequenceProvenance{
-		Runtime: cacheevidence.RequiredRuntime, RuntimeVersion: cacheevidence.RequiredRuntimeVersion,
+	provenance := reusesequence.SequenceProvenance{
+		Runtime: reusesequence.RequiredRuntime, RuntimeVersion: reusesequence.RequiredRuntimeVersion,
 		Source: "wrapper_stream", StartOrdinal: start, EndOrdinal: end,
 	}
 	for _, class := range []string{"order", "identity"} {
-		result.Coverage = append(result.Coverage, cacheevidence.CoverageFact{Class: class, State: cacheevidence.CoverageCovered, Provenance: provenance})
+		result.Coverage = append(result.Coverage, reusesequence.CoverageFact{Class: class, State: reusesequence.CoverageCovered, Provenance: provenance})
 	}
 	return result
 }
 
 func buildSecondaryCacheEstimate(attempts []Attempt) map[string]any {
 	rows := make([]any, 0, len(attempts))
-	counts := make(map[string]int, len(cacheevidence.IneligibilityReasons))
-	for _, reason := range cacheevidence.IneligibilityReasons {
+	counts := make(map[string]int, len(reusesequence.IneligibilityReasons))
+	for _, reason := range reusesequence.IneligibilityReasons {
 		counts[reason] = 0
 	}
 	eligible := 0
@@ -76,7 +76,7 @@ func secondaryEstimateAttempt(attempt Attempt) (map[string]any, int, map[string]
 	eligible := 0
 	for i, current := range steps {
 		input, coverage := estimateInput(attempt.sequence, steps, i)
-		result := cacheevidence.EstimatePair(input)
+		result := reusesequence.EstimatePair(input)
 		row := map[string]any{
 			"current_source_event_ordinal": current.Ordinal, "eligible": result.Eligible,
 			"reason": nullableText(result.Reason), "coverage": coverage,
@@ -111,21 +111,21 @@ func secondaryEstimateAttempt(attempt Attempt) (map[string]any, int, map[string]
 	}, eligible, counts
 }
 
-func estimateInput(sequence *attemptSequence, steps []SourceEvent, index int) (cacheevidence.EstimatePairInput, map[string]any) {
-	input := cacheevidence.EstimatePairInput{PriorExists: index > 0}
+func estimateInput(sequence *attemptSequence, steps []SourceEvent, index int) (reusesequence.EstimatePairInput, map[string]any) {
+	input := reusesequence.EstimatePairInput{PriorExists: index > 0}
 	coverageView := map[string]any{}
 	if index == 0 {
-		input.Current = estimateStep(steps[0], cacheevidence.SequenceFact{})
+		input.Current = estimateStep(steps[0], reusesequence.SequenceFact{})
 		return input, coverageView
 	}
 	priorFact, currentFact := sequenceFact(sequence, uint64(index)), sequenceFact(sequence, uint64(index+1))
 	input.Prior, input.Current = estimateStep(steps[index-1], priorFact), estimateStep(steps[index], currentFact)
-	pairCoverage := cacheevidence.PairCoverage{
-		OrderCoverage: cacheevidence.CoverageUnavailable, RetryCoverage: "unavailable", ResetCoverage: "unavailable",
-		SegmentCoverage: cacheevidence.CoverageUnavailable, SegmentBoundary: "none", ConcurrentCoverage: cacheevidence.CoverageUnavailable,
+	pairCoverage := reusesequence.PairCoverage{
+		OrderCoverage: reusesequence.CoverageUnavailable, RetryCoverage: "unavailable", ResetCoverage: "unavailable",
+		SegmentCoverage: reusesequence.CoverageUnavailable, SegmentBoundary: "none", ConcurrentCoverage: reusesequence.CoverageUnavailable,
 	}
 	if priorFact.Ordinal > 0 && currentFact.Ordinal > priorFact.Ordinal && sequence != nil {
-		if assessed, err := cacheevidence.AssessPair(priorFact, currentFact, sequence.Events, sequence.Coverage); err == nil {
+		if assessed, err := reusesequence.AssessPair(priorFact, currentFact, sequence.Events, sequence.Coverage); err == nil {
 			pairCoverage = assessed
 		}
 	}
@@ -133,9 +133,9 @@ func estimateInput(sequence *attemptSequence, steps []SourceEvent, index int) (c
 	input.RetryCoverage, input.ResetCoverage = pairCoverage.RetryCoverage, pairCoverage.ResetCoverage
 	input.SegmentCoverage, input.SegmentBoundary = pairCoverage.SegmentCoverage, pairCoverage.SegmentBoundary
 	input.ConcurrentCoverage, input.ConcurrentInterleaving = pairCoverage.ConcurrentCoverage, pairCoverage.Concurrent
-	if pairCoverage.IdentityCoverage != cacheevidence.CoverageCovered {
-		input.Prior.SessionIdentity = cacheevidence.TextField{State: cacheevidence.FieldUnknown}
-		input.Current.SessionIdentity = cacheevidence.TextField{State: cacheevidence.FieldUnknown}
+	if pairCoverage.IdentityCoverage != reusesequence.CoverageCovered {
+		input.Prior.SessionIdentity = reusesequence.TextField{State: reusesequence.FieldUnknown}
+		input.Current.SessionIdentity = reusesequence.TextField{State: reusesequence.FieldUnknown}
 	}
 	coverageView = map[string]any{
 		"order": pairCoverage.OrderCoverage, "adjacent": pairCoverage.Adjacent,
@@ -147,7 +147,7 @@ func estimateInput(sequence *attemptSequence, steps []SourceEvent, index int) (c
 	return input, coverageView
 }
 
-func sequenceFact(sequence *attemptSequence, modelOrdinal uint64) cacheevidence.SequenceFact {
+func sequenceFact(sequence *attemptSequence, modelOrdinal uint64) reusesequence.SequenceFact {
 	if sequence != nil {
 		for _, fact := range sequence.Facts {
 			if fact.ModelStepOrdinal == modelOrdinal {
@@ -155,31 +155,31 @@ func sequenceFact(sequence *attemptSequence, modelOrdinal uint64) cacheevidence.
 			}
 		}
 	}
-	return cacheevidence.SequenceFact{}
+	return reusesequence.SequenceFact{}
 }
 
-func estimateStep(step SourceEvent, fact cacheevidence.SequenceFact) cacheevidence.EstimateStep {
-	identity := cacheevidence.TextField{State: cacheevidence.FieldUnknown}
-	contract := cacheevidence.RuntimeContract{}
+func estimateStep(step SourceEvent, fact reusesequence.SequenceFact) reusesequence.EstimateStep {
+	identity := reusesequence.TextField{State: reusesequence.FieldUnknown}
+	contract := reusesequence.RuntimeContract{}
 	if fact.Ordinal > 0 {
-		identity = cacheevidence.TextField{State: cacheevidence.FieldMeasured, Value: fact.SessionID}
-		contract = cacheevidence.RuntimeContract{Runtime: fact.Provenance.Runtime, RuntimeVersion: fact.Provenance.RuntimeVersion, ContractVersion: cacheevidence.RequiredContractVersion}
+		identity = reusesequence.TextField{State: reusesequence.FieldMeasured, Value: fact.SessionID}
+		contract = reusesequence.RuntimeContract{Runtime: fact.Provenance.Runtime, RuntimeVersion: fact.Provenance.RuntimeVersion, ContractVersion: reusesequence.RequiredContractVersion}
 	}
-	return cacheevidence.EstimateStep{
+	return reusesequence.EstimateStep{
 		SessionIdentity: identity, RuntimeContract: contract,
 		UncachedInput: estimateInteger(step.UncachedInput), CacheRead: estimateInteger(step.CacheRead), CacheWrite: estimateInteger(step.CacheWrite),
 	}
 }
 
-func estimateInteger(field IntegerMeasurement) cacheevidence.IntegerField {
-	result := cacheevidence.IntegerField{State: cacheevidence.FieldState(field.State)}
+func estimateInteger(field IntegerMeasurement) reusesequence.IntegerField {
+	result := reusesequence.IntegerField{State: reusesequence.FieldState(field.State)}
 	if field.Value != nil {
 		result.Value = big.NewInt(*field.Value)
 	}
 	return result
 }
 
-func logicalInputForEstimate(step cacheevidence.EstimateStep) *big.Int {
+func logicalInputForEstimate(step reusesequence.EstimateStep) *big.Int {
 	value := new(big.Int).Add(step.UncachedInput.Value, step.CacheRead.Value)
 	return value.Add(value, step.CacheWrite.Value)
 }

@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"errors"
@@ -234,7 +234,7 @@ type benchmarkMethodology struct {
 }
 
 func TestCacheReuseMetricContract(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	path := filepath.Join(root, "tools", "bench", "cache-reuse-contract-v1.json")
 	var contract cacheReuseContract
 	readJSON(t, path, &contract)
@@ -257,7 +257,7 @@ func TestCacheReuseMetricContract(t *testing.T) {
 }
 
 func TestCacheAwareBenchmarkVehicleMatchesMetricContract(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	var contract cacheReuseContract
 	readJSON(t, filepath.Join(root, "tools", "bench", "cache-reuse-contract-v1.json"), &contract)
 
@@ -301,7 +301,7 @@ func TestCacheAwareBenchmarkVehicleMatchesMetricContract(t *testing.T) {
 }
 
 func TestBenchmarkMethodologyRejectsDuplicateKeysAndExtraDocuments(t *testing.T) {
-	valid := readText(t, filepath.Join("..", "..", "tools", "bench", "methodology-v5-cache-aware.yaml"))
+	valid := readText(t, filepath.Join("..", "..", "..", "tools", "bench", "methodology-v5-cache-aware.yaml"))
 	duplicate := strings.Replace(valid, `    version: "1.18.5"`, "    version: \"1.18.5\"\n    version: \"1.18.5\"", 1)
 	if _, err := decodeBenchmarkMethodology(strings.NewReader(duplicate)); err == nil || !strings.Contains(err.Error(), "already defined") {
 		t.Fatalf("duplicate-key decode error = %v", err)
@@ -709,7 +709,7 @@ func validateClaimContract(t *testing.T, contract cacheReuseContract) {
 		t.Errorf("historical boundary changed: %#v", compatibility)
 	}
 
-	doc, err := os.ReadFile(filepath.Join("..", "..", "docs", "cache-reuse-metric-contract.md"))
+	doc, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "cache-reuse-metric-contract.md"))
 	if err != nil || len(doc) == 0 {
 		t.Fatalf("contract documentation unavailable: %v", err)
 	}

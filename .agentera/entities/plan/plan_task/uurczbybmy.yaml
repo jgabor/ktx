@@ -1,0 +1,16 @@
+id: uurczbybmy
+artifact: plan
+record:
+  name: Enforce install-first live opening
+  depends_on:
+    - lygrbrfcvw
+    - phwznpicfh
+    - ccvxyztrkl
+  status: pending
+  acceptance:
+    - GIVEN build, rehearsal, installation, and identity verification WHEN they run THEN all complete without opening a database.
+    - GIVEN an unverified checkout binary WHEN it targets ambient live state THEN it refuses before database access while explicit disposable paths remain usable.
+    - GIVEN the verified runtime binary after installation WHEN the controlled first live open occurs THEN existing auto-migration may roll forward and repeated execution is idempotent.
+    - GIVEN schema Y newer than supported X WHEN the controlled open is prepared THEN it fails before writes and directs installation of support for Y or newer.
+    - GIVEN implementation and CI verification WHEN this task completes THEN all apply behavior has been proven on explicit temporary databases and no live migration has run.
+  plan: xszoenfrqu

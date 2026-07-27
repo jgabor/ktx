@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"math"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestGeminiPreflightReportsAvailableAndUnavailableWithoutCalls(t *testing.T) {
-	proposal, err := LoadGeminiProposal(filepath.Join("..", "..", "tools", "bench", "evidence", "gemini-opencode-proposal.json"))
+	proposal, err := LoadGeminiProposal(filepath.Join("..", "..", "..", "tools", "bench", "evidence", "gemini-opencode-proposal.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestGeminiPreflightReportsAvailableAndUnavailableWithoutCalls(t *testing.T)
 }
 
 func TestGeminiPreflightRejectsUnenforceableOrWrongProviderPlans(t *testing.T) {
-	proposal, err := LoadGeminiProposal(filepath.Join("..", "..", "tools", "bench", "evidence", "gemini-opencode-proposal.json"))
+	proposal, err := LoadGeminiProposal(filepath.Join("..", "..", "..", "tools", "bench", "evidence", "gemini-opencode-proposal.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestLoadGeminiProposalRejectsUnknownFields(t *testing.T) {
 
 func fixtureFromEvidence(t *testing.T, name string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "tools", "bench", "evidence", name))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "tools", "bench", "evidence", name))
 	if err != nil {
 		t.Fatal(err)
 	}

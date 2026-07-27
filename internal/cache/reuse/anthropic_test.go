@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"crypto/sha256"
@@ -89,7 +89,7 @@ func TestAnthropicPreflightAcceptedAndUnavailable(t *testing.T) {
 }
 
 func TestTrackedAnthropicEvidenceIsOfflineAndFixtureHashesMatch(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	capabilityRaw, err := os.ReadFile(filepath.Join(root, "tools", "bench", "evidence", "anthropic-capability.json"))
 	if err != nil {
 		t.Fatal(err)

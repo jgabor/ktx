@@ -1,0 +1,13 @@
+id: ccvxyztrkl
+artifact: plan
+record:
+  name: Expose DB-free runtime compatibility identity
+  depends_on:
+    - pitdhqcgsp
+  status: pending
+  acceptance:
+    - GIVEN a checkout, installed, or runtime-resolved binary WHEN identity is queried THEN structured path, digest, version, and maximum supported schema are returned without database access.
+    - GIVEN the binary resolved by OpenCode WHEN compared with the verified artifact THEN equality or mismatch is deterministic and machine-readable.
+    - GIVEN compatible, stale, or unverifiable identity WHEN queried THEN documented output and exit behavior provide a working correction.
+    - GIVEN positive and negative identity fixtures WHEN tested THEN no database path is resolved or opened.
+  plan: xszoenfrqu

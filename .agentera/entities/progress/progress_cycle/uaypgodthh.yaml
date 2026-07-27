@@ -1,0 +1,15 @@
+id: uaypgodthh
+artifact: progress
+record:
+  timestamp: 2026-07-27 05:31
+  type: refactor
+  phase: build
+  what: Renamed the active cache-reuse implementation to internal/cache/reuse, changed the root package identifier to reuse, retained the directly importable sequence subpackage, and updated active consumers, fixture paths, tests, and current documentation without changing contracts or serialized data.
+  context:
+    intent: Complete plan task kvfwnknmtk by replacing the active cache-reuse namespace while preserving normalization, preflight, sequence, regeneration, and result behavior.
+    constraints: No database migration or contract-version changes; no live database, installed ktx, models, benchmarks, retained evidence, historical project-memory, or ignored benchmark archives were accessed or modified.
+    unknowns: none
+    scope: internal/cache/reuse, direct internal consumers, cache evidence documentation, canonical plan task state, and one progress cycle.
+  inspiration: Plan task kvfwnknmtk and the approved cache-reuse namespace target.
+  verified: Hermetic focused race tests passed for internal/cache/reuse, internal/cache/reuse/sequence, internal/experiment, and internal/cli. Named cache contract, historical regeneration, legacy-byte, and golden tests passed. Hermetic mage check passed all tests, vet, lint, and build with 0 issues. Active-path stale-name checks, retained evidence/fixture diff checks, schema version 8 assertion, dependency listing, and git diff --check passed.
+  next: Continue the remaining database-safety plan tasks independently; do not rewrite historical old-path references.

@@ -9,24 +9,24 @@ import (
 	"testing"
 	"time"
 
-	cacheevidence "github.com/jgabor/ktx/internal/cacheevidence/sequence"
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
 )
 
 func coveredAttemptSequence(stepCount int) *attemptSequence {
-	facts := make([]cacheevidence.SequenceFact, stepCount)
+	facts := make([]sequence.SequenceFact, stepCount)
 	for i := range facts {
 		ordinal := uint64((i + 1) * 10)
-		facts[i] = cacheevidence.SequenceFact{
+		facts[i] = sequence.SequenceFact{
 			Ordinal: ordinal, ModelStepOrdinal: uint64(i + 1), SessionID: "session-a",
-			Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: ordinal, EndOrdinal: ordinal},
+			Provenance: sequence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: ordinal, EndOrdinal: ordinal},
 		}
 	}
-	coverage := make([]cacheevidence.CoverageFact, 0, 6)
-	provenance := cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: facts[0].Ordinal, EndOrdinal: facts[len(facts)-1].Ordinal}
+	coverage := make([]sequence.CoverageFact, 0, 6)
+	provenance := sequence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: facts[0].Ordinal, EndOrdinal: facts[len(facts)-1].Ordinal}
 	for _, class := range []string{"order", "retry", "reset", "segment", "concurrency", "identity"} {
-		coverage = append(coverage, cacheevidence.CoverageFact{Class: class, State: cacheevidence.CoverageCovered, Provenance: provenance})
+		coverage = append(coverage, sequence.CoverageFact{Class: class, State: sequence.CoverageCovered, Provenance: provenance})
 	}
-	return &attemptSequence{Facts: facts, Events: append([]cacheevidence.SequenceFact(nil), facts...), Coverage: coverage}
+	return &attemptSequence{Facts: facts, Events: append([]sequence.SequenceFact(nil), facts...), Coverage: coverage}
 }
 
 func TestSecondaryEstimateRetainsEligibleRawBasisAndLabels(t *testing.T) {
@@ -56,7 +56,7 @@ func TestSecondaryEstimateRetainsEligibleRawBasisAndLabels(t *testing.T) {
 		t.Fatalf("eligible pair = %#v", pair)
 	}
 	counts := estimate["ineligible_counts"].(map[string]int)
-	if counts["first_step"] != 1 || len(counts) != len(cacheevidence.IneligibilityReasons) {
+	if counts["first_step"] != 1 || len(counts) != len(sequence.IneligibilityReasons) {
 		t.Fatalf("ineligible counts = %#v", counts)
 	}
 	text := RenderSummary(summary)
@@ -87,7 +87,7 @@ func TestSecondaryEstimateConsumesRetainedWrapperSequenceWithoutInferringSilence
 		t.Fatalf("wrapper pair = %#v", second)
 	}
 	coverage := second["coverage"].(map[string]any)
-	if coverage["order"] != cacheevidence.CoverageCovered || coverage["identity"] != cacheevidence.CoverageCovered || coverage["retry"] != "unavailable" {
+	if coverage["order"] != sequence.CoverageCovered || coverage["identity"] != sequence.CoverageCovered || coverage["retry"] != "unavailable" {
 		t.Fatalf("wrapper coverage = %#v", coverage)
 	}
 }

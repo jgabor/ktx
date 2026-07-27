@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	cacheevidence "github.com/jgabor/ktx/internal/cacheevidence/sequence"
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
 )
 
 func comparisonManifest() Manifest {
@@ -191,9 +191,9 @@ func TestCachedInputShareComparisonReportsResetBoundary(t *testing.T) {
 	attempt.ModelSteps = append(attempt.ModelSteps, attempt.ModelSteps[0])
 	attempt.ModelSteps[1].Ordinal = 2
 	attempt.sequence = coveredAttemptSequence(2)
-	attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
-		Ordinal: 15, Boundary: cacheevidence.BoundaryCompaction,
-		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 15, EndOrdinal: 15},
+	attempt.sequence.Events = append(attempt.sequence.Events, sequence.SequenceFact{
+		Ordinal: 15, Boundary: sequence.BoundaryCompaction,
+		Provenance: sequence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 15, EndOrdinal: 15},
 	})
 	comparison := cacheComparison(t, attempts)
 	found := false
@@ -208,14 +208,14 @@ func TestCachedInputShareComparisonReportsResetBoundary(t *testing.T) {
 func TestCachedInputShareComparisonRejectsBoundariesBeforeFirstModelStep(t *testing.T) {
 	tests := []struct {
 		name     string
-		boundary cacheevidence.BoundaryKind
+		boundary sequence.BoundaryKind
 		session  string
 		want     string
 	}{
-		{name: "retry", boundary: cacheevidence.BoundaryRetry, session: "session-a", want: "retry_boundary_observed"},
-		{name: "compaction", boundary: cacheevidence.BoundaryCompaction, session: "session-a", want: "reset_or_compaction_boundary_observed"},
-		{name: "interruption", boundary: cacheevidence.BoundaryInterruption, session: "session-a", want: "temporal_boundary_observed"},
-		{name: "restart", boundary: cacheevidence.BoundaryRestart, want: "temporal_boundary_observed"},
+		{name: "retry", boundary: sequence.BoundaryRetry, session: "session-a", want: "retry_boundary_observed"},
+		{name: "compaction", boundary: sequence.BoundaryCompaction, session: "session-a", want: "reset_or_compaction_boundary_observed"},
+		{name: "interruption", boundary: sequence.BoundaryInterruption, session: "session-a", want: "temporal_boundary_observed"},
+		{name: "restart", boundary: sequence.BoundaryRestart, want: "temporal_boundary_observed"},
 		{name: "concurrent interleaving", session: "other-session", want: "temporal_boundary_observed"},
 	}
 	for _, test := range tests {
@@ -225,9 +225,9 @@ func TestCachedInputShareComparisonRejectsBoundariesBeforeFirstModelStep(t *test
 			for i := range attempt.sequence.Coverage {
 				attempt.sequence.Coverage[i].Provenance.StartOrdinal = 1
 			}
-			attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
+			attempt.sequence.Events = append(attempt.sequence.Events, sequence.SequenceFact{
 				Ordinal: 5, SessionID: test.session, Boundary: test.boundary,
-				Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
+				Provenance: sequence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
 			})
 			comparison := cacheComparison(t, attempts)
 			if comparison["complete_pair_count"] != 1 {
@@ -250,9 +250,9 @@ func TestCachedInputShareComparisonRejectsBoundaryBeforeFirstOfMultipleSteps(t *
 	for i := range attempt.sequence.Coverage {
 		attempt.sequence.Coverage[i].Provenance.StartOrdinal = 1
 	}
-	attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
-		Ordinal: 5, SessionID: "session-a", Boundary: cacheevidence.BoundaryRetry,
-		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
+	attempt.sequence.Events = append(attempt.sequence.Events, sequence.SequenceFact{
+		Ordinal: 5, SessionID: "session-a", Boundary: sequence.BoundaryRetry,
+		Provenance: sequence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "event_hook", StartOrdinal: 5, EndOrdinal: 5},
 	})
 	comparison := cacheComparison(t, attempts)
 	if comparison["complete_pair_count"] != 1 {
@@ -287,9 +287,9 @@ func TestCachedInputShareComparisonRejectsContradictoryPrefixEventProvenance(t *
 	for i := range attempt.sequence.Coverage {
 		attempt.sequence.Coverage[i].Provenance.StartOrdinal = 1
 	}
-	attempt.sequence.Events = append(attempt.sequence.Events, cacheevidence.SequenceFact{
-		Ordinal: 5, SessionID: "session-a", Boundary: cacheevidence.BoundaryRetry,
-		Provenance: cacheevidence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "wrapper_stream", StartOrdinal: 5, EndOrdinal: 5},
+	attempt.sequence.Events = append(attempt.sequence.Events, sequence.SequenceFact{
+		Ordinal: 5, SessionID: "session-a", Boundary: sequence.BoundaryRetry,
+		Provenance: sequence.SequenceProvenance{Runtime: "opencode", RuntimeVersion: "1.18.5", Source: "wrapper_stream", StartOrdinal: 5, EndOrdinal: 5},
 	})
 	comparison := cacheComparison(t, attempts)
 	observation := comparison["observations"].([]any)[0].(map[string]any)

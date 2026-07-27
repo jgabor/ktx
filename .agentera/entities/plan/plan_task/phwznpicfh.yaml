@@ -1,0 +1,15 @@
+id: phwznpicfh
+artifact: plan
+record:
+  name: Make development verification hermetic
+  depends_on:
+    - pitdhqcgsp
+    - lygrbrfcvw
+  status: pending
+  acceptance:
+    - GIVEN ambient developer state WHEN standard test, check, and verify targets run THEN an access audit records no attempt to open, inspect, copy, or mutate the live database.
+    - GIVEN one full suite invocation WHEN tests use database state THEN disposable roots prevent cross-test contamination without a shared KTX_DB.
+    - GIVEN every supported historical version and materially distinct persisted shape WHEN seeded migration tests run THEN each reaches schema 8 transactionally with preserved data.
+    - GIVEN current, newer, partial, malformed, and injected-failure databases WHEN tested THEN current is idempotent and every rejected case remains unchanged.
+    - GIVEN local and CI toolchains WHEN the full gate runs THEN application state is disposable while reusable language-tool caches remain separate.
+  plan: xszoenfrqu

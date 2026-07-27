@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	cacheevidence "github.com/jgabor/ktx/internal/cacheevidence/sequence"
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
 )
 
 const pairedCacheComparisonMethod = "student_t_interval_on_paired_differences"
@@ -328,9 +328,9 @@ func attemptTemporalConfounds(attempt Attempt) []string {
 		return []string{"temporal_coverage_unavailable"}
 	}
 	first, last := sequenceFact(attempt.sequence, 1), sequenceFact(attempt.sequence, uint64(len(steps)))
-	boundaries, err := cacheevidence.AssessAttemptBoundaries(first, last, attempt.sequence.Events, attempt.sequence.Coverage)
+	boundaries, err := sequence.AssessAttemptBoundaries(first, last, attempt.sequence.Events, attempt.sequence.Coverage)
 	if err != nil || boundaries.RetryCoverage == "unavailable" || boundaries.ResetCoverage == "unavailable" ||
-		boundaries.SegmentCoverage != cacheevidence.CoverageCovered || boundaries.ConcurrentCoverage != cacheevidence.CoverageCovered {
+		boundaries.SegmentCoverage != sequence.CoverageCovered || boundaries.ConcurrentCoverage != sequence.CoverageCovered {
 		return []string{"temporal_coverage_unavailable"}
 	}
 	if boundaries.RetryCoverage == "boundary_observed" {
@@ -344,8 +344,8 @@ func attemptTemporalConfounds(attempt Attempt) []string {
 	}
 	for i := 1; i < len(steps); i++ {
 		prior, current := sequenceFact(attempt.sequence, uint64(i)), sequenceFact(attempt.sequence, uint64(i+1))
-		coverage, err := cacheevidence.AssessPair(prior, current, attempt.sequence.Events, attempt.sequence.Coverage)
-		if err != nil || coverage.OrderCoverage != cacheevidence.CoverageCovered || !coverage.Adjacent {
+		coverage, err := sequence.AssessPair(prior, current, attempt.sequence.Events, attempt.sequence.Coverage)
+		if err != nil || coverage.OrderCoverage != sequence.CoverageCovered || !coverage.Adjacent {
 			return []string{"temporal_coverage_unavailable"}
 		}
 	}

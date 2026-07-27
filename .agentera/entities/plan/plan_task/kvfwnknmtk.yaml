@@ -1,0 +1,23 @@
+id: kvfwnknmtk
+artifact: plan
+record:
+  name: Rename the cache-reuse namespace
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN active consumers WHEN the rename completes THEN current imports, declarations, scripts, and docs use internal/cache/reuse with package identifier reuse.
+    - GIVEN normalization, preflight, sequence, and result behavior WHEN focused and full tests run THEN behavior and serialized output remain unchanged.
+    - GIVEN the dependency graph WHEN the new namespace builds THEN sequence remains directly consumable and no import cycle exists.
+    - GIVEN immutable historical artifacts WHEN stale-path checks and validation run THEN they are exempt from active-path rules and remain byte-identical.
+  plan: xszoenfrqu
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: kvfwnknmtk-audit-1
+      source: audit ses_05e5cf3daffespk1D2f528fa25 bounded re-review
+      recorded_at: 2026-07-27 05:41
+      writer_command: agentera state plan record-evaluation

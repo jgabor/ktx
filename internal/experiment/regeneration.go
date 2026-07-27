@@ -7,7 +7,7 @@ import (
 	"reflect"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
-	cacheevidence "github.com/jgabor/ktx/internal/cacheevidence/sequence"
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
 	"github.com/jgabor/ktx/internal/db"
 )
 
@@ -187,7 +187,7 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	if err := database.QueryRow(`SELECT ended_at FROM sessions WHERE id = ?`, owner).Scan(&ownerEndedAt); err != nil || !ownerEndedAt.Valid || ownerEndedAt.String != closedAt.String {
 		return nil, "schema 3 owner closure does not match the runtime event interval"
 	}
-	if runtime != cacheevidence.RequiredRuntime || runtimeVersion != cacheevidence.RequiredRuntimeVersion || source != "event_hook" {
+	if runtime != sequence.RequiredRuntime || runtimeVersion != sequence.RequiredRuntimeVersion || source != "event_hook" {
 		return nil, "schema 3 runtime event interval provenance does not match the required contract"
 	}
 	classificationColumn := `CASE WHEN kind = 'model_step' THEN 'accepted' ELSE NULL END`
@@ -232,7 +232,7 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		if (epochOrdinal == 0) != (kind == "collector_open") {
 			structureValid = false
 		}
-		fact := cacheevidence.SequenceFact{Ordinal: ordinal, Provenance: cacheevidence.SequenceProvenance{Runtime: runtime, RuntimeVersion: runtimeVersion, Source: source, StartOrdinal: ordinal, EndOrdinal: ordinal}}
+		fact := sequence.SequenceFact{Ordinal: ordinal, Provenance: sequence.SequenceProvenance{Runtime: runtime, RuntimeVersion: runtimeVersion, Source: source, StartOrdinal: ordinal, EndOrdinal: ordinal}}
 		if session.Valid {
 			fact.SessionID = session.String
 		}
@@ -252,14 +252,14 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 				structureValid = false
 			}
 		case "retry":
-			fact.Boundary = cacheevidence.BoundaryRetry
+			fact.Boundary = sequence.BoundaryRetry
 		case "compaction":
-			fact.Boundary = cacheevidence.BoundaryCompaction
+			fact.Boundary = sequence.BoundaryCompaction
 		case "interruption":
-			fact.Boundary = cacheevidence.BoundaryInterruption
+			fact.Boundary = sequence.BoundaryInterruption
 		case "collector_open":
 			if len(epochSeen) > 0 {
-				fact.Boundary = cacheevidence.BoundaryRestart
+				fact.Boundary = sequence.BoundaryRestart
 			}
 			epochSeen[epoch] = true
 		case "other":
@@ -322,9 +322,9 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		}
 	}
 	result.Events = filtered
-	provenance := cacheevidence.SequenceProvenance{Runtime: runtime, RuntimeVersion: runtimeVersion, Source: source, StartOrdinal: 1, EndOrdinal: lastModelOrdinal}
+	provenance := sequence.SequenceProvenance{Runtime: runtime, RuntimeVersion: runtimeVersion, Source: source, StartOrdinal: 1, EndOrdinal: lastModelOrdinal}
 	for _, class := range []string{"order", "retry", "reset", "segment", "concurrency", "identity"} {
-		result.Coverage = append(result.Coverage, cacheevidence.CoverageFact{Class: class, State: cacheevidence.CoverageCovered, Provenance: provenance})
+		result.Coverage = append(result.Coverage, sequence.CoverageFact{Class: class, State: sequence.CoverageCovered, Provenance: provenance})
 	}
 	return result, ""
 }

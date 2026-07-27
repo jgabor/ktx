@@ -1,0 +1,15 @@
+id: xhzvaxrquk
+artifact: plan
+record:
+  name: Contain repeated OpenCode incompatibility diagnostics
+  depends_on:
+    - pitdhqcgsp
+    - ccvxyztrkl
+    - uurczbybmy
+  status: pending
+  acceptance:
+    - GIVEN repeated identical schema incompatibility callbacks WHEN the plugin remains alive THEN the first structured diagnostic is visible and later duplicates do not flood the TUI or tool output.
+    - GIVEN a known incompatibility WHEN later callbacks arrive THEN repeated database-opening work stops and original tool output remains unchanged in ordinary mode.
+    - GIVEN required benchmark collection WHEN persistence is incompatible THEN collection remains fail-closed rather than silently suppressed.
+    - GIVEN a distinct error or the selected reset boundary WHEN it occurs THEN it is not hidden by prior suppression state.
+  plan: xszoenfrqu

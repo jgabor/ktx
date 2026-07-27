@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	cacheevidence "github.com/jgabor/ktx/internal/cacheevidence/sequence"
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
 	"github.com/jgabor/ktx/internal/usage"
 )
 
@@ -34,7 +34,7 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 	agg := &usage.Aggregator{}
 	lastText := ""
 	var streamOrdinal, modelStepOrdinal uint64
-	sequenceFacts := []cacheevidence.SequenceFact{}
+	sequenceFacts := []sequence.SequenceFact{}
 	wrapperIdentities := []modelStepIdentity{}
 	usage.ReadDelimitedLines(file, usage.MaxRecordSize, func(line []byte) bool {
 		streamOrdinal++
@@ -63,7 +63,7 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 				_ = json.Unmarshal(event.Part, &identity)
 				wrapperIdentities = append(wrapperIdentities, modelStepIdentity{SessionID: identity.SessionID, MessageID: identity.MessageID, PartID: identity.PartID})
 			}
-			if fact, ok := cacheevidence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
+			if fact, ok := sequence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
 				sequenceFacts = append(sequenceFacts, fact)
 			}
 			var part struct {
@@ -100,7 +100,7 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 			}
 		}
 		if event.Type == "error" {
-			if fact, ok := cacheevidence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
+			if fact, ok := sequence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
 				sequenceFacts = append(sequenceFacts, fact)
 			}
 		}

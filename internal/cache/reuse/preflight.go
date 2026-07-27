@@ -1,7 +1,7 @@
-// Package cacheevidence implements bounded offline gates and source retention
+// Package reuse implements bounded offline gates and source retention
 // for provider and runtime cache evidence. It never performs provider or model
 // requests.
-package cacheevidence
+package reuse
 
 import (
 	"encoding/json"

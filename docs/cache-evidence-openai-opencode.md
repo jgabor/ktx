@@ -46,7 +46,7 @@ runbook or approval path.
 
 ## Field preservation
 
-`internal/cacheevidence` retains the historical provider-format fixture and
+`internal/cache/reuse` retains the historical provider-format fixture and
 OpenCode JSONL as separate offline sources, then adds ordered observations. It
 does not replace either source with a common object. Provider-format and
 runtime-normalized input, cache read,

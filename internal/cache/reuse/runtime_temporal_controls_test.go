@@ -1,4 +1,4 @@
-package cacheevidence
+package reuse
 
 import (
 	"bufio"
@@ -90,7 +90,7 @@ type temporalSourceEvent struct {
 }
 
 func TestOpenCodeRuntimeTemporalControlEvidence(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	base := filepath.Join(root, "tools", "bench", "evidence")
 	validateTemporalPreflight(t, filepath.Join(base, "opencode-runtime-temporal-controls-preflight.json"))
 	var evidence temporalEvidence

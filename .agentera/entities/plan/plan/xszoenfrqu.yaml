@@ -1,0 +1,56 @@
+id: xszoenfrqu
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-27
+    status: open
+    reviewed: 2026-07-27
+    critic_issues: 9 found, 7 addressed, 2 dismissed
+    revised: Preserved product auto-migration while controlling the first live open; added prerequisite contract characterization, effective-binary identity, complete seeded migration coverage, access auditing, stable diagnostic classification, historical-path scoping, and deterministic final audit assertions.
+    title: "Plan: Make Database Upgrades Safe and Cache Reuse Easier to Navigate"
+  what: Make development and CI use disposable application state, rehearse forward migration on seeded databases, verify the effective runtime binary before the first live open, bound repeated incompatibility diagnostics, and rename the active cache-reuse package to an easier spoken namespace.
+  why: Development commands can currently migrate the live database before the installed OpenCode hook binary supports it, causing repeated newer-schema failures and TUI artifacts. The cache-reuse package name is also awkward to say. Safe defaults and clearer vocabulary reduce operator error without changing retained behavior.
+  constraints: Never lower SQLite schema version or PRAGMA user_version. Keep schema 8 unless a separately accepted persisted-data requirement demands a forward-only bump. Development, tests, CI, and rehearsal must not access the live database. Do not share one KTX_DB across the full suite. Build and install remain DB-free. Preserve product auto-migration, historical schemas and bytes, evidence authority, fail-closed benchmarks, structured headless CLI behavior, and existing claim boundaries. This plan must not perform a live migration.
+  overall_acceptance: GIVEN normal development and upgrade workflows WHEN an agent builds, tests, installs, and prepares the first live open THEN development state is disposable, compatibility is proven without database access, auto-migration occurs only after the effective runtime binary is safely installed, schema movement is forward-only, repeated mismatch diagnostics are bounded, cache-reuse behavior is unchanged under the clearer namespace, and retained history remains valid.
+  scope:
+    included:
+      - Active internal/cacheevidence namespace and current imports, tests, and documentation
+      - Forward-only database lifecycle and command classification
+      - Hermetic Mage and CI verification with seeded temporary migration coverage
+      - DB-free effective-runtime identity and maximum-schema capability
+      - Install-first controlled live-opening workflow while preserving auto-migration
+      - Structured OpenCode schema-incompatibility containment
+      - Final documentation and canonical state synchronization
+    excluded:
+      - Schema rollback or PRAGMA user_version reduction
+      - Live database access or migration while implementing the plan
+      - Unrelated package decomposition
+      - Benchmark or model calls
+      - Provider behavior changes
+      - Broad logging redesign
+    deferred:
+      - Splitting cache reuse into multiple responsibility packages
+      - Actually applying a live migration
+      - General-purpose database backup and restore
+  design: Resolve lifecycle, identity, isolation, and diagnostic contracts before implementation. Run the namespace rename as an independent parallel track. Publish the safety contract, then enforce disposable development state and complete seeded migration coverage. Expose DB-free runtime compatibility, gate the first live open on the verified effective binary, and preserve auto-migration there. Finally contain repeated incompatibility diagnostics and validate every surface without accessing the live database.
+  unknowns:
+    - question: What exact path, digest, version, and schema-capability evidence proves the binary resolved by OpenCode is the verified compatible runtime?
+      affects_task: 5
+      resolve_by: Task 1 must establish a DB-free effective-runtime identity contract before tasks 5 and 6 begin.
+    - question: Can a running OpenCode plugin detect binary identity changes safely, or must diagnostic suppression reset only on process restart?
+      affects_task: 7
+      resolve_by: Task 1 characterizes the runtime boundary and records one deterministic reset rule.
+    - question: Which HOME and XDG redirections work across local and CI toolchains without mixing application state with reusable language caches?
+      affects_task: 4
+      resolve_by: Task 1 validates candidate root policies in both environments; task 4 implements only the proven contract.
+    - question: Can doctor become genuinely non-migrating while preserving useful inspection, or must it be classified as migration-capable?
+      affects_task: 3
+      resolve_by: Task 1 tests the read-only boundary; task 3 publishes and enforces the selected truthful contract.
+  rejected:
+    - issue: Replace auto-migration in ordinary product commands with an explicit migration-only API.
+      rationale: The user explicitly requires auto-migration after safe installation. The plan controls development isolation and the first live open, and reconciles misleading command labels, without redesigning the established product migration contract.
+    - issue: Move the cache namespace rename into a separate plan.
+      rationale: The user requested one plan for the recommended combination. The rename is isolated as an independent parallel task and is not a prerequisite for the database-safety critical path.
+  surprises:
+    []

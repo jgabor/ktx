@@ -1,0 +1,24 @@
+id: fgpxzectgt
+artifact: health
+record:
+  date: 2026-07-27
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: stable
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    []
+  trends:
+    comparison_target: "not-applicable: limited terminal closure check for plan xszoenfrqu"
+    stable: "All 13 tasks are terminal: eight complete and five validly superseded by completed audited replacements. Plan, progress, decisions, TODO state, and active guidance were updated on or after plan creation. Exact CI verification recorded 805 audited database-path operations with zero forbidden access; final state validation reported 435 entities and no issues. Independent closure Audit returned PASS."
+  patterns:
+    - "Limited terminal-task closure and artifact-freshness check only, not a codebase-wide health audit: no stale delegated-owner artifact or unresolved plan-scoped task or TODO remains, and no live database operation occurred."
+  appended_at: 2026-07-27T14:24:19.806Z

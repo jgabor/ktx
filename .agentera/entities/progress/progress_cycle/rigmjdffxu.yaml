@@ -1,0 +1,16 @@
+id: rigmjdffxu
+artifact: progress
+record:
+  timestamp: 2026-07-27 06:05
+  type: fix
+  phase: audit
+  what: "Amended firm decision iklzthoapi through revision ctggwgmhzh to classify the three omitted registered paths: prices and unavailable db prune as DB-free, and bench agent by identity/capabilities, ordinary no-collector, collector-enabled Open, and nested compare/rank owner behavior. Updated pitdhqcgsp evidence without changing its in_progress status or failed evaluation provenance."
+  context:
+    intent: Correct the sole Audit finding with an immutable typed decision revision while preserving schema 8 and preventing dependent implementation.
+    constraints: State-only correction. No product source, tests, docs, config, builds, installed or checkout ktx, models, benchmarks, profiles, startup reconstruction, or live database access.
+    unknowns: None for this correction; downstream implementation details remain out of scope.
+    scope: .agentera decision revision, plan-task evidence including retained failed evaluation, and appended progress entity only.
+  inspiration: Audit attempt pitdhqcgsp-audit-1 from ses_05e48f4afffeVwtZ8N24CWt9dN.
+  discovered: The bench namespace registration is DB-free, while runBenchAgent conditionally calls db.Open only when the collector environment is present; compare/rank still own fresh isolated attempt databases.
+  verified: Static registration and call-site sweep covered all Register entries and production db.Open/OpenReadOnly/ResolvePath sites. prices.go:30,170-175 proves prices DB-free; db.go:71-78 proves prune returns not implemented before any open; bench_experiment.go:25-80 proves the agent split; experiment/runner.go:650,847-905 preserves owner/read-only paths. Product searches found no dependent binary-capability or schema-incompatibility implementation. schema.go:10 remains 8. Typed decision and plan writes passed. State validation passed with 403 entities and 0 issues before this append; compact check and compact fix passed with zero errors or changes.
+  next: Independent Audit should re-evaluate pitdhqcgsp. Keep it in_progress until Audit PASS; only then begin dependent implementation.

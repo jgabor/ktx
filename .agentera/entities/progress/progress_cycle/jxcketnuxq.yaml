@@ -1,0 +1,16 @@
+id: jxcketnuxq
+artifact: progress
+record:
+  timestamp: 2026-07-27 05:54
+  type: docs
+  phase: deliberate
+  what: Recorded firm decision iklzthoapi and updated plan task pitdhqcgsp with the resolved forward-upgrade contract. The decision classifies every characterized production database surface by DB-free, genuinely read-only, fresh-creation, and existing-upgrade behavior; binds OpenCode callbacks to one verified canonical ktx executable; fixes schema-incompatibility diagnostics and suppression semantics; selects read-only doctor behavior; preserves safe auto-migration; and defines hermetic development roots.
+  context:
+    intent: Persist consequential forward-upgrade choices before any dependent product implementation while preserving schema 8 and evaluator-owned task completion ordering.
+    constraints: State-only write phase. No product source, docs, help, Mage, plugin, migrations, tests, schema, live database, installed or checkout ktx, builds, models, benchmarks, profiles, omitted state, or hidden state were accessed or changed.
+    unknowns: Downstream command shape for emitting ktx.binary-capabilities/v1, exact structured error envelope placement, and exact Mage/CI integration points remain implementation questions constrained by the decision.
+    scope: .agentera canonical decision, plan-task evidence, and progress entities only; preserve the existing in_progress transition.
+  inspiration: Plan task pitdhqcgsp and its supplied read-only Analyze characterization.
+  discovered: Generated OpenCode currently discards which ktx and invokes bare ktx per callback. Read-looking dispatcher, doctor, telemetry, and benchmark paths still use creation/migration-capable Open, while compare/rank require independent fresh attempt databases and reject reuse. A shared KTX_DB therefore cannot represent full-suite ownership safely.
+  verified: Source call-site characterization established ResolvePath as DB-free, OpenReadOnly as non-creating/non-migrating, Open as fresh-create/existing-upgrade capable, current surface call sites, and fail-before-migration for Y>X. Agentera append/update writer validation passed. agentera check validate state passed with 401 entities and 0 issues; agentera check compact --mode check passed with 0 over-limit, formatting, protected-overflow, error, or changed artifacts.
+  next: Independent Audit must evaluate the recorded contract before pitdhqcgsp completes. Only after PASS should downstream product, plugin, doctor, Mage/CI, test, help, documentation, or migration work begin.

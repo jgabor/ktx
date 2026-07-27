@@ -4,10 +4,21 @@ record:
   name: Resolve forward-upgrade contracts
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN every production database surface WHEN characterized THEN DB-free, read-only, creation-capable, and migration-capable behavior is explicit, including fresh creation versus existing upgrades.
     - GIVEN candidate runtime binaries WHEN identity is evaluated THEN one DB-free path, digest, version, and maximum-schema contract identifies the effective OpenCode binary.
     - GIVEN schema incompatibility WHEN diagnostics are designed THEN a stable class, deduplication key, lifetime, reset boundary, and ordinary-versus-required behavior are selected.
     - GIVEN consequential choices WHEN characterization completes THEN they are recorded before dependent implementation starts.
   plan: xszoenfrqu
+  evidence: Static registration and call-site sweep classifies DB-free prices and unavailable db prune, all bench agent modes, Open/OpenReadOnly surfaces, generated plugin commands, and isolated compare/rank attempt ownership. Firm decision iklzthoapi plus revision ctggwgmhzh defines fresh-create versus upgrade behavior, DB-free effective-binary identity, stable schema-incompatible diagnostics and suppression, read-only doctor, safe auto-migration, and unique hermetic application roots. Independent bounded re-review passed all criteria and confirmed schema version 8, substantive progress, state-only scope, and no dependent implementation.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Database surface matrix omitted prices, unavailable db prune, and ordinary bench agent split between DB-free no-collector and Open-backed collector-enabled behavior.
+    provenance:
+      attempt_id: pitdhqcgsp-audit-2
+      source: audit ses_05e3ec39bffelFgj9o2Cnufi8j
+      recorded_at: 2026-07-27 06:10
+      writer_command: agentera state plan record-evaluation

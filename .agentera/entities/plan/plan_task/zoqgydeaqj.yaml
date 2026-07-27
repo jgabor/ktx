@@ -10,10 +10,24 @@ record:
     - ccvxyztrkl
     - uurczbybmy
     - xhzvaxrquk
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN all tasks complete WHEN the hermetic gate and seeded migration matrix run THEN all supported upgrades pass, all rejected cases remain unchanged, and no live-path access is observed.
     - GIVEN production database call sites WHEN audited THEN their classification agrees with behavior and only verified post-install live opening can initiate intended auto-migration.
     - GIVEN current source and guidance WHEN reviewed THEN namespace, safety workflow, identity contract, doctor behavior, diagnostics, help, and recovery instructions agree.
     - GIVEN historical fixtures and canonical state WHEN final validation runs THEN retained bytes remain unchanged, no live migration occurred, and every enumerated plan assertion has evidence.
   plan: xszoenfrqu
+  evidence: "Audit blockers corrected. db report now shares an audited source-alias guard with bench export; exact, relative, symlink, and hardlink outputs reject with exit 1 before read-only open, while stdout/file reports remain read-only. Active ambient examples now establish independently verified installed identity and pass per-invocation proof; explicit owners state their limitation, and a shell-block invariant enforces this. Mage 1.15 verify passed: 805 attempts, inspect 20, open 449, open_read_only 211, resolve 125, forbidden 0. Migration, proof, help, generated integration, and offline replay gates passed. Forty path-framed retained files remained SHA-256 82c4e1a8efb53f55857d801b6121367a796bc1abe16e23ab2d4995b5babb47cd. No live access occurred."
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: docs/binary-capabilities.md still authorizes ambient list from a checkout-derived digest through an unspecified absolute ktx path; the active-example invariant does not recognize absolute or quoted ktx executable paths.
+    provenance:
+      attempt_id: zoqgydeaqj-audit-2
+      source: audit ses_05c914d7fffepv3r7v7vlQHySS
+      recorded_at: 2026-07-27 14:43
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - vgfdfbncye
+  superseded_reason: Independent audits passed the final product, migration, call-site, retained-byte, and report-alias gates; this completed replacement closes the sole remaining installed-proof scanner defect.

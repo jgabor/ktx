@@ -104,6 +104,13 @@ func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, e
 	if err != nil {
 		return nil, internalError("ktx db report: resolve database path: %v", err)
 	}
+	aliasesSource, err := destinationAliasesSource(path, output)
+	if err != nil {
+		return nil, internalError("ktx db report: compare output with source database: %v", err)
+	}
+	if aliasesSource {
+		return nil, sourceDatabaseDestinationError("ktx db report", "invalid-database-report-destination", path)
+	}
 	report, err := dbreport.Generate(path, includeIdentifiers, time.Now())
 	if err != nil {
 		return nil, internalError("ktx db report: %v", err)
@@ -211,6 +218,7 @@ func printDBHelp(w io.Writer) {
 	fmt.Fprintln(w, "Subcommands:")
 	fmt.Fprintln(w, "  path    print the current database path (default when no subcommand given)")
 	fmt.Fprintln(w, "  report  emit a read-only evidence report (--output <path>|-)")
+	fmt.Fprintln(w, "          output must not alias the source database by path, symlink, or hard link")
 	fmt.Fprintln(w, "  prune   remove orphaned sessions (not yet implemented)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")

@@ -20,14 +20,36 @@ path. `build_version` is the version embedded at build time, and
 `max_database_schema` comes from the database package's schema owner; querying
 it does not inspect a database.
 
-Use `--format text` for a human-readable rendering. Use
-`--expect-sha256 <digest>` to compare a candidate with a previously verified
-artifact:
+Use `--format text` for a human-readable rendering. First run `mage build`, exact
+hermetic `mage verify`, and the seeded migration rehearsal from the
+[database safety contract](database-safety.md#hermetic-development-and-ci-verification).
+Do not rebuild after that evidence is established. The following operator-only
+sequence records the already verified artifact without opening a database,
+installs it, identifies the effective installed candidate, compares that
+candidate's bytes independently, and only then grants an ambient invocation:
 
 ```sh
-verified_sha256=$(./build/ktx binary-capabilities | jq -r .executable_sha256)
-/absolute/path/to/candidate binary-capabilities --expect-sha256 "$verified_sha256"
+KTX_VERIFIED_ARTIFACT=./build/ktx
+KTX_VERIFIED_SHA256=$(sha256sum "$KTX_VERIFIED_ARTIFACT" | cut -d ' ' -f 1)
+"$KTX_VERIFIED_ARTIFACT" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
+
+# Install only after isolated verification and rehearsal are complete.
+mage install
+KTX_VERIFIED_BIN=$(command -v ktx)
+test -n "$KTX_VERIFIED_BIN" && test -f "$KTX_VERIFIED_BIN" && test -x "$KTX_VERIFIED_BIN"
+case "$KTX_VERIFIED_BIN" in /*) ;; *) printf '%s\n' 'installed ktx path is not absolute' >&2; exit 1;; esac
+KTX_INSTALLED_SHA256=$(sha256sum "$KTX_VERIFIED_BIN" | cut -d ' ' -f 1)
+test "$KTX_INSTALLED_SHA256" = "$KTX_VERIFIED_SHA256"
+"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" list
 ```
+
+Development, tests, CI, and migration rehearsal must stop before the install
+and ambient steps; they use disposable HOME/XDG roots and explicit temporary
+database owners instead. A checkout-derived digest, or a digest merely reported
+by the candidate itself, is not ambient authorization. Every ambient call must
+present the independently established digest for the exact installed binary it
+invokes.
 
 The comparison succeeds with exit `0` and adds this object to the JSON result:
 
@@ -58,15 +80,18 @@ absolute path. No failure falls back to `PATH` or to database inspection.
 Open-backed command to use the ambient default database target:
 
 ```sh
-/absolute/path/to/ktx --expect-runtime-sha256 "$verified_sha256" list
+: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
+: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
+"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" list
 ```
 
 The command hashes the same canonical running executable through the identity
 owner above, then compares the exact bytes before database inspection, open,
 directory creation, or migration. The proof is per invocation and creates no
-receipt. Explicit `KTX_DB` and direct-path targets are operator ownership
-declarations and do not require it; they are not independently verified as
-disposable or safe.
+receipt or persistent trust state. Explicit `KTX_DB` and direct-path targets are
+operator ownership declarations and do not require it; they are not
+independently verified as disposable or safe.
 
 Malformed proof text exits `1`. Missing or mismatched ambient proof exits `3`.
 An unverifiable running executable exits `4`. A valid proof preserves the normal

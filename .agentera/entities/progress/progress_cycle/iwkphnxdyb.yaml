@@ -1,0 +1,16 @@
+id: iwkphnxdyb
+artifact: progress
+record:
+  timestamp: 2026-07-27 16:06
+  type: fix
+  phase: build
+  what: Made env ignore-environment options clear command-local KTX_DB ownership in parse order and added the accepted adjacent regressions.
+  context:
+    intent: Correct only the bounded Audit finding for env -i and env --ignore-environment while preserving the accepted shadowing behavior, product, documentation, and retained evidence.
+    constraints: Only the test-owned scanner and typed project state changed. No product, documentation, database, install, live operation, retained artifact, predecessor, TODO, satisfaction, or terminal lifecycle state changed.
+    unknowns: Bounded re-review still owns acceptance; vgfdfbncye remains in_progress.
+    scope: internal/cli/database_safety_docs_test.go, preserved vgfdfbncye-audit-1 evaluation, refreshed task evidence, and this progress record.
+  inspiration: Audit ses_05c2205fbffeGOV06ACJxCNQWf established that ignore-environment had the same local-shadow semantics as explicit unsets but was consumed by the generic option branch.
+  discovered: The defect was one missing ordered transition, not a flaw in the two-bit ownership design. Handling -i and --ignore-environment before generic env options clears both prior exported fallback and prior inline ownership; the existing later-assignment path restores demonstrably nonempty ownership naturally.
+  verified: A red focused authorization test rejected none of the three new unsafe cases. After the narrow transition, the six-test scanner suite passes active Markdown, help, recognition, whole-sequence proof, installed proof, all prior mutation/safe cases, three ignore-environment rejections, and later nonempty restoration. No full gate was rerun for this test-only branch; the prior exact mage verify remains the applicable broad evidence at 805 audited accesses and forbidden 0. Retained count 40, path digest 419e776492e93d9e13a56b1f24a1a5668163be2505940b125976f2f1ebd3d43c, and content aggregate 82c4e1a8efb53f55857d801b6121367a796bc1abe16e23ab2d4995b5babb47cd remain unchanged.
+  next: Request bounded re-review of vgfdfbncye; keep it in_progress and preserve blocked predecessors, open TODOs, retained evidence, and satisfaction state until Audit.

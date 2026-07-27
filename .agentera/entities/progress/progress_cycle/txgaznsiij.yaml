@@ -1,0 +1,16 @@
+id: txgaznsiij
+artifact: progress
+record:
+  timestamp: 2026-07-27 13:50
+  type: fix
+  phase: build
+  what: Extended the active-example correction to the second concrete run help invocation and added a help-example invariant after final diff inspection exposed that remaining proof-less example.
+  context:
+    intent: Ensure every concrete active help example follows the same proof-or-explicit-owner rule as README and documentation shell blocks.
+    constraints: No database contract, schema, receipt, satisfaction, retained artifact, provider, or live state changed.
+    unknowns: None; independent re-review remains pending.
+    scope: Updated only run help text and the focused help-example regression beyond the correction recorded in vpisrambbh.
+  inspiration: Final diff review after progress vpisrambbh.
+  discovered: The earlier shell-block invariant intentionally covered README and docs but not generated help. The new test executes all 18 registered help surfaces and checks concrete Example sections for proof or explicit KTX_DB ownership.
+  verified: "Focused help/docs/alias race tests passed. Exact Mage 1.15.0 verify then passed with the unchanged final audit distribution: 805 attempts, inspect 20, open 449, open_read_only 211, resolve 125, forbidden 0. Rebuilt source and temporary installed candidate /tmp/opencode/ktx-final-candidate-rereview.GGcxJB/bin/ktx matched at SHA-256 9daf5db23276e7fad8e4e40ad6be8212287e08e8d281653d05ba1c9e19f50c16, version dev, maximum schema 8. That exact candidate passed all four alias rejections, positive stdout/file report output, source-storage invariance, and 19 help surfaces with both run examples explicitly owned."
+  next: Use this record’s candidate identity as final. It supersedes only the pre-help-fix candidate path and digest in vpisrambbh; all blocker fixes, framed retained hashes, audit totals, and other evidence there remain authoritative. Keep zoqgydeaqj in_progress for bounded re-review.

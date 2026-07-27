@@ -1,0 +1,25 @@
+id: ekgzgigvnp
+artifact: plan
+record:
+  plan: xszoenfrqu
+  name: Correct installed runtime authorization guidance
+  status: superseded
+  depends_on:
+    []
+  acceptance:
+    - GIVEN binary-capabilities installation guidance WHEN an ambient Open-backed example runs THEN it invokes an explicitly identified installed candidate whose digest was independently compared and verified; checkout-derived digest alone is explicitly insufficient.
+    - GIVEN active shell and help examples WHEN the documentation invariant scans executable tokens THEN bare, relative, variable, quoted, and absolute ktx paths are recognized and every ambient Open-backed invocation requires prior proof or explicit ownership.
+  evidence: Retry unifies Markdown and concrete-help examples under one sequence analyzer. It tracks simple variable bindings, generations, and known value state; keys verification to executable and digest identities; consumes env unset/options/assignments; and accepts only demonstrably nonempty exported or inline ownership. Regressions reject arbitrary help proof, four general variable forms without verification, env unset forms, empty or unknown ownership, and executable or digest reassignment. Preserved safe forms and installed guidance pass. Focused tests and mage verify passed with 805 audited accesses and forbidden 0; retained aggregate remains 82c4e1a8efb53f55857d801b6121367a796bc1abe16e23ab2d4995b5babb47cd. Await Audit.
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Command-local empty, unknown, or env-unset KTX_DB can inherit stale exported ownership because shadowing is not tracked independently from nonempty value state.
+    provenance:
+      attempt_id: ekgzgigvnp-audit-2
+      source: audit ses_05c33ee17ffekxZdNQDfObTJOk
+      recorded_at: 2026-07-27 15:48
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - vgfdfbncye
+  superseded_reason: The independently audited ownership-shadow replacement completes the installed-proof scanner contract while retaining the predecessor's accepted operator guidance and failed evaluations.

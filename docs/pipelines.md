@@ -236,11 +236,18 @@ calls — uncompressed calls appear with delivered tokens equal to
 raw tokens, so the command is useful before any profiles are
 configured.
 
+The ambient examples below use the digest recorded while independently
+verifying the effective installed binary. Do not substitute a digest computed
+from an uninstalled checkout.
+
 ```bash
-ktx stats
-ktx stats --format text
-ktx stats --limit 5
-ktx stats summary --window 30m --format json
+: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
+: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
+"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats --format text
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats --limit 5
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" stats summary --window 30m --format json
 ```
 
 Groups with fewer than 2 calls or fewer than 50 delivered tokens
@@ -306,7 +313,11 @@ session ID and is never interpreted as a file.
 ### Database session replay
 
 ```bash
-ktx bench run --replay <session-id>
+: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
+: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
+: "${KTX_TARGET_SESSION_ID:?set this to the database session ID to replay}"
+"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" bench run --replay "$KTX_TARGET_SESSION_ID"
 ```
 
 This path opens the configured database, loads the recorded stream by session
@@ -325,7 +336,8 @@ errors exit 1; database and output failures exit 4.
 ### Version 1 fixture contract
 
 ```bash
-ktx bench run --replay-file <path>
+: "${KTX_REPLAY_FILE:?set this to the portable replay fixture path}"
+ktx bench run --replay-file "$KTX_REPLAY_FILE"
 ```
 
 File replay is strict and offline: it does not open a database, load user
@@ -370,17 +382,24 @@ inconsistent evidence are rejected before publication with exit 1 and
 Export from one read-only database snapshot. The default destination is stdout:
 
 ```bash
-KTX_DB=/path/to/ktx.db ktx bench export <session-id> > replay-v1.json
+: "${KTX_OWNED_DB:?set this to an explicitly operator-owned database path}"
+: "${KTX_TARGET_SESSION_ID:?set this to the database session ID to export}"
+KTX_DB="$KTX_OWNED_DB" ktx bench export "$KTX_TARGET_SESSION_ID" > replay-v1.json
 # Equivalent explicit stdout delivery:
-KTX_DB=/path/to/ktx.db ktx bench export --output - <session-id>
+KTX_DB="$KTX_OWNED_DB" ktx bench export --output - "$KTX_TARGET_SESSION_ID"
 ```
+
+`KTX_OWNED_DB` is an operator ownership declaration, not proof that the path is
+disposable or safe to modify.
 
 Prefer `--output` when publishing a file; publication is atomic and successful
 file delivery writes only a diagnostic to stderr:
 
 ```bash
-KTX_DB=/path/to/ktx.db ktx bench export \
-  --output /tmp/portable-replay-v1.json <session-id>
+: "${KTX_OWNED_DB:?set this to an explicitly operator-owned database path}"
+: "${KTX_TARGET_SESSION_ID:?set this to the database session ID to export}"
+KTX_DB="$KTX_OWNED_DB" ktx bench export \
+  --output /tmp/portable-replay-v1.json "$KTX_TARGET_SESSION_ID"
 ```
 
 The output may not alias the source database by path, symlink, or hard link.

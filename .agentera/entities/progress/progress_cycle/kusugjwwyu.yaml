@@ -1,0 +1,16 @@
+id: kusugjwwyu
+artifact: progress
+record:
+  timestamp: 2026-07-27 15:55
+  type: fix
+  phase: build
+  what: Corrected command-local KTX_DB shadowing in the test-owned active-example authorization analyzer and added exact ordered-state regressions.
+  context:
+    intent: "Resolve only the accepted replacement blocker: local empty, unknown, or unset ownership must override stale exported ownership without changing product behavior or active documentation."
+    constraints: Only internal/cli/database_safety_docs_test.go and typed project state changed. No database, user install, live command, documentation, retained artifact, product implementation, or terminal task state changed.
+    unknowns: Audit still owns acceptance and terminal lifecycle state.
+    scope: Scanner state/tests, replacement-task evidence, existing two-audit exhaustion state, open TODOs, and one progress record.
+  inspiration: The second accepted audit showed that a command-local nonempty flag and a separate global-removal flag could not represent final effective simple-shell state.
+  discovered: "The narrow root cause was representational: local KTX_DB presence was discarded whenever its value was empty or unknown, while an outer assignment followed by env unset retained local ownership. A shadow bit plus one effective local-owner bit handles every assignment and unset in parse order. The installed Agentera stable route was stale and failed from a cached Python checkout, so state writes used the current v3 @next CLI rather than that artifact."
+  verified: "A red focused run failed all five newly exposed bypasses. After the two-bit state correction, focused guidance, active-Markdown, help, recognition, sequence, and authorization tests pass. Exact mage verify passes race tests, vet, lint with zero issues, source build, retained replay, and 805 audited database path surfaces: inspect 20, open 449, open_read_only 211, resolve 125, forbidden 0. Retained count 40, path digest 419e776492e93d9e13a56b1f24a1a5668163be2505940b125976f2f1ebd3d43c, and content aggregate 82c4e1a8efb53f55857d801b6121367a796bc1abe16e23ab2d4995b5babb47cd are unchanged."
+  next: Request bounded Audit of vgfdfbncye. Keep vgfdfbncye in_progress, both exhausted tasks blocked, and qysffmucgr and emfvgeosay open until that evaluation.

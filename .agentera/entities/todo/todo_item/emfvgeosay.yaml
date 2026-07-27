@@ -1,0 +1,15 @@
+id: emfvgeosay
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Fix command-local KTX_DB shadowing in the active-example scanner after the guidance replacement exhausted two audits.
+  readiness:
+    capability: document
+    reason: Empty, unknown, or env-unset command-local ownership must override—not inherit—an exported nonempty KTX_DB value.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 1
+    order_reason: This isolated scanner-state defect is the last final-validation blocker.

@@ -16,10 +16,19 @@ Mage, use `go build -o build/ktx ./cmd/ktx`.
 
 ### Wrap a process
 
+Ambient database commands require the digest recorded while independently
+verifying the effective installed binary. Set these variables from that
+install-verification result; a digest computed from an uninstalled checkout is
+not authorization for ambient access.
+
 ```bash
-ktx run opencode run --format json "What is 2+2?"
-ktx list --format text
-ktx get <session-id> --format text
+: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
+: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
+"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" run opencode run --format json "What is 2+2?"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" list --format text
+: "${KTX_TARGET_SESSION_ID:?set this to a session ID returned by list}"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" get "$KTX_TARGET_SESSION_ID" --format text
 ```
 
 ### Compress tool output in flight
@@ -152,7 +161,11 @@ and an offline deterministic validation.
 Replay a database capture by session ID without another agent call:
 
 ```bash
-ktx bench run --replay <session-id>
+: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
+: "${KTX_VERIFIED_SHA256:?set this to its independently verified SHA-256}"
+: "${KTX_TARGET_SESSION_ID:?set this to the database session ID to replay}"
+"$KTX_VERIFIED_BIN" binary-capabilities --expect-sha256 "$KTX_VERIFIED_SHA256"
+"$KTX_VERIFIED_BIN" --expect-runtime-sha256 "$KTX_VERIFIED_SHA256" bench run --replay "$KTX_TARGET_SESSION_ID"
 ```
 
 This compatibility path preserves the existing database-backed envelope and
@@ -164,9 +177,15 @@ For strict, portable verification, export a benchmark-parented capture and
 replay the resulting file without the source database:
 
 ```bash
-KTX_DB=/path/to/ktx.db ktx bench export --output replay-v1.json <session-id>
-ktx bench run --replay-file replay-v1.json
+: "${KTX_VERIFIED_BIN:?set this to the verified installed ktx path}"
+: "${KTX_OWNED_DB:?set this to an explicitly operator-owned database path}"
+: "${KTX_TARGET_SESSION_ID:?set this to the database session ID to export}"
+KTX_DB="$KTX_OWNED_DB" "$KTX_VERIFIED_BIN" bench export --output replay-v1.json "$KTX_TARGET_SESSION_ID"
+"$KTX_VERIFIED_BIN" bench run --replay-file replay-v1.json
 ```
+
+`KTX_OWNED_DB` declares which path the operator owns; it does not prove that the
+path is disposable or safe to modify.
 
 `ktx bench export <session-id>` writes the same canonical version 1 fixture to
 stdout by default; `--output -` makes stdout delivery explicit. File replay

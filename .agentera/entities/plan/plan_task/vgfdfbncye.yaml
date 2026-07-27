@@ -1,0 +1,22 @@
+id: vgfdfbncye
+artifact: plan
+record:
+  plan: xszoenfrqu
+  name: Fix command-local ownership shadowing
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN exported nonempty KTX_DB WHEN a command-local assignment is empty or unknown, or env unsets KTX_DB, THEN local shadowing overrides global ownership and the ambient Open-backed example is rejected.
+    - GIVEN ordered command-local assignments and env options WHEN analyzed THEN the final effective KTX_DB state matches simple shell semantics, while existing installed-proof and nonempty-owner examples remain accepted.
+  evidence: The unified documentation/help analyzer now tracks command-local KTX_DB shadowing separately from effective nonempty ownership. Assignments, explicit unsets, env -i, and --ignore-environment replace local state left-to-right; later nonempty assignment restores ownership. Independent Audit passed every mandatory rejection/restoration case and mutation-tested that removing the transition reopens exactly the three ignore-environment bypasses. Product behavior and approved installed guidance remain unchanged.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: env -i and env --ignore-environment clear exported KTX_DB at runtime but the scanner does not mark local ownership shadowed/empty, so it can accept stale global ownership.
+    provenance:
+      attempt_id: vgfdfbncye-audit-2
+      source: audit ses_05c18ba2dffe5xU20CGNaC2cOH
+      recorded_at: 2026-07-27 16:13
+      writer_command: agentera state plan record-evaluation

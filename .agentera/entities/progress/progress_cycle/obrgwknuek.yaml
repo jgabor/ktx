@@ -1,0 +1,16 @@
+id: obrgwknuek
+artifact: progress
+record:
+  timestamp: 2026-07-27 15:34
+  type: fix
+  phase: build
+  what: Made active documentation and concrete help use one binding-aware shell-sequence authorization analyzer and added every accepted mutation regression.
+  context:
+    intent: Correct only the scanner defects accepted from ekgzgigvnp-audit-1 while preserving the approved installed-candidate documentation, product behavior, retained evidence, and Audit-owned lifecycle.
+    constraints: Only the test-owned scanner and typed state change. Product behavior and approved documentation are unchanged. Verification used KTX_DB-unset disposable HOME/XDG roots and external caches. No ambient state, user-installed ktx, installation, init, provider, OpenCode, benchmark, or live database operation occurred.
+    unknowns: Bounded Audit still owns acceptance and terminal lifecycle state.
+    scope: Modified internal/cli/database_safety_docs_test.go, preserved the recorded failed evaluation, updated replacement evidence, and appended progress. Original blocked final task, open TODO, prior progress, retained files, and satisfaction-null remain unchanged.
+  inspiration: Audit ses_05c5127e0ffeuqJTS7YlkMVsIG showed that line-local help handling, hard-coded variable names, permissive env parsing, empty ownership, and timeless lexical keys left bypasses.
+  discovered: "The root issue was split authority: Markdown used sequence verification while help used proof-presence, and the parser treated tokens as timeless strings. One bounded analyzer now carries variable generation, empty/nonempty/unknown state, export state, env-local unsets and assignments, and executable/digest identities. Reassignment changes identity naturally. General simple variables are considered ktx only when their next resolved verb is binary-capabilities or known Open-backed behavior, preserving argument-only avoidance. Lifecycle remains nonterminal."
+  verified: "Focused guidance, active Markdown, concrete help, command recognition, help-sequence, and authorization mutation tests pass. Mandatory failures cover arbitrary help proof; bare, braced, and both quoted variable forms; env -u, --unset operand, and --unset=; empty inline/quoted/exported and unknown ownership; env-unset override; and executable/digest reassignment. Preserved passes cover installed and matching verification sequences, nonempty ownership plus warning, asserted variable ownership, env assignments/options, bare/relative/absolute/quoted/assignment-prefix/continuation recognition, and sha256sum argument avoidance. Exact mage verify passed tests, vet, lint, build, replay, and 805 audited accesses: inspect 20, open 449, open_read_only 211, resolve 125, forbidden 0. Retained count 40, path digest 419e776492e93d9e13a56b1f24a1a5668163be2505940b125976f2f1ebd3d43c, content aggregate 82c4e1a8efb53f55857d801b6121367a796bc1abe16e23ab2d4995b5babb47cd, replay be037c283418afd4396aa67f5882af5bc7e8069c68cf799f41a5eb1f64592151."
+  next: Request bounded re-review of ekgzgigvnp. Keep it in_progress and leave qysffmucgr open until Audit.

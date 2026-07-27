@@ -1,0 +1,15 @@
+id: qysffmucgr
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Correct the remaining checkout-derived ambient authorization example after final validation exhausted two audits.
+  readiness:
+    capability: document
+    reason: Binary-capabilities guidance must bind proof to the independently verified installed candidate, and the active-example invariant must recognize absolute and quoted ktx paths.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 1
+    order_reason: This documentation safety gap is the only remaining blocker to final validation.

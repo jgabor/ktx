@@ -37,6 +37,11 @@ failure as `error` and exits 4. It never creates or migrates a database. Doctor
 is a read-only health surface; it does not use the Open-backed exit contract
 below.
 
+`db report --output <file>` rejects an output path that names the source
+database directly or through relative spelling, symlink, or hard link. The
+check occurs before the read-only database open or report generation, so report
+publication cannot replace its source.
+
 An Open-backed command that finds database schema `Y` above the binary's maximum
 schema `X` exits `5` with error code `schema-incompatible`. Its JSON diagnostic
 on stderr has these stable fields:

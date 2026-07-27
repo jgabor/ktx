@@ -19,8 +19,10 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -154,6 +156,137 @@ func TestRunDBWith_PathResolution(t *testing.T) {
 			t.Errorf("stdout missing ktx db header: %q", stdout.String())
 		}
 	})
+}
+
+func TestDBReportRejectsSourceDatabaseDestinationAliases(t *testing.T) {
+	tests := []struct {
+		name        string
+		destination func(*testing.T, string) string
+	}{
+		{name: "exact path", destination: func(_ *testing.T, path string) string { return path }},
+		{name: "relative absolute equivalent", destination: func(t *testing.T, path string) string {
+			workingDirectory, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+			relative, err := filepath.Rel(workingDirectory, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return relative
+		}},
+		{name: "symlink", destination: func(t *testing.T, path string) string {
+			alias := filepath.Join(filepath.Dir(path), "source-link.db")
+			if err := os.Symlink(path, alias); err != nil {
+				t.Fatal(err)
+			}
+			return alias
+		}},
+		{name: "hardlink", destination: func(t *testing.T, path string) string {
+			alias := filepath.Join(filepath.Dir(path), "source-hardlink.db")
+			if err := os.Link(path, alias); err != nil {
+				t.Fatal(err)
+			}
+			return alias
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			path := filepath.Join(directory, "ktx.db")
+			database, err := dbpkg.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := database.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(path, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			destination := test.destination(t, path)
+			for _, sidecar := range []string{path + "-wal", path + "-shm"} {
+				if err := os.WriteFile(sidecar, []byte(filepath.Base(sidecar)), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := directorySnapshot(t, directory)
+			audit := filepath.Join(t.TempDir(), "database-access.jsonl")
+			t.Setenv("KTX_DB", path)
+			t.Setenv("KTX_VERIFY_DB_AUDIT", audit)
+			t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", "[]")
+
+			var stdout, stderr bytes.Buffer
+			code := runWith([]string{"db", "report", "--output", destination}, &stdout, &stderr)
+			if code != ExitUsage || stdout.Len() != 0 {
+				t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			for _, expected := range []string{
+				`"failure_class":"invalid-database-report-destination"`,
+				"source database",
+				"--output -",
+			} {
+				if !strings.Contains(stderr.String(), expected) {
+					t.Errorf("stderr missing %q: %s", expected, stderr.String())
+				}
+			}
+			if after := directorySnapshot(t, directory); !reflect.DeepEqual(after, before) {
+				t.Fatalf("source storage changed:\nbefore=%#v\nafter=%#v", before, after)
+			}
+			auditBytes, err := os.ReadFile(audit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			auditText := string(auditBytes)
+			if strings.Count(auditText, `"operation":"resolve"`) != 1 || strings.Count(auditText, `"operation":"inspect"`) != 1 || strings.Contains(auditText, `"operation":"open_read_only"`) {
+				t.Fatalf("unexpected access audit: %s", auditText)
+			}
+		})
+	}
+}
+
+func TestDBReportPreservesStdoutAndDistinctFileOutput(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "ktx.db")
+	database, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KTX_DB", path)
+	before := directorySnapshot(t, directory)
+
+	t.Run("stdout", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runWith([]string{"db", "report", "--output", "-"}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+		}
+		if !json.Valid(stdout.Bytes()) {
+			t.Fatalf("stdout is not JSON: %s", stdout.String())
+		}
+	})
+
+	t.Run("distinct file", func(t *testing.T) {
+		output := filepath.Join(t.TempDir(), "report.json")
+		var stdout, stderr bytes.Buffer
+		if code := runWith([]string{"db", "report", "--output", output}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+		}
+		data, err := os.ReadFile(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stdout.Len() != 0 || !json.Valid(data) {
+			t.Fatalf("stdout=%q output=%s", stdout.String(), data)
+		}
+	})
+
+	if after := directorySnapshot(t, directory); !reflect.DeepEqual(after, before) {
+		t.Fatalf("read-only report changed source storage:\nbefore=%#v\nafter=%#v", before, after)
+	}
 }
 
 // TestRunDBWith_AcceptanceCompanion_DBOpen covers the dbpkg

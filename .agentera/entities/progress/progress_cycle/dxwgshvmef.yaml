@@ -1,0 +1,16 @@
+id: dxwgshvmef
+artifact: progress
+record:
+  timestamp: 2026-07-27 14:57
+  type: fix
+  phase: build
+  what: Replaced the remaining checkout-derived ambient authorization example with an operator-only install-first sequence and strengthened active documentation/help command recognition.
+  context:
+    intent: Resolve the accepted final-audit defect by binding ambient proof to the exact independently verified effective installation while preserving database-free preparation and audit-owned closeout.
+    constraints: Product behavior and immutable historical artifacts remain unchanged. Verification used KTX_DB-unset disposable HOME/XDG roots and external disposable caches. No ambient state was accessed or statted; no user-installed ktx, install, init, provider, OpenCode, benchmark, or live database command ran.
+    unknowns: Independent Audit still owns acceptance and terminal lifecycle state.
+    scope: Updated docs/binary-capabilities.md, internal/cli/database_safety_docs_test.go, replacement evidence, and append-only progress state; preserved prior final fixes and retained evidence.
+  inspiration: Replacement task ekgzgigvnp after zoqgydeaqj-audit-2 identified an authority mismatch in docs/binary-capabilities.md and its invariant.
+  discovered: "The failed scanner searched all whitespace fields for three hard-coded executable spellings, so it both missed absolute paths and lacked command-position authority. The correction lexes only the shell forms used by active docs/help, joins continuations, preserves quotes, and keys prior capability verification by executable token plus digest. Lifecycle remains nonterminal: zoqgydeaqj is blocked, qysffmucgr is open, and ekgzgigvnp stays in_progress pending Audit."
+  verified: "Focused binary-guidance, active-shell, concrete-help, positive/negative token, and authorization-sequence tests pass. Exact mage verify passes tests, vet, lint with zero issues, build, replay, and a hermetic access audit of 805 attempts: inspect 20, open 449, open_read_only 211, resolve 125, forbidden 0. Retained enumeration remains count 40, path digest 419e776492e93d9e13a56b1f24a1a5668163be2505940b125976f2f1ebd3d43c, content aggregate 82c4e1a8efb53f55857d801b6121367a796bc1abe16e23ab2d4995b5babb47cd, portable replay be037c283418afd4396aa67f5882af5bc7e8069c68cf799f41a5eb1f64592151."
+  next: Request Audit of ekgzgigvnp. Do not complete, supersede, resolve qysffmucgr, or unblock final closeout before that verdict.

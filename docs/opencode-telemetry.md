@@ -40,7 +40,7 @@ runtime tuple deduplicates a model step seen through both paths, and the first
 accepted row—including its collection provenance—remains authoritative.
 
 Benchmark collection does not repurpose `KTX_SESSION_ID`. It supplies the exact
-precreated `KTX_ATTEMPT_SESSION_ID` owner with a required event interval and
+precreated `KTX_BENCH_SESSION_ID` owner with a required event interval and
 contract. In that mode hooks remain active, never read or write parent-process
 session files, serialize every callback, and reject ownership, acknowledgement,
 or persistence failures instead of failing open. A collector-open acknowledgement

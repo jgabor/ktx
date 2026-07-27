@@ -54,7 +54,7 @@ func TestConcurrentBenchmarkHooksUseOneExplicitOwnerWithoutProcessFiles(t *testi
 			defer wg.Done()
 			command := exec.Command(os.Args[0], "-test.run=^TestBenchmarkHookProcessHelper$")
 			command.Env = append(os.Environ(), "KTX_TEST_BENCHMARK_HOOK_HELPER=1", fmt.Sprintf("KTX_TEST_CALL_ID=call-%d", index), "KTX_DB="+path,
-				benchcontract.AttemptSessionEnv+"="+interval.SessionID, benchcontract.IntervalEnv+"="+interval.ID,
+				benchcontract.SessionEnv+"="+interval.SessionID, benchcontract.IntervalEnv+"="+interval.ID,
 				benchcontract.ContractEnv+"="+benchcontract.ContractVersion, benchcontract.CollectorModeEnv+"="+benchcontract.CollectorRequired,
 				"XDG_RUNTIME_DIR="+runtimeDir, "XDG_CONFIG_HOME="+configDir)
 			if output, err := command.CombinedOutput(); err != nil {

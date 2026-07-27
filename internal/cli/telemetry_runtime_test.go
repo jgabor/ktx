@@ -52,7 +52,7 @@ func TestRequiredCollectorCommandsUseExactPrecreatedOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(benchcontract.AttemptSessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.SessionEnv, interval.SessionID)
 	t.Setenv(benchcontract.IntervalEnv, interval.ID)
 	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
 	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
@@ -110,7 +110,7 @@ func TestRequiredCollectorAcknowledgesExactDuplicateAndContinues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(benchcontract.AttemptSessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.SessionEnv, interval.SessionID)
 	t.Setenv(benchcontract.IntervalEnv, interval.ID)
 	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
 	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
@@ -161,7 +161,7 @@ func TestRequiredCollectorConflictingDuplicateFailsAfterCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(benchcontract.AttemptSessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.SessionEnv, interval.SessionID)
 	t.Setenv(benchcontract.IntervalEnv, interval.ID)
 	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
 	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)

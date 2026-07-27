@@ -290,7 +290,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
   }
 
   const required = process.env.KTX_BENCH_COLLECTOR_MODE === "required"
-	const requiredSessionID = process.env.KTX_ATTEMPT_SESSION_ID || ""
+	const requiredSessionID = process.env.KTX_BENCH_SESSION_ID || ""
 	const requiredIntervalID = process.env.KTX_BENCH_EVENT_INTERVAL_ID || ""
 	const requiredContract = process.env.KTX_BENCH_EVENT_CONTRACT || ""
   const epochID = crypto.randomUUID()

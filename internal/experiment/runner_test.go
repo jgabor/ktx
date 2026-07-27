@@ -106,7 +106,7 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			}
 			database, config := mountSource(command.Args, "/home/node/.local/share/ktx/ktx.db"), mountSource(command.Args, "/home/node/.config/ktx/ktx.toml")
 			side := strings.TrimPrefix(filepath.Ext(config), ".")
-			owner := dockerEnvironmentValue(command.Args, benchcontract.AttemptSessionEnv)
+			owner := dockerEnvironmentValue(command.Args, benchcontract.SessionEnv)
 			intervalID := dockerEnvironmentValue(command.Args, benchcontract.IntervalEnv)
 			fake.sessions[database] = owner
 			store, err := db.Open(database)

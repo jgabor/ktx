@@ -688,7 +688,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	command := []string{
 		options.DockerBin, "run", "--rm", "--name", containerName,
 		"-e", "KTX_EXPECTED_STAGES_JSON=" + string(stages),
-		"-e", benchcontract.AttemptSessionEnv + "=" + interval.SessionID,
+		"-e", benchcontract.SessionEnv + "=" + interval.SessionID,
 		"-e", benchcontract.IntervalEnv + "=" + interval.ID,
 		"-e", benchcontract.ContractEnv + "=" + benchcontract.ContractVersion,
 		"-e", benchcontract.CollectorModeEnv + "=" + benchcontract.CollectorRequired,

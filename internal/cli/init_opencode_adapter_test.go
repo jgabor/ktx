@@ -334,7 +334,7 @@ console.log(JSON.stringify(output))
 
 	t.Run("required benchmark mode retains and serializes every callback", func(t *testing.T) {
 		output, calls, _ := run(t,
-			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa",
+			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa",
 			"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2",
 			"KTX_BENCH_COLLECTOR_MODE=required",
@@ -371,7 +371,7 @@ console.log("ok")
 		logPath := filepath.Join(t.TempDir(), "calls.log")
 		cmd := exec.Command(bun, queueDriverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
-			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EVENT_FAIL_ORDINAL=3")
 		output, err := cmd.CombinedOutput()
 		if err != nil || strings.TrimSpace(string(output)) != "ok" {
@@ -412,7 +412,7 @@ console.log("ok")
 		logPath := filepath.Join(t.TempDir(), "calls.log")
 		cmd := exec.Command(bun, epochDriverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
-			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EPOCH_SCENARIO="+scenario)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -450,7 +450,7 @@ console.log("ok")
 		logPath := filepath.Join(t.TempDir(), "calls.log")
 		cmd := exec.Command(bun, driverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
-			"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_TELEMETRY_FAIL=1")
 		if err := cmd.Run(); err == nil {
 			t.Fatal("required collector failure did not reject plugin startup")
@@ -465,7 +465,7 @@ console.log("ok")
 			logPath := filepath.Join(t.TempDir(), "calls.log")
 			cmd := exec.Command(bun, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
-				"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+				"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+bad)
 			if err := cmd.Run(); err == nil {
 				t.Fatalf("required mode accepted %s", bad)
@@ -490,7 +490,7 @@ console.log("ok")
 			logPath := filepath.Join(t.TempDir(), "calls.log")
 			cmd := exec.Command(bun, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
-				"KTX_ATTEMPT_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+				"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+test.response)
 			if err := cmd.Run(); err == nil {
 				t.Fatalf("required mode accepted %s", test.name)

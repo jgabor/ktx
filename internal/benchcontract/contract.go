@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	AttemptSessionEnv     = "KTX_ATTEMPT_SESSION_ID"
+	SessionEnv            = "KTX_BENCH_SESSION_ID"
 	IntervalEnv           = "KTX_BENCH_EVENT_INTERVAL_ID"
 	ContractEnv           = "KTX_BENCH_EVENT_CONTRACT"
 	CollectorModeEnv      = "KTX_BENCH_COLLECTOR_MODE"
@@ -28,16 +28,16 @@ type Environment struct {
 }
 
 func ReadEnvironment() (Environment, bool, error) {
-	env := Environment{SessionID: os.Getenv(AttemptSessionEnv), IntervalID: os.Getenv(IntervalEnv), Contract: os.Getenv(ContractEnv), Mode: os.Getenv(CollectorModeEnv)}
+	env := Environment{SessionID: os.Getenv(SessionEnv), IntervalID: os.Getenv(IntervalEnv), Contract: os.Getenv(ContractEnv), Mode: os.Getenv(CollectorModeEnv)}
 	present := env.SessionID != "" || env.IntervalID != "" || env.Contract != "" || env.Mode != ""
 	if !present {
 		return Environment{}, false, nil
 	}
 	if !idPattern.MatchString(env.SessionID) || !idPattern.MatchString(env.IntervalID) || env.Contract != ContractVersion || env.Mode != CollectorRequired {
-		return Environment{}, true, fmt.Errorf("benchmark event collection requires valid %s, %s, %s=%s, and %s=%s", AttemptSessionEnv, IntervalEnv, ContractEnv, ContractVersion, CollectorModeEnv, CollectorRequired)
+		return Environment{}, true, fmt.Errorf("benchmark event collection requires valid %s, %s, %s=%s, and %s=%s", SessionEnv, IntervalEnv, ContractEnv, ContractVersion, CollectorModeEnv, CollectorRequired)
 	}
 	if os.Getenv("KTX_SESSION_ID") != "" {
-		return Environment{}, true, fmt.Errorf("%s conflicts with KTX_SESSION_ID", AttemptSessionEnv)
+		return Environment{}, true, fmt.Errorf("%s conflicts with KTX_SESSION_ID", SessionEnv)
 	}
 	return env, true, nil
 }

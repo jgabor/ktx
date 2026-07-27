@@ -79,9 +79,10 @@ const maxAgentLine = 64 * 1024 * 1024
 var runCmd = exec.CommandContext
 
 type runOptions struct {
-	Format       string
-	Quiet        bool
-	RecordStream bool
+	Format                string
+	Quiet                 bool
+	RecordStream          bool
+	ExpectedRuntimeSHA256 string
 }
 
 // runRunWith executes `ktx run` with injected output streams.
@@ -89,7 +90,7 @@ type runOptions struct {
 // touching os.Stdout/Stderr. The body parses the run flag set and
 // invokes executeRun, returning the child's exit code directly.
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	runOpts := runOptions{Format: opts.Format, Quiet: opts.Quiet}
+	runOpts := runOptions{Format: opts.Format, Quiet: opts.Quiet, ExpectedRuntimeSHA256: opts.ExpectedRuntimeSHA256}
 	// Subcommand-local --quiet / --help / --record-stream. The dispatch
 	// module already extracts --help when invoked through dispatch; parse the
 	// flag set here for direct callers.
@@ -254,15 +255,15 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 
 	// Open session before spawning the child so any early child output
 	// can be associated with the right session_id.
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx run: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := dbpkg.Open(path)
+	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
 	if err != nil {
-		printError(stderr, internalError("ktx run: open database: %v", err), opts.Format)
-		return ExitInternal
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
 	}
 	defer db.Close()
 
@@ -426,9 +427,10 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 	agent := ctx.Args[0]
 
 	opts := runOptions{
-		Format:       ctx.Format,
-		Quiet:        ctx.Quiet || postAgentQuiet,
-		RecordStream: parsed.recordStream || postAgentRecordStream,
+		Format:                ctx.Format,
+		Quiet:                 ctx.Quiet || postAgentQuiet,
+		RecordStream:          parsed.recordStream || postAgentRecordStream,
+		ExpectedRuntimeSHA256: ctx.ExpectedRuntimeSHA256,
 	}
 
 	exitCode := executeRun(agent, agentArgs, opts, ctx.Stdout, ctx.Stderr)

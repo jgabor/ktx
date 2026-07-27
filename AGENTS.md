@@ -82,8 +82,11 @@ migration rehearsal:
 
 Build and verify `./build/ktx`, rehearse seeded migration, then verify the
 effective installed binary's canonical identity before deliberately allowing
-the first live Open-backed command. A database newer than the binary is
-recovered by rolling the runtime forward, never by lowering `user_version`.
+the first live Open-backed command. Every ambient Open-backed invocation must
+carry that exact digest through `--expect-runtime-sha256`. `KTX_DB` declares
+operator ownership of an explicit path; it does not prove disposability. A
+database newer than the binary is recovered by rolling the runtime forward,
+never by lowering `user_version`.
 
 ## Testing
 

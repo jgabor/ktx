@@ -1,0 +1,16 @@
+id: wntapjrujn
+artifact: progress
+record:
+  timestamp: 2026-07-27 10:26
+  type: fix
+  phase: build
+  what: Corrected internal/cli/bench_experiment.go so collector-enabled bench agent renders typed openDatabase errors directly and returns exitCodeOf rather than converting them to usage errors. Untyped setup/open errors retain the existing usage wrapper.
+  context:
+    intent: Address the blocking Audit defect without broadening bench error semantics or changing the already-safe proof-before-open ordering.
+    constraints: No schema change, receipt, exit 5, suppression, broad bench error refactor, live database, model/provider invocation, real installation, or merge.
+    unknowns: None; bounded re-review owns lifecycle completion.
+    scope: Collector-enabled bench-agent open error handling, focused collector runtime-proof tests, task evidence, and progress state.
+  inspiration: Failed evaluation uurczbybmy-audit-1 from bounded Audit session ses_05d64a1d1ffeP6V510m9yuixoO.
+  discovered: The collector path was the sole call site that wrapped openDatabase's typed conflict; errors.As also preserves the typed identity-unverifiable internal error while leaving genuinely untyped setup failures unchanged.
+  verified: New missing/mismatched collector regressions assert exit 3, conflict code, runtime-proof-required/runtime-proof-mismatch, full correction, expected/actual/path fields, exactly one resolve audit event, no open, no database directory, empty stdout, and no fake opencode model marker. Focused go test -race passed. mage verify passed test, vet, lint, build, and replay; this run observed 781 attempts with inspect 19, open 438, open_read_only 209, resolve 115, forbidden 0. Prior temporary install/apply evidence remains valid; no live database or model/provider call occurred.
+  next: Keep uurczbybmy in_progress for bounded re-review. Preserve failed evaluation history and decision satisfaction-null state.

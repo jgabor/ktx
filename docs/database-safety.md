@@ -18,6 +18,19 @@ determines its class.
 | Isolated owner databases                  | Normal `bench compare` and `bench rank`                                                                                                                                                                                                                                                                               | Creates a fresh database for each attempt and rejects attempt-directory reuse. These are not supported workflows for upgrading an existing attempt database. Nested collector access is still Open-backed. |
 | Forbidden ambient-live development access | Any command or test that can resolve or open the normal user application database during development, CI, test, or rehearsal                                                                                                                                                                                          | Do not run it until the binary is deliberately installed and verified and live access is explicitly authorized. Setting one shared `KTX_DB` for a full suite is also forbidden.                            |
 
+Open-backed commands whose target comes from the default XDG/HOME resolution
+require the root flag `--expect-runtime-sha256 <digest>`. ktx hashes the
+canonical running executable and compares it with that digest before directory
+creation, database inspection, SQLite open, or migration. The proof is required
+on every ambient Open-backed invocation; ktx writes no receipt or trust state.
+
+A nonempty `KTX_DB` and an API or command that supplies a direct database path
+are explicit operator ownership declarations. They remain usable without the
+runtime proof so disposable tests, rehearsals, and benchmark attempt owners can
+operate. This is a provenance boundary, not a safety oracle: ktx does not prove
+that a `KTX_DB` path is temporary, non-live, or safe. The operator owns that
+claim. Never put an ambient live path in `KTX_DB` to bypass the proof.
+
 `doctor` reports a supported older schema as `degraded` with an upgrade-required
 check and exits 0. It reports a newer schema, malformed database, or other hard
 failure as `error` and exits 4. It never creates or migrates a database. Exit 5
@@ -90,20 +103,49 @@ command names that same temporary database and rehearses the normal Open-backed
 migration. Inspect and test the temporary database after rehearsal. Do not
 substitute an ambient path.
 
+## Ambient proof failure contract
+
+The root proof flag accepts exactly 64 lowercase hexadecimal characters.
+Malformed input is a usage error, exits `1`, and fails during root parsing before
+database target resolution. A missing proof for an ambient Open-backed command
+exits `3` with `failure_class=runtime-proof-required`. A digest mismatch exits
+`3` with `failure_class=runtime-proof-mismatch`, the expected and actual
+digests, and the canonical executable path. An executable that cannot be
+resolved or hashed exits `4` with
+`failure_class=runtime-proof-unverifiable`. These failures emit structured JSON
+on stderr by default, no result on stdout, and do not inspect, open, create, or
+migrate the database. Exit `5` is reserved for later work and is not used here.
+
+The correction is:
+
+```sh
+ktx binary-capabilities
+/absolute/path/to/verified/ktx binary-capabilities --expect-sha256 <digest>
+/absolute/path/to/verified/ktx --expect-runtime-sha256 <digest> <open-backed-command>
+```
+
 ## Upgrade and recovery order
 
-1. Build `./build/ktx`. Do not install yet.
+1. Build `./build/ktx`. Do not install yet into the user's environment.
 2. Run hermetic verification and seeded migration rehearsal with that local
    binary. No step may open the live database.
 3. Run `./build/ktx binary-capabilities` and record its canonical executable
    path, SHA-256, build version, and maximum supported schema.
-4. Install or select the verified artifact using the deployment's normal
-   procedure.
+4. First test installation with isolated `GOBIN` and `GOPATH`, then install or
+   select the verified artifact using the deployment's normal procedure.
 5. Run the effective installed binary's `binary-capabilities` command by its
    canonical absolute path. Verify that its digest and schema capability match
    the rehearsed artifact before granting live access.
-6. Deliberately run the first live Open-backed command. Ordinary safe
-   auto-migration remains enabled at this boundary.
+6. Run the effective installed binary's read-only `doctor` preflight. It does
+   not need the runtime proof and never creates or migrates a database.
+7. Deliberately run the first ambient Open-backed command with
+   `--expect-runtime-sha256 <verified-digest>`. Carry the same fresh proof on
+   every later ambient Open-backed invocation. Ordinary safe auto-migration
+   remains enabled at this boundary.
+
+Implementation and CI apply tests perform this sequence only with disposable
+HOME/XDG roots, explicit temporary databases, and a temporary installation.
+They do not perform the live open described above.
 
 If a live database has schema Y and the effective binary supports only X where
 Y is greater than X, stop. Do not write the database, run a downgrade, or

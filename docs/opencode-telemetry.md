@@ -27,7 +27,10 @@ it does not claim that OpenCode loaded or activated either file.
 At startup, the generated plugin resolves and canonicalizes one `ktx` candidate,
 verifies its DB-free `binary-capabilities` response against the candidate's
 actual path and SHA-256, and pins that absolute path for every later callback.
-This prevents a later `PATH` change from selecting a different binary. See
+Every Open-backed callback carries the verified digest through the root
+`--expect-runtime-sha256` flag. This prevents a later `PATH` change from
+selecting a different binary and proves the exact pinned bytes again before an
+ambient database open. See
 [Binary compatibility identity](binary-capabilities.md) for the response,
 comparison, correction, and exit contracts.
 
@@ -261,6 +264,9 @@ Failure behavior depends on the command:
   its identity cannot be verified, the plugin reports that it is disabled and
   registers neither hook. Reinstall ktx at a stable path, re-run
   `ktx init opencode`, and restart OpenCode.
+- If a callback reports `runtime-proof-mismatch`, stop and refresh the installed
+  binary and generated plugin together. The plugin pins one path and digest for
+  its lifetime; it does not trust a later `PATH` replacement.
 - If OpenCode is wrapped by `ktx run`, `KTX_SESSION_ID` intentionally disables
   the plugin hooks. Test the unwrapped path without `ktx run` when diagnosing
   plugin loading.

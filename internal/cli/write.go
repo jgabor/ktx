@@ -34,15 +34,15 @@ import (
 // delegates to writeLogic for the actual work, and translates the
 // returned error into an exit-code + stderr envelope.
 func runWriteWith(args []string, opts Options, stdin io.Reader, stdout, stderr io.Writer) int {
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx write: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := dbpkg.Open(path)
+	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
 	if err != nil {
-		printError(stderr, internalError("ktx write: open database: %v", err), opts.Format)
-		return ExitInternal
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
 	}
 	defer db.Close()
 

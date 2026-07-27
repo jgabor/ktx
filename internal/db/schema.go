@@ -414,7 +414,7 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 		return nil
 	}
 	if version > schemaVersion {
-		return fmt.Errorf("db: schema version %d is newer than supported version %d", version, schemaVersion)
+		return newerSchemaError(version)
 	}
 
 	ctx := context.Background()
@@ -426,7 +426,7 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 			return nil
 		}
 		if version > schemaVersion {
-			return fmt.Errorf("db: schema version %d is newer than supported version %d", version, schemaVersion)
+			return newerSchemaError(version)
 		}
 		if err := apply(tx); err != nil {
 			return err
@@ -436,6 +436,10 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 		}
 		return nil
 	})
+}
+
+func newerSchemaError(actual int) error {
+	return fmt.Errorf("db: schema version %d is newer than supported version %d; install and verify a runtime supporting schema %d or newer, then retry; do not lower PRAGMA user_version", actual, schemaVersion, actual)
 }
 
 // readSchemaVersionWithRetry is deliberately limited to migration's initial

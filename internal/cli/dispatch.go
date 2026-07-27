@@ -140,6 +140,10 @@ type DispatchContext struct {
 	// flag so ctx.Args never sees it; verbs that respect --quiet
 	// read this field rather than re-parsing ctx.Args.
 	Quiet bool
+
+	// ExpectedRuntimeSHA256 is the root proof supplied for an ambient
+	// Open-backed invocation. DB-free and explicit-target commands ignore it.
+	ExpectedRuntimeSHA256 string
 }
 
 // registeredVerb pairs the per-verb options with the verb's logic.
@@ -198,12 +202,16 @@ func RegisteredVerbs() []struct {
 // <agent>` and `ktx run <agent> --quiet` produce the same behaviour;
 // without it the verb would only see the subcommand-local --quiet.
 func runDispatch(verb string, args []string, globalQuiet bool, stdout, stderr io.Writer) int {
+	return runDispatchWithOptions(verb, args, Options{Quiet: globalQuiet}, stdout, stderr)
+}
+
+func runDispatchWithOptions(verb string, args []string, global Options, stdout, stderr io.Writer) int {
 	reg, ok := dispatchRegistry[verb]
 	if !ok {
 		printError(stderr, usageError("unknown command %q", verb), FormatJSON)
 		return ExitUsage
 	}
-	return runRegisteredVerb(reg, args, globalQuiet, stdout, stderr)
+	return runRegisteredVerb(reg, args, global, stdout, stderr)
 }
 
 // runRegisteredVerb executes a single registered verb end-to-end.
@@ -226,7 +234,7 @@ func runDispatch(verb string, args []string, globalQuiet bool, stdout, stderr io
 //
 // Each step is conditional so a verb that needs nothing (the
 // baseline) does no I/O.
-func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdout, stderr io.Writer) int {
+func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout, stderr io.Writer) int {
 	// 1. ParseArgs: optional verb-specific parsing.
 	rest := args
 	var parsedArgs any
@@ -286,15 +294,15 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 	// internal errors.
 	var db *dbpkg.DB
 	if reg.opts.NeedsDB {
-		path, err := dbpkg.ResolvePath("")
+		target, err := dbpkg.ResolveTarget("")
 		if err != nil {
 			printError(stderr, internalError("dispatch: resolve db path: %v", err), formatStr)
 			return ExitInternal
 		}
-		opened, err := dbpkg.Open(path)
+		opened, err := openDatabase(target, global.ExpectedRuntimeSHA256)
 		if err != nil {
-			printError(stderr, internalError("dispatch: open db: %v", err), formatStr)
-			return ExitInternal
+			printError(stderr, err, formatStr)
+			return exitCodeOf(err)
 		}
 		defer opened.Close()
 		db = opened
@@ -308,15 +316,16 @@ func runRegisteredVerb(reg registeredVerb, args []string, globalQuiet bool, stdo
 
 	// 6. Build the context and invoke the verb.
 	ctx := &DispatchContext{
-		Args:        fs.Args(),
-		ParsedArgs:  parsedArgs,
-		Format:      formatStr,
-		Stdin:       stdin,
-		Stdout:      stdout,
-		Stderr:      stderr,
-		DB:          db,
-		Passthrough: reg.opts.PassthroughStdout,
-		Quiet:       globalQuiet || subQuiet,
+		Args:                  fs.Args(),
+		ParsedArgs:            parsedArgs,
+		Format:                formatStr,
+		Stdin:                 stdin,
+		Stdout:                stdout,
+		Stderr:                stderr,
+		DB:                    db,
+		Passthrough:           reg.opts.PassthroughStdout,
+		Quiet:                 global.Quiet || subQuiet,
+		ExpectedRuntimeSHA256: global.ExpectedRuntimeSHA256,
 	}
 	if _, err := reg.do(ctx); err != nil {
 		var status *commandExit

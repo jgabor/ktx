@@ -6,7 +6,7 @@ record:
     - lygrbrfcvw
     - phwznpicfh
     - ccvxyztrkl
-  status: pending
+  status: complete
   acceptance:
     - GIVEN build, rehearsal, installation, and identity verification WHEN they run THEN all complete without opening a database.
     - GIVEN an unverified checkout binary WHEN it targets ambient live state THEN it refuses before database access while explicit disposable paths remain usable.
@@ -14,3 +14,14 @@ record:
     - GIVEN schema Y newer than supported X WHEN the controlled open is prepared THEN it fails before writes and directs installation of support for Y or newer.
     - GIVEN implementation and CI verification WHEN this task completes THEN all apply behavior has been proven on explicit temporary databases and no live migration has run.
   plan: xszoenfrqu
+  evidence: Typed target provenance and root executable-digest proof guard every ambient Open-backed path before database effects while explicit owners remain usable. Temporary build, rehearsal, install, identity, schema 1-to-8 migration, idempotent rerun, and unchanged schema-9 rejection passed; generated OpenCode pins path/digest and supplies fresh proof without a receipt. Collector proof errors preserve exits and structured fields with resolve-only/no-model evidence. Independent bounded Audit passed all criteria; full gate reproduced 781 audited operations and zero forbidden access.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Collector-enabled bench agent wraps typed runtime-proof required/mismatch conflicts as usage errors, changing exit 3 to 1 and dropping failure_class plus digest fields despite correctly refusing before database open.
+    provenance:
+      attempt_id: uurczbybmy-audit-2
+      source: audit ses_05d4f3ba1ffexrJ6TeEsJ6rRPW
+      recorded_at: 2026-07-27 10:36
+      writer_command: agentera state plan record-evaluation

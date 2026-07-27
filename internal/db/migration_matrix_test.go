@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -234,12 +235,13 @@ func addMigrationMarker(t *testing.T, raw *sql.DB) {
 
 func TestRejectedMigrationInputsRemainUnchanged(t *testing.T) {
 	tests := []struct {
-		name    string
-		seed    func(*testing.T, string)
-		wantErr bool
+		name            string
+		seed            func(*testing.T, string)
+		wantErr         bool
+		wantErrContains string
 	}{
 		{name: "current schema is byte-idempotent", seed: seedCurrentStorage},
-		{name: "newer schema", seed: func(t *testing.T, path string) { seedVersionedStorage(t, path, schemaVersion+1) }, wantErr: true},
+		{name: "newer schema", seed: func(t *testing.T, path string) { seedVersionedStorage(t, path, schemaVersion+1) }, wantErr: true, wantErrContains: "install and verify a runtime supporting schema 9 or newer"},
 		{name: "partial recorded streams", seed: seedPartialStorage, wantErr: true},
 		{name: "malformed SQLite", seed: func(t *testing.T, path string) {
 			if err := os.WriteFile(path, []byte("not a sqlite database\n"), 0o600); err != nil {
@@ -261,6 +263,9 @@ func TestRejectedMigrationInputsRemainUnchanged(t *testing.T) {
 			}
 			if test.wantErr && err == nil {
 				t.Fatal("Open succeeded, want rejection")
+			}
+			if test.wantErrContains != "" && (err == nil || !strings.Contains(err.Error(), test.wantErrContains)) {
+				t.Fatalf("Open error = %v, want text %q", err, test.wantErrContains)
 			}
 			if !test.wantErr && err != nil {
 				t.Fatal(err)

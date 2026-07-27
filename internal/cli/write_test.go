@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -310,6 +311,7 @@ func TestRunWriteWith_FailureSignalFields(t *testing.T) {
 // the subcommand-local flag set accepts -h/--help and exits 0.
 func TestRunWriteWith_Help(t *testing.T) {
 	t.Run("--help prints help and exits 0", func(t *testing.T) {
+		t.Setenv("KTX_DB", filepath.Join(t.TempDir(), "ktx.db"))
 		var stdout, stderr bytes.Buffer
 		code := runWriteWith([]string{"--help"}, Options{Format: FormatJSON}, &bytes.Buffer{}, &stdout, &stderr)
 		if code != ExitOK {

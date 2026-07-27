@@ -41,6 +41,13 @@ func TestDatabaseSafetyGuidanceContract(t *testing.T) {
 		"Do not lower `PRAGMA user_version`",
 		"doctor",
 		"never creates or migrates",
+		"--expect-runtime-sha256",
+		"runtime-proof-required",
+		"runtime-proof-mismatch",
+		"operator ownership declarations",
+		"not a safety oracle",
+		"writes no receipt or trust state",
+		"They do not perform the live open",
 	} {
 		if !strings.Contains(contract, required) {
 			t.Errorf("database safety contract missing %q", required)

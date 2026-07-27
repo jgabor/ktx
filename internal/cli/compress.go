@@ -66,15 +66,15 @@ const sourceFailureWarning = "ktx: warning: source tool_call indicates failure, 
 // registry), and translates the returned error into an exit-code +
 // stderr envelope.
 func runCompressWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx compress: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := dbpkg.Open(path)
+	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256)
 	if err != nil {
-		printError(stderr, internalError("ktx compress: open database: %v", err), opts.Format)
-		return ExitInternal
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
 	}
 	defer db.Close()
 

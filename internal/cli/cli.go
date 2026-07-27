@@ -7,6 +7,7 @@
 //
 //	--format string   text|json (default json)
 //	--quiet, -q       suppress run summary
+//	--expect-runtime-sha256 string  prove exact runtime for ambient DB opens
 //	--help, -h        show help
 //	--version, -v     show version
 //
@@ -33,8 +34,9 @@ const (
 
 // Options carries the parsed global flags to subcommands.
 type Options struct {
-	Format string
-	Quiet  bool
+	Format                string
+	Quiet                 bool
+	ExpectedRuntimeSHA256 string
 }
 
 // Run is the ktx entrypoint. It parses global flags, dispatches to the
@@ -84,7 +86,7 @@ func runWith(args []string, stdout, stderr io.Writer) int {
 
 	// Forward global quiet state through the shared dispatch context.
 	if _, registered := dispatchRegistry[name]; registered {
-		return runDispatch(name, verbArgs, opts.Quiet, stdout, stderr)
+		return runDispatchWithOptions(name, verbArgs, opts.Options, stdout, stderr)
 	}
 	printError(stderr, usageError("unknown command %q; run 'ktx --help' for the command list", name), opts.Format)
 	return ExitUsage
@@ -107,6 +109,7 @@ func parseGlobalFlags(args []string) (parsedFlags, []string, error) {
 	fs := flag.NewFlagSet("ktx", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we render our own errors and help
 	fs.StringVar(&p.Format, "format", FormatJSON, "output format: text|json")
+	fs.StringVar(&p.ExpectedRuntimeSHA256, "expect-runtime-sha256", "", "expected SHA-256 of the running executable for ambient database access")
 	fs.BoolVar(&p.Quiet, "quiet", false, "suppress run summary")
 	fs.BoolVar(&p.Quiet, "q", false, "suppress run summary (shorthand)")
 	fs.BoolVar(&p.showHelp, "help", false, "show help")
@@ -125,6 +128,9 @@ func parseGlobalFlags(args []string) (parsedFlags, []string, error) {
 
 	if p.Format != FormatJSON && p.Format != FormatText {
 		return p, nil, usageError("invalid --format %q: want %q or %q", p.Format, FormatJSON, FormatText)
+	}
+	if err := validateRuntimeDigest(p.ExpectedRuntimeSHA256); err != nil {
+		return p, nil, err
 	}
 
 	return p, fs.Args(), nil
@@ -146,6 +152,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "Global flags:")
 	fmt.Fprintln(w, "  --format string   output format: text|json (default \"json\")")
 	fmt.Fprintln(w, "  --quiet, -q       suppress run summary")
+	fmt.Fprintln(w, "  --expect-runtime-sha256 string")
+	fmt.Fprintln(w, "                    prove the exact running executable before ambient database access")
 	fmt.Fprintln(w, "  --help, -h        show help")
 	fmt.Fprintln(w, "  --version, -v     show version")
 	fmt.Fprintln(w)

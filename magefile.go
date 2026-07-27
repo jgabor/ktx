@@ -44,7 +44,7 @@ func Build() error {
 }
 
 func Install() error {
-	return run("go", "install", "-trimpath", "-ldflags", ldflags(), "./cmd/ktx")
+	return run("go", "install", "-buildvcs=false", "-trimpath", "-ldflags", ldflags(), "./cmd/ktx")
 }
 
 func ldflags() string {

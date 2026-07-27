@@ -120,7 +120,7 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 
 	sub := rest[0]
 	tail := rest[1:]
-	opts := Options{Format: ctx.Format}
+	opts := Options{Format: ctx.Format, ExpectedRuntimeSHA256: ctx.ExpectedRuntimeSHA256}
 
 	switch sub {
 	case "run":

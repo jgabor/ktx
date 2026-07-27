@@ -139,6 +139,7 @@ interface KtxBinaryCapabilities {
 }
 
 let ktxExecutable = ""
+let ktxExecutableSHA256 = ""
 
 const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
   try {
@@ -148,7 +149,7 @@ const ktxHook = async (payload: string): Promise<KtxEnvelope | null> => {
         controller.close()
       },
     })
-    const proc = Bun.spawn([ktxExecutable, "hook"], {
+    const proc = Bun.spawn([ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, "hook"], {
       stdin: stream,
       stdout: "pipe",
       stderr: "pipe",
@@ -177,7 +178,7 @@ const ktxTelemetry = async (payload: string): Promise<void> => {
         controller.close()
       },
     })
-    const proc = Bun.spawn([ktxExecutable, "telemetry", "record"], {
+    const proc = Bun.spawn([ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, "telemetry", "record"], {
       stdin: stream,
       stdout: "pipe",
       stderr: "pipe",
@@ -200,7 +201,7 @@ const ktxRequiredCommand = async (args: string[], payload: string): Promise<unkn
       controller.close()
     },
   })
-  const proc = Bun.spawn([ktxExecutable, ...args], { stdin: stream, stdout: "pipe", stderr: "pipe" })
+  const proc = Bun.spawn([ktxExecutable, "--expect-runtime-sha256", ktxExecutableSHA256, ...args], { stdin: stream, stdout: "pipe", stderr: "pipe" })
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
@@ -316,6 +317,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       throw new Error("binary-capabilities response does not match the resolved candidate")
     }
     ktxExecutable = canonical
+    ktxExecutableSHA256 = digest
   } catch (e) {
     const correction = "reinstall ktx at a readable stable path, run ktx init opencode, and restart OpenCode"
     if (required) throw new Error("ktx candidate identity is unverifiable: " + String(e) + "; " + correction)

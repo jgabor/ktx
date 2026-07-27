@@ -82,6 +82,33 @@ func DefaultPath() (string, error) {
 	return filepath.Join(dataHome, "ktx", "ktx.db"), nil
 }
 
+// TargetSource records how a database target was selected. Only the ambient
+// default requires proof of the running executable; environment and direct
+// targets are explicit operator ownership declarations.
+type TargetSource string
+
+const (
+	TargetAmbientDefault TargetSource = "ambient-default"
+	TargetEnvironment    TargetSource = "environment"
+	TargetOverride       TargetSource = "override"
+)
+
+// Target preserves path provenance through resolution and opening.
+type Target struct {
+	Path   string
+	Source TargetSource
+}
+
+func (t Target) RequiresRuntimeProof() bool { return t.Source == TargetAmbientDefault }
+
+// OwnedTarget constructs a direct operator-owned target.
+func OwnedTarget(path string) (Target, error) {
+	if path == "" {
+		return Target{}, errors.New("db: target path is empty")
+	}
+	return Target{Path: path, Source: TargetOverride}, nil
+}
+
 // ResolvePath applies the database path precedence:
 //
 //  1. override (the --path flag value, empty when absent)
@@ -90,22 +117,33 @@ func DefaultPath() (string, error) {
 //
 // The --path flag is per-invocation only; nothing is persisted.
 func ResolvePath(override string) (string, error) {
-	var path string
-	if override != "" {
-		path = override
-	} else if envPath := os.Getenv("KTX_DB"); envPath != "" {
-		path = envPath
-	} else {
-		var err error
-		path, err = DefaultPath()
-		if err != nil {
-			return "", err
-		}
-	}
-	if err := auditDatabaseAccess("resolve", path); err != nil {
+	target, err := ResolveTarget(override)
+	if err != nil {
 		return "", err
 	}
-	return path, nil
+	return target.Path, nil
+}
+
+// ResolveTarget applies database path precedence without discarding whether
+// the result came from ambient defaults or an explicit ownership declaration.
+func ResolveTarget(override string) (Target, error) {
+	var target Target
+	if override != "" {
+		target = Target{Path: override, Source: TargetOverride}
+	} else if envPath := os.Getenv("KTX_DB"); envPath != "" {
+		target = Target{Path: envPath, Source: TargetEnvironment}
+	} else {
+		var err error
+		target.Path, err = DefaultPath()
+		if err != nil {
+			return Target{}, err
+		}
+		target.Source = TargetAmbientDefault
+	}
+	if err := auditDatabaseAccess("resolve", target.Path); err != nil {
+		return Target{}, err
+	}
+	return target, nil
 }
 
 // IDPattern is the canonical regex for ktx IDs. Exported so
@@ -123,6 +161,18 @@ var IDPattern = regexp.MustCompile(`^[a-z]{16}$`)
 // PRAGMA user_version gates migration so a current-schema open performs no
 // write transaction. Stale schemas are migrated and versioned atomically.
 func Open(path string) (*DB, error) {
+	target, err := OwnedTarget(path)
+	if err != nil {
+		return nil, err
+	}
+	return OpenTarget(target)
+}
+
+// OpenTarget opens a resolved target while retaining its source at the API
+// boundary. Ambient proof must be checked by the CLI before this function is
+// called; the database package does not inspect executable identity.
+func OpenTarget(target Target) (*DB, error) {
+	path := target.Path
 	if path == "" {
 		return nil, errors.New("db: open: path is empty")
 	}

@@ -206,6 +206,7 @@ func TestDispatch_NoDB(t *testing.T) {
 	// because NeedsDB=false, which is the contract under test.
 	t.Cleanup(func() { _ = os.Chmod(dbPath, 0o644) })
 	t.Setenv("XDG_DATA_HOME", dataHome)
+	t.Setenv("KTX_DB", filepath.Join(dataHome, "ktx", "ktx.db"))
 
 	registerFor(t, "stdin_foo", RegisterOptions{}, func(ctx *DispatchContext) (any, error) {
 		if ctx.DB != nil {
@@ -465,6 +466,7 @@ func TestDispatch_PassthroughWithDB(t *testing.T) {
 		t.Fatalf("mkdir data home: %v", err)
 	}
 	t.Setenv("XDG_DATA_HOME", dataHome)
+	t.Setenv("KTX_DB", filepath.Join(dataHome, "ktx", "ktx.db"))
 
 	var captured *DispatchContext
 	do := func(ctx *DispatchContext) (any, error) {

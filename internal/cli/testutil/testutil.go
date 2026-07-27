@@ -5,8 +5,8 @@
 // WithTempXDG points XDG_RUNTIME_DIR and XDG_DATA_HOME at per-test
 // subdirectories under t.TempDir(). Session-file code paths consult
 // XDG_RUNTIME_DIR ($XDG_RUNTIME_DIR/ktx/sessions/<ppid>.json, per the
-// session.go sessionDir helper); database-path resolution consults
-// XDG_DATA_HOME ($XDG_DATA_HOME/ktx/ktx.db, per dbpkg.DefaultPath).
+// session.go sessionDir helper); database-path resolution receives an explicit
+// KTX_DB beneath XDG_DATA_HOME.
 // Setting both to per-test paths keeps tests parallel-safe and
 // deterministic — a parallel test cannot observe another test's
 // session file or price cache, and a stale ~/.local/share from a
@@ -24,8 +24,8 @@ import (
 	"testing"
 )
 
-// WithTempXDG sets XDG_RUNTIME_DIR and XDG_DATA_HOME to per-test
-// subdirectories under t.TempDir() and returns the base temp dir.
+// WithTempXDG sets XDG_RUNTIME_DIR, XDG_DATA_HOME, and an explicitly owned
+// KTX_DB to per-test paths under t.TempDir() and returns the base temp dir.
 //
 //	<XDG_RUNTIME_DIR> = <tmp>/run
 //	<XDG_DATA_HOME>   = <tmp>/share
@@ -52,6 +52,7 @@ func WithTempXDG(t *testing.T) string {
 
 	t.Setenv("XDG_RUNTIME_DIR", runtime)
 	t.Setenv("XDG_DATA_HOME", data)
+	t.Setenv("KTX_DB", filepath.Join(data, "ktx", "ktx.db"))
 
 	return tmp
 }

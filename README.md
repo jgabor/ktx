@@ -89,8 +89,11 @@ Database access is forward-only. See the
 [database safety contract](docs/database-safety.md) for the command access
 classes and the install-first upgrade procedure. In particular, rehearse only
 on a seeded temporary database, verify the effective installed binary before
-live access, and recover from a database newer than the binary by installing a
-binary that supports that schema or newer. Never lower `PRAGMA user_version`.
+live access, and pass its digest through `--expect-runtime-sha256` on every
+ambient Open-backed invocation. A nonempty `KTX_DB` is an explicit operator
+ownership declaration, not proof that a path is disposable. Recover from a
+database newer than the binary by installing a binary that supports that schema
+or newer. Never lower `PRAGMA user_version`.
 
 ## Benchmarking
 

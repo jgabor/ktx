@@ -1,0 +1,15 @@
+id: pkncauwnqe
+artifact: decisions
+record:
+  date: 2026-07-27
+  question: How should successful runtime verification authorize ambient database access after installation?
+  context: The existing binary-capability contract identifies one executable by canonical path, SHA-256, build version, and maximum schema, but did not decide how that verification authorizes later ambient Open-backed commands. A durable receipt would add revocable XDG trust state; stateless proof requires each ambient invocation to demonstrate the expected executable again. Explicit temporary database ownership must remain usable, generated OpenCode already pins and verifies one candidate, ordinary safe auto-migration must remain, and no implementation may access live state during development.
+  alternatives:
+    - name: Require fresh per-invocation exact-binary proof for every ambient Open-backed command, with no durable authorization receipt.
+      status: chosen
+    - name: Write a durable XDG-state receipt after a controlled first open and authorize subsequent ambient commands until revocation or identity drift.
+      status: rejected
+  choice: Add one root --expect-runtime-sha256 flag carrying a lowercase executable SHA-256. For an Open-backed target resolved from the ambient default path, require the flag and compare it with the canonical running executable's bytes before directory creation, inspection, SQLite open, or migration. The flag is presented on every ambient invocation and writes no trust state. Explicit operator-owned database targets remain usable without ambient proof. Generated OpenCode code passes the verified digest to its pinned absolute candidate on every Open-backed callback. Canonical path, build version, and maximum schema remain available through ktx.binary-capabilities/v1; the digest binds those executable bytes. Doctor remains read-only preflight. A matching proof permits the existing Open path and safe auto-migration; Y greater than maximum still fails before writes. Missing, malformed, or mismatched proof returns structured correction guidance without database access.
+  reasoning: The user selected per-invocation proof over durable authorization. It removes receipt lifecycle, revocation, crash-ordering, and stale-state risks, and makes every ambient open deliberate. Reusing the existing executable digest keeps the proof machine-readable and binds the exact bytes, while OpenCode can supply it automatically after its existing candidate verification. Restricting the guard to default ambient resolution preserves explicit disposable and benchmark owners. Read-only preflight plus the existing forward-only Open check preserves safe migration and Y>X recovery without prematurely implementing the later schema-incompatibility exit and callback deduplication contract.
+  confidence: firm
+  feeds_into: Install-first ambient-open guard, root CLI parsing, database target provenance, generated OpenCode invocation, temporary installation tests, safety documentation, and later incompatibility diagnostics.

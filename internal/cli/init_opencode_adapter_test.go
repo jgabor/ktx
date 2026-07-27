@@ -156,8 +156,13 @@ if [ "$1" = "binary-capabilities" ]; then
   printf '{"schema":"ktx.binary-capabilities/v1","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","max_database_schema":%s}\n' "$path" "$digest" "$schema"
   exit 0
 fi
+proof_prefix=""
+if [ "$1" = "--expect-runtime-sha256" ]; then
+  proof_prefix="$1 $2 "
+  shift 2
+fi
 payload=$(cat)
-printf '%s\t%s\n' "$*" "$payload" >> "$KTX_TEST_LOG"
+printf '%s%s\t%s\n' "$proof_prefix" "$*" "$payload" >> "$KTX_TEST_LOG"
 if [ "$1" = "telemetry" ] && [ "$KTX_TEST_TELEMETRY_FAIL" = "1" ]; then
   printf 'telemetry unavailable\n' >&2
   exit 8
@@ -299,7 +304,8 @@ console.log(JSON.stringify(output))
 		var observations []map[string]any
 		for ordinal, call := range calls[:6] {
 			fields := strings.SplitN(call, "\t", 2)
-			if len(fields) != 2 || fields[0] != "telemetry record" {
+			if len(fields) != 2 || !strings.HasSuffix(fields[0], " telemetry record") ||
+				!strings.HasPrefix(fields[0], "--expect-runtime-sha256 ") {
 				t.Fatalf("telemetry call = %q", call)
 			}
 			var observation map[string]any
@@ -338,7 +344,7 @@ console.log(JSON.stringify(output))
 				t.Errorf("generated/wrapper states differ for case %d: got %v want %v", i, got, want)
 			}
 		}
-		if !strings.HasPrefix(calls[6], "hook\t") {
+		if !strings.HasPrefix(calls[6], "--expect-runtime-sha256 ") || !strings.Contains(calls[6], " hook\t") {
 			t.Fatalf("tool call = %q", calls[6])
 		}
 	})
@@ -381,11 +387,13 @@ console.log(JSON.stringify(output))
 		if output["output"] != "compressed tool output" || len(calls) != 11 {
 			t.Fatalf("output=%#v calls=%q", output, calls)
 		}
-		if !strings.HasPrefix(calls[0], "telemetry collector-open\t") || !strings.HasPrefix(calls[10], "hook\t") {
+		proof := "--expect-runtime-sha256 "
+		if !strings.HasPrefix(calls[0], proof) || !strings.Contains(calls[0], " telemetry collector-open\t") ||
+			!strings.HasPrefix(calls[10], proof) || !strings.Contains(calls[10], " hook\t") {
 			t.Fatalf("required call boundaries=%q", calls)
 		}
 		for index, call := range calls[1:10] {
-			if !strings.HasPrefix(call, "telemetry event-record\t") || !strings.Contains(call, fmt.Sprintf(`"epoch_ordinal":%d`, index+1)) {
+			if !strings.HasPrefix(call, proof) || !strings.Contains(call, " telemetry event-record\t") || !strings.Contains(call, fmt.Sprintf(`"epoch_ordinal":%d`, index+1)) {
 				t.Fatalf("required call %d=%q", index+1, call)
 			}
 		}
@@ -466,9 +474,9 @@ console.log("ok")
 
 	t.Run("required second sequential epoch is a restart", func(t *testing.T) {
 		calls, _ := runEpochDriver(t, "sequential")
-		if len(calls) != 4 || !strings.HasPrefix(calls[0], "telemetry collector-open\t") ||
+		if len(calls) != 4 || !strings.Contains(calls[0], " telemetry collector-open\t") ||
 			!strings.Contains(calls[1], `"after_ordinal":1`) ||
-			!strings.HasPrefix(calls[2], "telemetry collector-open\t") ||
+			!strings.Contains(calls[2], " telemetry collector-open\t") ||
 			!strings.Contains(calls[3], `"after_ordinal":3`) {
 			t.Fatalf("sequential epoch calls=%q", calls)
 		}

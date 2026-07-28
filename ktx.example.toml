@@ -225,8 +225,10 @@ profile = "json-compact"
 #   profile         Target [pipeline.<name>] table. Required; must
 #                   name an existing profile or config load fails.
 #
-# The router applies rules at runtime; the loader only parses and
-# validates profile references at config-load time.
+# The router applies valid rules at runtime. At config-load time, the
+# loader validates profile references and requires each non-empty
+# exit_status to be exactly "success", "failure", or "any". Typos,
+# case variants, and surrounding whitespace reject the configuration.
 #
 # Matching: rules are evaluated in file order and the first rule whose
 # conditions all match wins. Put specific rules before broad ones.

@@ -65,8 +65,8 @@ type Plugin struct {
 // name, ExitStatus for success/failure). The matching Profile names
 // a [pipeline.<name>] table. Empty ExitStatus normalizes to "any".
 // Matching itself is performed by the router at runtime, not at
-// config-load time; the loader only parses and validates profile
-// references.
+// config-load time; the loader validates profile references and rejects
+// ExitStatus values other than "success", "failure", or "any".
 type RouteRule struct {
 	// Tool is the tool name to match (e.g. "bash"). Empty matches
 	// any tool.
@@ -152,14 +152,14 @@ type Config struct {
 
 	// Routes holds route rules from [[route]] blocks, in document
 	// order. Each rule maps tool-call metadata to a named pipeline
-	// profile. Nil when no [[route]] blocks exist. Profile references
-	// are validated against the Profiles map at load time.
+	// profile. Nil when no [[route]] blocks exist. Profile references and
+	// exit-status values are validated at load time.
 	Routes []RouteRule
 }
 
-// ParseError is returned by Load when a discovered ktx.toml contains
-// a syntax error or a missing required field. The CLI layer maps it
-// to exit 1 (usage). The error names the file path and the offending
+// ParseError is returned by Load when a discovered ktx.toml contains a syntax
+// error, a missing required field, or an invalid bounded value. The CLI layer
+// maps it to exit 1 (usage). The error names the file path and the offending
 // line number (when known) so the user can locate the problem.
 type ParseError struct {
 	Path string
@@ -176,8 +176,8 @@ func (e *ParseError) Error() string {
 // path ($XDG_CONFIG_HOME/ktx/ktx.toml, with ~/.config/ktx/ktx.toml
 // fallback per the XDG spec). Returns a Config with empty stages and
 // nil plugins when no file exists (the no-config default). A discovered
-// file with a syntax error or missing required field returns a
-// *ParseError; the CLI layer maps it to exit 1.
+// file with a syntax error, missing required field, or invalid bounded value
+// returns a *ParseError; the CLI layer maps it to exit 1.
 //
 // ConfigPath returns the resolved path to the ktx.toml that Load()
 // would use, and whether it exists. Used by `ktx plugin` to know
@@ -303,7 +303,7 @@ func fileExists(path string) (string, bool) {
 }
 
 // loadFile reads and parses path. Returns a *ParseError on syntax
-// errors or missing required [[plugin]] fields so the CLI's toKtxError
+// errors or invalid required fields so the CLI's toKtxError
 // path can surface a usage exit (1) with a stable message. An empty
 // file is a valid Config with empty stages and nil plugins (the
 // passthrough default).
@@ -347,8 +347,8 @@ type tomlPlugin struct {
 }
 
 // tomlRoute maps a single [[route]] block. Profile is required and
-// must name an existing [pipeline.<name>] table; Tool,
-// CommandPrefix, and ExitStatus are optional match filters.
+// must name an existing [pipeline.<name>] table; Tool, CommandPrefix,
+// Subcommand, and ExitStatus are optional match filters.
 type tomlRoute struct {
 	Tool          string `toml:"tool"`
 	CommandPrefix string `toml:"command_prefix"`
@@ -361,8 +361,8 @@ type tomlRoute struct {
 // syntax error is wrapped in a *ParseError preserving the line number
 // and message from BurntSushi's ParseError so the CLI layer's error
 // envelope contract (Path/Line/Msg) is maintained. Missing required
-// [[plugin]] fields (name, command) are validated after decode and
-// also return *ParseError.
+// required fields and bounded values are validated after decode and also
+// return *ParseError.
 func parse(data []byte) (*Config, error) {
 	var decoded tomlConfig
 	if _, err := toml.Decode(string(data), &decoded); err != nil {
@@ -453,6 +453,17 @@ func parse(data []byte) (*Config, error) {
 		exitStatus := r.ExitStatus
 		if exitStatus == "" {
 			exitStatus = "any"
+		}
+		switch exitStatus {
+		case "success", "failure", "any":
+		default:
+			return nil, &ParseError{
+				Line: 0,
+				Msg: fmt.Sprintf(
+					"[[route]] block at index %d has invalid exit_status %q; valid values are %q, %q, or %q",
+					i, exitStatus, "success", "failure", "any",
+				),
+			}
 		}
 		cfg.Routes = append(cfg.Routes, RouteRule{
 			Tool:          r.Tool,

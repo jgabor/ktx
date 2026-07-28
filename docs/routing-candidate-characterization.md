@@ -100,11 +100,12 @@ historical fixture evidence, not current observations.
 
 ## Follow-up boundary
 
-The characterization found one product-contract mismatch but does not fix it:
-configuration documentation names `success`, `failure`, and `any` as the valid
-`exit_status` values, while current loading and matching accept a misspelled
-value and treat it as a wildcard. Validation behavior must be aligned in a
-separately scoped task.
+The characterization found one product-contract mismatch: configuration
+documentation named `success`, `failure`, and `any` as the valid `exit_status`
+values, while loading and matching accepted a misspelled value as a wildcard.
+The subsequent validation task closed that gap at config load: empty or absent
+values normalize to `any`, the three documented non-empty values remain valid,
+and every other spelling rejects the configuration before route evaluation.
 
 ## Verification
 

@@ -21,7 +21,7 @@
     "references": [
       {
         "path": "internal/router/router.go",
-        "sha256": "eaae6b6f210ac05736e8dd0379cc6822b356140541a22c310e82b08a9e085d6d",
+        "sha256": "c724ae5b87fa955ccb42d6a2d561c8bd8c63cdd103994d0c5f6ac5e057fce7e3",
         "evidence_class": "implemented_behavior"
       },
       {
@@ -31,12 +31,12 @@
       },
       {
         "path": "internal/config/config.go",
-        "sha256": "f49c291d5e40a87547ead62dd86953f40d955f4b2ad179bd253313c1aea4b18f",
+        "sha256": "e04545b13813288cc43feda133908e08ed7784b6b94ffb612092137270dc2b2c",
         "evidence_class": "implemented_behavior"
       },
       {
         "path": "ktx.example.toml",
-        "sha256": "164dac568d3d6bdc469c3aec21ba6406b7870cd81393b5941cd7ee72829512b3",
+        "sha256": "6dbdb9ddf16e72f40837fa6a97056fe3d60026256a5841d295f05584a04b215c",
         "evidence_class": "documented_contract"
       },
       {
@@ -490,6 +490,7 @@
       {
         "id": "validate-route-exit-status-values",
         "required": true,
+        "status": "satisfied",
         "scope": "Align configuration validation and documentation for unrecognized route exit_status values; do not change routing behavior in this characterization."
       }
     ]
@@ -502,6 +503,6 @@
     "No taxonomy, layer-to-profile mapping, threshold, semantic classifier, or implementation is selected."
   ],
   "determinism": {
-    "findings_sha256": "d67f0db622a1e6bfd2f7ccd0bd716554e8001f0613787c95d71f62ebdd5abadd"
+    "findings_sha256": "2cc580cc2820265040b571c5ff981ff3d4a8b52aafabbad6d9c35021fd0f50be"
   }
 }

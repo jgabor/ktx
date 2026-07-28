@@ -44,7 +44,10 @@ func configCommandFunc(ctx *DispatchContext) (any, error) {
 // configuration. JSON format returns a {profiles:{<name>:{stages:[...]}}, routes:[...]}
 // envelope; text format renders a one-row-per-profile table.
 func configShow(format string, stdout io.Writer) (any, error) {
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, usageError("ktx config show: %v", err)
+	}
 	if cfg == nil {
 		cfg = &config.Config{}
 	}

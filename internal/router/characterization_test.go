@@ -64,6 +64,7 @@ type routingCharacterization struct {
 		Followups []struct {
 			ID       string `json:"id"`
 			Required bool   `json:"required"`
+			Status   string `json:"status"`
 		} `json:"product_contract_followups"`
 	} `json:"findings"`
 	FindingsRaw json.RawMessage `json:"-"`
@@ -312,7 +313,7 @@ func validateCharacterizationBoundaries(t *testing.T, c routingCharacterization)
 	if c.Findings.HistoricalSpend.EvidenceClass != "historical_runtime_fixture_unsupported_for_current_collection" {
 		t.Errorf("historical fixture spend class = %q", c.Findings.HistoricalSpend.EvidenceClass)
 	}
-	if len(c.Findings.Followups) != 1 || c.Findings.Followups[0].ID != "validate-route-exit-status-values" || !c.Findings.Followups[0].Required {
+	if len(c.Findings.Followups) != 1 || c.Findings.Followups[0].ID != "validate-route-exit-status-values" || !c.Findings.Followups[0].Required || c.Findings.Followups[0].Status != "satisfied" {
 		t.Errorf("product contract follow-up = %#v", c.Findings.Followups)
 	}
 	joined := strings.Join(c.ClaimLimits, "\n")

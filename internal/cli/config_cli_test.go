@@ -87,6 +87,30 @@ stages = ["strip-ansi", "head:5"]
 	}
 }
 
+func TestConfigShow_InvalidRouteExitStatus(t *testing.T) {
+	configTestEnv(t)
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = []
+
+[[route]]
+exit_status = "sucess"
+profile = "default"
+`)
+
+	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
+	if code != ExitUsage {
+		t.Fatalf("exit=%d, want %d; stderr=%q", code, ExitUsage, stderr)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty", stdout)
+	}
+	for _, want := range []string{"sucess", "success", "failure", "any", "ktx.toml"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr = %q, want %q", stderr, want)
+		}
+	}
+}
+
 // TestConfigShow_JSON_DeterministicStages covers a ktx.toml
 // referencing the four deterministic stages surfaces them in the active
 // pipeline.profiles.default.stages array via `ktx config show --json`.

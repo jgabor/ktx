@@ -127,9 +127,12 @@ semantics — every non-empty condition must hold:
 | Exit status    | `exit_status`    | `"success"` (no error), `"failure"` (errored), or `"any"` (the default when the field is empty or absent).                                                                                                                                                                          |
 
 `profile` names the target `[pipeline.<name>]` table and is required.
-Profile references are validated at config-load time — every
-`profile =` value must name an existing profile or the config fails to
-load. The router itself never errors at runtime.
+Profile references and non-empty `exit_status` values are validated at
+config-load time. Every `profile =` value must name an existing profile, and
+`exit_status` must be exactly `success`, `failure`, or `any`; case variants,
+surrounding whitespace, and misspellings reject the configuration instead of
+acting as wildcard routes. Empty or absent `exit_status` normalizes to `any`.
+The router itself never errors at runtime.
 
 ### Subcommand vs command prefix
 

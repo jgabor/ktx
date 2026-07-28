@@ -9,9 +9,9 @@
 // with default-fallback provenance. The router never returns an error and
 // performs no I/O.
 //
-// Profile-name existence is validated at config-load time, so the
-// router trusts that each rule's Profile resolves to a real
-// [pipeline.<name>] table and does not re-check.
+// Profile names and exit-status values are validated at config-load time, so
+// the router trusts that each rule carries a real [pipeline.<name>] target and
+// one of the documented exit-status values.
 package router
 
 import (
@@ -67,8 +67,8 @@ func Match(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) st
 // against tc. Empty fields are wildcards. CommandPrefix requires the
 // command string to start with the prefix; Subcommand requires the
 // first non-flag token after the binary name to equal the value.
-// ExitStatus "success" requires no error; "failure" requires an
-// error; "any" (or any unrecognized value) matches either state.
+// ExitStatus "success" requires no error; "failure" requires an error; "any"
+// matches either state. The config loader rejects every other non-empty value.
 func ruleMatches(tc *db.ToolCall, r config.RouteRule) bool {
 	if r.Tool != "" && tc.Tool != r.Tool {
 		return false

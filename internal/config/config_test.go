@@ -978,8 +978,9 @@ name = "nocmd"
 
 // TestLoad_RouteRules covers [[route]] block parsing: rules parse into
 // Config.Routes in document order with all match fields populated;
-// empty exit_status normalizes to "any"; the profile reference must
-// name an existing [pipeline.<name>] table.
+// empty exit_status normalizes to "any"; non-empty values are limited to
+// success, failure, and any; the profile reference must name an existing
+// [pipeline.<name>] table.
 func TestLoad_RouteRules(t *testing.T) {
 	t.Run("route rules parse with all fields, document order preserved", func(t *testing.T) {
 		chdirTemp(t)
@@ -1082,6 +1083,69 @@ profile = "default"
 			t.Errorf("Subcommand = %q, want empty", cfg.Routes[0].Subcommand)
 		}
 	})
+}
+
+func TestLoad_RouteExitStatusValidation(t *testing.T) {
+	valid := []struct {
+		name, line, want string
+	}{
+		{name: "success", line: `exit_status = "success"`, want: "success"},
+		{name: "failure", line: `exit_status = "failure"`, want: "failure"},
+		{name: "explicit any", line: `exit_status = "any"`, want: "any"},
+		{name: "explicit empty", line: `exit_status = ""`, want: "any"},
+	}
+	for _, test := range valid {
+		t.Run(test.name, func(t *testing.T) {
+			chdirTemp(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			writeUserConfig(t, fmt.Sprintf(`[pipeline.default]
+stages = []
+
+[[route]]
+%s
+profile = "default"
+`, test.line))
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if len(cfg.Routes) != 1 || cfg.Routes[0].ExitStatus != test.want {
+				t.Fatalf("Routes = %+v, want exit_status %q", cfg.Routes, test.want)
+			}
+		})
+	}
+
+	for _, value := range []string{"sucess", "SUCCESS", " success "} {
+		t.Run("rejects "+value, func(t *testing.T) {
+			chdirTemp(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			writeUserConfig(t, fmt.Sprintf(`[pipeline.default]
+stages = []
+
+[[route]]
+exit_status = %q
+profile = "default"
+`, value))
+
+			_, err := Load()
+			if err == nil {
+				t.Fatal("Load succeeded; want ParseError")
+			}
+			var parseErr *ParseError
+			if !errors.As(err, &parseErr) {
+				t.Fatalf("Load returned %T, want *ParseError", err)
+			}
+			for _, want := range []string{value, "success", "failure", "any"} {
+				if !strings.Contains(parseErr.Msg, want) {
+					t.Errorf("ParseError.Msg = %q, want %q", parseErr.Msg, want)
+				}
+			}
+			if !strings.Contains(parseErr.Path, "ktx.toml") {
+				t.Errorf("ParseError.Path = %q, want ktx.toml", parseErr.Path)
+			}
+		})
+	}
 }
 
 // TestLoad_NoRouteRules covers the no-rules case: a ktx.toml without

@@ -185,7 +185,7 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	if comp.ContentHash != dbpkg.ContentHash(sourceOutput) {
 		t.Errorf("ContentHash = %q, want %q", comp.ContentHash, dbpkg.ContentHash(sourceOutput))
 	}
-	if comp.Pipeline != `{"profile":"default","stages":[]}` {
+	if comp.Pipeline != `{"profile":"default","route":"default_fallback","stages":[]}` {
 		t.Errorf("Pipeline = %q, want empty default profile (no stages ran)", comp.Pipeline)
 	}
 
@@ -466,7 +466,7 @@ func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	if comp.Output != sourceOutput {
 		t.Errorf("Output = %q, want passthrough %q", comp.Output, sourceOutput)
 	}
-	if comp.Pipeline != `{"profile":"default","stages":[]}` {
+	if comp.Pipeline != `{"profile":"default","route":"default_fallback","stages":[]}` {
 		t.Errorf("Pipeline = %q, want empty default profile (gate skipped pipeline)", comp.Pipeline)
 	}
 

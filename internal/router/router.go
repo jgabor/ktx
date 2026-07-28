@@ -3,10 +3,11 @@
 //
 // Matching is a pure function over a tool call and the route-rule
 // slice from [config.Config]. The router selects the first rule
-// whose match conditions all hold and returns its Profile name. When
-// no rule matches — or the tool call is malformed/empty — the router
-// returns the caller-supplied default profile name. The router never
-// returns an error and performs no I/O.
+// whose match conditions all hold and reports its Profile name with
+// matched-route provenance. When no rule matches — or the tool call is
+// malformed/empty — the router reports the caller-supplied default profile
+// with default-fallback provenance. The router never returns an error and
+// performs no I/O.
 //
 // Profile-name existence is validated at config-load time, so the
 // router trusts that each rule's Profile resolves to a real
@@ -21,6 +22,32 @@ import (
 	"github.com/jgabor/ktx/internal/db"
 )
 
+const (
+	RouteMatched         = "matched"
+	RouteDefaultFallback = "default_fallback"
+)
+
+// Resolution identifies the selected profile and whether an ordered route
+// matched or the default profile was used as fallback.
+type Resolution struct {
+	Profile string
+	Route   string
+}
+
+// Resolve returns the first matching route's profile and matched provenance.
+// When no rule matches, or tc/routes are nil, it returns defaultProfile with
+// default-fallback provenance.
+func Resolve(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) Resolution {
+	if tc != nil {
+		for _, r := range routes {
+			if ruleMatches(tc, r) {
+				return Resolution{Profile: r.Profile, Route: RouteMatched}
+			}
+		}
+	}
+	return Resolution{Profile: defaultProfile, Route: RouteDefaultFallback}
+}
+
 // Match returns the profile name of the first route rule whose
 // conditions all match tc. Conditions with empty fields are wildcards:
 // an empty Tool matches any tool, an empty CommandPrefix matches any
@@ -33,15 +60,7 @@ import (
 // be satisfied); other conditions on the same rule still apply. Match
 // never panics on malformed input.
 func Match(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) string {
-	if tc == nil {
-		return defaultProfile
-	}
-	for _, r := range routes {
-		if ruleMatches(tc, r) {
-			return r.Profile
-		}
-	}
-	return defaultProfile
+	return Resolve(tc, routes, defaultProfile).Profile
 }
 
 // ruleMatches reports whether every non-empty condition on r holds

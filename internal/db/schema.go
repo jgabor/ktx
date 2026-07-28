@@ -188,8 +188,8 @@ var schemaStatements = []string{
 	// (bench cost-aggregates tool_calls; injecting zero-cost
 	// non-evidence rows would corrupt the cost-summed evidence set).
 	// source_id REFERENCES tool_calls(id); foreign_keys=1 (enforced by
-	// Open's DSN) makes the FK meaningful. pipeline is a JSON array of
-	// stage names that ran, stored as inspectable TEXT.
+	// Open's DSN) makes the FK meaningful. pipeline is a JSON object with
+	// selected profile, route provenance, and retained stages.
 	`CREATE TABLE IF NOT EXISTS compressed (
 		id           TEXT PRIMARY KEY,
 		source_id    TEXT NOT NULL REFERENCES tool_calls(id),
@@ -363,8 +363,8 @@ type compressedColumn struct {
 // compressedColumns are the 6 columns of the `compressed` table:
 // id (nanoid), source_id (FK → tool_calls.id),
 // output (the compressed bytes), content_hash (SHA-256 of compressed
-// output, recomputed per the integrity rule), pipeline (JSON array of
-// stage names that ran), timestamp. Idempotency mirrors costColumns and
+// output, recomputed per the integrity rule), pipeline (JSON selection and
+// retained-stage record), timestamp. Idempotency mirrors costColumns and
 // benchRunsColumns — PRAGMA table_info is consulted before ALTER TABLE
 // ADD COLUMN, so a re-open of a fully migrated database is a no-op
 // and a partial compressed schema is forward-fixed on the next open.

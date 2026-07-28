@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
@@ -30,6 +31,7 @@ import (
 // in-memory database is the cleanest fixture.
 func benchTestDB(t *testing.T) *dbpkg.DB {
 	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	d, err := dbpkg.OpenMemory()
 	if err != nil {
 		t.Fatalf("OpenMemory: %v", err)
@@ -733,6 +735,100 @@ stages = ["head:2"]
 	}
 	if len(pipeline) != 1 || pipeline[0] != "head:2" {
 		t.Errorf("pipeline = %v, want [head:2]", pipeline)
+	}
+}
+
+func TestMeasureReplayCompression_ReportsResolvedPipelineRuns(t *testing.T) {
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:1"]
+
+[pipeline.search]
+stages = ["head:2"]
+
+[[route]]
+tool = "grep"
+profile = "search"
+`)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	section := measureReplayCompression([]*dbpkg.ToolCall{
+		{Tool: "read", Output: "read 1\nread 2\nread 3\n"},
+		{Tool: "grep", Output: "match 1\nmatch 2\nmatch 3\n"},
+	}, cfg)
+	raw, err := json.Marshal(section["pipeline_runs"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var runs []struct {
+		Profile string   `json:"profile"`
+		Route   string   `json:"route"`
+		Stages  []string `json:"stages"`
+		Calls   int64    `json:"calls"`
+	}
+	if err := json.Unmarshal(raw, &runs); err != nil {
+		t.Fatalf("decode pipeline_runs: %v", err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("pipeline_runs = %s, want two resolved runs", raw)
+	}
+	want := []struct {
+		profile string
+		route   string
+		stage   string
+	}{
+		{profile: "default", route: "default_fallback", stage: "head:1"},
+		{profile: "search", route: "matched", stage: "head:2"},
+	}
+	for i := range want {
+		if runs[i].Profile != want[i].profile || runs[i].Route != want[i].route || len(runs[i].Stages) != 1 || runs[i].Stages[0] != want[i].stage || runs[i].Calls != 1 {
+			t.Errorf("pipeline_runs[%d] = %+v, want profile=%q route=%q stages=[%s] calls=1", i, runs[i], want[i].profile, want[i].route, want[i].stage)
+		}
+	}
+}
+
+func TestMeasureReplayCompression_BoundsPipelineRuns(t *testing.T) {
+	cfg := &config.Config{Profiles: make(map[string]config.Profile)}
+	calls := make([]*dbpkg.ToolCall, replayPipelineRunLimit+1)
+	for i := range calls {
+		tool := "tool-" + strconv.Itoa(i)
+		profile := "profile-" + strconv.Itoa(i)
+		cfg.Profiles[profile] = config.Profile{Stages: []string{"head:1"}}
+		cfg.Routes = append(cfg.Routes, config.RouteRule{Tool: tool, Profile: profile})
+		calls[i] = &dbpkg.ToolCall{Tool: tool, Output: "line 1\nline 2\n"}
+	}
+
+	section := measureReplayCompression(calls, cfg)
+	runs, ok := section["pipeline_runs"].([]replayPipelineRun)
+	if !ok {
+		t.Fatalf("pipeline_runs type = %T", section["pipeline_runs"])
+	}
+	if len(runs) != replayPipelineRunLimit {
+		t.Errorf("pipeline_runs = %d, want hard limit %d", len(runs), replayPipelineRunLimit)
+	}
+	if section["pipeline_runs_truncated"] != true || section["pipeline_runs_unreported_calls"] != int64(1) {
+		t.Errorf("truncation = %v unreported_calls = %v, want true and 1", section["pipeline_runs_truncated"], section["pipeline_runs_unreported_calls"])
+	}
+}
+
+func TestRunBenchReplay_MalformedConfigFails(t *testing.T) {
+	d := benchTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	sessionID := seedReplayForCompression(t, d, "line 1\nline 2\n", false)
+	hookWriteUserConfig(t, "[pipeline.default\n")
+
+	var stdout, stderr bytes.Buffer
+	code := runBenchReplayImpl(d, sessionID, &stdout, &stderr, FormatJSON)
+	if code != ExitUsage {
+		t.Fatalf("exit = %d, want %d; stdout=%q stderr=%q", code, ExitUsage, stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "ktx.toml") {
+		t.Errorf("stdout=%q stderr=%q, want no result and a config diagnostic", stdout.String(), stderr.String())
 	}
 }
 

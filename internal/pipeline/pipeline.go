@@ -243,8 +243,8 @@ func (r *Runner) warnf(format string, args ...any) {
 
 // Result is the runner's output: the transformed bytes plus the list
 // of stage names that successfully ran. The Ran slice is what the
-// caller persists as the compressed row's `pipeline` JSON array
-// ("a record of what stages ran"). Stages that errored, were
+// caller includes in the compressed row's `pipeline` JSON record.
+// Stages that errored, were
 // skipped (unknown name), or panicked are NOT in Ran — only stages
 // whose Apply returned a non-nil error are absent; stage names that
 // were skipped due to invariant (1) (empty-output guard) ARE in Ran
@@ -332,10 +332,10 @@ func (r *Runner) Run(input []byte) Result {
 	// has not reduced the agent's context cost.
 	//
 	// Clearing Ran is intentional: the pipeline's net effect was
-	// nullified, so the compressed-row's `pipeline` JSON array (the
-	// "record of what stages ran") is empty — this makes
+	// nullified, so the compressed-row's `pipeline` JSON record has an
+	// empty stages list — this makes
 	// compressPipeline's `transformed` computation yield false
-	// (output == input AND pipeline JSON == "[]"), so NO compressed
+	// (output == input and no retained stages), so NO compressed
 	// row is created for a result that did not shrink the input
 	// (a transform that does not help returns the original
 	// with compressed_id=null). The three per-stage invariants
@@ -433,15 +433,15 @@ func EncodePipelineJSON(names []string) string {
 }
 
 // EncodePipelineRecord renders a pipeline record as a JSON object carrying
-// the selected profile name and the stages that ran, e.g.
-// `{"profile":"git-status","stages":["strip-ansi","head:5"]}` or
-// `{"profile":"default","stages":[]}` when no stages ran. The compressed
-// row's `pipeline` column stores this string so the evidence shows which
-// profile was selected alongside what stages actually ran.
-func EncodePipelineRecord(profile string, ran []string) string {
+// the selected profile, matched-route or default-fallback provenance, and the
+// stages retained by the runner. The compressed row's `pipeline` column stores
+// this string so one record explains selection and execution.
+func EncodePipelineRecord(profile, route string, ran []string) string {
 	var b bytes.Buffer
 	b.WriteString(`{"profile":`)
 	writeJSONString(&b, profile)
+	b.WriteString(`,"route":`)
+	writeJSONString(&b, route)
 	b.WriteString(`,"stages":`)
 	b.WriteString(EncodePipelineJSON(ran))
 	b.WriteByte('}')

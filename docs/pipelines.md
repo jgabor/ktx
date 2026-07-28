@@ -179,6 +179,11 @@ when `[pipeline.default]` is absent from the config its stages are
 empty, which is passthrough — the output is returned unchanged. So
 behavior without a config is unchanged: no routing, no compression.
 
+Persisted compressed artifacts record the selected profile, route provenance
+(`matched` or `default_fallback`), and retained stages in one JSON object. A
+route explicitly targeting `default` is therefore distinguishable from using
+`default` because no route matched.
+
 ### When to use routing
 
 - **Different tools, different needs** — command stdout (`bash`) often
@@ -356,6 +361,18 @@ and measures compression without making an agent call. A benchmark-parented
 stream compares replayed values with its original benchmark row. A parentless
 stream remains supported, but `original_bench_run` is null and cost comparison
 is unavailable; it is not equivalent to full portable verification.
+
+Database replay loads `ktx.toml` once for the entire operation. The legacy
+`compression.pipeline` field remains the configured default-stage projection
+for existing consumers. `compression.pipeline_runs` is the authoritative,
+bounded execution report: up to 100 distinct selected-profile,
+`matched`/`default_fallback` route, and retained-stage tuples appear with their
+call counts. `pipeline_runs_truncated` and `pipeline_runs_unreported_calls`
+report omitted calls after that limit. Failure gates and anti-worsening
+rejections report an empty retained stage list. A malformed configuration exits
+1 before emitting a replay result rather than masquerading as passthrough.
+Portable fixture replay remains configuration-independent and does not emit
+this product-routing projection.
 
 `PASS` exits 0. A usage, cost, or cache mismatch is informational `DRIFT` and
 also exits 0 so existing consumers remain compatible. Hash or parser mismatch

@@ -361,6 +361,7 @@ func TestRunBenchReplayFileStrictVerificationEmitsEveryDivergence(t *testing.T) 
 }
 
 func TestRetainedReplayFixtureGate(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	fixturePath := filepath.Join("testdata", "portable-replay-v1.json")
 	fixtureBytes, err := os.ReadFile(fixturePath)
 	if err != nil {

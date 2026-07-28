@@ -25,10 +25,9 @@
 // keeps the hash faithful to what was stored and allows integrity checks to
 // compare the persisted output with its hash.
 //
-// Compressed.pipeline is a JSON array of stage names that ran
-// ("a record of what stages ran"). It is passed as a marshalled
-// string by the caller; the runner records the names of stages that
-// successfully ran, and the caller passes that JSON through verbatim.
+// Compressed.pipeline is a JSON object with selected profile, route
+// provenance, and retained stage names. It is passed as a marshalled string by
+// the caller; the runner records the stages and the caller adds selection.
 // Storing it as TEXT with the JSON shape keeps it inspectable without
 // a registry lookup (a profile-hash would require readers to resolve
 // the hash against a registry ktx does not yet have).
@@ -58,9 +57,10 @@ import (
 // but is persisted as text, mirroring how tool_calls.output is
 // stored). ContentHash is the SHA-256 hex digest of Output (NOT of
 // the source output — recomputed from the artifact that was stored).
-// Pipeline is a JSON array of stage names that ran, e.g.
-// `["strip-ansi","head:5"]` or `[]`. Timestamp is the compression
-// time (RFC3339Nano string, supplied by the caller).
+// Pipeline is a JSON object such as
+// `{"profile":"default","route":"default_fallback","stages":[]}`.
+// Timestamp is the compression time (RFC3339Nano string, supplied by the
+// caller).
 type Compressed struct {
 	ID          string `json:"id"`
 	SourceID    string `json:"source_id"`
@@ -143,7 +143,7 @@ var ErrSourceNotFound = fmt.Errorf("db: compressed source_id not found: %w", Err
 // all 6 columns; the caller is responsible for
 // generating id via NewID, computing ContentHash via
 // ContentHash(compressedOutput) (the integrity rule, recomputed from
-// the compressed output), and marshalling Pipeline as a JSON array.
+// the compressed output), and marshalling the Pipeline JSON record.
 //
 // A source_id that does not exist in tool_calls is rejected by the
 // FK constraint and surfaced as ErrSourceNotFound (which wraps

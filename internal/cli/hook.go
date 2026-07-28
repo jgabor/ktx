@@ -49,6 +49,36 @@ type codexHookOutput struct {
 	Reason   string `json:"reason,omitempty"`
 }
 
+func writeTrustedHookOutput(stdout io.Writer, isCodex bool, result evidence.Result, output, runtimeSessionID, runtimeCallID string) error {
+	enc := json.NewEncoder(stdout)
+	enc.SetEscapeHTML(false)
+	if isCodex {
+		var response codexHookOutput
+		if result.Transformed {
+			response = codexHookOutput{Decision: "block", Reason: output}
+		}
+		if err := enc.Encode(response); err != nil {
+			return internalError("ktx hook: write codex output: %v", err)
+		}
+		return nil
+	}
+
+	var compressedID *string
+	if result.CompressedID != "" {
+		compressedID = &result.CompressedID
+	}
+	envelope := hookEnvelope{Output: output, CompressedID: compressedID, SourceID: result.SourceID}
+	if benchmarkEnv, present, _ := benchcontract.ReadEnvironment(); present {
+		envelope.KTXSessionID = benchmarkEnv.SessionID
+		envelope.RuntimeSessionID = runtimeSessionID
+		envelope.CallID = runtimeCallID
+	}
+	if err := enc.Encode(envelope); err != nil {
+		return internalError("ktx hook: write envelope: %v", err)
+	}
+	return nil
+}
+
 // hookCommandFunc is the dispatch entry point for `ktx hook`. The
 // dispatcher opens the DB for writes and exposes stdin
 // (NeedsStdin=true, PassthroughStdout=true).
@@ -396,18 +426,30 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	cfg, err := config.Load()
 	if err != nil {
+		// A malformed current config cannot supersede a first artifact already
+		// retained for an exact trusted retry. Return that artifact without a
+		// footer because footer policy is unavailable from the broken snapshot.
+		if (isCodex || isOpenCode) && !sourceInserted {
+			result, artifactErr := evidence.PersistArtifact(db, src, &tc, false, nil)
+			if artifactErr != nil {
+				return nil, internalError("ktx hook: load existing compressed artifact: %v", artifactErr)
+			}
+			if result.Transformed {
+				return nil, writeTrustedHookOutput(stdout, isCodex, result, result.Output, runtimeSessionID, runtimeCallID)
+			}
+		}
 		return nil, usageError("%v", err)
 	}
 
-	// compressPipeline selects the profile (via the router) and resolves
-	// the per-profile timeout internally; enforceTimeout=true puts the
-	// pipeline on the agent's critical-path deadline. The selected
-	// profileName is returned so the recover_footer setting can be
-	// resolved per-profile below.
-	compressedOutput, pipeJSON, profileName, transformed, err := compressPipeline(&tc, nil, stderr, true)
+	// Resolve route, stages, timeout, and footer from the same loaded snapshot.
+	// enforceTimeout=true puts the pipeline on the agent's critical path.
+	execution, err := compressPipelineWithConfig(&tc, cfg, nil, stderr, true)
 	if err != nil {
 		return nil, err
 	}
+	compressedOutput := execution.output
+	pipeJSON := execution.pipelineRecord()
+	transformed := execution.transformed
 
 	// Footer-aware second gate. Fires only when recover_footer is
 	// enabled for the selected profile and the pipeline actually
@@ -420,7 +462,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	// agent-visible envelope.Output; the persisted Compressed.Output
 	// stays content-only.
 	envelopeOutput := compressedOutput
-	if config.ResolveRecoverFooter(cfg, profileName) && transformed {
+	if execution.recoverFooter && transformed {
 		footer := buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
 		if len(compressedOutput)+len(footer) >= len(tc.Output) {
 			transformed = false
@@ -454,48 +496,14 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		// The footer is agent-visible decoration on the authoritative
 		// (possibly stored) artifact; it is never persisted.
 		finalOutput := result.Output
-		if result.Transformed && config.ResolveRecoverFooter(cfg, profileName) {
+		if result.Transformed && execution.recoverFooter {
 			footer := buildRecoveryFooter(result.SourceID, len(tc.Output), len(result.Output))
 			if len(result.Output)+len(footer) < len(tc.Output) {
 				finalOutput = result.Output + footer
 			}
 		}
 
-		if isCodex {
-			enc := json.NewEncoder(stdout)
-			enc.SetEscapeHTML(false)
-			var out codexHookOutput
-			if result.Transformed {
-				out = codexHookOutput{Decision: "block", Reason: finalOutput}
-			}
-			if err := enc.Encode(out); err != nil {
-				return nil, internalError("ktx hook: write codex output: %v", err)
-			}
-			return nil, nil
-		}
-
-		// OpenCode path: hookEnvelope output (same evidence layer,
-		// different output contract than Codex).
-		var compressedID *string
-		if result.CompressedID != "" {
-			compressedID = &result.CompressedID
-		}
-		enc := json.NewEncoder(stdout)
-		enc.SetEscapeHTML(false)
-		envelope := hookEnvelope{
-			Output:       finalOutput,
-			CompressedID: compressedID,
-			SourceID:     result.SourceID,
-		}
-		if benchmarkEnv, present, _ := benchcontract.ReadEnvironment(); present {
-			envelope.KTXSessionID = benchmarkEnv.SessionID
-			envelope.RuntimeSessionID = runtimeSessionID
-			envelope.CallID = runtimeCallID
-		}
-		if err := enc.Encode(envelope); err != nil {
-			return nil, internalError("ktx hook: write envelope: %v", err)
-		}
-		return nil, nil
+		return nil, writeTrustedHookOutput(stdout, isCodex, result, finalOutput, runtimeSessionID, runtimeCallID)
 	}
 
 	// Flat/non-runtime path: ordinary compressed persistence + envelope

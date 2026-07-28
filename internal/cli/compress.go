@@ -23,8 +23,8 @@
 //     the artifact that was stored, NOT the source output, so a
 //     downstream integrity check compares the hash of the persisted
 //     output against the persisted hash.
-//  6. Build pipeline JSON = pipeline.EncodePipelineRecord(profile, res.Ran) — a
-//     record of the selected profile and what stages ran.
+//  6. Build pipeline JSON = pipeline.EncodePipelineRecord(profile, route,
+//     res.Ran) — a record of profile selection and retained stages.
 //  7. Generate a fresh 16-char nanoid for the compressed row.
 //  8. db.InsertCompressed — the source_id FK is enforced
 //     (foreign_keys=1); a miss (should not happen here since step 2
@@ -58,6 +58,21 @@ import (
 // sourceFailureWarning is emitted when the pre-pipeline failure gate
 // skips compression because is_error is true on the source tool_call.
 const sourceFailureWarning = "ktx: warning: source tool_call indicates failure, compression skipped\n"
+
+// pipelineExecution is the shared operation result for explicit compression,
+// hooks, and database replay. Every field derives from one loaded Config.
+type pipelineExecution struct {
+	output        string
+	profile       string
+	route         string
+	stages        []string
+	recoverFooter bool
+	transformed   bool
+}
+
+func (e pipelineExecution) pipelineRecord() string {
+	return pipeline.EncodePipelineRecord(e.profile, e.route, e.stages)
+}
 
 // runCompressWith is the testable core of `ktx compress`. stdout/stderr
 // are injected so the compress flow can be exercised without touching
@@ -123,62 +138,47 @@ func compressLogic(args []string, reg *pipeline.Registry, db *dbpkg.DB, stdout, 
 	return nil, nil
 }
 
-// compressPipeline is the shared failure-gate + pipeline core used by
-// both `ktx compress` (via compressCore) and `ktx hook` (via hookLogic).
-// It loads ktx.toml, matches the source tool_call against route rules to
-// select a pipeline profile, builds the runner with that profile's stages,
-// applies the pre-pipeline failure gate (is_error → skip), runs the
-// pipeline (with the conservative-on-failure invariants enforced by the
-// runner), and returns the compressed output, pipeline JSON (carrying the
-// selected profile and stages that ran), the selected profile name,
-// whether the pipeline actually transformed the output, and any config
-// error.
-//
-// The caller owns the INSERT decision: `ktx compress` always inserts a
-// compressed row (the user explicitly invoked it); `ktx hook` inserts
-// only when transformed == true (passthrough / failure-gate skip → no
-// row). This is the DRY split — the pipeline logic is shared, the
-// persistence policy is caller-owned.
-//
-// reg is the pipeline.Registry to resolve stage names against. A nil reg
-// means "build the default built-in registry" (RegisterBuiltins on a
-// fresh Registry + external plugins from config). Tests inject a custom
-// Registry to exercise the conservative-on-failure invariants.
-//
-// enforceTimeout controls the critical-path deadline. When false, no
-// timeout is applied (used by `ktx compress` and the offline bench
-// replay, which are not on the agent's critical path and can be Ctrl-C'd).
-// When true, the deadline is resolved per-profile via
-// config.ResolveTimeout — the selected profile's own timeout, falling
-// back to the default profile's timeout, then DefaultPipelineTimeout.
-// (`ktx hook` is on the agent's critical path, so it passes true.) On
-// expiry the pipeline is cancelled and source.output is returned unchanged
-// with a stderr warning. A timed-out stage continues in its goroutine
-// until it returns or its external process exits.
-//
-// The selected profileName is returned so callers can resolve the
-// profile-scoped recover_footer setting (via config.ResolveRecoverFooter)
-// without re-running the router themselves.
+// compressPipeline loads configuration for callers that do not already own an
+// operation snapshot, then delegates to compressPipelineWithConfig.
 func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.Writer, enforceTimeout bool) (compressedOutput, pipelineJSON, profileName string, transformed bool, err error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return "", "", "", false, usageError("%v", err)
 	}
+	execution, err := compressPipelineWithConfig(source, cfg, reg, stderr, enforceTimeout)
+	if err != nil {
+		return "", "", "", false, err
+	}
+	return execution.output, execution.pipelineRecord(), execution.profile, execution.transformed, nil
+}
 
-	profileName = router.Match(source, cfg.Routes, "default")
-	pipelineStages := stagesForProfile(cfg, profileName)
+// compressPipelineWithConfig resolves selection, stages, timeout, footer, and
+// execution from one Config snapshot. The caller still owns artifact
+// persistence and whether critical-path timeout enforcement is enabled.
+func compressPipelineWithConfig(source *dbpkg.ToolCall, cfg *config.Config, reg *pipeline.Registry, stderr io.Writer, enforceTimeout bool) (pipelineExecution, error) {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	selection := router.Resolve(source, cfg.Routes, "default")
+	execution := pipelineExecution{
+		output:        source.Output,
+		profile:       selection.Profile,
+		route:         selection.Route,
+		recoverFooter: config.ResolveRecoverFooter(cfg, selection.Profile),
+	}
+	pipelineStages := stagesForProfile(cfg, selection.Profile)
 
 	runner := buildCompressRunner(reg, cfg, pipelineStages, stderr)
 
 	// Pre-pipeline failure gate: skip compression for failed tool calls.
 	if source.IsError != nil && *source.IsError {
 		fmt.Fprint(stderr, sourceFailureWarning)
-		return source.Output, pipeline.EncodePipelineRecord(profileName, nil), profileName, false, nil
+		return execution, nil
 	}
 
 	// Identity: no stages configured → source returned unchanged.
 	if len(runner.Pipeline) == 0 {
-		return source.Output, pipeline.EncodePipelineRecord(profileName, nil), profileName, false, nil
+		return execution, nil
 	}
 
 	// Resolve the critical-path deadline per-profile (the selected
@@ -187,7 +187,7 @@ func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.
 	// enforceTimeout=false to skip the deadline entirely.
 	var timeout time.Duration
 	if enforceTimeout {
-		timeout = config.ResolveTimeout(cfg, profileName)
+		timeout = config.ResolveTimeout(cfg, selection.Profile)
 	}
 
 	// Run the pipeline. When a timeout is set, race the pipeline against
@@ -207,16 +207,16 @@ func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.
 			res = r.res
 		case <-timer.C:
 			fmt.Fprintf(stderr, "ktx: warning: pipeline timeout after %s, returning original\n", timeout)
-			return source.Output, pipeline.EncodePipelineRecord(profileName, nil), profileName, false, nil
+			return execution, nil
 		}
 	} else {
 		res = (<-ch).res
 	}
 
-	compressedOutput = string(res.Out)
-	pipelineJSON = pipeline.EncodePipelineRecord(profileName, res.Ran)
-	transformed = compressedOutput != source.Output || len(res.Ran) > 0
-	return compressedOutput, pipelineJSON, profileName, transformed, nil
+	execution.output = string(res.Out)
+	execution.stages = res.Ran
+	execution.transformed = execution.output != source.Output || len(res.Ran) > 0
+	return execution, nil
 }
 
 // compressCore is the shared pipeline+persist core used by `ktx compress`

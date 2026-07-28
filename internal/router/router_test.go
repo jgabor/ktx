@@ -138,6 +138,31 @@ func TestMatch_Fallback(t *testing.T) {
 	})
 }
 
+func TestResolve_RouteProvenance(t *testing.T) {
+	routes := []config.RouteRule{{Tool: "bash", Profile: defaultProfile}}
+
+	t.Run("matched route targeting default", func(t *testing.T) {
+		got := Resolve(&db.ToolCall{Tool: "bash"}, routes, defaultProfile)
+		if got.Profile != defaultProfile || got.Route != RouteMatched {
+			t.Errorf("Resolve = %+v, want profile %q via %q", got, defaultProfile, RouteMatched)
+		}
+	})
+
+	t.Run("default fallback", func(t *testing.T) {
+		got := Resolve(&db.ToolCall{Tool: "read"}, routes, defaultProfile)
+		if got.Profile != defaultProfile || got.Route != RouteDefaultFallback {
+			t.Errorf("Resolve = %+v, want profile %q via %q", got, defaultProfile, RouteDefaultFallback)
+		}
+	})
+
+	t.Run("nil tool call falls back", func(t *testing.T) {
+		got := Resolve(nil, routes, defaultProfile)
+		if got.Profile != defaultProfile || got.Route != RouteDefaultFallback {
+			t.Errorf("Resolve = %+v, want profile %q via %q", got, defaultProfile, RouteDefaultFallback)
+		}
+	})
+}
+
 // TestMatch_MalformedInput covers malformed-input handling: malformed or empty input JSON
 // yields the default profile without error, even when a rule requires
 // a command prefix. A profile-only rule (no CommandPrefix) still

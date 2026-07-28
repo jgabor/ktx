@@ -223,14 +223,15 @@ recover_footer = true
 	}
 	var pipelineRecord struct {
 		Profile string   `json:"profile"`
+		Route   string   `json:"route"`
 		Stages  []string `json:"stages"`
 	}
 	if err := json.Unmarshal([]byte(compressed.Pipeline), &pipelineRecord); err != nil {
 		t.Fatalf("parse compressed pipeline: %v", err)
 	}
 	wantRan := []string{"unwrap-result", "keep-ends:100:50"}
-	if pipelineRecord.Profile != "default" || fmt.Sprint(pipelineRecord.Stages) != fmt.Sprint(wantRan) {
-		t.Errorf("pipeline = %+v, want profile default with stages %v", pipelineRecord, wantRan)
+	if pipelineRecord.Profile != "default" || pipelineRecord.Route != "default_fallback" || fmt.Sprint(pipelineRecord.Stages) != fmt.Sprint(wantRan) {
+		t.Errorf("pipeline = %+v, want profile default via default_fallback with stages %v", pipelineRecord, wantRan)
 	}
 }
 
@@ -1873,6 +1874,20 @@ stages = ["head:3"]
 	}
 	if out2.Reason == original {
 		t.Error("second reason equals original; want first compressed artifact (authority)")
+	}
+
+	// A malformed current config cannot invalidate the first artifact either.
+	hookWriteUserConfig(t, "[pipeline.default\n")
+	var stdout3, stderr3 bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout3, &stderr3); err != nil {
+		t.Fatalf("third delivery with malformed config: %v (stderr=%q)", err, stderr3.String())
+	}
+	var out3 codexHookOutput
+	if err := json.Unmarshal(stdout3.Bytes(), &out3); err != nil {
+		t.Fatalf("parse third output: %v\nstdout=%s", err, stdout3.String())
+	}
+	if out3.Decision != "block" || out3.Reason != out1.Reason {
+		t.Errorf("third output = %+v, want first authoritative artifact", out3)
 	}
 
 	sourceID := mustCodexID(t, "codex-test-session", "pc-retry-01")

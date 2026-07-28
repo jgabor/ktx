@@ -171,7 +171,12 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	// calls (is_error=true) count toward baseline_bytes only
 	// (compressPipeline returns the original for them). Zero agent
 	// calls — the recorded stream is already parsed above.
-	compressionSection := measureReplayCompression(parsedToolCalls)
+	cfg, err := config.Load()
+	if err != nil {
+		printError(stderr, usageError("ktx bench run --replay: %v", err), format)
+		return ExitUsage
+	}
+	compressionSection := measureReplayCompression(parsedToolCalls, cfg)
 
 	// Build the output envelope. capture_source distinguishes the
 	// two capture paths: "bench_run" (ktx bench run, originalBR is
@@ -257,6 +262,16 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 			fmt.Fprintf(stdout, "compression: baseline=%d compressed=%d ratio=%.4f saved=%d bytes\n",
 				baseline, compressed, ratio, saved)
 		}
+		if runs, ok := compressionSection["pipeline_runs"].([]replayPipelineRun); ok {
+			for _, run := range runs {
+				fmt.Fprintf(stdout, "pipeline_run: profile=%s route=%s calls=%d stages=%v\n",
+					run.Profile, run.Route, run.Calls, run.Stages)
+			}
+		}
+		if truncated, _ := compressionSection["pipeline_runs_truncated"].(bool); truncated {
+			unreported, _ := compressionSection["pipeline_runs_unreported_calls"].(int64)
+			fmt.Fprintf(stdout, "pipeline_runs_truncated: true unreported_calls=%d\n", unreported)
+		}
 	default:
 		if err := json.NewEncoder(stdout).Encode(envelope); err != nil {
 			printError(stderr, internalError("ktx bench run --replay: write JSON: %v", err), format)
@@ -271,12 +286,23 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 	return ExitOK
 }
 
-// measureReplayCompression runs each recorded tool_use output through
-// compressPipeline (timeout=0, off-line) and aggregates an A/B
+type replayPipelineRun struct {
+	Profile string   `json:"profile"`
+	Route   string   `json:"route"`
+	Stages  []string `json:"stages"`
+	Calls   int64    `json:"calls"`
+}
+
+const replayPipelineRunLimit = 100
+
+// measureReplayCompression runs each recorded tool_use output against one
+// caller-supplied configuration snapshot through the same resolved pipeline
+// path as hooks and explicit compression. It aggregates an A/B
 // comparison: baseline_bytes (sum of original output lengths) vs
 // compressed_bytes (sum of compressed output lengths), plus the
-// ratio (compressed/baseline), bytes_saved (baseline-compressed), and
-// the configured pipeline (cfg.PipelineDefault as a []string).
+// ratio (compressed/baseline), bytes_saved (baseline-compressed), the legacy
+// configured-default pipeline projection, and the authoritative profile/route/
+// retained-stage runs.
 //
 // Failure-gated calls (is_error=true on the tool_call) are counted in
 // baseline_bytes only — compressPipeline returns the original output
@@ -287,24 +313,41 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 // [0.0, 1.0]. Zero agent calls: the measurement reuses the recorded
 // stream's parsed tool_calls and compressPipeline's off-line path.
 //
-// stderr is io.Discard so stage warnings do not pollute the replay
-// envelope — the numbers are the data; diagnostics belong to a direct
-// `ktx compress` invocation. A broken ktx.toml surfaces per-call as a
-// compressPipeline error; the call is counted as passthrough (no
-// compression) so the measurement still completes.
-func measureReplayCompression(toolCalls []*dbpkg.ToolCall) map[string]any {
+// stderr is io.Discard so stage warnings do not pollute the replay envelope.
+// The caller rejects an invalid configuration before measurement begins.
+func measureReplayCompression(toolCalls []*dbpkg.ToolCall, cfg *config.Config) map[string]any {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
 	var baseline, compressed int64
+	runs := []replayPipelineRun{}
+	runIndexes := make(map[string]int)
+	var unreportedRunCalls int64
 	for _, tc := range toolCalls {
 		baseline += int64(len(tc.Output))
-		out, _, _, _, err := compressPipeline(tc, nil, io.Discard, false)
+		execution, err := compressPipelineWithConfig(tc, cfg, nil, io.Discard, false)
 		if err != nil {
-			// compressPipeline could not run (e.g. a broken
-			// ktx.toml); count the original length — no
-			// compression. The measurement still completes.
 			compressed += int64(len(tc.Output))
 			continue
 		}
-		compressed += int64(len(out))
+		compressed += int64(len(execution.output))
+
+		key := execution.pipelineRecord()
+		if i, ok := runIndexes[key]; ok {
+			runs[i].Calls++
+			continue
+		}
+		if len(runs) == replayPipelineRunLimit {
+			unreportedRunCalls++
+			continue
+		}
+		runIndexes[key] = len(runs)
+		runs = append(runs, replayPipelineRun{
+			Profile: execution.profile,
+			Route:   execution.route,
+			Stages:  append([]string{}, execution.stages...),
+			Calls:   1,
+		})
 	}
 
 	ratio := 1.0
@@ -312,20 +355,20 @@ func measureReplayCompression(toolCalls []*dbpkg.ToolCall) map[string]any {
 		ratio = float64(compressed) / float64(baseline)
 	}
 
-	// The configured pipeline (what stages are in play). Empty when
-	// no ktx.toml exists (the passthrough path) — matches the AC's
-	// ratio=1.0, bytes_saved=0, pipeline=[] for the passthrough case.
-	pipeline := []string{}
-	if cfg, err := config.Load(); err == nil && cfg != nil && len(cfg.PipelineDefault) > 0 {
-		pipeline = cfg.PipelineDefault
-	}
+	// Preserve the legacy configured-default field for existing database replay
+	// consumers. pipeline_runs is the authoritative execution report.
+	configuredDefault := []string{}
+	configuredDefault = append(configuredDefault, cfg.PipelineDefault...)
 
 	return map[string]any{
-		"baseline_bytes":   baseline,
-		"compressed_bytes": compressed,
-		"ratio":            ratio,
-		"bytes_saved":      baseline - compressed,
-		"pipeline":         pipeline,
+		"baseline_bytes":                 baseline,
+		"compressed_bytes":               compressed,
+		"ratio":                          ratio,
+		"bytes_saved":                    baseline - compressed,
+		"pipeline":                       configuredDefault,
+		"pipeline_runs":                  runs,
+		"pipeline_runs_truncated":        unreportedRunCalls > 0,
+		"pipeline_runs_unreported_calls": unreportedRunCalls,
 	}
 }
 

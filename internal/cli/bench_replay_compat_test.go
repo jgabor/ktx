@@ -15,6 +15,8 @@ import (
 )
 
 func TestDatabaseReplayLegacyEnvelopesAndExits(t *testing.T) {
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	tests := []struct {
 		name        string
 		mutate      string
@@ -57,7 +59,7 @@ func TestDatabaseReplayLegacyEnvelopesAndExits(t *testing.T) {
 			assertJSONKeys(t, envelope["replay"].(map[string]any), "bench_run_id", "capture_source", "captured_at", "session_id", "stream_format")
 			assertJSONKeys(t, envelope["integrity"].(map[string]any), "pass", "recomputed_hash", "stored_hash")
 			assertJSONKeys(t, envelope["parser_regression"].(map[string]any), "original_tool_call_count", "pass", "replayed_tool_use_count")
-			assertJSONKeys(t, envelope["compression"].(map[string]any), "baseline_bytes", "bytes_saved", "compressed_bytes", "pipeline", "ratio")
+			assertJSONKeys(t, envelope["compression"].(map[string]any), "baseline_bytes", "bytes_saved", "compressed_bytes", "pipeline", "pipeline_runs", "pipeline_runs_truncated", "pipeline_runs_unreported_calls", "ratio")
 			assertJSONKeys(t, envelope["cost_drift"].(map[string]any), "delta", "detected", "original_cache_read", "original_cache_write", "original_cost", "original_tokens_in", "original_tokens_out", "replay_cost", "replay_tokens_in", "replay_tokens_out", "replayed_cache_read", "replayed_cache_write")
 			assertJSONKeys(t, envelope["original_bench_run"].(map[string]any), "agent", "cache_read", "cache_write", "cost", "estimated_api_cost", "id", "methodology_version", "model", "reasoning", "score", "task", "timestamp", "tokens_in", "tokens_out")
 
@@ -76,6 +78,8 @@ func TestDatabaseReplayLegacyEnvelopesAndExits(t *testing.T) {
 }
 
 func TestDatabaseReplayParentlessComparisonRemainsUnavailable(t *testing.T) {
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	dbPath := filepath.Join(t.TempDir(), "ktx.db")
 	sessionID := seedFixtureExportDB(t, dbPath, false)
 	d, err := dbpkg.Open(dbPath)

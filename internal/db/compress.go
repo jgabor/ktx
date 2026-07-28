@@ -227,7 +227,8 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 			var existing Compressed
 			err := tx.QueryRowContext(ctx,
 				`SELECT id, source_id, output, content_hash, pipeline, timestamp
-			 FROM compressed WHERE source_id = ? LIMIT 1`, c.SourceID,
+				 FROM compressed WHERE source_id = ?
+				 ORDER BY timestamp ASC, id ASC LIMIT 1`, c.SourceID,
 			).Scan(&existing.ID, &existing.SourceID, &existing.Output, &existing.ContentHash, &existing.Pipeline, &existing.Timestamp)
 			if err == sql.ErrNoRows {
 				return ErrSourceNotFound
@@ -269,16 +270,16 @@ func (d *DB) GetCompressed(id string) (*Compressed, error) {
 	return &c, nil
 }
 
-// GetCompressedBySource fetches the compressed artifact for a source tool_call
-// id. At most one compressed row exists per source (enforced by
-// InsertCompressedOnce), so LIMIT 1 is definitive. Returns ErrNotFound when no
-// compressed artifact exists for the source — the evidence layer uses this to
-// distinguish "exact retry with a prior artifact" from "no artifact yet".
+// GetCompressedBySource fetches the first compressed artifact for a source
+// tool_call id. Timestamp and ID ordering matches QueryDeliveryObservations so
+// explicit recompression cannot replace delivery authority. Returns ErrNotFound
+// when no compressed artifact exists for the source.
 func (d *DB) GetCompressedBySource(sourceID string) (*Compressed, error) {
 	var c Compressed
 	err := d.db.QueryRow(
 		`SELECT id, source_id, output, content_hash, pipeline, timestamp
-		 FROM compressed WHERE source_id = ? LIMIT 1`,
+		 FROM compressed WHERE source_id = ?
+		 ORDER BY timestamp ASC, id ASC LIMIT 1`,
 		sourceID,
 	).Scan(
 		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp,

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -203,6 +203,15 @@ var schemaStatements = []string{
 	// index is created idempotently alongside the table; re-open is a
 	// no-op via CREATE INDEX IF NOT EXISTS.
 	`CREATE INDEX IF NOT EXISTS compressed_source_id_idx ON compressed(source_id)`,
+	`CREATE TABLE IF NOT EXISTS compression_dispositions (
+		source_id    TEXT PRIMARY KEY REFERENCES tool_calls(id),
+		profile      TEXT,
+		route        TEXT CHECK (route IS NULL OR route IN ('matched','default_fallback')),
+		disposition  TEXT NOT NULL CHECK (disposition IN ('artifact_persisted','intentional_passthrough','anti_worsening_rejected')),
+		artifact_id  TEXT REFERENCES compressed(id),
+		observed_at  TEXT NOT NULL,
+		CHECK ((disposition = 'artifact_persisted') = (artifact_id IS NOT NULL))
+	)`,
 	// recorded_streams: one row per captured
 	// `ktx bench run` invocation (or `ktx run --record-stream`, which
 	// opts in to the same recording without a bench_runs parent). Holds

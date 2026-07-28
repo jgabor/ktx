@@ -152,7 +152,7 @@ if [ "$1" = "binary-capabilities" ]; then
     identity-digest) digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
     identity-schema) schema=7 ;;
   esac
-  : "${schema:=8}"
+  : "${schema:=9}"
   printf '{"schema":"ktx.binary-capabilities/v1","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","max_database_schema":%s}\n' "$path" "$digest" "$schema"
   exit 0
 fi
@@ -167,16 +167,16 @@ if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
   case "$KTX_TEST_SCHEMA_MODE" in
     valid)
       path=$(readlink -f "$0"); digest=$(sha256sum "$path" | cut -d' ' -f1)
-      schema_actual=${KTX_TEST_SCHEMA_ACTUAL:-9}
+      schema_actual=${KTX_TEST_SCHEMA_ACTUAL:-10}
       case "$KTX_TEST_FINGERPRINT_CASE" in
         observed-race)
           marker="$KTX_TEST_LOG.observed-race"
           if [ ! -f "$marker" ]; then
-            schema_actual=9
-            printf 'changed after schema 9 observation' > "$KTX_TEST_DB_PATH"
+            schema_actual=10
+            printf 'changed after schema 10 observation' > "$KTX_TEST_DB_PATH"
             : > "$marker"
           else
-            schema_actual=10
+            schema_actual=11
           fi ;;
         probe-pre-failure)
           [ -e "$KTX_TEST_DB_PATH" ] || printf 'created during invocation' > "$KTX_TEST_DB_PATH" ;;
@@ -185,7 +185,7 @@ if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
         probe-mismatch)
           printf x >> "$KTX_TEST_DB_PATH" ;;
       esac
-      schema_max=${KTX_TEST_SCHEMA_MAX:-8}
+      schema_max=${KTX_TEST_SCHEMA_MAX:-9}
       printf '{"error":{"code":"schema-incompatible","message":"schema too new","actual_schema":%s,"maximum_schema":%s,"database_path":"%s","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","correction":"install a newer binary"}}\n' "$schema_actual" "$schema_max" "$KTX_TEST_DB_PATH" "$path" "$digest" >&2
       exit 5 ;;
     malformed) printf '{"error":{"code":"schema-incompatible"}}\n' >&2; exit 5 ;;
@@ -430,13 +430,13 @@ if (scenario === "restart") {
         process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
       } else if (scenario === "same-path-database") {
         await Bun.write(process.env.KTX_TEST_DB_PATH!, "changed database metadata")
-        process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
+        process.env.KTX_TEST_SCHEMA_ACTUAL = "11"
       } else if (scenario === "same-path-symlink") {
         await Bun.write(process.env.KTX_TEST_DB_PATH!, "changed symlink target metadata")
-        process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
+        process.env.KTX_TEST_SCHEMA_ACTUAL = "11"
       } else if (scenario === "same-path-wal") {
         await Bun.write(process.env.KTX_TEST_DB_PATH! + "-wal", "new wal metadata")
-        process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
+        process.env.KTX_TEST_SCHEMA_ACTUAL = "11"
       } else if (scenario?.startsWith("windows-")) {
         const variable = scenario.slice("windows-".length).toUpperCase()
         process.env[variable] = (process.env[variable] || "") + "-changed"
@@ -579,7 +579,7 @@ console.log(JSON.stringify(results))
 					t.Errorf("diagnostics = %d, want %d; stdout=%q stderr=%q", got, test.wantDiagnostics, stdout.String(), stderr.String())
 				}
 				if (strings.HasPrefix(test.scenario, "same-path-") || test.scenario == "observed-race") &&
-					(strings.Count(stderr.String(), `"actual_schema":9`) != 1 || strings.Count(stderr.String(), `"actual_schema":10`) != 1) {
+					(strings.Count(stderr.String(), `"actual_schema":10`) != 1 || strings.Count(stderr.String(), `"actual_schema":11`) != 1) {
 					t.Errorf("same-path diagnostics did not expose both exact keys: %q", stderr.String())
 				}
 			})

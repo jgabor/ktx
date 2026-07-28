@@ -255,6 +255,9 @@ func (r *Runner) warnf(format string, args ...any) {
 // stages that ran appear in the order they ran).
 type Result struct {
 	Out []byte
+	// AntiWorseningRejected reports that the final pipeline output was not
+	// smaller than a non-empty input and was therefore discarded.
+	AntiWorseningRejected bool
 	// Ran is the list of stage names that successfully applied. A
 	// stage that returned an error or panicked is absent from Ran
 	// (the runner passed its input through but the stage did not
@@ -295,6 +298,7 @@ func (r *Runner) Run(input []byte) Result {
 	}
 
 	current := input
+	haveCandidate := false
 	for _, token := range r.Pipeline {
 		stage, recognised, err := r.Registry.Lookup(token)
 		if err != nil {
@@ -313,10 +317,11 @@ func (r *Runner) Run(input []byte) Result {
 			continue
 		}
 
-		out, ran := applyStageWithWarn(stage, token, current, r)
+		out, ran, candidate := applyStageWithWarn(stage, token, current, r)
 		if ran {
 			res.Ran = append(res.Ran, token)
 		}
+		haveCandidate = haveCandidate || candidate
 		current = out
 	}
 	res.Out = current
@@ -345,16 +350,18 @@ func (r *Runner) Run(input []byte) Result {
 	if len(input) > 0 && len(res.Out) >= len(input) {
 		res.Out = input
 		res.Ran = nil
+		res.AntiWorseningRejected = haveCandidate
 	}
 	return res
 }
 
 // applyStageWithWarn invokes a single Stage with the
-// conservative-on-failure contract enforced. Returns (output, ran)
+// conservative-on-failure contract enforced. Returns (output, ran, candidate)
 // where ran is true when the stage successfully executed (its Apply
-// returned a non-nil error OR panicked → ran=false; empty-output
+// returned a non-nil error OR panicked -> ran=false; empty-output
 // guard fired → ran=true because the stage DID run, its output was
-// just discarded). The warn writer receives the panic-recovery
+// just discarded). candidate is true only when the stage produced a usable
+// result for the final size comparison. The warn writer receives the panic-recovery
 // notice so the user sees that a buggy stage was caught.
 //
 // The three invariants:
@@ -366,7 +373,7 @@ func (r *Runner) Run(input []byte) Result {
 //  2. Stage-execution-error passthrough: non-nil error (or recovered
 //     panic) → pass input through unchanged, continue.
 //  3. Unknown-stage skip is handled by Run before reaching here.
-func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output []byte, ran bool) {
+func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output []byte, ran, candidate bool) {
 	// Recover panics so a buggy stage cannot crash the compress
 	// verb. A panic is treated as a stage-execution error: the
 	// input passes through unchanged, the stage name is NOT
@@ -378,6 +385,7 @@ func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output 
 			}
 			output = input
 			ran = false
+			candidate = false
 		}
 	}()
 
@@ -392,7 +400,7 @@ func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output 
 		if r != nil {
 			r.warnf("ktx: warning: pipeline stage %q errored: %v\n", token, err)
 		}
-		return input, false
+		return input, false, false
 	}
 
 	// Invariant (1): empty-output guard. A stage producing empty
@@ -406,10 +414,10 @@ func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output 
 		// recorded in Ran — the user should see that the stage
 		// executed even though its output was discarded. The
 		// pass-through is the input.
-		return input, true
+		return input, true, false
 	}
 
-	return out, true
+	return out, true, true
 }
 
 // EncodePipelineJSON renders the stage-names slice as a JSON array

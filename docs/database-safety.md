@@ -51,6 +51,14 @@ again under an immediate SQLite transaction, migrated, and assigned the current
 version atomically. A failed migration rolls back schema, rows, indexes,
 associations, and `user_version`.
 
+Schema 9 adds `compression_dispositions`, a source-keyed operational projection
+containing only selected profile, route provenance, bounded disposition,
+optional authoritative artifact ID, and observation time. Migration does not
+backfill historical calls or infer outcomes from artifacts. Missing rows remain
+`unobserved` in statistics. Runtime recording may promote a retained
+non-artifact disposition to the first authoritative artifact, but never
+downgrades or replaces artifact authority.
+
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.
 
@@ -63,8 +71,8 @@ with code `schema-incompatible` before writes. The diagnostic includes:
 {
   "error": {
     "code": "schema-incompatible",
-    "actual_schema": 9,
-    "maximum_schema": 8,
+    "actual_schema": 10,
+    "maximum_schema": 9,
     "database_path": "/canonical/path/to/ktx.db",
     "executable_path": "/canonical/path/to/ktx",
     "executable_sha256": "<64 lowercase hexadecimal characters>",

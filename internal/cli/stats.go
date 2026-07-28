@@ -35,8 +35,9 @@ import (
 // statsDefaultLimit is the default maximum number of groups
 // returned by `ktx stats` when --limit is not specified.
 const (
-	statsDefaultLimit  = 20
-	statsDefaultWindow = 30 * time.Minute
+	statsDefaultLimit              = 20
+	statsDefaultWindow             = 30 * time.Minute
+	statsSummaryDetailedGroupLimit = 100
 )
 
 // statsMinCalls is the minimum number of calls a group must
@@ -168,12 +169,13 @@ func statsCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 type statsSummary struct {
-	SchemaVersion int                    `json:"schema_version"`
-	GeneratedAt   string                 `json:"generated_at"`
-	Window        statsSummaryWindow     `json:"window"`
-	Calls         statsSummaryCalls      `json:"calls"`
-	Tokens        statsSummaryTokens     `json:"tokens"`
-	CacheReuse    statsSummaryCacheReuse `json:"cache_reuse"`
+	SchemaVersion     int                           `json:"schema_version"`
+	GeneratedAt       string                        `json:"generated_at"`
+	Window            statsSummaryWindow            `json:"window"`
+	Calls             statsSummaryCalls             `json:"calls"`
+	Tokens            statsSummaryTokens            `json:"tokens"`
+	DeliveryBreakdown statsSummaryDeliveryBreakdown `json:"delivery_breakdown"`
+	CacheReuse        statsSummaryCacheReuse        `json:"cache_reuse"`
 }
 
 type statsSummaryWindow struct {
@@ -193,6 +195,35 @@ type statsSummaryTokens struct {
 	RawEstimatedPerSecond       float64  `json:"raw_estimated_per_second"`
 	DeliveredEstimatedPerSecond float64  `json:"delivered_estimated_per_second"`
 	ReductionPercent            *float64 `json:"reduction_percent"`
+}
+
+type statsSummaryDeliveryBreakdown struct {
+	DetailedGroupLimit    int                         `json:"detailed_group_limit"`
+	DistinctGroups        int                         `json:"distinct_groups"`
+	OmittedDistinctGroups int                         `json:"omitted_distinct_groups"`
+	Groups                []statsSummaryDeliveryGroup `json:"groups"`
+	Other                 statsSummaryDeliveryTotals  `json:"other"`
+}
+
+type statsSummaryDeliveryGroup struct {
+	Tool                   string  `json:"tool"`
+	Command                *string `json:"command"`
+	Subcommand             *string `json:"subcommand"`
+	Profile                *string `json:"profile"`
+	Route                  *string `json:"route"`
+	Disposition            string  `json:"disposition"`
+	RawOutputSizeBand      string  `json:"raw_output_size_band"`
+	Calls                  int     `json:"calls"`
+	WithCompressedArtifact int     `json:"with_compressed_artifact"`
+	RawEstimated           int     `json:"raw_estimated"`
+	DeliveredEstimated     int     `json:"delivered_estimated"`
+}
+
+type statsSummaryDeliveryTotals struct {
+	Calls                  int `json:"calls"`
+	WithCompressedArtifact int `json:"with_compressed_artifact"`
+	RawEstimated           int `json:"raw_estimated"`
+	DeliveredEstimated     int `json:"delivered_estimated"`
 }
 
 type statsSummaryCacheReuse struct {
@@ -269,14 +300,15 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 	}
 
 	summary := statsSummary{
-		SchemaVersion: 2,
+		SchemaVersion: 3,
 		GeneratedAt:   now.Format(time.RFC3339Nano),
 		Window: statsSummaryWindow{
 			Seconds: window.Seconds(),
 			From:    from.Format(time.RFC3339Nano),
 			To:      now.Format(time.RFC3339Nano),
 		},
-		CacheReuse: aggregateStatsSummaryCache(cacheRows),
+		DeliveryBreakdown: aggregateStatsSummaryDelivery(rows),
+		CacheReuse:        aggregateStatsSummaryCache(cacheRows),
 	}
 	for _, row := range rows {
 		summary.Calls.TotalWithOutput++
@@ -304,6 +336,98 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 
 func estimatedTokens(characters int) int {
 	return (characters + 3) / 4
+}
+
+func aggregateStatsSummaryDelivery(rows []dbpkg.StatsSummaryRow) statsSummaryDeliveryBreakdown {
+	type key struct {
+		tool, command, subcommand, profile, route, disposition, sizeBand string
+	}
+	groupsByKey := make(map[key]*statsSummaryDeliveryGroup)
+	for _, row := range rows {
+		groupKey := key{
+			tool: row.Tool, command: router.BinaryFromInput(row.Input), subcommand: router.SubcommandFromInput(row.Input),
+			profile: row.Profile, route: row.Route, disposition: row.Disposition, sizeBand: statsSummaryRawSizeBand(row.RawChars),
+		}
+		group := groupsByKey[groupKey]
+		if group == nil {
+			group = &statsSummaryDeliveryGroup{
+				Tool: groupKey.tool, Command: optionalStatsSummaryString(groupKey.command), Subcommand: optionalStatsSummaryString(groupKey.subcommand),
+				Profile: optionalStatsSummaryString(groupKey.profile), Route: optionalStatsSummaryString(groupKey.route),
+				Disposition: groupKey.disposition, RawOutputSizeBand: groupKey.sizeBand,
+			}
+			groupsByKey[groupKey] = group
+		}
+		group.Calls++
+		if row.HasCompressedArtifact {
+			group.WithCompressedArtifact++
+		}
+		group.RawEstimated += estimatedTokens(row.RawChars)
+		group.DeliveredEstimated += estimatedTokens(row.DeliveredChars)
+	}
+
+	groups := make([]statsSummaryDeliveryGroup, 0, len(groupsByKey))
+	for _, group := range groupsByKey {
+		groups = append(groups, *group)
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].DeliveredEstimated != groups[j].DeliveredEstimated {
+			return groups[i].DeliveredEstimated > groups[j].DeliveredEstimated
+		}
+		left := statsSummaryDeliverySortKey(groups[i])
+		right := statsSummaryDeliverySortKey(groups[j])
+		return left < right
+	})
+
+	breakdown := statsSummaryDeliveryBreakdown{
+		DetailedGroupLimit: statsSummaryDetailedGroupLimit,
+		DistinctGroups:     len(groups),
+		Groups:             make([]statsSummaryDeliveryGroup, min(len(groups), statsSummaryDetailedGroupLimit)),
+	}
+	copy(breakdown.Groups, groups)
+	breakdown.OmittedDistinctGroups = len(groups) - len(breakdown.Groups)
+	for _, group := range groups[len(breakdown.Groups):] {
+		breakdown.Other.Calls += group.Calls
+		breakdown.Other.WithCompressedArtifact += group.WithCompressedArtifact
+		breakdown.Other.RawEstimated += group.RawEstimated
+		breakdown.Other.DeliveredEstimated += group.DeliveredEstimated
+	}
+	return breakdown
+}
+
+func statsSummaryDeliverySortKey(group statsSummaryDeliveryGroup) string {
+	return strings.Join([]string{
+		group.Tool, statsSummaryString(group.Command), statsSummaryString(group.Subcommand),
+		statsSummaryString(group.Profile), statsSummaryString(group.Route), group.Disposition, group.RawOutputSizeBand,
+	}, "\x00")
+}
+
+func optionalStatsSummaryString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func statsSummaryString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func statsSummaryRawSizeBand(characters int) string {
+	switch {
+	case characters == 0:
+		return "empty"
+	case characters <= 1024:
+		return "1-1k"
+	case characters <= 10240:
+		return "1k-10k"
+	case characters <= 102400:
+		return "10k-100k"
+	default:
+		return "100k+"
+	}
 }
 
 func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryCacheReuse {
@@ -530,6 +654,29 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 		formatStatsSummaryInteger(summary.CacheReuse.LogicalInput),
 		formatStatsSummarySharePercent(summary.CacheReuse.CachedInputShare))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
+
+	fmt.Fprintln(w)
+	tw = tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "TOOL\tCOMMAND\tSUBCOMMAND\tPROFILE\tROUTE\tDISPOSITION\tSIZE_BAND\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK")
+	for _, group := range summary.DeliveryBreakdown.Groups {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\n",
+			group.Tool, formatStatsSummaryOptional(group.Command), formatStatsSummaryOptional(group.Subcommand),
+			formatStatsSummaryOptional(group.Profile), formatStatsSummaryOptional(group.Route), group.Disposition,
+			group.RawOutputSizeBand, group.Calls, group.WithCompressedArtifact, group.RawEstimated, group.DeliveredEstimated)
+	}
+	if summary.DeliveryBreakdown.Other.Calls > 0 {
+		other := summary.DeliveryBreakdown.Other
+		fmt.Fprintf(tw, "other\t-\t-\t-\t-\t-\t-\t%d\t%d\t%d\t%d\n",
+			other.Calls, other.WithCompressedArtifact, other.RawEstimated, other.DeliveredEstimated)
+	}
+	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
+}
+
+func formatStatsSummaryOptional(value *string) string {
+	if value == nil {
+		return "-"
+	}
+	return *value
 }
 
 func formatStatsSummaryInteger(measurement statsSummaryIntegerMeasurement) string {
@@ -589,6 +736,8 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "[now-window, now] interval. Rates use the full configured window duration.")
 	fmt.Fprintln(w, "Each call uses its latest retained compressed artifact; equal timestamps use")
 	fmt.Fprintln(w, "the lexicographically greatest artifact ID. Calls without one use raw output.")
+	fmt.Fprintln(w, "The delivery breakdown reports up to 100 token-weighted disposition groups;")
+	fmt.Fprintln(w, "omitted groups reconcile through exact other totals.")
 	fmt.Fprintln(w, "Accepted OpenCode 1.18.5 model steps use their captured_at timestamp in the")
 	fmt.Fprintln(w, "same interval. Cache token totals require every contributing value to be")
 	fmt.Fprintln(w, "measured. The cached-input share is cache_read / logical_input; it is not a provider hit rate.")
@@ -597,7 +746,7 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 2 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 3 JSON object")
 	fmt.Fprintln(w, "  text            one tab-aligned summary row")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")

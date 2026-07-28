@@ -60,6 +60,38 @@ func TestForwardMigrationMatrix(t *testing.T) {
 	}
 }
 
+func TestCompressionDispositionMigrationDoesNotBackfill(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "schema-8.db")
+	database, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID := seedSessionAndCalls(t, database, []callFixture{{id: "migrationdisposx", output: "original"}})[0]
+	seedCompressedWithID(t, database, "migrationartifx", sourceID, "short", "2026-07-21T12:00:00Z")
+	if _, err := database.db.Exec(`DROP TABLE IF EXISTS compression_dispositions; PRAGMA user_version = 8`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	database, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if MaxSupportedSchema() != 9 {
+		t.Fatalf("MaxSupportedSchema = %d, want 9", MaxSupportedSchema())
+	}
+	var rows int
+	if err := database.db.QueryRow(`SELECT count(*) FROM compression_dispositions`).Scan(&rows); err != nil {
+		t.Fatalf("query compression_dispositions: %v", err)
+	}
+	if rows != 0 {
+		t.Fatalf("migrated disposition rows = %d, want 0 (no historical inference)", rows)
+	}
+}
+
 func seedHistoricalMatrix(version int) func(*testing.T, string) migrationInvariant {
 	return func(t *testing.T, path string) migrationInvariant {
 		raw := openHistoricalTelemetryFixture(t, path, version)
@@ -241,7 +273,7 @@ func TestRejectedMigrationInputsRemainUnchanged(t *testing.T) {
 		wantErrContains string
 	}{
 		{name: "current schema is byte-idempotent", seed: seedCurrentStorage},
-		{name: "newer schema", seed: func(t *testing.T, path string) { seedVersionedStorage(t, path, schemaVersion+1) }, wantErr: true, wantErrContains: "install and verify a runtime supporting schema 9 or newer"},
+		{name: "newer schema", seed: func(t *testing.T, path string) { seedVersionedStorage(t, path, schemaVersion+1) }, wantErr: true, wantErrContains: fmt.Sprintf("install and verify a runtime supporting schema %d or newer", schemaVersion+1)},
 		{name: "partial recorded streams", seed: seedPartialStorage, wantErr: true},
 		{name: "malformed SQLite", seed: func(t *testing.T, path string) {
 			if err := os.WriteFile(path, []byte("not a sqlite database\n"), 0o600); err != nil {

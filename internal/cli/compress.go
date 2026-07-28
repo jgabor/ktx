@@ -62,12 +62,13 @@ const sourceFailureWarning = "ktx: warning: source tool_call indicates failure, 
 // pipelineExecution is the shared operation result for explicit compression,
 // hooks, and database replay. Every field derives from one loaded Config.
 type pipelineExecution struct {
-	output        string
-	profile       string
-	route         string
-	stages        []string
-	recoverFooter bool
-	transformed   bool
+	output                string
+	profile               string
+	route                 string
+	stages                []string
+	recoverFooter         bool
+	transformed           bool
+	antiWorseningRejected bool
 }
 
 func (e pipelineExecution) pipelineRecord() string {
@@ -216,6 +217,7 @@ func compressPipelineWithConfig(source *dbpkg.ToolCall, cfg *config.Config, reg 
 	execution.output = string(res.Out)
 	execution.stages = res.Ran
 	execution.transformed = execution.output != source.Output || len(res.Ran) > 0
+	execution.antiWorseningRejected = res.AntiWorseningRejected
 	return execution, nil
 }
 

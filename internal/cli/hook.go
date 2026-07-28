@@ -435,8 +435,14 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 				return nil, internalError("ktx hook: load existing compressed artifact: %v", artifactErr)
 			}
 			if result.Transformed {
+				if dispositionErr := recordHookCompressionDisposition(db, result.SourceID, result.CompressedID, pipelineExecution{}); dispositionErr != nil {
+					return nil, internalError("ktx hook: persist compression disposition: %v", dispositionErr)
+				}
 				return nil, writeTrustedHookOutput(stdout, isCodex, result, result.Output, runtimeSessionID, runtimeCallID)
 			}
+		}
+		if dispositionErr := recordHookCompressionDisposition(db, sourceID, "", pipelineExecution{}); dispositionErr != nil {
+			return nil, internalError("ktx hook: persist compression disposition: %v", dispositionErr)
 		}
 		return nil, usageError("%v", err)
 	}
@@ -466,6 +472,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		footer := buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
 		if len(compressedOutput)+len(footer) >= len(tc.Output) {
 			transformed = false
+			execution.antiWorseningRejected = true
 			envelopeOutput = tc.Output
 			compressedOutput = tc.Output
 		} else {
@@ -491,6 +498,9 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		result, err := evidence.PersistArtifact(db, src, &tc, sourceInserted, candidate)
 		if err != nil {
 			return nil, internalError("ktx hook: persist compressed: %v", err)
+		}
+		if err := recordHookCompressionDisposition(db, result.SourceID, result.CompressedID, execution); err != nil {
+			return nil, internalError("ktx hook: persist compression disposition: %v", err)
 		}
 
 		// The footer is agent-visible decoration on the authoritative
@@ -528,6 +538,13 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		}
 		compressedID = &cid
 	}
+	artifactID := ""
+	if compressedID != nil {
+		artifactID = *compressedID
+	}
+	if err := recordHookCompressionDisposition(db, sourceID, artifactID, execution); err != nil {
+		return nil, internalError("ktx hook: persist compression disposition: %v", err)
+	}
 
 	enc := json.NewEncoder(stdout)
 	enc.SetEscapeHTML(false)
@@ -540,6 +557,39 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		return nil, internalError("ktx hook: write envelope: %v", err)
 	}
 	return nil, nil
+}
+
+func recordHookCompressionDisposition(database *dbpkg.DB, sourceID, artifactID string, execution pipelineExecution) error {
+	disposition := dbpkg.CompressionDispositionIntentionalPassthrough
+	if execution.antiWorseningRejected {
+		disposition = dbpkg.CompressionDispositionAntiWorseningRejected
+	}
+	if artifactID != "" {
+		disposition = dbpkg.CompressionDispositionArtifactPersisted
+	}
+	profile, route := execution.profile, execution.route
+	if artifactID != "" {
+		artifact, err := database.GetCompressed(artifactID)
+		if err != nil {
+			return err
+		}
+		profile, route = "", ""
+		var selection struct {
+			Profile string `json:"profile"`
+			Route   string `json:"route"`
+		}
+		if json.Unmarshal([]byte(artifact.Pipeline), &selection) == nil {
+			profile = selection.Profile
+			if selection.Route == "matched" || selection.Route == "default_fallback" {
+				route = selection.Route
+			}
+		}
+	}
+	return database.RecordCompressionDisposition(&dbpkg.CompressionDisposition{
+		SourceID: sourceID, Profile: profile, Route: route,
+		Disposition: disposition, ArtifactID: artifactID,
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	})
 }
 
 // buildRecoveryFooter produces a single-line recovery footer appended to

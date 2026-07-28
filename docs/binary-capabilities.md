@@ -9,7 +9,7 @@ executable that handled the command without resolving or opening a database:
   "executable_path": "/absolute/canonical/path/to/ktx",
   "executable_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "build_version": "0.1.0-dev",
-  "max_database_schema": 8
+  "max_database_schema": 9
 }
 ```
 

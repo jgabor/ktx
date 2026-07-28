@@ -2,13 +2,15 @@
 // the on-disk SQLite schema.
 //
 // The database is a single SQLite file with core, benchmark, reversible
-// artifact, recorded-stream, optional session-telemetry, and runtime-event tables:
+// artifact, compression-disposition, recorded-stream, optional
+// session-telemetry, and runtime-event tables:
 // sessions (aggregate, INSERT on open + UPDATE roll-up),
 // tool_calls (append-only, INSERT only), bench_runs (the benchmark
 // headline store; one row per `ktx bench run` invocation; same
 // nanoid-keyed shape as the other tables), compressed (the
 // reversibility layer; one row per `ktx compress` invocation;
-// references tool_calls.id via source_id FK), and recorded_streams (the
+// references tool_calls.id via source_id FK), compression_dispositions (the
+// monotonic hook-outcome projection keyed by source_id), and recorded_streams (the
 // recording contract; one row per `ktx bench run` invocation, or per
 // opt-in `ktx run --record-stream`; holds the verbatim JSONL stream the
 // agent emitted — the authoritative cost evidence; references

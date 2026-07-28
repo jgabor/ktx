@@ -261,6 +261,17 @@ artifact by timestamp, breaking timestamp ties by the lexicographically greatest
 artifact ID; calls without an artifact use their raw output. Recompressions are
 therefore never double-counted.
 
+For hook-processed calls, `delivery_breakdown` reports the retained compression
+disposition separately from artifact coverage. The source-keyed disposition is
+a monotonic convergence projection, not a retry-occurrence ledger: the first
+non-artifact observation remains authoritative until a first compressed artifact
+exists, which promotes the projection to `artifact_persisted`; it never
+downgrades afterward. Exact retry races may transiently return raw output before
+that artifact exists, and this report does not reconstruct those deliveries.
+Historical calls, collection-only ingress, explicit compression without a hook
+observation, and other calls without retained disposition evidence report
+`unobserved` rather than an inferred outcome.
+
 The same interval independently selects accepted OpenCode 1.18.5 model-step
 telemetry by `captured_at`. `cache_reuse` pools those steps' runtime-reported
 uncached-input, cache-read, and cache-write token buckets. It does not read
@@ -281,7 +292,7 @@ contract is:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -298,6 +309,45 @@ contract is:
     "raw_estimated_per_second": 20.761111111111113,
     "delivered_estimated_per_second": 7.888888888888889,
     "reduction_percent": 62.001605565962
+  },
+  "delivery_breakdown": {
+    "detailed_group_limit": 100,
+    "distinct_groups": 2,
+    "omitted_distinct_groups": 0,
+    "groups": [
+      {
+        "tool": "bash",
+        "command": "git",
+        "subcommand": "status",
+        "profile": "git-status",
+        "route": "matched",
+        "disposition": "artifact_persisted",
+        "raw_output_size_band": "1k-10k",
+        "calls": 42,
+        "with_compressed_artifact": 42,
+        "raw_estimated": 30000,
+        "delivered_estimated": 6830
+      },
+      {
+        "tool": "read",
+        "command": null,
+        "subcommand": null,
+        "profile": null,
+        "route": null,
+        "disposition": "unobserved",
+        "raw_output_size_band": "1k-10k",
+        "calls": 9,
+        "with_compressed_artifact": 0,
+        "raw_estimated": 7370,
+        "delivered_estimated": 7370
+      }
+    ],
+    "other": {
+      "calls": 0,
+      "with_compressed_artifact": 0,
+      "raw_estimated": 0,
+      "delivered_estimated": 0
+    }
   },
   "cache_reuse": {
     "contract_version": "cache-reuse-v1",
@@ -325,6 +375,28 @@ raw_estimated * 100`, and is `null` when `raw_estimated` is zero. Calls with an
 empty (but non-NULL) output are included in the call counts and contribute zero
 tokens. `with_compressed_artifact` measures retained-artifact coverage, not
 whether compression reduced output size.
+
+Detailed delivery groups are ranked by delivered estimate and capped at 100.
+`other` contains the exact totals for omitted groups, so detailed groups plus
+`other` reconcile exactly to the headline call count, artifact count, raw
+estimate, and delivered estimate. Estimates apply `ceil(characters / 4)` to
+each call before grouping. Command and subcommand are derived at query time from
+the existing command field and are `null` when unavailable. Profile and route
+are retained operational metadata and are `null` for `unobserved` or otherwise
+unavailable evidence. `default_fallback` is the unmatched-routing signal; it is
+orthogonal to disposition because a fallback profile can still persist an
+artifact.
+
+Disposition values are `artifact_persisted`, `intentional_passthrough`,
+`anti_worsening_rejected`, and report-only `unobserved`.
+`intentional_passthrough` includes configured passthrough and conservative raw
+delivery when processing cannot safely produce an artifact. Pipeline and
+recovery-footer size-gate rejections are `anti_worsening_rejected`. Raw output
+size bands use character counts: `empty` (0), `1-1k` (1-1024), `1k-10k`
+(1025-10240), `10k-100k` (10241-102400), and `100k+` (102401 or more).
+Disposition does not replace existing delivery semantics: artifact coverage and
+delivered estimates continue to use the latest retained artifact, including
+artifacts whose delivery provenance is unavailable.
 
 Each cache bucket total is `measured` only when every contributing model step
 measured that bucket. A measured zero participates in the sum. Missing or null
@@ -742,7 +814,7 @@ extra owner or interval aborts the experiment before another attempt.
 
 On a complete interval, regeneration derives model-step order and positive
 retry, reset, segment, concurrency, and identity coverage from normalized
-schema-8 rows through the last accepted model step. Every acknowledged callback
+runtime-event rows through the last accepted model step. Every acknowledged callback
 occurrence has a contiguous global ordinal. Exact duplicate model-step
 occurrences remain in the ledger but are excluded from accepted measurement and
 wrapper identity projection. A conflicting duplicate remains classified,

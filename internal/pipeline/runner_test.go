@@ -361,6 +361,9 @@ func TestRun_AntiWorseningGate(t *testing.T) {
 		if len(res.Ran) != 0 {
 			t.Errorf("Ran = %v, want empty (gate cleared Ran; result discarded)", res.Ran)
 		}
+		if !res.AntiWorseningRejected {
+			t.Error("AntiWorseningRejected = false, want true")
+		}
 	})
 
 	t.Run("pipeline shrinks output → gate does NOT fire, compressed returned", func(t *testing.T) {
@@ -377,6 +380,9 @@ func TestRun_AntiWorseningGate(t *testing.T) {
 		}
 		if len(res.Ran) != 1 || res.Ran[0] != "shrink" {
 			t.Errorf("Ran = %v, want [shrink] (gate preserved Ran)", res.Ran)
+		}
+		if res.AntiWorseningRejected {
+			t.Error("AntiWorseningRejected = true, want false")
 		}
 	})
 
@@ -400,6 +406,9 @@ func TestRun_AntiWorseningGate(t *testing.T) {
 		if len(res.Ran) != 0 {
 			t.Errorf("Ran = %v, want empty (equal length → gate discarded)", res.Ran)
 		}
+		if !res.AntiWorseningRejected {
+			t.Error("AntiWorseningRejected = false, want true")
+		}
 	})
 
 	t.Run("empty input → gate does NOT fire", func(t *testing.T) {
@@ -417,6 +426,24 @@ func TestRun_AntiWorseningGate(t *testing.T) {
 		}
 		if len(res.Ran) != 1 || res.Ran[0] != "grow" {
 			t.Errorf("Ran = %v, want [grow] (empty input → no gate)", res.Ran)
+		}
+		if res.AntiWorseningRejected {
+			t.Error("AntiWorseningRejected = true, want false")
+		}
+	})
+
+	t.Run("stage failure is conservative passthrough, not size rejection", func(t *testing.T) {
+		reg := NewRegistry()
+		reg.Register("fail", StageFunc(func(in []byte) ([]byte, error) {
+			return nil, errors.New("cannot process")
+		}))
+		input := []byte("unchanged after failure")
+		res := (&Runner{Registry: reg, Pipeline: []string{"fail"}}).Run(input)
+		if string(res.Out) != string(input) || len(res.Ran) != 0 {
+			t.Fatalf("result = %q ran=%v, want conservative passthrough", res.Out, res.Ran)
+		}
+		if res.AntiWorseningRejected {
+			t.Error("AntiWorseningRejected = true, want false for stage failure")
 		}
 	})
 

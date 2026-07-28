@@ -288,7 +288,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
-		if got.SchemaVersion != 2 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
+		if got.SchemaVersion != 3 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
 			t.Errorf("metadata = %+v", got)
 		}
 		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != got.GeneratedAt {
@@ -302,6 +302,9 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 		if got.CacheReuse.ContributingModelSteps != 0 || got.CacheReuse.UncachedInput.State != "missing" || got.CacheReuse.CachedInputShare.State != "missing" {
 			t.Errorf("cache_reuse = %+v", got.CacheReuse)
+		}
+		if got.DeliveryBreakdown.DetailedGroupLimit != 100 || got.DeliveryBreakdown.DistinctGroups != 0 || got.DeliveryBreakdown.OmittedDistinctGroups != 0 || len(got.DeliveryBreakdown.Groups) != 0 {
+			t.Errorf("delivery_breakdown = %+v", got.DeliveryBreakdown)
 		}
 	})
 
@@ -334,6 +337,100 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if got.Tokens.ReductionPercent == nil || *got.Tokens.ReductionPercent != 25 {
 			t.Errorf("reduction_percent = %v, want 25", got.Tokens.ReductionPercent)
 		}
+	})
+
+	t.Run("groups delivery evidence independently from latest-artifact totals", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		ids := seedCalls(t, db, sid, []callSeed{
+			{tool: "read", output: "12345"},
+			{tool: "bash", command: "git --no-pager status", output: strings.Repeat("x", 1025)},
+			{tool: "grep", command: "rg needle", output: "1234"},
+			{tool: "bash", command: "git diff", output: "123456789"},
+		})
+		seedCompressedRow(t, db, ids[3], "x", now.Add(-time.Minute).Format(time.RFC3339Nano))
+		for _, disposition := range []dbpkg.CompressionDisposition{
+			{SourceID: ids[1], Profile: "default", Route: "default_fallback", Disposition: dbpkg.CompressionDispositionIntentionalPassthrough, ObservedAt: now.Add(-time.Minute).Format(time.RFC3339Nano)},
+			{SourceID: ids[2], Profile: "search", Route: "matched", Disposition: dbpkg.CompressionDispositionAntiWorseningRejected, ObservedAt: now.Add(-time.Minute).Format(time.RFC3339Nano)},
+			{SourceID: ids[3], Profile: "git-diff", Route: "matched", Disposition: dbpkg.CompressionDispositionArtifactPersisted, ArtifactID: "c" + ids[3][1:], ObservedAt: now.Add(-time.Minute).Format(time.RFC3339Nano)},
+		} {
+			if err := db.RecordCompressionDisposition(&disposition); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.Calls.TotalWithOutput != 4 || got.Calls.WithCompressedArtifact != 1 || got.Tokens.RawEstimated != 263 || got.Tokens.DeliveredEstimated != 261 {
+			t.Fatalf("headline totals = calls %+v tokens %+v", got.Calls, got.Tokens)
+		}
+		if got.DeliveryBreakdown.DistinctGroups != 4 || got.DeliveryBreakdown.OmittedDistinctGroups != 0 || len(got.DeliveryBreakdown.Groups) != 4 {
+			t.Fatalf("delivery_breakdown = %+v", got.DeliveryBreakdown)
+		}
+		groups := map[string]statsSummaryDeliveryGroup{}
+		for _, group := range got.DeliveryBreakdown.Groups {
+			groups[group.Disposition] = group
+		}
+		unobserved := groups[dbpkg.CompressionDispositionUnobserved]
+		if unobserved.Command != nil || unobserved.Subcommand != nil || unobserved.Profile != nil || unobserved.Route != nil || unobserved.RawOutputSizeBand != "1-1k" || unobserved.Calls != 1 {
+			t.Errorf("unobserved group = %+v", unobserved)
+		}
+		passthrough := groups[dbpkg.CompressionDispositionIntentionalPassthrough]
+		if passthrough.Command == nil || *passthrough.Command != "git" || passthrough.Subcommand == nil || *passthrough.Subcommand != "status" || passthrough.Profile == nil || *passthrough.Profile != "default" || passthrough.Route == nil || *passthrough.Route != "default_fallback" || passthrough.RawOutputSizeBand != "1k-10k" || passthrough.DeliveredEstimated != 257 {
+			t.Errorf("passthrough group = %+v", passthrough)
+		}
+		artifact := groups[dbpkg.CompressionDispositionArtifactPersisted]
+		if artifact.WithCompressedArtifact != 1 || artifact.RawEstimated != 3 || artifact.DeliveredEstimated != 1 {
+			t.Errorf("artifact group = %+v", artifact)
+		}
+		assertDeliveryReconciliation(t, got)
+	})
+
+	t.Run("caps detailed groups and reconciles omitted totals", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		for i := 0; i < 102; i++ {
+			output := strings.Repeat("x", i+1)
+			if err := db.PersistToolCall(&dbpkg.ToolCall{
+				ID: fmt.Sprintf("g%015d", i), SessionID: sid, Tool: fmt.Sprintf("tool-%03d", i),
+				Input: `{"command":"cmd"}`, Output: output, Timestamp: "2026-07-12T00:00:01Z",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i := 0; i < 2; i++ {
+			sourceID := fmt.Sprintf("g%015d", i)
+			seedCompressedRow(t, db, sourceID, "", now.Add(-time.Minute).Format(time.RFC3339Nano))
+			if err := db.RecordCompressionDisposition(&dbpkg.CompressionDisposition{
+				SourceID: sourceID, Profile: "small", Route: "matched",
+				Disposition: dbpkg.CompressionDispositionArtifactPersisted, ArtifactID: "c" + sourceID[1:],
+				ObservedAt: now.Add(-time.Minute).Format(time.RFC3339Nano),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsSummaryLogic: %v", err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.DeliveryBreakdown.DetailedGroupLimit != 100 || got.DeliveryBreakdown.DistinctGroups != 102 || got.DeliveryBreakdown.OmittedDistinctGroups != 2 || len(got.DeliveryBreakdown.Groups) != 100 || got.DeliveryBreakdown.Other.Calls != 2 || got.DeliveryBreakdown.Other.WithCompressedArtifact != 2 || got.DeliveryBreakdown.Other.RawEstimated != 2 || got.DeliveryBreakdown.Other.DeliveredEstimated != 0 {
+			t.Fatalf("bounded breakdown = %+v", got.DeliveryBreakdown)
+		}
+		if first := got.DeliveryBreakdown.Groups[0]; first.Tool != "tool-100" || first.DeliveredEstimated != 26 {
+			t.Errorf("first ranked group = %+v, want deterministic tool-100 tie winner with 26 delivered tokens", first)
+		}
+		assertDeliveryReconciliation(t, got)
 	})
 
 	t.Run("aggregates complete runtime cache telemetry with an exact share", func(t *testing.T) {
@@ -418,7 +515,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("JSON schema has only the version 2 contract keys", func(t *testing.T) {
+	t.Run("JSON schema has only the version 3 contract keys", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -428,10 +525,13 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "cache_reuse")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "delivery_breakdown", "cache_reuse")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
 		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated", "raw_estimated_per_second", "delivered_estimated_per_second", "reduction_percent")
+		delivery := got["delivery_breakdown"].(map[string]any)
+		assertStatsJSONKeys(t, delivery, "detailed_group_limit", "distinct_groups", "omitted_distinct_groups", "groups", "other")
+		assertStatsJSONKeys(t, delivery["other"].(map[string]any), "calls", "with_compressed_artifact", "raw_estimated", "delivered_estimated")
 		cache := got["cache_reuse"].(map[string]any)
 		assertStatsJSONKeys(t, cache, "contract_version", "runtime", "runtime_version", "contributing_model_steps", "uncached_input", "cache_read", "cache_write", "logical_input", "cached_input_share", "formula", "unit")
 		for _, field := range []string{"uncached_input", "cache_read", "cache_write", "logical_input"} {
@@ -446,7 +546,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &text); err != nil {
 			t.Fatalf("text: %v", err)
 		}
-		if !strings.Contains(text.String(), "WINDOW") || !strings.Contains(text.String(), "RAW_TOK") || !strings.Contains(text.String(), "CACHE_READ") || !strings.Contains(text.String(), "CACHED_INPUT_PCT") {
+		if !strings.Contains(text.String(), "WINDOW") || !strings.Contains(text.String(), "RAW_TOK") || !strings.Contains(text.String(), "CACHE_READ") || !strings.Contains(text.String(), "CACHED_INPUT_PCT") || !strings.Contains(text.String(), "DISPOSITION") {
 			t.Errorf("text output missing fields: %q", text.String())
 		}
 		var help bytes.Buffer
@@ -456,10 +556,27 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if !strings.Contains(help.String(), "ktx stats summary") {
 			t.Errorf("summary help missing command: %q", help.String())
 		}
-		if !strings.Contains(help.String(), "schema_version 2") || !strings.Contains(help.String(), "cached-input share") || !strings.Contains(help.String(), "not a provider hit rate") {
+		if !strings.Contains(help.String(), "schema_version 3") || !strings.Contains(help.String(), "delivery breakdown") || !strings.Contains(help.String(), "cached-input share") || !strings.Contains(help.String(), "not a provider hit rate") {
 			t.Errorf("summary help missing cache contract: %q", help.String())
 		}
 	})
+}
+
+func assertDeliveryReconciliation(t *testing.T, summary statsSummary) {
+	t.Helper()
+	calls := summary.DeliveryBreakdown.Other.Calls
+	artifacts := summary.DeliveryBreakdown.Other.WithCompressedArtifact
+	raw := summary.DeliveryBreakdown.Other.RawEstimated
+	delivered := summary.DeliveryBreakdown.Other.DeliveredEstimated
+	for _, group := range summary.DeliveryBreakdown.Groups {
+		calls += group.Calls
+		artifacts += group.WithCompressedArtifact
+		raw += group.RawEstimated
+		delivered += group.DeliveredEstimated
+	}
+	if calls != summary.Calls.TotalWithOutput || artifacts != summary.Calls.WithCompressedArtifact || raw != summary.Tokens.RawEstimated || delivered != summary.Tokens.DeliveredEstimated {
+		t.Errorf("delivery totals calls=%d artifacts=%d raw=%d delivered=%d do not reconcile with calls=%+v tokens=%+v", calls, artifacts, raw, delivered, summary.Calls, summary.Tokens)
+	}
 }
 
 func TestParseStatsArgsSummaryWindow(t *testing.T) {

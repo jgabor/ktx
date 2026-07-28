@@ -1877,6 +1877,10 @@ stages = ["head:3"]
 	}
 
 	// A malformed current config cannot invalidate the first artifact either.
+	sourceID := mustCodexID(t, "codex-test-session", "pc-retry-01")
+	if _, err := d.DB().Exec(`DELETE FROM compression_dispositions WHERE source_id = ?`, sourceID); err != nil {
+		t.Fatal(err)
+	}
 	hookWriteUserConfig(t, "[pipeline.default\n")
 	var stdout3, stderr3 bytes.Buffer
 	if _, err := hookLogic(strings.NewReader(payload), d, &stdout3, &stderr3); err != nil {
@@ -1889,14 +1893,94 @@ stages = ["head:3"]
 	if out3.Decision != "block" || out3.Reason != out1.Reason {
 		t.Errorf("third output = %+v, want first authoritative artifact", out3)
 	}
+	disposition, err := d.GetCompressionDisposition(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disposition.Disposition != dbpkg.CompressionDispositionArtifactPersisted || disposition.ArtifactID == "" || disposition.Profile != "default" || disposition.Route != "default_fallback" {
+		t.Errorf("malformed-config retry disposition = %+v", disposition)
+	}
 
-	sourceID := mustCodexID(t, "codex-test-session", "pc-retry-01")
 	var compCount int
 	if err := d.DB().QueryRow(`SELECT count(*) FROM compressed WHERE source_id = ?`, sourceID).Scan(&compCount); err != nil {
 		t.Fatal(err)
 	}
 	if compCount != 1 {
 		t.Errorf("compressed rows = %d, want 1", compCount)
+	}
+}
+
+func TestHook_Codex_RetryPromotesDispositionToFirstArtifact(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	original := strings.Repeat("line with enough content to compress\n", 20)
+	payload := codexPayload(t, "disposition-retry", "Bash", original)
+	sourceID := mustCodexID(t, "codex-test-session", "disposition-retry")
+
+	var firstOut, firstErr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &firstOut, &firstErr); err != nil {
+		t.Fatalf("passthrough delivery: %v (stderr=%q)", err, firstErr.String())
+	}
+	first, err := d.GetCompressionDisposition(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Disposition != dbpkg.CompressionDispositionIntentionalPassthrough || first.Profile != "default" || first.Route != "default_fallback" || first.ArtifactID != "" {
+		t.Fatalf("first disposition = %+v", first)
+	}
+
+	hookWriteUserConfig(t, `[pipeline.short]
+stages = ["head:1"]
+
+[[route]]
+tool = "Bash"
+profile = "short"
+`)
+	var secondOut, secondErr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &secondOut, &secondErr); err != nil {
+		t.Fatalf("artifact delivery: %v (stderr=%q)", err, secondErr.String())
+	}
+	second, err := d.GetCompressionDisposition(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Disposition != dbpkg.CompressionDispositionArtifactPersisted || second.ArtifactID == "" || second.Profile != "short" || second.Route != "matched" {
+		t.Fatalf("promoted disposition = %+v", second)
+	}
+
+	hookWriteUserConfig(t, "")
+	var thirdOut, thirdErr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &thirdOut, &thirdErr); err != nil {
+		t.Fatalf("authoritative retry: %v (stderr=%q)", err, thirdErr.String())
+	}
+	third, err := d.GetCompressionDisposition(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third != second {
+		t.Fatalf("artifact disposition changed on retry:\n second=%+v\n third=%+v", second, third)
+	}
+}
+
+func TestHook_Codex_MalformedConfigRecordsConservativePassthrough(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, "[pipeline.default\n")
+	payload := codexPayload(t, "malformed-config", "Bash", "raw output")
+
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err == nil {
+		t.Fatal("malformed config unexpectedly succeeded")
+	}
+	disposition, err := d.GetCompressionDisposition(mustCodexID(t, "codex-test-session", "malformed-config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disposition.Disposition != dbpkg.CompressionDispositionIntentionalPassthrough || disposition.Profile != "" || disposition.Route != "" || disposition.ArtifactID != "" {
+		t.Fatalf("malformed-config disposition = %+v", disposition)
 	}
 }
 
@@ -2006,6 +2090,13 @@ recover_footer = true
 	}
 	if persisted.Output != original {
 		t.Errorf("persisted original = %q, want unchanged (suppressed transform)", persisted.Output)
+	}
+	disposition, err := d.GetCompressionDisposition(mustCodexID(t, "codex-test-session", "codxsup01"))
+	if err != nil {
+		t.Fatalf("GetCompressionDisposition: %v", err)
+	}
+	if disposition.Disposition != dbpkg.CompressionDispositionAntiWorseningRejected || disposition.ArtifactID != "" {
+		t.Errorf("disposition = %+v, want anti-worsening rejection", disposition)
 	}
 }
 

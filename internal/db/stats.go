@@ -74,6 +74,11 @@ func (d *DB) StatsRows() ([]StatsRow, error) {
 // estimate. HasCompressedArtifact reports retained-artifact coverage even when
 // the selected artifact output is NULL.
 type StatsSummaryRow struct {
+	Tool                  string
+	Input                 string
+	Profile               string
+	Route                 string
+	Disposition           string
 	RawChars              int
 	DeliveredChars        int
 	HasCompressedArtifact bool
@@ -253,9 +258,11 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	}
 
 	rows, err := database.Query(`
-		SELECT tc.id, LENGTH(tc.output),
+		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''), LENGTH(tc.output),
+		       cd.profile, cd.route, cd.disposition,
 		       c.id, LENGTH(c.output), c.timestamp
 		FROM tool_calls tc
+		LEFT JOIN compression_dispositions cd ON cd.source_id = tc.id
 		LEFT JOIN compressed c ON c.source_id = tc.id
 		WHERE tc.id IN (`+placeholders+`)
 	`, args...)
@@ -265,11 +272,17 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	for rows.Next() {
 		var (
 			sourceID                      string
+			tool, input                   string
 			rawChars                      int
+			profile, route, disposition   sql.NullString
 			artifactID, artifactTimestamp sql.NullString
 			artifactChars                 sql.NullInt64
 		)
-		if err := rows.Scan(&sourceID, &rawChars, &artifactID, &artifactChars, &artifactTimestamp); err != nil {
+		if err := rows.Scan(
+			&sourceID, &tool, &input, &rawChars,
+			&profile, &route, &disposition,
+			&artifactID, &artifactChars, &artifactTimestamp,
+		); err != nil {
 			_ = rows.Close()
 			return fmt.Errorf("db: stats summary length scan: %w", err)
 		}
@@ -280,6 +293,14 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 		}
 		if !current.rawSet {
 			current.rawSet = true
+			current.row.Tool = tool
+			current.row.Input = input
+			current.row.Profile = profile.String
+			current.row.Route = route.String
+			current.row.Disposition = CompressionDispositionUnobserved
+			if disposition.Valid {
+				current.row.Disposition = disposition.String
+			}
 			current.row.RawChars = rawChars
 			current.row.DeliveredChars = rawChars
 		}

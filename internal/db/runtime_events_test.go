@@ -101,7 +101,7 @@ func TestRuntimeEventSchemaMigratesVersionSevenRowsAsAccepted(t *testing.T) {
 	if err := database.db.QueryRow(`SELECT contradiction_count FROM runtime_event_intervals`).Scan(&contradictions); err != nil || contradictions != 0 {
 		t.Fatalf("contradictions=%d err=%v", contradictions, err)
 	}
-	if err := database.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 8 {
+	if err := database.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != schemaVersion {
 		t.Fatalf("version=%d err=%v", version, err)
 	}
 }

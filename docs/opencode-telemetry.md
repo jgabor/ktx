@@ -19,16 +19,18 @@ locations:
 | Global  | `ktx init opencode`           | `$XDG_CONFIG_HOME/opencode/plugins/ktx.ts`, falling back to `$HOME/.config/opencode/plugins/ktx.ts` |
 | Project | `ktx init opencode --project` | `./.opencode/plugins/ktx.ts`                                                                        |
 
-Re-run the same install command to refresh the generated plugin after upgrading
-ktx. Installation is idempotent and overwrites only the selected generated
-`ktx.ts` file. `ktx init opencode --show` reports candidate files found on disk;
-it does not claim that OpenCode loaded or activated either file.
+Re-run the same install command after upgrading ktx to pick up generated plugin
+source changes. Installation is idempotent and overwrites only the selected
+generated `ktx.ts` file. A database schema increase alone does not invalidate an
+installed plugin. `ktx init opencode --show` reports candidate files found on
+disk; it does not claim that OpenCode loaded or activated either file.
 
 At startup, the generated plugin resolves and canonicalizes one `ktx` candidate,
 verifies its DB-free `binary-capabilities` response against the candidate's
-actual path and SHA-256, and pins that absolute path for every later callback.
-This prevents a later `PATH` change from selecting a different binary. Callback
-commands need no caller-supplied executable proof. See
+actual path and SHA-256, validates the remaining response fields without treating
+maximum database schema as an adapter version, and pins that absolute path for
+every later callback. This prevents a later `PATH` change from selecting a
+different binary. Callback commands need no caller-supplied executable proof. See
 [Binary compatibility identity](binary-capabilities.md) for the response,
 comparison, correction, and exit contracts.
 
@@ -263,11 +265,13 @@ Failure behavior depends on the command:
   the unintended copy with `ktx init opencode --uninstall`, then reinstall the
   intended scope.
 - Ensure a readable `ktx` is on OpenCode's startup `PATH`. If it is absent or
-  its identity cannot be verified, the plugin reports that it is disabled and
-  registers neither hook. Reinstall ktx at a stable path, re-run
-  `ktx init opencode`, and restart OpenCode.
-- The plugin pins one path and digest for its lifetime. Refresh the generated
-  plugin and restart OpenCode after replacing the installed binary.
+  its capability response does not match the observed candidate, the plugin
+  names the failed field, reports that it is disabled, and registers neither
+  hook. Reinstall ktx at a readable stable path and restart OpenCode.
+- The plugin pins one path and records its startup digest for one factory
+  instance. Refresh the generated plugin to pick up source changes and restart
+  OpenCode after replacing the installed binary. A database schema increase by
+  itself does not require adapter regeneration.
 - If OpenCode is wrapped by `ktx run`, `KTX_SESSION_ID` intentionally disables
   the plugin hooks. Test the unwrapped path without `ktx run` when diagnosing
   plugin loading.

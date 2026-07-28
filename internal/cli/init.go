@@ -64,10 +64,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-
-	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 // ktxPluginFileName is the name of the OpenCode plugin file installed by
@@ -114,10 +111,10 @@ type initParsedArgs struct {
 //     persistence and the plugin would otherwise double-record.
 //
 // Candidate check: the plugin factory resolves one ktx from PATH, verifies its
-// canonical path, digest, version, response schema, and database capability,
-// then invokes that pinned path. If verification fails, no hooks are registered
-// and a one-line warning makes the disabled state and correction visible.
-const ktxOpencodePluginTemplateSource = `import type { Plugin } from "@opencode-ai/plugin"
+// canonical path, digest, version, and capability response, then invokes that
+// pinned path. If verification fails, no hooks are registered and a one-line
+// warning makes the disabled state and correction visible.
+const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
 import { createHash } from "node:crypto"
 import { lstat, readFile, realpath, stat } from "node:fs/promises"
 import { resolve } from "node:path"
@@ -334,17 +331,24 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     ])
     if (exitCode !== 0) throw new Error("binary-capabilities exited " + exitCode + ": " + stderr.trim())
     const value = JSON.parse(stdout) as Partial<KtxBinaryCapabilities>
-    if (!value || Array.isArray(value) || value.schema !== "ktx.binary-capabilities/v1" ||
-        value.executable_path !== canonical || value.executable_sha256 !== digest ||
-        !nonblank(value.build_version) || value.max_database_schema !== __MAX_SCHEMA__) {
-      throw new Error("binary-capabilities response does not match the resolved candidate")
-    }
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new Error("binary-capabilities response must be a JSON object")
+    if (value.schema !== "ktx.binary-capabilities/v1")
+      throw new Error("binary-capabilities response schema mismatch: expected ktx.binary-capabilities/v1, got " + JSON.stringify(value.schema))
+    if (value.executable_path !== canonical)
+      throw new Error("binary-capabilities executable path mismatch: expected " + canonical + ", got " + JSON.stringify(value.executable_path))
+    if (value.executable_sha256 !== digest)
+      throw new Error("binary-capabilities executable digest mismatch: expected " + digest + ", got " + JSON.stringify(value.executable_sha256))
+    if (!nonblank(value.build_version))
+      throw new Error("binary-capabilities build version is blank")
+    if (!Number.isSafeInteger(value.max_database_schema) || (value.max_database_schema as number) < 0)
+      throw new Error("binary-capabilities maximum database schema is invalid: got " + JSON.stringify(value.max_database_schema))
     ktxExecutable = canonical
     ktxExecutableSHA256 = digest
   } catch (e) {
     const correction = "reinstall ktx at a readable stable path, run ktx init opencode, and restart OpenCode"
-    if (required) throw new Error("ktx candidate identity is unverifiable: " + String(e) + "; " + correction)
-    console.warn("[ktx] ktx candidate identity is unverifiable; plugin disabled: " + String(e) + "; " + correction)
+    if (required) throw new Error("ktx candidate verification failed: " + String(e) + "; " + correction)
+    console.warn("[ktx] ktx candidate verification failed; plugin disabled: " + String(e) + "; " + correction)
     return {}
   }
 
@@ -595,12 +599,6 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 
 export default KtxPlugin
 `
-
-var ktxOpencodePluginTemplate = strings.ReplaceAll(
-	ktxOpencodePluginTemplateSource,
-	"__MAX_SCHEMA__",
-	strconv.Itoa(dbpkg.MaxSupportedSchema()),
-)
 
 // initFlags captures the flags shared across all `ktx init <runtime>`
 // subcommands. Each flag selects a distinct action; combining them is

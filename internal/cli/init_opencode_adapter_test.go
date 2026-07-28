@@ -146,14 +146,19 @@ func TestOpencodeGeneratedAdapterEventAndToolIntegration(t *testing.T) {
 if [ "$1" = "binary-capabilities" ]; then
   path=$(readlink -f "$0")
   digest=$(sha256sum "$path" | cut -d' ' -f1)
+  contract=ktx.binary-capabilities/v1
+  version=fixture
+  max_schema=9
   case "$KTX_TEST_BAD_RESPONSE" in
     identity-malformed) printf '[]\n'; exit 0 ;;
+    identity-contract) contract=ktx.binary-capabilities/v0 ;;
     identity-path) path=/wrong/ktx ;;
     identity-digest) digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
-    identity-schema) schema=7 ;;
+    identity-version) version=' ' ;;
+    identity-max-schema) max_schema=-1 ;;
+    identity-different-max-schema) max_schema=7 ;;
   esac
-  : "${schema:=9}"
-  printf '{"schema":"ktx.binary-capabilities/v1","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","max_database_schema":%s}\n' "$path" "$digest" "$schema"
+  printf '{"schema":"%s","executable_path":"%s","executable_sha256":"%s","build_version":"%s","max_database_schema":%s}\n' "$contract" "$path" "$digest" "$version" "$max_schema"
   exit 0
 fi
 if [ "$1 $2" = "db path" ]; then
@@ -655,11 +660,28 @@ console.log("ok")
 		}
 	})
 
-	for _, bad := range []string{"identity-malformed", "identity-path", "identity-digest", "identity-schema"} {
-		t.Run("ordinary mode disables unverifiable candidate "+bad, func(t *testing.T) {
-			output, calls, stderr := run(t, "KTX_TEST_BAD_RESPONSE="+bad)
+	t.Run("database maximum does not version the generated adapter", func(t *testing.T) {
+		output, calls, stderr := run(t, "KTX_TEST_BAD_RESPONSE=identity-different-max-schema")
+		if output["output"] != "compressed tool output" || len(calls) != 7 || strings.Contains(stderr, "plugin disabled") {
+			t.Fatalf("output=%#v calls=%q stderr=%q", output, calls, stderr)
+		}
+	})
+
+	for _, test := range []struct {
+		response string
+		want     string
+	}{
+		{response: "identity-malformed", want: "response must be a JSON object"},
+		{response: "identity-contract", want: "response schema mismatch"},
+		{response: "identity-path", want: "executable path mismatch"},
+		{response: "identity-digest", want: "executable digest mismatch"},
+		{response: "identity-version", want: "build version is blank"},
+		{response: "identity-max-schema", want: "maximum database schema is invalid"},
+	} {
+		t.Run("ordinary mode disables invalid candidate "+test.response, func(t *testing.T) {
+			output, calls, stderr := run(t, "KTX_TEST_BAD_RESPONSE="+test.response)
 			if output["output"] != "original tool output" || len(calls) != 0 ||
-				!strings.Contains(stderr, "plugin disabled") || !strings.Contains(stderr, "reinstall") {
+				!strings.Contains(stderr, "plugin disabled") || !strings.Contains(stderr, test.want) {
 				t.Fatalf("output=%#v calls=%q stderr=%q", output, calls, stderr)
 			}
 		})
@@ -667,6 +689,7 @@ console.log("ok")
 
 	t.Run("required benchmark mode retains and serializes every callback", func(t *testing.T) {
 		output, calls, _ := run(t,
+			"KTX_TEST_BAD_RESPONSE=identity-different-max-schema",
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa",
 			"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2",
@@ -791,7 +814,7 @@ console.log("ok")
 	})
 
 	for _, bad := range []string{
-		"identity-malformed", "identity-path", "identity-digest", "identity-schema",
+		"identity-malformed", "identity-contract", "identity-path", "identity-digest", "identity-version", "identity-max-schema",
 		"collector-session", "collector-interval", "collector-epoch", "collector-kind", "collector-ordinal", "collector-type", "collector-contract", "collector-malformed", "collector-missing",
 		"event-session", "event-interval", "event-epoch", "event-kind", "event-contract", "event-missing", "hook-envelope",
 	} {

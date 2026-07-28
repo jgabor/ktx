@@ -3322,3 +3322,67 @@ archive:
       opening; explicit database migration; schema diagnostics; generated OpenCode
       invocation; database safety, binary capability, telemetry, pipeline, README,
       and agent guidance; runtime-proof and migration regression tests.
+  - number: 33
+    date: 2026-07-28
+    question: Should the generated OpenCode plugin require its embedded maximum
+      database schema to equal the runtime binary's reported maximum before it
+      registers hooks?
+    context: A plugin generated while schema 8 was current disabled itself after
+      the installed binary advanced to schema 9, even though the OpenCode callback
+      contracts had not changed. The startup warning classified this database-only
+      difference as unverifiable binary identity. Re-running `ktx init opencode`
+      regenerated the plugin and restored equality, but coupled every database
+      schema change to adapter regeneration. The same startup check compares the
+      independently observed canonical path and digest with the candidate's
+      DB-free response, while callback commands enforce their own acknowledgement
+      and envelope contracts and database opens enforce schema compatibility.
+    alternatives:
+      - name: Decouple database schema from OpenCode adapter activation while
+          preserving candidate consistency checks.
+        status: chosen
+        description: Validate that the capability response contains a non-negative
+          safe-integer maximum schema, but do not compare it with generated plugin
+          state. Continue to verify response schema, canonical path, digest, and a
+          non-blank build version, then pin the canonical path for callbacks.
+      - name: Remove the startup capability handshake and pin only the canonical
+          path.
+        status: rejected
+        description: Avoids the false incompatibility but also removes the current
+          startup candidate consistency check and broadens this change beyond the
+          demonstrated database-schema coupling.
+      - name: Keep exact maximum-schema equality and rely on adapter regeneration.
+        status: rejected
+        description: Preserves the current mechanism but continues to treat an
+          unrelated database migration as an adapter incompatibility and produces
+          recurring startup failure after schema-only upgrades.
+      - name: Add adapter protocol range negotiation now.
+        status: rejected
+        description: Would model the correct compatibility dimension but adds a
+          protocol lifecycle before any incompatible adapter wire change requires
+          one. Existing callback validation remains the current contract boundary.
+    choice: Stop generating the maximum database schema into the OpenCode plugin
+      and stop requiring exact equality at startup. Preserve the DB-free
+      `binary-capabilities` command and its maximum-schema field for diagnostics,
+      release evidence, benchmark provenance, and structured database errors.
+      Generated plugins continue to resolve one PATH candidate, canonicalize and
+      hash it, invoke that exact path for capabilities, validate the response
+      schema, canonical path, digest, non-blank build version, and well-formed
+      non-negative safe-integer maximum schema, then use the canonical path for
+      callbacks. Candidate validation failures identify the failed field and its
+      expected and actual values where applicable. Database schema compatibility
+      remains enforced by database open and migration boundaries, not plugin
+      activation. Re-run `ktx init opencode` to pick up generated plugin source
+      changes, but a database-schema increase alone does not invalidate an
+      installed plugin.
+    reasoning: Maximum database schema and adapter wire compatibility are separate
+      contracts. Exact equality blocked a compatible adapter without authenticating
+      the executable, proving callback compatibility, or improving database safety.
+      The binary already rejects unsupported newer databases and migrates supported
+      older schemas at the appropriate command boundary. Keeping the narrower path,
+      digest, and response-shape checks preserves the established PATH-drift and
+      candidate-consistency behavior while removing the demonstrated false failure.
+      Protocol negotiation remains unnecessary until an actual incompatible adapter
+      change supplies requirements to negotiate.
+    confidence: firm
+    feeds_into: Generated OpenCode candidate validation and fixtures; binary
+      capability and OpenCode telemetry documentation; adapter refresh guidance.

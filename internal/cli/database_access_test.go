@@ -66,6 +66,7 @@ func TestAmbientQueryDoesNotCreateDatabase(t *testing.T) {
 	for _, args := range [][]string{
 		{"list"},
 		{"stats", "summary", "--window", "30m"},
+		{"stats", "breakdown", "--window", "30m", "--format", "json"},
 		{"bench", "report"},
 		{"get", "aaaaaaaaaaaaaaaa"},
 		{"read", "aaaaaaaaaaaaaaaa"},
@@ -113,6 +114,7 @@ func TestQueryCommandsPreservePersistentDatabase(t *testing.T) {
 	for _, args := range [][]string{
 		{"list"},
 		{"stats", "summary", "--window", "30m"},
+		{"stats", "breakdown", "--window", "30m", "--format", "json"},
 		{"get", callID},
 		{"read", callID},
 		{"decompress", compressedID},

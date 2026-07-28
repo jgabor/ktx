@@ -249,6 +249,7 @@ ktx stats
 ktx stats --format text
 ktx stats --limit 5
 ktx stats summary --window 30m --format json
+ktx stats breakdown --window 30m --format json
 ```
 
 Groups with fewer than 2 calls or fewer than 50 delivered tokens
@@ -256,17 +257,24 @@ are excluded as trivial. The output is ranked by total delivered
 tokens (descending). Use this to find the commands where a filter
 pack or a more aggressive profile would have the highest impact.
 
-`ktx stats summary` emits a versioned snapshot for periodically polled clients.
-Its trailing window is inclusive at both endpoints (`[from, to]`) and ends at
-one captured wall-clock time. Only calls with non-NULL output and an RFC3339
-timestamp in that window are counted. Each call uses its latest compressed
-artifact by timestamp, breaking timestamp ties by the lexicographically greatest
-artifact ID; calls without an artifact use their raw output. Recompressions are
-therefore never double-counted.
+`ktx stats summary` emits a fixed-shape aggregate for periodically polled clients.
+Its JSON contract contains only window metadata, headline call and token totals,
+and aggregate cache evidence. The schema is closed: diagnostic arrays and new
+reporting dimensions require an intentional schema-version change.
+`ktx stats breakdown` owns the detailed delivery groups.
+Schema version 4 removes the version 3 `delivery_breakdown` member; callers that
+used it should invoke the version 1 breakdown command instead.
 
-For hook-processed calls, `delivery_breakdown` reports the retained compression
-disposition separately from artifact coverage. The source-keyed disposition is
-a monotonic convergence projection, not a retry-occurrence ledger: the first
+Both commands use an inclusive trailing window (`[from, to]`) ending at one
+captured wall-clock time. Only calls with non-NULL output and an RFC3339 timestamp
+in that window are counted. Each call uses its latest compressed artifact by
+timestamp, breaking timestamp ties by the lexicographically greatest artifact
+ID; calls without an artifact use their raw output. Recompressions are therefore
+never double-counted.
+
+For hook-processed calls, `ktx stats breakdown` reports the retained compression
+disposition separately from artifact coverage. The source-keyed disposition is a
+monotonic convergence projection, not a retry-occurrence ledger: the first
 non-artifact observation remains authoritative until a first compressed artifact
 exists, which promotes the projection to `artifact_persisted`; it never
 downgrades afterward. Exact retry races may transiently return raw output before
@@ -275,27 +283,72 @@ Historical calls, collection-only ingress, explicit compression without a hook
 observation, and other calls without retained disposition evidence report
 `unobserved` rather than an inferred outcome.
 
-The same interval independently selects accepted OpenCode 1.18.5 model-step
-telemetry by `captured_at`. `cache_reuse` pools those steps' runtime-reported
+The summary independently selects accepted OpenCode 1.18.5 model-step telemetry
+by `captured_at`. `cache_reuse` pools those steps' runtime-reported
 uncached-input, cache-read, and cache-write token buckets. It does not read
-benchmark aggregates or reconstruct provider requests.
+benchmark aggregates or reconstruct provider requests. The breakdown does not
+query or emit model-step telemetry.
 
-To avoid holding a long rollback-journal read while clients poll this summary,
+To avoid holding a long rollback-journal read while clients poll either command,
 the query first scans eligible source IDs and timestamps, closes that read, then
 fetches output lengths and artifacts for those IDs in batches. No transaction
-spans those phases: an artifact committed after the source scan can appear in
-the result. Source calls are append-only, so the selected source set remains
-stable. The model-step query is also independent; no transaction spans the
+spans those phases: an artifact committed after the source scan can appear in the
+result. Source calls are append-only, so the selected source set remains stable.
+The summary's model-step query is also independent; no transaction spans the
 tool-call and telemetry views.
 
 The default window is `30m`; `--window` accepts a positive Go duration. Token
 estimates apply `ceil(character count / 4)` to each call before summing, matching
-`ktx stats`. Per-second rates divide by the full configured window. The JSON
-contract is:
+`ktx stats`. Per-second rates divide by the full configured window. The summary
+JSON contract is:
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 4,
+  "generated_at": "2026-07-21T12:00:00Z",
+  "window": {
+    "seconds": 1800,
+    "from": "2026-07-21T11:30:00Z",
+    "to": "2026-07-21T12:00:00Z"
+  },
+  "calls": {
+    "total_with_output": 51,
+    "with_compressed_artifact": 42
+  },
+  "tokens": {
+    "raw_estimated": 37370,
+    "delivered_estimated": 14200,
+    "raw_estimated_per_second": 20.761111111111113,
+    "delivered_estimated_per_second": 7.888888888888889,
+    "reduction_percent": 62.001605565962
+  },
+  "cache_reuse": {
+    "contract_version": "cache-reuse-v1",
+    "runtime": "opencode",
+    "runtime_version": "1.18.5",
+    "contributing_model_steps": 6,
+    "uncached_input": { "state": "measured", "value": 1000 },
+    "cache_read": { "state": "measured", "value": 3500 },
+    "cache_write": { "state": "measured", "value": 500 },
+    "logical_input": { "state": "measured", "value": 5000 },
+    "cached_input_share": {
+      "state": "measured",
+      "value": 0.7,
+      "ratio": "7/10",
+      "reason": null
+    },
+    "formula": "cache_read / logical_input",
+    "unit": "token_fraction"
+  }
+}
+```
+
+The breakdown JSON contract is separate so its diagnostic rows cannot enlarge
+the summary:
+
+```json
+{
+  "schema_version": 1,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -351,24 +404,6 @@ contract is:
       "raw_estimated": 0,
       "delivered_estimated": 0
     }
-  },
-  "cache_reuse": {
-    "contract_version": "cache-reuse-v1",
-    "runtime": "opencode",
-    "runtime_version": "1.18.5",
-    "contributing_model_steps": 6,
-    "uncached_input": { "state": "measured", "value": 1000 },
-    "cache_read": { "state": "measured", "value": 3500 },
-    "cache_write": { "state": "measured", "value": 500 },
-    "logical_input": { "state": "measured", "value": 5000 },
-    "cached_input_share": {
-      "state": "measured",
-      "value": 0.7,
-      "ratio": "7/10",
-      "reason": null
-    },
-    "formula": "cache_read / logical_input",
-    "unit": "token_fraction"
   }
 }
 ```
@@ -379,7 +414,7 @@ empty (but non-NULL) output are included in the call counts and contribute zero
 tokens. `with_compressed_artifact` measures retained-artifact coverage, not
 whether compression reduced output size.
 
-Detailed delivery groups are ranked by delivered estimate and capped at 100.
+Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus
 `other` reconcile exactly to the headline call count, artifact count, raw
 estimate, and delivered estimate. Estimates apply `ceil(characters / 4)` to

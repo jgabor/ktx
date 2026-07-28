@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -274,7 +275,7 @@ func TestStatsLogic(t *testing.T) {
 	})
 }
 
-func TestStatsSummaryLogic(t *testing.T) {
+func TestStatsWindowLogic(t *testing.T) {
 	now := time.Date(2026, 7, 12, 0, 30, 0, 0, time.UTC)
 
 	t.Run("empty window has zero rates and unavailable reduction", func(t *testing.T) {
@@ -288,7 +289,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
-		if got.SchemaVersion != 3 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
+		if got.SchemaVersion != 4 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
 			t.Errorf("metadata = %+v", got)
 		}
 		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != got.GeneratedAt {
@@ -302,9 +303,6 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 		if got.CacheReuse.ContributingModelSteps != 0 || got.CacheReuse.UncachedInput.State != "missing" || got.CacheReuse.CachedInputShare.State != "missing" {
 			t.Errorf("cache_reuse = %+v", got.CacheReuse)
-		}
-		if got.DeliveryBreakdown.DetailedGroupLimit != 100 || got.DeliveryBreakdown.DistinctGroups != 0 || got.DeliveryBreakdown.OmittedDistinctGroups != 0 || len(got.DeliveryBreakdown.Groups) != 0 {
-			t.Errorf("delivery_breakdown = %+v", got.DeliveryBreakdown)
 		}
 	})
 
@@ -360,10 +358,10 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
-			t.Fatalf("statsSummaryLogic: %v", err)
+		if _, err := statsBreakdownLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsBreakdownLogic: %v", err)
 		}
-		var got statsSummary
+		var got statsBreakdown
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatal(err)
 		}
@@ -373,7 +371,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if got.DeliveryBreakdown.DistinctGroups != 4 || got.DeliveryBreakdown.OmittedDistinctGroups != 0 || len(got.DeliveryBreakdown.Groups) != 4 {
 			t.Fatalf("delivery_breakdown = %+v", got.DeliveryBreakdown)
 		}
-		groups := map[string]statsSummaryDeliveryGroup{}
+		groups := map[string]statsBreakdownGroup{}
 		for _, group := range got.DeliveryBreakdown.Groups {
 			groups[group.Disposition] = group
 		}
@@ -417,10 +415,10 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
-			t.Fatalf("statsSummaryLogic: %v", err)
+		if _, err := statsBreakdownLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsBreakdownLogic: %v", err)
 		}
-		var got statsSummary
+		var got statsBreakdown
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatal(err)
 		}
@@ -515,7 +513,7 @@ func TestStatsSummaryLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("JSON schema has only the version 3 contract keys", func(t *testing.T) {
+	t.Run("summary JSON schema has only the fixed version 4 contract keys", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -525,13 +523,13 @@ func TestStatsSummaryLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "delivery_breakdown", "cache_reuse")
+		if got["schema_version"] != float64(4) {
+			t.Errorf("schema_version = %v, want 4", got["schema_version"])
+		}
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "cache_reuse")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
 		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated", "raw_estimated_per_second", "delivered_estimated_per_second", "reduction_percent")
-		delivery := got["delivery_breakdown"].(map[string]any)
-		assertStatsJSONKeys(t, delivery, "detailed_group_limit", "distinct_groups", "omitted_distinct_groups", "groups", "other")
-		assertStatsJSONKeys(t, delivery["other"].(map[string]any), "calls", "with_compressed_artifact", "raw_estimated", "delivered_estimated")
 		cache := got["cache_reuse"].(map[string]any)
 		assertStatsJSONKeys(t, cache, "contract_version", "runtime", "runtime_version", "contributing_model_steps", "uncached_input", "cache_read", "cache_write", "logical_input", "cached_input_share", "formula", "unit")
 		for _, field := range []string{"uncached_input", "cache_read", "cache_write", "logical_input"} {
@@ -540,29 +538,154 @@ func TestStatsSummaryLogic(t *testing.T) {
 		assertStatsJSONKeys(t, cache["cached_input_share"].(map[string]any), "state", "value", "ratio", "reason")
 	})
 
-	t.Run("text and summary help follow command conventions", func(t *testing.T) {
+	t.Run("breakdown JSON schema contains the detailed version 1 contract", func(t *testing.T) {
 		db := openMemoryDB(t)
-		var text bytes.Buffer
-		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &text); err != nil {
+		sid := seedSession(t, db)
+		seedCalls(t, db, sid, []callSeed{{tool: "read", output: "result"}})
+		var buf bytes.Buffer
+		if _, err := statsBreakdownLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatalf("statsBreakdownLogic: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v", err)
+		}
+		if got["schema_version"] != float64(1) {
+			t.Errorf("schema_version = %v, want 1", got["schema_version"])
+		}
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "delivery_breakdown")
+		delivery := got["delivery_breakdown"].(map[string]any)
+		assertStatsJSONKeys(t, delivery, "detailed_group_limit", "distinct_groups", "omitted_distinct_groups", "groups", "other")
+		assertStatsJSONKeys(t, delivery["other"].(map[string]any), "calls", "with_compressed_artifact", "raw_estimated", "delivered_estimated")
+		groups := delivery["groups"].([]any)
+		if len(groups) != 1 {
+			t.Fatalf("groups = %v, want one group", groups)
+		}
+		assertStatsJSONKeys(t, groups[0].(map[string]any),
+			"tool", "command", "subcommand", "profile", "route", "disposition", "raw_output_size_band",
+			"calls", "with_compressed_artifact", "raw_estimated", "delivered_estimated")
+	})
+
+	t.Run("text and help keep summary separate from breakdown", func(t *testing.T) {
+		db := openMemoryDB(t)
+		var summaryText bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &summaryText); err != nil {
 			t.Fatalf("text: %v", err)
 		}
-		if !strings.Contains(text.String(), "WINDOW") || !strings.Contains(text.String(), "RAW_TOK") || !strings.Contains(text.String(), "CACHE_READ") || !strings.Contains(text.String(), "CACHED_INPUT_PCT") || !strings.Contains(text.String(), "DISPOSITION") {
-			t.Errorf("text output missing fields: %q", text.String())
+		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "CACHE_READ") || !strings.Contains(summaryText.String(), "CACHED_INPUT_PCT") || strings.Contains(summaryText.String(), "DISPOSITION") {
+			t.Errorf("summary text fields = %q", summaryText.String())
 		}
-		var help bytes.Buffer
-		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &help); err != nil {
+		if strings.Count(strings.TrimSpace(summaryText.String()), "\n") != 1 {
+			t.Errorf("summary text should contain one header and one row: %q", summaryText.String())
+		}
+		var summaryHelp bytes.Buffer
+		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(help.String(), "ktx stats summary") {
-			t.Errorf("summary help missing command: %q", help.String())
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 4") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "not a provider hit rate") {
+			t.Errorf("summary help = %q", summaryHelp.String())
 		}
-		if !strings.Contains(help.String(), "schema_version 3") || !strings.Contains(help.String(), "delivery breakdown") || !strings.Contains(help.String(), "cached-input share") || !strings.Contains(help.String(), "not a provider hit rate") {
-			t.Errorf("summary help missing cache contract: %q", help.String())
+
+		var breakdownText bytes.Buffer
+		if _, err := statsBreakdownLogic(nil, FormatText, 30*time.Minute, now, db, &breakdownText); err != nil {
+			t.Fatalf("breakdown text: %v", err)
+		}
+		if !strings.Contains(breakdownText.String(), "DISPOSITION") || strings.Contains(breakdownText.String(), "CACHE_READ") {
+			t.Errorf("breakdown text fields = %q", breakdownText.String())
+		}
+		var breakdownHelp bytes.Buffer
+		if _, err := statsBreakdownLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &breakdownHelp); err != nil {
+			t.Fatalf("breakdown help: %v", err)
+		}
+		if !strings.Contains(breakdownHelp.String(), "ktx stats breakdown") || !strings.Contains(breakdownHelp.String(), "schema_version 1") || !strings.Contains(breakdownHelp.String(), "up to 100") {
+			t.Errorf("breakdown help = %q", breakdownHelp.String())
 		}
 	})
 }
 
-func assertDeliveryReconciliation(t *testing.T, summary statsSummary) {
+func TestStatsCommandDispatchesWindowViews(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		wantField   string
+		forbidField string
+	}{
+		{name: "summary", wantField: "cache_reuse", forbidField: "delivery_breakdown"},
+		{name: "breakdown", wantField: "delivery_breakdown", forbidField: "cache_reuse"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			db := openMemoryDB(t)
+			var stdout bytes.Buffer
+			_, err := statsCommandFunc(&DispatchContext{
+				Args:       []string{tt.name},
+				ParsedArgs: statsParsedArgs{Limit: statsDefaultLimit, Window: statsDefaultWindow},
+				Format:     FormatJSON,
+				Stdout:     &stdout,
+				DB:         db,
+			})
+			if err != nil {
+				t.Fatalf("statsCommandFunc: %v", err)
+			}
+			var got map[string]any
+			if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+				t.Fatalf("json unmarshal: %v", err)
+			}
+			if _, ok := got[tt.wantField]; !ok {
+				t.Errorf("output missing %q: %v", tt.wantField, got)
+			}
+			if _, ok := got[tt.forbidField]; ok {
+				t.Errorf("output unexpectedly contains %q: %v", tt.forbidField, got)
+			}
+		})
+	}
+}
+
+func TestStatsBreakdownEndToEnd(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ktx.db")
+	db, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KTX_DB", path)
+
+	t.Run("window and format reach the breakdown", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runWith([]string{"stats", "breakdown", "--window", "45m", "--format", "json"}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("exit = %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+		}
+		var got map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+			t.Fatalf("json unmarshal: %v", err)
+		}
+		if got["schema_version"] != float64(statsBreakdownSchemaVersion) || got["window"].(map[string]any)["seconds"] != float64(45*60) {
+			t.Errorf("breakdown output = %v", got)
+		}
+	})
+
+	t.Run("help is nested", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runWith([]string{"stats", "breakdown", "--help"}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("exit = %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+		}
+		if !strings.Contains(stdout.String(), "ktx stats breakdown") || stderr.Len() != 0 {
+			t.Errorf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+		}
+	})
+
+	t.Run("limit is rejected", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runWith([]string{"stats", "breakdown", "--limit", "1"}, &stdout, &stderr); code != ExitUsage {
+			t.Fatalf("exit = %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+		}
+		if stdout.Len() != 0 || !strings.Contains(stderr.String(), "--limit is only valid for grouped stats") {
+			t.Errorf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+		}
+	})
+}
+
+func assertDeliveryReconciliation(t *testing.T, summary statsBreakdown) {
 	t.Helper()
 	calls := summary.DeliveryBreakdown.Other.Calls
 	artifacts := summary.DeliveryBreakdown.Other.WithCompressedArtifact
@@ -579,16 +702,17 @@ func assertDeliveryReconciliation(t *testing.T, summary statsSummary) {
 	}
 }
 
-func TestParseStatsArgsSummaryWindow(t *testing.T) {
+func TestParseStatsArgsWindow(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
+		wantArg string
 		want    time.Duration
 		wantErr string
 	}{
-		{name: "default", args: []string{"summary"}, want: 30 * time.Minute},
-		{name: "separate value", args: []string{"summary", "--window", "45s"}, want: 45 * time.Second},
-		{name: "equals value", args: []string{"summary", "--window=1h30m"}, want: 90 * time.Minute},
+		{name: "summary default", args: []string{"summary"}, wantArg: "summary", want: 30 * time.Minute},
+		{name: "summary separate value", args: []string{"summary", "--window", "45s"}, wantArg: "summary", want: 45 * time.Second},
+		{name: "breakdown equals value", args: []string{"breakdown", "--window=1h30m"}, wantArg: "breakdown", want: 90 * time.Minute},
 		{name: "missing", args: []string{"summary", "--window"}, wantErr: "requires a duration"},
 		{name: "zero", args: []string{"summary", "--window", "0s"}, wantErr: "must be positive"},
 		{name: "negative", args: []string{"summary", "--window=-1m"}, wantErr: "must be positive"},
@@ -606,8 +730,8 @@ func TestParseStatsArgsSummaryWindow(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseStatsArgs: %v", err)
 			}
-			if !reflect.DeepEqual(rest, []string{"summary"}) {
-				t.Errorf("rest = %v, want [summary]", rest)
+			if !reflect.DeepEqual(rest, []string{tt.wantArg}) {
+				t.Errorf("rest = %v, want [%s]", rest, tt.wantArg)
 			}
 			parsed := parsedAny.(statsParsedArgs)
 			if parsed.Window != tt.want {

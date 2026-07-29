@@ -3,4 +3,13 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  description: "**Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. Include route validation, route-to-profile visibility, and stage or plugin collisions without executing configured stages. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  readiness:
+    capability: build
+    reason: Expose pipeline configuration problems without executing stages or mutating state.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 10
+    order_reason: TODO.md Priority 4 engineering follow-through order.

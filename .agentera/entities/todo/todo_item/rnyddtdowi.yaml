@@ -4,3 +4,12 @@ record:
   severity: normal
   status: open
   description: "**Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)"
+  readiness:
+    capability: discuss
+    reason: Resolve retrieval safety and freshness before selective instruction loading.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 18
+    order_reason: TODO.md architectural-discussion order after immediate work.

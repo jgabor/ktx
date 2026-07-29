@@ -1,0 +1,15 @@
+id: yxgpazidvy
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Live cost and latency coverage** — Expose runtime-authoritative cost and latency where the runtime supplies them, with explicit provenance, temporal coverage, and measured/unknown/malformed states; report unsupported evidence as unknown. Keep model-step cache and cost evidence separate from `tool_calls`, preserve literal zero, and label API-equivalent cost as an estimate. → [Measurement](ARCHITECTURE.md#measurement)"
+  readiness:
+    capability: build
+    reason: Expose authoritative cost and latency needed for representative comparison.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 4
+    order_reason: TODO.md Priority 2 order; same-priority work may proceed in parallel.

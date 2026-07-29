@@ -4,3 +4,12 @@ record:
   severity: normal
   status: open
   description: "**Pipeline stage semantics** — Run a structured discussion and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)"
+  readiness:
+    capability: discuss
+    reason: Resolve stage metadata and continuation semantics before expanding the runner contract.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 15
+    order_reason: TODO.md architectural-discussion order after immediate work.

@@ -1,0 +1,15 @@
+id: cdtonnugnx
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Trusted session agent attribution** — Populate session agent identity for new evidence only from recognized trusted ingress, preserve `unknown` for historical or unverified sources, and expose identified-versus-unknown coverage in live statistics. Cover wrapper, hook, retry, and mixed-runtime ownership without reconstructing identity. → [Ingress](ARCHITECTURE.md#ingress)"
+  readiness:
+    capability: build
+    reason: Establish trusted agent attribution coverage for mixed-runtime evidence.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 5
+    order_reason: TODO.md Priority 2 order; same-priority work may proceed in parallel.

@@ -4,3 +4,12 @@ record:
   severity: normal
   status: open
   description: "**Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)"
+  readiness:
+    capability: discuss
+    reason: Resolve the threat model and redaction boundary before broader content-derived retention.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 20
+    order_reason: TODO.md architectural-discussion order after immediate work.

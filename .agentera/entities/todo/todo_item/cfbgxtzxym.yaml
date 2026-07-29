@@ -1,0 +1,16 @@
+id: cfbgxtzxym
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Targeted residual-delivery experiment** — Change one candidate subgroup selected by the representative study. Fix routing when route misses dominate; add or alter a transform only when retained examples show a recurring safe opportunity. When opportunities are comparable, prefer a command-specific `bash` or `grep` route correction over broad `read` truncation. Cover head, middle, tail, structured, and failure examples, then run a controlled baseline/candidate comparison. Require unchanged task correctness, preserved errors and exact occurrence counts, working recovery for lossy output, positive net savings after any recovery cue, and no savings erased by tool-call inflation or pipeline latency. Do not alter the existing `default`, `search`, or `git-diff` profiles without subgroup-specific evidence. → [Pipeline](ARCHITECTURE.md#pipeline) · [Benchmark](ARCHITECTURE.md#benchmark)"
+  readiness:
+    capability: optimize
+    reason: Test the single candidate selected by the representative residual-delivery study.
+    dependencies:
+      - artifact: todo
+        id: tklctomuvz
+    blocked: null
+    gate: null
+    queue_rank: 7
+    order_reason: TODO.md Priority 3 order after the representative study.

@@ -2,5 +2,5 @@ id: tboojlmkyq
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Single pipeline resolution per operation** — Load configuration once for each hook or replay operation, resolve routing and profile settings through one path, and report the profiles and stages that ran. Do not expand the stage contract. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  status: resolved
+  description: "**Single pipeline resolution per operation** — Hooks and database replay load configuration once per operation and resolve profile, route provenance, stages, timeout, and recovery settings through one path. Compressed artifacts report `matched` versus `default_fallback`; database replay reports at most 100 distinct profile/route/stage tuples with explicit omitted-call accounting. The stage contract and portable replay remain unchanged. → [Pipeline](ARCHITECTURE.md#pipeline)"

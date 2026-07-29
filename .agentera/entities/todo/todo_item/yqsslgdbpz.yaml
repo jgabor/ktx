@@ -1,0 +1,6 @@
+id: yqsslgdbpz
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: "**Single benchmark session owner** — Give each benchmark attempt one explicit KTX session identity across wrapper execution and concurrent OpenCode hooks so all authoritative tool-call rows belong to that attempt. Reject ambiguity before copied counts enter evaluation, and cover concurrent hook processes plus deterministic session linking. → [Benchmark](ARCHITECTURE.md#benchmark)"

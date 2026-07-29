@@ -1,0 +1,16 @@
+id: oeukssciul
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Post-change live validation** — Roll out only the selected candidate, retain fixed pre-change and post-change windows, and compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency. Do not use absolute daily totals alone, and revert the candidate if required facts or operational behavior regress. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
+  readiness:
+    capability: optimize
+    reason: Validate the selected change against fixed live windows and revert on regression.
+    dependencies:
+      - artifact: todo
+        id: cfbgxtzxym
+    blocked: null
+    gate: null
+    queue_rank: 8
+    order_reason: TODO.md Priority 3 order after the targeted experiment.

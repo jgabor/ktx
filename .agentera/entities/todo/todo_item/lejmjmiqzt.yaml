@@ -4,3 +4,12 @@ record:
   severity: normal
   status: open
   description: "**Recorded-decision satisfaction review** — Review recorded choices that lack current satisfaction evidence against shipped behavior, tests, documentation, and retained benchmark evidence; record the review in the decision history without rewriting prior choices."
+  readiness:
+    capability: audit
+    reason: Establish current satisfaction evidence for recorded choices without rewriting them.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 13
+    order_reason: TODO.md Priority 4 engineering follow-through order.

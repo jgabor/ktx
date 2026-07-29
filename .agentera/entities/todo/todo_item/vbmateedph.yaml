@@ -3,4 +3,13 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  readiness:
+    capability: build
+    reason: Protect structured output before routes over structured results are broadened.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 2
+    order_reason: TODO.md Priority 1 order; same-priority work may proceed in parallel.

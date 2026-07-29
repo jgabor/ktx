@@ -4,3 +4,12 @@ record:
   severity: normal
   status: open
   description: "**Structured experiment summary model** — Replace internal `map[string]any` traversal between summary generation, validation, ranking, and rendering with a defined Go representation. Preserve serialized schemas and byte-for-byte regeneration of retained experiments. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  readiness:
+    capability: build
+    reason: Replace untyped benchmark-summary traversal while preserving retained schemas.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 11
+    order_reason: TODO.md Priority 4 engineering follow-through order.

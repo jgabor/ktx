@@ -4,3 +4,15 @@ record:
   severity: normal
   status: open
   description: "**Wrapper `step_finish` enrichment** — Trigger only if a concrete use case requires per-tool cost evidence. Runtime-emitted model-step cache and cost fields remain benchmark/recorded-stream evidence and must not be attached to `tool_calls`; missing fields remain unavailable. → [Measurement](ARCHITECTURE.md#measurement)"
+  readiness:
+    capability: build
+    reason: Add wrapper cost enrichment only when a concrete per-tool evidence use case exists.
+    dependencies:
+      []
+    blocked: null
+    gate:
+      state: pending
+      reason: No concrete use case currently requires per-tool cost evidence.
+      recovery: Record a concrete use case that requires per-tool cost evidence.
+    queue_rank: 21
+    order_reason: TODO.md triggered/deferred order; the pending gate prevents execution.

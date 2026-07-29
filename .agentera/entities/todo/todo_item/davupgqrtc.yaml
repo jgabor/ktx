@@ -3,4 +3,17 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Structured parsers for high-volume tools** — Trigger only when retained evidence shows specific tools dominate residual spend. Preserve failure blocks, exact occurrence counts, and the smallest faithful representation before the global gate. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  description: "**Structured parsers for high-volume tools** — Trigger only when the representative residual-delivery study shows that one recurring command or output shape dominates safely addressable raw-delivered volume and existing stages cannot represent it faithfully. Validate the parser through the targeted residual-delivery experiment; preserve failure blocks, exact occurrence counts, and the smallest faithful representation before the global gate. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  readiness:
+    capability: optimize
+    reason: Add a structured parser only when retained evidence proves an unsupported recurring shape.
+    dependencies:
+      - artifact: todo
+        id: tklctomuvz
+    blocked: null
+    gate:
+      state: pending
+      reason: Representative evidence has not selected a recurring shape that existing stages cannot represent faithfully.
+      recovery: Complete the representative residual-delivery study and select parser work only if its evidence satisfies the trigger.
+    queue_rank: 22
+    order_reason: TODO.md triggered/deferred order; the pending gate prevents execution.

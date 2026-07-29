@@ -3252,7 +3252,8 @@ archive:
     question: Should ambient database access continue to require a caller-supplied
       executable digest on every invocation, or should safety be enforced without
       user-visible runtime proof?
-    context: The per-invocation digest proof selected on 2026-07-27 makes ordinary
+    context: >-
+      The per-invocation digest proof selected on 2026-07-27 makes ordinary
       commands such as `ktx stats summary` fail until the user asks the running
       binary for its own hash and supplies that hash back. This is a deliberateness
       check, not a trust boundary: the expected value has no independent trust root,
@@ -3306,7 +3307,8 @@ archive:
       without an additional proof flag. Development, tests, CI, and rehearsal remain
       forbidden from ambient live access and continue to use disposable hermetic
       roots and explicit seeded databases.
-    reasoning: Automatically comparing the running executable with a digest derived
+    reasoning: >-
+      Automatically comparing the running executable with a digest derived
       from those same bytes is tautological. Requiring a human to relay that value
       adds recurring failure and documentation surface without authenticating a
       release. The durable safety properties already live at better boundaries:

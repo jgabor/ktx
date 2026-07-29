@@ -4,3 +4,12 @@ record:
   severity: normal
   status: open
   description: "**Evidence maintenance boundary** — Run a structured discussion and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)"
+  readiness:
+    capability: discuss
+    reason: Resolve the explicit maintenance boundary before adding mutating evidence maintenance.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 14
+    order_reason: TODO.md architectural-discussion order after immediate work.

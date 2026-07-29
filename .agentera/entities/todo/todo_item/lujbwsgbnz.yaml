@@ -1,0 +1,15 @@
+id: lujbwsgbnz
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Model-telemetry window coverage** — Extend live statistics with the first and last contributing capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window cache KPI. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and unsupported provider-cache claim boundary. → [Measurement](ARCHITECTURE.md#measurement)"
+  readiness:
+    capability: build
+    reason: Establish temporal coverage before cache telemetry supports live conclusions.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 3
+    order_reason: TODO.md Priority 2 order; same-priority work may proceed in parallel.

@@ -4,3 +4,12 @@ record:
   severity: normal
   status: open
   description: "**Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)"
+  readiness:
+    capability: discuss
+    reason: Resolve semantic safety and invalidation before normalizing instructions or schemas.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 17
+    order_reason: TODO.md architectural-discussion order after immediate work.

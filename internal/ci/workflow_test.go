@@ -8,7 +8,12 @@ import (
 
 func TestTrackedWorkflowUsesRepositoryVerification(t *testing.T) {
 	workflow := readRepositoryFile(t, ".github/workflows/ci.yml")
-	for _, required := range []string{"push:", "pull_request:", "run: mage verify"} {
+	for _, required := range []string{
+		"push:",
+		"pull_request:",
+		"go install golang.org/x/vuln/cmd/govulncheck@v1.6.0",
+		"run: mage verify",
+	} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("tracked workflow does not contain %q", required)
 		}
@@ -36,9 +41,10 @@ func TestTrackedWorkflowUsesRepositoryVerification(t *testing.T) {
 	}
 	verify := magefile[verifyStart : verifyStart+verifyEnd]
 	check := strings.Index(verify, "check()")
+	vulnerability := strings.Index(verify, "Vuln()")
 	fixture := strings.Index(verify, "replayFixture()")
-	if check < 0 || fixture < 0 || check > fixture {
-		t.Errorf("Verify target must run Check before ReplayFixture:\n%s", verify)
+	if check < 0 || vulnerability < 0 || fixture < 0 || check > vulnerability || vulnerability > fixture {
+		t.Errorf("Verify target must run Check, Vuln, then ReplayFixture:\n%s", verify)
 	}
 }
 

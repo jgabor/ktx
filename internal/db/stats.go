@@ -3,7 +3,7 @@
 // The query uses a LEFT JOIN from tool_calls to compressed so
 // uncompressed calls surface with delivered bytes equal to raw
 // bytes. When multiple compressed rows exist for the same source,
-// the most recent by timestamp is used. The binary name is
+// the first by timestamp and ID is authoritative. The binary name is
 // extracted in the CLI layer (reusing router.BinaryFromInput) so
 // the extraction logic stays in one place.
 package db
@@ -29,8 +29,8 @@ type StatsRow struct {
 // StatsRows returns one row per tool_call with the raw output
 // length and the delivered (compressed) output length. When no
 // compressed row exists, delivered equals raw. When multiple
-// compressed rows exist for the same source, the most recent by
-// timestamp is used.
+// compressed rows exist for the same source, the first by timestamp
+// and ID is authoritative.
 func (d *DB) StatsRows() ([]StatsRow, error) {
 	if d == nil || d.db == nil {
 		return nil, fmt.Errorf("db: stats: database is nil")
@@ -43,7 +43,7 @@ func (d *DB) StatsRows() ([]StatsRow, error) {
 		       COALESCE(
 			(SELECT LENGTH(c.output) FROM compressed c
 			 WHERE c.source_id = tc.id
-			 ORDER BY c.timestamp DESC LIMIT 1),
+			 ORDER BY c.timestamp ASC, c.id ASC LIMIT 1),
 			LENGTH(tc.output)
 		       )
 		FROM tool_calls tc
@@ -94,17 +94,15 @@ type StatsSummaryCacheRow struct {
 }
 
 type statsSummarySelectedRow struct {
-	row               StatsSummaryRow
-	rawSet            bool
-	artifactID        string
-	artifactTimestamp string
+	row    StatsSummaryRow
+	rawSet bool
 }
 
 const statsSummaryBatchSize = 128
 
 // StatsSummaryRows returns source calls with non-NULL output and an RFC3339
 // timestamp in the inclusive [from, to] interval. Each source contributes at
-// most one artifact: greatest compressed timestamp, then greatest ID. A missing
+// most one artifact: earliest compressed timestamp, then smallest ID. A missing
 // artifact (or an anomalous artifact with NULL output) delivers the raw output.
 func (d *DB) StatsSummaryRows(from, to time.Time) ([]StatsSummaryRow, error) {
 	if d == nil || d.db == nil {
@@ -260,10 +258,15 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	rows, err := database.Query(`
 		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''), LENGTH(tc.output),
 		       cd.profile, cd.route, cd.disposition,
-		       c.id, LENGTH(c.output), c.timestamp
+		       c.id, LENGTH(c.output)
 		FROM tool_calls tc
 		LEFT JOIN compression_dispositions cd ON cd.source_id = tc.id
-		LEFT JOIN compressed c ON c.source_id = tc.id
+		LEFT JOIN compressed c ON c.id = (
+			SELECT first.id FROM compressed first
+			WHERE first.source_id = tc.id
+			ORDER BY first.timestamp ASC, first.id ASC
+			LIMIT 1
+		)
 		WHERE tc.id IN (`+placeholders+`)
 	`, args...)
 	if err != nil {
@@ -271,17 +274,17 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	}
 	for rows.Next() {
 		var (
-			sourceID                      string
-			tool, input                   string
-			rawChars                      int
-			profile, route, disposition   sql.NullString
-			artifactID, artifactTimestamp sql.NullString
-			artifactChars                 sql.NullInt64
+			sourceID                    string
+			tool, input                 string
+			rawChars                    int
+			profile, route, disposition sql.NullString
+			artifactID                  sql.NullString
+			artifactChars               sql.NullInt64
 		)
 		if err := rows.Scan(
 			&sourceID, &tool, &input, &rawChars,
 			&profile, &route, &disposition,
-			&artifactID, &artifactChars, &artifactTimestamp,
+			&artifactID, &artifactChars,
 		); err != nil {
 			_ = rows.Close()
 			return fmt.Errorf("db: stats summary length scan: %w", err)
@@ -308,14 +311,8 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 			continue
 		}
 		current.row.HasCompressedArtifact = true
-		candidateTimestamp := artifactTimestamp.String
-		if current.artifactID == "" || compressedArtifactLater(candidateTimestamp, artifactID.String, current.artifactTimestamp, current.artifactID) {
-			current.artifactID = artifactID.String
-			current.artifactTimestamp = candidateTimestamp
-			current.row.DeliveredChars = rawChars
-			if artifactChars.Valid {
-				current.row.DeliveredChars = int(artifactChars.Int64)
-			}
+		if artifactChars.Valid {
+			current.row.DeliveredChars = int(artifactChars.Int64)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -326,24 +323,4 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 		return fmt.Errorf("db: stats summary length close: %w", err)
 	}
 	return nil
-}
-
-func compressedArtifactLater(candidateTimestamp, candidateID, currentTimestamp, currentID string) bool {
-	candidateTime, candidateErr := time.Parse(time.RFC3339Nano, candidateTimestamp)
-	currentTime, currentErr := time.Parse(time.RFC3339Nano, currentTimestamp)
-	switch {
-	case candidateErr == nil && currentErr == nil:
-		if !candidateTime.Equal(currentTime) {
-			return candidateTime.After(currentTime)
-		}
-	case candidateErr == nil:
-		return true
-	case currentErr == nil:
-		return false
-	default:
-		if candidateTimestamp != currentTimestamp {
-			return candidateTimestamp > currentTimestamp
-		}
-	}
-	return candidateID > currentID
 }

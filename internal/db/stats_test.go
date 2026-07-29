@@ -12,7 +12,7 @@ import (
 
 // TestStatsRows covers the raw row query: uncompressed calls
 // have delivered equal to raw, compressed calls have delivered from
-// the compressed output, the most recent compression is used when
+// the compressed output, the first compression is used when
 // multiple exist, and an empty database returns an empty slice.
 func TestStatsRows(t *testing.T) {
 	t.Run("uncompressed calls have delivered equal to raw", func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestStatsRows(t *testing.T) {
 		}
 	})
 
-	t.Run("most recent compression is used when multiple exist", func(t *testing.T) {
+	t.Run("first compression remains authoritative when multiple exist", func(t *testing.T) {
 		d := openMemoryDB(t)
 		sourceID := seedSessionAndCalls(t, d, []callFixture{
 			{id: "dddddddddddddddd", tool: "bash", input: `{"command": "cat file"}`, output: mustLongString(800)},
@@ -77,9 +77,9 @@ func TestStatsRows(t *testing.T) {
 		if len(rows) != 1 {
 			t.Fatalf("got %d rows, want 1", len(rows))
 		}
-		want := len("tiny\n")
+		want := len("medium output here\n")
 		if rows[0].DeliveredBytes != want {
-			t.Errorf("delivered=%d, want %d (most recent compression)", rows[0].DeliveredBytes, want)
+			t.Errorf("delivered=%d, want %d (first compression)", rows[0].DeliveredBytes, want)
 		}
 	})
 
@@ -112,8 +112,10 @@ func TestStatsSummaryRows(t *testing.T) {
 		{id: "invalidinvalidxx", output: "outside", timestamp: "not-a-timestamp"},
 	})
 
-	// The latest timestamp wins. At an equal timestamp, the greatest ID wins.
-	seedCompressedWithID(t, d, "oldoldoldoldoldx", ids[4], "12345678", from.Add(4*time.Minute).Format(time.RFC3339Nano))
+	// The first timestamp wins. At an equal timestamp, the smallest ID wins.
+	firstTimestamp := from.Add(4 * time.Minute).Format(time.RFC3339Nano)
+	seedCompressedWithID(t, d, "oldoldoldoldoldx", ids[4], "12345678", firstTimestamp)
+	seedCompressedWithID(t, d, "zzzzzzzzzzzzzzzy", ids[4], "12", firstTimestamp)
 	latestTimestamp := from.Add(5*time.Minute + time.Nanosecond).Format(time.RFC3339Nano)
 	seedCompressedWithID(t, d, "aaaaaaaaaaaaaaax", ids[4], "1", latestTimestamp)
 	seedCompressedWithID(t, d, "zzzzzzzzzzzzzzzx", ids[4], "1234", latestTimestamp)
@@ -146,8 +148,8 @@ func TestStatsSummaryRows(t *testing.T) {
 			compressed++
 		}
 	}
-	if rawChars != 32 || deliveredChars != 23 {
-		t.Errorf("character totals raw=%d delivered=%d, want 32 and 23", rawChars, deliveredChars)
+	if rawChars != 32 || deliveredChars != 27 {
+		t.Errorf("character totals raw=%d delivered=%d, want 32 and 27", rawChars, deliveredChars)
 	}
 	if compressed != 3 {
 		t.Errorf("compressed artifact count=%d, want 3", compressed)
@@ -156,6 +158,9 @@ func TestStatsSummaryRows(t *testing.T) {
 		t.Errorf("empty non-NULL output missing: rows=%+v", rows)
 	}
 	for _, row := range rows {
+		if row.RawChars == 9 && row.DeliveredChars != 8 {
+			t.Errorf("first artifact should remain authoritative: %+v", row)
+		}
 		if row.RawChars == 3 && (!row.HasCompressedArtifact || row.DeliveredChars != row.RawChars) {
 			t.Errorf("NULL artifact output should use raw output: %+v", row)
 		}

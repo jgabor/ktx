@@ -101,6 +101,13 @@ func Lint() error {
 	return run("golangci-lint", "run", "./...")
 }
 
+func Vuln() error {
+	if _, err := exec.LookPath("govulncheck"); err != nil {
+		return errors.New("govulncheck not found; install it: go install golang.org/x/vuln/cmd/govulncheck@latest")
+	}
+	return run("govulncheck", "./...")
+}
+
 func Check() error {
 	return hermeticTarget("check", check)
 }
@@ -132,6 +139,9 @@ func Verify() error {
 func verify() error {
 	if err := check(); err != nil {
 		return err
+	}
+	if err := Vuln(); err != nil {
+		return fmt.Errorf("vuln failed: %w", err)
 	}
 	return replayFixture()
 }

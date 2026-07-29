@@ -255,7 +255,9 @@ ktx stats breakdown --window 30m --format json
 Groups with fewer than 2 calls or fewer than 50 delivered tokens
 are excluded as trivial. The output is ranked by total delivered
 tokens (descending). Use this to find the commands where a filter
-pack or a more aggressive profile would have the highest impact.
+pack or a more aggressive profile would have the highest impact. Command labels
+use the fixed reporting vocabulary described below; other inputs use an empty
+command label rather than exposing raw command text.
 
 `ktx stats summary` emits a fixed-shape aggregate for periodically polled clients.
 Its JSON contract contains only window metadata, headline call and token totals,
@@ -265,12 +267,13 @@ reporting dimensions require an intentional schema-version change.
 Schema version 4 removes the version 3 `delivery_breakdown` member; callers that
 used it should invoke the version 1 breakdown command instead.
 
-Both commands use an inclusive trailing window (`[from, to]`) ending at one
-captured wall-clock time. Only calls with non-NULL output and an RFC3339 timestamp
-in that window are counted. Each call uses its latest compressed artifact by
-timestamp, breaking timestamp ties by the lexicographically greatest artifact
-ID; calls without an artifact use their raw output. Recompressions are therefore
-never double-counted.
+The summary and breakdown commands use an inclusive trailing window (`[from,
+to]`) ending at one captured wall-clock time. Only calls with non-NULL output and
+an RFC3339 timestamp in that window are counted. All three stats views use each
+call's first compressed artifact by timestamp, breaking timestamp ties by the
+lexicographically smallest artifact ID; calls without an artifact use their raw
+output. Later recompressions cannot replace delivered evidence and are never
+double-counted.
 
 For hook-processed calls, `ktx stats breakdown` reports the retained compression
 disposition separately from artifact coverage. The source-keyed disposition is a
@@ -419,11 +422,13 @@ Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` reconcile exactly to the headline call count, artifact count, raw
 estimate, and delivered estimate. Estimates apply `ceil(characters / 4)` to
 each call before grouping. Command and subcommand are derived at query time from
-the existing command field and are `null` when unavailable. Profile and route
-are retained operational metadata and are `null` for `unobserved` or otherwise
-unavailable evidence. `default_fallback` is the unmatched-routing signal; it is
-orthogonal to disposition because a fallback profile can still persist an
-artifact.
+a fixed reporting vocabulary so arbitrary arguments never become labels.
+Commands are limited to `cat`, `find`, `git`, `grep`, `ls`, and `rg`; only the
+`git` subcommands `diff`, `log`, and `status` are reported. Other command and
+subcommand values are `null`. Profile and route are retained operational
+metadata and are `null` for `unobserved` or otherwise unavailable evidence.
+`default_fallback` is the unmatched-routing signal; it is orthogonal to
+disposition because a fallback profile can still persist an artifact.
 
 Disposition values are `artifact_persisted`, `intentional_passthrough`,
 `anti_worsening_rejected`, and report-only `unobserved`.
@@ -433,8 +438,8 @@ recovery-footer size-gate rejections are `anti_worsening_rejected`. Raw output
 size bands use character counts: `empty` (0), `1-1k` (1-1024), `1k-10k`
 (1025-10240), `10k-100k` (10241-102400), and `100k+` (102401 or more).
 Disposition does not replace existing delivery semantics: artifact coverage and
-delivered estimates continue to use the latest retained artifact, including
-artifacts whose delivery provenance is unavailable.
+delivered estimates use the first retained artifact, including artifacts whose
+delivery provenance is unavailable.
 
 Each cache bucket total is `measured` only when every contributing model step
 measured that bucket. A measured zero participates in the sum. Missing or null

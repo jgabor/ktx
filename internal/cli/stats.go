@@ -11,8 +11,8 @@
 // Groups with strictly fewer than 2 calls or strictly fewer than 50
 // delivered tokens are excluded as trivial.
 //
-// Binary name extraction reuses router.BinaryFromInput so the
-// extraction logic stays in one place.
+// Command dimensions use a fixed reporting vocabulary so raw arguments cannot
+// become group labels.
 package cli
 
 import (
@@ -408,8 +408,9 @@ func aggregateStatsBreakdown(rows []dbpkg.StatsSummaryRow) statsBreakdownDeliver
 	}
 	groupsByKey := make(map[key]*statsBreakdownGroup)
 	for _, row := range rows {
+		command, subcommand := statsReportingDimensions(row.Input)
 		groupKey := key{
-			tool: row.Tool, command: router.BinaryFromInput(row.Input), subcommand: router.SubcommandFromInput(row.Input),
+			tool: row.Tool, command: command, subcommand: subcommand,
 			profile: row.Profile, route: row.Route, disposition: row.Disposition, sizeBand: statsBreakdownSizeBand(row.RawChars),
 		}
 		group := groupsByKey[groupKey]
@@ -456,6 +457,29 @@ func aggregateStatsBreakdown(rows []dbpkg.StatsSummaryRow) statsBreakdownDeliver
 		breakdown.Other.DeliveredEstimated += group.DeliveredEstimated
 	}
 	return breakdown
+}
+
+func statsReportingDimensions(input string) (string, string) {
+	command := router.BinaryFromInput(input)
+	switch command {
+	case "cat", "find", "grep", "ls", "rg":
+		return command, ""
+	case "git":
+	default:
+		return "", ""
+	}
+
+	raw, ok := router.CommandFromInput(input)
+	if !ok {
+		return command, ""
+	}
+	for _, field := range strings.Fields(raw)[1:] {
+		switch field {
+		case "diff", "log", "status":
+			return command, field
+		}
+	}
+	return command, ""
 }
 
 func statsBreakdownSortKey(group statsBreakdownGroup) string {
@@ -642,7 +666,7 @@ func aggregateStats(rows []dbpkg.StatsRow) []statsGroup {
 	m := map[key]*statsGroup{}
 
 	for _, r := range rows {
-		binary := router.BinaryFromInput(r.Input)
+		binary, _ := statsReportingDimensions(r.Input)
 		k := key{tool: r.Tool, command: binary}
 
 		g, ok := m[k]

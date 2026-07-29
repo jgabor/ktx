@@ -337,7 +337,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("groups delivery evidence independently from latest-artifact totals", func(t *testing.T) {
+	t.Run("groups delivery evidence independently from first-artifact totals", func(t *testing.T) {
 		db := openMemoryDB(t)
 		sid := seedSession(t, db)
 		ids := seedCalls(t, db, sid, []callSeed{
@@ -388,6 +388,37 @@ func TestStatsWindowLogic(t *testing.T) {
 			t.Errorf("artifact group = %+v", artifact)
 		}
 		assertDeliveryReconciliation(t, got)
+	})
+
+	t.Run("does not expose raw command arguments", func(t *testing.T) {
+		rows := []dbpkg.StatsSummaryRow{
+			{Tool: "bash", Input: `{"command":"echo super-secret-value"}`, RawChars: 10, DeliveredChars: 10, Disposition: dbpkg.CompressionDispositionUnobserved},
+			{Tool: "bash", Input: `{"command":"cat /home/alice/private.txt"}`, RawChars: 10, DeliveredChars: 10, Disposition: dbpkg.CompressionDispositionUnobserved},
+			{Tool: "bash", Input: `{"command":"TOKEN=super-secret-value curl example.com"}`, RawChars: 10, DeliveredChars: 10, Disposition: dbpkg.CompressionDispositionUnobserved},
+			{Tool: "bash", Input: `{"command":"git -C /home/alice/private-repo status"}`, RawChars: 10, DeliveredChars: 10, Disposition: dbpkg.CompressionDispositionIntentionalPassthrough},
+			{Tool: "grep", Input: `{"command":"rg private-needle"}`, RawChars: 10, DeliveredChars: 10, Disposition: dbpkg.CompressionDispositionAntiWorseningRejected},
+		}
+
+		got := aggregateStatsBreakdown(rows)
+		encoded, err := json.Marshal(got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, private := range []string{"super-secret-value", "/home/alice", "private-needle"} {
+			if bytes.Contains(encoded, []byte(private)) {
+				t.Errorf("breakdown exposes %q: %s", private, encoded)
+			}
+		}
+
+		var foundGitStatus bool
+		for _, group := range got.Groups {
+			if group.Command != nil && *group.Command == "git" && group.Subcommand != nil && *group.Subcommand == "status" {
+				foundGitStatus = true
+			}
+		}
+		if !foundGitStatus {
+			t.Errorf("breakdown did not retain safe git/status dimensions: %+v", got.Groups)
+		}
 	})
 
 	t.Run("caps detailed groups and reconciles omitted totals", func(t *testing.T) {

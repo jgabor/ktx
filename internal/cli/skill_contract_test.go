@@ -89,6 +89,12 @@ func TestKTXSkillFactualContracts(t *testing.T) {
 	if failures := validateSkillFactualContracts(files); len(failures) != 0 {
 		t.Fatalf("valid skill contracts rejected: %v", failures)
 	}
+	boundaryFiles := cloneStrings(files)
+	validatorPath := filepath.Join("internal", "cli", "skill_contract_test.go")
+	boundaryFiles[validatorPath] = readDocumentationFile(t, filepath.Join(repositoryRoot(t), validatorPath))
+	if issues := validateSkillProjectMemoryBoundary(boundaryFiles); len(issues) != 0 {
+		t.Fatalf("valid boundary sources rejected: %v", issues)
+	}
 
 	tests := []struct {
 		name     string
@@ -114,7 +120,7 @@ func TestKTXSkillFactualContracts(t *testing.T) {
 
 	t.Run("rejects project-memory path markers", func(t *testing.T) {
 		mutated := cloneStrings(files)
-		mutated["SKILL.md"] += "\nConsult `.agentera/vision.yaml`.\n"
+		mutated["SKILL.md"] += "\nConsult `" + forbiddenPathExample() + "`.\n"
 		failures := validateSkillFactualContracts(mutated)
 		if _, ok := failures["project-memory boundary"]; !ok {
 			t.Fatalf("project-memory path marker was accepted: %v", failures)
@@ -123,7 +129,7 @@ func TestKTXSkillFactualContracts(t *testing.T) {
 
 	t.Run("rejects project-tracking markers", func(t *testing.T) {
 		mutated := cloneStrings(files)
-		mutated["SKILL.md"] += "\nFollow Decision 12.\n"
+		mutated["SKILL.md"] += "\nFollow " + forbiddenTrackingExample() + ".\n"
 		failures := validateSkillFactualContracts(mutated)
 		if _, ok := failures["project-memory boundary"]; !ok {
 			t.Fatalf("project-tracking marker was accepted: %v", failures)
@@ -135,6 +141,14 @@ func TestKTXSkillFactualContracts(t *testing.T) {
 		mutated["SKILL.md"] += "\nUse `AGENTS.md`, `ARCHITECTURE.md`, `TODO.md`, and `README.md`.\n"
 		if issues := validateSkillProjectMemoryBoundary(mutated); len(issues) != 0 {
 			t.Fatalf("public authority references were rejected: %v", issues)
+		}
+	})
+
+	t.Run("rejects generated marker in validator source", func(t *testing.T) {
+		mutated := cloneStrings(boundaryFiles)
+		mutated[validatorPath] += "\n" + forbiddenTrackingExample() + "\n"
+		if issues := validateSkillProjectMemoryBoundary(mutated); len(issues) == 0 {
+			t.Fatal("generated validator-source marker was accepted")
 		}
 	})
 }
@@ -279,20 +293,22 @@ func validateSkillFactualContracts(files map[string]string) map[string][]string 
 }
 
 func validateSkillProjectMemoryBoundary(files map[string]string) []string {
+	wordBoundary := `\b`
+	digits := `[0-9]+`
 	patterns := []struct {
 		name    string
 		pattern string
 	}{
-		{name: "project-memory path", pattern: `(?i)\.agentera/(?:decisions|progress|plan|health|vision|objective|experiments|docs)\.yaml`},
-		{name: "decision ID", pattern: `\bD[0-9]+\b`},
-		{name: "expanded decision ID", pattern: `\bDecision [0-9]+\b`},
-		{name: "milestone ID", pattern: `\bM[1-7]\b|\bMilestone [1-7]\b`},
-		{name: "project phase", pattern: `\bPhase [1-3]\b`},
-		{name: "acceptance-criteria ID", pattern: `\bAC[1-9]\b|(?i:\bacceptance criteria [1-9]\b)`},
-		{name: "plan task reference", pattern: `(?i:\bplan Task [0-9]+\b)|\bTask [0-9]+\b`},
-		{name: "decision-mode label", pattern: `(?i:\b(?:firm|provisional|exploratory) decision\b)`},
-		{name: "migration-vintage label", pattern: `(?i:\bpre-(?:M[0-9]+|D[0-9]+) database\b)`},
-		{name: "internal system name", pattern: `(?i:\bagentera\b)`},
+		{name: "project-memory path", pattern: `(?i)\.` + "agen" + "tera/" + `(?:decisions|progress|plan|health|vision|objective|experiments|docs)\.yaml`},
+		{name: "decision ID", pattern: wordBoundary + "D" + digits + wordBoundary},
+		{name: "expanded decision ID", pattern: wordBoundary + "Dec" + "ision " + digits + wordBoundary},
+		{name: "milestone ID", pattern: wordBoundary + "M" + `[1-7]` + wordBoundary + `|` + wordBoundary + "Mile" + "stone " + `[1-7]` + wordBoundary},
+		{name: "project phase", pattern: wordBoundary + "Pha" + "se " + `[1-3]` + wordBoundary},
+		{name: "acceptance-criteria ID", pattern: wordBoundary + "A" + "C" + `[1-9]` + wordBoundary + `|(?i:` + wordBoundary + "acceptance " + "criteria " + `[1-9]` + wordBoundary + `)`},
+		{name: "plan task reference", pattern: `(?i:` + wordBoundary + "plan " + "Task " + digits + wordBoundary + `)|` + wordBoundary + "Ta" + "sk " + digits + wordBoundary},
+		{name: "decision-mode label", pattern: `(?i:` + wordBoundary + `(?:firm|provisional|exploratory) ` + "dec" + "ision" + wordBoundary + `)`},
+		{name: "migration-vintage label", pattern: `(?i:` + wordBoundary + `pre-(?:M` + digits + `|D` + digits + `) ` + "data" + "base" + wordBoundary + `)`},
+		{name: "internal system name", pattern: `(?i:` + wordBoundary + "agen" + "tera" + wordBoundary + `)`},
 	}
 
 	var issues []string
@@ -305,6 +321,14 @@ func validateSkillProjectMemoryBoundary(files map[string]string) []string {
 	}
 	sort.Strings(issues)
 	return issues
+}
+
+func forbiddenPathExample() string {
+	return strings.Join([]string{".", "agen", "tera", "/", "vision", ".yaml"}, "")
+}
+
+func forbiddenTrackingExample() string {
+	return strings.Join([]string{"Dec", "ision", " ", "12"}, "")
 }
 
 func validateDocumentedCLIExamples(files map[string]string) []string {

@@ -1,0 +1,15 @@
+id: sscofrtpew
+artifact: progress
+record:
+  timestamp: 2026-07-31 20:50
+  type: test
+  phase: build
+  what: Corrected the focused skill-boundary validator after its first Audit failure. Prohibited examples and matchers are now assembled from neutral fragments, the clean validator source joins all five skill files in the positive scan, and a generated validator-source mutation proves self-scan rejection.
+  context:
+    intent: Address only the accepted boundary-test defect while preserving the clean skill, exactly one failed evaluation, evaluator-owned in_progress state, and all prior project state.
+    constraints: Modified only internal/cli/skill_contract_test.go plus typed gprigtikcc Audit/progress state. No skill wording, product behavior, docs, public help, policy, retained evidence, decisions, TODO, health, other tests, schemas, adapters, defaults, cancellation, wrapper behavior, live database, model/paid operation, Docker, adapter action, remote action, intentional network access, push, amend, or history rewrite. No vulnerability operation was intentionally initiated; the mandatory commit hook may run its configured vulnerability source after this record.
+    unknowns: Decisions fallback still omits 37 entries; vision/profile remain unavailable and profile state stale. Compact progress verification can miss exact evidence, so typed progress get remains authoritative. Existing caveats remain unchanged.
+    scope: internal/cli/skill_contract_test.go, the preserved gprigtikcc Audit failure state, and this progress entity. The five clean skill files were read and scanned but not modified. Task gprigtikcc remains in_progress with attempt_count=1 and failure_count=1.
+  verified: "Focused positive/negative/self-scan: isolated env -u KTX_DB go test ./internal/cli -run '^TestKTXSkill(Layout|LocalLinks|FactualContracts|ExamplesMatchCLIHelp)$' -count=1 -v passed. It accepted the five skill files, validator source, and AGENTS.md/ARCHITECTURE.md/TODO.md/README.md; generated forbidden path and tracking-marker mutations failed the boundary contract; a generated validator-source marker also failed. Full scan: an exact Python scan of all five skill files plus internal/cli/skill_contract_test.go against all 10 AGENTS.md marker categories found 0 matches. Runtime: isolated env -u KTX_DB opencode 1.18.10 --pure debug skill found exactly one ktx skill and all four reference routes. Broad: isolated env -u KTX_DB mage check passed tests, vet, lint with 0 issues, build, and audit attempts=931 forbidden=0 with ktx_db=unset. git diff --check passed. Typed task get confirmed in_progress with exactly one failed evaluation."
+  next: Evaluator should independently inspect and verify this retry, then record its verdict. Keep gprigtikcc in_progress until evaluator-owned completion; do not append health in this cycle.
+  publication_order: 9

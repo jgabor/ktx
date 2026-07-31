@@ -200,10 +200,10 @@ investigate and correct the summary rather than treating it as canonical.
 
 - `AGENTS.md`: repository rules, build commands, database safety, and benchmark
   policy.
-- `.agentera/vision.yaml`: product direction and principles.
+- Project vision: product direction and principles.
 - `ARCHITECTURE.md`: conceptual intent and unresolved questions.
-- `.agentera/decisions.yaml`: recorded choices; do not infer omitted decision
-  detail from a degraded listing.
+- Recorded decisions: settled choices; do not infer omitted detail from a
+  degraded listing.
 - `TODO.md`: executable backlog; do not infer implementation work from prose in
   architecture documents.
 - `README.md`: product quick start and supported public workflows.

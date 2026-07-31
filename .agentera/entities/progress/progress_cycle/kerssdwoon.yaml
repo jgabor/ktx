@@ -1,0 +1,15 @@
+id: kerssdwoon
+artifact: progress
+record:
+  timestamp: 2026-07-31 20:37
+  type: fix
+  phase: build
+  what: Removed restricted project-memory paths from the ktx skill authority guidance while preserving generic project vision, recorded-decision, architecture, and backlog direction. Extended the focused deterministic skill contract with boundary scans and proportional forbidden-path, tracking-marker, and allowed-public-authority cases.
+  context:
+    intent: Correct closure finding gprigtikcc without changing product behavior, repository policy, public documentation, or unrelated state, and retain evaluator ownership of terminal completion.
+    constraints: Changed only .agents/skills/ktx/SKILL.md, internal/cli/skill_contract_test.go, typed gprigtikcc task state, and this progress entity, while preserving the existing Task 3 PASS/completion, Task 4 PASS/completion, and progress kqkmvplbsd changes. No live database, model/paid benchmark, Docker, adapter, remote operation, intentional network access, vulnerability scan, health/decision/TODO/schema/policy/product change, push, amend, or history rewrite.
+    unknowns: Decisions fallback still omits 37 entries; vision/profile remain unavailable and profile state stale. Compact progress verification can miss exact evidence, so typed progress get remains the authoritative fallback. These existing caveats were preserved without inference or refresh.
+    scope: Five ktx skill files were scanned; only SKILL.md required wording changes. The focused contract test now enforces the exact project-memory marker categories declared by AGENTS.md. Task gprigtikcc remains in_progress for evaluator-owned completion.
+  verified: "Agentera writer: /bin/npx 12.0.1 resolved cached agentera@next 3.0.0-dev.39 offline; set-status returned pass for gprigtikcc=in_progress. Focused: isolated env -u KTX_DB go test ./internal/cli -run '^TestKTXSkill(Layout|LocalLinks|FactualContracts|ExamplesMatchCLIHelp)$' -count=1 -v passed, including forbidden path, tracking marker, allowed AGENTS.md/ARCHITECTURE.md/TODO.md/README.md, local-link, metadata, and factual drift cases. Full boundary scan: Python scanned all 5 files against 10 exact marker categories and found 0 matches. Runtime: isolated env -u KTX_DB opencode 1.18.10 --pure debug skill found exactly one ktx skill and all 4 local reference routes. Broad: isolated env -u KTX_DB mage check passed tests, vet, lint (0 issues), build, and audit attempts=931 forbidden=0 with ktx_db=unset. git diff --check passed."
+  next: Evaluator should independently inspect and verify this correction, then record its verdict and own task/plan completion. Keep gprigtikcc in_progress until that evaluation; do not append health during this cycle.
+  publication_order: 8

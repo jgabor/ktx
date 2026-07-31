@@ -5,7 +5,7 @@ record:
   depends_on:
     - pfkjmiivgz
     - osvyepdets
-  status: in_progress
+  status: complete
   description: Establish distinct evidence for file validity, runtime skill loading, reference reachability, command agreement, and broad repository safety.
   acceptance:
     - GIVEN the five skill files WHEN structural checks run THEN the main metadata is valid, every file exists, and every local reference resolves.
@@ -16,12 +16,12 @@ record:
   test_proportionality: Use one successful and one failing case per added validator; reuse existing broad tests without duplicating equivalent cases.
   plan: rbrwhikdti
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Static skill validation checks frontmatter strings but does not parse YAML, so malformed metadata can pass while OpenCode omits the skill. Latest progress also predates and omits the later successful govulncheck pre-commit hook. Add typed YAML parsing plus malformed regression and append accurate vulnerability provenance.
     provenance:
-      attempt_id: hegoqxqkeg-audit-1
-      source: Audit ses_046f337e6ffeBNZ99WcG3taIsL
-      recorded_at: 2026-07-31 18:59
+      attempt_id: hegoqxqkeg-audit-2
+      source: Audit ses_046f337e6ffeBNZ99WcG3taIsL bounded re-review
+      recorded_at: 2026-07-31 19:10
       writer_command: agentera state plan record-evaluation

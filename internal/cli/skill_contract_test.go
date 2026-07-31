@@ -111,6 +111,32 @@ func TestKTXSkillFactualContracts(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("rejects project-memory path markers", func(t *testing.T) {
+		mutated := cloneStrings(files)
+		mutated["SKILL.md"] += "\nConsult `.agentera/vision.yaml`.\n"
+		failures := validateSkillFactualContracts(mutated)
+		if _, ok := failures["project-memory boundary"]; !ok {
+			t.Fatalf("project-memory path marker was accepted: %v", failures)
+		}
+	})
+
+	t.Run("rejects project-tracking markers", func(t *testing.T) {
+		mutated := cloneStrings(files)
+		mutated["SKILL.md"] += "\nFollow Decision 12.\n"
+		failures := validateSkillFactualContracts(mutated)
+		if _, ok := failures["project-memory boundary"]; !ok {
+			t.Fatalf("project-tracking marker was accepted: %v", failures)
+		}
+	})
+
+	t.Run("allows public authority references", func(t *testing.T) {
+		mutated := cloneStrings(files)
+		mutated["SKILL.md"] += "\nUse `AGENTS.md`, `ARCHITECTURE.md`, `TODO.md`, and `README.md`.\n"
+		if issues := validateSkillProjectMemoryBoundary(mutated); len(issues) != 0 {
+			t.Fatalf("public authority references were rejected: %v", issues)
+		}
+	})
 }
 
 func TestKTXSkillExamplesMatchCLIHelp(t *testing.T) {
@@ -246,7 +272,39 @@ func validateSkillFactualContracts(files map[string]string) map[string][]string 
 			failures[rule.name] = issues
 		}
 	}
+	if issues := validateSkillProjectMemoryBoundary(files); len(issues) != 0 {
+		failures["project-memory boundary"] = issues
+	}
 	return failures
+}
+
+func validateSkillProjectMemoryBoundary(files map[string]string) []string {
+	patterns := []struct {
+		name    string
+		pattern string
+	}{
+		{name: "project-memory path", pattern: `(?i)\.agentera/(?:decisions|progress|plan|health|vision|objective|experiments|docs)\.yaml`},
+		{name: "decision ID", pattern: `\bD[0-9]+\b`},
+		{name: "expanded decision ID", pattern: `\bDecision [0-9]+\b`},
+		{name: "milestone ID", pattern: `\bM[1-7]\b|\bMilestone [1-7]\b`},
+		{name: "project phase", pattern: `\bPhase [1-3]\b`},
+		{name: "acceptance-criteria ID", pattern: `\bAC[1-9]\b|(?i:\bacceptance criteria [1-9]\b)`},
+		{name: "plan task reference", pattern: `(?i:\bplan Task [0-9]+\b)|\bTask [0-9]+\b`},
+		{name: "decision-mode label", pattern: `(?i:\b(?:firm|provisional|exploratory) decision\b)`},
+		{name: "migration-vintage label", pattern: `(?i:\bpre-(?:M[0-9]+|D[0-9]+) database\b)`},
+		{name: "internal system name", pattern: `(?i:\bagentera\b)`},
+	}
+
+	var issues []string
+	for relative, contents := range files {
+		for _, candidate := range patterns {
+			if regexp.MustCompile(candidate.pattern).FindString(contents) != "" {
+				issues = append(issues, fmt.Sprintf("%s contains forbidden %s", relative, candidate.name))
+			}
+		}
+	}
+	sort.Strings(issues)
+	return issues
 }
 
 func validateDocumentedCLIExamples(files map[string]string) []string {

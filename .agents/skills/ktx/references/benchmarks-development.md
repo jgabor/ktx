@@ -1,0 +1,179 @@
+# Benchmarks and Repository Development
+
+Use this reference for retained experiments, replay, build/test commands, and
+repository-safe engineering work.
+
+## Common Benchmark Workflows
+
+```text
+ktx bench run
+ktx bench report
+ktx bench export
+ktx bench compare
+ktx bench rank
+ktx bench validate
+ktx bench agent --capabilities
+ktx bench evidence preflight
+ktx bench evidence gemini-preflight
+ktx bench corpus generate
+ktx bench compare --summarize <experiment-directory>
+```
+
+Named methodologies, tasks, pipelines, and corpus fixtures live under
+`tools/bench/`.
+
+## Live Comparison
+
+Run offline preflight before paid work. Normal comparison runs preflight too.
+
+```bash
+./build/ktx bench compare --preflight --build --format json
+
+./build/ktx bench compare \
+  --build \
+  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --model openai/gpt-5.6-luna \
+  --variant high \
+  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --cache-control observed \
+  --warmup 1 \
+  --rounds 5
+```
+
+Provider policy: do not run paid/live experiments with `github-copilot/*`.
+
+Provider-internal isolation is not currently supported. `--cache-control
+isolated` fails before an agent call, while `auto` records `observed`. No built-in
+OpenCode runtime/provider adapter proves arm isolation.
+
+Ordinary runtime telemetry is optional and fail-open. Required benchmark
+collection is fail-closed: one explicit attempt owner, complete interval,
+contiguous acknowledged callback order, stable identity, and consistent wrapper
+and event-hook projections are validation gates.
+
+A cache-aware comparison separates cold observation, warm-up, and measured-warm
+attempts. Only protocol-valid measured pairs support direct comparative claims.
+Failed or invalid archives remain failed history and must not inherit claims from
+a later successful rerun.
+
+## Retained Evidence
+
+Experiments normally retain:
+
+- `manifest.json`: task, runtime, model, pipeline, methodology, image, repository,
+  and pricing provenance.
+- `attempts.jsonl`: one normalized attempt record per line.
+- `summary.json`: deterministic derived summary.
+- `pricing.json`: retained price snapshot for estimates, not telemetry.
+- Per-attempt streams, stderr, database, session snapshots, and workspaces.
+
+Validate without rewriting the archive:
+
+```bash
+ktx bench validate --experiment .bench-data/<experiment-id>
+```
+
+Treat `valid`, `summary_byte_match`, target counts, attempt checks, complete pair
+counts, and methodology reasons as separate gates. A successful task answer does
+not make invalid telemetry valid.
+
+Treat the entire retained experiment directory as sensitive. Workspaces may
+contain a full repository snapshot; databases, streams, stderr, and session
+snapshots can contain prompts, outputs, identifiers, or secrets. Create and
+review a derivative for sharing rather than modifying authoritative retained
+evidence.
+
+## Replay
+
+Database replay requires a recorded stream:
+
+```bash
+ktx run --record-stream opencode run --format json "prompt"
+ktx bench run --replay <session-id>
+```
+
+Replay makes zero agent calls, but database replay uses the normal
+creation/migration-capable database open. Confirm the target, preferably through
+an explicit `KTX_DB`, before running it. Informational usage/cost/cache drift can
+exit zero; integrity or parser failure exits four.
+
+Portable strict replay:
+
+```bash
+: "${KTX_OWNED_DB:?set an explicitly operator-owned database path}"
+: "${KTX_TARGET_SESSION_ID:?set a benchmark-parented session ID}"
+KTX_DB="$KTX_OWNED_DB" ktx bench export --output replay-v1.json "$KTX_TARGET_SESSION_ID"
+ktx bench run --replay-file replay-v1.json
+```
+
+`--replay-file` is DB-free and uses only the fixture plus a controlled built-in
+pipeline; this is the safer verification path when no database comparison is
+needed.
+
+Replay files include raw stream content. Review for secrets, personal data,
+machine identifiers, and repository content before sharing or committing.
+
+## Benchmark Claims
+
+- Runtime-reported cost and price-derived API-equivalent cost are separate.
+- Full-pass quality and cost/context movement must be reported together.
+- Cold/warm-up setup evidence is separate from measured-warm headline evidence.
+- Cached-input share is descriptive runtime evidence, not significance,
+  causality, provider cache behavior, or generic cache effectiveness.
+- Fewer than five measured attempts per side is exploratory under the current
+  cache-aware methodology.
+- Do not pool incompatible tasks, runtime versions, or invalid archives.
+
+## Build and Verification
+
+```bash
+mage build      # build build/ktx
+mage check      # test + vet + lint + build
+mage verify     # check + portable replay gate
+mage install    # install to GOPATH/bin
+```
+
+Without Mage:
+
+```bash
+go build -o build/ktx ./cmd/ktx
+```
+
+Never run bare `go build ./cmd/ktx` in the checkout.
+
+`mage verify` is the authoritative local/CI gate. It requires
+`golangci-lint` and enforces the ambient-live database boundary.
+
+## Focused Manual Verification
+
+If bypassing Mage, allocate a unique disposable application root for each outer
+invocation, unset incoming `KTX_DB`, and set distinct HOME and XDG paths. Never
+run tests, doctor, or migration rehearsal against the ambient live database.
+
+Migration rehearsal must use an explicitly seeded temporary copy. `KTX_DB`
+alone does not prove that a path is disposable.
+
+## Repository Workflow
+
+Before modifying behavior, read `AGENTS.md` and follow its declared read order
+and documentation-maintenance procedure in full. Then inspect existing tests and
+public docs and keep changes small, deterministic, stdlib-first, and reversible.
+
+Do not implement an unresolved architectural choice by guessing. Record or run
+the required discussion task instead.
+
+## Documentation Synchronization
+
+When public behavior changes, check all affected surfaces:
+
+- Command help and exit codes.
+- `README.md` quick starts.
+- `ktx.example.toml` comments and examples.
+- `docs/pipelines.md` contracts.
+- `docs/database-safety.md` command classification.
+- `docs/opencode-telemetry.md` adapter/event semantics.
+- This skill and its references.
+
+Prefer generated or validated contracts over duplicated prose when the project
+provides one. Keep project-tracking labels out of shipped code, help, errors,
+fixtures, and user-facing configuration.

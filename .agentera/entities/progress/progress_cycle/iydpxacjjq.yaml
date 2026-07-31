@@ -1,0 +1,15 @@
+id: iydpxacjjq
+artifact: progress
+record:
+  timestamp: 2026-07-31 18:21
+  type: test
+  phase: build
+  what: Removed the class-wide documented-contract hash bypass. Added exact historical-tuple validation, an independent current-example byte pin, mutation regressions, and truthful routing-characterization verification guidance.
+  context:
+    intent: Resolve osvyepdets Audit attempt 1 without rewriting retained evidence or weakening the five passing contract checks.
+    constraints: Kept osvyepdets in_progress and preserved its one failed evaluation and predecessor PASS. No live DB, network, Docker, paid/model call, adapter install, remote operation, retained-artifact rewrite, or history rewrite.
+    unknowns: none
+    scope: internal/router/characterization_test.go; docs/routing-candidate-characterization.md; typed Audit and retry progress state.
+  verified: "Focused positive: ls -d /tmp && ROOT=$(mktemp -d /tmp/ktx-task2-retry-focused.XXXXXX) && env -u KTX_DB HOME=\"$ROOT/home\" XDG_DATA_HOME=\"$ROOT/data\" XDG_CONFIG_HOME=\"$ROOT/config\" XDG_CACHE_HOME=\"$ROOT/cache\" XDG_STATE_HOME=\"$ROOT/state\" GOCACHE=\"$(go env GOCACHE)\" GOMODCACHE=\"$(go env GOMODCACHE)\" go test ./internal/router ./internal/cli -run 'Test(RoutingCandidateCharacterization|DocumentedContractReferenceValidation|PipelineContractDocumentationMatchesBehavior)$' -count=2 -v passed both packages twice. Negative regression: the same isolated environment with go test ./internal/router -run '^TestDocumentedContractReferenceValidation/rejects_unrelated_current_example_drift$' -count=1 -v passed, proving injected unrelated bytes are rejected. A temporary append probe against the real current example made TestRoutingCandidateCharacterization fail with got 618b7c... want e0fb4a..., then reported negative_mutation_rejected=True current_example_restored=True. Broad gate: env -u KTX_DB mage verify passed; 0 issues, no vulnerabilities, forbidden=0, ktx_db=unset. Integrity: git diff --exit-code -- tools/bench/evidence/routing-candidate-characterization.json passed; sha256sum was 1d9409fbdbdae5aa45c0ad0e9902b610cf4cf7c592254a380082ce93dbbbe063 before and after. git diff --check passed. Product behavior and policy did not change."
+  next: Evaluator re-audits osvyepdets and owns task completion.
+  publication_order: 4

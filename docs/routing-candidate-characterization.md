@@ -115,10 +115,19 @@ then run both the focused and full checks through it. Each call gets a new
 disposable application root and starts with `KTX_DB` unset.
 
 ```bash
-ktx_verify go test ./internal/router -run TestRoutingCandidateCharacterization -count=2 -v
+ktx_verify go test ./internal/router ./internal/cli \
+  -run 'Test(RoutingCandidateCharacterization|DocumentedContractReferenceValidation|PipelineContractDocumentationMatchesBehavior)$' \
+  -count=2 -v
 ktx_verify mage check
 ```
 
-The focused test verifies every referenced hash and fixture measurement, runs
-every routing case against current code, checks all named ambiguity and fallback
-cases, and prints one findings digest. Repeating it must print the same digest.
+The retained manifest's `documented_contract` tuple records the exact
+collection-time path, evidence class, and digest; verification requires that
+historical tuple to remain unchanged. The evolving current `ktx.example.toml`
+has a separate current-byte digest and semantic contract checks, so unrelated
+byte drift and stale normalization or token-budget wording both fail without
+rewriting retained evidence. Other references continue to verify their retained
+hashes against current files. The focused tests also verify every fixture
+measurement, run every routing case against current code, check all named
+ambiguity and fallback cases, and print one findings digest. Repeating them must
+print the same digest.

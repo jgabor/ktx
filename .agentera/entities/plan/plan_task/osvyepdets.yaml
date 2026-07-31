@@ -14,3 +14,13 @@ record:
     - GIVEN any proposed synchronization WHEN it would change command semantics or product policy THEN the task stops and records the need to re-plan rather than changing behavior under a documentation correction.
   test_proportionality: For each corrected factual contract, retain one positive assertion and one drift case where a practical deterministic documentation check exists.
   plan: rbrwhikdti
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Retained routing characterization validation now skips SHA-256 checks for every documented_contract reference, so unrelated drift in ktx.example.toml passes despite documentation claiming every referenced hash is verified. Restore a narrow historical-reference integrity check while retaining semantic current-contract validation.
+    provenance:
+      attempt_id: osvyepdets-audit-1
+      source: Audit ses_04712bb86ffe66BmjtTDRsZc63
+      recorded_at: 2026-07-31 18:17
+      writer_command: agentera state plan record-evaluation

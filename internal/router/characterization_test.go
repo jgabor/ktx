@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -80,6 +81,13 @@ type characterizationReference struct {
 	SHA256        string `json:"sha256"`
 	EvidenceClass string `json:"evidence_class"`
 }
+
+const (
+	historicalContractPath   = "ktx.example.toml"
+	historicalContractClass  = "documented_contract"
+	historicalContractSHA256 = "6dbdb9ddf16e72f40837fa6a97056fe3d60026256a5841d295f05584a04b215c"
+	currentContractSHA256    = "e0fb4ae9a5894c41c61fb74e4288b1c1436c1db840f020e7be2a725815be3b02"
+)
 
 type fixtureCharacterization struct {
 	ID                 string   `json:"id"`
@@ -159,6 +167,13 @@ func TestRoutingCandidateCharacterization(t *testing.T) {
 
 func validateCharacterizationReferences(t *testing.T, root string, references []characterizationReference) {
 	t.Helper()
+	currentContract, err := os.ReadFile(filepath.Join(root, historicalContractPath))
+	if err != nil {
+		t.Errorf("read current %s: %v", historicalContractPath, err)
+	} else if err := validateDocumentedContractReference(references, currentContract); err != nil {
+		t.Error(err)
+	}
+
 	seen := make(map[string]bool)
 	for _, reference := range references {
 		if reference.Path == "" || reference.SHA256 == "" || reference.EvidenceClass == "" {
@@ -169,14 +184,12 @@ func validateCharacterizationReferences(t *testing.T, root string, references []
 			continue
 		}
 		seen[reference.Path] = true
+		if reference.Path == historicalContractPath || reference.EvidenceClass == historicalContractClass {
+			continue
+		}
 		raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(reference.Path)))
 		if err != nil {
 			t.Errorf("read %s: %v", reference.Path, err)
-			continue
-		}
-		if reference.EvidenceClass == "documented_contract" {
-			// The retained digest identifies the contract reviewed by the
-			// characterization. Current wording has its own contract checks.
 			continue
 		}
 		digest := sha256.Sum256(raw)
@@ -184,6 +197,57 @@ func validateCharacterizationReferences(t *testing.T, root string, references []
 			t.Errorf("%s sha256 = %s, want %s", reference.Path, got, reference.SHA256)
 		}
 	}
+}
+
+func validateDocumentedContractReference(references []characterizationReference, current []byte) error {
+	matched := 0
+	for _, reference := range references {
+		if reference.Path != historicalContractPath && reference.EvidenceClass != historicalContractClass {
+			continue
+		}
+		if reference.Path != historicalContractPath || reference.EvidenceClass != historicalContractClass || reference.SHA256 != historicalContractSHA256 {
+			return fmt.Errorf("historical documented contract reference changed: %#v", reference)
+		}
+		matched++
+	}
+	if matched != 1 {
+		return fmt.Errorf("historical documented contract references = %d, want 1", matched)
+	}
+	digest := sha256.Sum256(current)
+	if got := hex.EncodeToString(digest[:]); got != currentContractSHA256 {
+		return fmt.Errorf("current %s sha256 = %s, want %s", historicalContractPath, got, currentContractSHA256)
+	}
+	return nil
+}
+
+func TestDocumentedContractReferenceValidation(t *testing.T) {
+	current, err := os.ReadFile(filepath.Join("..", "..", historicalContractPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference := characterizationReference{
+		Path:          historicalContractPath,
+		SHA256:        historicalContractSHA256,
+		EvidenceClass: historicalContractClass,
+	}
+	if err := validateDocumentedContractReference([]characterizationReference{reference}, current); err != nil {
+		t.Fatalf("current and historical contracts rejected: %v", err)
+	}
+
+	t.Run("rejects changed historical digest", func(t *testing.T) {
+		changed := reference
+		changed.SHA256 = strings.Repeat("0", 64)
+		if err := validateDocumentedContractReference([]characterizationReference{changed}, current); err == nil {
+			t.Fatal("changed historical digest passed validation")
+		}
+	})
+
+	t.Run("rejects unrelated current example drift", func(t *testing.T) {
+		changed := append(bytes.Clone(current), []byte("\n# unrelated drift\n")...)
+		if err := validateDocumentedContractReference([]characterizationReference{reference}, changed); err == nil {
+			t.Fatal("unrelated current example drift passed validation")
+		}
+	})
 }
 
 func validateRetainedCallManifest(t *testing.T, c routingCharacterization) {

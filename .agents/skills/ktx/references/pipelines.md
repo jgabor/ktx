@@ -52,13 +52,13 @@ footer unless the profile is demonstrably semantic-preserving.
 | `json-compact`                 | Remove insignificant whitespace from one complete JSON value or strict NDJSON without re-marshaling                        |
 | `strip-ansi`                   | Remove ANSI escape sequences                                                                                               |
 | `dedup-blank`                  | Collapse repeated blank lines                                                                                              |
-| `normalize`                    | Normalize line endings, trim trailing line whitespace, remove outer blank lines                                            |
+| `normalize`                    | Normalize line endings and trim trailing line whitespace while preserving outer blank lines                                |
 | `head:N`                       | Keep the first N lines; default N is 10                                                                                    |
 | `truncate:N`                   | Keep the first N bytes and append a truncation marker; default N is 4096                                                   |
 | `keep-ends:N:M`                | Keep first N and last M lines with an omission marker                                                                      |
 | `grep:pattern`                 | Keep matching lines; invalid regex passes through                                                                          |
 | `grep-v:pattern`               | Remove matching lines; invalid regex passes through                                                                        |
-| `token-budget:N`               | Approximate N tokens at characters/4, snap to a newline, append a marker                                                   |
+| `token-budget:N`               | Approximate N tokens from byte length/4, prefer a preceding newline, and append a marker; a long line can be cut mid-line  |
 | `replace:pattern::replacement` | Replace every regex match; an empty replacement removes matches                                                            |
 
 Put `unwrap-result` before line-oriented stages. Put `json-compact` before

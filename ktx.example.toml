@@ -92,7 +92,7 @@ recover_footer = true
 #   dedup-blank         Collapse 2+ consecutive blank lines to one
 #
 #   normalize           Convert \r\n and \r to \n; trim trailing whitespace
-#                       per line; strip leading/trailing blank lines
+#                       per line; preserve leading/trailing blank lines
 #
 # Tier 1 stages preserve the canonical result text and can only make output
 # smaller or identical. Unrecognized JSON and clean text pass through.
@@ -116,10 +116,11 @@ recover_footer = true
 #   grep-v:pattern      Reject lines matching the regex (inverse of
 #                       grep). Invalid regex → passthrough
 #
-#   token-budget:N      Truncate to ~N tokens (chars/4 estimate);
-#                       snaps back to last newline (no mid-line
-#                       cuts); appends "[ktx: truncated ~N tokens
-#                       from M]" marker. Input under budget → unchanged
+#   token-budget:N      Truncate to ~N tokens (byte-length/4 estimate);
+#                       prefer the last newline before the byte limit,
+#                       but cut mid-line if none exists; append
+#                       "[ktx: truncated ~N tokens from M]" marker.
+#                       Input under budget → unchanged
 #
 #   replace:pat::rep    Regex substitution: replace every match of
 #                       pattern `pat` with `rep`. The separator is

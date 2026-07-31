@@ -138,7 +138,7 @@ machine identifiers, and repository content before sharing or committing.
 ```bash
 mage build      # build build/ktx
 mage check      # test + vet + lint + build
-mage verify     # check + portable replay gate
+mage verify     # check + vulnerability scan + portable replay gate
 mage install    # install to GOPATH/bin
 ```
 
@@ -150,8 +150,10 @@ go build -o build/ktx ./cmd/ktx
 
 Never run bare `go build ./cmd/ktx` in the checkout.
 
-`mage verify` is the authoritative local/CI gate. It requires
-`golangci-lint` and enforces the ambient-live database boundary.
+`mage verify` is the authoritative local/CI gate. It runs test, vet, lint,
+build, `govulncheck`, and the portable replay gate. It requires both
+`golangci-lint` and `govulncheck` and enforces the ambient-live database
+boundary.
 
 ## Focused Manual Verification
 

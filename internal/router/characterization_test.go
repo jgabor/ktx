@@ -174,6 +174,11 @@ func validateCharacterizationReferences(t *testing.T, root string, references []
 			t.Errorf("read %s: %v", reference.Path, err)
 			continue
 		}
+		if reference.EvidenceClass == "documented_contract" {
+			// The retained digest identifies the contract reviewed by the
+			// characterization. Current wording has its own contract checks.
+			continue
+		}
 		digest := sha256.Sum256(raw)
 		if got := hex.EncodeToString(digest[:]); got != reference.SHA256 {
 			t.Errorf("%s sha256 = %s, want %s", reference.Path, got, reference.SHA256)

@@ -4,7 +4,7 @@ record:
   name: Correct derived skill guidance
   depends_on:
     []
-  status: in_progress
+  status: complete
   description: Correct branch-local guidance, revised attribution, command side effects, evidence boundaries, and operator cautions without changing product policy.
   acceptance:
     - GIVEN an agent reads source guidance WHEN authorities differ THEN project memory governs intent, current behavior is established by implementation and tests, public contracts are synchronized, and skill references identify themselves as derived task summaries.
@@ -15,12 +15,12 @@ record:
   test_proportionality: For each machine-checkable skill contract, cover one accepted form and one representative unsafe, incomplete, or contradictory form.
   plan: rbrwhikdti
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: AC2 omits that compare preflight with --build mutates Docker image/cache state and may use the network. Progress evidence names content checks without reproducible commands or retained output, and its AC2 assertion missed that effect.
     provenance:
-      attempt_id: pfkjmiivgz-audit-1
-      source: Audit ses_04732fe72ffek43MUV6TCExfQd
-      recorded_at: 2026-07-31 17:40
+      attempt_id: pfkjmiivgz-audit-2
+      source: Audit ses_04732fe72ffek43MUV6TCExfQd bounded re-review
+      recorded_at: 2026-07-31 17:47
       writer_command: agentera state plan record-evaluation

@@ -423,6 +423,18 @@ func TestNormalize(t *testing.T) {
 		}
 	})
 
+	t.Run("preserves outer blank lines", func(t *testing.T) {
+		input := []byte("\n\nvalue   \n\n")
+		out, err := Normalize(input)
+		if err != nil {
+			t.Fatalf("Normalize error: %v", err)
+		}
+		want := []byte("\n\nvalue\n\n")
+		if !bytes.Equal(out, want) {
+			t.Errorf("Normalize outer blanks = %q, want %q", out, want)
+		}
+	})
+
 	t.Run("mixed CRLF and LF normalizes to LF", func(t *testing.T) {
 		input := []byte("a\r\nb\nc\r\nd\n")
 		out, err := Normalize(input)
@@ -841,6 +853,24 @@ func TestTokenBudget(t *testing.T) {
 		}
 		if !bytes.Contains(out, []byte("from 500")) {
 			t.Errorf("no-newline input missing 'from 500' marker: %q", string(out[:min(60, len(out))]))
+		}
+		if !bytes.HasPrefix(out, bytes.Repeat([]byte("x"), 400)) {
+			t.Errorf("no-newline input did not retain the first 400 bytes")
+		}
+	})
+
+	t.Run("estimates tokens from byte length", func(t *testing.T) {
+		input := bytes.Repeat([]byte("界"), 200) // 600 bytes, 200 runes
+		s, err := tokenBudgetBuilder("100")
+		if err != nil {
+			t.Fatalf("tokenBudgetBuilder(100): %v", err)
+		}
+		out, err := s.Apply(input)
+		if err != nil {
+			t.Fatalf("token-budget Apply: %v", err)
+		}
+		if !bytes.Contains(out, []byte("from 150")) {
+			t.Errorf("multibyte input missing byte-based token estimate: %q", string(out[len(out)-min(80, len(out)):]))
 		}
 	})
 }

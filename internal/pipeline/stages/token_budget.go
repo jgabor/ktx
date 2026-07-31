@@ -1,16 +1,13 @@
-// token-budget stage: line-safe truncation to an approximate token
-// budget.
+// token-budget stage: byte-based truncation to an approximate token budget.
 //
-// The stage estimates tokens with the common four-characters-per-token
-// heuristic and truncates to a target character
-// count, snapping back to the last newline so no line is cut mid-way.
-// This is the deterministic, ML-free truncation that keeps verbose
-// tool output within a context budget without losing line structure.
+// The stage estimates tokens from byte length with a four-bytes-per-token
+// heuristic and truncates to a target byte count. It snaps back to the last
+// newline when one exists before the limit, but can cut mid-line otherwise.
 //
 // Configurable via the `token-budget:N` token form (e.g.
 // `token-budget:2000`). Input under budget is returned unchanged (a
 // fresh slice). When over budget, the stage keeps the first ~N*4
-// characters (snapped back to the last newline before that count) and
+// bytes (snapped back to the last newline before that count when present) and
 // appends a marker `[ktx: truncated ~N tokens from M]` where M is
 // the estimated original token count.
 //
@@ -61,9 +58,9 @@ func tokenBudgetBuilder(arg string) (pipeline.Stage, error) {
 	}), nil
 }
 
-// tokenBudgetApply truncates input to roughly n*4 characters (snapped
-// back to the last newline) when the estimated token count exceeds n,
-// appending a marker. Input at or under budget is returned byte-identical.
+// tokenBudgetApply truncates input to roughly n*4 bytes, preferring the last
+// newline before that limit, when the estimated token count exceeds n. It
+// appends a marker. Input at or under budget is returned byte-identical.
 func tokenBudgetApply(input []byte, n int) []byte {
 	if len(input) == 0 {
 		return nil
@@ -77,8 +74,8 @@ func tokenBudgetApply(input []byte, n int) []byte {
 		return out
 	}
 
-	// Over budget: truncate to ~n*4 chars, snapped back to the last
-	// newline at or before that count so no line is cut mid-way.
+	// Over budget: truncate to ~n*4 bytes, preferring the last newline at or
+	// before that count. Input without an earlier newline is cut mid-line.
 	targetChars := n * 4
 	if targetChars > len(input) {
 		targetChars = len(input)

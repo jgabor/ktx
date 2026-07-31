@@ -1,0 +1,15 @@
+id: zflnnrnnxq
+artifact: progress
+record:
+  timestamp: 2026-07-31 18:03
+  type: docs
+  phase: build
+  what: Synchronized pipeline, verification, statistics, and benchmark contract wording; added focused behavior and drift checks. Preserved the predecessor PASS state and retained evidence.
+  context:
+    intent: Align only direct public contract conflicts with tested behavior and corrected ktx skill guidance without changing command semantics or product policy.
+    constraints: No live DB, paid/model benchmark, adapter install, Docker build, intentional external network, retained-evidence edit, TODO/decision/health edit, or runtime behavior change.
+    unknowns: Built benchmark and stats help exposed no additional direct contradiction beyond the planned stats wording and obsolete benchmark source comment.
+    scope: README.md; ktx.example.toml; two ktx skill references; stats/bench/token-budget comments or help; focused CLI, stage, and characterization tests; typed plan/progress state.
+  verified: "AC1/AC3/AC4: ls -d /tmp && ROOT=$(mktemp -d /tmp/ktx-task2-targeted2.XXXXXX) && env -u KTX_DB HOME=\"$ROOT/home\" XDG_DATA_HOME=\"$ROOT/data\" XDG_CONFIG_HOME=\"$ROOT/config\" XDG_CACHE_HOME=\"$ROOT/cache\" XDG_STATE_HOME=\"$ROOT/state\" GOCACHE=\"$(go env GOCACHE)\" GOMODCACHE=\"$(go env GOMODCACHE)\" go test ./internal/pipeline/stages ./internal/db ./internal/cli ./internal/router -run 'Test(Normalize|TokenBudget|StatsSummaryRows|PipelineContractDocumentationMatchesBehavior|VerificationDocumentationMatchesMageVerify|StatsHelpUsesFirstArtifactAuthority|BenchmarkNamespaceCommentListsPublicFamilies|RoutingCandidateCharacterization)$' -count=1 passed all four packages. AC2: env -u KTX_DB mage verify passed test, vet, lint, build, govulncheck, and portable replay: 0 issues, no vulnerabilities, forbidden=0. Its first run failed only because the retained characterization expected old ktx.example.toml bytes; the final validation preserves that retained digest and uses focused current-contract checks. AC3: env -u KTX_DB ./build/ktx stats summary --help and stats breakdown --help showed earliest timestamp/smallest ID. AC4: env -u KTX_DB ./build/ktx bench --help showed run, report, export, compare, rank, validate, agent, evidence, and corpus. AC5: git diff --check passed; no data path, command behavior, policy, or retained evidence changed."
+  next: Evaluator audits this commit and owns osvyepdets completion; leave the task in_progress.
+  publication_order: 3

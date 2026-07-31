@@ -1,7 +1,9 @@
 // `ktx bench` — the benchmark namespace.
 //
 // bench owns the headline number that proves or disputes the cost
-// contract. The v1 surface ships two subcommands:
+// contract. The public surface includes run, report, export, compare, rank,
+// validate, agent, evidence, and corpus command families. The original
+// database-backed commands are:
 //
 //	ktx bench run <agent> <model> <task>
 //	    Consumes the methodology, runs the agent via the existing

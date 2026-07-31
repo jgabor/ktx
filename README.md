@@ -217,8 +217,8 @@ mage verify        # authoritative local and CI verification
 mage build         # build build/ktx
 ```
 
-`mage verify` runs `mage check` (test, vet, lint, and build) and then the
-portable replay gate. Tracked CI runs this same command on every push and pull
-request. Verification requires `golangci-lint`. Architectural intent is
-documented in [`ARCHITECTURE.md`](ARCHITECTURE.md); repository working
-conventions are in [`AGENTS.md`](AGENTS.md).
+`mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`, and
+the portable replay gate. Tracked CI runs this same command on every push and
+pull request. Verification requires both `golangci-lint` and `govulncheck`.
+Architectural intent is documented in [`ARCHITECTURE.md`](ARCHITECTURE.md);
+repository working conventions are in [`AGENTS.md`](AGENTS.md).

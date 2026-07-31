@@ -4,7 +4,7 @@ record:
   name: Synchronize direct contract conflicts
   depends_on:
     - pfkjmiivgz
-  status: pending
+  status: in_progress
   description: Align only directly conflicting public documentation, help, examples, and comments with current tested behavior and the corrected skill.
   acceptance:
     - GIVEN normalization and token-budget documentation WHEN compared with current behavior THEN outer blank-line preservation, byte-based estimation, and possible mid-line truncation are described consistently.

@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: rbrwhikdti
   name: Remove restricted project-memory references
-  status: in_progress
+  status: complete
   depends_on:
     []
   acceptance:
@@ -11,12 +11,12 @@ record:
     - GIVEN deterministic skill validation WHEN a forbidden project-memory path marker is introduced THEN the focused contract check fails without rejecting allowed public project documentation names.
     - GIVEN the bounded correction WHEN runtime loading and repository checks run THEN the skill remains discoverable, all references resolve, no product behavior or policy changes, and no unrelated state is modified.
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: The skill is clean, but the new validator embeds complete prohibited project-memory paths and tracking markers in a shipped test artifact. Construct examples and patterns from neutral fragments, scan the validator itself, and preserve runtime negative coverage without literal forbidden markers.
     provenance:
-      attempt_id: gprigtikcc-audit-1
-      source: Audit ses_046cd81baffeW0QgA4A8oQqY4l corrective-task review
-      recorded_at: 2026-07-31 20:45
+      attempt_id: gprigtikcc-audit-2
+      source: Audit ses_046cd81baffeW0QgA4A8oQqY4l bounded marker re-review
+      recorded_at: 2026-07-31 20:56
       writer_command: agentera state plan record-evaluation

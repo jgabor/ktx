@@ -1,0 +1,15 @@
+id: ihxotdefte
+artifact: progress
+record:
+  timestamp: 2026-07-31 18:38
+  type: test
+  phase: build
+  what: Added internal/cli/skill_contract_test.go and a reusable contract issue helper to validate skill structure, links, factual drift, and documented CLI examples without changing product behavior.
+  context:
+    intent: Establish separate static, runtime, built-help, drift-rejection, and broad repository evidence for task hegoqxqkeg while leaving completion to its evaluator.
+    constraints: No ambient/live database, model, paid benchmark, Docker build, adapter install, product semantic change, push, or history rewrite. A govulncheck -version identity probe unexpectedly read public vulnerability-database metadata; no vulnerability scan followed.
+    unknowns: "Resolved: repository Go tests are the deterministic static/drift/help layer; isolated OpenCode debug skill is runtime discovery/load proof. Remaining boundary: full vulnerability gate requires an approved database source."
+    scope: internal/cli/skill_contract_test.go, internal/cli/contract_sync_test.go, predecessor Audit PASS state, current task in_progress state, and this progress entity.
+  verified: "Static: isolated go test ./internal/cli -run ^TestKTXSkill...$ -count=1 passed. Runtime: isolated OpenCode 1.18.10 --pure debug skill found exactly one ktx entry, corrected instructions, and all four reference routes. Built-help: env -u KTX_DB mage build produced ./build/ktx dev; Python subprocess checks passed for bench and stats help operands, flags, outcomes, and exit 0. Drift: positive cases and negative metadata, missing-file, broken-link, five factual-claim, and argument-drift cases passed. Broad-gate: env -u KTX_DB mage check and mage replayFixture passed; audits reported forbidden=0 and ktx_db=unset; git diff --check passed. mage verify was not run because govulncheck has no approved local database and defaults to network access."
+  next: Evaluator should independently review the intended diff, preserve this task as in_progress until its verdict, and run vulnerability verification only with approved offline data or network authorization.
+  publication_order: 5

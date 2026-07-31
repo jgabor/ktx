@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -66,14 +67,22 @@ func TestBenchmarkNamespaceCommentListsPublicFamilies(t *testing.T) {
 
 func assertContractText(t *testing.T, contents string, required, forbidden []string) {
 	t.Helper()
+	for _, issue := range contractTextIssues(contents, required, forbidden) {
+		t.Error(issue)
+	}
+}
+
+func contractTextIssues(contents string, required, forbidden []string) []string {
+	var issues []string
 	for _, text := range required {
 		if !strings.Contains(contents, text) {
-			t.Errorf("contract is missing %q", text)
+			issues = append(issues, "contract is missing "+strconv.Quote(text))
 		}
 	}
 	for _, text := range forbidden {
 		if strings.Contains(contents, text) {
-			t.Errorf("contract retains stale wording %q", text)
+			issues = append(issues, "contract retains stale wording "+strconv.Quote(text))
 		}
 	}
+	return issues
 }

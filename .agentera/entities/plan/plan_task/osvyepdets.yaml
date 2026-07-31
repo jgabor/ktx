@@ -4,7 +4,7 @@ record:
   name: Synchronize direct contract conflicts
   depends_on:
     - pfkjmiivgz
-  status: in_progress
+  status: complete
   description: Align only directly conflicting public documentation, help, examples, and comments with current tested behavior and the corrected skill.
   acceptance:
     - GIVEN normalization and token-budget documentation WHEN compared with current behavior THEN outer blank-line preservation, byte-based estimation, and possible mid-line truncation are described consistently.
@@ -15,12 +15,12 @@ record:
   test_proportionality: For each corrected factual contract, retain one positive assertion and one drift case where a practical deterministic documentation check exists.
   plan: rbrwhikdti
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Retained routing characterization validation now skips SHA-256 checks for every documented_contract reference, so unrelated drift in ktx.example.toml passes despite documentation claiming every referenced hash is verified. Restore a narrow historical-reference integrity check while retaining semantic current-contract validation.
     provenance:
-      attempt_id: osvyepdets-audit-1
-      source: Audit ses_04712bb86ffe66BmjtTDRsZc63
-      recorded_at: 2026-07-31 18:17
+      attempt_id: osvyepdets-audit-2
+      source: Audit ses_04712bb86ffe66BmjtTDRsZc63 bounded re-review
+      recorded_at: 2026-07-31 18:25
       writer_command: agentera state plan record-evaluation

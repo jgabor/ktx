@@ -1,0 +1,14 @@
+id: wpknsvwqpc
+artifact: progress
+record:
+  timestamp: 2026-07-31 17:43
+  type: docs
+  phase: build
+  what: Corrected the benchmark preflight guidance to disclose Docker image/build-cache mutation and possible network fetches while preserving the no-model/provider-call boundary.
+  context:
+    intent: Address the accepted Audit findings for task pfkjmiivgz and leave evaluator-owned completion pending.
+    constraints: Changed only the benchmark skill reference plus orchestrator-owned task state and this typed progress entity; did not run Docker, use the network intentionally, access a live database, run a model, or change product behavior.
+    scope: .agents/skills/ktx/references/benchmarks-development.md and typed retry state.
+  verified: "Exact contract validator: python3 -c 'from pathlib import Path;s=\" \".join(\"\\n\".join(p.read_text() for p in Path(\".agents/skills/ktx\").glob(\"**/*.md\")).split());a={\"AC1\":[\"derived task summaries\",\"Project memory owns intent\",\"Implementation and tests establish current behavior\"],\"AC2\":[\"<agent> <model> <task>\",\"Genuinely read-only\",\"Write-capable\",\"mutates Docker image/build-cache state\",\"network to fetch base-image and dependency inputs\",\"no model/provider calls\",\"provider charges\",\"writes generated corpus files\",\"rewrites derived `summary.json`\"],\"AC3\":[\"cannot prove collector lifecycle or requested-window coverage\",\"non-transactional views\",\"not exact reproduction\",\"Do not infer provider behavior\",\"causally attribute movement to compression\"],\"AC4\":[\"does not cancel or sandbox stage execution\",\"continue in the background\",\"not byte-exact passthrough\",\"modify the active plugin configuration\"],\"AC5\":[\"KTX_OWNED_DB\",\"KTX_READONLY_DB\",\"preconfirmed\",\"existing risk-bearing example\",\"not a generally safe starting point\",\"or a policy change\"]};b=[\"references are canonical\",\"Child stdout passes through unchanged\",\"sqlite3 -readonly \\\"$(ktx db path)\\\"\",\"ktx db --path /explicit\",\"## Recommended Starting Point\"];ok={k:all(x in s for x in v) for k,v in a.items()};ok[\"unsafe\"]=all(x not in s for x in b);[print(k,\"PASS\" if v else \"FAIL\") for k,v in ok.items()];raise SystemExit(not all(ok.values()))' => AC1 PASS, AC2 PASS, AC3 PASS, AC4 PASS, AC5 PASS, unsafe PASS. Exact static evidence: git grep -n -E 'DockerBin, \"build\"|go mod download|apt-get update|npm install -g' -- internal/experiment/runner.go Dockerfile.benchmark => runner.go:405 invokes docker build; Dockerfile.benchmark:37,43,46 downloads Go modules, apt inputs, and npm package. Exact local checks: mage build => exit 0; isolated ./build/ktx --version => dev; isolated ./build/ktx bench --help => exit 0; git diff --check => exit 0. No Docker build ran."
+  next: Keep pfkjmiivgz in_progress until the orchestrator records the next Audit verdict; do not mark it complete locally.
+  publication_order: 2

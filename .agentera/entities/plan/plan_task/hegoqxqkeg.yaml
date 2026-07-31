@@ -15,3 +15,13 @@ record:
     - GIVEN the complete intended diff WHEN repository verification and independent review finish THEN all checks pass, forbidden database access is zero, no paid or live operation occurred, and no unresolved material finding or unintended product behavior change remains.
   test_proportionality: Use one successful and one failing case per added validator; reuse existing broad tests without duplicating equivalent cases.
   plan: rbrwhikdti
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Static skill validation checks frontmatter strings but does not parse YAML, so malformed metadata can pass while OpenCode omits the skill. Latest progress also predates and omits the later successful govulncheck pre-commit hook. Add typed YAML parsing plus malformed regression and append accurate vulnerability provenance.
+    provenance:
+      attempt_id: hegoqxqkeg-audit-1
+      source: Audit ses_046f337e6ffeBNZ99WcG3taIsL
+      recorded_at: 2026-07-31 18:59
+      writer_command: agentera state plan record-evaluation

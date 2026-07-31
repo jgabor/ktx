@@ -1,0 +1,15 @@
+id: wmbpxoaorm
+artifact: progress
+record:
+  timestamp: 2026-07-31 19:06
+  type: test
+  phase: build
+  what: Replaced frontmatter string validation with typed gopkg.in/yaml.v3 parsing for name and description, and added a malformed-YAML regression that retains every legacy expected string.
+  context:
+    intent: Address only the persisted Audit blockers for task hegoqxqkeg while preserving its first failed evaluation and evaluator-owned in_progress state.
+    constraints: Changed only internal/cli/skill_contract_test.go plus typed Audit/progress state. No product behavior, skill wording, live database, model, paid benchmark, Docker, adapter, remote mutation, or intentional network operation.
+    unknowns: "Resolved: yaml.v3 is the existing repository dependency and rejects the malformed frontmatter. Vulnerability source limitation remains: the observed successful hook used the configured network-backed default, and no reproducible local database is available."
+    scope: internal/cli/skill_contract_test.go, the persisted first Audit failure in the hegoqxqkeg task entity, and this corrective progress entity.
+  verified: "Typed YAML and drift: with fresh disposable HOME/XDG roots and KTX_DB unset, go test ./internal/cli -run ^TestKTXSkill(Layout|LocalLinks|FactualContracts|ExamplesMatchCLIHelp)$ -count=1 -v passed the valid frontmatter case, malformed flow-sequence rejection, metadata, missing-file, broken-link, five factual-drift, and argument-drift cases. Runtime: isolated opencode --pure debug skill returned exactly one ktx skill with corrected entry instructions and four reference routes. Built-help: env -u KTX_DB mage build produced ./build/ktx dev; the Python subprocess check matched bench/stats operands, flags, outcomes, and help exit 0. Broad: env -u KTX_DB mage check and mage replayFixture passed; audits reported check attempts=931 forbidden=0 and replay attempts=1 forbidden=0, with ktx_db=unset; git diff --check passed. Vulnerability sequence: the earlier govulncheck -version identity probe unexpectedly fetched metadata from its https://vuln.go.dev source; no scan followed during that earlier verification phase; the later pre-commit hook ran govulncheck ./... successfully. go version -m $(command -v govulncheck) identifies golang.org/x/vuln/cmd/govulncheck v1.6.0. No local vulnerability database was found, so this retry initiated no new vulnerability scan before publication."
+  next: Evaluator should re-run its independent review and retain hegoqxqkeg as in_progress until it records the next verdict. Use only an approved offline vulnerability source for any additional scan.
+  publication_order: 6

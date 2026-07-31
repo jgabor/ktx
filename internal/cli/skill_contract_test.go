@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 var expectedSkillFiles = []string{
@@ -32,6 +34,28 @@ func TestKTXSkillLayout(t *testing.T) {
 		writeTestFile(t, path, strings.Replace(contents, "name: ktx", "name: wrong", 1))
 		if issues := validateSkillLayout(fixture); len(issues) == 0 {
 			t.Fatal("invalid skill name was accepted")
+		}
+	})
+
+	t.Run("rejects malformed YAML with expected strings", func(t *testing.T) {
+		fixture := copySkillFixture(t, root)
+		path := filepath.Join(fixture, "SKILL.md")
+		contents := readDocumentationFile(t, path)
+		malformed := strings.Replace(contents, "\n---\n\n# ktx", "\ninvalid: [\n---\n\n# ktx", 1)
+		if malformed == contents {
+			t.Fatal("test fixture did not alter frontmatter")
+		}
+		for _, legacyRequired := range []string{
+			"\nname: ktx\n", "description: >-", "github.com/jgabor/ktx",
+			"Load before searching implementation source.", "Do not use for Android/Kotlin", "Khronos KTX texture files.",
+		} {
+			if !strings.Contains(malformed, legacyRequired) {
+				t.Fatalf("malformed fixture lost legacy string check %q", legacyRequired)
+			}
+		}
+		writeTestFile(t, path, malformed)
+		if issues := validateSkillLayout(fixture); len(issues) == 0 {
+			t.Fatal("syntactically malformed frontmatter was accepted")
 		}
 	})
 
@@ -139,18 +163,28 @@ func validateSkillLayout(root string) []string {
 	if !ok {
 		return append(issues, "SKILL.md has no valid frontmatter block")
 	}
-	if strings.Count(frontmatter, "\nname: ktx\n") != 1 {
-		issues = append(issues, "SKILL.md must declare name: ktx exactly once")
+	var metadata struct {
+		Name        string `yaml:"name"`
+		Description string `yaml:"description"`
+	}
+	if err := yaml.Unmarshal([]byte(frontmatter), &metadata); err != nil {
+		return append(issues, fmt.Sprintf("SKILL.md frontmatter is invalid YAML: %v", err))
+	}
+	if metadata.Name != "ktx" {
+		issues = append(issues, fmt.Sprintf("SKILL.md name = %q, want %q", metadata.Name, "ktx"))
+	}
+	description := strings.Join(strings.Fields(metadata.Description), " ")
+	if description == "" {
+		issues = append(issues, "SKILL.md description must not be empty")
 	}
 	for _, required := range []string{
-		"description: >-",
 		"github.com/jgabor/ktx",
 		"Load before searching implementation source.",
 		"Do not use for Android/Kotlin",
 		"Khronos KTX texture files.",
 	} {
-		if !strings.Contains(frontmatter, required) {
-			issues = append(issues, "SKILL.md frontmatter is missing "+fmt.Sprintf("%q", required))
+		if !strings.Contains(description, required) {
+			issues = append(issues, "SKILL.md description is missing "+fmt.Sprintf("%q", required))
 		}
 	}
 	return issues

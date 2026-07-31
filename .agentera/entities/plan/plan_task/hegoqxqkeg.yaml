@@ -1,0 +1,17 @@
+id: hegoqxqkeg
+artifact: plan
+record:
+  name: Validate discovery and contract coherence
+  depends_on:
+    - pfkjmiivgz
+    - osvyepdets
+  status: pending
+  description: Establish distinct evidence for file validity, runtime skill loading, reference reachability, command agreement, and broad repository safety.
+  acceptance:
+    - GIVEN the five skill files WHEN structural checks run THEN the main metadata is valid, every file exists, and every local reference resolves.
+    - GIVEN a clean agent runtime WHEN it discovers and loads ktx THEN the skill resolves by name, returns the corrected entry instructions, and exposes all four focused references.
+    - GIVEN safe non-mutating command examples WHEN compared with the newly built local CLI THEN their verbs, required arguments, flags, and exit expectations agree with public help.
+    - GIVEN targeted drift checks WHEN known incorrect claims are reintroduced THEN validation fails for the affected contract without treating broad repository verification as proof of skill content.
+    - GIVEN the complete intended diff WHEN repository verification and independent review finish THEN all checks pass, forbidden database access is zero, no paid or live operation occurred, and no unresolved material finding or unintended product behavior change remains.
+  test_proportionality: Use one successful and one failing case per added validator; reuse existing broad tests without duplicating equivalent cases.
+  plan: rbrwhikdti

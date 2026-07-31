@@ -1,7 +1,10 @@
 # Database, Stats, and Telemetry
 
-This reference separates safe database access from write-capable operations and
-defines what live telemetry can support.
+This derived task summary is not a canonical contract. Project memory owns
+intent and scope, implementation and tests establish current behavior, and
+public docs/help must remain synchronized contract surfaces. This reference
+separates safe database access from write-capable operations and defines what
+live telemetry can support.
 
 ## Database Command Classes
 
@@ -69,10 +72,14 @@ Read-only queries require the current schema and never migrate. An older schema
 returns exit `5` with `schema-migration-required`. Confirm the path, then run:
 
 ```bash
-ktx db migrate
-# or
-ktx db --path /explicit/database migrate
+: "${KTX_OWNED_DB:?set a preconfirmed operator-owned database path}"
+ktx db --path "$KTX_OWNED_DB" migrate
 ```
+
+The explicit target guard is an operator-scope check, not a product policy
+change. Normal write-capable commands retain their safe transactional forward
+migration behavior. Never use an ambient live database for development, test,
+CI, or migration rehearsal.
 
 A newer schema returns `schema-incompatible`. Install a binary supporting that
 schema or newer. Never lower `PRAGMA user_version`.
@@ -170,10 +177,11 @@ Runtime model-step evidence does not prove:
 
 Always report runtime/version and contributing model-step count beside a cache
 metric. `stats summary` does not currently emit contributing session count,
-first/last capture, or requested-window coverage. Derive those fields with
-separate read-only SQL over the exact summary interval, or report them as
-unavailable. If telemetry covers only part of the requested window, label it as
-a subset rather than a window-wide KPI.
+first/last capture, or requested-window coverage. Separate SQL can describe the
+observed capture span and counts within the summary interval, but it cannot
+prove collector lifecycle or requested-window coverage. Without independent
+collector-lifecycle evidence, report coverage as unavailable and label the
+observations as a subset rather than a window-wide KPI.
 
 Character-derived tool-output estimates and runtime-reported model tokens are
 different evidence classes. Keep them parallel; do not add or subtract them.
@@ -189,16 +197,23 @@ ktx stats summary --window 72h --format json
 2. Reuse its exact `window.from` and `window.to` for direct read-only database
    breakdowns.
 3. Query only aggregate-safe fields unless raw content is explicitly needed.
-4. Reproduce summary totals before publishing derived breakdowns.
+4. Attempt to reconcile summary totals before publishing derived breakdowns.
+   The CLI summary and later SQL query are non-transactional views, not one
+   common snapshot, so equality is not guaranteed and is not exact reproduction.
 5. Report metadata coverage before reporting error, cost, latency, agent, or
    cache KPIs.
-6. State that the database is live and later queries may differ.
+6. State that the database is live and later queries may differ. Do not infer
+   provider behavior or causally attribute movement to compression.
 
 For direct SQL, use an explicit read-only open:
 
 ```bash
-sqlite3 -readonly "$(ktx db path)" "PRAGMA user_version;"
+: "${KTX_READONLY_DB:?set a preconfirmed database target}"
+sqlite3 -readonly "$KTX_READONLY_DB" "PRAGMA user_version;"
 ```
 
+Set `KTX_READONLY_DB` from an explicit operator-owned target before opening it;
+do not discover an ambient live database during development or verification.
+`-readonly` constrains this SQLite open but does not establish target ownership.
 Do not use direct SQL to bypass schema compatibility, migration, or claim
 boundaries enforced by the CLI.

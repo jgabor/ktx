@@ -1,0 +1,16 @@
+id: mliuqjuzxm
+artifact: plan
+record:
+  name: Synchronize plan state and evidence
+  depends_on:
+    - pfkjmiivgz
+    - osvyepdets
+    - hegoqxqkeg
+  status: pending
+  description: Close only this approved plan with verified task evidence and current progress.
+  acceptance:
+    - GIVEN a task completes WHEN its evidence is verified THEN its Agentera status and evidence are updated with the same implementation work.
+    - GIVEN all prior tasks complete WHEN final state is synchronized THEN this plan is terminal and one verified progress record summarizes the outcome.
+    - GIVEN unrelated decisions, health records, TODO items, and retained evidence WHEN state synchronization runs THEN none are rewritten or closed.
+    - GIVEN lifecycle updates WHEN history is inspected THEN no standalone bookkeeping commit or avoidable history rewrite was introduced.
+  plan: rbrwhikdti

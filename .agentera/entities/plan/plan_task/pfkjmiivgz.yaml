@@ -1,0 +1,16 @@
+id: pfkjmiivgz
+artifact: plan
+record:
+  name: Correct derived skill guidance
+  depends_on:
+    []
+  status: complete
+  description: Correct branch-local guidance, revised attribution, command side effects, evidence boundaries, and operator cautions without changing product policy.
+  acceptance:
+    - GIVEN an agent reads source guidance WHEN authorities differ THEN project memory governs intent, current behavior is established by implementation and tests, public contracts are synchronized, and skill references identify themselves as derived task summaries.
+    - GIVEN a benchmark workflow WHEN the skill presents it THEN required operands or flags and DB-free, read-only, write-capable, networked, and potentially paid effects are explicit.
+    - GIVEN live-analysis guidance WHEN evidence lacks collector lifecycle or a common snapshot THEN it does not claim requested-window coverage, exact reconciliation, provider behavior, or causal attribution.
+    - GIVEN hook timeout or wrapper-output guidance WHEN an agent evaluates its guarantees THEN continued background execution and line-scanned output are distinguished from cancellation, sandboxing, or byte-exact passthrough.
+    - GIVEN database targets and the broad lossy recipe WHEN examples are read THEN target ownership is explicit and the recipe is labeled an existing opt-in risk-bearing example rather than a new safe default or policy change.
+  test_proportionality: For each machine-checkable skill contract, cover one accepted form and one representative unsafe, incomplete, or contradictory form.
+  plan: rbrwhikdti

@@ -4,7 +4,7 @@ record:
   header:
     level: full
     created: 2026-07-27
-    status: complete
+    status: archived
     reviewed: 2026-07-27
     critic_issues: 9 found, 7 addressed, 2 dismissed
     revised: Preserved product auto-migration while controlling the first live open; added prerequisite contract characterization, effective-binary identity, complete seeded migration coverage, access auditing, stable diagnostic classification, historical-path scoping, and deterministic final audit assertions.

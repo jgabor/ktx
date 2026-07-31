@@ -1,0 +1,42 @@
+id: rbrwhikdti
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-31
+    status: open
+    reviewed: 2026-07-31
+    critic_issues: 8 found, 7 addressed, 1 dismissed
+    title: "Plan: Correct and validate ktx agent skill guidance"
+  what: Make the new ktx skill accurate, side-effect-aware, and explicit about which guidance is derived from existing behavior versus which product choices are outside this branch. Synchronize only directly conflicting contract surfaces and add proportional validation against future drift.
+  why: Coding agents can execute examples and trust claim boundaries without human interpretation. Incorrect authority, side-effect, telemetry, stage, timeout, or verification guidance can produce unsafe actions or unsupported reports.
+  constraints: Project memory governs intent and scope; implementation and tests establish current behavior; public documentation and help are contract surfaces that must agree with it; the skill is derived guidance. Make no data-path, database, schema, adapter, pipeline, exit-code, command-semantic, or product policy change. Help-only wording may change to describe existing behavior. Do not access live databases, run paid benchmarks, install adapters, or alter unrelated decisions, health, TODO, or retained evidence. Publish this plan before execution and keep state changes with their implementation work.
+  overall_acceptance: GIVEN the change is complete WHEN an agent discovers and loads the ktx skill, follows its workflows, checks the corresponding public contracts, and runs repository verification THEN required arguments and side effects are clear, analytical and runtime claims match verified behavior, directly duplicated facts agree, all skill references are reachable, verification reports zero forbidden database access, and no product policy or runtime semantics changed.
+  scope:
+    included:
+      - Correct all five new ktx skill files and their revised attribution boundaries.
+      - Synchronize only public help, documentation, examples, and comments that directly contradict corrected skill facts or current verified behavior.
+      - Add or extend deterministic validation for skill structure, discovery, links, high-risk claims, and repository safety.
+      - Keep this plan, its task evidence, and final progress current through completion.
+    excluded:
+      - Data-path, database, schema, adapter, pipeline, exit-code, or command-semantic changes.
+      - Redesign of migration policy, plugin cancellation, wrapper byte fidelity, or compression defaults and routing policy.
+      - Live telemetry analysis, paid benchmark execution, adapter installation, broad documentation cleanup, or unrelated backlog work.
+    deferred:
+      - Explicit-path-only migration policy.
+      - External-stage process cancellation.
+      - Byte-exact wrapper passthrough.
+      - Default compression recipe redesign.
+  design: First correct the derived agent guidance and make attribution boundaries explicit. Next align only the directly conflicting public contract surfaces with current verified behavior. Then validate file structure, runtime discovery, reference reachability, command contracts, and repository safety as separate evidence layers. Finally close only this plan and record verified progress without unrelated project-state changes.
+  unknowns:
+    - question: Which existing validation surface can prove skill structure, runtime discovery, reference reachability, and high-risk factual contracts without conflating those layers?
+      affects_task: 3
+      resolve_by: Inventory current checks before implementation; reuse an authoritative check when it covers the claim, otherwise add the smallest deterministic check or record an explicit manual smoke-test boundary.
+    - question: Does the built public benchmark and stats help expose any additional direct contradiction with the new skill beyond the reviewed command and first-artifact findings?
+      affects_task: 2
+      resolve_by: Compare the built local help with the corrected skill before synchronizing contract surfaces; add only direct contradictions and re-plan if a semantic change would be required.
+  rejected:
+    - issue: Exclude every pre-existing documentation inconsistency because this branch did not introduce it.
+      rationale: The new skill propagates those bounded inconsistencies and promises contract alignment, so correcting only directly duplicated surfaces is necessary without opening broad cleanup.
+  surprises:
+    []

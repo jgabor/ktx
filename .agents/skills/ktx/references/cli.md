@@ -1,8 +1,11 @@
 # ktx CLI Workflows
 
-Use this reference for public commands and routine operator workflows. JSON is
-the default for most data-returning commands; request it explicitly in scripts
-so intent remains clear.
+This derived task summary is not a canonical contract. Project memory owns
+intent and scope, implementation and tests establish current behavior, and
+public docs/help must remain synchronized contract surfaces. Use this reference
+for public commands and routine operator workflows. JSON is the default for
+most data-returning commands; request it explicitly in scripts so intent remains
+clear.
 
 ## Global Surface
 
@@ -105,7 +108,9 @@ ktx run --record-stream opencode run --format json "prompt"
 ktx --quiet run opencode run --format json "prompt"
 ```
 
-- Child stdout passes through unchanged.
+- Child stdout is scanned line by line, each scanned line is forwarded, and a
+  newline is written after it. Output without a final newline can gain one; this
+  is not byte-exact passthrough.
 - Identifiable tool events become `tool_calls`.
 - Identifiable OpenCode model steps become separate session telemetry.
 - The session closes when the child exits.
@@ -188,7 +193,8 @@ event order are fail-closed. `telemetry list` is read-only.
 ktx db path
 ktx doctor --format json
 ktx db report --output -
-ktx db --path /explicit/db migrate
+: "${KTX_OWNED_DB:?set a preconfirmed operator-owned database path}"
+ktx db --path "$KTX_OWNED_DB" migrate
 ktx prices path
 ktx prices update --format json
 ktx binary-capabilities --format json
@@ -196,7 +202,9 @@ ktx binary-capabilities --format json
 
 - `doctor` diagnoses but never creates, migrates, or repairs.
 - `db report` inspects an existing database read-only.
-- `db migrate` is explicit and forward-only.
+- `db migrate` is explicit and forward-only. The example requires the operator
+  to preconfirm ownership of the selected target; never substitute the ambient
+  live database for development, test, CI, or rehearsal.
 - `prices update` performs a network fetch and atomically rewrites the cache.
 - `binary-capabilities` reports canonical path, SHA-256, build version, and
   maximum supported schema without opening a database.

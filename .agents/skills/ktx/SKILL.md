@@ -29,8 +29,9 @@ and reports live or benchmark measurements.
      `ktx binary-capabilities --format json` when binary identity matters.
    - Print the currently resolved database path with `ktx db path`; it honors
      `KTX_DB`.
-   - Use `KTX_DB=/explicit/path.db` for non-`db` commands. The `db` namespace
-     additionally accepts `ktx db --path /explicit/path.db <subcommand>`.
+   - Set `KTX_DB="$KTX_OWNED_DB"` only after preconfirming the target for
+     non-`db` commands. The `db` namespace additionally accepts
+     `ktx db --path "$KTX_OWNED_DB" <subcommand>`.
 3. Prefer structured, bounded output:
    - Use `--format json` for automation and exact analysis.
    - Use `--format text` for human inspection.
@@ -82,8 +83,10 @@ ktx list --format text
 ktx get <session-id> --format json
 ```
 
-Add `--record-stream` when later database replay is required. `ktx run` passes
-child stdout through unchanged and exits with the child's exit code.
+Add `--record-stream` when later database replay is required. `ktx run` scans
+child stdout line by line, forwards each scanned line, and writes a newline
+after it; output that lacked a final newline can gain one. This is not
+byte-exact passthrough. The wrapper exits with the child's exit code.
 
 ### Inspect live context reduction
 
@@ -172,8 +175,9 @@ classes, schema, metric formulas, and claim limits.
 
 ## Reference Routing
 
-The focused references are canonical for detailed commands and contracts; the
-fast paths above are only an index. Read only the reference needed for the task:
+The focused references are derived task summaries, not independent authorities;
+the fast paths above are only an index. Read only the reference needed for the
+task:
 
 - [CLI workflows](references/cli.md): command map, output contracts, common
   recipes, paths, and exit behavior.
@@ -187,15 +191,22 @@ fast paths above are only an index. Read only the reference needed for the task:
 ## Project Authorities
 
 Before repository work, read `AGENTS.md` and follow its declared read order and
-documentation-maintenance procedure in full. When these references need
-refreshing, use documentation before source:
+documentation-maintenance procedure in full. Project memory owns intent, scope,
+recorded choices, and executable work. Implementation and tests establish
+current behavior. Public documentation, command help, and examples are contract
+surfaces that must stay synchronized with that behavior. This skill and its
+references are derived task summaries; when they conflict with those sources,
+investigate and correct the summary rather than treating it as canonical.
 
-- `README.md`: product quick start and supported public workflows.
 - `AGENTS.md`: repository rules, build commands, database safety, and benchmark
   policy.
+- `.agentera/vision.yaml`: product direction and principles.
 - `ARCHITECTURE.md`: conceptual intent and unresolved questions.
+- `.agentera/decisions.yaml`: recorded choices; do not infer omitted decision
+  detail from a degraded listing.
 - `TODO.md`: executable backlog; do not infer implementation work from prose in
   architecture documents.
+- `README.md`: product quick start and supported public workflows.
 - `ktx.example.toml`: complete commented pipeline and routing example.
 - `docs/pipelines.md`: pipeline, stats, replay, and benchmark contracts.
 - `docs/database-safety.md`: authoritative database command classes.

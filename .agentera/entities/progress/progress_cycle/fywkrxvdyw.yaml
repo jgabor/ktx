@@ -1,0 +1,14 @@
+id: fywkrxvdyw
+artifact: progress
+record:
+  timestamp: 2026-07-31 17:29
+  type: docs
+  phase: build
+  what: Corrected the five derived ktx skill summaries to state authority precedence, complete benchmark interfaces and effects, live-evidence limits, timeout and wrapper guarantees, explicit database ownership, and the shipped lossy example risk boundary.
+  context:
+    intent: Complete plan task pfkjmiivgz without changing product policy or behavior.
+    constraints: Changed only the five ktx skill files and typed plan/progress entities; no live database, paid benchmark, adapter installation, product contract surface, or policy change.
+    scope: .agents/skills/ktx/SKILL.md and its four references.
+  verified: "AC1: content checks accepted derived-summary authority wording and rejected canonical-reference wording. AC2: local ./build/ktx bench --help matched required operands; checks accepted DB/effect/cost classifications and rejected bare benchmark forms. AC3: checks accepted collector/snapshot/provider/causality limits and rejected SQL coverage/exact-reproduction claims. AC4: implementation inspection plus checks accepted line scanning/background execution and rejected byte-exact/cancellation claims. AC5: checks accepted guarded target variables and opt-in risk wording and rejected ambient-path/recommended-default forms. mage build passed; ./build/ktx --version returned dev; git diff --check passed."
+  next: Task osvyepdets owns later direct public-contract synchronization; broader validation machinery remains in its assigned plan task.
+  publication_order: 1

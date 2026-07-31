@@ -1,0 +1,16 @@
+id: osvyepdets
+artifact: plan
+record:
+  name: Synchronize direct contract conflicts
+  depends_on:
+    - pfkjmiivgz
+  status: pending
+  description: Align only directly conflicting public documentation, help, examples, and comments with current tested behavior and the corrected skill.
+  acceptance:
+    - GIVEN normalization and token-budget documentation WHEN compared with current behavior THEN outer blank-line preservation, byte-based estimation, and possible mid-line truncation are described consistently.
+    - GIVEN repository verification guidance WHEN a developer follows it THEN test, vet, lint, build, vulnerability scanning, and portable replay are all represented with their required tools.
+    - GIVEN statistics delivery semantics WHEN help, docs, tests, and skill guidance are compared THEN the first artifact by earliest timestamp and smallest-ID tie-break is authoritative everywhere.
+    - GIVEN benchmark namespace descriptions WHEN compared with current public command families THEN they do not claim a smaller or obsolete command set.
+    - GIVEN any proposed synchronization WHEN it would change command semantics or product policy THEN the task stops and records the need to re-plan rather than changing behavior under a documentation correction.
+  test_proportionality: For each corrected factual contract, retain one positive assertion and one drift case where a practical deterministic documentation check exists.
+  plan: rbrwhikdti

@@ -1,6 +1,9 @@
 # Pipelines, Routing, and Recovery
 
-Pipeline configuration is opt-in at `$XDG_CONFIG_HOME/ktx/ktx.toml`. With no
+This derived task summary is not a canonical contract. Project memory owns
+intent and scope, implementation and tests establish current behavior, and
+public docs/help must remain synchronized contract surfaces. Pipeline
+configuration is opt-in at `$XDG_CONFIG_HOME/ktx/ktx.toml`. With no
 configuration, the `default` profile exists with no stages and output passes
 through unchanged.
 
@@ -17,9 +20,9 @@ rather than showing a partial projection. Inspect the selected `ktx.toml`
 directly for those safety-relevant fields and treat `config show` as partial, not
 proof of the complete resolved configuration.
 
-## Recommended Starting Point
+## Shipped Broad Opt-In Example
 
-Copy `ktx.example.toml` to the config path, or start with:
+The shipped configured example includes this broad, lossy recipe:
 
 ```toml
 [pipeline.default]
@@ -35,8 +38,10 @@ stages = [
 ]
 ```
 
-The shipped product default remains passthrough. The example is an explicit
-operator choice. Lossy stages require per-tool consideration; retain a recovery
+This is an existing risk-bearing example, not a generally safe starting point,
+a new default, or a policy change. The shipped product default remains
+passthrough. Enabling it is an explicit operator choice. `keep-ends` drops
+content; assess each tool and route, retain originals, and keep a recovery
 footer unless the profile is demonstrably semantic-preserving.
 
 ## Built-In Stages
@@ -70,8 +75,11 @@ The runner, not individual stages, enforces:
 3. Unknown-stage skip: warn and continue with unchanged input.
 4. Pipeline anti-worsening: discard the complete result unless it is smaller.
 
-For hook execution, a profile timeout protects the agent critical path. The
-default is two seconds. On timeout, return the original and emit a diagnostic.
+For hook execution, a profile timeout protects the agent response deadline. The
+default is two seconds. On timeout, the hook returns the original and emits a
+diagnostic, but it does not cancel or sandbox stage execution. An external stage
+process can continue in the background and can retain its normal filesystem,
+network, and process privileges.
 
 If authoritative `is_error=true` is present, the source-tool-failure gate skips
 compression before the pipeline. Missing error state is not failure or success.
@@ -169,6 +177,8 @@ ktx plugin remove myfilter
 Plugins read input bytes on stdin and emit output bytes on stdout. They run as
 external commands, so treat configuration as executable code. Runner failure
 guards still apply, but they are not a sandbox or secret-redaction boundary.
+`plugin add` and `plugin remove` modify the active plugin configuration;
+`plugin list` is the inspection-only form.
 
 Plugin registration is last-writer-wins after built-ins. A user plugin named
 `head`, for example, shadows the built-in `head` stage until removed. Prefer

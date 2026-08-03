@@ -1,0 +1,45 @@
+id: yfttmtjihy
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-02
+    status: complete
+    reviewed: 2026-08-02
+    critic_issues: 9 found, 8 addressed, 1 dismissed
+    title: "Plan: Minimize External Benchmark Residue"
+  what: Reduce the completed external benchmark work to the smallest maintainable repository footprint that preserves truthful historical evidence, while removing bridge-derived product residue, research-only maintenance burden, obsolete workflow prose, and machine-local details from maintained proof.
+  why: The shipped KTX binary is narrow again, but the branch still makes main carry unused product APIs, a tombstone test, custom validation and one-campaign revalidation programs, dense obsolete documentation, and workstation-specific proof records. Removing that residue aligns the final tree with KTX's boring, single-binary direction without weakening the native benchmark or rewriting historical evidence.
+  constraints: Preserve native benchmark behavior, deterministic scoring, first-artifact authority, corrected historical counts and claim limits, and every authoritative raw byte. Apply the existing firm benchmark-ownership decision; do not rewrite it or infer satisfaction. Do not add a runtime, dependency manager, general evaluator, compatibility surface, paid execution, provider authentication, automatic remote mutation, or unrelated product change. Every maintained check must run from tracked inputs in a fresh checkout. Development verification must use fresh HOME and XDG roots with KTX_DB unset.
+  overall_acceptance: GIVEN the cleanup is complete WHEN maintainers inspect a fresh checkout THEN KTX exposes only its native benchmark contract, historical external evidence remains truthful and traceable through a small declarative boundary, maintained checks are portable and deterministic, active documentation is concise, maintained proof contains no workstation-specific data, and the clean source branch has a complete handoff for one later controlled squash integration into main.
+  scope:
+    included:
+      - Authority and retention classification for external campaign artifacts
+      - Removal of unused bridge-derived product and test residue
+      - Direct external identity locking with bounded read-only verification
+      - Archival treatment of one-campaign revalidation machinery
+      - Concise current documentation and historical claim boundaries
+      - Sanitized maintained proof records and synchronized checksums
+      - Hermetic source verification, project-state synchronization, and integration handoff
+    excluded:
+      - Changes to native benchmark tasks, scoring, ranking, or measured results
+      - Changes to authoritative raw campaign bytes or reconstructed missing evidence
+      - New evaluator runs, model calls, provider access, or paid authorization
+      - A general receipt schema, plugin contract, environment manager, or installer
+      - Automatic merge, push, publication, or source-worktree removal
+    deferred:
+      - Official SkillsBench identity claims until independently verifiable upstream authority exists
+      - New external validation investment until repeated multi-task or third-party demand exists
+  design: First classify retained material by authority, portability, and incoming references. Next establish a direct tracked identity lock and portable check, then archive campaign-specific derivation machinery and remove the product residue it kept alive. Sanitize only maintained or replaceable proof, align active documentation to the reduced boundary, define the later integration handoff, and finish with isolated source verification plus state synchronization.
+  unknowns:
+    - question: Which generator, verifier, and proof-bundle bytes are themselves required authority rather than replaceable scaffolding?
+      affects_task: 3
+      resolve_by: Task 1 maps checksum and reference relationships; task 3 preserves hash-bound authority as archival provenance and removes only replaceable scaffolding.
+    - question: Can the external identity check be fully useful from tracked inputs in a fresh checkout?
+      affects_task: 2
+      resolve_by: Task 1 identifies unavailable inputs; task 2 must use tracked authority only, while any check that still needs ignored bytes is reclassified by task 3 as non-maintained archival provenance.
+  rejected:
+    - issue: The plan should perform the squash merge as an implementation task.
+      rationale: Target cleanliness, ancestry, and conflicts are volatile integration-time facts. The plan produces and verifies the source handoff; actual local integration remains a separately authorized Worktrunk operation that repeats those checks.
+  surprises:
+    []

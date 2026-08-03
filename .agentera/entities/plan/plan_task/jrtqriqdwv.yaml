@@ -1,0 +1,22 @@
+id: jrtqriqdwv
+artifact: plan
+record:
+  name: Freeze the retained campaign authority
+  depends_on:
+    - jbzjborfrx
+  status: complete
+  acceptance:
+    - GIVEN existing campaigns and indexes WHEN inventoried THEN every raw artifact, hash, location claim, dependency, and known validation limitation is accounted for.
+    - GIVEN cleanup has not begun WHEN the freeze completes THEN raw evidence is read-only and no authority path has been silently moved, rewritten, or discarded.
+    - GIVEN archive gaps WHEN classified THEN each campaign is marked revalidatable, historical-only, incomplete, or non-regenerable from retained evidence.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-jrtqriqdwv-1
+      source: audit_jrtqriqdwv_freeze_campaign PASS; 10 campaigns and 927 artifacts independently matched with bounded verifier portability caveats
+      recorded_at: 2026-08-02 04:36
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,48 @@
+id: oydbeaydwa
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-07-31
+    status: archived
+    reviewed: 2026-07-31
+    critic_issues: 6 found, 6 addressed, 0 dismissed
+    title: "Plan: Add fail-fast SkillsBench execution and resume Luna evidence"
+  what: Add an opt-in campaign stop policy that prevents later attempts from starting after the first configured failure, preserves complete terminal accounting, and then resumes the Luna evidence ladder from a fresh external campaign.
+  why: The current runner records ordinary nonzero attempt exits and continues, so it cannot honor the approved paid-run safety condition even though full no-model preflight passes.
+  constraints: Preserve continue-on-failure as the default and preserve legacy campaign validity. Retain predecessor tasks, evaluations, progress, archives, and zero-spend diagnostics. Do not change compression behavior. Use schema 7, openai/gpt-5.6-luna high-only, zero model retries, external campaign roots, complete no-model preflight, disposable HOME and XDG roots, and KTX_DB unset. Require fresh paid authorization after implementation audit. Keep OAuth cost unavailable. Stop on configured failure. Make no causal or significance claim.
+  overall_acceptance: GIVEN preserved campaign evidence and an explicitly fail-fast campaign WHEN implementation, compatibility verification, replication, gating, optional diversity evaluation, and publication finish THEN default campaigns retain continuation behavior, the configured campaign starts no later attempt after its first failure, every scheduled attempt has an honest terminal state, retained evidence validates to its actual outcome, and no unsupported cost, significance, or causal claim is made.
+  scope:
+    included:
+      - Immutable opt-in stop-after-first-failure campaign behavior
+      - Complete terminal accounting for completed, failed, and not-started attempts
+      - Positive, negative, legacy-compatibility, full-check, documentation, and independent-review evidence
+      - Zero-spend revalidation of inherited canary and diagnostic authority
+      - Four paired Luna repetitions and the existing descriptive expansion gate
+      - A conditional three-task diversity slice and final evidence publication
+    excluded:
+      - A global change to default continue-on-failure behavior
+      - Changes to compression or delivery algorithms
+      - Retrying failed model attempts or reusing non-empty attempt directories
+      - Dollar-cost claims from OAuth runs
+      - Broad SkillsBench execution beyond the approved ladder
+    deferred:
+      - Larger multi-task or statistical studies
+      - API-key and LiteLLM cost experiments
+      - Compression redesign if evidence indicates regression
+  design: Establish an immutable campaign stop policy at preparation while retaining the existing default. Record every scheduled attempt's terminal outcome and verify success, failure, and legacy paths before spending. Reconfirm inherited evidence compatibility, then prepare and preflight a fresh external campaign, execute only under renewed authorization, archive its terminal evidence, apply the descriptive gate, and either defer or run diversity before publication.
+  unknowns:
+    - question: Can immutable opt-in stopping and complete terminal accounting preserve legacy campaign validity?
+      affects_task: 3
+      resolve_by: Require tasks 1 and 2 to pass behavioral verification and independent audit before any paid execution.
+    - question: Is the inherited Luna canary compatible with the new replication campaign for a five-pair gate?
+      affects_task: 3
+      resolve_by: Compare model, variant, task, overlay, arms, methodology, and retained identity before requesting paid authorization.
+    - question: Do the canary and four new pairs produce exactly five valid pairs that pass the predeclared gate?
+      affects_task: 5
+      resolve_by: Use task 4 evidence to proceed, stop, or defer diversity spending.
+    - question: Which three tasks provide deterministic verifiers, meaningful tool output, manageable runtime, and category diversity?
+      affects_task: 5
+      resolve_by: Produce and preflight a qualifying shortlist before diversity spending.
+  surprises:
+    []

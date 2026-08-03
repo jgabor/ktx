@@ -1,0 +1,29 @@
+id: hattlqhrea
+artifact: plan
+record:
+  name: Run four paired Luna repetitions
+  depends_on:
+    - izdhhkzrqc
+    - ldfffvlaao
+  status: superseded
+  acceptance:
+    - GIVEN compatible Luna inputs WHEN a fresh external campaign is prepared THEN eight adjacent attempts have auditable order balanced between candidate-first and baseline-first pairs, while prior evidence remains unchanged.
+    - GIVEN the clean campaign and disposable application roots with KTX_DB unset WHEN full no-model preflight completes THEN model attempts remain zero and source, tool, image, bootstrap, cross-user, root-separation, and identity evidence pass.
+    - GIVEN tasks 1 and 2 passed independent review and fresh paid authorization WHEN fail-fast execution runs THEN attempts run sequentially once, without retries, until all finish or the first configured stop condition.
+    - GIVEN execution stops or completes WHEN accounting is reviewed THEN every scheduled attempt is completed, failed, or not_started with its reason and every completed attempt has a credential-scan result.
+    - GIVEN terminal execution evidence WHEN summary, validation, and durable archival run THEN source and archive are byte-identical and every attempt and pair has explicit validity or failure reasons.
+  plan: oydbeaydwa
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Independent Audit passed campaign preparation, full no-model preflight, authorized execution, ordering, zero retries, terminal accounting, credential scans, rewards, and validation. The tracked inventory and documentation publish successful-campaign tree hash 44b46b4a..., but the repository's canonical treeHash framing reproduces a different equal source/archive hash. Replace or remove the unreproducible hash, name the canonical algorithm, preserve all other evidence, and append correction provenance. No campaign or model rerun is permitted.
+    provenance:
+      attempt_id: audit-2
+      source: "independent Audit: unreproducible successful campaign tree hash"
+      recorded_at: 2026-07-31 18:09
+      writer_command: agentera state plan record-evaluation
+  evidence: "Authorized Luna/high replication completed once with zero retries: 8/8 attempts and 4/4 pairs completed, every reward was 1, credential scans passed, and validation returned valid and complete. External and durable archive trees are byte-identical at .bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal; summary SHA-256 is 55ec395e27cb64d83e61f0e6b87731996b19a783b6716f4810f7844212c433dc. OAuth cost remains unavailable. Tracked integration and independent Audit are pending."
+  superseded_by:
+    - zvlwbvepas
+  superseded_reason: The independently passed replacement corrects the only replication evidence defect while preserving all campaign acceptance evidence.

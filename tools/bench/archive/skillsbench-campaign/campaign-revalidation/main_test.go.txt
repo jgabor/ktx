@@ -1,0 +1,525 @@
+//go:build linux
+
+package main
+
+import (
+	"bytes"
+	"database/sql"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	dbpkg "github.com/jgabor/ktx/internal/db"
+)
+
+func TestCompactShortStringArrays(t *testing.T) {
+	t.Parallel()
+	input := []byte("{\n  \"short\": [\n    \"alpha\",\n    \"beta\"\n  ],\n  \"long\": [\n    \"this value makes the compact representation exceed the configured line limit\",\n    \"beta\"\n  ]\n}")
+	want := []byte("{\n  \"short\": [\"alpha\", \"beta\"],\n  \"long\": [\n    \"this value makes the compact representation exceed the configured line limit\",\n    \"beta\"\n  ]\n}")
+	if got := compactShortStringArrays(input, 80); !bytes.Equal(got, want) {
+		t.Fatalf("formatted JSON mismatch\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestCompleteFixtureAndMetricRules(t *testing.T) {
+	fixture := newFixture(t, "fixture-campaign-a")
+	status, pairs, err := inspectCampaign(fixture.root, fixture.campaign, fixture.raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.CurrentComplete || len(status.Gaps) != 0 || status.Terminal.Valid != 2 || status.Execution.Valid != 2 || status.ResultAndSummary.Valid != 2 || status.Database.Valid != 2 {
+		t.Fatalf("complete status=%+v", status)
+	}
+	if len(status.Bindings) != 2 || len(pairs) != 1 {
+		t.Fatalf("bindings=%d pairs=%d", len(status.Bindings), len(pairs))
+	}
+	pair := pairs[0]
+	if pair.Candidate.DeliveredBytes != 3 {
+		t.Fatalf("first artifact delivered=%d, want 3", pair.Candidate.DeliveredBytes)
+	}
+	if pair.CandidateMinusBaseline.DeliveredBytes != -7 {
+		t.Fatalf("candidate-minus-baseline=%d, want -7", pair.CandidateMinusBaseline.DeliveredBytes)
+	}
+	encoded, err := json.Marshal(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(encoded, []byte(`"candidate_minus_baseline"`)) || bytes.Contains(encoded, []byte("baseline_minus_candidate")) {
+		t.Fatalf("mixed delta direction: %s", encoded)
+	}
+	for _, binding := range status.Bindings {
+		if !binding.Database.ReadOnly || binding.Database.Integrity != "ok" || binding.Database.SelectedArtifactRule != "compressed.timestamp ASC, compressed.id ASC" {
+			t.Fatalf("database binding=%+v", binding.Database)
+		}
+	}
+}
+
+func TestMandatoryAuthorityFailuresAreIncomplete(t *testing.T) {
+	tests := []struct {
+		name   string
+		gap    string
+		mutate func(*testing.T, *fixture)
+	}{
+		{"preflight", "preflight", func(t *testing.T, f *fixture) { remove(t, f.path("preflight.json")) }},
+		{"terminal missing", "terminal_disposition", func(t *testing.T, f *fixture) { remove(t, f.attemptPath("attempt-0001-candidate", "terminal.json")) }},
+		{"terminal failed", "terminal_disposition", mutateFailedTerminal},
+		{"execution missing", "attempt_execution", func(t *testing.T, f *fixture) { remove(t, f.attemptPath("attempt-0001-candidate", "execution.json")) }},
+		{"execution error", "attempt_execution", mutateExecutionError},
+		{"result missing", "result_and_summary", func(t *testing.T, f *fixture) { remove(t, f.rolloutPath("attempt-0001-candidate", "result.json")) }},
+		{"result identity", "result_and_summary", mutateResultIdentity},
+		{"summary missing", "result_and_summary", func(t *testing.T, f *fixture) { remove(t, f.path("summary.json")) }},
+		{"summary binding", "result_and_summary", mutateSummaryBinding},
+		{"database missing", "database_authority", func(t *testing.T, f *fixture) { remove(t, f.rolloutPath("attempt-0001-candidate", "artifacts/ktx.db")) }},
+		{"database disposition", "database_authority", mutateDispositionGap},
+		{"database metric mismatch", "database_authority", mutateAdoptionMismatch},
+		{"attempt identity", "schedule_attempt_identity", mutateAttemptIdentity},
+		{"metric unknown", "result_and_summary", mutateMissingMetric},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newFixture(t, "fixture-campaign-a")
+			tc.mutate(t, fixture)
+			fixture.refreshRaw(t)
+			status, pairs, err := inspectCampaign(fixture.root, fixture.campaign, fixture.raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status.CurrentComplete || len(pairs) != 0 || !contains(status.Gaps, tc.gap) {
+				t.Fatalf("status=%+v pairs=%+v want gap=%s", status, pairs, tc.gap)
+			}
+		})
+	}
+}
+
+func TestQualifiedIdentityAllowsCrossCampaignShortIDReuse(t *testing.T) {
+	first := newFixture(t, "fixture-campaign-a")
+	second := newFixture(t, "fixture-campaign-b")
+	firstStatus, firstPairs, err := inspectCampaign(first.root, first.campaign, first.raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondStatus, secondPairs, err := inspectCampaign(second.root, second.campaign, second.raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !firstStatus.CurrentComplete || !secondStatus.CurrentComplete || len(firstPairs) != 1 || len(secondPairs) != 1 {
+		t.Fatal("fixtures are not complete")
+	}
+	if firstStatus.Bindings[0].QualifiedAttemptID == secondStatus.Bindings[0].QualifiedAttemptID || firstPairs[0].QualifiedPairID == secondPairs[0].QualifiedPairID {
+		t.Fatal("campaign-qualified identities collided")
+	}
+	if !strings.HasSuffix(firstStatus.Bindings[0].QualifiedAttemptID, "::attempt-0001-candidate") || !strings.HasSuffix(secondStatus.Bindings[0].QualifiedAttemptID, "::attempt-0001-candidate") {
+		t.Fatal("fixture did not exercise reused short attempt IDs")
+	}
+}
+
+func TestDatabaseOpenIsGenuinelyReadOnly(t *testing.T) {
+	fixture := newFixture(t, "fixture-campaign-a")
+	path := fixture.rolloutPath("attempt-0001-candidate", "artifacts/ktx.db")
+	before := mustHash(t, path)
+	database, err := dbpkg.OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec("INSERT INTO sessions(id) VALUES ('zzzzzzzzzzzzzzzz')"); err == nil {
+		database.Close()
+		t.Fatal("read-only database accepted a write")
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	after := mustHash(t, path)
+	if before != after {
+		t.Fatal("read-only check changed database bytes")
+	}
+}
+
+func TestMalformedDatabaseIdentityFailsClosed(t *testing.T) {
+	fixture := newFixture(t, "fixture-campaign-a")
+	path := fixture.rolloutPath("attempt-0001-candidate", "artifacts/ktx.db")
+	database := openWritable(t, path)
+	mustExec(t, database, "UPDATE tool_calls SET id='NOT-CANONICAL-ID'")
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	fixture.refreshRaw(t)
+	status, _, err := inspectCampaign(fixture.root, fixture.campaign, fixture.raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.CurrentComplete || !contains(status.Gaps, "database_authority") {
+		t.Fatalf("malformed database identity did not fail closed: %+v", status)
+	}
+}
+
+func TestDuplicateJSONFailsClosed(t *testing.T) {
+	fixture := newFixture(t, "fixture-campaign-a")
+	path := fixture.path("preflight.json")
+	data := mustRead(t, path)
+	data = bytes.Replace(data, []byte(`{"schema_version":`), []byte(`{"schema_version":7,"schema_version":`), 1)
+	mustWrite(t, path, data)
+	fixture.refreshRaw(t)
+	status, _, err := inspectCampaign(fixture.root, fixture.campaign, fixture.raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.CurrentComplete || !contains(status.Gaps, "preflight") {
+		t.Fatalf("duplicate JSON did not fail closed: %+v", status)
+	}
+}
+
+type fixture struct {
+	root     string
+	campaign archiveCampaign
+	raw      map[string]string
+	rollouts map[string]string
+}
+
+func newFixture(t *testing.T, campaignID string) *fixture {
+	t.Helper()
+	root := t.TempDir()
+	campaignPath := ".bench-data/skillsbench-campaigns/" + campaignID
+	f := &fixture{
+		root:     root,
+		campaign: archiveCampaign{ID: campaignID, SchemaVersion: currentCampaign, Classification: "successful_quality_evidence", Archive: campaignPath, Validation: json.RawMessage(`{"complete":true}`)},
+		rollouts: map[string]string{},
+	}
+	mustMkdir(t, f.path("attempts"))
+
+	schedule := []ScheduleEntry{
+		{SchemaVersion: currentCampaign, AttemptID: "attempt-0001-candidate", PairID: "pair-0001", Task: "fixture-task", Repetition: 1, Side: "candidate", Ordinal: 1, SourceSHA256: strings.Repeat("1", 64), OverlaySHA256: strings.Repeat("2", 64), TaskPath: "tasks/fixture-task"},
+		{SchemaVersion: currentCampaign, AttemptID: "attempt-0002-baseline", PairID: "pair-0001", Task: "fixture-task", Repetition: 1, Side: "baseline", Ordinal: 2, SourceSHA256: strings.Repeat("1", 64), OverlaySHA256: strings.Repeat("2", 64), TaskPath: "tasks/fixture-task"},
+	}
+	scheduleData := mustJSONLines(t, schedule)
+	mustWrite(t, f.path("schedule.jsonl"), scheduleData)
+
+	manifest := Manifest{SchemaVersion: currentCampaign, Model: "fixture/model", Rounds: 1, Seed: 1, SkillMode: "with-skill", StopPolicy: "fail-fast", Schedule: FileRef{Path: "schedule.jsonl", SHA256: digest(scheduleData), Mode: 0o644}}
+	manifestData := mustJSON(t, manifest)
+	mustWrite(t, f.path("manifest.json"), manifestData)
+	preflight := PreflightEvidence{SchemaVersion: currentCampaign, ManifestSHA256: digest(manifestData), KTXPreflight: map[string]any{"eligible": true, "controlled_comparison": true, "direct_evidence": true, "artifact_creation": false, "model_attempts": 0}}
+	mustWrite(t, f.path("preflight.json"), mustJSON(t, preflight))
+
+	attempts := []Attempt{
+		f.createAttempt(t, schedule[0], true),
+		f.createAttempt(t, schedule[1], false),
+	}
+	mustWrite(t, f.path("attempts.jsonl"), mustJSONLines(t, attempts))
+	summary := Summary{
+		SchemaVersion: currentCampaign, ManifestSHA256: digest(manifestData), ScheduleSHA256: digest(scheduleData), Scheduled: 2, Imported: 2, QualityEvaluable: 2, Complete: true,
+		Pairs: []PairSummary{{PairID: "pair-0001", Task: "fixture-task", Repetition: 1, Complete: true, Reasons: []string{}, Deltas: map[string]*float64{}}},
+	}
+	mustWrite(t, f.path("summary.json"), mustJSON(t, summary))
+	f.refreshRaw(t)
+	return f
+}
+
+func (f *fixture) createAttempt(t *testing.T, entry ScheduleEntry, candidate bool) Attempt {
+	t.Helper()
+	attemptDir := f.attemptPath(entry.AttemptID, "")
+	rolloutRelative := filepath.ToSlash(filepath.Join("attempts", entry.AttemptID, "benchflow", "run", "fixture-task__rollout"))
+	f.rollouts[entry.AttemptID] = rolloutRelative
+	rollout := filepath.Join(f.root, filepath.FromSlash(f.campaign.Archive), filepath.FromSlash(rolloutRelative))
+	mustMkdir(t, filepath.Join(rollout, "artifacts"))
+	mustMkdir(t, filepath.Join(attemptDir, "benchflow"))
+
+	input, output, cacheRead, cacheCreation, tools, turns, wall := 10.0, 5.0, 20.0, 0.0, 1.0, 2.0, 3.0
+	if candidate {
+		input, output, tools, turns, wall = 12, 4, 2, 3, 4
+	}
+	total := input + output + cacheRead + cacheCreation
+	newInput := input + cacheCreation
+	reward := 1.0
+	metrics := NullableMetrics{Input: fp(input), Output: fp(output), CacheRead: fp(cacheRead), CacheCreation: fp(cacheCreation), NewInput: fp(newInput), Total: fp(total), Tools: fp(tools), Turns: fp(turns), WallSeconds: fp(wall)}
+
+	result := benchResult{TaskName: entry.Task, Rewards: map[string]float64{"reward": reward}}
+	result.AgentResult.Input, result.AgentResult.Output, result.AgentResult.CacheRead, result.AgentResult.CacheCreation, result.AgentResult.Total = fp(input), fp(output), fp(cacheRead), fp(cacheCreation), fp(total)
+	result.TrajectorySummary.Steps, result.Timing.Total = fp(turns), fp(wall)
+	resultData := mustJSON(t, result)
+	mustWrite(t, filepath.Join(rollout, "result.json"), resultData)
+
+	row := benchResultRow{Reward: fp(reward)}
+	row.Info.TaskID, row.Info.TaskName, row.Info.RolloutName = entry.Task, entry.Task, "fixture-task__rollout"
+	row.Timing.Total, row.Metrics.ToolCalls, row.Metrics.Reward = fp(wall), fp(tools), fp(reward)
+	row.TokenUsage.Input, row.TokenUsage.Output, row.TokenUsage.Total = fp(input), fp(output), fp(total)
+	mustWrite(t, filepath.Join(rollout, "results.jsonl"), mustJSONLines(t, []benchResultRow{row}))
+	benchSummary := benchSummary{Total: 1, Passed: 1, TotalTokens: fp(total), TotalTime: fp(wall)}
+	mustWrite(t, filepath.Join(attemptDir, "benchflow", "summary.json"), mustJSON(t, benchSummary))
+
+	databasePath := filepath.Join(rollout, "artifacts", "ktx.db")
+	createFixtureDatabase(t, databasePath, candidate)
+	stdoutPath, stderrPath := filepath.Join(attemptDir, "stdout.txt"), filepath.Join(attemptDir, "stderr.txt")
+	mustWrite(t, stdoutPath, []byte("ok\n"))
+	mustWrite(t, stderrPath, []byte{})
+	stdoutRef := f.ref(t, stdoutPath)
+	stderrRef := f.ref(t, stderrPath)
+	execution := Execution{AttemptID: entry.AttemptID, ExitCode: 0, Version: "benchflow fixture", Stdout: stdoutRef, Stderr: stderrRef}
+	mustWrite(t, filepath.Join(attemptDir, "execution.json"), mustJSON(t, execution))
+	terminal := AttemptTerminal{State: "completed", Reason: "executor_completed"}
+	mustWrite(t, filepath.Join(attemptDir, "terminal.json"), mustJSON(t, terminal))
+
+	delivered, compressed := int64(10), int64(0)
+	if candidate {
+		delivered, compressed = 3, 1
+	}
+	return Attempt{
+		SchemaVersion: currentCampaign, AttemptID: entry.AttemptID, PairID: entry.PairID, Task: entry.Task, Repetition: entry.Repetition, Side: entry.Side, Ordinal: entry.Ordinal, SourceSHA256: entry.SourceSHA256, OverlaySHA256: entry.OverlaySHA256,
+		Imported: true, InfrastructureEvaluable: true, QualityEvaluable: true, InvalidReasons: []string{}, Reward: fp(reward), Metrics: metrics, Errors: map[string]any{}, Identity: map[string]any{"rollout_name": "fixture-task__rollout"},
+		Artifacts: []FileRef{f.ref(t, filepath.Join(rollout, "result.json"))},
+		Rollout:   FileRef{Path: rolloutRelative, SHA256: strings.Repeat("a", 64), Mode: 0o755},
+		Adoption:  Adoption{Available: true, SessionCount: ip(1), ToolCallCount: ip(1), OriginalBytes: ip(10), DeliveredBytes: ip(delivered), CompressedArtifactCount: ip(compressed), DispositionCount: ip(1)},
+		Terminal:  &terminal,
+	}
+}
+
+func createFixtureDatabase(t *testing.T, path string, candidate bool) {
+	t.Helper()
+	database := openWritable(t, path)
+	statements := []string{
+		"PRAGMA user_version=9",
+		"CREATE TABLE sessions (id TEXT PRIMARY KEY)",
+		"CREATE TABLE tool_calls (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, output TEXT)",
+		"CREATE TABLE compressed (id TEXT PRIMARY KEY, source_id TEXT NOT NULL, output TEXT, timestamp TEXT)",
+		"CREATE TABLE compression_dispositions (source_id TEXT PRIMARY KEY, disposition TEXT NOT NULL, artifact_id TEXT)",
+		"INSERT INTO sessions(id) VALUES ('aaaaaaaaaaaaaaaa')",
+		"INSERT INTO tool_calls(id,session_id,output) VALUES ('bbbbbbbbbbbbbbbb','aaaaaaaaaaaaaaaa','0123456789')",
+	}
+	if candidate {
+		statements = append(
+			statements,
+			"INSERT INTO compressed(id,source_id,output,timestamp) VALUES ('dddddddddddddddd','bbbbbbbbbbbbbbbb','1234567','2026-01-01T00:00:00Z')",
+			"INSERT INTO compressed(id,source_id,output,timestamp) VALUES ('cccccccccccccccc','bbbbbbbbbbbbbbbb','xyz','2026-01-01T00:00:00Z')",
+			"INSERT INTO compressed(id,source_id,output,timestamp) VALUES ('eeeeeeeeeeeeeeee','bbbbbbbbbbbbbbbb','q','2026-01-02T00:00:00Z')",
+			"INSERT INTO compression_dispositions(source_id,disposition,artifact_id) VALUES ('bbbbbbbbbbbbbbbb','artifact_persisted','cccccccccccccccc')",
+		)
+	} else {
+		statements = append(statements, "INSERT INTO compression_dispositions(source_id,disposition,artifact_id) VALUES ('bbbbbbbbbbbbbbbb','intentional_passthrough',NULL)")
+	}
+	for _, statement := range statements {
+		mustExec(t, database, statement)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (f *fixture) refreshRaw(t *testing.T) {
+	t.Helper()
+	f.raw = map[string]string{}
+	base := filepath.Join(f.root, filepath.FromSlash(f.campaign.Archive))
+	err := filepath.WalkDir(base, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.Type().IsRegular() {
+			relative, err := filepath.Rel(f.root, path)
+			if err != nil {
+				return err
+			}
+			f.raw[filepath.ToSlash(relative)] = mustHash(t, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (f *fixture) path(parts ...string) string {
+	all := append([]string{f.root, filepath.FromSlash(f.campaign.Archive)}, parts...)
+	return filepath.Join(all...)
+}
+
+func (f *fixture) attemptPath(attemptID string, parts ...string) string {
+	all := append([]string{"attempts", attemptID}, parts...)
+	return f.path(all...)
+}
+
+func (f *fixture) rolloutPath(attemptID string, parts ...string) string {
+	all := append([]string{f.root, filepath.FromSlash(f.campaign.Archive), filepath.FromSlash(f.rollouts[attemptID])}, parts...)
+	return filepath.Join(all...)
+}
+
+func (f *fixture) ref(t *testing.T, absolute string) FileRef {
+	t.Helper()
+	relative, err := filepath.Rel(filepath.Join(f.root, filepath.FromSlash(f.campaign.Archive)), absolute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return FileRef{Path: filepath.ToSlash(relative), SHA256: mustHash(t, absolute), Mode: 0o644}
+}
+
+func mutateFailedTerminal(t *testing.T, f *fixture) {
+	terminal := AttemptTerminal{State: "failed", Reason: "executor_exit_nonzero"}
+	mustWrite(t, f.attemptPath("attempt-0001-candidate", "terminal.json"), mustJSON(t, terminal))
+	attempts := f.readAttempts(t)
+	attempts[0].Terminal = &terminal
+	f.writeAttempts(t, attempts)
+}
+
+func mutateExecutionError(t *testing.T, f *fixture) {
+	path := f.attemptPath("attempt-0001-candidate", "execution.json")
+	var execution Execution
+	mustDecode(t, path, &execution)
+	execution.ExitCode = 1
+	mustWrite(t, path, mustJSON(t, execution))
+}
+
+func mutateResultIdentity(t *testing.T, f *fixture) {
+	path := f.rolloutPath("attempt-0001-candidate", "result.json")
+	var result benchResult
+	mustDecode(t, path, &result)
+	result.TaskName = "wrong-task"
+	mustWrite(t, path, mustJSON(t, result))
+	attempts := f.readAttempts(t)
+	attempts[0].Artifacts[0] = f.ref(t, path)
+	f.writeAttempts(t, attempts)
+}
+
+func mutateSummaryBinding(t *testing.T, f *fixture) {
+	path := f.path("summary.json")
+	var summary Summary
+	mustDecode(t, path, &summary)
+	summary.ManifestSHA256 = strings.Repeat("0", 64)
+	mustWrite(t, path, mustJSON(t, summary))
+}
+
+func mutateDispositionGap(t *testing.T, f *fixture) {
+	path := f.rolloutPath("attempt-0001-candidate", "artifacts/ktx.db")
+	database := openWritable(t, path)
+	mustExec(t, database, "DELETE FROM compression_dispositions")
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mutateAdoptionMismatch(t *testing.T, f *fixture) {
+	attempts := f.readAttempts(t)
+	attempts[0].Adoption.DeliveredBytes = ip(0)
+	f.writeAttempts(t, attempts)
+}
+
+func mutateAttemptIdentity(t *testing.T, f *fixture) {
+	attempts := f.readAttempts(t)
+	attempts[0].AttemptID = "attempt-wrong-candidate"
+	f.writeAttempts(t, attempts)
+}
+
+func mutateMissingMetric(t *testing.T, f *fixture) {
+	attempts := f.readAttempts(t)
+	attempts[0].Metrics.Total = nil
+	f.writeAttempts(t, attempts)
+}
+
+func (f *fixture) readAttempts(t *testing.T) []Attempt {
+	t.Helper()
+	values, err := decodeJSONLines[Attempt](mustRead(t, f.path("attempts.jsonl")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return values
+}
+
+func (f *fixture) writeAttempts(t *testing.T, values []Attempt) {
+	t.Helper()
+	mustWrite(t, f.path("attempts.jsonl"), mustJSONLines(t, values))
+}
+
+func openWritable(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Ping(); err != nil {
+		t.Fatal(err)
+	}
+	return database
+}
+
+func mustExec(t *testing.T, database *sql.DB, statement string) {
+	t.Helper()
+	if _, err := database.Exec(statement); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustDecode(t *testing.T, path string, target any) {
+	t.Helper()
+	if err := json.Unmarshal(mustRead(t, path), target); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(data, '\n')
+}
+
+func mustJSONLines[T any](t *testing.T, values []T) []byte {
+	t.Helper()
+	var output []byte
+	for _, value := range values {
+		data, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output = append(output, data...)
+		output = append(output, '\n')
+	}
+	return output
+}
+
+func mustMkdir(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustWrite(t *testing.T, path string, data []byte) {
+	t.Helper()
+	mustMkdir(t, filepath.Dir(path))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func mustHash(t *testing.T, path string) string {
+	t.Helper()
+	data := mustRead(t, path)
+	return digest(data)
+}
+
+func remove(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func contains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func fp(value float64) *float64 { return &value }
+func ip(value int64) *int64     { return &value }

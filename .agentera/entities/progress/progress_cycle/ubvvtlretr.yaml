@@ -1,0 +1,15 @@
+id: ubvvtlretr
+artifact: progress
+record:
+  timestamp: 2026-08-02 11:43
+  type: fix
+  phase: build
+  what: Repaired the external validation Go inspector after its failed retry. The pinned lock now owns the receipt schema, archive path and digest, campaign ID, external provenance, and all 29 bindings. Added exact field grammars before mismatch output, inspection-only corrections, complete-tree single-component authority tamper tests, schema and credential regressions, a dedicated secret corpus and fuzz target, and a checksummed verification bundle. The core surface grew from 735 to 1177 lines to make those contracts and tests explicit; the evidence bundle adds 122 lines without adding a runtime framework.
+  context:
+    intent: Satisfy the replacement lock-contract acceptance criteria without changing shipped KTX, frozen evidence, or external execution and authentication ownership.
+    constraints: No provider, model, paid, Docker, install, fetch, authentication, ambient database, remote, shipped KTX, frozen campaign, or classification work occurred. Profile grounding failed closed as malformed and the changelog artifact is missing, so neither was refreshed or fabricated.
+    unknowns: A fresh external evaluator run remains unavailable until separately approved and authenticated. Ignored campaign bytes remain absent from a fresh clone and intentionally fail closed.
+    scope: External validation inspector, lock, tests, operator documentation, retained verification evidence, and one progress entity.
+  verified: Fresh isolated roots with KTX_DB unset passed focused tests, 686 fuzz executions, race, vet, a clean inspector build, the freeze verifier for 10 campaigns and 927 artifacts, all six CLI mismatch categories, schema and provenance failures, credential corpus cases, a no-network and no-write syscall trace, and mage check with zero issues, 941 audited attempts, and zero forbidden operations. Bundle checksums pass. Protected-surface, marker, and non-test credential scans are empty. Independent read-only review recommends pass with no blocking security or correctness gap.
+  next: Keep njuedouqal in progress for independent audit. The predecessor remains blocked until orchestration supersedes it.
+  publication_order: 21

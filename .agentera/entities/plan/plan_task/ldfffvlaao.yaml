@@ -1,0 +1,24 @@
+id: ldfffvlaao
+artifact: plan
+record:
+  name: Reconfirm inherited evidence authority
+  depends_on:
+    - izdhhkzrqc
+  status: complete
+  acceptance:
+    - GIVEN the predecessor plan is explicitly replaced WHEN history is inspected THEN it remains archived and its completed task, evaluation, progress, and campaign records remain available and unchanged.
+    - GIVEN the archived Luna canary WHEN its retained compatible executable validates it THEN the original successful pair remains complete and byte-identical.
+    - GIVEN inherited diagnostics WHEN they are inventoried and validated THEN historical failures and both zero-spend campaign stops remain distinct from successful quality evidence with explicit reasons.
+    - GIVEN the canary and proposed replication inputs WHEN compatibility is checked THEN model, variant, task, overlay, arms, methodology, and identity agree before paid work; any mismatch stops and triggers replanning.
+    - GIVEN legacy campaigns without a retained stop policy WHEN compatibility checks run THEN they retain continue behavior without source mutation, and credential scans remain clean.
+  plan: oydbeaydwa
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "independent Audit: inherited evidence and compatibility passed"
+      recorded_at: 2026-07-31 16:56
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,10 @@
+209   execve("/tmp/ktx-ext-proof-build.vNg9z7/bin/external-validation", ["/tmp/ktx-ext-proof-build.vNg9z7/"..., "check", "--input", "-"], 0x7fffa2464458 /* 172 vars */) = 0
+209   openat(AT_FDCWD, "/sys/kernel/mm/transparent_hugepage/hpage_pmd_size", O_RDONLY) = 3
+209   openat(AT_FDCWD, "/proc/self/cgroup", O_RDONLY|O_CLOEXEC) = 3
+209   openat(AT_FDCWD, "/proc/self/mountinfo", O_RDONLY|O_CLOEXEC) = 3
+209   openat(AT_FDCWD, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-orca-2997717.scope/cpu.max", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+209   openat(AT_FDCWD, "~/.local/share/orca/workspaces/ktx/skillsbench-analysis/tools/bench/external-validation/campaign-lock.json", O_RDONLY|O_NOFOLLOW|O_CLOEXEC) = 3
+209   openat(AT_FDCWD, "~/.local/share/orca/workspaces/ktx/skillsbench-analysis/tools/bench/evidence/skillsbench-oauth-campaign-archive.json", O_RDONLY|O_NOFOLLOW|O_CLOEXEC) = 3
+209   openat(AT_FDCWD, "~/.local/share/orca/workspaces/ktx/skillsbench-analysis/tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256", O_RDONLY|O_NOFOLLOW|O_CLOEXEC) = 3
+209   openat(AT_FDCWD, "~/.local/share/orca/workspaces/ktx/skillsbench-analysis/.bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/manifest.json", O_RDONLY|O_NOFOLLOW|O_CLOEXEC) = 3
+209   openat(AT_FDCWD, "~/.local/share/orca/workspaces/ktx/skillsbench-analysis/.bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/preflight.json", O_RDONLY|O_NOFOLLOW|O_CLOEXEC) = 3

@@ -1,0 +1,15 @@
+id: oqrtmrlsdk
+artifact: progress
+record:
+  timestamp: 2026-07-31 20:44
+  type: docs
+  phase: build
+  what: Published the final SkillsBench executive report and compact SHA-256 index, synchronized recovery and follow-up TODO state, and left the final task in progress for independent Audit.
+  context:
+    intent: Publish final retained evidence and synchronize nonterminal project state without authorizing or performing additional campaign work.
+    constraints: Final evidence, report, typed TODO/progress/plan state, and checks only. No production code, dependency, campaign mutation, preflight, execute, model, paid, diversity-selection, task-completion, plan-closure, or remote activity.
+    unknowns: Independent Audit has not yet accepted final task fnighqjqjx.
+    scope: docs/skillsbench-campaign.md, tools/bench/evidence/skillsbench-final-index.json, TODO nnsfvbazjh, intentional fnighqjqjx in-progress state, and this progress record.
+  verified: The index binds the 10-record inventory, five-pair STOP gate, and diversity deferral; current source-built ./build/ktx reports dev and SHA-256 750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2. Fresh isolated roots with KTX_DB unset passed mage build and mage check with forbidden=0. Current read-only validation passed the canary 2/2 and replication 8/8. Exact OAuth value scans passed tracked/new and 927 archive files. Canonical replication tree hash remained 0d1502fca7973befd0e89c449ec30a5eaf23cb7cfee045184f125e1f2114e501; JSON, hash, link, TODO, report, diff, and archive-immutability checks passed. No production code, campaign bytes, preflight, execute, model, paid, diversity, or remote activity occurred.
+  next: Independent Audit must review final task fnighqjqjx. Keep plan oydbeaydwa open and the task in progress until the orchestrator performs terminal closure.
+  publication_order: 13

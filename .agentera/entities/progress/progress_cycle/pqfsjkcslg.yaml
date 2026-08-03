@@ -1,0 +1,17 @@
+id: pqfsjkcslg
+artifact: progress
+record:
+  timestamp: 2026-08-02 18:55
+  type: feat
+  phase: build
+  what: Added tools/bench/external-identity/lock.json, a bounded Python standard-library comparator, tracked match, mismatch, and malformed fixtures, inventory classification, and minimal usage guidance. Preserved the legacy binding lock and ignored-archive inspector unchanged as archival provenance.
+  context:
+    intent: Make the maintained external identity check useful from Git-only inputs without KTX parser, package lifecycle, authentication, network, model, database, or repository mutation dependencies.
+    constraints: Did not move or remove legacy machinery, sanitize captured proof, rewrite broader documentation, change the ownership decision or satisfaction, access a database, or run provider, model, authentication, network, paid, Docker, or external mutation work.
+    unknowns: "Resolved: the maintained identity check is fully useful from tracked lock and fixture inputs in a Git-only checkout. Procedures that still read ignored manifest or preflight bytes remain explicitly archival for rpteozrqjo."
+    scope: tools/bench/external-identity/**, tools/bench/evidence/skillsbench-authority-inventory.json, and the task-owned usage section in docs/external-validation.md.
+  inspiration: Active plan task mqjszxkcqx and firm benchmark ownership decision pfplycywjz.
+  discovered: The retained OpenCode digest identifies the release archive, not a separately hashed extracted executable; the direct lock therefore names it release_sha256.
+  verified: "Criterion 1: the direct lock visibly records exact campaign, evaluator, task, runtime, adapter, KTX, execution, and authority digests; sha256sum and jq matched tracked authority, archive campaign digests, and all 29 legacy-bound fields plus external provenance. Criterion 2: python3 -I -B tools/bench/external-identity/test_check.py passed five tests; an index-only Git checkout without .bench-data returned 0, 2, and 65 for matching, mismatching, and malformed tracked fixtures with exact actionable diagnostics. Criterion 3: fresh HOME and XDG roots with KTX_DB unset produced unchanged checkout bytes; strace found zero network syscalls, zero mutating file syscalls, one Python exec, and zero database paths; mage check passed with forbidden operations zero. Criterion 4: the checker imports only json, pathlib, and sys; the maintained lock/check has no receipt schema, binding language, package lifecycle, or KTX-internal import."
+  next: Leave mqjszxkcqx in progress for independent evaluation. Task rpteozrqjo may then archive the unchanged legacy inspector and revalidation machinery without altering raw authority, errata, or this portable lock.
+  publication_order: 29

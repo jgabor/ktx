@@ -1,0 +1,15 @@
+id: kfsenfoxqn
+artifact: progress
+record:
+  timestamp: 2026-08-02 03:25
+  type: fix
+  phase: build
+  what: Aligned AdoptionSummary with authoritative first-compression selection and added executable timestamp and ID tie-break regression coverage.
+  context:
+    intent: Repair the audit-found reconciliation mismatch without changing the SkillsBench bridge, retained campaign evidence, or any unrelated contract.
+    constraints: No provider or paid work, ambient database access, retained campaign edit, bridge change, plan completion, push, publication, rebase, force operation, or unrelated cleanup.
+    unknowns: none
+    scope: internal/db/stats.go, internal/db/stats_test.go, and one progress entity.
+  verified: internal/db/stats.go now orders compressed artifacts by timestamp ASC and ID ASC. TestAdoptionSummaryUsesFirstCompression fails if either a later timestamp or the larger equal-timestamp canonical ID wins. Focused tests, mage build, mage verify, and go mod verify exited zero under distinct isolated roots with KTX_DB unset; the full gate reported all packages passing, zero lint issues, no vulnerabilities, forbidden database operations zero, and ktx_db unset. ./build/ktx bench compare --preflight --format json emitted exactly one JSON value, empty stderr, model_attempts zero, and artifact_creation false. Raw stdout, stderr, exit files, assertions, and repair diff are retained at /tmp/ktx-cuehrhelfu-retry1.iSlDfM; SHA256SUMS digest 1339c4bd2008a2a3505aa35d71f8772e63ded2a6e83f9cab5f7ebe0d8b2b2612.
+  next: Leave cuehrhelfu in progress for audit retry evaluation. Do not narrow or remove the historical external-evaluator bridge.
+  publication_order: 17

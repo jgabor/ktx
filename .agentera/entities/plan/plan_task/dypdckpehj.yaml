@@ -1,0 +1,24 @@
+id: dypdckpehj
+artifact: plan
+record:
+  name: Resolve and run the diversity gate
+  depends_on:
+    - xscvhkahlr
+  status: complete
+  acceptance:
+    - GIVEN task 4 stops expansion WHEN this task begins THEN no paid call occurs and the diversity slice is explicitly deferred with its evidence-based reason.
+    - GIVEN task 4 permits expansion WHEN tasks are selected THEN three tasks have deterministic verifiers, meaningful tool output, manageable runtime, and distinct categories.
+    - GIVEN selected tasks and fresh disposable application roots with KTX_DB unset WHEN full no-model preflight runs THEN model attempts remain zero and source, tool, image, bootstrap, cross-user, root-separation, and retained identity evidence pass before spending.
+    - GIVEN fresh paid authorization WHEN fail-fast execution runs THEN six attempts run sequentially once, without retries, until all finish or the first configured stop condition.
+    - GIVEN execution stops or completes WHEN validation and accounting run THEN every scheduled attempt is completed, failed, or not_started with retained validity, credential-scan status where applicable, and explicit reasons.
+  plan: oydbeaydwa
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "independent Audit: diversity STOP deferral passed"
+      recorded_at: 2026-07-31 20:25
+      writer_command: agentera state plan record-evaluation

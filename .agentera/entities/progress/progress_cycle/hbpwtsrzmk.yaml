@@ -1,0 +1,16 @@
+id: hbpwtsrzmk
+artifact: progress
+record:
+  timestamp: 2026-08-02 21:20
+  type: chore
+  phase: build
+  what: Completed the available offline pre-commit equivalents and documented the vulnerability-scan constraint.
+  context:
+    intent: Preserve the no-network constraint while matching every available pre-commit check before committing the residue deletion.
+    constraints: Do not modify hook configuration or substitute an incomplete test vulnerability database. The Go change deletes surface and adds no dependency.
+    unknowns: A current vulnerability database scan remains unverified in this environment.
+    scope: Offline hook-equivalent verification and explicit residual-risk recording.
+  discovered: govulncheck has no complete local vulnerability database and fails offline while fetching the module index. Fetching that database would violate the task no-network constraint.
+  verified: Offline go mod tidy left go.mod and go.sum unchanged. Fix-mode golangci-lint reported zero issues; go vet passed; Go and JSON formatting passed; diff, dependency, project-memory marker, removed-symbol, and protected archive/direct-identity scans passed. Focused tests and mage check had already passed with zero forbidden database accesses.
+  next: Commit with hooks bypassed under coordinator authorization, keep the task in progress and unevaluated, and leave vulnerability scanning to a network-enabled verification environment.
+  publication_order: 34

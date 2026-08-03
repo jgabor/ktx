@@ -1,0 +1,154 @@
+{
+  "schema_version": "ktx.skillsbench-proof-derivative.v1",
+  "recorded_at": "2026-08-02",
+  "status": "current",
+  "authority_class": "replaceable_proof",
+  "scope": "Portable projection of bounded historical proof facts. Original checksum-bound snapshots remain archival provenance and authority for their own captured bytes.",
+  "derivation": {
+    "method": "Fixed projection from the three source checksum manifests and their captured result records, ordered by bundle id.",
+    "source_values_reproduced": false,
+    "excluded_value_classes": [
+      "workstation usernames",
+      "absolute checkout paths",
+      "randomized temporary roots",
+      "credential values",
+      "project-internal tracking markers",
+      "process-instance values"
+    ]
+  },
+  "source_bundles": [
+    {
+      "id": "campaign_errata",
+      "status": "archival_provenance",
+      "checksum_manifest": {
+        "path": "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS",
+        "sha256": "0f16b104b9f754879d40394e7918f4baeba24b5e2ae7ebde21e082241c46d0ad",
+        "entries": 8
+      },
+      "source_commit": "7cb410c3fde5cd7c8fe2b923b5efd6b88958220f",
+      "machine_local_exception": [
+        {
+          "path": "tools/bench/evidence/skillsbench-campaign-errata-evidence/environment.manifest",
+          "sha256": "8ecda2956e7623670dacd67e3819f743cf146aea98d7c457c098e5e3a8a84744",
+          "randomized_temporary_root_occurrences": 1
+        },
+        {
+          "path": "tools/bench/evidence/skillsbench-campaign-errata-evidence/verification.log",
+          "sha256": "33b8b169bd63e3b14a98e9d100ab1f84cf8003fa15d014e0e18bfc1d82732a92",
+          "workstation_username_token_matches": 3,
+          "public_repository_namespace_matches": 3,
+          "machine_local_identity_matches": 0,
+          "classification": "Every token match is part of the public Go module path; none identifies the captured workstation."
+        }
+      ]
+    },
+    {
+      "id": "contract_repair",
+      "status": "archival_provenance",
+      "checksum_manifest": {
+        "path": "tools/bench/archive/skillsbench-campaign/external-validation/evidence/contract-repair/SHA256SUMS",
+        "sha256": "807df1bdb8680e61755f55af501f612b94e4a05639df41345ba42737bc2c655b",
+        "entries": 4
+      },
+      "machine_local_exception": [
+        {
+          "path": "tools/bench/archive/skillsbench-campaign/external-validation/evidence/contract-repair/environment.manifest",
+          "sha256": "267229583854dcd8d9518e3a4be2435ff0d00d7e3aada3e2e76d4c20872b9b78",
+          "randomized_temporary_root_occurrences": 8
+        },
+        {
+          "path": "tools/bench/archive/skillsbench-campaign/external-validation/evidence/contract-repair/strace.log",
+          "sha256": "1cd947458dbd2e2b6e8978e1e779b8929365f5ea71069777552ed4a0eb7fa124",
+          "absolute_checkout_path_occurrences": 5,
+          "randomized_temporary_root_occurrences": 2,
+          "workstation_username_token_matches": 5,
+          "machine_local_identity_matches": 5,
+          "user_scope_occurrences": 2
+        },
+        {
+          "path": "tools/bench/archive/skillsbench-campaign/external-validation/evidence/contract-repair/verification.log",
+          "sha256": "3d209dfc609687de4c6d6944b95404218f65c33b2e6c478db4bc8f1e776c8c44",
+          "workstation_username_token_matches": 34,
+          "public_repository_namespace_matches": 34,
+          "machine_local_identity_matches": 0,
+          "classification": "Every token match is part of the public Go module path; none identifies the captured workstation."
+        }
+      ]
+    },
+    {
+      "id": "state_synchronization",
+      "status": "archival_provenance",
+      "checksum_manifest": {
+        "path": "tools/bench/evidence/state-synchronization/SHA256SUMS",
+        "sha256": "81c52e78dcf0380c87f3ac743d60366a85403e14a1330442d46f3e0e5734bdf1",
+        "entries": 13
+      },
+      "source_commit": "8200ea5ea6a2b05f1664a8115629e5962c69dde5",
+      "machine_local_exception": [
+        {
+          "path": "tools/bench/evidence/state-synchronization/verification.log",
+          "sha256": "f53fbcb1fd378e38e3db997f224aaa20771af2da3217ec02d856ce87ce4abb24",
+          "randomized_temporary_root_occurrences": 1,
+          "workstation_username_token_matches": 42,
+          "public_repository_namespace_matches": 42,
+          "machine_local_identity_matches": 0,
+          "classification": "Every token match is part of the public Go module path; none identifies the captured workstation."
+        }
+      ]
+    }
+  ],
+  "raw_authority_exception": {
+    "path": "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+    "sha256": "b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e",
+    "status": "immutable_authority",
+    "machine_local_detail": "Eight historical preparation roots and task source paths are retained as captured provenance. Hashed retained task copies, not those roots, are task-content authority."
+  },
+  "portable_projection": {
+    "privacy": {
+      "workstation_usernames_included": false,
+      "absolute_checkout_paths_included": false,
+      "randomized_temporary_roots_included": false,
+      "credential_values_included": false,
+      "project_internal_tracking_markers_included": false
+    },
+    "contract_repair": {
+      "status": "historical_pass",
+      "comparison_cases": 13,
+      "verification_groups": 7,
+      "provider_or_model_execution": false,
+      "external_authentication": false,
+      "system_call_trace": {
+        "process_executions": 1,
+        "read_only_local_file_opens": 5,
+        "network_calls": 0,
+        "mutating_file_calls": 0,
+        "database_path_matches": 0
+      }
+    },
+    "campaign_errata": {
+      "status": "historical_pass",
+      "raw_manifest_entries": 927,
+      "complete_fixture_authorities": [
+        "preflight",
+        "terminal_disposition",
+        "attempt_execution",
+        "result_and_summary",
+        "read_only_database"
+      ],
+      "damaged_fixture_cases": 16,
+      "provider_execution": false,
+      "model_execution": false,
+      "authentication_access": false,
+      "remote_access": false
+    },
+    "state_synchronization": {
+      "status": "historical_pass",
+      "focused_tests": "pass",
+      "repository_check": "pass",
+      "ambient_database_created": false,
+      "credential_shape_matches": 0,
+      "project_memory_marker_matches": 0
+    }
+  },
+  "authority_limit": "This derivative does not replace raw campaign authority, corrected metrics, historical publications, or the original proof snapshots' byte identity."
+}

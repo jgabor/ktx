@@ -1,0 +1,26 @@
+id: ddudfxxssc
+artifact: plan
+record:
+  name: Narrow the shipped KTX product surface
+  depends_on:
+    - nmepwbhtzq
+    - cuehrhelfu
+    - cfsqudzdkd
+    - nbmhaoqsqe
+  status: complete
+  acceptance:
+    - GIVEN normal KTX help WHEN inspected THEN no evaluator lifecycle, installer, credential scanner, or optional package workflow is a supported core feature.
+    - GIVEN native benchmark and telemetry use WHEN disposition applies THEN their commands and evidence remain available under current-main contracts.
+    - GIVEN verified consumers WHEN deprecation is required THEN it avoids new coupling and silent breakage.
+    - GIVEN CLI checks WHEN run THEN native behavior passes and removed behavior is absent or deprecated.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-ddudfxxssc-1
+      source: audit_ddudfxxssc_surface_removal PASS; bridge removed with 8,234 deletions, native contracts preserved, evidence wording correction deferred to final synchronization
+      recorded_at: 2026-08-02 14:30
+      writer_command: agentera state plan record-evaluation

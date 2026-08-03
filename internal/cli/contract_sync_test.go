@@ -65,6 +65,25 @@ func TestBenchmarkNamespaceCommentListsPublicFamilies(t *testing.T) {
 	)
 }
 
+func TestBenchPreflightContractSurfacesMatchBehavior(t *testing.T) {
+	root := repositoryRoot(t)
+	var help bytes.Buffer
+	printBenchHelp(&help)
+	for name, contents := range map[string]string{
+		"help":        help.String(),
+		"readme":      readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"runbook":     readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"agent-guide": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			assertContractText(t, contents,
+				[]string{"returns before task loading"},
+				[]string{"loads the task before preflight"},
+			)
+		})
+	}
+}
+
 func assertContractText(t *testing.T, contents string, required, forbidden []string) {
 	t.Helper()
 	for _, issue := range contractTextIssues(contents, required, forbidden) {

@@ -1,0 +1,15 @@
+id: ntanqqzxes
+artifact: progress
+record:
+  timestamp: 2026-08-02 17:44
+  type: docs
+  phase: build
+  what: Added tools/bench/evidence/skillsbench-authority-inventory.json with all ten ignored campaign roots, 927 raw files, every tracked campaign-specific item or proof group, authority precedence, inbound references, portability, and removal guards.
+  context:
+    intent: Establish the smallest durable evidence boundary before later lock simplification, archival, residue removal, proof sanitization, or documentation changes.
+    constraints: Preserved every existing evidence byte, ownership decision, satisfaction state, supported behavior, profile state, and changelog state. No network, provider, model, authentication, database inspection, later cleanup task, or external mutation.
+    unknowns: "Resolved: raw authority, current correction authority, hash-bound provenance sources, portable maintained verification, and local-only archival procedures are explicit."
+    scope: tools/bench/evidence/skillsbench-authority-inventory.json and this typed progress record; the orchestrator-owned task remains in progress.
+  verified: "jq structural and reference coverage checks matched the archive index, errata, 20 database paths, and immutable digests. A Git-only checkout passed go test -count=1 ./tools/bench/evidence/campaign-revalidation; external-validation tests and both end-to-end verifiers failed closed on missing ignored inputs, confirming archival provenance. Hermetic mage check passed with forbidden=0 and KTX_DB unset. The firm ownership record remains unchanged with satisfaction null. N/A: docs-only."
+  next: Independent evaluation should review this boundary. Later tasks may simplify or archive only after following the recorded inbound references and removal guards.
+  publication_order: 27

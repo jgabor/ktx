@@ -1,0 +1,15 @@
+id: hxwbdedzae
+artifact: progress
+record:
+  timestamp: 2026-08-02 15:12
+  type: fix
+  phase: build
+  what: "Corrected two append-only progress statements without editing their historical records. For cxumtjnliu, the evidence inventory has eight recorded /tmp roots: five empty and three present; two more campaigns record no source path. Seven campaigns therefore lack a currently available recorded source tree, rather than seven directories being empty. For iiiqskcqtp, generic compare preflight proves capability, zero model attempts, and zero artifact creation, then returns before task loading. structured-diff-v1 validity comes from TOML parsing, deterministic fixture generation, and scorer tests, not a task-specific preflight."
+  context:
+    intent: Keep append-only progress history reachable while making the current verification state exact.
+    constraints: Do not edit prior progress entities, raw historical publications, volatile external source roots, or decision satisfaction.
+    unknowns: No model-backed structured-diff-v1 result exists.
+    scope: Progress records cxumtjnliu and iiiqskcqtp; tools/bench/evidence/verify-skillsbench-campaign-freeze.sh; internal/cli/bench_experiment_test.go; tools/bench/tasks/structured-diff-v1.toml.
+  verified: The correction uses the final inventory of eight recorded roots, two source-path omissions, and the current generic-preflight and deterministic task-validation contracts. It changes no raw evidence or result claim.
+  next: Continue task ydcssxkvpy with factual decision amendment, DTC synchronization, isolated verification, and audit handoff.
+  publication_order: 25

@@ -1,0 +1,20 @@
+id: fslxnmjmrh
+artifact: progress
+record:
+  timestamp: 2026-08-02 20:12
+  type: fix
+  phase: build
+  what: Corrected stale pre-final digest evidence for the committed Go external identity checker without changing product bytes.
+  context:
+    intent: Replace snapshot-only evidence with precisely scoped, reproducible Git-object evidence for the already verified implementation.
+    constraints: Did not edit product code, docs, inventory, igblalixsb, blocked-task history, or decision satisfaction. Did not access ignored campaign data, an ambient database, provider, model, authentication, network, paid, Docker, merge, push, or external systems.
+    unknowns: Recovery task ustfhmpixj remains in progress and unevaluated for independent audit.
+    scope: Immutable Git objects for commit 9623a31e8f4cf1f340d42be9876092a413f5cdaa, fresh archived checkouts of that commit, and this append-only correction.
+  inspiration: Recovery task ustfhmpixj and retained audit attempt audit-mqjszxkcqx-2, which passed all four product criteria but rejected obsolete digest evidence.
+  discovered: Progress igblalixsb values 9916a2cb6a92d733a08fdb6f030ea36d922c6332450fab60d80e3a1d90ef9ea2 and ab3bdc55e64760a6c5b282f9ac610ace04fd77942e617209eb41cb8dc53ef48f are pre-final staged-diff and checker-tree snapshots. They must not be used as evidence for commit 9623a31.
+  verified: |-
+    Target commit: 9623a31e8f4cf1f340d42be9876092a413f5cdaa. Commit-patch digest scope: the exact stdout bytes of this command, covering every change from the target's first parent to the target and no later state. Reproduce: git diff --no-color --no-ext-diff --default-prefix --no-renames --abbrev=7 --diff-algorithm=myers --binary fc417a3dcfc6a983abeed9c5bce993d5e2b75795 9623a31e8f4cf1f340d42be9876092a413f5cdaa | sha256sum. Result: 8fc54725e729e8c8b863044a0c3a35290ca8706f640ad0d6ba48df62aadd81f1.
+    Checker-manifest digest scope: the exact manifest bytes with one line formatted as SHA256, two spaces, repository-relative path, newline for each of the nine Git blobs under tools/bench/external-identity at the target, in git ls-tree order. Reproduce: git ls-tree -r --name-only -z 9623a31e8f4cf1f340d42be9876092a413f5cdaa -- tools/bench/external-identity | while IFS= read -r -d '' path; do digest=$(git cat-file blob "9623a31e8f4cf1f340d42be9876092a413f5cdaa:$path" | sha256sum | cut -d' ' -f1); printf '%s  %s\n' "$digest" "$path"; done | sha256sum. Result: 7bb17991b58c6ab6154e25d147b7a5850c40b97937742096873e5750d55e27ab.
+    Both digests target immutable prior Git objects and exclude this correction, so neither is self-referential. Fresh HOME, XDG, cache, state, runtime, and temporary roots with KTX_DB absent and network resolution disabled passed focused go test, go vet, and standard-library-only dependency inspection from a Git archive without .bench-data. Built fixture exits were matching 0, mismatch 2, and malformed, duplicate, non-finite, and trailing 65 with exact diagnostics. Committed inventory JSON, all recorded checker-file hashes, lock hash and direct fields, Go-only docs command, and absence of maintained Python paths passed. strace found zero network syscalls, mutating file syscalls, and database paths, one execve, unchanged repository status, and checker-manifest 7bb17991 before and after.
+  next: Leave ustfhmpixj in progress and unevaluated for audit. Preserve blocked mqjszxkcqx history and null satisfaction for pfplycywjz.
+  publication_order: 31

@@ -1,0 +1,30 @@
+id: ydcssxkvpy
+artifact: plan
+record:
+  name: Verify and synchronize state
+  depends_on:
+    - nmepwbhtzq
+    - jbzjborfrx
+    - jrtqriqdwv
+    - cuehrhelfu
+    - cfsqudzdkd
+    - nbmhaoqsqe
+    - ddudfxxssc
+    - qqubqfhctq
+  status: complete
+  acceptance:
+    - GIVEN checks WHEN run in fresh HOME and XDG roots THEN they pass without ambient database access, external mutation, or model execution.
+    - GIVEN all surfaces WHEN checked THEN help, docs, agent guidance, safety classes, tests, and evidence labels match behavior.
+    - GIVEN public artifacts WHEN scanned THEN credentials, project-memory markers, stale bridge claims, and unsupported generalizations are absent.
+    - GIVEN verification passes WHEN synchronized THEN decisions, architecture, backlog, plan status, evidence, and deferred work describe one current state.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-ydcssxkvpy-1
+      source: audit_ydcssxkvpy_final_sync PASS; all four criteria and evidence audit passed with bounded capture caveats
+      recorded_at: 2026-08-02 16:09
+      writer_command: agentera state plan record-evaluation

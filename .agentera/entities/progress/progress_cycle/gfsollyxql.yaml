@@ -1,0 +1,15 @@
+id: gfsollyxql
+artifact: progress
+record:
+  timestamp: 2026-07-31 15:59
+  type: fix
+  phase: build
+  what: Enforced exact case-sensitive terminal JSON keys before duplicate and value validation.
+  context:
+    intent: Close the terminal alias bypass without changing retained evidence, stop policy, or terminal accounting.
+    constraints: No model or campaign execution, OAuth credential access, archive mutation, dependency change, later task work, TODO resolution, task completion, supersession, or push.
+    unknowns: Independent bounded Audit remains pending.
+    scope: internal/skillsbench terminal key decoding and production-path alias regressions; replacement task remains in_progress.
+  verified: internal/skillsbench/terminal.go accepts only state, reason, and trigger_attempt_id. TestSummaryAndValidationRejectTerminalKeyAliases confirms Summarize and Validate reject State, STATE, Reason, Trigger_Attempt_ID, and an exact state plus State semantic duplicate with the same corruption while terminal.json remains byte-for-byte retained. TestValidationAcceptsTerminalOnlyPolicyStoppedSuffix confirms later attempts stay not_started with one trigger and the campaign stays incomplete. Fresh isolated roots with KTX_DB unset passed the alias test, prior artifact and stop-category regressions, go test ./internal/skillsbench ./internal/cli, go test -race ./internal/skillsbench ./internal/cli, mage build, local ./build/ktx version/help smoke, and mage check with forbidden=0. ./build/ktx reports dev and SHA-256 750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2. No model execution.
+  next: Independent Audit must persist PASS before orchestration resolves or supersedes blocked predecessors; paid execution remains blocked.
+  publication_order: 6

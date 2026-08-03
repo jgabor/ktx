@@ -1,0 +1,15 @@
+id: jttwfdmqvl
+artifact: progress
+record:
+  timestamp: 2026-08-02 02:44
+  type: chore
+  phase: build
+  what: Merged local main into the branch without rebase or conflict resolution, preserving active plan state and the authoritative first-artifact, dependency, verification, and agent-facing contracts.
+  context:
+    intent: Reconcile skillsbench-analysis with current local main while retaining the established benchmark ownership boundary and native preflight guarantees.
+    constraints: No rebase, force, ref rewrite, push, publication, provider or model call, ambient database access, paid benchmark, retained evidence edit, or bridge removal.
+    unknowns: none
+    scope: Local merge, main-introduced contracts, verification, and one progress entity; no manual product-code resolution was required.
+  verified: Focused Go contract tests passed across internal/db, internal/cli, internal/pipeline/stages, internal/router, internal/ci, and internal/experiment. mage build, mage verify, and go mod verify passed; the full gate reported zero lint issues, no vulnerabilities, portable replay success, forbidden database operations zero, and KTX_DB unset. ./build/ktx bench compare --preflight --format json exited zero with 417 bytes of parseable JSON on stdout, empty stderr, model_attempts zero, and artifact_creation false. Git ancestry confirms both local main and the prior feature tip are ancestors. Retained campaign evidence and methodology had no merge diff.
+  next: Leave cuehrhelfu in progress for the independent audit verdict. Do not remove the historical external-evaluator bridge until owner confirmation or private-package inventory closes the gate.
+  publication_order: 16

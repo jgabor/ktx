@@ -1,0 +1,19 @@
+id: pfplycywjz
+artifact: decisions
+record:
+  date: 2026-08-02
+  question: Which benchmark and external-evaluation responsibilities belong to KTX after the completed SkillsBench campaign?
+  context: The provisional two-tier choice vwkbbycmgx kept fast native evidence in KTX and assigned live execution to an external harness. Legacy decisions 34 and 35 later governed a branch-only SkillsBench and BenchFlow bridge, its OAuth mode, and its future model pin. The completed campaign remains valid historical external evidence. A release-surface audit found no shipped command or known consumer, but private GitHub Packages remain unverified because package-read scope was unavailable. The user selected a focused native benchmark and optional externally pinned release validation.
+  alternatives:
+    - name: Keep KTX focused on native benchmark evidence and assign external evaluation operations to the external evaluator.
+      status: chosen
+    - name: Make KTX permanently own the external evaluator bridge, agent execution, authentication, and evaluator dependency lifecycle.
+      status: rejected
+    - name: Discard or reinterpret the completed campaign when product scope narrows.
+      status: rejected
+    - name: Treat the unresolved private package inventory as closed and remove the branch-only surface in this decision task.
+      status: rejected
+  choice: "KTX owns the native benchmark for its cost-without-quality-loss contract: native task and scoring contracts, KTX databases and collected evidence, deterministic summaries, comparison, validation, and ranking. Optional externally pinned release validation may consume that evidence, but the external evaluator owns agent execution, authentication, Python and environment setup, and evaluator package and dependency lifecycle. KTX does not become a general-purpose agent-evaluation harness. The completed SkillsBench and BenchFlow campaign remains historical external evidence with its original model, authentication, and provenance. This decision supersedes only ongoing shipped-product implications of vwkbbycmgx and legacy decisions 34 and 35; it does not rewrite their historical claims or artifacts. Direct removal of the unshipped bridge remains gated on owner confirmation or a successful private-package inventory; no deprecation scaffold is justified without a verified consumer."
+  reasoning: This boundary preserves the part KTX can prove natively while avoiding duplicate evaluator infrastructure and credential or dependency ownership. It keeps the completed campaign auditable without turning its provisional bridge into permanent product scope. The unresolved package inventory is a real release-surface gap, so implementation removal must remain a later gated task even though direct removal is preferred if the gate closes.
+  confidence: firm
+  feeds_into: Benchmark architecture and backlog; README; database safety guidance; historical SkillsBench campaign documentation; later gated bridge removal.

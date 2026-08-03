@@ -1,0 +1,23 @@
+id: pnshnjuhkr
+artifact: plan
+record:
+  name: Establish the minimal evidence authority boundary
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the retained campaign material WHEN it is inventoried THEN each item is classified as authority, derived evidence, reproducibility support, maintained verification, or replaceable proof with its inbound references identified.
+    - GIVEN ignored or unavailable historical inputs WHEN portability is assessed THEN every maintained check is fresh-checkout runnable and every remaining local-only procedure is classified as archival provenance.
+    - GIVEN a candidate removal WHEN its references are traced THEN no authoritative metric, claim correction, digest binding, or provenance path becomes unavailable.
+    - GIVEN the firm ownership decision WHEN the boundary is recorded THEN the inventory applies it without rewriting the decision or inferring satisfaction.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: internal/cli/bench_test.go:295-327 TestExternalEvaluatorBridgeIsAbsent is fresh-checkout maintained verification but absent from tools/bench/evidence/skillsbench-authority-inventory.json maintained items and portability inventory; progress verification therefore does not substantiate complete classification
+    provenance:
+      attempt_id: audit-pnshnjuhkr-2
+      source: audit_pnshnjuhkr_authority_boundary retry 1 PASS; all four criteria and evidence audit passed at 94c70c1
+      recorded_at: 2026-08-02 18:25
+      writer_command: agentera state plan record-evaluation

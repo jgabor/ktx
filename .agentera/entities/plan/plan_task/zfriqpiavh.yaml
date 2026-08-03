@@ -1,0 +1,25 @@
+id: zfriqpiavh
+artifact: plan
+record:
+  name: Make benchmark documentation current and concise
+  depends_on:
+    - rpteozrqjo
+    - iddqfylthr
+    - xhbaaswcha
+  status: complete
+  acceptance:
+    - GIVEN a product user reads the primary documentation WHEN looking for supported workflows THEN only the native KTX benchmark is presented as current behavior.
+    - GIVEN a maintainer reads the historical campaign report WHEN seeking the result THEN corrected counts, claim limitations, ownership, and evidence locations are easy to find without a non-runnable command sequence or deleted-bridge internals.
+    - GIVEN the retained authorities WHEN documentation is reviewed THEN historical detail is represented by concise facts and links rather than repeated lifecycle prose.
+    - GIVEN all benchmark surfaces WHEN terminology is compared THEN they make no official-suite, general-skill, paid-authorization, or unsupported portability claim.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-zfriqpiavh-1
+      source: independent documentation audit PASS at 2a1ef45; current and historical workflows, corrected counts, links, and claim boundaries verified
+      recorded_at: 2026-08-02 23:02
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,27 @@
+id: fnighqjqjx
+artifact: plan
+record:
+  name: Publish evidence and synchronize final state
+  depends_on:
+    - izdhhkzrqc
+    - ldfffvlaao
+    - hattlqhrea
+    - xscvhkahlr
+    - dypdckpehj
+  status: complete
+  acceptance:
+    - GIVEN all terminal campaign evidence WHEN the final report is published THEN it records pins, hashes, durable locations, attempt counts, validation results, descriptive metrics, zero-spend diagnostics, failures, and limitations.
+    - GIVEN the report WHEN independently reviewed THEN model identity, stop-policy behavior, credential safety, claim scope, and source provenance agree with retained artifacts.
+    - GIVEN tracked changes WHEN repository verification runs THEN the full project check passes without weakening existing expectations.
+    - GIVEN final verification WHEN project state is synchronized THEN the recovery TODO is resolved and plan tasks, progress, and remaining follow-up work match retained evidence.
+  plan: oydbeaydwa
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Independent final Audit passed reporting, campaign evidence, credential safety, claim scope, full project checks, and state synchronization, but found one provenance mismatch: retained coordinator hash 750ca723... prints version dev, while 0.1.0-dev is the separately built benchmark-image KTX version retained by preflight. Inventory, report, and final index must name these identities separately and regenerate dependent hashes without changing campaign bytes. No new execution or broad verification cycle is required."
+    provenance:
+      attempt_id: audit-2
+      source: "focused independent final Audit: publication and provenance passed"
+      recorded_at: 2026-07-31 21:30
+      writer_command: agentera state plan record-evaluation

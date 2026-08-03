@@ -1,0 +1,20 @@
+id: znffxcaxtq
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Enforce exact terminal JSON field names before superseding the blocked fail-fast tasks.
+  readiness:
+    capability: build
+    reason: The user approved one bounded replacement to enforce exact terminal keys and prove alias rejection.
+    dependencies:
+      []
+    blocked:
+      reason: Case-insensitive JSON matching lets exact-name aliases overwrite retained terminal semantics despite strict unknown-field decoding.
+      recovery: Implement the exact key allowlist, pass independent Audit, and supersede both blocked fail-fast tasks.
+    gate:
+      state: satisfied
+      reason: The user explicitly approved the new bounded replacement.
+      recovery: Execute the approved replacement and retain PASS before supersession.
+    queue_rank: 1
+    order_reason: Paid Luna execution and all downstream evidence tasks remain blocked until the approved replacement passes.

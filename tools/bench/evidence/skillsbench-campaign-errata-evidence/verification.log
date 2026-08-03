@@ -1,0 +1,50 @@
+skillsbench campaign errata retained verification
+captured_at=2026-08-02T11:15:10Z
+source_base_commit=7cb410c3fde5cd7c8fe2b923b5efd6b88958220f
+
+retained_raw_manifest exit=0
+entries=927
+matches=927
+
+historical_source_root_replay=not_used
+reason=the correction verifier is limited to retained archive artifacts
+
+fixture_tests exit=0
+ok github.com/jgabor/ktx/tools/bench/evidence/campaign-revalidation 0.936s
+
+fixture_race exit=0
+ok github.com/jgabor/ktx/tools/bench/evidence/campaign-revalidation 2.282s
+
+vet exit=0
+stdout=<empty>
+
+deterministic_revalidation exit=0
+{"campaigns":10,"complete_campaigns":1,"valid_pairs":4,"status":"ok"}
+
+retained_bundle_verifier exit=0
+ok github.com/jgabor/ktx/tools/bench/evidence/campaign-revalidation 0.792s
+{"campaigns":10,"complete_campaigns":1,"valid_pairs":4,"fixtures":"passed","raw_immutable":true,"status":"ok"}
+
+repository_check exit=0
+internal/skillsbench=ok 204.748s
+campaign-revalidation=ok 3.132s
+external-validation=ok 2.051s
+lint=0 issues
+audit=target:check attempts:977 forbidden:0 ktx_db:unset
+
+protected_scope_diff exit=0
+stdout=<empty>
+
+credential_shape_scan exit=0
+matches=0
+
+project_memory_marker_scan exit=0
+matches=0
+
+historical_authority_hashes
+b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e  tools/bench/evidence/skillsbench-oauth-campaign-archive.json
+55b196c49d7d640233db43879c7396093718708a62fb2f7452435aefdf022ec3  tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256
+471b41d3a79557695dee72dc8add5d0296edf4d288e6a62f28a42e449bf953a7  tools/bench/evidence/verify-skillsbench-campaign-freeze.sh
+3c9de17822f57327dbb45f1ffd3f39212f0c1bc905ae2f60ee07cf2b35fd1100  tools/bench/evidence/skillsbench-final-index.json
+8e7db2d6f19a18a3486760459c8fcc43f5846221398eb1620803b645207ac007  tools/bench/evidence/skillsbench-five-pair-gate.json
+fc74cb73246b4873f4b493af7795f6d80d8c2f0d047750766cee4624ad141f8b  tools/bench/external-validation/campaign-lock.json

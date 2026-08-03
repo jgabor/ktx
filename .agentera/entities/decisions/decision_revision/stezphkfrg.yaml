@@ -1,0 +1,12 @@
+id: stezphkfrg
+artifact: decisions
+record:
+  decision: pfplycywjz
+  date: 2026-08-02
+  provenance: historical_revision
+  base_sha256: 09f6e75a69c8efaeeff778ad11bc122222ef96db0cff7af13340b2047eed892c
+  changes:
+    context: The provisional two-tier choice vwkbbycmgx kept fast native evidence in KTX and assigned live execution to an external harness. Legacy decisions 34 and 35 governed the branch-only SkillsBench and BenchFlow bridge, its OAuth mode, and its future model pin. The completed campaign remains historical external evidence. The user explicitly confirmed that no package, artifact, version, or KTX release containing the bridge left this machine. The bridge was then removed directly with no deprecation or compatibility surface. The selected current boundary is a focused native benchmark with optional externally pinned release validation.
+    choice: "KTX owns the native benchmark for its cost-without-quality-loss contract: named task and scoring contracts, KTX databases and collected evidence, deterministic summaries, comparison, validation, and ranking. Optional externally pinned release validation may consume that evidence, but the external evaluator owns agent execution, authentication, Python and environment setup, and evaluator package and dependency lifecycle. KTX does not become a general-purpose agent-evaluation harness. The completed SkillsBench and BenchFlow campaign remains historical external evidence with its original model, authentication, and provenance. The undistributed bridge has been removed directly with no deprecation or compatibility surface. This decision supersedes only ongoing shipped-product implications of vwkbbycmgx and legacy decisions 34 and 35; it does not rewrite their historical claims or artifacts."
+    reasoning: This boundary preserves the part KTX can prove natively while avoiding duplicate evaluator infrastructure and credential or dependency ownership. It keeps the completed campaign auditable without turning its temporary bridge into permanent product scope. The user's explicit no-distribution confirmation closed the release-surface gate, so direct removal avoids unneeded compatibility scaffolding without breaking a verified consumer.
+    feeds_into: Benchmark architecture and backlog; README; database safety guidance; historical SkillsBench campaign documentation; shipped CLI help and tests.

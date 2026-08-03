@@ -3388,3 +3388,112 @@ archive:
     confidence: firm
     feeds_into: Generated OpenCode candidate validation and fixtures; binary
       capability and OpenCode telemetry documentation; adapter refresh guidance.
+  - number: 34
+    date: 2026-07-30
+    question: How should the pinned SkillsBench bridge authenticate OpenAI runs
+      when the host has OpenCode OAuth metadata but no API key?
+    context: The committed bridge supported only API-key execution through the
+      mandatory LiteLLM proxy. Read-only analysis of BenchFlow 0.6.5 at commit
+      737146cc60fbc1b3595198eebbabba4628592d02 and OpenCode 1.18.5 showed that a
+      custom codex-acp manifest can preserve BenchFlow's built-in subscription
+      authentication while launching OpenCode ACP. The host authentication object
+      contains access and refresh credentials and therefore cannot become retained
+      campaign provenance.
+    alternatives:
+      - name: Keep API-key-only proxy execution
+        status: rejected
+        description: Preserves the existing bridge but cannot execute from the
+          selected host OAuth credential.
+      - name: Convert or proxy the OAuth credential as an API key
+        status: rejected
+        description: Changes authentication semantics, risks conflicting routing,
+          and would make proxy cost claims unsupported.
+      - name: Add an explicit dual-mode bridge
+        status: chosen
+        description: Preserve API-key plus LiteLLM behavior and add a separate
+          OpenCode OAuth path using BenchFlow native subscription auth and
+          ACP-native usage.
+    choice: Add explicit api-key and opencode-oauth campaign modes. OAuth accepts
+      only an explicit no-follow host auth file, minimizes it in memory to the
+      OpenAI OAuth object, injects it only into the BenchFlow child environment,
+      and scrubs conflicting provider, proxy, OpenCode auth, configuration, and
+      model-catalog inputs. Disable task-local OpenCode project configuration and
+      prove the descriptor-bound BenchFlow agent resolution before execution.
+      Declare codex-acp only as
+      the BenchFlow registry compatibility identity while retaining OpenCode
+      1.18.5 as the runtime identity. Pin OAuth to openai/gpt-5.4 with high as the
+      only enabled variant. Require ACP-native usage and keep OAuth price and cost
+      unavailable; any non-null source price or cost evidence invalidates an OAuth
+      attempt. Scan prepared and produced campaign files for the exact access and
+      refresh strings, fail closed, and remove affected retained files after a
+      detected post-run leak. Require a durable immediate-scan marker before
+      importing an OAuth attempt, then rescan with the current credentials. Keep
+      rendering secret-free and tool-free.
+    reasoning: The dual-mode boundary preserves the audited API-key route while
+      matching the selected host authentication semantics. Explicit credential
+      input and environment scrubbing prevent ambient credentials from silently
+      changing the route. Metadata-only provenance states what the bridge can
+      prove without retaining a path, account, expiry, credential, or digest.
+      Exact-value scans and the nonsecret completion marker address normal
+      retained-artifact leakage and credential rotation without claiming that
+      crashed BenchFlow host temporary files or an external sandbox cannot survive.
+    confidence: provisional
+    feeds_into: SkillsBench campaign schema and CLI; generated agent manifest,
+      launch wrapper, and OpenCode configuration; execution environment and leak
+      gate; import and validation authority; benchmark methodology and runbook;
+      live OAuth evidence.
+  - number: 35
+    date: 2026-07-31
+    question: Which paid model and effective variant should future SkillsBench
+      campaigns use through the OpenCode OAuth bridge?
+    context: The user explicitly directed, "Please use gpt-5.6-luna for the paid
+      model going forward." The host has no OPENAI_API_KEY, so the working
+      OpenCode OAuth route remains necessary. Completed schema 6 campaigns used
+      the provisional gpt-5.4 pin and remain historical evidence. In the exact
+      pinned anomalyco/opencode v1.18.5 source,
+      packages/opencode/src/plugin/openai/codex.ts:280-292 permits parsed GPT API
+      versions later than 5.4 for OAuth. The v1.18.5 test at
+      packages/opencode/test/plugin/codex.test.ts:152-190 includes gpt-5.6-luna
+      and asserts its OAuth-adjusted limits. The v1.18.5 fixture at
+      packages/opencode/test/tool/fixtures/models-api.json:9634-9647 describes
+      Luna as reasoning- and tool-capable and exposes none, low, medium, high,
+      xhigh, and max effort variants. Current OpenCode documentation also
+      confirms ChatGPT OAuth and model variants with reasoningEffort high.
+      Existing unrelated live
+      benchmark evidence uses OpenCode 1.18.5 with Luna, but does not prove this
+      SkillsBench OAuth bridge.
+    alternatives:
+      - name: Keep gpt-5.4 for OAuth campaigns
+        status: rejected
+        description: Preserves completed campaign comparability but conflicts with
+          the user's explicit policy for future paid work.
+      - name: Use gpt-5.6-luna with high for future OAuth campaigns
+        status: chosen
+        description: Updates the paid OAuth contract while preserving the existing
+          credential, runtime, ACP usage, and unavailable-cost authority boundaries.
+      - name: Require API-key and LiteLLM execution for Luna
+        status: rejected
+        description: The host has no API key, and changing the proven OAuth route
+          is unnecessary because the pinned runtime explicitly supports Luna.
+      - name: Reinterpret completed schema 6 campaigns under the new model contract
+        status: rejected
+        description: Would falsify retained provenance and permit old schedules and
+          markers to execute under a different paid model policy.
+    choice: Pin future OpenCode OAuth SkillsBench campaigns to
+      openai/gpt-5.6-luna with high as the only enabled variant. Advance the
+      campaign schema from 6 to 7 and reject schema 6 for execution under the new
+      contract without migration compatibility. Preserve completed schema 6
+      gpt-5.4 artifacts unchanged. Keep API-key mode generic, including Luna,
+      and preserve OpenCode 1.18.5, ACP-native usage, unavailable OAuth price and
+      cost, credential isolation and scanning, fixed cross-user execution,
+      offline bootstrap, and no-provider preflight.
+    reasoning: The explicit user policy determines future paid model selection.
+      The pinned runtime source and test directly support Luna over OAuth, so the
+      smallest root-cause change is one Go-owned model pin plus a schema boundary.
+      A schema bump prevents committed historical campaigns from silently
+      acquiring new execution meaning. Keeping all other OAuth and API-key
+      boundaries unchanged avoids unsupported authority or compatibility claims.
+    confidence: firm
+    feeds_into: SkillsBench campaign schema and CLI; OAuth preparation,
+      generated OpenCode configuration, import identity, and validation;
+      methodology, fixtures, runbook, and future paid campaign policy.

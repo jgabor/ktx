@@ -1,0 +1,16 @@
+id: nssgwhglxa
+artifact: progress
+record:
+  timestamp: 2026-08-02 21:59
+  type: chore
+  phase: build
+  what: Expanded tools/bench/evidence/skillsbench-proof-derivative.json after independent review and rebound its final digest in the archive manifest and authority inventory.
+  context:
+    intent: Make the bounded archival exception exhaustive without misclassifying public source coordinates as workstation identity.
+    constraints: Preserve every original proof and raw byte; keep one deterministic portable derivative; make no runtime, dependency, harness, provider, model, authentication, network, paid benchmark, ambient database, merge, or push change.
+    unknowns: Independent acceptance review remains.
+    scope: Exception accounting, derivative digest bindings, exact staged-tree verification, and repository-wide checks.
+  discovered: A literal user-token scan also matches public Go module coordinates. Exhaustive accounting separates 79 public repository-namespace matches from 5 actual host-path identity matches and records 12 randomized temporary-root occurrences.
+  verified: The final derivative digest is 79a6e46c5f6ca81d06d16e8f16602198d0cd4389f208a2cc104ca1fb8b8bf9a8. All 53 checked digest references are valid. The staged derivative, manifest, and inventory agree. The three archived proof-tree aggregates, raw authority, historical publications, and portable identity tree are unchanged. An exact staged export passed sensitive scans and maintained tests under isolated roots with KTX_DB unset. mage check passed with zero forbidden database accesses.
+  next: Commit the sanitized proof boundary and keep task xhbaaswcha in progress and unevaluated for independent acceptance review.
+  publication_order: 36

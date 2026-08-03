@@ -1,0 +1,15 @@
+id: cltbszvssc
+artifact: progress
+record:
+  timestamp: 2026-08-02 20:33
+  type: refactor
+  phase: build
+  what: Archived the campaign-specific receipt inspector, proof bundle, revalidation generator and tests, and raw archive verifiers as inert historical evidence while retaining the portable direct identity check.
+  context:
+    intent: Remove one-campaign machinery from routine builds and verification without changing historical authority or meaning.
+    constraints: No external execution, provider, model, authentication, network, ambient database, raw campaign rewrite, or compatibility surface.
+    scope: Archive classification, byte-preserving relocation, additive path mapping, documentation, inventory, and build-graph verification.
+  discovered: The two historical Go packages were included by routine ./... package discovery, and the old verifier commands depended on ignored raw campaign bytes or unavailable machine-local source roots.
+  verified: All 12 relocated files match their pre-archive SHA-256 digests; the corrected errata, archive index, 927-entry raw digest manifest, historical publications, and portable lock retain their exact hashes. Default and mage-tag package discovery exclude the archived packages, both maintained guards pass, and mage check passes offline with isolated roots and KTX_DB unset.
+  next: Keep the task in progress and unevaluated for independent review.
+  publication_order: 32

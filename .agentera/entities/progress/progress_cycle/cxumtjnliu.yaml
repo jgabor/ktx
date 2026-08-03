@@ -1,0 +1,15 @@
+id: cxumtjnliu
+artifact: progress
+record:
+  timestamp: 2026-08-02 14:08
+  type: fix
+  phase: build
+  what: Removed the undistributed external evaluator bridge from the shipped KTX surface with no deprecation or compatibility alias. Deleted the bridge command, evaluator orchestration, bootstrap installer, credential flow, and bridge-only tests. Retained native benchmark commands and read-only historical evidence tooling.
+  context:
+    intent: Close the owner-confirmed direct-removal gate while preserving native KTX contracts and historical external provenance.
+    constraints: Owner confirmed no package, artifact, or KTX release containing the bridge was distributed. Historical raw evidence remains immutable. No provider, model, paid, Docker, authentication, installation, fetch, remote, or ambient database operation occurred.
+    unknowns: verify-skillsbench-campaign-freeze.sh still fails after its retained-history checks because seven non-retained external source directories have since been emptied; all retained archive hashes pass and protected repository evidence is unchanged.
+    scope: internal/cli bridge dispatch and help, deleted internal/skillsbench and internal/opencodebootstrap packages, native CLI regressions, tools/bench embed boundary, local campaign-revalidation wire types, additive errata bindings, README.md, docs/database-safety.md, docs/skillsbench-campaign.md, and TODO.md.
+  verified: Fresh isolated roots with KTX_DB unset and GOPROXY=off passed mage check with zero lint issues, 967 audited operations, and zero forbidden operations. Focused tests, race, vet, mage build, built-CLI absence and native-command checks, deterministic campaign revalidation, sealed errata verification, external-validation rendering, and all 927 retained artifact hashes passed. Protected historical files are byte-for-byte unchanged.
+  next: Keep task ddudfxxssc in progress for independent audit and integration. Do not infer approval for external evaluator execution.
+  publication_order: 23

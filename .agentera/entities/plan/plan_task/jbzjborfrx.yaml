@@ -1,0 +1,22 @@
+id: jbzjborfrx
+artifact: plan
+record:
+  name: Record the benchmark ownership and claim boundary
+  depends_on:
+    - nmepwbhtzq
+  status: complete
+  acceptance:
+    - GIVEN prior two-tier and bridge choices WHEN the boundary is recorded THEN KTX owns native evidence while the external evaluator owns execution, authentication, and dependency lifecycle.
+    - GIVEN prior bridge and model decisions WHEN supersession is recorded THEN only shipped-product implications change and all historical provenance remains intact.
+    - GIVEN architecture, backlog, safety, and campaign sources WHEN synchronized THEN none describes provisional bridge machinery as permanent KTX product scope.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-jbzjborfrx-1
+      source: audit_jbzjborfrx_ownership_boundary overall PASS; retained evidence unchanged and package-inventory gate preserved
+      recorded_at: 2026-08-02 02:25
+      writer_command: agentera state plan record-evaluation

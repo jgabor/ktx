@@ -1,0 +1,17 @@
+id: vjrtsochmn
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Correct the canonical tree hash for the successful Luna replication archive.
+  readiness:
+    capability: build
+    reason: Audit confirmed the campaign but found the published aggregate tree hash used a noncanonical recipe.
+    dependencies:
+      []
+    blocked:
+      reason: The replication task exhausted two evaluations while inventory and docs retain an unreproducible tree hash.
+      recovery: Recompute the repository canonical tree hash for source and archive, correct tracked evidence, and pass focused independent Audit.
+    gate: null
+    queue_rank: 1
+    order_reason: Five-pair gate analysis depends on trusted replication evidence.

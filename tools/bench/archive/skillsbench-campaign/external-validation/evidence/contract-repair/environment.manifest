@@ -1,0 +1,35 @@
+{
+  "schema_version": "ktx.external-validation-verification.v1",
+  "recorded_at": "2026-08-02T11:38:50+02:00",
+  "platform": "Linux 7.1.4-2-cachyos x86_64",
+  "go": "go version go1.26.5-X:nodwarf5 linux/amd64",
+  "mage": "Mage Build Tool v1.17.2",
+  "environment": {
+    "KTX_DB": "unset",
+    "GOPROXY": "off",
+    "GOTOOLCHAIN": "local",
+    "root_layout": ["home", "data", "config", "cache", "state", "runtime", "tmp", "gocache"],
+    "root_mapping": {
+      "HOME": "home",
+      "XDG_DATA_HOME": "data",
+      "XDG_CONFIG_HOME": "config",
+      "XDG_CACHE_HOME": "cache",
+      "XDG_STATE_HOME": "state",
+      "XDG_RUNTIME_DIR": "runtime",
+      "TMPDIR": "tmp",
+      "GOCACHE": "gocache"
+    }
+  },
+  "commands": [
+    {"id":"focused","root":"/tmp/ktx-ext-proof-focused.jcmh6g","argv":["go","test","-count=1","./internal/canon","./tools/bench/external-validation"],"exit":0},
+    {"id":"fuzz","root":"/tmp/ktx-ext-proof-fuzz.w7nMSS","argv":["go","test","-run","^$","-fuzz","^FuzzRejectedCommitNeverLeaks$","-fuzztime=5s","./tools/bench/external-validation"],"exit":0},
+    {"id":"race","root":"/tmp/ktx-ext-proof-race2.hUdmvn","argv":["go","test","-race","-count=1","./tools/bench/external-validation"],"exit":0},
+    {"id":"vet","root":"/tmp/ktx-ext-proof-vet.pN6gqB","argv":["go","vet","./internal/canon","./tools/bench/external-validation"],"exit":0},
+    {"id":"build","root":"/tmp/ktx-ext-proof-build.vNg9z7","argv":["go","build","-buildvcs=false","-o","/tmp/ktx-ext-proof-build.vNg9z7/bin/external-validation","./tools/bench/external-validation"],"exit":0},
+    {"id":"freeze","root":"/tmp/ktx-ext-proof-freeze.XqBeVr","argv":["bash","tools/bench/evidence/verify-skillsbench-campaign-freeze.sh"],"exit":0},
+    {"id":"full","root":"/tmp/ktx-ext-proof-mage.7H3mdm","argv":["mage","check"],"exit":0}
+  ],
+  "inspector_binary_sha256": "49035c700fe51f31e50fac996ada7db9fbac8ed5ec6c0a912cb5c2a189a4108c",
+  "provider_or_model_execution": false,
+  "external_authentication": false
+}

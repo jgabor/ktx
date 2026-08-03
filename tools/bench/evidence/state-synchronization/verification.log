@@ -1,0 +1,191 @@
+KTX state synchronization retained verification
+captured_at=2026-08-02T13:49:50Z
+source_base_commit=8200ea5ea6a2b05f1664a8115629e5962c69dde5
+
+environment
+KTX_DB=unset
+HOME=$check_root/home
+XDG_DATA_HOME=$check_root/data
+XDG_CONFIG_HOME=$check_root/config
+XDG_CACHE_HOME=$check_root/cache
+XDG_STATE_HOME=$check_root/state
+XDG_RUNTIME_DIR=$check_root/runtime
+TMPDIR=$check_root/tmp
+GOPROXY=off
+GOTOOLCHAIN=local
+runtime_mode=0700
+provider_execution=false
+model_execution=false
+container_execution=false
+remote_access=false
+authentication_access=false
+dependency_fetch=false
+install_execution=false
+
+focused_tests command=go test -count=1 ./internal/cli ./internal/db ./internal/experiment ./internal/pipeline ./internal/pipeline/stages ./tools/bench/evidence/campaign-revalidation ./tools/bench/external-validation
+focused_tests exit=0
+ok github.com/jgabor/ktx/internal/cli 7.101s
+ok github.com/jgabor/ktx/internal/db 32.409s
+ok github.com/jgabor/ktx/internal/experiment 1.379s
+ok github.com/jgabor/ktx/internal/pipeline 0.006s
+ok github.com/jgabor/ktx/internal/pipeline/stages 0.003s
+ok github.com/jgabor/ktx/tools/bench/evidence/campaign-revalidation 1.206s
+ok github.com/jgabor/ktx/tools/bench/external-validation 0.113s
+stderr=<empty>
+
+race_tests command=go test -race -count=1 ./internal/cli ./internal/db ./internal/experiment ./tools/bench/evidence/campaign-revalidation ./tools/bench/external-validation
+race_tests exit=0
+ok github.com/jgabor/ktx/internal/cli 33.181s
+ok github.com/jgabor/ktx/internal/db 46.520s
+ok github.com/jgabor/ktx/internal/experiment 6.657s
+ok github.com/jgabor/ktx/tools/bench/evidence/campaign-revalidation 2.910s
+ok github.com/jgabor/ktx/tools/bench/external-validation 1.769s
+stderr=<empty>
+
+structured_diff_generator command=node -e 'const events=Array.from({length:1800},(_,i)=>({sequence:i,kind:"trace",message:"cache lookup diagnostic filler "+String(i).padStart(4,"0")})); events.splice(900,0,{sequence:900,kind:"patch",file:"internal/cache/store.go",patch:["@@ -41,2 +41,6 @@","-value := cache[key]","-return value, nil","+value, ok := cache[key]","+if !ok {","+  return nil, ErrCacheMiss","+}","+return value, nil"].join("\\n")}); console.log(JSON.stringify({schema_version:1,events,result:{state:"rollback",exit_code:23,error:{kind:"verification_failed"}}},null,2));'
+structured_diff_generator first_exit=0
+structured_diff_generator second_exit=0
+first_stdout_sha256=cad925545ff32527ab354d7bef1ade473f9bdb1063bffdadb16e84c2c359de80
+second_stdout_sha256=cad925545ff32527ab354d7bef1ade473f9bdb1063bffdadb16e84c2c359de80
+schema_version=1
+events=1801
+event_900_kind=patch
+event_900_file=internal/cache/store.go
+event_900_contains=ErrCacheMiss
+result_state=rollback
+result_exit_code=23
+result_error_kind=verification_failed
+stderr=<empty>
+
+retained_raw_manifest command=sha256sum -c tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256
+retained_raw_manifest exit=0
+entries=927
+matches=927
+stderr=<empty>
+
+errata_bundle command=sha256sum -c tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS
+errata_bundle exit=0
+entries=8
+matches=8
+stderr=<empty>
+
+external_validation_bundle command=sha256sum -c tools/bench/external-validation/evidence/contract-repair/SHA256SUMS
+external_validation_bundle exit=0
+entries=4
+matches=4
+stderr=<empty>
+
+retained_bundle_verifier command=bash tools/bench/evidence/verify-skillsbench-campaign-errata.sh
+retained_bundle_verifier exit=0
+ok github.com/jgabor/ktx/tools/bench/evidence/campaign-revalidation 1.252s
+{"campaigns":10,"complete_campaigns":1,"valid_pairs":4,"fixtures":"passed","raw_immutable":true,"status":"ok"}
+stderr=<empty>
+
+historical_freeze_verifier command=bash tools/bench/evidence/verify-skillsbench-campaign-freeze.sh
+historical_freeze_verifier exit=1
+stdout=<empty>
+stderr=skillsbench campaign freeze: historical source artifact count changed
+expected_failure=true
+reason=the legacy verifier depends on unavailable volatile source roots
+
+repository_check command=mage check
+repository_check exit=0
+verification_root=/tmp/tmp.4RbGLElJfm
+ok github.com/jgabor/ktx 1.024s
+? github.com/jgabor/ktx/cmd/ktx [no test files]
+ok github.com/jgabor/ktx/internal/benchcontract 1.006s
+ok github.com/jgabor/ktx/internal/binarycap 1.006s
+ok github.com/jgabor/ktx/internal/cache/reuse 1.056s
+? github.com/jgabor/ktx/internal/cache/reuse/sequence [no test files]
+ok github.com/jgabor/ktx/internal/canon 1.009s
+ok github.com/jgabor/ktx/internal/ci 1.005s
+ok github.com/jgabor/ktx/internal/cli 34.407s
+ok github.com/jgabor/ktx/internal/cli/testutil 1.020s
+ok github.com/jgabor/ktx/internal/config 1.037s
+ok github.com/jgabor/ktx/internal/correlation 1.012s
+ok github.com/jgabor/ktx/internal/db 46.965s
+ok github.com/jgabor/ktx/internal/dbreport 1.113s
+ok github.com/jgabor/ktx/internal/evidence 1.938s
+ok github.com/jgabor/ktx/internal/experiment 6.889s
+ok github.com/jgabor/ktx/internal/identity 1.012s
+ok github.com/jgabor/ktx/internal/methodology 1.014s
+ok github.com/jgabor/ktx/internal/parser 1.023s
+ok github.com/jgabor/ktx/internal/pipeline 1.023s
+ok github.com/jgabor/ktx/internal/pipeline/stages 1.022s
+ok github.com/jgabor/ktx/internal/router 1.024s
+ok github.com/jgabor/ktx/internal/telemetry 1.021s
+ok github.com/jgabor/ktx/internal/telemetry/opencode 1.026s
+ok github.com/jgabor/ktx/internal/usage 6.186s
+? github.com/jgabor/ktx/internal/version [no test files]
+? github.com/jgabor/ktx/tools/bench [no test files]
+ok github.com/jgabor/ktx/tools/bench/evidence/campaign-revalidation 2.653s
+ok github.com/jgabor/ktx/tools/bench/external-validation 1.783s
+lint=0 issues
+build=passed
+audit_boundary=02221e206d7279e7
+audit_attempts=967
+audit_operations=inspect:94,open:415,open_read_only:311,resolve:147
+audit_forbidden=0
+audit_ktx_db=unset
+stderr=<empty>
+
+built_removed_command command=./build/ktx bench skillsbench --format json
+built_removed_command exit=1
+stdout=<empty>
+stderr={"error":{"code":"usage","message":"ktx bench: unknown subcommand \"skillsbench\"; run 'ktx bench --help'"}}
+
+built_compare_usage command=./build/ktx bench compare --format json
+built_compare_usage exit=1
+stdout=<empty>
+stderr={"error":{"code":"usage","message":"ktx bench compare: --model and either --task-file or --task-id/--prompt are required"}}
+
+built_stats command=./build/ktx stats --format json
+built_stats exit=0
+stdout=[]
+stderr=<empty>
+
+built_telemetry command=./build/ktx telemetry list --session abcdefghijklmnop --limit 10 --format json
+built_telemetry exit=2
+stdout=<empty>
+stderr={"error":{"code":"not-found","message":"ktx telemetry list: session \"abcdefghijklmnop\" not found"}}
+
+built_corpus command=./build/ktx bench corpus generate --output $check_root/corpus --format json
+built_corpus exit=0
+files=MANIFEST.json,build_log.txt,search_hits.txt,src_alpha.txt,src_beta.txt,src_gamma.txt
+stderr=<empty>
+ambient_database_created=false
+
+help_surface exit=0
+required=generic preflight returns before task loading
+removed_command_matches=0
+removed_bridge_matches=0
+
+credential_shape_scan exit=0
+matches=0
+
+project_memory_marker_scan exit=0
+matches=0
+
+protected_scope_diff exit=0
+stdout=<empty>
+stderr=<empty>
+
+historical_authority_hashes
+b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e  tools/bench/evidence/skillsbench-oauth-campaign-archive.json
+55b196c49d7d640233db43879c7396093718708a62fb2f7452435aefdf022ec3  tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256
+471b41d3a79557695dee72dc8add5d0296edf4d288e6a62f28a42e449bf953a7  tools/bench/evidence/verify-skillsbench-campaign-freeze.sh
+3c9de17822f57327dbb45f1ffd3f39212f0c1bc905ae2f60ee07cf2b35fd1100  tools/bench/evidence/skillsbench-final-index.json
+8e7db2d6f19a18a3486760459c8fcc43f5846221398eb1620803b645207ac007  tools/bench/evidence/skillsbench-five-pair-gate.json
+fc74cb73246b4873f4b493af7795f6d80d8c2f0d047750766cee4624ad141f8b  tools/bench/external-validation/campaign-lock.json
+
+changed_public_artifact_hashes
+a70265be71bf921855e32d215fc15dc7e0198aadd08a3e75833524c3ad6b8dfc  docs/skillsbench-campaign.md
+8553d0bd9d8ed83efafc9136b29fda7d7c7fb2aff0513228b53bb66c09433f28  README.md
+1feeb299babc6201215746896d3150f183c4137d797059a0615e1b364eb16c07  docs/external-validation.md
+c879429556eeeddd1cc5e581ee3613fb90e7aba547cccd8834b5f423a6b790c3  docs/pipelines.md
+d293a8244a5eddee49db48228a1b149802746b6d3422d5966b0062c854fe79b3  .agents/skills/ktx/references/benchmarks-development.md
+f0f45e75a3b00b9292b4cea2ea91e5b958344ad2fbb3d248ea8d3403d9708765  internal/cli/bench.go
+a1bfe336ad9b72463d1550a2c2fb8d5e1c85107d30a226c167febf1c1305d66c  internal/cli/bench_experiment_test.go
+8557b3d49616d9c5cef2b1550c8c213946c3c2d1d4f2d4a8c4b46358f441b814  internal/cli/contract_sync_test.go
+fd9e66054c7945f96df0e70b5f75f6aa070ebade7cbce4eb055cc48c9d485490  internal/db/stats_test.go
+1da7366cde46e8f786d08090501864b86027623af8af655fc2b5af9f697636be  internal/experiment/experiment_test.go

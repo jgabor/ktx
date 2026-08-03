@@ -1,0 +1,15 @@
+id: dkuixvksjl
+artifact: progress
+record:
+  timestamp: 2026-07-31 21:24
+  type: fix
+  phase: build
+  what: Corrected final replication version provenance by separating the retained coordinator identity from the benchmark-image KTX version.
+  context:
+    intent: Resolve Audit finding audit-1 without changing campaign evidence, conclusions, or lifecycle status.
+    constraints: Evidence metadata, report wording, final-index binding, and superseding progress only. No campaign bytes, product code/tests, dependencies, gates, TODO conclusions, task/plan status, execution, or remote activity.
+    unknowns: Focused independent re-review has not yet accepted the correction.
+    scope: tools/bench/evidence/skillsbench-oauth-campaign-archive.json, docs/skillsbench-campaign.md, tools/bench/evidence/skillsbench-final-index.json, intentional audit-1 task state, and this progress record.
+  verified: "Supersedes oqrtmrlsdk only for replication KTX version provenance. Direct isolated invocation of the retained coordinator at inputs/ktx returned dev and SHA-256 750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2. Retained preflight SHA-256 c55feb0209bf411f1f619707410ec18226d25678fe49db6d4ff10b45a6c807ee independently records benchmark-image KTX version 0.1.0-dev. Corrected inventory SHA-256 is 2b93ffe30026811852b4c41e56408d9fa17a77c94e774e8356c4e1707b19ec15 and final-index SHA-256 is 3bcb03226eda1ed30c5a9fc46af8d8881aeebee26ba3eb5c64a59a4307f72c07; linked gate and disposition digests remain unchanged. Campaign trees, counts, metrics, TODOs, conclusions, and task/plan statuses are unchanged. JSON, bindings, docs, links, credential patterns, and diff checks passed. N/A: docs-only. No campaign mutation, preflight, run, validation, build, test, model, paid, diversity, or remote activity occurred."
+  next: Focused independent re-review must assess audit-1. Leave fnighqjqjx in progress and plan oydbeaydwa open for orchestrator-owned closure.
+  publication_order: 14

@@ -1,0 +1,26 @@
+id: mqjszxkcqx
+artifact: plan
+record:
+  name: Establish a direct portable external identity lock
+  depends_on:
+    - pnshnjuhkr
+  status: superseded
+  acceptance:
+    - GIVEN the external campaign lock WHEN a maintainer reads it THEN exact evaluator, task, runtime, adapter, KTX, execution, and digest identities are visible directly without resolving a custom binding language.
+    - GIVEN matching, mismatching, and malformed observed identities WHEN checked from tracked inputs THEN the bounded read-only contract succeeds or fails deterministically with actionable diagnostics.
+    - GIVEN the maintained check WHEN its effects are inspected THEN it performs no authentication, installation, network access, model execution, database access, or repository mutation.
+    - GIVEN the simplified boundary WHEN dependencies are inspected THEN no general receipt schema, package lifecycle, or KTX-internal parser coupling remains.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: "Blocking evidence-integrity defect: progress igblalixsb records staged-diff digest 9916a2cb and checker-tree digest ab3bdc55, while committed 9623a31 produces commit binary-diff digest 8fc54725 and checker-tree digest 7bb17991. Add an append-only correction tied to commit 9623a31 with precisely scoped current digest evidence; do not use a self-referential final-commit digest claim."
+    provenance:
+      attempt_id: audit-mqjszxkcqx-2
+      source: audit_mqjszxkcqx_go_retry overall FAIL; all four implementation acceptance criteria pass, but task verification evidence records obsolete pre-final digests
+      recorded_at: 2026-08-02 20:02
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - ustfhmpixj
+  superseded_reason: Replacement preserves both failed audits and adds a passing, reproducible correction for the direct external identity lock.

@@ -1,0 +1,24 @@
+id: pefsgjusqb
+artifact: health
+record:
+  date: 2026-08-02
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: stable
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    []
+  trends:
+    comparison_target: terminal typed plan state for ykjitbbwfl and its retained synchronization evidence
+    stable: All 10 tasks are terminal. Every completed task has a latest PASS, and the failed external-lock task is validly superseded by its complete, latest-PASS replacement. The implementation, documentation, and retained evidence remain unchanged and checksum-valid after the final audit. Decision satisfaction remains unset.
+  patterns:
+    - Limited artifact-freshness and plan-closure audit only, not a codebase-wide health audit. The final task evaluation is the sole pre-close worktree delta; the expected volatile-root verifier caveat does not make current artifacts stale.
+  appended_at: 2026-08-02T14:14:16.835Z

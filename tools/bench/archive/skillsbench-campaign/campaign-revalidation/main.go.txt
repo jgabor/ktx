@@ -1,0 +1,1480 @@
+//go:build linux
+
+// Command campaign-revalidation derives a corrected historical campaign
+// report from frozen local evidence. It never executes an evaluator, model,
+// container, migration, or write-capable database operation.
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"math"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/jgabor/ktx/internal/canon"
+	dbpkg "github.com/jgabor/ktx/internal/db"
+)
+
+const (
+	archivePath        = "tools/bench/evidence/skillsbench-oauth-campaign-archive.json"
+	archiveSHA256      = "b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e"
+	artifactPath       = "tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256"
+	artifactSHA256     = "55b196c49d7d640233db43879c7396093718708a62fb2f7452435aefdf022ec3"
+	freezeVerifierPath = "tools/bench/evidence/verify-skillsbench-campaign-freeze.sh"
+	freezeVerifierSHA  = "471b41d3a79557695dee72dc8add5d0296edf4d288e6a62f28a42e449bf953a7"
+	historicalPath     = "tools/bench/evidence/skillsbench-final-index.json"
+	historicalSHA256   = "3c9de17822f57327dbb45f1ffd3f39212f0c1bc905ae2f60ee07cf2b35fd1100"
+	historicalGatePath = "tools/bench/evidence/skillsbench-five-pair-gate.json"
+	historicalGateSHA  = "8e7db2d6f19a18a3486760459c8fcc43f5846221398eb1620803b645207ac007"
+	externalLockPath   = "tools/bench/external-validation/campaign-lock.json"
+	externalLockSHA    = "fc74cb73246b4873f4b493af7795f6d80d8c2f0d047750766cee4624ad141f8b"
+	generatorPath      = "tools/bench/evidence/campaign-revalidation/main.go"
+	errataPath         = "tools/bench/evidence/skillsbench-campaign-errata.json"
+	expectedRawFiles   = 927
+	currentCampaign    = 7
+	retainedDBSchema   = 9
+	maxJSONBytes       = 32 << 20
+)
+
+var (
+	canonicalID = regexp.MustCompile(`^[a-z][a-z0-9-]*[a-z0-9]$`)
+	databaseID  = regexp.MustCompile(`^[a-z]{16}$`)
+)
+
+// These local wire types describe only the retained fields inspected by this
+// offline correction tool. Unknown historical fields remain accepted by the
+// JSON decoder and are not promoted into a reusable evaluator package.
+type FileRef struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+	Mode   uint32 `json:"mode"`
+}
+
+type Manifest struct {
+	SchemaVersion int     `json:"schema_version"`
+	Model         string  `json:"model"`
+	Rounds        int     `json:"rounds"`
+	Seed          int64   `json:"seed"`
+	SkillMode     string  `json:"skill_mode"`
+	StopPolicy    string  `json:"stop_policy,omitempty"`
+	Schedule      FileRef `json:"schedule"`
+}
+
+type PreflightEvidence struct {
+	SchemaVersion  int            `json:"schema_version"`
+	ManifestSHA256 string         `json:"manifest_sha256"`
+	KTXPreflight   map[string]any `json:"ktx_preflight"`
+}
+
+type ScheduleEntry struct {
+	SchemaVersion int    `json:"schema_version"`
+	StopPolicy    string `json:"stop_policy,omitempty"`
+	AttemptID     string `json:"attempt_id"`
+	PairID        string `json:"pair_id"`
+	Task          string `json:"task"`
+	Repetition    int    `json:"repetition"`
+	Side          string `json:"side"`
+	Ordinal       int    `json:"ordinal"`
+	SourceSHA256  string `json:"source_sha256"`
+	OverlaySHA256 string `json:"overlay_sha256"`
+	TaskPath      string `json:"task_path"`
+}
+
+type Execution struct {
+	AttemptID       string  `json:"attempt_id"`
+	ExitCode        int     `json:"exit_code"`
+	TimedOut        bool    `json:"timed_out"`
+	StdoutTruncated bool    `json:"stdout_truncated"`
+	StderrTruncated bool    `json:"stderr_truncated"`
+	Version         string  `json:"bench_version"`
+	Stdout          FileRef `json:"stdout"`
+	Stderr          FileRef `json:"stderr"`
+}
+
+type AttemptTerminal struct {
+	State            string `json:"state"`
+	Reason           string `json:"reason"`
+	TriggerAttemptID string `json:"trigger_attempt_id,omitempty"`
+}
+
+type NullableMetrics struct {
+	Input         *float64 `json:"input"`
+	Output        *float64 `json:"output"`
+	CacheRead     *float64 `json:"cache_read"`
+	CacheCreation *float64 `json:"cache_creation"`
+	NewInput      *float64 `json:"new_input"`
+	Total         *float64 `json:"total"`
+	CostUSD       *float64 `json:"cost_usd"`
+	Tools         *float64 `json:"tools"`
+	Turns         *float64 `json:"turns"`
+	WallSeconds   *float64 `json:"wall_seconds"`
+}
+
+type Adoption struct {
+	Available               bool   `json:"available"`
+	Reason                  string `json:"reason,omitempty"`
+	SessionCount            *int64 `json:"session_count"`
+	ToolCallCount           *int64 `json:"tool_call_count"`
+	OriginalBytes           *int64 `json:"original_bytes"`
+	DeliveredBytes          *int64 `json:"delivered_bytes"`
+	CompressedArtifactCount *int64 `json:"compressed_artifact_count"`
+	DispositionCount        *int64 `json:"disposition_count"`
+}
+
+type Attempt struct {
+	SchemaVersion           int              `json:"schema_version"`
+	AttemptID               string           `json:"attempt_id"`
+	PairID                  string           `json:"pair_id"`
+	Task                    string           `json:"task"`
+	Repetition              int              `json:"repetition"`
+	Side                    string           `json:"side"`
+	Ordinal                 int              `json:"ordinal"`
+	SourceSHA256            string           `json:"source_sha256"`
+	OverlaySHA256           string           `json:"overlay_sha256"`
+	Imported                bool             `json:"imported"`
+	InfrastructureEvaluable bool             `json:"infrastructure_evaluable"`
+	QualityEvaluable        bool             `json:"quality_evaluable"`
+	InvalidReasons          []string         `json:"invalid_reasons"`
+	Reward                  *float64         `json:"reward"`
+	Metrics                 NullableMetrics  `json:"metrics"`
+	Errors                  map[string]any   `json:"errors"`
+	Identity                map[string]any   `json:"identity"`
+	Artifacts               []FileRef        `json:"artifacts"`
+	Rollout                 FileRef          `json:"rollout"`
+	Adoption                Adoption         `json:"adoption"`
+	Terminal                *AttemptTerminal `json:"terminal,omitempty"`
+}
+
+type PairSummary struct {
+	PairID     string              `json:"pair_id"`
+	Task       string              `json:"task"`
+	Repetition int                 `json:"repetition"`
+	Complete   bool                `json:"complete"`
+	Reasons    []string            `json:"reasons"`
+	Deltas     map[string]*float64 `json:"baseline_minus_candidate"`
+}
+
+type Summary struct {
+	SchemaVersion      int           `json:"schema_version"`
+	ManifestSHA256     string        `json:"manifest_sha256"`
+	ScheduleSHA256     string        `json:"schedule_sha256"`
+	Scheduled          int           `json:"scheduled"`
+	Imported           int           `json:"imported"`
+	QualityEvaluable   int           `json:"quality_evaluable"`
+	Complete           bool          `json:"complete"`
+	Pairs              []PairSummary `json:"pairs"`
+	InvalidAttemptIDs  []string      `json:"invalid_attempt_ids"`
+	UnpairedAttemptIDs []string      `json:"unpaired_attempt_ids"`
+}
+
+type authorityRef struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+type report struct {
+	SchemaVersion string            `json:"schema_version"`
+	CorrectedAt   string            `json:"corrected_at"`
+	Status        string            `json:"status"`
+	Supersession  supersession      `json:"supersession"`
+	Authority     authority         `json:"authority"`
+	Contract      contract          `json:"contract"`
+	Completeness  completeness      `json:"completeness"`
+	Corrections   []claimCorrection `json:"corrections"`
+	Metrics       correctedMetrics  `json:"metrics"`
+	Limitations   []string          `json:"limitations"`
+}
+
+type supersession struct {
+	PreferredCorrection correctionRef  `json:"preferred_correction"`
+	Historical          []authorityRef `json:"historical_publications"`
+	Rule                string         `json:"rule"`
+}
+
+type correctionRef struct {
+	Path             string `json:"path"`
+	ChecksumManifest string `json:"checksum_manifest"`
+}
+
+type authority struct {
+	Archive        authorityRef `json:"campaign_archive"`
+	RawArtifacts   authorityRef `json:"raw_artifacts"`
+	FreezeVerifier authorityRef `json:"freeze_verifier"`
+	ExternalLock   authorityRef `json:"external_identity_lock"`
+	Generator      authorityRef `json:"generator"`
+	RawFileCount   int          `json:"verified_raw_file_count"`
+}
+
+type contract struct {
+	CompleteRequires     []string `json:"complete_requires"`
+	IdentityFormat       string   `json:"identity_format"`
+	FirstArtifactOrder   []string `json:"first_artifact_order"`
+	DeltaDirection       string   `json:"delta_direction"`
+	MissingOrUnknownRule string   `json:"missing_or_unknown_rule"`
+	DatabaseMode         string   `json:"database_mode"`
+}
+
+type completeness struct {
+	Campaigns             []campaignStatus `json:"campaigns"`
+	CurrentComplete       int              `json:"current_complete_campaigns"`
+	CurrentIncomplete     int              `json:"current_incomplete_campaigns"`
+	CompleteAttemptCount  int              `json:"complete_attempts"`
+	CompletePairCount     int              `json:"complete_pairs"`
+	RemovedCompleteClaims int              `json:"removed_complete_campaign_claims"`
+}
+
+type campaignStatus struct {
+	CampaignID       string           `json:"campaign_id"`
+	ArchivePath      string           `json:"archive_path"`
+	HistoricalClass  string           `json:"historical_class"`
+	HistoricalClaim  *bool            `json:"historical_complete_claim"`
+	CorrectedClass   string           `json:"corrected_class"`
+	CurrentComplete  bool             `json:"current_complete"`
+	SchemaCurrent    bool             `json:"schema_current"`
+	IdentityBound    bool             `json:"identity_bound"`
+	Preflight        layerCount       `json:"preflight"`
+	Terminal         layerCount       `json:"terminal"`
+	Execution        layerCount       `json:"execution"`
+	ResultAndSummary layerCount       `json:"result_and_summary"`
+	Database         layerCount       `json:"database"`
+	Gaps             []string         `json:"gaps"`
+	Bindings         []attemptBinding `json:"bindings,omitempty"`
+}
+
+type layerCount struct {
+	Expected int `json:"expected"`
+	Valid    int `json:"valid"`
+}
+
+type claimCorrection struct {
+	Claim      string `json:"claim"`
+	Historical any    `json:"historical"`
+	Corrected  any    `json:"corrected"`
+	Reason     string `json:"reason"`
+}
+
+type correctedMetrics struct {
+	Scope             string            `json:"scope"`
+	ValidPairs        int               `json:"valid_pairs"`
+	Pairs             []pairMetrics     `json:"pairs"`
+	Aggregate         aggregateMetrics  `json:"aggregate"`
+	DirectionalCounts directionalCounts `json:"directional_counts"`
+	Gate              gateCorrection    `json:"gate"`
+}
+
+type gateCorrection struct {
+	State                string  `json:"state"`
+	RequiredValidPairs   int     `json:"required_valid_pairs"`
+	ObservedValidPairs   int     `json:"observed_valid_pairs"`
+	HistoricalDecision   string  `json:"historical_decision"`
+	CorrectedDecision    *string `json:"corrected_decision"`
+	Reason               string  `json:"reason"`
+	PaidExpansionAllowed bool    `json:"further_paid_expansion_authorized"`
+}
+
+type directionalCounts struct {
+	Reward         lowerEqualHigher `json:"reward"`
+	DeliveredBytes lowerEqualHigher `json:"delivered_bytes"`
+	TotalTokens    lowerEqualHigher `json:"total_tokens"`
+}
+
+type lowerEqualHigher struct {
+	CandidateLower  int `json:"candidate_lower"`
+	Equal           int `json:"equal"`
+	CandidateHigher int `json:"candidate_higher"`
+}
+
+type pairMetrics struct {
+	QualifiedPairID        string      `json:"qualified_pair_id"`
+	Baseline               armMetrics  `json:"baseline"`
+	Candidate              armMetrics  `json:"candidate"`
+	CandidateMinusBaseline metricDelta `json:"candidate_minus_baseline"`
+}
+
+type armMetrics struct {
+	QualifiedAttemptID   string       `json:"qualified_attempt_id"`
+	TerminalDisposition  string       `json:"terminal_disposition"`
+	Reward               float64      `json:"reward"`
+	OriginalBytes        int64        `json:"original_bytes"`
+	DeliveredBytes       int64        `json:"delivered_bytes"`
+	CompressionRatio     float64      `json:"compression_ratio"`
+	CompressionReduction float64      `json:"compression_reduction"`
+	Tokens               tokenMetrics `json:"tokens"`
+	RuntimeTools         float64      `json:"runtime_tools"`
+	KTXCalls             int64        `json:"ktx_calls"`
+	Turns                float64      `json:"turns"`
+	WallSeconds          float64      `json:"wall_seconds"`
+	CostUSD              *float64     `json:"cost_usd"`
+}
+
+type tokenMetrics struct {
+	Input         float64 `json:"input"`
+	NewInput      float64 `json:"new_input"`
+	CacheRead     float64 `json:"cache_read"`
+	CacheCreation float64 `json:"cache_creation"`
+	Output        float64 `json:"output"`
+	Total         float64 `json:"total"`
+}
+
+type metricDelta struct {
+	Reward               float64      `json:"reward"`
+	OriginalBytes        int64        `json:"original_bytes"`
+	DeliveredBytes       int64        `json:"delivered_bytes"`
+	CompressionRatio     float64      `json:"compression_ratio"`
+	CompressionReduction float64      `json:"compression_reduction"`
+	Tokens               tokenMetrics `json:"tokens"`
+	RuntimeTools         float64      `json:"runtime_tools"`
+	KTXCalls             int64        `json:"ktx_calls"`
+	Turns                float64      `json:"turns"`
+	WallSeconds          float64      `json:"wall_seconds"`
+}
+
+type aggregateMetrics struct {
+	Baseline               armAggregate   `json:"baseline"`
+	Candidate              armAggregate   `json:"candidate"`
+	CandidateMinusBaseline deltaAggregate `json:"candidate_minus_baseline"`
+}
+
+type armAggregate struct {
+	Reward               distribution `json:"reward"`
+	OriginalBytes        distribution `json:"original_bytes"`
+	DeliveredBytes       distribution `json:"delivered_bytes"`
+	CompressionRatio     distribution `json:"compression_ratio"`
+	CompressionReduction distribution `json:"compression_reduction"`
+	TotalTokens          distribution `json:"total_tokens"`
+	RuntimeTools         distribution `json:"runtime_tools"`
+	KTXCalls             distribution `json:"ktx_calls"`
+	Turns                distribution `json:"turns"`
+	WallSeconds          distribution `json:"wall_seconds"`
+}
+
+type deltaAggregate armAggregate
+
+type distribution struct {
+	Mean   float64 `json:"mean"`
+	Median float64 `json:"median"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+}
+
+type attemptBinding struct {
+	QualifiedAttemptID string          `json:"qualified_attempt_id"`
+	AttemptRecord      authorityRef    `json:"attempt_record"`
+	Execution          authorityRef    `json:"execution"`
+	Terminal           authorityRef    `json:"terminal"`
+	Result             authorityRef    `json:"result"`
+	BenchFlowSummary   authorityRef    `json:"benchflow_summary"`
+	BenchFlowResults   authorityRef    `json:"benchflow_results"`
+	Database           databaseBinding `json:"database"`
+}
+
+type databaseBinding struct {
+	Path                  string `json:"path"`
+	SHA256                string `json:"sha256"`
+	UserVersion           int    `json:"user_version"`
+	ReadOnly              bool   `json:"read_only"`
+	Integrity             string `json:"integrity"`
+	SessionCount          int64  `json:"session_count"`
+	ToolCallCount         int64  `json:"tool_call_count"`
+	OriginalBytes         int64  `json:"original_bytes"`
+	DeliveredBytes        int64  `json:"delivered_bytes"`
+	CompressedSourceCount int64  `json:"compressed_source_count"`
+	DispositionCount      int64  `json:"disposition_count"`
+	SelectedArtifactRule  string `json:"selected_artifact_rule"`
+}
+
+type archiveDocument struct {
+	SchemaVersion int               `json:"schema_version"`
+	Campaigns     []archiveCampaign `json:"campaigns"`
+}
+
+type archiveCampaign struct {
+	ID             string          `json:"id"`
+	SchemaVersion  int             `json:"schema_version"`
+	Classification string          `json:"classification"`
+	Archive        string          `json:"archive"`
+	Validation     json.RawMessage `json:"validation"`
+}
+
+type historicalValidation struct {
+	Complete *bool `json:"complete"`
+}
+
+type lineRecord[T any] struct {
+	Value  T
+	SHA256 string
+}
+
+type attemptInspection struct {
+	identityOK  bool
+	terminalOK  bool
+	executionOK bool
+	resultOK    bool
+	databaseOK  bool
+	binding     attemptBinding
+	metrics     armMetrics
+	pairID      string
+	side        string
+}
+
+type databaseEvidence struct {
+	binding databaseBinding
+}
+
+type benchResult struct {
+	TaskName    string             `json:"task_name"`
+	Rewards     map[string]float64 `json:"rewards"`
+	AgentResult struct {
+		Input         *float64 `json:"n_input_tokens"`
+		Output        *float64 `json:"n_output_tokens"`
+		CacheRead     *float64 `json:"n_cache_read_tokens"`
+		CacheCreation *float64 `json:"n_cache_creation_tokens"`
+		Total         *float64 `json:"total_tokens"`
+		CostUSD       *float64 `json:"cost_usd"`
+	} `json:"agent_result"`
+	TrajectorySummary struct {
+		Steps *float64 `json:"steps"`
+	} `json:"trajectory_summary"`
+	Timing struct {
+		Total *float64 `json:"total"`
+	} `json:"timing"`
+}
+
+type benchSummary struct {
+	Total       int      `json:"total"`
+	Passed      int      `json:"passed"`
+	Failed      int      `json:"failed"`
+	Errored     int      `json:"errored"`
+	TotalTokens *float64 `json:"total_tokens"`
+	TotalTime   *float64 `json:"total_time_sec"`
+}
+
+type benchResultRow struct {
+	Reward *float64 `json:"reward"`
+	Info   struct {
+		TaskID      string `json:"task_id"`
+		TaskName    string `json:"task_name"`
+		RolloutName string `json:"rollout_name"`
+	} `json:"info"`
+	Timing struct {
+		Total *float64 `json:"total"`
+	} `json:"timing"`
+	Metrics struct {
+		ToolCalls *float64 `json:"n_tool_calls"`
+		Reward    *float64 `json:"reward"`
+	} `json:"metrics"`
+	TokenUsage struct {
+		Input  *float64 `json:"input_tokens"`
+		Output *float64 `json:"output_tokens"`
+		Total  *float64 `json:"total_tokens"`
+	} `json:"token_usage"`
+}
+
+func main() {
+	var repoRoot, checkPath string
+	flag.StringVar(&repoRoot, "repo", ".", "repository root")
+	flag.StringVar(&checkPath, "check", "", "compare generated bytes with this repository-relative errata path")
+	flag.Parse()
+	if flag.NArg() != 0 {
+		fatal("unexpected positional arguments")
+	}
+	if _, set := os.LookupEnv("KTX_DB"); set {
+		fatal("KTX_DB must be unset")
+	}
+	result, err := revalidate(repoRoot)
+	if err != nil {
+		fatal(err.Error())
+	}
+	data, err := marshalReport(result)
+	if err != nil {
+		fatal("encode report: " + err.Error())
+	}
+	if checkPath != "" {
+		path, err := safeJoin(repoRoot, checkPath)
+		if err != nil {
+			fatal("check path: " + err.Error())
+		}
+		want, err := os.ReadFile(path)
+		if err != nil {
+			fatal("read checked errata: " + err.Error())
+		}
+		if !bytes.Equal(want, data) {
+			fatal("checked errata is stale")
+		}
+		fmt.Printf("{\"campaigns\":%d,\"complete_campaigns\":%d,\"valid_pairs\":%d,\"status\":\"ok\"}\n", len(result.Completeness.Campaigns), result.Completeness.CurrentComplete, result.Metrics.ValidPairs)
+		return
+	}
+	if _, err := os.Stdout.Write(data); err != nil {
+		fatal("write report: " + err.Error())
+	}
+}
+
+func marshalReport(result *report) ([]byte, error) {
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	data = compactShortStringArrays(data, 80)
+	return append(data, '\n'), nil
+}
+
+func compactShortStringArrays(data []byte, maxLineBytes int) []byte {
+	lines := strings.Split(string(data), "\n")
+	formatted := make([]string, 0, len(lines))
+	for index := 0; index < len(lines); index++ {
+		line := lines[index]
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasSuffix(trimmed, ": [") {
+			formatted = append(formatted, line)
+			continue
+		}
+
+		elements := make([]string, 0)
+		closing := ""
+		end := index + 1
+		for ; end < len(lines); end++ {
+			item := strings.TrimSpace(lines[end])
+			if item == "]" || item == "]," {
+				closing = item
+				break
+			}
+			item = strings.TrimSuffix(item, ",")
+			var value string
+			if item == "" || json.Unmarshal([]byte(item), &value) != nil {
+				break
+			}
+			elements = append(elements, item)
+		}
+		if closing == "" || len(elements) == 0 {
+			formatted = append(formatted, line)
+			continue
+		}
+
+		candidate := strings.TrimSuffix(line, "[") + "[" + strings.Join(elements, ", ") + closing
+		if len(candidate) > maxLineBytes {
+			formatted = append(formatted, line)
+			continue
+		}
+		formatted = append(formatted, candidate)
+		index = end
+	}
+	return []byte(strings.Join(formatted, "\n"))
+}
+
+func fatal(message string) {
+	fmt.Fprintln(os.Stderr, "campaign revalidation: "+message)
+	os.Exit(1)
+}
+
+func revalidate(repoRoot string) (*report, error) {
+	repoRoot, err := filepath.Abs(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	pins := []authorityRef{
+		{Path: archivePath, SHA256: archiveSHA256},
+		{Path: artifactPath, SHA256: artifactSHA256},
+		{Path: freezeVerifierPath, SHA256: freezeVerifierSHA},
+		{Path: historicalPath, SHA256: historicalSHA256},
+		{Path: historicalGatePath, SHA256: historicalGateSHA},
+		{Path: externalLockPath, SHA256: externalLockSHA},
+	}
+	for _, pin := range pins {
+		if err := verifyPinned(repoRoot, pin); err != nil {
+			return nil, err
+		}
+	}
+	rawHashes, err := loadRawManifest(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	if len(rawHashes) != expectedRawFiles {
+		return nil, fmt.Errorf("raw manifest count %d, want %d", len(rawHashes), expectedRawFiles)
+	}
+	for path, want := range rawHashes {
+		got, err := hashRegular(repoRoot, path)
+		if err != nil || got != want {
+			return nil, fmt.Errorf("raw artifact mismatch: %s", path)
+		}
+	}
+	archiveData, err := readPinned(repoRoot, authorityRef{Path: archivePath, SHA256: archiveSHA256})
+	if err != nil {
+		return nil, err
+	}
+	var archive archiveDocument
+	if err := decodeStrict(archiveData, &archive); err != nil || archive.SchemaVersion != 2 || len(archive.Campaigns) != 10 {
+		return nil, errors.New("invalid campaign archive")
+	}
+	seenCampaigns := map[string]bool{}
+	var statuses []campaignStatus
+	var pairs []pairMetrics
+	removed := 0
+	completeAttempts := 0
+	for _, campaign := range archive.Campaigns {
+		if !canonicalID.MatchString(campaign.ID) || seenCampaigns[campaign.ID] {
+			return nil, fmt.Errorf("unsafe or duplicate campaign identity: %s", campaign.ID)
+		}
+		seenCampaigns[campaign.ID] = true
+		status, campaignPairs, err := inspectCampaign(repoRoot, campaign, rawHashes)
+		if err != nil {
+			return nil, fmt.Errorf("campaign %s: %w", campaign.ID, err)
+		}
+		statuses = append(statuses, status)
+		if status.CurrentComplete {
+			completeAttempts += status.Terminal.Valid
+			pairs = append(pairs, campaignPairs...)
+		}
+		if status.HistoricalClaim != nil && *status.HistoricalClaim && !status.CurrentComplete {
+			removed++
+		}
+	}
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].QualifiedPairID < pairs[j].QualifiedPairID })
+	completeCount := 0
+	for _, status := range statuses {
+		if status.CurrentComplete {
+			completeCount++
+		}
+	}
+	if completeCount != 1 || len(pairs) != 4 || completeAttempts != 8 || removed != 3 {
+		return nil, fmt.Errorf("unexpected corrected totals: complete=%d pairs=%d attempts=%d removed=%d", completeCount, len(pairs), completeAttempts, removed)
+	}
+	generatorSHA, err := hashRegular(repoRoot, generatorPath)
+	if err != nil {
+		return nil, err
+	}
+	metrics := buildCorrectedMetrics(pairs)
+	return &report{
+		SchemaVersion: "ktx.skillsbench-campaign-errata.v1",
+		CorrectedAt:   "2026-08-02",
+		Status:        "corrected",
+		Supersession: supersession{
+			PreferredCorrection: correctionRef{Path: errataPath, ChecksumManifest: "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS"},
+			Historical:          []authorityRef{{Path: historicalPath, SHA256: historicalSHA256}, {Path: historicalGatePath, SHA256: historicalGateSHA}},
+			Rule:                "Use this errata for current completeness and metrics; retain the historical publications unchanged for provenance.",
+		},
+		Authority: authority{
+			Archive:        authorityRef{Path: archivePath, SHA256: archiveSHA256},
+			RawArtifacts:   authorityRef{Path: artifactPath, SHA256: artifactSHA256},
+			FreezeVerifier: authorityRef{Path: freezeVerifierPath, SHA256: freezeVerifierSHA},
+			ExternalLock:   authorityRef{Path: externalLockPath, SHA256: externalLockSHA},
+			Generator:      authorityRef{Path: generatorPath, SHA256: generatorSHA},
+			RawFileCount:   len(rawHashes),
+		},
+		Contract: contract{
+			CompleteRequires:     []string{"preflight", "terminal_disposition", "attempt_execution", "result_and_summary", "read_only_database"},
+			IdentityFormat:       "campaign_id::attempt_id and campaign_id::pair_id; bare attempt and pair IDs are never global keys",
+			FirstArtifactOrder:   []string{"compressed.timestamp ASC", "compressed.id ASC"},
+			DeltaDirection:       "candidate_minus_baseline",
+			MissingOrUnknownRule: "Missing, malformed, inconsistent, or unknown authority makes the campaign incomplete; it never becomes success or zero.",
+			DatabaseMode:         "SQLite mode=ro plus PRAGMA query_only=ON; no migration",
+		},
+		Completeness: completeness{
+			Campaigns:             statuses,
+			CurrentComplete:       completeCount,
+			CurrentIncomplete:     len(statuses) - completeCount,
+			CompleteAttemptCount:  completeAttempts,
+			CompletePairCount:     len(pairs),
+			RemovedCompleteClaims: removed,
+		},
+		Corrections: []claimCorrection{
+			{Claim: "complete_campaigns", Historical: 4, Corrected: 1, Reason: "Three historically complete campaigns have no retained terminal disposition; two also use the retired campaign schema."},
+			{Claim: "complete_attempts", Historical: 20, Corrected: 8, Reason: "Only the eight replication attempts have all five mutually bound authority layers."},
+			{Claim: "valid_quality_pairs", Historical: 5, Corrected: 4, Reason: "The canary pair is removed because both attempts lack terminal disposition files."},
+			{Claim: "integration_and_quality_preservation", Historical: "succeeded", Corrected: "not established by the current complete-authority set", Reason: "The predeclared gate requires five valid pairs, but only four remain complete."},
+			{Claim: "expansion_gate", Historical: "STOP", Corrected: "incomplete; no gate decision", Reason: "The historical gate consumed a canary pair that fails the mandatory terminal rule."},
+			{Claim: "delta_direction", Historical: "mixed: summary uses baseline_minus_candidate while gate uses candidate_minus_baseline", Corrected: "candidate_minus_baseline only", Reason: "Corrected rows are recomputed from arm values and expose one direction."},
+			{Claim: "first_artifact_metrics", Historical: "latest-selector risk", Corrected: "earliest timestamp then smallest ID; retained values unchanged", Reason: "No retained quality database has more than one compressed row for a source, so the corrected selector changes no per-attempt byte total."},
+		},
+		Metrics: metrics,
+		Limitations: []string{
+			"The correction is descriptive for one task and four complete pairs; it supports no causal, significance, or generalization claim.",
+			"The raw archives remain ignored, checkout-local, immutable historical inputs; tracked indexes cannot restore them.",
+			"External execution, authentication, provider state, price, and cost are not replayed or inferred.",
+			"The historical publications remain byte-for-byte reachable and are not current completeness authority.",
+		},
+	}, nil
+}
+
+func inspectCampaign(repoRoot string, campaign archiveCampaign, rawHashes map[string]string) (campaignStatus, []pairMetrics, error) {
+	status := campaignStatus{CampaignID: campaign.ID, ArchivePath: campaign.Archive, HistoricalClass: campaign.Classification, CorrectedClass: "incomplete", Gaps: []string{}}
+	var historical historicalValidation
+	if len(campaign.Validation) > 0 && campaign.Validation[0] == '{' && decodeStrict(campaign.Validation, &historical) == nil {
+		status.HistoricalClaim = historical.Complete
+	}
+	if _, err := safeJoin(repoRoot, campaign.Archive); err != nil || !strings.HasPrefix(campaign.Archive, ".bench-data/skillsbench-campaigns/") {
+		return status, nil, errors.New("unsafe archive path")
+	}
+	manifestPath := campaign.Archive + "/manifest.json"
+	manifestData, manifestErr := verifiedRaw(repoRoot, manifestPath, rawHashes)
+	var manifest Manifest
+	manifestOK := manifestErr == nil && decodeStrict(manifestData, &manifest) == nil
+	status.SchemaCurrent = manifestOK && manifest.SchemaVersion == currentCampaign && campaign.SchemaVersion == currentCampaign
+	if !status.SchemaCurrent {
+		status.Gaps = append(status.Gaps, "current_schema")
+	}
+	manifestHash := digest(manifestData)
+
+	preflightPath := campaign.Archive + "/preflight.json"
+	preflightData, preflightErr := verifiedRaw(repoRoot, preflightPath, rawHashes)
+	var preflight PreflightEvidence
+	preflightOK := manifestOK && preflightErr == nil && decodeStrict(preflightData, &preflight) == nil &&
+		preflight.SchemaVersion == manifest.SchemaVersion && preflight.ManifestSHA256 == manifestHash && preflightEligible(preflight.KTXPreflight)
+	status.Preflight = layerCount{Expected: 1, Valid: boolInt(preflightOK)}
+	if !preflightOK {
+		status.Gaps = append(status.Gaps, "preflight")
+	}
+
+	schedulePath := campaign.Archive + "/schedule.jsonl"
+	scheduleData, scheduleErr := verifiedRaw(repoRoot, schedulePath, rawHashes)
+	schedule, scheduleParseErr := decodeJSONLines[ScheduleEntry](scheduleData)
+	attemptsPath := campaign.Archive + "/attempts.jsonl"
+	attemptsData, attemptsErr := verifiedRaw(repoRoot, attemptsPath, rawHashes)
+	attempts, attemptsParseErr := decodeJSONLineRecords[Attempt](attemptsData)
+	identityOK := manifestOK && scheduleErr == nil && scheduleParseErr == nil && attemptsErr == nil && attemptsParseErr == nil && len(schedule) > 0 && len(schedule) == len(attempts)
+	seenAttempts := map[string]bool{}
+	seenPairs := map[string]bool{}
+	if identityOK {
+		for index, entry := range schedule {
+			attempt := attempts[index].Value
+			qualified := qualify(campaign.ID, entry.AttemptID)
+			if !canonicalID.MatchString(entry.AttemptID) || !canonicalID.MatchString(entry.PairID) || seenAttempts[qualified] ||
+				attempt.AttemptID != entry.AttemptID || attempt.PairID != entry.PairID || attempt.Task != entry.Task || attempt.Repetition != entry.Repetition ||
+				attempt.Side != entry.Side || attempt.Ordinal != entry.Ordinal || attempt.SourceSHA256 != entry.SourceSHA256 || attempt.OverlaySHA256 != entry.OverlaySHA256 {
+				identityOK = false
+				break
+			}
+			seenAttempts[qualified] = true
+			seenPairs[qualify(campaign.ID, entry.PairID)] = true
+		}
+	}
+	status.IdentityBound = identityOK
+	if !identityOK {
+		status.Gaps = append(status.Gaps, "schedule_attempt_identity")
+	}
+	expected := len(schedule)
+	status.Terminal.Expected = expected
+	status.Execution.Expected = expected
+	status.ResultAndSummary.Expected = expected
+	status.Database.Expected = expected
+
+	var inspections []attemptInspection
+	if identityOK {
+		for index, entry := range schedule {
+			inspection := inspectAttempt(repoRoot, campaign, entry, attempts[index], rawHashes)
+			inspections = append(inspections, inspection)
+			status.Terminal.Valid += boolInt(inspection.terminalOK)
+			status.Execution.Valid += boolInt(inspection.executionOK)
+			status.ResultAndSummary.Valid += boolInt(inspection.resultOK)
+			status.Database.Valid += boolInt(inspection.databaseOK)
+			if inspection.terminalOK && inspection.executionOK && inspection.resultOK && inspection.databaseOK {
+				status.Bindings = append(status.Bindings, inspection.binding)
+			}
+		}
+	}
+	summaryOK := validateCampaignSummary(repoRoot, campaign.Archive, manifestHash, digest(scheduleData), expected, rawHashes)
+	if !summaryOK {
+		status.ResultAndSummary.Valid = 0
+	}
+	if status.Terminal.Valid != expected || expected == 0 {
+		status.Gaps = append(status.Gaps, "terminal_disposition")
+	}
+	if status.Execution.Valid != expected || expected == 0 {
+		status.Gaps = append(status.Gaps, "attempt_execution")
+	}
+	if status.ResultAndSummary.Valid != expected || expected == 0 {
+		status.Gaps = append(status.Gaps, "result_and_summary")
+	}
+	if status.Database.Valid != expected || expected == 0 {
+		status.Gaps = append(status.Gaps, "database_authority")
+	}
+	status.CurrentComplete = status.SchemaCurrent && status.IdentityBound && status.Preflight.Valid == 1 && expected > 0 &&
+		status.Terminal.Valid == expected && status.Execution.Valid == expected && status.ResultAndSummary.Valid == expected && status.Database.Valid == expected
+	if !status.CurrentComplete {
+		status.Bindings = nil
+		return status, nil, nil
+	}
+	status.CorrectedClass = "complete"
+	pairs, err := pairInspections(campaign.ID, inspections)
+	if err != nil {
+		return status, nil, err
+	}
+	if len(pairs)*2 != expected || len(seenPairs) != len(pairs) {
+		return status, nil, errors.New("complete campaign has invalid pair topology")
+	}
+	return status, pairs, nil
+}
+
+func inspectAttempt(repoRoot string, campaign archiveCampaign, entry ScheduleEntry, record lineRecord[Attempt], rawHashes map[string]string) attemptInspection {
+	attempt := record.Value
+	qualifiedAttempt := qualify(campaign.ID, attempt.AttemptID)
+	result := attemptInspection{identityOK: true, pairID: attempt.PairID, side: attempt.Side}
+	attemptDir := campaign.Archive + "/attempts/" + attempt.AttemptID
+	terminalPath := attemptDir + "/terminal.json"
+	terminalData, terminalErr := verifiedRaw(repoRoot, terminalPath, rawHashes)
+	var terminal AttemptTerminal
+	result.terminalOK = terminalErr == nil && decodeStrict(terminalData, &terminal) == nil && terminal.State == "completed" && terminal.Reason == "executor_completed" && terminal.TriggerAttemptID == "" && attempt.Terminal != nil && *attempt.Terminal == terminal
+
+	executionPath := attemptDir + "/execution.json"
+	executionData, executionErr := verifiedRaw(repoRoot, executionPath, rawHashes)
+	var execution Execution
+	result.executionOK = executionErr == nil && decodeStrict(executionData, &execution) == nil && execution.AttemptID == attempt.AttemptID && execution.ExitCode == 0 && !execution.TimedOut && !execution.StdoutTruncated && !execution.StderrTruncated && execution.Version != "" && verifyFileRef(repoRoot, campaign.Archive, execution.Stdout, rawHashes) && verifyFileRef(repoRoot, campaign.Archive, execution.Stderr, rawHashes)
+
+	rolloutPath := campaign.Archive + "/" + attempt.Rollout.Path
+	resultPath := rolloutPath + "/result.json"
+	benchSummaryPath := attemptDir + "/benchflow/summary.json"
+	benchResultsPath := rolloutPath + "/results.jsonl"
+	resultData, resultErr := verifiedRaw(repoRoot, resultPath, rawHashes)
+	benchSummaryData, benchSummaryErr := verifiedRaw(repoRoot, benchSummaryPath, rawHashes)
+	benchResultsData, benchResultsErr := verifiedRaw(repoRoot, benchResultsPath, rawHashes)
+	var primary benchResult
+	var summary benchSummary
+	results, resultsParseErr := decodeJSONLines[benchResultRow](benchResultsData)
+	resultRefOK := false
+	for _, ref := range attempt.Artifacts {
+		if campaign.Archive+"/"+ref.Path == resultPath && verifyFileRef(repoRoot, campaign.Archive, ref, rawHashes) {
+			resultRefOK = true
+		}
+	}
+	result.resultOK = resultErr == nil && benchSummaryErr == nil && benchResultsErr == nil && decodeStrict(resultData, &primary) == nil && decodeStrict(benchSummaryData, &summary) == nil && resultsParseErr == nil && len(results) == 1 && resultRefOK && validateAttemptMetrics(attempt) && validateResult(attempt, primary) && validateBenchResultRow(attempt, results[0]) && validateBenchSummary(attempt, summary) && attempt.Imported && attempt.InfrastructureEvaluable && attempt.QualityEvaluable && attempt.Reward != nil && len(attempt.InvalidReasons) == 0
+
+	databasePath := rolloutPath + "/artifacts/ktx.db"
+	dbDataHash, dbHashErr := hashRegular(repoRoot, databasePath)
+	dbEvidence, dbErr := inspectDatabase(repoRoot, databasePath, qualifiedAttempt)
+	result.databaseOK = dbHashErr == nil && dbErr == nil && rawHashes[databasePath] == dbDataHash && validateAdoption(attempt.Adoption, dbEvidence.binding)
+
+	result.binding = attemptBinding{
+		QualifiedAttemptID: qualifiedAttempt,
+		AttemptRecord:      authorityRef{Path: attemptsRecordPath(campaign.Archive, attempt.AttemptID), SHA256: record.SHA256},
+		Execution:          authorityRef{Path: executionPath, SHA256: digest(executionData)},
+		Terminal:           authorityRef{Path: terminalPath, SHA256: digest(terminalData)},
+		Result:             authorityRef{Path: resultPath, SHA256: digest(resultData)},
+		BenchFlowSummary:   authorityRef{Path: benchSummaryPath, SHA256: digest(benchSummaryData)},
+		BenchFlowResults:   authorityRef{Path: benchResultsPath, SHA256: digest(benchResultsData)},
+		Database:           dbEvidence.binding,
+	}
+	result.metrics = armMetricsFrom(attempt, dbEvidence.binding, qualifiedAttempt, terminal)
+	return result
+}
+
+func attemptsRecordPath(campaignPath, attemptID string) string {
+	return campaignPath + "/attempts.jsonl#" + attemptID
+}
+
+func validateCampaignSummary(repoRoot, campaignPath, manifestHash, scheduleHash string, expected int, rawHashes map[string]string) bool {
+	data, err := verifiedRaw(repoRoot, campaignPath+"/summary.json", rawHashes)
+	if err != nil {
+		return false
+	}
+	var summary Summary
+	if decodeStrict(data, &summary) != nil {
+		return false
+	}
+	return summary.SchemaVersion == currentCampaign && summary.ManifestSHA256 == manifestHash && summary.ScheduleSHA256 == scheduleHash &&
+		summary.Scheduled == expected && summary.Imported == expected && summary.QualityEvaluable == expected && summary.Complete && len(summary.Pairs)*2 == expected && len(summary.InvalidAttemptIDs) == 0 && len(summary.UnpairedAttemptIDs) == 0
+}
+
+func preflightEligible(values map[string]any) bool {
+	if values == nil {
+		return false
+	}
+	eligible, okEligible := values["eligible"].(bool)
+	controlled, okControlled := values["controlled_comparison"].(bool)
+	direct, okDirect := values["direct_evidence"].(bool)
+	created, okCreated := values["artifact_creation"].(bool)
+	attempts, okAttempts := numberAsInt(values["model_attempts"])
+	return okEligible && eligible && okControlled && controlled && okDirect && direct && okCreated && !created && okAttempts && attempts == 0
+}
+
+func validateResult(attempt Attempt, result benchResult) bool {
+	reward, rewardOK := result.Rewards["reward"]
+	metrics := attempt.Metrics
+	return rewardOK && attempt.Reward != nil && sameNumber(reward, *attempt.Reward) && result.TaskName == attempt.Task &&
+		samePointer(result.AgentResult.Input, metrics.Input) && samePointer(result.AgentResult.Output, metrics.Output) &&
+		samePointer(result.AgentResult.CacheRead, metrics.CacheRead) && samePointer(result.AgentResult.CacheCreation, metrics.CacheCreation) &&
+		samePointer(result.AgentResult.Total, metrics.Total) && samePointer(result.AgentResult.CostUSD, metrics.CostUSD) &&
+		samePointer(result.TrajectorySummary.Steps, metrics.Turns) && samePointer(result.Timing.Total, metrics.WallSeconds)
+}
+
+func validateAttemptMetrics(attempt Attempt) bool {
+	metrics := attempt.Metrics
+	if attempt.Reward == nil || metrics.Input == nil || metrics.Output == nil || metrics.CacheRead == nil || metrics.CacheCreation == nil ||
+		metrics.NewInput == nil || metrics.Total == nil || metrics.Tools == nil || metrics.Turns == nil || metrics.WallSeconds == nil || metrics.CostUSD != nil {
+		return false
+	}
+	return sameNumber(*metrics.NewInput, *metrics.Input+*metrics.CacheCreation) &&
+		sameNumber(*metrics.Total, *metrics.Input+*metrics.CacheRead+*metrics.CacheCreation+*metrics.Output)
+}
+
+func validateBenchSummary(attempt Attempt, summary benchSummary) bool {
+	return summary.Total == 1 && summary.Passed == 1 && summary.Failed == 0 && summary.Errored == 0 && samePointer(summary.TotalTokens, attempt.Metrics.Total) && samePointer(summary.TotalTime, attempt.Metrics.WallSeconds)
+}
+
+func validateBenchResultRow(attempt Attempt, result benchResultRow) bool {
+	rolloutName, _ := attempt.Identity["rollout_name"].(string)
+	return result.Info.TaskID == attempt.Task && result.Info.TaskName == attempt.Task && result.Info.RolloutName == rolloutName &&
+		samePointer(result.Reward, attempt.Reward) && samePointer(result.Metrics.Reward, attempt.Reward) &&
+		samePointer(result.Metrics.ToolCalls, attempt.Metrics.Tools) && samePointer(result.TokenUsage.Input, attempt.Metrics.Input) &&
+		samePointer(result.TokenUsage.Output, attempt.Metrics.Output) && samePointer(result.TokenUsage.Total, attempt.Metrics.Total) &&
+		samePointer(result.Timing.Total, attempt.Metrics.WallSeconds)
+}
+
+func validateAdoption(adoption Adoption, binding databaseBinding) bool {
+	return adoption.Available && intPointer(adoption.SessionCount, binding.SessionCount) && intPointer(adoption.ToolCallCount, binding.ToolCallCount) &&
+		intPointer(adoption.OriginalBytes, binding.OriginalBytes) && intPointer(adoption.DeliveredBytes, binding.DeliveredBytes) &&
+		intPointer(adoption.CompressedArtifactCount, binding.CompressedSourceCount) && intPointer(adoption.DispositionCount, binding.DispositionCount)
+}
+
+func inspectDatabase(repoRoot, relativePath, qualifiedAttempt string) (databaseEvidence, error) {
+	absolute, err := safeJoin(repoRoot, relativePath)
+	if err != nil {
+		return databaseEvidence{}, err
+	}
+	before, err := hashRegular(repoRoot, relativePath)
+	if err != nil {
+		return databaseEvidence{}, err
+	}
+	database, err := dbpkg.OpenReadOnly(absolute)
+	if err != nil {
+		return databaseEvidence{}, err
+	}
+	defer database.Close()
+	var queryOnly, userVersion int
+	var integrity string
+	if err := database.QueryRow("PRAGMA query_only").Scan(&queryOnly); err != nil || queryOnly != 1 {
+		return databaseEvidence{}, errors.New("database is not query-only")
+	}
+	if err := database.QueryRow("PRAGMA user_version").Scan(&userVersion); err != nil || userVersion != retainedDBSchema {
+		return databaseEvidence{}, errors.New("database schema is not retained schema 9")
+	}
+	if err := database.QueryRow("PRAGMA integrity_check").Scan(&integrity); err != nil || integrity != "ok" {
+		return databaseEvidence{}, errors.New("database integrity check failed")
+	}
+	evidence, err := queryDatabase(database, qualifiedAttempt)
+	if err != nil {
+		return databaseEvidence{}, err
+	}
+	if err := database.Close(); err != nil {
+		return databaseEvidence{}, err
+	}
+	after, err := hashRegular(repoRoot, relativePath)
+	if err != nil || before != after {
+		return databaseEvidence{}, errors.New("database changed during read-only inspection")
+	}
+	evidence.binding.Path = relativePath
+	evidence.binding.SHA256 = after
+	evidence.binding.UserVersion = userVersion
+	evidence.binding.ReadOnly = true
+	evidence.binding.Integrity = integrity
+	evidence.binding.SelectedArtifactRule = "compressed.timestamp ASC, compressed.id ASC"
+	return evidence, nil
+}
+
+func queryDatabase(database *sql.DB, qualifiedAttempt string) (databaseEvidence, error) {
+	var evidence databaseEvidence
+	knownSessions := map[string]bool{}
+	rows, err := database.Query("SELECT id FROM sessions ORDER BY id")
+	if err != nil {
+		return evidence, err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil || !databaseID.MatchString(id) || knownSessions[qualify(qualifiedAttempt, id)] {
+			rows.Close()
+			return evidence, errors.New("invalid session identity")
+		}
+		knownSessions[qualify(qualifiedAttempt, id)] = true
+		evidence.binding.SessionCount++
+	}
+	if err := closeRows(rows); err != nil || evidence.binding.SessionCount == 0 {
+		return evidence, errors.New("database has no valid session authority")
+	}
+
+	type call struct {
+		id  string
+		raw int64
+	}
+	calls := map[string]call{}
+	rows, err = database.Query("SELECT id, session_id, LENGTH(CAST(output AS BLOB)) FROM tool_calls ORDER BY id")
+	if err != nil {
+		return evidence, err
+	}
+	for rows.Next() {
+		var id, sessionID string
+		var raw sql.NullInt64
+		if err := rows.Scan(&id, &sessionID, &raw); err != nil || !databaseID.MatchString(id) || !knownSessions[qualify(qualifiedAttempt, sessionID)] || calls[id].id != "" || !raw.Valid {
+			rows.Close()
+			return evidence, errors.New("invalid tool-call identity")
+		}
+		calls[id] = call{id: id, raw: raw.Int64}
+		evidence.binding.ToolCallCount++
+		evidence.binding.OriginalBytes += raw.Int64
+	}
+	if err := closeRows(rows); err != nil || evidence.binding.ToolCallCount == 0 {
+		return evidence, errors.New("database has no valid tool-call authority")
+	}
+
+	type artifact struct {
+		id, source, timestamp string
+		length                sql.NullInt64
+	}
+	artifacts := map[string][]artifact{}
+	artifactByID := map[string]artifact{}
+	rows, err = database.Query("SELECT id, source_id, timestamp, LENGTH(CAST(output AS BLOB)) FROM compressed ORDER BY source_id, timestamp ASC, id ASC")
+	if err != nil {
+		return evidence, err
+	}
+	for rows.Next() {
+		var item artifact
+		if err := rows.Scan(&item.id, &item.source, &item.timestamp, &item.length); err != nil || !databaseID.MatchString(item.id) || calls[item.source].id == "" || artifactByID[item.id].id != "" || item.timestamp == "" {
+			rows.Close()
+			return evidence, errors.New("invalid compressed-artifact identity")
+		}
+		artifactByID[item.id] = item
+		artifacts[item.source] = append(artifacts[item.source], item)
+	}
+	if err := closeRows(rows); err != nil {
+		return evidence, err
+	}
+	for source, rows := range artifacts {
+		sort.Slice(rows, func(i, j int) bool {
+			if rows[i].timestamp == rows[j].timestamp {
+				return rows[i].id < rows[j].id
+			}
+			return rows[i].timestamp < rows[j].timestamp
+		})
+		artifacts[source] = rows
+		evidence.binding.CompressedSourceCount++
+	}
+	for id, item := range calls {
+		delivered := item.raw
+		if selected := artifacts[id]; len(selected) > 0 && selected[0].length.Valid {
+			delivered = selected[0].length.Int64
+		}
+		evidence.binding.DeliveredBytes += delivered
+	}
+
+	seenDisposition := map[string]bool{}
+	rows, err = database.Query("SELECT source_id, disposition, artifact_id FROM compression_dispositions ORDER BY source_id")
+	if err != nil {
+		return evidence, err
+	}
+	for rows.Next() {
+		var source, disposition string
+		var artifactID sql.NullString
+		if err := rows.Scan(&source, &disposition, &artifactID); err != nil || calls[source].id == "" || seenDisposition[source] {
+			rows.Close()
+			return evidence, errors.New("invalid compression disposition identity")
+		}
+		seenDisposition[source] = true
+		evidence.binding.DispositionCount++
+		if disposition == "artifact_persisted" {
+			artifact := artifactByID[artifactID.String]
+			if !artifactID.Valid || artifact.id == "" || artifact.source != source {
+				rows.Close()
+				return evidence, errors.New("persisted disposition is not bound to its artifact")
+			}
+		} else if artifactID.Valid || (disposition != "intentional_passthrough" && disposition != "anti_worsening_rejected") {
+			rows.Close()
+			return evidence, errors.New("invalid compression disposition")
+		}
+	}
+	if err := closeRows(rows); err != nil || evidence.binding.DispositionCount != evidence.binding.ToolCallCount {
+		return evidence, errors.New("terminal compression disposition coverage is incomplete")
+	}
+	return evidence, nil
+}
+
+func closeRows(rows *sql.Rows) error {
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	return rows.Close()
+}
+
+func armMetricsFrom(attempt Attempt, database databaseBinding, qualifiedAttempt string, terminal AttemptTerminal) armMetrics {
+	metrics := attempt.Metrics
+	arm := armMetrics{
+		QualifiedAttemptID:  qualifiedAttempt,
+		TerminalDisposition: terminal.State + ":" + terminal.Reason,
+		Reward:              value(attempt.Reward), OriginalBytes: database.OriginalBytes, DeliveredBytes: database.DeliveredBytes,
+		Tokens:       tokenMetrics{Input: value(metrics.Input), NewInput: value(metrics.NewInput), CacheRead: value(metrics.CacheRead), CacheCreation: value(metrics.CacheCreation), Output: value(metrics.Output), Total: value(metrics.Total)},
+		RuntimeTools: value(metrics.Tools), KTXCalls: database.ToolCallCount, Turns: value(metrics.Turns), WallSeconds: value(metrics.WallSeconds), CostUSD: metrics.CostUSD,
+	}
+	if arm.OriginalBytes > 0 {
+		arm.CompressionRatio = float64(arm.DeliveredBytes) / float64(arm.OriginalBytes)
+		arm.CompressionReduction = float64(arm.OriginalBytes-arm.DeliveredBytes) / float64(arm.OriginalBytes)
+	}
+	return arm
+}
+
+func pairInspections(campaignID string, attempts []attemptInspection) ([]pairMetrics, error) {
+	byPair := map[string]map[string]attemptInspection{}
+	for _, attempt := range attempts {
+		if attempt.side != "baseline" && attempt.side != "candidate" {
+			return nil, errors.New("invalid pair side")
+		}
+		if byPair[attempt.pairID] == nil {
+			byPair[attempt.pairID] = map[string]attemptInspection{}
+		}
+		if _, exists := byPair[attempt.pairID][attempt.side]; exists {
+			return nil, errors.New("duplicate pair side")
+		}
+		byPair[attempt.pairID][attempt.side] = attempt
+	}
+	ids := make([]string, 0, len(byPair))
+	for id := range byPair {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	result := make([]pairMetrics, 0, len(ids))
+	for _, id := range ids {
+		baseline, baselineOK := byPair[id]["baseline"]
+		candidate, candidateOK := byPair[id]["candidate"]
+		if !baselineOK || !candidateOK {
+			return nil, errors.New("incomplete pair")
+		}
+		result = append(result, pairMetrics{QualifiedPairID: qualify(campaignID, id), Baseline: baseline.metrics, Candidate: candidate.metrics, CandidateMinusBaseline: subtract(candidate.metrics, baseline.metrics)})
+	}
+	return result, nil
+}
+
+func subtract(candidate, baseline armMetrics) metricDelta {
+	return metricDelta{
+		Reward:               candidate.Reward - baseline.Reward,
+		OriginalBytes:        candidate.OriginalBytes - baseline.OriginalBytes,
+		DeliveredBytes:       candidate.DeliveredBytes - baseline.DeliveredBytes,
+		CompressionRatio:     candidate.CompressionRatio - baseline.CompressionRatio,
+		CompressionReduction: candidate.CompressionReduction - baseline.CompressionReduction,
+		Tokens: tokenMetrics{
+			Input:         candidate.Tokens.Input - baseline.Tokens.Input,
+			NewInput:      candidate.Tokens.NewInput - baseline.Tokens.NewInput,
+			CacheRead:     candidate.Tokens.CacheRead - baseline.Tokens.CacheRead,
+			CacheCreation: candidate.Tokens.CacheCreation - baseline.Tokens.CacheCreation,
+			Output:        candidate.Tokens.Output - baseline.Tokens.Output,
+			Total:         candidate.Tokens.Total - baseline.Tokens.Total,
+		},
+		RuntimeTools: candidate.RuntimeTools - baseline.RuntimeTools,
+		KTXCalls:     candidate.KTXCalls - baseline.KTXCalls,
+		Turns:        candidate.Turns - baseline.Turns,
+		WallSeconds:  candidate.WallSeconds - baseline.WallSeconds,
+	}
+}
+
+func buildCorrectedMetrics(pairs []pairMetrics) correctedMetrics {
+	metrics := correctedMetrics{Scope: "current complete-authority campaigns only", ValidPairs: len(pairs), Pairs: pairs}
+	var baselines, candidates []armMetrics
+	var deltas []metricDelta
+	for _, pair := range pairs {
+		baselines = append(baselines, pair.Baseline)
+		candidates = append(candidates, pair.Candidate)
+		deltas = append(deltas, pair.CandidateMinusBaseline)
+		countDirection(pair.CandidateMinusBaseline.Reward, &metrics.DirectionalCounts.Reward)
+		countDirection(float64(pair.CandidateMinusBaseline.DeliveredBytes), &metrics.DirectionalCounts.DeliveredBytes)
+		countDirection(pair.CandidateMinusBaseline.Tokens.Total, &metrics.DirectionalCounts.TotalTokens)
+	}
+	metrics.Aggregate = aggregateMetrics{Baseline: aggregateArms(baselines), Candidate: aggregateArms(candidates), CandidateMinusBaseline: deltaAggregate(aggregateDeltas(deltas))}
+	metrics.Gate = gateCorrection{State: "incomplete", RequiredValidPairs: 5, ObservedValidPairs: len(pairs), HistoricalDecision: "STOP", CorrectedDecision: nil, Reason: "The terminal-complete evidence set has four valid pairs, not the five required by the predeclared gate.", PaidExpansionAllowed: false}
+	return metrics
+}
+
+func aggregateArms(values []armMetrics) armAggregate {
+	return armAggregate{
+		Reward:               dist(valuesOf(values, func(v armMetrics) float64 { return v.Reward })),
+		OriginalBytes:        dist(valuesOf(values, func(v armMetrics) float64 { return float64(v.OriginalBytes) })),
+		DeliveredBytes:       dist(valuesOf(values, func(v armMetrics) float64 { return float64(v.DeliveredBytes) })),
+		CompressionRatio:     dist(valuesOf(values, func(v armMetrics) float64 { return v.CompressionRatio })),
+		CompressionReduction: dist(valuesOf(values, func(v armMetrics) float64 { return v.CompressionReduction })),
+		TotalTokens:          dist(valuesOf(values, func(v armMetrics) float64 { return v.Tokens.Total })),
+		RuntimeTools:         dist(valuesOf(values, func(v armMetrics) float64 { return v.RuntimeTools })),
+		KTXCalls:             dist(valuesOf(values, func(v armMetrics) float64 { return float64(v.KTXCalls) })),
+		Turns:                dist(valuesOf(values, func(v armMetrics) float64 { return v.Turns })),
+		WallSeconds:          dist(valuesOf(values, func(v armMetrics) float64 { return v.WallSeconds })),
+	}
+}
+
+func aggregateDeltas(values []metricDelta) armAggregate {
+	return armAggregate{
+		Reward:               dist(deltaValues(values, func(v metricDelta) float64 { return v.Reward })),
+		OriginalBytes:        dist(deltaValues(values, func(v metricDelta) float64 { return float64(v.OriginalBytes) })),
+		DeliveredBytes:       dist(deltaValues(values, func(v metricDelta) float64 { return float64(v.DeliveredBytes) })),
+		CompressionRatio:     dist(deltaValues(values, func(v metricDelta) float64 { return v.CompressionRatio })),
+		CompressionReduction: dist(deltaValues(values, func(v metricDelta) float64 { return v.CompressionReduction })),
+		TotalTokens:          dist(deltaValues(values, func(v metricDelta) float64 { return v.Tokens.Total })),
+		RuntimeTools:         dist(deltaValues(values, func(v metricDelta) float64 { return v.RuntimeTools })),
+		KTXCalls:             dist(deltaValues(values, func(v metricDelta) float64 { return float64(v.KTXCalls) })),
+		Turns:                dist(deltaValues(values, func(v metricDelta) float64 { return v.Turns })),
+		WallSeconds:          dist(deltaValues(values, func(v metricDelta) float64 { return v.WallSeconds })),
+	}
+}
+
+func valuesOf(values []armMetrics, selectValue func(armMetrics) float64) []float64 {
+	result := make([]float64, len(values))
+	for i, item := range values {
+		result[i] = selectValue(item)
+	}
+	return result
+}
+
+func deltaValues(values []metricDelta, selectValue func(metricDelta) float64) []float64 {
+	result := make([]float64, len(values))
+	for i, item := range values {
+		result[i] = selectValue(item)
+	}
+	return result
+}
+
+func dist(values []float64) distribution {
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	var sum float64
+	for _, item := range sorted {
+		sum += item
+	}
+	median := sorted[len(sorted)/2]
+	if len(sorted)%2 == 0 {
+		median = (sorted[len(sorted)/2-1] + median) / 2
+	}
+	return distribution{Mean: sum / float64(len(sorted)), Median: median, Min: sorted[0], Max: sorted[len(sorted)-1]}
+}
+
+func countDirection(value float64, counts *lowerEqualHigher) {
+	if value < 0 {
+		counts.CandidateLower++
+	} else if value > 0 {
+		counts.CandidateHigher++
+	} else {
+		counts.Equal++
+	}
+}
+
+func loadRawManifest(repoRoot string) (map[string]string, error) {
+	data, err := readPinned(repoRoot, authorityRef{Path: artifactPath, SHA256: artifactSHA256})
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]string{}
+	previous := ""
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 64*1024), 4<<20)
+	for scanner.Scan() {
+		hash, path, ok := strings.Cut(scanner.Text(), "  ")
+		if !ok || len(hash) != 64 || path <= previous || result[path] != "" || !strings.HasPrefix(path, ".bench-data/skillsbench-campaigns/") {
+			return nil, errors.New("invalid raw artifact manifest")
+		}
+		if _, err := hex.DecodeString(hash); err != nil {
+			return nil, errors.New("invalid raw artifact digest")
+		}
+		if _, err := safeJoin(repoRoot, path); err != nil {
+			return nil, err
+		}
+		result[path] = hash
+		previous = path
+	}
+	return result, scanner.Err()
+}
+
+func verifyPinned(repoRoot string, ref authorityRef) error {
+	_, err := readPinned(repoRoot, ref)
+	return err
+}
+
+func readPinned(repoRoot string, ref authorityRef) ([]byte, error) {
+	path, err := safeJoin(repoRoot, ref.Path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := readRegular(path, maxJSONBytes)
+	if err != nil || digest(data) != ref.SHA256 {
+		return nil, fmt.Errorf("pinned authority mismatch: %s", ref.Path)
+	}
+	return data, nil
+}
+
+func verifiedRaw(repoRoot, relative string, rawHashes map[string]string) ([]byte, error) {
+	want := rawHashes[relative]
+	if want == "" {
+		return nil, errors.New("raw file is not frozen")
+	}
+	path, err := safeJoin(repoRoot, relative)
+	if err != nil {
+		return nil, err
+	}
+	data, err := readRegular(path, maxJSONBytes)
+	if err != nil || digest(data) != want {
+		return nil, errors.New("raw file mismatch")
+	}
+	return data, nil
+}
+
+func verifyFileRef(repoRoot, campaignPath string, ref FileRef, rawHashes map[string]string) bool {
+	if ref.Path == "" || ref.SHA256 == "" {
+		return false
+	}
+	data, err := verifiedRaw(repoRoot, campaignPath+"/"+ref.Path, rawHashes)
+	return err == nil && digest(data) == ref.SHA256
+}
+
+func hashRegular(repoRoot, relative string) (string, error) {
+	path, err := safeJoin(repoRoot, relative)
+	if err != nil {
+		return "", err
+	}
+	if err := rejectSymlinks(path); err != nil {
+		return "", err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return "", errors.New("not a regular file")
+	}
+	h := sha256.New()
+	if _, err := io.Copy(h, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func readRegular(path string, limit int64) ([]byte, error) {
+	if err := rejectSymlinks(path); err != nil {
+		return nil, err
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, errors.New("not a non-symlink regular file")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil || int64(len(data)) > limit {
+		return nil, errors.New("file exceeds read bound")
+	}
+	return data, nil
+}
+
+func safeJoin(root, relative string) (string, error) {
+	clean := filepath.Clean(filepath.FromSlash(relative))
+	if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", errors.New("unsafe relative path")
+	}
+	joined := filepath.Join(root, clean)
+	rel, err := filepath.Rel(root, joined)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", errors.New("path escapes repository")
+	}
+	return joined, nil
+}
+
+func rejectSymlinks(path string) error {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	current := string(filepath.Separator)
+	for _, part := range strings.Split(strings.Trim(absolute, string(filepath.Separator)), string(filepath.Separator)) {
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("symlink is not allowed")
+		}
+	}
+	return nil
+}
+
+func decodeStrict(data []byte, target any) error {
+	canonical, ok := canon.Canonicalize(data)
+	if !ok {
+		return errors.New("invalid or duplicate JSON")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(canonical))
+	decoder.UseNumber()
+	return decoder.Decode(target)
+}
+
+func decodeJSONLines[T any](data []byte) ([]T, error) {
+	records, err := decodeJSONLineRecords[T](data)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]T, len(records))
+	for i := range records {
+		result[i] = records[i].Value
+	}
+	return result, nil
+}
+
+func decodeJSONLineRecords[T any](data []byte) ([]lineRecord[T], error) {
+	var records []lineRecord[T]
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 64*1024), maxJSONBytes)
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var value T
+		if err := decodeStrict(line, &value); err != nil {
+			return nil, err
+		}
+		records = append(records, lineRecord[T]{Value: value, SHA256: digest(line)})
+	}
+	return records, scanner.Err()
+}
+
+func digest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func qualify(scope, id string) string { return scope + "::" + id }
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func value(number *float64) float64 {
+	if number == nil {
+		return math.NaN()
+	}
+	return *number
+}
+func sameNumber(left, right float64) bool { return math.Abs(left-right) < 1e-9 }
+func samePointer(left, right *float64) bool {
+	return left != nil && right != nil && sameNumber(*left, *right) || left == nil && right == nil
+}
+func intPointer(value *int64, expected int64) bool { return value != nil && *value == expected }
+func numberAsInt(value any) (int, bool) {
+	switch number := value.(type) {
+	case json.Number:
+		parsed, err := number.Int64()
+		return int(parsed), err == nil
+	case float64:
+		return int(number), number == math.Trunc(number)
+	default:
+		return 0, false
+	}
+}

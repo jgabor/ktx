@@ -1,0 +1,14 @@
+id: ulorvimoxk
+artifact: plan
+record:
+  name: Assess five Luna pairs and decide the gate
+  depends_on:
+    - uvrcjkhvkh
+  status: pending
+  acceptance:
+    - GIVEN the canary and four replication pairs WHEN gate inputs are checked THEN expansion requires exactly five valid pairs; fewer valid pairs stop expansion.
+    - GIVEN five valid pairs WHEN quality is compared THEN any pair with lower candidate reward stops expansion.
+    - GIVEN five valid pairs WHEN compression is compared THEN expansion requires lower candidate delivered tool bytes in at least four pairs.
+    - GIVEN five valid pairs WHEN total tokens are compared THEN candidate totals higher in at least four pairs stop expansion; all other directional mixtures permit expansion.
+    - GIVEN the five pairs WHEN results are recorded THEN reward, bytes, tokens, tools, turns, and wall time include per-pair values plus mean, median, and range, cost remains unavailable, and no significance or causal claim appears.
+  plan: kartcldnat

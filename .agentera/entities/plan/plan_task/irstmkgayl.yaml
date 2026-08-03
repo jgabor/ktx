@@ -1,0 +1,24 @@
+id: irstmkgayl
+artifact: plan
+record:
+  name: Preserve current campaign evidence
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN temporary campaign evidence WHEN a durable root is proposed THEN repository policy and persistence are verified before copying, and dependent tasks stop if no suitable root is approved.
+    - GIVEN successful campaigns WHEN they are archived THEN each durable copy records model identity, source identity, manifest hash, validation state, and provenance and revalidates there.
+    - GIVEN each OAuth campaign WHEN its durable copy is scanned THEN credential checks are recorded and no access or refresh credential value appears in retained regular files.
+    - GIVEN historical schema versions WHEN each archive is checked with an identified compatible executable THEN its prior validation status is reproduced without changing the source.
+    - GIVEN diagnostic failures WHEN archived THEN they remain distinct from successful quality evidence and retain explicit failure reasons.
+  plan: kartcldnat
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "independent Audit: all five acceptance criteria and evidence audit passed"
+      recorded_at: 2026-07-31 13:16
+      writer_command: agentera state plan record-evaluation

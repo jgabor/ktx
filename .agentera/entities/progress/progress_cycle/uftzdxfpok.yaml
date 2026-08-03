@@ -1,0 +1,16 @@
+id: uftzdxfpok
+artifact: progress
+record:
+  timestamp: 2026-08-02 21:17
+  type: refactor
+  phase: build
+  what: Removed unsupported evaluator-bridge residue from benchmark product and test surfaces while preserving the native benchmark contract.
+  context:
+    intent: Delete unsupported bridge-derived product and test residue without changing native comparison, archive, raw evidence, or direct external identity behavior.
+    constraints: No provider, model, authentication, paid run, network-dependent benchmark, ambient database, new dependency, runtime, or harness.
+    unknowns: Independent acceptance review remains.
+    scope: Internal experiment and database types, CLI regression tests, and the evidence-authority inventory.
+  discovered: The removed bridge left an unconsumed database adoption aggregate, unconsumed cache-claim and capability evidence taxonomies, and a feature-specific CLI absence test. Current source-event identity still consumes the citation reference type.
+  verified: Focused experiment, database, and CLI regressions passed. mage check passed with tests, vet, lint, build, and a database-access audit reporting zero forbidden accesses. The maintained inventory now points to generic unknown-command and native preflight coverage.
+  next: Keep the task in progress and unevaluated for independent acceptance review.
+  publication_order: 33

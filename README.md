@@ -97,14 +97,16 @@ Never lower `PRAGMA user_version`.
 
 ## Benchmarking
 
-`ktx bench run`, `report`, `compare`, `rank`, `validate`, and `corpus generate`
-use Go implementations shipped in the binary. Named pipelines, tasks,
-methodologies, and corpus fixtures live under [`tools/bench`](tools/bench).
+`ktx bench` commands use Go implementations shipped in the binary. Named
+pipelines, tasks, methodologies, and corpus fixtures live under
+[`tools/bench`](tools/bench).
 
 A cache-aware live comparison separates cold observation, warm-up, and measured
 attempts:
 
 ```bash
+./build/ktx bench compare --preflight --format json
+
 ./build/ktx bench compare --preflight --build --format json
 
 ./build/ktx bench compare \
@@ -118,8 +120,10 @@ attempts:
   --rounds 5
 ```
 
-Preflight makes no model call and creates no experiment artifact. It checks the
-local source before `--build`, then requires the image to attest the pinned
+The generic preflight returns before task loading. It makes no model call,
+requires no authentication, and creates no experiment artifact. It inspects the
+existing image; with `--build`, it first checks the local source and builds the
+image. Preflight then requires the image to attest the pinned
 OpenCode version, generated plugin digest, explicit attempt owner, serialized
 fail-closed callbacks, complete interval lifecycle, epochs, and normalized event
 kinds. It also requires strict acknowledgements, exact wrapper/event model-step
@@ -127,16 +131,12 @@ identity, fail-closed interval validation, and capability attestation before aut
 readiness. Every normal comparison runs the same gate before its first attempt.
 
 The retained OpenCode 1.18.5 Luna/high comparison passed validation with five
-complete measured pairs and full quality on both sides. Under that retained
-protocol, candidate mean OpenCode-reported cached-input share was
-0.7212058731757298 versus 0.5299901044108349 for baseline; the paired
-candidate-minus-baseline mean was 0.19121576876489477 with a descriptive
-two-sided 95% Student-t interval of [0.19057450330802284,
-0.1918570342217667]. This supports only “higher OpenCode-reported cached-input
-share under the retained protocol,” not significance, causality, generic cache
-effectiveness, or provider-native cache behavior. The [live validation
-report](docs/cache-reuse-live-validation.md) records exact provenance, cost and
-secondary estimates, hashes, and both earlier failed archives.
+complete measured pairs and full quality on both sides. Its candidate mean
+OpenCode-reported cached-input share was higher than baseline under the retained
+protocol. This supports no significance, causal, generic cache-effectiveness,
+or provider-native cache claim. The
+[live validation report](docs/cache-reuse-live-validation.md) records the exact
+values, provenance, estimates, hashes, and earlier failed archives.
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
 summaries. Validate retained evidence with:
@@ -190,6 +190,20 @@ Live runs accept any provider except `github-copilot/*`. The complete runbook is
 [`docs/pipelines.md`](docs/pipelines.md). The [Layer 1 cache and cost
 benchmark](benchs/layer-1-cache-cost.md) is a historical benchmark retained for
 provenance; current telemetry claims are runtime-observed only.
+
+The completed external campaign is retained as historical evidence, not as a
+supported workflow. The native KTX commands above are the current benchmark
+surface. The correction accepts one complete campaign with eight attempts and
+four pairs; the five-pair gate is incomplete and has no current decision. See
+the [historical campaign report](docs/skillsbench-campaign.md) for the result,
+limits, ownership, and evidence map.
+
+The result covers one named task. It establishes neither official suite
+identity nor general agent skill, provider cost, unrun-task coverage, or
+permission to execute again. KTX owns its native task and scoring contracts,
+databases, summaries, comparison, validation, and ranking. The external
+evaluator owns agent execution, authentication, environment setup, and its
+dependency lifecycle.
 
 ### Evidence from live use
 

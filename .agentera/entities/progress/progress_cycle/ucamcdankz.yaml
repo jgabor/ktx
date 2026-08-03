@@ -1,0 +1,15 @@
+id: ucamcdankz
+artifact: progress
+record:
+  timestamp: 2026-08-02 01:57
+  type: docs
+  phase: build
+  what: Recorded the benchmark ownership boundary and synchronized the sources that described the branch-only SkillsBench bridge as product scope.
+  context:
+    intent: Keep KTX focused on native cost-without-quality-loss evidence, assign external evaluation operations to the external evaluator, and preserve the completed campaign as historical evidence.
+    constraints: No product code, retained methodology or campaign evidence, command removal, dependency, benchmark execution, provider call, ambient database access, push, publication, or remote mutation.
+    unknowns: Private GitHub Packages inventory remains unresolved. The unrelated legacy decision-ledger and startup-lock test failures remain outside this task.
+    scope: .agentera decision and progress entities; ARCHITECTURE.md; TODO.md; README.md; docs/database-safety.md; docs/skillsbench-campaign.md.
+  verified: "Decision pfplycywjz passed typed-writer validation. git diff --check, changed-file marker and ownership scans, retained methodology/evidence immutability, and Agentera lint for the decision draft, TODO.md, README.md, docs/database-safety.md, docs/skillsbench-campaign.md, and the changed architecture text passed. Docs-only behavioral gate: N/A. env -u KTX_DB mage check reported forbidden=0 but failed in unchanged TestHookRetriesStartupLock because /run/user/1000 was read-only; the race build also observed an unsynchronized test buffer. Aggregate legacy decision validation retains pre-existing confidence, archive-summary, and ordering failures."
+  next: Independent audit should review task jbzjborfrx while it remains in_progress. Remove the unshipped bridge only after owner confirmation or a successful private-package inventory; do not add deprecation scaffolding without a verified consumer.
+  publication_order: 15

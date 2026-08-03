@@ -1,0 +1,15 @@
+id: qaxmkxwesy
+artifact: progress
+record:
+  timestamp: 2026-08-02 05:14
+  type: feat
+  phase: build
+  what: Added a canonical external-validation campaign lock, read-only JSON renderer and checker, negative and boundary fixtures, deterministic regression tests, and operator documentation. The checker validates independently observed evaluator, task, runtime, adapter, KTX, and execution identities without running providers, authentication, installs, or benchmarks.
+  context:
+    intent: Lock exact external-validation identities and make provenance and approval boundaries machine-checkable before any paid run.
+    constraints: No paid or provider calls, authentication, installation, fetching, Docker, benchmark execution, ambient database access, or mutation of frozen raw evidence. External task provenance remains labeled external and does not claim official SkillsBench identity.
+    unknowns: Whether an independent evaluator will reproduce the locked identities. Profile grounding was unavailable because its artifact was malformed; no refresh was attempted.
+    scope: tools/bench/external-validation and docs/external-validation.md, with a link from docs/skillsbench-campaign.md.
+  verified: An isolated mage check passed with KTX_DB unset and fresh HOME and XDG roots. tools/bench/external-validation/test.sh passed all declared cases. shellcheck passed for both scripts. Syscall tracing found no network connects or regular-file writes. Independent review passed after credential-redaction and field-specific-correction fixes.
+  next: Audit the external-validation lock while the plan task remains in_progress. Any paid run still requires fresh approval scoped to its campaign ID and run ID.
+  publication_order: 19

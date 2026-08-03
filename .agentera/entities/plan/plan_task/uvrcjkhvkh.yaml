@@ -1,0 +1,24 @@
+id: uvrcjkhvkh
+artifact: plan
+record:
+  name: Run four paired Luna repetitions
+  depends_on:
+    - irstmkgayl
+  status: blocked
+  acceptance:
+    - GIVEN unchanged Luna inputs WHEN the replication campaign is prepared THEN eight paired attempts have an auditable order balanced between candidate-first and baseline-first execution.
+    - GIVEN the fresh campaign and disposable application roots with KTX_DB unset WHEN no-model preflight completes THEN model attempts remain zero and source, tool, image, bootstrap, and cross-user evidence pass.
+    - GIVEN explicit paid authorization WHEN execution runs THEN attempts run sequentially once, without retries, until all finish or a stop condition occurs, and credential checks are recorded for completed attempts.
+    - GIVEN execution stops or completes WHEN accounting is reviewed THEN every scheduled attempt is classified as completed, failed, or not started with its reason.
+    - GIVEN retained execution evidence WHEN summary and validation run THEN every completed attempt and pair has explicit validity or failure reasons.
+  plan: kartcldnat
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: No paid attempts started. A fresh external campaign passed full no-model preflight with model_attempts 0, but execution was not invoked because the current runner records ordinary nonzero BenchFlow exits and continues to later attempts. That behavior cannot satisfy the user-authorized immediate-stop condition. The retained zero-spend campaign is archived under .bench-data and the task now requires replanning or an accepted runner change before paid execution.
+    provenance:
+      attempt_id: preflight-2
+      source: Analyze runner stop-condition review
+      recorded_at: 2026-07-31 13:47
+      writer_command: agentera state plan record-evaluation

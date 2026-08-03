@@ -1,0 +1,16 @@
+id: ebqtuggrlc
+artifact: progress
+record:
+  timestamp: 2026-08-02 23:35
+  type: chore
+  phase: build
+  what: Hardened the local integration handoff by disabling Go checksum-database access during post-integration verification and cleaning its validated temporary root through an EXIT trap.
+  context:
+    intent: Close the two narrow post-audit hardening gaps in the later integration handoff.
+    constraints: Change only the handoff and typed progress; do not merge, rebase, push, rewrite refs, publish, remove a worktree, or access an ambient database.
+    unknowns: Integration-time target state remains volatile and outside this follow-up.
+    scope: .agentera/integration-handoff.md and one progress record.
+  discovered: The installed Bash EXIT trap covers normal and error exits, and the installed Go tool accepts GOSUMDB=off. The cleanup target is assigned once, validated under /tmp, and quoted explicitly before the trap is installed.
+  verified: The handoff diff is exactly two lines. Bash syntax, ShellCheck, Prettier, git diff checks, and installed Worktrunk, Git, Bash, coreutils, and Go command review passed. Offline mage check passed with KTX_DB unset, isolated roots, GOPROXY=off, GOSUMDB=off, and forbidden=0. Source and target refs, merge base, target cleanliness, and all four worktrees remain unchanged; no integration or cleanup command ran.
+  next: Keep the task in progress and unevaluated. The integration owner must still rerun the complete handoff gate after separate authorization.
+  publication_order: 39

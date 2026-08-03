@@ -9,8 +9,86 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/config"
 )
+
+func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	docker := filepath.Join(bin, "docker")
+	capabilities := `{"ktx_version":"test","opencode_version":"` + benchcontract.RuntimeVersion + `","generated_plugin_sha256":"` + strings.Repeat("a", 64) + `","generated_plugin_matches_binary":true,"event_collector_contract":"` + benchcontract.ContractVersion + `","explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"retained_duplicate_callbacks":true,"accepted_model_step_projection":true,"callback_queue_continuation":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`
+	script := "#!/bin/sh\nset -eu\ncase \"$1\" in\n" +
+		"build) printf '%s\\n' '#0 building image'; printf '%s\\n' '#21 DONE 0.0s' >&2 ;;\n" +
+		"image) if [ \"${KTX_TEST_IMAGE_INSPECT_FAIL:-}\" = 1 ]; then printf '%s\\n' 'image unavailable' >&2; exit 1; fi; printf '%s\\n' 'sha256:image' ;;\n" +
+		"run) printf '%s\\n' '" + capabilities + "' ;;\n" +
+		"*) exit 64 ;;\nesac\n"
+	if err := os.WriteFile(docker, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	assertDatabaseUntouched := func(t *testing.T, path string) {
+		t.Helper()
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("preflight touched database path: %v", err)
+		}
+	}
+
+	t.Run("eligible build ignores an unavailable task file", func(t *testing.T) {
+		databasePath := filepath.Join(t.TempDir(), "ktx.db")
+		t.Setenv("KTX_DB", databasePath)
+		missingTask := filepath.Join(t.TempDir(), "missing-task.toml")
+		var stdout, stderr bytes.Buffer
+		code := runBenchCompare([]string{"--preflight", "--build", "--repo-root", root, "--task-file", missingTask, "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("code = %d, stderr = %s", code, stderr.String())
+		}
+		var report map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+			t.Fatalf("stdout is not clean JSON: %v\n%s", err, stdout.String())
+		}
+		if report["eligible"] != true {
+			t.Fatalf("report = %#v", report)
+		}
+		if report["model_attempts"] != float64(0) || report["artifact_creation"] != false {
+			t.Fatalf("preflight performed work: %#v", report)
+		}
+		if !strings.Contains(stderr.String(), "#0 building image") || !strings.Contains(stderr.String(), "#21 DONE 0.0s") {
+			t.Fatalf("build diagnostics = %q", stderr.String())
+		}
+		assertDatabaseUntouched(t, databasePath)
+	})
+
+	t.Run("ineligible image ignores direct task input", func(t *testing.T) {
+		t.Setenv("KTX_TEST_IMAGE_INSPECT_FAIL", "1")
+		databasePath := filepath.Join(t.TempDir(), "ktx.db")
+		t.Setenv("KTX_DB", databasePath)
+		var stdout, stderr bytes.Buffer
+		code := runBenchCompare([]string{"--preflight", "--task-id", "ignored", "--prompt", "ignored", "--expected-facts", "not-json", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != 1 {
+			t.Fatalf("code = %d, want 1; stderr = %s", code, stderr.String())
+		}
+		var report map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+			t.Fatalf("stdout is not clean JSON: %v\n%s", err, stdout.String())
+		}
+		if report["eligible"] != false || report["model_attempts"] != float64(0) || report["artifact_creation"] != false {
+			t.Fatalf("report = %#v", report)
+		}
+		reasons, ok := report["reasons"].([]any)
+		if !ok || len(reasons) != 1 || reasons[0] != "image_capability_unavailable" {
+			t.Fatalf("reasons = %#v", report["reasons"])
+		}
+		if stderr.Len() != 0 {
+			t.Fatalf("stderr = %q, want empty", stderr.String())
+		}
+		assertDatabaseUntouched(t, databasePath)
+	})
+}
 
 func TestBenchAgentRejectsStageMismatchBeforeAgentRun(t *testing.T) {
 	root := t.TempDir()

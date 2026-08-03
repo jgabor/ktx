@@ -1,0 +1,16 @@
+id: cgcbbhpcsi
+artifact: progress
+record:
+  timestamp: 2026-08-02 21:53
+  type: chore
+  phase: build
+  what: Added tools/bench/evidence/skillsbench-proof-derivative.json as the portable sanitized proof and reclassified the checksum-bound original proof snapshots as archival provenance without changing their bytes.
+  context:
+    intent: Keep maintained proof portable while preserving the exact historical and raw authority bytes.
+    constraints: No runtime, dependency, harness, provider, model, authentication, network, paid benchmark, ambient database, archive rewrite, merge, push, or false full-sanitization claim.
+    unknowns: Independent acceptance review remains.
+    scope: The archived proof bundles, one deterministic sanitized derivative, authority inventory, archive manifest, and concise proof-boundary documentation.
+  discovered: "Four checksum-bound proof files retain bounded historical machine-local values: three environment or verification records and one system-call trace. The raw archive separately retains eight historical preparation roots. Repository namespace text in verification logs is not workstation identity."
+  verified: The derivative digest is 91ef4795c8cf1589fa9b65897bf3e263c6bd554c6b2fdf3ef1deb73e0d31fda6 and matches the inventory and manifest. Every source and exception digest and occurrence count reproduces. Protected authority hashes and proof-tree aggregates are unchanged. Maintained and replaceable proof scans found zero workstation paths, random temporary roots, credentials, or internal tracking markers. Fresh isolated-root checks and mage check passed with KTX_DB unset and zero forbidden database accesses.
+  next: Commit the bounded proof sanitization, then keep task xhbaaswcha in progress and unevaluated for independent acceptance review.
+  publication_order: 35

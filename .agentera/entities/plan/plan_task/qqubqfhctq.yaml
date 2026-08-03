@@ -1,0 +1,24 @@
+id: qqubqfhctq
+artifact: plan
+record:
+  name: Review and close native benchmark coverage gaps
+  depends_on:
+    - cuehrhelfu
+    - ddudfxxssc
+  status: complete
+  acceptance:
+    - GIVEN the corpus WHEN reviewed THEN large-log, cross-file, structured-output, code-or-diff, and failure-passthrough risks are mapped before additions.
+    - GIVEN a missing risk WHEN it affects the narrow claim THEN only the minimum deterministic case is added; otherwise the corpus remains unchanged.
+    - GIVEN native results WHEN published THEN deterministic outcomes support only named-task cost or context claims without general evaluator machinery.
+    - GIVEN added scoring behavior WHEN checked THEN one matching and one non-matching result exercise it.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-qqubqfhctq-1
+      source: audit_qqubqfhctq_native_coverage PASS; one 35-line task closes structured-output and code-diff gaps, generic preflight limitation deferred to final synchronization
+      recorded_at: 2026-08-02 15:05
+      writer_command: agentera state plan record-evaluation

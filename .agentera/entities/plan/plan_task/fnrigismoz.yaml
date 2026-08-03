@@ -1,0 +1,28 @@
+id: fnrigismoz
+artifact: plan
+record:
+  name: Verify the source branch and synchronize current state
+  depends_on:
+    - mqjszxkcqx
+    - rpteozrqjo
+    - iddqfylthr
+    - xhbaaswcha
+    - zfriqpiavh
+    - dnpyyzvtzj
+  status: complete
+  acceptance:
+    - GIVEN fresh HOME and XDG roots with KTX_DB unset WHEN the full repository checks run THEN tests, race-sensitive checks, vet, lint, the supported build, and maintained evidence checks pass without ambient database, provider, model, or external mutation.
+    - GIVEN the final source tree WHEN scanned and compared with main THEN it contains only intended native behavior, concise documentation, minimal historical authority, portable maintained checks, and the integration handoff.
+    - GIVEN project memory WHEN synchronized THEN only stale executable surfaces are updated, the firm ownership decision is verified without being rewritten, and decision satisfaction remains unset.
+    - GIVEN source verification completes WHEN the plan closes THEN the source worktree is clean and the later Worktrunk integration workflow has all durable inputs needed to repeat volatile target checks.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-fnrigismoz-1
+      source: terminal source verification PASS; isolated mage check, direct identity check, raw manifest check, bench surface check, clean worktree, and integration handoff caveats verified
+      recorded_at: 2026-08-03 01:42
+      writer_command: agentera state plan record-evaluation

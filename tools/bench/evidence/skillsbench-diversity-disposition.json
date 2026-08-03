@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "status": "deferred",
+  "disposition": "STOP",
+  "reason": "Candidate delivered bytes are lower in only two of five valid pairs; the predeclared rule requires at least four.",
+  "source_gate": {
+    "path": "tools/bench/evidence/skillsbench-five-pair-gate.json",
+    "sha256": "8e7db2d6f19a18a3486760459c8fcc43f5846221398eb1620803b645207ac007",
+    "provenance": "independently audited five-pair gate",
+    "decision": "STOP",
+    "valid_pairs": 5,
+    "reward": {
+      "candidate_lower": 0,
+      "equal": 5,
+      "candidate_higher": 0
+    },
+    "failed_rule": {
+      "id": "lower_candidate_delivered_bytes_at_least_four",
+      "requirement": "candidate delivered bytes lower in at least four of five pairs",
+      "threshold": 4,
+      "observed": 2
+    },
+    "total_tokens": {
+      "candidate_lower": 3,
+      "equal": 0,
+      "candidate_higher": 2
+    }
+  },
+  "diversity_slice": {
+    "selected_tasks": null,
+    "campaign": null,
+    "preflight": null,
+    "paid_authorization": "not_requested",
+    "paid_calls": 0,
+    "attempts": {
+      "scheduled": 0,
+      "started": 0,
+      "completed": 0,
+      "failed": 0,
+      "not_started": 0
+    }
+  },
+  "conditional_branches": {
+    "task_selection": "inactive",
+    "diversity_preflight": "inactive",
+    "paid_authorization_and_execution": "inactive",
+    "validation_and_accounting": "inactive"
+  },
+  "claims": {
+    "inference": "none",
+    "causal_claim": false,
+    "generalization": false,
+    "oauth_cost_usd": null
+  }
+}

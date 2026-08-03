@@ -1,0 +1,24 @@
+id: dnpyyzvtzj
+artifact: plan
+record:
+  name: Define the later squash-integration handoff
+  depends_on:
+    - iddqfylthr
+    - xhbaaswcha
+    - zfriqpiavh
+  status: complete
+  acceptance:
+    - GIVEN the cleaned source branch WHEN handed to the integration owner THEN the intended target, base relationship, squash strategy, and post-integration verification are explicit.
+    - GIVEN target cleanliness, ancestry, and conflict status can change WHEN the handoff is reviewed THEN it requires those checks to run again immediately before integration.
+    - GIVEN the plan completes WHEN the handoff is published THEN no merge, push, publication, history rewrite, or worktree removal has occurred.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-dnpyyzvtzj-1
+      source: independent Worktrunk handoff audit PASS at b33398c; guarded squash flow and no-integration state verified
+      recorded_at: 2026-08-02 23:49
+      writer_command: agentera state plan record-evaluation

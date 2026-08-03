@@ -1,0 +1,25 @@
+id: nbmhaoqsqe
+artifact: plan
+record:
+  name: Revalidate and correct historical external evidence
+  depends_on:
+    - jrtqriqdwv
+    - cuehrhelfu
+    - cfsqudzdkd
+  status: complete
+  acceptance:
+    - GIVEN a complete claim WHEN revalidated THEN preflight, terminal, execution, result, and database authority are mandatory; any gap makes it incomplete.
+    - GIVEN metrics WHEN checked THEN collision-safe identity, first-artifact bytes, terminal disposition, and one delta direction govern every result.
+    - GIVEN corrections WHEN published THEN raw hashes remain historical and a new index or errata records supersession, provenance, state removal, and updated bindings.
+    - GIVEN no approval WHEN repaired THEN only retained artifacts run; complete and damaged fixtures prove fail-closed behavior.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-nbmhaoqsqe-1
+      source: audit_nbmhaoqsqe PASS; corrected retained authority is 1 campaign, 8 attempts, 4 pairs, no current decision; security A-, maintainability B
+      recorded_at: 2026-08-02 13:35
+      writer_command: agentera state plan record-evaluation

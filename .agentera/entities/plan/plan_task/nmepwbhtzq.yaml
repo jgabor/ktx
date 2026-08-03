@@ -1,0 +1,22 @@
+id: nmepwbhtzq
+artifact: plan
+record:
+  name: Determine release and consumer status
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the branch and available release history WHEN product status is checked THEN current main, tags, published artifacts, shipped help, and known consumers are accounted for.
+    - GIVEN that evidence WHEN disposition is selected THEN removal is used for an unshipped surface and bounded deprecation only for verified consumers.
+    - GIVEN uncertainty remains WHEN it is reported THEN downstream product narrowing stays blocked rather than assuming compatibility obligations.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-nmepwbhtzq-1
+      source: audit_nmepwbhtzq_release_status overall PASS; private package inventory remains an explicit downstream gate
+      recorded_at: 2026-08-02 01:35
+      writer_command: agentera state plan record-evaluation

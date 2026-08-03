@@ -1,0 +1,379 @@
+//go:build linux
+
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestContractAndCorrections(t *testing.T) {
+	root := testRoot(t)
+	required, err := loadContract(root)
+	must(t, err)
+	code, out, stderr := execute(root, nil, "render")
+	if code != 0 || stderr != "" || len(out) > maxStdout {
+		t.Fatalf("render: code=%d stdout=%q stderr=%q", code, out, stderr)
+	}
+	rendered, err := parseObject([]byte(out))
+	must(t, err)
+	available, found := at(rendered, "paid_execution.available")
+	if !found || available != false || atString(rendered, "paid_execution.approval_requirement") != "external_fresh_run_scoped" ||
+		atString(rendered, "paid_execution.authentication") != "external" {
+		t.Fatal("invalid render gate")
+	}
+	input, _ := json.Marshal(required)
+	code, out, stderr = execute(root, input, "check", "--input", "-")
+	if code != 0 || stderr != "" || !strings.Contains(out, `"status":"ok"`) {
+		t.Fatalf("match: code=%d stdout=%q stderr=%q", code, out, stderr)
+	}
+
+	cases := []struct {
+		category, path string
+		value          any
+		correction     string
+	}{
+		{"evaluator", "identity.evaluator.version", "0.6.4", "bench --version"},
+		{"task", "identity.task.id", "other-task", ".tasks[0]"},
+		{"runtime", "identity.runtime.version", "1.18.4", "opencode --version"},
+		{"adapter", "identity.adapter.plugin_sha256", strings.Repeat("0", 64), "sha256sum inputs/ktx.ts"},
+		{"ktx", "identity.ktx.source_commit", strings.Repeat("0", 40), "git rev-parse HEAD"},
+		{"execution", "execution.rounds", json.Number("5"), "existing external manifest"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.category, func(t *testing.T) {
+			observed := clone(t, required)
+			replace(t, observed, tc.path, tc.value)
+			input, _ := json.Marshal(observed)
+			code, out, stderr := execute(root, input, "check", "--input", "-")
+			if code != 2 || stderr != "" || !strings.Contains(out, tc.correction) || strings.Contains(out, "$EVALUATOR_VERSION") {
+				t.Fatalf("mismatch: code=%d stdout=%q stderr=%q", code, out, stderr)
+			}
+			for _, imperative := range []string{"checkout ", "building", "install ", "edit ", "update ", "authenticate", "paid work", "replace ", "select ", "set "} {
+				if strings.Contains(strings.ToLower(out), imperative) {
+					t.Fatalf("correction is not inspection-only: %q", out)
+				}
+			}
+		})
+	}
+
+	falseClaim := clone(t, required)
+	replace(t, falseClaim, "identity.task.provenance", "skillsbench")
+	input, _ = json.Marshal(falseClaim)
+	code, out, stderr = execute(root, input, "check", "--input", "-")
+	if code != 65 || out != "" || stderr != "external validation: task provenance must be external\n" {
+		t.Fatalf("false provenance: code=%d stdout=%q stderr=%q", code, out, stderr)
+	}
+
+	wrongSchema := clone(t, required)
+	wrongSchema["schema_version"] = "ktx.external-validation-observed.WRONG"
+	code, out, stderr = execute(root, mustJSON(wrongSchema), "check", "--input", "-")
+	if code != 65 || out != "" || stderr != "external validation: input does not match the observed identity schema\n" {
+		t.Fatalf("schema mismatch: code=%d stdout=%q stderr=%q", code, out, stderr)
+	}
+}
+
+func TestAdversarialInput(t *testing.T) {
+	root := testRoot(t)
+	required, err := loadContract(root)
+	must(t, err)
+	base, _ := json.Marshal(required)
+	secret := "sk-ABCDEFGHIJKLM"
+	jwt := "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxIn0.sig"
+	fixedSecret := "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AB"
+	if len(fixedSecret) != 40 {
+		t.Fatalf("fixed secret length=%d", len(fixedSecret))
+	}
+	escaped := bytes.Replace(base, []byte(`"0.6.5"`), []byte(`"sk\u002dABCDEFGHIJKLM"`), 1)
+	duplicate := append([]byte(`{"schema_version":"sk\u002dABCDEFGHIJKLM",`), base[1:]...)
+	nestedDuplicate := bytes.Replace(base, []byte(`"evaluator":{`), []byte(`"evaluator":{"version":"0.6.4",`), 1)
+	type adversarialCase struct {
+		input, leak []byte
+		diagnostic  string
+	}
+	unsafeDiagnostic := "external validation: input must be one duplicate-free safe JSON object\n"
+	schemaDiagnostic := "external validation: input does not match the observed identity schema\n"
+	cases := map[string]adversarialCase{
+		"escaped secret":      {escaped, []byte(secret), unsafeDiagnostic},
+		"discarded secret":    {duplicate, []byte(secret), unsafeDiagnostic},
+		"nested duplicate":    {nestedDuplicate, nil, unsafeDiagnostic},
+		"concatenated JSON":   {append(append([]byte{}, base...), []byte(`{}`)...), nil, unsafeDiagnostic},
+		"NUL":                 {changed(t, required, "identity.evaluator.version", "0.6.4\x00x"), nil, unsafeDiagnostic},
+		"control":             {changed(t, required, "identity.evaluator.version", "0.6.4\x01x"), nil, unsafeDiagnostic},
+		"shell":               {changed(t, required, "identity.evaluator.version", "0.6.4;cat"), nil, unsafeDiagnostic},
+		"multiline":           {changed(t, required, "identity.evaluator.version", "0.6.4\nnext"), nil, unsafeDiagnostic},
+		"URL userinfo":        {changed(t, required, "identity.evaluator.version", "https://user:pass@example.com"), nil, unsafeDiagnostic},
+		"URL query":           {changed(t, required, "identity.evaluator.version", "https://example.com?token=abc"), nil, unsafeDiagnostic},
+		"JWT task ID":         {changed(t, required, "identity.task.id", jwt), []byte(jwt), unsafeDiagnostic},
+		"fixed-length secret": {changed(t, required, "identity.evaluator.source_commit", fixedSecret), []byte(fixedSecret), unsafeDiagnostic},
+	}
+	withToken := clone(t, required)
+	withToken["token"] = secret
+	cases["credential key"] = adversarialCase{mustJSON(withToken), []byte(secret), schemaDiagnostic}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			code, out, stderr := execute(root, tc.input, "check", "--input", "-")
+			if code != 65 || out != "" || stderr != tc.diagnostic || (len(tc.leak) != 0 && bytes.Contains([]byte(out+stderr), tc.leak)) {
+				t.Fatalf("unsafe input: code=%d stdout=%q stderr=%q", code, out, stderr)
+			}
+		})
+	}
+	code, out, stderr := execute(root, bytes.Repeat([]byte{0}, 40_000), "check", "--input", "-")
+	if code != 64 || out != "" || stderr != "external validation: input exceeds 32768 bytes\n" {
+		t.Fatalf("byte bound: code=%d stdout=%q stderr=%q", code, out, stderr)
+	}
+}
+
+func TestSecretOutputCorpus(t *testing.T) {
+	root := testRoot(t)
+	required, err := loadContract(root)
+	must(t, err)
+	cases := []struct {
+		path, value string
+	}{
+		{"identity.task.id", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxIn0.sig"},
+		{"identity.evaluator.source_commit", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AB"},
+		{"identity.evaluator.version", "sk-live-example-value"},
+		{"identity.task.id", "github_pat_examplevalue"},
+		{"identity.task.id", "glpat-abcdefghijklmnopqrst"},
+		{"identity.task.id", "token-abcdefghijklmnop"},
+		{"identity.ktx.source_commit", "AKIAEXAMPLEVALUE012345678901234567890123"},
+		{"execution.model", "https://user:pass@example.com/model"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path+"/"+tc.value[:min(8, len(tc.value))], func(t *testing.T) {
+			code, stdout, stderr := execute(root, changed(t, required, tc.path, tc.value), "check", "--input", "-")
+			if code != 65 || stdout != "" || stderr != "external validation: input must be one duplicate-free safe JSON object\n" || strings.Contains(stdout+stderr, tc.value) {
+				t.Fatalf("secret corpus: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func FuzzRejectedCommitNeverLeaks(f *testing.F) {
+	for _, seed := range []string{
+		"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxIn0.sig",
+		"AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AB",
+		"sk-live-example-value",
+		"https://user:pass@example.com",
+		"line1\nline2",
+		"value;cat",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, value string) {
+		if len(value) > 480 {
+			return
+		}
+		payload := "S3cr3t+" + value
+		root := testRoot(t)
+		required, err := loadContract(root)
+		must(t, err)
+		code, stdout, stderr := execute(root, changed(t, required, "identity.evaluator.source_commit", payload), "check", "--input", "-")
+		if code != 65 || stdout != "" || stderr != "external validation: input must be one duplicate-free safe JSON object\n" || strings.Contains(stdout+stderr, payload) {
+			t.Fatalf("fuzz secret leak: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+		}
+	})
+}
+
+func TestFileAndAuthoritySafety(t *testing.T) {
+	root := testRoot(t)
+	tmp := t.TempDir()
+	large := filepath.Join(tmp, "large.json")
+	must(t, os.WriteFile(large, bytes.Repeat([]byte("x"), maxInput+1), 0o600))
+	if _, err := readBounded(large, nil, maxInput); !errors.Is(err, errLarge) {
+		t.Fatalf("large file: %v", err)
+	}
+	link := filepath.Join(tmp, "link.json")
+	must(t, os.Symlink(large, link))
+	if _, err := readBounded(link, nil, maxInput); err == nil {
+		t.Fatal("symlink input accepted")
+	}
+
+	authorityRoot, files := copyAuthorityTree(t, root)
+	required, err := loadContract(authorityRoot)
+	must(t, err)
+	lockBytes, err := os.ReadFile(files.lock)
+	must(t, err)
+	lock, err := parseObject(lockBytes)
+	must(t, err)
+	lockBindings := lock["bindings"].(map[string]any)
+	for _, target := range bindingTargets {
+		if _, ok := at(required, target); !ok {
+			t.Fatalf("unbound target %s", target)
+		}
+		if _, ok := lockBindings[target]; !ok {
+			t.Fatalf("missing binding target %s", target)
+		}
+	}
+	if len(lockBindings) != 29 {
+		t.Fatalf("binding count=%d", len(lockBindings))
+	}
+
+	for _, tc := range []struct {
+		name, file, want string
+	}{
+		{"lock", "lock", "lock mismatch"},
+		{"archive", "archive", "archive mismatch"},
+		{"artifact manifest", "artifact", "freeze mismatch"},
+		{"campaign manifest", "manifest", "evidence digest mismatch"},
+		{"preflight", "preflight", "evidence digest mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tree, treeFiles := copyAuthorityTree(t, root)
+			path := map[string]string{"lock": treeFiles.lock, "archive": treeFiles.archive, "artifact": treeFiles.artifact, "manifest": treeFiles.manifest, "preflight": treeFiles.preflight}[tc.file]
+			content, readErr := os.ReadFile(path)
+			must(t, readErr)
+			must(t, os.WriteFile(path, append(content, ' '), 0o600))
+			_, loadErr := loadContract(tree)
+			if loadErr == nil || loadErr.Error() != tc.want {
+				t.Fatalf("tamper error=%v want=%q", loadErr, tc.want)
+			}
+			assertAuthorityFailure(t, tree)
+		})
+	}
+
+	t.Run("binding", func(t *testing.T) {
+		tree, treeFiles := copyAuthorityTree(t, root)
+		content, readErr := os.ReadFile(treeFiles.lock)
+		must(t, readErr)
+		mutated, parseErr := parseObject(content)
+		must(t, parseErr)
+		mutated["bindings"].(map[string]any)["identity.evaluator.version"] = "manifest:pins.missing"
+		content = mustJSON(mutated)
+		must(t, os.WriteFile(treeFiles.lock, content, 0o600))
+		_, loadErr := loadContractWithDigest(tree, digest(content))
+		if loadErr == nil || loadErr.Error() != "unbound lock field" {
+			t.Fatalf("binding tamper error=%v", loadErr)
+		}
+		assertAuthorityFailure(t, tree)
+	})
+
+	t.Run("campaign selection", func(t *testing.T) {
+		tree, treeFiles := copyAuthorityTree(t, root)
+		content, readErr := os.ReadFile(treeFiles.lock)
+		must(t, readErr)
+		mutated, parseErr := parseObject(content)
+		must(t, parseErr)
+		mutated["campaign_id"] = "missing-campaign"
+		content = mustJSON(mutated)
+		must(t, os.WriteFile(treeFiles.lock, content, 0o600))
+		_, loadErr := loadContractWithDigest(tree, digest(content))
+		if loadErr == nil || loadErr.Error() != "campaign missing" {
+			t.Fatalf("campaign tamper error=%v", loadErr)
+		}
+		assertAuthorityFailure(t, tree)
+	})
+}
+
+func assertAuthorityFailure(t *testing.T, root string) {
+	t.Helper()
+	code, stdout, stderr := execute(root, nil, "render")
+	if code != 70 || stdout != "" || stderr != "external validation: lock or retained evidence is invalid\n" {
+		t.Fatalf("authority output: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+type authorityFiles struct {
+	lock, archive, artifact, manifest, preflight string
+}
+
+func copyAuthorityTree(t *testing.T, sourceRoot string) (string, authorityFiles) {
+	t.Helper()
+	targetRoot := t.TempDir()
+	lockBytes := copyAuthorityFile(t, sourceRoot, targetRoot, lockPath)
+	lock, err := parseObject(lockBytes)
+	must(t, err)
+	archivePath := atString(lock, "archive.path")
+	archiveBytes := copyAuthorityFile(t, sourceRoot, targetRoot, archivePath)
+	archive, err := parseObject(archiveBytes)
+	must(t, err)
+	campaign, err := findCampaign(archive, atString(lock, "campaign_id"))
+	must(t, err)
+	artifactPath := atString(archive, "freeze.artifact_manifest.path")
+	copyAuthorityFile(t, sourceRoot, targetRoot, artifactPath)
+	archiveDir := atString(campaign, "archive")
+	manifestPath := filepath.ToSlash(filepath.Join(archiveDir, "manifest.json"))
+	preflightPath := filepath.ToSlash(filepath.Join(archiveDir, "preflight.json"))
+	copyAuthorityFile(t, sourceRoot, targetRoot, manifestPath)
+	copyAuthorityFile(t, sourceRoot, targetRoot, preflightPath)
+	return targetRoot, authorityFiles{
+		lock:      filepath.Join(targetRoot, filepath.FromSlash(lockPath)),
+		archive:   filepath.Join(targetRoot, filepath.FromSlash(archivePath)),
+		artifact:  filepath.Join(targetRoot, filepath.FromSlash(artifactPath)),
+		manifest:  filepath.Join(targetRoot, filepath.FromSlash(manifestPath)),
+		preflight: filepath.Join(targetRoot, filepath.FromSlash(preflightPath)),
+	}
+}
+
+func copyAuthorityFile(t *testing.T, sourceRoot, targetRoot, relative string) []byte {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(sourceRoot, filepath.FromSlash(relative)))
+	must(t, err)
+	target := filepath.Join(targetRoot, filepath.FromSlash(relative))
+	must(t, os.MkdirAll(filepath.Dir(target), 0o700))
+	must(t, os.WriteFile(target, content, 0o600))
+	return content
+}
+
+func testRoot(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.Abs("../../..")
+	must(t, err)
+	return root
+}
+
+func execute(root string, input []byte, args ...string) (int, string, string) {
+	var stdout, stderr bytes.Buffer
+	code := run(root, args, bytes.NewReader(input), &stdout, &stderr)
+	return code, stdout.String(), stderr.String()
+}
+
+func clone(t *testing.T, source map[string]any) map[string]any {
+	t.Helper()
+	copy, err := parseObject(mustJSON(source))
+	must(t, err)
+	return copy
+}
+
+func replace(t *testing.T, root map[string]any, path string, value any) {
+	t.Helper()
+	parts := strings.Split(path, ".")
+	object := root
+	for _, part := range parts[:len(parts)-1] {
+		object = object[part].(map[string]any)
+	}
+	object[parts[len(parts)-1]] = value
+}
+
+func changed(t *testing.T, source map[string]any, path string, value any) []byte {
+	copy := clone(t, source)
+	replace(t, copy, path, value)
+	return mustJSON(copy)
+}
+
+func mustJSON(value any) []byte {
+	b, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func atString(value any, path string) string {
+	v, _ := at(value, path)
+	s, _ := v.(string)
+	return s
+}
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}

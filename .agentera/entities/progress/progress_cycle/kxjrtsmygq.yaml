@@ -1,0 +1,15 @@
+id: kxjrtsmygq
+artifact: progress
+record:
+  timestamp: 2026-07-31 13:06
+  type: chore
+  phase: build
+  what: Archived five temporary OAuth SkillsBench campaigns under .bench-data/skillsbench-campaigns and added tools/bench/evidence/skillsbench-oauth-campaign-archive.json, which separates three successful quality campaigns from two diagnostic failures.
+  context:
+    intent: Preserve current campaign evidence without starting another model attempt or changing historical results.
+    constraints: No model attempt, replication, gate analysis, diversity run, final publication, credential value, or historical source mutation.
+    unknowns: OAuth price and cost remain unavailable; the archive supports descriptive claims only.
+    scope: docs/skillsbench-campaign.md, tools/bench/evidence/skillsbench-oauth-campaign-archive.json, ignored .bench-data campaign copies, and typed task/progress state.
+  verified: Byte-identical source/archive comparisons passed. Manifest and executable hashes match the tracked index. All 16 retained credential markers passed. Compatible retained inputs/ktx validators reproduced schema 7 at 2/2, schema 6 at 2/2 and 8/8, and the expected schema 4 and 5 incomplete diagnostic results at 0/2 quality-evaluable. Every invocation unset KTX_DB, used fresh HOME and XDG roots, and created zero files there.
+  next: Leave all dependent tasks unstarted for the orchestrator's next explicit cycle.
+  publication_order: 1

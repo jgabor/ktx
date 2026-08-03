@@ -1,0 +1,15 @@
+id: nnsfvbazjh
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**SkillsBench delivered-byte investigation** — Before any new SkillsBench spending, investigate why candidate delivered bytes were lower in only 2/5 quality-preserving pairs. Separate changes in generated original-output volume between arms from within-arm compression reduction; use retained evidence to identify causes without prescribing a compression redesign."
+  readiness:
+    capability: optimize
+    reason: Explain the failed descriptive expansion gate from retained evidence before considering additional paid work.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 8
+    order_reason: Follow the existing evidence studies and precede any new SkillsBench spending.

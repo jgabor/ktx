@@ -1,0 +1,15 @@
+id: gjqbseukrx
+artifact: progress
+record:
+  timestamp: 2026-08-03 00:06
+  type: chore
+  phase: build
+  what: Verified the reduced benchmark branch and synchronized its executable project state.
+  context:
+    intent: Verify the source branch against its governed benchmark-ownership boundary and leave a coherent local handoff.
+    constraints: Remain offline; do not access the ambient database, evaluator, model, authentication, remote state, or integration refs. Preserve authoritative and archival bytes, and leave decision satisfaction unset.
+    scope: Source audit, one stale-comment correction, executable state synchronization, isolated verification, and handoff readiness only.
+  discovered: The source comment for embedded methodologies still implied wildcard inclusion; it now states the explicit native boundary. TODO reconciliation reports no managed drift, and the firm ownership decision remains without satisfaction evidence.
+  verified: Fresh isolated roots passed race-enabled full tests, vet, lint, build, repository check, portable replay, maintained evidence checks, authority and raw digest checks, link and anchor checks, format checks, product-surface and marker scans, and independent code review. The database audit reported zero forbidden accesses.
+  next: Keep the task in progress without evaluation. Use the durable Worktrunk handoff only after separate integration authorization.
+  publication_order: 40

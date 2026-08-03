@@ -615,14 +615,27 @@ same answer-key exclusions).
 | `log-tail-error-v1`      | bash      | 40–80k       | tail errors under pure head                                                        | multi-fact fractional |
 | `crossfile-nav-v1`       | navigate  | **100–200k** | incomplete coverage + mid/tail                                                     | multi-fact fractional |
 | `ephemeral-midfact-v1`   | bash      | 20–80k       | mid-loss when facts live only in tool stdout (no on-disk re-grep); recovery footer | multi-fact fractional |
+| `structured-diff-v1`     | bash      | 30–80k       | JSON structure plus mid-body code-diff semantics and a tail result                 | multi-fact fractional |
 | `grep-noise-v1`          | find      | 40–80k       | needle lost in noise                                                               | multi-fact fractional |
 | `failure-passthrough-v1` | bash fail | small        | failure signal stripped                                                            | multi-fact fractional |
 
-`crossfile-nav-v1` is the headline heavy task. Smaller tasks diagnose _why_ an
+`crossfile-nav-v1` is the headline heavy task. Smaller tasks diagnose _why_ a
 pipeline wins or loses (head vs keep-ends vs budget).
 
-Planted facts use the form `FACT_NAME=value` and are listed in each task file
-and in `tools/bench/corpus/MANIFEST.json`.
+The native risk map is explicit: `log-tail-error-v1` and
+`ephemeral-midfact-v1` cover large-log loss; `crossfile-nav-v1` covers
+cross-file navigation; `structured-diff-v1` covers structured JSON and code or
+diff comprehension; and `failure-passthrough-v1` covers stderr from a non-zero
+command.
+These are named task contracts, not evidence of general agent skill or complete
+benchmark-suite coverage. A measured result supports context or cost and
+deterministic-result claims only for the task and protocol that produced it.
+`structured-diff-v1` currently has deterministic contract, generation, and
+scorer coverage but no model-backed result.
+
+Scoring expectations live in each task file. Corpus-backed planted facts also
+appear in `tools/bench/corpus/MANIFEST.json`; ephemeral and derived expectations
+remain only in their task contract and are not mounted into the task workspace.
 
 ## Metrics contract
 
@@ -765,7 +778,7 @@ Live source events are runtime model-step observations only. The schema value
 `model_step` identifies such an observation; it is never a provider request
 count. A retained `native_request` record is historical/offline compatibility
 evidence from an unsupported former collection path. It is not accepted as live
-telemetry and cannot authorize future provider collection.
+telemetry or as a supported source for future provider collection.
 
 A source event records each numeric field as `measured`, `unknown`, or
 `malformed`. A measured zero is a measurement, not an absence. Missing and
@@ -786,8 +799,8 @@ boundaries:
 | `unknown`           | The source omitted, nullified, malformed, or cannot authoritatively classify the relevant telemetry.       |
 
 Every source/version capability entry keeps runtime-emitted telemetry, identity
-inferred from explicit runtime configuration, official semantic references,
-pricing estimates, and historical/offline fixtures separate, with provenance.
+inferred from explicit runtime configuration, provider documentation, pricing
+estimates, and historical/offline fixtures separate, with provenance.
 Only the first two are current collection inputs. None proves provider-internal
 hits, misses, fills, eviction, request boundaries, isolation, or prefix
 composition.
@@ -823,6 +836,8 @@ Methodology v4 remains the default for compatibility. Select the cache-aware
 contract explicitly:
 
 ```bash
+./build/ktx bench compare --preflight --format json
+
 ./build/ktx bench compare --preflight --build --format json
 
 ./build/ktx bench compare \
@@ -836,8 +851,9 @@ contract explicitly:
   --rounds 5
 ```
 
-The explicit preflight is offline: it requires no auth or model, creates no
-experiment artifact, and exits nonzero with deterministic capability reasons.
+The generic preflight returns before task loading. It is offline, requires no
+auth or model, creates no experiment artifact, and exits nonzero with
+deterministic capability reasons.
 With `--build`, it checks the local Docker source before building and then asks
 only the resulting image for `bench agent --capabilities`. Normal comparisons
 run the same gate automatically before checking auth, creating an experiment,
@@ -871,20 +887,13 @@ in the same order. Any missing, partial, reordered, duplicated, mismatched, open
 incomplete, contradictory, or corrupt required evidence makes attempt and
 experiment validation fail; regeneration cannot promote it into valid evidence.
 
-The retained OpenCode 1.18.5 Luna/high run now provides validated controlled
-and secondary evidence. Five measured pairs were complete and protocol
-compliant; candidate mean OpenCode-reported cached-input share was
-0.7212058731757298 versus 0.5299901044108349 for baseline. The paired
-candidate-minus-baseline mean was 0.19121576876489477 with a descriptive
-two-sided 95% Student-t interval of [0.19057450330802284,
-0.1918570342217667], while both sides retained full-pass rate and mean fact
-score of 1. The authorized scope is only “higher OpenCode-reported cached-input
-share under the retained protocol.” The result does not authorize significance
-or causal wording and says nothing about provider-native cache behavior. The
-separately labeled Pi-style estimate had 28 eligible and 14 ineligible units and
-remains descriptive and non-ranking. Exact provenance, validation, hashes, and
-both unchanged failed archives are in
-[the live validation report](cache-reuse-live-validation.md).
+The retained OpenCode 1.18.5 Luna/high run has five complete, protocol-compliant
+measured pairs with full quality on both sides. Its candidate mean
+OpenCode-reported cached-input share was higher than baseline under the retained
+protocol. That is the supported claim; the result supports no significance,
+causal, or provider-native cache wording. Exact values, secondary estimates,
+provenance, validation, hashes, and failed archives are in the
+[live validation report](cache-reuse-live-validation.md).
 
 Each strategy runs one `cold_observation`, the requested number of `warmup`
 attempts, and then `--rounds` `measured_warm` attempts. Setup attempts remain in
@@ -915,7 +924,7 @@ penalty, and the first cumulative measured turn where candidate estimated API
 cost is below baseline after setup cost. Unavailable estimates produce null
 values with reasons. They also expose the OpenCode-reported direct cached-input
 share, the separately labeled estimated Pi consecutive-step method, controlled
-measured-cycle pairs, and deterministic statement authorization. TTFT is null:
+measured-cycle pairs, and deterministic claim limits. TTFT is null:
 the OpenCode 1.18.5 JSONL format does not provide a reliable request-start
 timestamp.
 
@@ -935,7 +944,7 @@ their historical validation and summary bytes.
 All cache-reuse views are derived from runtime-reported model-step fields.
 Cold, warm-up, and measured phase labels do not prove provider cache hits,
 misses, fills, eviction, eligibility, prefixes, isolation, or TTL behavior. The
-paired interval is descriptive and authorizes no significance or causal claim.
+paired interval is descriptive and supports no significance or causal claim.
 
 ### Live quality ranking (one candidate pipeline)
 

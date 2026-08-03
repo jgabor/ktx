@@ -18,6 +18,8 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -288,6 +290,34 @@ func TestRunBenchWith_Dispatch(t *testing.T) {
 			t.Errorf("stderr missing subcommand name: %q", stderr.String())
 		}
 	})
+}
+
+func TestBenchUnknownSubcommandUsesGenericUsageContract(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "ktx.db")
+	t.Setenv("KTX_DB", databasePath)
+
+	var stdout, stderr bytes.Buffer
+	if code := runWith([]string{"bench", "nonexistent-subcommand"}, &stdout, &stderr); code != ExitUsage {
+		t.Fatalf("code=%d, want %d; stdout=%q stderr=%q", code, ExitUsage, stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout=%q, want empty", stdout.String())
+	}
+	var envelope struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+		t.Fatalf("stderr is not a JSON error envelope: %v\n%s", err, stderr.String())
+	}
+	if envelope.Error.Code != "usage" || !strings.Contains(envelope.Error.Message, `unknown subcommand "nonexistent-subcommand"`) {
+		t.Fatalf("error envelope=%#v", envelope.Error)
+	}
+	if _, err := os.Stat(databasePath); !os.IsNotExist(err) {
+		t.Fatalf("unknown command touched database path: %v", err)
+	}
 }
 
 // TestCaptureStreamForBenchRun covers the recording contract's

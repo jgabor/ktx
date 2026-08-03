@@ -1,0 +1,1279 @@
+{
+  "schema_version": "ktx.skillsbench-campaign-errata.v1",
+  "corrected_at": "2026-08-02",
+  "status": "corrected",
+  "supersession": {
+    "preferred_correction": {
+      "path": "tools/bench/evidence/skillsbench-campaign-errata.json",
+      "checksum_manifest": "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS"
+    },
+    "historical_publications": [
+      {
+        "path": "tools/bench/evidence/skillsbench-final-index.json",
+        "sha256": "3c9de17822f57327dbb45f1ffd3f39212f0c1bc905ae2f60ee07cf2b35fd1100"
+      },
+      {
+        "path": "tools/bench/evidence/skillsbench-five-pair-gate.json",
+        "sha256": "8e7db2d6f19a18a3486760459c8fcc43f5846221398eb1620803b645207ac007"
+      }
+    ],
+    "rule": "Use this errata for current completeness and metrics; retain the historical publications unchanged for provenance."
+  },
+  "authority": {
+    "campaign_archive": {
+      "path": "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+      "sha256": "b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e"
+    },
+    "raw_artifacts": {
+      "path": "tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256",
+      "sha256": "55b196c49d7d640233db43879c7396093718708a62fb2f7452435aefdf022ec3"
+    },
+    "freeze_verifier": {
+      "path": "tools/bench/evidence/verify-skillsbench-campaign-freeze.sh",
+      "sha256": "471b41d3a79557695dee72dc8add5d0296edf4d288e6a62f28a42e449bf953a7"
+    },
+    "external_identity_lock": {
+      "path": "tools/bench/external-validation/campaign-lock.json",
+      "sha256": "fc74cb73246b4873f4b493af7795f6d80d8c2f0d047750766cee4624ad141f8b"
+    },
+    "generator": {
+      "path": "tools/bench/evidence/campaign-revalidation/main.go",
+      "sha256": "9140452c178c7d1f66e4d874a95934e940bd75627fc3495e71e545d2efc64cdb"
+    },
+    "verified_raw_file_count": 927
+  },
+  "contract": {
+    "complete_requires": [
+      "preflight",
+      "terminal_disposition",
+      "attempt_execution",
+      "result_and_summary",
+      "read_only_database"
+    ],
+    "identity_format": "campaign_id::attempt_id and campaign_id::pair_id; bare attempt and pair IDs are never global keys",
+    "first_artifact_order": ["compressed.timestamp ASC", "compressed.id ASC"],
+    "delta_direction": "candidate_minus_baseline",
+    "missing_or_unknown_rule": "Missing, malformed, inconsistent, or unknown authority makes the campaign incomplete; it never becomes success or zero.",
+    "database_mode": "SQLite mode=ro plus PRAGMA query_only=ON; no migration"
+  },
+  "completeness": {
+    "campaigns": [
+      {
+        "campaign_id": "ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+        "historical_class": "successful_quality_evidence",
+        "historical_complete_claim": true,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": true,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 1
+        },
+        "terminal": {
+          "expected": 2,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 2,
+          "valid": 2
+        },
+        "result_and_summary": {
+          "expected": 2,
+          "valid": 2
+        },
+        "database": {
+          "expected": 2,
+          "valid": 2
+        },
+        "gaps": ["terminal_disposition"]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-canary-c5d51a6",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-c5d51a6",
+        "historical_class": "successful_quality_evidence",
+        "historical_complete_claim": true,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": false,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 1
+        },
+        "terminal": {
+          "expected": 2,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 2,
+          "valid": 2
+        },
+        "result_and_summary": {
+          "expected": 2,
+          "valid": 0
+        },
+        "database": {
+          "expected": 2,
+          "valid": 2
+        },
+        "gaps": ["current_schema", "terminal_disposition", "result_and_summary"]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-repeat4-c5d51a6",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-repeat4-c5d51a6",
+        "historical_class": "successful_quality_evidence",
+        "historical_complete_claim": true,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": false,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 1
+        },
+        "terminal": {
+          "expected": 8,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 8,
+          "valid": 8
+        },
+        "result_and_summary": {
+          "expected": 8,
+          "valid": 0
+        },
+        "database": {
+          "expected": 8,
+          "valid": 8
+        },
+        "gaps": ["current_schema", "terminal_disposition", "result_and_summary"]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal",
+        "historical_class": "successful_quality_evidence",
+        "historical_complete_claim": true,
+        "corrected_class": "complete",
+        "current_complete": true,
+        "schema_current": true,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 1
+        },
+        "terminal": {
+          "expected": 8,
+          "valid": 8
+        },
+        "execution": {
+          "expected": 8,
+          "valid": 8
+        },
+        "result_and_summary": {
+          "expected": 8,
+          "valid": 8
+        },
+        "database": {
+          "expected": 8,
+          "valid": 8
+        },
+        "gaps": [],
+        "bindings": [
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0001-candidate",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0001-candidate",
+              "sha256": "6d4626987ba15c7c5970b27e48c821db2703f69b5074884eb1bdb5804c8457f1"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/execution.json",
+              "sha256": "4218709362c39b635f516a89ad1702f8f234a5bce34f477df943a91e0cf54b2e"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/benchflow/2026-07-31__17-17-04/3d-scan-calc__84906042/result.json",
+              "sha256": "3f1221e6925a1e234d41b874f3186c215f136d0611b79e6dd620dcc4f1c23cd6"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/benchflow/summary.json",
+              "sha256": "70496c4d589dc5f4f84d99945343699698c32a3575046ce0ea832e0ff213655c"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/benchflow/2026-07-31__17-17-04/3d-scan-calc__84906042/results.jsonl",
+              "sha256": "a4267dcd8a5adcda8dd5337798d20130dfaaa6714d4aa54dd9048a505c38de38"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/benchflow/2026-07-31__17-17-04/3d-scan-calc__84906042/artifacts/ktx.db",
+              "sha256": "913fa103bced663993af8e1ccab84e598aa79e6034330d98054ecbc0be564651",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 16,
+              "original_bytes": 14752,
+              "delivered_bytes": 10689,
+              "compressed_source_count": 3,
+              "disposition_count": 16,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          },
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0002-baseline",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0002-baseline",
+              "sha256": "56de0e0ff24d79a2cf6d5e14e3536c7d9b89269488f6dd1364ad9e0d0a0e631e"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/execution.json",
+              "sha256": "d00d864c44a06f4e5c4de36d6a9cfd7ce1244ec12b8a1e96877a54a65b983114"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/benchflow/2026-07-31__17-18-27/3d-scan-calc__15ab7c09/result.json",
+              "sha256": "d6b474cf5725f3da13608c98f9625f88831df9cbc581cc4ef458b2833e138956"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/benchflow/summary.json",
+              "sha256": "421af9425fa812c82bfff7e17010e1f74dd1fca486647c353e9aefe63cf00c59"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/benchflow/2026-07-31__17-18-27/3d-scan-calc__15ab7c09/results.jsonl",
+              "sha256": "0d98bb3f55c7d0ea37e706d72cda4257bd9ab9aebf975af01a4eb2261373ed4e"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/benchflow/2026-07-31__17-18-27/3d-scan-calc__15ab7c09/artifacts/ktx.db",
+              "sha256": "97c183cd28800555be8c46e4ed05566744183a94873a870ee1e355d8984a6b1d",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 13,
+              "original_bytes": 11996,
+              "delivered_bytes": 11996,
+              "compressed_source_count": 0,
+              "disposition_count": 13,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          },
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0003-baseline",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0003-baseline",
+              "sha256": "02c8898cafae7a2bed13eb902a8b07c10d9f5cfc6748e0d014d2cf39ff35b272"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/execution.json",
+              "sha256": "fe432fde1ffd93c9c6fed69bd0c3f49d3c34c6828e0844bdaa50451548267fbb"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/benchflow/2026-07-31__17-19-53/3d-scan-calc__ff379202/result.json",
+              "sha256": "f3f54712c66166c6a459644769cf315066a2be7b95bdf6911f69293dda02414d"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/benchflow/summary.json",
+              "sha256": "d795a21e962d0049a63fdca6d5753eba69f23cc85b82a68ce9b3ee4657c0f708"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/benchflow/2026-07-31__17-19-53/3d-scan-calc__ff379202/results.jsonl",
+              "sha256": "f64d38a7be774bab617e426a59c535329b1f4939ad610ef69983733535a79687"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/benchflow/2026-07-31__17-19-53/3d-scan-calc__ff379202/artifacts/ktx.db",
+              "sha256": "c8e682f4c38d1706fc11190d814f5fcfa6b4c0192ff182ed426560c3aa0e2b5b",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 12,
+              "original_bytes": 12020,
+              "delivered_bytes": 12020,
+              "compressed_source_count": 0,
+              "disposition_count": 12,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          },
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0004-candidate",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0004-candidate",
+              "sha256": "d4017c9a0a5a3b6026ff4f9e0b99eb0ed94c068a068f2941dcef8b784b20b11d"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/execution.json",
+              "sha256": "e0e5df8baf9dd452ef410e537e7c9fe6ff3614bda7dc13f18d0d8ecab9bf5a08"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/benchflow/2026-07-31__17-21-20/3d-scan-calc__61d464d4/result.json",
+              "sha256": "2c04b58ff44424c71efc5c2bfd94119cda8b6f70324b24c84f3f52a4a481d36c"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/benchflow/summary.json",
+              "sha256": "92c35515dae38425dcfd966d6a4c7033af92a051ba2b990def84bda4d7ff1b81"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/benchflow/2026-07-31__17-21-20/3d-scan-calc__61d464d4/results.jsonl",
+              "sha256": "6737c58ce8cd9e0ddd7e5cea7135ad2a0ff9f7fcde87e0d9d8534a1597e1bb7b"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/benchflow/2026-07-31__17-21-20/3d-scan-calc__61d464d4/artifacts/ktx.db",
+              "sha256": "256044475439ef632aa1c59306728f94b60517cc458836da6b79d5b8c3233dc2",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 16,
+              "original_bytes": 16167,
+              "delivered_bytes": 12094,
+              "compressed_source_count": 4,
+              "disposition_count": 16,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          },
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0005-candidate",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0005-candidate",
+              "sha256": "8024f2faa44dd6745291e44349e534d532e73657908f79c38b21de3565cabab0"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/execution.json",
+              "sha256": "78ae909d2868d6d71be87c4134baeb0514c28838d117a0a2f029451be8b8a2ca"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/benchflow/2026-07-31__17-22-46/3d-scan-calc__1df007d3/result.json",
+              "sha256": "a1daf9641e965146cd82145924f148f0fb1e8e4f804ce5f471e2c614f09d159f"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/benchflow/summary.json",
+              "sha256": "fc510233594fcf516ca0f4e3694716fc09222f409974d74aa0629a42feb2b738"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/benchflow/2026-07-31__17-22-46/3d-scan-calc__1df007d3/results.jsonl",
+              "sha256": "0960f576584a0ea85ecc8b1dec72f55c371d99f16fcb73ed399ea79cf0b4b239"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/benchflow/2026-07-31__17-22-46/3d-scan-calc__1df007d3/artifacts/ktx.db",
+              "sha256": "c0a337dc9003e5b9a5f0ac3953529c3674981ff79ae462dc5a68cfd2e3e465f5",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 16,
+              "original_bytes": 17028,
+              "delivered_bytes": 12810,
+              "compressed_source_count": 4,
+              "disposition_count": 16,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          },
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0006-baseline",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0006-baseline",
+              "sha256": "e28a42cc2d5d245e6d78554b8faf5cb2173149f673bcd893252f192aed1ae453"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/execution.json",
+              "sha256": "db5ad3db9f869ea8fd68c8e211bb7e27ccc1734903e06f5e15d1a503c06964ab"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/benchflow/2026-07-31__17-24-09/3d-scan-calc__b10f3543/result.json",
+              "sha256": "e5b901c05c2b7d5844d72c4ec345b3fa49af8c77616b3905863914a1654ac9a1"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/benchflow/summary.json",
+              "sha256": "1f485a44ce788848d305b0460c817ce29dc1cd25ae84756101948ff6130a202b"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/benchflow/2026-07-31__17-24-09/3d-scan-calc__b10f3543/results.jsonl",
+              "sha256": "8aa7bd330ddf29605d73a4903b96d552df5772fd6c520741f8d8a41a7c1642bb"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/benchflow/2026-07-31__17-24-09/3d-scan-calc__b10f3543/artifacts/ktx.db",
+              "sha256": "b42168dc193bad6fa6bb2dc4049175d32b111d1c742a15e664e919b31bc566cc",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 16,
+              "original_bytes": 12938,
+              "delivered_bytes": 12938,
+              "compressed_source_count": 0,
+              "disposition_count": 16,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          },
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0007-baseline",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0007-baseline",
+              "sha256": "6a65c06d5751e7868da6316570f4e2d4cc7baae69a94ab5cc3a38ebc29b3c0a7"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/execution.json",
+              "sha256": "13a8064ad5296b24431b986855951a4eebe7b8e7fcf2c910d7ae48118733f4d5"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/benchflow/2026-07-31__17-25-35/3d-scan-calc__411a1dc5/result.json",
+              "sha256": "918ac199ba168acb9cbde33d5a49bd9e231c93d8817766652ddfcf0cb7626f0c"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/benchflow/summary.json",
+              "sha256": "8d889627b02497eadd732d7fdb3de60316a5b0861279806c43be2e9da255c5a2"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/benchflow/2026-07-31__17-25-35/3d-scan-calc__411a1dc5/results.jsonl",
+              "sha256": "2f4c6959f393f15b0f9076309a23a392324547d0b6031e4acf2c8f165fe73c46"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/benchflow/2026-07-31__17-25-35/3d-scan-calc__411a1dc5/artifacts/ktx.db",
+              "sha256": "660a9f1921391eeadfe214d275d0ce631913112ce0832d09252d82520f8cd6cb",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 14,
+              "original_bytes": 10964,
+              "delivered_bytes": 10964,
+              "compressed_source_count": 0,
+              "disposition_count": 14,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          },
+          {
+            "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0008-candidate",
+            "attempt_record": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl#attempt-0008-candidate",
+              "sha256": "ca2fff5887960ef1de8570b2dd9d82a56cba8357afa90be229bb1591fa1dbff4"
+            },
+            "execution": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/execution.json",
+              "sha256": "676b2be9b24a4c0090294c6c606918406378c896fa400be40933a9f6b86dbaa2"
+            },
+            "terminal": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/terminal.json",
+              "sha256": "22a6d6b488829eade8abfd951fd9cee389ed014ebef19047d7a7e1d3e6236379"
+            },
+            "result": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/benchflow/2026-07-31__17-26-59/3d-scan-calc__05becf8f/result.json",
+              "sha256": "37b26b97e4438d53cd564e03117a7aae6e3994e6274f68c7d40c5e6a22d34b4a"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/benchflow/summary.json",
+              "sha256": "3e9001516027e3615cc88bf38923658efd13705bb6177863a49fab2326becf15"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/benchflow/2026-07-31__17-26-59/3d-scan-calc__05becf8f/results.jsonl",
+              "sha256": "534039880895e64cbfbce49ee3087952ab3356583aaf57f9239e4f2c4863f300"
+            },
+            "database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/benchflow/2026-07-31__17-26-59/3d-scan-calc__05becf8f/artifacts/ktx.db",
+              "sha256": "c0c54ffbbe80ce577d9e70e8e925729e1c7c1496db45105a9a305166ed21bfa4",
+              "user_version": 9,
+              "read_only": true,
+              "integrity": "ok",
+              "session_count": 1,
+              "tool_call_count": 17,
+              "original_bytes": 17458,
+              "delivered_bytes": 13384,
+              "compressed_source_count": 4,
+              "disposition_count": 17,
+              "selected_artifact_rule": "compressed.timestamp ASC, compressed.id ASC"
+            }
+          }
+        ]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-canary-74b321f",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-74b321f",
+        "historical_class": "diagnostic_failure",
+        "historical_complete_claim": false,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": false,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 1
+        },
+        "terminal": {
+          "expected": 2,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 2,
+          "valid": 0
+        },
+        "result_and_summary": {
+          "expected": 2,
+          "valid": 0
+        },
+        "database": {
+          "expected": 2,
+          "valid": 0
+        },
+        "gaps": [
+          "current_schema",
+          "terminal_disposition",
+          "attempt_execution",
+          "result_and_summary",
+          "database_authority"
+        ]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-canary-618976c",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-618976c",
+        "historical_class": "diagnostic_failure",
+        "historical_complete_claim": false,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": false,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 1
+        },
+        "terminal": {
+          "expected": 2,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 2,
+          "valid": 0
+        },
+        "result_and_summary": {
+          "expected": 2,
+          "valid": 0
+        },
+        "database": {
+          "expected": 2,
+          "valid": 0
+        },
+        "gaps": [
+          "current_schema",
+          "terminal_disposition",
+          "attempt_execution",
+          "result_and_summary",
+          "database_authority"
+        ]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d",
+        "historical_class": "diagnostic_zero_spend_stop",
+        "historical_complete_claim": false,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": true,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 0
+        },
+        "terminal": {
+          "expected": 8,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 8,
+          "valid": 0
+        },
+        "result_and_summary": {
+          "expected": 8,
+          "valid": 0
+        },
+        "database": {
+          "expected": 8,
+          "valid": 0
+        },
+        "gaps": [
+          "preflight",
+          "terminal_disposition",
+          "attempt_execution",
+          "result_and_summary",
+          "database_authority"
+        ]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend",
+        "historical_class": "diagnostic_zero_spend_stop",
+        "historical_complete_claim": false,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": true,
+        "identity_bound": true,
+        "preflight": {
+          "expected": 1,
+          "valid": 1
+        },
+        "terminal": {
+          "expected": 8,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 8,
+          "valid": 0
+        },
+        "result_and_summary": {
+          "expected": 8,
+          "valid": 0
+        },
+        "database": {
+          "expected": 8,
+          "valid": 0
+        },
+        "gaps": [
+          "terminal_disposition",
+          "attempt_execution",
+          "result_and_summary",
+          "database_authority"
+        ]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight-zero-spend-diagnostic",
+        "historical_class": "diagnostic_zero_spend_stop",
+        "historical_complete_claim": false,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": true,
+        "identity_bound": false,
+        "preflight": {
+          "expected": 1,
+          "valid": 0
+        },
+        "terminal": {
+          "expected": 8,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 8,
+          "valid": 0
+        },
+        "result_and_summary": {
+          "expected": 8,
+          "valid": 0
+        },
+        "database": {
+          "expected": 8,
+          "valid": 0
+        },
+        "gaps": [
+          "preflight",
+          "schedule_attempt_identity",
+          "terminal_disposition",
+          "attempt_execution",
+          "result_and_summary",
+          "database_authority"
+        ]
+      },
+      {
+        "campaign_id": "ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+        "archive_path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+        "historical_class": "compatibility_only_preparation",
+        "historical_complete_claim": null,
+        "corrected_class": "incomplete",
+        "current_complete": false,
+        "schema_current": true,
+        "identity_bound": false,
+        "preflight": {
+          "expected": 1,
+          "valid": 0
+        },
+        "terminal": {
+          "expected": 8,
+          "valid": 0
+        },
+        "execution": {
+          "expected": 8,
+          "valid": 0
+        },
+        "result_and_summary": {
+          "expected": 8,
+          "valid": 0
+        },
+        "database": {
+          "expected": 8,
+          "valid": 0
+        },
+        "gaps": [
+          "preflight",
+          "schedule_attempt_identity",
+          "terminal_disposition",
+          "attempt_execution",
+          "result_and_summary",
+          "database_authority"
+        ]
+      }
+    ],
+    "current_complete_campaigns": 1,
+    "current_incomplete_campaigns": 9,
+    "complete_attempts": 8,
+    "complete_pairs": 4,
+    "removed_complete_campaign_claims": 3
+  },
+  "corrections": [
+    {
+      "claim": "complete_campaigns",
+      "historical": 4,
+      "corrected": 1,
+      "reason": "Three historically complete campaigns have no retained terminal disposition; two also use the retired campaign schema."
+    },
+    {
+      "claim": "complete_attempts",
+      "historical": 20,
+      "corrected": 8,
+      "reason": "Only the eight replication attempts have all five mutually bound authority layers."
+    },
+    {
+      "claim": "valid_quality_pairs",
+      "historical": 5,
+      "corrected": 4,
+      "reason": "The canary pair is removed because both attempts lack terminal disposition files."
+    },
+    {
+      "claim": "integration_and_quality_preservation",
+      "historical": "succeeded",
+      "corrected": "not established by the current complete-authority set",
+      "reason": "The predeclared gate requires five valid pairs, but only four remain complete."
+    },
+    {
+      "claim": "expansion_gate",
+      "historical": "STOP",
+      "corrected": "incomplete; no gate decision",
+      "reason": "The historical gate consumed a canary pair that fails the mandatory terminal rule."
+    },
+    {
+      "claim": "delta_direction",
+      "historical": "mixed: summary uses baseline_minus_candidate while gate uses candidate_minus_baseline",
+      "corrected": "candidate_minus_baseline only",
+      "reason": "Corrected rows are recomputed from arm values and expose one direction."
+    },
+    {
+      "claim": "first_artifact_metrics",
+      "historical": "latest-selector risk",
+      "corrected": "earliest timestamp then smallest ID; retained values unchanged",
+      "reason": "No retained quality database has more than one compressed row for a source, so the corrected selector changes no per-attempt byte total."
+    }
+  ],
+  "metrics": {
+    "scope": "current complete-authority campaigns only",
+    "valid_pairs": 4,
+    "pairs": [
+      {
+        "qualified_pair_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::pair-0001",
+        "baseline": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0002-baseline",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 11996,
+          "delivered_bytes": 11996,
+          "compression_ratio": 1,
+          "compression_reduction": 0,
+          "tokens": {
+            "input": 622,
+            "new_input": 622,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 48,
+            "total": 11422
+          },
+          "runtime_tools": 13,
+          "ktx_calls": 13,
+          "turns": 25,
+          "wall_seconds": 84.9,
+          "cost_usd": null
+        },
+        "candidate": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0001-candidate",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 14752,
+          "delivered_bytes": 10689,
+          "compression_ratio": 0.7245797180043384,
+          "compression_reduction": 0.2754202819956616,
+          "tokens": {
+            "input": 956,
+            "new_input": 956,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 49,
+            "total": 10733
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 30,
+          "wall_seconds": 81.7,
+          "cost_usd": null
+        },
+        "candidate_minus_baseline": {
+          "reward": 0,
+          "original_bytes": 2756,
+          "delivered_bytes": -1307,
+          "compression_ratio": -0.2754202819956616,
+          "compression_reduction": 0.2754202819956616,
+          "tokens": {
+            "input": 334,
+            "new_input": 334,
+            "cache_read": -1024,
+            "cache_creation": 0,
+            "output": 1,
+            "total": -689
+          },
+          "runtime_tools": 3,
+          "ktx_calls": 3,
+          "turns": 5,
+          "wall_seconds": -3.200000000000003
+        }
+      },
+      {
+        "qualified_pair_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::pair-0002",
+        "baseline": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0003-baseline",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 12020,
+          "delivered_bytes": 12020,
+          "compression_ratio": 1,
+          "compression_reduction": 0,
+          "tokens": {
+            "input": 594,
+            "new_input": 594,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 62,
+            "total": 11408
+          },
+          "runtime_tools": 12,
+          "ktx_calls": 12,
+          "turns": 24,
+          "wall_seconds": 86.1,
+          "cost_usd": null
+        },
+        "candidate": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0004-candidate",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 16167,
+          "delivered_bytes": 12094,
+          "compression_ratio": 0.7480670501639142,
+          "compression_reduction": 0.25193294983608583,
+          "tokens": {
+            "input": 1156,
+            "new_input": 1156,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 41,
+            "total": 10925
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 30,
+          "wall_seconds": 84.3,
+          "cost_usd": null
+        },
+        "candidate_minus_baseline": {
+          "reward": 0,
+          "original_bytes": 4147,
+          "delivered_bytes": 74,
+          "compression_ratio": -0.25193294983608583,
+          "compression_reduction": 0.25193294983608583,
+          "tokens": {
+            "input": 562,
+            "new_input": 562,
+            "cache_read": -1024,
+            "cache_creation": 0,
+            "output": -21,
+            "total": -483
+          },
+          "runtime_tools": 4,
+          "ktx_calls": 4,
+          "turns": 6,
+          "wall_seconds": -1.7999999999999972
+        }
+      },
+      {
+        "qualified_pair_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::pair-0003",
+        "baseline": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0006-baseline",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 12938,
+          "delivered_bytes": 12938,
+          "compression_ratio": 1,
+          "compression_reduction": 0,
+          "tokens": {
+            "input": 1061,
+            "new_input": 1061,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 45,
+            "total": 11858
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 27,
+          "wall_seconds": 84.8,
+          "cost_usd": null
+        },
+        "candidate": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0005-candidate",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 17028,
+          "delivered_bytes": 12810,
+          "compression_ratio": 0.7522903453136012,
+          "compression_reduction": 0.24770965468639888,
+          "tokens": {
+            "input": 1476,
+            "new_input": 1476,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 60,
+            "total": 11264
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 28,
+          "wall_seconds": 81.9,
+          "cost_usd": null
+        },
+        "candidate_minus_baseline": {
+          "reward": 0,
+          "original_bytes": 4090,
+          "delivered_bytes": -128,
+          "compression_ratio": -0.24770965468639883,
+          "compression_reduction": 0.24770965468639888,
+          "tokens": {
+            "input": 415,
+            "new_input": 415,
+            "cache_read": -1024,
+            "cache_creation": 0,
+            "output": 15,
+            "total": -594
+          },
+          "runtime_tools": 0,
+          "ktx_calls": 0,
+          "turns": 1,
+          "wall_seconds": -2.8999999999999915
+        }
+      },
+      {
+        "qualified_pair_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::pair-0004",
+        "baseline": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0007-baseline",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 10964,
+          "delivered_bytes": 10964,
+          "compression_ratio": 1,
+          "compression_reduction": 0,
+          "tokens": {
+            "input": 933,
+            "new_input": 933,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 72,
+            "total": 10733
+          },
+          "runtime_tools": 15,
+          "ktx_calls": 14,
+          "turns": 28,
+          "wall_seconds": 83.1,
+          "cost_usd": null
+        },
+        "candidate": {
+          "qualified_attempt_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight::attempt-0008-candidate",
+          "terminal_disposition": "completed:executor_completed",
+          "reward": 1,
+          "original_bytes": 17458,
+          "delivered_bytes": 13384,
+          "compression_ratio": 0.7666399358460305,
+          "compression_reduction": 0.23336006415396954,
+          "tokens": {
+            "input": 968,
+            "new_input": 968,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 46,
+            "total": 11766
+          },
+          "runtime_tools": 17,
+          "ktx_calls": 17,
+          "turns": 30,
+          "wall_seconds": 113.8,
+          "cost_usd": null
+        },
+        "candidate_minus_baseline": {
+          "reward": 0,
+          "original_bytes": 6494,
+          "delivered_bytes": 2420,
+          "compression_ratio": -0.23336006415396948,
+          "compression_reduction": 0.23336006415396954,
+          "tokens": {
+            "input": 35,
+            "new_input": 35,
+            "cache_read": 1024,
+            "cache_creation": 0,
+            "output": -26,
+            "total": 1033
+          },
+          "runtime_tools": 2,
+          "ktx_calls": 3,
+          "turns": 2,
+          "wall_seconds": 30.700000000000003
+        }
+      }
+    ],
+    "aggregate": {
+      "baseline": {
+        "reward": {
+          "mean": 1,
+          "median": 1,
+          "min": 1,
+          "max": 1
+        },
+        "original_bytes": {
+          "mean": 11979.5,
+          "median": 12008,
+          "min": 10964,
+          "max": 12938
+        },
+        "delivered_bytes": {
+          "mean": 11979.5,
+          "median": 12008,
+          "min": 10964,
+          "max": 12938
+        },
+        "compression_ratio": {
+          "mean": 1,
+          "median": 1,
+          "min": 1,
+          "max": 1
+        },
+        "compression_reduction": {
+          "mean": 0,
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "total_tokens": {
+          "mean": 11355.25,
+          "median": 11415,
+          "min": 10733,
+          "max": 11858
+        },
+        "runtime_tools": {
+          "mean": 14,
+          "median": 14,
+          "min": 12,
+          "max": 16
+        },
+        "ktx_calls": {
+          "mean": 13.75,
+          "median": 13.5,
+          "min": 12,
+          "max": 16
+        },
+        "turns": {
+          "mean": 26,
+          "median": 26,
+          "min": 24,
+          "max": 28
+        },
+        "wall_seconds": {
+          "mean": 84.725,
+          "median": 84.85,
+          "min": 83.1,
+          "max": 86.1
+        }
+      },
+      "candidate": {
+        "reward": {
+          "mean": 1,
+          "median": 1,
+          "min": 1,
+          "max": 1
+        },
+        "original_bytes": {
+          "mean": 16351.25,
+          "median": 16597.5,
+          "min": 14752,
+          "max": 17458
+        },
+        "delivered_bytes": {
+          "mean": 12244.25,
+          "median": 12452,
+          "min": 10689,
+          "max": 13384
+        },
+        "compression_ratio": {
+          "mean": 0.7478942623319711,
+          "median": 0.7501786977387577,
+          "min": 0.7245797180043384,
+          "max": 0.7666399358460305
+        },
+        "compression_reduction": {
+          "mean": 0.25210573766802896,
+          "median": 0.24982130226124236,
+          "min": 0.23336006415396954,
+          "max": 0.2754202819956616
+        },
+        "total_tokens": {
+          "mean": 11172,
+          "median": 11094.5,
+          "min": 10733,
+          "max": 11766
+        },
+        "runtime_tools": {
+          "mean": 16.25,
+          "median": 16,
+          "min": 16,
+          "max": 17
+        },
+        "ktx_calls": {
+          "mean": 16.25,
+          "median": 16,
+          "min": 16,
+          "max": 17
+        },
+        "turns": {
+          "mean": 29.5,
+          "median": 30,
+          "min": 28,
+          "max": 30
+        },
+        "wall_seconds": {
+          "mean": 90.42500000000001,
+          "median": 83.1,
+          "min": 81.7,
+          "max": 113.8
+        }
+      },
+      "candidate_minus_baseline": {
+        "reward": {
+          "mean": 0,
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "original_bytes": {
+          "mean": 4371.75,
+          "median": 4118.5,
+          "min": 2756,
+          "max": 6494
+        },
+        "delivered_bytes": {
+          "mean": 264.75,
+          "median": -27,
+          "min": -1307,
+          "max": 2420
+        },
+        "compression_ratio": {
+          "mean": -0.2521057376680289,
+          "median": -0.24982130226124233,
+          "min": -0.2754202819956616,
+          "max": -0.23336006415396948
+        },
+        "compression_reduction": {
+          "mean": 0.25210573766802896,
+          "median": 0.24982130226124236,
+          "min": 0.23336006415396954,
+          "max": 0.2754202819956616
+        },
+        "total_tokens": {
+          "mean": -183.25,
+          "median": -538.5,
+          "min": -689,
+          "max": 1033
+        },
+        "runtime_tools": {
+          "mean": 2.25,
+          "median": 2.5,
+          "min": 0,
+          "max": 4
+        },
+        "ktx_calls": {
+          "mean": 2.5,
+          "median": 3,
+          "min": 0,
+          "max": 4
+        },
+        "turns": {
+          "mean": 3.5,
+          "median": 3.5,
+          "min": 1,
+          "max": 6
+        },
+        "wall_seconds": {
+          "mean": 5.700000000000003,
+          "median": -2.3499999999999943,
+          "min": -3.200000000000003,
+          "max": 30.700000000000003
+        }
+      }
+    },
+    "directional_counts": {
+      "reward": {
+        "candidate_lower": 0,
+        "equal": 4,
+        "candidate_higher": 0
+      },
+      "delivered_bytes": {
+        "candidate_lower": 2,
+        "equal": 0,
+        "candidate_higher": 2
+      },
+      "total_tokens": {
+        "candidate_lower": 3,
+        "equal": 0,
+        "candidate_higher": 1
+      }
+    },
+    "gate": {
+      "state": "incomplete",
+      "required_valid_pairs": 5,
+      "observed_valid_pairs": 4,
+      "historical_decision": "STOP",
+      "corrected_decision": null,
+      "reason": "The terminal-complete evidence set has four valid pairs, not the five required by the predeclared gate.",
+      "further_paid_expansion_authorized": false
+    }
+  },
+  "limitations": [
+    "The correction is descriptive for one task and four complete pairs; it supports no causal, significance, or generalization claim.",
+    "The raw archives remain ignored, checkout-local, immutable historical inputs; tracked indexes cannot restore them.",
+    "External execution, authentication, provider state, price, and cost are not replayed or inferred.",
+    "The historical publications remain byte-for-byte reachable and are not current completeness authority."
+  ]
+}

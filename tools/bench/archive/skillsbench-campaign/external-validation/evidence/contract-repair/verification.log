@@ -1,0 +1,60 @@
+[focused]
+ok  github.com/jgabor/ktx/internal/canon  0.003s
+ok  github.com/jgabor/ktx/tools/bench/external-validation  4.033s
+
+[fuzz]
+fuzz: elapsed: 0s, gathering baseline coverage: 0/6 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 6/6 completed, now fuzzing with 16 workers
+fuzz: elapsed: 3s, execs: 686 (229/sec), new interesting: 6 (total: 12)
+fuzz: elapsed: 6s, execs: 686 (0/sec), new interesting: 6 (total: 12)
+fuzz: elapsed: 6s, execs: 686 (0/sec), new interesting: 6 (total: 12)
+PASS
+ok  github.com/jgabor/ktx/tools/bench/external-validation  6.216s
+
+[race]
+ok  github.com/jgabor/ktx/tools/bench/external-validation  1.622s
+
+[vet]
+stdout: empty
+stderr: empty
+
+[build]
+stdout: empty
+stderr: empty
+
+[freeze]
+{"campaigns":10,"artifacts":927,"tracked_raw_references":40,"status":"ok"}
+
+[full]
+ok  github.com/jgabor/ktx  1.016s
+?   github.com/jgabor/ktx/cmd/ktx  [no test files]
+ok  github.com/jgabor/ktx/internal/benchcontract  1.009s
+ok  github.com/jgabor/ktx/internal/binarycap  1.009s
+ok  github.com/jgabor/ktx/internal/cache/reuse  1.056s
+?   github.com/jgabor/ktx/internal/cache/reuse/sequence  [no test files]
+ok  github.com/jgabor/ktx/internal/canon  1.011s
+ok  github.com/jgabor/ktx/internal/ci  1.007s
+ok  github.com/jgabor/ktx/internal/cli  36.555s
+ok  github.com/jgabor/ktx/internal/cli/testutil  1.025s
+ok  github.com/jgabor/ktx/internal/config  1.054s
+ok  github.com/jgabor/ktx/internal/correlation  1.021s
+ok  github.com/jgabor/ktx/internal/db  48.365s
+ok  github.com/jgabor/ktx/internal/dbreport  1.145s
+ok  github.com/jgabor/ktx/internal/evidence  2.202s
+ok  github.com/jgabor/ktx/internal/experiment  7.759s
+ok  github.com/jgabor/ktx/internal/identity  1.017s
+ok  github.com/jgabor/ktx/internal/methodology  1.016s
+ok  github.com/jgabor/ktx/internal/opencodebootstrap  1.054s
+ok  github.com/jgabor/ktx/internal/parser  1.020s
+ok  github.com/jgabor/ktx/internal/pipeline  1.028s
+ok  github.com/jgabor/ktx/internal/pipeline/stages  1.018s
+ok  github.com/jgabor/ktx/internal/router  1.023s
+ok  github.com/jgabor/ktx/internal/skillsbench  190.681s
+ok  github.com/jgabor/ktx/internal/telemetry  1.006s
+ok  github.com/jgabor/ktx/internal/telemetry/opencode  1.015s
+ok  github.com/jgabor/ktx/internal/usage  6.412s
+?   github.com/jgabor/ktx/internal/version  [no test files]
+?   github.com/jgabor/ktx/tools/bench  [no test files]
+ok  github.com/jgabor/ktx/tools/bench/external-validation  1.773s
+0 issues.
+ktx verification audit: boundary=7fa1f3432bb54d88 target=check attempts=941 operations=inspect:98,open:417,open_read_only:279,resolve:147 forbidden=0 caches=external ktx_db=unset

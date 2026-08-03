@@ -1,0 +1,15 @@
+id: ndpiojbkbs
+artifact: progress
+record:
+  timestamp: 2026-07-31 17:42
+  type: docs
+  phase: build
+  what: Integrated .bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal as successful quality evidence and preserved the surviving BenchFlow discovery failure as a separate zero-spend diagnostic.
+  context:
+    intent: Publish only tracked campaign evidence, documentation, and state for independent Audit without changing product code or task lifecycle.
+    constraints: No preflight, campaign run, --execute, model work, gate analysis, later task, dependency change, archive mutation, task completion, evaluation overwrite, or remote operation.
+    unknowns: Independent Audit still owns acceptance. The completed checkpoint supplies the recorded campaign-tree hash; this cycle independently confirmed file count, byte count, internal file hashes, validator output, and source/archive byte identity.
+    scope: tools/bench/evidence/skillsbench-oauth-campaign-archive.json, docs/skillsbench-campaign.md, one ignored durable zero-spend diagnostic copy, and this typed progress record.
+  verified: "Current ./build/ktx SHA-256 is 750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2. With KTX_DB unset and fresh HOME/XDG roots, local validation returned valid:true, complete:true, scheduled/imported 8/8 and created no application-root files. Direct SHA-256 checks matched manifest deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20, schedule 4394aeed451db634be35535f6734d086485ce0d89aae5dd16f0c8e36d9987325, preflight c55feb0209bf411f1f619707410ec18226d25678fe49db6d4ff10b45a6c807ee, summary 55ec395e27cb64d83e61f0e6b87731996b19a783b6716f4810f7844212c433dc, and attempts bdb648adb8755379d1d9565459da9363d1fed452398c86d5904c12e06e7957e9. Schedule assertions confirmed adjacent candidate/baseline, baseline/candidate, candidate/baseline, baseline/candidate order. Preflight retained eligible:true and model_attempts:0 with source/tool/image/bootstrap/cross-user/root-separation/identity evidence. Eight execution, terminal, and credential-marker records confirmed sequential concurrency 1, completed/executor_completed, reward 1, null cost, and passed scans; fail-fast never triggered. Summary retained 4 complete zero-delta reward pairs. The 243-file, 29,997,961-byte durable archive and surviving 32-file zero-spend diagnostic each matched their external source recursively. Exact-value scans found no OpenAI credential value in either archive or 881 tracked files. JSON assertions and git diff --check passed. N/A: docs-only. No model attempt ran."
+  next: Independent Audit should inspect this integration while task hattlqhrea remains in_progress; do not advance the five-pair gate or downstream tasks.
+  publication_order: 9

@@ -306,6 +306,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	}
 	if preflight {
 		runner := experiment.NewRunner()
+		runner.Diagnostics = stderr
 		report, err := runner.Preflight(context.Background(), experiment.CompareOptions{Image: image, RepoRoot: repoRoot, BuildImage: build})
 		if err != nil {
 			printError(stderr, internalError("ktx bench compare preflight: %v", err), opts.Format)

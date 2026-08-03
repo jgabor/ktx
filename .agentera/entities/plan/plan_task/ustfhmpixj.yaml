@@ -1,0 +1,24 @@
+id: ustfhmpixj
+artifact: plan
+record:
+  plan: yfttmtjihy
+  name: Correct and verify the direct portable external identity lock
+  status: complete
+  depends_on:
+    - pnshnjuhkr
+  acceptance:
+    - GIVEN the external campaign lock WHEN a maintainer reads it THEN exact evaluator, task, runtime, adapter, KTX, execution, and digest identities are visible directly without resolving a custom binding language.
+    - GIVEN matching, mismatching, and malformed observed identities WHEN checked from tracked inputs THEN the bounded read-only contract succeeds or fails deterministically with actionable diagnostics.
+    - GIVEN the maintained check WHEN its effects are inspected THEN it performs no authentication, installation, network access, model execution, database access, or repository mutation.
+    - GIVEN the simplified boundary WHEN dependencies are inspected THEN no general receipt schema, package lifecycle, or KTX-internal parser coupling remains.
+    - GIVEN committed verification evidence WHEN its digests are reproduced THEN each digest has a precise non-self-referential scope and matches the identified bytes.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-ustfhmpixj-1
+      source: audit_mqjszxkcqx_go_retry replacement audit PASS; all product-boundary and reproducible-evidence criteria satisfied at correction commit 7b80a25
+      recorded_at: 2026-08-02 20:18
+      writer_command: agentera state plan record-evaluation

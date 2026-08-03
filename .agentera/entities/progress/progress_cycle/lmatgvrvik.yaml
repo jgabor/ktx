@@ -1,0 +1,15 @@
+id: lmatgvrvik
+artifact: progress
+record:
+  timestamp: 2026-07-31 15:31
+  type: fix
+  phase: build
+  what: Superseded ykmpshvzbn after Audit failure by making retained terminal evidence a strict single JSON object.
+  context:
+    intent: Close the residual hidden-evidence gap inside the only allowed post-trigger terminal.json file.
+    constraints: No model or campaign execution, OAuth credential access, archive mutation, dependency change, later task work, TODO resolution, task completion, or push.
+    unknowns: Independent bounded re-review remains pending.
+    scope: internal/skillsbench terminal decoding and focused production-path corruption regressions; the failed replacement evaluation remains retained.
+  verified: Supersedes ykmpshvzbn. internal/skillsbench/terminal.go now rejects unknown scalar stdout, unknown nested execution, trailing JSON values, duplicate fields, malformed/non-object records, and then applies existing terminal state/reason validation. TestSummaryAndValidationRejectCorruptTerminalJSON confirms both Summarize and Validate report each same corrupt raw terminal; TestValidationAcceptsTerminalOnlyPolicyStoppedSuffix remains the positive control. Fresh isolated roots with KTX_DB unset passed the named focused test, go test ./internal/skillsbench ./internal/cli, go test -race ./internal/skillsbench ./internal/cli, mage build, ./build/ktx --version and SkillsBench validate help, and mage check with forbidden=0. ./build/ktx reports dev and SHA-256 e3012c5a5ce0c9a7a3349033a57a14a7310bc04c13fd7e0b07e14a5f8b9b1866.
+  next: Independent Audit must persist bounded re-review PASS before orchestration changes task status; paid execution remains blocked.
+  publication_order: 5

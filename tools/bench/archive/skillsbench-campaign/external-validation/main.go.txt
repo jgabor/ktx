@@ -1,0 +1,682 @@
+//go:build linux
+
+package main
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strconv"
+	"strings"
+	"syscall"
+
+	"github.com/jgabor/ktx/internal/canon"
+)
+
+const (
+	lockPath     = "tools/bench/external-validation/campaign-lock.json"
+	lockSHA256   = "fc74cb73246b4873f4b493af7795f6d80d8c2f0d047750766cee4624ad141f8b"
+	reportSchema = "ktx.external-validation-report.v2"
+	maxInput     = 32 << 10
+	maxAuthority = 1 << 20
+	maxStdout    = 16 << 10
+	maxStderr    = 512
+)
+
+var errLarge = errors.New("input exceeds byte limit")
+
+var corrections = map[string]string{
+	"evaluator": "Inspect BenchFlow with `bench --version`, `command -v bench`, and `sha256sum` on that resolved path; compare the results with required.",
+	"task":      "Inspect the existing external manifest with `jq -r '.tasks[0] | [.id,.source.sha256,.overlay.sha256] | @tsv' manifest.json`; compare the results with required.",
+	"runtime":   "Inspect OpenCode with `opencode --version`, `command -v opencode`, and `sha256sum` on that resolved path; compare the results with required.",
+	"adapter":   "Inspect adapter files with `sha256sum inputs/ktx.ts agents/codex-acp/manifest.toml agents/codex-acp/launch.sh`; compare the results with required.",
+	"ktx":       "Inspect KTX without changing it: run `git rev-parse HEAD`, `sha256sum build/ktx`, and `jq -r '.native_source.worktree_sha256' preflight.json`; compare all three results with required.",
+	"execution": "Inspect the existing external manifest with `jq '{model,effective_variant,rounds,seed,skill_mode,stop_policy,expected_usage_source}' manifest.json`; compare it and the retained campaign execution fields with required.",
+}
+
+func main() {
+	root, err := os.Getwd()
+	if err != nil {
+		fixedError(os.Stderr, "working directory is unavailable")
+		os.Exit(70)
+	}
+	os.Exit(run(root, os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
+
+func run(root string, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
+		fmt.Fprintln(stdout, "usage: external-validation <render|check --input FILE|->")
+		return 0
+	}
+	render := len(args) == 1 && args[0] == "render"
+	check := len(args) == 3 && args[0] == "check" && args[1] == "--input"
+	if !render && !check {
+		fixedError(stderr, "usage: external-validation <render|check --input FILE|->")
+		return 64
+	}
+	required, err := loadContract(root)
+	if err != nil {
+		fixedError(stderr, "lock or retained evidence is invalid")
+		return 70
+	}
+	gate := map[string]any{"available": false, "approval_requirement": "external_fresh_run_scoped", "authentication": "external", "enforced_by_inspector": false}
+	if render {
+		return writeReport(stdout, stderr, map[string]any{"schema_version": reportSchema, "status": "ok", "required": required, "paid_execution": gate})
+	}
+	data, err := readBounded(args[2], stdin, maxInput)
+	if errors.Is(err, errLarge) {
+		fixedError(stderr, "input exceeds 32768 bytes")
+		return 64
+	}
+	if err != nil {
+		fixedError(stderr, "input is unavailable")
+		return 66
+	}
+	got, err := parseJSON(data)
+	if err != nil {
+		fixedError(stderr, "input must be one duplicate-free safe JSON object")
+		return 65
+	}
+	if !sameShape(required, got) {
+		fixedError(stderr, "input does not match the observed identity schema")
+		return 65
+	}
+	if stringAt(got, "schema_version") != stringAt(required, "schema_version") {
+		fixedError(stderr, "input does not match the observed identity schema")
+		return 65
+	}
+	if !validReceipt(got, stringAt(required, "schema_version")) {
+		fixedError(stderr, "input must be one duplicate-free safe JSON object")
+		return 65
+	}
+	provenance, _ := at(got, "identity.task.provenance")
+	requiredProvenance, _ := at(required, "identity.task.provenance")
+	if provenance != requiredProvenance || requiredProvenance != "external" {
+		fixedError(stderr, "task provenance must be external")
+		return 65
+	}
+	mismatches := compare(required, got)
+	status, code := "ok", 0
+	if len(mismatches) != 0 {
+		status, code = "mismatch", 2
+	}
+	report := map[string]any{"schema_version": reportSchema, "status": status, "task_provenance": "external", "mismatches": mismatches, "paid_execution": gate}
+	if writeReport(stdout, stderr, report) != 0 {
+		return 70
+	}
+	return code
+}
+
+func loadContract(root string) (map[string]any, error) {
+	return loadContractWithDigest(root, lockSHA256)
+}
+
+func loadContractWithDigest(root, wantLockSHA string) (map[string]any, error) {
+	diskLock, err := readRepo(root, lockPath)
+	if err != nil || digest(diskLock) != wantLockSHA {
+		return nil, errors.New("lock mismatch")
+	}
+	lock, err := parseObject(diskLock)
+	if err != nil || !validLock(lock) {
+		return nil, errors.New("invalid lock")
+	}
+	archiveSpec := lock["archive"].(map[string]any)
+	archivePath := archiveSpec["path"].(string)
+	archiveSHA := archiveSpec["sha256"].(string)
+	campaignID := lock["campaign_id"].(string)
+	archiveBytes, err := readRepo(root, archivePath)
+	if err != nil || digest(archiveBytes) != archiveSHA {
+		return nil, errors.New("archive mismatch")
+	}
+	archive, err := parseObject(archiveBytes)
+	if err != nil {
+		return nil, err
+	}
+	campaign, err := findCampaign(archive, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	artifactPath, artifactSHA := stringAt(archive, "freeze.artifact_manifest.path"), stringAt(archive, "freeze.artifact_manifest.sha256")
+	archiveDir, manifestSHA := stringAt(campaign, "archive"), stringAt(campaign, "manifest_sha256")
+	preflightSHA := stringAt(campaign, "preflight_sha256")
+	artifactBytes, err := readRepo(root, artifactPath)
+	if err != nil || digest(artifactBytes) != artifactSHA {
+		return nil, errors.New("freeze mismatch")
+	}
+	manifest, err := readVerifiedObject(root, filepath.ToSlash(filepath.Join(archiveDir, "manifest.json")), manifestSHA)
+	if err != nil {
+		return nil, err
+	}
+	preflight, err := readVerifiedObject(root, filepath.ToSlash(filepath.Join(archiveDir, "preflight.json")), preflightSHA)
+	if err != nil {
+		return nil, err
+	}
+	sources := map[string]any{"manifest": manifest, "preflight": preflight, "campaign": campaign}
+	bindings := lock["bindings"].(map[string]any)
+	required := map[string]any{"schema_version": lock["receipt_schema"]}
+	for target, rawSource := range bindings {
+		sourcePath, ok := rawSource.(string)
+		source, evidencePath, found := strings.Cut(sourcePath, ":")
+		evidence, exists := at(sources[source], evidencePath)
+		if !ok || !found || !exists || setAt(required, target, evidence) != nil {
+			return nil, errors.New("unbound lock field")
+		}
+	}
+	if setAt(required, "identity.task.provenance", lock["task_provenance"]) != nil {
+		return nil, errors.New("invalid task binding")
+	}
+	if !validReceipt(required, lock["receipt_schema"].(string)) || stringAt(required, "identity.task.provenance") != "external" {
+		return nil, errors.New("invalid bound identity")
+	}
+	return required, nil
+}
+
+func compare(want, got any) []any {
+	var out []any
+	for _, category := range []string{"evaluator", "task", "runtime", "adapter", "ktx", "execution"} {
+		path := "identity." + category
+		if category == "execution" {
+			path = category
+		}
+		required, _ := at(want, path)
+		found, _ := at(got, path)
+		if !reflect.DeepEqual(required, found) {
+			out = append(out, map[string]any{"category": category, "required": required, "found": found, "correction": corrections[category]})
+		}
+	}
+	if out == nil {
+		return []any{}
+	}
+	return out
+}
+
+func parseObject(data []byte) (map[string]any, error) {
+	v, err := parseJSON(data)
+	object, ok := v.(map[string]any)
+	if err != nil || !ok {
+		return nil, errors.New("JSON object required")
+	}
+	return object, nil
+}
+
+func parseJSON(data []byte) (any, error) {
+	canonical, ok := canon.Canonicalize(data)
+	if !ok {
+		return nil, errors.New("invalid JSON")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(canonical))
+	decoder.UseNumber()
+	var v any
+	if err := decoder.Decode(&v); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func readBounded(path string, stdin io.Reader, limit int64) ([]byte, error) {
+	reader := stdin
+	var file *os.File
+	if path == "-" {
+		if reader == nil {
+			return nil, errors.New("stdin unavailable")
+		}
+	} else {
+		fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0)
+		if err != nil {
+			return nil, err
+		}
+		file = os.NewFile(uintptr(fd), path)
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, errors.New("not a regular file")
+		}
+		reader = file
+	}
+	b, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, errLarge
+	}
+	return b, nil
+}
+
+func readRepo(root, relative string) ([]byte, error) {
+	clean := filepath.Clean(filepath.FromSlash(relative))
+	if clean == "-" || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return nil, errors.New("unsafe authority path")
+	}
+	return readBounded(filepath.Join(root, clean), nil, maxAuthority)
+}
+
+func readVerifiedObject(root, path, want string) (map[string]any, error) {
+	b, err := readRepo(root, path)
+	if err != nil || digest(b) != want {
+		return nil, errors.New("evidence digest mismatch")
+	}
+	object, err := parseObject(b)
+	return object, err
+}
+
+func at(v any, path string) (any, bool) {
+	for _, part := range strings.Split(path, ".") {
+		switch node := v.(type) {
+		case map[string]any:
+			v = node[part]
+		case []any:
+			i, err := strconv.Atoi(part)
+			if err != nil || i < 0 || i >= len(node) {
+				return nil, false
+			}
+			v = node[i]
+		default:
+			return nil, false
+		}
+		if v == nil {
+			return nil, false
+		}
+	}
+	return v, true
+}
+
+func setAt(root map[string]any, path string, value any) error {
+	parts := strings.Split(path, ".")
+	object := root
+	for _, part := range parts[:len(parts)-1] {
+		next, exists := object[part]
+		if !exists {
+			next = map[string]any{}
+			object[part] = next
+		}
+		var ok bool
+		object, ok = next.(map[string]any)
+		if !ok {
+			return errors.New("binding collision")
+		}
+	}
+	leaf := parts[len(parts)-1]
+	if _, exists := object[leaf]; exists {
+		return errors.New("duplicate binding")
+	}
+	object[leaf] = value
+	return nil
+}
+
+func stringAt(v any, path string) string {
+	value, _ := at(v, path)
+	text, _ := value.(string)
+	return text
+}
+
+func findCampaign(archive map[string]any, campaignID string) (map[string]any, error) {
+	items, ok := archive["campaigns"].([]any)
+	var found map[string]any
+	if ok {
+		for _, item := range items {
+			campaign, isObject := item.(map[string]any)
+			if isObject && campaign["id"] == campaignID {
+				if found != nil {
+					return nil, errors.New("campaign identity is not unique")
+				}
+				found = campaign
+			}
+		}
+	}
+	if found == nil {
+		return nil, errors.New("campaign missing")
+	}
+	return found, nil
+}
+
+var bindingTargets = []string{
+	"identity.evaluator.version",
+	"identity.evaluator.source_commit",
+	"identity.evaluator.binary_sha256",
+	"identity.task.id",
+	"identity.task.provenance_basis",
+	"identity.task.source_sha256",
+	"identity.task.overlay_sha256",
+	"identity.runtime.version",
+	"identity.runtime.binary_sha256",
+	"identity.adapter.registry",
+	"identity.adapter.protocol",
+	"identity.adapter.plugin_sha256",
+	"identity.adapter.manifest_sha256",
+	"identity.adapter.launcher_sha256",
+	"identity.ktx.source_commit",
+	"identity.ktx.worktree_sha256",
+	"identity.ktx.binary_sha256",
+	"execution.model",
+	"execution.variant",
+	"execution.rounds",
+	"execution.seed",
+	"execution.skill_mode",
+	"execution.stop_policy",
+	"execution.usage_source",
+	"execution.retry_attempts",
+	"execution.concurrency",
+	"execution.methodology_sha256",
+	"execution.baseline_config_sha256",
+	"execution.candidate_config_sha256",
+}
+
+func validLock(lock map[string]any) bool {
+	if !exactKeys(lock, "schema_version", "receipt_schema", "archive", "campaign_id", "task_provenance", "bindings") {
+		return false
+	}
+	lockSchema, lockSchemaOK := lock["schema_version"].(string)
+	receiptSchema, receiptSchemaOK := lock["receipt_schema"].(string)
+	campaignID, campaignOK := lock["campaign_id"].(string)
+	provenance, provenanceOK := lock["task_provenance"].(string)
+	archive, archiveOK := lock["archive"].(map[string]any)
+	bindings, bindingsOK := lock["bindings"].(map[string]any)
+	if !lockSchemaOK || !receiptSchemaOK || !campaignOK || !provenanceOK || !archiveOK || !bindingsOK ||
+		!validSchemaName(lockSchema) || !validSchemaName(receiptSchema) || !validSlug(campaignID, 128) || provenance != "external" ||
+		!exactKeys(archive, "path", "sha256") || len(bindings) != len(bindingTargets) {
+		return false
+	}
+	archivePath, pathOK := archive["path"].(string)
+	archiveSHA, shaOK := archive["sha256"].(string)
+	if !pathOK || !shaOK || !validRepoPath(archivePath) || !validLowerHex(archiveSHA, 64) {
+		return false
+	}
+	for _, target := range bindingTargets {
+		raw, exists := bindings[target]
+		sourcePath, stringOK := raw.(string)
+		source, evidencePath, cut := strings.Cut(sourcePath, ":")
+		if !exists || !stringOK || !cut || !validEvidencePath(evidencePath) || (source != "manifest" && source != "preflight" && source != "campaign") {
+			return false
+		}
+	}
+	return true
+}
+
+func validReceipt(receipt any, schema string) bool {
+	object, ok := receipt.(map[string]any)
+	if !ok || stringAt(object, "schema_version") != schema || !validSchemaName(schema) {
+		return false
+	}
+	for _, path := range bindingTargets {
+		value, exists := at(object, path)
+		if !exists || !validField(path, value) {
+			return false
+		}
+	}
+	provenance, exists := at(object, "identity.task.provenance")
+	text, isString := provenance.(string)
+	return exists && isString && validSlug(text, 32)
+}
+
+func validField(path string, value any) bool {
+	switch path {
+	case "identity.evaluator.version", "identity.runtime.version":
+		return validString(value, validVersion)
+	case "identity.evaluator.source_commit", "identity.ktx.source_commit":
+		return validString(value, func(s string) bool { return validLowerHex(s, 40) })
+	case "identity.evaluator.binary_sha256", "identity.task.source_sha256", "identity.task.overlay_sha256",
+		"identity.runtime.binary_sha256", "identity.adapter.plugin_sha256", "identity.adapter.manifest_sha256",
+		"identity.adapter.launcher_sha256", "identity.ktx.worktree_sha256", "identity.ktx.binary_sha256",
+		"execution.methodology_sha256", "execution.baseline_config_sha256", "execution.candidate_config_sha256":
+		return validString(value, func(s string) bool { return validLowerHex(s, 64) })
+	case "identity.task.id":
+		return validString(value, func(s string) bool { return validSlug(s, 64) })
+	case "identity.task.provenance_basis":
+		return value == "source-task-digests"
+	case "identity.adapter.registry":
+		return validString(value, func(s string) bool { return validSlug(s, 64) })
+	case "identity.adapter.protocol":
+		return value == "acp"
+	case "execution.model":
+		return validString(value, validModel)
+	case "execution.variant":
+		return oneOf(value, "low", "medium", "high", "xhigh", "max", "ultra")
+	case "execution.skill_mode":
+		return oneOf(value, "with-skill", "without-skill")
+	case "execution.stop_policy":
+		return value == "fail-fast"
+	case "execution.usage_source":
+		return value == "agent_native_acp"
+	case "execution.rounds":
+		return validUint(value, 1, 100)
+	case "execution.seed":
+		return validUint(value, 0, 2_147_483_647)
+	case "execution.retry_attempts":
+		return validUint(value, 0, 100)
+	case "execution.concurrency":
+		return validUint(value, 1, 128)
+	default:
+		return false
+	}
+}
+
+func exactKeys(object map[string]any, keys ...string) bool {
+	if len(object) != len(keys) {
+		return false
+	}
+	for _, key := range keys {
+		if _, ok := object[key]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func validString(value any, validate func(string) bool) bool {
+	text, ok := value.(string)
+	return ok && !credentialShaped(text) && validate(text)
+}
+
+func validSchemaName(value string) bool {
+	if len(value) < 4 || len(value) > 128 || value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	version := strings.LastIndex(value, ".v")
+	if version < 2 || version+2 == len(value) {
+		return false
+	}
+	for i := 0; i < version; i++ {
+		c := value[i]
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '.' && c != '-' && c != '_' {
+			return false
+		}
+	}
+	n, err := strconv.ParseUint(value[version+2:], 10, 16)
+	return err == nil && n > 0
+}
+
+func validRepoPath(value string) bool {
+	if value == "" || len(value) > 256 || filepath.IsAbs(value) || filepath.ToSlash(filepath.Clean(filepath.FromSlash(value))) != value {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune("._/-", rune(c)) {
+			return false
+		}
+	}
+	return true
+}
+
+func validEvidencePath(value string) bool {
+	if value == "" || len(value) > 256 {
+		return false
+	}
+	for _, part := range strings.Split(value, ".") {
+		if part == "" {
+			return false
+		}
+		for i := 0; i < len(part); i++ {
+			c := part[i]
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func validVersion(value string) bool {
+	parts := strings.Split(value, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" || (len(part) > 1 && part[0] == '0') {
+			return false
+		}
+		if _, err := strconv.ParseUint(part, 10, 20); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func validSlug(value string, limit int) bool {
+	if value == "" || len(value) > limit || value[0] == '-' || value[len(value)-1] == '-' {
+		return false
+	}
+	previousDash := false
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if c == '-' {
+			if previousDash {
+				return false
+			}
+			previousDash = true
+			continue
+		}
+		previousDash = false
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+func validModel(value string) bool {
+	provider, model, found := strings.Cut(value, "/")
+	return found && !strings.Contains(model, "/") && validModelPart(provider) && validModelPart(model)
+}
+
+func validModelPart(value string) bool {
+	if value == "" || len(value) > 64 || !asciiAlphaNumeric(value[0]) || !asciiAlphaNumeric(value[len(value)-1]) {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if !asciiAlphaNumeric(value[i]) && !strings.ContainsRune("._-", rune(value[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiAlphaNumeric(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= '0' && c <= '9'
+}
+
+func validLowerHex(value string, length int) bool {
+	if len(value) != length {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if (value[i] < '0' || value[i] > '9') && (value[i] < 'a' || value[i] > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func validUint(value any, minimum, maximum uint64) bool {
+	number, ok := value.(json.Number)
+	if !ok || number == "" || (len(number) > 1 && number[0] == '0') {
+		return false
+	}
+	n, err := strconv.ParseUint(string(number), 10, 64)
+	return err == nil && n >= minimum && n <= maximum
+}
+
+func oneOf(value any, choices ...string) bool {
+	text, ok := value.(string)
+	if !ok || credentialShaped(text) {
+		return false
+	}
+	for _, choice := range choices {
+		if text == choice {
+			return true
+		}
+	}
+	return false
+}
+
+func credentialShaped(value string) bool {
+	lower := strings.ToLower(value)
+	for _, marker := range []string{
+		"bearer ", "sk-", "sk_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "glpat-",
+		"xoxb-", "xoxp-", "xoxa-", "xoxr-", "xapp-", "akia", "npm_", "pypi-", "token-", "secret-",
+		"password-", "api-key-", "apikey-", "access-token-", "refresh-token-",
+	} {
+		if strings.HasPrefix(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameShape(want, got any) bool {
+	if expected, ok := want.(map[string]any); ok {
+		actual, ok := got.(map[string]any)
+		if !ok || len(expected) != len(actual) {
+			return false
+		}
+		for key, value := range expected {
+			if !sameShape(value, actual[key]) {
+				return false
+			}
+		}
+		return true
+	}
+	switch want.(type) {
+	case string:
+		_, ok := got.(string)
+		return ok
+	case json.Number:
+		_, ok := got.(json.Number)
+		return ok
+	default:
+		return reflect.TypeOf(want) == reflect.TypeOf(got)
+	}
+}
+
+func digest(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+func writeReport(stdout, stderr io.Writer, report any) int {
+	b, err := json.Marshal(report)
+	if err != nil || len(b)+1 > maxStdout {
+		fixedError(stderr, "report could not be encoded within the output bound")
+		return 70
+	}
+	b = append(b, '\n')
+	if _, err := stdout.Write(b); err != nil {
+		return 70
+	}
+	return 0
+}
+
+func fixedError(writer io.Writer, message string) {
+	line := "external validation: " + message + "\n"
+	if len(line) <= maxStderr {
+		_, _ = io.WriteString(writer, line)
+	}
+}

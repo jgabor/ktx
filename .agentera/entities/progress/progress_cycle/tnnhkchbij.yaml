@@ -1,0 +1,17 @@
+id: tnnhkchbij
+artifact: progress
+record:
+  timestamp: 2026-08-02 15:46
+  type: fix
+  phase: build
+  what: Synchronized README.md, docs/skillsbench-campaign.md, internal/cli/bench.go, regression tests, and tools/bench/evidence/state-synchronization/SHA256SUMS after direct removal of the undistributed external evaluator bridge.
+  context:
+    intent: Leave one factual, checksum-bound repository state for independent audit without reopening external evaluator lifecycle or claiming a model result.
+    constraints: No provider, model, paid, container, authentication, install, dependency fetch, remote, push, publish, or ambient database operation.
+    unknowns: No model-backed structured-diff-v1 result exists. The historical freeze verifier cannot pass without unavailable volatile source roots.
+    scope: README.md, docs/skillsbench-campaign.md, docs/external-validation.md, docs/pipelines.md, .agents/skills/ktx/references/benchmarks-development.md, internal/cli, internal/db/stats_test.go, internal/experiment/experiment_test.go, tools/bench/evidence, and typed project-state entities.
+  inspiration: Active plan task ydcssxkvpy and the owner-confirmed direct-removal boundary.
+  discovered: bench compare --preflight returns before task loading. structured-diff-v1 validity is deterministic rather than model-backed. Seven historical campaigns lack an available recorded source tree, so verify-skillsbench-campaign-freeze.sh retains one expected failure.
+  verified: go test and go test -race passed for CLI, database, experiment, pipeline, revalidation, and external-validation packages. mage check passed tests, vet, lint with zero issues, build, 967 audited operations, and zero forbidden database operations. All 927 retained hashes and tools/bench/evidence/state-synchronization/SHA256SUMS passed. Built CLI JSON, no-create behavior, protected hashes, and public credential, memory-marker, and stale-live-bridge scans passed.
+  next: Keep ydcssxkvpy in progress for independent audit. Decision satisfaction remains unset. Do not run an external evaluator or infer a structured-diff-v1 model result.
+  publication_order: 26

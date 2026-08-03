@@ -1,0 +1,14 @@
+id: mcecalpjmr
+artifact: plan
+record:
+  name: Resolve and run the diversity gate
+  depends_on:
+    - ulorvimoxk
+  status: pending
+  acceptance:
+    - GIVEN task 3 stops expansion WHEN this task begins THEN no paid call occurs and the diversity slice is explicitly deferred with its evidence-based reason.
+    - GIVEN task 3 permits expansion WHEN tasks are selected THEN three tasks have deterministic verifiers, meaningful tool output, manageable runtime, and distinct categories.
+    - GIVEN selected tasks and fresh disposable application roots with KTX_DB unset WHEN full no-model preflight runs THEN model attempts remain zero and source, tool, image, bootstrap, cross-user, and retained identity evidence pass before spending.
+    - GIVEN explicit paid authorization WHEN execution runs THEN six attempts run sequentially once, without retries, until all finish or a stop condition occurs, and completed attempts receive recorded credential checks.
+    - GIVEN execution stops or completes WHEN validation and accounting run THEN every scheduled attempt is classified as completed, failed, or not started, with retained validity or failure reasons.
+  plan: kartcldnat

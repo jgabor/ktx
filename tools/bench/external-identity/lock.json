@@ -1,0 +1,85 @@
+{
+  "lock_version": 1,
+  "campaign": {
+    "id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight",
+    "provenance": "external"
+  },
+  "evaluator": {
+    "name": "BenchFlow",
+    "version": "0.6.5",
+    "source_commit": "737146cc60fbc1b3595198eebbabba4628592d02",
+    "binary_sha256": "80bd61000303ee15e790db9787857b02baf94228e566b9ab168f728d2fd6a69e"
+  },
+  "task": {
+    "id": "3d-scan-calc",
+    "provenance": "external",
+    "provenance_basis": "source-task-digests",
+    "official_identity": null,
+    "source_sha256": "81d8ea7136050f648288171b4a2c23b40de09d4ecebc5dc65b14caa54bff6449",
+    "overlay_sha256": "0c05d83e70c9f0fa1f5ed0742586fda514a616be9779e0ba8d0cf099e56caeb9"
+  },
+  "runtime": {
+    "name": "OpenCode",
+    "version": "1.18.5",
+    "release_asset": "opencode-linux-x64-baseline.tar.gz",
+    "release_sha256": "d61cefe7d59b26cab43d4758aa411b8e47a4228904eea362ca7d6c6f6d0f3ea8"
+  },
+  "adapter": {
+    "registry": "codex-acp",
+    "protocol": "acp",
+    "plugin_sha256": "90d1090b5752c8625626d393236125df8f312bb84935f43a82d95b9ac734af4c",
+    "manifest_sha256": "082e5c05d09bece3a81b20dd0b63e8b4d6ed48df275342aac902f3e50c39d0c7",
+    "launcher_sha256": "d2ae405c66e9956a9ff89b48ebe1df4746f15791051330404f8284c9d645db8f"
+  },
+  "ktx": {
+    "source_commit": "54d5607d49282161ab470d3592b66d86d1afdd8a",
+    "worktree_sha256": "15482fe279fd916f4083748957259c83e789ba6e3143cd551c95625ebf2d1efa",
+    "binary_sha256": "750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2",
+    "version": "0.1.0-dev",
+    "capabilities_schema": "ktx.binary-capabilities/v1"
+  },
+  "execution": {
+    "model": "openai/gpt-5.6-luna",
+    "variant": "high",
+    "rounds": 4,
+    "seed": 20260731,
+    "skill_mode": "with-skill",
+    "stop_policy": "fail-fast",
+    "usage_source": "agent_native_acp",
+    "retry_attempts": 0,
+    "concurrency": 1,
+    "methodology_sha256": "7e9a1a6fff0bc0d400f182551435c7080daeb39fea787bea32f1b6d78076a5a6",
+    "baseline_config_sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1",
+    "candidate_config_sha256": "7884847e340c8000c3da2bf7f5245a9b45443665c8cd13958b85373909bfa4ed"
+  },
+  "digests": {
+    "archive_index": {
+      "path": "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+      "sha256": "b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e"
+    },
+    "raw_artifact_manifest": {
+      "path": "tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256",
+      "sha256": "55b196c49d7d640233db43879c7396093718708a62fb2f7452435aefdf022ec3"
+    },
+    "current_metrics": {
+      "path": "tools/bench/evidence/skillsbench-campaign-errata.json",
+      "sha256": "3b8d64b1e95bf6dcc85f16f91a40276dce97b960d9383d4e66d5e17c3fe35ca1"
+    },
+    "archive_tree_sha256": "0d1502fca7973befd0e89c449ec30a5eaf23cb7cfee045184f125e1f2114e501",
+    "manifest_sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20",
+    "schedule_sha256": "4394aeed451db634be35535f6734d086485ce0d89aae5dd16f0c8e36d9987325",
+    "preflight_sha256": "c55feb0209bf411f1f619707410ec18226d25678fe49db6d4ff10b45a6c807ee",
+    "summary_sha256": "55ec395e27cb64d83e61f0e6b87731996b19a783b6716f4810f7844212c433dc",
+    "attempts_envelope_sha256": "bdb648adb8755379d1d9565459da9363d1fed452398c86d5904c12e06e7957e9"
+  },
+  "claims": {
+    "scope": "historical external identity for one task, eight attempts, and four complete pairs",
+    "official_suite_identity": "not established",
+    "quality": "descriptive only; no causal, significance, or generalization claim",
+    "provider_cost_usd": null,
+    "external_execution_regenerable": false,
+    "authorizes_execution": false,
+    "ktx_owns": "native databases, benchmark evidence, deterministic summaries, validation, and ranking",
+    "external_evaluator_owns": "agent execution, authentication, environment setup, and dependency lifecycle"
+  }
+}

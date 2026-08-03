@@ -1,0 +1,24 @@
+id: rpteozrqjo
+artifact: plan
+record:
+  name: Archive campaign-specific validation and revalidation machinery
+  depends_on:
+    - pnshnjuhkr
+    - mqjszxkcqx
+  status: complete
+  acceptance:
+    - GIVEN the replacement lock and check pass WHEN campaign-specific machinery is reviewed THEN custom inspector code, its proof bundle, and one-campaign revalidation code no longer participate in routine product builds or repository verification.
+    - GIVEN hash-bound derivation source is required for provenance WHEN it leaves the maintained surface THEN its exact bytes and relationship to the corrected output remain recoverable as archival evidence.
+    - GIVEN corrected historical results and raw digests WHEN cleanup completes THEN their authoritative bytes and meanings remain unchanged.
+    - GIVEN a procedure requires ignored or missing historical bytes WHEN documented THEN it is explicitly archival and cannot be mistaken for a maintained fresh-checkout check.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-rpteozrqjo-1
+      source: independent archive audit PASS at 8fe52db; all four acceptance criteria and protected-byte checks satisfied
+      recorded_at: 2026-08-02 20:56
+      writer_command: agentera state plan record-evaluation

@@ -51,6 +51,7 @@ type CompareOptions struct {
 
 type Runner struct {
 	Executor               CommandExecutor
+	Diagnostics            io.Writer
 	Now                    func() time.Time
 	PID                    int
 	ResolvePrice           func(provider, model string) (db.Price, error)
@@ -75,7 +76,7 @@ type PreflightReport struct {
 var errLocalCollectorContract = errors.New("local collector source contract mismatch")
 
 func NewRunner() *Runner {
-	return &Runner{Executor: OSExecutor{}, Now: time.Now, PID: os.Getpid(), ResolvePrice: db.ResolvePrice}
+	return &Runner{Executor: OSExecutor{}, Diagnostics: os.Stderr, Now: time.Now, PID: os.Getpid(), ResolvePrice: db.ResolvePrice}
 }
 
 func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (string, map[string]any, int, error) {
@@ -402,7 +403,8 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 			report.Reasons = append(report.Reasons, reason)
 			return report, benchmarkRuntime{}, nil
 		}
-		result, err := runner.Executor.Run(ctx, Command{Args: []string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark"), "-t", options.Image, options.RepoRoot}, Stdout: os.Stdout, Stderr: os.Stderr})
+		diagnostics := runner.diagnosticWriter()
+		result, err := runner.Executor.Run(ctx, Command{Args: []string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark"), "-t", options.Image, options.RepoRoot}, Stdout: diagnostics, Stderr: diagnostics})
 		if err != nil {
 			return report, benchmarkRuntime{}, fmt.Errorf("build benchmark image: %w", err)
 		}
@@ -948,6 +950,13 @@ func (runner *Runner) output(ctx context.Context, command Command) (string, erro
 		return "", fmt.Errorf("command failed (%d): %s: %s", result.ExitCode, strings.Join(command.Args, " "), strings.TrimSpace(stderr.String()))
 	}
 	return stdout.String(), nil
+}
+
+func (runner *Runner) diagnosticWriter() io.Writer {
+	if runner.Diagnostics == nil {
+		return io.Discard
+	}
+	return runner.Diagnostics
 }
 
 func (runner *Runner) timestamp() string {

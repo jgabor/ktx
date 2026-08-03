@@ -1,0 +1,15 @@
+id: dvannepnzi
+artifact: progress
+record:
+  timestamp: 2026-07-31 14:41
+  type: fix
+  phase: build
+  what: Corrected all three blocking fail-fast Audit findings and superseded the prior verification claims.
+  context:
+    intent: Close campaign-root credential leakage, post-stop execution acceptance, and legacy security-stop projection gaps without changing default continue behavior.
+    constraints: No real OAuth credential access, model attempt, campaign execution, archive mutation, dependency change, inherited-evidence work, later task advancement, TODO resolution, or push.
+    unknowns: Bounded independent re-review remains pending.
+    scope: SkillsBench run, summary, validation, focused tests, operator documentation, failed Audit state, and this superseding progress cycle.
+  verified: Supersedes aaduuqjfjn after Audit failure. internal/skillsbench/run.go now scans the full campaign root after each OAuth executor before terminal finalization; validate.go requires a contiguous same-trigger not_started suffix with no execution artifacts; summarize.go projects legacy terminal files but preserves terminal-free archive bytes. Passed isolated go test ./internal/skillsbench ./internal/cli; named root-leak, five suffix-corruption, and two legacy-security regressions; go test -race ./internal/skillsbench ./internal/cli; mage build; ./build/ktx smoke; and mage check with forbidden=0. build/ktx SHA-256 is 9ae8d865583a23bf8091a97efecc1b075a6b537a53bfb64c63378ba04e8ec05c. No model execution.
+  next: Independent Audit should re-review the three corrected production paths before the orchestrator changes task status.
+  publication_order: 3

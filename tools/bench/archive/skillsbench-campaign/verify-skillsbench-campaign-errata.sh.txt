@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+export LC_ALL=C
+
+readonly errata=tools/bench/evidence/skillsbench-campaign-errata.json
+readonly historical=tools/bench/evidence/skillsbench-final-index.json
+readonly gate=tools/bench/evidence/skillsbench-five-pair-gate.json
+readonly generator=./tools/bench/evidence/campaign-revalidation
+readonly evidence=tools/bench/evidence/skillsbench-campaign-errata-evidence
+
+fail() {
+  printf 'skillsbench campaign errata: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ ${KTX_DB+x} != x ]] || fail 'KTX_DB must be unset'
+[[ -f $evidence/SHA256SUMS ]] || fail 'checksum bundle is unavailable'
+sha256sum -c "$evidence/SHA256SUMS" >/dev/null || fail 'checksum bundle is invalid'
+
+work_root=$(mktemp -d /tmp/ktx-skillsbench-errata.XXXXXX)
+[[ $work_root == /tmp/ktx-skillsbench-errata.* ]] || fail 'unsafe temporary root'
+trap 'rm -rf -- "$work_root"' EXIT
+
+run_isolated() {
+  local label=$1
+  shift
+  local root="$work_root/$label"
+  mkdir -p "$root/home" "$root/data" "$root/config" "$root/cache" \
+    "$root/state" "$root/runtime" "$root/tmp" "$root/gocache"
+  chmod 700 "$root/runtime"
+  env -u KTX_DB \
+    HOME="$root/home" \
+    XDG_DATA_HOME="$root/data" \
+    XDG_CONFIG_HOME="$root/config" \
+    XDG_CACHE_HOME="$root/cache" \
+    XDG_STATE_HOME="$root/state" \
+    XDG_RUNTIME_DIR="$root/runtime" \
+    TMPDIR="$root/tmp" \
+    GOCACHE="$root/gocache" \
+    GOPROXY=off \
+    GOTOOLCHAIN=local \
+    "$@"
+}
+
+before=$(run_isolated revalidate-before go run "$generator" --check "$errata")
+run_isolated fixtures go test -count=1 "$generator"
+after=$(run_isolated revalidate-after go run "$generator" --check "$errata")
+
+[[ $before == "$after" ]] || fail 'retained authority result changed during revalidation'
+[[ $after == '{"campaigns":10,"complete_campaigns":1,"valid_pairs":4,"status":"ok"}' ]] ||
+  fail 'unexpected revalidation result'
+
+[[ $(sha256sum "$historical" | cut -d' ' -f1) == 3c9de17822f57327dbb45f1ffd3f39212f0c1bc905ae2f60ee07cf2b35fd1100 ]] ||
+  fail 'historical final index changed'
+[[ $(sha256sum "$gate" | cut -d' ' -f1) == 8e7db2d6f19a18a3486760459c8fcc43f5846221398eb1620803b645207ac007 ]] ||
+  fail 'historical gate changed'
+
+jq -e '
+  .schema_version == "ktx.skillsbench-campaign-errata.v1" and
+  .status == "corrected" and
+  .contract.delta_direction == "candidate_minus_baseline" and
+  .contract.first_artifact_order == ["compressed.timestamp ASC", "compressed.id ASC"] and
+  .completeness.current_complete_campaigns == 1 and
+  .completeness.current_incomplete_campaigns == 9 and
+  .completeness.complete_attempts == 8 and
+  .completeness.complete_pairs == 4 and
+  .completeness.removed_complete_campaign_claims == 3 and
+  ([.completeness.campaigns[] | select(.current_complete) | .campaign_id] ==
+    ["ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight"]) and
+  ([.completeness.campaigns[] |
+    select(.campaign_id == "ktx-skillsbench-oauth-luna-preflight-1bcc1ad") |
+    .gaps[]] | index("terminal_disposition") != null) and
+  .metrics.valid_pairs == 4 and
+  .metrics.gate.state == "incomplete" and
+  .metrics.gate.corrected_decision == null and
+  ([.. | objects | select(has("baseline_minus_candidate"))] | length) == 0
+' "$errata" >/dev/null || fail 'errata structure or correction contract is invalid'
+
+if rg -n -i --pcre2 \
+  '(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}|glpat-[A-Za-z0-9_-]{12,}|xox[bpar]-[A-Za-z0-9-]{12,}|AKIA[A-Z0-9]{12,})' \
+  "$errata" tools/bench/evidence/campaign-revalidation \
+  tools/bench/evidence/verify-skillsbench-campaign-errata.sh \
+  "$evidence" \
+  docs/skillsbench-campaign.md; then
+  fail 'credential-shaped value found in corrected evidence'
+fi
+
+printf '{"campaigns":10,"complete_campaigns":1,"valid_pairs":4,"fixtures":"passed","raw_immutable":true,"status":"ok"}\n'

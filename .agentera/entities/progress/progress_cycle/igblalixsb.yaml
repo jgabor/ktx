@@ -1,0 +1,17 @@
+id: igblalixsb
+artifact: progress
+record:
+  timestamp: 2026-08-02 19:43
+  type: fix
+  phase: build
+  what: Replaced the failed Python maintained comparator with a bounded Go standard-library checker while preserving the direct lock, archival inspector, and recorded audit failure.
+  context:
+    intent: Satisfy the portable external identity contract with the repository's existing Go toolchain and deterministic data errors for every unavailable, open, read, malformed, and excessive-nesting path.
+    constraints: Did not change direct identity values, claims, the archival receipt inspector, ignored campaign bytes, ownership decision or satisfaction, task status, authentication, provider, model, network, database, Docker, package lifecycle, or external systems.
+    unknowns: The plan task remains in progress for independent evaluation. The failed audit attempt stays attached to the task, and the earlier progress cycle stays as append-only historical authority.
+    scope: tools/bench/external-identity/**, tools/bench/evidence/skillsbench-authority-inventory.json, docs/external-validation.md, and task-owned Agentera state.
+  inspiration: Active plan task mqjszxkcqx and failed evaluation attempt audit-mqjszxkcqx-1, which identified the Python prerequisite and escaping host errors.
+  discovered: A Go token decoder can reject duplicate members and cap nesting without KTX-internal parser coupling; the embedded lock keeps the standalone checker independent of working-directory and package-lifecycle state.
+  verified: Focused go test and go vet passed under fresh HOME, XDG, cache, state, runtime, and temporary roots with KTX_DB absent and network resolution disabled. go list reported only the checker package as non-standard. An index-only checkout without .bench-data passed go test. The built checker returned exact exits 0, 2, and 65 for the six tracked match, mismatch, malformed-shape, duplicate, non-finite, and trailing fixtures. Unit regressions also passed for missing, symlink, dangling symlink, directory, injected open and read errors, oversize, invalid UTF-8, non-object, exact size boundary, dangerous observed text, invalid lock, and 64-container nesting. strace of the standalone matching check found zero network syscalls, zero mutating file syscalls, zero database paths, and one execve; the staged diff digest stayed 9916a2cb6a92d733a08fdb6f030ea36d922c6332450fab60d80e3a1d90ef9ea2 and checker-tree digest stayed ab3bdc55e64760a6c5b282f9ac610ace04fd77942e617209eb41cb8dc53ef48f before and after. mage check passed with 967 audited operations, zero forbidden operations, external caches, and KTX_DB unset.
+  next: Leave mqjszxkcqx in progress for independent evaluation. Keep pfplycywjz satisfaction unchanged and defer the archival inspector to rpteozrqjo.
+  publication_order: 30

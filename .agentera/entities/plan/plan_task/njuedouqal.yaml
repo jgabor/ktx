@@ -1,0 +1,24 @@
+id: njuedouqal
+artifact: plan
+record:
+  plan: ykjitbbwfl
+  name: Repair the external validation lock contract
+  status: complete
+  depends_on:
+    - jrtqriqdwv
+    - cuehrhelfu
+  acceptance:
+    - GIVEN the pinned lock and retained authority WHEN inspection starts THEN the exact receipt schema, archive selection, campaign identity, and all evaluator, task, runtime, adapter, KTX, and execution fields derive from one lock-owned authority chain and any tamper fails closed.
+    - GIVEN any observed receipt WHEN it is parsed and compared THEN field-specific validation either reports a safe value or rejects with empty stdout, and credential-shaped, escaped, duplicate, control, trailing, and oversized inputs never leak.
+    - GIVEN a mismatch or authority mutation WHEN it is reported and tested THEN corrections are inspection-only and actionable, each tamper test mutates one component of an otherwise complete authority tree, output and exits remain bounded, and inspection has no network or write side effects.
+    - GIVEN the original external-validation boundary WHEN the replacement is verified THEN matching external provenance passes, false SkillsBench provenance fails, paid execution and authentication remain unavailable and external, and shipped KTX plus frozen campaign evidence remain unchanged.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-njuedouqal-1
+      source: audit_njuedouqal_lock_repair committed-byte PASS; security A-, maintainability B+, all four criteria and evidence audit passed
+      recorded_at: 2026-08-02 12:05
+      writer_command: agentera state plan record-evaluation

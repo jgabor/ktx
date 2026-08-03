@@ -1,0 +1,15 @@
+id: rvdrhzqdhs
+artifact: progress
+record:
+  timestamp: 2026-08-02 22:42
+  type: docs
+  phase: build
+  what: "Made benchmark documentation current and concise: primary docs now present the native KTX benchmark as the only current workflow, while the historical external campaign report leads with corrected counts, claim limits, ownership, evidence authority, and an explicit archive boundary."
+  context:
+    intent: Make benchmark documentation current and concise without changing runtime behavior or historical evidence.
+    constraints: No product, API, runtime, dependency, harness, network, provider, model, authentication, paid, or database changes; retain evidence bytes and keep historical claims bounded.
+    scope: README, benchmark pipeline guidance, external-validation and historical campaign docs, archive README, authority inventory, and task-owned progress state.
+  discovered: The corrected authority accepts 1 of 10 campaign roots, 8 complete attempts, 4 complete pairs, and no five-pair decision. Historical checksum bundles that name the changed docs are archival provenance bound to earlier source commits, not current doc hashes, so they remain immutable.
+  verified: All 41 local Markdown targets resolve; corrected-result assertions and 26 tracked evidence path/SHA-256 bindings pass; protected raw evidence, historical publications, direct lock, derivative, manifest, and archived procedure bytes are unchanged. Five edited benchmark docs fell from 14,504 to 9,634 words (33.6%). Prettier, JSON parsing, git diff --check, marker and sensitive-value scans, focused identity and CLI tests, current bench help, and offline mage check pass with forbidden=0.
+  next: Audit acceptance and decide completion; the task remains in progress and unevaluated.
+  publication_order: 37

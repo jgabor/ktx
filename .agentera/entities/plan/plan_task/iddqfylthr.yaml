@@ -1,0 +1,24 @@
+id: iddqfylthr
+artifact: plan
+record:
+  name: Remove bridge-derived product and test residue
+  depends_on:
+    - pnshnjuhkr
+    - rpteozrqjo
+  status: complete
+  acceptance:
+    - GIVEN the reduced external tooling WHEN product call sites are inspected THEN no unsupported aggregate or type remains without a current consumer.
+    - GIVEN an unknown benchmark subcommand WHEN invoked THEN the generic usage contract handles it without a feature-specific tombstone or compatibility path.
+    - GIVEN native preflight WHEN exercised across success and failure behavior THEN machine-readable output, diagnostic separation, task-loading semantics, and database-free behavior remain unchanged.
+    - GIVEN regression coverage WHEN reviewed THEN supported contracts retain representative positive and negative coverage without memorializing the removed bridge.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-iddqfylthr-1
+      source: independent residue-cleanup audit PASS at f42a9fe; all supported CLI/domain contracts and DB-free checks satisfied
+      recorded_at: 2026-08-02 21:37
+      writer_command: agentera state plan record-evaluation

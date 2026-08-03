@@ -1,0 +1,82 @@
+{
+  "schema_version": "ktx.skillsbench-campaign-errata-environment.v1",
+  "captured_at": "2026-08-02T11:15:10Z",
+  "source_base_commit": "7cb410c3fde5cd7c8fe2b923b5efd6b88958220f",
+  "toolchain": {
+    "go": "go1.26.5-X:nodwarf5 linux/amd64",
+    "mage": "v1.17.2"
+  },
+  "isolation": {
+    "root_allocation": "one new mktemp -d /tmp/ktx-skillsbench-final-<check>.XXXXXX root per invocation",
+    "environment": {
+      "KTX_DB": "unset",
+      "HOME": "$check_root/home",
+      "XDG_DATA_HOME": "$check_root/data",
+      "XDG_CONFIG_HOME": "$check_root/config",
+      "XDG_CACHE_HOME": "$check_root/cache",
+      "XDG_STATE_HOME": "$check_root/state",
+      "XDG_RUNTIME_DIR": "$check_root/runtime",
+      "TMPDIR": "$check_root/tmp",
+      "GOCACHE": "$check_root/gocache",
+      "GOPROXY": "off",
+      "GOTOOLCHAIN": "local"
+    },
+    "verifier_locale": "LC_ALL=C",
+    "runtime_mode": "0700",
+    "ambient_database_access": false,
+    "retained_raw_manifest_entries": 927,
+    "non_retained_historical_source_roots_accessed": false,
+    "provider_execution": false,
+    "model_execution": false,
+    "container_execution": false,
+    "remote_access": false,
+    "authentication_access": false,
+    "dependency_fetch": false
+  },
+  "commands": [
+    {
+      "command": "sha256sum -c tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256",
+      "exit_code": 0
+    },
+    {
+      "command": "go test -count=1 ./tools/bench/evidence/campaign-revalidation",
+      "exit_code": 0
+    },
+    {
+      "command": "go test -race -count=1 ./tools/bench/evidence/campaign-revalidation",
+      "exit_code": 0
+    },
+    {
+      "command": "go vet ./tools/bench/evidence/campaign-revalidation",
+      "exit_code": 0
+    },
+    {
+      "command": "go run ./tools/bench/evidence/campaign-revalidation --check tools/bench/evidence/skillsbench-campaign-errata.json",
+      "exit_code": 0
+    },
+    {
+      "command": "bash tools/bench/evidence/verify-skillsbench-campaign-errata.sh",
+      "exit_code": 0
+    },
+    {
+      "command": "mage check",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --quiet 7cb410c -- cmd internal go.mod go.sum .bench-data tools/bench/external-validation README.md docs/cli-reference.md docs/configuration.md",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "bash -n tools/bench/evidence/verify-skillsbench-campaign-errata.sh",
+      "exit_code": 0
+    },
+    {
+      "command": "shellcheck tools/bench/evidence/verify-skillsbench-campaign-errata.sh",
+      "exit_code": 0
+    }
+  ]
+}

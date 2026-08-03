@@ -1,0 +1,96 @@
+{
+  "schema_version": "ktx.state-synchronization-environment.v1",
+  "captured_at": "2026-08-02T13:49:50Z",
+  "source_base_commit": "8200ea5ea6a2b05f1664a8115629e5962c69dde5",
+  "toolchain": {
+    "go": "go1.26.5-X:nodwarf5 linux/amd64",
+    "mage": "v1.17.2"
+  },
+  "isolation": {
+    "root_allocation": "one new mktemp -d root per verification invocation",
+    "environment": {
+      "KTX_DB": "unset",
+      "HOME": "$check_root/home",
+      "XDG_DATA_HOME": "$check_root/data",
+      "XDG_CONFIG_HOME": "$check_root/config",
+      "XDG_CACHE_HOME": "$check_root/cache",
+      "XDG_STATE_HOME": "$check_root/state",
+      "XDG_RUNTIME_DIR": "$check_root/runtime",
+      "TMPDIR": "$check_root/tmp",
+      "GOPROXY": "off",
+      "GOTOOLCHAIN": "local"
+    },
+    "runtime_mode": "0700",
+    "ambient_database_access": false,
+    "provider_execution": false,
+    "model_execution": false,
+    "container_execution": false,
+    "remote_access": false,
+    "authentication_access": false,
+    "dependency_fetch": false,
+    "install_execution": false
+  },
+  "commands": [
+    {
+      "command": "go test -count=1 ./internal/cli ./internal/db ./internal/experiment ./internal/pipeline ./internal/pipeline/stages ./tools/bench/evidence/campaign-revalidation ./tools/bench/external-validation",
+      "exit_code": 0
+    },
+    {
+      "command": "go test -race -count=1 ./internal/cli ./internal/db ./internal/experiment ./tools/bench/evidence/campaign-revalidation ./tools/bench/external-validation",
+      "exit_code": 0
+    },
+    {
+      "command": "run the exact structured-diff-v1 inline node generator twice and compare SHA-256 output",
+      "exit_code": 0
+    },
+    {
+      "command": "sha256sum -c tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256",
+      "exit_code": 0
+    },
+    {
+      "command": "sha256sum -c tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS",
+      "exit_code": 0
+    },
+    {
+      "command": "sha256sum -c tools/bench/external-validation/evidence/contract-repair/SHA256SUMS",
+      "exit_code": 0
+    },
+    {
+      "command": "bash tools/bench/evidence/verify-skillsbench-campaign-errata.sh",
+      "exit_code": 0
+    },
+    {
+      "command": "bash tools/bench/evidence/verify-skillsbench-campaign-freeze.sh",
+      "exit_code": 1,
+      "expected_result": "historical volatile source roots are unavailable"
+    },
+    {
+      "command": "mage check",
+      "exit_code": 0
+    },
+    {
+      "command": "./build/ktx bench skillsbench --format json",
+      "exit_code": 1
+    },
+    {
+      "command": "./build/ktx bench compare --format json",
+      "exit_code": 1
+    },
+    {
+      "command": "./build/ktx stats --format json",
+      "exit_code": 0
+    },
+    {
+      "command": "./build/ktx telemetry list --session abcdefghijklmnop --limit 10 --format json",
+      "exit_code": 2
+    },
+    {
+      "command": "./build/ktx bench corpus generate --output $check_root/corpus --format json",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ]
+}

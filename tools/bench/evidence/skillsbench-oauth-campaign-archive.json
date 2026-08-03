@@ -1,0 +1,786 @@
+{
+  "schema_version": 2,
+  "archived_at": "2026-07-31",
+  "archive_root": ".bench-data/skillsbench-campaigns",
+  "archive_policy": {
+    "repository_owned": true,
+    "git_ignored_by": ".gitignore:3",
+    "persistence": "checkout-local evidence root outside temporary-directory cleanup",
+    "copy_verification": "diff -qr source archive before and after validation",
+    "source_files_changed": false
+  },
+  "database_isolation": {
+    "ktx_db": "unset",
+    "application_roots": "fresh HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, and XDG_STATE_HOME for each invocation",
+    "regular_files_created_in_application_roots": 0
+  },
+  "credential_scan": {
+    "method": "compatible validator full-campaign exact-value scan plus retained per-attempt markers",
+    "result": "passed",
+    "full_campaign_scans": 12,
+    "retained_credential_values": false,
+    "retained_credential_paths_or_digests": false
+  },
+  "inventory_summary": {
+    "successful_quality_evidence": 4,
+    "diagnostic_failure": 2,
+    "diagnostic_zero_spend_stop": 3,
+    "compatibility_only_preparation": 1,
+    "quality_evidence_attempts": 20,
+    "zero_spend_attempts": 0
+  },
+  "freeze": {
+    "frozen_at": "2026-08-02",
+    "campaign_count": 10,
+    "authority": "This index defines campaign identity, location semantics, archive class, dependency evidence, and limitations. The referenced checksum manifest exhaustively identifies the ignored raw files.",
+    "raw_evidence_policy": {
+      "mode": "read_only_immutable_input",
+      "allowed_operations": ["read", "hash", "compare"],
+      "prohibited_operations": [
+        "edit",
+        "move",
+        "rename",
+        "delete",
+        "chmod",
+        "regenerate",
+        "discard"
+      ],
+      "permissions_changed": false
+    },
+    "location_semantics": {
+      "archive_root": "repository-relative, Git-ignored, checkout-local retained authority",
+      "source": "historical machine-local copy origin where recorded; never a portable or required authority path",
+      "tracked_indexes": "credential-free bindings and derived claims; not substitutes for ignored raw bytes",
+      "fresh_clone": "indexes remain, but raw validation is unavailable until the exact ignored archive bytes are restored"
+    },
+    "artifact_manifest": {
+      "path": "tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256",
+      "format": "GNU sha256sum lines sorted by bytewise repository-relative path",
+      "sha256": "55b196c49d7d640233db43879c7396093718708a62fb2f7452435aefdf022ec3",
+      "regular_files": 927,
+      "path_set_sha256": "0255f4f22708e99313aa28de9650423355514abf56dd73096e4e9c7e5224e569",
+      "path_set_format": "SHA-256 of sorted repository-relative regular-file paths with newline delimiters"
+    },
+    "topology": {
+      "entries": 1384,
+      "directories": 457,
+      "regular_files": 927,
+      "symlinks": 0,
+      "special_files": 0,
+      "sha256": "fbb6960b7eef1132d4fde1a69a6a581bf6bc1c64c99c0089db9d8094ccfb88d8",
+      "format": "SHA-256 of sorted type, tab, repository-relative path lines"
+    },
+    "claimed_source_roots": {
+      "recorded": 8,
+      "present_at_freeze": 8,
+      "regular_file_locations": 858,
+      "topology_entries": 1266,
+      "path_content_sha256": "8bb548682d4711ac689c9ac5b2dc03818f8c1f27778b185c59fb88cb9a914784",
+      "topology_sha256": "97cfbbd82c497c2bdd865783d2ff38b8a0aebf9d39251bfdbe0b58481745b1a6",
+      "hash_format": "source path-content uses sorted GNU sha256sum lines with absolute paths; topology uses sorted type, tab, absolute path lines",
+      "relationship": "all eight recorded source roots were byte-for-byte identical to their indexed archive roots"
+    },
+    "tracked_raw_references": {
+      "source": "tools/bench/evidence/skillsbench-five-pair-gate.json",
+      "count": 40,
+      "status": "present_and_sha256_matched"
+    },
+    "class_definitions": {
+      "revalidatable": "Complete current-schema retained evidence with an exact retained validator identity; no validation rerun is implied.",
+      "historical-only": "Complete retained evidence under a historical schema that the current schema rejects rather than reinterprets.",
+      "incomplete": "Prepared or attempted evidence without a complete current mandatory chain, or with an existing incomplete validation result.",
+      "non-regenerable": "A claimed completed derived result whose required retained raw evidence is missing or damaged, so it cannot be regenerated from the archive."
+    },
+    "class_counts": {
+      "revalidatable": 2,
+      "historical-only": 2,
+      "incomplete": 6,
+      "non-regenerable": 0
+    },
+    "dependency_accounting": {
+      "authority": "Each campaign freeze record binds its retained manifest.json; that manifest records the exact supported dependency facts and hashed inputs.",
+      "common_facts": {
+        "benchflow_version": "0.6.5",
+        "benchflow_commit": "737146cc60fbc1b3595198eebbabba4628592d02",
+        "opencode_version": "1.18.5",
+        "agent_registry": "codex-acp",
+        "task": "3d-scan-calc",
+        "task_source_sha256": "81d8ea7136050f648288171b4a2c23b40de09d4ecebc5dc65b14caa54bff6449",
+        "auth_identity": "OpenAI OAuth; no credential value, path, account, expiry, signature, or digest retained"
+      },
+      "campaign_varying_facts": [
+        "schema version",
+        "model and effective variant",
+        "native source commit and worktree digest where retained",
+        "KTX executable digest",
+        "agent manifest and launcher digests",
+        "plugin, methodology, arm configuration, task overlay, manifest, and schedule digests"
+      ],
+      "not_claimed": [
+        "an installable external dependency lock or execution recipe",
+        "provider state or credential material",
+        "a portable copy of ignored archive bytes",
+        "ability to regenerate external model behavior"
+      ]
+    },
+    "global_limitations": [
+      "Classification uses retained state and existing validation records; this freeze does not revalidate or correct campaign results.",
+      "The checksum manifest proves current raw identity but cannot restore ignored bytes in a fresh clone.",
+      "Temporary source roots may disappear; their durable archive copies are the retained authority.",
+      "External provider execution cannot be regenerated from retained files because credentials and provider state are intentionally absent.",
+      "Exact external dependency installation remains outside this historical evidence freeze.",
+      "The final index retains behavioral_source_commit as the abbreviated historical label 8b15ebd; no full commit identity is inferred.",
+      "Canary raw entries in the five-pair gate retain tracked_inventory_match null; the checksum manifest proves current bytes without rewriting that historical field.",
+      "Retained manifest task source_path values are historical absolute preparation locations; the hashed source-tasks and tasks copies inside each archive are the self-contained authority."
+    ]
+  },
+  "canary_replication_compatibility": {
+    "canary": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+    "proposed_replication": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+    "result": "proceed_to_later_preflight_and_authorization_gate_only",
+    "paid_execution_authorized": false,
+    "mismatch_policy": "any material mismatch blocks paid work",
+    "exact_matches": [
+      "model openai/gpt-5.6-luna",
+      "effective variant high",
+      "task 3d-scan-calc",
+      "task source digest 81d8ea7136050f648288171b4a2c23b40de09d4ecebc5dc65b14caa54bff6449",
+      "baseline and candidate arm configuration digests",
+      "methodology digest 7e9a1a6fff0bc0d400f182551435c7080daeb39fea787bea32f1b6d78076a5a6",
+      "plugin digest 90d1090b5752c8625626d393236125df8f312bb84935f43a82d95b9ac734af4c",
+      "agent manifest digest 082e5c05d09bece3a81b20dd0b63e8b4d6ed48df275342aac902f3e50c39d0c7",
+      "launcher digest d2ae405c66e9956a9ff89b48ebe1df4746f15791051330404f8284c9d645db8f",
+      "OpenCode 1.18.5, BenchFlow 0.6.5 at 737146cc60fbc1b3595198eebbabba4628592d02, SkillsBench source-task identity, OAuth/OpenAI auth, agent_native_acp usage, and null cost identity"
+    ],
+    "expected_differences": [
+      "one pair versus four balanced pairs",
+      "legacy absent stop policy with continue behavior versus explicit immutable fail-fast",
+      "retained coordinator d59fc95a3203ceab0fcc164261103bb3c6aa73c5fb58e75fb1e6f40ca5b2e557 versus current coordinator 750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2",
+      "absolute source location"
+    ],
+    "overlay_difference": {
+      "canary_sha256": "a388bd500eab311615ae5cdfdaaa956b06f113f6876e6d008d0a9f71ee5fd5f5",
+      "proposed_replication_sha256": "0c05d83e70c9f0fa1f5ed0742586fda514a616be9779e0ba8d0cf099e56caeb9",
+      "only_changed_path": "environment/.ktx/ktx",
+      "reason": "the changed bytes exactly match the retained and current coordinator executables"
+    },
+    "source_change_scope": "benchmark orchestration, terminal safety, documentation, and project state only; compression and delivery algorithms are unchanged"
+  },
+  "campaigns": [
+    {
+      "id": "ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+      "classification": "successful_quality_evidence",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+      "schema_version": 7,
+      "model": "openai/gpt-5.6-luna",
+      "effective_variant": "high",
+      "native_source": {
+        "git_commit": "1bcc1ad0c7862bd28ad4f94f1cf440a8da44a12b",
+        "worktree_sha256": "ff8472c59c4f4a71e49242920fd1e628b2c48a00bd728d5602dcc9dbb55c8d6b"
+      },
+      "manifest_sha256": "9ce7dae140ef86a0c1d41449e2b69d929ee9c4826f50914a8db588c745755617",
+      "validator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/inputs/ktx",
+        "sha256": "d59fc95a3203ceab0fcc164261103bb3c6aa73c5fb58e75fb1e6f40ca5b2e557",
+        "version_output": "dev"
+      },
+      "validation": {
+        "exit": 0,
+        "valid": true,
+        "complete": true,
+        "scheduled": 2,
+        "imported": 2,
+        "errors": null
+      },
+      "credential_markers": { "count": 2, "status": "passed" },
+      "freeze": {
+        "class": "revalidatable",
+        "class_reason": "The schema 7 archive retains a valid complete 2/2 attempt chain and an exact validator executable identity.",
+        "artifacts": {
+          "regular_files": 85,
+          "directories": 42,
+          "path_content_sha256": "8baf93cac088e76a6eb8502913b9ede10fe8943de09f73696a55699b31a4702d",
+          "topology_sha256": "ee7e047275d0f8c685c136a23bb0e672995f0b1381b0edb56b93d25e94d9135f"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 85,
+          "relative_path_content_sha256": "76f451ebbdb9d50b9e41a54d907e6dd0e048ee7d3ad517cd15ba6afdccb3dfb6"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/manifest.json",
+          "source_manifest_sha256": "9ce7dae140ef86a0c1d41449e2b69d929ee9c4826f50914a8db588c745755617"
+        },
+        "validation_limitations": [
+          "This freeze does not rerun validation; it preserves the existing valid and complete result for later independent revalidation.",
+          "The retained validator reports version dev, so its SHA-256 is the exact executable identity.",
+          "External model execution is not regenerable because credentials and provider state are not retained."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-canary-c5d51a6",
+      "classification": "successful_quality_evidence",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-canary-c5d51a6",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-c5d51a6",
+      "schema_version": 6,
+      "model": "openai/gpt-5.4",
+      "effective_variant": "high",
+      "native_source": {
+        "git_commit": "c5d51a6143a5b6355b6cb6c63518db61a9b10a51",
+        "worktree_sha256": "bec7eeb5946508b5474c5bd842a5d181534ea975a3ac4fb282c3bd7866a7f0ab"
+      },
+      "manifest_sha256": "1c9d93e7d3f38e6cf92fa86aecc9103dbbc12a5d3ab25ba606e747183e58c255",
+      "validator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-c5d51a6/inputs/ktx",
+        "sha256": "5fb4fa4ca8cc2bc6d60f8c041535a7e0e2e90198ddcce62d183a13776278dd3a",
+        "version_output": "dev"
+      },
+      "validation": {
+        "exit": 0,
+        "valid": true,
+        "complete": true,
+        "scheduled": 2,
+        "imported": 2,
+        "errors": null
+      },
+      "credential_markers": { "count": 2, "status": "passed" },
+      "freeze": {
+        "class": "historical-only",
+        "class_reason": "The 2/2 result is complete under schema 6, which the current schema 7 contract rejects rather than reinterprets.",
+        "artifacts": {
+          "regular_files": 85,
+          "directories": 42,
+          "path_content_sha256": "24c4884c0adb05a853dd15cb5698aa59b08fd2db62dab561642b016536ff704e",
+          "topology_sha256": "33bdcee33436e5b1dff0f0ce6be04256334a0a533f4b1b33c532e05fcb6e9ce7"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 85,
+          "relative_path_content_sha256": "f2895e256c280326e329a135c3f179ff84bc97db588cb06f30a37c26e1297cc9"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-c5d51a6/manifest.json",
+          "source_manifest_sha256": "1c9d93e7d3f38e6cf92fa86aecc9103dbbc12a5d3ab25ba606e747183e58c255"
+        },
+        "validation_limitations": [
+          "Current schema 7 validation rejects this schema 6 campaign; the historical validator result is not promoted to current evidence.",
+          "The retained validator reports version dev and is identified only by its recorded SHA-256.",
+          "External model execution is not regenerable because credentials and provider state are not retained."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-repeat4-c5d51a6",
+      "classification": "successful_quality_evidence",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-repeat4-c5d51a6",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-repeat4-c5d51a6",
+      "schema_version": 6,
+      "model": "openai/gpt-5.4",
+      "effective_variant": "high",
+      "native_source": {
+        "git_commit": "c5d51a6143a5b6355b6cb6c63518db61a9b10a51",
+        "worktree_sha256": "bec7eeb5946508b5474c5bd842a5d181534ea975a3ac4fb282c3bd7866a7f0ab"
+      },
+      "manifest_sha256": "bf04da5e2d90ca3771bf373844ddeeb94524914a34d464972af40b2e57ad1c8c",
+      "validator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-repeat4-c5d51a6/inputs/ktx",
+        "sha256": "5fb4fa4ca8cc2bc6d60f8c041535a7e0e2e90198ddcce62d183a13776278dd3a",
+        "version_output": "dev"
+      },
+      "validation": {
+        "exit": 0,
+        "valid": true,
+        "complete": true,
+        "scheduled": 8,
+        "imported": 8,
+        "errors": null
+      },
+      "credential_markers": { "count": 8, "status": "passed" },
+      "freeze": {
+        "class": "historical-only",
+        "class_reason": "The 8/8 result is complete under schema 6, which the current schema 7 contract rejects rather than reinterprets.",
+        "artifacts": {
+          "regular_files": 235,
+          "directories": 96,
+          "path_content_sha256": "dc8a7cfc8997d157eb6b3d9dfaa0e1f17faeca1baaa5d6131b9a90c2a794106e",
+          "topology_sha256": "92198ff47f6f5076868812a1f73c0dccec00833d882d973c97624f65fd2b6d1a"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 235,
+          "relative_path_content_sha256": "db0fd107c0a30634f7519deb4477c2dd9181bcc4bc4d55be0c9145762e11e41a"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-repeat4-c5d51a6/manifest.json",
+          "source_manifest_sha256": "bf04da5e2d90ca3771bf373844ddeeb94524914a34d464972af40b2e57ad1c8c"
+        },
+        "validation_limitations": [
+          "Current schema 7 validation rejects this schema 6 campaign; the historical validator result is not promoted to current evidence.",
+          "The retained validator reports version dev and is identified only by its recorded SHA-256.",
+          "External model execution is not regenerable because credentials and provider state are not retained."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight",
+      "classification": "successful_quality_evidence",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal",
+      "schema_version": 7,
+      "model": "openai/gpt-5.6-luna",
+      "effective_variant": "high",
+      "native_source": {
+        "git_commit": "54d5607d49282161ab470d3592b66d86d1afdd8a",
+        "clean": true
+      },
+      "archive_tree": {
+        "sha256": "0d1502fca7973befd0e89c449ec30a5eaf23cb7cfee045184f125e1f2114e501",
+        "algorithm": "internal/skillsbench.treeHash (internal/skillsbench/files.go)",
+        "framing": "all non-root entries sorted by slash-relative path; SHA-256 over entry kind byte, big-endian uint32 path length, path bytes, big-endian uint32 permission bits, then regular-file content bytes; file size is the appended content byte count, not a separate frame; directories append no content; symlinks and special files are rejected",
+        "files": 243,
+        "bytes": 29997961,
+        "source_archive_identity": "passed"
+      },
+      "manifest_sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20",
+      "schedule_sha256": "4394aeed451db634be35535f6734d086485ce0d89aae5dd16f0c8e36d9987325",
+      "preflight_sha256": "c55feb0209bf411f1f619707410ec18226d25678fe49db6d4ff10b45a6c807ee",
+      "summary_sha256": "55ec395e27cb64d83e61f0e6b87731996b19a783b6716f4810f7844212c433dc",
+      "attempts_envelope_sha256": "bdb648adb8755379d1d9565459da9363d1fed452398c86d5904c12e06e7957e9",
+      "coordinator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/inputs/ktx",
+        "sha256": "750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2",
+        "version_output": "dev"
+      },
+      "tools": {
+        "opencode": "1.18.5",
+        "benchflow": "0.6.5",
+        "benchflow_commit": "737146cc60fbc1b3595198eebbabba4628592d02",
+        "benchflow_sha256": "80bd61000303ee15e790db9787857b02baf94228e566b9ab168f728d2fd6a69e",
+        "docker_sha256": "232500cbc378d3613f9a60be41b1b1f2657c04b45b3d3eb62a03f48a47dd453d"
+      },
+      "preflight": {
+        "eligible": true,
+        "model_attempts": 0,
+        "benchmark_image_ktx_version": "0.1.0-dev",
+        "benchmark_image_ktx_version_evidence": "preflight.json fields ktx_preflight.ktx_version and ktx.version",
+        "checks": "source, tool, image, bootstrap, cross-user, root-separation, and identity passed"
+      },
+      "execution": {
+        "run_invocations": 1,
+        "summarize_invocations": 1,
+        "validate_invocations": 1,
+        "retry_attempts": 0,
+        "concurrency": 1,
+        "stop_policy": "fail-fast",
+        "stop_triggered": false
+      },
+      "results": {
+        "started": 8,
+        "completed": 8,
+        "failed": 0,
+        "not_started": 0,
+        "complete_pairs": 4,
+        "baseline_rewards": [1, 1, 1, 1],
+        "candidate_rewards": [1, 1, 1, 1],
+        "paired_reward_deltas": [0, 0, 0, 0],
+        "cost_usd": null
+      },
+      "validation": {
+        "exit": 0,
+        "valid": true,
+        "complete": true,
+        "scheduled": 8,
+        "imported": 8,
+        "quality_evaluable": 8,
+        "errors": null
+      },
+      "credential_markers": { "count": 8, "status": "passed" },
+      "credential_scan": "passed",
+      "freeze": {
+        "class": "revalidatable",
+        "class_reason": "The schema 7 archive retains a valid complete 8/8 attempt chain, four complete pairs, and an exact coordinator identity.",
+        "artifacts": {
+          "regular_files": 243,
+          "directories": 96,
+          "path_content_sha256": "704cc67c33694691ebb6200cb503e4c296bb3cc22b9f3a52fa66b6c6870883ef",
+          "topology_sha256": "7b8f44988a4da51501d316e31446e63c857e1ec5a9eeac43cf511cde0fa3c953"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 243,
+          "relative_path_content_sha256": "1ad6a3bb26f078f8f6f186235f5b0e43e64db7696d23531bc295de68b837a125"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/manifest.json",
+          "source_manifest_sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20"
+        },
+        "validation_limitations": [
+          "This freeze does not rerun validation; it preserves the existing valid and complete result for later independent revalidation.",
+          "The retained coordinator reports version dev, so its SHA-256 is the exact executable identity.",
+          "The result is descriptive for one task and four pairs, with null provider cost and no causal or generalization claim.",
+          "External model execution is not regenerable because credentials and provider state are not retained."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-canary-74b321f",
+      "classification": "diagnostic_failure",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-canary-74b321f",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-74b321f",
+      "schema_version": 4,
+      "model": "openai/gpt-5.4",
+      "effective_variant": "high",
+      "native_source": {
+        "git_commit": "74b321fb9dfeecda12a967278a6064958f475c09",
+        "worktree_sha256": "a484e159e127be69c668ef16af52736927fb84cb48270b7bf34f522e5041290e"
+      },
+      "manifest_sha256": "0f7831fe5d3357a11038a5f845e15a4127044a19ac060033e99bb4b939642b0a",
+      "validator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-74b321f/inputs/ktx",
+        "sha256": "4d4c926fb7cf6467849299b47fcb581d3c6e4f1b9edb5f276d752b08fd77f127",
+        "version_output": "dev"
+      },
+      "validation": {
+        "exit": 4,
+        "valid": false,
+        "complete": false,
+        "scheduled": 2,
+        "imported": 2,
+        "errors": [
+          "OAuth usage source mismatch",
+          "agent_name identity mismatch"
+        ]
+      },
+      "failure_reasons": [
+        "OpenCode agent installation failed with exit 127",
+        "both attempts lack authoritative OAuth usage and agent identity",
+        "verifier and numeric rewards are unavailable"
+      ],
+      "credential_markers": { "count": 2, "status": "passed" },
+      "freeze": {
+        "class": "incomplete",
+        "class_reason": "Existing validation is invalid and incomplete: both imported attempts lack authoritative OAuth usage, agent identity, and numeric reward evidence.",
+        "artifacts": {
+          "regular_files": 73,
+          "directories": 42,
+          "path_content_sha256": "35190b9eac4ab127a055884beab468392d16c25cf7399aaa5fb5cae12f0865fa",
+          "topology_sha256": "722bfc21a21f4270441bb88ee1148093a87cfaf69c48aa5d8ea6762e44fd7799"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 73,
+          "relative_path_content_sha256": "ac5ab1bb8a37e59d9ae6c59c21d4c7a5a72206263312582717327596b46dffef"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-74b321f/manifest.json",
+          "source_manifest_sha256": "0f7831fe5d3357a11038a5f845e15a4127044a19ac060033e99bb4b939642b0a"
+        },
+        "validation_limitations": [
+          "The schema 4 result is an invalid diagnostic and cannot support a complete quality claim.",
+          "Missing authoritative usage, agent identity, and numeric rewards are not inferred or repaired in this freeze.",
+          "The retained validator reports version dev and is identified only by its recorded SHA-256."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-canary-618976c",
+      "classification": "diagnostic_failure",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-canary-618976c",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-618976c",
+      "schema_version": 5,
+      "model": "openai/gpt-5.4",
+      "effective_variant": "high",
+      "native_source": {
+        "git_commit": "618976c7d02eee4be30bd3ed2fccc0e9273ea474",
+        "worktree_sha256": "f82e4f5e89b245d5927bd47cbbf15cccd32527fe612892bb3a68dd76392035d9"
+      },
+      "manifest_sha256": "8e200a9194873514348225c9eacb1877a4530efa8493b1ba1c575da312872ab4",
+      "validator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-618976c/inputs/ktx",
+        "sha256": "fe9ff00d22dcad712e5e5adaaa79f2e2dc831eaefab262c12e3fceeb89d69ab1",
+        "version_output": "dev"
+      },
+      "validation": {
+        "exit": 4,
+        "valid": false,
+        "complete": false,
+        "scheduled": 2,
+        "imported": 2,
+        "errors": [
+          "OAuth usage source mismatch",
+          "agent_name identity mismatch"
+        ]
+      },
+      "failure_reasons": [
+        "cross-user launch looked for the OAuth file under the runtime user's home and did not find it",
+        "transport closed with the launched process still alive",
+        "both attempts lack authoritative OAuth usage and agent identity",
+        "verifier and numeric rewards are unavailable"
+      ],
+      "credential_markers": { "count": 2, "status": "passed" },
+      "freeze": {
+        "class": "incomplete",
+        "class_reason": "Existing validation is invalid and incomplete: both imported attempts lack authoritative OAuth usage, agent identity, and numeric reward evidence.",
+        "artifacts": {
+          "regular_files": 73,
+          "directories": 42,
+          "path_content_sha256": "b766b8624c339c4b2a10975302bae803f37567db8a9b8ab7c6ea261f3312ddfd",
+          "topology_sha256": "c1122d3b7e173e6e3e4a571263bd1f87356960c5c6555c7dbef5f476923aff0e"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 73,
+          "relative_path_content_sha256": "75fb6e7abd831512adbf698649e4170bf4add4ff5e9d380ee8dfc3a94a64e8f3"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-618976c/manifest.json",
+          "source_manifest_sha256": "8e200a9194873514348225c9eacb1877a4530efa8493b1ba1c575da312872ab4"
+        },
+        "validation_limitations": [
+          "The schema 5 result is an invalid diagnostic and cannot support a complete quality claim.",
+          "Missing authoritative usage, agent identity, and numeric rewards are not inferred or repaired in this freeze.",
+          "The retained validator reports version dev and is identified only by its recorded SHA-256."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d",
+      "classification": "diagnostic_zero_spend_stop",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d",
+      "schema_version": 7,
+      "model": "openai/gpt-5.6-luna",
+      "effective_variant": "high",
+      "fingerprint": "f20f54eecab93673a685b09ae644de5993430042553f739b87de23a2e49a9067",
+      "manifest_sha256": "6c8d2dc90706155649b449317108efb05cf28fefb9dad46e5a4c3ce8832c56ce",
+      "validator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d/inputs/ktx",
+        "sha256": "d59fc95a3203ceab0fcc164261103bb3c6aa73c5fb58e75fb1e6f40ca5b2e557",
+        "version_output": "dev"
+      },
+      "validation": {
+        "valid": false,
+        "complete": false,
+        "scheduled": 8,
+        "imported": 8,
+        "quality_evaluable": 0
+      },
+      "stop_reason": "containment preflight failed before a retained preflight report or model attempt",
+      "preflight_present": false,
+      "model_attempts": 0,
+      "quality_evidence": false,
+      "credential_markers": {
+        "count": 0,
+        "status": "not_applicable_no_attempts"
+      },
+      "credential_scan": "passed",
+      "freeze": {
+        "class": "incomplete",
+        "class_reason": "Containment preflight failed before a retained preflight report or model attempt; 0/8 attempts are quality-evaluable.",
+        "artifacts": {
+          "regular_files": 34,
+          "directories": 24,
+          "path_content_sha256": "f20f54eecab93673a685b09ae644de5993430042553f739b87de23a2e49a9067",
+          "topology_sha256": "f5745f1a7cfae6b9a5528205727fc624f5eeabe3e2ec22cf6495876180d96725"
+        },
+        "source_location": {
+          "status": "unrecorded",
+          "role": "no historical copy origin is claimed"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d/manifest.json",
+          "source_manifest_sha256": "6c8d2dc90706155649b449317108efb05cf28fefb9dad46e5a4c3ce8832c56ce"
+        },
+        "validation_limitations": [
+          "No retained preflight report or model attempt exists.",
+          "The existing summary imports diagnostic schedule rows but has zero quality-evaluable attempts and is invalid and incomplete.",
+          "Missing execution and result evidence is not inferred or regenerated in this freeze."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend",
+      "classification": "diagnostic_zero_spend_stop",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend",
+      "schema_version": 7,
+      "model": "openai/gpt-5.6-luna",
+      "effective_variant": "high",
+      "fingerprint": "4b325514103ae7cbd99651526c9f5e61c496dc0e8be19de210da47de182e6eb4",
+      "manifest_sha256": "2f3e39223f3c4cbe085005655b97bfbfc97b3dabaefe538a7602ed1bba05a7df",
+      "validator": {
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend/inputs/ktx",
+        "sha256": "d59fc95a3203ceab0fcc164261103bb3c6aa73c5fb58e75fb1e6f40ca5b2e557",
+        "version_output": "dev"
+      },
+      "validation": {
+        "valid": false,
+        "complete": false,
+        "scheduled": 8,
+        "imported": 8,
+        "quality_evaluable": 0
+      },
+      "stop_reason": "execution was withheld because the legacy absent stop policy would continue after an attempt failure",
+      "preflight_present": true,
+      "preflight_eligible": true,
+      "preflight_model_attempts": 0,
+      "model_attempts": 0,
+      "quality_evidence": false,
+      "credential_markers": {
+        "count": 0,
+        "status": "not_applicable_no_attempts"
+      },
+      "credential_scan": "passed",
+      "freeze": {
+        "class": "incomplete",
+        "class_reason": "Eligible zero-model preflight exists, but execution was withheld; 0/8 attempts are quality-evaluable.",
+        "artifacts": {
+          "regular_files": 35,
+          "directories": 24,
+          "path_content_sha256": "4b325514103ae7cbd99651526c9f5e61c496dc0e8be19de210da47de182e6eb4",
+          "topology_sha256": "126108feb04f44c04f628b55bb3e9b503e90de7f8e0d1d5196471dcc0ddc369d"
+        },
+        "source_location": {
+          "status": "unrecorded",
+          "role": "no historical copy origin is claimed"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend/manifest.json",
+          "source_manifest_sha256": "2f3e39223f3c4cbe085005655b97bfbfc97b3dabaefe538a7602ed1bba05a7df"
+        },
+        "validation_limitations": [
+          "No model attempt, terminal evidence, or quality result exists.",
+          "The retained legacy absent stop policy could not satisfy the required fail-fast stop condition.",
+          "The existing summary has zero quality-evaluable attempts and is invalid and incomplete."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight",
+      "classification": "diagnostic_zero_spend_stop",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight-zero-spend-diagnostic",
+      "schema_version": 7,
+      "model": "openai/gpt-5.6-luna",
+      "effective_variant": "high",
+      "source_archive_tree_sha256": "532c69960b5a053af6e7143619565fff60a5180e82bcc2c303226b5c9c487463",
+      "manifest_sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20",
+      "schedule_sha256": "4394aeed451db634be35535f6734d086485ce0d89aae5dd16f0c8e36d9987325",
+      "stop_reason": "full preflight exited 4 before preflight.json because the unqualified BenchFlow command was not discoverable on PATH",
+      "preflight_present": false,
+      "preflight_exit": 4,
+      "model_attempts": 0,
+      "quality_evidence": false,
+      "validation": {
+        "valid": false,
+        "complete": false,
+        "scheduled": 8,
+        "imported": 0,
+        "quality_evaluable": 0
+      },
+      "credential_markers": {
+        "count": 0,
+        "status": "not_applicable_no_attempts"
+      },
+      "credential_scan": "passed",
+      "source_archive_identity": "passed",
+      "freeze": {
+        "class": "incomplete",
+        "class_reason": "Full preflight exited before a retained preflight report because BenchFlow was unavailable on PATH; no attempt ran.",
+        "artifacts": {
+          "regular_files": 32,
+          "directories": 24,
+          "path_content_sha256": "398a4d7fdafc03151e1eb4c307699d0c1fea00e703686ba796e08610357f026e",
+          "topology_sha256": "1a20199906abac52f706179e829d789546c5b3f910dcb9acc4da64d5f4391a8f"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 32,
+          "relative_path_content_sha256": "e36e80287055822d65641c2f5e75f2ba89dbc0bc642afad88e0ee8d85ae29c88"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight-zero-spend-diagnostic/manifest.json",
+          "source_manifest_sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20"
+        },
+        "validation_limitations": [
+          "Only manifest and schedule preparation evidence is retained; preflight, attempts, terminal evidence, and results are absent.",
+          "BenchFlow availability was not bound at execution time.",
+          "The existing validation record is invalid and incomplete with 0/8 imported attempts."
+        ]
+      }
+    },
+    {
+      "id": "ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+      "classification": "compatibility_only_preparation",
+      "source": "/tmp/opencode/ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+      "archive": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+      "schema_version": 7,
+      "model": "openai/gpt-5.6-luna",
+      "effective_variant": "high",
+      "source_fingerprint": "e92edfd952d2ead3c991b610303f0690702560913948bd33a5ad577cf109c5c9",
+      "source_archive_tree_sha256": "532c69960b5a053af6e7143619565fff60a5180e82bcc2c303226b5c9c487463",
+      "manifest_sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20",
+      "schedule_sha256": "4394aeed451db634be35535f6734d086485ce0d89aae5dd16f0c8e36d9987325",
+      "coordinator": {
+        "path": "./build/ktx",
+        "sha256": "750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2",
+        "version_output": "dev"
+      },
+      "pins": {
+        "auth": "OAuth/OpenAI",
+        "opencode": "1.18.5",
+        "benchflow": "0.6.5",
+        "benchflow_commit": "737146cc60fbc1b3595198eebbabba4628592d02",
+        "usage_source": "agent_native_acp",
+        "cost": null,
+        "task": "3d-scan-calc",
+        "pairs": 4,
+        "seed": 20260731,
+        "retry_attempts": 0,
+        "stop_policy": "fail-fast"
+      },
+      "preflight_present": false,
+      "model_attempts": 0,
+      "quality_evidence": false,
+      "validation": "not_applicable_preparation_only",
+      "credential_markers": {
+        "count": 0,
+        "status": "not_applicable_no_attempts"
+      },
+      "credential_scan": "passed",
+      "source_archive_identity": "passed",
+      "freeze": {
+        "class": "incomplete",
+        "class_reason": "This is preparation-only evidence with manifest and schedule but no preflight, execution, terminal evidence, summary, or quality result.",
+        "artifacts": {
+          "regular_files": 32,
+          "directories": 24,
+          "path_content_sha256": "283d3ddc48cf64b08bd263eaf7f625750c8ee9b4efc33a223d4bbcc1f44a8834",
+          "topology_sha256": "1a20199906abac52f706179e829d789546c5b3f910dcb9acc4da64d5f4391a8f"
+        },
+        "source_location": {
+          "status": "present-identical",
+          "role": "historical copy origin",
+          "regular_files": 32,
+          "relative_path_content_sha256": "e36e80287055822d65641c2f5e75f2ba89dbc0bc642afad88e0ee8d85ae29c88"
+        },
+        "dependencies": {
+          "source_manifest": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation/manifest.json",
+          "source_manifest_sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20"
+        },
+        "validation_limitations": [
+          "No retained preflight, attempt, terminal, result, summary, or paid authorization exists.",
+          "The retained evidence can prove only preparation compatibility, not execution or quality.",
+          "External dependency installation was not locked and is not reconstructed in this freeze."
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+id: ictcimbygc
+artifact: progress
+record:
+  timestamp: 2026-08-02 04:07
+  type: docs
+  phase: build
+  what: Extended tools/bench/evidence/skillsbench-oauth-campaign-archive.json to freeze 10 campaigns and 927 raw files, bind 40 tracked references and retained dependency manifests, record location semantics and limitations, and classify 2 revalidatable, 2 historical-only, 6 incomplete, and 0 non-regenerable. Added the checksum manifest and read-only verifier, then synchronized the final index and historical report.
+  context:
+    intent: Freeze the retained external campaign authority without mutating raw evidence or changing KTX product behavior, methodology, or historical results.
+    constraints: Raw campaigns were read-only immutable input. No provider, model, paid, Docker, installation, network, remote, methodology, result, product-code, help, or ambient-database work was performed.
+    unknowns: "Resolved: all 10 archive roots exist; all 8 recorded source roots exist and are byte-identical to their archives. Remaining: ignored bytes are unavailable in a fresh clone, temporary sources may disappear, and external execution is not regenerable from retained evidence."
+    scope: tools/bench/evidence campaign archive, subordinate checksum manifest, read-only verifier, final index, and docs/skillsbench-campaign.md.
+  verified: bash tools/bench/evidence/verify-skillsbench-campaign-freeze.sh returned status ok for 10 campaigns, 927 artifacts, and 40 tracked raw references. An isolated mage check passed with forbidden=0 and KTX_DB unset. Generated-inventory and non-executable raw credential-signature scans returned zero files; existing 12 full-root exact-value scans remain passed. Durable and source path-content, path-set, and topology SHA-256 values matched their before-edit baselines after verification.
+  next: Independently audit acceptance and retain plan task jrtqriqdwv as in_progress. Revalidation/correction and the external dependency lock remain separate work.
+  publication_order: 18

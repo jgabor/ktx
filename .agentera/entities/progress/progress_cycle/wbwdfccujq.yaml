@@ -1,0 +1,15 @@
+id: wbwdfccujq
+artifact: progress
+record:
+  timestamp: 2026-07-31 16:17
+  type: docs
+  phase: build
+  what: Qualified the duplicate continue-after-failure statement for the continue stop policy.
+  context:
+    intent: Remove the sole Audit documentation contradiction without changing product behavior or re-running already confirmed code evidence.
+    constraints: No product code or test changes, code-suite rerun, model or campaign execution, OAuth credential access, archive mutation, dependency change, task completion, predecessor resolution, TODO resolution, supersession beyond the documentation claim, or push.
+    unknowns: Independent focused re-review remains pending.
+    scope: One sentence in docs/skillsbench-campaign.md plus retained Audit evaluation state and this progress entity.
+  verified: "Supersedes gfsollyxql only for its documentation claim and preserves its independently confirmed code, test, race, build, help, and full-check evidence. docs/skillsbench-campaign.md now says execution, under --stop-policy continue, continues after attempt failures. A focused search found no unconditional continue-after-failure statement; the prepare-time immutable continue/default and fail-fast descriptions remain consistent, and the existing fail-fast explanation is unchanged. git diff --check passed. No repository-specific documentation check exists. N/A: docs-only. No model execution."
+  next: Independent focused re-review must persist PASS before orchestration changes task or predecessor state; paid work remains blocked.
+  publication_order: 7

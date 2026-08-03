@@ -1,0 +1,24 @@
+id: eyqhaqohok
+artifact: plan
+record:
+  plan: oydbeaydwa
+  name: Enforce exact terminal JSON keys
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN a retained terminal record WHEN its JSON keys are checked THEN only the exact case-sensitive names state, reason, and trigger_attempt_id are accepted before duplicate and value validation.
+    - GIVEN case variants, aliases, duplicate semantic keys, unknown fields, or trailing values WHEN summary and validation read the terminal record THEN both reject the same corrupt evidence without dropping retained content.
+    - GIVEN a valid exact-key terminal-only suffix WHEN summary and validation regenerate evidence THEN every later attempt remains not_started with the same trigger and the campaign remains honestly incomplete.
+    - GIVEN the correction WHEN focused alias regressions, prior artifact and stop-category tests, race checks, the full project check, and independent review run THEN all original fail-fast acceptance criteria pass.
+    - GIVEN this replacement has a persisted PASS WHEN orchestration resolves both blocked predecessors THEN supersession preserves downstream acceptance and paid execution remains blocked until resolution completes.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Independent Audit closed the terminal alias bypass and passed all paid-safety code, parser, test, help, build, and full-check criteria. One documentation sentence still says execution continues after attempt failures without limiting that behavior to the default continue policy, contradicting fail-fast behavior and the explicit documentation criterion. Qualify or remove that sentence, preserve all code unchanged, and run a focused documentation re-review. Paid execution remains blocked.
+    provenance:
+      attempt_id: audit-2
+      source: "focused independent Audit: exact terminal keys and documentation passed"
+      recorded_at: 2026-07-31 16:21
+      writer_command: agentera state plan record-evaluation

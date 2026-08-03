@@ -1,0 +1,549 @@
+{
+  "schema_version": "ktx.skillsbench-authority-inventory.v1",
+  "recorded_at": "2026-08-02",
+  "scope": "The completed historical external campaign and the material that identifies, explains, checks, or proves it.",
+  "ownership": {
+    "ktx": [
+      "native task and scoring contracts",
+      "KTX databases and collected evidence",
+      "deterministic summaries",
+      "comparison",
+      "validation",
+      "ranking"
+    ],
+    "external_evaluator": [
+      "agent execution",
+      "authentication",
+      "Python and environment setup",
+      "evaluator package and dependency lifecycle"
+    ],
+    "excluded_from_ktx": [
+      "a general-purpose agent evaluation harness",
+      "external fresh-run authorization",
+      "provider or credential replay"
+    ],
+    "historical_campaign": "Retain original evidence and provenance. The campaign creates no supported KTX product, compatibility, or execution surface."
+  },
+  "classes": {
+    "authority": "Required source for raw facts, current corrected metrics, archive identity, digest binding, or external identity.",
+    "derived_evidence": "Frozen result computed from authority; provenance only when superseded by a correction.",
+    "reproducibility_support": "Methodology, code, or documentation that explains or regenerates evidence when historical inputs exist.",
+    "maintained_verification": "Check runnable from tracked inputs in a fresh checkout with isolated application roots and no database, provider, model, authentication, network, or external mutation.",
+    "archival_provenance": "Immutable checksum-bound historical proof retained for byte identity. It is not maintained proof and may contain a bounded documented set of machine-local values.",
+    "replaceable_proof": "Non-authoritative proof projection or bundle; replace only after rebinding every checksum and reference."
+  },
+  "coverage_summary": {
+    "raw_campaign_groups": 1,
+    "tracked_item_groups": 16,
+    "maintained_verification_items": 2,
+    "archival_provenance_items": 1,
+    "archival_provenance_procedures": 5
+  },
+  "authority_precedence": {
+    "raw_campaign_bytes": ".bench-data/skillsbench-campaigns/**",
+    "archive_identity_and_dependencies": "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+    "raw_path_and_digest_binding": "tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256",
+    "current_completeness_and_metrics": "tools/bench/evidence/skillsbench-campaign-errata.json",
+    "historical_publications": [
+      "tools/bench/evidence/skillsbench-final-index.json",
+      "tools/bench/evidence/skillsbench-five-pair-gate.json",
+      "tools/bench/evidence/skillsbench-diversity-disposition.json"
+    ],
+    "portable_external_identity": "tools/bench/external-identity/lock.json",
+    "historical_receipt_identity": "tools/bench/archive/skillsbench-campaign/external-validation/campaign-lock.json",
+    "sanitized_proof_projection": "tools/bench/evidence/skillsbench-proof-derivative.json"
+  },
+  "raw_campaigns": {
+    "category": "authority",
+    "root": ".bench-data/skillsbench-campaigns",
+    "gitignored_by": ".gitignore:3",
+    "coverage": {
+      "campaigns": 10,
+      "regular_files": 927,
+      "directories": 457,
+      "symlinks": 0,
+      "special_files": 0,
+      "databases": 20,
+      "database_contents_inspected_for_this_inventory": false
+    },
+    "campaigns": [
+      {
+        "id": "ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+        "archive_class": "revalidatable",
+        "regular_files": 85,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-canary-c5d51a6",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-c5d51a6",
+        "archive_class": "historical-only",
+        "regular_files": 85,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-repeat4-c5d51a6",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-repeat4-c5d51a6",
+        "archive_class": "historical-only",
+        "regular_files": 235,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal",
+        "archive_class": "revalidatable",
+        "regular_files": 243,
+        "corrected_complete": true
+      },
+      {
+        "id": "ktx-skillsbench-oauth-canary-74b321f",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-74b321f",
+        "archive_class": "incomplete",
+        "regular_files": 73,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-canary-618976c",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-canary-618976c",
+        "archive_class": "incomplete",
+        "regular_files": 73,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-20260731-7c3e07d",
+        "archive_class": "incomplete",
+        "regular_files": 34,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-50e6663-stopped-no-spend",
+        "archive_class": "incomplete",
+        "regular_files": 35,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-79b4887-preflight-zero-spend-diagnostic",
+        "archive_class": "incomplete",
+        "regular_files": 32,
+        "corrected_complete": false
+      },
+      {
+        "id": "ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+        "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-9c8a56a-no-spend-compat-preparation",
+        "archive_class": "incomplete",
+        "regular_files": 32,
+        "corrected_complete": false
+      }
+    ],
+    "portability": "checkout_local_archival_provenance",
+    "inbound": [
+      "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+      "tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256",
+      "tools/bench/evidence/skillsbench-final-index.json",
+      "tools/bench/evidence/skillsbench-five-pair-gate.json",
+      "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main.go.txt",
+      "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-freeze.sh.txt",
+      "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+      "tools/bench/archive/skillsbench-campaign/external-validation/main.go.txt",
+      "tools/bench/archive/skillsbench-campaign/manifest.json",
+      "tools/bench/external-identity/lock.json",
+      "docs/skillsbench-campaign.md",
+      "docs/external-validation.md",
+      "ARCHITECTURE.md",
+      "TODO.md"
+    ],
+    "retention": "immutable"
+  },
+  "items": [
+    {
+      "id": "archive_index",
+      "category": "authority",
+      "paths": ["tools/bench/evidence/skillsbench-oauth-campaign-archive.json"],
+      "sha256": "b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e",
+      "scope": "Campaign identity, archive location, class, topology, dependency facts, and limitations.",
+      "portability": "tracked_index_without_raw_restoration",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-campaign-errata.json",
+        "tools/bench/evidence/skillsbench-final-index.json",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-freeze.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/external-validation/campaign-lock.json",
+        "tools/bench/archive/skillsbench-campaign/external-validation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "tools/bench/external-identity/lock.json",
+        "docs/skillsbench-campaign.md",
+        "ARCHITECTURE.md",
+        "TODO.md"
+      ],
+      "retention": "immutable_digest_bound"
+    },
+    {
+      "id": "raw_checksum_manifest",
+      "category": "authority",
+      "paths": [
+        "tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256"
+      ],
+      "sha256": "55b196c49d7d640233db43879c7396093718708a62fb2f7452435aefdf022ec3",
+      "scope": "Exhaustive repository-relative path and digest binding for all 927 ignored regular files; cannot restore them.",
+      "portability": "tracked_binding_without_raw_restoration",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+        "tools/bench/evidence/skillsbench-campaign-errata.json",
+        "tools/bench/evidence/skillsbench-final-index.json",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-freeze.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/external-validation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "tools/bench/external-identity/lock.json",
+        "docs/skillsbench-campaign.md",
+        "docs/external-validation.md"
+      ],
+      "retention": "immutable_digest_bound"
+    },
+    {
+      "id": "current_errata",
+      "category": "authority",
+      "paths": ["tools/bench/evidence/skillsbench-campaign-errata.json"],
+      "sha256": "3b8d64b1e95bf6dcc85f16f91a40276dce97b960d9383d4e66d5e17c3fe35ca1",
+      "scope": "Preferred current completeness and metrics: one complete campaign, eight attempts, four pairs, and no corrected gate decision.",
+      "portability": "tracked_authority_not_regenerable_without_ignored_raw",
+      "inbound": [
+        "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS",
+        "tools/bench/external-identity/lock.json",
+        "docs/skillsbench-campaign.md",
+        "ARCHITECTURE.md",
+        "TODO.md"
+      ],
+      "retention": "immutable_additive_corrections_only"
+    },
+    {
+      "id": "external_identity_lock",
+      "category": "authority",
+      "paths": [
+        "tools/bench/archive/skillsbench-campaign/external-validation/campaign-lock.json"
+      ],
+      "sha256": "fc74cb73246b4873f4b493af7795f6d80d8c2f0d047750766cee4624ad141f8b",
+      "scope": "Historical receipt identity and 29 bindings only; not metrics, official-suite, authentication, or execution authority.",
+      "portability": "tracked_archival_declaration_with_ignored_raw_bindings",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-campaign-errata.json",
+        "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/external-validation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "docs/external-validation.md"
+      ],
+      "retention": "preserve_exact_bytes_and_relationship_if_replaced"
+    },
+    {
+      "id": "portable_external_identity_lock",
+      "category": "authority",
+      "paths": ["tools/bench/external-identity/lock.json"],
+      "sha256": "7fd30a9255c363ce8c9583458d4fd6dbcfc60c944969c92fe25f903a2c79f519",
+      "scope": "Direct historical evaluator, task, runtime, adapter, KTX, execution, and digest identities with bounded claims; not official-suite, metrics, authentication, authorization, or execution authority.",
+      "portability": "tracked_direct_declaration",
+      "inbound": [
+        "tools/bench/external-identity/main.go",
+        "tools/bench/external-identity/main_test.go",
+        "tools/bench/external-identity/testdata/matching.json",
+        "tools/bench/external-identity/testdata/mismatching.json",
+        "tools/bench/external-identity/testdata/malformed.json",
+        "tools/bench/external-identity/testdata/duplicate.json",
+        "tools/bench/external-identity/testdata/non-finite.json",
+        "tools/bench/external-identity/testdata/trailing.input",
+        "docs/external-validation.md"
+      ],
+      "retention": "preserve_exact_identity_values_digests_and_claim_boundaries"
+    },
+    {
+      "id": "portable_external_identity_checker",
+      "category": "maintained_verification",
+      "paths": [
+        "tools/bench/external-identity/main.go",
+        "tools/bench/external-identity/main_test.go",
+        "tools/bench/external-identity/testdata/matching.json",
+        "tools/bench/external-identity/testdata/mismatching.json",
+        "tools/bench/external-identity/testdata/malformed.json",
+        "tools/bench/external-identity/testdata/duplicate.json",
+        "tools/bench/external-identity/testdata/non-finite.json",
+        "tools/bench/external-identity/testdata/trailing.input"
+      ],
+      "sha256": {
+        "tools/bench/external-identity/main.go": "f518e922c16b0e92ce29ba7d37eb4c0935232ac3972f0eaf932c54d70cef09cc",
+        "tools/bench/external-identity/main_test.go": "834bb6a5059d71fc5b9840db6ad5523c33463ed56a99c5bb241874d90e1cf2b2",
+        "tools/bench/external-identity/testdata/matching.json": "b00335d91833ed5d811dacf5c76348113538eb702834ed3a869135ef86e62477",
+        "tools/bench/external-identity/testdata/mismatching.json": "10c105bfd053ba34f8048a03f5cbf4d2df45edf64c27d256a25b3af8beb793aa",
+        "tools/bench/external-identity/testdata/malformed.json": "b9fc4dfe21e21d2f46b571f33a1dd34bc50fca9156872d44f2e08c472aa8e586",
+        "tools/bench/external-identity/testdata/duplicate.json": "0e5fe0cfe657723e659028a217641f8cfea1b7b0511d439a87b938efb4c7c627",
+        "tools/bench/external-identity/testdata/non-finite.json": "d3dc9146617ab4b73fc1d1515959784c27fd0fad2c9488d815ee717ba14b762c",
+        "tools/bench/external-identity/testdata/trailing.input": "3b00ba5361676a0a8152642a6edaf54a222bd409b5774b5b461ac8d1cee09cb4"
+      },
+      "command": "go test -count=1 ./tools/bench/external-identity",
+      "scope": "Tracked match, mismatch, malformed-shape, duplicate-member, non-finite-number, and trailing-data checks plus generated file, read, size, nesting, and invalid-lock cases using a bounded read-only Go standard-library comparator.",
+      "portability": "fresh_checkout_tracked_inputs",
+      "inbound": ["docs/external-validation.md"],
+      "retention": "retain_or_replace_with_equivalent_direct_fresh_checkout_check"
+    },
+    {
+      "id": "historical_publications",
+      "category": "derived_evidence",
+      "paths": [
+        "tools/bench/evidence/skillsbench-final-index.json",
+        "tools/bench/evidence/skillsbench-five-pair-gate.json",
+        "tools/bench/evidence/skillsbench-diversity-disposition.json"
+      ],
+      "sha256": {
+        "tools/bench/evidence/skillsbench-final-index.json": "3c9de17822f57327dbb45f1ffd3f39212f0c1bc905ae2f60ee07cf2b35fd1100",
+        "tools/bench/evidence/skillsbench-five-pair-gate.json": "8e7db2d6f19a18a3486760459c8fcc43f5846221398eb1620803b645207ac007",
+        "tools/bench/evidence/skillsbench-diversity-disposition.json": "89c580621b93cd6a845c9fa7ee164ac00189d5651a5565269e7eee8ac797bc9f"
+      },
+      "scope": "Frozen historical publication and decision provenance; superseded current claims come from the errata.",
+      "portability": "tracked_snapshot_not_regenerable_without_ignored_raw",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-campaign-errata.json",
+        "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-freeze.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "docs/skillsbench-campaign.md",
+        "ARCHITECTURE.md",
+        "TODO.md"
+      ],
+      "retention": "immutable_historical_provenance"
+    },
+    {
+      "id": "revalidation_generator",
+      "category": "reproducibility_support",
+      "paths": [
+        "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main.go.txt"
+      ],
+      "sha256": "9140452c178c7d1f66e4d874a95934e940bd75627fc3495e71e545d2efc64cdb",
+      "scope": "Exact inert source bytes for the generator that produced the errata from ignored raw authority.",
+      "portability": "archived_inert_source_not_a_go_package",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-campaign-errata.json",
+        "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json"
+      ],
+      "retention": "preserve_exact_bytes_digest_and_generator_relationship"
+    },
+    {
+      "id": "revalidation_unit_tests",
+      "category": "reproducibility_support",
+      "paths": [
+        "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main_test.go.txt"
+      ],
+      "sha256": "0d6061b1efcf018db68ba04b013c82c707ca05016402d3149c431d89c36ce3a9",
+      "scope": "Exact inert source bytes for the historical synthetic complete and damaged fixtures, duplicate identities, first-artifact selection, delta direction, and read-only database checks.",
+      "portability": "archived_inert_source_not_a_go_package",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json"
+      ],
+      "retention": "preserve_exact_bytes_as_archival_provenance"
+    },
+    {
+      "id": "native_benchmark_cli_contract",
+      "category": "maintained_verification",
+      "paths": [
+        "internal/cli/bench_test.go",
+        "internal/cli/bench_experiment_test.go"
+      ],
+      "symbols": [
+        "TestBenchUnknownSubcommandUsesGenericUsageContract",
+        "TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated"
+      ],
+      "command": "go test -count=1 ./internal/cli -run '^(TestBenchUnknownSubcommandUsesGenericUsageContract|TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated)$'",
+      "scope": "Fresh-checkout guard for generic unknown-command usage and native comparison preflight success and failure, including machine-readable output, diagnostic separation, early task-input handling, and database-free execution.",
+      "portability": "fresh_checkout_tracked_inputs",
+      "inbound": ["ARCHITECTURE.md", "README.md", "docs/database-safety.md"],
+      "retention": "retain_representative_native_cli_contract_coverage"
+    },
+    {
+      "id": "archive_dependent_verifiers",
+      "category": "reproducibility_support",
+      "paths": [
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-freeze.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt"
+      ],
+      "sha256": {
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-freeze.sh.txt": "471b41d3a79557695dee72dc8add5d0296edf4d288e6a62f28a42e449bf953a7",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt": "0fa511905f084098c8127a95c58ec196f439eceac03290032fd3e2bf480e2f03"
+      },
+      "portability": "archived_inert_source_requires_ignored_or_missing_historical_bytes",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-campaign-errata.json",
+        "tools/bench/evidence/skillsbench-final-index.json",
+        "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS",
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "docs/external-validation.md"
+      ],
+      "retention": "archival_provenance_preserve_hash_bound_bytes"
+    },
+    {
+      "id": "external_identity_checker",
+      "category": "reproducibility_support",
+      "paths": [
+        "tools/bench/archive/skillsbench-campaign/external-validation/main.go.txt",
+        "tools/bench/archive/skillsbench-campaign/external-validation/main_test.go.txt"
+      ],
+      "sha256": {
+        "tools/bench/archive/skillsbench-campaign/external-validation/main.go.txt": "c6b611ebe7e2852fd1661a05c4aeac00fecf7d126c5f1b57f39962786e615971",
+        "tools/bench/archive/skillsbench-campaign/external-validation/main_test.go.txt": "20ba07910b4cbca54d2ca759c6752f0f565a8d2035521c452f40c9d990a3f74e"
+      },
+      "scope": "Exact inert source bytes for the historical read-only receipt comparison; no execution, authentication, installation, provisioning, authorization, or provider call.",
+      "portability": "archived_inert_source_not_a_go_package",
+      "inbound": [
+        "tools/bench/archive/skillsbench-campaign/external-validation/campaign-lock.json",
+        "docs/external-validation.md",
+        "tools/bench/archive/skillsbench-campaign/external-validation/evidence/contract-repair/strace.log",
+        "tools/bench/archive/skillsbench-campaign/manifest.json"
+      ],
+      "retention": "preserve_exact_bytes_after_portable_replacement"
+    },
+    {
+      "id": "historical_methodology",
+      "category": "reproducibility_support",
+      "paths": ["tools/bench/methodology-skillsbench-v1.yaml"],
+      "sha256": "7e9a1a6fff0bc0d400f182551435c7080daeb39fea787bea32f1b6d78076a5a6",
+      "scope": "Predeclared methodology retained with copied, digest-bound raw inputs.",
+      "portability": "tracked_history_without_external_execution_environment",
+      "inbound": [
+        ".bench-data/skillsbench-campaigns/*/manifest.json",
+        ".bench-data/skillsbench-campaigns/*/inputs/**",
+        "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+        "docs/skillsbench-campaign.md"
+      ],
+      "retention": "resolve_documentation_refs_before_removal_raw_copies_remain_authority"
+    },
+    {
+      "id": "historical_documentation",
+      "category": "reproducibility_support",
+      "paths": [
+        "docs/skillsbench-campaign.md",
+        "docs/external-validation.md",
+        "tools/bench/archive/skillsbench-campaign/README.md",
+        "tools/bench/archive/skillsbench-campaign/manifest.json"
+      ],
+      "portability": "tracked_readable_history_with_explicitly_archival_procedures",
+      "inbound": [
+        "README.md",
+        "tools/bench/evidence/skillsbench-final-index.json",
+        "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+        "tools/bench/evidence/state-synchronization/SHA256SUMS",
+        "ARCHITECTURE.md",
+        "TODO.md"
+      ],
+      "retention": "may_shorten_but_keep_corrected_counts_limits_authority_locations_and_provenance"
+    },
+    {
+      "id": "captured_historical_proof_bundles",
+      "category": "archival_provenance",
+      "paths": [
+        "tools/bench/evidence/skillsbench-campaign-errata-evidence/",
+        "tools/bench/archive/skillsbench-campaign/external-validation/evidence/contract-repair/",
+        "tools/bench/evidence/state-synchronization/"
+      ],
+      "sha256": {
+        "tools/bench/evidence/skillsbench-campaign-errata-evidence/SHA256SUMS": "0f16b104b9f754879d40394e7918f4baeba24b5e2ae7ebde21e082241c46d0ad",
+        "tools/bench/archive/skillsbench-campaign/external-validation/evidence/contract-repair/SHA256SUMS": "807df1bdb8680e61755f55af501f612b94e4a05639df41345ba42737bc2c655b",
+        "tools/bench/evidence/state-synchronization/SHA256SUMS": "81c52e78dcf0380c87f3ac743d60366a85403e14a1330442d46f3e0e5734bdf1"
+      },
+      "scope": "Exact checksum and environment manifests, fixture matrix, verification logs, CLI matrix, and system-call trace captured before the residue cleanup.",
+      "portability": "tracked_immutable_archival_snapshots; four files retain bounded machine-local path or temporary-root values and are not maintained proof",
+      "inbound": [
+        "tools/bench/evidence/skillsbench-campaign-errata.json",
+        "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "tools/bench/evidence/skillsbench-proof-derivative.json",
+        "docs/external-validation.md",
+        "docs/skillsbench-campaign.md"
+      ],
+      "retention": "preserve_exact_bytes_under_bounded_machine_local_exception"
+    },
+    {
+      "id": "sanitized_proof_derivative",
+      "category": "replaceable_proof",
+      "paths": ["tools/bench/evidence/skillsbench-proof-derivative.json"],
+      "sha256": "79a6e46c5f6ca81d06d16e8f16602198d0cd4389f208a2cc104ca1fb8b8bf9a8",
+      "status": "current",
+      "scope": "Portable bounded projection of historical proof facts linked to the three immutable source checksum manifests without reproducing machine-local values, credential values, or project tracking markers.",
+      "portability": "fresh_checkout_tracked_sanitized_projection",
+      "inbound": [
+        "tools/bench/archive/skillsbench-campaign/manifest.json",
+        "tools/bench/archive/skillsbench-campaign/README.md",
+        "docs/external-validation.md",
+        "docs/skillsbench-campaign.md"
+      ],
+      "retention": "replace_only_after_rebinding_digest_status_authority_and_all_inbound_refs"
+    }
+  ],
+  "portability": {
+    "fresh_checkout": "Git-only tree with no ignored archive; KTX_DB unset; new HOME and XDG roots for each command.",
+    "maintained": [
+      {
+        "command": "go test -count=1 ./tools/bench/external-identity",
+        "result": "pass",
+        "inputs": "tracked direct lock and matching, mismatching, malformed-shape, duplicate-member, non-finite-number, and trailing-data identities"
+      },
+      {
+        "command": "go test -count=1 ./internal/cli -run '^(TestBenchUnknownSubcommandUsesGenericUsageContract|TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated)$'",
+        "result": "pass",
+        "inputs": "tracked native CLI source and tests"
+      }
+    ],
+    "proof_boundary": "Original proof bundles are immutable archival provenance with a bounded machine-local exception. The current portable proof projection is tools/bench/evidence/skillsbench-proof-derivative.json and is not campaign authority.",
+    "archive_boundary": "Files under tools/bench/archive/skillsbench-campaign are inert historical evidence. Go and shell sources use a .txt suffix and are absent from routine package discovery and repository verification.",
+    "archival_provenance": [
+      {
+        "archived_source": "tools/bench/archive/skillsbench-campaign/external-validation/main_test.go.txt",
+        "historical_command": "go test -count=1 ./tools/bench/external-validation",
+        "fresh_checkout_status": "unavailable_by_design",
+        "requirements": "Restore exact archived source and lock bytes to their former paths in a disposable checkout and provide the ignored manifest and preflight bytes."
+      },
+      {
+        "archived_source": "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-errata.sh.txt",
+        "historical_command": "bash tools/bench/evidence/verify-skillsbench-campaign-errata.sh",
+        "fresh_checkout_status": "unavailable_by_design",
+        "requirements": "Restore exact archived script and generator bytes to their former paths in a disposable checkout and provide all 927 ignored raw files."
+      },
+      {
+        "archived_source": "tools/bench/archive/skillsbench-campaign/verify-skillsbench-campaign-freeze.sh.txt",
+        "historical_command": "bash tools/bench/evidence/verify-skillsbench-campaign-freeze.sh",
+        "fresh_checkout_status": "unavailable_by_design",
+        "requirements": "Restore the exact archived script to its former path in a disposable checkout and provide all ignored raw files. Eight recorded source roots include three non-empty and five empty or unavailable roots; two campaigns record no source root."
+      },
+      {
+        "archived_source": "tools/bench/archive/skillsbench-campaign/campaign-revalidation/main.go.txt",
+        "historical_command": "go run ./tools/bench/evidence/campaign-revalidation --check tools/bench/evidence/skillsbench-campaign-errata.json",
+        "fresh_checkout_status": "unavailable_by_design",
+        "requirements": "Restore exact archived generator source to its former path in a disposable checkout and provide all 927 ignored raw files."
+      },
+      {
+        "archived_source": "tools/bench/archive/skillsbench-campaign/external-validation/main.go.txt",
+        "historical_command": "go run ./tools/bench/external-validation render",
+        "fresh_checkout_status": "unavailable_by_design",
+        "requirements": "Restore exact archived inspector and lock bytes to their former paths in a disposable checkout and provide the selected ignored manifest and preflight bytes."
+      }
+    ],
+    "historical_source_roots": "Recorded as provenance in the archive index, never authority or a maintained-check dependency."
+  },
+  "candidate_removal_guard": [
+    "Preserve every authoritative raw byte and the exhaustive path and digest binding.",
+    "Preserve the current corrected metrics and immutable historical publications plus their supersession relationship.",
+    "Preserve preflight, terminal disposition, execution, result and summary, database, schedule and attempt identity, and digest paths needed by authoritative claims.",
+    "If digest-bound generator, verifier, or lock source leaves the maintained surface, preserve its exact bytes, digest, and relationship in additive archival provenance.",
+    "Retain fresh-checkout coverage for the generic benchmark CLI boundary and native database-free preflight behavior.",
+    "Keep machine-local values only in explicitly classified archival provenance, and bind the portable sanitized derivative by exact source and derivative digests.",
+    "Rebind all inbound references before replacing proof or documentation.",
+    "A procedure that needs ignored archive bytes or historical machine-local roots is archival provenance, never maintained verification."
+  ]
+}

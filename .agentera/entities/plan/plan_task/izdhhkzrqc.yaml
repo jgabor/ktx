@@ -1,0 +1,27 @@
+id: izdhhkzrqc
+artifact: plan
+record:
+  name: Add immutable opt-in fail-fast execution
+  depends_on:
+    []
+  status: superseded
+  acceptance:
+    - GIVEN a newly prepared campaign without an explicit stop policy WHEN its retained identity is inspected THEN continue-on-failure remains the default.
+    - GIVEN explicit fail-fast selection at preparation WHEN campaign identity is finalized THEN the policy is retained immutably, invalid values and late changes are rejected, and existing campaigns without the policy retain continue behavior.
+    - GIVEN fail-fast execution WHEN an attempt exits nonzero, times out, encounters an executor error, fails credential scanning, or fails a post-preflight integrity check THEN the triggering evidence is retained and no later attempt starts.
+    - GIVEN any early stop WHEN summary and validation regenerate terminal state THEN every scheduled attempt is classified as completed, failed, or not_started with a reason and triggering attempt identity where applicable.
+    - GIVEN the new behavior WHEN verification and independent review run THEN all-success, ordinary-failure, stop-category, and legacy-compatibility cases, operator documentation, and the full project check pass before paid authorization.
+  plan: oydbeaydwa
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Bounded re-review closed campaign-root credential leakage and legacy terminal projection, but terminal validation still rejects only execution.json after a policy stop. It can accept stdout, stderr, credential markers, BenchFlow output, or other execution artifacts beside not_started terminal evidence. The validator must reject every post-trigger artifact except the expected terminal record and add non-execution.json corruption coverage. Superseding progress evidence overstates this invariant; paid execution remains blocked.
+    provenance:
+      attempt_id: audit-2
+      source: "bounded Audit re-review: post-stop artifact gap"
+      recorded_at: 2026-07-31 14:50
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - eyqhaqohok
+  superseded_reason: The independently passed replacement satisfies the original fail-fast behavior, terminal accounting, verification, and documentation criteria.

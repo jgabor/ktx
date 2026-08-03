@@ -1,0 +1,41 @@
+{
+  "schema_version": "ktx.external-validation-lock.v4",
+  "receipt_schema": "ktx.external-validation-observed.v2",
+  "archive": {
+    "path": "tools/bench/evidence/skillsbench-oauth-campaign-archive.json",
+    "sha256": "b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e"
+  },
+  "campaign_id": "ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight",
+  "task_provenance": "external",
+  "bindings": {
+    "identity.evaluator.version": "manifest:pins.benchflow",
+    "identity.evaluator.source_commit": "manifest:pins.benchflow_commit",
+    "identity.evaluator.binary_sha256": "preflight:benchflow.sha256",
+    "identity.task.id": "manifest:tasks.0.id",
+    "identity.task.provenance_basis": "manifest:pins.skillsbench",
+    "identity.task.source_sha256": "manifest:tasks.0.source.sha256",
+    "identity.task.overlay_sha256": "manifest:tasks.0.overlay.sha256",
+    "identity.runtime.version": "manifest:agent.runtime_version",
+    "identity.runtime.binary_sha256": "preflight:bootstrap_checks.0.artifact.sha256",
+    "identity.adapter.registry": "manifest:agent.benchflow_registry",
+    "identity.adapter.protocol": "preflight:agent_contract.protocol",
+    "identity.adapter.plugin_sha256": "manifest:plugin.sha256",
+    "identity.adapter.manifest_sha256": "manifest:agent_manifest.sha256",
+    "identity.adapter.launcher_sha256": "manifest:launch_wrapper.sha256",
+    "identity.ktx.source_commit": "preflight:native_source.git_commit",
+    "identity.ktx.worktree_sha256": "preflight:native_source.worktree_sha256",
+    "identity.ktx.binary_sha256": "manifest:executable.sha256",
+    "execution.model": "manifest:model",
+    "execution.variant": "manifest:effective_variant",
+    "execution.rounds": "manifest:rounds",
+    "execution.seed": "manifest:seed",
+    "execution.skill_mode": "manifest:skill_mode",
+    "execution.stop_policy": "manifest:stop_policy",
+    "execution.usage_source": "manifest:expected_usage_source",
+    "execution.retry_attempts": "campaign:execution.retry_attempts",
+    "execution.concurrency": "campaign:execution.concurrency",
+    "execution.methodology_sha256": "manifest:methodology.sha256",
+    "execution.baseline_config_sha256": "manifest:baseline_config.sha256",
+    "execution.candidate_config_sha256": "manifest:candidate_config.sha256"
+  }
+}

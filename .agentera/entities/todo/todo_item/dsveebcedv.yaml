@@ -1,0 +1,20 @@
+id: dsveebcedv
+artifact: todo
+record:
+  severity: normal
+  status: resolved
+  description: Replan the blocked Luna replication task so campaign execution can honor the approved stop-after-first-failure contract.
+  readiness:
+    capability: plan
+    reason: The current runner continues after ordinary BenchFlow nonzero exits, so paid execution cannot satisfy the accepted safety condition.
+    dependencies:
+      []
+    blocked:
+      reason: Task uvrcjkhvkh exhausted two zero-spend evaluations; the current runner continues after ordinary attempt failures.
+      recovery: Approve and plan a bounded fail-fast runner change, or explicitly revise the paid execution stop condition.
+    gate:
+      state: pending
+      reason: The current plan does not include the newly required runner change, and paid execution remains paused.
+      recovery: The user approves replanning of runner behavior or revises the stop-condition authorization.
+    queue_rank: 1
+    order_reason: Every downstream Luna evidence task depends on resolving the blocked replication task.

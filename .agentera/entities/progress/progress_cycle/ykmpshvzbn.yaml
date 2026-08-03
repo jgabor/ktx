@@ -1,0 +1,15 @@
+id: ykmpshvzbn
+artifact: progress
+record:
+  timestamp: 2026-07-31 15:02
+  type: fix
+  phase: build
+  what: Completed fail-fast artifact enforcement by sharing a terminal-only post-trigger directory allowlist between summary import and terminal-accounting validation.
+  context:
+    intent: Close the accepted paid-evidence integrity gap in which policy-stopped attempts could retain non-execution.json artifacts while still validating.
+    constraints: No model or campaign execution, OAuth credential access, campaign archive mutation, dependency change, later evidence work, task completion, TODO resolution, or push.
+    unknowns: Independent Audit remains pending by design.
+    scope: internal/skillsbench terminal import, validation, and stop-policy regressions; existing blocked predecessor, open TODO, and in-progress replacement state preserved.
+  verified: Every post-trigger attempt directory must contain exactly one no-symlink regular terminal.json. Table regressions reject stdout.txt, stderr.txt, execution.json, credential-scan.json, benchflow/rollout/result.json, unexpected.bin, evidence-link symlink, and nested/deeper/evidence.txt; the terminal-only control preserves same-trigger not_started state and zero artifacts. Fresh isolated roots with KTX_DB unset passed named go test, go test ./internal/skillsbench ./internal/cli, go test -race ./internal/skillsbench ./internal/cli, mage build, ./build/ktx --version and SkillsBench validate help, and mage check with forbidden=0. ./build/ktx reports dev and SHA-256 b91971065dee11f6ad8ca155a6b8ca434454cb9c47a6781bfef8d005d41366e7.
+  next: Independent Audit must review and persist PASS before orchestration resolves or supersedes the blocked predecessor; paid execution remains blocked.
+  publication_order: 4

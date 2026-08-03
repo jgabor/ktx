@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+export LC_ALL=C
+
+readonly index=tools/bench/evidence/skillsbench-oauth-campaign-archive.json
+readonly artifacts=tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256
+readonly final_index=tools/bench/evidence/skillsbench-final-index.json
+readonly gate=tools/bench/evidence/skillsbench-five-pair-gate.json
+
+fail() {
+  printf 'skillsbench campaign freeze: %s\n' "$1" >&2
+  exit 1
+}
+
+digest_file() {
+  sha256sum "$1" | cut -d' ' -f1
+}
+
+digest_artifact_set() {
+  local root=$1
+  find "$root" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+}
+
+digest_relative_artifact_set() {
+  local root=$1
+  (
+    cd "$root"
+    find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+  )
+}
+
+digest_topology() {
+  local root=$1
+  find "$root" -printf '%y\t%P\n' | sort | sha256sum | cut -d' ' -f1
+}
+
+jq -e '
+  .schema_version == 2 and
+  (.campaigns | length) == .freeze.campaign_count and
+  ([.campaigns[].archive] | length == (unique | length)) and
+  ([.campaigns[].freeze.artifacts.regular_files] | add) == .freeze.artifact_manifest.regular_files and
+  (([.campaigns[].freeze.artifacts.directories] | add) + 1) == .freeze.topology.directories and
+  ([.campaigns[] | select(.freeze.class == "revalidatable")] | length) == .freeze.class_counts.revalidatable and
+  ([.campaigns[] | select(.freeze.class == "historical-only")] | length) == .freeze.class_counts["historical-only"] and
+  ([.campaigns[] | select(.freeze.class == "incomplete")] | length) == .freeze.class_counts.incomplete and
+  ([.campaigns[] | select(.freeze.class == "non-regenerable")] | length) == .freeze.class_counts["non-regenerable"] and
+  all(.campaigns[];
+    (.freeze.class == "revalidatable" or
+     .freeze.class == "historical-only" or
+     .freeze.class == "incomplete" or
+     .freeze.class == "non-regenerable") and
+    (.freeze.validation_limitations | length > 0) and
+    (.freeze.dependencies.source_manifest == (.archive + "/manifest.json")) and
+    (.freeze.dependencies.source_manifest_sha256 == .manifest_sha256)
+  )
+' "$index" >/dev/null || fail 'index structure or classification is invalid'
+
+campaign_count=$(jq -r '.freeze.campaign_count' "$index")
+artifact_count=$(jq -r '.freeze.artifact_manifest.regular_files' "$index")
+expected_artifact_digest=$(jq -r '.freeze.artifact_manifest.sha256' "$index")
+expected_path_set_digest=$(jq -r '.freeze.artifact_manifest.path_set_sha256' "$index")
+expected_topology_digest=$(jq -r '.freeze.topology.sha256' "$index")
+raw_root=$(jq -r '.archive_root' "$index")
+
+[[ $(jq -r '.freeze.artifact_manifest.path' "$index") == "$artifacts" ]] ||
+  fail 'artifact manifest location changed'
+[[ $(digest_file "$artifacts") == "$expected_artifact_digest" ]] ||
+  fail 'artifact manifest digest changed'
+[[ $(wc -l <"$artifacts") -eq $artifact_count ]] ||
+  fail 'artifact manifest count changed'
+sha256sum -c "$artifacts" >/dev/null || fail 'raw artifact digest changed'
+[[ $(digest_artifact_set "$raw_root") == "$expected_artifact_digest" ]] ||
+  fail 'raw artifact membership or content changed'
+actual_path_set_digest=$(
+  find "$raw_root" -type f -printf '%p\n' | sort | sha256sum | cut -d' ' -f1
+)
+[[ $actual_path_set_digest == "$expected_path_set_digest" ]] ||
+  fail 'raw artifact path set changed'
+
+actual_topology_digest=$(
+  find "$raw_root" -printf '%y\t%p\n' | sort | sha256sum | cut -d' ' -f1
+)
+[[ $actual_topology_digest == "$expected_topology_digest" ]] ||
+  fail 'raw path topology changed'
+[[ $(find "$raw_root" -printf '.' | wc -c) -eq $(jq -r '.freeze.topology.entries' "$index") ]] ||
+  fail 'raw topology entry count changed'
+[[ $(find "$raw_root" -type d -printf '.' | wc -c) -eq $(jq -r '.freeze.topology.directories' "$index") ]] ||
+  fail 'raw directory count changed'
+[[ $(find "$raw_root" -type l -printf '.' | wc -c) -eq $(jq -r '.freeze.topology.symlinks' "$index") ]] ||
+  fail 'raw symlink count changed'
+[[ $(find "$raw_root" ! -type f ! -type d ! -type l -printf '.' | wc -c) -eq $(jq -r '.freeze.topology.special_files' "$index") ]] ||
+  fail 'raw special-file count changed'
+
+indexed_roots_digest=$(
+  jq -r '.campaigns[].archive' "$index" | sort | sha256sum | cut -d' ' -f1
+)
+present_roots_digest=$(
+  find "$raw_root" -mindepth 1 -maxdepth 1 -type d -printf '%p\n' |
+    sort | sha256sum | cut -d' ' -f1
+)
+[[ $indexed_roots_digest == "$present_roots_digest" ]] ||
+  fail 'campaign root inventory changed'
+
+mapfile -t source_roots < <(jq -r '.campaigns[].source // empty' "$index")
+[[ ${#source_roots[@]} -eq $(jq -r '.freeze.claimed_source_roots.recorded' "$index") ]] ||
+  fail 'historical source-root count changed'
+source_artifact_count=$(find "${source_roots[@]}" -type f -printf '.' | wc -c)
+source_topology_count=$(find "${source_roots[@]}" -printf '.' | wc -c)
+source_artifact_digest=$(
+  find "${source_roots[@]}" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+)
+source_topology_digest=$(
+  find "${source_roots[@]}" -printf '%y\t%p\n' | sort | sha256sum | cut -d' ' -f1
+)
+[[ $source_artifact_count -eq $(jq -r '.freeze.claimed_source_roots.regular_file_locations' "$index") ]] ||
+  fail 'historical source artifact count changed'
+[[ $source_topology_count -eq $(jq -r '.freeze.claimed_source_roots.topology_entries' "$index") ]] ||
+  fail 'historical source topology count changed'
+[[ $source_artifact_digest == $(jq -r '.freeze.claimed_source_roots.path_content_sha256' "$index") ]] ||
+  fail 'historical source artifact membership or content changed'
+[[ $source_topology_digest == $(jq -r '.freeze.claimed_source_roots.topology_sha256' "$index") ]] ||
+  fail 'historical source topology changed'
+
+while IFS=$'\t' read -r archive files directories artifact_digest topology_digest source source_status source_files source_digest dependency_manifest dependency_manifest_digest; do
+  [[ -d $archive ]] || fail "missing archive: $archive"
+  [[ $(find "$archive" -type f -printf '.' | wc -c) -eq $files ]] ||
+    fail "artifact count changed: $archive"
+  [[ $(find "$archive" -type d -printf '.' | wc -c) -eq $directories ]] ||
+    fail "directory count changed: $archive"
+  [[ $(digest_artifact_set "$archive") == "$artifact_digest" ]] ||
+    fail "artifact set changed: $archive"
+  [[ $(digest_topology "$archive") == "$topology_digest" ]] ||
+    fail "path topology changed: $archive"
+  [[ $(digest_file "$dependency_manifest") == "$dependency_manifest_digest" ]] ||
+    fail "retained dependency manifest changed: $dependency_manifest"
+
+  jq -e '
+    .pins.benchflow == "0.6.5" and
+    .pins.benchflow_commit == "737146cc60fbc1b3595198eebbabba4628592d02" and
+    .pins.opencode == "1.18.5" and
+    .agent.benchflow_registry == "codex-acp" and
+    .tasks[0].id == "3d-scan-calc" and
+    .auth.provider == "openai" and
+    .auth.type == "oauth" and
+    all([
+      .agent_manifest,
+      .executable,
+      .launch_wrapper,
+      .plugin,
+      .methodology,
+      .baseline_config,
+      .candidate_config
+    ][]; (.path | type == "string") and (.sha256 | test("^[0-9a-f]{64}$"))) and
+    all(.tasks[]; (.source.sha256 | test("^[0-9a-f]{64}$")) and
+                  (.overlay.sha256 | test("^[0-9a-f]{64}$")))
+  ' "$dependency_manifest" >/dev/null ||
+    fail "retained dependency facts are incomplete: $dependency_manifest"
+
+  while IFS=$'\t' read -r dependency_path dependency_digest; do
+    resolved_dependency="$archive/$dependency_path"
+    [[ -f $resolved_dependency ]] || fail "missing retained dependency input: $resolved_dependency"
+    [[ $(digest_file "$resolved_dependency") == "$dependency_digest" ]] ||
+      fail "retained dependency input changed: $resolved_dependency"
+  done < <(
+    jq -r '[
+      .agent_manifest,
+      .executable,
+      .launch_wrapper,
+      .plugin,
+      .methodology,
+      .baseline_config,
+      .candidate_config
+    ][] | [.path, .sha256] | @tsv' "$dependency_manifest"
+  )
+
+  while IFS= read -r dependency_dir; do
+    [[ -d $archive/$dependency_dir ]] || fail "missing retained dependency tree: $archive/$dependency_dir"
+  done < <(jq -r '.tasks[] | .source.path, .overlay.path' "$dependency_manifest")
+
+  if [[ $source_status == present-identical ]]; then
+    [[ -d $source ]] || fail "missing historical source: $source"
+    [[ $(find "$source" -type f -printf '.' | wc -c) -eq $source_files ]] ||
+      fail "historical source count changed: $source"
+    [[ $(digest_relative_artifact_set "$source") == "$source_digest" ]] ||
+      fail "historical source content changed: $source"
+    diff -qr "$source" "$archive" >/dev/null ||
+      fail "historical source differs from archive: $source"
+  elif [[ $source_status != unrecorded ]]; then
+    fail "unknown historical source status: $source_status"
+  fi
+done < <(
+  jq -r '.campaigns[] | [
+    .archive,
+    .freeze.artifacts.regular_files,
+    .freeze.artifacts.directories,
+    .freeze.artifacts.path_content_sha256,
+    .freeze.artifacts.topology_sha256,
+    (.source // "-"),
+    .freeze.source_location.status,
+    (.freeze.source_location.regular_files // 0),
+    (.freeze.source_location.relative_path_content_sha256 // "-"),
+    .freeze.dependencies.source_manifest,
+    .freeze.dependencies.source_manifest_sha256
+  ] | @tsv' "$index"
+)
+
+jq -e --slurpfile archive "$index" '
+  .freeze.campaigns == $archive[0].freeze.campaign_count and
+  .freeze.raw_regular_files == $archive[0].freeze.artifact_manifest.regular_files and
+  .freeze.class_counts == $archive[0].freeze.class_counts and
+  .freeze.authority == "tools/bench/evidence/skillsbench-oauth-campaign-archive.json"
+' "$final_index" >/dev/null || fail 'final index freeze summary changed'
+
+while IFS=$'\t' read -r path expected; do
+  [[ -f $path ]] || fail "missing tracked evidence dependency: $path"
+  [[ $(digest_file "$path") == "$expected" ]] ||
+    fail "tracked evidence dependency changed: $path"
+done < <(jq -r '.evidence[] | [.path, .sha256] | @tsv' "$final_index")
+
+indexed_archive_digest=$(
+  jq -r '.evidence.campaign_inventory.sha256' "$final_index"
+)
+[[ $(digest_file "$index") == "$indexed_archive_digest" ]] ||
+  fail 'final index campaign-inventory binding changed'
+
+indexed_artifact_digest=$(
+  jq -r '.evidence.campaign_artifacts.sha256' "$final_index"
+)
+[[ $expected_artifact_digest == "$indexed_artifact_digest" ]] ||
+  fail 'final index artifact-manifest binding changed'
+
+expected_reference_count=$(jq -r '.freeze.tracked_raw_references.count' "$index")
+actual_reference_count=$(
+  jq -r '.. | objects | select(has("path") and has("sha256")) | [.path, .sha256] | @tsv' "$gate" |
+    sort -u | wc -l
+)
+[[ $actual_reference_count -eq $expected_reference_count ]] ||
+  fail 'tracked raw-reference count changed'
+
+while IFS=$'\t' read -r path expected; do
+  [[ -f $path ]] || fail "missing gate artifact: $path"
+  [[ $(digest_file "$path") == "$expected" ]] || fail "gate artifact changed: $path"
+done < <(
+  jq -r '.. | objects | select(has("path") and has("sha256")) | [.path, .sha256] | @tsv' "$gate" |
+    sort -u
+)
+
+printf '{"campaigns":%s,"artifacts":%s,"tracked_raw_references":%s,"status":"ok"}\n' \
+  "$campaign_count" "$artifact_count" "$actual_reference_count"

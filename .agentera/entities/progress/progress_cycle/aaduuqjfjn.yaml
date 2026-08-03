@@ -1,0 +1,15 @@
+id: aaduuqjfjn
+artifact: progress
+record:
+  timestamp: 2026-07-31 14:16
+  type: feat
+  phase: build
+  what: Added immutable opt-in fail-fast SkillsBench execution and complete terminal accounting.
+  context:
+    intent: Preserve continue-on-failure by default while allowing preparation-time fail-fast campaigns to stop safely after the first configured failure.
+    constraints: No paid execution, OAuth credential access, inherited-evidence work, campaign archive mutation, dependency change, or later task advancement.
+    unknowns: Independent Audit has not yet evaluated the implementation.
+    scope: SkillsBench campaign identity, runner, summarizer, validator, CLI help, focused tests, and operator documentation.
+  verified: "internal/skillsbench now retains continue or fail-fast in manifest.json and hashed schedule.jsonl, writes completed/failed/not_started terminal evidence, and suppresses later executors for five stop categories. Legacy absent-policy campaigns keep continue behavior. Verified: isolated go test ./internal/skillsbench ./internal/cli, isolated go test -race ./internal/skillsbench ./internal/cli, mage build, ./build/ktx --version and SkillsBench help, and isolated mage check passed; build/ktx SHA-256 is 7044ec541f9c79da199c04639868a7c1770ddde77119fe261c3957448a9b0ba6. No model attempt ran."
+  next: Independent Audit should verify the retained identity and all stop-category evidence before the orchestrator changes task status.
+  publication_order: 2

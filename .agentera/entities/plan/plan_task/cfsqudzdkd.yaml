@@ -1,0 +1,27 @@
+id: cfsqudzdkd
+artifact: plan
+record:
+  name: Lock external validation
+  depends_on:
+    - jrtqriqdwv
+    - cuehrhelfu
+  status: superseded
+  acceptance:
+    - GIVEN a campaign lock WHEN checked THEN evaluator, task, runtime, adapter, and KTX identities are exact, immutable, and bound only to declared inputs.
+    - GIVEN a mismatch WHEN checked THEN required and found identities plus correction are reported without installation, updates, authentication, or KTX changes.
+    - GIVEN validation WHEN gated THEN rendering is free; paid work needs fresh approval, authentication stays external, output is bounded, and credentials are absent.
+    - GIVEN unverified local tasks WHEN labeled THEN they are external, with one accepted and rejected case proving the rule.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: "Retry 1 accepts an incorrect observed schema as a perfect match and can echo JWT-shaped or fixed-length secret-shaped values because found-value validation is field-agnostic. Archive path/hash and campaign ID also remain compiled constants rather than lock-owned, the lock-tamper test is ambiguous, and KTX correction is not inspection-only. Minimal repair: exact schema equality, field-specific found validators with secret-output corpus tests, move archive selection into pinned lock, repair tamper test against complete authority tree, and make correction read-only."
+    provenance:
+      attempt_id: audit-cfsqudzdkd-2
+      source: audit_cfsqudzdkd_external_lock retry 1 overall FAIL; security C, maintainability B
+      recorded_at: 2026-08-02 07:15
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - njuedouqal
+  superseded_reason: User-authorized replacement passed committed-byte audit and repairs the external validation lock while preserving the predecessor's failed evaluation history.

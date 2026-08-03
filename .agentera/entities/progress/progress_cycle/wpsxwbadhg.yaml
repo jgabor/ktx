@@ -1,0 +1,15 @@
+id: wpsxwbadhg
+artifact: progress
+record:
+  timestamp: 2026-07-31 18:15
+  type: fix
+  phase: build
+  what: Corrected the current successful Luna campaign inventory and bounded documentation to replace the unsupported aggregate tree hash with the repository canonical value and exact algorithm provenance.
+  context:
+    intent: Restore reproducible replication evidence without changing or executing the campaign.
+    constraints: No campaign-byte, production-code, dependency, remote, gate-analysis, validator, KTX, preflight, or model execution changes. Leave replacement task in progress, original task blocked, and TODO open.
+    unknowns: Independent Audit still owns acceptance of the corrected evidence claim.
+    scope: tools/bench/evidence/skillsbench-oauth-campaign-archive.json, docs/skillsbench-campaign.md, intentional task and TODO state, and this progress cycle.
+  verified: Supersedes the incorrect successful tree-hash claim 44b46b4aeefd09a65d6bd378472ddbf5bb08a3f1fac8e1b03e388287299875e6. Canonical internal/skillsbench.treeHash from internal/skillsbench/files.go produced full SHA-256 0d1502fca7973befd0e89c449ec30a5eaf23cb7cfee045184f125e1f2114e501 independently for source and archive; diff -qr passed. Direct manifest, schedule, preflight, summary, and attempts hashes remained deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20, 4394aeed451db634be35535f6734d086485ce0d89aae5dd16f0c8e36d9987325, c55feb0209bf411f1f619707410ec18226d25678fe49db6d4ff10b45a6c807ee, 55ec395e27cb64d83e61f0e6b87731996b19a783b6716f4810f7844212c433dc, and bdb648adb8755379d1d9565459da9363d1fed452398c86d5904c12e06e7957e9. Focused JSON assertions confirmed unchanged schema 7 Luna/high identity, fail-fast schedule and ordering, 8/8 completed quality-evaluable attempts, rewards, four complete pairs, zero deltas, null cost, and valid complete results. The diagnostic canonical hash 532c69960b5a053af6e7143619565fff60a5180e82bcc2c303226b5c9c487463 remained unchanged. Exact credential-value scans passed across 491 source, archive, and changed tracked files. JSON formatting and git diff --check passed. No campaign, preflight, validator, KTX, or model execution occurred.
+  next: Independent Audit must review this correction before any later PASS can supersede the blocked replication task or resolve the open TODO.
+  publication_order: 10

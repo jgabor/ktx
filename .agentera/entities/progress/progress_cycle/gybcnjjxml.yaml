@@ -1,0 +1,15 @@
+id: gybcnjjxml
+artifact: progress
+record:
+  timestamp: 2026-07-31 16:44
+  type: docs
+  phase: build
+  what: Archived the no-spend four-pair Luna compatibility preparation byte-identically and extended the campaign inventory and operator documentation. Three successful quality campaigns remain separate from two historical failures, two zero-spend stops, and one preparation-only probe.
+  context:
+    intent: Reconfirm inherited evidence authority without paid execution, preserve legacy records and behavior, and leave the selected task in progress for independent Audit.
+    constraints: No production code, paid or model execution, campaign preflight or run, dependency change, later task, secret retention, archive mutation, remote operation, or task completion.
+    unknowns: Independent Audit has not yet evaluated this evidence integration.
+    scope: Ignored durable compatibility probe, tracked campaign inventory, operator documentation, intentional in-progress task state, and this progress record.
+  verified: Retained plan, task, evaluation, progress, and campaign history remains available; only the orchestrator-selected task status is intentionally in progress. Retained and current validators returned valid and complete for the Luna 2/2 canary; retained schema-6 campaigns returned 2/2 and 8/8; schema-4 and schema-5 diagnostics retained their authority and identity failures; both zero-spend stops remained incomplete diagnostics with zero executed attempts. Ten full credential scans passed. Source/archive recursive comparison and relative tree SHA-256 532c69960b5a053af6e7143619565fff60a5180e82bcc2c303226b5c9c487463 matched; manifest and schedule hashes matched. Legacy absent-policy manifests remained unchanged with continue behavior. Canary/probe model, variant, task source, arms, methodology, plugin, launcher, runtime, authentication, usage, and null-cost identity matched. Expected pair-count, policy, coordinator, source-location, and coordinator-only overlay differences support proceeding only to a later preflight and authorization gate; they do not authorize paid execution. The current local binary reported dev with SHA-256 750ca723fb47dab46e42142330aa8e56f9c087bb8df2a075e6f6212798a9e9a2. No model attempt ran.
+  next: Independent Audit should inspect the retained evidence and decide the task lifecycle; paid work remains blocked behind a later preflight and authorization gate.
+  publication_order: 8

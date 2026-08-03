@@ -1,0 +1,49 @@
+id: ykjitbbwfl
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-02
+    status: complete
+    reviewed: 2026-08-02
+    critic_issues: 7 found, 7 addressed, 0 dismissed
+    title: "Plan: Restore Benchmark Ownership and Evidence Integrity"
+  what: Keep KTX's native cost-and-quality benchmark as the supported product surface, move third-party evaluator lifecycle work to optional locked release validation, repair the retained external campaign evidence, and align the branch with current main.
+  why: The branch proves a defensively engineered integration, but it makes KTX own evaluator execution, authentication, bootstrapping, and a second evidence lifecycle. That scope conflicts with the narrow CLI direction, carries known correctness defects, and costs more to maintain than the current one-task evidence can justify.
+  constraints: Preserve native comparison, telemetry, first-artifact authority, historical provenance, explicit paid authorization, hermetic database use, and current main behavior. Do not add a general evaluator, plugin system, arbitrary verifier, optional-dependency doctor, automatic updater, shipped Python runtime, paid rerun, or unrelated pipeline changes.
+  overall_acceptance: GIVEN the remediation is complete WHEN maintainers inspect and verify KTX and its retained campaign evidence THEN the shipped binary has a narrow native benchmark, external validation is reproducibly locked, historical claims are truthful and traceable, and all current safety and verification contracts pass without model spend.
+  scope:
+    included:
+      - Benchmark ownership decision and source-of-truth reconciliation
+      - Evidence-led disposition of shipped SkillsBench and BenchFlow lifecycle coupling
+      - Current-main reconciliation and native benchmark preservation
+      - Optional locked external release validation
+      - Historical campaign integrity, provenance, and claim correction
+      - Review and closure of demonstrated native benchmark coverage gaps
+      - Documentation, automated checks, and project-state synchronization
+    excluded:
+      - A general-purpose agent evaluation platform
+      - Arbitrary verifier processes or a general task-container specification
+      - A core dependency manager or doctor for optional evaluator tools
+      - New paid model calls or rerunning the retained campaign
+      - Unrelated compression, telemetry, database, or backlog work
+    deferred:
+      - New first-class SkillsBench investment until repeated multi-task or third-party demand exists
+      - A generic evaluator import or plugin contract until multiple real consumers require it
+      - Broad agent-skill performance or statistical-generalization claims
+  design: Determine the release and consumer facts, then record one ownership and claim boundary. Freeze raw campaign authority before changing paths or derived files. Reconcile current product semantics, establish a non-shipped locked validation successor, and repair historical evidence before narrowing the installed surface. Review the native corpus for only demonstrated gaps, then finish with hermetic verification and state sync.
+  unknowns:
+    - question: Has the first-class SkillsBench command been released or adopted outside this checkout?
+      affects_task: 7
+      resolve_by: Use task 1 evidence; remove an unshipped surface, or provide bounded deprecation when real consumers exist.
+    - question: Are all retained raw campaign artifacts complete enough for corrected offline revalidation?
+      affects_task: 6
+      resolve_by: Use task 3's inventory; publish corrected validation when complete, otherwise label the archive incomplete or non-regenerable.
+    - question: Does upstream provide a canonical SkillsBench release identity and official task digests?
+      affects_task: 5
+      resolve_by: Verify upstream identity; otherwise lock exact source and task digests and label the campaign as external evidence.
+    - question: Which release-validation owner keeps one lock and one workflow without recreating scattered tooling or product coupling?
+      affects_task: 5
+      resolve_by: Choose the smallest non-shipped owner in task 2 that preserves immutable archives and independent validation.
+  surprises:
+    []

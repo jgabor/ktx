@@ -1,0 +1,13 @@
+case=match exit=0 stdout_lines=1 stderr_lines=0 status=ok mismatches=0
+case=evaluator exit=2 stdout_lines=1 stderr_lines=0 status=mismatch category=evaluator
+case=task exit=2 stdout_lines=1 stderr_lines=0 status=mismatch category=task
+case=runtime exit=2 stdout_lines=1 stderr_lines=0 status=mismatch category=runtime
+case=adapter exit=2 stdout_lines=1 stderr_lines=0 status=mismatch category=adapter
+case=ktx exit=2 stdout_lines=1 stderr_lines=0 status=mismatch category=ktx
+case=execution exit=2 stdout_lines=1 stderr_lines=0 status=mismatch category=execution
+case=false_provenance exit=65 stdout_bytes=0 stderr_lines=1 diagnostic="external validation: task provenance must be external"
+case=schema exit=65 stdout_bytes=0 stderr_lines=1 diagnostic="external validation: input does not match the observed identity schema"
+case=jwt exit=65 stdout_bytes=0 stderr_lines=1 diagnostic="external validation: input must be one duplicate-free safe JSON object"
+case=fixed_secret exit=65 stdout_bytes=0 stderr_lines=1 diagnostic="external validation: input must be one duplicate-free safe JSON object"
+case=gitlab_token exit=65 stdout_bytes=0 stderr_lines=1 diagnostic="external validation: input must be one duplicate-free safe JSON object"
+case=generic_token exit=65 stdout_bytes=0 stderr_lines=1 diagnostic="external validation: input must be one duplicate-free safe JSON object"

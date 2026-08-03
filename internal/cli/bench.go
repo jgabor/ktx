@@ -25,9 +25,9 @@
 // same shape as `ktx prices` and `ktx doctor` — a namespace with
 // subcommands, no flags of its own (v1).
 //
-// Published methodologies are embedded from `tools/bench/methodology-*.yaml`,
-// so the installed binary does not depend on a source checkout. Each source
-// definition is the reproducibility contract for its benchmark.
+// Supported native methodology source files are explicitly embedded from
+// `tools/bench`, so the installed binary does not depend on a source checkout.
+// Each source definition is the reproducibility contract for its benchmark.
 //
 // Output contract: JSON default with --format text for humans.
 // The headline number is `cost_per_correct = cost_USD / max(score,
@@ -233,6 +233,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Run a retained live baseline/candidate experiment.")
 	fmt.Fprintln(w, "      --preflight attests source/image collection capability without auth,")
 	fmt.Fprintln(w, "      model calls, or experiment artifacts; normal comparisons run it too.")
+	fmt.Fprintln(w, "      The generic preflight returns before task loading; --build adds image creation.")
 	fmt.Fprintln(w, "      Cache-aware opt-in: --methodology tools/bench/methodology-v5-cache-aware.yaml")
 	fmt.Fprintln(w, "      with --cache-control auto|isolated|observed, --warmup N, --rounds N.")
 	fmt.Fprintln(w, "  rank --model <model> [--variant <name>] --task-file <path>")

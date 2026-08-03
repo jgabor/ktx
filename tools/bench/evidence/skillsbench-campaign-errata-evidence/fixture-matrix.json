@@ -1,0 +1,80 @@
+{
+  "schema_version": "ktx.skillsbench-campaign-errata-fixtures.v1",
+  "complete_fixture": {
+    "expected": "complete",
+    "observed": "complete",
+    "authorities": [
+      "preflight",
+      "terminal_disposition",
+      "attempt_execution",
+      "result_and_summary",
+      "read_only_database"
+    ]
+  },
+  "damaged_fixtures": [
+    { "mutation": "preflight removed", "expected_gap": "preflight" },
+    { "mutation": "terminal removed", "expected_gap": "terminal_disposition" },
+    { "mutation": "terminal failed", "expected_gap": "terminal_disposition" },
+    { "mutation": "execution removed", "expected_gap": "attempt_execution" },
+    { "mutation": "execution nonzero", "expected_gap": "attempt_execution" },
+    { "mutation": "result removed", "expected_gap": "result_and_summary" },
+    {
+      "mutation": "result identity changed",
+      "expected_gap": "result_and_summary"
+    },
+    { "mutation": "summary removed", "expected_gap": "result_and_summary" },
+    {
+      "mutation": "summary digest binding changed",
+      "expected_gap": "result_and_summary"
+    },
+    { "mutation": "database removed", "expected_gap": "database_authority" },
+    {
+      "mutation": "database disposition removed",
+      "expected_gap": "database_authority"
+    },
+    {
+      "mutation": "database metric binding changed",
+      "expected_gap": "database_authority"
+    },
+    {
+      "mutation": "attempt identity changed",
+      "expected_gap": "schedule_attempt_identity"
+    },
+    { "mutation": "metric removed", "expected_gap": "result_and_summary" },
+    {
+      "mutation": "database identity made noncanonical",
+      "expected_gap": "database_authority"
+    },
+    {
+      "mutation": "duplicate JSON member inserted",
+      "expected_gap": "preflight"
+    }
+  ],
+  "identity_and_metric_rules": [
+    {
+      "rule": "same short attempt IDs in two campaigns",
+      "expected": "distinct qualified identities",
+      "observed": "passed"
+    },
+    {
+      "rule": "same-timestamp compressed artifacts",
+      "expected": "smallest artifact ID",
+      "observed": "passed"
+    },
+    {
+      "rule": "later smaller compressed output",
+      "expected": "earlier artifact remains authoritative",
+      "observed": "passed"
+    },
+    {
+      "rule": "delta direction",
+      "expected": "candidate_minus_baseline only",
+      "observed": "passed"
+    },
+    {
+      "rule": "write through read-only database handle",
+      "expected": "rejected with unchanged bytes",
+      "observed": "passed"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+id: pcpocuyajn
+artifact: plan
+record:
+  plan: oydbeaydwa
+  name: Complete fail-fast artifact enforcement
+  status: superseded
+  depends_on:
+    []
+  acceptance:
+    - GIVEN a policy-stopped suffix WHEN validation inspects each later attempt directory THEN only the expected terminal record is permitted and no execution evidence is accepted.
+    - GIVEN stdout, stderr, execution, credential, BenchFlow, unknown regular-file, symlink, or nested artifact evidence after the trigger WHEN validation runs THEN the campaign is rejected as corrupt.
+    - GIVEN a valid policy-stopped suffix WHEN summary and validation regenerate evidence THEN every later attempt remains not_started with the same trigger and no hidden execution evidence.
+    - GIVEN the correction WHEN focused regressions, race checks, the full project check, and independent review run THEN the original default, immutable-policy, stop-category, legacy, and terminal-accounting criteria all pass.
+    - GIVEN the replacement has a persisted PASS WHEN orchestration resolves the blocked predecessor THEN supersession preserves downstream acceptance and paid execution remains blocked until that resolution completes.
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Bounded re-review confirmed strict unknown-field, trailing-value, exact-duplicate, and malformed-record rejection, but Go's case-insensitive struct matching still lets case-variant aliases such as state and State coexist and overwrite terminal semantics. Exact allowed JSON key names must be enforced before duplicate checking, with production-path alias regressions. The replacement exhausted its second evaluation; paid execution and predecessor supersession remain blocked.
+    provenance:
+      attempt_id: audit-2
+      source: "bounded Audit re-review: terminal key alias bypass"
+      recorded_at: 2026-07-31 15:43
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - eyqhaqohok
+  superseded_reason: The exact-key replacement closes terminal directory, content, alias, and documentation gaps with independent PASS.

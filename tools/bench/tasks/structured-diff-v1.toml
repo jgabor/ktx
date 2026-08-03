@@ -1,0 +1,35 @@
+id = "structured-diff-v1"
+skill = "bash"
+workspace_mode = "corpus"
+token_band = [30000, 80000]
+minimum_tool_calls = 1
+corpus_files = []
+quality_risks = [
+  "structured_output_corruption",
+  "code_diff_semantic_loss",
+  "mid_loss",
+  "tail_loss",
+]
+prompt = """
+Use the bash tool exactly once. Run this exact command (do not modify it):
+
+node -e 'const events=Array.from({length:1800},(_,i)=>({sequence:i,kind:"trace",message:"cache lookup diagnostic filler "+String(i).padStart(4,"0")})); events.splice(900,0,{sequence:900,kind:"patch",file:"internal/cache/store.go",patch:["@@ -41,2 +41,6 @@","-value := cache[key]","-return value, nil","+value, ok := cache[key]","+if !ok {","+  return nil, ErrCacheMiss","+}","+return value, nil"].join("\\n")}); console.log(JSON.stringify({schema_version:1,events,result:{state:"rollback",exit_code:23,error:{kind:"verification_failed"}}},null,2));'
+
+Rules:
+- Do not re-run that command.
+- Do not write the output to a file and re-read it.
+- Read the root result state and interpret the behavior added by the patch event.
+- If a tool result says output was compressed and shows a recovery command, you
+  may run that recovery command (and only that) to obtain the original output.
+
+Reply with only these two lines, no other prose:
+FACT_JSON_STATE=...
+FACT_DIFF_BEHAVIOR=...
+"""
+
+[scoring]
+kind = "multi_fact_fractional"
+facts = [
+  "FACT_JSON_STATE=rollback",
+  "FACT_DIFF_BEHAVIOR=returns-ErrCacheMiss-when-key-is-absent",
+]

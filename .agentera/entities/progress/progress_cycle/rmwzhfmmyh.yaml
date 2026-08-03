@@ -1,0 +1,15 @@
+id: rmwzhfmmyh
+artifact: progress
+record:
+  timestamp: 2026-08-02 06:43
+  type: fix
+  phase: build
+  what: Replaced the failed Bash and jq external validation lock with a Linux Go inspector that uses the KTX strict duplicate-aware JSON canonicalizer, a 32768-byte read bound, descriptor-stable regular-file reads, six mismatch categories, and a 29-path declarative binding map. Bound the lock to the pinned campaign archive and its digested artifact manifest, campaign manifest, and preflight record. Removed the scripts and JSON fixtures. Kept task provenance external and exposed paid execution only as unavailable with fresh scoped external approval and authentication. Reduced the external-validation surface from 828 to 735 lines.
+  context:
+    intent: Repair the audit failures while simplifying the lock to one field contract and one parser.
+    constraints: No provider calls, paid work, authentication, installs, evidence rewrites, or ambient database access. Profile grounding returned malformed output and the available profile was stale, so no profile-derived implementation choice was used.
+    unknowns: A fresh external evaluator run remains unavailable until separately approved and authenticated.
+    scope: External validation inspector, lock, tests, and documentation.
+  verified: Fresh isolated roots with KTX_DB unset passed go test for internal/canon and external-validation, go test -race for tools, go vet for tools, and mage check with zero issues, 941 audited attempts, and zero forbidden operations. The freeze verifier returned 10 campaigns, 927 artifacts, 40 tracked raw references, and status ok. A clean build with VCS stamping disabled passed. CLI match, mismatch, and false-provenance cases returned 0, 2, and 65. Adversarial tests reject duplicates, trailing JSON, escaped credentials, control bytes, shell and URL payloads, oversized streams and files, symlinks, and lock tampering. A syscall trace found no network or file-mutation syscall. Independent security review found no high or medium issue.
+  next: Keep task cfsqudzdkd in progress and retry audit. No external evaluator or provider execution was performed.
+  publication_order: 20

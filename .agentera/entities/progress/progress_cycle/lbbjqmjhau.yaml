@@ -1,0 +1,15 @@
+id: lbbjqmjhau
+artifact: progress
+record:
+  timestamp: 2026-08-03 00:14
+  type: fix
+  phase: build
+  what: Hardened the later integration handoff to preserve checkout-local raw campaign authority.
+  context:
+    intent: Keep the integration handoff usable without allowing cleanup to destroy ignored benchmark authority.
+    constraints: Do not move, copy, delete, merge, or remove anything in this task. Preserve exact raw bytes and existing digest bindings.
+    scope: Handoff safety and its immutable progress record only.
+  discovered: Worktrunk treats ignored files as clean and removes the whole worktree. All 927 ignored raw campaign files exist only in the source worktree, so the prior cleanup step could have deleted unreconstructible authority.
+  verified: The handoff now validates the raw digest manifest before integration, validates it again after target verification, and retains the source worktree when that authority is present. Bash syntax, ShellCheck, Prettier, guard ordering, and all 927 raw digests pass.
+  next: A later authorized integration may advance the target, but it must keep this source worktree until a separate approved preservation step moves the raw authority to a durable location.
+  publication_order: 41

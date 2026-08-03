@@ -1,0 +1,16 @@
+id: ujvemgdxgn
+artifact: progress
+record:
+  timestamp: 2026-08-02 23:14
+  type: chore
+  phase: build
+  what: Added a project-memory-only handoff for a later local squash integration from skillsbench-analysis into main. It records the expected base family, Worktrunk defaults, and one guarded sequence from volatile-state checks through post-integration verification and cleanup.
+  context:
+    intent: Publish the smallest exact local integration handoff without performing integration or cleanup.
+    constraints: Project-memory artifacts only; no shipped docs or code, remote operations, history mutation, worktree removal, provider work, paid work, or ambient database access.
+    unknowns: Target cleanliness, ancestry, upstream state, and conflicts are volatile and must be rechecked immediately before integration.
+    scope: .agentera/integration-handoff.md, task status, and one progress record.
+  discovered: Installed Worktrunk 0.69.2 squashes and rebases by default, fast-forwards the local target, and removes the source unless --no-remove is used. Its merge command does not fetch or push. Local main currently has no upstream.
+  verified: Worktrunk and Git help validate every documented command. Source and target refs, merge base, ancestry, target cleanliness, and local identity match the handoff. Non-destructive merge-tree and three-way preapply checks passed with both refs and the target worktree unchanged. Bash syntax, ShellCheck, Prettier, git diff checks, and an independent command review passed. Offline mage check passed with KTX_DB unset, isolated roots, and forbidden=0.
+  next: Keep the task in progress and unevaluated. After separate authorization, the integration owner must rerun the entire gate; no merge, rebase, push, publication, ref rewrite, or worktree removal occurred in this cycle.
+  publication_order: 38

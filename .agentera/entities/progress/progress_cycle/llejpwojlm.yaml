@@ -1,0 +1,15 @@
+id: llejpwojlm
+artifact: progress
+record:
+  timestamp: 2026-08-02 13:02
+  type: fix
+  phase: build
+  what: Added tools/bench/evidence/campaign-revalidation, an additive errata, fail-closed complete and damaged fixtures, a correction notice, and a checksummed retained evidence bundle. The corrected authority retains 1 complete campaign, 8 attempts, and 4 pairs; removes 3 unsupported complete-campaign claims; and makes the 5-pair gate incomplete with no corrected decision.
+  context:
+    intent: Revalidate every historical external-evidence claim from retained artifacts under mandatory preflight, terminal, execution, result and summary, database, identity, selector, disposition, and delta-direction rules without changing the historical publication.
+    constraints: Only retained artifacts were inspected. No provider, model, paid, container, install, fetch, authentication, remote, or ambient database operation occurred. Raw ignored artifacts and original published hashes remain immutable.
+    unknowns: A fresh external execution remains unavailable without separate scoped approval and authentication. The corrected gate has only 4 complete pairs and therefore no current decision.
+    scope: tools/bench/evidence/campaign-revalidation, tools/bench/evidence/skillsbench-campaign-errata.json, its verifier and evidence bundle, and docs/skillsbench-campaign.md.
+  verified: Fresh isolated roots with KTX_DB unset passed focused tests, race, vet, the 10-campaign and 927-artifact freeze verifier, deterministic regeneration, the sealed errata verifier, and mage check with 0 lint issues, 977 audited operations, 0 forbidden operations, and no ambient database use. The checksum bundle validates all 8 entries. Historical authority hashes, protected product surfaces, credential scans, and project-memory marker scans are clean. Independent re-review passed with no blocker.
+  next: Keep task nbmhaoqsqe in progress for the next planned audit or integration step. Do not infer approval for external execution.
+  publication_order: 22

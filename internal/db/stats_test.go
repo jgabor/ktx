@@ -12,8 +12,8 @@ import (
 
 // TestStatsRows covers the raw row query: uncompressed calls
 // have delivered equal to raw, compressed calls have delivered from
-// the compressed output, the first compression is used when
-// multiple exist, and an empty database returns an empty slice.
+// the compressed output, the first compression by timestamp and ID is used
+// when multiple exist, and an empty database returns an empty slice.
 func TestStatsRows(t *testing.T) {
 	t.Run("uncompressed calls have delivered equal to raw", func(t *testing.T) {
 		d := openMemoryDB(t)
@@ -67,8 +67,10 @@ func TestStatsRows(t *testing.T) {
 			{id: "dddddddddddddddd", tool: "bash", input: `{"command": "cat file"}`, output: mustLongString(800)},
 		})[0]
 
-		seedCompressed(t, d, sourceID, "medium output here\n", "2026-07-12T00:00:01Z")
-		seedCompressed(t, d, sourceID, "tiny\n", "2026-07-12T00:00:02Z")
+		firstTimestamp := "2026-07-12T00:00:01Z"
+		seedCompressedWithID(t, d, "bbbbbbbbbbbbbbbb", sourceID, "same-time larger ID\n", firstTimestamp)
+		seedCompressedWithID(t, d, "aaaaaaaaaaaaaaaa", sourceID, "first output\n", firstTimestamp)
+		seedCompressedWithID(t, d, "cccccccccccccccc", sourceID, "later\n", "2026-07-12T00:00:02Z")
 
 		rows, err := d.StatsRows()
 		if err != nil {
@@ -77,7 +79,7 @@ func TestStatsRows(t *testing.T) {
 		if len(rows) != 1 {
 			t.Fatalf("got %d rows, want 1", len(rows))
 		}
-		want := len("medium output here\n")
+		want := len("first output\n")
 		if rows[0].DeliveredBytes != want {
 			t.Errorf("delivered=%d, want %d (first compression)", rows[0].DeliveredBytes, want)
 		}

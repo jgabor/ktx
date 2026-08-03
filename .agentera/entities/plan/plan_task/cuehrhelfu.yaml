@@ -1,0 +1,22 @@
+id: cuehrhelfu
+artifact: plan
+record:
+  name: Reconcile the branch with current main
+  depends_on:
+    - jbzjborfrx
+  status: complete
+  acceptance:
+    - GIVEN current main WHEN reconciliation completes THEN first-artifact authority, dependency baselines, verification gates, and agent-facing contracts remain authoritative.
+    - GIVEN native comparison preflight WHEN structured output is requested THEN data stays clean, diagnostics remain separate, and no model call occurs.
+    - GIVEN each changed product contract WHEN checked THEN at least one success and one failure case preserve existing expectations.
+  plan: ykjitbbwfl
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Merged internal/db/stats.go retains AdoptionSummary ORDER BY timestamp DESC,id DESC and TestAdoptionSummaryUsesLatestCompression, contradicting main's authoritative earliest/smallest artifact contract. Repair to ASC/ASC, replace with first-compression test including equal-timestamp smaller-ID case, then rerun isolated focused/full verification and native preflight.
+    provenance:
+      attempt_id: audit-cuehrhelfu-2
+      source: audit_cuehrhelfu_reconcile_main retry 1 PASS; AdoptionSummary now follows earliest/smallest authority and 20-file evidence bundle verifies
+      recorded_at: 2026-08-02 03:34
+      writer_command: agentera state plan record-evaluation

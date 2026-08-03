@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -234,6 +235,66 @@ func TestScoreAndMetricsPreserveNullAndZero(t *testing.T) {
 	metrics = ParseStream(missing, &expected, nil)
 	if metrics.TokensIn != nil || metrics.Cost != nil {
 		t.Fatalf("missing evidence was not null: %#v", metrics)
+	}
+}
+
+func TestScoreAnswerMultiFactMatchAndMiss(t *testing.T) {
+	facts := []string{
+		"FACT_JSON_STATE=rollback",
+		"FACT_DIFF_BEHAVIOR=returns-ErrCacheMiss-when-key-is-absent",
+	}
+
+	matched := ScoreAnswer("FACT_JSON_STATE=rollback\nFACT_DIFF_BEHAVIOR=returns-ErrCacheMiss-when-key-is-absent\n", nil, facts)
+	if matched.Score != 1 || !matched.FullPass || !matched.AnswerMatchesExpected ||
+		!reflect.DeepEqual(matched.FactsMatched, facts) || len(matched.FactsMissed) != 0 || matched.FactsTotal != 2 {
+		t.Fatalf("matching score = %#v", matched)
+	}
+
+	missed := ScoreAnswer("FACT_JSON_STATE=committed\nFACT_DIFF_BEHAVIOR=returns-zero-value\n", nil, facts)
+	if missed.Score != 0 || missed.FullPass || missed.AnswerMatchesExpected ||
+		len(missed.FactsMatched) != 0 || !reflect.DeepEqual(missed.FactsMissed, facts) || missed.FactsTotal != 2 {
+		t.Fatalf("non-matching score = %#v", missed)
+	}
+}
+
+func TestCommittedRiskTasksLoadAndScore(t *testing.T) {
+	root := filepath.Join("..", "..", "tools", "bench", "tasks")
+	for _, tc := range []struct {
+		id              string
+		promptFragments []string
+	}{
+		{
+			id: "structured-diff-v1",
+			promptFragments: []string{
+				"Array.from({length:1800}",
+				"events.splice(900",
+				"ErrCacheMiss",
+				`result:{state:"rollback",exit_code:23`,
+			},
+		},
+		{
+			id:              "failure-passthrough-v1",
+			promptFragments: []string{"FACT_FAIL_STDERR=fail-stderr-1a2b3c4d", "1>&2; exit 2"},
+		},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			task, err := LoadTask(filepath.Join(root, tc.id+".toml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if task.ID != tc.id || task.ScoringKind != "multi_fact_fractional" || len(task.ExpectedFacts) == 0 {
+				t.Fatalf("task contract = %#v", task)
+			}
+			for _, fragment := range tc.promptFragments {
+				if !strings.Contains(task.Prompt, fragment) {
+					t.Errorf("prompt does not contain %q", fragment)
+				}
+			}
+			score := ScoreAnswer(strings.Join(task.ExpectedFacts, "\n"), task.ExpectedOutput, task.ExpectedFacts)
+			if !score.FullPass || score.Score != 1 || !reflect.DeepEqual(score.FactsMatched, task.ExpectedFacts) {
+				t.Fatalf("score = %#v", score)
+			}
+		})
 	}
 }
 

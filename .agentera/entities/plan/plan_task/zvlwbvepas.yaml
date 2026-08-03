@@ -1,0 +1,24 @@
+id: zvlwbvepas
+artifact: plan
+record:
+  plan: oydbeaydwa
+  name: Correct Luna campaign tree hash
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN the successful campaign source and durable archive WHEN the repository canonical tree-hash algorithm is applied THEN both reproduce the same full SHA-256 and the algorithm provenance is recorded.
+    - GIVEN the prior noncanonical hash WHEN tracked inventory and documentation are corrected THEN the unsupported value is removed or replaced everywhere without rewriting historical task or progress evidence.
+    - GIVEN the correction WHEN campaign evidence is rechecked THEN manifest, schedule, preflight, summary, attempt hashes, classifications, results, and source/archive bytes remain unchanged.
+    - GIVEN the docs-only evidence correction WHEN focused hash assertions, secret checks, diff checks, and independent review run THEN the original replication acceptance criteria remain substantiated without campaign execution.
+    - GIVEN this replacement has a persisted PASS WHEN the blocked replication task is superseded and its recovery TODO resolved THEN the five-pair gate becomes eligible without implying a diversity decision.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "focused independent Audit: canonical Luna campaign hash passed"
+      recorded_at: 2026-07-31 18:21
+      writer_command: agentera state plan record-evaluation

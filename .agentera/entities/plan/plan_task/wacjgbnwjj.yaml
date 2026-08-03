@@ -1,0 +1,16 @@
+id: wacjgbnwjj
+artifact: plan
+record:
+  name: Publish evidence and synchronize final state
+  depends_on:
+    - irstmkgayl
+    - uvrcjkhvkh
+    - ulorvimoxk
+    - mcecalpjmr
+  status: pending
+  acceptance:
+    - GIVEN all completed campaign evidence WHEN the final report is published THEN it records pins, hashes, durable locations, attempt counts, validation results, descriptive metrics, failures, and limitations.
+    - GIVEN the report WHEN independently reviewed THEN model identity, credential safety, claim scope, and source provenance agree with retained artifacts.
+    - GIVEN tracked documentation changes WHEN repository verification runs THEN the full project check passes without weakening existing expectations.
+    - GIVEN final verification WHEN project state is synchronized THEN plan tasks, progress, and remaining follow-up work match the retained evidence.
+  plan: kartcldnat

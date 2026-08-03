@@ -1,0 +1,1019 @@
+{
+  "schema_version": 1,
+  "analysis": "descriptive_five_pair_gate",
+  "scope": {
+    "pair_count": 5,
+    "cost_usd": null,
+    "inference": "none",
+    "causal_claim": false,
+    "generalization": false
+  },
+  "definitions": {
+    "delta": "candidate minus baseline",
+    "original_bytes": "sum of UTF-8 byte lengths of retained KTX tool-call outputs before delivery transformation",
+    "delivered_bytes": "sum of UTF-8 byte lengths delivered after substituting a retained compressed artifact for its source call; otherwise original output",
+    "compression_ratio": "delivered_bytes / original_bytes",
+    "compression_reduction": "(original_bytes - delivered_bytes) / original_bytes",
+    "authoritative_total_tokens": "retained agent_result.total_tokens imported as metrics.total; reconciled here as new_input + cache_read + cache_creation + output + reasoning",
+    "runtime_tools": "retained runtime trajectory tool-call count",
+    "ktx_calls": "retained KTX database tool_calls count; distinct from runtime_tools",
+    "wall_seconds": "retained BenchFlow total_time_sec imported as metrics.wall_seconds",
+    "distribution": "mean, median, min, max, and span=max-min across the five ordered pairs",
+    "units": {
+      "bytes": "UTF-8 bytes",
+      "tokens": "tokens",
+      "wall_seconds": "seconds",
+      "compression_ratio": "fraction",
+      "compression_reduction": "fraction"
+    }
+  },
+  "campaign_provenance": [
+    {
+      "role": "canary",
+      "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad",
+      "files": {
+        "manifest.json": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/manifest.json",
+          "sha256": "9ce7dae140ef86a0c1d41449e2b69d929ee9c4826f50914a8db588c745755617",
+          "tracked_inventory_match": true
+        },
+        "schedule.jsonl": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/schedule.jsonl",
+          "sha256": "72ea8671a2413ced355e75c24a93758a31fb3c5575a15101ee4168cf5940abba",
+          "tracked_inventory_match": null
+        },
+        "preflight.json": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/preflight.json",
+          "sha256": "bd47a629294761fd85280f3f61df0fa30d0b17d99b21fe2463b6f3aef0b009b3",
+          "tracked_inventory_match": null
+        },
+        "summary.json": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/summary.json",
+          "sha256": "c4130e4692575adffd2393fc8ea872ff2d5510e6c7cde6278f63b01fc9f5747a",
+          "tracked_inventory_match": null
+        },
+        "attempts.jsonl": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/attempts.jsonl",
+          "sha256": "ccfda50bc24719e1a7e4ed9c12e577287d36c8d5ac227457af91e538ae1eec5f",
+          "tracked_inventory_match": null
+        }
+      }
+    },
+    {
+      "role": "replication",
+      "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal",
+      "files": {
+        "manifest.json": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/manifest.json",
+          "sha256": "deca5e21c5790611f29ad2fc0dd68bdac3e5d562a69348a224cb88643c0caf20",
+          "tracked_inventory_match": true
+        },
+        "schedule.jsonl": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/schedule.jsonl",
+          "sha256": "4394aeed451db634be35535f6734d086485ce0d89aae5dd16f0c8e36d9987325",
+          "tracked_inventory_match": true
+        },
+        "preflight.json": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/preflight.json",
+          "sha256": "c55feb0209bf411f1f619707410ec18226d25678fe49db6d4ff10b45a6c807ee",
+          "tracked_inventory_match": true
+        },
+        "summary.json": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/summary.json",
+          "sha256": "55ec395e27cb64d83e61f0e6b87731996b19a783b6716f4810f7844212c433dc",
+          "tracked_inventory_match": true
+        },
+        "attempts.jsonl": {
+          "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts.jsonl",
+          "sha256": "bdb648adb8755379d1d9565459da9363d1fed452398c86d5904c12e06e7957e9",
+          "tracked_inventory_match": true
+        }
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "id": "canary/0001",
+      "campaign_role": "canary",
+      "arms": {
+        "baseline": {
+          "provenance": {
+            "attempt_id": "attempt-0002-baseline",
+            "attempt_record_sha256": "fec125f1698a0a82759c20d3f18c48b0506c94d4e65f43f0bda981229e5922e0",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/attempts/attempt-0002-baseline/benchflow/2026-07-31__05-46-46/3d-scan-calc__e233a4e7/artifacts/ktx.db",
+              "sha256": "29fca406d8b08e847af46eec9e6834a643b4b2522797685beeb50758e4fd2c90"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/attempts/attempt-0002-baseline/benchflow/summary.json",
+              "sha256": "8d710580f243eb5a21ec4e690569bcf3d941219cf6a2eb5d5cdca9766e08780e"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/attempts/attempt-0002-baseline/benchflow/2026-07-31__05-46-46/3d-scan-calc__e233a4e7/results.jsonl",
+              "sha256": "1224510a70ab63dea1590817400250d143d503151aee8c1b14bbf50c8e2c682d"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 13226,
+          "delivered_bytes": 13226,
+          "compression_ratio": 1.0,
+          "compression_reduction": 0.0,
+          "tokens": {
+            "input": 333,
+            "new_input": 333,
+            "cache_read": 11776,
+            "cache_creation": 0,
+            "output": 46,
+            "reasoning": 0,
+            "total": 12155
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 28,
+          "wall_seconds": 81.9,
+          "cost_usd": null
+        },
+        "candidate": {
+          "provenance": {
+            "attempt_id": "attempt-0001-candidate",
+            "attempt_record_sha256": "f11921ea44e5e2ad6ba09da5eed93ca446abbd5832fc954e4dd98d9ac981d025",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/attempts/attempt-0001-candidate/benchflow/2026-07-31__05-45-18/3d-scan-calc__ba80dcf5/artifacts/ktx.db",
+              "sha256": "0cc5a3faaf01940cac8ab04a2298c0954f856068e053354deeb6ae5c9110b76a"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/attempts/attempt-0001-candidate/benchflow/summary.json",
+              "sha256": "e02a8a9dfba9fedc364153c04500695c5453ed1d2d40e00f9b2af97d8aefebb4"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-preflight-1bcc1ad/attempts/attempt-0001-candidate/benchflow/2026-07-31__05-45-18/3d-scan-calc__ba80dcf5/results.jsonl",
+              "sha256": "ff792fa20b416fc30e61d9de57279c7ac3dda0d4fbc239ad19bba2c4ee42cb90"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 18464,
+          "delivered_bytes": 14248,
+          "compression_ratio": 0.7716637781629117,
+          "compression_reduction": 0.22833622183708838,
+          "tokens": {
+            "input": 473,
+            "new_input": 473,
+            "cache_read": 11776,
+            "cache_creation": 0,
+            "output": 53,
+            "reasoning": 0,
+            "total": 12302
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 28,
+          "wall_seconds": 87.7,
+          "cost_usd": null
+        }
+      },
+      "candidate_minus_baseline": {
+        "reward": 0,
+        "original_bytes": 5238,
+        "delivered_bytes": 1022,
+        "compression_ratio": -0.22833622183708835,
+        "compression_reduction": 0.22833622183708838,
+        "tokens": {
+          "input": 140,
+          "new_input": 140,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 7,
+          "reasoning": 0,
+          "total": 147
+        },
+        "runtime_tools": 0,
+        "ktx_calls": 0,
+        "turns": 0,
+        "wall_seconds": 5.8
+      }
+    },
+    {
+      "id": "replication/0001",
+      "campaign_role": "replication",
+      "arms": {
+        "baseline": {
+          "provenance": {
+            "attempt_id": "attempt-0002-baseline",
+            "attempt_record_sha256": "56de0e0ff24d79a2cf6d5e14e3536c7d9b89269488f6dd1364ad9e0d0a0e631e",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/benchflow/2026-07-31__17-18-27/3d-scan-calc__15ab7c09/artifacts/ktx.db",
+              "sha256": "97c183cd28800555be8c46e4ed05566744183a94873a870ee1e355d8984a6b1d"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/benchflow/summary.json",
+              "sha256": "421af9425fa812c82bfff7e17010e1f74dd1fca486647c353e9aefe63cf00c59"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0002-baseline/benchflow/2026-07-31__17-18-27/3d-scan-calc__15ab7c09/results.jsonl",
+              "sha256": "0d98bb3f55c7d0ea37e706d72cda4257bd9ab9aebf975af01a4eb2261373ed4e"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 11996,
+          "delivered_bytes": 11996,
+          "compression_ratio": 1.0,
+          "compression_reduction": 0.0,
+          "tokens": {
+            "input": 622,
+            "new_input": 622,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 48,
+            "reasoning": 0,
+            "total": 11422
+          },
+          "runtime_tools": 13,
+          "ktx_calls": 13,
+          "turns": 25,
+          "wall_seconds": 84.9,
+          "cost_usd": null
+        },
+        "candidate": {
+          "provenance": {
+            "attempt_id": "attempt-0001-candidate",
+            "attempt_record_sha256": "6d4626987ba15c7c5970b27e48c821db2703f69b5074884eb1bdb5804c8457f1",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/benchflow/2026-07-31__17-17-04/3d-scan-calc__84906042/artifacts/ktx.db",
+              "sha256": "913fa103bced663993af8e1ccab84e598aa79e6034330d98054ecbc0be564651"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/benchflow/summary.json",
+              "sha256": "70496c4d589dc5f4f84d99945343699698c32a3575046ce0ea832e0ff213655c"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0001-candidate/benchflow/2026-07-31__17-17-04/3d-scan-calc__84906042/results.jsonl",
+              "sha256": "a4267dcd8a5adcda8dd5337798d20130dfaaa6714d4aa54dd9048a505c38de38"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 14752,
+          "delivered_bytes": 10689,
+          "compression_ratio": 0.7245797180043384,
+          "compression_reduction": 0.2754202819956616,
+          "tokens": {
+            "input": 956,
+            "new_input": 956,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 49,
+            "reasoning": 0,
+            "total": 10733
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 30,
+          "wall_seconds": 81.7,
+          "cost_usd": null
+        }
+      },
+      "candidate_minus_baseline": {
+        "reward": 0,
+        "original_bytes": 2756,
+        "delivered_bytes": -1307,
+        "compression_ratio": -0.2754202819956616,
+        "compression_reduction": 0.2754202819956616,
+        "tokens": {
+          "input": 334,
+          "new_input": 334,
+          "cache_read": -1024,
+          "cache_creation": 0,
+          "output": 1,
+          "reasoning": 0,
+          "total": -689
+        },
+        "runtime_tools": 3,
+        "ktx_calls": 3,
+        "turns": 5,
+        "wall_seconds": -3.2
+      }
+    },
+    {
+      "id": "replication/0002",
+      "campaign_role": "replication",
+      "arms": {
+        "baseline": {
+          "provenance": {
+            "attempt_id": "attempt-0003-baseline",
+            "attempt_record_sha256": "02c8898cafae7a2bed13eb902a8b07c10d9f5cfc6748e0d014d2cf39ff35b272",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/benchflow/2026-07-31__17-19-53/3d-scan-calc__ff379202/artifacts/ktx.db",
+              "sha256": "c8e682f4c38d1706fc11190d814f5fcfa6b4c0192ff182ed426560c3aa0e2b5b"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/benchflow/summary.json",
+              "sha256": "d795a21e962d0049a63fdca6d5753eba69f23cc85b82a68ce9b3ee4657c0f708"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0003-baseline/benchflow/2026-07-31__17-19-53/3d-scan-calc__ff379202/results.jsonl",
+              "sha256": "f64d38a7be774bab617e426a59c535329b1f4939ad610ef69983733535a79687"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 12020,
+          "delivered_bytes": 12020,
+          "compression_ratio": 1.0,
+          "compression_reduction": 0.0,
+          "tokens": {
+            "input": 594,
+            "new_input": 594,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 62,
+            "reasoning": 0,
+            "total": 11408
+          },
+          "runtime_tools": 12,
+          "ktx_calls": 12,
+          "turns": 24,
+          "wall_seconds": 86.1,
+          "cost_usd": null
+        },
+        "candidate": {
+          "provenance": {
+            "attempt_id": "attempt-0004-candidate",
+            "attempt_record_sha256": "d4017c9a0a5a3b6026ff4f9e0b99eb0ed94c068a068f2941dcef8b784b20b11d",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/benchflow/2026-07-31__17-21-20/3d-scan-calc__61d464d4/artifacts/ktx.db",
+              "sha256": "256044475439ef632aa1c59306728f94b60517cc458836da6b79d5b8c3233dc2"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/benchflow/summary.json",
+              "sha256": "92c35515dae38425dcfd966d6a4c7033af92a051ba2b990def84bda4d7ff1b81"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0004-candidate/benchflow/2026-07-31__17-21-20/3d-scan-calc__61d464d4/results.jsonl",
+              "sha256": "6737c58ce8cd9e0ddd7e5cea7135ad2a0ff9f7fcde87e0d9d8534a1597e1bb7b"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 16167,
+          "delivered_bytes": 12094,
+          "compression_ratio": 0.7480670501639142,
+          "compression_reduction": 0.25193294983608583,
+          "tokens": {
+            "input": 1156,
+            "new_input": 1156,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 41,
+            "reasoning": 0,
+            "total": 10925
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 30,
+          "wall_seconds": 84.3,
+          "cost_usd": null
+        }
+      },
+      "candidate_minus_baseline": {
+        "reward": 0,
+        "original_bytes": 4147,
+        "delivered_bytes": 74,
+        "compression_ratio": -0.25193294983608583,
+        "compression_reduction": 0.25193294983608583,
+        "tokens": {
+          "input": 562,
+          "new_input": 562,
+          "cache_read": -1024,
+          "cache_creation": 0,
+          "output": -21,
+          "reasoning": 0,
+          "total": -483
+        },
+        "runtime_tools": 4,
+        "ktx_calls": 4,
+        "turns": 6,
+        "wall_seconds": -1.8
+      }
+    },
+    {
+      "id": "replication/0003",
+      "campaign_role": "replication",
+      "arms": {
+        "baseline": {
+          "provenance": {
+            "attempt_id": "attempt-0006-baseline",
+            "attempt_record_sha256": "e28a42cc2d5d245e6d78554b8faf5cb2173149f673bcd893252f192aed1ae453",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/benchflow/2026-07-31__17-24-09/3d-scan-calc__b10f3543/artifacts/ktx.db",
+              "sha256": "b42168dc193bad6fa6bb2dc4049175d32b111d1c742a15e664e919b31bc566cc"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/benchflow/summary.json",
+              "sha256": "1f485a44ce788848d305b0460c817ce29dc1cd25ae84756101948ff6130a202b"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0006-baseline/benchflow/2026-07-31__17-24-09/3d-scan-calc__b10f3543/results.jsonl",
+              "sha256": "8aa7bd330ddf29605d73a4903b96d552df5772fd6c520741f8d8a41a7c1642bb"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 12938,
+          "delivered_bytes": 12938,
+          "compression_ratio": 1.0,
+          "compression_reduction": 0.0,
+          "tokens": {
+            "input": 1061,
+            "new_input": 1061,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 45,
+            "reasoning": 0,
+            "total": 11858
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 27,
+          "wall_seconds": 84.8,
+          "cost_usd": null
+        },
+        "candidate": {
+          "provenance": {
+            "attempt_id": "attempt-0005-candidate",
+            "attempt_record_sha256": "8024f2faa44dd6745291e44349e534d532e73657908f79c38b21de3565cabab0",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/benchflow/2026-07-31__17-22-46/3d-scan-calc__1df007d3/artifacts/ktx.db",
+              "sha256": "c0a337dc9003e5b9a5f0ac3953529c3674981ff79ae462dc5a68cfd2e3e465f5"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/benchflow/summary.json",
+              "sha256": "fc510233594fcf516ca0f4e3694716fc09222f409974d74aa0629a42feb2b738"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0005-candidate/benchflow/2026-07-31__17-22-46/3d-scan-calc__1df007d3/results.jsonl",
+              "sha256": "0960f576584a0ea85ecc8b1dec72f55c371d99f16fcb73ed399ea79cf0b4b239"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 17028,
+          "delivered_bytes": 12810,
+          "compression_ratio": 0.7522903453136012,
+          "compression_reduction": 0.24770965468639888,
+          "tokens": {
+            "input": 1476,
+            "new_input": 1476,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 60,
+            "reasoning": 0,
+            "total": 11264
+          },
+          "runtime_tools": 16,
+          "ktx_calls": 16,
+          "turns": 28,
+          "wall_seconds": 81.9,
+          "cost_usd": null
+        }
+      },
+      "candidate_minus_baseline": {
+        "reward": 0,
+        "original_bytes": 4090,
+        "delivered_bytes": -128,
+        "compression_ratio": -0.24770965468639883,
+        "compression_reduction": 0.24770965468639888,
+        "tokens": {
+          "input": 415,
+          "new_input": 415,
+          "cache_read": -1024,
+          "cache_creation": 0,
+          "output": 15,
+          "reasoning": 0,
+          "total": -594
+        },
+        "runtime_tools": 0,
+        "ktx_calls": 0,
+        "turns": 1,
+        "wall_seconds": -2.9
+      }
+    },
+    {
+      "id": "replication/0004",
+      "campaign_role": "replication",
+      "arms": {
+        "baseline": {
+          "provenance": {
+            "attempt_id": "attempt-0007-baseline",
+            "attempt_record_sha256": "6a65c06d5751e7868da6316570f4e2d4cc7baae69a94ab5cc3a38ebc29b3c0a7",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/benchflow/2026-07-31__17-25-35/3d-scan-calc__411a1dc5/artifacts/ktx.db",
+              "sha256": "660a9f1921391eeadfe214d275d0ce631913112ce0832d09252d82520f8cd6cb"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/benchflow/summary.json",
+              "sha256": "8d889627b02497eadd732d7fdb3de60316a5b0861279806c43be2e9da255c5a2"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0007-baseline/benchflow/2026-07-31__17-25-35/3d-scan-calc__411a1dc5/results.jsonl",
+              "sha256": "2f4c6959f393f15b0f9076309a23a392324547d0b6031e4acf2c8f165fe73c46"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 10964,
+          "delivered_bytes": 10964,
+          "compression_ratio": 1.0,
+          "compression_reduction": 0.0,
+          "tokens": {
+            "input": 933,
+            "new_input": 933,
+            "cache_read": 9728,
+            "cache_creation": 0,
+            "output": 72,
+            "reasoning": 0,
+            "total": 10733
+          },
+          "runtime_tools": 15,
+          "ktx_calls": 14,
+          "turns": 28,
+          "wall_seconds": 83.1,
+          "cost_usd": null
+        },
+        "candidate": {
+          "provenance": {
+            "attempt_id": "attempt-0008-candidate",
+            "attempt_record_sha256": "ca2fff5887960ef1de8570b2dd9d82a56cba8357afa90be229bb1591fa1dbff4",
+            "ktx_database": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/benchflow/2026-07-31__17-26-59/3d-scan-calc__05becf8f/artifacts/ktx.db",
+              "sha256": "c0c54ffbbe80ce577d9e70e8e925729e1c7c1496db45105a9a305166ed21bfa4"
+            },
+            "benchflow_summary": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/benchflow/summary.json",
+              "sha256": "3e9001516027e3615cc88bf38923658efd13705bb6177863a49fab2326becf15"
+            },
+            "benchflow_results": {
+              "path": ".bench-data/skillsbench-campaigns/ktx-skillsbench-oauth-luna-four-pairs-54d5607-preflight-terminal/attempts/attempt-0008-candidate/benchflow/2026-07-31__17-26-59/3d-scan-calc__05becf8f/results.jsonl",
+              "sha256": "534039880895e64cbfbce49ee3087952ab3356583aaf57f9239e4f2c4863f300"
+            }
+          },
+          "quality_evaluable": true,
+          "reward": 1,
+          "original_bytes": 17458,
+          "delivered_bytes": 13384,
+          "compression_ratio": 0.7666399358460305,
+          "compression_reduction": 0.23336006415396954,
+          "tokens": {
+            "input": 968,
+            "new_input": 968,
+            "cache_read": 10752,
+            "cache_creation": 0,
+            "output": 46,
+            "reasoning": 0,
+            "total": 11766
+          },
+          "runtime_tools": 17,
+          "ktx_calls": 17,
+          "turns": 30,
+          "wall_seconds": 113.8,
+          "cost_usd": null
+        }
+      },
+      "candidate_minus_baseline": {
+        "reward": 0,
+        "original_bytes": 6494,
+        "delivered_bytes": 2420,
+        "compression_ratio": -0.23336006415396948,
+        "compression_reduction": 0.23336006415396954,
+        "tokens": {
+          "input": 35,
+          "new_input": 35,
+          "cache_read": 1024,
+          "cache_creation": 0,
+          "output": -26,
+          "reasoning": 0,
+          "total": 1033
+        },
+        "runtime_tools": 2,
+        "ktx_calls": 3,
+        "turns": 2,
+        "wall_seconds": 30.7
+      }
+    }
+  ],
+  "aggregates": {
+    "baseline": {
+      "reward": {
+        "mean": 1.0,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "span": 0
+      },
+      "original_bytes": {
+        "mean": 12228.8,
+        "median": 12020,
+        "min": 10964,
+        "max": 13226,
+        "span": 2262
+      },
+      "delivered_bytes": {
+        "mean": 12228.8,
+        "median": 12020,
+        "min": 10964,
+        "max": 13226,
+        "span": 2262
+      },
+      "compression_ratio": {
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "span": 0.0
+      },
+      "compression_reduction": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "span": 0.0
+      },
+      "tokens.input": {
+        "mean": 708.6,
+        "median": 622,
+        "min": 333,
+        "max": 1061,
+        "span": 728
+      },
+      "tokens.new_input": {
+        "mean": 708.6,
+        "median": 622,
+        "min": 333,
+        "max": 1061,
+        "span": 728
+      },
+      "tokens.cache_read": {
+        "mean": 10752.0,
+        "median": 10752,
+        "min": 9728,
+        "max": 11776,
+        "span": 2048
+      },
+      "tokens.cache_creation": {
+        "mean": 0.0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "span": 0
+      },
+      "tokens.output": {
+        "mean": 54.6,
+        "median": 48,
+        "min": 45,
+        "max": 72,
+        "span": 27
+      },
+      "tokens.reasoning": {
+        "mean": 0.0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "span": 0
+      },
+      "tokens.total": {
+        "mean": 11515.2,
+        "median": 11422,
+        "min": 10733,
+        "max": 12155,
+        "span": 1422
+      },
+      "runtime_tools": {
+        "mean": 14.4,
+        "median": 15,
+        "min": 12,
+        "max": 16,
+        "span": 4
+      },
+      "ktx_calls": {
+        "mean": 14.2,
+        "median": 14,
+        "min": 12,
+        "max": 16,
+        "span": 4
+      },
+      "turns": {
+        "mean": 26.4,
+        "median": 27,
+        "min": 24,
+        "max": 28,
+        "span": 4
+      },
+      "wall_seconds": {
+        "mean": 84.16,
+        "median": 84.8,
+        "min": 81.9,
+        "max": 86.1,
+        "span": 4.199999999999989
+      }
+    },
+    "candidate": {
+      "reward": {
+        "mean": 1.0,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "span": 0
+      },
+      "original_bytes": {
+        "mean": 16773.8,
+        "median": 17028,
+        "min": 14752,
+        "max": 18464,
+        "span": 3712
+      },
+      "delivered_bytes": {
+        "mean": 12645.0,
+        "median": 12810,
+        "min": 10689,
+        "max": 14248,
+        "span": 3559
+      },
+      "compression_ratio": {
+        "mean": 0.7526481654981592,
+        "median": 0.7522903453136012,
+        "min": 0.7245797180043384,
+        "max": 0.7716637781629117,
+        "span": 0.04708406015857325
+      },
+      "compression_reduction": {
+        "mean": 0.24735183450184084,
+        "median": 0.24770965468639888,
+        "min": 0.22833622183708838,
+        "max": 0.2754202819956616,
+        "span": 0.04708406015857322
+      },
+      "tokens.input": {
+        "mean": 1005.8,
+        "median": 968,
+        "min": 473,
+        "max": 1476,
+        "span": 1003
+      },
+      "tokens.new_input": {
+        "mean": 1005.8,
+        "median": 968,
+        "min": 473,
+        "max": 1476,
+        "span": 1003
+      },
+      "tokens.cache_read": {
+        "mean": 10342.4,
+        "median": 9728,
+        "min": 9728,
+        "max": 11776,
+        "span": 2048
+      },
+      "tokens.cache_creation": {
+        "mean": 0.0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "span": 0
+      },
+      "tokens.output": {
+        "mean": 49.8,
+        "median": 49,
+        "min": 41,
+        "max": 60,
+        "span": 19
+      },
+      "tokens.reasoning": {
+        "mean": 0.0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "span": 0
+      },
+      "tokens.total": {
+        "mean": 11398.0,
+        "median": 11264,
+        "min": 10733,
+        "max": 12302,
+        "span": 1569
+      },
+      "runtime_tools": {
+        "mean": 16.2,
+        "median": 16,
+        "min": 16,
+        "max": 17,
+        "span": 1
+      },
+      "ktx_calls": {
+        "mean": 16.2,
+        "median": 16,
+        "min": 16,
+        "max": 17,
+        "span": 1
+      },
+      "turns": {
+        "mean": 29.2,
+        "median": 30,
+        "min": 28,
+        "max": 30,
+        "span": 2
+      },
+      "wall_seconds": {
+        "mean": 89.88,
+        "median": 84.3,
+        "min": 81.7,
+        "max": 113.8,
+        "span": 32.099999999999994
+      }
+    },
+    "candidate_minus_baseline": {
+      "reward": {
+        "mean": 0.0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "span": 0
+      },
+      "original_bytes": {
+        "mean": 4545.0,
+        "median": 4147,
+        "min": 2756,
+        "max": 6494,
+        "span": 3738
+      },
+      "delivered_bytes": {
+        "mean": 416.2,
+        "median": 74,
+        "min": -1307,
+        "max": 2420,
+        "span": 3727
+      },
+      "compression_ratio": {
+        "mean": -0.24735183450184078,
+        "median": -0.24770965468639883,
+        "min": -0.2754202819956616,
+        "max": -0.22833622183708835,
+        "span": 0.04708406015857325
+      },
+      "compression_reduction": {
+        "mean": 0.24735183450184084,
+        "median": 0.24770965468639888,
+        "min": 0.22833622183708838,
+        "max": 0.2754202819956616,
+        "span": 0.04708406015857322
+      },
+      "tokens.input": {
+        "mean": 297.2,
+        "median": 334,
+        "min": 35,
+        "max": 562,
+        "span": 527
+      },
+      "tokens.new_input": {
+        "mean": 297.2,
+        "median": 334,
+        "min": 35,
+        "max": 562,
+        "span": 527
+      },
+      "tokens.cache_read": {
+        "mean": -409.6,
+        "median": -1024,
+        "min": -1024,
+        "max": 1024,
+        "span": 2048
+      },
+      "tokens.cache_creation": {
+        "mean": 0.0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "span": 0
+      },
+      "tokens.output": {
+        "mean": -4.8,
+        "median": 1,
+        "min": -26,
+        "max": 15,
+        "span": 41
+      },
+      "tokens.reasoning": {
+        "mean": 0.0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "span": 0
+      },
+      "tokens.total": {
+        "mean": -117.2,
+        "median": -483,
+        "min": -689,
+        "max": 1033,
+        "span": 1722
+      },
+      "runtime_tools": {
+        "mean": 1.8,
+        "median": 2,
+        "min": 0,
+        "max": 4,
+        "span": 4
+      },
+      "ktx_calls": {
+        "mean": 2.0,
+        "median": 3,
+        "min": 0,
+        "max": 4,
+        "span": 4
+      },
+      "turns": {
+        "mean": 2.8,
+        "median": 2,
+        "min": 0,
+        "max": 6,
+        "span": 6
+      },
+      "wall_seconds": {
+        "mean": 5.72,
+        "median": -1.8,
+        "min": -3.2,
+        "max": 30.7,
+        "span": 33.9
+      }
+    }
+  },
+  "directional_counts": {
+    "reward": {
+      "candidate_lower": 0,
+      "equal": 5,
+      "candidate_higher": 0
+    },
+    "delivered_bytes": {
+      "candidate_lower": 2,
+      "equal": 0,
+      "candidate_higher": 3
+    },
+    "total_tokens": {
+      "candidate_lower": 3,
+      "equal": 0,
+      "candidate_higher": 2
+    }
+  },
+  "gate": {
+    "rules": [
+      {
+        "id": "exactly_five_valid_pairs",
+        "requirement": "exactly five valid quality-evaluable pairs",
+        "observed": 5,
+        "outcome": "PASS",
+        "stops": false
+      },
+      {
+        "id": "no_lower_candidate_reward",
+        "requirement": "any lower candidate reward stops",
+        "observed": {
+          "candidate_lower": 0,
+          "equal": 5,
+          "candidate_higher": 0
+        },
+        "outcome": "PASS",
+        "stops": false
+      },
+      {
+        "id": "lower_candidate_delivered_bytes_at_least_four",
+        "requirement": "candidate delivered bytes lower in at least four of five pairs",
+        "observed": {
+          "candidate_lower": 2,
+          "equal": 0,
+          "candidate_higher": 3
+        },
+        "outcome": "FAIL",
+        "stops": true
+      },
+      {
+        "id": "candidate_total_tokens_higher_at_least_four_stops",
+        "requirement": "candidate total tokens higher in at least four of five pairs stops",
+        "observed": {
+          "candidate_lower": 3,
+          "equal": 0,
+          "candidate_higher": 2
+        },
+        "outcome": "PASS",
+        "stops": false
+      },
+      {
+        "id": "descriptive_reporting",
+        "requirement": "per-pair and aggregate reward, bytes, compression, token components, tools, turns, and wall time; null cost; no inferential or causal claim",
+        "outcome": "PASS",
+        "stops": false
+      }
+    ],
+    "decision": "STOP",
+    "reason": "Candidate delivered bytes are lower in only two of five pairs; the predeclared rule requires at least four."
+  }
+}

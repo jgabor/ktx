@@ -1,0 +1,25 @@
+id: xhbaaswcha
+artifact: plan
+record:
+  name: Sanitize and rebind maintained proof material
+  depends_on:
+    - pnshnjuhkr
+    - mqjszxkcqx
+    - rpteozrqjo
+  status: complete
+  acceptance:
+    - GIVEN tracked maintained or replaceable proof WHEN scanned THEN workstation usernames, absolute checkout paths, randomized temporary roots, credentials, and project-internal tracking markers are absent.
+    - GIVEN authoritative historical bytes WHEN cleanup completes THEN they remain byte-for-byte unchanged; any correction is a separate additive artifact linked to the original digest.
+    - GIVEN authoritative raw material contains machine-local detail WHEN it must be retained THEN the bounded exception is documented without rewriting the source or claiming complete sanitization.
+    - GIVEN a changed derivative or proof artifact WHEN integrity is checked THEN its digest, reference, authority class, and status agree everywhere it is cited.
+  plan: yfttmtjihy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-xhbaaswcha-1
+      source: independent proof-sanitization audit PASS at d1d4034; portable derivative, bounded exceptions, and all digest bindings verified
+      recorded_at: 2026-08-02 22:22
+      writer_command: agentera state plan record-evaluation

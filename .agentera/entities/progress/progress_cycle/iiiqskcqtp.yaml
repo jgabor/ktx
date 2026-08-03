@@ -1,0 +1,17 @@
+id: iiiqskcqtp
+artifact: progress
+record:
+  timestamp: 2026-08-02 14:49
+  type: test
+  phase: build
+  what: Added one deterministic native task that combines structured JSON retention with code-diff comprehension, added matching and non-matching regression coverage for the existing fact scorer, documented the five-risk map, and narrowed native claims to measured context or cost with deterministic results on named tasks.
+  context:
+    intent: Review and close native benchmark coverage gaps for large logs, cross-file navigation, structured output, code or diff comprehension, and failure passthrough without rebuilding an external evaluator.
+    constraints: No provider, model, paid, Docker, authentication, installation, fetch, remote, ambient database, corpus regeneration, methodology change, scoring behavior, schema, runner, general evaluator, or protected historical evidence change.
+    unknowns: No model-backed result exists for the new named task; only deterministic fixture and offline preflight behavior were verified.
+    scope: tools/bench/tasks/structured-diff-v1.toml, internal/experiment/experiment_test.go, docs/pipelines.md, README.md, and one progress entity.
+  inspiration: Active plan task qqubqfhctq and the firm native benchmark ownership boundary.
+  discovered: Large-log, cross-file, and failure risks were already covered. Structured output had only pipeline-unit coverage and code or diff comprehension had no task-level case. The checkout contains no retained native experiment directory, so no new task result can be claimed.
+  verified: Focused experiment, pipeline, stage, and CLI tests passed. Isolated mage check passed all tests, vet, lint, and build with 967 audited operations and zero forbidden database operations. The generated fixture is valid JSON at 206323 bytes, about 51581 chars-per-four tokens, with 1801 events, the tail result, and the mid-body ErrCacheMiss patch. New-task and failure-task preflights were eligible with zero model attempts and no artifact creation. Errata revalidation passed with raw_immutable true; tracked protected evidence is unchanged. Marker, credential-shape, and removed-product scans are clean. The older freeze verifier still stops only on its inherited historical source artifact-count mismatch after retained hashes pass.
+  next: Keep qqubqfhctq in progress for independent audit. Do not infer a live result for structured-diff-v1 and do not run a provider or paid comparison without separate approval.
+  publication_order: 24

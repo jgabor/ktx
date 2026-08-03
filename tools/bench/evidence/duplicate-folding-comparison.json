@@ -1,0 +1,666 @@
+{
+  "schema": "ktx.duplicate-folding-comparison/v1",
+  "tool_version": "duplicate-folding-comparison/v1",
+  "status": "not_adopted_quality_and_tool_call_equivalence_unavailable",
+  "corpus_authority": {
+    "schema": "ktx.qualification-corpus/v1",
+    "tool_version": "qualification-census/v3",
+    "corpus_sha256": "88b44dfdfbf38ed5bcab6c9784bdafb7b5473efae516ea371b41963a967c1142",
+    "manifest_sha256": "c5660233c6d58c020ba6b0762e87c4991bff339a8b461d4052dd9bbddf040f84",
+    "source_logical_sha256": "d61b668c937f4c0028976ef05ebe0b0afdcba76f9ffabdf91890891c25a5e1d9",
+    "qualification_aggregate_sha256": "6e9830154d786bf552d04d111d383c3ae0567b36b1d8879d21b95f188b439d05",
+    "utility_executable_sha256": "9f6de945e3640cb04e4849182343502a3a08db2e9c2e42e5ee0894c9529503bf"
+  },
+  "scope": {
+    "retained_calls": 809234,
+    "retained_bytes": 3415817650,
+    "raw_content_emitted": false,
+    "product_database_accessed": false,
+    "provider_invoked": false,
+    "product_behavior_changed": false
+  },
+  "method": {
+    "warmup_repetitions": 5,
+    "measured_repetitions": 30,
+    "eligible_population": "all measured-success full supported outputs accepted by the audited recognizer",
+    "passthrough_sampling": "first 128 corpus-order outputs per boundary, capped at 1048576 bytes; population fidelity is checked for every output",
+    "latency": "single-threaded wall-clock batches after warmup; gross encoder time and byte-length loop overhead are measured separately",
+    "allocations": "single-threaded runtime allocation-counter deltas around encoder-only batches after a forced pre-sample garbage collection",
+    "benchmark_overhead": "timers, allocation snapshots, garbage collection, corpus replay, recovery checks, and reporting are outside measured encoder batches; loop overhead is reported and subtracted"
+  },
+  "baseline": {
+    "calls": 809234,
+    "input_bytes": 3415817650,
+    "delivery_bytes": 3415817650,
+    "changed_calls": 0
+  },
+  "candidate": {
+    "calls": 809234,
+    "input_bytes": 3415817650,
+    "delivery_bytes": 3415198644,
+    "changed_calls": 920
+  },
+  "opportunity": {
+    "qualified_raw_matches": 1429,
+    "qualified_raw_matched_bytes": 16851228,
+    "qualified_raw_pre_marker_savings_ceiling_bytes": 2378895,
+    "qualified_raw_net_savings_bytes": 2311294,
+    "eligible_calls": 920,
+    "eligible_input_bytes": 6198814,
+    "candidate_delivery_bytes": 5579808,
+    "pre_marker_savings_ceiling_bytes": 643914,
+    "marker_overhead_bytes": 24908,
+    "net_savings_bytes": 619006,
+    "measured_success_full_calls": 293395,
+    "measured_success_full_bytes": 618130861,
+    "eligible_call_share_measured_success_full": 0.003135704425774127,
+    "savings_share_measured_success_full_bytes": 0.0010014157827334235,
+    "eligible_call_share_all_retained": 0.0011368775904126618,
+    "savings_share_all_retained_bytes": 0.00018121751903237574,
+    "worsened_calls": 0
+  },
+  "fidelity": {
+    "eligible_checked": 920,
+    "byte_exact_recoveries": 920,
+    "recovery_failures": 0,
+    "folded_runs": 1301,
+    "represented_original_occurrences": 9014
+  },
+  "passthrough": {
+    "all_ineligible": {
+      "calls": 808314,
+      "bytes": 3409618836,
+      "changed_calls": 0
+    },
+    "non_adjacent_or_no_run": {
+      "calls": 807011,
+      "bytes": 3392443576,
+      "changed_calls": 0
+    },
+    "measured_failure": {
+      "calls": 65096,
+      "bytes": 69435355,
+      "changed_calls": 0
+    },
+    "empty": {
+      "calls": 66727,
+      "bytes": 0,
+      "changed_calls": 0
+    },
+    "partial_inline": {
+      "calls": 116213,
+      "bytes": 1106673153,
+      "changed_calls": 0
+    },
+    "unknown_outcome": {
+      "calls": 446798,
+      "bytes": 2572031570,
+      "changed_calls": 0
+    },
+    "contains_carriage_return": {
+      "calls": 582,
+      "bytes": 3898029,
+      "changed_calls": 0
+    },
+    "binary_or_nul": {
+      "calls": 32,
+      "bytes": 430413,
+      "changed_calls": 0
+    },
+    "marker_collision": {
+      "calls": 1,
+      "bytes": 5112,
+      "changed_calls": 0
+    },
+    "unsupported_total": {
+      "calls": 41495,
+      "bytes": 4095815,
+      "changed_calls": 0
+    },
+    "non_beneficial": {
+      "calls": 195,
+      "bytes": 2421919,
+      "changed_calls": 0
+    },
+    "unavailable_or_malformed": {
+      "calls": 40897,
+      "bytes": 0,
+      "changed_calls": 0
+    }
+  },
+  "performance": {
+    "binary_or_nul": {
+      "population_calls": 32,
+      "sample_calls": 32,
+      "sample_bytes": 430413,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 55326,
+        "p50": 56418,
+        "p95": 60276,
+        "max": 144337
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 20,
+        "p50": 30,
+        "p95": 50,
+        "max": 50
+      },
+      "net_pass_nanoseconds": {
+        "min": 55296,
+        "p50": 56388,
+        "p95": 60226,
+        "max": 144287
+      },
+      "net_nanoseconds_per_call": {
+        "min": 1728,
+        "p50": 1762,
+        "p95": 1882,
+        "max": 4508
+      },
+      "allocated_bytes_per_pass": {
+        "min": 960208,
+        "p50": 960208,
+        "p95": 960208,
+        "max": 960208
+      },
+      "allocations_per_pass": {
+        "min": 64,
+        "p50": 64,
+        "p95": 64,
+        "max": 64
+      }
+    },
+    "contains_carriage_return": {
+      "population_calls": 582,
+      "sample_calls": 128,
+      "sample_bytes": 186623,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 21130,
+        "p50": 22092,
+        "p95": 23555,
+        "max": 66287
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 40,
+        "p50": 50,
+        "p95": 50,
+        "max": 60
+      },
+      "net_pass_nanoseconds": {
+        "min": 21080,
+        "p50": 22042,
+        "p95": 23505,
+        "max": 66227
+      },
+      "net_nanoseconds_per_call": {
+        "min": 164,
+        "p50": 172,
+        "p95": 183,
+        "max": 517
+      },
+      "allocated_bytes_per_pass": {
+        "min": 398496,
+        "p50": 398496,
+        "p95": 398496,
+        "max": 398496
+      },
+      "allocations_per_pass": {
+        "min": 256,
+        "p50": 256,
+        "p95": 256,
+        "max": 256
+      }
+    },
+    "eligible_exact": {
+      "population_calls": 920,
+      "sample_calls": 920,
+      "sample_bytes": 6198814,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 147576937,
+        "p50": 149790285,
+        "p95": 152789407,
+        "max": 154628759
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 351,
+        "p50": 591,
+        "p95": 851,
+        "max": 1172
+      },
+      "net_pass_nanoseconds": {
+        "min": 147576526,
+        "p50": 149789874,
+        "p95": 152788235,
+        "max": 154628098
+      },
+      "net_nanoseconds_per_call": {
+        "min": 160409,
+        "p50": 162815,
+        "p95": 166074,
+        "max": 168074
+      },
+      "allocated_bytes_per_pass": {
+        "min": 67108248,
+        "p50": 67108264,
+        "p95": 67108664,
+        "max": 67110112
+      },
+      "allocations_per_pass": {
+        "min": 20822,
+        "p50": 20822,
+        "p95": 20828,
+        "max": 20831
+      }
+    },
+    "empty": {
+      "population_calls": 66727,
+      "sample_calls": 128,
+      "sample_bytes": 0,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 4509,
+        "p50": 4549,
+        "p95": 4579,
+        "max": 5060
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 40,
+        "p50": 40,
+        "p95": 50,
+        "max": 60
+      },
+      "net_pass_nanoseconds": {
+        "min": 4459,
+        "p50": 4508,
+        "p95": 4529,
+        "max": 5010
+      },
+      "net_nanoseconds_per_call": {
+        "min": 34,
+        "p50": 35,
+        "p95": 35,
+        "max": 39
+      },
+      "allocated_bytes_per_pass": {
+        "min": 6144,
+        "p50": 6144,
+        "p95": 6144,
+        "max": 6144
+      },
+      "allocations_per_pass": {
+        "min": 256,
+        "p50": 256,
+        "p95": 256,
+        "max": 256
+      }
+    },
+    "marker_collision": {
+      "population_calls": 1,
+      "sample_calls": 1,
+      "sample_bytes": 5112,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 28474,
+        "p50": 28614,
+        "p95": 28865,
+        "max": 32171
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 10,
+        "p50": 20,
+        "p95": 20,
+        "max": 30
+      },
+      "net_pass_nanoseconds": {
+        "min": 28454,
+        "p50": 28594,
+        "p95": 28845,
+        "max": 32151
+      },
+      "net_nanoseconds_per_call": {
+        "min": 28454,
+        "p50": 28594,
+        "p95": 28845,
+        "max": 32151
+      },
+      "allocated_bytes_per_pass": {
+        "min": 12680,
+        "p50": 12680,
+        "p95": 12680,
+        "max": 12680
+      },
+      "allocations_per_pass": {
+        "min": 5,
+        "p50": 5,
+        "p95": 5,
+        "max": 5
+      }
+    },
+    "measured_failure": {
+      "population_calls": 65096,
+      "sample_calls": 128,
+      "sample_bytes": 147722,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 1463082,
+        "p50": 1476777,
+        "p95": 1532003,
+        "max": 1631624
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 60,
+        "p50": 60,
+        "p95": 70,
+        "max": 90
+      },
+      "net_pass_nanoseconds": {
+        "min": 1463022,
+        "p50": 1476717,
+        "p95": 1531933,
+        "max": 1631534
+      },
+      "net_nanoseconds_per_call": {
+        "min": 11429,
+        "p50": 11536,
+        "p95": 11968,
+        "max": 12746
+      },
+      "allocated_bytes_per_pass": {
+        "min": 802008,
+        "p50": 802008,
+        "p95": 802008,
+        "max": 802008
+      },
+      "allocations_per_pass": {
+        "min": 874,
+        "p50": 874,
+        "p95": 874,
+        "max": 874
+      }
+    },
+    "non_adjacent_or_no_run": {
+      "population_calls": 807011,
+      "sample_calls": 128,
+      "sample_bytes": 554740,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 6259745,
+        "p50": 6441483,
+        "p95": 6689889,
+        "max": 7046863
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 60,
+        "p50": 80,
+        "p95": 131,
+        "max": 150
+      },
+      "net_pass_nanoseconds": {
+        "min": 6259675,
+        "p50": 6441342,
+        "p95": 6689789,
+        "max": 7046713
+      },
+      "net_nanoseconds_per_call": {
+        "min": 48903,
+        "p50": 50322,
+        "p95": 52263,
+        "max": 55052
+      },
+      "allocated_bytes_per_pass": {
+        "min": 3713312,
+        "p50": 3713312,
+        "p95": 3713312,
+        "max": 3713312
+      },
+      "allocations_per_pass": {
+        "min": 1647,
+        "p50": 1647,
+        "p95": 1647,
+        "max": 1647
+      }
+    },
+    "non_beneficial": {
+      "population_calls": 195,
+      "sample_calls": 128,
+      "sample_bytes": 1046849,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 10858119,
+        "p50": 11184875,
+        "p95": 11694541,
+        "max": 12655401
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 70,
+        "p50": 90,
+        "p95": 200,
+        "max": 301
+      },
+      "net_pass_nanoseconds": {
+        "min": 10858049,
+        "p50": 11184745,
+        "p95": 11694461,
+        "max": 12655250
+      },
+      "net_nanoseconds_per_call": {
+        "min": 84828,
+        "p50": 87380,
+        "p95": 91362,
+        "max": 98869
+      },
+      "allocated_bytes_per_pass": {
+        "min": 7781192,
+        "p50": 7781192,
+        "p95": 7781192,
+        "max": 7781192
+      },
+      "allocations_per_pass": {
+        "min": 2570,
+        "p50": 2570,
+        "p95": 2570,
+        "max": 2570
+      }
+    },
+    "partial_inline": {
+      "population_calls": 116213,
+      "sample_calls": 128,
+      "sample_bytes": 571313,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 6575419,
+        "p50": 6711330,
+        "p95": 7577679,
+        "max": 7891870
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 60,
+        "p50": 131,
+        "p95": 221,
+        "max": 241
+      },
+      "net_pass_nanoseconds": {
+        "min": 6575359,
+        "p50": 6711120,
+        "p95": 7577449,
+        "max": 7891659
+      },
+      "net_nanoseconds_per_call": {
+        "min": 51369,
+        "p50": 52430,
+        "p95": 59198,
+        "max": 61653
+      },
+      "allocated_bytes_per_pass": {
+        "min": 3778760,
+        "p50": 3778760,
+        "p95": 3778760,
+        "max": 3778760
+      },
+      "allocations_per_pass": {
+        "min": 1494,
+        "p50": 1494,
+        "p95": 1494,
+        "max": 1494
+      }
+    },
+    "unavailable_or_malformed": {
+      "population_calls": 40897,
+      "sample_calls": 128,
+      "sample_bytes": 0,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 4328,
+        "p50": 4368,
+        "p95": 4409,
+        "max": 4849
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 40,
+        "p50": 50,
+        "p95": 60,
+        "max": 70
+      },
+      "net_pass_nanoseconds": {
+        "min": 4278,
+        "p50": 4319,
+        "p95": 4349,
+        "max": 4779
+      },
+      "net_nanoseconds_per_call": {
+        "min": 33,
+        "p50": 33,
+        "p95": 33,
+        "max": 37
+      },
+      "allocated_bytes_per_pass": {
+        "min": 6144,
+        "p50": 6144,
+        "p95": 6144,
+        "max": 6144
+      },
+      "allocations_per_pass": {
+        "min": 256,
+        "p50": 256,
+        "p95": 256,
+        "max": 256
+      }
+    },
+    "unknown_outcome": {
+      "population_calls": 446798,
+      "sample_calls": 128,
+      "sample_bytes": 612249,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 7017025,
+        "p50": 7352458,
+        "p95": 8245718,
+        "max": 12432524
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 60,
+        "p50": 130,
+        "p95": 320,
+        "max": 441
+      },
+      "net_pass_nanoseconds": {
+        "min": 7016905,
+        "p50": 7352017,
+        "p95": 8245437,
+        "max": 12432204
+      },
+      "net_nanoseconds_per_call": {
+        "min": 54819,
+        "p50": 57437,
+        "p95": 64417,
+        "max": 97126
+      },
+      "allocated_bytes_per_pass": {
+        "min": 4095968,
+        "p50": 4095968,
+        "p95": 4095968,
+        "max": 4095968
+      },
+      "allocations_per_pass": {
+        "min": 1752,
+        "p50": 1752,
+        "p95": 1752,
+        "max": 1752
+      }
+    },
+    "unsupported_total": {
+      "population_calls": 41495,
+      "sample_calls": 128,
+      "sample_bytes": 21154,
+      "warmup_repetitions": 5,
+      "measured_repetitions": 30,
+      "gross_pass_nanoseconds": {
+        "min": 5982,
+        "p50": 6052,
+        "p95": 6533,
+        "max": 10440
+      },
+      "loop_overhead_nanoseconds": {
+        "min": 40,
+        "p50": 40,
+        "p95": 51,
+        "max": 60
+      },
+      "net_pass_nanoseconds": {
+        "min": 5942,
+        "p50": 6002,
+        "p95": 6483,
+        "max": 10400
+      },
+      "net_nanoseconds_per_call": {
+        "min": 46,
+        "p50": 46,
+        "p95": 50,
+        "max": 81
+      },
+      "allocated_bytes_per_pass": {
+        "min": 51360,
+        "p50": 51360,
+        "p95": 51360,
+        "max": 51360
+      },
+      "allocations_per_pass": {
+        "min": 256,
+        "p50": 256,
+        "p95": 256,
+        "max": 256
+      }
+    }
+  },
+  "task_correctness": {
+    "status": "unavailable",
+    "reason": "retained evidence contains no paired baseline and duplicate-folding treatment model run; historical continuations are baseline-only"
+  },
+  "tool_call_inflation": {
+    "status": "unavailable",
+    "reason": "retained evidence contains no paired baseline and duplicate-folding treatment model run; deterministic replay cannot establish counterfactual tool use"
+  },
+  "disposition": {
+    "adopted": false,
+    "failed_gates": [
+      "task_correctness_equivalence_unavailable",
+      "tool_call_inflation_equivalence_unavailable"
+    ],
+    "regression_claimed": false,
+    "rollout_authorized": false
+  }
+}

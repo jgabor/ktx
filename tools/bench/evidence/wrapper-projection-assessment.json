@@ -1,0 +1,95 @@
+{
+  "schema": "ktx.wrapper-projection-assessment/v1",
+  "status": "not_adopted_no_additional_stable_material_wrapper",
+  "qualification": {
+    "aggregate_sha256": "6e9830154d786bf552d04d111d383c3ae0567b36b1d8879d21b95f188b439d05",
+    "candidate": "additional_known_wrapper_projection",
+    "raw_matches": 0,
+    "eligible_outputs": 0
+  },
+  "contract_search": {
+    "additional_documented_stable_contracts": 0,
+    "shape_inference_allowed": false,
+    "existing_supported_contracts": [
+      {
+        "envelope": "context7_content_object",
+        "producers": ["context7_query-docs", "context7_resolve-library-id"]
+      },
+      {
+        "envelope": "kagi_fastmcp_object",
+        "producers": ["kagi_kagi_extract", "kagi_kagi_search_fetch"]
+      },
+      {
+        "envelope": "codex_web_result_array",
+        "producers": ["webrun", "web.run"]
+      }
+    ],
+    "searched_retained_sources": [
+      "tools/bench/evidence/compression-candidate-qualification.json",
+      "tools/bench/evidence/compression-candidate-qualification-fixtures.json",
+      "docs/compression-candidate-qualification.md",
+      "internal/qualcensus/corpus.go",
+      "internal/qualcensus/recognizers.go",
+      "internal/pipeline/stages/unwrap_result.go",
+      "internal/pipeline/stages/unwrap_result_test.go"
+    ]
+  },
+  "matrix": {
+    "existing_owned_pairs": 6,
+    "cross_pairs": 12,
+    "unknown_producer_pairs": 3,
+    "rejection_boundaries": [
+      "unknown_shape",
+      "generic_xml",
+      "generic_json",
+      "malformed",
+      "error",
+      "empty",
+      "multipart",
+      "trailing",
+      "mismatched"
+    ],
+    "rejections_byte_identical": true
+  },
+  "controlled_comparison": {
+    "status": "not_applicable",
+    "reason": "no qualified additional contract exists",
+    "zero_byte_treatment_claimed": false
+  },
+  "product_surface": {
+    "baseline_git_tree": "b081ba7518461df381f88ad977a49ae1808114c3",
+    "product_behavior_changed": false,
+    "new_wrapper_stage": false,
+    "new_route": false,
+    "new_profile": false,
+    "new_default": false,
+    "new_config": false,
+    "new_help": false,
+    "new_dependency": false,
+    "file_sha256": {
+      "internal/pipeline/stages/stages.go": "3c47c7b572db36da29264cb3f628e9883d7af753865830e7924000d410ec046e",
+      "internal/pipeline/stages/unwrap_result.go": "31351a8b21ae7655439c90631cae2d81222c5892d1c336f2a539bfc7948789c6",
+      "internal/pipeline/stages/unwrap_result_test.go": "2443dd364ff9dcf36554708b5d6215fb239cc17a64f7aa30ae55f7281b78eb7a",
+      "internal/qualcensus/corpus.go": "768d1405b466a2a495f0d40732efb3087b4e93a26bf824362a7247149173be22",
+      "internal/qualcensus/recognizers.go": "2a72f44e31b0261497180583c368e06166a7dde89a63ac30504f73d8c753dd08",
+      "internal/cli/compress.go": "9a1662edec478672a5098764dae14a26cad1b146e80a3daac03f938f867699f5",
+      "ktx.example.toml": "6dbdb9ddf16e72f40837fa6a97056fe3d60026256a5841d295f05584a04b215c",
+      "go.mod": "9df40e46a7c22ff91f4afb9c913190f8f08635df2a05d95e5573490b58cbf767",
+      "go.sum": "20636b946faf7e691d1da1e530f30159f6980344f3e4849b9d99ad4425462b60"
+    }
+  },
+  "disposition": {
+    "adopted": false,
+    "projection_broadened": false,
+    "rollout_authorized": false,
+    "reasons": ["no_additional_stable_material_wrapper"]
+  },
+  "scope": {
+    "aggregate_only": true,
+    "raw_content_emitted": false,
+    "private_corpus_accessed": false,
+    "product_database_accessed": false,
+    "provider_invoked": false,
+    "session_created": false
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "schema": "ktx.common-path-prefix-comparison/v1",
+  "tool_version": "common-path-prefix-comparison/v1",
+  "status": "not_adopted_quality_and_tool_call_equivalence_unavailable",
+  "corpus_authority": {
+    "schema": "ktx.qualification-corpus/v1",
+    "tool_version": "qualification-census/v3",
+    "corpus_sha256": "88b44dfdfbf38ed5bcab6c9784bdafb7b5473efae516ea371b41963a967c1142",
+    "manifest_sha256": "c5660233c6d58c020ba6b0762e87c4991bff339a8b461d4052dd9bbddf040f84",
+    "source_logical_sha256": "d61b668c937f4c0028976ef05ebe0b0afdcba76f9ffabdf91890891c25a5e1d9",
+    "qualification_aggregate_sha256": "6e9830154d786bf552d04d111d383c3ae0567b36b1d8879d21b95f188b439d05",
+    "utility_executable_sha256": "cfb6a688ed826a67f8e17ee60df0ac97b46318953254b93722f19e8c3fb18a3c"
+  },
+  "scope": {
+    "retained_calls": 809234,
+    "retained_bytes": 3415817650,
+    "raw_content_emitted": false,
+    "product_database_accessed": false,
+    "provider_invoked": false,
+    "product_behavior_changed": false
+  },
+  "method": {
+    "warmup_repetitions": 5,
+    "measured_repetitions": 30,
+    "eligible_population": "all measured-success full outputs accepted by the audited strict path recognizer",
+    "passthrough_sampling": "none; passthrough fidelity is checked over every retained output and performance is measured only over the full eligible population",
+    "latency": "single-threaded wall-clock batches after warmup; gross encoder time and byte-length loop overhead are measured separately",
+    "allocations": "single-threaded runtime allocation-counter deltas around encoder-only batches after a forced pre-sample garbage collection",
+    "benchmark_overhead": "timers, allocation snapshots, garbage collection, corpus replay, recovery checks, and reporting are outside measured encoder batches; loop overhead is reported and subtracted"
+  },
+  "baseline": {
+    "calls": 809234,
+    "input_bytes": 3415817650,
+    "delivery_bytes": 3415817650,
+    "changed_calls": 0
+  },
+  "candidate": {
+    "calls": 809234,
+    "input_bytes": 3415817650,
+    "delivery_bytes": 3414418143,
+    "changed_calls": 1175
+  },
+  "opportunity": {
+    "qualified_raw_matches": 1181,
+    "qualified_raw_matched_bytes": 2983260,
+    "qualified_raw_pre_marker_savings_ceiling_bytes": 1410860,
+    "qualified_raw_net_savings_bytes": 1401412,
+    "eligible_calls": 1175,
+    "eligible_input_bytes": 2971772,
+    "candidate_delivery_bytes": 1572265,
+    "pre_marker_savings_ceiling_bytes": 1408907,
+    "marker_overhead_bytes": 9400,
+    "net_savings_bytes": 1399507,
+    "measured_success_full_calls": 293395,
+    "measured_success_full_bytes": 618130861,
+    "eligible_call_share_measured_success_full": 0.004004839891613695,
+    "savings_share_measured_success_full_bytes": 0.002264095013369669,
+    "eligible_call_share_all_retained": 0.00145199040079878,
+    "savings_share_all_retained_bytes": 0.0004097136157136491,
+    "worsened_calls": 0
+  },
+  "fidelity": {
+    "eligible_checked": 1175,
+    "byte_exact_recoveries": 1175,
+    "recovery_failures": 0,
+    "shared_base_statements": 1175,
+    "reconstructed_paths": 34610,
+    "unix_path_lists": 1175,
+    "windows_path_lists": 0
+  },
+  "passthrough": {
+    "all_ineligible": {
+      "calls": 808059,
+      "bytes": 3412845878,
+      "changed_calls": 0
+    },
+    "measured_failure": {
+      "calls": 65096,
+      "bytes": 69435355,
+      "changed_calls": 0
+    },
+    "empty": {
+      "calls": 66727,
+      "bytes": 0,
+      "changed_calls": 0
+    },
+    "partial_inline": {
+      "calls": 116213,
+      "bytes": 1106673153,
+      "changed_calls": 0
+    },
+    "unknown_outcome": {
+      "calls": 446798,
+      "bytes": 2572031570,
+      "changed_calls": 0
+    },
+    "cr_or_mixed_line_endings": {
+      "calls": 582,
+      "bytes": 3898029,
+      "changed_calls": 0
+    },
+    "binary_or_nul": {
+      "calls": 32,
+      "bytes": 430413,
+      "changed_calls": 0
+    },
+    "unavailable_or_malformed": {
+      "calls": 40897,
+      "bytes": 0,
+      "changed_calls": 0
+    },
+    "not_strict_path_list": {
+      "calls": 808053,
+      "bytes": 3412834390,
+      "changed_calls": 0
+    },
+    "relative_or_prose": {
+      "calls": 266257,
+      "bytes": 1012795987,
+      "changed_calls": 0
+    },
+    "cross_drive": {
+      "calls": 0,
+      "bytes": 0,
+      "changed_calls": 0
+    },
+    "case_variant_windows_prefix": {
+      "calls": 0,
+      "bytes": 0,
+      "changed_calls": 0
+    },
+    "shallow_or_no_meaningful_base": {
+      "calls": 53,
+      "bytes": 16062,
+      "changed_calls": 0
+    },
+    "single_or_two_paths": {
+      "calls": 71498,
+      "bytes": 26793461,
+      "changed_calls": 0
+    },
+    "missing_final_newline": {
+      "calls": 457614,
+      "bytes": 2328986385,
+      "changed_calls": 0
+    },
+    "mixed_separators_or_styles": {
+      "calls": 1225,
+      "bytes": 3196490,
+      "changed_calls": 0
+    },
+    "ambiguous_path": {
+      "calls": 10311,
+      "bytes": 33157501,
+      "changed_calls": 0
+    },
+    "dot_or_dot_dot_component": {
+      "calls": 21,
+      "bytes": 79459,
+      "changed_calls": 0
+    },
+    "marker_or_base_collision": {
+      "calls": 476,
+      "bytes": 3713230,
+      "changed_calls": 0
+    },
+    "non_beneficial": {
+      "calls": 0,
+      "bytes": 0,
+      "changed_calls": 0
+    }
+  },
+  "eligible_performance": {
+    "population_calls": 1175,
+    "sample_calls": 1175,
+    "sample_bytes": 2971772,
+    "warmup_repetitions": 5,
+    "measured_repetitions": 30,
+    "gross_pass_nanoseconds": {
+      "min": 22865394,
+      "p50": 23278164,
+      "p95": 23532651,
+      "max": 23741251
+    },
+    "loop_overhead_nanoseconds": {
+      "min": 290,
+      "p50": 321,
+      "p95": 360,
+      "max": 361
+    },
+    "net_pass_nanoseconds": {
+      "min": 22865093,
+      "p50": 23277843,
+      "p95": 23532331,
+      "max": 23740891
+    },
+    "net_nanoseconds_per_call": {
+      "min": 19459,
+      "p50": 19810,
+      "p95": 20027,
+      "max": 20205
+    },
+    "allocated_bytes_per_pass": {
+      "min": 47192096,
+      "p50": 47192096,
+      "p95": 47192376,
+      "max": 47192408
+    },
+    "allocations_per_pass": {
+      "min": 199270,
+      "p50": 199270,
+      "p95": 199274,
+      "max": 199274
+    }
+  },
+  "task_correctness": {
+    "status": "unavailable",
+    "reason": "retained evidence contains no paired baseline and common-path-prefix treatment model run; historical continuations are baseline-only"
+  },
+  "tool_call_inflation": {
+    "status": "unavailable",
+    "reason": "retained evidence contains no paired baseline and common-path-prefix treatment model run; deterministic replay cannot establish counterfactual tool use"
+  },
+  "disposition": {
+    "adopted": false,
+    "failed_gates": [
+      "task_correctness_equivalence_unavailable",
+      "tool_call_inflation_equivalence_unavailable"
+    ],
+    "regression_claimed": false,
+    "rollout_authorized": false
+  }
+}

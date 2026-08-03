@@ -1,0 +1,2183 @@
+{
+  "schema_version": 4,
+  "analyzer": {
+    "version": "qualification-census/v4",
+    "executable_sha256": "065964994afca2d8016fbc26c2cd36ed58d29080e0a88722f562ed721e307c8e"
+  },
+  "status": "frozen_retained_history_qualification_no_rollout_authorization",
+  "corpus": {
+    "schema": "ktx.qualification-corpus/v1",
+    "tool_version": "qualification-census/v3",
+    "corpus_sha256": "88b44dfdfbf38ed5bcab6c9784bdafb7b5473efae516ea371b41963a967c1142",
+    "manifest_sha256": "c5660233c6d58c020ba6b0762e87c4991bff339a8b461d4052dd9bbddf040f84",
+    "source_logical_sha256": "d61b668c937f4c0028976ef05ebe0b0afdcba76f9ffabdf91890891c25a5e1d9",
+    "extraction_started_at_utc": "2026-07-31T19:18:51.068332311Z",
+    "extraction_ended_at_utc": "2026-07-31T19:21:44.712546841Z"
+  },
+  "scope": {
+    "population": "all retained local OpenCode sessions at one frozen SQLite boundary plus globally nonduplicated legacy-only sessions",
+    "representative_of_retained_local_history": true,
+    "complete_wall_clock_history": false,
+    "broad_default_authorized": false,
+    "raw_content_emitted": false,
+    "product_database_accessed": false
+  },
+  "watermark": {
+    "snapshot_time_utc": "2026-07-31T19:18:51.068332311Z",
+    "sqlite_transaction": "read_only_frozen_wal_snapshot",
+    "query_only": true,
+    "journal_mode": "wal",
+    "sqlite_schema_version": 108,
+    "sqlite_data_version": 2
+  },
+  "population": {
+    "sqlite": {
+      "sessions": 98605,
+      "messages": 661987,
+      "parts": 2501624,
+      "sessions_with_tool_calls": 25275,
+      "sessions_without_tool_calls": 73330
+    },
+    "legacy": {
+      "session_files": 5820,
+      "duplicate_sessions": 5786,
+      "included_sessions": 34,
+      "included_messages": 379,
+      "included_parts": 1584,
+      "duplicate_messages": 0,
+      "duplicate_parts": 0,
+      "sessions_with_parts": 29,
+      "sessions_with_tool_calls": 24,
+      "sessions_without_tool_calls": 10
+    },
+    "total_sessions": 98639,
+    "selected_tool_calls": 809234,
+    "selected_output_bytes": 3415817650,
+    "sqlite_projects": 60,
+    "sqlite_session_versions": 94
+  },
+  "coverage": {
+    "sqlite_session_ids": {
+      "blank": 0,
+      "duplicate": 0
+    },
+    "sqlite_message_ids": {
+      "blank": 0,
+      "duplicate": 0
+    },
+    "sqlite_part_ids": {
+      "blank": 0,
+      "duplicate": 0
+    },
+    "malformed_part_json": 0,
+    "missing_project_join": 0,
+    "missing_message_join": 0,
+    "missing_session_join": 0,
+    "part_session_mismatch": 0,
+    "legacy_sessions": {
+      "missing": 0,
+      "unsafe": 0,
+      "changed": 0,
+      "read_errors": 0
+    },
+    "legacy_messages": {
+      "missing": 0,
+      "unsafe": 0,
+      "changed": 0,
+      "read_errors": 0
+    },
+    "legacy_parts": {
+      "missing": 0,
+      "unsafe": 0,
+      "changed": 0,
+      "read_errors": 0
+    },
+    "output_unavailable": 40897,
+    "output_malformed": 0,
+    "external_referenced": 5319,
+    "external_used": 671,
+    "external": {
+      "missing": 4648,
+      "unsafe": 0,
+      "changed": 0,
+      "read_errors": 0
+    }
+  },
+  "outcomes": {
+    "measured_success": {
+      "calls": 297340,
+      "bytes": 774350725
+    },
+    "measured_failure": {
+      "calls": 65096,
+      "bytes": 69435355
+    },
+    "unknown": {
+      "calls": 446798,
+      "bytes": 2572031570
+    }
+  },
+  "completeness": {
+    "full": {
+      "calls": 652124,
+      "bytes": 2309144497
+    },
+    "partial_inline": {
+      "calls": 116213,
+      "bytes": 1106673153
+    },
+    "unavailable": {
+      "calls": 40897,
+      "bytes": 0
+    },
+    "malformed": {
+      "calls": 0,
+      "bytes": 0
+    }
+  },
+  "content_coverage": [
+    {
+      "source_family": "legacy",
+      "producer_group": "bash",
+      "outcome": "measured_success",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 10,
+      "bytes": 7321
+    },
+    {
+      "source_family": "legacy",
+      "producer_group": "grep",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 119,
+      "bytes": 323345
+    },
+    {
+      "source_family": "legacy",
+      "producer_group": "grep",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 23,
+      "bytes": 185039
+    },
+    {
+      "source_family": "legacy",
+      "producer_group": "other",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 70,
+      "bytes": 65541
+    },
+    {
+      "source_family": "legacy",
+      "producer_group": "read",
+      "outcome": "measured_failure",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 8,
+      "bytes": 0
+    },
+    {
+      "source_family": "legacy",
+      "producer_group": "read",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 128,
+      "bytes": 1829565
+    },
+    {
+      "source_family": "legacy",
+      "producer_group": "read",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 166,
+      "bytes": 1585513
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_failure",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 25662,
+      "bytes": 56835524
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_failure",
+      "completeness": "full",
+      "content_class": "unsupported_binary_or_nul",
+      "calls": 1,
+      "bytes": 21855
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_failure",
+      "completeness": "full",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 72,
+      "bytes": 411954
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_failure",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 379,
+      "bytes": 12063220
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_failure",
+      "completeness": "partial_inline",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 2,
+      "bytes": 102802
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_failure",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 301,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_success",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 293032,
+      "bytes": 617068305
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_success",
+      "completeness": "full",
+      "content_class": "unsupported_binary_or_nul",
+      "calls": 20,
+      "bytes": 128232
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_success",
+      "completeness": "full",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 333,
+      "bytes": 927003
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_success",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 3931,
+      "bytes": 155512386
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_success",
+      "completeness": "partial_inline",
+      "content_class": "unsupported_binary_or_nul",
+      "calls": 5,
+      "bytes": 245249
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "measured_success",
+      "completeness": "partial_inline",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 9,
+      "bytes": 462229
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 673,
+      "bytes": 1090837
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_binary_or_nul",
+      "calls": 2,
+      "bytes": 7321
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 3,
+      "bytes": 14007
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 7,
+      "bytes": 201518
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "bash",
+      "outcome": "unknown",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 342,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "context7",
+      "outcome": "measured_failure",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 1,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "context7",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 655,
+      "bytes": 1863184
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "grep",
+      "outcome": "measured_failure",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 4729,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "grep",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 67474,
+      "bytes": 111186284
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "grep",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 11,
+      "bytes": 75290
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "grep",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 10970,
+      "bytes": 84402181
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "grep",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 7,
+      "bytes": 306791
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "grep",
+      "outcome": "unknown",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 23,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "kagi",
+      "outcome": "measured_failure",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 81,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "kagi",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 908,
+      "bytes": 27822177
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "kagi",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_binary_or_nul",
+      "calls": 1,
+      "bytes": 12315
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "kagi",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 4,
+      "bytes": 692536
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "kagi",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 26,
+      "bytes": 1253613
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "other",
+      "outcome": "measured_failure",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 15871,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "other",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 127845,
+      "bytes": 240354335
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "other",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_binary_or_nul",
+      "calls": 2,
+      "bytes": 11577
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "other",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 124,
+      "bytes": 621282
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "other",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 1311,
+      "bytes": 19612875
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "other",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "unsupported_carriage_return_text",
+      "calls": 1,
+      "bytes": 51508
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "other",
+      "outcome": "unknown",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 1449,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "read",
+      "outcome": "measured_failure",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 17989,
+      "bytes": 0
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "read",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "supported_lf_text",
+      "calls": 134974,
+      "bytes": 1247770843
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "read",
+      "outcome": "unknown",
+      "completeness": "full",
+      "content_class": "unsupported_binary_or_nul",
+      "calls": 1,
+      "bytes": 3864
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "read",
+      "outcome": "unknown",
+      "completeness": "partial_inline",
+      "content_class": "supported_lf_text",
+      "calls": 99376,
+      "bytes": 830688229
+    },
+    {
+      "source_family": "sqlite",
+      "producer_group": "read",
+      "outcome": "unknown",
+      "completeness": "unavailable",
+      "content_class": "not_available",
+      "calls": 103,
+      "bytes": 0
+    }
+  ],
+  "candidates": [
+    {
+      "id": "adjacent_duplicate_folding",
+      "semantic_risk": "medium_exact_count_chronology_marker_and_line_endings_must_survive",
+      "producer_coverage": [
+        {
+          "name": "bash",
+          "calls": 324784,
+          "bytes": 845099763
+        },
+        {
+          "name": "context7",
+          "calls": 656,
+          "bytes": 1863184
+        },
+        {
+          "name": "grep",
+          "calls": 83356,
+          "bytes": 196478930
+        },
+        {
+          "name": "kagi",
+          "calls": 1020,
+          "bytes": 29780641
+        },
+        {
+          "name": "other",
+          "calls": 146673,
+          "bytes": 260717118
+        },
+        {
+          "name": "read",
+          "calls": 252745,
+          "bytes": 2081878014
+        }
+      ],
+      "source_coverage": [
+        {
+          "name": "legacy",
+          "calls": 524,
+          "bytes": 3996324
+        },
+        {
+          "name": "sqlite",
+          "calls": 808710,
+          "bytes": 3411821326
+        }
+      ],
+      "raw_opportunity": [
+        {
+          "source_family": "legacy",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "full",
+          "calls": 10,
+          "bytes": 7321,
+          "textual_calls": 10,
+          "textual_bytes": 7321,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 119,
+          "bytes": 323345,
+          "textual_calls": 119,
+          "textual_bytes": 323345,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 23,
+          "bytes": 185039,
+          "textual_calls": 23,
+          "textual_bytes": 185039,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 70,
+          "bytes": 65541,
+          "textual_calls": 70,
+          "textual_bytes": 65541,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 8,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 128,
+          "bytes": 1829565,
+          "textual_calls": 128,
+          "textual_bytes": 1829565,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 166,
+          "bytes": 1585513,
+          "textual_calls": 166,
+          "textual_bytes": 1585513,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "full",
+          "calls": 25735,
+          "bytes": 57269333,
+          "textual_calls": 25734,
+          "textual_bytes": 57247478,
+          "matches": 82,
+          "matched_bytes": 1643503,
+          "pre_marker_savings_ceiling_bytes": 96758,
+          "net_savings_bytes": 93829
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "partial_inline",
+          "calls": 381,
+          "bytes": 12166022,
+          "textual_calls": 381,
+          "textual_bytes": 12166022,
+          "matches": 2,
+          "matched_bytes": 56325,
+          "pre_marker_savings_ceiling_bytes": 15432,
+          "net_savings_bytes": 15276
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 301,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "full",
+          "calls": 293385,
+          "bytes": 618123540,
+          "textual_calls": 293365,
+          "textual_bytes": 617995308,
+          "matches": 920,
+          "matched_bytes": 6198814,
+          "pre_marker_savings_ceiling_bytes": 643914,
+          "net_savings_bytes": 619006
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "partial_inline",
+          "calls": 3945,
+          "bytes": 156219864,
+          "textual_calls": 3940,
+          "textual_bytes": 155974615,
+          "matches": 130,
+          "matched_bytes": 6461528,
+          "pre_marker_savings_ceiling_bytes": 1531577,
+          "net_savings_bytes": 1508280
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 678,
+          "bytes": 1112165,
+          "textual_calls": 676,
+          "textual_bytes": 1104844,
+          "matches": 6,
+          "matched_bytes": 29460,
+          "pre_marker_savings_ceiling_bytes": 11579,
+          "net_savings_bytes": 11463
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 7,
+          "bytes": 201518,
+          "textual_calls": 7,
+          "textual_bytes": 201518,
+          "matches": 2,
+          "matched_bytes": 100419,
+          "pre_marker_savings_ceiling_bytes": 1888,
+          "net_savings_bytes": 1660
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 342,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "context7",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 1,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "context7",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 655,
+          "bytes": 1863184,
+          "textual_calls": 655,
+          "textual_bytes": 1863184,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 4729,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 67485,
+          "bytes": 111261574,
+          "textual_calls": 67485,
+          "textual_bytes": 111261574,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 10977,
+          "bytes": 84708972,
+          "textual_calls": 10977,
+          "textual_bytes": 84708972,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 23,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 81,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 913,
+          "bytes": 28527028,
+          "textual_calls": 912,
+          "textual_bytes": 28514713,
+          "matches": 2,
+          "matched_bytes": 347448,
+          "pre_marker_savings_ceiling_bytes": 660,
+          "net_savings_bytes": 565
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 26,
+          "bytes": 1253613,
+          "textual_calls": 26,
+          "textual_bytes": 1253613,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 15871,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 127971,
+          "bytes": 240987194,
+          "textual_calls": 127969,
+          "textual_bytes": 240975617,
+          "matches": 267,
+          "matched_bytes": 1189311,
+          "pre_marker_savings_ceiling_bytes": 69037,
+          "net_savings_bytes": 57859
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 1312,
+          "bytes": 19664383,
+          "textual_calls": 1312,
+          "textual_bytes": 19664383,
+          "matches": 18,
+          "matched_bytes": 824420,
+          "pre_marker_savings_ceiling_bytes": 8050,
+          "net_savings_bytes": 3356
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 1449,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 17989,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 134975,
+          "bytes": 1247774707,
+          "textual_calls": 134974,
+          "textual_bytes": 1247770843,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 99376,
+          "bytes": 830688229,
+          "textual_calls": 99376,
+          "textual_bytes": 830688229,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 103,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        }
+      ],
+      "raw_totals": {
+        "calls": 809234,
+        "bytes": 3415817650,
+        "textual_calls": 768305,
+        "textual_bytes": 3415387237,
+        "matches": 1429,
+        "matched_bytes": 16851228,
+        "pre_marker_savings_ceiling_bytes": 2378895,
+        "net_savings_bytes": 2311294
+      },
+      "eligible_accepted": [
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "accepted_outputs": 920,
+          "input_bytes": 6198814,
+          "encoded_bytes": 5579808,
+          "pre_marker_savings_ceiling_bytes": 643914,
+          "net_savings_bytes": 619006
+        }
+      ],
+      "eligible_totals": {
+        "accepted_outputs": 920,
+        "input_bytes": 6198814,
+        "encoded_bytes": 5579808,
+        "pre_marker_savings_ceiling_bytes": 643914,
+        "net_savings_bytes": 619006
+      },
+      "disposition": "controlled_comparison_only_no_rollout",
+      "controlled_comparison_authorized": true,
+      "rollout_authorized": false
+    },
+    {
+      "id": "common_path_prefix_factoring",
+      "semantic_risk": "medium_high_path_style_case_root_and_reconstruction_must_be_unambiguous",
+      "producer_coverage": [
+        {
+          "name": "bash",
+          "calls": 324784,
+          "bytes": 845099763
+        },
+        {
+          "name": "context7",
+          "calls": 656,
+          "bytes": 1863184
+        },
+        {
+          "name": "grep",
+          "calls": 83356,
+          "bytes": 196478930
+        },
+        {
+          "name": "kagi",
+          "calls": 1020,
+          "bytes": 29780641
+        },
+        {
+          "name": "other",
+          "calls": 146673,
+          "bytes": 260717118
+        },
+        {
+          "name": "read",
+          "calls": 252745,
+          "bytes": 2081878014
+        }
+      ],
+      "source_coverage": [
+        {
+          "name": "legacy",
+          "calls": 524,
+          "bytes": 3996324
+        },
+        {
+          "name": "sqlite",
+          "calls": 808710,
+          "bytes": 3411821326
+        }
+      ],
+      "raw_opportunity": [
+        {
+          "source_family": "legacy",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "full",
+          "calls": 10,
+          "bytes": 7321,
+          "textual_calls": 10,
+          "textual_bytes": 7321,
+          "matches": 1,
+          "matched_bytes": 2612,
+          "pre_marker_savings_ceiling_bytes": 1479,
+          "net_savings_bytes": 1471
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 119,
+          "bytes": 323345,
+          "textual_calls": 119,
+          "textual_bytes": 323345,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 23,
+          "bytes": 185039,
+          "textual_calls": 23,
+          "textual_bytes": 185039,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 70,
+          "bytes": 65541,
+          "textual_calls": 70,
+          "textual_bytes": 65541,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 8,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 128,
+          "bytes": 1829565,
+          "textual_calls": 128,
+          "textual_bytes": 1829565,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 166,
+          "bytes": 1585513,
+          "textual_calls": 166,
+          "textual_bytes": 1585513,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "full",
+          "calls": 25735,
+          "bytes": 57269333,
+          "textual_calls": 25734,
+          "textual_bytes": 57247478,
+          "matches": 6,
+          "matched_bytes": 11488,
+          "pre_marker_savings_ceiling_bytes": 1953,
+          "net_savings_bytes": 1905
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "partial_inline",
+          "calls": 381,
+          "bytes": 12166022,
+          "textual_calls": 381,
+          "textual_bytes": 12166022,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 301,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "full",
+          "calls": 293385,
+          "bytes": 618123540,
+          "textual_calls": 293365,
+          "textual_bytes": 617995308,
+          "matches": 1662,
+          "matched_bytes": 6652360,
+          "pre_marker_savings_ceiling_bytes": 2271483,
+          "net_savings_bytes": 2258187
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "partial_inline",
+          "calls": 3945,
+          "bytes": 156219864,
+          "textual_calls": 3940,
+          "textual_bytes": 155974615,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 678,
+          "bytes": 1112165,
+          "textual_calls": 676,
+          "textual_bytes": 1104844,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 7,
+          "bytes": 201518,
+          "textual_calls": 7,
+          "textual_bytes": 201518,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 342,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "context7",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 1,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "context7",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 655,
+          "bytes": 1863184,
+          "textual_calls": 655,
+          "textual_bytes": 1863184,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 4729,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 67485,
+          "bytes": 111261574,
+          "textual_calls": 67485,
+          "textual_bytes": 111261574,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 10977,
+          "bytes": 84708972,
+          "textual_calls": 10977,
+          "textual_bytes": 84708972,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 23,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 81,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 913,
+          "bytes": 28527028,
+          "textual_calls": 912,
+          "textual_bytes": 28514713,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 26,
+          "bytes": 1253613,
+          "textual_calls": 26,
+          "textual_bytes": 1253613,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 15871,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 127971,
+          "bytes": 240987194,
+          "textual_calls": 127969,
+          "textual_bytes": 240975617,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 1312,
+          "bytes": 19664383,
+          "textual_calls": 1312,
+          "textual_bytes": 19664383,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 1449,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 17989,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 134975,
+          "bytes": 1247774707,
+          "textual_calls": 134974,
+          "textual_bytes": 1247770843,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 99376,
+          "bytes": 830688229,
+          "textual_calls": 99376,
+          "textual_bytes": 830688229,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 103,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        }
+      ],
+      "raw_totals": {
+        "calls": 809234,
+        "bytes": 3415817650,
+        "textual_calls": 768305,
+        "textual_bytes": 3415387237,
+        "matches": 1669,
+        "matched_bytes": 6666460,
+        "pre_marker_savings_ceiling_bytes": 2274915,
+        "net_savings_bytes": 2261563
+      },
+      "eligible_accepted": [
+        {
+          "source_family": "legacy",
+          "producer_group": "bash",
+          "accepted_outputs": 1,
+          "input_bytes": 2612,
+          "encoded_bytes": 1141,
+          "pre_marker_savings_ceiling_bytes": 1479,
+          "net_savings_bytes": 1471
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "accepted_outputs": 1662,
+          "input_bytes": 6652360,
+          "encoded_bytes": 4394173,
+          "pre_marker_savings_ceiling_bytes": 2271483,
+          "net_savings_bytes": 2258187
+        }
+      ],
+      "eligible_totals": {
+        "accepted_outputs": 1663,
+        "input_bytes": 6654972,
+        "encoded_bytes": 4395314,
+        "pre_marker_savings_ceiling_bytes": 2272962,
+        "net_savings_bytes": 2259658
+      },
+      "disposition": "queued_after_adjacent_duplicate_comparison",
+      "controlled_comparison_authorized": false,
+      "rollout_authorized": false
+    },
+    {
+      "id": "additional_known_wrapper_projection",
+      "semantic_risk": "high_unknown_wrappers_can_carry_errors_instructions_or_metadata",
+      "producer_coverage": [
+        {
+          "name": "bash",
+          "calls": 324784,
+          "bytes": 845099763
+        },
+        {
+          "name": "context7",
+          "calls": 656,
+          "bytes": 1863184
+        },
+        {
+          "name": "grep",
+          "calls": 83356,
+          "bytes": 196478930
+        },
+        {
+          "name": "kagi",
+          "calls": 1020,
+          "bytes": 29780641
+        },
+        {
+          "name": "other",
+          "calls": 146673,
+          "bytes": 260717118
+        },
+        {
+          "name": "read",
+          "calls": 252745,
+          "bytes": 2081878014
+        }
+      ],
+      "source_coverage": [
+        {
+          "name": "legacy",
+          "calls": 524,
+          "bytes": 3996324
+        },
+        {
+          "name": "sqlite",
+          "calls": 808710,
+          "bytes": 3411821326
+        }
+      ],
+      "raw_opportunity": [
+        {
+          "source_family": "legacy",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "full",
+          "calls": 10,
+          "bytes": 7321,
+          "textual_calls": 10,
+          "textual_bytes": 7321,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 119,
+          "bytes": 323345,
+          "textual_calls": 119,
+          "textual_bytes": 323345,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 23,
+          "bytes": 185039,
+          "textual_calls": 23,
+          "textual_bytes": 185039,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 70,
+          "bytes": 65541,
+          "textual_calls": 70,
+          "textual_bytes": 65541,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 8,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 128,
+          "bytes": 1829565,
+          "textual_calls": 128,
+          "textual_bytes": 1829565,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "legacy",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 166,
+          "bytes": 1585513,
+          "textual_calls": 166,
+          "textual_bytes": 1585513,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "full",
+          "calls": 25735,
+          "bytes": 57269333,
+          "textual_calls": 25734,
+          "textual_bytes": 57247478,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "partial_inline",
+          "calls": 381,
+          "bytes": 12166022,
+          "textual_calls": 381,
+          "textual_bytes": 12166022,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 301,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "full",
+          "calls": 293385,
+          "bytes": 618123540,
+          "textual_calls": 293365,
+          "textual_bytes": 617995308,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "measured_success",
+          "completeness": "partial_inline",
+          "calls": 3945,
+          "bytes": 156219864,
+          "textual_calls": 3940,
+          "textual_bytes": 155974615,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 678,
+          "bytes": 1112165,
+          "textual_calls": 676,
+          "textual_bytes": 1104844,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 7,
+          "bytes": 201518,
+          "textual_calls": 7,
+          "textual_bytes": 201518,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "bash",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 342,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "context7",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 1,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "context7",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 655,
+          "bytes": 1863184,
+          "textual_calls": 655,
+          "textual_bytes": 1863184,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 4729,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 67485,
+          "bytes": 111261574,
+          "textual_calls": 67485,
+          "textual_bytes": 111261574,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 10977,
+          "bytes": 84708972,
+          "textual_calls": 10977,
+          "textual_bytes": 84708972,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "grep",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 23,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 81,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 913,
+          "bytes": 28527028,
+          "textual_calls": 912,
+          "textual_bytes": 28514713,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "kagi",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 26,
+          "bytes": 1253613,
+          "textual_calls": 26,
+          "textual_bytes": 1253613,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 15871,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 127971,
+          "bytes": 240987194,
+          "textual_calls": 127969,
+          "textual_bytes": 240975617,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 1312,
+          "bytes": 19664383,
+          "textual_calls": 1312,
+          "textual_bytes": 19664383,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "other",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 1449,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "measured_failure",
+          "completeness": "unavailable",
+          "calls": 17989,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "full",
+          "calls": 134975,
+          "bytes": 1247774707,
+          "textual_calls": 134974,
+          "textual_bytes": 1247770843,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "partial_inline",
+          "calls": 99376,
+          "bytes": 830688229,
+          "textual_calls": 99376,
+          "textual_bytes": 830688229,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        },
+        {
+          "source_family": "sqlite",
+          "producer_group": "read",
+          "outcome": "unknown",
+          "completeness": "unavailable",
+          "calls": 103,
+          "bytes": 0,
+          "textual_calls": 0,
+          "textual_bytes": 0,
+          "matches": 0,
+          "matched_bytes": 0,
+          "pre_marker_savings_ceiling_bytes": 0,
+          "net_savings_bytes": 0
+        }
+      ],
+      "raw_totals": {
+        "calls": 809234,
+        "bytes": 3415817650,
+        "textual_calls": 768305,
+        "textual_bytes": 3415387237,
+        "matches": 0,
+        "matched_bytes": 0,
+        "pre_marker_savings_ceiling_bytes": 0,
+        "net_savings_bytes": 0
+      },
+      "eligible_accepted": null,
+      "eligible_totals": {
+        "accepted_outputs": 0,
+        "input_bytes": 0,
+        "encoded_bytes": 0,
+        "pre_marker_savings_ceiling_bytes": 0,
+        "net_savings_bytes": 0
+      },
+      "disposition": "not_selected_no_additional_stable_contract",
+      "controlled_comparison_authorized": false,
+      "rollout_authorized": false
+    }
+  ],
+  "serial_gate": {
+    "order": [
+      "adjacent_duplicate_folding",
+      "common_path_prefix_factoring",
+      "additional_known_wrapper_projection"
+    ],
+    "controlled_comparison_candidate": "adjacent_duplicate_folding",
+    "rollout_authorized": false
+  },
+  "excluded_capture": {
+    "classification": "excluded_incomplete_potential_duplicate",
+    "reason": "raw_callback_mismatch",
+    "merged": false
+  }
+}

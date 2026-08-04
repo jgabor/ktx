@@ -1,0 +1,14 @@
+id: psfrormfbk
+artifact: plan
+record:
+  name: Make success routing evidence-safe
+  depends_on:
+    - yoybjmqzxt
+  status: pending
+  acceptance:
+    - GIVEN an explicitly successful call WHEN a success-status route is evaluated THEN that route may match.
+    - GIVEN a failed or unknown call WHEN a success-status route is evaluated THEN that route does not match.
+    - GIVEN an explicitly failed call WHEN routing and compression run THEN failure matching and existing failure passthrough remain available.
+    - GIVEN an unknown call WHEN any-status routing or default fallback is evaluated THEN ordinary configured behavior remains available without labeling the call successful.
+    - GIVEN success, failure, and unknown cases WHEN routing checks run THEN every selector has a matching and a non-matching case.
+  plan: caiaxiakry

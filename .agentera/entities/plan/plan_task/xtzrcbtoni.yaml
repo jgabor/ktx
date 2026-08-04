@@ -1,0 +1,16 @@
+id: xtzrcbtoni
+artifact: plan
+record:
+  name: Add live outcome metrics
+  depends_on:
+    - kfhlzadmyc
+    - gzjilulvyv
+    - psfrormfbk
+  status: pending
+  acceptance:
+    - GIVEN the existing output-bearing trailing-window population WHEN live summary and breakdown run THEN both expose success, failure, unknown, and known counts for that same population.
+    - GIVEN live outcome counts WHEN totals are checked THEN known equals success plus failure and total equals known plus unknown.
+    - GIVEN live rates WHEN calculated THEN error rate equals failure divided by known and coverage equals known divided by total.
+    - GIVEN empty, all-unknown, and all-known windows WHEN structured and text output render THEN undefined, zero, and measured-zero states remain distinct.
+    - GIVEN the live contracts change WHEN clients inspect them THEN summary uses schema 5, breakdown uses schema 2, and their aggregate outcome totals agree.
+  plan: caiaxiakry

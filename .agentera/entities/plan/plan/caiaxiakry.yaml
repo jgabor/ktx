@@ -1,0 +1,36 @@
+id: caiaxiakry
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-04
+    status: open
+    reviewed: 2026-08-04
+    critic_issues: 7 found, 7 addressed, 0 dismissed
+    revised: Made the Codex contract unknown consequential, split ingress and reporting work, specified report populations and formulas, declared proportional tests, narrowed closure, and corrected text-versioning scope.
+    title: "Plan: Tool Outcome Coverage"
+  what: Make tool outcomes complete and safe across trusted runtime ingress, routing, live statistics, and database reporting. Preserve measured success, measured failure, and unknown as distinct states.
+  why: Residual-delivery decisions need outcome evidence that never turns absence into success. This supports the project rule that measurement is the contract and makes success-only lossy routing evidence-safe.
+  constraints: Preserve nullable outcome storage, the canonical error-state gate, diagnostic exit status, conservative failure behavior, and first-evidence and first-artifact authority. Historical absence remains unknown without backfill or database schema migration. Unknown outcomes may use an any-status route or default profile but never a success-only route. Do not claim universal Codex outcome semantics. For each testable unit, cover at least one positive and one negative or unknown case; reports also cover empty, all-unknown, and all-known populations. Verify with a newly built local CLI artifact and disposable state.
+  overall_acceptance: GIVEN runtime outcome evidence can be present or absent WHEN trusted ingress, routing, and reports are exercised THEN measured success, measured failure, and unknown remain distinct; unknown never qualifies as success; error rate uses only known outcomes; coverage uses every call in each declared report population; existing conservative failure and first-evidence behavior remains intact; and public contracts agree.
+  scope:
+    included:
+      - Authoritative outcome capture for supported trusted runtime ingress
+      - Three-state outcome-aware routing
+      - Aggregate outcome counts, known-denominator error rate, and coverage in live statistics and database reporting
+      - Versioned structured schemas, synchronized text rendering, documentation, verification, audit, and project-state closure
+    excluded:
+      - Historical outcome reconstruction or backfill
+      - New persisted per-field provenance or database schema migration
+      - Per-delivery-group outcome rates
+      - Changes to default pipeline contents or compression algorithms
+      - Paid live benchmarking
+    deferred:
+      - Representative and post-change live validation already tracked separately
+  design: First establish which runtime signals carry authoritative outcome meaning. Normalize only those signals at ingress. Require explicit success before success-only routing while preserving explicit-failure passthrough and ordinary handling for unknown outcomes. Aggregate outcomes over each report population, separating error rate among known outcomes from coverage across the full population. Then synchronize public contracts and close project state. Missing, malformed, or unsupported evidence remains unknown throughout.
+  unknowns:
+    - question: Does the supported Codex hook contract define authoritative outcome fields, or do such fields only appear in local fixtures?
+      affects_task: 3
+      resolve_by: Task 1 inspects the pinned hook contract and retained native evidence. If no stable authoritative field exists, Task 3 is superseded with that evidence and Codex outcomes remain unknown rather than inferred.
+  surprises:
+    []

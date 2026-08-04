@@ -1,0 +1,13 @@
+id: yoybjmqzxt
+artifact: plan
+record:
+  name: Establish authoritative runtime outcome contracts
+  depends_on:
+    []
+  status: in_progress
+  acceptance:
+    - GIVEN each candidate OpenCode and Codex outcome signal WHEN its supported runtime contract is inspected THEN the signal is classified as authoritative, unsupported, or unknown with version provenance.
+    - GIVEN absent, malformed, or conflicting evidence WHEN the contract boundary is recorded THEN canonical precedence and unknown handling are explicit.
+    - GIVEN the Codex contract evidence WHEN Task 1 completes THEN Task 3 has an evidence-backed execute-or-supersede decision.
+    - GIVEN each candidate signal WHEN retained examples are checked THEN at least one positive and one absent or malformed case supports the classification.
+  plan: caiaxiakry

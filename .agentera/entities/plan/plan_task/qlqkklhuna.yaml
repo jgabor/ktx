@@ -1,0 +1,20 @@
+id: qlqkklhuna
+artifact: plan
+record:
+  name: Verify, audit, and close state
+  depends_on:
+    - yoybjmqzxt
+    - kfhlzadmyc
+    - gzjilulvyv
+    - psfrormfbk
+    - xtzrcbtoni
+    - buxqvhyydm
+    - aubqfmsdfk
+  status: pending
+  acceptance:
+    - GIVEN a disposable mixed-outcome database WHEN the newly built local CLI renders structured and text reports THEN plan-wide outcome behavior is observed without ambient database access.
+    - GIVEN focused checks and the full repository check WHEN run with isolated state THEN all required checks pass.
+    - GIVEN one independent implementation audit WHEN findings are adjudicated THEN no accepted material finding remains unresolved after at most one bounded correction and re-review.
+    - GIVEN verified implementation and documentation WHEN project state is synchronized THEN only the Tool outcome coverage TODO is closed and its operational record is resolved.
+    - GIVEN final plan state WHEN inspected through Agentera THEN completion evidence and task lifecycle are consistent.
+  plan: caiaxiakry

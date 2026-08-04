@@ -1,0 +1,16 @@
+id: zsnzzjwbtf
+artifact: progress
+record:
+  timestamp: 2026-08-04 21:19
+  type: docs
+  phase: build
+  what: Retained the authoritative runtime outcome boundary for OpenCode, Codex, and authority-established sidecar evidence.
+  context:
+    intent: Establish version-pinned outcome authority before any ingestion, routing, or reporting change.
+    constraints: Change only project-memory evidence and typed progress; preserve first-evidence authority; keep the current task in progress for independent evaluation.
+    unknowns: "Resolved the plan's Codex unknown: the pinned PostToolUse contract has no universal outcome field, so Codex remains unknown and its ingestion task must be superseded."
+    scope: .agentera/verification/runtime-outcome-contract.md, the intentional untracked plan entities, and one writer-owned progress cycle.
+  discovered: OpenCode wrapper terminal status is authoritative; supported shell numeric exit is authoritative diagnostic evidence and is subordinate to status error. The OpenCode after-hook has no ToolState. Codex tool_response is unconstrained JSON, so a local exit_code shape has no universal outcome meaning. Explicit sidecar is_error authority comes from the caller, not a runtime label.
+  verified: .agentera/verification/runtime-outcome-contract.md pins OpenCode 1.18.5 and Codex 0.144.4 outcome authority, precedence, unknown handling, retained positive/absent cases, and the evidence-backed Codex supersede decision. Focused parser failure-signal, first-wins evidence, sidecar write round-trip, and Codex response-shape tests passed in fresh disposable HOME/XDG state with KTX_DB unset. Prettier passed and markdown-link-check validated all 21 retained local and commit-pinned upstream citations.
+  next: Independent evaluation should record provenance, then complete yoybjmqzxt and supersede gzjilulvyv without a Codex ingestion change.
+  publication_order: 42

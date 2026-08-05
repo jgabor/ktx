@@ -10,7 +10,7 @@ record:
     - zjqwiriduj
     - tuevuojzxd
     - fckvcbciac
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN a disposable mixed-outcome database WHEN the newly built local CLI renders structured and text reports THEN plan-wide behavior is observed without ambient database access.
     - GIVEN focused checks and the full repository check WHEN run with isolated state THEN all required checks pass.
@@ -18,12 +18,12 @@ record:
     - GIVEN any accepted correction WHEN verification repeats THEN the final evidence reflects the corrected behavior rather than an earlier result.
   plan: ldknsjplye
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Live stats fail scanning malformed text/blob is_error storage instead of classifying unknown, and docs/pipelines.md retains an obsolete summary-4/breakdown-1 migration sentence. Correct both and regenerate integrated local-binary evidence with malformed storage classes.
     provenance:
-      attempt_id: audit-mvggstggsy-1
-      source: independent integrated audit ses_02e2cc33bffeCkI8SKOwoF9Owr
-      recorded_at: 2026-08-05 14:19
+      attempt_id: audit-mvggstggsy-2
+      source: bounded integrated re-review ses_02e2cc33bffeCkI8SKOwoF9Owr
+      recorded_at: 2026-08-05 14:37
       writer_command: agentera state plan record-evaluation

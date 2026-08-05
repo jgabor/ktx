@@ -2,7 +2,7 @@ id: svcfjqthvw
 artifact: todo
 record:
   severity: normal
-  status: open
+  status: resolved
   description: "**Tool outcome coverage** — Retain exit status and error state when the runtime supplies authoritative tool-call evidence, distinguish measured success, measured failure, and unknown, and report both the known-denominator error rate and its coverage. Never interpret missing outcome fields as success or use them to justify a success-only lossy route. → [Measurement](ARCHITECTURE.md#measurement)"
   readiness:
     capability: build
@@ -13,3 +13,7 @@ record:
     gate: null
     queue_rank: 1
     order_reason: TODO.md Priority 1 order; same-priority work may proceed in parallel.
+  lifecycle:
+    operation: resolve
+    reason: Final integrated PASS verified at .agentera/verification/tool-outcome-integrated-2026-08-05.md.
+    date: 2026-08-05

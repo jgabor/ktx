@@ -6,7 +6,7 @@ record:
     - yoybjmqzxt
     - kfhlzadmyc
     - gzjilulvyv
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN all persisted tool calls form the database-report population WHEN failure metrics render THEN success, failure, unknown, known, error rate, and outcome coverage are available.
     - GIVEN database outcome counts WHEN totals are checked THEN known equals success plus failure and total equals known plus unknown.
@@ -14,3 +14,6 @@ record:
     - GIVEN missing or invalid stored outcome states WHEN reports run THEN they count as unknown and zero denominators remain explicit.
     - GIVEN the report contract changes WHEN retained checks run THEN report schema 3 and its deterministic empty-report evidence are current.
   plan: caiaxiakry
+  superseded_by:
+    - cfbklpwpaw
+  superseded_reason: Covered by the completed corrected replacement plan.

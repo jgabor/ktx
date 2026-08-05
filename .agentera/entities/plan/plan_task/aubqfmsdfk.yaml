@@ -8,10 +8,13 @@ record:
     - psfrormfbk
     - xtzrcbtoni
     - buxqvhyydm
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN the behavior is complete WHEN public help, examples, runbooks, and agent guidance are read THEN they define the same three outcome states.
     - GIVEN rate and coverage documentation WHEN compared with reports THEN formulas and population denominators agree.
     - GIVEN structured schema changes WHEN documentation is checked THEN the new schema versions are explicit while text rendering remains synchronized without a separate text-schema version.
     - GIVEN historical and Codex evidence boundaries WHEN documentation is checked THEN unknown handling and unsupported claims are explicit.
   plan: caiaxiakry
+  superseded_by:
+    - cfbklpwpaw
+  superseded_reason: Covered by the completed corrected replacement plan.

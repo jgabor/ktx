@@ -4,10 +4,13 @@ record:
   name: Capture Codex outcomes when supported
   depends_on:
     - yoybjmqzxt
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN Task 1 proves authoritative Codex outcome fields WHEN a trusted result supplies valid values THEN those values and their measured meaning are retained.
     - GIVEN a Codex result omits or malforms supported fields WHEN it is recorded THEN the outcome remains unknown without inference.
     - GIVEN Task 1 finds no stable authoritative Codex field WHEN Task 3 is evaluated THEN no ingestion change is made and the task is superseded with retained evidence.
     - GIVEN Codex outcome behavior is testable WHEN checks run THEN at least one supported and one absent or malformed case prove the boundary.
   plan: caiaxiakry
+  superseded_by:
+    - cfbklpwpaw
+  superseded_reason: Covered by the completed corrected replacement plan.

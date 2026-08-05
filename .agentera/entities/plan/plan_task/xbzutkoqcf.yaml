@@ -11,7 +11,7 @@ record:
     - tuevuojzxd
     - fckvcbciac
     - mvggstggsy
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN all prior tasks are terminal with accepted evidence WHEN final state is synchronized THEN only Tool outcome coverage is closed in the public backlog.
     - GIVEN Tool outcome coverage is verified WHEN its operational record is resolved THEN the resolution cites the integrated verification boundary.
@@ -19,12 +19,12 @@ record:
     - GIVEN final repository state WHEN checked THEN no unrelated backlog or project-memory change is included.
   plan: ldknsjplye
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Agentera TODO resolve dry-run targets 51 records instead of only svcfjqthvw; broad reconciliation is explicitly out of scope. No TODO, entity, progress, or commit change was made.
     provenance:
-      attempt_id: state-xbzutkoqcf-1
-      source: build blocker ses_02e11a6dcffeAdTxFOH2r2hUJH
-      recorded_at: 2026-08-05 14:41
+      attempt_id: state-xbzutkoqcf-2
+      source: audit PASS ses_02e0565a3ffemJx9gmgUWsmL3o; commit 20fffb1f92b9506344c4da897717886d9c01d247
+      recorded_at: 2026-08-05 14:57
       writer_command: agentera state plan record-evaluation

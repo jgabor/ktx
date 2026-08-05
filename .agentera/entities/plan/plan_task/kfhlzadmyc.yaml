@@ -4,7 +4,7 @@ record:
   name: Capture OpenCode outcomes
   depends_on:
     - yoybjmqzxt
-  status: pending
+  status: superseded
   acceptance:
     - GIVEN a trusted OpenCode terminal result WHEN it is recorded THEN completed and errored states produce explicit measured outcomes and any supplied exit status is retained.
     - GIVEN a trusted OpenCode hook result with a valid exit status WHEN it is recorded THEN the exact status and derived measured outcome are retained.
@@ -12,3 +12,6 @@ record:
     - GIVEN an exact trusted retry with changed outcome metadata WHEN it is processed THEN the first accepted outcome evidence remains authoritative and is not enriched.
     - GIVEN OpenCode outcome tests WHEN they run THEN success, failure, unknown, and malformed boundaries are covered.
   plan: caiaxiakry
+  superseded_by:
+    - cfbklpwpaw
+  superseded_reason: Covered by the completed corrected replacement plan.

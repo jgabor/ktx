@@ -1,0 +1,31 @@
+id: dacnmfqcqi
+artifact: health
+record:
+  date: 2026-08-05
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 1
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: stable
+  grades:
+    artifact_freshness: B
+  findings:
+    - severity: warning
+      heading: Startup profile grounding needs repair
+      confidence: 100
+      location: agentera prime --dashboard profile validity
+      evidence: Agentera 3.0.0-dev.41 reports profile.status=repair_needed, class=oversized, with bounded-signal freshness unknown.
+      impact: Future unscoped sessions cannot rely on automatic profile grounding. This execution remained grounded through explicit plan selectors, repository guidance, and retained evidence.
+      suggested_action: Before the next Agentera-managed plan, run the dashboard recovery to repair or regenerate PROFILE.md, then verify profile grounding.
+      verify_command: npx -y agentera@next prime --dashboard --format json
+  dimension_details:
+    []
+  trends:
+    comparison_target: "not-applicable: bounded terminal closure check for Tool Outcome Coverage"
+    stable: Corrected plan ldknsjplye is complete; all nine tasks are complete latest-PASS or validly superseded. Invalidated predecessor caiaxiakry is archived through audited replacement task cfbklpwpaw. Tool outcome coverage is publicly and operationally resolved. Pre-append validation passed 586 entities with zero issues.
+  patterns:
+    - Limited artifact-freshness and terminal-state audit, not a codebase-wide health review. Product verification and independent audits are retained in the integrated artifact and task evaluations.
+  appended_at: 2026-08-05T13:11:35.298Z

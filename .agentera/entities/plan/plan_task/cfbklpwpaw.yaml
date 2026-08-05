@@ -1,0 +1,26 @@
+id: cfbklpwpaw
+artifact: plan
+record:
+  plan: caiaxiakry
+  name: Retire through the verified replacement plan
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN successor plan ldknsjplye is complete WHEN predecessor scope is compared THEN every predecessor deliverable is covered by terminal latest-PASS or validly superseded successor work.
+    - GIVEN integrated verification and Tool outcome coverage closure WHEN predecessor work is retired THEN no product work, evidence, or public backlog obligation is lost.
+    - GIVEN the predecessor contract was invalidated by corrected Codex authority evidence WHEN its stale tasks are superseded THEN canonical history remains explicit without duplicate implementation.
+  evidence:
+    - .agentera/verification/runtime-outcome-contract.md
+    - .agentera/verification/tool-outcome-integrated-2026-08-05.md
+    - TODO.md
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: retire-caiaxiakry-1
+      source: independent audit PASS ses_02dfbbf99ffelCqTo72CeSLryy
+      recorded_at: 2026-08-05 15:09
+      writer_command: agentera state plan record-evaluation

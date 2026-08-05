@@ -4,7 +4,7 @@ record:
   name: Establish authoritative runtime outcome contracts
   depends_on:
     []
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN each candidate OpenCode and Codex outcome signal WHEN its supported runtime contract is inspected THEN the signal is classified as authoritative, unsupported, or unknown with version provenance.
     - GIVEN absent, malformed, or conflicting evidence WHEN the contract boundary is recorded THEN canonical precedence and unknown handling are explicit.
@@ -21,3 +21,6 @@ record:
       source: bounded re-review ses_031c60355ffe5csUxZAxdfRfBh
       recorded_at: 2026-08-05 10:44
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - cfbklpwpaw
+  superseded_reason: The corrected runtime contract invalidated this plan branch; the completed replacement plan covers the objective.

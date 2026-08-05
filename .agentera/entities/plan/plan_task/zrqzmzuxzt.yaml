@@ -1,0 +1,14 @@
+id: zrqzmzuxzt
+artifact: plan
+record:
+  name: Capture OpenCode outcomes
+  depends_on:
+    []
+  status: in_progress
+  acceptance:
+    - GIVEN OpenCode terminal error with any supported exit WHEN recorded THEN the outcome is failure and the exact exit remains diagnostic.
+    - GIVEN OpenCode completed with a supported nonzero shell exit WHEN recorded THEN the outcome is failure; completed without authoritative exit is success.
+    - GIVEN a trusted OpenCode hook with supported shell exit zero or nonzero WHEN recorded THEN the exact exit and corresponding success or failure are retained.
+    - GIVEN OpenCode evidence is absent, malformed, or unsupported for that tool WHEN recorded THEN the outcome remains unknown.
+    - GIVEN exact retries and outcome checks WHEN run THEN first accepted evidence remains authoritative and terminal, shell, hook, unknown, malformed, and conflict boundaries are covered.
+  plan: ldknsjplye

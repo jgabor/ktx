@@ -1,0 +1,14 @@
+id: tuevuojzxd
+artifact: plan
+record:
+  name: Preserve proven structured-schema consumers
+  depends_on:
+    - ongnhqfzkf
+    - zjqwiriduj
+  status: pending
+  acceptance:
+    - GIVEN retained consumers and fixtures WHEN inspected THEN every dependency on the prior structured schemas is identified with evidence.
+    - GIVEN a retained consumer requires compatibility WHEN the new reports ship THEN that consumer remains correct without weakening the new outcome contract.
+    - GIVEN no retained consumer requires compatibility WHEN the task is evaluated THEN the task is superseded with that evidence and no speculative bridge is added.
+    - GIVEN compatibility work is testable WHEN checks run THEN each proven consumer has one supported and one incompatible-version case.
+  plan: ldknsjplye

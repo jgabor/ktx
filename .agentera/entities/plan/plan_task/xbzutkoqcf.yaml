@@ -1,0 +1,20 @@
+id: xbzutkoqcf
+artifact: plan
+record:
+  name: Synchronize final project state
+  depends_on:
+    - zrqzmzuxzt
+    - lxnqnvtaib
+    - cwrrvugnhq
+    - ongnhqfzkf
+    - zjqwiriduj
+    - tuevuojzxd
+    - fckvcbciac
+    - mvggstggsy
+  status: pending
+  acceptance:
+    - GIVEN all prior tasks are terminal with accepted evidence WHEN final state is synchronized THEN only Tool outcome coverage is closed in the public backlog.
+    - GIVEN Tool outcome coverage is verified WHEN its operational record is resolved THEN the resolution cites the integrated verification boundary.
+    - GIVEN plan and progress state WHEN inspected through Agentera THEN task lifecycle, evaluation, and verification evidence are consistent.
+    - GIVEN final repository state WHEN checked THEN no unrelated backlog or project-memory change is included.
+  plan: ldknsjplye

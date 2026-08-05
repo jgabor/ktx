@@ -1,0 +1,14 @@
+id: cwrrvugnhq
+artifact: plan
+record:
+  name: Make success routing evidence-safe
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN explicit success WHEN a success-status route is evaluated THEN that route may match.
+    - GIVEN explicit failure or unknown WHEN a success-status route is evaluated THEN that route does not match.
+    - GIVEN explicit failure and any matching route WHEN compression is attempted THEN the original output is delivered unchanged and failure evidence cannot authorize success-only or lossy handling.
+    - GIVEN unknown WHEN any-status routing or default fallback is evaluated THEN ordinary configured behavior remains available without labeling the call successful.
+    - GIVEN all three states WHEN routing checks run THEN selectors, unchanged failure delivery, and matching and non-matching boundaries are proven.
+  plan: ldknsjplye

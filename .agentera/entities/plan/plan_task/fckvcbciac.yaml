@@ -1,0 +1,18 @@
+id: fckvcbciac
+artifact: plan
+record:
+  name: Synchronize public contracts
+  depends_on:
+    - zrqzmzuxzt
+    - lxnqnvtaib
+    - cwrrvugnhq
+    - ongnhqfzkf
+    - zjqwiriduj
+    - tuevuojzxd
+  status: pending
+  acceptance:
+    - GIVEN behavior is complete WHEN help, examples, runbooks, and agent guidance are read THEN they define identical outcome states and authority boundaries.
+    - GIVEN formulas and report populations WHEN documentation is compared with output THEN denominators agree.
+    - GIVEN structured schemas change WHEN documentation is checked THEN new versions are explicit while text rendering stays synchronized without separate versioning.
+    - GIVEN historical, OpenCode, and Codex boundaries WHEN documentation is checked THEN unsupported claims remain unknown.
+  plan: ldknsjplye

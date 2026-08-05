@@ -11,6 +11,7 @@ import (
 
 	"github.com/jgabor/ktx/internal/correlation"
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/evidence"
 	"github.com/jgabor/ktx/internal/identity"
 	"github.com/jgabor/ktx/internal/parser"
 )
@@ -54,6 +55,28 @@ func openCodeHookPayload(t *testing.T, sessionID, callID, tool, argsJSON, output
 	b, err := json.Marshal(m)
 	if err != nil {
 		t.Fatalf("marshal opencode hook payload: %v", err)
+	}
+	return string(b)
+}
+
+func openCodeHookOutcomePayload(t *testing.T, sessionID, callID, tool, output string, exit any, includeExit bool) string {
+	t.Helper()
+	metadata := map[string]any{}
+	if includeExit {
+		metadata["exit"] = exit
+	}
+	m := map[string]any{
+		"runtime":   "opencode",
+		"timestamp": "2026-07-16T12:00:00Z",
+		"input": map[string]any{
+			"tool": tool, "sessionID": sessionID, "callID": callID,
+			"args": map[string]any{"command": "test"},
+		},
+		"output": map[string]any{"title": "shell", "output": output, "metadata": metadata},
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal OpenCode outcome payload: %v", err)
 	}
 	return string(b)
 }
@@ -494,6 +517,131 @@ func TestOpenCode_ChangedEvidenceConflicts(t *testing.T) {
 	}
 	if persisted.Output != "first output\n" {
 		t.Errorf("persisted output = %q, want first output (conflict preserves first evidence)", persisted.Output)
+	}
+}
+
+func TestOpenCodeHook_OutcomeCapture(t *testing.T) {
+	testCases := []struct {
+		name        string
+		tool        string
+		exit        any
+		includeExit bool
+		wantExit    *int64
+		wantError   *bool
+	}{
+		{name: "zero shell exit", tool: "bash", exit: 0, includeExit: true, wantExit: pointerInt64(0), wantError: pointerBool(false)},
+		{name: "nonzero shell exit", tool: "bash", exit: 7, includeExit: true, wantExit: pointerInt64(7), wantError: pointerBool(true)},
+		{name: "missing shell exit", tool: "bash"},
+		{name: "malformed shell exit", tool: "bash", exit: "7", includeExit: true},
+		{name: "unsupported tool exit", tool: "read", exit: 1, includeExit: true},
+	}
+
+	for index, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			d := hookTestDB(t)
+			hookChdirTemp(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			sessionID := fmt.Sprintf("ses-outcome-%d", index)
+			callID := fmt.Sprintf("call-outcome-%d", index)
+			payload := openCodeHookOutcomePayload(t, sessionID, callID, testCase.tool, "result\n", testCase.exit, testCase.includeExit)
+
+			var stdout, stderr bytes.Buffer
+			if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+				t.Fatalf("hookLogic: %v", err)
+			}
+			persisted, err := d.GetToolCall(mustOpenCodeID(t, sessionID, callID))
+			if err != nil {
+				t.Fatalf("GetToolCall: %v", err)
+			}
+			assertInt64Pointer(t, "ExitCode", persisted.ExitCode, testCase.wantExit)
+			assertBoolPointer(t, "IsError", persisted.IsError, testCase.wantError)
+		})
+	}
+}
+
+func TestOpenCodeOutcome_FirstAcceptedMetadataWins(t *testing.T) {
+	t.Run("hook outcome is not overridden or enriched", func(t *testing.T) {
+		for _, testCase := range []struct {
+			name         string
+			firstExit    any
+			firstPresent bool
+			wantExit     *int64
+			wantError    *bool
+		}{
+			{name: "conflicting outcome", firstExit: 0, firstPresent: true, wantExit: pointerInt64(0), wantError: pointerBool(false)},
+			{name: "missing outcome", wantExit: nil, wantError: nil},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				d := hookTestDB(t)
+				hookChdirTemp(t)
+				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+				sessionID := "ses-first-" + strings.ReplaceAll(testCase.name, " ", "-")
+				callID := "call-first-" + strings.ReplaceAll(testCase.name, " ", "-")
+				first := openCodeHookOutcomePayload(t, sessionID, callID, "bash", "same output\n", testCase.firstExit, testCase.firstPresent)
+				retry := openCodeHookOutcomePayload(t, sessionID, callID, "bash", "same output\n", 9, true)
+				for _, payload := range []string{first, retry} {
+					var stdout, stderr bytes.Buffer
+					if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+						t.Fatalf("hookLogic: %v", err)
+					}
+				}
+				persisted, err := d.GetToolCall(mustOpenCodeID(t, sessionID, callID))
+				if err != nil {
+					t.Fatalf("GetToolCall: %v", err)
+				}
+				assertInt64Pointer(t, "ExitCode", persisted.ExitCode, testCase.wantExit)
+				assertBoolPointer(t, "IsError", persisted.IsError, testCase.wantError)
+			})
+		}
+	})
+
+	t.Run("wrapper error remains canonical on retry", func(t *testing.T) {
+		d := hookTestDB(t)
+		if err := d.InsertSession(&dbpkg.Session{ID: "wrapper-outcome-session", Agent: "opencode"}); err != nil {
+			t.Fatalf("InsertSession: %v", err)
+		}
+		const sessionID = "ses-wrapper-error-first"
+		const callID = "call-wrapper-error-first"
+		firstLine := `{"type":"tool_use","sessionID":"` + sessionID + `","part":{"type":"tool","tool":"bash","callID":"` + callID + `","state":{"status":"error","input":{"command":"test"},"output":"","error":"runtime failure","metadata":{"exit":0}}}}`
+		retryLine := `{"type":"tool_use","sessionID":"` + sessionID + `","part":{"type":"tool","tool":"bash","callID":"` + callID + `","state":{"status":"completed","input":{"command":"test"},"output":"runtime failure","metadata":{"exit":0}}}}`
+		src := mustResolveOpenCode(t, sessionID, callID)
+		for _, line := range []string{firstLine, retryLine} {
+			tc, _, ok := parser.ParseEventWithCorrelation([]byte(line))
+			if !ok {
+				t.Fatal("ParseEventWithCorrelation returned false")
+			}
+			tc.ID = src.ID
+			tc.SessionID = "wrapper-outcome-session"
+			if _, err := evidence.PersistSource(d, src, tc); err != nil {
+				t.Fatalf("PersistSource: %v", err)
+			}
+		}
+		persisted, err := d.GetToolCall(src.ID)
+		if err != nil {
+			t.Fatalf("GetToolCall: %v", err)
+		}
+		assertInt64Pointer(t, "ExitCode", persisted.ExitCode, pointerInt64(0))
+		assertBoolPointer(t, "IsError", persisted.IsError, pointerBool(true))
+		if persisted.Output != "runtime failure" {
+			t.Errorf("Output = %q, want runtime error text", persisted.Output)
+		}
+	})
+}
+
+func pointerInt64(value int64) *int64 { return &value }
+func pointerBool(value bool) *bool    { return &value }
+
+func assertInt64Pointer(t *testing.T, name string, got, want *int64) {
+	t.Helper()
+	if (got == nil) != (want == nil) || got != nil && *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, want)
+	}
+}
+
+func assertBoolPointer(t *testing.T, name string, got, want *bool) {
+	t.Helper()
+	if (got == nil) != (want == nil) || got != nil && *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, want)
 	}
 }
 

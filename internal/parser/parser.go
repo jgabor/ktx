@@ -251,6 +251,13 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 		if err := json.Unmarshal(part["state"], &state); err == nil {
 			ev.Input = jsonValueToString(state["input"])
 			ev.Output = jsonValueToString(state["output"])
+			var status string
+			_ = json.Unmarshal(state["status"], &status)
+			if status == "error" {
+				if runtimeError := jsonValueToString(state["error"]); runtimeError != "" {
+					ev.Output = runtimeError
+				}
+			}
 			ev.LatencyMs = latencyFromState(state["time"])
 			// Defensive cost reads inside state.metadata. OpenCode's
 			// bash/edit/etc. tools populate state.metadata with tool-
@@ -265,7 +272,19 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 				ev.Cost = float64PtrFromRaw(md["cost"], md["cost_usd"])
 				ev.Model = stringPtrFromRaw(md["model"], md["model_id"])
 				ev.Provider = stringPtrFromRaw(md["provider"], md["provider_id"])
-				ev.ExitCode = int64PtrFromRaw(md["exit"])
+				if ev.Tool == "bash" {
+					ev.ExitCode = integerPtrFromRaw(md["exit"])
+				}
+			}
+			switch status {
+			case "error":
+				ev.IsError = boolPtr(true)
+			case "completed":
+				ev.IsError = isErrorFromExitCode(ev.ExitCode)
+				if ev.IsError == nil {
+					ev.IsError = boolPtr(false)
+				}
+			default:
 				ev.IsError = isErrorFromExitCode(ev.ExitCode)
 			}
 		}
@@ -390,6 +409,19 @@ func int64PtrFromRaw(values ...json.RawMessage) *int64 {
 	return nil
 }
 
+// integerPtrFromRaw accepts only a JSON integer. Runtime process exits are
+// integral values; strings and fractional numbers are malformed evidence.
+func integerPtrFromRaw(raw json.RawMessage) *int64 {
+	if len(raw) == 0 {
+		return nil
+	}
+	var n int64
+	if err := json.Unmarshal(raw, &n); err != nil {
+		return nil
+	}
+	return &n
+}
+
 // float64PtrFromRaw mirrors int64PtrFromRaw for floating-point fields.
 func float64PtrFromRaw(values ...json.RawMessage) *float64 {
 	for _, v := range values {
@@ -435,6 +467,10 @@ func isErrorFromExitCode(exitCode *int64) *bool {
 	}
 	b := *exitCode != 0
 	return &b
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 // stringPtrFromRaw returns the first non-empty RawMessage that parses

@@ -1,0 +1,37 @@
+id: ldknsjplye
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-05
+    status: open
+    reviewed: 2026-08-05
+    critic_issues: 4 found, 4 addressed, 0 dismissed
+    revised: Replaced the resolved Codex field unknown with event-level success authority, made OpenCode precedence and failure passthrough explicit, split integrated verification from final state synchronization, and retained only a consequential compatibility unknown.
+    title: "Plan: Tool Outcome Coverage"
+  what: Complete authoritative tool outcome capture, unknown-safe routing, and outcome rate and coverage reporting using the retained runtime contract.
+  why: Residual-delivery decisions need measured success, measured failure, and unknown to remain distinct. The blocked predecessor proved that runtime event authority must be separated from arbitrary nested response fields before implementation continues.
+  constraints: Treat the committed runtime outcome contract as prerequisite evidence. Preserve nullable storage, canonical error-state gating, diagnostic exit status, explicit-failure passthrough, and first-evidence and first-artifact authority. Historical absence remains unknown without backfill or database migration. OpenCode and Codex rules remain version-scoped. Provider/model selection cannot strengthen outcome authority. For each testable unit, cover at least one positive and one negative or unknown case; reports also cover empty, all-unknown, and all-known populations. Verify with a newly built local CLI and disposable state.
+  overall_acceptance: GIVEN trusted runtime evidence can be present or absent WHEN ingress, routing, and reports are exercised THEN explicit success, explicit failure, and unknown remain distinct; trusted Codex PostToolUse is success without trusting nested response fields; unknown never qualifies as success; failed output passes through unchanged; error rate uses known outcomes; coverage uses each declared report population; first-evidence behavior remains intact; and public contracts agree.
+  scope:
+    included:
+      - OpenCode terminal and supported shell outcome capture
+      - Codex trusted PostToolUse event-level success capture
+      - Three-state outcome-aware routing
+      - Aggregate live and database outcome reporting
+      - Proven compatibility work, public contracts, integrated verification, audit, and state closure
+    excluded:
+      - Historical outcome reconstruction or backfill
+      - New persisted per-field provenance or database migration
+      - Inference from arbitrary nested Codex response fields
+      - Per-delivery-group outcome rates
+      - Pipeline algorithm or default-profile changes
+      - Paid live benchmarking
+    deferred:
+      - Representative and post-change live validation already tracked separately
+  design: Use the retained version-pinned authority contract to normalize only trusted outcome signals. Capture OpenCode terminal and supported shell evidence and Codex event-level success independently. Require explicit success for success-only routing while preserving unchanged delivery for explicit failure and ordinary handling for unknown. Aggregate outcomes over each existing report population, separating known-outcome error rate from full-population coverage. Preserve only compatibility needs proven by retained consumers, synchronize public contracts, verify the integrated behavior, and close state separately.
+  unknowns:
+    - question: Do retained in-repository consumers require compatibility handling beyond advancing the structured report schema versions?
+      affects_task: 6
+      resolve_by: After Tasks 4 and 5 define the new schemas, inspect retained consumers and fixtures. If no consumer needs compatibility handling, supersede Task 6 with that evidence; otherwise update only the proven consumers.
+  surprises: Pinned Codex 0.144.4 proves trusted PostToolUse occurrence is authoritative success even though nested tool_response fields have no universal outcome meaning; this invalidated the predecessor plan supersede branch.

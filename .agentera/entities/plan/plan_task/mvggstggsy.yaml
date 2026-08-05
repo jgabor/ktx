@@ -1,0 +1,19 @@
+id: mvggstggsy
+artifact: plan
+record:
+  name: Verify and audit integrated outcome behavior
+  depends_on:
+    - zrqzmzuxzt
+    - lxnqnvtaib
+    - cwrrvugnhq
+    - ongnhqfzkf
+    - zjqwiriduj
+    - tuevuojzxd
+    - fckvcbciac
+  status: pending
+  acceptance:
+    - GIVEN a disposable mixed-outcome database WHEN the newly built local CLI renders structured and text reports THEN plan-wide behavior is observed without ambient database access.
+    - GIVEN focused checks and the full repository check WHEN run with isolated state THEN all required checks pass.
+    - GIVEN one independent implementation audit WHEN findings are adjudicated THEN no accepted material issue remains unresolved after at most one bounded correction and re-review.
+    - GIVEN any accepted correction WHEN verification repeats THEN the final evidence reflects the corrected behavior rather than an earlier result.
+  plan: ldknsjplye

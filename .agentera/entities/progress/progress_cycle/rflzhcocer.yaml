@@ -1,0 +1,15 @@
+id: rflzhcocer
+artifact: progress
+record:
+  timestamp: 2026-08-05 11:13
+  type: fix
+  phase: build
+  what: Captured authoritative OpenCode wrapper and after-hook outcomes while preserving unknown evidence and first-accepted retry metadata.
+  context:
+    intent: Implement only replacement-plan task zrqzmzuxzt against the retained OpenCode 1.18.5 outcome contract.
+    constraints: Preserve the database schema and historical NULLs; do not change Codex, routing, reporting, public documentation, or TODO state; leave the task in progress for independent evaluation.
+    scope: OpenCode wrapper parsing, OpenCode after-hook extraction, and proportional parser, hook, and retry regression tests.
+  discovered: The wrapper already retained shell exits but ignored terminal status and dropped error-state text. The after-hook retained output but did not normalize the pinned shell producer's metadata.exit. Shared evidence persistence already enforces first-wins without enrichment.
+  verified: "Fresh disposable HOME/XDG roots with KTX_DB unset: focused parser, CLI, and evidence package tests passed; focused race tests passed for terminal, shell, hook, malformed, unsupported, and first-wins cases; mage check passed with 0 issues and verification audit boundary 26db9c4c3dc695cd (939 attempts, forbidden=0, caches=external, ktx_db=unset); the retained runtime contract checker passed all 10 pinned examples; git diff --check passed."
+  next: Independent evaluation should record provenance before any lifecycle completion; task zrqzmzuxzt remains in progress.
+  publication_order: 44

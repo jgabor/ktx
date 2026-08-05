@@ -491,47 +491,62 @@ func TestParseEvent_TimestampNormalisation(t *testing.T) {
 // TestParseEvent_FailureSignal covers the OpenCode metadata.exit
 // shape and the flat-fallback defensive reads + derivation.
 func TestParseEvent_FailureSignal(t *testing.T) {
-	t.Run("OpenCode exit=1 → ExitCode=&1 IsError=&true", func(t *testing.T) {
-		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"err\n","metadata":{"exit":1}}}}`
-		tc, ok := ParseEvent([]byte(payload))
-		if !ok {
-			t.Fatalf("ParseEvent returned (nil, false)")
-		}
-		if tc.ExitCode == nil || *tc.ExitCode != 1 {
-			t.Errorf("ExitCode = %v, want pointer to 1", tc.ExitCode)
-		}
-		if tc.IsError == nil || *tc.IsError != true {
-			t.Errorf("IsError = %v, want pointer to true", tc.IsError)
-		}
-	})
-
-	t.Run("OpenCode exit=0 → ExitCode=&0 IsError=&false", func(t *testing.T) {
-		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"ok\n","metadata":{"exit":0}}}}`
-		tc, ok := ParseEvent([]byte(payload))
-		if !ok {
-			t.Fatalf("ParseEvent returned (nil, false)")
-		}
-		if tc.ExitCode == nil || *tc.ExitCode != 0 {
-			t.Errorf("ExitCode = %v, want pointer to 0", tc.ExitCode)
-		}
-		if tc.IsError == nil || *tc.IsError != false {
-			t.Errorf("IsError = %v, want pointer to false", tc.IsError)
-		}
-	})
-
-	t.Run("OpenCode no metadata.exit → both nil", func(t *testing.T) {
-		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"ok\n"}}}`
-		tc, ok := ParseEvent([]byte(payload))
-		if !ok {
-			t.Fatalf("ParseEvent returned (nil, false)")
-		}
-		if tc.ExitCode != nil {
-			t.Errorf("ExitCode = %v, want nil", tc.ExitCode)
-		}
-		if tc.IsError != nil {
-			t.Errorf("IsError = %v, want nil", tc.IsError)
-		}
-	})
+	openCodeCases := []struct {
+		name       string
+		payload    string
+		wantExit   *int64
+		wantError  *bool
+		wantOutput string
+	}{
+		{
+			name:     "terminal error overrides zero exit and retains runtime error",
+			payload:  `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"error","input":{},"output":"","error":"command failed","metadata":{"exit":0}}}}`,
+			wantExit: ptrInt64(0), wantError: ptrBool(true), wantOutput: "command failed",
+		},
+		{
+			name:     "terminal error retains nonzero exit",
+			payload:  `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"error","input":{},"error":"exit status 7","metadata":{"exit":7}}}}`,
+			wantExit: ptrInt64(7), wantError: ptrBool(true), wantOutput: "exit status 7",
+		},
+		{
+			name:     "completed nonzero shell exit is failure",
+			payload:  `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"completed","input":{},"output":"failed\n","metadata":{"exit":7}}}}`,
+			wantExit: ptrInt64(7), wantError: ptrBool(true), wantOutput: "failed\n",
+		},
+		{
+			name:      "completed without exit is success",
+			payload:   `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"completed","input":{},"output":"ok\n"}}}`,
+			wantError: ptrBool(false), wantOutput: "ok\n",
+		},
+		{
+			name:     "shell exit without terminal status decides outcome",
+			payload:  `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"ok\n","metadata":{"exit":0}}}}`,
+			wantExit: ptrInt64(0), wantError: ptrBool(false), wantOutput: "ok\n",
+		},
+		{
+			name:       "malformed shell exit without terminal status is unknown",
+			payload:    `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"unknown\n","metadata":{"exit":"7"}}}}`,
+			wantOutput: "unknown\n",
+		},
+		{
+			name:       "arbitrary tool exit without terminal status is unknown",
+			payload:    `{"type":"tool_use","part":{"type":"tool","tool":"read","state":{"input":{},"output":"contents","metadata":{"exit":1}}}}`,
+			wantOutput: "contents",
+		},
+	}
+	for _, testCase := range openCodeCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			tc, ok := ParseEvent([]byte(testCase.payload))
+			if !ok {
+				t.Fatalf("ParseEvent returned (nil, false)")
+			}
+			assertInt64Ptr(t, "ExitCode", tc.ExitCode, testCase.wantExit)
+			assertBoolPtr(t, "IsError", tc.IsError, testCase.wantError)
+			if tc.Output != testCase.wantOutput {
+				t.Errorf("Output = %q, want %q", tc.Output, testCase.wantOutput)
+			}
+		})
+	}
 
 	t.Run("flat exit_code=2 → ExitCode=&2 IsError=&true", func(t *testing.T) {
 		const payload = `{"tool":"bash","input":"x","output":"y","exit_code":2}`
@@ -571,4 +586,21 @@ func TestParseEvent_FailureSignal(t *testing.T) {
 			t.Errorf("ExitCode=%v IsError=%v, want nil nil", tc.ExitCode, tc.IsError)
 		}
 	})
+}
+
+func ptrInt64(value int64) *int64 { return &value }
+func ptrBool(value bool) *bool    { return &value }
+
+func assertInt64Ptr(t *testing.T, name string, got, want *int64) {
+	t.Helper()
+	if (got == nil) != (want == nil) || got != nil && *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, want)
+	}
+}
+
+func assertBoolPtr(t *testing.T, name string, got, want *bool) {
+	t.Helper()
+	if (got == nil) != (want == nil) || got != nil && *got != *want {
+		t.Errorf("%s = %v, want %v", name, got, want)
+	}
 }

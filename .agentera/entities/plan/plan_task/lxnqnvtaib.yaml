@@ -1,0 +1,14 @@
+id: lxnqnvtaib
+artifact: plan
+record:
+  name: Capture Codex event-level success
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN a trusted schema-conforming Codex PostToolUse event WHEN recorded THEN the outcome is explicit success.
+    - GIVEN nested response fields resemble outcomes or conflict with success WHEN recorded THEN they do not alter or strengthen event-level success.
+    - GIVEN the payload is not trusted or does not conform to the supported event contract WHEN recorded THEN no Codex success is inferred.
+    - GIVEN an exact trusted retry with changed nested response metadata WHEN processed THEN first accepted evidence remains authoritative without enrichment.
+    - GIVEN Codex checks WHEN run THEN conforming success, misleading nested fields, absent nested fields, and nonconforming payloads are covered.
+  plan: ldknsjplye

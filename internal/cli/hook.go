@@ -101,7 +101,8 @@ type openCodeInput struct {
 // openCodeOutputObject is the OpenCode callback output shape when the
 // output is an object carrying an output field (string).
 type openCodeOutputObject struct {
-	Output string `json:"output"`
+	Output   string                     `json:"output"`
+	Metadata map[string]json.RawMessage `json:"metadata"`
 }
 
 // extractOpenCodeFields extracts the flat tool, input, output strings, and
@@ -142,6 +143,29 @@ func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, ou
 	}
 
 	return tool, input, output, sessionID, callID
+}
+
+// extractOpenCodeOutcome retains process-exit evidence only for the pinned
+// built-in shell producer. The after-hook has no terminal state, so all other
+// tools and missing or malformed exits remain unknown.
+func extractOpenCodeOutcome(tool string, outputRaw json.RawMessage) (exitCode *int64, isError *bool) {
+	if tool != "bash" || len(outputRaw) == 0 {
+		return nil, nil
+	}
+	var out openCodeOutputObject
+	if err := json.Unmarshal(outputRaw, &out); err != nil {
+		return nil, nil
+	}
+	raw, ok := out.Metadata["exit"]
+	if !ok {
+		return nil, nil
+	}
+	var exit int64
+	if err := json.Unmarshal(raw, &exit); err != nil {
+		return nil, nil
+	}
+	failed := exit != 0
+	return &exit, &failed
 }
 
 // codexToolResponseObject covers the known Codex tool_response shapes:
@@ -348,6 +372,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		tc.Tool = tool
 		tc.Input = input
 		tc.Output = output
+		tc.ExitCode, tc.IsError = extractOpenCodeOutcome(tool, outputRaw)
 		// Resolve deterministic identity from the native correlation
 		// tuple. The hook is a trusted adapter that KTX authors, so
 		// provenance is trusted. When the input lacks the recognized

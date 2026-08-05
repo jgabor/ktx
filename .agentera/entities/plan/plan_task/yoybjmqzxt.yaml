@@ -4,7 +4,7 @@ record:
   name: Establish authoritative runtime outcome contracts
   depends_on:
     []
-  status: in_progress
+  status: blocked
   acceptance:
     - GIVEN each candidate OpenCode and Codex outcome signal WHEN its supported runtime contract is inspected THEN the signal is classified as authoritative, unsupported, or unknown with version provenance.
     - GIVEN absent, malformed, or conflicting evidence WHEN the contract boundary is recorded THEN canonical precedence and unknown handling are explicit.
@@ -12,12 +12,12 @@ record:
     - GIVEN each candidate signal WHEN retained examples are checked THEN at least one positive and one absent or malformed case supports the classification.
   plan: caiaxiakry
   evaluation:
-    attempt_count: 1
-    failure_count: 1
+    attempt_count: 2
+    failure_count: 2
     last_verdict: fail
-    last_failure_evidence: Codex 0.144.4 invokes PostToolUse only after runtime-established success, so event occurrence is authoritative success even though nested tool_response fields are unconstrained. Retained examples also lacked contract-valid OpenCode error-state and Codex success cases.
+    last_failure_evidence: Corrected evidence proves trusted Codex PostToolUse occurrence is authoritative success, but the published plan unknown rule and Task 3 acceptance still require supersession when no authoritative field exists. The plan must be revised before narrow Codex capture can execute.
     provenance:
-      attempt_id: audit-yoybjmqzxt-1
-      source: independent audit ses_031c60355ffe5csUxZAxdfRfBh
-      recorded_at: 2026-08-04 21:30
+      attempt_id: audit-yoybjmqzxt-2
+      source: bounded re-review ses_031c60355ffe5csUxZAxdfRfBh
+      recorded_at: 2026-08-05 10:44
       writer_command: agentera state plan record-evaluation

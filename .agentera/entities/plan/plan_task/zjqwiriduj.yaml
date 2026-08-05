@@ -1,0 +1,15 @@
+id: zjqwiriduj
+artifact: plan
+record:
+  name: Complete database outcome reporting
+  depends_on:
+    - zrqzmzuxzt
+    - lxnqnvtaib
+  status: pending
+  acceptance:
+    - GIVEN all persisted tool calls form the report population WHEN failure metrics render THEN success, failure, unknown, known, error rate, and coverage are available.
+    - GIVEN report counts WHEN reconciled THEN known equals success plus failure and total equals known plus unknown.
+    - GIVEN report rates WHEN calculated THEN error rate equals failure divided by known and coverage equals known divided by all tool calls.
+    - GIVEN missing or invalid stored states WHEN reports run THEN they count as unknown and zero denominators remain explicit.
+    - GIVEN the report contract changes WHEN retained checks run THEN schema 3 and deterministic empty-report evidence are current.
+  plan: ldknsjplye

@@ -1,0 +1,16 @@
+id: qfqwczsdna
+artifact: progress
+record:
+  timestamp: 2026-08-05 11:42
+  type: fix
+  phase: build
+  what: Captured explicit Codex success only from schema-conforming native PostToolUse events while preserving unknown outcomes for nonconforming and untrusted payloads.
+  context:
+    intent: Implement Agentera replacement plan ldknsjplye task lxnqnvtaib only.
+    constraints: Preserve OpenCode behavior, generic flat behavior, output extraction, schema, routing, reports, public documentation, and first-evidence authority. Include the existing zrqzmzuxzt completion and lxnqnvtaib in-progress state in the implementation commit.
+    unknowns: No implementation blocker remains; independent evaluation owns task completion.
+    scope: Codex PostToolUse validation, event-level is_error=false capture, trusted provenance gating, and proportional hook regression tests.
+  discovered: The existing hook selected trusted Codex provenance from hook_event_name alone and persisted no event-level success, so conforming PostToolUse records remained unknown and incomplete payloads could receive trusted identity.
+  verified: "With fresh disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_STATE_HOME, and XDG_RUNTIME_DIR and KTX_DB unset: the Codex-focused internal/cli tests passed; the retained runtime outcome checker passed 10 cases and both runtime pins; mage check passed all tests, vet, lint, and build with 0 issues and forbidden=0; the newly built ./build/ktx smoke persisted a conforming event with misleading nested fields as is_error=0 and nonconforming and runtime-labeled flat payloads as NULL; the staged-diff gitleaks stdin scan reported no leaks."
+  next: Keep task lxnqnvtaib in progress for independent evaluation; do not alter lifecycle completion in this cycle.
+  publication_order: 46

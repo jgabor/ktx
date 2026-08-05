@@ -1209,7 +1209,13 @@ func TestHook_Codex_ObjectWithAggregatedOutput(t *testing.T) {
 
 	// Codex PostToolUse payload with object tool_response containing
 	// aggregated_output. Extracts correctly, runtime="codex".
-	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls -la"},"tool_response":{"aggregated_output":"file1\nfile2","exit_code":0},"tool_use_id":"call_abc123","session_id":"some-codex-uuid","cwd":"/path/to/project","model":"gpt-5"}`
+	payload := codexPayloadFor(t, "some-codex-uuid", "call_abc123", "Bash", map[string]any{"command": "ls -la"}, map[string]any{
+		"aggregated_output": "file1\nfile2",
+		"exit_code":         9,
+		"is_error":          true,
+		"status":            "failed",
+		"success":           false,
+	})
 
 	var stdout, stderr bytes.Buffer
 	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
@@ -1241,6 +1247,12 @@ func TestHook_Codex_ObjectWithAggregatedOutput(t *testing.T) {
 	if persisted.Runtime == nil || *persisted.Runtime != "codex" {
 		t.Errorf("persisted runtime = %v, want &codex", persisted.Runtime)
 	}
+	if persisted.IsError == nil || *persisted.IsError {
+		t.Errorf("persisted is_error = %v, want explicit success despite misleading nested fields", persisted.IsError)
+	}
+	if persisted.ExitCode != nil {
+		t.Errorf("persisted exit_code = %v, want nil (nested response is not outcome evidence)", persisted.ExitCode)
+	}
 	if persisted.SessionID == "some-codex-uuid" {
 		t.Errorf("persisted session_id = %q, should not use Codex session_id (ppid resolution instead)", persisted.SessionID)
 	}
@@ -1253,7 +1265,7 @@ func TestHook_Codex_BareStringOutput(t *testing.T) {
 
 	// Codex PostToolUse with bare string tool_response. Output
 	// is the bare string.
-	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":"bare string output","tool_use_id":"codex002","session_id":"codex-test-session"}`
+	payload := codexPayloadFor(t, "codex-test-session", "codex002", "Bash", map[string]any{"command": "echo hi"}, "bare string output")
 
 	var stdout, stderr bytes.Buffer
 	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
@@ -1268,6 +1280,9 @@ func TestHook_Codex_BareStringOutput(t *testing.T) {
 	if persisted.Output != "bare string output" {
 		t.Errorf("persisted output = %q, want bare string output", persisted.Output)
 	}
+	if persisted.IsError == nil || *persisted.IsError {
+		t.Errorf("persisted is_error = %v, want explicit success with no nested outcome-looking fields", persisted.IsError)
+	}
 }
 
 func TestHook_Codex_ObjectWithoutRecognisedField(t *testing.T) {
@@ -1277,7 +1292,7 @@ func TestHook_Codex_ObjectWithoutRecognisedField(t *testing.T) {
 
 	// Codex PostToolUse with object tool_response without
 	// aggregated_output, output, or text. Stringified fallback.
-	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{},"tool_response":{"foo":"bar"},"tool_use_id":"codex003","session_id":"codex-test-session"}`
+	payload := codexPayloadFor(t, "codex-test-session", "codex003", "Bash", map[string]any{}, map[string]any{"foo": "bar"})
 
 	var stdout, stderr bytes.Buffer
 	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
@@ -1299,8 +1314,9 @@ func TestHook_Codex_NoToolName(t *testing.T) {
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	// Codex PostToolUse missing tool_name. Tool="unknown".
-	payload := `{"hook_event_name":"PostToolUse","tool_input":{"command":"echo"},"tool_response":"hello","tool_use_id":"codex004","session_id":"codex-test-session"}`
+	// A PostToolUse-shaped payload missing required tool_name keeps output
+	// extraction compatibility, but is not trusted as native success evidence.
+	payload := `{"cwd":"/tmp/project","hook_event_name":"PostToolUse","model":"gpt-5","permission_mode":"default","session_id":"codex-test-session","tool_input":{"command":"echo"},"tool_response":"hello","tool_use_id":"codex004","transcript_path":null,"turn_id":"turn-codex004"}`
 
 	var stdout, stderr bytes.Buffer
 	_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
@@ -1308,12 +1324,22 @@ func TestHook_Codex_NoToolName(t *testing.T) {
 		t.Fatalf("hookLogic: %v", err)
 	}
 
-	persisted, err := d.GetToolCall(mustCodexID(t, "codex-test-session", "codex004"))
+	_, ids, err := d.SampleIDs(1)
+	if err != nil || len(ids) != 1 {
+		t.Fatalf("SampleIDs: ids=%v err=%v", ids, err)
+	}
+	persisted, err := d.GetToolCall(ids[0])
 	if err != nil {
 		t.Fatalf("GetToolCall: %v", err)
 	}
 	if persisted.Tool != "unknown" {
 		t.Errorf("persisted tool = %q, want unknown (fallback)", persisted.Tool)
+	}
+	if persisted.IsError != nil {
+		t.Errorf("persisted is_error = %v, want unknown for nonconforming payload", persisted.IsError)
+	}
+	if ids[0] == mustCodexID(t, "codex-test-session", "codex004") {
+		t.Errorf("nonconforming payload used trusted deterministic identity %q", ids[0])
 	}
 }
 
@@ -1324,7 +1350,7 @@ func TestHook_Codex_WithoutUsableTupleGeneratesFreshIDs(t *testing.T) {
 
 	// Codex PostToolUse without tool_use_id. ID is generated
 	// (16-char lowercase alpha).
-	payload := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo"},"tool_response":"hello"}`
+	payload := `{"cwd":"/tmp/project","hook_event_name":"PostToolUse","model":"gpt-5","permission_mode":"default","session_id":"codex-test-session","tool_input":{"command":"echo"},"tool_name":"Bash","tool_response":"hello","transcript_path":null,"turn_id":"turn-missing-id"}`
 
 	for i := 0; i < 2; i++ {
 		var stdout, stderr bytes.Buffer
@@ -1352,6 +1378,23 @@ func TestHook_Codex_WithoutUsableTupleGeneratesFreshIDs(t *testing.T) {
 		if !idPattern.MatchString(id) {
 			t.Errorf("generated source_id = %q, want 16-char lowercase alpha", id)
 		}
+	}
+	rows, err := d.DB().Query(`SELECT is_error FROM tool_calls`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var isError any
+		if err := rows.Scan(&isError); err != nil {
+			t.Fatal(err)
+		}
+		if isError != nil {
+			t.Errorf("nonconforming payload is_error = %v, want unknown", isError)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	if ids[0] == ids[1] {
 		t.Errorf("unusable tuples collapsed to shared id %q", ids[0])
@@ -1611,13 +1654,22 @@ func TestHook_Codex_ExactAcceptedEventUnchanged(t *testing.T) {
 // aggregated_output). When toolUseID is empty, the field is omitted so
 // the hook generates an id.
 func codexPayload(t *testing.T, toolUseID, toolName, output string) string {
+	return codexPayloadFor(t, "codex-test-session", toolUseID, toolName, map[string]any{"command": "echo"}, map[string]any{"aggregated_output": output})
+}
+
+func codexPayloadFor(t *testing.T, sessionID, toolUseID, toolName string, input, response any) string {
 	t.Helper()
 	m := map[string]any{
 		"hook_event_name": "PostToolUse",
+		"cwd":             "/tmp/project",
+		"model":           "gpt-5",
+		"permission_mode": "default",
+		"session_id":      sessionID,
 		"tool_name":       toolName,
-		"tool_input":      map[string]any{"command": "echo"},
-		"tool_response":   map[string]any{"aggregated_output": output},
-		"session_id":      "codex-test-session",
+		"tool_input":      input,
+		"tool_response":   response,
+		"transcript_path": nil,
+		"turn_id":         "turn-" + toolUseID,
 	}
 	if toolUseID != "" {
 		m["tool_use_id"] = toolUseID
@@ -1739,8 +1791,8 @@ func TestHook_Codex_ChangedRetryConflictsAndPreservesFirstEvidence(t *testing.T)
 	d := hookTestDB(t)
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	first := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"first"},"tool_response":"first output","tool_use_id":"same-runtime-id","session_id":"same-runtime-session"}`
-	changed := `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"changed"},"tool_response":"changed output","tool_use_id":"same-runtime-id","session_id":"same-runtime-session"}`
+	first := codexPayloadFor(t, "same-runtime-session", "same-runtime-id", "Bash", map[string]any{"command": "first"}, "first output")
+	changed := codexPayloadFor(t, "same-runtime-session", "same-runtime-id", "Bash", map[string]any{"command": "changed"}, "changed output")
 
 	var stdout, stderr bytes.Buffer
 	if _, err := hookLogic(strings.NewReader(first), d, &stdout, &stderr); err != nil {
@@ -1761,6 +1813,63 @@ func TestHook_Codex_ChangedRetryConflictsAndPreservesFirstEvidence(t *testing.T)
 	}
 	if persisted.Input != `{"command":"first"}` || persisted.Output != "first output" {
 		t.Errorf("persisted evidence = (%q, %q), want first delivery", persisted.Input, persisted.Output)
+	}
+}
+
+func TestHook_Codex_ExactRetryIgnoresChangedNestedResponseMetadata(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	first := codexPayloadFor(t, "retry-session", "retry-metadata", "Bash", map[string]any{"command": "echo"}, map[string]any{
+		"aggregated_output": "same output",
+	})
+	retry := codexPayloadFor(t, "retry-session", "retry-metadata", "Bash", map[string]any{"command": "echo"}, map[string]any{
+		"aggregated_output": "same output",
+		"exit_code":         17,
+		"is_error":          true,
+		"status":            "failed",
+		"success":           false,
+	})
+	for i, payload := range []string{first, retry} {
+		var stdout, stderr bytes.Buffer
+		if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+			t.Fatalf("delivery %d: %v (stderr=%q)", i, err, stderr.String())
+		}
+	}
+
+	sourceID := mustCodexID(t, "retry-session", "retry-metadata")
+	persisted, err := d.GetToolCall(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.IsError == nil || *persisted.IsError {
+		t.Errorf("persisted is_error = %v, want first event-level success", persisted.IsError)
+	}
+	if persisted.ExitCode != nil {
+		t.Errorf("persisted exit_code = %v, want no enrichment from nested retry metadata", persisted.ExitCode)
+	}
+	if n := countRows(t, d, "tool_calls"); n != 1 {
+		t.Errorf("tool_calls = %d, want 1 exact-retry source", n)
+	}
+}
+
+func TestHook_Codex_RuntimeLabelDoesNotTrustFlatPayload(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := `{"id":"flatcodex01","runtime":"codex","tool":"Bash","input":"echo","output":"ok","tool_response":{"success":true}}`
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+	persisted, err := d.GetToolCall("flatcodex01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.IsError != nil || persisted.ExitCode != nil {
+		t.Errorf("flat runtime label inferred outcome: is_error=%v exit_code=%v", persisted.IsError, persisted.ExitCode)
 	}
 }
 
@@ -1995,7 +2104,7 @@ func TestHook_Codex_CanonicalEquivalentInputConverges(t *testing.T) {
 	}
 
 	// First delivery: tool_input with keys in one order.
-	first := fmt.Sprintf(`{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo","cwd":"/tmp"},"tool_response":{"aggregated_output":%s},"tool_use_id":"canon-equiv-01","session_id":"codex-test-session"}`, outputJSON)
+	first := fmt.Sprintf(`{"cwd":"/tmp/project","hook_event_name":"PostToolUse","model":"gpt-5","permission_mode":"default","session_id":"codex-test-session","tool_input":{"command":"echo","cwd":"/tmp"},"tool_name":"Bash","tool_response":{"aggregated_output":%s},"tool_use_id":"canon-equiv-01","transcript_path":null,"turn_id":"turn-canon-equiv-01"}`, outputJSON)
 
 	var stdout1, stderr1 bytes.Buffer
 	if _, err := hookLogic(strings.NewReader(first), d, &stdout1, &stderr1); err != nil {
@@ -2003,7 +2112,7 @@ func TestHook_Codex_CanonicalEquivalentInputConverges(t *testing.T) {
 	}
 
 	// Second delivery: same input, different key order + whitespace.
-	second := fmt.Sprintf(`{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{ "cwd" : "/tmp" , "command" : "echo" },"tool_response":{"aggregated_output":%s},"tool_use_id":"canon-equiv-01","session_id":"codex-test-session"}`, outputJSON)
+	second := fmt.Sprintf(`{"cwd":"/tmp/project","hook_event_name":"PostToolUse","model":"gpt-5","permission_mode":"default","session_id":"codex-test-session","tool_input":{ "cwd" : "/tmp" , "command" : "echo" },"tool_name":"Bash","tool_response":{"aggregated_output":%s},"tool_use_id":"canon-equiv-01","transcript_path":null,"turn_id":"turn-canon-equiv-01"}`, outputJSON)
 
 	var stdout2, stderr2 bytes.Buffer
 	if _, err := hookLogic(strings.NewReader(second), d, &stdout2, &stderr2); err != nil {

@@ -29,12 +29,11 @@ type hookEnvelope struct {
 	CallID           string  `json:"call_id,omitempty"`
 }
 
-// codexPostToolUseEvent is the sole hook_event_name value the hook
-// trusts as a Codex PostToolUse payload. Any other non-empty
-// hook_event_name is rejected before persistence so an unknown
-// Codex-shaped event cannot reach trusted provenance or
-// deterministic identity. An absent or empty hook_event_name falls
-// back to OpenCode/flat deserialisation (backward compatible).
+// codexPostToolUseEvent is the sole hook_event_name value accepted for Codex
+// extraction. Trusted provenance additionally requires the complete native
+// input contract. Any other non-empty hook_event_name is rejected before
+// persistence. An absent or empty hook_event_name falls back to OpenCode/flat
+// deserialisation (backward compatible).
 const codexPostToolUseEvent = "PostToolUse"
 
 // codexHookOutput is the Codex PostToolUse hook response written by
@@ -177,6 +176,81 @@ type codexToolResponseObject struct {
 	Text             string `json:"text"`
 }
 
+var codexPostToolUseFields = map[string]bool{
+	"agent_id":        true,
+	"agent_type":      true,
+	"cwd":             true,
+	"hook_event_name": true,
+	"model":           true,
+	"permission_mode": true,
+	"session_id":      true,
+	"tool_input":      true,
+	"tool_name":       true,
+	"tool_response":   true,
+	"tool_use_id":     true,
+	"transcript_path": true,
+	"turn_id":         true,
+}
+
+// validCodexPostToolUse reports whether a payload matches the pinned native
+// PostToolUse input contract. tool_input and tool_response are intentionally
+// left unconstrained; their nested content does not carry outcome meaning.
+func validCodexPostToolUse(raw map[string]json.RawMessage) bool {
+	for key := range raw {
+		if !codexPostToolUseFields[key] {
+			return false
+		}
+	}
+	for _, key := range []string{"cwd", "model", "permission_mode", "session_id", "tool_name", "tool_use_id", "turn_id"} {
+		if !nonEmptyJSONString(raw[key]) {
+			return false
+		}
+	}
+	var eventName, permissionMode string
+	if json.Unmarshal(raw["hook_event_name"], &eventName) != nil || eventName != codexPostToolUseEvent {
+		return false
+	}
+	if json.Unmarshal(raw["permission_mode"], &permissionMode) != nil {
+		return false
+	}
+	switch permissionMode {
+	case "default", "acceptEdits", "plan", "dontAsk", "bypassPermissions":
+	default:
+		return false
+	}
+	if _, ok := raw["tool_input"]; !ok {
+		return false
+	}
+	if _, ok := raw["tool_response"]; !ok {
+		return false
+	}
+	transcript, ok := raw["transcript_path"]
+	if !ok || !nullOrJSONString(transcript) {
+		return false
+	}
+	for _, key := range []string{"agent_id", "agent_type"} {
+		if value, present := raw[key]; present && !jsonString(value) {
+			return false
+		}
+	}
+	return true
+}
+
+func nonEmptyJSONString(raw json.RawMessage) bool {
+	var value string
+	return json.Unmarshal(raw, &value) == nil && value != ""
+}
+
+func jsonString(raw json.RawMessage) bool {
+	var value *string
+	return json.Unmarshal(raw, &value) == nil && value != nil
+}
+
+func nullOrJSONString(raw json.RawMessage) bool {
+	var value *string
+	return json.Unmarshal(raw, &value) == nil
+}
+
 // extractCodexFields extracts the flat tool, input, and output strings
 // from a Codex PostToolUse payload's top-level tool_name, tool_input,
 // and tool_response fields. The tool_input is stringified JSON. The
@@ -228,15 +302,15 @@ func extractCodexFields(toolName string, toolInputRaw, toolResponseRaw json.RawM
 // passthrough (no ktx.toml) and failure-gate-skip (is_error=true)
 // return the source output unchanged with compressed_id=null.
 //
-// When hook_event_name is exactly "PostToolUse" (Codex PostToolUse
-// payload), the hook extracts tool name, input, and output from the
-// top-level tool_name, tool_input, and tool_response fields. When runtime
-// session_id and tool_use_id are both usable, the persisted source id is
-// derived deterministically from the runtime tuple; otherwise it is freshly
-// generated. Exact retries reuse the first row, while changed evidence for the
-// same tuple is rejected as a conflict. Any other non-empty hook_event_name
-// is rejected before persistence (_fail before side effects_) so it cannot
-// reach trusted Codex provenance or deterministic identity.
+// When hook_event_name is exactly "PostToolUse", the hook extracts tool name,
+// input, and output from the top-level tool_name, tool_input, and tool_response
+// fields. A schema-conforming payload is explicit success and receives trusted
+// provenance; nested tool_response content is never read as outcome evidence.
+// Nonconforming payloads retain extraction compatibility but receive fresh
+// identity and unknown outcome. Exact trusted retries reuse the first row,
+// while changed authoritative evidence for the same tuple is rejected as a
+// conflict. Any other non-empty hook_event_name is rejected before persistence
+// (_fail before side effects_).
 //
 // When runtime="opencode" is present, the hook extracts tool name, input
 // string, and output string from raw OpenCode callback objects
@@ -275,11 +349,10 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 	// Peek at hook_event_name and runtime to decide between Codex,
 	// OpenCode callback extraction, and flat tool_call deserialisation.
-	// Only the exact Codex PostToolUse event enters the trusted Codex
-	// path; any other non-empty hook_event_name is rejected before
-	// persistence so an unknown Codex-shaped event cannot reach trusted
-	// provenance or deterministic identity. An absent or empty
-	// hook_event_name falls back to OpenCode/flat (backward compatible).
+	// Only the exact Codex PostToolUse event enters Codex extraction; the
+	// complete native contract below controls trusted provenance and success.
+	// Any other non-empty hook_event_name is rejected before persistence.
+	// An absent or empty hook_event_name falls back to OpenCode/flat.
 	var peek struct {
 		Runtime       *string `json:"runtime"`
 		HookEventName *string `json:"hook_event_name"`
@@ -337,9 +410,15 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		tc.Tool = tool
 		tc.Input = input
 		tc.Output = output
+		provenance := correlation.Untrusted()
+		if validCodexPostToolUse(raw) {
+			provenance = correlation.Trusted(correlation.ProvenanceCodexPostToolUse)
+			succeeded := false
+			tc.IsError = &succeeded
+		}
 		resolved, err := correlation.Resolve(
 			correlation.NativeTuple{Runtime: "codex", SessionID: runtimeSessionID, CallID: toolUseID},
-			correlation.Trusted(correlation.ProvenanceCodexPostToolUse))
+			provenance)
 		if err != nil {
 			return nil, internalError("ktx hook: resolve identity: %v", err)
 		}

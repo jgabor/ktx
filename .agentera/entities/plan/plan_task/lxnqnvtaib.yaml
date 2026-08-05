@@ -4,7 +4,7 @@ record:
   name: Capture Codex event-level success
   depends_on:
     []
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN a trusted schema-conforming Codex PostToolUse event WHEN recorded THEN the outcome is explicit success.
     - GIVEN nested response fields resemble outcomes or conflict with success WHEN recorded THEN they do not alter or strengthen event-level success.

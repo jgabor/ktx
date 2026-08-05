@@ -4,7 +4,7 @@ record:
   name: Capture OpenCode outcomes
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN OpenCode terminal error with any supported exit WHEN recorded THEN the outcome is failure and the exact exit remains diagnostic.
     - GIVEN OpenCode completed with a supported nonzero shell exit WHEN recorded THEN the outcome is failure; completed without authoritative exit is success.
@@ -13,12 +13,12 @@ record:
     - GIVEN exact retries and outcome checks WHEN run THEN first accepted evidence remains authoritative and terminal, shell, hook, unknown, malformed, and conflict boundaries are covered.
   plan: ldknsjplye
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: OpenCode wrapper and hook integer decoding accepts JSON null as zero, inventing exit_code=0 and is_error=false instead of unknown. Add null handling and first-wins regression coverage.
     provenance:
-      attempt_id: audit-zrqzmzuxzt-1
-      source: independent audit ses_02ecb45b5ffeo1aY89ZloELcug
-      recorded_at: 2026-08-05 11:22
+      attempt_id: audit-zrqzmzuxzt-2
+      source: bounded re-review ses_02ecb45b5ffeo1aY89ZloELcug
+      recorded_at: 2026-08-05 11:29
       writer_command: agentera state plan record-evaluation

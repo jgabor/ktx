@@ -5,7 +5,7 @@ record:
   depends_on:
     - zrqzmzuxzt
     - lxnqnvtaib
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN all persisted tool calls form the report population WHEN failure metrics render THEN success, failure, unknown, known, error rate, and coverage are available.
     - GIVEN report counts WHEN reconciled THEN known equals success plus failure and total equals known plus unknown.
@@ -13,3 +13,13 @@ record:
     - GIVEN missing or invalid stored states WHEN reports run THEN they count as unknown and zero denominators remain explicit.
     - GIVEN the report contract changes WHEN retained checks run THEN schema 3 and deterministic empty-report evidence are current.
   plan: ldknsjplye
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-zjqwiriduj-1
+      source: independent audit ses_02e747a8dffef5hwr749Tq7eZe
+      recorded_at: 2026-08-05 12:56
+      writer_command: agentera state plan record-evaluation

@@ -5,7 +5,7 @@ record:
   depends_on:
     - ongnhqfzkf
     - zjqwiriduj
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN retained consumers and fixtures WHEN inspected THEN every dependency on the prior structured schemas is identified with evidence.
     - GIVEN a retained consumer requires compatibility WHEN the new reports ship THEN that consumer remains correct without weakening the new outcome contract.

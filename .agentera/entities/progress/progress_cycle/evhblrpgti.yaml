@@ -1,0 +1,17 @@
+id: evhblrpgti
+artifact: progress
+record:
+  timestamp: 2026-08-05 13:06
+  type: docs
+  phase: build
+  what: Persisted the completed structured-schema consumer inventory as durable project-memory evidence. The current producer contracts are stats summary 5, stats breakdown 2, and database report 3. No retained executable parser, fixture, script, version selector, legacy projection, or alias requires the prior contracts, so no compatibility bridge or compatibility-only test was added.
+  context:
+    intent: Persist durable evidence that no retained executable consumer requires compatibility with prior live stats or database-report schemas.
+    constraints: Project memory only; no product code, public documentation, TODO, prior progress, compatibility projection, alias, legacy mode, completion, or supersession change.
+    unknowns: External consumers are unknown and explicitly out of scope.
+    scope: One verification artifact, one typed progress entry, and the already-present evaluated dependency state and in-progress task state.
+  inspiration: Agentera replacement plan ldknsjplye task tuevuojzxd and its completed Analyze inventory.
+  discovered: Prior-version dependencies are limited to producer-owned tests and the deterministic empty database-report digest already advanced with the producers. The stale pipeline document and skill references are human guidance, while benchmark summary_schema 4 belongs to an unrelated experiment-summary namespace. External consumers remain unknown and out of scope.
+  verified: "PASS: go test -count=1 ./internal/cli ./internal/db ./internal/dbreport with KTX_DB unset and fresh disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_STATE_HOME, and GOCACHE. Producer constants and exact-key tests confirm stats schemas 5/2 and database report schema 3; history confirms the producer changes and empty-report digest update. The retained inventory found no executable prior-schema consumer. zjqwiriduj retains its uncommitted independent PASS evaluation and complete state; tuevuojzxd remains in_progress for orchestration-owned evaluation and supersession."
+  next: Independent evaluation should supersede tuevuojzxd with completed replacements ongnhqfzkf and zjqwiriduj; do not add speculative compatibility or transition lifecycle state in this commit.
+  publication_order: 52

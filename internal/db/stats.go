@@ -257,7 +257,9 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	}
 
 	rows, err := database.Query(`
-		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''), tc.is_error, LENGTH(tc.output),
+		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''),
+		       CASE WHEN typeof(tc.is_error) = 'integer' AND tc.is_error IN (0, 1) THEN tc.is_error END,
+		       LENGTH(tc.output),
 		       cd.profile, cd.route, cd.disposition,
 		       c.id, LENGTH(c.output)
 		FROM tool_calls tc

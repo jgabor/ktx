@@ -97,7 +97,7 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
 		assertContractText(t, contents,
 			[]string{"Summary schema 5", "breakdown schema 2", "report schema 3", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
-			[]string{"\"schema_version\": 4", "\"schema_version\": 1"},
+			[]string{"\"schema_version\": 4", "\"schema_version\": 1", "Schema version 4 removes the version 3 `delivery_breakdown` member", "version 1 breakdown command"},
 		)
 	}
 }

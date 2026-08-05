@@ -292,8 +292,8 @@ Its JSON contract contains only window metadata, headline call and token totals,
 and aggregate cache evidence. The schema is closed: diagnostic arrays and new
 reporting dimensions require an intentional schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
-Schema version 4 removes the version 3 `delivery_breakdown` member; callers that
-used it should invoke the version 1 breakdown command instead.
+Summary schema 5 omits `delivery_breakdown`; callers that need those detailed
+groups should invoke the breakdown schema 2 command instead.
 
 The summary and breakdown commands use an inclusive trailing window (`[from,
 to]`) ending at one captured wall-clock time. Only calls with non-NULL output and

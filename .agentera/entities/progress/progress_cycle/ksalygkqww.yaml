@@ -1,0 +1,17 @@
+id: ksalygkqww
+artifact: progress
+record:
+  timestamp: 2026-08-05 14:30
+  type: fix
+  phase: build
+  what: Addressed only the two accepted findings from the first integrated audit of task mvggstggsy. Live stats now normalize is_error at the SQLite query boundary so only integer 0 or 1 reaches sql.NullInt64; malformed integer, real, text including exact text 0 and 1, blob, NULL, and exit-code-only evidence remain unknown without making summary or breakdown unavailable. Replaced the stale summary-4/breakdown-1 sentence with the schema 5/schema 2 relationship and made the contract test reject the obsolete guidance.
+  context:
+    intent: Perform one bounded correction for the persisted independent integrated-audit FAIL and regenerate final local-binary evidence.
+    constraints: No ingress, routing, db report behavior, database schema, compatibility bridge, TODO state, plan closure, provider run, or model run changed. Task mvggstggsy remains in progress with its failed evaluation pending independent re-review.
+    unknowns: The orchestration-owned independent re-review has not yet been persisted.
+    scope: Only malformed SQLite outcome storage normalization, stale public schema guidance, their regressions, and regenerated integrated evidence.
+  inspiration: The accepted audit showed that semantic unknown handling must begin before a typed Go scan and that public migration guidance must identify the current schema pair everywhere.
+  discovered: SQLite INTEGER affinity normally converts exact text 0 and 1 to integers. The deterministic malformed fixture therefore removes only is_error affinity, verifies the actual storage classes, and proves exact text 0 and 1 remain unknown. No other report population, artifact, cache, or delivery behavior changed.
+  verified: Regenerated .agentera/verification/tool-outcome-integrated-2026-08-05.md using the retained deterministic .agentera/verification/tool_outcome_integrated_check.py and newly built ./build/ktx dev SHA-256 1d93c5c26fd08bfc306b5a231653b2b0d9f6f17d46c2bda97040217fda0729eb. Mixed one-hour stats reported 2 success, 1 error, 8 unknown, 33.33333333333333 percent error of known, 27.27272727272727 percent coverage, 11 calls, and matching summary/breakdown token totals of 39 with no per-group outcomes. Schema-3 db report over all 13 calls reported 2 success, 1 error, 10 unknown, 33.33 percent error, and 23.08 percent coverage; all four fixture byte hashes and user_version 9 were preserved. Empty, all-known, and all-unknown JSON/text cases passed. Focused DB, CLI, parser, router, dbreport, help, retained-script, JSON-fence, and 106-link checks passed. Isolated mage check passed all tests, vet, lint with 0 issues, and build; its boundary audit reported 954 operations, forbidden=0, and ktx_db=unset. Agentera doctor was up_to_date and typed state retrieval confirmed the plan open and mvggstggsy in_progress with the persisted FAIL.
+  next: Keep mvggstggsy in progress. Orchestration must independently re-review this single bounded correction and persist the adjudicated result before any state closure.
+  publication_order: 56

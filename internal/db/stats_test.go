@@ -1,9 +1,11 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -200,6 +202,61 @@ func TestStatsSummaryRowsClassifiesCanonicalOutcome(t *testing.T) {
 	}
 	if got[3] != nil || got[4] != nil {
 		t.Errorf("unknown outcomes = %#v; NULL, contradictory exit code, and malformed integer must remain unknown", got)
+	}
+}
+
+func TestStatsSummaryRowsNormalizesOutcomeStorageClasses(t *testing.T) {
+	database, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { database.Close() })
+	if _, err := database.Exec(`
+		CREATE TABLE tool_calls (id TEXT PRIMARY KEY, tool TEXT, input TEXT, output TEXT, timestamp TEXT, is_error);
+		CREATE TABLE compression_dispositions (source_id TEXT PRIMARY KEY, profile TEXT, route TEXT, disposition TEXT);
+		CREATE TABLE compressed (id TEXT PRIMARY KEY, source_id TEXT, output TEXT, timestamp TEXT);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	from := time.Date(2026, 7, 21, 11, 30, 0, 0, time.UTC)
+	success, failure := false, true
+	values := []struct {
+		id      string
+		outcome any
+		known   *bool
+	}{
+		{id: "integerzeroaaaa", outcome: int64(0), known: &success},
+		{id: "integeroneaaaaa", outcome: int64(1), known: &failure},
+		{id: "integerbadaaaaa", outcome: int64(7)},
+		{id: "realbadbadbaaaa", outcome: float64(0.5)},
+		{id: "textbadbadbaaaa", outcome: "malformed"},
+		{id: "textzeroaaaaaaaa", outcome: "0"},
+		{id: "textoneaaaaaaaaa", outcome: "1"},
+		{id: "blobbadbadbaaaa", outcome: []byte{0}},
+		{id: "nullbadbadbaaaa", outcome: nil},
+	}
+	for index, value := range values {
+		if _, err := database.Exec(`INSERT INTO tool_calls (id, tool, input, output, timestamp, is_error) VALUES (?, 'bash', '', ?, ?, ?)`,
+			value.id, strings.Repeat("x", index+1), from.Format(time.RFC3339Nano), value.outcome); err != nil {
+			t.Fatalf("insert %s: %v", value.id, err)
+		}
+	}
+
+	rows, err := statsSummaryRowsFor(database, from, from, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != len(values) {
+		t.Fatalf("rows = %d, want %d", len(rows), len(values))
+	}
+	want := make(map[int]*bool, len(values))
+	for index, value := range values {
+		want[index+1] = value.known
+	}
+	for _, row := range rows {
+		if expected := want[row.RawChars]; (row.IsError == nil) != (expected == nil) || row.IsError != nil && *row.IsError != *expected {
+			t.Errorf("raw chars %d is_error = %v, want %v", row.RawChars, row.IsError, expected)
+		}
 	}
 }
 

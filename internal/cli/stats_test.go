@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -344,6 +345,89 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		if summary.Outcomes.KnownCalls != summary.Outcomes.SuccessfulCalls+summary.Outcomes.ErrorCalls || summary.Outcomes.TotalCalls != summary.Outcomes.KnownCalls+summary.Outcomes.UnknownCalls || summary.Outcomes.TotalCalls != summary.Calls.TotalWithOutput {
 			t.Errorf("outcomes do not reconcile: outcomes=%+v calls=%+v", summary.Outcomes, summary.Calls)
+		}
+	})
+
+	t.Run("malformed SQLite outcome storage remains available and unknown", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "ktx.db")
+		db, err := dbpkg.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		sid := seedSession(t, db)
+		success, failure := false, true
+		ids := seedCalls(t, db, sid, []callSeed{
+			{tool: "bash", output: "success", isError: &success},
+			{tool: "bash", output: "failure", isError: &failure},
+			{tool: "bash", output: "integer"},
+			{tool: "bash", output: "real"},
+			{tool: "bash", output: "text"},
+			{tool: "bash", output: "blob"},
+			{tool: "bash", output: "null"},
+			{tool: "bash", output: "exit-only"},
+		})
+		raw, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { raw.Close() })
+		updates := []struct {
+			id    string
+			value any
+		}{
+			{id: ids[2], value: int64(7)},
+			{id: ids[3], value: float64(0.5)},
+			{id: ids[4], value: "malformed"},
+			{id: ids[5], value: []byte{0}},
+			{id: ids[6], value: nil},
+		}
+		for _, update := range updates {
+			if _, err := raw.Exec(`UPDATE tool_calls SET is_error = ? WHERE id = ?`, update.value, update.id); err != nil {
+				t.Fatalf("update %s: %v", update.id, err)
+			}
+		}
+		if _, err := raw.Exec(`UPDATE tool_calls SET exit_code = 9 WHERE id = ?`, ids[7]); err != nil {
+			t.Fatal(err)
+		}
+
+		var summaryJSON, breakdownJSON, summaryText, breakdownText bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &summaryJSON); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := statsBreakdownLogic(nil, FormatJSON, 30*time.Minute, now, db, &breakdownJSON); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &summaryText); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := statsBreakdownLogic(nil, FormatText, 30*time.Minute, now, db, &breakdownText); err != nil {
+			t.Fatal(err)
+		}
+		var summary statsSummary
+		var breakdown statsBreakdown
+		if err := json.Unmarshal(summaryJSON.Bytes(), &summary); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(breakdownJSON.Bytes(), &breakdown); err != nil {
+			t.Fatal(err)
+		}
+		errorRate, coverage := 50.0, 25.0
+		want := statsOutcomeTotals{SuccessfulCalls: 1, ErrorCalls: 1, UnknownCalls: 6, KnownCalls: 2, TotalCalls: 8, ErrorRatePctOfKnown: &errorRate, OutcomeCoveragePct: &coverage}
+		if !reflect.DeepEqual(summary.Outcomes, want) || !reflect.DeepEqual(breakdown.Outcomes, want) {
+			t.Fatalf("summary outcomes=%+v breakdown outcomes=%+v want=%+v", summary.Outcomes, breakdown.Outcomes, want)
+		}
+		if summary.Calls != breakdown.Calls || !reflect.DeepEqual(summary.Tokens, breakdown.Tokens) || summary.Calls.TotalWithOutput != 8 {
+			t.Errorf("summary calls/tokens=%+v/%+v breakdown=%+v/%+v", summary.Calls, summary.Tokens, breakdown.Calls, breakdown.Tokens)
+		}
+		assertOutcomeTextColumns(t, "summary", summaryText.String(), "50.00", "25.00")
+		assertOutcomeTextColumns(t, "breakdown", breakdownText.String(), "50.00", "25.00")
+		encoded, err := json.Marshal(breakdown.DeliveryBreakdown)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(encoded), "outcome") || strings.Contains(string(encoded), "error_calls") {
+			t.Errorf("delivery groups contain outcomes: %s", encoded)
 		}
 	})
 

@@ -124,7 +124,7 @@ semantics — every non-empty condition must hold:
 | Tool name      | `tool`           | Exact tool name (e.g. `"bash"`, `"read"`). Empty matches any tool.                                                                                                                                                                                                                  |
 | Command prefix | `command_prefix` | Prefix match on the command string (e.g. `"git"` matches `"git status"`). Empty matches any command. Only applies to tools whose input carries a `command` field; a rule with a command prefix never matches a tool call without one.                                               |
 | Subcommand     | `subcommand`     | Exact match on the first non-flag token after the binary name in the command string (e.g. `"status"` for `git status`, `"log"` for `git --no-pager log`). Tokens starting with `-` are skipped. Empty matches any subcommand. Same `command`-field requirement as `command_prefix`. |
-| Exit status    | `exit_status`    | `"success"` (no error), `"failure"` (errored), or `"any"` (the default when the field is empty or absent).                                                                                                                                                                          |
+| Outcome        | `exit_status`    | `"success"` requires persisted `is_error=false`; `"failure"` requires `is_error=true`; `"any"` (the default when empty or absent) also matches unknown.                                                                                                                             |
 
 `profile` names the target `[pipeline.<name>]` table and is required.
 Profile references and non-empty `exit_status` values are validated at
@@ -133,6 +133,32 @@ config-load time. Every `profile =` value must name an existing profile, and
 surrounding whitespace, and misspellings reject the configuration instead of
 acting as wildcard routes. Empty or absent `exit_status` normalizes to `any`.
 The router itself never errors at runtime.
+
+Persisted outcome classification has three states. `is_error=false` is explicit
+success, `is_error=true` is explicit failure, and NULL or any invalid stored
+value is unknown. Persisted `exit_code` is diagnostic only; it never controls
+reporting or routing. A success route requires explicit success, a failure route
+requires explicit failure, and `any` includes success, failure, and unknown.
+Explicit failure returns the original output unchanged before pipeline
+execution. Unknown may use an `any` route or the ordinary default fallback, but
+it is not success.
+
+Outcome authority depends on ingress:
+
+- The OpenCode 1.18.5 wrapper applies this precedence: a terminal error is
+  failure; otherwise a supported shell exit decides success or failure;
+  otherwise a completed tool result is success; otherwise the outcome is
+  unknown. Error text is retained. The generated OpenCode hook has only the
+  supported shell-exit signal; absent, malformed, or unsupported exit evidence
+  is unknown.
+- A trusted, schema-conforming Codex 0.144.4 `PostToolUse` occurrence is success.
+  Its unconstrained nested `tool_response` fields have no outcome authority and
+  cannot override the event. A nonconforming or untrusted payload is unknown.
+- Flat sidecar `is_error` is an explicit caller assertion. The caller must
+  establish its authority. A runtime, model, or provider label does not make the
+  assertion or any otherwise unsupported evidence authoritative.
+- Historical records without explicit outcome evidence remain unknown. ktx does
+  not reconstruct outcomes from exit codes, artifacts, labels, or output text.
 
 ### Subcommand vs command prefix
 
@@ -192,9 +218,9 @@ route explicitly targeting `default` is therefore distinguishable from using
 - **Different tools, different needs** — command stdout (`bash`) often
   tolerates aggressive `head`/`keep-ends`; file reads (`read`) may need
   wider `keep-ends` to preserve mid-file facts needed for navigation.
-- **Failure versus success** — route errored tool calls to a
-  conservative profile so an `is_error` signal is never stripped by
-  aggressive truncation before the agent sees it.
+- **Failure versus success** — explicit failures already bypass every pipeline
+  unchanged. Use success-only routes only for explicit success; use `any` or the
+  default fallback when ordinary handling should also include unknown calls.
 - **Command-specific recipes** — route `git log` output to a head-based
   profile while leaving other `bash` output on the default profile.
 
@@ -307,7 +333,7 @@ JSON contract is:
 
 ```json
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -317,6 +343,15 @@ JSON contract is:
   "calls": {
     "total_with_output": 51,
     "with_compressed_artifact": 42
+  },
+  "outcomes": {
+    "successful_calls": 40,
+    "error_calls": 5,
+    "unknown_calls": 6,
+    "known_calls": 45,
+    "total_calls": 51,
+    "error_rate_pct_of_known": 11.11111111111111,
+    "outcome_coverage_pct": 88.23529411764706
   },
   "tokens": {
     "raw_estimated": 37370,
@@ -351,7 +386,7 @@ the summary:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -361,6 +396,15 @@ the summary:
   "calls": {
     "total_with_output": 51,
     "with_compressed_artifact": 42
+  },
+  "outcomes": {
+    "successful_calls": 40,
+    "error_calls": 5,
+    "unknown_calls": 6,
+    "known_calls": 45,
+    "total_calls": 51,
+    "error_rate_pct_of_known": 11.11111111111111,
+    "outcome_coverage_pct": 88.23529411764706
   },
   "tokens": {
     "raw_estimated": 37370,
@@ -417,6 +461,28 @@ empty (but non-NULL) output are included in the call counts and contribute zero
 tokens. `with_compressed_artifact` measures retained-artifact coverage, not
 whether compression reduced output size.
 
+The aggregate `outcomes` population is exactly the same output-bearing calls
+with valid RFC3339 timestamps in the inclusive window. Classification uses only
+persisted `is_error`: `false` is successful, `true` is error, and NULL or invalid
+is unknown. The formulas are:
+
+```text
+known_calls = successful_calls + error_calls
+total_calls = known_calls + unknown_calls
+error_rate_pct_of_known = error_calls / known_calls * 100
+outcome_coverage_pct = known_calls / total_calls * 100
+```
+
+For an empty population, both percentages are JSON `null` and text `-`. For an
+all-unknown population, error rate is `null`/`-` and coverage is `0`. For an
+all-known population with no errors, error rate is `0` and coverage is `100`.
+Breakdown groups do not carry per-group outcome rates. The summary's independent
+model-step/cache query does not change the tool-call outcome population.
+
+Summary schema 5 and breakdown schema 2 supersede their previous structured
+schemas without a compatibility bridge. Text output renders the same current
+fields and has no separate schema version.
+
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus
 `other` reconcile exactly to the headline call count, artifact count, raw
@@ -455,6 +521,22 @@ zero, otherwise it includes both a numeric token fraction and its exact reduced
 This is OpenCode-reported cached-input share, not a provider hit rate. A runtime
 model step is not a provider request, and the retained evidence does not prove
 provider hits, misses, eligibility, eviction, or request boundaries.
+
+### Database evidence report
+
+`ktx db report --output -` emits read-only report schema 3. Unlike the live
+window reports, its outcome population is every row in `tool_calls`, including
+calls without output or a valid timestamp. Its `failure_metrics` uses the same
+three-state `is_error` classification and the same known and total denominator
+formulas. Percentages retain the report's existing two-decimal rounding. Empty
+and all-unknown populations have a JSON `null` error rate; an empty population
+also has `null` coverage, while a non-empty all-unknown population has coverage
+`0`. Malformed stored `is_error` values remain unknown. `exit_codes` is a
+diagnostic distribution only and does not change outcome classification.
+
+Report schema 3 supersedes report schema 2 without a compatibility bridge. The
+report is JSON-only, so it has no separate text schema. The command opens the
+selected existing database read-only and never creates or migrates it.
 
 ## Portable offline replay
 

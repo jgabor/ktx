@@ -120,16 +120,39 @@ omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
 
+Summary schema 5 and breakdown schema 2 include aggregate `outcomes`. Their
+population is the same calls counted by `total_with_output`: non-null output and
+a valid RFC3339 timestamp in the inclusive window. Persisted `is_error=false` is
+success, `true` is error, and NULL or invalid is unknown. Persisted `exit_code`
+is diagnostic only.
+
 Headline formulas:
 
 ```text
 reduction_percent = (raw_estimated - delivered_estimated) / raw_estimated * 100
+known_calls = successful_calls + error_calls
+total_calls = known_calls + unknown_calls
+error_rate_pct_of_known = error_calls / known_calls * 100
+outcome_coverage_pct = known_calls / total_calls * 100
 logical_input = uncached_input + cache_read + cache_write
 cached_input_share = cache_read / logical_input
 ```
 
+Empty outcome percentages are JSON `null` and text `-`. An all-unknown
+population has a null error rate and zero coverage. An all-known population with
+no errors has zero error rate and 100 percent coverage. Breakdown has no
+per-group outcome rates. Text has no separate schema version. The model-step/cache
+query remains independent.
+
 `with_compressed_artifact` is coverage, not a success rate. A missing artifact
 does not state why raw output was delivered.
+
+`ktx db report` emits JSON report schema 3 over every tool-call row. Its
+`failure_metrics` uses the same classification and formulas, with existing
+two-decimal rounding. Malformed outcomes remain unknown; `exit_codes` remains
+diagnostic. Empty/all-unknown rates follow the live null/zero rules. The report
+is read-only and has no text schema. Schema 3 supersedes its predecessor without
+a compatibility bridge.
 
 ## Model-Step States
 

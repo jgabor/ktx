@@ -146,12 +146,19 @@ empty. Optional evidence includes `tokens_in`, `tokens_out`, `cost`,
 For `event_type="session_close"`, `session_id` and `timestamp` are required. The
 command prints the affected ID as raw JSON.
 
-The current command help overstates the required `tool_call` fields. Supply only
-metadata whose authority the sidecar can establish. `is_error` controls the
-source-failure gate and outcome routing; `exit_code` is diagnostic only. Let ktx
-derive `content_hash` unless the caller independently verifies it. Prefer trusted
-adapters or wrappers when native identity is available; flat sidecar identity
-has weaker provenance.
+Supply only metadata whose authority the sidecar can establish. Explicit
+`is_error` is a caller assertion; a runtime, model, or provider label does not
+strengthen it. Persisted false is success, true is failure, and missing/invalid
+is unknown. `exit_code` is diagnostic only. Let ktx derive `content_hash` unless
+the caller independently verifies it. Prefer trusted adapters or wrappers when
+native identity is available; flat sidecar identity has weaker provenance.
+
+For OpenCode 1.18.5, wrapper outcome precedence is terminal error, supported
+shell exit, completed result, then unknown. The hook has only supported shell
+exit evidence. Trusted schema-conforming Codex 0.144.4 `PostToolUse` occurrence
+is success; nested `tool_response` outcome-looking fields are unconstrained and
+non-overriding. Nonconforming, untrusted, unsupported, and historical missing
+evidence remains unknown.
 
 ## Compression and Recovery
 
@@ -181,6 +188,11 @@ delivered estimated tokens. `stats summary` accepts positive Go durations such
 as `30m`, `24h`, or `72h`. `stats breakdown` uses the same window syntax and
 reports bounded delivery groups by safe command dimensions, profile, route,
 disposition, and raw-output-size band; it does not include cache telemetry.
+Summary JSON schema 5 and breakdown JSON schema 2 report aggregate outcomes over
+the same output-bearing, valid-timestamp calls in the inclusive window. Error
+rate divides errors by known outcomes; coverage divides known by total. Text
+renders those current fields without a separate schema version. Breakdown has
+no per-group rates, and cache/model-step selection remains independent.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It
 reports failures without failing the agent operation. Required benchmark
@@ -202,6 +214,9 @@ ktx binary-capabilities --format json
 
 - `doctor` diagnoses but never creates, migrates, or repairs.
 - `db report` inspects an existing database read-only.
+- `db report` emits JSON report schema 3 over all tool calls. Outcome
+  classification and formulas match live stats; percentages use two-decimal
+  rounding, malformed values are unknown, and exit codes remain diagnostic.
 - `db migrate` is explicit and forward-only. The example requires the operator
   to preconfirm ownership of the selected target; never substitute the ambient
   live database for development, test, CI, or rehearsal.

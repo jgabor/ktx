@@ -5,10 +5,24 @@ record:
   depends_on:
     - ongnhqfzkf
     - zjqwiriduj
-  status: in_progress
+  status: superseded
   acceptance:
     - GIVEN retained consumers and fixtures WHEN inspected THEN every dependency on the prior structured schemas is identified with evidence.
     - GIVEN a retained consumer requires compatibility WHEN the new reports ship THEN that consumer remains correct without weakening the new outcome contract.
     - GIVEN no retained consumer requires compatibility WHEN the task is evaluated THEN the task is superseded with that evidence and no speculative bridge is added.
     - GIVEN compatibility work is testable WHEN checks run THEN each proven consumer has one supported and one incompatible-version case.
   plan: ldknsjplye
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-tuevuojzxd-1
+      source: independent audit ses_02e639b34ffebEqrXWwMCp86Nn
+      recorded_at: 2026-08-05 13:14
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - ongnhqfzkf
+    - zjqwiriduj
+  superseded_reason: No retained executable prior-schema consumer exists; completed live and database reporting tasks provide the intentional replacement contracts without a speculative compatibility bridge.

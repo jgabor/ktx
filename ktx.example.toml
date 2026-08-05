@@ -15,10 +15,11 @@
 #   4. Anti-worsening gate — if the pipeline result is not smaller than input,
 #      the original is returned unchanged (no compressed row created)
 #
-# Source-tool-failure gate runs BEFORE the pipeline: if the tool_call
-# has is_error=true, compression is skipped entirely and a passthrough row
-# is written. This is a pre-pipeline gate, distinct from the in-pipeline
-# invariants above.
+# Persisted outcomes have three states: is_error=false is explicit success,
+# is_error=true is explicit failure, and missing/invalid is unknown. exit_code
+# is diagnostic only after persistence. Explicit failure returns the original
+# output unchanged before the pipeline. Unknown is not success, but may follow
+# ordinary `any` routing or default fallback behavior.
 
 [pipeline.default]
 
@@ -222,7 +223,9 @@ profile = "json-compact"
 #                   affect the match. More precise than command_prefix
 #                   when you want to key on a verb; see the git
 #                   examples below.
-#   exit_status     "success", "failure", or "any". Empty = "any".
+#   exit_status     "success" requires explicit success; "failure" requires
+#                   explicit failure; "any" includes success, failure, and
+#                   unknown. Empty = "any".
 #   profile         Target [pipeline.<name>] table. Required; must
 #                   name an existing profile or config load fails.
 #
@@ -235,7 +238,18 @@ profile = "json-compact"
 # conditions all match wins. Put specific rules before broad ones.
 # An empty field is a wildcard — empty tool = any tool, empty
 # command_prefix = any command, empty subcommand = any subcommand,
-# empty or "any" exit_status = either success or failure.
+# empty or "any" exit_status = success, failure, or unknown.
+#
+# Outcome authority is ingress-specific. The OpenCode 1.18.5 wrapper uses
+# terminal error, then supported shell exit, then completed result, else
+# unknown; its hook has only supported shell exit evidence. Trusted,
+# schema-conforming Codex 0.144.4 PostToolUse occurrence is success, while
+# nested tool_response fields are unconstrained and cannot override it.
+# Nonconforming/untrusted adapter payloads and unsupported evidence remain
+# unknown. Flat sidecar is_error is a caller assertion whose authority the
+# caller must establish; runtime/model/provider labels do not strengthen it.
+# Historical missing outcomes remain unknown and are not rebuilt from exits,
+# artifacts, labels, or output text.
 #
 # Fallback: when no rule matches, ktx uses the "default" profile, which
 # is always present. When [pipeline.default] is absent from the config,

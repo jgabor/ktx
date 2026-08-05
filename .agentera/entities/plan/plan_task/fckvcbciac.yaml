@@ -9,7 +9,7 @@ record:
     - ongnhqfzkf
     - zjqwiriduj
     - tuevuojzxd
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN behavior is complete WHEN help, examples, runbooks, and agent guidance are read THEN they define identical outcome states and authority boundaries.
     - GIVEN formulas and report populations WHEN documentation is compared with output THEN denominators agree.

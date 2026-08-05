@@ -81,11 +81,22 @@ diagnostic, but it does not cancel or sandbox stage execution. An external stage
 process can continue in the background and can retain its normal filesystem,
 network, and process privileges.
 
-If authoritative `is_error=true` is present, the source-tool-failure gate skips
-compression before the pipeline. Missing error state is not failure or success.
-Current route matching is less strict: an `exit_status="success"` route also
-matches a call whose `is_error` is missing. Do not treat that route match as
-measured success.
+Persisted outcomes are three-state: `is_error=false` is explicit success,
+`is_error=true` is explicit failure, and NULL or invalid is unknown. Persisted
+`exit_code` is diagnostic only. A success route requires explicit success; a
+failure route requires explicit failure; `any` or an empty selector includes all
+three states. Explicit failure returns original output unchanged before the
+pipeline. Unknown may follow `any` or default ordinary behavior, but it is not
+success.
+
+The OpenCode 1.18.5 wrapper uses terminal error, then supported shell exit, then
+completed result, else unknown. Its hook has only supported shell exit evidence;
+absent, malformed, or unsupported evidence is unknown. A trusted,
+schema-conforming Codex 0.144.4 `PostToolUse` occurrence is success; unconstrained
+nested `tool_response` fields cannot override it. Nonconforming or untrusted
+payloads are unknown. Flat sidecar `is_error` is a caller assertion whose
+authority the caller must establish. Runtime, model, and provider labels do not
+strengthen authority, and historical missing evidence remains unknown.
 
 ## Recovery Footer
 
@@ -146,8 +157,8 @@ profile = "json"
 Use `subcommand` for commands with flags before the verb, such as
 `git --no-pager log`; a raw prefix can miss these forms.
 
-The example success route can also match an unknown `is_error` state under the
-current matcher. Use conservative profiles when outcome evidence may be absent.
+The example success route matches only explicit success. Use an `any` route or
+default fallback when unknown calls should receive ordinary configured handling.
 
 ## Filter Packs and Residual Waste
 

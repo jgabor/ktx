@@ -1,0 +1,16 @@
+id: obaimmkiww
+artifact: progress
+record:
+  timestamp: 2026-08-05 13:29
+  type: docs
+  phase: build
+  what: Synchronized public tool-outcome and report contracts for task fckvcbciac across CLI help, the example configuration, the pipeline runbook, and ktx agent guidance. The surfaces now use one three-state persisted outcome classification, version-scoped ingress authority, explicit-failure passthrough, unknown-safe routing, exact live and database report populations and formulas, explicit structured schema versions, and unversioned synchronized text output. Retained the independent PASS evaluation and supersession state for tuevuojzxd and the in-progress state for fckvcbciac.
+  context:
+    intent: Synchronize only public documentation, help, examples, agent guidance, and their contract tests with already shipped outcome behavior.
+    constraints: No product outcome behavior, database schema, TODO state, compatibility bridge, plan completion, paid live run, or external publication changed.
+    unknowns: No new runtime or provider evidence was collected; claims remain scoped to OpenCode 1.18.5 and Codex 0.144.4.
+  inspiration: The shipped behavior already required explicit success and emitted live schemas 5/2 plus database report schema 3, while derived pipeline guidance and JSON examples still described missing outcome evidence as success-compatible and showed superseded schemas.
+  discovered: The example configuration is hash-pinned by the routing characterization contract, so its intentional documentation change required updating that documentation-contract digest. No executable prior-schema consumer or compatibility bridge was introduced. Historical missing evidence, unsupported OpenCode evidence, unconstrained nested Codex response fields, untrusted payloads, and unsupported labels remain unknown.
+  verified: Focused CLI documentation, help, skill-link, skill-factual, and routing characterization tests passed. The two stats JSON snippets parsed and reconciled known and total counts. A newly built local build/ktx reported version dev and its summary, breakdown, hook, write, and database help exposed the synchronized contracts. Isolated empty-database smokes verified summary schema 5 and breakdown schema 2, null empty percentages, and no per-group outcomes. mage check passed all tests, vet, lint with 0 issues, and build; its audit reported forbidden=0 and ktx_db=unset. Every verification invocation unset KTX_DB and used fresh disposable HOME and XDG roots under /tmp/opencode.
+  next: Keep task fckvcbciac in progress for independent evaluation. Do not mark the plan task or replacement plan complete in this change.
+  publication_order: 53

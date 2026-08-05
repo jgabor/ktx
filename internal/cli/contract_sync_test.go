@@ -57,6 +57,51 @@ func TestStatsHelpUsesFirstArtifactAuthority(t *testing.T) {
 	}
 }
 
+func TestToolOutcomeContractSurfacesMatchBehavior(t *testing.T) {
+	root := repositoryRoot(t)
+	var hookHelp bytes.Buffer
+	printHookHelp(&hookHelp)
+	for name, contents := range map[string]string{
+		"help":        hookHelp.String(),
+		"example":     readDocumentationFile(t, filepath.Join(root, "ktx.example.toml")),
+		"runbook":     readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"agent-guide": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "pipelines.md")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			assertContractText(t, contents,
+				[]string{"is_error=false", "is_error=true", "explicit success", "explicit failure", "unknown", "exit_code", "OpenCode 1.18.5", "Codex 0.144.4", "PostToolUse", "tool_response", "caller assertion"},
+				[]string{"success route can also match an unknown", "missing is_error matches success"},
+			)
+		})
+	}
+}
+
+func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T) {
+	root := repositoryRoot(t)
+	var summaryHelp, breakdownHelp, dbHelp bytes.Buffer
+	printStatsSummaryHelp(&summaryHelp)
+	printStatsBreakdownHelp(&breakdownHelp)
+	printDBHelp(&dbHelp)
+
+	assertContractText(t, summaryHelp.String(),
+		[]string{"schema_version 5", "Error rate is error/known", "coverage is known/total", "no separate schema version"}, nil)
+	assertContractText(t, breakdownHelp.String(),
+		[]string{"schema_version 2", "Known is success+error", "total is known+unknown", "no separate schema version", "do not report per-group outcome rates"}, nil)
+	assertContractText(t, dbHelp.String(),
+		[]string{"report schema 3", "population is all tool calls", "error rate is error/known", "coverage is known/total", "round to 2 decimals"}, nil)
+
+	for _, relative := range []string{
+		filepath.Join("docs", "pipelines.md"),
+		filepath.Join(".agents", "skills", "ktx", "references", "database-telemetry.md"),
+	} {
+		contents := readDocumentationFile(t, filepath.Join(root, relative))
+		assertContractText(t, contents,
+			[]string{"Summary schema 5", "breakdown schema 2", "report schema 3", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
+			[]string{"\"schema_version\": 4", "\"schema_version\": 1"},
+		)
+	}
+}
+
 func TestBenchmarkNamespaceCommentListsPublicFamilies(t *testing.T) {
 	contents := readDocumentationFile(t, filepath.Join(repositoryRoot(t), "internal", "cli", "bench.go"))
 	assertContractText(t, contents,

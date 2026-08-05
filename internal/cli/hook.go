@@ -160,12 +160,12 @@ func extractOpenCodeOutcome(tool string, outputRaw json.RawMessage) (exitCode *i
 	if !ok {
 		return nil, nil
 	}
-	var exit int64
-	if err := json.Unmarshal(raw, &exit); err != nil {
+	var exit *int64
+	if err := json.Unmarshal(raw, &exit); err != nil || exit == nil {
 		return nil, nil
 	}
-	failed := exit != 0
-	return &exit, &failed
+	failed := *exit != 0
+	return exit, &failed
 }
 
 // codexToolResponseObject covers the known Codex tool_response shapes:

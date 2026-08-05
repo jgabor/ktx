@@ -12,3 +12,13 @@ record:
     - GIVEN OpenCode evidence is absent, malformed, or unsupported for that tool WHEN recorded THEN the outcome remains unknown.
     - GIVEN exact retries and outcome checks WHEN run THEN first accepted evidence remains authoritative and terminal, shell, hook, unknown, malformed, and conflict boundaries are covered.
   plan: ldknsjplye
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: OpenCode wrapper and hook integer decoding accepts JSON null as zero, inventing exit_code=0 and is_error=false instead of unknown. Add null handling and first-wins regression coverage.
+    provenance:
+      attempt_id: audit-zrqzmzuxzt-1
+      source: independent audit ses_02ecb45b5ffeo1aY89ZloELcug
+      recorded_at: 2026-08-05 11:22
+      writer_command: agentera state plan record-evaluation

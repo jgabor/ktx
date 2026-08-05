@@ -1,0 +1,15 @@
+id: impicwnlnu
+artifact: progress
+record:
+  timestamp: 2026-08-05 11:26
+  type: fix
+  phase: build
+  what: Rejected JSON null in OpenCode wrapper and after-hook exit normalization without changing valid integer or other malformed boundaries.
+  context:
+    intent: Correct only the accepted null-decoding evaluation finding for task zrqzmzuxzt.
+    constraints: Preserve valid zero and nonzero exits, existing string and fractional rejection, first-wins persistence, and all Codex, routing, reporting, schema, documentation, and TODO behavior.
+    scope: Two OpenCode integer decoders plus explicit wrapper, hook, and exact-retry null regressions.
+  discovered: Unmarshalling JSON null into an int64 value succeeds with zero. Decoding into *int64 preserves the same integer validation while representing null as nil, so no broader parser change is required.
+  verified: The new focused tests first reproduced invented exit_code=0 and is_error=false for wrapper null, hook null, and a first-null retry. After the correction, the same focused parser and CLI tests passed under -race. mage check passed with 0 issues and verification audit boundary 573cece5b18bb769 (941 attempts, forbidden=0, caches=external, ktx_db=unset). Every test invocation used a fresh disposable HOME and XDG roots with KTX_DB unset; git diff --check passed.
+  next: Independent evaluation should re-check only the null and first-wins boundaries; task zrqzmzuxzt remains in progress.
+  publication_order: 45

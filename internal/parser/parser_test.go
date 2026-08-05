@@ -529,6 +529,11 @@ func TestParseEvent_FailureSignal(t *testing.T) {
 			wantOutput: "unknown\n",
 		},
 		{
+			name:       "null shell exit without terminal status is unknown",
+			payload:    `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"unknown\n","metadata":{"exit":null}}}}`,
+			wantOutput: "unknown\n",
+		},
+		{
 			name:       "arbitrary tool exit without terminal status is unknown",
 			payload:    `{"type":"tool_use","part":{"type":"tool","tool":"read","state":{"input":{},"output":"contents","metadata":{"exit":1}}}}`,
 			wantOutput: "contents",

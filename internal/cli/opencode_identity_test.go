@@ -533,6 +533,7 @@ func TestOpenCodeHook_OutcomeCapture(t *testing.T) {
 		{name: "nonzero shell exit", tool: "bash", exit: 7, includeExit: true, wantExit: pointerInt64(7), wantError: pointerBool(true)},
 		{name: "missing shell exit", tool: "bash"},
 		{name: "malformed shell exit", tool: "bash", exit: "7", includeExit: true},
+		{name: "null shell exit", tool: "bash", exit: nil, includeExit: true},
 		{name: "unsupported tool exit", tool: "read", exit: 1, includeExit: true},
 	}
 
@@ -570,6 +571,7 @@ func TestOpenCodeOutcome_FirstAcceptedMetadataWins(t *testing.T) {
 		}{
 			{name: "conflicting outcome", firstExit: 0, firstPresent: true, wantExit: pointerInt64(0), wantError: pointerBool(false)},
 			{name: "missing outcome", wantExit: nil, wantError: nil},
+			{name: "null outcome", firstExit: nil, firstPresent: true, wantExit: nil, wantError: nil},
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
 				d := hookTestDB(t)

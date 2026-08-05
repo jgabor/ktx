@@ -410,16 +410,16 @@ func int64PtrFromRaw(values ...json.RawMessage) *int64 {
 }
 
 // integerPtrFromRaw accepts only a JSON integer. Runtime process exits are
-// integral values; strings and fractional numbers are malformed evidence.
+// integral values; null, strings, and fractional numbers are malformed evidence.
 func integerPtrFromRaw(raw json.RawMessage) *int64 {
 	if len(raw) == 0 {
 		return nil
 	}
-	var n int64
-	if err := json.Unmarshal(raw, &n); err != nil {
+	var n *int64
+	if err := json.Unmarshal(raw, &n); err != nil || n == nil {
 		return nil
 	}
-	return &n
+	return n
 }
 
 // float64PtrFromRaw mirrors int64PtrFromRaw for floating-point fields.

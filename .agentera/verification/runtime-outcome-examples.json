@@ -133,7 +133,7 @@
       "payload": {
         "cwd": "/tmp/project",
         "hook_event_name": "PostToolUse",
-        "model": "gpt-5",
+        "model": "",
         "permission_mode": "default",
         "session_id": "session-1",
         "tool_input": { "command": "false" },

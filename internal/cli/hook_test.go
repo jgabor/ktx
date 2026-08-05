@@ -1309,6 +1309,35 @@ func TestHook_Codex_ObjectWithoutRecognisedField(t *testing.T) {
 	}
 }
 
+func TestHook_Codex_EmptySchemaStringIsSuccess(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := codexPayloadFor(t, "empty-model-session", "empty-model-call", "Bash", map[string]any{"command": "echo"}, "hello")
+	var event map[string]any
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		t.Fatal(err)
+	}
+	event["model"] = ""
+	body, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(bytes.NewReader(body), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+
+	persisted, err := d.GetToolCall(mustCodexID(t, "empty-model-session", "empty-model-call"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.IsError == nil || *persisted.IsError {
+		t.Errorf("persisted is_error = %v, want explicit success for schema-valid empty model", persisted.IsError)
+	}
+}
+
 func TestHook_Codex_NoToolName(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
@@ -1398,6 +1427,47 @@ func TestHook_Codex_WithoutUsableTupleGeneratesFreshIDs(t *testing.T) {
 	}
 	if ids[0] == ids[1] {
 		t.Errorf("unusable tuples collapsed to shared id %q", ids[0])
+	}
+}
+
+func TestHook_Codex_EmptyIdentityStringsAreSuccessfulButFresh(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	payload := codexPayloadFor(t, "valid-session", "valid-call", "Bash", map[string]any{"command": "echo"}, "hello")
+	var event map[string]any
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		t.Fatal(err)
+	}
+	event["session_id"] = ""
+	event["tool_use_id"] = ""
+	body, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		var stdout, stderr bytes.Buffer
+		if _, err := hookLogic(bytes.NewReader(body), d, &stdout, &stderr); err != nil {
+			t.Fatalf("delivery %d: %v (stderr=%q)", i, err, stderr.String())
+		}
+	}
+
+	_, ids, err := d.SampleIDs(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 2 || ids[0] == ids[1] {
+		t.Fatalf("source ids = %v, want two fresh identities", ids)
+	}
+	for _, id := range ids {
+		persisted, err := d.GetToolCall(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if persisted.IsError == nil || *persisted.IsError {
+			t.Errorf("source %q is_error = %v, want event-level success", id, persisted.IsError)
+		}
 	}
 }
 

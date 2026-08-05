@@ -202,7 +202,7 @@ func validCodexPostToolUse(raw map[string]json.RawMessage) bool {
 		}
 	}
 	for _, key := range []string{"cwd", "model", "permission_mode", "session_id", "tool_name", "tool_use_id", "turn_id"} {
-		if !nonEmptyJSONString(raw[key]) {
+		if !jsonString(raw[key]) {
 			return false
 		}
 	}
@@ -234,11 +234,6 @@ func validCodexPostToolUse(raw map[string]json.RawMessage) bool {
 		}
 	}
 	return true
-}
-
-func nonEmptyJSONString(raw json.RawMessage) bool {
-	var value string
-	return json.Unmarshal(raw, &value) == nil && value != ""
 }
 
 func jsonString(raw json.RawMessage) bool {

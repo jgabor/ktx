@@ -12,3 +12,13 @@ record:
     - GIVEN an exact trusted retry with changed nested response metadata WHEN processed THEN first accepted evidence remains authoritative without enrichment.
     - GIVEN Codex checks WHEN run THEN conforming success, misleading nested fields, absent nested fields, and nonconforming payloads are covered.
   plan: ldknsjplye
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Codex conformance incorrectly requires every required string to be non-empty although the pinned schema has no minLength. Schema-valid empty non-identity fields remain unknown instead of explicit success; separate identity eligibility must remain independent.
+    provenance:
+      attempt_id: audit-lxnqnvtaib-1
+      source: independent audit ses_02eb07345ffe22MCeiV8Ko8dk5
+      recorded_at: 2026-08-05 11:51
+      writer_command: agentera state plan record-evaluation

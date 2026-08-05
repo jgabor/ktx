@@ -186,7 +186,7 @@ func validCodexPostToolUse(p map[string]any) bool {
 		return false
 	}
 	for _, key := range []string{"cwd", "model", "permission_mode", "session_id", "tool_name", "tool_use_id", "turn_id"} {
-		if value, ok := p[key].(string); !ok || value == "" {
+		if _, ok := p[key].(string); !ok {
 			return false
 		}
 	}

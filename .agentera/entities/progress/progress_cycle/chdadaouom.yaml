@@ -1,0 +1,16 @@
+id: chdadaouom
+artifact: progress
+record:
+  timestamp: 2026-08-05 11:55
+  type: fix
+  phase: build
+  what: Corrected Codex PostToolUse conformance to require declared string types without adding unsupported non-empty constraints.
+  context:
+    intent: Address only the accepted Codex schema-conformance evaluation finding for task lxnqnvtaib.
+    constraints: Preserve nested-field neutrality, output extraction, OpenCode behavior, routing, reports, database schema, public documentation, TODO state, first-evidence authority, and the prior completed task state.
+    unknowns: No implementation blocker remains; independent evaluation owns the next verdict and lifecycle transition.
+    scope: Required Codex string type checks, independent correlation fallback for empty identity strings, two focused regressions, and the retained offline checker example.
+  discovered: The pinned schema permits empty required strings because it declares string type without minLength; correlation eligibility separately rejects empty session or call identifiers for deterministic identity.
+  verified: "With fresh disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_STATE_HOME, and XDG_RUNTIME_DIR and KTX_DB unset: Codex-focused internal/cli tests passed, including schema-valid empty model success and schema-valid empty identity strings producing explicit success with two fresh source IDs; the retained runtime outcome checker passed all 10 cases and both pinned runtime identities with an empty model example; mage check passed all tests, vet, lint, and build with 0 issues and forbidden=0; the newly built ./build/ktx smoke persisted empty-model and empty-identity events as is_error=0 while two identical empty-identity deliveries retained two distinct fresh IDs."
+  next: Keep task lxnqnvtaib in progress for independent re-evaluation; do not record task completion in this cycle.
+  publication_order: 47

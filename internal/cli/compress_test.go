@@ -104,6 +104,8 @@ func seedSourceWithFailure(t *testing.T, d *dbpkg.DB, toolCallID, sessionID, out
 
 func ptrBool(v bool) *bool { return &v }
 
+func ptrInt64(v int64) *int64 { return &v }
+
 // noConfigEnv chdirs to a fresh tempdir and points XDG_CONFIG_HOME at
 // another fresh tempdir, so config.Load() resolves to the passthrough
 // default (no ktx.toml anywhere). Returns a restore func.
@@ -435,16 +437,29 @@ func TestRunDecompressWith_Help(t *testing.T) {
 	}
 }
 
-// TestCompressLogic_SourceFailureGate covers the failure gate: is_error=true
-// with a configured pipeline writes a passthrough row, stderr warning,
-// prints id, and decompress returns source output verbatim.
+// TestCompressLogic_SourceFailureGate covers a failure route that selects a
+// lossy profile. The gate still writes a passthrough row, warns, prints an ID,
+// and leaves the original recoverable verbatim.
 func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 	d := compressTestDB(t)
 	restore := chdir(t, t.TempDir())
 	defer restore()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	writeUserConfig(t, `["head:5"]`)
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:5"]
+
+[pipeline.failure-lossy]
+stages = ["head:1"]
+
+[[route]]
+exit_status = "success"
+profile = "default"
+
+[[route]]
+exit_status = "failure"
+profile = "failure-lossy"
+`)
 
 	const sourceOutput = "failed tool output\nline two\n"
 	seedSourceWithFailure(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput, ptrBool(true), nil)
@@ -466,8 +481,8 @@ func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	if comp.Output != sourceOutput {
 		t.Errorf("Output = %q, want passthrough %q", comp.Output, sourceOutput)
 	}
-	if comp.Pipeline != `{"profile":"default","route":"default_fallback","stages":[]}` {
-		t.Errorf("Pipeline = %q, want empty default profile (gate skipped pipeline)", comp.Pipeline)
+	if comp.Pipeline != `{"profile":"failure-lossy","route":"matched","stages":[]}` {
+		t.Errorf("Pipeline = %q, want matched failure profile with no stages run", comp.Pipeline)
 	}
 
 	var dstdout, dstderr bytes.Buffer
@@ -480,16 +495,38 @@ func TestCompressLogic_SourceFailureGate(t *testing.T) {
 	}
 }
 
-// TestCompressLogic_SourceFailureGate_NoFire covers the failure gate's
-// no-fire case: nil or &false is_error lets the pipeline run; no
-// source-failure warning.
+// TestCompressLogic_SourceFailureGate_NoFire covers ordinary configured
+// handling for explicit success and unknown, including exit-code-only unknown.
 func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
 	cases := []struct {
-		name    string
-		isError *bool
+		name        string
+		isError     *bool
+		exitCode    *int64
+		routes      string
+		wantProfile string
+		wantRoute   string
 	}{
-		{name: "absent nil", isError: nil},
-		{name: "explicit false", isError: ptrBool(false)},
+		{
+			name:        "explicit success uses success route",
+			isError:     ptrBool(false),
+			routes:      "[[route]]\nexit_status = \"success\"\nprofile = \"outcome\"\n",
+			wantProfile: "outcome",
+			wantRoute:   "matched",
+		},
+		{
+			name:        "unknown rejects success route and uses default",
+			routes:      "[[route]]\nexit_status = \"success\"\nprofile = \"outcome\"\n",
+			wantProfile: "default",
+			wantRoute:   "default_fallback",
+		},
+		{
+			name:     "exit-code-only unknown skips success and uses any route",
+			exitCode: ptrInt64(1),
+			routes: "[[route]]\nexit_status = \"success\"\nprofile = \"default\"\n\n" +
+				"[[route]]\nexit_status = \"any\"\nprofile = \"outcome\"\n",
+			wantProfile: "outcome",
+			wantRoute:   "matched",
+		},
 	}
 
 	for _, tc := range cases {
@@ -499,10 +536,15 @@ func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
 			restore := chdir(t, t.TempDir())
 			defer restore()
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-			writeUserConfig(t, `["head:1"]`)
+			hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:2"]
 
-			const sourceOutput = "line one\nline two\n"
-			seedSourceWithFailure(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput, tc.isError, nil)
+[pipeline.outcome]
+stages = ["head:1"]
+`+tc.routes)
+
+			const sourceOutput = "line one\nline two\nline three\n"
+			seedSourceWithFailure(t, d, "abcdefghijklmnop", "zyxwvutsrqponmlk", sourceOutput, tc.isError, tc.exitCode)
 
 			var stdout, stderr bytes.Buffer
 			_, err := compressLogic([]string{"abcdefghijklmnop"}, nil, d, &stdout, &stderr)
@@ -517,11 +559,16 @@ func TestCompressLogic_SourceFailureGate_NoFire(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetCompressed: %v", err)
 			}
-			if comp.Output == sourceOutput {
-				t.Errorf("Output unchanged; head:1 should have truncated to one line")
+			wantOutput := "line one\n"
+			if tc.wantProfile == "default" {
+				wantOutput = "line one\nline two\n"
 			}
-			if strings.Contains(comp.Pipeline, `"stages":[]`) {
-				t.Errorf("Pipeline = %q; stages should have run", comp.Pipeline)
+			if comp.Output != wantOutput {
+				t.Errorf("Output = %q, want %q", comp.Output, wantOutput)
+			}
+			wantSelection := `"profile":"` + tc.wantProfile + `","route":"` + tc.wantRoute + `"`
+			if !strings.Contains(comp.Pipeline, wantSelection) {
+				t.Errorf("Pipeline = %q, want selection %s", comp.Pipeline, wantSelection)
 			}
 		})
 	}

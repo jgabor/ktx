@@ -4,7 +4,7 @@ record:
   name: Capture Codex event-level success
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN a trusted schema-conforming Codex PostToolUse event WHEN recorded THEN the outcome is explicit success.
     - GIVEN nested response fields resemble outcomes or conflict with success WHEN recorded THEN they do not alter or strengthen event-level success.
@@ -13,12 +13,12 @@ record:
     - GIVEN Codex checks WHEN run THEN conforming success, misleading nested fields, absent nested fields, and nonconforming payloads are covered.
   plan: ldknsjplye
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Codex conformance incorrectly requires every required string to be non-empty although the pinned schema has no minLength. Schema-valid empty non-identity fields remain unknown instead of explicit success; separate identity eligibility must remain independent.
     provenance:
-      attempt_id: audit-lxnqnvtaib-1
-      source: independent audit ses_02eb07345ffe22MCeiV8Ko8dk5
-      recorded_at: 2026-08-05 11:51
+      attempt_id: audit-lxnqnvtaib-2
+      source: bounded re-review ses_02eb07345ffe22MCeiV8Ko8dk5
+      recorded_at: 2026-08-05 12:01
       writer_command: agentera state plan record-evaluation

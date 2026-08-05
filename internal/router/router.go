@@ -67,8 +67,10 @@ func Match(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) st
 // against tc. Empty fields are wildcards. CommandPrefix requires the
 // command string to start with the prefix; Subcommand requires the
 // first non-flag token after the binary name to equal the value.
-// ExitStatus "success" requires no error; "failure" requires an error; "any"
-// matches either state. The config loader rejects every other non-empty value.
+// ExitStatus "success" requires explicit IsError=false; "failure" requires
+// explicit IsError=true; "any" matches explicit and unknown states. ExitCode is
+// diagnostic and does not participate. The config loader rejects every other
+// non-empty value.
 func ruleMatches(tc *db.ToolCall, r config.RouteRule) bool {
 	if r.Tool != "" && tc.Tool != r.Tool {
 		return false
@@ -87,7 +89,7 @@ func ruleMatches(tc *db.ToolCall, r config.RouteRule) bool {
 	}
 	switch r.ExitStatus {
 	case "success":
-		if tc.IsError != nil && *tc.IsError {
+		if tc.IsError == nil || *tc.IsError {
 			return false
 		}
 	case "failure":

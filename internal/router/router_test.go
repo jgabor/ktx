@@ -69,44 +69,59 @@ func TestMatch_CommandPrefix(t *testing.T) {
 	})
 }
 
-// TestMatch_ExitStatus covers the ExitStatus dimension: "failure"
-// matches an errored call, "success" matches a non-errored call, and
-// each fails to match the opposite state.
+// TestMatch_ExitStatus covers explicit success, explicit failure, and unknown.
+// ExitCode is diagnostic and does not resolve an unknown IsError value.
 func TestMatch_ExitStatus(t *testing.T) {
-	failureRule := []config.RouteRule{
-		{ExitStatus: "failure", Profile: "failure-profile"},
+	tests := []struct {
+		name       string
+		exitStatus string
+		isError    *bool
+		exitCode   *int64
+		wantMatch  bool
+	}{
+		{name: "success matches explicit success", exitStatus: "success", isError: boolPtr(false), exitCode: intPtr(0), wantMatch: true},
+		{name: "success rejects explicit failure", exitStatus: "success", isError: boolPtr(true), exitCode: intPtr(0)},
+		{name: "success rejects unknown", exitStatus: "success"},
+		{name: "success rejects exit-code-only unknown", exitStatus: "success", exitCode: intPtr(0)},
+		{name: "failure matches explicit failure", exitStatus: "failure", isError: boolPtr(true), exitCode: intPtr(0), wantMatch: true},
+		{name: "failure rejects explicit success", exitStatus: "failure", isError: boolPtr(false), exitCode: intPtr(1)},
+		{name: "failure rejects unknown", exitStatus: "failure"},
+		{name: "failure rejects exit-code-only unknown", exitStatus: "failure", exitCode: intPtr(1)},
+		{name: "any matches explicit success", exitStatus: "any", isError: boolPtr(false), wantMatch: true},
+		{name: "any matches explicit failure", exitStatus: "any", isError: boolPtr(true), wantMatch: true},
+		{name: "any matches unknown", exitStatus: "any", wantMatch: true},
+		{name: "empty matches explicit success", isError: boolPtr(false), wantMatch: true},
+		{name: "empty matches explicit failure", isError: boolPtr(true), wantMatch: true},
+		{name: "empty matches unknown", wantMatch: true},
 	}
-	successRule := []config.RouteRule{
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			routes := []config.RouteRule{{ExitStatus: tt.exitStatus, Profile: "outcome-profile"}}
+			tc := &db.ToolCall{Tool: "bash", IsError: tt.isError, ExitCode: tt.exitCode}
+			want := defaultProfile
+			if tt.wantMatch {
+				want = "outcome-profile"
+			}
+			if got := Match(tc, routes, defaultProfile); got != want {
+				t.Errorf("Match = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestMatch_ExitStatusFirstMatchBoundary(t *testing.T) {
+	routes := []config.RouteRule{
 		{ExitStatus: "success", Profile: "success-profile"},
+		{ExitStatus: "any", Profile: "any-profile"},
 	}
 
-	t.Run("failure rule matches errored call → rule profile", func(t *testing.T) {
-		tc := &db.ToolCall{Tool: "bash", IsError: boolPtr(true), ExitCode: intPtr(1)}
-		if got := Match(tc, failureRule, defaultProfile); got != "failure-profile" {
-			t.Errorf("Match = %q, want failure-profile", got)
-		}
-	})
-
-	t.Run("failure rule does not match successful call → default", func(t *testing.T) {
-		tc := &db.ToolCall{Tool: "bash", IsError: boolPtr(false), ExitCode: intPtr(0)}
-		if got := Match(tc, failureRule, defaultProfile); got != defaultProfile {
-			t.Errorf("Match = %q, want %q", got, defaultProfile)
-		}
-	})
-
-	t.Run("success rule matches successful call → rule profile", func(t *testing.T) {
-		tc := &db.ToolCall{Tool: "bash", IsError: boolPtr(false), ExitCode: intPtr(0)}
-		if got := Match(tc, successRule, defaultProfile); got != "success-profile" {
-			t.Errorf("Match = %q, want success-profile", got)
-		}
-	})
-
-	t.Run("success rule does not match errored call → default", func(t *testing.T) {
-		tc := &db.ToolCall{Tool: "bash", IsError: boolPtr(true), ExitCode: intPtr(1)}
-		if got := Match(tc, successRule, defaultProfile); got != defaultProfile {
-			t.Errorf("Match = %q, want %q", got, defaultProfile)
-		}
-	})
+	if got := Match(&db.ToolCall{IsError: boolPtr(false)}, routes, defaultProfile); got != "success-profile" {
+		t.Errorf("explicit success Match = %q, want first success-profile", got)
+	}
+	if got := Match(&db.ToolCall{ExitCode: intPtr(0)}, routes, defaultProfile); got != "any-profile" {
+		t.Errorf("exit-code-only unknown Match = %q, want later any-profile", got)
+	}
 }
 
 // TestMatch_Fallback covers the default-fallback case: no rule
@@ -324,11 +339,11 @@ func TestMatch_EmptyConditionsAreWildcards(t *testing.T) {
 		}
 	})
 
-	t.Run("nil IsError treated as success for success rule", func(t *testing.T) {
+	t.Run("nil IsError is unknown and does not match success", func(t *testing.T) {
 		successRule := []config.RouteRule{{ExitStatus: "success", Profile: "success-profile"}}
 		tc := &db.ToolCall{Tool: "bash", IsError: nil}
-		if got := Match(tc, successRule, defaultProfile); got != "success-profile" {
-			t.Errorf("Match = %q, want success-profile (nil IsError = no error)", got)
+		if got := Match(tc, successRule, defaultProfile); got != defaultProfile {
+			t.Errorf("Match = %q, want default (nil IsError is unknown)", got)
 		}
 	})
 }

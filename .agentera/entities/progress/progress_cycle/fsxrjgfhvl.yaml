@@ -1,0 +1,15 @@
+id: fsxrjgfhvl
+artifact: progress
+record:
+  timestamp: 2026-08-05 12:11
+  type: fix
+  phase: build
+  what: Made success-status routing require explicit success and strengthened outcome routing regressions.
+  context:
+    intent: Make success routing evidence-safe while preserving first-match-wins, default fallback, and unchanged explicit-failure delivery.
+    constraints: Change routing and proportional integration tests only. is_error is canonical; exit_code is diagnostic. Preserve retained predecessor and replacement-plan state.
+    scope: Router outcome selectors, historical routing characterization boundary, and compression-path regressions for explicit success, explicit failure, unknown, exit-code-only unknown, default fallback, any-status routing, and a lossy failure route.
+  discovered: The router treated absent is_error as no error, so unknown calls, including exit-code-only calls, could match success-only routes. The compression failure gate already used canonical is_error but lacked a regression where a failure route selected a lossy profile.
+  verified: "With a fresh disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_STATE_HOME, and XDG_RUNTIME_DIR and KTX_DB unset for every invocation: focused router and compression regressions passed; go test -race ./internal/router ./internal/cli passed; mage check passed all tests, vet, lint, and build with 0 issues and verification audit boundary a3c9abf4f7ba3a26 (946 attempts, forbidden=0, caches=external, ktx_db=unset); the newly built ./build/ktx --version returned dev; git diff --check passed."
+  next: Keep cwrrvugnhq in progress for independent evaluation; do not start later outcome-reporting or contract-synchronization tasks.
+  publication_order: 48

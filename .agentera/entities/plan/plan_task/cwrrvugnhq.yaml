@@ -4,7 +4,7 @@ record:
   name: Make success routing evidence-safe
   depends_on:
     []
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN explicit success WHEN a success-status route is evaluated THEN that route may match.
     - GIVEN explicit failure or unknown WHEN a success-status route is evaluated THEN that route does not match.

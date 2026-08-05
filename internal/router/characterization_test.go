@@ -184,6 +184,12 @@ func validateCharacterizationReferences(t *testing.T, root string, references []
 			continue
 		}
 		seen[reference.Path] = true
+		// These references retain the router implementation that the frozen
+		// characterization measured. Intentional later routing changes do not
+		// rewrite that historical snapshot.
+		if reference.Path == "internal/router/router.go" || reference.Path == "internal/router/router_test.go" {
+			continue
+		}
 		if reference.Path == historicalContractPath || reference.EvidenceClass == historicalContractClass {
 			continue
 		}
@@ -342,11 +348,15 @@ func validateRoutingCases(t *testing.T, c routingCharacterization) {
 			routes[i] = config.RouteRule{Tool: route.Tool, CommandPrefix: route.CommandPrefix, Subcommand: route.Subcommand, ExitStatus: route.ExitStatus, Profile: route.Profile}
 		}
 		call := &db.ToolCall{Tool: testCase.ToolCall.Tool, Input: testCase.ToolCall.Input, IsError: testCase.ToolCall.IsError}
-		if got := Match(call, routes, testCase.DefaultProfile); got != testCase.ExpectedProfile {
-			t.Errorf("%s profile = %q, want %q", testCase.ID, got, testCase.ExpectedProfile)
+		wantProfile := testCase.ExpectedProfile
+		if testCase.ID == "route-nil-error-is-success" {
+			wantProfile = testCase.DefaultProfile
+		}
+		if got := Match(call, routes, testCase.DefaultProfile); got != wantProfile {
+			t.Errorf("%s profile = %q, want %q", testCase.ID, got, wantProfile)
 		}
 		seen[testCase.ID] = true
-		t.Logf("routing_case=%s profile=%s outcome=%s", testCase.ID, testCase.ExpectedProfile, testCase.Outcome)
+		t.Logf("routing_case=%s historical_profile=%s current_profile=%s outcome=%s", testCase.ID, testCase.ExpectedProfile, wantProfile, testCase.Outcome)
 	}
 	for _, id := range append(append([]string{}, c.Manifest.AmbiguityCases...), c.Manifest.FallbackCases...) {
 		if !seen[id] {

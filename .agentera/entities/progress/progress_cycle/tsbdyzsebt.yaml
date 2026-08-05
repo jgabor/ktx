@@ -1,0 +1,17 @@
+id: tsbdyzsebt
+artifact: progress
+record:
+  timestamp: 2026-08-05 14:06
+  type: test
+  phase: build
+  what: Verified integrated tool-outcome behavior for task mvggstggsy with a newly built local CLI, owned disposable mixed, empty, all-known, and all-unknown databases, focused product tests, documentation and state checks, and the full isolated repository check. Retained fckvcbciac as complete with its independent PASS evaluation and mvggstggsy as in progress for the orchestration-owned audit.
+  context:
+    intent: Verify the integrated outcome behavior without changing product code or accessing ambient database state.
+    constraints: No provider/model run, no product correction, no TODO or plan closure, and no self-approval of the independent implementation audit.
+    unknowns: The independent audit and any accepted bounded correction and re-review remain pending under orchestration.
+    scope: Agentera replacement plan ldknsjplye task mvggstggsy integrated verification only.
+  inspiration: The plan requires explicit success, explicit failure, and unknown to remain distinct across ingress, routing, live statistics, database reports, and public contracts.
+  discovered: No reproducible product defect was found. One initial focused-test failure came from forcing test cases to share an owned KTX_DB; the corrected final run unset KTX_DB and passed with per-test temporary databases.
+  verified: Artifact .agentera/verification/tool-outcome-integrated-2026-08-05.md records the aggregate-safe fixture, exact report counts and formulas, schemas 5/2/3, empty and denominator edge semantics, matching summary/breakdown totals, absent per-group outcomes, unchanged delivery totals, malformed and exit-code-only unknowns, report path redaction, byte hashes and user_version 9 preservation, OpenCode precedence, Codex event-level success and nested neutrality, routing/failure passthrough, help/examples/docs/state checks, and limitations. Final focused tests passed. mage check passed all tests, vet, lint with 0 issues, and build; the database boundary audit reported 953 operations and forbidden=0 with ktx_db=unset. Agentera doctor was up_to_date and typed retrieval confirmed fckvcbciac complete/PASS, mvggstggsy in_progress, and the plan open.
+  next: Keep mvggstggsy in progress. Orchestration must supply one independent implementation audit, adjudicate findings, and request at most one bounded correction and re-review before any later state-closure task.
+  publication_order: 55

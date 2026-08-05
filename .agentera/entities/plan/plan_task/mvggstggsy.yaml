@@ -10,7 +10,7 @@ record:
     - zjqwiriduj
     - tuevuojzxd
     - fckvcbciac
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN a disposable mixed-outcome database WHEN the newly built local CLI renders structured and text reports THEN plan-wide behavior is observed without ambient database access.
     - GIVEN focused checks and the full repository check WHEN run with isolated state THEN all required checks pass.

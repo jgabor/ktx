@@ -1,0 +1,220 @@
+{
+  "contract_version": "runtime-outcome-examples-v1",
+  "runtime_pins": {
+    "opencode": "1.18.5@e5cc278dec9294a627a7b05f47ce6a564408c1a2",
+    "codex": "0.144.4@8c68d4c87dc54d38861f5114e920c3de2efa5876"
+  },
+  "cases": [
+    {
+      "id": "opencode-wrapper-error-absent-exit",
+      "ingress": "opencode_wrapper",
+      "producer": "opencode_shell",
+      "payload": {
+        "type": "tool_use",
+        "part": {
+          "id": "part-error",
+          "sessionID": "session-error",
+          "messageID": "message-error",
+          "type": "tool",
+          "callID": "call-error",
+          "tool": "bash",
+          "state": {
+            "status": "error",
+            "input": { "command": "false" },
+            "error": "failed",
+            "metadata": {},
+            "time": { "start": 1, "end": 2 }
+          }
+        }
+      },
+      "expected": {
+        "outcome": "failure",
+        "status": "authoritative",
+        "exit": "unknown"
+      }
+    },
+    {
+      "id": "opencode-wrapper-completed-absent-exit",
+      "ingress": "opencode_wrapper",
+      "producer": "opencode_shell",
+      "payload": {
+        "type": "tool_use",
+        "part": {
+          "id": "part-completed",
+          "sessionID": "session-completed",
+          "messageID": "message-completed",
+          "type": "tool",
+          "callID": "call-completed",
+          "tool": "bash",
+          "state": {
+            "status": "completed",
+            "input": { "command": "true" },
+            "output": "ok",
+            "title": "true",
+            "metadata": {},
+            "time": { "start": 1, "end": 2 }
+          }
+        }
+      },
+      "expected": {
+        "outcome": "success",
+        "status": "authoritative",
+        "exit": "unknown"
+      }
+    },
+    {
+      "id": "opencode-wrapper-absent-status-valid-exit",
+      "ingress": "opencode_wrapper",
+      "producer": "opencode_shell",
+      "payload": {
+        "type": "tool_use",
+        "part": {
+          "type": "tool",
+          "tool": "bash",
+          "state": { "metadata": { "exit": 0 } }
+        }
+      },
+      "expected": {
+        "outcome": "success",
+        "status": "unknown",
+        "exit": "authoritative"
+      }
+    },
+    {
+      "id": "opencode-hook-valid-shell-exit",
+      "ingress": "opencode_hook",
+      "producer": "opencode_shell",
+      "payload": {
+        "input": {
+          "tool": "bash",
+          "sessionID": "session-hook-valid",
+          "callID": "call-hook-valid",
+          "args": { "command": "exit 7" }
+        },
+        "output": {
+          "title": "shell",
+          "output": "failed",
+          "metadata": { "exit": 7 }
+        }
+      },
+      "expected": {
+        "outcome": "failure",
+        "status": "unsupported",
+        "exit": "authoritative"
+      }
+    },
+    {
+      "id": "opencode-hook-malformed-shell-exit",
+      "ingress": "opencode_hook",
+      "producer": "opencode_shell",
+      "payload": {
+        "input": {
+          "tool": "bash",
+          "sessionID": "session-hook-malformed",
+          "callID": "call-hook-malformed",
+          "args": { "command": "exit 7" }
+        },
+        "output": {
+          "title": "shell",
+          "output": "unknown",
+          "metadata": { "exit": "7" }
+        }
+      },
+      "expected": {
+        "outcome": "unknown",
+        "status": "unsupported",
+        "exit": "unknown"
+      }
+    },
+    {
+      "id": "codex-post-tool-use-success-misleading-nested-fields",
+      "ingress": "codex_post_tool_use",
+      "producer": "codex_runtime",
+      "payload": {
+        "cwd": "/tmp/project",
+        "hook_event_name": "PostToolUse",
+        "model": "gpt-5",
+        "permission_mode": "default",
+        "session_id": "session-1",
+        "tool_input": { "command": "false" },
+        "tool_name": "shell",
+        "tool_response": { "exit_code": "nine", "is_error": "true" },
+        "tool_use_id": "call-1",
+        "transcript_path": null,
+        "turn_id": "turn-1"
+      },
+      "expected": {
+        "outcome": "success",
+        "event": "authoritative",
+        "nested": "unknown"
+      }
+    },
+    {
+      "id": "codex-post-tool-use-success-absent-nested-outcome",
+      "ingress": "codex_post_tool_use",
+      "producer": "codex_runtime",
+      "payload": {
+        "cwd": "/tmp/project",
+        "hook_event_name": "PostToolUse",
+        "model": "gpt-5",
+        "permission_mode": "default",
+        "session_id": "session-2",
+        "tool_input": {},
+        "tool_name": "read_file",
+        "tool_response": "contents",
+        "tool_use_id": "call-2",
+        "transcript_path": null,
+        "turn_id": "turn-2"
+      },
+      "expected": {
+        "outcome": "success",
+        "event": "authoritative",
+        "nested": "unknown"
+      }
+    },
+    {
+      "id": "codex-malformed-post-tool-use-missing-tool-use-id",
+      "ingress": "codex_post_tool_use",
+      "producer": "codex_runtime",
+      "payload": {
+        "cwd": "/tmp/project",
+        "hook_event_name": "PostToolUse",
+        "model": "gpt-5",
+        "permission_mode": "default",
+        "session_id": "session-3",
+        "tool_input": {},
+        "tool_name": "shell",
+        "tool_response": { "exit_code": 0 },
+        "transcript_path": null,
+        "turn_id": "turn-3"
+      },
+      "expected": {
+        "outcome": "unknown",
+        "event": "unknown",
+        "nested": "unknown"
+      }
+    },
+    {
+      "id": "sidecar-explicit-success-conflicting-exit",
+      "ingress": "sidecar",
+      "caller_authority": true,
+      "payload": { "is_error": false, "exit_code": 9 },
+      "expected": {
+        "outcome": "success",
+        "is_error": "authoritative",
+        "exit": "diagnostic"
+      }
+    },
+    {
+      "id": "sidecar-malformed-outcome",
+      "ingress": "sidecar",
+      "caller_authority": true,
+      "payload": { "is_error": "false", "exit_code": null },
+      "expected": {
+        "outcome": "unknown",
+        "is_error": "unknown",
+        "exit": "unknown"
+      }
+    }
+  ]
+}

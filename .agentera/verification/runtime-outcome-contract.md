@@ -74,25 +74,26 @@ The retained pin and source set are recorded at
 [`runtime-identity-evidence.md:47-63`](runtime-identity-evidence.md#L47-L63):
 the [input schema](https://github.com/openai/codex/blob/8c68d4c87dc54d38861f5114e920c3de2efa5876/codex-rs/hooks/schema/generated/post-tool-use.command.input.schema.json),
 [request serialization](https://github.com/openai/codex/blob/8c68d4c87dc54d38861f5114e920c3de2efa5876/codex-rs/hooks/src/events/post_tool_use.rs#L139-L162),
-[runtime construction](https://github.com/openai/codex/blob/8c68d4c87dc54d38861f5114e920c3de2efa5876/codex-rs/core/src/hook_runtime.rs#L264-L295),
-and [tool payload provenance](https://github.com/openai/codex/blob/8c68d4c87dc54d38861f5114e920c3de2efa5876/codex-rs/core/src/tools/registry.rs#L69-L100).
+[runtime success gate and construction](https://github.com/openai/codex/blob/8c68d4c87dc54d38861f5114e920c3de2efa5876/codex-rs/core/src/hook_runtime.rs#L258-L295),
+and [successful-output dispatch](https://github.com/openai/codex/blob/8c68d4c87dc54d38861f5114e920c3de2efa5876/codex-rs/core/src/tools/registry.rs#L570-L598).
 
-| Candidate signal                                     | Classification | Contract boundary                                                                                                                            |
-| ---------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Universal PostToolUse outcome field                  | Unsupported    | The pinned schema has no universal outcome field and defines `tool_response` as unconstrained JSON.                                          |
-| `tool_response.exit_code`                            | Unknown        | It is a possible response shape, not a contract-defined outcome meaning. A numeric value cannot be promoted to authoritative process status. |
-| Any other nested `tool_response` error/success field | Unknown        | The same unconstrained boundary applies unless a future pinned runtime contract establishes producer-specific semantics.                     |
+| Candidate signal                                     | Classification        | Contract boundary                                                                                                                                     |
+| ---------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trusted, schema-conforming PostToolUse occurrence    | Authoritative success | The runtime computes success and invokes PostToolUse only after the tool produced successful output. Event occurrence is the outcome signal.          |
+| Universal nested PostToolUse outcome field           | Unsupported           | The pinned schema defines `tool_response` as unconstrained JSON and gives no nested field universal outcome meaning.                                  |
+| `tool_response.exit_code`                            | Unknown               | It is a possible response shape, not a contract-defined outcome meaning. A numeric value cannot override or weaken event-level authoritative success. |
+| Any other nested `tool_response` error/success field | Unknown               | The same unconstrained boundary applies. Arbitrary nested content does not override or strengthen the event-level outcome.                            |
 
-The retained object example contains `tool_response.exit_code: 0`, proving only
-that the shape can occur
-([`hook_test.go:1205-1247`](../../internal/cli/hook_test.go#L1205-L1247)).
-Bare-string and unrelated-object responses provide absent/non-outcome cases
-([`hook_test.go:1249-1295`](../../internal/cli/hook_test.go#L1249-L1295)).
+A trusted PostToolUse occurrence is therefore measured success even when
+`tool_response` is a bare value, omits outcome-looking fields, or contains
+misleading or malformed nested values. A missing or schema-invalid event is not
+an authoritative occurrence and remains unknown. Nested response content never
+changes either classification.
 
-**Execute-or-supersede decision:** plan task `gzjilulvyv` must be superseded
-after this contract task passes. No Codex outcome ingestion change is justified;
-Codex outcomes remain unknown until a later pinned contract establishes an
-authoritative signal.
+**Execute-or-supersede decision: EXECUTE.** Plan task `gzjilulvyv` must narrowly
+normalize a trusted, schema-conforming PostToolUse occurrence to explicit
+success. It must not read or infer outcome from arbitrary nested
+`tool_response` fields. Missing or malformed PostToolUse input remains unknown.
 
 ## Flat and generic sidecar input
 
@@ -115,6 +116,30 @@ authority by adding a runtime label.
 Later ingestion and reporting work may normalize only the authoritative cases
 above. It must preserve measured success, measured failure, and unknown as
 distinct states. Absence, malformed data, unsupported producers, arbitrary
-metadata, and Codex PostToolUse responses remain unknown. No later retry may
-enrich first-accepted metadata, and no provider/model selection may change these
-rules.
+metadata, and nested Codex response fields remain unknown. A trusted,
+schema-conforming Codex PostToolUse occurrence is explicit success regardless of
+nested response content. No later retry may enrich first-accepted metadata, and
+no provider/model selection may change these rules.
+
+## Retained contract examples and offline check
+
+[`runtime-outcome-examples.json`](runtime-outcome-examples.json) retains ten
+bounded examples under the exact runtime pins above. They include:
+
+- OpenCode wrapper `error` and completed terminal states with absent exit, plus
+  absent status with valid shell exit;
+- OpenCode after-hook valid and malformed shell exits, with status unsupported;
+- schema-conforming Codex PostToolUse success with misleading nested fields and
+  with no nested outcome field, plus malformed PostToolUse missing a required
+  field;
+- caller-authoritative sidecar `is_error` conflicting with diagnostic exit and
+  malformed sidecar evidence.
+
+The independent project-memory checker applies the precedence and schema
+boundary in this record without invoking KTX, a runtime, model, network, or
+database:
+
+```sh
+go run .agentera/verification/runtime_outcome_examples_check.go \
+  .agentera/verification/runtime-outcome-examples.json
+```

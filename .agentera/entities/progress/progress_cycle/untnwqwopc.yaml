@@ -1,0 +1,16 @@
+id: untnwqwopc
+artifact: progress
+record:
+  timestamp: 2026-08-05 10:36
+  type: docs
+  phase: build
+  what: Corrected the runtime outcome contract after independent evaluation and retained contract-valid outcome examples with an offline checker.
+  context:
+    intent: Address only the accepted evaluation findings for Codex event-level success and retained example coverage.
+    constraints: Keep the correction in project memory, preserve the writer-owned failed evaluation, make no product or public-documentation change, and leave the task in progress for re-evaluation.
+    unknowns: "Resolved: trusted schema-conforming Codex PostToolUse occurrence is authoritative success; nested response fields remain unknown and non-overriding."
+    scope: Runtime outcome contract, bounded project-memory examples and checker, failed evaluation state, and this new progress cycle.
+  discovered: Codex computes tool success before dispatch and invokes PostToolUse only for successful output. This event-level authority coexists with unconstrained nested tool_response JSON. Contract-valid fixtures are necessary because existing product extraction tests do not prove upstream event semantics.
+  verified: .agentera/verification/runtime-outcome-contract.md now records trusted, schema-conforming Codex 0.144.4 PostToolUse occurrence as authoritative success and directs gzjilulvyv to execute narrowly without reading nested tool_response fields. The retained runtime-outcome-examples.json and offline Go checker validated all 10 pinned positive, absent, malformed, and conflicting cases in fresh disposable HOME/XDG state with KTX_DB unset. Gofmt and Prettier passed; markdown-link-check validated all 20 local and commit-pinned citations.
+  next: Independent re-evaluation should assess yoybjmqzxt; orchestration retains ownership of task completion and later execution of gzjilulvyv.
+  publication_order: 43

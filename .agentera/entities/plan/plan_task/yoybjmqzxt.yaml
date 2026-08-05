@@ -11,3 +11,13 @@ record:
     - GIVEN the Codex contract evidence WHEN Task 1 completes THEN Task 3 has an evidence-backed execute-or-supersede decision.
     - GIVEN each candidate signal WHEN retained examples are checked THEN at least one positive and one absent or malformed case supports the classification.
   plan: caiaxiakry
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Codex 0.144.4 invokes PostToolUse only after runtime-established success, so event occurrence is authoritative success even though nested tool_response fields are unconstrained. Retained examples also lacked contract-valid OpenCode error-state and Codex success cases.
+    provenance:
+      attempt_id: audit-yoybjmqzxt-1
+      source: independent audit ses_031c60355ffe5csUxZAxdfRfBh
+      recorded_at: 2026-08-04 21:30
+      writer_command: agentera state plan record-evaluation

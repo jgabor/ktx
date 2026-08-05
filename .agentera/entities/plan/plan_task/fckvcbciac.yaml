@@ -16,3 +16,13 @@ record:
     - GIVEN structured schemas change WHEN documentation is checked THEN new versions are explicit while text rendering stays synchronized without separate versioning.
     - GIVEN historical, OpenCode, and Codex boundaries WHEN documentation is checked THEN unsupported claims remain unknown.
   plan: ldknsjplye
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Sidecar write help says invalid is_error becomes unknown, but strict ToolCall JSON decoding rejects non-boolean input before persistence. Document missing as unknown and malformed as rejected, with a help/behavior contract test.
+    provenance:
+      attempt_id: audit-fckvcbciac-1
+      source: independent audit ses_02e4f0f7affev3KboBxx2AvAzy
+      recorded_at: 2026-08-05 13:45
+      writer_command: agentera state plan record-evaluation

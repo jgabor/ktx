@@ -1,0 +1,16 @@
+id: fuxaskaiwz
+artifact: progress
+record:
+  timestamp: 2026-08-05 13:50
+  type: fix
+  phase: build
+  what: Corrected the one accepted documentation mismatch after the first failed evaluation of task fckvcbciac. The ktx write help and sidecar guidance now distinguish an omitted is_error, which persists as unknown, from a non-boolean is_error, which strict ToolCall JSON decoding rejects as malformed before persistence. The failed evaluation remains attached to the in-progress task; prior supersession and completion state is unchanged.
+  context:
+    intent: Correct only the sidecar/write documentation contract identified by the persisted failed evaluation.
+    constraints: No outcome behavior, ingress logic, routing, reports, database schema, TODO state, or lifecycle completion changed.
+    unknowns: No new runtime or provider evidence was collected.
+  inspiration: Independent evaluation showed that the prior phrase "missing or invalid is_error is unknown" conflated report handling of invalid stored values with strict sidecar input decoding.
+  discovered: Generic report and routing statements about NULL or invalid stored values remain correct after persistence. Only ktx write and directly related sidecar guidance needed correction. The changed example remains protected by its updated routing-characterization digest.
+  verified: Focused tests passed for write help versus strict decoding, missing is_error and exit_code round-trip to nil, malformed non-boolean is_error usage failure with no persisted row, synchronized outcome surfaces, and the routing characterization digest. A newly rebuilt local build/ktx displayed the exact corrected write help. mage check passed all tests, vet, lint with 0 issues, and build; its database audit reported forbidden=0 and ktx_db=unset. Every verification command unset KTX_DB and used fresh disposable HOME and XDG roots under /tmp/opencode.
+  next: Keep task fckvcbciac in progress for independent reevaluation. Do not mark the task or plan complete in this correction.
+  publication_order: 54

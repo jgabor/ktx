@@ -148,10 +148,12 @@ command prints the affected ID as raw JSON.
 
 Supply only metadata whose authority the sidecar can establish. Explicit
 `is_error` is a caller assertion; a runtime, model, or provider label does not
-strengthen it. Persisted false is success, true is failure, and missing/invalid
-is unknown. `exit_code` is diagnostic only. Let ktx derive `content_hash` unless
-the caller independently verifies it. Prefer trusted adapters or wrappers when
-native identity is available; flat sidecar identity has weaker provenance.
+strengthen it. Persisted false is success and true is failure. Missing
+`is_error` persists as unknown; non-boolean `is_error` is malformed and rejected
+before persistence. `exit_code` is diagnostic only. Let ktx derive
+`content_hash` unless the caller independently verifies it. Prefer trusted
+adapters or wrappers when native identity is available; flat sidecar identity
+has weaker provenance.
 
 For OpenCode 1.18.5, wrapper outcome precedence is terminal error, supported
 shell exit, completed result, then unknown. The hook has only supported shell

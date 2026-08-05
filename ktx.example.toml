@@ -16,10 +16,10 @@
 #      the original is returned unchanged (no compressed row created)
 #
 # Persisted outcomes have three states: is_error=false is explicit success,
-# is_error=true is explicit failure, and missing/invalid is unknown. exit_code
-# is diagnostic only after persistence. Explicit failure returns the original
-# output unchanged before the pipeline. Unknown is not success, but may follow
-# ordinary `any` routing or default fallback behavior.
+# is_error=true is explicit failure, and NULL or an invalid stored value is
+# unknown. exit_code is diagnostic only after persistence. Explicit failure
+# returns the original output unchanged before the pipeline. Unknown is not
+# success, but may follow ordinary `any` routing or default fallback behavior.
 
 [pipeline.default]
 
@@ -247,7 +247,9 @@ profile = "json-compact"
 # nested tool_response fields are unconstrained and cannot override it.
 # Nonconforming/untrusted adapter payloads and unsupported evidence remain
 # unknown. Flat sidecar is_error is a caller assertion whose authority the
-# caller must establish; runtime/model/provider labels do not strengthen it.
+# caller must establish. Missing is_error persists as unknown; non-boolean
+# is_error is malformed and rejected before persistence. Runtime/model/provider
+# labels do not strengthen it.
 # Historical missing outcomes remain unknown and are not rebuilt from exits,
 # artifacts, labels, or output text.
 #

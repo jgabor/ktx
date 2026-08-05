@@ -13,6 +13,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -305,6 +306,32 @@ func TestRunWriteWith_FailureSignalFields(t *testing.T) {
 			t.Errorf("ExitCode = %v, want nil", got.ExitCode)
 		}
 	})
+}
+
+func TestWriteHelpMatchesIsErrorDecoding(t *testing.T) {
+	var help bytes.Buffer
+	printWriteHelp(&help)
+	assertContractText(t, help.String(),
+		[]string{"Missing is_error is unknown.", "Non-boolean is_error is malformed and rejected", "before persistence."},
+		[]string{"Missing or invalid is_error is unknown"},
+	)
+
+	t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
+	d, _ := writeTestDB(t)
+	preSeedSession(t, d, "zyxwvutsrqponmlk")
+
+	payload := `{"id":"abcdefghijklmnop","session_id":"zyxwvutsrqponmlk","tool":"bash","timestamp":"2026-06-26T12:00:00Z","is_error":"false"}`
+	var stdout, stderr bytes.Buffer
+	code := runWriteWith(nil, Options{Format: FormatJSON}, bytes.NewBufferString(payload), &stdout, &stderr)
+	if code != ExitUsage {
+		t.Fatalf("exit = %d, want %d (stderr=%q)", code, ExitUsage, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "ktx write: parse JSON") {
+		t.Errorf("stderr missing malformed JSON diagnostic: %q", stderr.String())
+	}
+	if _, err := d.GetToolCall("abcdefghijklmnop"); !errors.Is(err, dbpkg.ErrNotFound) {
+		t.Fatalf("GetToolCall error = %v, want ErrNotFound", err)
+	}
 }
 
 // TestRunWriteWith_Help covers the I/O-primitive's --help branch:

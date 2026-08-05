@@ -95,8 +95,10 @@ absent, malformed, or unsupported evidence is unknown. A trusted,
 schema-conforming Codex 0.144.4 `PostToolUse` occurrence is success; unconstrained
 nested `tool_response` fields cannot override it. Nonconforming or untrusted
 payloads are unknown. Flat sidecar `is_error` is a caller assertion whose
-authority the caller must establish. Runtime, model, and provider labels do not
-strengthen authority, and historical missing evidence remains unknown.
+authority the caller must establish. Missing `is_error` persists as unknown;
+non-boolean `is_error` is malformed and rejected before persistence. Runtime,
+model, and provider labels do not strengthen authority, and historical missing
+evidence remains unknown.
 
 ## Recovery Footer
 

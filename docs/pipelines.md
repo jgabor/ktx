@@ -155,8 +155,10 @@ Outcome authority depends on ingress:
   Its unconstrained nested `tool_response` fields have no outcome authority and
   cannot override the event. A nonconforming or untrusted payload is unknown.
 - Flat sidecar `is_error` is an explicit caller assertion. The caller must
-  establish its authority. A runtime, model, or provider label does not make the
-  assertion or any otherwise unsupported evidence authoritative.
+  establish its authority. Missing `is_error` persists as unknown; non-boolean
+  `is_error` is malformed and rejected before persistence. A runtime, model, or
+  provider label does not make the assertion or any otherwise unsupported
+  evidence authoritative.
 - Historical records without explicit outcome evidence remain unknown. ktx does
   not reconstruct outcomes from exit codes, artifacts, labels, or output text.
 

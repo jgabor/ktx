@@ -44,12 +44,16 @@ and reports live or benchmark measurements.
    automatically failure, and an aggregate is not proof of provider behavior.
 
 Persisted tool outcomes are `is_error=false` success, `is_error=true` failure,
-and missing or invalid unknown. `exit_code` is diagnostic after persistence.
+and NULL or an invalid stored value unknown. `exit_code` is diagnostic after
+persistence.
 Success routing requires explicit success; explicit failure bypasses the
 pipeline unchanged; unknown may use `any` or default behavior but is not
 success. OpenCode and Codex authority is version-scoped, flat sidecar
 `is_error` is a caller assertion, labels do not strengthen authority, and
 historical unsupported evidence remains unknown.
+
+For `ktx write`, missing `is_error` persists as unknown. Non-boolean `is_error`
+is malformed and rejected before persistence.
 
 ## Fast Paths
 

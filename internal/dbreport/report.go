@@ -16,7 +16,7 @@ import (
 	"github.com/jgabor/ktx/internal/db"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 var reportTables = []string{"sessions", "tool_calls", "compressed", "recorded_streams"}
 
@@ -187,7 +187,8 @@ func extractMeasurementCoverage(tx *sql.Tx) (any, error) {
 COUNT(tokens_in) AS calls_with_tokens_in, COUNT(tokens_out) AS calls_with_tokens_out,
 COUNT(cost) AS calls_with_cost, COUNT(latency_ms) AS calls_with_latency,
 COUNT(model) AS calls_with_model, COUNT(provider) AS calls_with_provider,
-COUNT(exit_code) AS calls_with_exit_code, COUNT(is_error) AS calls_with_error_status,
+COUNT(exit_code) AS calls_with_exit_code,
+COALESCE(SUM(CASE WHEN is_error IN (0, 1) THEN 1 ELSE 0 END), 0) AS calls_with_error_status,
 SUM(tokens_in) AS total_tokens_in, SUM(tokens_out) AS total_tokens_out, SUM(cost) AS total_cost FROM tool_calls`)
 	if err != nil {
 		return nil, err
@@ -231,12 +232,15 @@ func extractFailureMetrics(tx *sql.Tx) (any, error) {
 	statuses, err := queryOne(tx, `SELECT
 COALESCE(SUM(CASE WHEN is_error = 1 THEN 1 ELSE 0 END), 0) AS error_calls,
 COALESCE(SUM(CASE WHEN is_error = 0 THEN 1 ELSE 0 END), 0) AS successful_calls,
-COALESCE(SUM(CASE WHEN is_error IS NULL THEN 1 ELSE 0 END), 0) AS unknown_status_calls FROM tool_calls`)
+COALESCE(SUM(CASE WHEN is_error IS NULL OR is_error NOT IN (0, 1) THEN 1 ELSE 0 END), 0) AS unknown_status_calls,
+COUNT(*) AS total_tool_calls FROM tool_calls`)
 	if err != nil {
 		return nil, err
 	}
 	known := asInt64(statuses["error_calls"]) + asInt64(statuses["successful_calls"])
+	statuses["known_status_calls"] = known
 	statuses["error_rate_pct_of_known"] = percentage(float64(asInt64(statuses["error_calls"])), float64(known))
+	statuses["outcome_coverage_pct"] = percentage(float64(known), float64(asInt64(statuses["total_tool_calls"])))
 	exitCodes, err := queryRows(tx, `SELECT exit_code, COUNT(*) AS call_count FROM tool_calls
 WHERE exit_code IS NOT NULL GROUP BY exit_code ORDER BY call_count DESC, exit_code`)
 	if err != nil {
@@ -252,7 +256,7 @@ COALESCE(SUM(length(CAST(output AS BLOB))), 0) AS output_bytes,
 SUM(tokens_in) AS tokens_in, SUM(tokens_out) AS tokens_out, SUM(cost) AS cost,
 ROUND(AVG(latency_ms), 2) AS average_latency_ms,
 SUM(CASE WHEN is_error = 1 THEN 1 ELSE 0 END) AS error_calls,
-SUM(CASE WHEN is_error IS NULL THEN 1 ELSE 0 END) AS unknown_status_calls
+SUM(CASE WHEN is_error IS NULL OR is_error NOT IN (0, 1) THEN 1 ELSE 0 END) AS unknown_status_calls
 FROM tool_calls GROUP BY tool ORDER BY call_count DESC, tool`
 
 const agentMetricsSQL = `WITH session_counts AS (

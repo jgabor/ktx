@@ -4,8 +4,10 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 )
@@ -127,5 +129,119 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?),(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?),(?,?,?,?,
 	integrity := report["integrity"].(map[string]any)["tool_calls"].(map[string]int)
 	if integrity["mismatch_count"] != 0 {
 		t.Fatalf("integrity = %#v", integrity)
+	}
+}
+
+func TestReportOutcomeMetrics(t *testing.T) {
+	tests := []struct {
+		name                               string
+		states                             []any
+		successful, failed, unknown, known int64
+		wantErrorRate, wantCoverage        *float64
+	}{
+		{name: "empty"},
+		{name: "all unknown", states: []any{nil, 2, -1}, unknown: 3, wantCoverage: float64Ptr(0)},
+		{name: "all known without errors", states: []any{0, 0}, successful: 2, known: 2, wantErrorRate: float64Ptr(0), wantCoverage: float64Ptr(100)},
+		{name: "mixed aggregate", states: []any{0, 0, 1, nil, 7}, successful: 2, failed: 1, unknown: 2, known: 3, wantErrorRate: float64Ptr(33.33), wantCoverage: float64Ptr(60)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := createOutcomeFixture(t, test.states)
+			report, err := Generate(path, false, time.Date(2026, 7, 10, 12, 34, 56, 789000000, time.UTC))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report["report_schema_version"] != SchemaVersion || SchemaVersion != 3 {
+				t.Fatalf("report_schema_version = %v, want 3", report["report_schema_version"])
+			}
+			failures := report["failure_metrics"].(map[string]any)
+			assertExactKeys(t, failures, "error_calls", "successful_calls", "unknown_status_calls", "known_status_calls", "total_tool_calls", "error_rate_pct_of_known", "outcome_coverage_pct", "exit_codes")
+			if got := asInt64(failures["successful_calls"]); got != test.successful {
+				t.Errorf("successful_calls = %d, want %d", got, test.successful)
+			}
+			if got := asInt64(failures["error_calls"]); got != test.failed {
+				t.Errorf("error_calls = %d, want %d", got, test.failed)
+			}
+			if got := asInt64(failures["unknown_status_calls"]); got != test.unknown {
+				t.Errorf("unknown_status_calls = %d, want %d", got, test.unknown)
+			}
+			if got := asInt64(failures["known_status_calls"]); got != test.known {
+				t.Errorf("known_status_calls = %d, want %d", got, test.known)
+			}
+			total := int64(len(test.states))
+			if got := asInt64(failures["total_tool_calls"]); got != total {
+				t.Errorf("total_tool_calls = %d, want %d", got, total)
+			}
+			if test.known != test.successful+test.failed || total != test.known+test.unknown {
+				t.Fatal("invalid test reconciliation")
+			}
+			assertOptionalFloat(t, failures["error_rate_pct_of_known"], test.wantErrorRate)
+			assertOptionalFloat(t, failures["outcome_coverage_pct"], test.wantCoverage)
+
+			coverage := report["measurement_coverage"].(map[string]any)["coverage"].(map[string]any)["error_status"].(map[string]any)
+			if got := asInt64(coverage["measured_calls"]); got != test.known {
+				t.Errorf("error-status measured_calls = %d, want %d", got, test.known)
+			}
+			assertOptionalFloat(t, coverage["coverage_pct"], test.wantCoverage)
+			if len(test.states) > 0 {
+				tool := report["tool_metrics"].([]map[string]any)[0]
+				if got := asInt64(tool["unknown_status_calls"]); got != test.unknown {
+					t.Errorf("tool unknown_status_calls = %d, want %d", got, test.unknown)
+				}
+			}
+		})
+	}
+}
+
+func createOutcomeFixture(t *testing.T, states []any) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "fixture.db")
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(testSchema); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`INSERT INTO sessions VALUES ('s1','unknown','2026-07-01T00:00:00Z',NULL,'2026-07-01T00:00:00Z',?)`, len(states)); err != nil {
+		t.Fatal(err)
+	}
+	for index, state := range states {
+		if _, err := database.Exec(`INSERT INTO tool_calls (id,session_id,tool,input,output,content_hash,timestamp,is_error) VALUES (?,?,?,?,?,?,?,?)`, fmt.Sprintf("t%d", index), "s1", "bash", "", "", "", "2026-07-01T00:00:00Z", state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func float64Ptr(value float64) *float64 { return &value }
+
+func assertOptionalFloat(t *testing.T, got any, want *float64) {
+	t.Helper()
+	if want == nil {
+		if got != nil {
+			t.Errorf("value = %v, want null", got)
+		}
+		return
+	}
+	value, ok := got.(float64)
+	if !ok || math.Abs(value-*want) > 1e-9 {
+		t.Errorf("value = %v, want %v", got, *want)
+	}
+}
+
+func assertExactKeys(t *testing.T, value map[string]any, expected ...string) {
+	t.Helper()
+	actual := make([]string, 0, len(value))
+	for key := range value {
+		actual = append(actual, key)
+	}
+	sort.Strings(actual)
+	sort.Strings(expected)
+	if fmt.Sprint(actual) != fmt.Sprint(expected) {
+		t.Fatalf("keys = %v, want %v", actual, expected)
 	}
 }

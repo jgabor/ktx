@@ -1,0 +1,17 @@
+id: lswqaslcsx
+artifact: progress
+record:
+  timestamp: 2026-08-05 12:48
+  type: feat
+  phase: build
+  what: Completed database outcome reporting over the unchanged all-tool-calls population. Failure metrics now expose successful, error, unknown, known, and total counts, known-denominator error rate, and full-population outcome coverage. Only stored is_error values 0 and 1 are known; null and every other integer are unknown. Measurement coverage and grouped tool metrics use the same classification, report schema is 3, and deterministic empty-report evidence is current.
+  context:
+    intent: Complete only database outcome reporting and retained evidence for task zjqwiriduj.
+    constraints: Preserve the all-persisted-tool-calls report population, read-only behavior, identifier redaction, unrelated report sections, and database schema; do not complete the task.
+    unknowns: none
+    scope: internal/dbreport implementation, proportional report tests, deterministic empty-report golden evidence, typed progress, and retained plan task states.
+  inspiration: Agentera replacement plan ldknsjplye task zjqwiriduj.
+  discovered: The report previously treated every non-null is_error value as measured in measurement coverage while failure and grouped tool metrics counted only null as unknown. This made malformed integers disappear from reconciliation and inflated coverage.
+  verified: "PASS: go test ./internal/dbreport; empty golden/read-only, aggregate, malformed-integer, empty, all-unknown, all-known, rate, coverage, reconciliation, schema-key, measurement-coverage, and grouped-tool checks passed. PASS: go test ./internal/dbreport ./internal/cli. PASS: go test -race ./internal/dbreport. PASS: mage build; the local ./build/ktx --version returned dev. PASS: a local ./build/ktx db --path <owned temporary database> report --output - probe returned schema 3 with success=1, error=1, unknown=2, known=2, total=4, error rate=50, coverage=50, omitted the absolute database path by default, and preserved the database byte hash. PASS: mage check; all packages, vet, lint, and build passed with 0 issues, and the verification audit reported forbidden=0 and ktx_db=unset. Every ktx, Go test, build, and check invocation used KTX_DB unset with fresh disposable HOME and XDG data, config, cache, and state roots; databases were explicitly seeded only under owned temporary roots."
+  next: Leave zjqwiriduj in_progress for independent evaluation; do not start contract synchronization or integrated closure work.
+  publication_order: 51

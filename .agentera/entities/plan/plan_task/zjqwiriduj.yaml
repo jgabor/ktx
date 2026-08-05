@@ -5,7 +5,7 @@ record:
   depends_on:
     - zrqzmzuxzt
     - lxnqnvtaib
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN all persisted tool calls form the report population WHEN failure metrics render THEN success, failure, unknown, known, error rate, and coverage are available.
     - GIVEN report counts WHEN reconciled THEN known equals success plus failure and total equals known plus unknown.

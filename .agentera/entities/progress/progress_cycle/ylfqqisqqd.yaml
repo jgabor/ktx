@@ -1,0 +1,17 @@
+id: ylfqqisqqd
+artifact: progress
+record:
+  timestamp: 2026-08-05 12:30
+  type: feat
+  phase: build
+  what: Added aggregate live tool-call outcome totals to stats summary and breakdown. Both contracts classify canonical persisted is_error values, reconcile success, error, unknown, known, and total counts, and render known-denominator error rate and full-population coverage with distinct undefined and measured-zero states. Advanced summary schema to 5 and breakdown schema to 2 without changing the trailing-window, artifact, delivery-group, cache, or model-step populations.
+  context:
+    intent: Implement only aggregate live outcome metrics for summary and breakdown.
+    constraints: No database migration, ingress, routing, database report, delivery-group, cache, public runbook, example, skill, or TODO changes; no task completion transition.
+    unknowns: Workspace-wide gopls diagnostics still report pre-existing duplicate main and must declarations in separate .agentera verification programs; changed Go files have no errors.
+    scope: internal/db/stats.go, internal/db/stats_test.go, internal/cli/stats.go, internal/cli/stats_test.go, plus typed Agentera progress and pre-existing plan task transitions.
+  inspiration: Agentera plan ldknsjplye task ongnhqfzkf.
+  discovered: The existing shared StatsSummaryRows query already defines the exact inclusive output-bearing population for both commands, so adding canonical outcome state to that row preserves population and cross-command reconciliation without a second aggregate query.
+  verified: "PASS: go test ./internal/db ./internal/cli. PASS: mage build. PASS: mage check; all Go packages passed, lint reported 0 issues, and the verification audit reported target=check, forbidden=0, ktx_db=unset. PASS: ./build/ktx --version returned dev. PASS: git diff --check. Every verification invocation used KTX_DB unset and fresh disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, and XDG_STATE_HOME roots where applicable."
+  next: Commit the implementation and retained task-state transitions while leaving ongnhqfzkf in_progress for independent evaluation.
+  publication_order: 49

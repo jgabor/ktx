@@ -289,7 +289,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
-		if got.SchemaVersion != 4 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
+		if got.SchemaVersion != 5 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
 			t.Errorf("metadata = %+v", got)
 		}
 		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != got.GeneratedAt {
@@ -298,11 +298,102 @@ func TestStatsWindowLogic(t *testing.T) {
 		if got.Calls.TotalWithOutput != 0 || got.Calls.WithCompressedArtifact != 0 {
 			t.Errorf("calls = %+v", got.Calls)
 		}
+		if got.Outcomes != (statsOutcomeTotals{}) {
+			t.Errorf("outcomes = %+v", got.Outcomes)
+		}
 		if got.Tokens.RawEstimatedPerSecond != 0 || got.Tokens.DeliveredEstimatedPerSecond != 0 || got.Tokens.ReductionPercent != nil {
 			t.Errorf("tokens = %+v", got.Tokens)
 		}
 		if got.CacheReuse.ContributingModelSteps != 0 || got.CacheReuse.UncachedInput.State != "missing" || got.CacheReuse.CachedInputShare.State != "missing" {
 			t.Errorf("cache_reuse = %+v", got.CacheReuse)
+		}
+	})
+
+	t.Run("outcomes reconcile between summary and breakdown", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		success, failure := false, true
+		seedCalls(t, db, sid, []callSeed{
+			{tool: "read", output: "success", isError: &success},
+			{tool: "read", output: "failure", isError: &failure},
+			{tool: "read", output: "unknown"},
+			{tool: "read", output: "also unknown"},
+		})
+
+		var summaryJSON, breakdownJSON bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &summaryJSON); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := statsBreakdownLogic(nil, FormatJSON, 30*time.Minute, now, db, &breakdownJSON); err != nil {
+			t.Fatal(err)
+		}
+		var summary statsSummary
+		var breakdown statsBreakdown
+		if err := json.Unmarshal(summaryJSON.Bytes(), &summary); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(breakdownJSON.Bytes(), &breakdown); err != nil {
+			t.Fatal(err)
+		}
+		want := statsOutcomeTotals{SuccessfulCalls: 1, ErrorCalls: 1, UnknownCalls: 2, KnownCalls: 2, TotalCalls: 4}
+		errorRate, coverage := 50.0, 50.0
+		want.ErrorRatePctOfKnown = &errorRate
+		want.OutcomeCoveragePct = &coverage
+		if !reflect.DeepEqual(summary.Outcomes, want) || !reflect.DeepEqual(breakdown.Outcomes, want) {
+			t.Fatalf("summary outcomes=%+v breakdown outcomes=%+v want=%+v", summary.Outcomes, breakdown.Outcomes, want)
+		}
+		if summary.Outcomes.KnownCalls != summary.Outcomes.SuccessfulCalls+summary.Outcomes.ErrorCalls || summary.Outcomes.TotalCalls != summary.Outcomes.KnownCalls+summary.Outcomes.UnknownCalls || summary.Outcomes.TotalCalls != summary.Calls.TotalWithOutput {
+			t.Errorf("outcomes do not reconcile: outcomes=%+v calls=%+v", summary.Outcomes, summary.Calls)
+		}
+	})
+
+	t.Run("outcome edge states remain distinct in JSON and text", func(t *testing.T) {
+		tests := []struct {
+			name             string
+			rows             []dbpkg.StatsSummaryRow
+			wantErrorRate    *float64
+			wantCoverage     *float64
+			wantErrorText    string
+			wantCoverageText string
+		}{
+			{name: "empty", wantErrorText: "-", wantCoverageText: "-"},
+			{name: "all unknown", rows: []dbpkg.StatsSummaryRow{{RawChars: 1, DeliveredChars: 1}}, wantCoverage: float64Pointer(0), wantErrorText: "-", wantCoverageText: "0.00"},
+			{name: "all known zero error", rows: []dbpkg.StatsSummaryRow{{RawChars: 1, DeliveredChars: 1, IsError: boolPointer(false)}}, wantErrorRate: float64Pointer(0), wantCoverage: float64Pointer(100), wantErrorText: "0.00", wantCoverageText: "100.00"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				window, calls, outcomes, tokens := aggregateStatsWindow(tt.rows, 30*time.Minute, now)
+				if !reflect.DeepEqual(outcomes.ErrorRatePctOfKnown, tt.wantErrorRate) || !reflect.DeepEqual(outcomes.OutcomeCoveragePct, tt.wantCoverage) {
+					t.Fatalf("outcomes = %+v", outcomes)
+				}
+				summary := statsSummary{Window: window, Calls: calls, Outcomes: outcomes, Tokens: tokens}
+				breakdown := statsBreakdown{Window: window, Calls: calls, Outcomes: outcomes, Tokens: tokens, DeliveryBreakdown: aggregateStatsBreakdown(tt.rows)}
+				for name, value := range map[string]any{"summary": summary, "breakdown": breakdown} {
+					encoded, err := json.Marshal(value)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var rendered map[string]json.RawMessage
+					if err := json.Unmarshal(encoded, &rendered); err != nil {
+						t.Fatal(err)
+					}
+					var renderedOutcomes statsOutcomeTotals
+					if err := json.Unmarshal(rendered["outcomes"], &renderedOutcomes); err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(renderedOutcomes, outcomes) {
+						t.Errorf("%s JSON outcomes = %+v, want %+v", name, renderedOutcomes, outcomes)
+					}
+				}
+				for name, render := range map[string]func(*bytes.Buffer){
+					"summary":   func(buf *bytes.Buffer) { printStatsSummaryText(buf, summary) },
+					"breakdown": func(buf *bytes.Buffer) { printStatsBreakdownText(buf, breakdown) },
+				} {
+					var buf bytes.Buffer
+					render(&buf)
+					assertOutcomeTextColumns(t, name, buf.String(), tt.wantErrorText, tt.wantCoverageText)
+				}
+			})
 		}
 	})
 
@@ -544,7 +635,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("summary JSON schema has only the fixed version 4 contract keys", func(t *testing.T) {
+	t.Run("summary JSON schema has only the fixed version 5 contract keys", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -554,12 +645,13 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		if got["schema_version"] != float64(4) {
-			t.Errorf("schema_version = %v, want 4", got["schema_version"])
+		if got["schema_version"] != float64(5) {
+			t.Errorf("schema_version = %v, want 5", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "cache_reuse")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
+		assertStatsJSONKeys(t, got["outcomes"].(map[string]any), "successful_calls", "error_calls", "unknown_calls", "known_calls", "total_calls", "error_rate_pct_of_known", "outcome_coverage_pct")
 		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated", "raw_estimated_per_second", "delivered_estimated_per_second", "reduction_percent")
 		cache := got["cache_reuse"].(map[string]any)
 		assertStatsJSONKeys(t, cache, "contract_version", "runtime", "runtime_version", "contributing_model_steps", "uncached_input", "cache_read", "cache_write", "logical_input", "cached_input_share", "formula", "unit")
@@ -569,7 +661,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		assertStatsJSONKeys(t, cache["cached_input_share"].(map[string]any), "state", "value", "ratio", "reason")
 	})
 
-	t.Run("breakdown JSON schema contains the detailed version 1 contract", func(t *testing.T) {
+	t.Run("breakdown JSON schema contains the detailed version 2 contract", func(t *testing.T) {
 		db := openMemoryDB(t)
 		sid := seedSession(t, db)
 		seedCalls(t, db, sid, []callSeed{{tool: "read", output: "result"}})
@@ -581,10 +673,11 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		if got["schema_version"] != float64(1) {
-			t.Errorf("schema_version = %v, want 1", got["schema_version"])
+		if got["schema_version"] != float64(2) {
+			t.Errorf("schema_version = %v, want 2", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "tokens", "delivery_breakdown")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "delivery_breakdown")
+		assertStatsJSONKeys(t, got["outcomes"].(map[string]any), "successful_calls", "error_calls", "unknown_calls", "known_calls", "total_calls", "error_rate_pct_of_known", "outcome_coverage_pct")
 		delivery := got["delivery_breakdown"].(map[string]any)
 		assertStatsJSONKeys(t, delivery, "detailed_group_limit", "distinct_groups", "omitted_distinct_groups", "groups", "other")
 		assertStatsJSONKeys(t, delivery["other"].(map[string]any), "calls", "with_compressed_artifact", "raw_estimated", "delivered_estimated")
@@ -613,7 +706,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 4") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "not a provider hit rate") {
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 5") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "not a provider hit rate") {
 			t.Errorf("summary help = %q", summaryHelp.String())
 		}
 
@@ -628,7 +721,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsBreakdownLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &breakdownHelp); err != nil {
 			t.Fatalf("breakdown help: %v", err)
 		}
-		if !strings.Contains(breakdownHelp.String(), "ktx stats breakdown") || !strings.Contains(breakdownHelp.String(), "schema_version 1") || !strings.Contains(breakdownHelp.String(), "up to 100") {
+		if !strings.Contains(breakdownHelp.String(), "ktx stats breakdown") || !strings.Contains(breakdownHelp.String(), "schema_version 2") || !strings.Contains(breakdownHelp.String(), "up to 100") {
 			t.Errorf("breakdown help = %q", breakdownHelp.String())
 		}
 	})
@@ -801,6 +894,7 @@ type callSeed struct {
 	tool    string
 	command string
 	output  string
+	isError *bool
 }
 
 // seedSession inserts a session and returns its ID.
@@ -834,12 +928,37 @@ func seedCalls(t *testing.T, db *dbpkg.DB, sessionID string, calls []callSeed) [
 			Input:     `{"command": "` + c.command + `"}`,
 			Output:    c.output,
 			Timestamp: "2026-07-12T00:00:01Z",
+			IsError:   c.isError,
 		}); err != nil {
 			t.Fatalf("PersistToolCall[%d]: %v", i, err)
 		}
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+func boolPointer(value bool) *bool { return &value }
+
+func float64Pointer(value float64) *float64 { return &value }
+
+func assertOutcomeTextColumns(t *testing.T, name, output, wantErrorRate, wantCoverage string) {
+	t.Helper()
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("%s text = %q", name, output)
+	}
+	headings := strings.Fields(lines[0])
+	values := strings.Fields(lines[1])
+	if len(values) < 10 {
+		t.Fatalf("%s columns headings=%v values=%v", name, headings, values)
+	}
+	columns := make(map[string]string, len(headings))
+	for i := range values {
+		columns[headings[i]] = values[i]
+	}
+	if columns["ERROR_PCT_KNOWN"] != wantErrorRate || columns["OUTCOME_COVERAGE_PCT"] != wantCoverage {
+		t.Errorf("%s outcome text columns = %v", name, columns)
+	}
 }
 
 // seedCompressedRow inserts a compressed row for a source tool_call.

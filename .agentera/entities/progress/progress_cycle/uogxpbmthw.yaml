@@ -1,0 +1,16 @@
+id: uogxpbmthw
+artifact: progress
+record:
+  timestamp: 2026-08-05 12:31
+  type: test
+  phase: build
+  what: Repeated the targeted database and CLI outcome tests under the required disposable state isolation and corrected the prior progress entry's overbroad isolation statement.
+  context:
+    intent: Make the targeted verification evidence explicitly satisfy the database-safety isolation contract.
+    constraints: Preserve the prior append-only progress record and correct it with a new typed record; do not complete the task.
+    unknowns: none
+    scope: Verification evidence only.
+  discovered: The first targeted go test invocation had KTX_DB unset but inherited the workspace HOME and XDG roots. It passed, but it did not satisfy the requested fresh-root isolation. The authoritative repeat used fresh disposable roots and also passed.
+  verified: "PASS: env -u KTX_DB with fresh disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, and XDG_STATE_HOME go test ./internal/db ./internal/cli; internal/db passed in 32.193s and internal/cli passed in 6.036s. The separately isolated mage build and mage check results in progress ylfqqisqqd remain valid."
+  next: Commit the implementation and state evidence while leaving ongnhqfzkf in_progress for independent evaluation.
+  publication_order: 50

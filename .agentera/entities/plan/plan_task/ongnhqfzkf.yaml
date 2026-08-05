@@ -6,7 +6,7 @@ record:
     - zrqzmzuxzt
     - lxnqnvtaib
     - cwrrvugnhq
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN the existing output-bearing trailing-window population WHEN live summary and breakdown run THEN both expose success, failure, unknown, and known counts.
     - GIVEN live counts WHEN reconciled THEN known equals success plus failure and total equals known plus unknown.

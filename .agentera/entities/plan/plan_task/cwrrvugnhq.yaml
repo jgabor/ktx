@@ -4,7 +4,7 @@ record:
   name: Make success routing evidence-safe
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN explicit success WHEN a success-status route is evaluated THEN that route may match.
     - GIVEN explicit failure or unknown WHEN a success-status route is evaluated THEN that route does not match.
@@ -12,3 +12,13 @@ record:
     - GIVEN unknown WHEN any-status routing or default fallback is evaluated THEN ordinary configured behavior remains available without labeling the call successful.
     - GIVEN all three states WHEN routing checks run THEN selectors, unchanged failure delivery, and matching and non-matching boundaries are proven.
   plan: ldknsjplye
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-cwrrvugnhq-1
+      source: independent audit ses_02e964a91ffewOYIOB7TMl7FKK
+      recorded_at: 2026-08-05 12:20
+      writer_command: agentera state plan record-evaluation

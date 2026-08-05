@@ -169,6 +169,40 @@ func TestStatsSummaryRows(t *testing.T) {
 	}
 }
 
+func TestStatsSummaryRowsClassifiesCanonicalOutcome(t *testing.T) {
+	d := openMemoryDB(t)
+	from := time.Date(2026, 7, 21, 11, 30, 0, 0, time.UTC)
+	to := from.Add(30 * time.Minute)
+	success, failure := false, true
+	ids := seedSessionAndCalls(t, d, []callFixture{
+		{id: "successsuccessxx", output: "s", timestamp: from.Format(time.RFC3339Nano), isError: &success},
+		{id: "failurefailurexx", output: "ff", timestamp: from.Format(time.RFC3339Nano), isError: &failure},
+		{id: "unknownunknownxx", output: "uuu", timestamp: from.Format(time.RFC3339Nano)},
+		{id: "malformedstatexx", output: "mmmm", timestamp: from.Format(time.RFC3339Nano)},
+	})
+	if _, err := d.db.Exec(`UPDATE tool_calls SET is_error = 7, exit_code = 0 WHERE id = ?`, ids[3]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.db.Exec(`UPDATE tool_calls SET exit_code = 1 WHERE id = ?`, ids[2]); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := d.StatsSummaryRows(from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(map[int]*bool, len(rows))
+	for _, row := range rows {
+		got[row.RawChars] = row.IsError
+	}
+	if got[1] == nil || *got[1] || got[2] == nil || !*got[2] {
+		t.Errorf("boolean outcomes = %#v", got)
+	}
+	if got[3] != nil || got[4] != nil {
+		t.Errorf("unknown outcomes = %#v; NULL, contradictory exit code, and malformed integer must remain unknown", got)
+	}
+}
+
 func TestStatsSummaryCacheRows(t *testing.T) {
 	const runtime, runtimeVersion = "opencode", "1.18.5"
 	d := openMemoryDB(t)
@@ -284,6 +318,7 @@ type callFixture struct {
 	input     string
 	output    string
 	timestamp string
+	isError   *bool
 }
 
 // seedSessionAndCalls inserts a session and the given tool_calls.
@@ -311,6 +346,7 @@ func seedSessionAndCalls(t *testing.T, d *DB, calls []callFixture) []string {
 			Input:     c.input,
 			Output:    c.output,
 			Timestamp: timestamp,
+			IsError:   c.isError,
 		}); err != nil {
 			t.Fatalf("PersistToolCall: %v", err)
 		}

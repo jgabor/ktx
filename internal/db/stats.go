@@ -79,6 +79,7 @@ type StatsSummaryRow struct {
 	Profile               string
 	Route                 string
 	Disposition           string
+	IsError               *bool
 	RawChars              int
 	DeliveredChars        int
 	HasCompressedArtifact bool
@@ -256,7 +257,7 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	}
 
 	rows, err := database.Query(`
-		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''), LENGTH(tc.output),
+		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''), tc.is_error, LENGTH(tc.output),
 		       cd.profile, cd.route, cd.disposition,
 		       c.id, LENGTH(c.output)
 		FROM tool_calls tc
@@ -276,13 +277,14 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 		var (
 			sourceID                    string
 			tool, input                 string
+			isError                     sql.NullInt64
 			rawChars                    int
 			profile, route, disposition sql.NullString
 			artifactID                  sql.NullString
 			artifactChars               sql.NullInt64
 		)
 		if err := rows.Scan(
-			&sourceID, &tool, &input, &rawChars,
+			&sourceID, &tool, &input, &isError, &rawChars,
 			&profile, &route, &disposition,
 			&artifactID, &artifactChars,
 		); err != nil {
@@ -298,6 +300,10 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 			current.rawSet = true
 			current.row.Tool = tool
 			current.row.Input = input
+			if isError.Valid && (isError.Int64 == 0 || isError.Int64 == 1) {
+				value := isError.Int64 == 1
+				current.row.IsError = &value
+			}
 			current.row.Profile = profile.String
 			current.row.Route = route.String
 			current.row.Disposition = CompressionDispositionUnobserved

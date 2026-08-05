@@ -37,8 +37,8 @@ import (
 const (
 	statsDefaultLimit           = 20
 	statsDefaultWindow          = 30 * time.Minute
-	statsSummarySchemaVersion   = 4
-	statsBreakdownSchemaVersion = 1
+	statsSummarySchemaVersion   = 5
+	statsBreakdownSchemaVersion = 2
 	statsBreakdownDetailedLimit = 100
 )
 
@@ -182,6 +182,7 @@ type statsSummary struct {
 	GeneratedAt   string                 `json:"generated_at"`
 	Window        statsSummaryWindow     `json:"window"`
 	Calls         statsSummaryCalls      `json:"calls"`
+	Outcomes      statsOutcomeTotals     `json:"outcomes"`
 	Tokens        statsSummaryTokens     `json:"tokens"`
 	CacheReuse    statsSummaryCacheReuse `json:"cache_reuse"`
 }
@@ -191,6 +192,7 @@ type statsBreakdown struct {
 	GeneratedAt       string                 `json:"generated_at"`
 	Window            statsSummaryWindow     `json:"window"`
 	Calls             statsSummaryCalls      `json:"calls"`
+	Outcomes          statsOutcomeTotals     `json:"outcomes"`
 	Tokens            statsSummaryTokens     `json:"tokens"`
 	DeliveryBreakdown statsBreakdownDelivery `json:"delivery_breakdown"`
 }
@@ -204,6 +206,16 @@ type statsSummaryWindow struct {
 type statsSummaryCalls struct {
 	TotalWithOutput        int `json:"total_with_output"`
 	WithCompressedArtifact int `json:"with_compressed_artifact"`
+}
+
+type statsOutcomeTotals struct {
+	SuccessfulCalls     int      `json:"successful_calls"`
+	ErrorCalls          int      `json:"error_calls"`
+	UnknownCalls        int      `json:"unknown_calls"`
+	KnownCalls          int      `json:"known_calls"`
+	TotalCalls          int      `json:"total_calls"`
+	ErrorRatePctOfKnown *float64 `json:"error_rate_pct_of_known"`
+	OutcomeCoveragePct  *float64 `json:"outcome_coverage_pct"`
 }
 
 type statsSummaryTokens struct {
@@ -298,12 +310,13 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 	if err != nil {
 		return nil, internalError("ktx stats summary: %v", err)
 	}
-	windowSummary, calls, tokens := aggregateStatsWindow(rows, window, now)
+	windowSummary, calls, outcomes, tokens := aggregateStatsWindow(rows, window, now)
 	summary := statsSummary{
 		SchemaVersion: statsSummarySchemaVersion,
 		GeneratedAt:   now.Format(time.RFC3339Nano),
 		Window:        windowSummary,
 		Calls:         calls,
+		Outcomes:      outcomes,
 		Tokens:        tokens,
 		CacheReuse:    aggregateStatsSummaryCache(cacheRows),
 	}
@@ -328,12 +341,13 @@ func statsBreakdownLogic(args []string, format string, window time.Duration, now
 	if err != nil {
 		return nil, internalError("ktx stats breakdown: %v", err)
 	}
-	windowSummary, calls, tokens := aggregateStatsWindow(rows, window, now)
+	windowSummary, calls, outcomes, tokens := aggregateStatsWindow(rows, window, now)
 	breakdown := statsBreakdown{
 		SchemaVersion:     statsBreakdownSchemaVersion,
 		GeneratedAt:       now.Format(time.RFC3339Nano),
 		Window:            windowSummary,
 		Calls:             calls,
+		Outcomes:          outcomes,
 		Tokens:            tokens,
 		DeliveryBreakdown: aggregateStatsBreakdown(rows),
 	}
@@ -371,7 +385,7 @@ func validateStatsWindowCommand(command string, args []string, format string, wi
 	return false, nil
 }
 
-func aggregateStatsWindow(rows []dbpkg.StatsSummaryRow, window time.Duration, now time.Time) (statsSummaryWindow, statsSummaryCalls, statsSummaryTokens) {
+func aggregateStatsWindow(rows []dbpkg.StatsSummaryRow, window time.Duration, now time.Time) (statsSummaryWindow, statsSummaryCalls, statsOutcomeTotals, statsSummaryTokens) {
 	from := now.Add(-window)
 	windowSummary := statsSummaryWindow{
 		Seconds: window.Seconds(),
@@ -379,14 +393,33 @@ func aggregateStatsWindow(rows []dbpkg.StatsSummaryRow, window time.Duration, no
 		To:      now.Format(time.RFC3339Nano),
 	}
 	var calls statsSummaryCalls
+	var outcomes statsOutcomeTotals
 	var tokens statsSummaryTokens
 	for _, row := range rows {
 		calls.TotalWithOutput++
+		outcomes.TotalCalls++
+		switch {
+		case row.IsError == nil:
+			outcomes.UnknownCalls++
+		case *row.IsError:
+			outcomes.ErrorCalls++
+		default:
+			outcomes.SuccessfulCalls++
+		}
 		if row.HasCompressedArtifact {
 			calls.WithCompressedArtifact++
 		}
 		tokens.RawEstimated += estimatedTokens(row.RawChars)
 		tokens.DeliveredEstimated += estimatedTokens(row.DeliveredChars)
+	}
+	outcomes.KnownCalls = outcomes.SuccessfulCalls + outcomes.ErrorCalls
+	if outcomes.KnownCalls > 0 {
+		errorRate := float64(outcomes.ErrorCalls) / float64(outcomes.KnownCalls) * 100
+		outcomes.ErrorRatePctOfKnown = &errorRate
+	}
+	if outcomes.TotalCalls > 0 {
+		coverage := float64(outcomes.KnownCalls) / float64(outcomes.TotalCalls) * 100
+		outcomes.OutcomeCoveragePct = &coverage
 	}
 	seconds := window.Seconds()
 	tokens.RawEstimatedPerSecond = float64(tokens.RawEstimated) / seconds
@@ -395,7 +428,7 @@ func aggregateStatsWindow(rows []dbpkg.StatsSummaryRow, window time.Duration, no
 		reduction := float64(tokens.RawEstimated-tokens.DeliveredEstimated) / float64(tokens.RawEstimated) * 100
 		tokens.ReductionPercent = &reduction
 	}
-	return windowSummary, calls, tokens
+	return windowSummary, calls, outcomes, tokens
 }
 
 func estimatedTokens(characters int) int {
@@ -725,10 +758,12 @@ func printStatsText(w io.Writer, groups []statsGroup) {
 
 func printStatsSummaryText(w io.Writer, summary statsSummary) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tMODEL_STEPS\tUNCACHED_INPUT\tCACHE_READ\tCACHE_WRITE\tLOGICAL_INPUT\tCACHED_INPUT_PCT")
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%.4f\t%.4f\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n",
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tMODEL_STEPS\tUNCACHED_INPUT\tCACHE_READ\tCACHE_WRITE\tLOGICAL_INPUT\tCACHED_INPUT_PCT")
+	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n",
 		summary.Window.From, summary.Window.To,
 		summary.Calls.TotalWithOutput, summary.Calls.WithCompressedArtifact,
+		summary.Outcomes.SuccessfulCalls, summary.Outcomes.ErrorCalls, summary.Outcomes.UnknownCalls, summary.Outcomes.KnownCalls,
+		formatStatsPercent(summary.Outcomes.ErrorRatePctOfKnown), formatStatsPercent(summary.Outcomes.OutcomeCoveragePct),
 		summary.Tokens.RawEstimated, summary.Tokens.DeliveredEstimated,
 		summary.Tokens.RawEstimatedPerSecond, summary.Tokens.DeliveredEstimatedPerSecond,
 		formatStatsReduction(summary.Tokens.ReductionPercent), summary.CacheReuse.ContributingModelSteps,
@@ -742,10 +777,12 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 
 func printStatsBreakdownText(w io.Writer, breakdown statsBreakdown) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT")
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%.4f\t%.4f\t%s\n",
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT")
+	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\n",
 		breakdown.Window.From, breakdown.Window.To,
 		breakdown.Calls.TotalWithOutput, breakdown.Calls.WithCompressedArtifact,
+		breakdown.Outcomes.SuccessfulCalls, breakdown.Outcomes.ErrorCalls, breakdown.Outcomes.UnknownCalls, breakdown.Outcomes.KnownCalls,
+		formatStatsPercent(breakdown.Outcomes.ErrorRatePctOfKnown), formatStatsPercent(breakdown.Outcomes.OutcomeCoveragePct),
 		breakdown.Tokens.RawEstimated, breakdown.Tokens.DeliveredEstimated,
 		breakdown.Tokens.RawEstimatedPerSecond, breakdown.Tokens.DeliveredEstimatedPerSecond,
 		formatStatsReduction(breakdown.Tokens.ReductionPercent))
@@ -773,6 +810,13 @@ func formatStatsReduction(reduction *float64) string {
 		return "-"
 	}
 	return strconv.FormatFloat(*reduction, 'f', 2, 64)
+}
+
+func formatStatsPercent(value *float64) string {
+	if value == nil {
+		return "-"
+	}
+	return strconv.FormatFloat(*value, 'f', 2, 64)
 }
 
 func formatStatsBreakdownOptional(value *string) string {
@@ -841,7 +885,7 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "[now-window, now] interval. Rates use the full configured window duration.")
 	fmt.Fprintln(w, "Each call uses its earliest retained compressed artifact; equal timestamps use")
 	fmt.Fprintln(w, "the lexicographically smallest artifact ID. Calls without one use raw output.")
-	fmt.Fprintln(w, "The fixed-shape response contains window, call, token, and cache aggregates only.")
+	fmt.Fprintln(w, "The fixed-shape response contains window, call, aggregate outcome, token, and cache aggregates only.")
 	fmt.Fprintln(w, "Use 'ktx stats breakdown' for diagnostic delivery groups.")
 	fmt.Fprintln(w, "Accepted OpenCode 1.18.5 model steps use their captured_at timestamp in the")
 	fmt.Fprintln(w, "same interval. Cache token totals require every contributing value to be")
@@ -851,7 +895,7 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 4 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 5 JSON object")
 	fmt.Fprintln(w, "  text            one tab-aligned summary row")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
@@ -868,12 +912,13 @@ func printStatsBreakdownHelp(w io.Writer) {
 	fmt.Fprintln(w, "the lexicographically smallest artifact ID. Calls without one use raw output.")
 	fmt.Fprintln(w, "Reports up to 100 token-weighted disposition groups; omitted groups reconcile")
 	fmt.Fprintln(w, "through exact other totals. Model-step telemetry is not queried or emitted.")
+	fmt.Fprintln(w, "Aggregate outcomes report known-denominator error rate and full-population coverage.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 1 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 2 JSON object")
 	fmt.Fprintln(w, "  text            headline row and detailed group table")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")

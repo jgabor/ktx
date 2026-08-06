@@ -1,0 +1,33 @@
+id: vqjojchjyx
+artifact: health
+record:
+  date: 2026-08-06
+  dimensions:
+    - test_health
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 1
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: stable
+  grades:
+    test_health: A
+    artifact_freshness: B
+  findings:
+    - severity: warning
+      heading: Startup profile grounding needs repair
+      confidence: 100
+      location: agentera prime --dashboard profile validity
+      evidence: The previously recorded Agentera profile remains oversized and repair_needed.
+      impact: Future unscoped Agentera sessions cannot rely on automatic profile grounding; explicit repository and plan evidence remains usable.
+      suggested_action: Repair or regenerate PROFILE.md before the next Agentera-managed plan, then verify profile grounding.
+      verify_command: npx -y agentera@next prime --dashboard --format json
+  dimension_details:
+    []
+  trends:
+    comparison_target: health audit dacnmfqcqi and merge-readiness audit ses_0290158dcffe443gfn6TQ2TnHT
+    stable: The database-report REAL 0.0/1.0 blocker is corrected. All outcome SQL predicates require INTEGER storage; focused regressions, refreshed integration, isolated mage check, and independent audit pass. Plan ldknsjplye is complete with correction task nypdistlxh latest-PASS; archived predecessor and resolved TODO remain unchanged.
+  patterns:
+    - "Bounded correction audit: malformed numeric storage remains unknown consistently across live stats and database reporting. The profile warning is unrelated and retained."
+  appended_at: 2026-08-06T13:05:29.576Z

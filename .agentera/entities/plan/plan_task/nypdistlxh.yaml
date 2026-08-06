@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: ldknsjplye
   name: Reject non-integer database outcomes
-  status: in_progress
+  status: complete
   depends_on:
     - zjqwiriduj
     - mvggstggsy
@@ -18,3 +18,13 @@ record:
     - internal/dbreport/report_test.go
     - .agentera/verification/tool_outcome_integrated_check.py
     - .agentera/verification/tool-outcome-integrated-2026-08-05.md
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-nypdistlxh-1
+      source: independent audit PASS ses_028d8fb31ffebdfSupPoit0yFp; correction commit 927915208d84333c7c0ffb05ba2e25bbf900f628
+      recorded_at: 2026-08-06 15:05
+      writer_command: agentera state plan record-evaluation

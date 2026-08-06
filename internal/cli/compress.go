@@ -68,6 +68,7 @@ type pipelineExecution struct {
 	stages                []string
 	recoverFooter         bool
 	transformed           bool
+	structuredFallback    bool
 	antiWorseningRejected bool
 }
 
@@ -217,6 +218,7 @@ func compressPipelineWithConfig(source *dbpkg.ToolCall, cfg *config.Config, reg 
 	execution.output = string(res.Out)
 	execution.stages = res.Ran
 	execution.transformed = execution.output != source.Output || len(res.Ran) > 0
+	execution.structuredFallback = res.StructuredFallback
 	execution.antiWorseningRejected = res.AntiWorseningRejected
 	return execution, nil
 }

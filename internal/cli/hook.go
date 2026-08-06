@@ -557,8 +557,9 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	transformed := execution.transformed
 
 	// Footer-aware second gate. Fires only when recover_footer is
-	// enabled for the selected profile and the pipeline actually
-	// transformed the output. The pipeline Runner's byte-gate already
+	// enabled, the pipeline transformed the output, and the structure guard did
+	// not repair it. Repaired structure stays undecorated and valid. The pipeline
+	// Runner's byte-gate already
 	// fired inside compressPipeline (it discards results not smaller
 	// than the input). This second gate accounts for the footer's own
 	// byte overhead: when len(compressed)+len(footer) >= len(original),
@@ -567,7 +568,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	// agent-visible envelope.Output; the persisted Compressed.Output
 	// stays content-only.
 	envelopeOutput := compressedOutput
-	if execution.recoverFooter && transformed {
+	if execution.recoverFooter && transformed && !execution.structuredFallback {
 		footer := buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
 		if len(compressedOutput)+len(footer) >= len(tc.Output) {
 			transformed = false
@@ -603,9 +604,10 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		}
 
 		// The footer is agent-visible decoration on the authoritative
-		// (possibly stored) artifact; it is never persisted.
+		// (possibly stored) artifact; it is never persisted or appended to a
+		// repaired structured fallback.
 		finalOutput := result.Output
-		if result.Transformed && execution.recoverFooter {
+		if result.Transformed && execution.recoverFooter && !execution.structuredFallback {
 			footer := buildRecoveryFooter(result.SourceID, len(tc.Output), len(result.Output))
 			if len(result.Output)+len(footer) < len(tc.Output) {
 				finalOutput = result.Output + footer

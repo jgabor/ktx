@@ -261,6 +261,9 @@ func (r *Runner) warnf(format string, args ...any) {
 // stages that ran appear in the order they ran).
 type Result struct {
 	Out []byte
+	// StructuredFallback reports that the final stage result was invalid for
+	// recognized JSON input and Out was replaced with a faithful rendering.
+	StructuredFallback bool
 	// AntiWorseningRejected reports that the final pipeline output was not
 	// smaller than a non-empty input and was therefore discarded.
 	AntiWorseningRejected bool
@@ -334,6 +337,7 @@ func (r *Runner) Run(input []byte) Result {
 	res.Out = current
 	if protectStructure && !structured.accepts(res.Out) {
 		res.Out = structured.faithful
+		res.StructuredFallback = true
 	}
 
 	// Anti-worsening gate — the fourth conservative-on-failure

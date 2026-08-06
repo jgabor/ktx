@@ -1,0 +1,17 @@
+id: ulpuiumsnc
+artifact: progress
+record:
+  timestamp: 2026-08-06 22:53
+  type: fix
+  phase: build
+  what: Corrected recovery-footer delivery so a pipeline-repaired structured fallback remains valid at the final hook boundary while ordinary transformed output keeps existing footer behavior.
+  context:
+    intent: Perform the first bounded retry for fjzkmxxvsu after the independently recorded audit-1 FAIL.
+    constraints: Preserve the writer-owned FAIL evaluation unchanged, keep the task pending, change both hook delivery paths only for structured fallbacks, and retain ordinary footer-aware size gating.
+    unknowns: Agentera startup again omitted several families and the decisions list remained degraded with record details omitted. The accepted audit finding fully specified the implementation defect; no architecture choice was needed.
+    scope: Propagate the runner structured-fallback outcome through pipeline execution, suppress footer decoration for that outcome in flat and trusted hook delivery, add focused regressions, and synchronize pipeline documentation.
+  inspiration: "The accepted audit isolated the gap between the pipeline boundary and final delivery: content-only persistence was valid, but later agent-visible decoration invalidated it."
+  discovered: Both footer sites shared the same missing fact. The runner knew it had substituted faithful structure, but pipelineExecution did not carry that outcome to hook delivery. A single propagated boolean lets both paths omit only the unsafe decoration without changing ordinary results or their size gate.
+  verified: "TestHook_StructuredFallbackOmitsRecoveryFooter passed six delivery-boundary cases: complete JSON, NDJSON with a final newline, and NDJSON without one across flat and trusted OpenCode paths. Every delivered and persisted value matched compact faithful structure, every JSON or physical NDJSON record parsed, final-newline conventions matched, no footer was present, and a compressed artifact was retained. Existing FooterGate Keeps, Suppresses, and OrderedContentBeforeFooter tests passed, proving ordinary footer behavior and footer-aware gating remained intact. The original TestRun_ProtectsRecognizedJSON suite and all internal/pipeline packages passed, covering valid transformed results, unsupported and ambiguous input, trailers, conservative failure behavior, and non-smaller fallback rejection. The prior hook JSON guard regression passed. Rebuilt ./build/ktx version dev had SHA-256 a51bcaf3467ab57fc86aeebd335268b001e652ecfc53ca2bfeb9c08c5858aba6. Isolated local hook smoke tests delivered valid compact complete JSON and two valid NDJSON records with the retained final newline under recover_footer=true, without footer text. Final env -u KTX_DB mage check passed all tests, vet, lint with 0 issues, and build; database audit recorded 961 attempts, forbidden=0, external caches, and ktx_db=unset. git diff --check passed."
+  next: Keep fjzkmxxvsu pending with audit-1 FAIL preserved and submit this corrective commit and evidence for independent retry evaluation; do not record a new verdict.
+  publication_order: 61

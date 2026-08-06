@@ -95,6 +95,11 @@ byte-identical and in order. The normal anti-worsening gate still applies: when
 the faithful rendering is not smaller than the original input, the original
 bytes pass through and no transformation is retained.
 
+When this guard repairs a result, hook delivery does not append a recovery
+footer because that decoration would invalidate complete JSON or add invalid
+physical NDJSON records. Ordinary transformed output retains the configured
+footer and its footer-aware size gate.
+
 This guard does not route by content or change stage results that remain valid
 for the recognized shape. Invalid UTF-8, invalid JSON, blank-record NDJSON,
 adjacent JSON streams without NDJSON record boundaries, and other ambiguous

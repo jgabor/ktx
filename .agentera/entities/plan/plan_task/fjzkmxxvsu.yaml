@@ -12,3 +12,13 @@ record:
     - GIVEN unsupported, ambiguous, or initially invalid input, or a transformed result that remains structurally valid WHEN the pipeline completes THEN existing stage results and conservative failure behavior remain unchanged.
     - GIVEN a faithful replacement is available WHEN its delivered size is not smaller than the original input THEN the final gate returns the original input and records no retained transformation; focused regression checks and the repository check pass.
   plan: iexbmznkto
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Recovery footers are appended after the pipeline guard in both hook delivery paths. With recover_footer=true, repaired JSON gains trailing non-JSON text and repaired NDJSON gains a blank line plus footer, so criteria 1 and 2 fail at final delivery. Audit reproduced both failures with the rebuilt local binary; criteria 3 through 5 and the repository check passed.
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit report ses_0273b9e01ffeYOxrCgAwc4UMR0
+      recorded_at: 2026-08-06 22:45
+      writer_command: agentera state plan record-evaluation

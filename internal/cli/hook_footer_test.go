@@ -139,6 +139,121 @@ recover_footer = true
 	}
 }
 
+func TestHook_StructuredFallbackOmitsRecoveryFooter(t *testing.T) {
+	tests := []struct {
+		name   string
+		stages string
+		input  string
+		want   string
+		ndjson bool
+	}{
+		{
+			name:   "complete JSON",
+			stages: "head:1",
+			input:  "{\n  \"items\": [1, 2, 3, 4],\n  \"message\": \"complete value with padding\"\n}",
+			want:   `{"items":[1,2,3,4],"message":"complete value with padding"}`,
+		},
+		{
+			name:   "NDJSON with final newline",
+			stages: "truncate:12",
+			input:  "{ \"one\" : \"first value with padding\" }\n{ \"two\" : [1, 2, 3, 4] }\n",
+			want:   "{\"one\":\"first value with padding\"}\n{\"two\":[1,2,3,4]}\n",
+			ndjson: true,
+		},
+		{
+			name:   "NDJSON without final newline",
+			stages: "truncate:12",
+			input:  "{ \"one\" : \"first value with padding\" }\n{ \"two\" : [1, 2, 3, 4] }",
+			want:   "{\"one\":\"first value with padding\"}\n{\"two\":[1,2,3,4]}",
+			ndjson: true,
+		},
+	}
+	deliveries := []struct {
+		name     string
+		idPrefix string
+		payload  func(string, string) []byte
+	}{
+		{
+			name:     "flat",
+			idPrefix: "guardflat",
+			payload: func(id, output string) []byte {
+				payload, err := json.Marshal(dbpkg.ToolCall{
+					ID: id, Tool: "read", Output: output, Timestamp: "2026-08-06T23:00:00Z",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return payload
+			},
+		},
+		{
+			name:     "trusted OpenCode",
+			idPrefix: "guardopen",
+			payload: func(id, output string) []byte {
+				payload, err := json.Marshal(map[string]any{
+					"runtime": "opencode", "id": id, "timestamp": "2026-08-06T23:00:00Z",
+					"input":  map[string]any{"tool": "read", "args": map[string]any{}},
+					"output": map[string]any{"output": output},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return payload
+			},
+		},
+	}
+
+	for shapeIndex, shape := range tests {
+		for _, delivery := range deliveries {
+			t.Run(shape.name+"/"+delivery.name, func(t *testing.T) {
+				d := hookTestDB(t)
+				hookChdirTemp(t)
+				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+				hookWriteUserConfig(t, fmt.Sprintf(`[pipeline.default]
+stages = [%q]
+recover_footer = true
+`, shape.stages))
+
+				id := fmt.Sprintf("%s%04d", delivery.idPrefix, shapeIndex)
+				var stdout, stderr bytes.Buffer
+				if _, err := hookLogic(bytes.NewReader(delivery.payload(id, shape.input)), d, &stdout, &stderr); err != nil {
+					t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+				}
+
+				var env hookEnvelope
+				if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+					t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
+				}
+				if env.Output != shape.want {
+					t.Errorf("output = %q, want faithful structure %q", env.Output, shape.want)
+				}
+				if strings.Contains(env.Output, "[ktx]") {
+					t.Errorf("recovery footer invalidated repaired structure: %q", env.Output)
+				}
+				if shape.ndjson {
+					for recordNumber, record := range strings.Split(strings.TrimSuffix(env.Output, "\n"), "\n") {
+						if !json.Valid([]byte(record)) {
+							t.Errorf("NDJSON record %d is invalid: %q", recordNumber+1, record)
+						}
+					}
+				} else if !json.Valid([]byte(env.Output)) {
+					t.Errorf("complete JSON output is invalid: %q", env.Output)
+				}
+				if env.CompressedID == nil {
+					t.Fatal("compressed_id is null; want retained faithful replacement")
+				}
+				compressed, err := d.GetCompressed(*env.CompressedID)
+				if err != nil {
+					t.Fatalf("GetCompressed: %v", err)
+				}
+				if compressed.Output != shape.want {
+					t.Errorf("persisted output = %q, want %q", compressed.Output, shape.want)
+				}
+			})
+		}
+	}
+}
+
 func TestHook_FooterDisabled(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)

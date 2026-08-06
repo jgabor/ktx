@@ -77,7 +77,8 @@ The runner, not individual stages, enforces:
 4. Pipeline anti-worsening: discard the complete result unless it is smaller.
 5. JSON structure guard: replace malformed results from recognized complete
    JSON, NDJSON, or a JSON prefix with compact faithful structure before the
-   anti-worsening decision.
+   anti-worsening decision. Hook delivery omits recovery footers from repaired
+   structure; ordinary results retain footer behavior and footer-aware gating.
 
 For hook execution, a profile timeout protects the agent response deadline. The
 default is two seconds. On timeout, the hook returns the original and emits a

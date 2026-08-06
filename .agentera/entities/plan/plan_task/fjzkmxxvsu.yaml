@@ -1,0 +1,14 @@
+id: fjzkmxxvsu
+artifact: plan
+record:
+  name: Protect recognized JSON through pipeline completion
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN one complete valid JSON value enters a pipeline WHEN configured transforms make its result structurally invalid THEN delivery contains a smaller representation of the same complete value or the original bytes, never malformed JSON.
+    - GIVEN valid newline-delimited JSON enters a pipeline WHEN one or more records would be damaged THEN delivery preserves every original record as valid newline-delimited JSON, including its established final-newline convention, or passes through the original bytes.
+    - GIVEN a valid JSON value followed by a text trailer enters a pipeline WHEN the structured prefix would be damaged THEN delivery preserves the complete JSON meaning and the trailer bytes in order, or passes through the original bytes.
+    - GIVEN unsupported, ambiguous, or initially invalid input, or a transformed result that remains structurally valid WHEN the pipeline completes THEN existing stage results and conservative failure behavior remain unchanged.
+    - GIVEN a faithful replacement is available WHEN its delivered size is not smaller than the original input THEN the final gate returns the original input and records no retained transformation; focused regression checks and the repository check pass.
+  plan: iexbmznkto

@@ -1,0 +1,23 @@
+id: iexbmznkto
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-06
+    status: open
+    title: "Plan: Guard JSON structure after pipeline transforms"
+  what: Ensure a pipeline cannot deliver malformed structured output when it began with recognized valid JSON. If a transform breaks structure, deliver a smaller faithful rendering of the original structured value when possible; otherwise preserve the original input.
+  why: Byte reduction alone does not protect semantic structure. The guard must make structured-output routing safe without weakening conservative passthrough or the final size gate.
+  constraints: Preserve the existing bytes-in, bytes-out stage contract, stage ordering, recovery behavior, artifact authority, and final anti-worsening gate. Do not broaden routes, add content-based routing, change shipped defaults, or resolve open stage-semantics and preprocessing discussions in this work.
+  overall_acceptance: GIVEN recognized structured input enters an active pipeline WHEN any configured transform would leave invalid structure THEN the delivered result is a smaller faithful structured representation or the original input, and existing conservative behavior remains unchanged for all other input.
+  scope:
+    included:
+      - Guard behavior for a single JSON value, newline-delimited JSON, and a JSON value followed by a text trailer.
+      - Regression coverage for structural damage, faithful fallback, unsupported input, and size-gate outcomes.
+      - Pipeline documentation that states the protected shapes, passthrough behavior, and unchanged routing boundary.
+    excluded:
+      - New automatic content routing or broader routes over structured output.
+      - New public configuration or stage metadata contracts.
+      - Command-specific structured parsers or changes to default pipeline profiles.
+  surprises:
+    []

@@ -82,6 +82,8 @@ def main():
         ("aaaaaaaaaaaaaaal", "exit-only", 55, None, 9, False),
         ("aaaaaaaaaaaaaaam", "outside-window", 180, None, None, False),
         ("aaaaaaaaaaaaaaan", None, 5, None, None, False),
+        ("aaaaaaaaaaaaaaao", "real-zero", 27, None, None, False),
+        ("aaaaaaaaaaaaaaap", "real-one", 28, None, None, False),
     ]
     for record in records:
         write(mixed, *record)
@@ -105,15 +107,18 @@ def main():
             ("1", "aaaaaaaaaaaaaaai"),
             (sqlite3.Binary(b"\x00"), "aaaaaaaaaaaaaaaj"),
             (None, "aaaaaaaaaaaaaaak"),
+            (0.0, "aaaaaaaaaaaaaaao"),
+            (1.0, "aaaaaaaaaaaaaaap"),
         ]
         connection.executemany("UPDATE tool_calls SET is_error=? WHERE id=?", updates)
         connection.execute("UPDATE tool_calls SET output=NULL, content_hash=NULL WHERE id='aaaaaaaaaaaaaaan'")
-        stored = dict(connection.execute("SELECT id, typeof(is_error) FROM tool_calls WHERE id BETWEEN 'aaaaaaaaaaaaaaae' AND 'aaaaaaaaaaaaaaak'"))
+        stored = dict(connection.execute("SELECT id, typeof(is_error) FROM tool_calls WHERE id IN (?,?,?,?,?,?,?,?,?)", [row[1] for row in updates]))
         assert stored == {
             "aaaaaaaaaaaaaaae": "integer", "aaaaaaaaaaaaaaaf": "real",
             "aaaaaaaaaaaaaaag": "text", "aaaaaaaaaaaaaaah": "text",
             "aaaaaaaaaaaaaaai": "text", "aaaaaaaaaaaaaaaj": "blob",
             "aaaaaaaaaaaaaaak": "null",
+            "aaaaaaaaaaaaaaao": "real", "aaaaaaaaaaaaaaap": "real",
         }
 
     all_known = roots["db"] / "all-known.db"
@@ -158,7 +163,7 @@ def main():
         return False
 
     cases = [
-        ("mixed", mixed, (2, 1, 8, 100 / 3, 300 / 11)),
+        ("mixed", mixed, (2, 1, 10, 100 / 3, 300 / 13)),
         ("empty", empty, (0, 0, 0, None, None)),
         ("all-known", all_known, (1, 1, 0, 50.0, 100.0)),
         ("all-unknown", all_unknown, (0, 0, 3, None, 0.0)),
@@ -180,7 +185,7 @@ def main():
         results[name] = {"stats": summary["outcomes"], "calls": summary["calls"], "tokens": summary["tokens"]}
 
     report_cases = [
-        ("mixed", mixed, (2, 1, 10, 33.33, 23.08)),
+        ("mixed", mixed, (2, 1, 12, 33.33, 20.0)),
         ("empty", empty, (0, 0, 0, None, None)),
         ("all-known", all_known, (1, 1, 0, 50.0, 100.0)),
         ("all-unknown", all_unknown, (0, 0, 3, None, 0.0)),
@@ -201,10 +206,16 @@ def main():
         coverage = report["measurement_coverage"]["coverage"]["error_status"]
         assert coverage["measured_calls"] == expected[0] + expected[1]
         assert equal(coverage["coverage_pct"], expected[4])
+        assert sum(row["error_calls"] for row in report["tool_metrics"]) == expected[1]
+        assert sum(row["unknown_status_calls"] for row in report["tool_metrics"]) == expected[2]
+        assert sum(row["error_calls"] for row in report["agent_metrics"]) == expected[1]
+        assert sum(row["error_calls"] for row in report["daily_activity"]) == expected[1]
         results[name]["report"] = {
             "outcomes": report["failure_metrics"], "sha256_before": before,
             "sha256_after": after, "user_version_before": version_before,
             "user_version_after": version_after, "source": report["source"],
+            "tool_metrics": report["tool_metrics"], "agent_metrics": report["agent_metrics"],
+            "daily_activity": report["daily_activity"],
         }
 
     results["binary"] = {

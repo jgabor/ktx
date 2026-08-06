@@ -1,0 +1,20 @@
+id: nypdistlxh
+artifact: plan
+record:
+  plan: ldknsjplye
+  name: Reject non-integer database outcomes
+  status: in_progress
+  depends_on:
+    - zjqwiriduj
+    - mvggstggsy
+  acceptance:
+    - GIVEN SQLite INTEGER 0 or 1 WHEN database outcome metrics render THEN the values count as known success or failure.
+    - GIVEN SQLite REAL 0.0 or 1.0, another non-integer value, NULL, or invalid storage WHEN database outcome metrics render THEN every outcome expression counts it as unknown.
+    - GIVEN identical persisted rows WHEN live stats and database reporting aggregate outcomes THEN known, unknown, success, failure, error rate, and coverage agree with their declared populations.
+    - GIVEN regression fixtures WHEN checks run THEN exact REAL 0.0 and REAL 1.0 are retained with storage class real and remain unknown across report surfaces.
+    - GIVEN source changes WHEN verification completes THEN mage check and refreshed integrated evidence use the newly built local build/ktx with disposable state and no ambient database access.
+  evidence:
+    - internal/dbreport/report.go
+    - internal/dbreport/report_test.go
+    - .agentera/verification/tool_outcome_integrated_check.py
+    - .agentera/verification/tool-outcome-integrated-2026-08-05.md

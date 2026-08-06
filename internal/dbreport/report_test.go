@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -190,6 +191,96 @@ func TestReportOutcomeMetrics(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReportOutcomeStorageClasses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fixture.db")
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(strings.Replace(testSchema, "is_error INTEGER", "is_error", 1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`INSERT INTO sessions VALUES ('s1','unknown','2026-07-01T00:00:00Z',NULL,'2026-07-01T00:00:00Z',10)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`INSERT INTO tool_calls (id,session_id,tool,input,output,content_hash,timestamp,is_error) VALUES
+('integer-zero-a','s1','bash','','','','2026-07-01T00:00:00Z',0),
+('integer-zero-b','s1','read','','','','2026-07-01T00:00:00Z',0),
+('integer-one','s1','bash','','','','2026-07-01T00:00:00Z',1),
+('real-zero','s1','bash','','','','2026-07-01T00:00:00Z',0.0),
+('real-one','s1','bash','','','','2026-07-01T00:00:00Z',1.0),
+('real-other','s1','read','','','','2026-07-01T00:00:00Z',0.5),
+('integer-other','s1','read','','','','2026-07-01T00:00:00Z',7),
+('null','s1','read','','','','2026-07-01T00:00:00Z',NULL),
+('text','s1','read','','','','2026-07-01T00:00:00Z','1'),
+('blob','s1','read','','','','2026-07-01T00:00:00Z',x'01')`); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := database.Query(`SELECT id, typeof(is_error) FROM tool_calls ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storedTypes := map[string]string{}
+	for rows.Next() {
+		var id, storageType string
+		if err := rows.Scan(&id, &storageType); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		storedTypes[id] = storageType
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	wantTypes := map[string]string{
+		"integer-zero-a": "integer", "integer-zero-b": "integer", "integer-one": "integer",
+		"real-zero": "real", "real-one": "real", "real-other": "real", "integer-other": "integer",
+		"null": "null", "text": "text", "blob": "blob",
+	}
+	if fmt.Sprint(storedTypes) != fmt.Sprint(wantTypes) {
+		t.Fatalf("stored outcome types = %v, want %v", storedTypes, wantTypes)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := Generate(path, false, time.Date(2026, 7, 10, 12, 34, 56, 789000000, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	failures := report["failure_metrics"].(map[string]any)
+	if got := []int64{asInt64(failures["successful_calls"]), asInt64(failures["error_calls"]), asInt64(failures["unknown_status_calls"]), asInt64(failures["known_status_calls"])}; fmt.Sprint(got) != "[2 1 7 3]" {
+		t.Errorf("failure counts = %v, want [2 1 7 3]", got)
+	}
+	assertOptionalFloat(t, failures["error_rate_pct_of_known"], float64Ptr(33.33))
+	assertOptionalFloat(t, failures["outcome_coverage_pct"], float64Ptr(30))
+	coverage := report["measurement_coverage"].(map[string]any)["coverage"].(map[string]any)["error_status"].(map[string]any)
+	if got := asInt64(coverage["measured_calls"]); got != 3 {
+		t.Errorf("measured_calls = %d, want 3", got)
+	}
+	assertOptionalFloat(t, coverage["coverage_pct"], float64Ptr(30))
+
+	tools := report["tool_metrics"].([]map[string]any)
+	toolOutcomes := map[string][]int64{}
+	for _, tool := range tools {
+		toolOutcomes[asString(tool["tool"])] = []int64{asInt64(tool["error_calls"]), asInt64(tool["unknown_status_calls"])}
+	}
+	if got := fmt.Sprint(toolOutcomes); got != "map[bash:[1 2] read:[0 5]]" {
+		t.Errorf("grouped tool outcomes = %s, want map[bash:[1 2] read:[0 5]]", got)
+	}
+	agents := report["agent_metrics"].([]map[string]any)
+	if got := asInt64(agents[0]["error_calls"]); got != 1 {
+		t.Errorf("agent error_calls = %d, want 1", got)
+	}
+	daily := report["daily_activity"].([]map[string]any)
+	if got := asInt64(daily[0]["error_calls"]); got != 1 {
+		t.Errorf("daily error_calls = %d, want 1", got)
 	}
 }
 

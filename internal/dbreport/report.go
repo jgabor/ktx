@@ -188,7 +188,7 @@ COUNT(tokens_in) AS calls_with_tokens_in, COUNT(tokens_out) AS calls_with_tokens
 COUNT(cost) AS calls_with_cost, COUNT(latency_ms) AS calls_with_latency,
 COUNT(model) AS calls_with_model, COUNT(provider) AS calls_with_provider,
 COUNT(exit_code) AS calls_with_exit_code,
-COALESCE(SUM(CASE WHEN is_error IN (0, 1) THEN 1 ELSE 0 END), 0) AS calls_with_error_status,
+COALESCE(SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error IN (0, 1) THEN 1 ELSE 0 END), 0) AS calls_with_error_status,
 SUM(tokens_in) AS total_tokens_in, SUM(tokens_out) AS total_tokens_out, SUM(cost) AS total_cost FROM tool_calls`)
 	if err != nil {
 		return nil, err
@@ -230,9 +230,9 @@ GROUP BY provider ORDER BY call_count DESC, provider`)
 
 func extractFailureMetrics(tx *sql.Tx) (any, error) {
 	statuses, err := queryOne(tx, `SELECT
-COALESCE(SUM(CASE WHEN is_error = 1 THEN 1 ELSE 0 END), 0) AS error_calls,
-COALESCE(SUM(CASE WHEN is_error = 0 THEN 1 ELSE 0 END), 0) AS successful_calls,
-COALESCE(SUM(CASE WHEN is_error IS NULL OR is_error NOT IN (0, 1) THEN 1 ELSE 0 END), 0) AS unknown_status_calls,
+COALESCE(SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error = 1 THEN 1 ELSE 0 END), 0) AS error_calls,
+COALESCE(SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error = 0 THEN 1 ELSE 0 END), 0) AS successful_calls,
+COALESCE(SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error IN (0, 1) THEN 0 ELSE 1 END), 0) AS unknown_status_calls,
 COUNT(*) AS total_tool_calls FROM tool_calls`)
 	if err != nil {
 		return nil, err
@@ -255,8 +255,8 @@ COALESCE(SUM(length(CAST(input AS BLOB))), 0) AS input_bytes,
 COALESCE(SUM(length(CAST(output AS BLOB))), 0) AS output_bytes,
 SUM(tokens_in) AS tokens_in, SUM(tokens_out) AS tokens_out, SUM(cost) AS cost,
 ROUND(AVG(latency_ms), 2) AS average_latency_ms,
-SUM(CASE WHEN is_error = 1 THEN 1 ELSE 0 END) AS error_calls,
-SUM(CASE WHEN is_error IS NULL OR is_error NOT IN (0, 1) THEN 1 ELSE 0 END) AS unknown_status_calls
+SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error = 1 THEN 1 ELSE 0 END) AS error_calls,
+SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error IN (0, 1) THEN 0 ELSE 1 END) AS unknown_status_calls
 FROM tool_calls GROUP BY tool ORDER BY call_count DESC, tool`
 
 const agentMetricsSQL = `WITH session_counts AS (
@@ -265,7 +265,7 @@ SELECT s.agent, COUNT(tc.id) AS tool_call_count,
 COALESCE(SUM(length(CAST(tc.output AS BLOB))), 0) AS output_bytes,
 SUM(tc.tokens_in) AS tokens_in, SUM(tc.tokens_out) AS tokens_out, SUM(tc.cost) AS cost,
 ROUND(AVG(tc.latency_ms), 2) AS average_latency_ms,
-SUM(CASE WHEN tc.is_error = 1 THEN 1 ELSE 0 END) AS error_calls
+SUM(CASE WHEN typeof(tc.is_error) = 'integer' AND tc.is_error = 1 THEN 1 ELSE 0 END) AS error_calls
 FROM sessions s LEFT JOIN tool_calls tc ON tc.session_id = s.id GROUP BY s.agent)
 SELECT sc.agent, sc.session_count, cc.tool_call_count, cc.output_bytes,
 cc.tokens_in, cc.tokens_out, cc.cost, cc.average_latency_ms, cc.error_calls
@@ -543,7 +543,8 @@ UNION SELECT DATE(timestamp) FROM compressed UNION SELECT DATE(captured_at) FROM
 session_daily AS (SELECT DATE(started_at) AS date, COUNT(*) AS sessions FROM sessions WHERE DATE(started_at) IS NOT NULL GROUP BY DATE(started_at)),
 call_daily AS (SELECT DATE(timestamp) AS date, COUNT(*) AS tool_calls,
 COALESCE(SUM(length(CAST(output AS BLOB))),0) AS output_bytes, SUM(tokens_in) AS tokens_in,
-SUM(tokens_out) AS tokens_out, SUM(cost) AS cost, SUM(CASE WHEN is_error=1 THEN 1 ELSE 0 END) AS error_calls
+SUM(tokens_out) AS tokens_out, SUM(cost) AS cost,
+SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error = 1 THEN 1 ELSE 0 END) AS error_calls
 FROM tool_calls WHERE DATE(timestamp) IS NOT NULL GROUP BY DATE(timestamp)),
 compression_daily AS (SELECT DATE(c.timestamp) AS date, COUNT(*) AS compression_artifacts,
 COUNT(DISTINCT c.source_id) AS compressed_sources, COALESCE(SUM(length(CAST(tc.output AS BLOB))),0) AS source_bytes,

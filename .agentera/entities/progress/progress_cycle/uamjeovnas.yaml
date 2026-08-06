@@ -1,0 +1,17 @@
+id: uamjeovnas
+artifact: progress
+record:
+  timestamp: 2026-08-06 14:54
+  type: fix
+  phase: build
+  what: Corrected database outcome reporting so only SQLite INTEGER 0 and 1 count as known, matching live statistics and the public contract.
+  context:
+    intent: Resolve the accepted merge-readiness blocker for plan ldknsjplye task nypdistlxh without closing or evaluating the task.
+    constraints: Preserve the reopened plan and in-progress task, use no migration or schema-version bump, refresh retained integration evidence with the local binary, and avoid ambient database access.
+    unknowns: None material. SQLite storage class, not numeric equality alone, is the required authority.
+    scope: Database-report outcome SQL, direct SQLite regression coverage, the retained integrated harness and evidence, and typed progress only.
+  inspiration: Live stats already used the correct guard, typeof(is_error) = 'integer' with an exact 0-or-1 domain check.
+  discovered: Before correction, a direct isolated fixture proved exact REAL 0.0 and 1.0 retained storage class real. Stats reported 2 success, 1 error, and 8 unknown with 33.33333333333333% error rate and 27.27272727272727% coverage, while the database report reported 3 success, 2 errors, and 6 unknown with 40% error rate and 45.45% coverage. Tool, agent, and daily report groups also counted REAL 1.0 as an error.
+  verified: The focused TestEmptyReportGoldenAndReadOnly, TestReportAggregatesProductEvidence, TestReportOutcomeMetrics, and TestReportOutcomeStorageClasses run passed, then the full internal/dbreport package passed. The direct SQLite regression proves INTEGER 0/1 remain known; REAL 0.0, REAL 1.0, REAL 0.5, INTEGER 7, NULL, text, and blob retain their expected storage classes and remain unknown. It asserts 2 success, 1 error, 7 unknown, 33.33% known-outcome error rate, 30% coverage, and corrected tool, agent, and daily groups. mage build produced local ./build/ktx version dev with SHA-256 15d8e5afabbd8bd3b07ded4e362813399400f600a3ffa77509c94a0ff65d65fc. The retained integration passed with mixed stats 2/1/10, 33.33333333333333% error rate, and 23.076923076923077% coverage; its all-call report returned 2/1/12, 33.33%, and 20%, and validated exact REAL storage plus grouped surfaces. Empty, all-known, and all-unknown equal populations agree. Final isolated mage check passed all tests, vet, lint with 0 issues, and build; its database audit recorded 955 attempts, forbidden=0, external caches, and ktx_db=unset, and the binary hash remained unchanged. Agentera state validation passed 588 entities with 0 issues. git diff --check passed, and the scoped pre-progress diff contains only the reopened plan, in-progress correction task, two report files, and two retained verification files.
+  next: Keep nypdistlxh in progress without evaluation and submit the correction and refreshed evidence to the independent evaluator. Do not close the plan, update health or TODO, or alter archived predecessor caiaxiakry.
+  publication_order: 59

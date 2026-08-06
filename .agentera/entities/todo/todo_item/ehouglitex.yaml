@@ -16,3 +16,11 @@ record:
       recovery: Record a concrete use case that requires per-tool cost evidence.
     queue_rank: 21
     order_reason: TODO.md triggered/deferred order; the pending gate prevents execution.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Wrapper `step_finish` enrichment** — Trigger only if a concrete use case requires per-tool cost evidence. Runtime-emitted model-step cache and cost fields remain benchmark/recorded-stream evidence and must not be attached to `tool_calls`; missing fields remain unavailable. → [Measurement](ARCHITECTURE.md#measurement)"
+      severity: normal
+      status: open
+      order: 6

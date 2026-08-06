@@ -4,3 +4,7 @@ record:
   severity: normal
   status: resolved
   description: "**Runtime context observability and derived evidence** — Retain runtime-emitted identity, local order, and measurement fields plus provenance-scoped equality hashes and counts only for exact sanitized runtime-visible or explicitly configured segments. Keep unsupported segments, compaction, provider prefix composition, and provider request boundaries unavailable. General content-derived retention remains gated by the trust/redaction discussion. → [Recorded decision](.agentera/entities/decisions/decision/ufrltsdlaw.yaml)"
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

@@ -18,3 +18,7 @@ record:
       recovery: The user approves replanning of runner behavior or revises the stop-condition authorization.
     queue_rank: 1
     order_reason: Every downstream Luna evidence task depends on resolving the blocked replication task.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

@@ -4,3 +4,7 @@ record:
   severity: normal
   status: resolved
   description: "**Benchmark evidence aggregation** — Run structured deliberation and record the choice for how call evidence, session roll-ups, and experiment artifacts compose. → [Question](ARCHITECTURE.md#benchmark-evidence-aggregation)"
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

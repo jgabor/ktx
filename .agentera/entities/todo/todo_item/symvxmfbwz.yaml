@@ -13,3 +13,11 @@ record:
     gate: null
     queue_rank: 17
     order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)"
+      severity: normal
+      status: open
+      order: 17

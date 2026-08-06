@@ -13,3 +13,11 @@ record:
     gate: null
     queue_rank: 20
     order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)"
+      severity: normal
+      status: open
+      order: 13

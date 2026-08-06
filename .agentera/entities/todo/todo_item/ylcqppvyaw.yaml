@@ -4,3 +4,7 @@ record:
   severity: normal
   status: resolved
   description: "**Retained runtime-telemetry comparison** — Retain a methodology-v5 comparison across selected runtime, model, and provider configurations using only runtime observations and provider/model identity provenance. Report raw runtime-emitted `cache_read` and `cache_write` distributions, runtime-reported and estimated costs, quality, setup cost, and break-even evidence. Keep provider documentation and pricing as context, label historical fixtures unsupported for current collection, and make no provider-internal cache, request-boundary, isolation, or prefix-composition claim. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

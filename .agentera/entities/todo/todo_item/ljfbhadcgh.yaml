@@ -4,3 +4,7 @@ record:
   severity: normal
   status: resolved
   description: "**Compression disposition evidence** — Retain a bounded outcome for each output-bearing call that distinguishes artifact persistence from intentional passthrough, unmatched routing, and anti-worsening rejection. Expose `ktx stats breakdown` as a read-only, token-weighted view by tool, normalized command or subcommand, selected profile, disposition, and output-size band; reconcile call, artifact, raw-estimate, and delivered-estimate totals exactly. Preserve first-evidence ownership, first-artifact authority, retry convergence, and existing raw-versus-delivered semantics. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

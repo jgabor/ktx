@@ -6,10 +6,20 @@ record:
   description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)"
   readiness:
     capability: build
-    reason: Protect structured output before routes over structured results are broadened.
+    reason: Close the artifact-authority gap that still breaks structured retry delivery.
     dependencies:
       []
-    blocked: null
+    blocked:
+      reason: Two independent evaluator failures exhausted the active plan task retry budget; exact trusted retries can use current-run metadata for a different retained artifact.
+      recovery: Create a replacement plan task for artifact-owned structured-fallback metadata, then resume orchestrated implementation.
     gate: null
     queue_rank: 2
-    order_reason: TODO.md Priority 1 order; same-priority work may proceed in parallel.
+    order_reason: This remains required before routes over structured output are broadened.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)"
+      severity: normal
+      status: open
+      order: 20

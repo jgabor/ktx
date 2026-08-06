@@ -13,3 +13,11 @@ record:
     gate: null
     queue_rank: 9
     order_reason: TODO.md Priority 4 engineering follow-through order.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Unified hook processing flow** — Separate Codex, OpenCode, and flat payload extraction from the common session resolution, source persistence, compression, artifact persistence, recovery-cue, and envelope-rendering flow. Preserve trusted-ingress identity, first-evidence ownership, and first-compressed-artifact authority. → [Ingress](ARCHITECTURE.md#ingress)"
+      severity: normal
+      status: open
+      order: 18

@@ -13,3 +13,11 @@ record:
     gate: null
     queue_rank: 16
     order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Universal preprocessing and filter-pack composition** — Run a structured discussion and record the composition, precedence, and inspection choice, considering wildcard preprocessors and declarative filter packs only as alternatives. → [Question](ARCHITECTURE.md#universal-preprocessing-and-filter-pack-composition)"
+      severity: normal
+      status: open
+      order: 14

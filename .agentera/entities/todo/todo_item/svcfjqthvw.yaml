@@ -17,3 +17,7 @@ record:
     operation: resolve
     reason: Final integrated PASS verified at .agentera/verification/tool-outcome-integrated-2026-08-05.md.
     date: 2026-08-05
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

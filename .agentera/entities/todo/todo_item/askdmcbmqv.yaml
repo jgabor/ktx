@@ -13,3 +13,11 @@ record:
     gate: null
     queue_rank: 19
     order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Layer 5 boundary** — Run a structured discussion and record the history/memory boundary, lifecycle, storage, consumption, and external-tool choice. → [Question](ARCHITECTURE.md#layer-5-boundary)"
+      severity: normal
+      status: open
+      order: 1

@@ -15,3 +15,7 @@ record:
     gate: null
     queue_rank: 1
     order_reason: Five-pair gate analysis depends on trusted replication evidence.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

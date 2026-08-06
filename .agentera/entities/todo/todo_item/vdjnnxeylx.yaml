@@ -4,3 +4,7 @@ record:
   severity: normal
   status: resolved
   description: "**Savings attribution** — Run structured deliberation and record the attribution and aggregation contract for runtime observations, identity provenance, and reference/estimate sources without double-counting or inferring provider-internal cache or request behavior. → [Question](ARCHITECTURE.md#savings-attribution)"
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

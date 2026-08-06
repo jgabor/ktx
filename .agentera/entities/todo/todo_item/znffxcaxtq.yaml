@@ -18,3 +18,7 @@ record:
       recovery: Execute the approved replacement and retain PASS before supersession.
     queue_rank: 1
     order_reason: Paid Luna execution and all downstream evidence tasks remain blocked until the approved replacement passes.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

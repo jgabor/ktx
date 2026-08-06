@@ -4,7 +4,7 @@ record:
   name: Protect recognized JSON through pipeline completion
   depends_on:
     []
-  status: pending
+  status: blocked
   acceptance:
     - GIVEN one complete valid JSON value enters a pipeline WHEN configured transforms make its result structurally invalid THEN delivery contains a smaller representation of the same complete value or the original bytes, never malformed JSON.
     - GIVEN valid newline-delimited JSON enters a pipeline WHEN one or more records would be damaged THEN delivery preserves every original record as valid newline-delimited JSON, including its established final-newline convention, or passes through the original bytes.
@@ -13,12 +13,12 @@ record:
     - GIVEN a faithful replacement is available WHEN its delivered size is not smaller than the original input THEN the final gate returns the original input and records no retained transformation; focused regression checks and the repository check pass.
   plan: iexbmznkto
   evaluation:
-    attempt_count: 1
-    failure_count: 1
+    attempt_count: 2
+    failure_count: 2
     last_verdict: fail
-    last_failure_evidence: Recovery footers are appended after the pipeline guard in both hook delivery paths. With recover_footer=true, repaired JSON gains trailing non-JSON text and repaired NDJSON gains a blank line plus footer, so criteria 1 and 2 fail at final delivery. Audit reproduced both failures with the rebuilt local binary; criteria 3 through 5 and the repository check passed.
+    last_failure_evidence: Exact trusted retries apply current-run structured-fallback metadata to a previously retained authoritative artifact. Repaired JSON and NDJSON can regain recovery footers, while an ordinary retained artifact can lose its footer after configuration changes. Criteria 1, 2, and 4 fail on retry authority. The fix must persist the fallback fact with each artifact and use the selected artifact's fact for delivery.
     provenance:
-      attempt_id: audit-1
-      source: independent Audit report ses_0273b9e01ffeYOxrCgAwc4UMR0
-      recorded_at: 2026-08-06 22:45
+      attempt_id: audit-2
+      source: independent Audit re-review ses_0273b9e01ffeYOxrCgAwc4UMR0
+      recorded_at: 2026-08-06 23:06
       writer_command: agentera state plan record-evaluation

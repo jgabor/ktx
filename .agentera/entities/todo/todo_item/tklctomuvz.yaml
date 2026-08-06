@@ -16,3 +16,11 @@ record:
     gate: null
     queue_rank: 6
     order_reason: TODO.md Priority 2 order after deployed pipeline-resolution and disposition prerequisites.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Representative residual-delivery study** — After single pipeline resolution and compression disposition evidence are deployed, capture at least one complete 72-hour interval; require a complete seven-day interval before changing shipped defaults because the source window was strongly day-skewed. Produce an aggregate-safe, read-only ranking of raw-delivered `read`, `bash`, and `grep` output by disposition, profile, normalized command or subcommand, output-size band, call count, and raw and delivered estimates. Keep cache evidence separate with its actual capture coverage, do not persist new content-derived features before the trust/redaction discussion is resolved, and select exactly one candidate subgroup for experimentation. → [Pipeline](ARCHITECTURE.md#pipeline) · [Measurement](ARCHITECTURE.md#measurement)"
+      severity: normal
+      status: open
+      order: 19

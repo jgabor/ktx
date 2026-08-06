@@ -4,3 +4,7 @@ record:
   severity: normal
   status: resolved
   description: "**Route exit-status validation** — Align configuration validation with the documented `success`, `failure`, and `any` values so misspellings cannot silently behave as wildcard routes. Preserve current routing until this separately scoped change is implemented and tested. → [Router](ARCHITECTURE.md#router)"
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: false

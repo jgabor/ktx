@@ -13,3 +13,11 @@ record:
     gate: null
     queue_rank: 13
     order_reason: TODO.md Priority 4 engineering follow-through order.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Recorded-decision satisfaction review** — Review recorded choices that lack current satisfaction evidence against shipped behavior, tests, documentation, and retained benchmark evidence; record the review in the decision history without rewriting prior choices."
+      severity: normal
+      status: open
+      order: 8

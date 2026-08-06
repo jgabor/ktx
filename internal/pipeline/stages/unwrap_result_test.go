@@ -93,7 +93,7 @@ func TestUnwrapResult_UnsafeOrUnknownInputIsIdentity(t *testing.T) {
 	}
 }
 
-func TestUnwrapResult_ChainsBeforeLineStages(t *testing.T) {
+func TestUnwrapResult_PipelineCannotDiscardJSONStructure(t *testing.T) {
 	reg := pipeline.NewRegistry()
 	RegisterBuiltins(reg)
 
@@ -104,11 +104,13 @@ func TestUnwrapResult_ChainsBeforeLineStages(t *testing.T) {
 	}
 	result := runner.Run(input)
 
-	want := "first\n[ktx: 3 lines omitted]\nfifth"
-	if string(result.Out) != want {
-		t.Errorf("pipeline output = %q, want %q", result.Out, want)
+	if !bytes.Equal(result.Out, input) {
+		t.Errorf("pipeline output = %q, want original JSON %q", result.Out, input)
 	}
-	if len(result.Ran) != 2 || result.Ran[0] != "unwrap-result" || result.Ran[1] != "keep-ends:1:1" {
-		t.Errorf("pipeline stages = %v, want [unwrap-result keep-ends:1:1]", result.Ran)
+	if len(result.Ran) != 0 {
+		t.Errorf("pipeline stages = %v, want none retained", result.Ran)
+	}
+	if !result.AntiWorseningRejected {
+		t.Error("AntiWorseningRejected = false, want true")
 	}
 }

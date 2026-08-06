@@ -51,19 +51,18 @@ Context7 object with one
 `wrap_result:true` metadata, and an identical `structuredContent.result`; or a
 Codex `webrun` array with one `input_text` item. Malformed or trailing JSON,
 unknown fields, error or empty results, invalid metadata, multiple or non-text
-items, and mismatched Kagi duplicates are byte-identical no-ops. It must run
-first: decoding escaped newlines exposes real lines to `strip-ansi`, `normalize`,
-and `keep-ends`; running line-oriented stages against the original envelope
-would treat it as one line. The original envelope remains available through the
-recovery footer whenever the composed pipeline compresses.
+items, and mismatched Kagi duplicates are byte-identical no-ops. It runs first,
+so later line-oriented stages can process decoded text. The final structure
+guard does not retain that projection when the pipeline result is no longer
+valid JSON; it substitutes compact faithful JSON or passes through the original.
 
-| Recipe                                  | Stages (and flags)                                                        | When to use                                                                     |
-| --------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Sanitize only                           | `strip-ansi`, `dedup-blank`, `normalize`                                  | No content loss; little savings on clean output                                 |
-| **Keep-ends mid (recommended general)** | `unwrap-result` + `json-compact` + sanitize + `keep-ends:100:50`          | Configured example default; structured projection before recoverable truncation |
-| Aggressive head                         | sanitize + `head:30`                                                      | Max token/cost cut; accepts mid/tail loss                                       |
-| Lossy + recovery                        | sanitize + `keep-ends:50:20` + `token-budget:2000`; `recover_footer=true` | Narrow windows/budget; agents can recover with `ktx read`                       |
-| Build logs                              | sanitize + `grep-v:^debug:` + `keep-ends:100:50`                          | Prefer wider keep-ends over a tight budget when recovery is undesirable         |
+| Recipe                                  | Stages (and flags)                                                        | When to use                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Sanitize only                           | `strip-ansi`, `dedup-blank`, `normalize`                                  | No content loss; little savings on clean output                               |
+| **Keep-ends mid (recommended general)** | `unwrap-result` + `json-compact` + sanitize + `keep-ends:100:50`          | Configured example default; JSON structure remains protected after truncation |
+| Aggressive head                         | sanitize + `head:30`                                                      | Max token/cost cut; accepts mid/tail loss                                     |
+| Lossy + recovery                        | sanitize + `keep-ends:50:20` + `token-budget:2000`; `recover_footer=true` | Narrow windows/budget; agents can recover with `ktx read`                     |
+| Build logs                              | sanitize + `grep-v:^debug:` + `keep-ends:100:50`                          | Prefer wider keep-ends over a tight budget when recovery is undesirable       |
 
 Product defaults when fields are omitted: pipeline timeout **2s** and
 `recover_footer` **false**. The configured example explicitly enables the
@@ -86,6 +85,20 @@ JSON whitespace. In contrast, a multi-record NDJSON input retains one final
 `\n`. Invalid JSON, trailing non-whitespace text, and ambiguous multi-record
 input all pass through unchanged. Put the stage before line-oriented cleanup
 stages when JSON syntax must be retained.
+
+The pipeline runner also protects recognized JSON after every configured stage
+has finished. If the final result breaks a complete JSON value, any record in a
+multi-record NDJSON stream, or the JSON prefix before a text trailer, the runner
+uses a compact faithful rendering of the original structure instead. NDJSON
+keeps its original final-newline convention, and a text trailer remains
+byte-identical and in order. The normal anti-worsening gate still applies: when
+the faithful rendering is not smaller than the original input, the original
+bytes pass through and no transformation is retained.
+
+This guard does not route by content or change stage results that remain valid
+for the recognized shape. Invalid UTF-8, invalid JSON, blank-record NDJSON,
+adjacent JSON streams without NDJSON record boundaries, and other ambiguous
+inputs retain the existing conservative behavior.
 
 `recover_footer` controls only the agent-visible `ktx read <source_id>` cue and
 the footer-aware gate that accounts for that cue's bytes. It does not control

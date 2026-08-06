@@ -61,10 +61,11 @@ footer unless the profile is demonstrably semantic-preserving.
 | `token-budget:N`               | Approximate N tokens from byte length/4, prefer a preceding newline, and append a marker; a long line can be cut mid-line  |
 | `replace:pattern::replacement` | Replace every regex match; an empty replacement removes matches                                                            |
 
-Put `unwrap-result` before line-oriented stages. Put `json-compact` before
-line-oriented cleanup when JSON syntax must remain valid. `json-compact` is
-lexical: it preserves object member order, duplicate members, number spelling,
-and string bytes/escapes.
+Put `unwrap-result` before line-oriented stages. The final structure guard does
+not retain its text projection when the composed result is no longer valid JSON.
+Put `json-compact` before line-oriented cleanup when JSON syntax must remain
+valid. `json-compact` is lexical: it preserves object member order, duplicate
+members, number spelling, and string bytes/escapes.
 
 ## Runtime Safety Gates
 
@@ -74,6 +75,9 @@ The runner, not individual stages, enforces:
 2. Stage-error passthrough: an error or recovered panic passes input onward.
 3. Unknown-stage skip: warn and continue with unchanged input.
 4. Pipeline anti-worsening: discard the complete result unless it is smaller.
+5. JSON structure guard: replace malformed results from recognized complete
+   JSON, NDJSON, or a JSON prefix with compact faithful structure before the
+   anti-worsening decision.
 
 For hook execution, a profile timeout protects the agent response deadline. The
 default is two seconds. On timeout, the hook returns the original and emits a

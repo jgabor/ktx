@@ -2,7 +2,7 @@
 //
 // The pipeline is a linear ordered slice of bytes-in/bytes-out stages.
 // Each stage implements the Stage interface; the Runner applies stages
-// in order and enforces the three conservative-on-failure
+// in order and enforces the conservative-on-failure
 // invariants at runtime rather than relying on stage-author convention:
 //
 //  1. Empty-output guard: a stage producing empty output from
@@ -29,6 +29,12 @@
 //     is treated as passthrough (no compressed row). This fires on the
 //     pipeline RESULT, not per-stage; invariants 1–3 still fire
 //     per-stage during the loop.
+//
+//  5. JSON structure guard: when the input is a recognized complete JSON
+//     value, NDJSON stream, or JSON value with a text trailer, a structurally
+//     invalid final result is replaced with a compact faithful rendering of
+//     the input. The anti-worsening gate still rejects that replacement unless
+//     it is smaller than the original.
 //
 // Reversibility is captured at the pipeline BOUNDARY, not per stage
 // (the database holds the original (tool_calls) and a
@@ -297,6 +303,7 @@ func (r *Runner) Run(input []byte) Result {
 		return res
 	}
 
+	structured, protectStructure := recognizeJSON(input)
 	current := input
 	haveCandidate := false
 	for _, token := range r.Pipeline {
@@ -325,6 +332,9 @@ func (r *Runner) Run(input []byte) Result {
 		current = out
 	}
 	res.Out = current
+	if protectStructure && !structured.accepts(res.Out) {
+		res.Out = structured.faithful
+	}
 
 	// Anti-worsening gate — the fourth conservative-on-failure
 	// invariant (fires on the pipeline RESULT, not

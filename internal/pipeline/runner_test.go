@@ -19,6 +19,7 @@ package pipeline
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -47,6 +48,95 @@ func (s *stageRecorder) Apply(input []byte) ([]byte, error) {
 type panickyStage struct{ v any }
 
 func (p panickyStage) Apply([]byte) ([]byte, error) { panic(p.v) }
+
+func TestRun_ProtectsRecognizedJSON(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		candidate  string
+		want       string
+		wantRan    bool
+		wantReject bool
+	}{
+		{
+			name:      "complete value uses faithful compact rendering",
+			input:     "{\n  \"items\": [1, 2, 3],\n  \"message\": \"long enough to shrink\"\n}",
+			candidate: "{\n",
+			want:      `{"items":[1,2,3],"message":"long enough to shrink"}`,
+			wantRan:   true,
+		},
+		{
+			name:       "faithful value that is not smaller passes through",
+			input:      `{"already":"compact"}`,
+			candidate:  `{"already":`,
+			want:       `{"already":"compact"}`,
+			wantReject: true,
+		},
+		{
+			name:      "NDJSON preserves every record and final newline",
+			input:     "{ \"first\" : [1, 2, 3] }\n{ \"second\" : \"long value\" }\n",
+			candidate: "{\"first\":\n",
+			want:      "{\"first\":[1,2,3]}\n{\"second\":\"long value\"}\n",
+			wantRan:   true,
+		},
+		{
+			name:      "NDJSON preserves absent final newline",
+			input:     "{ \"first\" : [1, 2, 3] }\n{ \"second\" : \"long value\" }",
+			candidate: "{\"first\":\n",
+			want:      "{\"first\":[1,2,3]}\n{\"second\":\"long value\"}",
+			wantRan:   true,
+		},
+		{
+			name:      "JSON prefix preserves trailer bytes",
+			input:     "{\n  \"items\": [1, 2, 3],\n  \"message\": \"long value\"\n}\ntrailer bytes stay here\n",
+			candidate: "{\ntrailer bytes stay here\n",
+			want:      "{\"items\":[1,2,3],\"message\":\"long value\"}\ntrailer bytes stay here\n",
+			wantRan:   true,
+		},
+		{
+			name:      "valid transformed JSON remains unchanged",
+			input:     `{ "long property" : "long value" }`,
+			candidate: `{"ok":true}`,
+			want:      `{"ok":true}`,
+			wantRan:   true,
+		},
+		{
+			name:      "invalid input remains unprotected",
+			input:     "not valid JSON and deliberately long",
+			candidate: "short",
+			want:      "short",
+			wantRan:   true,
+		},
+		{
+			name:      "ambiguous adjacent JSON remains unprotected",
+			input:     `{"first":1} {"second":2}`,
+			candidate: `{"first":`,
+			want:      `{"first":`,
+			wantRan:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := NewRegistry().Register("damage", StageFunc(func([]byte) ([]byte, error) {
+				return []byte(tt.candidate), nil
+			}))
+			res := (&Runner{Registry: reg, Pipeline: []string{"damage"}}).Run([]byte(tt.input))
+			if string(res.Out) != tt.want {
+				t.Fatalf("output = %q, want %q", res.Out, tt.want)
+			}
+			if got := len(res.Ran) > 0; got != tt.wantRan {
+				t.Errorf("Ran = %v, want retained=%t", res.Ran, tt.wantRan)
+			}
+			if res.AntiWorseningRejected != tt.wantReject {
+				t.Errorf("AntiWorseningRejected = %t, want %t", res.AntiWorseningRejected, tt.wantReject)
+			}
+			if strings.HasPrefix(tt.name, "complete value") && !json.Valid(res.Out) {
+				t.Errorf("output is malformed JSON: %q", res.Out)
+			}
+		})
+	}
+}
 
 // TestRun_EmptyPipelineIsIdentity covers the no-ktx.toml default:
 // an empty Pipeline (zero stages) returns the input unchanged, Ran

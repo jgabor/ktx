@@ -146,7 +146,7 @@ recover_footer = false
 	}
 }
 
-func TestHook_UnwrapResultCompressesAndPreservesOriginal(t *testing.T) {
+func TestHook_JSONGuardRejectsDamagedCompactEnvelope(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -189,17 +189,14 @@ recover_footer = true
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 		t.Fatalf("parse envelope: %v\nstdout=%s", err, stdout.String())
 	}
-	if env.CompressedID == nil {
-		t.Fatal("compressed_id is null; want structured result compression")
+	if env.CompressedID != nil {
+		t.Fatalf("compressed_id = %q, want null for rejected transformation", *env.CompressedID)
 	}
-	if !strings.Contains(env.Output, "[ktx: 50 lines omitted]") {
-		t.Errorf("output lacks keep-ends marker: %q", env.Output)
+	if env.Output != string(structured) {
+		t.Errorf("output = %q, want original JSON envelope", env.Output)
 	}
-	if !strings.Contains(env.Output, "ktx read hookunwraptestaa") {
-		t.Errorf("output lacks recovery command: %q", env.Output)
-	}
-	if strings.Contains(env.Output, `"structuredContent"`) {
-		t.Errorf("output still contains the JSON envelope: %q", env.Output)
+	if !json.Valid([]byte(env.Output)) {
+		t.Errorf("output is malformed JSON: %q", env.Output)
 	}
 
 	source, err := d.GetToolCall("hookunwraptestaa")
@@ -215,23 +212,6 @@ recover_footer = true
 	}
 	if recovered != string(structured) {
 		t.Error("recovered output does not match the original JSON envelope")
-	}
-
-	compressed, err := d.GetCompressed(*env.CompressedID)
-	if err != nil {
-		t.Fatalf("GetCompressed: %v", err)
-	}
-	var pipelineRecord struct {
-		Profile string   `json:"profile"`
-		Route   string   `json:"route"`
-		Stages  []string `json:"stages"`
-	}
-	if err := json.Unmarshal([]byte(compressed.Pipeline), &pipelineRecord); err != nil {
-		t.Fatalf("parse compressed pipeline: %v", err)
-	}
-	wantRan := []string{"unwrap-result", "keep-ends:100:50"}
-	if pipelineRecord.Profile != "default" || pipelineRecord.Route != "default_fallback" || fmt.Sprint(pipelineRecord.Stages) != fmt.Sprint(wantRan) {
-		t.Errorf("pipeline = %+v, want profile default via default_fallback with stages %v", pipelineRecord, wantRan)
 	}
 }
 

@@ -1,0 +1,17 @@
+id: ohkillhslu
+artifact: progress
+record:
+  timestamp: 2026-08-06 22:27
+  type: fix
+  phase: build
+  what: Protected recognized JSON at the pipeline completion boundary by replacing structurally invalid results with compact faithful input structure before the existing size gate.
+  context:
+    intent: Implement only plan iexbmznkto task fjzkmxxvsu without changing its pending lifecycle state.
+    constraints: Preserve stage order, the bytes-in/bytes-out contract, routing, conservative failure behavior, recovery, artifact authority, and the final anti-worsening gate.
+    unknowns: Agentera startup omitted vision, decisions, changelog, profile, design, and glossary families. Required file-order review and CLI fallbacks found no related settled choice; the decisions listing remained degraded with record detail omitted.
+    scope: Pipeline completion guard, focused runner and hook regressions, and synchronized pipeline documentation only.
+  inspiration: The existing json-compact stage already established lexical compaction that preserves member order, duplicates, number spelling, string escapes, NDJSON records, and final-newline handling.
+  discovered: Before the change, a head:1 pipeline accepted a complete JSON document and retained only its opening brace. The completion runner had only a byte-size gate, so a smaller malformed result passed. A strict unwrap-result composition also produced non-JSON text from a complete JSON envelope and is now rejected at the same boundary.
+  verified: "TestRun_ProtectsRecognizedJSON passed all focused cases: complete values, NDJSON with and without a final newline, JSON plus an exact text trailer, valid transformed JSON, invalid and ambiguous input, and a faithful replacement that was not smaller and therefore cleared retained stages. go test ./internal/pipeline/... passed. go test ./internal/cli -run Hook|Compress passed, including hook-level no-artifact rejection for a compact structured envelope. The rebuilt ./build/ktx version dev had SHA-256 1293fff134547d96740b0ae3c2493eb44a129260b620da2fcc8d87220532b817. An isolated ./build/ktx hook smoke with head:1 delivered compact valid JSON with the complete original value and a retained artifact. Final env -u KTX_DB mage check passed all tests, vet, lint with 0 issues, and build; its database audit recorded 955 attempts, forbidden=0, external caches, and ktx_db=unset. git diff --check passed."
+  next: Keep fjzkmxxvsu pending and submit the implementation, evidence, and local commit to the independent evaluator; do not record an evaluator verdict or close the plan.
+  publication_order: 60

@@ -1,0 +1,17 @@
+id: uvxwykeguy
+artifact: progress
+record:
+  timestamp: 2026-08-07 12:17
+  type: docs
+  phase: build
+  what: Published CHANGELOG.md:5 with the retained-artifact footer policy, exact-retry JSON and NDJSON guarantees, and conservative legacy behavior.
+  context:
+    intent: Publish the Build-owned plan-level changelog entry after the audited implementation.
+    constraints: Documentation and state closeout only; preserve pending task and open plan state; do not modify product code, TODO state, or evaluator records.
+    unknowns: None affected this closeout.
+    scope: CHANGELOG.md, one progress entity, and the related writer-owned lifecycle records already present in the checkout.
+  inspiration: The configured changelog contract and the repository's technical, concise documentation style determined the minimal Keep a Changelog structure.
+  discovered: The changelog query finds the Unreleased heading but reports no release boundary because the new artifact has no historical versioned release; no version or date was invented.
+  verified: "`agentera check validate state --format json` passed with 597 entities and 0 issues; `agentera check validate artifact --artifact changelog --format json` passed with 0 violations; `agentera check validate cross-capability --format json` passed; `agentera check lint --artifact changelog --file CHANGELOG.md --strict` passed; `git diff --check` passed; behavioral gate: N/A: docs-only."
+  next: Independent evaluation and terminal plan closure remain with their owning capabilities.
+  publication_order: 63

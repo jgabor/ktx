@@ -4,7 +4,7 @@ record:
   name: Protect recognized JSON through pipeline completion
   depends_on:
     []
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN one complete valid JSON value enters a pipeline WHEN configured transforms make its result structurally invalid THEN delivery contains a smaller representation of the same complete value or the original bytes, never malformed JSON.
     - GIVEN valid newline-delimited JSON enters a pipeline WHEN one or more records would be damaged THEN delivery preserves every original record as valid newline-delimited JSON, including its established final-newline convention, or passes through the original bytes.
@@ -22,3 +22,6 @@ record:
       source: independent Audit re-review ses_0273b9e01ffeYOxrCgAwc4UMR0
       recorded_at: 2026-08-06 23:06
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - yzqnwkiduj
+  superseded_reason: The evaluated replacement persists delivery policy with the authoritative artifact and passes exact-retry, legacy-compatibility, and repository checks.

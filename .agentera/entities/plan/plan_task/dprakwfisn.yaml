@@ -1,0 +1,16 @@
+id: dprakwfisn
+artifact: plan
+record:
+  plan: iexbmznkto
+  name: Publish plan-level changelog entry
+  status: pending
+  depends_on:
+    - yzqnwkiduj
+  acceptance:
+    - GIVEN the completed structured-artifact behavior WHEN users consult the configured changelog THEN a concise entry describes authoritative retained-artifact footer policy, exact-retry correctness, and conservative legacy behavior without internal task markers.
+    - GIVEN the configured changelog artifact is missing WHEN its Build-owned closeout update is published THEN the canonical artifact is created at its configured location using the project documentation style and no product behavior changes.
+    - GIVEN the changelog entry is committed WHEN terminal freshness is checked THEN it is newer than the plan creation date and Agentera state validation plus documentation checks pass.
+  evidence:
+    - Retrieve the configured changelog through Agentera after publication.
+    - Confirm the changelog commit date is after 2026-08-06.
+    - Run Agentera state validation and the applicable documentation checks.

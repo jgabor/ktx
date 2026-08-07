@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: iexbmznkto
   name: Preserve authoritative artifact delivery policy
-  status: pending
+  status: complete
   depends_on:
     []
   acceptance:
@@ -17,3 +17,13 @@ record:
     - Exercise an ordinary retained artifact while a retry candidate has a different structured-recovery origin.
     - Exercise a pre-existing artifact without recorded structured-recovery provenance.
     - Run focused regressions and the repository check with the authoritative local executable.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit report ses_0245aa79affeHBnJuR0fxZ81dY
+      recorded_at: 2026-08-07 12:06
+      writer_command: agentera state plan record-evaluation

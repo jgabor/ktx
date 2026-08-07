@@ -1,0 +1,19 @@
+id: yzqnwkiduj
+artifact: plan
+record:
+  plan: iexbmznkto
+  name: Preserve authoritative artifact delivery policy
+  status: pending
+  depends_on:
+    []
+  acceptance:
+    - GIVEN a repaired complete JSON artifact is retained WHEN initial or exact trusted retry delivery runs with recovery footers enabled THEN every delivered and persisted value remains strict JSON and receives no footer decoration.
+    - GIVEN a repaired newline-delimited JSON artifact is retained WHEN initial or exact trusted retry delivery runs THEN every record remains valid, record order is preserved, and the established final-newline convention remains unchanged.
+    - GIVEN an ordinary authoritative artifact and a current retry candidate have different structured-recovery origins WHEN the authoritative artifact is delivered THEN its own footer policy is preserved and the discarded candidate cannot alter delivery.
+    - GIVEN a historical artifact lacks recorded structured-recovery provenance WHEN it is read or retried THEN it remains readable and uses established conservative behavior without inferred reconstruction or migration failure.
+    - GIVEN JSON with a trailer, already-valid transformed output, unsupported or invalid input, and a non-smaller faithful replacement WHEN the repository checks run THEN their established behavior remains unchanged and focused regressions plus the repository check pass.
+  evidence:
+    - Exercise repaired JSON and newline-delimited JSON through initial and exact trusted retry delivery with recovery footers enabled.
+    - Exercise an ordinary retained artifact while a retry candidate has a different structured-recovery origin.
+    - Exercise a pre-existing artifact without recorded structured-recovery provenance.
+    - Run focused regressions and the repository check with the authoritative local executable.

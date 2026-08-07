@@ -76,6 +76,10 @@ func (e pipelineExecution) pipelineRecord() string {
 	return pipeline.EncodePipelineRecord(e.profile, e.route, e.stages)
 }
 
+func (e pipelineExecution) artifactPipelineRecord() string {
+	return pipeline.EncodeArtifactPipelineRecord(e.profile, e.route, e.stages, e.structuredFallback)
+}
+
 // runCompressWith is the testable core of `ktx compress`. stdout/stderr
 // are injected so the compress flow can be exercised without touching
 // os.Stdout or os.Stderr. The body opens the database, delegates to
@@ -151,7 +155,7 @@ func compressPipeline(source *dbpkg.ToolCall, reg *pipeline.Registry, stderr io.
 	if err != nil {
 		return "", "", "", false, err
 	}
-	return execution.output, execution.pipelineRecord(), execution.profile, execution.transformed, nil
+	return execution.output, execution.artifactPipelineRecord(), execution.profile, execution.transformed, nil
 }
 
 // compressPipelineWithConfig resolves selection, stages, timeout, footer, and

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/pipeline"
 )
 
 func TestBuildRecoveryFooter_ContainsSourceID(t *testing.T) {
@@ -250,6 +251,234 @@ recover_footer = true
 					t.Errorf("persisted output = %q, want %q", compressed.Output, shape.want)
 				}
 			})
+		}
+	}
+}
+
+func TestHook_TrustedRetryUsesRetainedStructuredFallback(t *testing.T) {
+	tests := []struct {
+		name         string
+		firstStage   string
+		input        string
+		want         string
+		ndjson       bool
+		finalNewline bool
+	}{
+		{
+			name:       "complete JSON",
+			firstStage: "head:1",
+			input:      "{\n  \"items\": [1, 2, 3, 4],\n  \"message\": \"complete value with padding\"\n}",
+			want:       `{"items":[1,2,3,4],"message":"complete value with padding"}`,
+		},
+		{
+			name:         "NDJSON with final newline",
+			firstStage:   "truncate:12",
+			input:        "{ \"one\" : \"first value with padding\" }\n{ \"two\" : [1, 2, 3, 4] }\n",
+			want:         "{\"one\":\"first value with padding\"}\n{\"two\":[1,2,3,4]}\n",
+			ndjson:       true,
+			finalNewline: true,
+		},
+		{
+			name:       "NDJSON without final newline",
+			firstStage: "truncate:12",
+			input:      "{ \"one\" : \"first value with padding\" }\n{ \"two\" : [1, 2, 3, 4] }",
+			want:       "{\"one\":\"first value with padding\"}\n{\"two\":[1,2,3,4]}",
+			ndjson:     true,
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d := hookTestDB(t)
+			hookChdirTemp(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			hookWriteUserConfig(t, fmt.Sprintf(`[pipeline.default]
+stages = [%q]
+recover_footer = true
+`, tc.firstStage))
+
+			callID := fmt.Sprintf("json-retry-%02d", i)
+			payload := codexPayload(t, callID, "Read", tc.input)
+			first := runCodexFooterHook(t, d, payload)
+			assertCodexBlocked(t, first)
+			assertStructuredFooterDelivery(t, first.Reason, tc.want, tc.ndjson, tc.finalNewline)
+
+			sourceID := mustCodexID(t, "codex-test-session", callID)
+			artifact, err := d.GetCompressedBySource(sourceID)
+			if err != nil {
+				t.Fatalf("GetCompressedBySource: %v", err)
+			}
+			if artifact.Output != tc.want {
+				t.Fatalf("persisted output = %q, want %q", artifact.Output, tc.want)
+			}
+			fallback, recorded := pipeline.StructuredFallbackFromRecord(artifact.Pipeline)
+			if !recorded || !fallback {
+				t.Fatalf("persisted structured fallback = (%t, %t), want (true, true); pipeline=%q", fallback, recorded, artifact.Pipeline)
+			}
+
+			// The exact retry's current candidate is ordinary json-compact output.
+			// The selected first artifact still owns footer suppression.
+			hookWriteUserConfig(t, `[pipeline.default]
+stages = ["json-compact"]
+recover_footer = true
+			`)
+			retry := runCodexFooterHook(t, d, payload)
+			assertCodexBlocked(t, retry)
+			assertStructuredFooterDelivery(t, retry.Reason, tc.want, tc.ndjson, tc.finalNewline)
+			if retry.Reason != first.Reason {
+				t.Errorf("retry output = %q, want initial authoritative output %q", retry.Reason, first.Reason)
+			}
+
+			var count int
+			if err := d.DB().QueryRow(`SELECT count(*) FROM compressed WHERE source_id = ?`, sourceID).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 {
+				t.Errorf("compressed rows = %d, want 1", count)
+			}
+		})
+	}
+}
+
+func TestHook_TrustedRetryUsesRetainedOrdinaryFooterPolicy(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["json-compact"]
+recover_footer = true
+`)
+
+	original := "{\n" + strings.Repeat(" ", 600) + `"items": [1, 2, 3, 4], "message": "ordinary compact output"` + "\n}"
+	payload := codexPayload(t, "ordinary-retry", "Read", original)
+	first := runCodexFooterHook(t, d, payload)
+	assertCodexBlocked(t, first)
+	if !strings.Contains(first.Reason, "[ktx]") {
+		t.Fatalf("initial ordinary delivery lacks recovery footer: %q", first.Reason)
+	}
+
+	sourceID := mustCodexID(t, "codex-test-session", "ordinary-retry")
+	artifact, err := d.GetCompressedBySource(sourceID)
+	if err != nil {
+		t.Fatalf("GetCompressedBySource: %v", err)
+	}
+	if !json.Valid([]byte(artifact.Output)) {
+		t.Fatalf("persisted ordinary artifact is invalid JSON: %q", artifact.Output)
+	}
+	fallback, recorded := pipeline.StructuredFallbackFromRecord(artifact.Pipeline)
+	if !recorded || fallback {
+		t.Fatalf("persisted structured fallback = (%t, %t), want (false, true); pipeline=%q", fallback, recorded, artifact.Pipeline)
+	}
+	if first.Reason != artifact.Output+buildRecoveryFooter(sourceID, len(original), len(artifact.Output)) {
+		t.Fatalf("initial output did not apply ordinary artifact footer policy: %q", first.Reason)
+	}
+
+	// This retry produces a repaired candidate, but the ordinary retained
+	// artifact remains authoritative and keeps its footer.
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:1"]
+recover_footer = true
+	`)
+	retry := runCodexFooterHook(t, d, payload)
+	assertCodexBlocked(t, retry)
+	if retry.Reason != first.Reason {
+		t.Errorf("retry output = %q, want retained ordinary delivery %q", retry.Reason, first.Reason)
+	}
+}
+
+func TestHook_TrustedRetryLegacyArtifactUsesConservativeFooterPolicy(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+recover_footer = true
+`)
+
+	original := "{\n" + strings.Repeat(" ", 600) + `"items": [1, 2, 3, 4], "message": "legacy retained artifact"` + "\n}"
+	payload := codexPayload(t, "legacy-retry", "Read", original)
+	first := runCodexFooterHook(t, d, payload)
+	if first.Decision != "" || first.Reason != "" {
+		t.Fatalf("initial passthrough response = %+v, want empty Codex response", first)
+	}
+
+	sourceID := mustCodexID(t, "codex-test-session", "legacy-retry")
+	legacy := &dbpkg.Compressed{
+		ID:          "legacyartifactxx",
+		SourceID:    sourceID,
+		Output:      "legacy summary\n",
+		ContentHash: dbpkg.ContentHash("legacy summary\n"),
+		Pipeline:    `{"profile":"default","route":"default_fallback","stages":["head:1"]}`,
+		Timestamp:   "2026-08-01T00:00:00Z",
+	}
+	if err := d.InsertCompressed(legacy); err != nil {
+		t.Fatalf("seed legacy artifact: %v", err)
+	}
+	readBack, err := d.GetCompressed(legacy.ID)
+	if err != nil {
+		t.Fatalf("read legacy artifact: %v", err)
+	}
+	if readBack.Output != legacy.Output || readBack.Pipeline != legacy.Pipeline {
+		t.Fatalf("legacy artifact changed on read: %+v", readBack)
+	}
+	if fallback, recorded := pipeline.StructuredFallbackFromRecord(readBack.Pipeline); fallback || recorded {
+		t.Fatalf("legacy provenance = (%t, %t), want not recorded", fallback, recorded)
+	}
+
+	// The current candidate is repaired JSON. Missing legacy provenance is not
+	// reconstructed from either candidate or content, so ordinary conservative
+	// footer behavior remains in force for the retained artifact.
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:1"]
+recover_footer = true
+	`)
+	retry := runCodexFooterHook(t, d, payload)
+	assertCodexBlocked(t, retry)
+	want := legacy.Output + buildRecoveryFooter(sourceID, len(original), len(legacy.Output))
+	if retry.Reason != want {
+		t.Errorf("legacy retry output = %q, want conservative delivery %q", retry.Reason, want)
+	}
+}
+
+func runCodexFooterHook(t *testing.T, d *dbpkg.DB, payload string) codexHookOutput {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+	var out codexHookOutput
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("parse Codex hook output: %v\nstdout=%s", err, stdout.String())
+	}
+	return out
+}
+
+func assertCodexBlocked(t *testing.T, out codexHookOutput) {
+	t.Helper()
+	if out.Decision != "block" {
+		t.Fatalf("Codex decision = %q, want block", out.Decision)
+	}
+}
+
+func assertStructuredFooterDelivery(t *testing.T, got, want string, ndjson, finalNewline bool) {
+	t.Helper()
+	if got != want {
+		t.Errorf("delivered output = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "[ktx]") {
+		t.Errorf("recovery footer invalidated repaired structure: %q", got)
+	}
+	if !ndjson {
+		if !json.Valid([]byte(got)) {
+			t.Errorf("complete JSON output is invalid: %q", got)
+		}
+		return
+	}
+	if strings.HasSuffix(got, "\n") != finalNewline {
+		t.Errorf("final newline = %t, want %t", strings.HasSuffix(got, "\n"), finalNewline)
+	}
+	for recordNumber, record := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+		if !json.Valid([]byte(record)) {
+			t.Errorf("NDJSON record %d is invalid: %q", recordNumber+1, record)
 		}
 	}
 }

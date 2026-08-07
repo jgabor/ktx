@@ -53,6 +53,7 @@ package pipeline
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 )
@@ -456,8 +457,7 @@ func EncodePipelineJSON(names []string) string {
 
 // EncodePipelineRecord renders a pipeline record as a JSON object carrying
 // the selected profile, matched-route or default-fallback provenance, and the
-// stages retained by the runner. The compressed row's `pipeline` column stores
-// this string so one record explains selection and execution.
+// stages retained by the runner.
 func EncodePipelineRecord(profile, route string, ran []string) string {
 	var b bytes.Buffer
 	b.WriteString(`{"profile":`)
@@ -468,6 +468,37 @@ func EncodePipelineRecord(profile, route string, ran []string) string {
 	b.WriteString(EncodePipelineJSON(ran))
 	b.WriteByte('}')
 	return b.String()
+}
+
+// EncodeArtifactPipelineRecord adds the structure-guard provenance that owns
+// delivery decoration when this pipeline record is retained with an artifact.
+func EncodeArtifactPipelineRecord(profile, route string, ran []string, structuredFallback bool) string {
+	record := EncodePipelineRecord(profile, route, ran)
+	var b bytes.Buffer
+	b.WriteString(record[:len(record)-1])
+	b.WriteString(`,"structured_fallback":`)
+	if structuredFallback {
+		b.WriteString("true")
+	} else {
+		b.WriteString("false")
+	}
+	b.WriteByte('}')
+	return b.String()
+}
+
+// StructuredFallbackFromRecord reads the structure-guard provenance recorded
+// with a compressed artifact. The second result is false for historical array
+// records, object records written before this field existed, and malformed
+// records. Callers must use their conservative legacy behavior in that case
+// rather than infer provenance from artifact content.
+func StructuredFallbackFromRecord(record string) (structuredFallback, recorded bool) {
+	var provenance struct {
+		StructuredFallback *bool `json:"structured_fallback"`
+	}
+	if err := json.Unmarshal([]byte(record), &provenance); err != nil || provenance.StructuredFallback == nil {
+		return false, false
+	}
+	return *provenance.StructuredFallback, true
 }
 
 // writeJSONString writes s as a JSON string (with surrounding quotes)

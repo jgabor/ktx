@@ -64,6 +64,12 @@ type Result struct {
 	// no compressed artifact exists for this source.
 	CompressedID string
 
+	// ArtifactPipeline is the authoritative compressed artifact's retained
+	// pipeline provenance, or "" when no compressed artifact exists. Exact
+	// retries receive the selected first artifact's value, never the discarded
+	// current candidate's value.
+	ArtifactPipeline string
+
 	// Transformed reports whether Output is a compressed artifact rather
 	// than the raw source output.
 	Transformed bool
@@ -150,11 +156,12 @@ func persistArtifactEligible(database *dbpkg.DB, tc *dbpkg.ToolCall, sourceInser
 			return Result{}, err
 		}
 		return Result{
-			SourceID:     tc.ID,
-			Output:       stored.Output,
-			CompressedID: stored.ID,
-			Transformed:  true,
-			Inserted:     inserted,
+			SourceID:         tc.ID,
+			Output:           stored.Output,
+			CompressedID:     stored.ID,
+			ArtifactPipeline: stored.Pipeline,
+			Transformed:      true,
+			Inserted:         inserted,
 		}, nil
 	}
 
@@ -173,10 +180,11 @@ func persistArtifactEligible(database *dbpkg.DB, tc *dbpkg.ToolCall, sourceInser
 			return Result{}, err
 		}
 		return Result{
-			SourceID:     tc.ID,
-			Output:       existing.Output,
-			CompressedID: existing.ID,
-			Transformed:  true,
+			SourceID:         tc.ID,
+			Output:           existing.Output,
+			CompressedID:     existing.ID,
+			ArtifactPipeline: existing.Pipeline,
+			Transformed:      true,
 		}, nil
 	}
 
@@ -190,11 +198,12 @@ func persistArtifactFresh(database *dbpkg.DB, tc *dbpkg.ToolCall, compressed *db
 			return Result{}, err
 		}
 		return Result{
-			SourceID:     tc.ID,
-			Output:       compressed.Output,
-			CompressedID: compressed.ID,
-			Transformed:  true,
-			Inserted:     true,
+			SourceID:         tc.ID,
+			Output:           compressed.Output,
+			CompressedID:     compressed.ID,
+			ArtifactPipeline: compressed.Pipeline,
+			Transformed:      true,
+			Inserted:         true,
 		}, nil
 	}
 	return Result{SourceID: tc.ID, Output: tc.Output, Transformed: false}, nil

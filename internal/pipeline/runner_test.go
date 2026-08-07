@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -612,6 +613,38 @@ func TestEncodePipelineRecord(t *testing.T) {
 			got := EncodePipelineRecord(tc.profile, tc.route, tc.ran)
 			if got != tc.want {
 				t.Errorf("EncodePipelineRecord(%q, %q, %v) = %q, want %q", tc.profile, tc.route, tc.ran, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestEncodeArtifactPipelineRecord(t *testing.T) {
+	for _, fallback := range []bool{false, true} {
+		got := EncodeArtifactPipelineRecord("default", "default_fallback", []string{"head:1"}, fallback)
+		want := fmt.Sprintf(`{"profile":"default","route":"default_fallback","stages":["head:1"],"structured_fallback":%t}`, fallback)
+		if got != want {
+			t.Errorf("EncodeArtifactPipelineRecord fallback %t = %q, want %q", fallback, got, want)
+		}
+	}
+}
+
+func TestStructuredFallbackFromRecord(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		record   string
+		fallback bool
+		recorded bool
+	}{
+		{name: "recorded true", record: `{"structured_fallback":true}`, fallback: true, recorded: true},
+		{name: "recorded false", record: `{"structured_fallback":false}`, recorded: true},
+		{name: "legacy object", record: `{"profile":"default","route":"default_fallback","stages":["head:1"]}`},
+		{name: "legacy array", record: `["head:1"]`},
+		{name: "malformed", record: `{`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fallback, recorded := StructuredFallbackFromRecord(tc.record)
+			if fallback != tc.fallback || recorded != tc.recorded {
+				t.Errorf("StructuredFallbackFromRecord(%q) = (%t, %t), want (%t, %t)", tc.record, fallback, recorded, tc.fallback, tc.recorded)
 			}
 		})
 	}

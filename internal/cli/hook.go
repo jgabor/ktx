@@ -13,6 +13,7 @@ import (
 	"github.com/jgabor/ktx/internal/correlation"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/evidence"
+	"github.com/jgabor/ktx/internal/pipeline"
 )
 
 // hookEnvelope is the JSON response written by `ktx hook` to stdout.
@@ -553,7 +554,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		return nil, err
 	}
 	compressedOutput := execution.output
-	pipeJSON := execution.pipelineRecord()
+	pipeJSON := execution.artifactPipelineRecord()
 	transformed := execution.transformed
 
 	// Footer-aware second gate. Fires only when recover_footer is
@@ -605,9 +606,11 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 
 		// The footer is agent-visible decoration on the authoritative
 		// (possibly stored) artifact; it is never persisted or appended to a
-		// repaired structured fallback.
+		// repaired structured fallback. Exact retries use the selected retained
+		// artifact's provenance, not the discarded current candidate's result.
+		structuredFallback, _ := pipeline.StructuredFallbackFromRecord(result.ArtifactPipeline)
 		finalOutput := result.Output
-		if result.Transformed && execution.recoverFooter && !execution.structuredFallback {
+		if result.Transformed && execution.recoverFooter && !structuredFallback {
 			footer := buildRecoveryFooter(result.SourceID, len(tc.Output), len(result.Output))
 			if len(result.Output)+len(footer) < len(tc.Output) {
 				finalOutput = result.Output + footer

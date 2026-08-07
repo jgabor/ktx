@@ -1,0 +1,17 @@
+id: sbovpkcnbg
+artifact: progress
+record:
+  timestamp: 2026-08-07 11:50
+  type: fix
+  phase: build
+  what: Persisted structured-fallback provenance with each compressed artifact and made trusted delivery decoration use the selected retained artifact's provenance instead of current retry metadata.
+  context:
+    intent: Implement only the dependency-ready replacement for authoritative artifact delivery policy while leaving task and evaluator lifecycle state unchanged.
+    constraints: Preserve first-artifact authority, routing, stage behavior, footer format, conservative legacy reads, and the anti-worsening gate; add no dependency or speculative migration.
+    unknowns: Prime omitted vision, decisions, profile, design, glossary, and changelog state. The required decisions fallback was degraded and omitted all record detail; authoritative project documents were inspected without claiming complete decision context.
+    scope: Existing compressed-artifact pipeline provenance, trusted hook delivery, focused regressions, and synchronized pipeline documentation.
+  inspiration: The existing insert-or-reuse evidence seam already selects the authoritative artifact and its pipeline record; carrying that selected record to decoration avoids a second authority path.
+  discovered: The prior fix kept structured fallback only in current in-memory execution state. Exact retries could select a different first artifact after that fact was computed, so the discarded candidate controlled footer decoration. No installed-artifact mismatch or premature lifecycle transition caused the defect.
+  verified: Focused pipeline regressions passed for recognized complete JSON, NDJSON, JSON with a trailer, already-valid transformed output, unsupported and invalid input, non-smaller faithful replacement rejection, artifact provenance encoding, and legacy provenance decoding. Focused hook regressions passed repaired complete JSON and NDJSON with and without a final newline through initial and exact trusted retries with recovery footers enabled; every repaired delivery and persisted artifact remained strict structured data without a footer, record order and final-newline conventions were unchanged, and one artifact remained authoritative. The authority-inversion regression passed an ordinary retained artifact against a current repaired retry candidate and preserved the retained artifact's footer. A seeded legacy artifact without structured-fallback provenance remained readable, retried with established conservative footer behavior without inference, and retained one artifact. After mage build, rebuilt ./build/ktx version dev with SHA-256 25056c4994cbd6a16c0191e249d409be6af880d8cc8ad0d821ad5d1fad6c94e9 passed an isolated executable smoke for repaired complete JSON, repaired NDJSON, ordinary-authority inversion, legacy retry, and legacy decompression. Final isolated mage check passed all tests, vet, lint with 0 issues, and build; its audit recorded 966 attempts, forbidden=0, external caches, and KTX_DB unset. Every verification invocation used a fresh disposable HOME and XDG directory set with KTX_DB unset.
+  next: Keep yzqnwkiduj pending with no evaluator verdict for independent evaluation; keep fjzkmxxvsu blocked and leave vbmateedph unresolved.
+  publication_order: 62

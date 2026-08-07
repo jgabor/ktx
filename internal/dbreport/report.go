@@ -642,7 +642,8 @@ func reduction(original, result float64) *float64 {
 func round2(value float64) float64 { return math.Round(value*100) / 100 }
 
 func pipelineLabel(value string) string {
-	// Object format: {"profile":"git-status","route":"matched","stages":["strip-ansi","head:5"]}
+	// Object format includes profile, route, stages, and optional additive
+	// execution provenance. Reporting uses only profile and stages.
 	var rec struct {
 		Profile string   `json:"profile"`
 		Stages  []string `json:"stages"`

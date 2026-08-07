@@ -97,8 +97,13 @@ bytes pass through and no transformation is retained.
 
 When this guard repairs a result, hook delivery does not append a recovery
 footer because that decoration would invalidate complete JSON or add invalid
-physical NDJSON records. Ordinary transformed output retains the configured
-footer and its footer-aware size gate.
+physical NDJSON records. The compressed artifact records that recovery fact.
+Initial delivery and exact trusted retries apply the selected retained
+artifact's fact, so a discarded retry candidate cannot change footer behavior.
+Historical artifacts without the fact remain readable and retain the
+conservative ordinary footer behavior; ktx does not infer the fact from stored
+content. Ordinary transformed output retains the configured footer and its
+footer-aware size gate.
 
 This guard does not route by content or change stage results that remain valid
 for the recognized shape. Invalid UTF-8, invalid JSON, blank-record NDJSON,

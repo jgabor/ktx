@@ -187,7 +187,7 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	if comp.ContentHash != dbpkg.ContentHash(sourceOutput) {
 		t.Errorf("ContentHash = %q, want %q", comp.ContentHash, dbpkg.ContentHash(sourceOutput))
 	}
-	if comp.Pipeline != `{"profile":"default","route":"default_fallback","stages":[]}` {
+	if comp.Pipeline != `{"profile":"default","route":"default_fallback","stages":[],"structured_fallback":false}` {
 		t.Errorf("Pipeline = %q, want empty default profile (no stages ran)", comp.Pipeline)
 	}
 
@@ -481,7 +481,7 @@ profile = "failure-lossy"
 	if comp.Output != sourceOutput {
 		t.Errorf("Output = %q, want passthrough %q", comp.Output, sourceOutput)
 	}
-	if comp.Pipeline != `{"profile":"failure-lossy","route":"matched","stages":[]}` {
+	if comp.Pipeline != `{"profile":"failure-lossy","route":"matched","stages":[],"structured_fallback":false}` {
 		t.Errorf("Pipeline = %q, want matched failure profile with no stages run", comp.Pipeline)
 	}
 

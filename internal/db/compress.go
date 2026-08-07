@@ -26,8 +26,9 @@
 // compare the persisted output with its hash.
 //
 // Compressed.pipeline is a JSON object with selected profile, route
-// provenance, and retained stage names. It is passed as a marshalled string by
-// the caller; the runner records the stages and the caller adds selection.
+// provenance, retained stage names, and structured-fallback provenance. It is
+// passed as a marshalled string by the caller; the runner records execution and
+// the caller adds selection.
 // Storing it as TEXT with the JSON shape keeps it inspectable without
 // a registry lookup (a profile-hash would require readers to resolve
 // the hash against a registry ktx does not yet have).
@@ -58,7 +59,7 @@ import (
 // stored). ContentHash is the SHA-256 hex digest of Output (NOT of
 // the source output — recomputed from the artifact that was stored).
 // Pipeline is a JSON object such as
-// `{"profile":"default","route":"default_fallback","stages":[]}`.
+// `{"profile":"default","route":"default_fallback","stages":[],"structured_fallback":false}`.
 // Timestamp is the compression time (RFC3339Nano string, supplied by the
 // caller).
 type Compressed struct {

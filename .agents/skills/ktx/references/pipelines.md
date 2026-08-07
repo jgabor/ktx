@@ -78,7 +78,9 @@ The runner, not individual stages, enforces:
 5. JSON structure guard: replace malformed results from recognized complete
    JSON, NDJSON, or a JSON prefix with compact faithful structure before the
    anti-worsening decision. Hook delivery omits recovery footers from repaired
-   structure; ordinary results retain footer behavior and footer-aware gating.
+   structure. Exact trusted retries use the selected retained artifact's
+   recorded recovery provenance; missing historical provenance keeps ordinary
+   conservative footer behavior without content inference.
 
 For hook execution, a profile timeout protects the agent response deadline. The
 default is two seconds. On timeout, the hook returns the original and emits a

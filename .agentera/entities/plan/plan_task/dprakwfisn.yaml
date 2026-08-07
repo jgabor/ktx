@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: iexbmznkto
   name: Publish plan-level changelog entry
-  status: pending
+  status: complete
   depends_on:
     - yzqnwkiduj
   acceptance:
@@ -14,3 +14,13 @@ record:
     - Retrieve the configured changelog through Agentera after publication.
     - Confirm the changelog commit date is after 2026-08-06.
     - Run Agentera state validation and the applicable documentation checks.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit report ses_02443ff7cffehCtmaFwmO9Xd0P
+      recorded_at: 2026-08-07 12:23
+      writer_command: agentera state plan record-evaluation

@@ -2,7 +2,7 @@ id: vbmateedph
 artifact: todo
 record:
   severity: normal
-  status: open
+  status: resolved
   description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)"
   readiness:
     capability: build
@@ -20,6 +20,10 @@ record:
     public:
       present: true
       description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)"
+      status: resolved
+      order: 1
       severity: normal
-      status: open
-      order: 20
+  lifecycle:
+    operation: resolve
+    reason: The evaluated replacement preserves authoritative artifact footer policy across exact retries, retains legacy compatibility, and completed plan closure.
+    date: 2026-08-07

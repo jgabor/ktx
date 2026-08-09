@@ -110,3 +110,7 @@ Each task must run a structured discussion, append the resulting choice to the r
 
 - [x] [id:vbmateedph] **JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)
 - [x] [id:lujbwsgbnz] **Model-telemetry window coverage** — Extend `ktx stats summary` with the first and last contributing model-telemetry capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window provider prompt/prefix-cache token KPI. Here, prompt/prefix-cache telemetry means runtime-reported provider token fields used for discounted input/output token accounting, not filesystem, memory, database, HTTP, or other I/O caches. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and do not infer provider-internal prompt/prefix-cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition. → [Measurement](ARCHITECTURE.md#measurement)
+
+## → Degraded
+
+- [ ] [id:gzbjhqirbx] [fix] Align agent-facing prompt-cache benchmark guidance

@@ -4,7 +4,7 @@ record:
   name: Publish future benchmark hit-rate evidence and statements
   depends_on:
     - lofszlmrop
-  status: pending
+  status: blocked
   acceptance:
     - GIVEN an explicitly activated future manifest WHEN summarized THEN benchmark schema 5 and cache metric contract v2 use prompt-cache token hit-rate fields and comparison names.
     - GIVEN complete paired evidence WHEN compared THEN means, percentage-point delta, pair count, interval, quality, and blockers are machine-readable.
@@ -12,12 +12,12 @@ record:
     - GIVEN retained schemas 1 through 4, contract v1, and historical evidence WHEN regenerated THEN their bytes, hashes, and wording remain unchanged.
   plan: bigjhadugb
   evaluation:
-    attempt_count: 1
-    failure_count: 1
+    attempt_count: 2
+    failure_count: 2
     last_verdict: fail
-    last_failure_evidence: Current README and pipeline benchmark commands still activate methodology v5/schema 4, and docs/cache-reuse-metric-contract.md still names v1 as the future authority while help advertises v6/v2; public guidance is materially out of sync.
+    last_failure_evidence: AGENTS.md and .agents/skills/ktx/references/benchmarks-development.md still direct current live comparison to methodology v5/schema 4 while help, README, and pipelines now designate v6/schema 5; agent-facing operational guidance remains inconsistent after one correction.
     provenance:
-      attempt_id: gpfpiuasaz-audit-1
+      attempt_id: gpfpiuasaz-audit-2
       source: audit:ses_019130360ffeAtZ9B971GiaQje
-      recorded_at: 2026-08-09 18:24
+      recorded_at: 2026-08-09 18:39
       writer_command: agentera state plan record-evaluation

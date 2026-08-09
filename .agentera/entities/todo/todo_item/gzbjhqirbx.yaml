@@ -1,0 +1,23 @@
+id: gzbjhqirbx
+artifact: todo
+record:
+  kind: fix
+  target_version: null
+  title: Align agent-facing prompt-cache benchmark guidance
+  requirements:
+    - Update AGENTS.md and the ktx benchmark-development skill reference so the current live-comparison entry point agrees with methodology v6/schema 5/cache-reuse-v2.
+    - Retain methodology v5/schema 4/cache-reuse-v1 commands only as explicitly historical reproduction guidance without changing retained artifacts or wording.
+  acceptance:
+    - Current help, README, pipelines, AGENTS.md, and ktx benchmark skill reference name one consistent v6 current entry point.
+    - Retained v5/v1 artifacts, historical evidence bytes and hashes, and historical-result wording remain unchanged.
+  release_blocker: true
+  severity: degraded
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[fix] Align agent-facing prompt-cache benchmark guidance"
+      severity: degraded
+      status: open
+      order: 1

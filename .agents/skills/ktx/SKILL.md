@@ -192,14 +192,16 @@ classes, schema, metric formulas, and claim limits.
   is unavailable and is not reconstructed.
 - Cached-input share is separate OpenCode-reported runtime evidence, not a
   provider cache hit rate. A model step is not proven to be one provider request.
-- Future benchmark prompt-cache token hit-rate output requires the explicit
-  `v6-prompt-cache-hit-rate` methodology marker and uses schema 5. Read its
+- Opt-in benchmark prompt-cache token hit-rate output requires both
+  `v6-prompt-cache-hit-rate` and `cache-reuse-v2`; it uses schema 5. Read its
   paired blockers and authorization before reporting a direction. Each side
   rate comes from summed disjoint token buckets over accepted complete pairs;
   it is not an average of attempt rates. Only an authorized higher or lower
-  token-weighted prompt-cache hit rate is allowed; do not infer
-  provider-internal state, request-hit behavior, TTL, eviction, eligibility,
-  isolation, or prefix behavior.
+  token-weighted prompt-cache hit rate is allowed. Recommendation also requires
+  a quality-preserving, strictly lower API-equivalent estimated cost per correct.
+  A valid rejected candidate remains evidence but cannot be recommended or
+  crowned. Do not infer provider-internal state, request-hit behavior, TTL,
+  eviction, eligibility, isolation, or prefix behavior.
 - `runtime_reported_cost_usd` uses only runtime-emitted cost fields. A literal
   zero remains measured and has no automatic billing meaning. Missing identity,
   token, pricing, or cache-accounting evidence must not change it.

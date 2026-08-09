@@ -136,6 +136,11 @@ machine identifiers, and repository content before sharing or committing.
 - Cold/warm-up setup evidence is separate from measured-warm headline evidence.
 - Cached-input share is descriptive runtime evidence, not significance,
   causality, provider cache behavior, or generic cache effectiveness.
+- Opt-in schema 5 prompt-cache token hit-rate output requires both
+  `v6-prompt-cache-hit-rate` and `cache-reuse-v2`. Its rate is diagnostic;
+  recommendation requires quality-preserving, strictly lower API-equivalent
+  estimated cost per correct. A valid rejected candidate remains evidence but
+  cannot be recommended or crowned.
 - Fewer than five measured attempts per side is exploratory under the current
   cache-aware methodology.
 - Do not pool incompatible tasks, runtime versions, or invalid archives.

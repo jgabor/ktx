@@ -186,6 +186,12 @@ provider-internal state or request-hit, TTL, eviction, eligibility, isolation,
 or prefix behavior. Existing benchmark artifacts remain on their retained
 schemas and contracts.
 
+Recommendation also requires quality-preserving `pipeline_acceptance`: the
+candidate must have a strictly lower API-equivalent estimated cost per correct
+without reducing same-pair mean fact score or full-pass rate. A valid rejected
+candidate remains evidence but is not eligible for recommendation or crown
+selection.
+
 The [retained runtime compression telemetry report](docs/runtime-compression-telemetry-evidence.md)
 shows one historical ten-attempt comparison, its field-by-field availability,
 and an offline deterministic validation.

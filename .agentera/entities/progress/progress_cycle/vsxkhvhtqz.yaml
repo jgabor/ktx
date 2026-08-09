@@ -1,0 +1,15 @@
+id: vsxkhvhtqz
+artifact: progress
+record:
+  timestamp: 2026-08-09 22:29
+  type: docs
+  phase: build
+  what: Synchronized the opt-in schema 5 prompt-cache successor across benchmark help, README, changelog, and KTX skill guidance so all name v6, cache-reuse-v2, and the quality-preserving estimated-cost acceptance gate.
+  context:
+    intent: Close the release integration gap without changing retained evidence or live benchmark behavior.
+    constraints: Preserve schemas 1 through 4, cache-reuse-v1 bytes and wording, the unrelated TODO.md hunk, and the task lifecycle in progress.
+    scope: Current help, README, changelog, KTX skill guidance, contract synchronization regression coverage, release verification, and Agentera state.
+  discovered: Bench help and KTX guidance named the v6 methodology but omitted the required cache-reuse-v2 marker and recommendation gate, which made the current operator surface incomplete.
+  verified: Focused live rate/cost, schema-5/guard/ranking, estimator, methodology, and contract-sync tests passed. mage replayFixture passed with forbidden=0. mage check passed race tests, vet, lint with 0 issues, and build; its database audit recorded attempts=1078 and forbidden=0 with KTX_DB unset. Final ./build/ktx is dev, SHA-256 717fd4b816020d910d7b46eb3c38c2abf8a3b7798b085d090d509ebc8f76a6bb, max schema 9. Isolated summary JSON/text/help smokes passed. Schema 1 through 4 retained validations all returned valid=true and summary_byte_match=true with unchanged hashes. The v6/cache-reuse-v2 disposable fixture summarized as schema 5 and validated true with summary byte match. Seeded migration rehearsed 8 to 9 with marker preserved and compression_dispositions present.
+  next: Keep coaivblfft in_progress. Prime must perform the independent audit and must not treat this cycle as an evaluator verdict or plan closure.
+  publication_order: 71

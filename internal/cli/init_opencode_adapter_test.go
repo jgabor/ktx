@@ -289,6 +289,16 @@ const malformedTokens = {type:"message.part.updated",properties:{part:{id:"prt_4
 const malformedCache = {type:"message.part.updated",properties:{part:{id:"prt_5",sessionID:"ses_1",messageID:"msg_5",type:"step-finish",reason:"stop",cost:0,tokens:{input:1,output:2,reasoning:3,cache:[]}}}}
 const malformedLeaves = {type:"message.part.updated",properties:{part:{id:"prt_6",sessionID:"ses_1",messageID:"msg_6",type:"step-finish",reason:"stop",cost:Number.POSITIVE_INFINITY,tokens:{input:-1,output:1.5,reasoning:0,cache:{read:"bad",write:0}}}}}
 const rejected = {type:"message.part.updated",properties:{part:{type:"step-finish"}}}
+if (process.env.KTX_TEST_INTERLEAVE === "1") {
+  const output: any = {title:"tool",output:"original tool output",metadata:{kept:true}}
+  await hooks.event({event: identity})
+  await Promise.all([
+    hooks.event({event: first}),
+    hooks["tool.execute.after"]({tool:"bash",sessionID:"ses_1",callID:"call_1",args:{}}, output),
+  ])
+  console.log(JSON.stringify(output))
+  process.exit(0)
+}
 const originalEvents = JSON.stringify([identity, first, second, incomplete, malformedTokens, malformedCache, malformedLeaves, rejected])
 await hooks.event({event: identity})
 await Promise.all([hooks.event({event: first}), hooks.event({event: first}), hooks.event({event: second}), hooks.event({event: incomplete}), hooks.event({event: malformedTokens}), hooks.event({event: malformedCache}), hooks.event({event: malformedLeaves}), hooks.event({event: rejected})])
@@ -379,6 +389,16 @@ console.log(JSON.stringify(output))
 		}
 		if !strings.HasPrefix(calls[6], "hook\t") {
 			t.Fatalf("tool call = %q", calls[6])
+		}
+	})
+
+	t.Run("ordinary callbacks preserve arrival order across telemetry and hook", func(t *testing.T) {
+		output, calls, _ := run(t, "KTX_TEST_INTERLEAVE=1")
+		if output["output"] != "compressed tool output" {
+			t.Fatalf("tool output = %#v", output)
+		}
+		if len(calls) != 2 || !strings.HasPrefix(calls[0], "telemetry record\t") || !strings.HasPrefix(calls[1], "hook\t") {
+			t.Fatalf("calls = %q, want telemetry then hook", calls)
 		}
 	})
 

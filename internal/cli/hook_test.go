@@ -72,6 +72,24 @@ func hookWriteUserConfig(t *testing.T, content string) {
 	hookWriteFile(t, filepath.Join(xdg, "ktx", "ktx.toml"), content)
 }
 
+type sourceAcceptanceWriter struct {
+	database *dbpkg.DB
+	sourceID string
+	original string
+	output   bytes.Buffer
+}
+
+func (writer *sourceAcceptanceWriter) Write(data []byte) (int, error) {
+	source, err := writer.database.GetToolCall(writer.sourceID)
+	if err != nil {
+		return 0, fmt.Errorf("source is not accepted before envelope output: %w", err)
+	}
+	if source.Output != writer.original {
+		return 0, fmt.Errorf("accepted source output = %q, want %q", source.Output, writer.original)
+	}
+	return writer.output.Write(data)
+}
+
 func TestHook_Identity(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)
@@ -143,6 +161,33 @@ recover_footer = false
 	source, _ := d.GetToolCall("hookpipe01")
 	if source.Output != "line 1\nline 2\nline 3\nline 4\nline 5\n" {
 		t.Errorf("persisted original = %q, want full 5 lines", source.Output)
+	}
+}
+
+func TestHook_WritesTransformedOutputAfterSourceAcceptance(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["head:1"]
+recover_footer = false
+`)
+
+	const sourceID = "source-before-output"
+	const original = "line 1\nline 2\nline 3\n"
+	payload := `{"id":"` + sourceID + `","tool":"bash","input":"echo hello","output":"` + strings.ReplaceAll(original, "\n", `\n`) + `","timestamp":"2026-07-01T12:00:00Z"}`
+	writer := &sourceAcceptanceWriter{database: d, sourceID: sourceID, original: original}
+	var stderr bytes.Buffer
+	if _, err := hookLogic(strings.NewReader(payload), d, writer, &stderr); err != nil {
+		t.Fatal(err)
+	}
+
+	var envelope hookEnvelope
+	if err := json.Unmarshal(writer.output.Bytes(), &envelope); err != nil {
+		t.Fatalf("parse envelope: %v", err)
+	}
+	if envelope.Output != "line 1\n" || envelope.CompressedID == nil {
+		t.Fatalf("envelope = %#v", envelope)
 	}
 }
 
@@ -244,6 +289,10 @@ stages = ["head:3"]
 	}
 	if env.CompressedID != nil {
 		t.Errorf("compressed_id = %v, want null (failure gate, no compressed row)", env.CompressedID)
+	}
+	source, err := d.GetToolCall("hookerr001")
+	if err != nil || source.Output != "Error: failed" {
+		t.Fatalf("failure source = %#v, err=%v", source, err)
 	}
 }
 

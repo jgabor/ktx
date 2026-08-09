@@ -67,6 +67,9 @@ const (
 	// waits.
 	startupRetryDeadline    = 2 * time.Second
 	startupRetryMaxAttempts = 2
+	// A write-capable DB is process-local. One connection prevents concurrent
+	// internal operations from opening competing SQLite write transactions.
+	processLocalMaxOpenConns = 1
 )
 
 // sqliteDriver is the registered name of the modernc.org/sqlite driver.
@@ -154,7 +157,7 @@ func Open(path string) (*DB, error) {
 	// every pooled connection, not just the first.
 	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", path, sqliteBusyTimeoutMS)
 
-	db, err := openSQLiteWithRetry(dsn, 0, startupLockRetryPolicy())
+	db, err := openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
 	if err != nil {
 		return nil, fmt.Errorf("db: open %q: %w", path, err)
 	}
@@ -182,7 +185,7 @@ func OpenExisting(path string) (*DB, error) {
 		return nil, fmt.Errorf("db: open existing: canonicalize %q: %w", path, err)
 	}
 	dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=rw&_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
-	database, err := openSQLiteWithRetry(dsn, 0, startupLockRetryPolicy())
+	database, err := openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
 	if err != nil {
 		return nil, fmt.Errorf("db: open existing %q: %w", path, err)
 	}
@@ -350,14 +353,15 @@ func waitSQLiteLockRetry(policy sqliteLockRetryPolicy, deadline time.Time, attem
 	return true
 }
 
-// OpenWithoutMigration wraps an existing *sql.DB without changing its
-// schema or connection settings. The returned DB owns the underlying pool;
-// callers remain responsible for establishing the schema and pragmas before
+// OpenWithoutMigration wraps an existing *sql.DB without changing its schema.
+// It applies the same process-local connection ownership as normal writes.
+// Callers remain responsible for establishing the schema and pragmas before
 // wrapping it.
 func OpenWithoutMigration(sqlDB *sql.DB) (*DB, error) {
 	if sqlDB == nil {
 		return nil, errors.New("db: open without migration: sqlDB is nil")
 	}
+	sqlDB.SetMaxOpenConns(processLocalMaxOpenConns)
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("db: open without migration: ping: %w", err)
 	}
@@ -373,6 +377,7 @@ func OpenMemory() (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: open memory: %w", err)
 	}
+	db.SetMaxOpenConns(processLocalMaxOpenConns)
 	if err := db.Ping(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("db: open memory: %w", err)

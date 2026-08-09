@@ -28,6 +28,64 @@ func TestOpenConfiguresBusyTimeout(t *testing.T) {
 	assertBusyTimeout(t, readOnly, 1000)
 }
 
+func TestWriteCapablePoolsUseOneConnection(t *testing.T) {
+	t.Run("open", func(t *testing.T) {
+		database, err := Open(filepath.Join(t.TempDir(), "ktx.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		assertProcessLocalPool(t, database)
+	})
+
+	t.Run("open existing", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "ktx.db")
+		initialized, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := initialized.Close(); err != nil {
+			t.Fatal(err)
+		}
+		database, err := OpenExisting(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		assertProcessLocalPool(t, database)
+	})
+
+	t.Run("memory", func(t *testing.T) {
+		database, err := OpenMemory()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		assertProcessLocalPool(t, database)
+	})
+
+	t.Run("without migration", func(t *testing.T) {
+		raw, err := sql.Open(sqliteDriver, "file::memory:?_pragma=foreign_keys(1)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		database, err := OpenWithoutMigration(raw)
+		if err != nil {
+			_ = raw.Close()
+			t.Fatal(err)
+		}
+		defer database.Close()
+		assertProcessLocalPool(t, database)
+	})
+}
+
+func assertProcessLocalPool(t *testing.T, database *DB) {
+	t.Helper()
+	if got := database.DB().Stats().MaxOpenConnections; got != processLocalMaxOpenConns {
+		t.Fatalf("max open connections = %d, want %d", got, processLocalMaxOpenConns)
+	}
+}
+
 func assertBusyTimeout(t *testing.T, database *sql.DB, want int) {
 	t.Helper()
 	var got int

@@ -106,6 +106,8 @@ type initParsedArgs struct {
 //   - On any ktx hook failure (non-zero exit, unparseable stdout,
 //     ktx-not-in-PATH), the plugin leaves output.output unchanged —
 //     conservative failure at the plugin level.
+//   - Ordinary telemetry and tool-result callbacks share one queue, so one
+//     callback finishes its ktx work before the next callback starts it.
 //   - Noops when KTX_SESSION_ID is present: when the user
 //     is also running the agent under `ktx run`, the wrapper owns
 //     persistence and the plugin would otherwise double-record.
@@ -572,17 +574,18 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		eventQueue = next.then(() => undefined, () => undefined)
 		envelope = await next
 	  } else {
-		const result = await ordinaryCommand(["hook"], JSON.stringify(record), "hook")
-		if (result) {
+		const next = eventQueue.then(async () => {
+		  const result = await ordinaryCommand(["hook"], JSON.stringify(record), "hook")
+		  if (!result) return null
 		  try {
-			envelope = JSON.parse(result.stdout) as KtxEnvelope
+			return JSON.parse(result.stdout) as KtxEnvelope
 		  } catch (e) {
 			console.error("[ktx] hook error: " + String(e))
-			envelope = null
+			return null
 		  }
-		} else {
-		  envelope = null
-		}
+		})
+		eventQueue = next.then(() => undefined, () => undefined)
+		envelope = await next
 	  }
       if (envelope) {
         // Mutate output.output to the compressed bytes.

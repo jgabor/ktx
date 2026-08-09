@@ -1,0 +1,15 @@
+id: zvtgbhibof
+artifact: progress
+record:
+  timestamp: 2026-08-09 19:57
+  type: fix
+  phase: build
+  what: Serialized ordinary OpenCode telemetry and tool-result callbacks in one arrival-order queue and limited every write-capable database handle to one process-local SQLite connection.
+  context:
+    intent: Remove same-runtime callback and one-process database-handle contention without adding cross-process coordination or changing reader, migration, or foreign-lock behavior.
+    constraints: Preserve one binary, one SQLite database, source-before-lossy delivery, first-evidence and first-artifact authority, conservative pass-through, read-only queries, and existing typed database errors.
+    scope: OpenCode generated adapter ordering, write-capable database pool ownership, focused callback and hook regressions, required documentation, changelog, and task state.
+  discovered: Before the change, an ordinary hook callback scheduled outside the event queue could start before an earlier telemetry callback; the new interleaving regression reproduced the reversed hook-then-telemetry order.
+  verified: Focused generated-plugin, source-before-output, failure pass-through, exact retry, changed-retry ownership, and process-local pool tests passed. `mage opencodeTelemetryFixture` passed. Isolated `mage loadBench` rebuilt ./build/ktx and reconciled all measurements with 1056 audited accesses and forbidden=0. Isolated `mage check` passed race tests, vet, lint with 0 issues, build, and 975 audited accesses with forbidden=0.
+  next: Later work can address cross-process ownership, supported reader and migration integration, and foreign-lock behavior from this process-local baseline.
+  publication_order: 69

@@ -49,6 +49,12 @@ unchanged. Without the wrapper, the plugin handles both hooks. The persisted
 runtime tuple deduplicates a model step seen through both paths, and the first
 accepted row—including its collection provenance—remains authoritative.
 
+On the unwrapped ordinary path, the plugin accepts `event` and
+`tool.execute.after` callbacks through one arrival-order queue. It starts no
+later callback's ktx work until the earlier callback finishes. A hook changes
+the agent-visible output only after `ktx hook` returns its envelope, whose
+source evidence was accepted before any transformed output is returned.
+
 Benchmark collection does not repurpose `KTX_SESSION_ID`. It supplies the exact
 precreated `KTX_BENCH_SESSION_ID` owner with a required event interval and
 contract. In that mode hooks remain active, never read or write parent-process

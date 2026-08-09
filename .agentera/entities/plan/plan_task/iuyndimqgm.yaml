@@ -4,7 +4,7 @@ record:
   name: Close same-runtime and process-local contention
   depends_on:
     - fdysxqmvxf
-  status: pending
+  status: complete
   acceptance:
     - GIVEN ordinary hook and telemetry callbacks from one loaded runtime WHEN they target the same database THEN write-capable work follows one accepted order without callback-level write overlap.
     - GIVEN one ktx process performs database work WHEN concurrent internal operations occur THEN it does not create competing write transactions against its own database handle.

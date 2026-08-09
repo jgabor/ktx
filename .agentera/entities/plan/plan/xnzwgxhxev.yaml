@@ -1,0 +1,26 @@
+id: xnzwgxhxev
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-09
+    status: open
+    title: "Plan: Model-telemetry window coverage"
+  what: Extend `ktx stats summary` with truthful temporal metadata for its independently queried model-step telemetry. Report the earliest and latest contributing captures, their observed span, and distinct contributing session and model-step counts. Represent true requested-window coverage as unavailable because current evidence does not prove continuous collection, and label provider prompt/prefix-cache metrics as a subset.
+  why: Prevent a short telemetry subset from appearing to describe an entire requested window.
+  constraints: Preserve the independent model-step and tool-call queries, accepted OpenCode runtime/version selection, and existing token-state semantics. Do not infer collector uptime, provider requests, or provider-internal prompt/prefix-cache behavior. Prompt/prefix cache means provider token accounting, never filesystem, memory, database, HTTP, or other I/O caching. Publish the added fixed-shape fields under the next summary schema version and leave `ktx stats breakdown` unchanged.
+  overall_acceptance: GIVEN any requested stats window WHEN `ktx stats summary` reports provider prompt/prefix-cache telemetry THEN consumers can distinguish the observed subset from the unproven full window.
+  scope:
+    included:
+      - "`ktx stats summary` JSON and text contracts"
+      - summary help and contract documentation
+      - focused behavioral regressions
+      - synchronized project guidance
+    excluded:
+      - collector-lifecycle persistence
+      - database schema migration
+      - provider hit-rate claims
+      - benchmark formats
+      - cost and latency telemetry
+  surprises:
+    []

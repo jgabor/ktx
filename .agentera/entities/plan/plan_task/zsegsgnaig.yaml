@@ -1,0 +1,13 @@
+id: zsegsgnaig
+artifact: plan
+record:
+  name: Publish truthful telemetry-window metadata
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN accepted telemetry spans sessions WHEN the summary runs THEN first and last captures, observed span, session count, and model-step count match contributing rows.
+    - GIVEN continuous collection is unproven WHEN coverage is reported THEN its state is unavailable, its reason is explicit, and its scope is labeled subset.
+    - GIVEN empty, invalid-time, out-of-window, or unsupported-runtime observations WHEN the summary runs THEN they cannot fabricate coverage or alter accepted counts.
+    - GIVEN all output surfaces WHEN released THEN the next schema, token states, query independence, prompt/prefix-cache terminology, and unchanged breakdown agree.
+  plan: xnzwgxhxev

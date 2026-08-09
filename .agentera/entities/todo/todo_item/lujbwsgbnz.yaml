@@ -3,10 +3,10 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Model-telemetry window coverage** — Extend live statistics with the first and last contributing capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window cache KPI. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and unsupported provider-cache claim boundary. → [Measurement](ARCHITECTURE.md#measurement)"
+  description: "**Model-telemetry window coverage** — Extend `ktx stats summary` with the first and last contributing model-telemetry capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window provider prompt/prefix-cache token KPI. Here, prompt/prefix-cache telemetry means runtime-reported provider token fields used for discounted input/output token accounting, not filesystem, memory, database, HTTP, or other I/O caches. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and do not infer provider-internal prompt/prefix-cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition. → [Measurement](ARCHITECTURE.md#measurement)"
   readiness:
     capability: build
-    reason: Establish temporal coverage before cache telemetry supports live conclusions.
+    reason: Establish temporal coverage before provider prompt/prefix-cache token telemetry supports live conclusions.
     dependencies:
       []
     blocked: null
@@ -17,7 +17,7 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Model-telemetry window coverage** — Extend live statistics with the first and last contributing capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window cache KPI. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and unsupported provider-cache claim boundary. → [Measurement](ARCHITECTURE.md#measurement)"
+      description: "**Model-telemetry window coverage** — Extend `ktx stats summary` with the first and last contributing model-telemetry capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window provider prompt/prefix-cache token KPI. Here, prompt/prefix-cache telemetry means runtime-reported provider token fields used for discounted input/output token accounting, not filesystem, memory, database, HTTP, or other I/O caches. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and do not infer provider-internal prompt/prefix-cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition. → [Measurement](ARCHITECTURE.md#measurement)"
       severity: normal
       status: open
       order: 10

@@ -290,7 +290,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
-		if got.SchemaVersion != 6 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
+		if got.SchemaVersion != 7 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
 			t.Errorf("metadata = %+v", got)
 		}
 		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != got.GeneratedAt {
@@ -652,8 +652,9 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		firstCapture := now.Add(-30 * time.Minute)
 		firstCaptureOffset := firstCapture.In(time.FixedZone("UTC+02", 2*60*60))
-		seedStatsTelemetry(t, db, firstSessionID, 1, firstCaptureOffset, measuredStatsToken(20), measuredStatsToken(80), measuredStatsToken(0))
-		seedStatsTelemetry(t, db, lastSessionID, 2, now, measuredStatsToken(30), measuredStatsToken(70), measuredStatsToken(0))
+		provider, model := "openai", "gpt-5"
+		seedStatsTelemetryWithContractAndIdentity(t, db, firstSessionID, 1, firstCaptureOffset.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(20), measuredStatsToken(80), measuredStatsToken(0))
+		seedStatsTelemetryWithContractAndIdentity(t, db, lastSessionID, 2, now.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(30), measuredStatsToken(70), measuredStatsToken(0))
 
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -690,6 +691,10 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		if cache.CachedInputShare.State != "measured" || cache.CachedInputShare.Value == nil || math.Abs(*cache.CachedInputShare.Value-0.75) > 1e-12 || cache.CachedInputShare.Ratio == nil || *cache.CachedInputShare.Ratio != "3/4" {
 			t.Errorf("cached_input_share = %+v, want measured 3/4", cache.CachedInputShare)
+		}
+		rate := got.PromptCacheTokenHitRate
+		if rate.State != "measured" || rate.Value == nil || math.Abs(*rate.Value-0.75) > 1e-12 || rate.Ratio == nil || *rate.Ratio != "3/4" || rate.Formula != "cache_read / (uncached_input + cache_read + cache_write)" || rate.Kind != "token_weighted" || rate.Source != "runtime_emitted_model_step_telemetry" || rate.Provider == nil || *rate.Provider != provider || rate.Model == nil || *rate.Model != model {
+			t.Errorf("prompt_cache_token_hit_rate = %+v", rate)
 		}
 	})
 
@@ -778,7 +783,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("summary JSON schema has only the fixed version 6 contract keys", func(t *testing.T) {
+	t.Run("summary JSON schema has only the fixed version 7 contract keys", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -788,10 +793,10 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		if got["schema_version"] != float64(6) {
-			t.Errorf("schema_version = %v, want 6", got["schema_version"])
+		if got["schema_version"] != float64(7) {
+			t.Errorf("schema_version = %v, want 7", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse", "prompt_cache_token_hit_rate")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
 		assertStatsJSONKeys(t, got["outcomes"].(map[string]any), "successful_calls", "error_calls", "unknown_calls", "known_calls", "total_calls", "error_rate_pct_of_known", "outcome_coverage_pct")
@@ -806,6 +811,14 @@ func TestStatsWindowLogic(t *testing.T) {
 			assertStatsJSONKeys(t, cache[field].(map[string]any), "state", "value")
 		}
 		assertStatsJSONKeys(t, cache["cached_input_share"].(map[string]any), "state", "value", "ratio", "reason")
+		rate := got["prompt_cache_token_hit_rate"].(map[string]any)
+		assertStatsJSONKeys(t, rate, "state", "value", "ratio", "reason", "kind", "unit", "formula", "source", "runtime", "runtime_version", "provider", "model", "raw_buckets", "logical_input", "temporal_scope")
+		assertStatsJSONKeys(t, rate["raw_buckets"].(map[string]any), "uncached_input", "cache_read", "cache_write")
+		for _, field := range []string{"uncached_input", "cache_read", "cache_write"} {
+			assertStatsJSONKeys(t, rate["raw_buckets"].(map[string]any)[field].(map[string]any), "state", "value")
+		}
+		assertStatsJSONKeys(t, rate["logical_input"].(map[string]any), "state", "value")
+		assertStatsJSONKeys(t, rate["temporal_scope"].(map[string]any), "scope", "requested_window_coverage", "first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps")
 	})
 
 	t.Run("breakdown JSON schema contains the detailed version 2 contract", func(t *testing.T) {
@@ -843,7 +856,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &summaryText); err != nil {
 			t.Fatalf("text: %v", err)
 		}
-		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE") || !strings.Contains(summaryText.String(), "REQUESTED_WINDOW_COVERAGE") || !strings.Contains(summaryText.String(), "OBSERVED_SPAN_SECONDS") || !strings.Contains(summaryText.String(), "CONTRIBUTING_KTX_SESSIONS") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHE_READ") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHED_INPUT_PCT") || strings.Contains(summaryText.String(), "DISPOSITION") {
+		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE") || !strings.Contains(summaryText.String(), "REQUESTED_WINDOW_COVERAGE") || !strings.Contains(summaryText.String(), "OBSERVED_SPAN_SECONDS") || !strings.Contains(summaryText.String(), "CONTRIBUTING_KTX_SESSIONS") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHE_READ") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHED_INPUT_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_REASON") || strings.Contains(summaryText.String(), "DISPOSITION") {
 			t.Errorf("summary text fields = %q", summaryText.String())
 		}
 		if strings.Count(strings.TrimSpace(summaryText.String()), "\n") != 1 {
@@ -853,7 +866,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 6") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "provider prompt/prefix-cache") || !strings.Contains(summaryHelp.String(), "collector_lifecycle_evidence_unavailable") || !strings.Contains(summaryHelp.String(), "not a provider hit rate") {
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 7") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryHelp.String(), "cache_read / (uncached_input + cache_read + cache_write)") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || !strings.Contains(summaryHelp.String(), "I/O-cache rate") || !strings.Contains(summaryHelp.String(), "collector_lifecycle_evidence_unavailable") {
 			t.Errorf("summary help = %q", summaryHelp.String())
 		}
 
@@ -1131,6 +1144,11 @@ func seedStatsTelemetry(t *testing.T, db *dbpkg.DB, sessionID string, ordinal ui
 
 func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, input, read, write telemetry.IntegerMeasurement) {
 	t.Helper()
+	seedStatsTelemetryWithContractAndIdentity(t, db, sessionID, ordinal, capturedAt, runtime, runtimeVersion, nil, nil, input, read, write)
+}
+
+func seedStatsTelemetryWithContractAndIdentity(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, provider, model *string, input, read, write telemetry.IntegerMeasurement) {
+	t.Helper()
 	name := fmt.Sprintf("%d", ordinal)
 	observation := &telemetry.Observation{
 		Key:     telemetry.Key{SessionID: "source_" + name, MessageID: "message_" + name, PartID: "part_" + name},
@@ -1146,6 +1164,8 @@ func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string
 		},
 		Runtime:        runtime,
 		RuntimeVersion: runtimeVersion,
+		Provider:       provider,
+		Model:          model,
 		Source:         telemetry.SourceEventHook,
 	}
 	inserted, err := db.PersistSessionTelemetry(sessionID, capturedAt, observation)

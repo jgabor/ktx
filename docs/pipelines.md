@@ -316,7 +316,7 @@ and aggregate provider prompt/prefix-cache token evidence. The schema is closed:
 diagnostic arrays and new reporting dimensions require an intentional
 schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
-Summary schema 6 omits `delivery_breakdown`; callers that need those detailed
+Summary schema 7 omits `delivery_breakdown`; callers that need those detailed
 groups should invoke the breakdown schema 2 command instead.
 
 The summary and breakdown commands use an inclusive trailing window (`[from,
@@ -343,11 +343,14 @@ by `captured_at`. `cache_reuse` pools those steps' runtime-reported
 uncached-input, cache-read, and cache-write provider prompt/prefix-cache token
 buckets. This is not filesystem, memory, database, HTTP, or other I/O caching.
 It reports the first and last accepted capture, their observed span, and distinct
-KTX session and model-step counts. Capture timestamps describe only that observed
-subset. `requested_window_coverage` remains unavailable with reason
-`collector_lifecycle_evidence_unavailable` because these rows do not prove
-continuous collector lifecycle or full requested-window coverage. The summary
-does not read benchmark aggregates or reconstruct provider requests. The
+KTX session and model-step counts. `prompt_cache_token_hit_rate` is a separate,
+provider/model-scoped token-weighted view. It uses only one exact runtime-emitted
+provider/model population. Missing or mixed runtime-emitted identity never falls
+back to configured identity and leaves the rate unavailable. Capture timestamps
+describe only the observed subset. `requested_window_coverage` remains unavailable
+with reason `collector_lifecycle_evidence_unavailable` because these rows do not
+prove continuous collector lifecycle or full requested-window coverage. The
+summary does not read benchmark aggregates or reconstruct provider requests. The
 breakdown does not query or emit model-step telemetry.
 
 To avoid holding a long rollback-journal read while clients poll either command,
@@ -365,7 +368,7 @@ JSON contract is:
 
 ```json
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -419,6 +422,39 @@ JSON contract is:
     },
     "formula": "cache_read / logical_input",
     "unit": "token_fraction"
+  },
+  "prompt_cache_token_hit_rate": {
+    "state": "measured",
+    "value": 0.7,
+    "ratio": "7/10",
+    "reason": null,
+    "kind": "token_weighted",
+    "unit": "token_fraction",
+    "formula": "cache_read / (uncached_input + cache_read + cache_write)",
+    "source": "runtime_emitted_model_step_telemetry",
+    "runtime": "opencode",
+    "runtime_version": "1.18.5",
+    "provider": "openai",
+    "model": "gpt-5",
+    "raw_buckets": {
+      "uncached_input": { "state": "measured", "value": 1000 },
+      "cache_read": { "state": "measured", "value": 3500 },
+      "cache_write": { "state": "measured", "value": 500 }
+    },
+    "logical_input": { "state": "measured", "value": 5000 },
+    "temporal_scope": {
+      "scope": "observed_subset",
+      "requested_window_coverage": {
+        "state": "unavailable",
+        "reason": "collector_lifecycle_evidence_unavailable",
+        "scope": "observed_subset"
+      },
+      "first_contributing_capture": "2026-07-21T11:30:00Z",
+      "last_contributing_capture": "2026-07-21T12:00:00Z",
+      "observed_span_seconds": 1800,
+      "contributing_sessions": 2,
+      "contributing_model_steps": 6
+    }
   }
 }
 ```
@@ -521,11 +557,12 @@ all-known population with no errors, error rate is `0` and coverage is `100`.
 Breakdown groups do not carry per-group outcome rates. The summary's independent
 model-step/cache query does not change the tool-call outcome population.
 
-Summary schema 6 and breakdown schema 2 supersede their previous structured
+Summary schema 7 and breakdown schema 2 supersede their previous structured
 schemas without a compatibility bridge. Text output renders the same current
 fields and has no separate schema version. Its `PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE`,
-`REQUESTED_WINDOW_COVERAGE`, capture, span, session, and model-step columns make
-the provider prompt/prefix-cache subset explicit.
+`REQUESTED_WINDOW_COVERAGE`, capture, span, session, model-step, and
+`PROMPT_CACHE_TOKEN_HIT_RATE_PCT` columns make the provider prompt/prefix-cache
+subset explicit.
 
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus
@@ -563,6 +600,29 @@ zero, otherwise it includes both a numeric token fraction and its exact reduced
 `ratio`. The text format renders that fraction as
 `PROMPT_PREFIX_CACHED_INPUT_PCT`.
 
+`prompt_cache_token_hit_rate` is schema 7's explicit, token-weighted prompt-cache
+rate. Its exact formula is:
+
+```text
+prompt_cache_token_hit_rate = cache_read / (uncached_input + cache_read + cache_write)
+```
+
+Its `raw_buckets` retain the three disjoint runtime-emitted token sums, and
+`logical_input` retains their derived denominator so consumers can recompute the
+exact `ratio`. The rate is `measured` only when every bucket is measured and
+non-negative, logical input is positive, the runtime is OpenCode 1.18.5, and all
+contributing model steps have one identical runtime-emitted provider/model pair.
+It is otherwise `unavailable` with one machine-readable reason:
+`no_contributing_model_steps`, `unsupported_runtime_or_version`,
+`runtime_emitted_identity_missing`, `runtime_emitted_identity_mixed`,
+`required_token_bucket_missing`, `required_token_bucket_malformed`, or
+`logical_input_not_positive`. Non-finite or negative source values are malformed.
+The metric never reconstructs a missing value or identity. A zero `cache_read`
+with positive logical input is a measured zero rate. Its `temporal_scope` retains
+the observed-subset coverage, capture range, span, session count, and model-step
+count. Text renders the percentage as `PROMPT_CACHE_TOKEN_HIT_RATE_PCT` alongside
+its state, reason, scope, identity, and raw buckets.
+
 `evidence_scope` is always `provider_prompt_prefix_cache_tokens`.
 `requested_window_coverage` is always `state: unavailable`,
 `reason: collector_lifecycle_evidence_unavailable`, and
@@ -574,10 +634,11 @@ Missing, malformed, and measured-zero token buckets do not remove an accepted
 model step from this temporal metadata.
 
 This is provider prompt/prefix-cache token evidence, not filesystem, memory,
-database, HTTP, or other I/O caching, and the cached-input share is not a
-provider hit rate. A runtime model step is not a provider request, and the
-retained evidence does not prove provider hits, misses, eligibility, eviction,
-or request boundaries.
+database, HTTP, or other I/O caching. `prompt_cache_token_hit_rate` is not a
+provider request hit rate or I/O-cache rate. A runtime model step is not a
+provider request, and the retained evidence does not prove provider hits, misses,
+TTL, eviction, eligibility, isolation, prefix composition, or request boundaries.
+The older cached-input share is also not a provider hit rate.
 
 ### Database evidence report
 

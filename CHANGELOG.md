@@ -4,6 +4,7 @@
 
 ### Added
 
+- `ktx stats summary` schema 7 adds a provider/model-scoped, token-weighted prompt-cache token hit rate with raw buckets, runtime-emitted provenance, observed-subset scope, and explicit unavailable reasons.
 - `ktx stats summary` schema 6 reports the first and last contributing model-telemetry captures, observed span, contributing KTX session and model-step counts, and explicitly unavailable requested-window coverage for observed provider prompt/prefix-cache token subsets.
 
 ### Fixed

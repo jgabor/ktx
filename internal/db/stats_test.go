@@ -299,12 +299,12 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	persist("runtime", sessionID, from.Format(time.RFC3339Nano), "other-runtime", runtimeVersion, measured(1), measured(1), measured(1))
 	persist("version", sessionID, from.Format(time.RFC3339Nano), runtime, "1.18.4", measured(1), measured(1), measured(1))
 
-	rows, err := d.StatsSummaryCacheRows(from, to, runtime, runtimeVersion)
+	rows, err := d.StatsSummaryCacheRows(from, to)
 	if err != nil {
 		t.Fatalf("StatsSummaryCacheRows: %v", err)
 	}
-	if len(rows) != 3 {
-		t.Fatalf("got %d rows, want 3: %+v", len(rows), rows)
+	if len(rows) != 5 {
+		t.Fatalf("got %d rows, want 5: %+v", len(rows), rows)
 	}
 	var measuredInput, unknownInput, malformedWrite, measuredZeroWrite int
 	var inputTotal, readTotal, writeTotal int64
@@ -333,14 +333,14 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 			malformedWrite++
 		}
 	}
-	if measuredInput != 2 || unknownInput != 1 || malformedWrite != 1 || measuredZeroWrite != 1 {
+	if measuredInput != 4 || unknownInput != 1 || malformedWrite != 1 || measuredZeroWrite != 1 {
 		t.Errorf("states measured_input=%d unknown_input=%d malformed_write=%d measured_zero_write=%d", measuredInput, unknownInput, malformedWrite, measuredZeroWrite)
 	}
-	if inputTotal != 50 || readTotal != 100 || writeTotal != 60 {
-		t.Errorf("measured totals input=%d read=%d write=%d, want 50/100/60", inputTotal, readTotal, writeTotal)
+	if inputTotal != 52 || readTotal != 102 || writeTotal != 62 {
+		t.Errorf("measured totals input=%d read=%d write=%d, want 52/102/62", inputTotal, readTotal, writeTotal)
 	}
 	sort.Strings(captures)
-	wantCaptures := []string{from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), to.Format(time.RFC3339Nano)}
+	wantCaptures := []string{from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), to.Format(time.RFC3339Nano)}
 	if !reflect.DeepEqual(captures, wantCaptures) {
 		t.Errorf("captures = %v, want %v", captures, wantCaptures)
 	}
@@ -373,7 +373,7 @@ func TestStatsSummaryCacheRowsPreservesSourceIdentity(t *testing.T) {
 	persist(withIdentity, "source-with-identity", from.Format(time.RFC3339Nano), &provider, &model)
 	persist(withoutIdentity, "source-without-identity", to.Format(time.RFC3339Nano), nil, nil)
 
-	rows, err := d.StatsSummaryCacheRows(from, to, runtime, runtimeVersion)
+	rows, err := d.StatsSummaryCacheRows(from, to)
 	if err != nil {
 		t.Fatal(err)
 	}

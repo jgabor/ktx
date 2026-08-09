@@ -115,9 +115,14 @@ disposition, and output-size band; it omits model-step telemetry. Tool-call/
 artifact and model-telemetry views are queried independently without cross-view
 transactional consistency; they may originate from the same wrapper stream or
 from separate adapter callbacks. Summary cache evidence is provider
-prompt/prefix-cache token evidence, not filesystem, memory, database, HTTP, or
-other I/O caching; it is an observed subset, not proven requested-window
-coverage.
+prompt/prefix-cache token evidence.
+It is not filesystem, memory, database, HTTP, or other I/O caching.
+It is an observed subset, not proven requested-window coverage. Schema 7's
+`PROMPT_CACHE_TOKEN_HIT_RATE_PCT` is a token-weighted
+prompt-cache rate only when its state is measured:
+`cache_read / (uncached_input + cache_read + cache_write)`. It retains raw buckets,
+runtime-emitted provider/model identity, and temporal scope.
+It is not a provider request hit rate or I/O-cache rate.
 
 ### Inspect records and model telemetry
 
@@ -178,9 +183,13 @@ classes, schema, metric formulas, and claim limits.
   `ceil(character_count / 4)` per call before aggregation.
 - A compressed-artifact count is coverage, not a success rate. Calls without an
   artifact use raw output and may be intentional passthrough or anti-worsening.
-- Cached-input share is OpenCode-reported runtime evidence, not a provider cache
-  hit rate. It requires measured input buckets and positive logical input; a
-  model step is not proven to be one provider request.
+- `PROMPT_CACHE_TOKEN_HIT_RATE_PCT` is a token-weighted prompt-cache rate, not a
+  provider request hit rate. It requires complete non-negative buckets, positive
+  logical input, one runtime-emitted provider/model, and the pinned
+  runtime/version. A zero numerator is measured zero; other unsuitable evidence
+  is unavailable and is not reconstructed.
+- Cached-input share is separate OpenCode-reported runtime evidence, not a
+  provider cache hit rate. A model step is not proven to be one provider request.
 - Literal runtime cost zero remains measured zero but has no automatic billing
   meaning. API-equivalent cost is a separately labeled estimate.
 - Missing, unknown, malformed, and measured zero are distinct states. Never
@@ -234,7 +243,9 @@ investigate and correct the summary rather than treating it as canonical.
   operator database. Benchmarks and product telemetry are different sources.
 - Do not run tests or development commands against the ambient live database.
 - Do not call a cached-input share a hit rate, cache effectiveness, or billing
-  result.
+  result. Use `PROMPT_CACHE_TOKEN_HIT_RATE_PCT` only with its schema 7 scope,
+  identity, and availability fields; it is not a provider request or I/O-cache
+  hit rate.
 - Do not add runtime model-step cost/cache values to `tool_calls`; they have a
   separate evidence scope.
 - Do not interpret missing error state as success or missing cost as zero.

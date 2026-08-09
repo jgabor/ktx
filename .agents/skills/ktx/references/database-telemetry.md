@@ -126,7 +126,7 @@ omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
 
-Summary schema 6 and breakdown schema 2 include aggregate `outcomes`. Their
+Summary schema 7 and breakdown schema 2 include aggregate `outcomes`. Their
 population is the same calls counted by `total_with_output`: non-null output and
 a valid RFC3339 timestamp in the inclusive window. Persisted `is_error=false` is
 success, `true` is error, and NULL or invalid is unknown. Persisted `exit_code`
@@ -142,6 +142,7 @@ error_rate_pct_of_known = error_calls / known_calls * 100
 outcome_coverage_pct = known_calls / total_calls * 100
 logical_input = uncached_input + cache_read + cache_write
 cached_input_share = cache_read / logical_input
+prompt_cache_token_hit_rate = cache_read / (uncached_input + cache_read + cache_write)
 ```
 
 Empty outcome percentages are JSON `null` and text `-`. An all-unknown
@@ -175,7 +176,15 @@ These token states do not change the accepted model-step population or its
 capture, span, session, and model-step metadata.
 
 Cached-input share is `not_applicable` when measured logical input is zero. It
-uses pooled window totals, not an average of per-step percentages.
+uses pooled window totals, not an average of per-step percentages. Schema 7 also
+emits `prompt_cache_token_hit_rate`: a token-weighted rate with the exact formula
+above, `raw_buckets`, runtime-emitted source identity, and temporal scope. It is
+`measured` only for one exact runtime-emitted provider/model population under the
+pinned OpenCode 1.18.5 contract. Zero cache read with positive logical input is a
+measured zero. Missing, malformed, negative, non-finite, zero-denominator,
+unsupported-runtime/version, and missing/mixed identity cases are unavailable
+with a machine-readable reason and never reconstructed. Text renders it as
+`PROMPT_CACHE_TOKEN_HIT_RATE_PCT`.
 
 ## OpenCode Contract
 
@@ -210,7 +219,8 @@ Always report runtime/version, contributing KTX session and model-step counts,
 and first/last capture plus observed span beside provider prompt/prefix-cache
 token evidence. `stats summary` does this in `cache_reuse`, whose
 `evidence_scope` is `provider_prompt_prefix_cache_tokens`, not filesystem,
-memory, database, HTTP, or other I/O caching. Separate SQL can describe the
+memory, database, HTTP, or other I/O caching. The prompt-cache token hit rate is
+not a provider request hit rate or an I/O-cache rate. Separate SQL can describe the
 observed capture span and counts within the summary interval, but it cannot
 prove collector lifecycle or requested-window coverage. The summary therefore
 reports `requested_window_coverage` as `state: unavailable`,

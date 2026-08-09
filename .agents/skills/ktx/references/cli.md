@@ -190,16 +190,24 @@ delivered estimated tokens. `stats summary` accepts positive Go durations such
 as `30m`, `24h`, or `72h`. `stats breakdown` uses the same window syntax and
 reports bounded delivery groups by safe command dimensions, profile, route,
 disposition, and raw-output-size band; it does not include cache telemetry.
-Summary JSON schema 6 and breakdown JSON schema 2 report aggregate outcomes over
+Summary JSON schema 7 and breakdown JSON schema 2 report aggregate outcomes over
 the same output-bearing, valid-timestamp calls in the inclusive window. Error
 rate divides errors by known outcomes; coverage divides known by total. Text
 renders those current fields without a separate schema version. Breakdown has
 no per-group rates, and cache/model-step selection remains independent. Summary
-`cache_reuse` is provider prompt/prefix-cache token evidence, not filesystem,
-memory, database, HTTP, or other I/O caching. It reports observed first/last
-capture, span, KTX session and model-step counts; requested-window coverage is
+`cache_reuse` is provider prompt/prefix-cache token evidence.
+It is not filesystem, memory, database, HTTP, or other I/O caching.
+It reports observed first/last capture, span, KTX session and model-step counts;
+requested-window coverage is
 unavailable with `collector_lifecycle_evidence_unavailable` and scope
-`observed_subset`.
+`observed_subset`. Schema 7's `prompt_cache_token_hit_rate` is a token-weighted
+rate: `cache_read / (uncached_input + cache_read + cache_write)`. Its raw buckets,
+runtime-emitted provider/model identity, and temporal scope make it recomputable.
+`PROMPT_CACHE_TOKEN_HIT_RATE_PCT` is measured only for complete non-negative
+input buckets, positive logical input, one runtime-emitted provider/model, and
+the pinned runtime/version. A zero numerator stays measured zero; all other
+ineligible cases are unavailable with a machine-readable reason.
+It is not a provider request hit rate or I/O-cache rate.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It
 reports failures without failing the agent operation. Required benchmark

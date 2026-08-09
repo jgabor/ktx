@@ -95,6 +95,21 @@ hermetic development, and seeded migration rehearsal. Recover from a database
 newer than the binary by installing a binary that supports that schema or newer.
 Never lower `PRAGMA user_version`.
 
+### Live prompt-cache token hit rate
+
+`ktx stats summary --format json` emits schema 7. Its
+`prompt_cache_token_hit_rate` is a token-weighted rate:
+`cache_read / (uncached_input + cache_read + cache_write)`. The text view renders
+it as `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`. It is measured only for complete,
+non-negative OpenCode 1.18.5 buckets from one runtime-emitted provider/model
+population. It preserves zero cache read as a measured zero rate and otherwise
+reports a machine-readable unavailable reason. The result includes raw buckets,
+runtime/provider/model scope, and observed-subset temporal scope.
+It is not a provider request hit rate.
+It is not filesystem, memory, database, HTTP, or other I/O caching.
+See the [pipeline runbook](docs/pipelines.md#residual-waste-discovery) for the
+complete contract and claim limits.
+
 ## Benchmarking
 
 `ktx bench` commands use Go implementations shipped in the binary. Named

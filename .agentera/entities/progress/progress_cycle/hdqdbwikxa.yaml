@@ -1,0 +1,14 @@
+id: hdqdbwikxa
+artifact: progress
+record:
+  timestamp: 2026-08-09 17:16
+  type: feat
+  phase: build
+  what: Published `ktx stats summary` schema 7 with a provider/model-scoped, token-weighted prompt-cache token hit rate.
+  context:
+    intent: Expose the pinned disjoint cache-token ratio without claiming provider request or I/O-cache behavior.
+    constraints: No database migration, configured-identity fallback, benchmark contract change, historical evidence rewrite, or TODO.md change.
+    scope: internal/cli/stats.go, stats and DB tests, current help/docs, KTX skill guidance, CHANGELOG.md, and plan/progress state.
+  verified: Focused cli/db tests passed. `mage check` passed race tests, vet, lint with 0 issues, and build with forbidden=0. `mage replayFixture` passed. A fresh `./build/ktx` telemetry smoke emitted a measured 60.00 `PROMPT_CACHE_TOKEN_HIT_RATE_PCT` from 20 uncached, 30 cache-read, and 0 cache-write tokens. The retained schema-6 archive SHA-256 remains b817943fd2449a607d373205306458403e627a0970946274115f369a89eacb1e.
+  next: Leave the task in progress for independent Audit; do not record an evaluator verdict or terminal task status.
+  publication_order: 66

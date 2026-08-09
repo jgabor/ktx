@@ -1,0 +1,15 @@
+id: ipnlktzyvo
+artifact: progress
+record:
+  timestamp: 2026-08-09 19:02
+  type: feat
+  phase: build
+  what: Added the developer-only `mage componentBench` runner for reproducible parser, configuration, router, built-in stage, pipeline, and persistence measurements.
+  context:
+    intent: Establish reproducible component-performance evidence before process-load or concurrency work.
+    constraints: Preserve one binary, one SQLite product database, existing `ktx bench` cost and quality semantics, public command contracts, and disposable development roots.
+    scope: tools/componentbench, the Mage target, component benchmark documentation, skill guidance, changelog, and focused regression tests.
+  discovered: A temporary database opened directly beneath the benchmark root measures persistence without resolving KTX_DB or creating product telemetry.
+  verified: Focused isolated `go test ./tools/componentbench` passed. Isolated `mage componentBench` emitted schema version 1 JSON with nine seeded and hashed workloads, one warm-up, five measured samples, machine identity, and 108 temporary database opens with forbidden=0. Isolated `mage check` passed race tests, vet, lint with 0 issues, build, and its database audit recorded 971 attempts with forbidden=0.
+  next: Later tasks can compare the documented component distributions while keeping timing descriptive on uncontrolled hosts.
+  publication_order: 67

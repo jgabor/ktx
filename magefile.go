@@ -69,6 +69,15 @@ func test() error {
 	return run("go", "test", "-race", "-tags=mage", "./...")
 }
 
+// ComponentBench emits benchmark-only component measurements as JSON.
+func ComponentBench() error {
+	return hermeticTarget("componentBench", componentBench)
+}
+
+func componentBench() error {
+	return run("go", "run", "./tools/componentbench")
+}
+
 // ReplayFixture runs the bounded, offline repository gate for the retained fixture.
 func ReplayFixture() error {
 	return hermeticTarget("replayFixture", replayFixture)
@@ -92,7 +101,7 @@ func Vet() error {
 }
 
 func Fmt() error {
-	return run("gofmt", "-w", "cmd", "internal", "tools/bench/data.go")
+	return run("gofmt", "-w", "cmd", "internal", "tools/bench/data.go", "tools/componentbench")
 }
 
 func Lint() error {

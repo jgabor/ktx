@@ -4,7 +4,7 @@ record:
   name: Establish component performance baselines and observability
   depends_on:
     - etszstkbbs
-  status: pending
+  status: complete
   acceptance:
     - GIVEN parsers, configuration, routing, built-in stages, complete pipelines, and persistence operations WHEN benchmarked THEN fixed 1024-byte, 65536-byte, and 1048576-byte plain-text, JSON, and NDJSON workloads have stable names, generator seeds or fixture hashes, and versioned result fields.
     - GIVEN component benchmarks run WHEN results are emitted THEN they report latency, throughput, processed bytes, and allocations with Go, operating-system, processor, filesystem, and workload identity.

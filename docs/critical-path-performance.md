@@ -17,6 +17,9 @@ not substitute for a result in another.
 | Product cost and quality | The existing `ktx bench` cost and quality evidence, with its retained artifacts and unchanged scoring semantics.                                 | Local process latency, component performance, or a provider performance claim. |
 | Concurrency reliability  | A deterministic supported-participant contention scenario that checks accepted records, retry convergence, and the rendered availability result. | A latency ceiling, product cost, or task quality result.                       |
 
+The developer-only [component benchmark measurements](component-benchmarks.md)
+runner supplies the first evidence class. It does not change `ktx bench`.
+
 ## Participants and availability
 
 Each participant owns only the span below. No participant may claim another

@@ -1,0 +1,15 @@
+id: hoageszfdx
+artifact: progress
+record:
+  timestamp: 2026-08-09 16:34
+  type: feat
+  phase: build
+  what: Added a source-identity partition for live model-step summary rows.
+  context:
+    intent: Tie future live cache-rate and API-equivalent cost populations to runtime-emitted provider/model evidence.
+    constraints: No schema migration, schema 6 change, configured identity fallback, or provider-cache claim.
+    scope: Internal live summary identity boundary and tests.
+  discovered: Schema 6 aggregates cache tokens without provider/model identity, while session telemetry already stores nullable source provider/model fields.
+  verified: Focused identity and storage tests, full cli/db package tests, mage build, and an isolated local summary smoke passed.
+  next: Later live rate and cost work can consume separate provider/model groups and typed unavailable reasons.
+  publication_order: 65

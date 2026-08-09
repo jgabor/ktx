@@ -86,12 +86,15 @@ type StatsSummaryRow struct {
 }
 
 // StatsSummaryCacheRow is one accepted runtime model-step observation in a
-// bounded stats summary. Session and capture fields describe the contributing
-// observation, while numeric fields preserve their measured, unknown, or
-// malformed state so callers cannot mistake a partial sum for a complete one.
+// bounded stats summary. Session, capture, and source identity fields describe
+// the contributing observation, while numeric fields preserve their measured,
+// unknown, or malformed state so callers cannot mistake a partial sum for a
+// complete one.
 type StatsSummaryCacheRow struct {
 	SessionID     string
 	CapturedAt    time.Time
+	Provider      *string
+	Model         *string
 	UncachedInput IntegerMeasurement
 	CacheRead     IntegerMeasurement
 	CacheWrite    IntegerMeasurement
@@ -124,7 +127,7 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 	}
 	from = from.UTC()
 	to = to.UTC()
-	rows, err := d.db.Query(`SELECT session_id, captured_at,
+	rows, err := d.db.Query(`SELECT session_id, captured_at, provider, model,
 			tokens_input, cache_read, cache_write,
 			tokens_input_state, cache_read_state, cache_write_state
 		FROM session_telemetry
@@ -138,7 +141,8 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 	for rows.Next() {
 		var sessionID, capturedAt, inputState, cacheReadState, cacheWriteState string
 		var input, cacheRead, cacheWrite sql.NullInt64
-		if err := rows.Scan(&sessionID, &capturedAt, &input, &cacheRead, &cacheWrite, &inputState, &cacheReadState, &cacheWriteState); err != nil {
+		var provider, model sql.NullString
+		if err := rows.Scan(&sessionID, &capturedAt, &provider, &model, &input, &cacheRead, &cacheWrite, &inputState, &cacheReadState, &cacheWriteState); err != nil {
 			return nil, fmt.Errorf("db: stats summary cache scan: %w", err)
 		}
 		captured, err := time.Parse(time.RFC3339Nano, capturedAt)
@@ -146,13 +150,20 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 			continue
 		}
 		captured = captured.UTC()
-		result = append(result, StatsSummaryCacheRow{
+		row := StatsSummaryCacheRow{
 			SessionID:     sessionID,
 			CapturedAt:    captured,
 			UncachedInput: databaseIntegerMeasurement(inputState, input),
 			CacheRead:     databaseIntegerMeasurement(cacheReadState, cacheRead),
 			CacheWrite:    databaseIntegerMeasurement(cacheWriteState, cacheWrite),
-		})
+		}
+		if provider.Valid {
+			row.Provider = &provider.String
+		}
+		if model.Valid {
+			row.Model = &model.String
+		}
+		result = append(result, row)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("db: stats summary cache iterate: %w", err)

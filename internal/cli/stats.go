@@ -275,6 +275,21 @@ type statsSummaryCacheReuse struct {
 	Unit                     string                              `json:"unit"`
 }
 
+type statsSummaryRuntimeIdentity struct {
+	Provider string
+	Model    string
+}
+
+type statsSummaryCacheIdentityGroup struct {
+	Identity statsSummaryRuntimeIdentity
+	Rows     []dbpkg.StatsSummaryCacheRow
+}
+
+type statsSummaryCacheIdentityPartition struct {
+	Groups            []statsSummaryCacheIdentityGroup
+	MissingModelSteps int
+}
+
 type statsSummaryRequestedWindowCoverage struct {
 	State  string `json:"state"`
 	Reason string `json:"reason"`
@@ -308,6 +323,9 @@ const (
 	statsSummaryRequestedWindowCoverageUnavailable    = "unavailable"
 	statsSummaryCollectorLifecycleEvidenceUnavailable = "collector_lifecycle_evidence_unavailable"
 	statsSummaryObservedSubsetScope                   = "observed_subset"
+	statsSummaryRuntimeIdentityMissing                = "runtime_emitted_identity_missing"
+	statsSummaryRuntimeIdentityMixed                  = "runtime_emitted_identity_mixed"
+	statsSummaryNoContributingModelSteps              = "no_contributing_model_steps"
 )
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
@@ -635,6 +653,59 @@ func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryC
 		cache.ObservedSpanSeconds = &span
 	}
 	return cache
+}
+
+// partitionStatsSummaryCacheIdentity separates model steps by their exact
+// runtime-emitted provider/model pair. It never substitutes configured identity
+// for source evidence.
+func partitionStatsSummaryCacheIdentity(rows []dbpkg.StatsSummaryCacheRow) statsSummaryCacheIdentityPartition {
+	byIdentity := make(map[statsSummaryRuntimeIdentity]int)
+	partition := statsSummaryCacheIdentityPartition{}
+	for _, row := range rows {
+		identity, ok := statsSummaryCacheRowIdentity(row)
+		if !ok {
+			partition.MissingModelSteps++
+			continue
+		}
+		index, exists := byIdentity[identity]
+		if !exists {
+			index = len(partition.Groups)
+			byIdentity[identity] = index
+			partition.Groups = append(partition.Groups, statsSummaryCacheIdentityGroup{Identity: identity})
+		}
+		partition.Groups[index].Rows = append(partition.Groups[index].Rows, row)
+	}
+	sort.Slice(partition.Groups, func(i, j int) bool {
+		if partition.Groups[i].Identity.Provider != partition.Groups[j].Identity.Provider {
+			return partition.Groups[i].Identity.Provider < partition.Groups[j].Identity.Provider
+		}
+		return partition.Groups[i].Identity.Model < partition.Groups[j].Identity.Model
+	})
+	return partition
+}
+
+// aggregateIdentity returns the identity that can authorize one aggregate
+// metric. Multiple complete source identities remain available as separate
+// groups, but cannot authorize a pooled metric.
+func (partition statsSummaryCacheIdentityPartition) aggregateIdentity() (statsSummaryRuntimeIdentity, string) {
+	if partition.MissingModelSteps > 0 {
+		return statsSummaryRuntimeIdentity{}, statsSummaryRuntimeIdentityMissing
+	}
+	switch len(partition.Groups) {
+	case 0:
+		return statsSummaryRuntimeIdentity{}, statsSummaryNoContributingModelSteps
+	case 1:
+		return partition.Groups[0].Identity, ""
+	default:
+		return statsSummaryRuntimeIdentity{}, statsSummaryRuntimeIdentityMixed
+	}
+}
+
+func statsSummaryCacheRowIdentity(row dbpkg.StatsSummaryCacheRow) (statsSummaryRuntimeIdentity, bool) {
+	if row.Provider == nil || row.Model == nil || strings.TrimSpace(*row.Provider) == "" || strings.TrimSpace(*row.Model) == "" {
+		return statsSummaryRuntimeIdentity{}, false
+	}
+	return statsSummaryRuntimeIdentity{Provider: *row.Provider, Model: *row.Model}, true
 }
 
 func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasurement) {

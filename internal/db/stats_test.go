@@ -349,6 +349,46 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	}
 }
 
+func TestStatsSummaryCacheRowsPreservesSourceIdentity(t *testing.T) {
+	const runtime, runtimeVersion = "opencode", "1.18.5"
+	d := openMemoryDB(t)
+	from := time.Date(2026, 7, 21, 11, 30, 0, 0, time.UTC)
+	to := from.Add(time.Minute)
+	withIdentity, withoutIdentity := mustNewID(t), mustNewID(t)
+	for _, sessionID := range []string{withIdentity, withoutIdentity} {
+		if err := d.InsertSession(&Session{ID: sessionID, Agent: runtime}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	provider, model := "openai", "gpt-5"
+	persist := func(sessionID, source string, capturedAt string, provider, model *string) {
+		t.Helper()
+		observation := telemetryObservation(source, source, source, 1, 0, 0)
+		observation.Runtime, observation.RuntimeVersion = runtime, runtimeVersion
+		observation.Provider, observation.Model = provider, model
+		if _, err := d.PersistSessionTelemetry(sessionID, capturedAt, observation); err != nil {
+			t.Fatalf("PersistSessionTelemetry(%q): %v", source, err)
+		}
+	}
+	persist(withIdentity, "source-with-identity", from.Format(time.RFC3339Nano), &provider, &model)
+	persist(withoutIdentity, "source-without-identity", to.Format(time.RFC3339Nano), nil, nil)
+
+	rows, err := d.StatsSummaryCacheRows(from, to, runtime, runtimeVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(map[string]StatsSummaryCacheRow, len(rows))
+	for _, row := range rows {
+		got[row.SessionID] = row
+	}
+	if row := got[withIdentity]; row.Provider == nil || *row.Provider != provider || row.Model == nil || *row.Model != model {
+		t.Fatalf("source identity = %#v/%#v", row.Provider, row.Model)
+	}
+	if row := got[withoutIdentity]; row.Provider != nil || row.Model != nil {
+		t.Fatalf("missing source identity = %#v/%#v", row.Provider, row.Model)
+	}
+}
+
 func TestForEachStatsSummaryBatch(t *testing.T) {
 	for _, test := range []struct {
 		name        string

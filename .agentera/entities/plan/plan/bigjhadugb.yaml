@@ -1,0 +1,49 @@
+id: bigjhadugb
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-09
+    status: open
+    reviewed: 2026-08-09
+    critic_issues: 9 found, 5 addressed, 4 dismissed
+    title: "Plan: Surface prompt-cache hit rate and cost guard"
+  what: Expose a provider/runtime/version-scoped prompt-cache token hit rate across live and future benchmark surfaces. Keep reported and API-equivalent costs separate, and add a fail-closed quality-adjusted estimated-cost pipeline guard.
+  why: Detect when KTX transformations damage provider prompt/prefix-cache treatment enough to erase their savings without claiming provider-request or cache-internal facts.
+  constraints: Define the token hit rate as cache_read divided by uncached_input plus cache_read plus cache_write under a pinned disjoint accounting contract. Preserve measured zero and unavailable states. Never backfill source identity or reported cost. Use retained API pricing only for a separate estimate and make estimated cost per correct the gate. Preserve historical live schema 6, benchmark schemas 1 through 4, contract v1, retained bytes, and hashes. Exclude request-level hit or miss, TTL, eviction, eligibility, isolation, prefix composition, subscription amortization, provider instrumentation, cross-provider pooling, and speculative database migration.
+  overall_acceptance: GIVEN complete authoritative prompt-cache and cost evidence WHEN KTX compares a baseline and candidate THEN consumers see a truthful token hit rate and separate cost bases, and only a quality-preserving candidate with strictly lower API-equivalent estimated cost per correct is accepted.
+  scope:
+    included:
+      - authoritative live provider and model identity boundary
+      - live summary schema 7 JSON, text, help, and documentation
+      - future benchmark schema 5 and cache metric contract v2
+      - future hit-rate comparison and statement authorization
+      - dual benchmark and live cost views
+      - quality-adjusted pipeline cost guard
+      - current-surface synchronization and verification
+    excluded:
+      - historical artifact rewrites
+      - provider request hit-rate claims
+      - provider cache internals
+      - subscription-cost amortization
+      - cross-provider pooled rates
+      - new provider instrumentation
+      - speculative database migration
+    deferred:
+      []
+  design: Establish authoritative live identity before exposing the rate, then publish the live contract. Introduce explicitly activated successor benchmark contracts without altering retained evidence. Reuse existing cost estimation to add a fail-closed decision guard, extend equivalent cost views to live reporting, and finish with bounded current-state synchronization and release-readiness verification.
+  unknowns:
+    - question: Can accepted live model-step telemetry establish one authoritative runtime-emitted provider and model pricing identity?
+      affects_task: 1
+      resolve_by: Inspect the accepted live population during task 1. If identity is missing or mixed, keep the rate or estimate unavailable with an exact reason or separate authoritative identity groups; never backfill configured identity.
+  rejected:
+    - issue: Retain the blanket prohibition on all hit-rate wording.
+      rationale: The firm revised decision permits a precisely defined token-weighted prompt-cache rate while retaining provider-internal prohibitions.
+    - issue: Exclude cache-write tokens from logical input.
+      rationale: The pinned OpenCode accounting contract defines uncached input, cache read, and cache write as disjoint input buckets.
+    - issue: Collapse reported zero and API-equivalent estimated cost into one value.
+      rationale: Reported cost and normalized estimated cost answer different questions; literal zero remains measured evidence.
+    - issue: Require a database migration before the rollout.
+      rationale: Current session telemetry already retains provider, model, cost, output, reasoning, and all required input buckets.
+  surprises:
+    []

@@ -1,0 +1,13 @@
+id: gpfpiuasaz
+artifact: plan
+record:
+  name: Publish future benchmark hit-rate evidence and statements
+  depends_on:
+    - lofszlmrop
+  status: pending
+  acceptance:
+    - GIVEN an explicitly activated future manifest WHEN summarized THEN benchmark schema 5 and cache metric contract v2 use prompt-cache token hit-rate fields and comparison names.
+    - GIVEN complete paired evidence WHEN compared THEN means, percentage-point delta, pair count, interval, quality, and blockers are machine-readable.
+    - GIVEN an authorized comparison WHEN rendered THEN wording states higher or lower token-weighted prompt-cache hit rate under the pinned contract while provider-internal claims remain forbidden.
+    - GIVEN retained schemas 1 through 4, contract v1, and historical evidence WHEN regenerated THEN their bytes, hashes, and wording remain unchanged.
+  plan: bigjhadugb

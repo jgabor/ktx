@@ -1,0 +1,17 @@
+id: coaivblfft
+artifact: plan
+record:
+  name: Synchronize and verify current state
+  depends_on:
+    - oixzlpbdav
+    - lofszlmrop
+    - gpfpiuasaz
+    - ioozssypfd
+    - haiquyiapv
+  status: pending
+  acceptance:
+    - GIVEN shipped behavior WHEN current surfaces are inventoried THEN help, documentation, skills, changelog, and TODO terminology agree while historical evidence is excluded from rewrites.
+    - GIVEN retained and future contracts WHEN verified THEN schemas 1 through 4 regenerate byte-for-byte and schema 5 validates under its activation marker.
+    - GIVEN the complete change set WHEN release readiness is checked THEN focused tests, isolated mage check, rebuilt JSON, text, and help smokes, seeded disposable migration rehearsal, Agentera validation, and independent audit pass.
+    - GIVEN closeout WHEN committed THEN implementation, tests, evaluator provenance, and project state form one coherent change set.
+  plan: bigjhadugb

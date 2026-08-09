@@ -1,0 +1,13 @@
+id: lofszlmrop
+artifact: plan
+record:
+  name: Publish the live prompt-cache token hit rate
+  depends_on:
+    - oixzlpbdav
+  status: pending
+  acceptance:
+    - GIVEN complete eligible buckets WHEN summary schema 7 is emitted THEN prompt_cache_token_hit_rate reports the exact formula, token-weighted kind, source, raw buckets, and temporal scope.
+    - GIVEN zero, incomplete, malformed, or unsupported evidence WHEN summarized THEN zero remains measured and other ineligible states remain unavailable without reconstruction.
+    - GIVEN text, help, and current documentation WHEN inspected THEN PROMPT_CACHE_TOKEN_HIT_RATE_PCT is explicit and cannot be confused with an I/O cache or request hit rate.
+    - GIVEN retained schema 6 evidence WHEN validated THEN its meaning and bytes remain unchanged.
+  plan: bigjhadugb

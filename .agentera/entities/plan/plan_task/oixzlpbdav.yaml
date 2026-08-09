@@ -1,0 +1,13 @@
+id: oixzlpbdav
+artifact: plan
+record:
+  name: Establish the live identity boundary
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN accepted live model steps WHEN their identity is evaluated THEN each rate population has one authoritative runtime-emitted provider and model or separate authoritative identity groups.
+    - GIVEN missing or mixed source identity WHEN live metrics are requested THEN affected values are unavailable with exact reasons and configured identity never backfills source evidence.
+    - GIVEN current telemetry storage WHEN the boundary is established THEN no migration or historical reinterpretation occurs.
+    - GIVEN measured and unavailable identity cases WHEN verified THEN both pass their focused behavioral tests.
+  plan: bigjhadugb

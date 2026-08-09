@@ -110,6 +110,8 @@ func TestLoadBenchmarkDocumentation(t *testing.T) {
 		"foreign-sqlite",
 		"path-alias",
 		"ownership-recovery",
+		"foreign-writer-reader-exhaustion",
+		"stale-compatible",
 		"ktx bench",
 	} {
 		if !strings.Contains(normalized, required) {

@@ -298,25 +298,14 @@ func buildDoctorReport() *doctorReport {
 		Detail: fmt.Sprintf("file present at %q", path),
 	})
 
-	// Check 2: openable through SQLite's enforced read-only mode. Wrapping the
-	// pool exposes the existing inspection helpers without running migrations.
-	sqlDB, err := dbpkg.OpenReadOnly(path)
+	// Check 2: openable through SQLite's enforced read-only mode without
+	// running migrations.
+	db, err := dbpkg.OpenReadOnly(path)
 	if err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "database_openable",
 			Status: doctorStatusError,
 			Detail: fmt.Sprintf("open %q: %v", path, err),
-		})
-		report.Status = doctorStatusError
-		return report
-	}
-	db, err := dbpkg.OpenWithoutMigration(sqlDB)
-	if err != nil {
-		sqlDB.Close()
-		report.Checks = append(report.Checks, doctorCheck{
-			Name:   "database_openable",
-			Status: doctorStatusError,
-			Detail: fmt.Sprintf("open %q read-only: %v", path, err),
 		})
 		report.Status = doctorStatusError
 		return report

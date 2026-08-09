@@ -94,7 +94,7 @@ func runBenchExport(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	defer database.Close()
 
-	fixtureBytes, err := exportReplayFixture(database, fs.Arg(0))
+	fixtureBytes, err := exportReplayFixture(database.DB(), fs.Arg(0))
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

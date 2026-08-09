@@ -26,7 +26,7 @@ func Generate(path string, includeIdentifiers bool, now time.Time) (map[string]a
 		return nil, err
 	}
 	defer database.Close()
-	tx, err := database.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
+	tx, err := database.DB().BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
 	}

@@ -173,7 +173,7 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 				return CommandResult{}, err
 			}
 			var session string
-			err = handle.QueryRow(`SELECT id FROM sessions`).Scan(&session)
+			err = handle.DB().QueryRow(`SELECT id FROM sessions`).Scan(&session)
 			handle.Close()
 			if err != nil {
 				return CommandResult{}, err

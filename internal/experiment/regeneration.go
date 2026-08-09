@@ -105,17 +105,17 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 			return invalidSchema3Attempt(attempt, metrics, "schema 3 explicit session link does not match its owner"), nil
 		}
 		var total int
-		if err := database.QueryRow("SELECT count(*) FROM sessions").Scan(&total); err != nil || total != 1 {
+		if err := database.DB().QueryRow("SELECT count(*) FROM sessions").Scan(&total); err != nil || total != 1 {
 			return invalidSchema3Attempt(attempt, metrics, "schema 3 database does not contain exactly one session owner"), nil
 		}
 		var endedAt sql.NullString
 		var agent string
-		if err := database.QueryRow("SELECT agent, ended_at FROM sessions WHERE id = ?", *attempt.SessionID).Scan(&agent, &endedAt); err != nil || agent != "opencode" || !endedAt.Valid || endedAt.String == "" {
+		if err := database.DB().QueryRow("SELECT agent, ended_at FROM sessions WHERE id = ?", *attempt.SessionID).Scan(&agent, &endedAt); err != nil || agent != "opencode" || !endedAt.Valid || endedAt.String == "" {
 			return invalidSchema3Attempt(attempt, metrics, "schema 3 explicit session owner is not closed"), nil
 		}
 	}
 	var sessions int
-	if err := database.QueryRow("SELECT count(*) FROM sessions WHERE id = ?", *attempt.SessionID).Scan(&sessions); err != nil {
+	if err := database.DB().QueryRow("SELECT count(*) FROM sessions WHERE id = ?", *attempt.SessionID).Scan(&sessions); err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q read session authority: %w", attempt.AttemptID, err)
 	}
 	if sessions != 1 {
@@ -125,19 +125,19 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 		return Attempt{}, fmt.Errorf("attempt %q session authority is unavailable for %q", attempt.AttemptID, *attempt.SessionID)
 	}
 	var count int
-	if err := database.QueryRow("SELECT count(*) FROM tool_calls WHERE session_id = ?", *attempt.SessionID).Scan(&count); err != nil {
+	if err := database.DB().QueryRow("SELECT count(*) FROM tool_calls WHERE session_id = ?", *attempt.SessionID).Scan(&count); err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q read tool-call authority: %w", attempt.AttemptID, err)
 	}
 	metrics.ToolCallCount = count
 	if attempt.SchemaVersion >= 3 {
 		var reason string
-		metrics.sequence, reason = materializeEventHookSequence(database, attempt, metrics)
+		metrics.sequence, reason = materializeEventHookSequence(database.DB(), attempt, metrics)
 		if reason != "" {
 			return invalidSchema3Attempt(attempt, metrics, reason), nil
 		}
 	}
 	attempt.Metrics = metrics
-	deliveryRows, err := db.QueryDeliveryObservations(database, *attempt.SessionID)
+	deliveryRows, err := db.QueryDeliveryObservations(database.DB(), *attempt.SessionID)
 	if err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q read delivery authority: %w", attempt.AttemptID, err)
 	}

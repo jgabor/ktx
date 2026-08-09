@@ -1,0 +1,15 @@
+id: owtefukcmj
+artifact: progress
+record:
+  timestamp: 2026-08-09 20:51
+  type: fix
+  phase: build
+  what: Coordinated supported read-only handles with supported SQLite writers and made stale-compatible migration verification use one owned schema transition.
+  context:
+    intent: Prevent supported reader/writer and compatible migration overlap from exposing SQLite lock errors while preserving read-only behavior and forward-only schema handling.
+    constraints: Preserve one binary, one SQLite database, no daemon or spool, source and artifact authority, genuine read-only access, existing schema-incompatible behavior, and separate foreign-lock rendering work.
+    scope: Shared database-file leases for supported read-only handles, reader and migration tests, foreign participant classification evidence, load-harness scenarios, and contract documentation.
+  discovered: A raw read-only SQL pool could not retain ownership until its caller finished querying. Returning the existing DB handle with a shared file lease keeps the ownership boundary open through Close without changing SQLite journal mode or query mutation behavior.
+  verified: Focused cross-process reader/writer, stale-compatible migration, newer-schema preservation, foreign reader/writer classification, and read-only storage tests passed. Focused schema-incompatible CLI tests passed. A fresh migration rehearsal seeded schema 8, ran ./build/ktx db migrate, and reported from_schema 8, to_schema 9, migrated true; the marker remained preserved, the recreated table existed, and integrity_check returned ok. The isolated load harness rebuilt ./build/ktx, passed all five 32-writer/read-only-query rounds with 32/32 completions, 33 exact rows, zero failures, and p99 from 150.1ms to 170.8ms. Its stale migration scenario reconciled 3/3 rows with no failures; its foreign writer/read-only scenario classified database-unavailable separately with 1/1 retained bootstrap row. Load audit recorded 1086 accesses with forbidden=0. Isolated mage check passed race tests, vet, lint with 0 issues, build, and 1000 audited accesses with forbidden=0. Windows cross-compilation of internal/db passed.
+  next: The remaining foreign-lock task can own complete text and JSON normalization plus partial-hook delivery semantics; timing remains descriptive without an approved controlled-host budget.
+  publication_order: 71

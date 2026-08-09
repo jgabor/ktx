@@ -8,9 +8,13 @@ import (
 	"syscall"
 )
 
-func tryLockWriterFile(file *os.File) error {
+func tryLockWriterFile(file *os.File, mode coordinationMode) error {
+	operation := syscall.LOCK_SH
+	if mode == coordinationExclusive {
+		operation = syscall.LOCK_EX
+	}
 	for {
-		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		err := syscall.Flock(int(file.Fd()), operation|syscall.LOCK_NB)
 		if err == nil {
 			return nil
 		}

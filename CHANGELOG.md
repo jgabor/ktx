@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- Supported read-only database handles now share local ownership with writers, preventing supported reader/writer SQLite lock overlap while retaining read-only behavior.
 - Supported ktx writers now coordinate each SQLite transaction across processes through the database file, including equivalent path aliases and forced process termination.
 - OpenCode ordinary telemetry and hook callbacks now share one arrival-order queue, and each write-capable database handle uses one process-local SQLite connection.
 - SQLite lock exhaustion now returns `database-unavailable` with the canonical database path and retry guidance instead of driver lock diagnostics.

@@ -15,11 +15,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 const (
@@ -533,7 +536,7 @@ func runWrapperRound(root string, runner processRunner, fixture fixture, roundIn
 }
 
 func runScenarios(root string, runner processRunner, payload fixture) ([]scenario, error) {
-	results := make([]scenario, 0, 6)
+	results := make([]scenario, 0, 7)
 	for _, operation := range []struct {
 		name string
 		run  func(string, processRunner, fixture) (scenario, error)
@@ -541,6 +544,7 @@ func runScenarios(root string, runner processRunner, payload fixture) ([]scenari
 		{name: "writer-path-alias", run: runWriterPathAliasScenario},
 		{name: "held-reader", run: runHeldReaderScenario},
 		{name: "held-writer", run: runHeldWriterScenario},
+		{name: "foreign-writer-reader-exhaustion", run: runForeignWriterReaderExhaustionScenario},
 		{name: "compatible-migration-race", run: runMigrationRaceScenario},
 		{name: "duplicate-delivery", run: runDuplicateDeliveryScenario},
 		{name: "process-termination", run: runProcessTerminationScenario},
@@ -552,6 +556,55 @@ func runScenarios(root string, runner processRunner, payload fixture) ([]scenari
 		results = append(results, result)
 	}
 	return results, nil
+}
+
+func runForeignWriterReaderExhaustionScenario(root string, runner processRunner, fixture fixture) (scenario, error) {
+	environment, err := newRoundEnvironment(root, "foreign-writer-reader-exhaustion")
+	if err != nil {
+		return scenario{}, err
+	}
+	setup := runner.hook(environment.env, hookPayload(stableID(450000), fixture))
+	if setup.Code != "ok" {
+		return scenario{}, fmt.Errorf("initialize foreign writer reader exhaustion scenario: %s", setup.Code)
+	}
+	holder, err := startForeignHolder(environment.db, "writer")
+	if err != nil {
+		return scenario{}, err
+	}
+	start := time.Now()
+	reader := runner.query(environment.env)
+	elapsed := time.Since(start)
+	holder.Release()
+	if err := holder.Wait(); err != nil {
+		return scenario{}, err
+	}
+	if reader.Code != "database-unavailable" {
+		return scenario{}, fmt.Errorf("foreign writer read-only result = %s, want database-unavailable", reader.Code)
+	}
+	persisted, query, err := runner.persistedCount(environment.env)
+	if err != nil {
+		return scenario{}, err
+	}
+	metrics := summarize([]processResult{reader}, 0, elapsed, 0)
+	addFailure(metrics.FailureCodes, query)
+	reconciliation := exactReconciliation(1, persisted)
+	if !reconciliation.Matches {
+		metrics.FailureCodes["reconciliation-mismatch"]++
+	}
+	return scenario{
+		Name:               "foreign-writer-reader-exhaustion",
+		FreshOwnedDatabase: true,
+		TimeoutNanoseconds: int64(processTimeout),
+		BootstrapToolCalls: 1,
+		Participants: []participant{
+			{Class: "foreign-sqlite", Role: "held-writer-beyond-supported-wait", Outcome: "released", LatencyNS: elapsed.Nanoseconds()},
+			participantFromResult("supported-ktx", "read-only-db-report", reader),
+			participantFromResult("supported-ktx", "reconciliation-query", query),
+		},
+		Metrics:        metrics,
+		Reconciliation: reconciliation,
+		Outcome:        measurementOutcome(metrics, reconciliation),
+	}, nil
 }
 
 func runWriterPathAliasScenario(root string, runner processRunner, fixture fixture) (scenario, error) {
@@ -659,6 +712,13 @@ func runMigrationRaceScenario(root string, runner processRunner, fixture fixture
 	if err != nil {
 		return scenario{}, err
 	}
+	setup := runner.hook(environment.env, hookPayload(stableID(499900), fixture))
+	if setup.Code != "ok" {
+		return scenario{}, fmt.Errorf("initialize migration race scenario: %s", setup.Code)
+	}
+	if err := seedStaleCompatibleDatabase(environment.db); err != nil {
+		return scenario{}, err
+	}
 	start := time.Now()
 	workers := concurrentHookOnly(runner, environment, fixture, 2, 500000)
 	elapsed := time.Since(start)
@@ -666,9 +726,12 @@ func runMigrationRaceScenario(root string, runner processRunner, fixture fixture
 	if err != nil {
 		return scenario{}, err
 	}
+	if err := verifyMigratedDatabase(environment.db); err != nil {
+		return scenario{}, err
+	}
 	metrics := summarize(workers, completed(workers), elapsed, 0)
 	addFailure(metrics.FailureCodes, query)
-	reconciliation := exactReconciliation(len(workers), persisted)
+	reconciliation := exactReconciliation(1+len(workers), persisted)
 	if !reconciliation.Matches {
 		metrics.FailureCodes["reconciliation-mismatch"]++
 	}
@@ -676,7 +739,7 @@ func runMigrationRaceScenario(root string, runner processRunner, fixture fixture
 		Name:               "supported-compatible-migration-race",
 		FreshOwnedDatabase: true,
 		TimeoutNanoseconds: int64(processTimeout),
-		BootstrapToolCalls: 0,
+		BootstrapToolCalls: 1,
 		Participants: []participant{
 			aggregateParticipant("supported-ktx", "one-shot-hook-writers", workers),
 			participantFromResult("supported-ktx", "reconciliation-query", query),
@@ -685,6 +748,46 @@ func runMigrationRaceScenario(root string, runner processRunner, fixture fixture
 		Reconciliation: reconciliation,
 		Outcome:        measurementOutcome(metrics, reconciliation),
 	}, nil
+}
+
+func seedStaleCompatibleDatabase(path string) error {
+	database, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(1000)")
+	if err != nil {
+		return err
+	}
+	defer database.Close()
+	_, err = database.Exec(`
+		DROP TABLE compression_dispositions;
+		CREATE TABLE loadbench_migration_marker (value TEXT NOT NULL);
+		INSERT INTO loadbench_migration_marker VALUES ('preserved');
+		PRAGMA user_version = ` + strconv.Itoa(dbpkg.MaxSupportedSchema()-1))
+	return err
+}
+
+func verifyMigratedDatabase(path string) error {
+	database, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(1000)")
+	if err != nil {
+		return err
+	}
+	defer database.Close()
+	var version, table int
+	var marker, integrity string
+	if err := database.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return err
+	}
+	if err := database.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'compression_dispositions'`).Scan(&table); err != nil {
+		return err
+	}
+	if err := database.QueryRow(`SELECT value FROM loadbench_migration_marker`).Scan(&marker); err != nil {
+		return err
+	}
+	if err := database.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		return err
+	}
+	if version != dbpkg.MaxSupportedSchema() || table != 1 || marker != "preserved" || integrity != "ok" {
+		return fmt.Errorf("migration post-state version=%d table=%d marker=%q integrity=%q", version, table, marker, integrity)
+	}
+	return nil
 }
 
 func runDuplicateDeliveryScenario(root string, runner processRunner, fixture fixture) (scenario, error) {

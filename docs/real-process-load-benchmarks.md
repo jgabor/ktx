@@ -25,6 +25,9 @@ names, seeds, byte counts, and hashes.
 
 One-shot `ktx hook` processes use concurrency 1, 2, 4, 8, 16, and 32. Every
 round also starts a supported read-only `ktx db report --output -` process.
+Supported readers hold shared local-database ownership until their read-only
+handle closes, so a supported writer waits before starting its SQLite
+transaction.
 Sustained `ktx run` streams are reported as a separate surface with eight
 newline-delimited tool events per stream. Neither surface represents the
 in-process component measurements in [component benchmarks](component-benchmarks.md).
@@ -39,15 +42,19 @@ retry count or lock-wait duration.
 
 Ordinary rounds bootstrap one unmeasured hook source so the supported read-only
 query has a current database from the start. `bootstrap_tool_calls` makes that
-row explicit in each reconciliation total. The compatible-migration race is
-the exception: it starts with no database and has zero bootstrap rows.
+row explicit in each reconciliation total. The compatible-migration race uses
+one bootstrap source, then deliberately makes its database stale before its
+concurrent supported openers run.
 
 The harness also runs bounded scenarios for:
 
 - concurrent supported hooks split across canonical and hard-link database paths;
 - a deliberately foreign held reader;
 - a deliberately foreign held writer;
-- concurrent compatible migrations into a fresh database;
+- `foreign-writer-reader-exhaustion`: a foreign writer held beyond the
+  supported read-only wait, classified apart from supported concurrency;
+- concurrent compatible migrations against a stale-compatible database with
+  exact schema, marker, and integrity post-state checks;
 - duplicate OpenCode hook delivery; and
 - `supported-process-termination-ownership-recovery`: termination of a hook
   process while it owns supported-writer coordination and is blocked by a

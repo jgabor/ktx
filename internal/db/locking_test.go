@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -86,9 +87,287 @@ func TestSQLiteProcessHelper(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	case "hold-reader":
+		d, err := OpenReadOnly(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer d.Close()
+		tx, err := d.db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		var count int
+		if err := tx.QueryRow(`SELECT count(*) FROM sessions`).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(os.Getenv("KTX_SQLITE_READY"), []byte("ready"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		waitForFile(t, os.Getenv("KTX_SQLITE_RELEASE"), 10*time.Second)
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
 	default:
 		t.Fatalf("unknown helper role %q", os.Getenv("KTX_SQLITE_ROLE"))
 	}
+}
+
+func TestSupportedReaderAndWriterOwnershipAcrossProcesses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "reader-writer.db")
+	initialized, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initialized.InsertSession(&Session{ID: "readerseedaaaaaa", Agent: "test"}); err != nil {
+		initialized.Close()
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	readerReady := path + ".reader-ready"
+	readerRelease := path + ".reader-release"
+	reader, readerOutput := startDBHelper(t, path, "hold-reader", map[string]string{
+		"KTX_SQLITE_READY":   readerReady,
+		"KTX_SQLITE_RELEASE": readerRelease,
+	})
+	readerWaited := false
+	t.Cleanup(func() {
+		if readerWaited {
+			return
+		}
+		_ = os.WriteFile(readerRelease, nil, 0o600)
+		_ = reader.Process.Kill()
+		_ = reader.Wait()
+	})
+	waitForFile(t, readerReady, 5*time.Second)
+	assertWriterLockBusy(t, path)
+
+	writerReady := path + ".writer-ready"
+	writerStart := path + ".writer-start"
+	writer, writerOutput := startDBHelper(t, path, "open-write", map[string]string{
+		"KTX_SQLITE_ID":    "readerwriteraaaa",
+		"KTX_SQLITE_READY": writerReady,
+		"KTX_SQLITE_START": writerStart,
+	})
+	writerWaited := false
+	t.Cleanup(func() {
+		if writerWaited {
+			return
+		}
+		_ = os.WriteFile(writerStart, nil, 0o600)
+		_ = writer.Process.Kill()
+		_ = writer.Wait()
+	})
+	waitForFile(t, writerReady, 5*time.Second)
+	if err := os.WriteFile(writerStart, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assertWriterLockBusy(t, path)
+	if err := os.WriteFile(readerRelease, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Wait(); err != nil {
+		t.Fatalf("reader: %v\n%s", err, readerOutput.String())
+	}
+	readerWaited = true
+	if err := writer.Wait(); err != nil {
+		t.Fatalf("writer: %v\n%s", err, writerOutput.String())
+	}
+	writerWaited = true
+
+	assertSessionCount(t, path, 2)
+}
+
+func TestSupportedCompatibleMigrationAcrossProcesses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stale-coordination.db")
+	initialized, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := initialized.db.Exec(`
+		DROP TABLE compression_dispositions;
+		CREATE TABLE migration_coordination_marker (value TEXT NOT NULL);
+		INSERT INTO migration_coordination_marker VALUES ('preserved');
+		PRAGMA user_version = ` + strconv.Itoa(schemaVersion-1)); err != nil {
+		initialized.Close()
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	start := path + ".start"
+	const workers = 4
+	type child struct {
+		cmd    *exec.Cmd
+		output *bytes.Buffer
+		ready  string
+	}
+	children := make([]child, 0, workers)
+	for index := 0; index < workers; index++ {
+		ready := path + ".ready-" + strconv.Itoa(index)
+		cmd, output := startDBHelper(t, path, "open-write", map[string]string{
+			"KTX_SQLITE_START": start,
+			"KTX_SQLITE_ID":    strings.Repeat(string(rune('a'+index)), idLength),
+			"KTX_SQLITE_READY": ready,
+		})
+		children = append(children, child{cmd: cmd, output: output, ready: ready})
+	}
+	for _, child := range children {
+		waitForFile(t, child.ready, 5*time.Second)
+	}
+	if err := os.WriteFile(start, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for index, child := range children {
+		if err := child.cmd.Wait(); err != nil {
+			t.Errorf("worker %d: %v\n%s", index, err, child.output.String())
+		}
+	}
+	if t.Failed() {
+		return
+	}
+
+	database, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	var version, calls, dispositionTable int
+	if err := database.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.db.QueryRow(`SELECT count(*) FROM sessions`).Scan(&calls); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'compression_dispositions'`).Scan(&dispositionTable); err != nil {
+		t.Fatal(err)
+	}
+	var marker, integrity string
+	if err := database.db.QueryRow(`SELECT value FROM migration_coordination_marker`).Scan(&marker); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.db.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		t.Fatal(err)
+	}
+	if version != schemaVersion || calls != workers || dispositionTable != 1 || marker != "preserved" || integrity != "ok" {
+		t.Fatalf("migration post-state version=%d sessions=%d disposition_table=%d marker=%q integrity=%q", version, calls, dispositionTable, marker, integrity)
+	}
+}
+
+func TestNewerSchemaCoordinationPreservesStorage(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "newer-coordination.db")
+	initialized, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := initialized.db.Exec(`CREATE TABLE newer_coordination_marker (value TEXT NOT NULL); INSERT INTO newer_coordination_marker VALUES ('preserved'); PRAGMA user_version = ` + strconv.Itoa(schemaVersion+1)); err != nil {
+		initialized.Close()
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshotStorage(t, dir)
+	for name, open := range map[string]func(string) (*DB, error){
+		"write-capable": Open,
+		"read-only":     OpenQuery,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := open(path)
+			var schemaErr *SchemaTooNewError
+			if !errors.As(err, &schemaErr) || schemaErr.Actual != schemaVersion+1 || schemaErr.Maximum != schemaVersion {
+				t.Fatalf("newer schema error = %v", err)
+			}
+		})
+	}
+	if after := snapshotStorage(t, dir); !reflect.DeepEqual(after, before) {
+		t.Fatalf("newer schema open changed storage:\n before=%#v\n after=%#v", before, after)
+	}
+}
+
+func TestForeignSQLiteLocksRemainOutsideSupportedOwnership(t *testing.T) {
+	t.Run("foreign writer blocks supported reader", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "foreign-writer.db")
+		initialized, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := initialized.Close(); err != nil {
+			t.Fatal(err)
+		}
+		ready := path + ".ready"
+		release := path + ".release"
+		holder, output := startDBHelper(t, path, "hold-exclusive", map[string]string{
+			"KTX_SQLITE_READY":   ready,
+			"KTX_SQLITE_RELEASE": release,
+		})
+		t.Cleanup(func() {
+			_ = os.WriteFile(release, nil, 0o600)
+			_ = holder.Process.Kill()
+			_ = holder.Wait()
+		})
+		waitForFile(t, ready, 5*time.Second)
+		if database, err := OpenReadOnly(path); err == nil || !IsSQLiteLockError(err) {
+			if database != nil {
+				_ = database.Close()
+			}
+			t.Fatalf("foreign writer result = %v, want SQLite lock\n%s", err, output.String())
+		}
+		if err := os.WriteFile(release, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := holder.Wait(); err != nil {
+			t.Fatalf("foreign writer: %v\n%s", err, output.String())
+		}
+	})
+
+	t.Run("foreign reader blocks supported writer", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "foreign-reader.db")
+		initialized, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := initialized.InsertSession(&Session{ID: "foreignreadseedx", Agent: "test"}); err != nil {
+			initialized.Close()
+			t.Fatal(err)
+		}
+		if err := initialized.Close(); err != nil {
+			t.Fatal(err)
+		}
+		reader, readTx := beginSharedRead(t, path, 10)
+		defer reader.Close()
+		defer readTx.Rollback()
+
+		raw, err := sql.Open(sqliteDriver, "file:"+path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(10)&_txlock=immediate")
+		if err != nil {
+			t.Fatal(err)
+		}
+		database, err := OpenWithoutMigration(raw)
+		if err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+		defer database.Close()
+		database.writer, err = newWriterCoordinator(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		err = database.withWriteTx(ctx, func(tx *sql.Tx) error {
+			_, err := tx.Exec(`INSERT INTO sessions (id, agent) VALUES ('foreignreaderwrt', 'test')`)
+			return err
+		})
+		if !IsSQLiteLockError(err) {
+			t.Fatalf("foreign reader result = %v, want SQLite lock", err)
+		}
+	})
 }
 
 func TestSupportedWriterOwnershipAcrossPathAliases(t *testing.T) {
@@ -223,7 +502,7 @@ func assertWriterLockBusy(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	err = tryLockWriterFile(file)
+	err = tryLockWriterFile(file, coordinationExclusive)
 	if !errors.Is(err, errWriterLockBusy) {
 		if err == nil {
 			_ = unlockWriterFile(file)
@@ -243,7 +522,7 @@ func assertWriterLockAvailable(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	if err := tryLockWriterFile(file); err != nil {
+	if err := tryLockWriterFile(file, coordinationExclusive); err != nil {
 		t.Fatalf("writer lock through %q: %v", path, err)
 	}
 	if err := unlockWriterFile(file); err != nil {

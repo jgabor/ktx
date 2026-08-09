@@ -881,7 +881,7 @@ func recordedStreamLinks(database, sessionID string) ([]RecordedStreamLink, erro
 		return nil, err
 	}
 	defer databaseHandle.Close()
-	rows, err := databaseHandle.Query("SELECT id, bench_run_id FROM recorded_streams WHERE session_id = ? ORDER BY id", sessionID)
+	rows, err := databaseHandle.DB().Query("SELECT id, bench_run_id FROM recorded_streams WHERE session_id = ? ORDER BY id", sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -909,7 +909,7 @@ func validateAttemptDatabase(path, attemptID, sessionID, intervalID string) erro
 	}
 	defer database.Close()
 	var count int
-	if err := database.QueryRow(`SELECT count(*) FROM sessions`).Scan(&count); err != nil {
+	if err := database.DB().QueryRow(`SELECT count(*) FROM sessions`).Scan(&count); err != nil {
 		return err
 	}
 	if count != 1 {
@@ -917,14 +917,14 @@ func validateAttemptDatabase(path, attemptID, sessionID, intervalID string) erro
 	}
 	var owner string
 	var ended sql.NullString
-	if err := database.QueryRow(`SELECT id, ended_at FROM sessions`).Scan(&owner, &ended); err != nil {
+	if err := database.DB().QueryRow(`SELECT id, ended_at FROM sessions`).Scan(&owner, &ended); err != nil {
 		return err
 	}
 	if owner != sessionID || !ended.Valid || ended.String == "" {
 		return fmt.Errorf("attempt %q explicit owner was replaced or left open", attemptID)
 	}
 	var gotInterval, gotAttempt, gotOwner, state string
-	if err := database.QueryRow(`SELECT id, attempt_id, session_id, close_state FROM runtime_event_intervals`).Scan(&gotInterval, &gotAttempt, &gotOwner, &state); err != nil {
+	if err := database.DB().QueryRow(`SELECT id, attempt_id, session_id, close_state FROM runtime_event_intervals`).Scan(&gotInterval, &gotAttempt, &gotOwner, &state); err != nil {
 		return fmt.Errorf("attempt %q interval unavailable: %w", attemptID, err)
 	}
 	if gotInterval != intervalID || gotAttempt != attemptID || gotOwner != sessionID || state != db.RuntimeComplete {
@@ -940,7 +940,7 @@ func attemptToolCallCount(path, sessionID string) (int, error) {
 	}
 	defer database.Close()
 	var count int
-	if err := database.QueryRow(`SELECT count(*) FROM tool_calls WHERE session_id = ?`, sessionID).Scan(&count); err != nil {
+	if err := database.DB().QueryRow(`SELECT count(*) FROM tool_calls WHERE session_id = ?`, sessionID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil

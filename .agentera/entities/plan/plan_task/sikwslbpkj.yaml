@@ -5,7 +5,7 @@ record:
   depends_on:
     - fdysxqmvxf
     - jvqmmnjbre
-  status: pending
+  status: complete
   acceptance:
     - GIVEN supported read-only commands and supported writers share a current local database WHEN their transactions overlap THEN readers remain non-mutating, accepted writes complete, and neither side exposes a SQLite lock error.
     - GIVEN concurrent instances of a binary compatible with the target schema open one stale database WHEN migration runs THEN one complete compatible schema becomes visible and all supported instances converge without partial state.

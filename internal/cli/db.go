@@ -118,7 +118,7 @@ func dbMigrateLogic(pathOverride string, args []string, format string, stdout io
 		return nil, databaseOpenError(path, err)
 	}
 	var before int
-	readErr := readOnly.QueryRow(`PRAGMA user_version`).Scan(&before)
+	readErr := readOnly.DB().QueryRow(`PRAGMA user_version`).Scan(&before)
 	closeErr := readOnly.Close()
 	if err := errors.Join(readErr, closeErr); err != nil {
 		return nil, internalError("ktx db migrate: read schema version: %v", err)

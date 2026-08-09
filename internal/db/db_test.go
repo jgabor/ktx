@@ -1,12 +1,12 @@
 package db
 
 import (
-	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -25,7 +25,7 @@ func TestOpenConfiguresBusyTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer readOnly.Close()
-	assertBusyTimeout(t, readOnly, 1000)
+	assertBusyTimeout(t, readOnly.DB(), 1000)
 }
 
 func TestWriteCapablePoolsUseOneConnection(t *testing.T) {
@@ -119,7 +119,7 @@ func TestOpenReadOnly(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer readOnly.Close()
-			if _, err := readOnly.Exec("CREATE TABLE forbidden (id INTEGER)"); err == nil {
+			if _, err := readOnly.DB().Exec("CREATE TABLE forbidden (id INTEGER)"); err == nil {
 				t.Fatal("write to read-only database succeeded")
 			}
 		})
@@ -172,7 +172,8 @@ func TestOpenQuery(t *testing.T) {
 	})
 
 	t.Run("current database is immutable", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "current.db")
+		dir := t.TempDir()
+		path := filepath.Join(dir, "current.db")
 		created, err := Open(path)
 		if err != nil {
 			t.Fatal(err)
@@ -180,10 +181,7 @@ func TestOpenQuery(t *testing.T) {
 		if err := created.Close(); err != nil {
 			t.Fatal(err)
 		}
-		before, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		before := snapshotStorage(t, dir)
 
 		database, err := OpenQuery(path)
 		if err != nil {
@@ -195,12 +193,8 @@ func TestOpenQuery(t *testing.T) {
 		if err := database.Close(); err != nil {
 			t.Fatal(err)
 		}
-		after, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(after, before) {
-			t.Fatal("read-only query changed database bytes")
+		if after := snapshotStorage(t, dir); !reflect.DeepEqual(after, before) {
+			t.Fatalf("read-only query changed storage:\n before=%#v\n after=%#v", before, after)
 		}
 	})
 
@@ -231,10 +225,7 @@ func TestOpenQuery(t *testing.T) {
 			if err := raw.Close(); err != nil {
 				t.Fatal(err)
 			}
-			before, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			before := snapshotStorage(t, filepath.Dir(path))
 			database, err := OpenQuery(path)
 			if database != nil {
 				database.Close()
@@ -242,12 +233,8 @@ func TestOpenQuery(t *testing.T) {
 			if err == nil || !test.check(err) {
 				t.Fatalf("OpenQuery error = %v", err)
 			}
-			after, readErr := os.ReadFile(path)
-			if readErr != nil {
-				t.Fatal(readErr)
-			}
-			if !bytes.Equal(after, before) {
-				t.Fatal("rejected query changed database bytes")
+			if after := snapshotStorage(t, filepath.Dir(path)); !reflect.DeepEqual(after, before) {
+				t.Fatalf("rejected query changed storage:\n before=%#v\n after=%#v", before, after)
 			}
 		})
 	}

@@ -9,8 +9,12 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func tryLockWriterFile(file *os.File) error {
-	err := windows.LockFileEx(windows.Handle(file.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &windows.Overlapped{})
+func tryLockWriterFile(file *os.File, mode coordinationMode) error {
+	flags := uint32(windows.LOCKFILE_FAIL_IMMEDIATELY)
+	if mode == coordinationExclusive {
+		flags |= windows.LOCKFILE_EXCLUSIVE_LOCK
+	}
+	err := windows.LockFileEx(windows.Handle(file.Fd()), flags, 0, 1, 0, &windows.Overlapped{})
 	if errors.Is(err, windows.ERROR_LOCK_VIOLATION) {
 		return errWriterLockBusy
 	}

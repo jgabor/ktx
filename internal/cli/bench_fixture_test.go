@@ -679,7 +679,7 @@ func assertFixtureDatabaseUnchanged(t *testing.T, path string, before []byte) {
 	}
 	defer database.Close()
 	var integrity string
-	if err := database.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
+	if err := database.DB().QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
 		t.Fatalf("check source database integrity: %v", err)
 	}
 	if integrity != "ok" {

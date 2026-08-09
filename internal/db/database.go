@@ -221,8 +221,9 @@ func OpenExisting(path string) (*DB, error) {
 
 // OpenReadOnly opens an existing SQLite database with a single connection.
 // SQLite's mode=ro is the write-enforcement boundary; query_only adds defense
-// in depth. The caller owns the returned pool and must close it.
-func OpenReadOnly(path string) (*sql.DB, error) {
+// in depth. The returned handle holds shared supported-access ownership until
+// Close, so supported writers cannot overlap its SQLite reads.
+func OpenReadOnly(path string) (*DB, error) {
 	if err := auditDatabaseAccess("open_read_only", path); err != nil {
 		return nil, err
 	}
@@ -230,16 +231,26 @@ func OpenReadOnly(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=ro&_pragma=busy_timeout(%d)", sqliteBusyTimeoutMS)
-	database, err := openSQLiteWithRetry(uri, 1, startupLockRetryPolicy())
+	reader, err := newWriterCoordinator(path)
+	if err != nil {
+		return nil, fmt.Errorf("db: open read-only: coordinate %q: %w", path, err)
+	}
+	lease, err := reader.acquire(context.Background(), false, coordinationShared)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := database.Exec("PRAGMA query_only = ON"); err != nil {
-		database.Close()
+	uri := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=ro&_pragma=busy_timeout(%d)", sqliteBusyTimeoutMS)
+	database, err := openSQLiteWithRetry(uri, 1, startupLockRetryPolicy())
+	if err != nil {
+		_ = lease.Close()
 		return nil, err
 	}
-	return database, nil
+	if _, err := database.Exec("PRAGMA query_only = ON"); err != nil {
+		_ = database.Close()
+		_ = lease.Close()
+		return nil, err
+	}
+	return &DB{db: database, lease: lease}, nil
 }
 
 // OpenQuery returns a current-schema *DB that cannot modify persistent state.
@@ -263,7 +274,7 @@ func OpenQuery(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: open query %q: %w", path, err)
 	}
-	version, err := readSchemaVersionWithRetry(database, startupLockRetryPolicy())
+	version, err := readSchemaVersionWithRetry(database.db, startupLockRetryPolicy())
 	if err != nil {
 		database.Close()
 		return nil, fmt.Errorf("db: read query schema version %q: %w", path, err)
@@ -276,7 +287,7 @@ func OpenQuery(path string) (*DB, error) {
 		database.Close()
 		return nil, newerSchemaError(version)
 	}
-	return &DB{db: database}, nil
+	return database, nil
 }
 
 func openEmptyQuery() (*DB, error) {
@@ -420,6 +431,7 @@ func OpenMemory() (*DB, error) {
 type DB struct {
 	db     *sql.DB
 	writer *writerCoordinator
+	lease  *coordinationLease
 }
 
 func (d *DB) withWriteTx(ctx context.Context, fn func(*sql.Tx) error) error {
@@ -431,10 +443,14 @@ func (d *DB) withWriteTx(ctx context.Context, fn func(*sql.Tx) error) error {
 // Close closes the database handle, releasing the underlying SQLite
 // connection pool. It is safe to call on a nil *DB.
 func (d *DB) Close() error {
-	if d == nil || d.db == nil {
+	if d == nil {
 		return nil
 	}
-	return d.db.Close()
+	var databaseErr error
+	if d.db != nil {
+		databaseErr = d.db.Close()
+	}
+	return errors.Join(databaseErr, d.lease.Close())
 }
 
 // DB returns the underlying *sql.DB handle. Production callers should

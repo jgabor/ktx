@@ -5,7 +5,7 @@ record:
   depends_on:
     - fdysxqmvxf
     - jvqmmnjbre
-  status: complete
+  status: in_progress
   acceptance:
     - GIVEN supported read-only commands and supported writers share a current local database WHEN their transactions overlap THEN readers remain non-mutating, accepted writes complete, and neither side exposes a SQLite lock error.
     - GIVEN concurrent instances of a binary compatible with the target schema open one stale database WHEN migration runs THEN one complete compatible schema becomes visible and all supported instances converge without partial state.
@@ -13,3 +13,13 @@ record:
     - GIVEN foreign readers or writers hold SQLite beyond the supported wait WHEN classified THEN they use the foreign-lock outcome rather than being counted as supported-concurrency success.
     - GIVEN current, stale-compatible, and newer-incompatible schemas WHEN tested THEN each transition has an ordinary and an adverse case with exact post-state verification.
   plan: brgeelxuec
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Supported ktx read can hold shared coordination during blocked stdout; a hook exceeded 11 seconds with no output or typed error.
+    provenance:
+      attempt_id: audit-plan-brgeelxuec-1
+      source: Independent plan-wide audit ses_017d8a9a3ffe6tDTqMDTa9Iuu9
+      recorded_at: 2026-08-09 22:34
+      writer_command: agentera state plan record-evaluation

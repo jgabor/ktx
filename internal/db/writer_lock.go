@@ -5,13 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 )
 
 const writerLockRetryDelay = 5 * time.Millisecond
 
-var errWriterLockBusy = errors.New("writer lock busy")
+var (
+	errWriterLockBusy          = errors.New("writer lock busy")
+	errCoordinationUnavailable = errors.New("database coordination unavailable")
+)
 
 type coordinationMode uint8
 
@@ -24,7 +26,7 @@ const (
 // database file. The operating system releases its lock when a process exits.
 type writerCoordinator struct {
 	path string
-	mu   sync.Mutex
+	mu   chan struct{}
 }
 
 func newWriterCoordinator(path string) (*writerCoordinator, error) {
@@ -32,12 +34,15 @@ func newWriterCoordinator(path string) (*writerCoordinator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &writerCoordinator{path: canonical}, nil
+	return &writerCoordinator{path: canonical, mu: make(chan struct{}, 1)}, nil
 }
 
 type coordinationLease struct{ file *os.File }
 
 func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coordinationMode) (*coordinationLease, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("%w: %w", errCoordinationUnavailable, err)
+	}
 	flags := os.O_RDONLY
 	if mode == coordinationExclusive {
 		flags = os.O_RDWR
@@ -53,6 +58,11 @@ func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coord
 	for {
 		err = tryLockWriterFile(file, mode)
 		if err == nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				_ = unlockWriterFile(file)
+				_ = file.Close()
+				return nil, fmt.Errorf("%w: %w", errCoordinationUnavailable, ctxErr)
+			}
 			break
 		}
 		if !errors.Is(err, errWriterLockBusy) {
@@ -65,7 +75,7 @@ func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coord
 		case <-ctx.Done():
 			timer.Stop()
 			_ = file.Close()
-			return nil, ctx.Err()
+			return nil, fmt.Errorf("%w: %w", errCoordinationUnavailable, ctx.Err())
 		}
 	}
 	return &coordinationLease{file: file}, nil
@@ -83,8 +93,15 @@ func (c *writerCoordinator) withLock(ctx context.Context, create bool, fn func()
 		return fn()
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("%w: %w", errCoordinationUnavailable, ctxErr)
+	}
+	select {
+	case c.mu <- struct{}{}:
+		defer func() { <-c.mu }()
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %w", errCoordinationUnavailable, ctx.Err())
+	}
 
 	lease, err := c.acquire(ctx, create, coordinationExclusive)
 	if err != nil {
@@ -97,4 +114,10 @@ func (c *writerCoordinator) withLock(ctx context.Context, create bool, fn func()
 	}()
 
 	return fn()
+}
+
+// IsDatabaseUnavailable reports whether err exhausted SQLite locking or
+// supported-process coordination.
+func IsDatabaseUnavailable(err error) bool {
+	return IsSQLiteLockError(err) || errors.Is(err, errCoordinationUnavailable)
 }

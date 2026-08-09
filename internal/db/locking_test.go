@@ -546,6 +546,95 @@ func assertSessionCount(t *testing.T, path string, want int) {
 	}
 }
 
+func TestWriterCoordinatorAcquisitionHonorsContext(t *testing.T) {
+	t.Run("file lease", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "coordinator-deadline.db")
+		initialized, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := initialized.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		holder, err := newWriterCoordinator(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lease, err := holder.acquire(context.Background(), false, coordinationShared)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		waiter, err := newWriterCoordinator(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		_, err = waiter.acquire(ctx, false, coordinationExclusive)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) || !IsDatabaseUnavailable(err) {
+			t.Fatalf("coordinator wait error = %v, want classified deadline", err)
+		}
+
+		if err := lease.Close(); err != nil {
+			t.Fatal(err)
+		}
+		retryCtx, retryCancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		retry, err := waiter.acquire(retryCtx, false, coordinationExclusive)
+		retryCancel()
+		if err != nil {
+			t.Fatalf("coordinator retry after release: %v", err)
+		}
+		if err := retry.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("process-local queue", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "coordinator-queue.db")
+		coordinator, err := newWriterCoordinator(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			done <- coordinator.withLock(context.Background(), true, func() error {
+				close(entered)
+				<-release
+				return nil
+			})
+		}()
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("first process-local coordinator did not acquire")
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		err = coordinator.withLock(ctx, true, func() error {
+			return errors.New("unexpected acquisition")
+		})
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) || !IsDatabaseUnavailable(err) {
+			t.Fatalf("process-local coordinator wait error = %v, want classified deadline", err)
+		}
+
+		close(release)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		retryCtx, retryCancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		err = coordinator.withLock(retryCtx, true, func() error { return nil })
+		retryCancel()
+		if err != nil {
+			t.Fatalf("process-local coordinator retry after release: %v", err)
+		}
+	})
+}
+
 func TestOpenRetriesStartupLock(t *testing.T) {
 	for name, open := range map[string]func(string) (interface{ Close() error }, error){
 		"read-write": func(path string) (interface{ Close() error }, error) { return Open(path) },

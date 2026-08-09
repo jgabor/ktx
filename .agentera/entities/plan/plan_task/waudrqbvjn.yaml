@@ -18,3 +18,13 @@ record:
     - GIVEN retained database and benchmark contracts WHEN compatibility is checked THEN read-only behavior, evidence authority, output recovery, and existing cost and quality summaries remain unchanged.
     - GIVEN closeout WHEN independently reviewed THEN implementation, tests, measurements, and project state support every plan-level acceptance claim.
   plan: brgeelxuec
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Final closeout is blocked by the supported-reader liveness defect found in sikwslbpkj.
+    provenance:
+      attempt_id: audit-plan-brgeelxuec-1
+      source: Independent plan-wide audit ses_017d8a9a3ffe6tDTqMDTa9Iuu9
+      recorded_at: 2026-08-09 22:34
+      writer_command: agentera state plan record-evaluation

@@ -13,3 +13,13 @@ record:
     - GIVEN held readers, held writers, compatible migration races, duplicate delivery, and process termination WHEN scenarios run THEN supported and foreign participants are labeled separately and each result has a bounded outcome and reconciliation oracle.
     - GIVEN an incoming sentinel KTX_DB or invalid fixture WHEN a worker starts THEN the harness rejects ambient access or invalid setup before reporting a successful measurement.
   plan: brgeelxuec
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-plan-brgeelxuec-1
+      source: Independent plan-wide audit ses_017d8a9a3ffe6tDTqMDTa9Iuu9
+      recorded_at: 2026-08-09 22:34
+      writer_command: agentera state plan record-evaluation

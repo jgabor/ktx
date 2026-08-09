@@ -11,3 +11,13 @@ record:
     - GIVEN a hook produces lossy output WHEN it responds THEN source evidence is accepted before transformed output can reach the agent.
     - GIVEN ordinary and adverse callback outcomes WHEN verified THEN at least one success and one failure case preserve conservative pass-through, first-evidence ownership, and retry convergence.
   plan: brgeelxuec
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-plan-brgeelxuec-1
+      source: Independent plan-wide audit ses_017d8a9a3ffe6tDTqMDTa9Iuu9
+      recorded_at: 2026-08-09 22:34
+      writer_command: agentera state plan record-evaluation

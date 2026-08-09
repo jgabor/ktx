@@ -158,7 +158,9 @@ func Open(path string) (*DB, error) {
 	}
 
 	var database *sql.DB
-	err = writer.withLock(context.Background(), true, func() error {
+	ctx, cancel := context.WithTimeout(context.Background(), startupRetryDeadline)
+	defer cancel()
+	err = writer.withLock(ctx, true, func() error {
 		// modernc.org/sqlite reads _pragma query params and applies them per
 		// connection. foreign_keys(1) enforces the tool_calls -> sessions FK on
 		// every pooled connection, not just the first.
@@ -200,7 +202,9 @@ func OpenExisting(path string) (*DB, error) {
 		return nil, fmt.Errorf("db: open existing: coordinate %q: %w", path, err)
 	}
 	var database *sql.DB
-	err = writer.withLock(context.Background(), false, func() error {
+	ctx, cancel := context.WithTimeout(context.Background(), startupRetryDeadline)
+	defer cancel()
+	err = writer.withLock(ctx, false, func() error {
 		dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=rw&_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
 		var openErr error
 		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
@@ -235,7 +239,9 @@ func OpenReadOnly(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: open read-only: coordinate %q: %w", path, err)
 	}
-	lease, err := reader.acquire(context.Background(), false, coordinationShared)
+	ctx, cancel := context.WithTimeout(context.Background(), startupRetryDeadline)
+	defer cancel()
+	lease, err := reader.acquire(ctx, false, coordinationShared)
 	if err != nil {
 		return nil, err
 	}

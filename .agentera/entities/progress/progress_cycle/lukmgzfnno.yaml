@@ -1,0 +1,16 @@
+id: lukmgzfnno
+artifact: progress
+record:
+  timestamp: 2026-08-09 22:53
+  type: fix
+  phase: build
+  what: Bounded supported database coordinator acquisition and added a real-process regression for a backpressured 2 MiB read followed by a hook and ordinary retry.
+  context:
+    intent: Correct the accepted supported-reader liveness defect without changing database topology, benchmark semantics, or hook acceptance authority.
+    constraints: Preserve one binary and one SQLite database, genuine read-only access, forward migration, typed schema errors, first-evidence authority, pre-source pass-through, and descriptive timing.
+    unknowns: None for this correction. Unaccepted pre-source events remain outside any persistence guarantee because no durable spool exists.
+    scope: Database coordinator deadlines, database-unavailable classification, exact backpressure and recovery tests, and required project progress evidence only.
+  discovered: A freshly rebuilt pre-fix binary reproduced the accepted finding. The shared reader lease remained held while stdout was blocked, and write-capable open waited before SQLite startup retries or source acceptance because coordinator acquisition used an unbounded background context.
+  verified: The fresh-binary pre-fix smoke ran `ktx read stalledreadsrcaa | sleep 15`; `timeout 11s ktx hook` returned 124 after 11 seconds with empty stdout and stderr, and its database audit recorded 7 accesses with forbidden=0. After the correction, the same built-binary smoke returned database-unavailable with exit 4 in 2003.820 ms against the existing 2-second startup bound, with an empty stdout, canonical database path, non-empty correction, and no database-is-locked, SQLITE_BUSY, or SQLITE_LOCKED wording. The blocked-attempt audit again recorded 7 accesses with forbidden=0. The exact regression observed zero source, artifact, and disposition rows before releasing the reader; after release, retry persisted one source and one disposition, returned the original output, and completed in 7.431 ms. The built-binary retry completed in 17.617 ms; its final audit recorded 9 accesses with forbidden=0. The 50 ms coordinator seam passed for file-lease and process-local queue deadlines and recovery. Full internal database and CLI tests passed with 722 accesses and forbidden=0, including reader/writer, migration, alias, termination, foreign-lock, read-only, and schema coverage. The generated OpenCode adapter database-unavailable pass-through suite passed with forbidden=0. `mage engineeringVerify` passed with component 108 and load 1086 accesses, each forbidden=0. Isolated `mage check` passed race tests, vet, lint with 0 issues, and build with 1012 accesses and forbidden=0.
+  next: Prime owns task re-evaluation. Keep sikwslbpkj and waudrqbvjn in_progress until that evaluation.
+  publication_order: 75

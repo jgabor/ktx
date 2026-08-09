@@ -12,3 +12,13 @@ record:
     - GIVEN benchmark-only timing is enabled WHEN product evidence is inspected THEN no product database schema, telemetry meaning, or public command contract has changed.
     - GIVEN at least one warm-up and five measured samples WHEN baselines are compared THEN reported distributions and environment identity make material run-to-run variance visible.
   plan: brgeelxuec
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-plan-brgeelxuec-1
+      source: Independent plan-wide audit ses_017d8a9a3ffe6tDTqMDTa9Iuu9
+      recorded_at: 2026-08-09 22:34
+      writer_command: agentera state plan record-evaluation

@@ -83,7 +83,7 @@ func databaseOpenError(path string, err error) error {
 }
 
 func classifyDatabaseLockError(path string, err error) error {
-	if path == "" || !dbpkg.IsSQLiteLockError(err) {
+	if path == "" || !dbpkg.IsDatabaseUnavailable(err) {
 		return nil
 	}
 	return databaseUnavailableError(path)

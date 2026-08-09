@@ -308,6 +308,8 @@ const (
 	statsSummaryRequestedWindowCoverageUnavailable    = "unavailable"
 	statsSummaryCollectorLifecycleEvidenceUnavailable = "collector_lifecycle_evidence_unavailable"
 	statsSummaryObservedSubsetScope                   = "observed_subset"
+	statsSummaryRuntimeIdentityUnavailable            = "runtime_emitted_identity_unavailable"
+	statsSummaryRuntimeIdentityConflict               = "runtime_emitted_identity_conflict"
 )
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
@@ -605,6 +607,11 @@ func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryC
 			share = statsSummaryShareMeasurement{State: statsSummaryNotApplicable, Reason: &reason}
 		}
 	}
+	if share.State == statsSummaryMeasured {
+		if reason := statsSummaryCacheIdentityReason(rows); reason != nil {
+			share = statsSummaryShareMeasurement{State: statsSummaryMissing, Reason: reason}
+		}
+	}
 
 	cache := statsSummaryCacheReuse{
 		ContractVersion: reuse.RequiredContractVersion,
@@ -635,6 +642,26 @@ func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryC
 		cache.ObservedSpanSeconds = &span
 	}
 	return cache
+}
+
+func statsSummaryCacheIdentityReason(rows []dbpkg.StatsSummaryCacheRow) *string {
+	var provider, model string
+	var haveIdentity bool
+	for _, row := range rows {
+		if row.Provider == nil || row.Model == nil || strings.TrimSpace(*row.Provider) == "" || strings.TrimSpace(*row.Model) == "" {
+			reason := statsSummaryRuntimeIdentityUnavailable
+			return &reason
+		}
+		if !haveIdentity {
+			provider, model, haveIdentity = *row.Provider, *row.Model, true
+			continue
+		}
+		if provider != *row.Provider || model != *row.Model {
+			reason := statsSummaryRuntimeIdentityConflict
+			return &reason
+		}
+	}
+	return nil
 }
 
 func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasurement) {

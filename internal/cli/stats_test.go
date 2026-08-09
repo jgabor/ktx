@@ -693,6 +693,49 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 	})
 
+	t.Run("does not aggregate a rate across missing or mixed runtime identities", func(t *testing.T) {
+		provider, model := "openai", "gpt-5.6-luna"
+		otherProvider, otherModel := "anthropic", "claude-sonnet-5"
+		for _, test := range []struct {
+			name   string
+			second struct{ provider, model *string }
+			reason string
+		}{
+			{
+				name:   "missing source identity is not backfilled",
+				reason: statsSummaryRuntimeIdentityUnavailable,
+			},
+			{
+				name:   "mixed source identity is unavailable",
+				second: struct{ provider, model *string }{provider: &otherProvider, model: &otherModel},
+				reason: statsSummaryRuntimeIdentityConflict,
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				db := openMemoryDB(t)
+				sid := seedSession(t, db)
+				seedStatsTelemetryWithContract(t, db, sid, 1, now.Add(-2*time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
+				seedStatsTelemetryWithContract(t, db, sid, 2, now.Add(-time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, test.second.provider, test.second.model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
+
+				var buf bytes.Buffer
+				if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+					t.Fatal(err)
+				}
+				var got statsSummary
+				if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+					t.Fatal(err)
+				}
+				share := got.CacheReuse.CachedInputShare
+				if share.State != statsSummaryMissing || share.Value != nil || share.Ratio != nil || share.Reason == nil || *share.Reason != test.reason {
+					t.Errorf("cached_input_share = %+v, want missing with %q", share, test.reason)
+				}
+				if got.CacheReuse.UncachedInput.State != statsSummaryMeasured || got.CacheReuse.CacheRead.State != statsSummaryMeasured || got.CacheReuse.CacheWrite.State != statsSummaryMeasured {
+					t.Errorf("cache totals = %+v, want complete measurements", got.CacheReuse)
+				}
+			})
+		}
+	})
+
 	t.Run("excludes invalid, out-of-window, and unsupported telemetry from window metadata", func(t *testing.T) {
 		db := openMemoryDB(t)
 		acceptedSessionID := seedSession(t, db)
@@ -702,11 +745,11 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		capture := now.Add(-time.Minute)
 		seedStatsTelemetry(t, db, acceptedSessionID, 1, capture, measuredStatsToken(10), measuredStatsToken(20), measuredStatsToken(0))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 2, "not-a-timestamp", reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 2, "not-a-timestamp", reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 		seedStatsTelemetry(t, db, excludedSessionID, 3, now.Add(-31*time.Minute), measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 		seedStatsTelemetry(t, db, excludedSessionID, 4, now.Add(time.Nanosecond), measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 5, capture.Format(time.RFC3339Nano), "other-runtime", reuse.RequiredRuntimeVersion, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 6, capture.Format(time.RFC3339Nano), reuse.RequiredRuntime, "1.18.4", measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 5, capture.Format(time.RFC3339Nano), "other-runtime", reuse.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 6, capture.Format(time.RFC3339Nano), reuse.RequiredRuntime, "1.18.4", nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -1126,10 +1169,11 @@ func seedCompressedRow(t *testing.T, db *dbpkg.DB, sourceID, output, timestamp s
 
 func seedStatsTelemetry(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt time.Time, input, read, write telemetry.IntegerMeasurement) {
 	t.Helper()
-	seedStatsTelemetryWithContract(t, db, sessionID, ordinal, capturedAt.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, input, read, write)
+	provider, model := "openai", "gpt-5.6-luna"
+	seedStatsTelemetryWithContract(t, db, sessionID, ordinal, capturedAt.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, input, read, write)
 }
 
-func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, input, read, write telemetry.IntegerMeasurement) {
+func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, provider, model *string, input, read, write telemetry.IntegerMeasurement) {
 	t.Helper()
 	name := fmt.Sprintf("%d", ordinal)
 	observation := &telemetry.Observation{
@@ -1144,6 +1188,8 @@ func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string
 			CacheRead:  read,
 			CacheWrite: write,
 		},
+		Provider:       provider,
+		Model:          model,
 		Runtime:        runtime,
 		RuntimeVersion: runtimeVersion,
 		Source:         telemetry.SourceEventHook,

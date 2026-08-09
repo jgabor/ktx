@@ -37,7 +37,7 @@ import (
 const (
 	statsDefaultLimit           = 20
 	statsDefaultWindow          = 30 * time.Minute
-	statsSummarySchemaVersion   = 6
+	statsSummarySchemaVersion   = 7
 	statsBreakdownSchemaVersion = 2
 	statsBreakdownDetailedLimit = 100
 )
@@ -259,6 +259,8 @@ type statsSummaryCacheReuse struct {
 	ContractVersion          string                              `json:"contract_version"`
 	Runtime                  string                              `json:"runtime"`
 	RuntimeVersion           string                              `json:"runtime_version"`
+	Provider                 *string                             `json:"provider"`
+	Model                    *string                             `json:"model"`
 	EvidenceScope            string                              `json:"evidence_scope"`
 	RequestedWindowCoverage  statsSummaryRequestedWindowCoverage `json:"requested_window_coverage"`
 	FirstContributingCapture *string                             `json:"first_contributing_capture"`
@@ -266,13 +268,7 @@ type statsSummaryCacheReuse struct {
 	ObservedSpanSeconds      *float64                            `json:"observed_span_seconds"`
 	ContributingSessions     int                                 `json:"contributing_sessions"`
 	ContributingModelSteps   int                                 `json:"contributing_model_steps"`
-	UncachedInput            statsSummaryIntegerMeasurement      `json:"uncached_input"`
-	CacheRead                statsSummaryIntegerMeasurement      `json:"cache_read"`
-	CacheWrite               statsSummaryIntegerMeasurement      `json:"cache_write"`
-	LogicalInput             statsSummaryIntegerMeasurement      `json:"logical_input"`
-	CachedInputShare         statsSummaryShareMeasurement        `json:"cached_input_share"`
-	Formula                  string                              `json:"formula"`
-	Unit                     string                              `json:"unit"`
+	PromptCacheTokenHitRate  statsSummaryPromptCacheTokenHitRate `json:"prompt_cache_token_hit_rate"`
 }
 
 type statsSummaryRequestedWindowCoverage struct {
@@ -293,6 +289,26 @@ type statsSummaryShareMeasurement struct {
 	Reason *string  `json:"reason"`
 }
 
+type statsSummaryPromptCacheTokenHitRate struct {
+	State         string                              `json:"state"`
+	Value         *float64                            `json:"value"`
+	Ratio         *string                             `json:"ratio"`
+	Reason        *string                             `json:"reason"`
+	Formula       string                              `json:"formula"`
+	Kind          string                              `json:"kind"`
+	Source        string                              `json:"source"`
+	RawBuckets    statsSummaryPromptCacheTokenBuckets `json:"raw_buckets"`
+	TemporalScope string                              `json:"temporal_scope"`
+	Unit          string                              `json:"unit"`
+}
+
+type statsSummaryPromptCacheTokenBuckets struct {
+	UncachedInput statsSummaryIntegerMeasurement `json:"uncached_input"`
+	CacheRead     statsSummaryIntegerMeasurement `json:"cache_read"`
+	CacheWrite    statsSummaryIntegerMeasurement `json:"cache_write"`
+	LogicalInput  statsSummaryIntegerMeasurement `json:"logical_input"`
+}
+
 type statsSummaryIntegerAccumulator struct {
 	value     big.Int
 	missing   bool
@@ -310,6 +326,10 @@ const (
 	statsSummaryObservedSubsetScope                   = "observed_subset"
 	statsSummaryRuntimeIdentityUnavailable            = "runtime_emitted_identity_unavailable"
 	statsSummaryRuntimeIdentityConflict               = "runtime_emitted_identity_conflict"
+	statsSummaryPromptCacheTokenHitRateFormula        = "sum(cache_read) / sum(uncached_input + cache_read + cache_write)"
+	statsSummaryPromptCacheTokenHitRateKind           = "token_weighted"
+	statsSummaryPromptCacheTokenHitRateSource         = "runtime_emitted_model_steps"
+	statsSummaryTokenFractionUnit                     = "token_fraction"
 )
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
@@ -607,31 +627,40 @@ func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryC
 			share = statsSummaryShareMeasurement{State: statsSummaryNotApplicable, Reason: &reason}
 		}
 	}
+	provider, model, identityReason := statsSummaryCacheIdentity(rows)
 	if share.State == statsSummaryMeasured {
-		if reason := statsSummaryCacheIdentityReason(rows); reason != nil {
-			share = statsSummaryShareMeasurement{State: statsSummaryMissing, Reason: reason}
+		if identityReason != nil {
+			share = statsSummaryShareMeasurement{State: statsSummaryMissing, Reason: identityReason}
 		}
+	}
+	rate := statsSummaryPromptCacheTokenHitRate{
+		State:         share.State,
+		Value:         share.Value,
+		Ratio:         share.Ratio,
+		Reason:        share.Reason,
+		Formula:       statsSummaryPromptCacheTokenHitRateFormula,
+		Kind:          statsSummaryPromptCacheTokenHitRateKind,
+		Source:        statsSummaryPromptCacheTokenHitRateSource,
+		RawBuckets:    statsSummaryPromptCacheTokenBuckets{UncachedInput: uncachedInputTotal, CacheRead: cacheReadTotal, CacheWrite: cacheWriteTotal, LogicalInput: logicalInput},
+		TemporalScope: statsSummaryObservedSubsetScope,
+		Unit:          statsSummaryTokenFractionUnit,
 	}
 
 	cache := statsSummaryCacheReuse{
 		ContractVersion: reuse.RequiredContractVersion,
 		Runtime:         reuse.RequiredRuntime,
 		RuntimeVersion:  reuse.RequiredRuntimeVersion,
+		Provider:        provider,
+		Model:           model,
 		EvidenceScope:   statsSummaryPromptPrefixCacheEvidenceScope,
 		RequestedWindowCoverage: statsSummaryRequestedWindowCoverage{
 			State:  statsSummaryRequestedWindowCoverageUnavailable,
 			Reason: statsSummaryCollectorLifecycleEvidenceUnavailable,
 			Scope:  statsSummaryObservedSubsetScope,
 		},
-		ContributingSessions:   len(sessions),
-		ContributingModelSteps: len(rows),
-		UncachedInput:          uncachedInputTotal,
-		CacheRead:              cacheReadTotal,
-		CacheWrite:             cacheWriteTotal,
-		LogicalInput:           logicalInput,
-		CachedInputShare:       share,
-		Formula:                "cache_read / logical_input",
-		Unit:                   "token_fraction",
+		ContributingSessions:    len(sessions),
+		ContributingModelSteps:  len(rows),
+		PromptCacheTokenHitRate: rate,
 	}
 	if hasCapture {
 		first := firstCapture.UTC().Format(time.RFC3339Nano)
@@ -644,24 +673,27 @@ func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryC
 	return cache
 }
 
-func statsSummaryCacheIdentityReason(rows []dbpkg.StatsSummaryCacheRow) *string {
-	var provider, model string
+func statsSummaryCacheIdentity(rows []dbpkg.StatsSummaryCacheRow) (provider, model, reason *string) {
+	var providerValue, modelValue string
 	var haveIdentity bool
 	for _, row := range rows {
 		if row.Provider == nil || row.Model == nil || strings.TrimSpace(*row.Provider) == "" || strings.TrimSpace(*row.Model) == "" {
-			reason := statsSummaryRuntimeIdentityUnavailable
-			return &reason
+			value := statsSummaryRuntimeIdentityUnavailable
+			return nil, nil, &value
 		}
 		if !haveIdentity {
-			provider, model, haveIdentity = *row.Provider, *row.Model, true
+			providerValue, modelValue, haveIdentity = *row.Provider, *row.Model, true
 			continue
 		}
-		if provider != *row.Provider || model != *row.Model {
-			reason := statsSummaryRuntimeIdentityConflict
-			return &reason
+		if providerValue != *row.Provider || modelValue != *row.Model {
+			value := statsSummaryRuntimeIdentityConflict
+			return nil, nil, &value
 		}
 	}
-	return nil
+	if !haveIdentity {
+		return nil, nil, nil
+	}
+	return &providerValue, &modelValue, nil
 }
 
 func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasurement) {
@@ -827,30 +859,45 @@ func printStatsText(w io.Writer, groups []statsGroup) {
 }
 
 func printStatsSummaryText(w io.Writer, summary statsSummary) {
+	rate := summary.CacheReuse.PromptCacheTokenHitRate
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tPROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE\tREQUESTED_WINDOW_COVERAGE\tREQUESTED_WINDOW_COVERAGE_REASON\tREQUESTED_WINDOW_COVERAGE_SCOPE\tFIRST_CONTRIBUTING_CAPTURE\tLAST_CONTRIBUTING_CAPTURE\tOBSERVED_SPAN_SECONDS\tCONTRIBUTING_KTX_SESSIONS\tCONTRIBUTING_MODEL_STEPS\tPROMPT_PREFIX_UNCACHED_INPUT\tPROMPT_PREFIX_CACHE_READ\tPROMPT_PREFIX_CACHE_WRITE\tPROMPT_PREFIX_LOGICAL_INPUT\tPROMPT_PREFIX_CACHED_INPUT_PCT")
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\n",
-		summary.Window.From, summary.Window.To,
-		summary.Calls.TotalWithOutput, summary.Calls.WithCompressedArtifact,
-		summary.Outcomes.SuccessfulCalls, summary.Outcomes.ErrorCalls, summary.Outcomes.UnknownCalls, summary.Outcomes.KnownCalls,
-		formatStatsPercent(summary.Outcomes.ErrorRatePctOfKnown), formatStatsPercent(summary.Outcomes.OutcomeCoveragePct),
-		summary.Tokens.RawEstimated, summary.Tokens.DeliveredEstimated,
-		summary.Tokens.RawEstimatedPerSecond, summary.Tokens.DeliveredEstimatedPerSecond,
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tPROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE\tPROMPT_CACHE_PROVIDER\tPROMPT_CACHE_MODEL\tPROMPT_CACHE_TOKEN_HIT_RATE_SOURCE\tPROMPT_CACHE_TOKEN_HIT_RATE_KIND\tPROMPT_CACHE_TEMPORAL_SCOPE\tREQUESTED_WINDOW_COVERAGE\tREQUESTED_WINDOW_COVERAGE_REASON\tREQUESTED_WINDOW_COVERAGE_SCOPE\tFIRST_CONTRIBUTING_CAPTURE\tLAST_CONTRIBUTING_CAPTURE\tOBSERVED_SPAN_SECONDS\tCONTRIBUTING_KTX_SESSIONS\tCONTRIBUTING_MODEL_STEPS\tPROMPT_CACHE_UNCACHED_INPUT\tPROMPT_CACHE_READ\tPROMPT_CACHE_WRITE\tPROMPT_CACHE_LOGICAL_INPUT\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT")
+	fmt.Fprintln(tw, strings.Join([]string{
+		summary.Window.From,
+		summary.Window.To,
+		strconv.Itoa(summary.Calls.TotalWithOutput),
+		strconv.Itoa(summary.Calls.WithCompressedArtifact),
+		strconv.Itoa(summary.Outcomes.SuccessfulCalls),
+		strconv.Itoa(summary.Outcomes.ErrorCalls),
+		strconv.Itoa(summary.Outcomes.UnknownCalls),
+		strconv.Itoa(summary.Outcomes.KnownCalls),
+		formatStatsPercent(summary.Outcomes.ErrorRatePctOfKnown),
+		formatStatsPercent(summary.Outcomes.OutcomeCoveragePct),
+		strconv.Itoa(summary.Tokens.RawEstimated),
+		strconv.Itoa(summary.Tokens.DeliveredEstimated),
+		strconv.FormatFloat(summary.Tokens.RawEstimatedPerSecond, 'f', 4, 64),
+		strconv.FormatFloat(summary.Tokens.DeliveredEstimatedPerSecond, 'f', 4, 64),
 		formatStatsReduction(summary.Tokens.ReductionPercent),
 		summary.CacheReuse.EvidenceScope,
+		formatStatsSummaryOptionalString(summary.CacheReuse.Provider),
+		formatStatsSummaryOptionalString(summary.CacheReuse.Model),
+		rate.Source,
+		rate.Kind,
+		rate.TemporalScope,
 		summary.CacheReuse.RequestedWindowCoverage.State,
 		summary.CacheReuse.RequestedWindowCoverage.Reason,
 		summary.CacheReuse.RequestedWindowCoverage.Scope,
 		formatStatsSummaryOptionalString(summary.CacheReuse.FirstContributingCapture),
 		formatStatsSummaryOptionalString(summary.CacheReuse.LastContributingCapture),
 		formatStatsObservedSpan(summary.CacheReuse.ObservedSpanSeconds),
-		summary.CacheReuse.ContributingSessions,
-		summary.CacheReuse.ContributingModelSteps,
-		formatStatsSummaryInteger(summary.CacheReuse.UncachedInput),
-		formatStatsSummaryInteger(summary.CacheReuse.CacheRead),
-		formatStatsSummaryInteger(summary.CacheReuse.CacheWrite),
-		formatStatsSummaryInteger(summary.CacheReuse.LogicalInput),
-		formatStatsSummarySharePercent(summary.CacheReuse.CachedInputShare))
+		strconv.Itoa(summary.CacheReuse.ContributingSessions),
+		strconv.Itoa(summary.CacheReuse.ContributingModelSteps),
+		formatStatsSummaryInteger(rate.RawBuckets.UncachedInput),
+		formatStatsSummaryInteger(rate.RawBuckets.CacheRead),
+		formatStatsSummaryInteger(rate.RawBuckets.CacheWrite),
+		formatStatsSummaryInteger(rate.RawBuckets.LogicalInput),
+		formatStatsSummaryPromptCacheTokenHitRatePercent(rate),
+	}, "\t"))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
 }
 
@@ -912,11 +959,14 @@ func formatStatsSummaryInteger(measurement statsSummaryIntegerMeasurement) strin
 	return measurement.State
 }
 
-func formatStatsSummarySharePercent(measurement statsSummaryShareMeasurement) string {
-	if measurement.State == statsSummaryMeasured && measurement.Value != nil {
-		return strconv.FormatFloat(*measurement.Value*100, 'f', 2, 64)
+func formatStatsSummaryPromptCacheTokenHitRatePercent(rate statsSummaryPromptCacheTokenHitRate) string {
+	if rate.State == statsSummaryMeasured && rate.Value != nil {
+		return strconv.FormatFloat(*rate.Value*100, 'f', 2, 64)
 	}
-	return measurement.State
+	if rate.Reason != nil {
+		return rate.State + ":" + *rate.Reason
+	}
+	return rate.State
 }
 
 func formatStatsSummaryOptionalString(value *string) string {
@@ -986,18 +1036,20 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "Use 'ktx stats breakdown' for diagnostic delivery groups.")
 	fmt.Fprintln(w, "Accepted OpenCode 1.18.5 model steps use their captured_at timestamp in the")
 	fmt.Fprintln(w, "same interval. The report includes first/last contributing capture, observed")
-	fmt.Fprintln(w, "span, session count, and model-step count. Requested-window coverage is")
-	fmt.Fprintln(w, "unavailable (collector_lifecycle_evidence_unavailable); the evidence scope is")
-	fmt.Fprintln(w, "the observed_subset of provider prompt/prefix-cache tokens, not filesystem,")
-	fmt.Fprintln(w, "memory, database, HTTP, or other I/O caching. Cache token totals require every")
-	fmt.Fprintln(w, "contributing value to be measured. The cached-input share is cache_read /")
-	fmt.Fprintln(w, "logical_input; it is not a provider hit rate.")
+	fmt.Fprintln(w, "span, session count, model-step count, and requested-window coverage. The")
+	fmt.Fprintln(w, "prompt_cache_token_hit_rate is token_weighted: sum(cache_read) /")
+	fmt.Fprintln(w, "sum(uncached_input + cache_read + cache_write). It requires every bucket and")
+	fmt.Fprintln(w, "one runtime-emitted provider/model pair; missing or mixed identity is unavailable.")
+	fmt.Fprintln(w, "Its source is runtime-emitted model steps and its temporal scope is the")
+	fmt.Fprintln(w, "observed_subset. It is provider prompt/prefix-cache token evidence, not")
+	fmt.Fprintln(w, "filesystem, memory, database, HTTP, or other I/O caching, and not a provider")
+	fmt.Fprintln(w, "request hit rate.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 6 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 7 JSON object")
 	fmt.Fprintln(w, "  text            same current fields in one row; no separate schema version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")

@@ -84,7 +84,7 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 	printDBHelp(&dbHelp)
 
 	assertContractText(t, summaryHelp.String(),
-		[]string{"schema_version 6", "Error rate is error/known", "coverage is known/total", "provider prompt/prefix-cache", "collector_lifecycle_evidence_unavailable", "no separate schema version"}, nil)
+		[]string{"schema_version 7", "Error rate is error/known", "coverage is known/total", "prompt_cache_token_hit_rate", "token_weighted", "runtime-emitted model steps", "observed_subset", "request hit rate", "no separate schema version"}, nil)
 	assertContractText(t, breakdownHelp.String(),
 		[]string{"schema_version 2", "Known is success+error", "total is known+unknown", "no separate schema version", "do not report per-group outcome rates"}, nil)
 	assertContractText(t, dbHelp.String(),
@@ -96,8 +96,17 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 	} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
 		assertContractText(t, contents,
-			[]string{"Summary schema 6", "breakdown schema 2", "report schema 3", "provider prompt/prefix-cache", "collector_lifecycle_evidence_unavailable", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
+			[]string{"Summary schema 7", "breakdown schema 2", "report schema 3", "prompt_cache_token_hit_rate", "token_weighted", "runtime-emitted model steps", "collector_lifecycle_evidence_unavailable", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
 			[]string{"\"schema_version\": 4", "\"schema_version\": 1", "Schema version 4 removes the version 3 `delivery_breakdown` member", "version 1 breakdown command"},
+		)
+	}
+	for _, relative := range []string{
+		filepath.Join(".agents", "skills", "ktx", "SKILL.md"),
+		filepath.Join(".agents", "skills", "ktx", "references", "cli.md"),
+	} {
+		assertContractText(t, readDocumentationFile(t, filepath.Join(root, relative)),
+			[]string{"prompt_cache_token_hit_rate", "provider request hit"},
+			[]string{"Do not call a cached-input share a hit rate"},
 		)
 	}
 }

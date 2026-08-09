@@ -316,7 +316,7 @@ and aggregate provider prompt/prefix-cache token evidence. The schema is closed:
 diagnostic arrays and new reporting dimensions require an intentional
 schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
-Summary schema 6 omits `delivery_breakdown`; callers that need those detailed
+Summary schema 7 omits `delivery_breakdown`; callers that need those detailed
 groups should invoke the breakdown schema 2 command instead.
 
 The summary and breakdown commands use an inclusive trailing window (`[from,
@@ -342,9 +342,15 @@ The summary independently selects accepted OpenCode 1.18.5 model-step telemetry
 by `captured_at`. `cache_reuse` pools those steps' runtime-reported
 uncached-input, cache-read, and cache-write provider prompt/prefix-cache token
 buckets. This is not filesystem, memory, database, HTTP, or other I/O caching.
-`cached_input_share` is measured only when every contributing step has a
-nonblank runtime-emitted provider and model and all steps have the same pair.
-Missing identity makes the share `missing` with reason
+Its `prompt_cache_token_hit_rate` is a `token_weighted` rate with formula
+`sum(cache_read) / sum(uncached_input + cache_read + cache_write)`. Its source
+is runtime-emitted model steps (`runtime_emitted_model_steps`); `raw_buckets`
+retains every summed bucket and `temporal_scope` is `observed_subset`. It is not
+a provider request hit rate.
+The rate is measured only when every contributing step has a nonblank
+runtime-emitted provider and model, all steps have the same pair, every bucket is
+measured, and logical input is positive. A measured zero cache read remains a
+measured zero rate. Missing identity makes the rate `missing` with reason
 `runtime_emitted_identity_unavailable`; more than one pair uses
 `runtime_emitted_identity_conflict`. Configured identity never fills source
 evidence. Rows without current event-hook or wrapper-stream collection
@@ -367,12 +373,14 @@ tool-call and telemetry views.
 
 The default window is `30m`; `--window` accepts a positive Go duration. Token
 estimates apply `ceil(character count / 4)` to each call before summing, matching
-`ktx stats`. Per-second rates divide by the full configured window. The summary
-JSON contract is:
+`ktx stats`. Per-second rates divide by the full configured window. The current
+summary JSON contract is schema 7. Retained schema 6 summaries keep their
+original bytes and meaning; this read-only query neither migrates nor rewrites
+them. The schema 7 contract is:
 
 ```json
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -403,6 +411,8 @@ JSON contract is:
     "contract_version": "cache-reuse-v1",
     "runtime": "opencode",
     "runtime_version": "1.18.5",
+    "provider": "openai",
+    "model": "gpt-5.6-luna",
     "evidence_scope": "provider_prompt_prefix_cache_tokens",
     "requested_window_coverage": {
       "state": "unavailable",
@@ -414,18 +424,23 @@ JSON contract is:
     "observed_span_seconds": 1800,
     "contributing_sessions": 2,
     "contributing_model_steps": 6,
-    "uncached_input": { "state": "measured", "value": 1000 },
-    "cache_read": { "state": "measured", "value": 3500 },
-    "cache_write": { "state": "measured", "value": 500 },
-    "logical_input": { "state": "measured", "value": 5000 },
-    "cached_input_share": {
+    "prompt_cache_token_hit_rate": {
       "state": "measured",
       "value": 0.7,
       "ratio": "7/10",
-      "reason": null
-    },
-    "formula": "cache_read / logical_input",
-    "unit": "token_fraction"
+      "reason": null,
+      "formula": "sum(cache_read) / sum(uncached_input + cache_read + cache_write)",
+      "kind": "token_weighted",
+      "source": "runtime_emitted_model_steps",
+      "raw_buckets": {
+        "uncached_input": { "state": "measured", "value": 1000 },
+        "cache_read": { "state": "measured", "value": 3500 },
+        "cache_write": { "state": "measured", "value": 500 },
+        "logical_input": { "state": "measured", "value": 5000 }
+      },
+      "temporal_scope": "observed_subset",
+      "unit": "token_fraction"
+    }
   }
 }
 ```
@@ -528,11 +543,13 @@ all-known population with no errors, error rate is `0` and coverage is `100`.
 Breakdown groups do not carry per-group outcome rates. The summary's independent
 model-step/cache query does not change the tool-call outcome population.
 
-Summary schema 6 and breakdown schema 2 supersede their previous structured
-schemas without a compatibility bridge. Text output renders the same current
-fields and has no separate schema version. Its `PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE`,
-`REQUESTED_WINDOW_COVERAGE`, capture, span, session, and model-step columns make
-the provider prompt/prefix-cache subset explicit.
+Summary schema 7 and breakdown schema 2 supersede their previous structured
+schemas without a compatibility bridge. Retained schema 6 summaries remain
+unchanged historical evidence. Text output renders the same current fields and
+has no separate schema version. Its `PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE`,
+`PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, `REQUESTED_WINDOW_COVERAGE`, capture, span,
+session, and model-step columns make the provider prompt/prefix-cache subset
+explicit.
 
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus
@@ -564,11 +581,14 @@ runtime fields produce a `missing` total; malformed fields produce a
 `malformed` total and take precedence. Values remain `null` in either state and
 are never reconstructed from neighboring fields. `logical_input` is
 `uncached_input + cache_read + cache_write` only when all three totals are
-measured. `cached_input_share` pools the window totals rather than averaging
-per-step percentages. It is `not_applicable` when measured logical input is
-zero, otherwise it includes both a numeric token fraction and its exact reduced
-`ratio`. The text format renders that fraction as
-`PROMPT_PREFIX_CACHED_INPUT_PCT`.
+measured. `prompt_cache_token_hit_rate` is `token_weighted`, pools the window
+totals rather than averaging per-step percentages, and retains those values as
+its `raw_buckets`. Its formula is
+`sum(cache_read) / sum(uncached_input + cache_read + cache_write)`. It is
+`not_applicable` when measured logical input is zero; a zero cache-read numerator
+with positive logical input remains measured zero. A measured rate includes both
+a numeric token fraction and its exact reduced `ratio`. The text format renders
+that fraction as `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`.
 
 `evidence_scope` is always `provider_prompt_prefix_cache_tokens`.
 `requested_window_coverage` is always `state: unavailable`,
@@ -581,10 +601,11 @@ Missing, malformed, and measured-zero token buckets do not remove an accepted
 model step from this temporal metadata.
 
 This is provider prompt/prefix-cache token evidence, not filesystem, memory,
-database, HTTP, or other I/O caching, and the cached-input share is not a
-provider hit rate. A runtime model step is not a provider request, and the
-retained evidence does not prove provider hits, misses, eligibility, eviction,
-or request boundaries.
+database, HTTP, or other I/O caching. `prompt_cache_token_hit_rate` has source
+`runtime_emitted_model_steps` and temporal scope `observed_subset`; it is not a
+provider request hit rate. A runtime model step is not a provider request, and
+the retained evidence does not prove provider hits, misses, eligibility,
+eviction, or request boundaries.
 
 ### Database evidence report
 

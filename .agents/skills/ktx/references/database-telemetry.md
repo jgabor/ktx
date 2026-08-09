@@ -126,8 +126,10 @@ omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
 
-Summary schema 6 and breakdown schema 2 include aggregate `outcomes`. Their
-population is the same calls counted by `total_with_output`: non-null output and
+Summary schema 7 and breakdown schema 2 include aggregate `outcomes`. Retained
+schema 6 summaries remain historical bytes and are not migrated or rewritten by
+the read-only summary query. The population is the same calls counted by
+`total_with_output`: non-null output and
 a valid RFC3339 timestamp in the inclusive window. Persisted `is_error=false` is
 success, `true` is error, and NULL or invalid is unknown. Persisted `exit_code`
 is diagnostic only.
@@ -141,7 +143,7 @@ total_calls = known_calls + unknown_calls
 error_rate_pct_of_known = error_calls / known_calls * 100
 outcome_coverage_pct = known_calls / total_calls * 100
 logical_input = uncached_input + cache_read + cache_write
-cached_input_share = cache_read / logical_input
+prompt_cache_token_hit_rate = sum(cache_read) / sum(uncached_input + cache_read + cache_write)
 ```
 
 Empty outcome percentages are JSON `null` and text `-`. An all-unknown
@@ -174,8 +176,13 @@ contributing row measured that field; an incomplete aggregate is serialized as
 These token states do not change the accepted model-step population or its
 capture, span, session, and model-step metadata.
 
-Cached-input share is `not_applicable` when measured logical input is zero. It
-uses pooled window totals, not an average of per-step percentages.
+`prompt_cache_token_hit_rate` is `token_weighted`, uses pooled window totals
+rather than an average of per-step percentages, and carries its raw buckets,
+formula, source, temporal scope, and `token_fraction` unit in schema 7. Its
+source is `runtime_emitted_model_steps`, and it is not a provider request hit
+rate. A zero cache-read numerator with positive logical input is measured zero;
+zero logical input is `not_applicable`. Missing, malformed, unsupported, or
+mixed-identity evidence remains unavailable without reconstruction.
 
 ## OpenCode Contract
 
@@ -206,11 +213,14 @@ Runtime model-step evidence does not prove:
 - Billing meaning of a literal runtime-reported cost zero.
 - Causal attribution of token movement to compression.
 
-Always report runtime/version, contributing KTX session and model-step counts,
-and first/last capture plus observed span beside provider prompt/prefix-cache
-token evidence. `stats summary` does this in `cache_reuse`, whose
+Always report runtime/version, runtime-emitted provider/model when one complete
+identity pair exists, contributing KTX session and model-step counts, and
+first/last capture plus observed span beside provider prompt/prefix-cache token
+evidence. `stats summary` does this in `cache_reuse`, whose
 `evidence_scope` is `provider_prompt_prefix_cache_tokens`, not filesystem,
-memory, database, HTTP, or other I/O caching. Separate SQL can describe the
+memory, database, HTTP, or other I/O caching. Its
+`prompt_cache_token_hit_rate` source is runtime-emitted model steps; configured
+identity never fills a missing source identity. Separate SQL can describe the
 observed capture span and counts within the summary interval, but it cannot
 prove collector lifecycle or requested-window coverage. The summary therefore
 reports `requested_window_coverage` as `state: unavailable`,

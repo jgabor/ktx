@@ -178,9 +178,10 @@ classes, schema, metric formulas, and claim limits.
   `ceil(character_count / 4)` per call before aggregation.
 - A compressed-artifact count is coverage, not a success rate. Calls without an
   artifact use raw output and may be intentional passthrough or anti-worsening.
-- Cached-input share is OpenCode-reported runtime evidence, not a provider cache
-  hit rate. It requires measured input buckets and positive logical input; a
-  model step is not proven to be one provider request.
+- `prompt_cache_token_hit_rate` is token-weighted OpenCode-reported runtime
+  evidence: `sum(cache_read) / sum(uncached_input + cache_read + cache_write)`.
+  It requires measured input buckets, positive logical input, and one
+  runtime-emitted provider/model pair; it is not a provider request hit rate.
 - Literal runtime cost zero remains measured zero but has no automatic billing
   meaning. API-equivalent cost is a separately labeled estimate.
 - Missing, unknown, malformed, and measured zero are distinct states. Never
@@ -233,8 +234,8 @@ investigate and correct the summary rather than treating it as canonical.
 - Do not analyze `.bench-data` when the user asks for live `ktx stats` or the
   operator database. Benchmarks and product telemetry are different sources.
 - Do not run tests or development commands against the ambient live database.
-- Do not call a cached-input share a hit rate, cache effectiveness, or billing
-  result.
+- Do not treat `prompt_cache_token_hit_rate` as a provider request hit,
+  cache-effectiveness, or billing result.
 - Do not add runtime model-step cost/cache values to `tool_calls`; they have a
   separate evidence scope.
 - Do not interpret missing error state as success or missing cost as zero.

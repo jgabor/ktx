@@ -11,7 +11,7 @@ record:
     - sikwslbpkj
     - aqyctmdhbw
     - kmmdueqvjw
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN completed behavior WHEN current surfaces are inventoried THEN help, documentation, skills, TODO, and changelog agree without rewriting historical evidence.
     - GIVEN the locally built binary WHEN focused and broad isolated checks run THEN component benchmarks, load scenarios, database safety, compatible migration rehearsal, mixed-version rejection, race-sensitive tests, and the authoritative repository gate pass.

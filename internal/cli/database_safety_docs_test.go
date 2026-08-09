@@ -116,6 +116,47 @@ func TestCriticalPathPerformanceContractDefinesDistinctBoundaries(t *testing.T) 
 	}
 }
 
+func TestEngineeringVerificationDocumentationSurfacesAgree(t *testing.T) {
+	root := repositoryRoot(t)
+	for _, surface := range []struct {
+		path     string
+		required []string
+	}{
+		{
+			path: "README.md",
+			required: []string{
+				"mage engineeringVerify",
+				"correctness, exact reconciliation, and supported-lock",
+				"does not add a timing gate",
+			},
+		},
+		{
+			path: "CHANGELOG.md",
+			required: []string{
+				"mage engineeringVerify",
+				"hash manifest",
+				"supported-lock checks",
+				"timing descriptive",
+			},
+		},
+		{
+			path: filepath.Join(".agents", "skills", "ktx", "references", "benchmarks-development.md"),
+			required: []string{
+				"KTX_ENGINEERING_EVIDENCE_DIR=<new-directory> mage engineeringVerify",
+				"hash manifest",
+				"supported-lock checks",
+			},
+		},
+	} {
+		contents := strings.ReplaceAll(readDocumentationFile(t, filepath.Join(root, surface.path)), "\n", " ")
+		for _, required := range surface.required {
+			if !strings.Contains(contents, required) {
+				t.Errorf("%s is missing %q", surface.path, required)
+			}
+		}
+	}
+}
+
 func TestBinaryCapabilitiesDocumentedAsDiagnosticOnly(t *testing.T) {
 	contents := readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "binary-capabilities.md"))
 	for _, required := range []string{"diagnostic", "does not authorize database access"} {

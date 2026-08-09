@@ -289,7 +289,9 @@ KTX_ENGINEERING_EVIDENCE_DIR="$PWD/docs/notes/engineering-run" mage engineeringV
 ```
 
 This extended developer path retains report and manifest files. It does not add
-a timing gate, replace `mage check`, or change `ktx bench` evidence.
+a timing gate, replace `mage check`, or change `ktx bench` evidence. It does
+require load-report correctness, exact reconciliation, and supported-lock
+checks.
 
 `mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`, and
 the portable replay gate. Tracked CI runs this same command on every push and

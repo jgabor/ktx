@@ -16,6 +16,7 @@
 - `ktx stats summary` schema 7 now exposes distinct runtime-reported and cache-aware API-equivalent estimated USD costs, including literal-zero preservation, retained pricing provenance, exact micro-USD aggregation, and identity-scoped unavailable results.
 - `mage loadBench` measures disposable real-process hook and wrapper behavior with versioned contention and reconciliation reports.
 - `mage componentBench` emits versioned, isolated component benchmark distributions without changing public `ktx bench` semantics.
+- `mage engineeringVerify` retains paired component and real-process reports plus a hash manifest in a new caller-owned directory. It requires load-report correctness, exact reconciliation, and supported-lock checks while keeping timing descriptive.
 - `ktx stats summary` schema 6 reports the first and last contributing model-telemetry captures, observed span, contributing KTX session and model-step counts, and explicitly unavailable requested-window coverage for observed provider prompt/prefix-cache token subsets.
 
 ### Fixed

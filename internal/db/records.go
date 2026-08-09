@@ -138,7 +138,7 @@ func (d *DB) SessionExists(id string) (bool, error) {
 func (d *DB) InsertSession(s *Session) error {
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO sessions (id, agent, started_at, ended_at, last_seen_at, tool_call_count) VALUES (?, ?, ?, ?, ?, ?)`,
 			s.ID, s.Agent, s.StartedAt, s.EndedAt, s.LastSeenAt, s.ToolCallCount,
@@ -158,7 +158,7 @@ func (d *DB) CloseSession(id, endedAt string) error {
 	ctx, cancel := writeContext()
 	defer cancel()
 	var rows int64
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE sessions SET ended_at = ? WHERE id = ?`, endedAt, id)
 		if err != nil {
 			return err
@@ -219,7 +219,7 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
@@ -276,7 +276,7 @@ func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 	ctx, cancel := writeContext()
 	defer cancel()
 	var didInsert bool
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,

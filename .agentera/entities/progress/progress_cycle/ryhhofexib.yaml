@@ -1,0 +1,15 @@
+id: ryhhofexib
+artifact: progress
+record:
+  timestamp: 2026-08-09 20:23
+  type: fix
+  phase: build
+  what: Coordinated supported ktx SQLite write transactions across processes with a local database-file lock that releases automatically when a process exits.
+  context:
+    intent: Remove supported cross-process writer contention without adding a daemon, spool, service, or foreign-client progress guarantee.
+    constraints: Preserve one binary, one SQLite database, synchronous hooks, source-before-lossy delivery, first-evidence authority, read-only behavior, schema compatibility, and existing typed SQLite availability errors.
+    scope: Write-capable database open and transaction ownership, alias and forced-termination regressions, the real-process load harness, and matching contract documentation.
+  discovered: SQLite retries could converge ordinary contention but did not define supported-writer ownership. Locking the opened database file gives equivalent path aliases one physical ownership boundary and leaves no stale PID or directory state after forced termination.
+  verified: Focused cross-process alias and forced-termination database tests passed. The isolated load harness rebuilt ./build/ktx and passed its 32-writer matrix in all five measured rounds with 32/32 completions, 33 exact persisted rows, zero failure codes, and p99 process latency from 187.5ms to 248.6ms. The alias scenario reconciled 9/9 rows with no failures. The forced-termination recovery scenario reconciled 2/2 rows, with the terminated writer classified separately and the recovery writer succeeding. Load audit recorded 1078 accesses with forbidden=0. Isolated mage check passed race tests, vet, lint with 0 issues, build, and 983 audited accesses with forbidden=0. Windows cross-compilation of internal/db passed.
+  next: Later tasks can integrate supported readers and schema transitions, then normalize foreign-lock and partial-hook outcomes; timing remains descriptive without an approved controlled-host budget.
+  publication_order: 70

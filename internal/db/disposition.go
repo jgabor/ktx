@@ -40,7 +40,7 @@ func (d *DB) RecordCompressionDisposition(disposition *CompressionDisposition) e
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	if err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	if err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		var retained string
 		err := tx.QueryRowContext(ctx, `SELECT disposition FROM compression_dispositions WHERE source_id = ?`, disposition.SourceID).Scan(&retained)
 		if err == nil && retained == CompressionDispositionArtifactPersisted {

@@ -41,6 +41,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -151,23 +152,33 @@ func Open(path string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("db: open: create directory for %q: %w", path, err)
 	}
+	writer, err := newWriterCoordinator(path)
+	if err != nil {
+		return nil, fmt.Errorf("db: open: coordinate %q: %w", path, err)
+	}
 
-	// modernc.org/sqlite reads _pragma query params and applies them per
-	// connection. foreign_keys(1) enforces the tool_calls -> sessions FK on
-	// every pooled connection, not just the first.
-	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", path, sqliteBusyTimeoutMS)
-
-	db, err := openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
+	var database *sql.DB
+	err = writer.withLock(context.Background(), true, func() error {
+		// modernc.org/sqlite reads _pragma query params and applies them per
+		// connection. foreign_keys(1) enforces the tool_calls -> sessions FK on
+		// every pooled connection, not just the first.
+		dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", path, sqliteBusyTimeoutMS)
+		var openErr error
+		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
+		if openErr != nil {
+			return openErr
+		}
+		if migrateErr := migrate(database); migrateErr != nil {
+			_ = database.Close()
+			return migrateErr
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("db: open %q: %w", path, err)
 	}
 
-	if err := migrate(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("db: migrate %q: %w", path, err)
-	}
-
-	return &DB{db: db}, nil
+	return &DB{db: database, writer: writer}, nil
 }
 
 // OpenExisting opens and migrates an existing database without create
@@ -184,16 +195,28 @@ func OpenExisting(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: open existing: canonicalize %q: %w", path, err)
 	}
-	dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=rw&_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
-	database, err := openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
+	writer, err := newWriterCoordinator(path)
+	if err != nil {
+		return nil, fmt.Errorf("db: open existing: coordinate %q: %w", path, err)
+	}
+	var database *sql.DB
+	err = writer.withLock(context.Background(), false, func() error {
+		dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=rw&_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
+		var openErr error
+		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
+		if openErr != nil {
+			return openErr
+		}
+		if migrateErr := migrate(database); migrateErr != nil {
+			_ = database.Close()
+			return migrateErr
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("db: open existing %q: %w", path, err)
 	}
-	if err := migrate(database); err != nil {
-		database.Close()
-		return nil, fmt.Errorf("db: migrate existing %q: %w", path, err)
-	}
-	return &DB{db: database}, nil
+	return &DB{db: database, writer: writer}, nil
 }
 
 // OpenReadOnly opens an existing SQLite database with a single connection.
@@ -395,7 +418,14 @@ func OpenMemory() (*DB, error) {
 // because callers reach the database through methods, not by reaching into
 // the handle.
 type DB struct {
-	db *sql.DB
+	db     *sql.DB
+	writer *writerCoordinator
+}
+
+func (d *DB) withWriteTx(ctx context.Context, fn func(*sql.Tx) error) error {
+	return d.writer.withLock(ctx, false, func() error {
+		return withWriteTx(ctx, d.db, fn)
+	})
 }
 
 // Close closes the database handle, releasing the underlying SQLite

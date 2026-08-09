@@ -30,6 +30,7 @@ const (
 	processTimeout      = 12 * time.Second
 	foreignHoldDuration = 250 * time.Millisecond
 	terminationDelay    = 100 * time.Millisecond
+	aliasWriterCount    = 8
 	streamWorkerEnv     = "KTX_LOADBENCH_STREAM_WORKER"
 	streamPathEnv       = "KTX_LOADBENCH_STREAM_PATH"
 )
@@ -532,11 +533,12 @@ func runWrapperRound(root string, runner processRunner, fixture fixture, roundIn
 }
 
 func runScenarios(root string, runner processRunner, payload fixture) ([]scenario, error) {
-	results := make([]scenario, 0, 5)
+	results := make([]scenario, 0, 6)
 	for _, operation := range []struct {
 		name string
 		run  func(string, processRunner, fixture) (scenario, error)
 	}{
+		{name: "writer-path-alias", run: runWriterPathAliasScenario},
 		{name: "held-reader", run: runHeldReaderScenario},
 		{name: "held-writer", run: runHeldWriterScenario},
 		{name: "compatible-migration-race", run: runMigrationRaceScenario},
@@ -550,6 +552,48 @@ func runScenarios(root string, runner processRunner, payload fixture) ([]scenari
 		results = append(results, result)
 	}
 	return results, nil
+}
+
+func runWriterPathAliasScenario(root string, runner processRunner, fixture fixture) (scenario, error) {
+	environment, err := newRoundEnvironment(root, "writer-path-alias")
+	if err != nil {
+		return scenario{}, err
+	}
+	setup := runner.hook(environment.env, hookPayload(stableID(350000), fixture))
+	if setup.Code != "ok" {
+		return scenario{}, fmt.Errorf("initialize writer path alias scenario: %s", setup.Code)
+	}
+	alias := filepath.Join(environment.root, "db", "ktx-alias.db")
+	if err := os.Link(environment.db, alias); err != nil {
+		return scenario{}, fmt.Errorf("create database path alias: %w", err)
+	}
+
+	start := time.Now()
+	workers := concurrentHooksAcrossPaths(runner, environment.env, workerEnvironment(environment.root, alias), fixture, aliasWriterCount, 350100)
+	elapsed := time.Since(start)
+	persisted, query, err := runner.persistedCount(environment.env)
+	if err != nil {
+		return scenario{}, err
+	}
+	metrics := summarize(workers, completed(workers), elapsed, 0)
+	addFailure(metrics.FailureCodes, query)
+	reconciliation := exactReconciliation(1+len(workers), persisted)
+	if !reconciliation.Matches {
+		metrics.FailureCodes["reconciliation-mismatch"]++
+	}
+	return scenario{
+		Name:               "supported-writer-path-alias",
+		FreshOwnedDatabase: true,
+		TimeoutNanoseconds: int64(processTimeout),
+		BootstrapToolCalls: 1,
+		Participants: []participant{
+			aggregateParticipant("supported-ktx", "canonical-and-alias-one-shot-hook-writers", workers),
+			participantFromResult("supported-ktx", "reconciliation-query", query),
+		},
+		Metrics:        metrics,
+		Reconciliation: reconciliation,
+		Outcome:        measurementOutcome(metrics, reconciliation),
+	}, nil
 }
 
 func runHeldReaderScenario(root string, runner processRunner, fixture fixture) (scenario, error) {
@@ -707,25 +751,28 @@ func runProcessTerminationScenario(root string, runner processRunner, fixture fi
 	if err := holder.Wait(); err != nil {
 		return scenario{}, err
 	}
+	recovery := runner.hook(environment.env, hookPayload(stableID(700200), fixture))
 	persisted, query, err := runner.persistedCount(environment.env)
 	if err != nil {
 		return scenario{}, err
 	}
-	metrics := summarize([]processResult{worker}, 0, time.Duration(worker.LatencyNS), 0)
+	results := []processResult{worker, recovery}
+	metrics := summarize(results, completed(results), time.Duration(worker.LatencyNS+recovery.LatencyNS), 0)
 	addObservedLockWait(&metrics, terminationDelay)
 	addFailure(metrics.FailureCodes, query)
-	reconciliation := exactReconciliation(1, persisted)
+	reconciliation := exactReconciliation(2, persisted)
 	if !reconciliation.Matches {
 		metrics.FailureCodes["reconciliation-mismatch"]++
 	}
 	return scenario{
-		Name:               "supported-process-termination-under-foreign-writer",
+		Name:               "supported-process-termination-ownership-recovery",
 		FreshOwnedDatabase: true,
 		TimeoutNanoseconds: int64(processTimeout),
 		BootstrapToolCalls: 1,
 		Participants: []participant{
 			{Class: "foreign-sqlite", Role: "held-writer", Outcome: "released", LatencyNS: int64(terminationDelay)},
 			participantFromResult("supported-ktx", "terminated-one-shot-hook", worker),
+			participantFromResult("supported-ktx", "recovery-one-shot-hook", recovery),
 			participantFromResult("supported-ktx", "reconciliation-query", query),
 		},
 		Metrics:        metrics,
@@ -855,6 +902,28 @@ func concurrentHookOnly(runner processRunner, environment roundEnvironment, fixt
 		go func() {
 			<-start
 			results <- runner.hook(environment.env, hookPayload(stableID(baseID+index), fixture))
+		}()
+	}
+	close(start)
+	collected := make([]processResult, 0, count)
+	for range count {
+		collected = append(collected, <-results)
+	}
+	return collected
+}
+
+func concurrentHooksAcrossPaths(runner processRunner, canonical, alias []string, fixture fixture, count, baseID int) []processResult {
+	start := make(chan struct{})
+	results := make(chan processResult, count)
+	for index := 0; index < count; index++ {
+		index := index
+		go func() {
+			<-start
+			environment := canonical
+			if index%2 != 0 {
+				environment = alias
+			}
+			results <- runner.hook(environment, hookPayload(stableID(baseID+index), fixture))
 		}()
 	}
 	close(start)

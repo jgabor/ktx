@@ -69,8 +69,201 @@ func TestSQLiteProcessHelper(t *testing.T) {
 		if _, err := database.Exec(`COMMIT`); err != nil {
 			t.Fatal(err)
 		}
+	case "hold-writer":
+		d, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer d.Close()
+		err = d.withWriteTx(context.Background(), func(tx *sql.Tx) error {
+			if err := os.WriteFile(os.Getenv("KTX_SQLITE_READY"), []byte("ready"), 0o600); err != nil {
+				return err
+			}
+			waitForFile(t, os.Getenv("KTX_SQLITE_RELEASE"), 10*time.Second)
+			_, err := tx.Exec(`INSERT INTO sessions (id, agent) VALUES (?, ?)`, os.Getenv("KTX_SQLITE_ID"), "test")
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	default:
 		t.Fatalf("unknown helper role %q", os.Getenv("KTX_SQLITE_ROLE"))
+	}
+}
+
+func TestSupportedWriterOwnershipAcrossPathAliases(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ownership.db")
+	initialized, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	alias := filepath.Join(t.TempDir(), "ownership-alias.db")
+	if err := os.Symlink(path, alias); err != nil {
+		t.Skipf("create database path alias: %v", err)
+	}
+	holderReady := path + ".holder-ready"
+	holderRelease := path + ".holder-release"
+	holder, holderOutput := startDBHelper(t, path, "hold-writer", map[string]string{
+		"KTX_SQLITE_ID":      "ownershipholder",
+		"KTX_SQLITE_READY":   holderReady,
+		"KTX_SQLITE_RELEASE": holderRelease,
+	})
+	holderWaited := false
+	t.Cleanup(func() {
+		if holderWaited {
+			return
+		}
+		_ = os.WriteFile(holderRelease, nil, 0o600)
+		_ = holder.Process.Kill()
+		_ = holder.Wait()
+	})
+	waitForFile(t, holderReady, 5*time.Second)
+	assertWriterLockBusy(t, alias)
+
+	contenderReady := path + ".contender-ready"
+	contenderStart := path + ".contender-start"
+	contender, contenderOutput := startDBHelper(t, alias, "open-write", map[string]string{
+		"KTX_SQLITE_ID":    "ownershiprunner",
+		"KTX_SQLITE_READY": contenderReady,
+		"KTX_SQLITE_START": contenderStart,
+	})
+	contenderWaited := false
+	t.Cleanup(func() {
+		if contenderWaited {
+			return
+		}
+		_ = os.WriteFile(contenderStart, nil, 0o600)
+		_ = contender.Process.Kill()
+		_ = contender.Wait()
+	})
+	waitForFile(t, contenderReady, 5*time.Second)
+	if err := os.WriteFile(contenderStart, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assertWriterLockBusy(t, alias)
+	if err := os.WriteFile(holderRelease, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := holder.Wait(); err != nil {
+		t.Fatalf("owner: %v\n%s", err, holderOutput.String())
+	}
+	holderWaited = true
+	if err := contender.Wait(); err != nil {
+		t.Fatalf("contender: %v\n%s", err, contenderOutput.String())
+	}
+	contenderWaited = true
+
+	assertSessionCount(t, path, 2)
+}
+
+func TestSupportedWriterOwnershipRecoversAfterProcessTermination(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ownership-recovery.db")
+	initialized, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	alias := filepath.Join(t.TempDir(), "ownership-recovery-alias.db")
+	if err := os.Symlink(path, alias); err != nil {
+		t.Skipf("create database path alias: %v", err)
+	}
+	ready := path + ".ready"
+	release := path + ".release"
+	holder, output := startDBHelper(t, path, "hold-writer", map[string]string{
+		"KTX_SQLITE_ID":      "ownershipkilled",
+		"KTX_SQLITE_READY":   ready,
+		"KTX_SQLITE_RELEASE": release,
+	})
+	waited := false
+	t.Cleanup(func() {
+		if waited {
+			return
+		}
+		_ = os.WriteFile(release, nil, 0o600)
+		_ = holder.Process.Kill()
+		_ = holder.Wait()
+	})
+	waitForFile(t, ready, 5*time.Second)
+	assertWriterLockBusy(t, alias)
+	if err := holder.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := holder.Wait(); err == nil {
+		t.Fatalf("terminated owner exited successfully\n%s", output.String())
+	}
+	waited = true
+	assertWriterLockAvailable(t, alias)
+
+	recovery, err := Open(alias)
+	if err != nil {
+		t.Fatalf("open after terminated owner: %v", err)
+	}
+	defer recovery.Close()
+	if err := recovery.InsertSession(&Session{ID: "ownershiprecover", Agent: "test"}); err != nil {
+		t.Fatalf("write after terminated owner: %v", err)
+	}
+	assertSessionCount(t, path, 1)
+}
+
+func assertWriterLockBusy(t *testing.T, path string) {
+	t.Helper()
+	coordinator, err := newWriterCoordinator(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.OpenFile(coordinator.path, os.O_RDWR, 0o666)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	err = tryLockWriterFile(file)
+	if !errors.Is(err, errWriterLockBusy) {
+		if err == nil {
+			_ = unlockWriterFile(file)
+		}
+		t.Fatalf("writer lock through %q = %v, want busy", path, err)
+	}
+}
+
+func assertWriterLockAvailable(t *testing.T, path string) {
+	t.Helper()
+	coordinator, err := newWriterCoordinator(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.OpenFile(coordinator.path, os.O_RDWR, 0o666)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err := tryLockWriterFile(file); err != nil {
+		t.Fatalf("writer lock through %q: %v", path, err)
+	}
+	if err := unlockWriterFile(file); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertSessionCount(t *testing.T, path string, want int) {
+	t.Helper()
+	database, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	var got int
+	if err := database.db.QueryRow(`SELECT count(*) FROM sessions`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("sessions = %d, want %d", got, want)
 	}
 }
 

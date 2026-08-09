@@ -108,6 +108,8 @@ func TestLoadBenchmarkDocumentation(t *testing.T) {
 		"1, 2, 4, 8, 16, and 32",
 		"KTX_DB",
 		"foreign-sqlite",
+		"path-alias",
+		"ownership-recovery",
 		"ktx bench",
 	} {
 		if !strings.Contains(normalized, required) {

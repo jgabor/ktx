@@ -69,7 +69,7 @@ func (d *DB) PersistSessionTelemetry(sessionID, capturedAt string, observation *
 	ctx, cancel := writeContext()
 	defer cancel()
 	inserted := false
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		var err error
 		inserted, err = persistSessionTelemetryTx(ctx, tx, sessionID, capturedAt, observation)
 		return err

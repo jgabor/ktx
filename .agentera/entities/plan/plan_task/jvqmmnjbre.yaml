@@ -5,7 +5,7 @@ record:
   depends_on:
     - fdysxqmvxf
     - iuyndimqgm
-  status: pending
+  status: complete
   acceptance:
     - GIVEN concurrent supported write-capable commands target one local database WHEN the writer matrix runs THEN every accepted record reconciles exactly once and no caller receives a SQLite lock error.
     - GIVEN distinct path spellings resolve to the same database WHEN supported writers run THEN they share one ownership boundary rather than bypassing coordination.

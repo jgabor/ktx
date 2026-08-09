@@ -94,7 +94,7 @@ func (d *DB) CreateBenchmarkEventInterval(attemptID, runtime, runtimeVersion, co
 	}
 	ctx, cancel := writeContext()
 	defer cancel()
-	err = withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err = d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		var count int
 		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM sessions`).Scan(&count); err != nil {
 			return err
@@ -127,7 +127,7 @@ func (d *DB) PersistRuntimeEvent(input RuntimeEventInput) (RuntimeEvent, bool, e
 	defer cancel()
 	var event RuntimeEvent
 	inserted := false
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		var owner, state string
 		if err := tx.QueryRowContext(ctx, `SELECT session_id, close_state FROM runtime_event_intervals WHERE id = ?`, input.IntervalID).Scan(&owner, &state); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -263,7 +263,7 @@ func (d *DB) SealRuntimeEventInterval(id, sessionID, closedAt, state, reason str
 	}
 	ctx, cancel := writeContext()
 	defer cancel()
-	return withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	return d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		interval, err := loadRuntimeEventInterval(ctx, tx, id)
 		if err != nil {
 			return err

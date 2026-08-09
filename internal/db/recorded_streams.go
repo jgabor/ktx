@@ -136,7 +136,7 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		var one int
 		err := tx.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ? LIMIT 1`, rs.SessionID).Scan(&one)
 		if err == sql.ErrNoRows {

@@ -141,7 +141,7 @@ func (d *DB) InsertBenchRun(b *BenchRun) error {
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO bench_runs (

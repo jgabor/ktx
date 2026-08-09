@@ -44,11 +44,20 @@ the exception: it starts with no database and has zero bootstrap rows.
 
 The harness also runs bounded scenarios for:
 
+- concurrent supported hooks split across canonical and hard-link database paths;
 - a deliberately foreign held reader;
 - a deliberately foreign held writer;
 - concurrent compatible migrations into a fresh database;
 - duplicate OpenCode hook delivery; and
-- termination of a hook process while a foreign writer holds the database.
+- `supported-process-termination-ownership-recovery`: termination of a hook
+  process while it owns supported-writer coordination and is blocked by a
+  foreign writer, followed by a successful supported recovery write.
+
+Supported writers coordinate each database transaction through the local
+database file. The operating system releases that ownership when the process
+ends. SQLite retries remain a defense against foreign clients, not the
+supported-writer ownership boundary. The path-alias scenario reconciles each
+accepted record against the same physical database file.
 
 Scenario participants identify `supported-ktx` or `foreign-sqlite`. A foreign
 holder result is never counted as a supported-concurrency failure. Each

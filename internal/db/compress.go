@@ -166,7 +166,7 @@ func (d *DB) InsertCompressed(c *Compressed) error {
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		var one int
 		err := tx.QueryRowContext(ctx, `SELECT 1 FROM tool_calls WHERE id = ? LIMIT 1`, c.SourceID).Scan(&one)
 		if err == sql.ErrNoRows {
@@ -207,7 +207,7 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 		stored   *Compressed
 		inserted bool
 	)
-	err := withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
 		 SELECT ?, ?, ?, ?, ?, ?

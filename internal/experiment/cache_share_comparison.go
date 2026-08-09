@@ -495,7 +495,7 @@ func comparisonSecondaryEstimate(attempts []Attempt) map[string]any {
 
 func comparisonBlockingReasons(manifest Manifest, pairs int, stats, quality map[string]any) []string {
 	reasons := []string{}
-	if !supportsDirectCachedInputShare(manifest) {
+	if !supportsCacheTokenMetric(manifest) {
 		return []string{"unsupported_runtime_accounting"}
 	}
 	if pairs < 5 {

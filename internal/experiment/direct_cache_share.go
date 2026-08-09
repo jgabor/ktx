@@ -3,10 +3,16 @@ package experiment
 import "math/big"
 
 const (
-	directCacheContractVersion = "cache-reuse-v1"
-	directCacheRuntime         = "opencode"
-	directCacheRuntimeVersion  = "1.18.5"
+	directCacheContractVersion                = "cache-reuse-v1"
+	promptCacheTokenHitRateContractVersion    = "cache-reuse-v2"
+	promptCacheTokenHitRateMethodologyVersion = "v6-prompt-cache-token-hit-rate"
+	directCacheRuntime                        = "opencode"
+	directCacheRuntimeVersion                 = "1.18.5"
 )
+
+func cacheAwareMethodology(version string) bool {
+	return version == "v5-cache-aware" || version == promptCacheTokenHitRateMethodologyVersion
+}
 
 func supportsDirectCachedInputShare(manifest Manifest) bool {
 	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 4) &&
@@ -14,6 +20,18 @@ func supportsDirectCachedInputShare(manifest Manifest) bool {
 		manifest.CacheControl != nil &&
 		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
 		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
+}
+
+func supportsPromptCacheTokenHitRate(manifest Manifest) bool {
+	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 5) &&
+		manifest.Methodology.Version == promptCacheTokenHitRateMethodologyVersion &&
+		manifest.CacheControl != nil &&
+		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
+		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
+}
+
+func supportsCacheTokenMetric(manifest Manifest) bool {
+	return supportsDirectCachedInputShare(manifest) || supportsPromptCacheTokenHitRate(manifest)
 }
 
 func buildDirectCachedInputShare(manifest Manifest, attempts []Attempt) map[string]any {

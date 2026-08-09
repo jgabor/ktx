@@ -35,7 +35,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	}
 	attempts = estimateAttempts(attempts, pricing)
 	methodologyVersion := manifest.Methodology.Version
-	cacheAware := methodologyVersion == "v5-cache-aware"
+	cacheAware := cacheAwareMethodology(methodologyVersion)
 	seen := map[string]bool{}
 	checks := []map[string]any{}
 	valid := true
@@ -102,7 +102,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	}
 	methodologyReasons := []string{}
 	if cacheAware {
-		methodologyReasons = validateV5Evidence(manifest, attempts, pricing, actualSummary, counts)
+		methodologyReasons = validateCacheAwareEvidence(manifest, attempts, pricing, actualSummary, counts)
 		if len(methodologyReasons) > 0 {
 			valid = false
 		}
@@ -122,11 +122,20 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report["cached_input_share_comparison"] = expectedSummaryValue["cached_input_share_comparison"]
 		report["statement_authorization"] = expectedSummaryValue["statement_authorization"]
 	}
+	if supportsPromptCacheTokenHitRate(manifest) {
+		report[promptCacheTokenHitRateField] = expectedSummaryValue[promptCacheTokenHitRateField]
+		report[promptCacheTokenHitRateComparisonField] = expectedSummaryValue[promptCacheTokenHitRateComparisonField]
+		report[promptCacheTokenHitRateStatementAuthorizationField] = expectedSummaryValue[promptCacheTokenHitRateStatementAuthorizationField]
+	}
 	return report, nil
 }
 
-func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingSnapshot, summaryData []byte, counts map[string]int) []string {
+func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *pricingSnapshot, summaryData []byte, counts map[string]int) []string {
 	reasons := []string{}
+	methodologyLabel := manifest.Methodology.Version
+	if methodologyLabel == "v5-cache-aware" {
+		methodologyLabel = "v5"
+	}
 	var summary map[string]any
 	if err := json.Unmarshal(summaryData, &summary); err != nil {
 		return append(reasons, "summary is not valid JSON")
@@ -135,11 +144,14 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	if supportsDirectCachedInputShare(manifest) {
 		expectedSchema = 4
 	}
+	if supportsPromptCacheTokenHitRate(manifest) {
+		expectedSchema = 5
+	}
 	if schema, ok := summary["schema_version"].(float64); !ok || schema != expectedSchema {
-		reasons = append(reasons, fmt.Sprintf("v5 summary schema_version must be %.0f", expectedSchema))
+		reasons = append(reasons, fmt.Sprintf("%s summary schema_version must be %.0f", methodologyLabel, expectedSchema))
 	}
 	if manifest.Pricing == nil || pricing == nil {
-		reasons = append(reasons, "v5 pricing snapshot is required")
+		reasons = append(reasons, methodologyLabel+" pricing snapshot is required")
 	}
 	provider, model, modelErr := splitModel(manifest.Model)
 	if modelErr != nil {
@@ -153,7 +165,7 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	}
 	control := manifest.CacheControl
 	if control == nil {
-		return append(reasons, "v5 cache_control manifest metadata is required")
+		return append(reasons, methodologyLabel+" cache_control manifest metadata is required")
 	}
 	controlIssues := retainedCacheControlIssues(control)
 	if hasRetainedCacheControlIssue(controlIssues, cacheControlInvalidMode) {
@@ -172,7 +184,7 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 		reasons = append(reasons, "warmup count must be non-negative")
 	}
 	if manifest.TargetValidPerPipeline <= 0 {
-		reasons = append(reasons, "v5 target valid per pipeline must be positive")
+		reasons = append(reasons, methodologyLabel+" target valid per pipeline must be positive")
 	}
 	if modelErr == nil && (control.Model != manifest.Model || control.Provider != provider) {
 		reasons = append(reasons, "cache control model/provider does not match manifest")

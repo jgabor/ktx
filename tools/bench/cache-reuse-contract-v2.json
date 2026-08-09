@@ -1,0 +1,76 @@
+{
+  "contract_version": "cache-reuse-v2",
+  "status": "prompt_cache_token_hit_rate_implemented",
+  "supersedes": "cache-reuse-v1",
+  "activation": {
+    "methodology_version": "v6-prompt-cache-token-hit-rate",
+    "summary_schema_version": 5,
+    "historical_summary_schemas_unchanged": [1, 2, 3, 4]
+  },
+  "scope": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.5",
+    "evidence_kind": "runtime_reported_model_steps",
+    "ranking_effect": "none"
+  },
+  "accounting": {
+    "input_buckets": ["uncached_input", "cache_read", "cache_write"],
+    "invariant": "uncached_input + cache_read + cache_write = logical_input",
+    "disjointness_requirement": "pinned_runtime_contract",
+    "measured_zero": "retained",
+    "unknown_or_malformed": "unavailable_not_backfilled"
+  },
+  "prompt_cache_token_hit_rate": {
+    "kind": "token_weighted",
+    "unit": "token_fraction",
+    "formula": "sum(cache_read) / sum(uncached_input + cache_read + cache_write)",
+    "contributing_steps": "all_accepted_model_steps_per_attempt",
+    "availability": "every_contributing_bucket_measured_and_logical_input_positive",
+    "output": {
+      "path": "prompt_cache_token_hit_rate",
+      "attempt_rate_field": "prompt_cache_token_hit_rate",
+      "source": "retained_raw_runtime_model_step_events"
+    }
+  },
+  "comparison": {
+    "path": "prompt_cache_token_hit_rate_comparison",
+    "metric": "prompt_cache_token_hit_rate",
+    "unit": "measured_cycle_pair",
+    "difference": "candidate_prompt_cache_token_hit_rate - baseline_prompt_cache_token_hit_rate",
+    "machine_readable_fields": [
+      "prompt_cache_token_hit_rate.means.baseline",
+      "prompt_cache_token_hit_rate.means.candidate",
+      "prompt_cache_token_hit_rate.candidate_minus_baseline.percentage_point_delta",
+      "complete_pair_count",
+      "prompt_cache_token_hit_rate.candidate_minus_baseline.interval",
+      "quality",
+      "blocking_reasons"
+    ],
+    "minimum_complete_pairs_for_direction": 5,
+    "uncertainty": "two_sided_95_percent_paired_student_t_interval",
+    "quality_requirement": "candidate_mean_fact_score_and_full_pass_rate_not_lower_on_same_complete_pairs"
+  },
+  "statement_authorization": {
+    "path": "prompt_cache_token_hit_rate_statement_authorization",
+    "higher_or_lower_wording": "token-weighted prompt-cache hit rate under the pinned contract (cache-reuse-v2)",
+    "provider_internal_claims": "forbidden"
+  },
+  "permanently_unsupported_claims": [
+    "provider_request",
+    "provider_cache_hit",
+    "provider_cache_miss",
+    "provider_cache_fill",
+    "provider_cache_eviction",
+    "provider_cache_eligibility",
+    "provider_visible_prefix",
+    "provider_cache_isolation",
+    "ttl_cause",
+    "missed_cost",
+    "causal_compression_effect"
+  ],
+  "compatibility": {
+    "cache_reuse_v1_unchanged": true,
+    "historical_bytes_unchanged": true,
+    "historical_hashes_unchanged": true
+  }
+}

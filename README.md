@@ -110,6 +110,20 @@ It is not filesystem, memory, database, HTTP, or other I/O caching.
 See the [pipeline runbook](docs/pipelines.md#residual-waste-discovery) for the
 complete contract and claim limits.
 
+### Live cost views
+
+Schema 7 also keeps two live cost views separate. `runtime_reported_cost_usd`
+is only the runtime-emitted cost evidence. A literal `0` remains measured, even
+when an estimate is nonzero. `api_equivalent_estimated_cost_usd` is a distinct,
+cache-aware API price estimate that requires runtime-emitted provider/model
+identity, all five token buckets (uncached input, cache read, cache write, output,
+and reasoning), and a retained local price record. It never fills reported cost,
+backfills identity from configuration, fetches pricing, or claims billing meaning.
+The JSON output includes exact micro-USD aggregation, components, selected rates,
+pricing-record provenance, and separate identity groups when an aggregate cannot
+truthfully pool models. The text view labels the columns
+`RUNTIME_REPORTED_COST_USD` and `API_EQUIVALENT_ESTIMATED_COST_USD`.
+
 ## Benchmarking
 
 `ktx bench` commands use Go implementations shipped in the binary. Named

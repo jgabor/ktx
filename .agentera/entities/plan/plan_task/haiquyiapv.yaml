@@ -4,10 +4,20 @@ record:
   name: Expose equivalent live cost views
   depends_on:
     - ioozssypfd
-  status: pending
+  status: complete
   acceptance:
     - GIVEN authoritative live identity, complete token fields, and pricing WHEN summarized THEN runtime-reported cost and cache-aware API-equivalent estimated cost are distinct values with exact provenance.
     - GIVEN literal reported zero WHEN estimated cost is nonzero THEN zero remains measured and is never replaced.
     - GIVEN missing identity, pricing, or required fields WHEN summarized THEN only the estimate is unavailable with exact reasons.
     - GIVEN an available estimate WHEN calculated THEN it includes uncached input, cache read, cache write, output, and reasoning without unsupported backfill or migration.
   plan: bigjhadugb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "Independent Audit review: distinct live costs, literal-zero preservation, identity-scoped five-bucket estimation, fail-closed availability, shared pricing, and retained compatibility passed."
+      recorded_at: 2026-08-09 22:04
+      writer_command: agentera state plan record-evaluation

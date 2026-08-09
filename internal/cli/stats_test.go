@@ -796,7 +796,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if got["schema_version"] != float64(7) {
 			t.Errorf("schema_version = %v, want 7", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse", "prompt_cache_token_hit_rate")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse", "prompt_cache_token_hit_rate", "runtime_reported_cost_usd", "api_equivalent_estimated_cost_usd")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
 		assertStatsJSONKeys(t, got["outcomes"].(map[string]any), "successful_calls", "error_calls", "unknown_calls", "known_calls", "total_calls", "error_rate_pct_of_known", "outcome_coverage_pct")
@@ -819,6 +819,16 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		assertStatsJSONKeys(t, rate["logical_input"].(map[string]any), "state", "value")
 		assertStatsJSONKeys(t, rate["temporal_scope"].(map[string]any), "scope", "requested_window_coverage", "first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps")
+		reported := got["runtime_reported_cost_usd"].(map[string]any)
+		assertStatsJSONKeys(t, reported, "state", "value", "unit", "formula", "source", "billing_semantics", "reasons", "temporal_scope", "runtime_contracts")
+		assertStatsJSONKeys(t, reported["temporal_scope"].(map[string]any), "scope", "requested_window_coverage", "first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps")
+		estimated := got["api_equivalent_estimated_cost_usd"].(map[string]any)
+		assertStatsJSONKeys(t, estimated, "state", "value", "micro_usd", "unit", "formula", "source", "aggregation", "components", "pricing", "rate_selections", "temporal_scope", "reasons", "provider", "model", "identity_groups")
+		for _, field := range []string{"uncached_input", "cache_read", "cache_write", "output", "reasoning"} {
+			assertStatsJSONKeys(t, estimated["components"].(map[string]any)[field].(map[string]any), "state", "value")
+		}
+		assertStatsJSONKeys(t, estimated["pricing"].(map[string]any), "state", "provider", "model", "path", "record_sha256", "source_url", "retrieved_at", "reasons")
+		assertStatsJSONKeys(t, estimated["temporal_scope"].(map[string]any), "scope", "requested_window_coverage", "first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps")
 	})
 
 	t.Run("breakdown JSON schema contains the detailed version 2 contract", func(t *testing.T) {
@@ -856,7 +866,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &summaryText); err != nil {
 			t.Fatalf("text: %v", err)
 		}
-		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE") || !strings.Contains(summaryText.String(), "REQUESTED_WINDOW_COVERAGE") || !strings.Contains(summaryText.String(), "OBSERVED_SPAN_SECONDS") || !strings.Contains(summaryText.String(), "CONTRIBUTING_KTX_SESSIONS") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHE_READ") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHED_INPUT_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_REASON") || strings.Contains(summaryText.String(), "DISPOSITION") {
+		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE") || !strings.Contains(summaryText.String(), "REQUESTED_WINDOW_COVERAGE") || !strings.Contains(summaryText.String(), "OBSERVED_SPAN_SECONDS") || !strings.Contains(summaryText.String(), "CONTRIBUTING_KTX_SESSIONS") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHE_READ") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHED_INPUT_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_REASON") || !strings.Contains(summaryText.String(), "RUNTIME_REPORTED_COST_USD") || !strings.Contains(summaryText.String(), "API_EQUIVALENT_ESTIMATED_COST_USD") || !strings.Contains(summaryText.String(), "API_EQUIVALENT_ESTIMATED_COST_PRICING_RECORD_SHA256") || strings.Contains(summaryText.String(), "DISPOSITION") {
 			t.Errorf("summary text fields = %q", summaryText.String())
 		}
 		if strings.Count(strings.TrimSpace(summaryText.String()), "\n") != 1 {
@@ -866,7 +876,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 7") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryHelp.String(), "cache_read / (uncached_input + cache_read + cache_write)") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || !strings.Contains(summaryHelp.String(), "I/O-cache rate") || !strings.Contains(summaryHelp.String(), "collector_lifecycle_evidence_unavailable") {
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 7") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryHelp.String(), "RUNTIME_REPORTED_COST_USD") || !strings.Contains(summaryHelp.String(), "API_EQUIVALENT_ESTIMATED_COST_USD") || !strings.Contains(summaryHelp.String(), "cache_read / (uncached_input + cache_read + cache_write)") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || !strings.Contains(summaryHelp.String(), "I/O-cache rate") || !strings.Contains(summaryHelp.String(), "collector_lifecycle_evidence_unavailable") {
 			t.Errorf("summary help = %q", summaryHelp.String())
 		}
 

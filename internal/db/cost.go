@@ -2,7 +2,10 @@
 // preservation, and rounding for every persisted record type.
 package db
 
-import "math"
+import (
+	"math"
+	"math/big"
+)
 
 // costRoundDecimals is the precision for the cost derivation. The
 // methodology-v1 headline number is six decimals
@@ -128,10 +131,12 @@ type APIEquivalentCostRateSelection struct {
 	ReasoningRatePolicy     string
 }
 
-// APIEquivalentCostEstimate is independent of provider-reported cost. A nil
-// Cost always has at least one ordered unavailable reason.
+// APIEquivalentCostEstimate is independent of provider-reported cost. Cost and
+// MicroUSD describe the same rounded result. A nil Cost always has at least one
+// ordered unavailable reason.
 type APIEquivalentCostEstimate struct {
 	Cost               *float64
+	MicroUSD           *big.Int
 	UnavailableReasons []APIEquivalentCostUnavailableReason
 	RateSelection      *APIEquivalentCostRateSelection
 }
@@ -184,12 +189,16 @@ func EstimateAPIEquivalentCost(in APIEquivalentCostInputs, price Price) APIEquiv
 	if cost == nil || math.IsNaN(*cost) || math.IsInf(*cost, 0) || *cost < 0 {
 		return APIEquivalentCostEstimate{UnavailableReasons: []APIEquivalentCostUnavailableReason{APIEquivalentCostNonfinite}}
 	}
+	microUSD, ok := APIEquivalentCostMicroUSD(*cost)
+	if !ok {
+		return APIEquivalentCostEstimate{UnavailableReasons: []APIEquivalentCostUnavailableReason{APIEquivalentCostNonfinite}}
+	}
 	return APIEquivalentCostEstimate{Cost: cost, RateSelection: &APIEquivalentCostRateSelection{
 		Basis: selection.Basis, ContextTokenCount: selection.ContextTokenCount, ContextTierSize: selection.ContextTierSize,
 		InputUSDPerMillion: rates.Input, OutputUSDPerMillion: rates.Output,
 		CacheReadUSDPerMillion: rates.CacheRead, CacheWriteUSDPerMillion: rates.CacheWrite,
 		ReasoningUSDPerMillion: reasoningPrice, ReasoningRatePolicy: reasoningPolicy,
-	}}
+	}, MicroUSD: microUSD}
 }
 
 func apiEquivalentToken(value *float64, unavailable, nonfinite, invalid APIEquivalentCostUnavailableReason) (int64, []APIEquivalentCostUnavailableReason) {
@@ -258,6 +267,13 @@ func orderAPIEquivalentCostReasons(reasons []APIEquivalentCostUnavailableReason)
 	return ordered
 }
 
+// OrderAPIEquivalentCostUnavailableReasons returns the stable reason order used
+// by EstimateAPIEquivalentCost. Callers that combine step-level estimates use
+// it before rendering an aggregate unavailable state.
+func OrderAPIEquivalentCostUnavailableReasons(reasons []APIEquivalentCostUnavailableReason) []APIEquivalentCostUnavailableReason {
+	return orderAPIEquivalentCostReasons(reasons)
+}
+
 // EstimateAPICost derives an API-equivalent estimate independently of reported
 // cost. Complete reasoning and cache counts are required; rates are selected
 // from supported context tiers using all prompt-side tokens.
@@ -292,6 +308,30 @@ func EstimateAPICost(in EstimatedCostInputs, price Price) *float64 {
 func roundCost(raw float64) *float64 {
 	rounded := math.Round(raw*math.Pow(10, costRoundDecimals)) / math.Pow(10, costRoundDecimals)
 	return &rounded
+}
+
+// APIEquivalentCostMicroUSD converts one rounded API-equivalent USD estimate
+// to the integer micro-USD unit used for exact aggregate sums.
+func APIEquivalentCostMicroUSD(value float64) (*big.Int, bool) {
+	scaled := math.Round(value * math.Pow10(APIEquivalentCostRoundingDecimals))
+	if math.IsNaN(scaled) || math.IsInf(scaled, 0) || scaled < 0 || scaled >= math.Exp2(63) {
+		return nil, false
+	}
+	return big.NewInt(int64(scaled)), true
+}
+
+// APIEquivalentCostUSD converts an exact non-negative micro-USD total to the
+// public USD value. It reports false when the value cannot be represented as a
+// finite float64.
+func APIEquivalentCostUSD(microUSD *big.Int) (*float64, bool) {
+	if microUSD == nil || microUSD.Sign() < 0 {
+		return nil, false
+	}
+	value, _ := new(big.Rat).SetFrac(new(big.Int).Set(microUSD), big.NewInt(int64(math.Pow10(APIEquivalentCostRoundingDecimals)))).Float64()
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return nil, false
+	}
+	return &value, true
 }
 
 // costDeriver is the deep cost module. The instance is stateless

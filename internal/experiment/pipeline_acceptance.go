@@ -310,11 +310,7 @@ func addPipelineAcceptanceAttempt(side *pipelineAcceptanceSide, attempt Attempt)
 }
 
 func estimatedCostMicroUSD(value float64) (*big.Int, bool) {
-	scaled := math.Round(value * math.Pow10(db.APIEquivalentCostRoundingDecimals))
-	if math.IsNaN(scaled) || math.IsInf(scaled, 0) || scaled < 0 || scaled >= math.Exp2(63) {
-		return nil, false
-	}
-	return big.NewInt(int64(scaled)), true
+	return db.APIEquivalentCostMicroUSD(value)
 }
 
 func pipelineAcceptanceRateSelection(selection *db.APIEquivalentCostRateSelection) map[string]any {
@@ -456,9 +452,11 @@ func pipelineAcceptanceUnavailableCostPerCorrectView(reasons []string) map[strin
 }
 
 func microUSDValue(value *big.Int) (float64, bool) {
-	decimal := new(big.Rat).SetFrac(new(big.Int).Set(value), big.NewInt(int64(math.Pow10(db.APIEquivalentCostRoundingDecimals))))
-	result, _ := decimal.Float64()
-	return result, !math.IsNaN(result) && !math.IsInf(result, 0)
+	result, ok := db.APIEquivalentCostUSD(value)
+	if !ok || result == nil {
+		return 0, false
+	}
+	return *result, true
 }
 
 func roundPositiveRational(value *big.Rat) *big.Int {

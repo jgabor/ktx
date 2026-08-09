@@ -415,6 +415,9 @@ func TestEstimateAPIEquivalentCostReportsOrderedAvailabilityAndRateProvenance(t 
 	if estimate.Cost == nil || *estimate.Cost != 0.000253 || estimate.RateSelection == nil {
 		t.Fatalf("estimate = %#v", estimate)
 	}
+	if estimate.MicroUSD == nil || estimate.MicroUSD.String() != "253" {
+		t.Fatalf("estimate micro-USD = %#v", estimate.MicroUSD)
+	}
 	selection := estimate.RateSelection
 	if selection.Basis != "base" || selection.ContextTokenCount != 105 || selection.ReasoningRatePolicy != "output_rate_fallback" || selection.ReasoningUSDPerMillion != 4 {
 		t.Fatalf("rate selection = %#v", selection)
@@ -440,5 +443,50 @@ func TestEstimateAPIEquivalentCostReportsOrderedAvailabilityAndRateProvenance(t 
 	}, price)
 	if estimate.Cost != nil || len(estimate.UnavailableReasons) != 1 || estimate.UnavailableReasons[0] != APIEquivalentCostCacheReadPriceUnavailable {
 		t.Fatalf("missing cache rate estimate = %#v", estimate)
+	}
+}
+
+func TestEstimateAPIEquivalentCostRejectsNonfiniteAndOverflowedTokens(t *testing.T) {
+	one := 1.0
+	price := Price{Input: 1, Output: 1, InputSet: true, OutputSet: true}
+	inputs := APIEquivalentCostInputs{UncachedInput: &one, Output: &one, Reasoning: &one, CacheRead: &one, CacheWrite: &one}
+	for _, test := range []struct {
+		name   string
+		mutate func(*APIEquivalentCostInputs)
+		want   APIEquivalentCostUnavailableReason
+	}{
+		{
+			name: "nonfinite token",
+			mutate: func(in *APIEquivalentCostInputs) {
+				value := math.Inf(1)
+				in.Output = &value
+			},
+			want: APIEquivalentCostOutputNonfinite,
+		},
+		{
+			name: "negative token",
+			mutate: func(in *APIEquivalentCostInputs) {
+				value := -1.0
+				in.Reasoning = &value
+			},
+			want: APIEquivalentCostReasoningInvalid,
+		},
+		{
+			name: "context token overflow",
+			mutate: func(in *APIEquivalentCostInputs) {
+				value := math.Exp2(62)
+				in.UncachedInput, in.CacheRead, in.CacheWrite = &value, &value, &one
+			},
+			want: APIEquivalentCostContextTokenOverflow,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			input := inputs
+			test.mutate(&input)
+			estimate := EstimateAPIEquivalentCost(input, price)
+			if estimate.Cost != nil || estimate.MicroUSD != nil || len(estimate.UnavailableReasons) == 0 || estimate.UnavailableReasons[0] != test.want {
+				t.Fatalf("estimate = %#v, want %q", estimate, test.want)
+			}
+		})
 	}
 }

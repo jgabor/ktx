@@ -186,6 +186,21 @@ unsupported-runtime/version, and missing/mixed identity cases are unavailable
 with a machine-readable reason and never reconstructed. Text renders it as
 `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`.
 
+Schema 7 also carries two cost views. `runtime_reported_cost_usd` sums only
+runtime-emitted cost observations across accepted model steps. It does not need
+provider/model identity, cache-token completeness, pricing, or a cache-accounting
+runtime. A literal zero stays measured; unknown and malformed cost states remain
+missing and malformed. `api_equivalent_estimated_cost_usd` is a distinct estimate
+that never fills reported cost. It requires every supported OpenCode 1.18.5 step
+to have runtime-emitted provider/model identity plus uncached input, cache read,
+cache write, output, and reasoning. It reads the retained local price record
+without fetching or configuration identity backfill, rounds each step to exact
+micro-USD before summing, and retains formula, components, selected rates, record
+hash, and source provenance. Missing or mixed aggregate identity, unsupported
+runtime/version, absent pricing, or invalid required evidence leaves only the
+estimate unavailable; complete identity groups remain separate rather than using
+one model's rates for another.
+
 ## OpenCode Contract
 
 The generated OpenCode plugin currently supports the reviewed OpenCode 1.18.5
@@ -231,6 +246,7 @@ are null.
 
 Character-derived tool-output estimates and runtime-reported model tokens are
 different evidence classes. Keep them parallel; do not add or subtract them.
+Runtime-reported and API-equivalent costs are also parallel; do not coalesce them.
 
 ## Truthful Live Analysis Workflow
 

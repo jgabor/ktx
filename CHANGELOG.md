@@ -11,6 +11,7 @@
   API-equivalent estimated-cost-per-correct acceptance guard with retained
   pricing provenance and recommendation exclusion for rejected candidates.
 - `ktx stats summary` schema 7 adds a provider/model-scoped, token-weighted prompt-cache token hit rate with raw buckets, runtime-emitted provenance, observed-subset scope, and explicit unavailable reasons.
+- `ktx stats summary` schema 7 now exposes distinct runtime-reported and cache-aware API-equivalent estimated USD costs, including literal-zero preservation, retained pricing provenance, exact micro-USD aggregation, and identity-scoped unavailable results.
 - `ktx stats summary` schema 6 reports the first and last contributing model-telemetry captures, observed span, contributing KTX session and model-step counts, and explicitly unavailable requested-window coverage for observed provider prompt/prefix-cache token subsets.
 
 ### Fixed

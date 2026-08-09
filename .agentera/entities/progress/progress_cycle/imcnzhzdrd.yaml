@@ -1,0 +1,17 @@
+id: imcnzhzdrd
+artifact: progress
+record:
+  timestamp: 2026-08-09 21:42
+  type: feat
+  phase: build
+  what: Added distinct schema-7 runtime-reported and API-equivalent estimated USD cost views to stats summary. The reported view sums only emitted cost evidence and preserves a literal zero. The estimate requires supported runtime-emitted identity, all five token buckets, and a retained local price record; it exposes components, per-rate selections, identity groups, reasons, and pricing provenance.
+  context:
+    intent: Make live reported and API-equivalent costs explicitly separate and reproducible from retained evidence.
+    constraints: Preserve schema-6 artifacts, use no database migration, identity backfill, or external pricing fetch, and leave the unrelated TODO.md edit unstaged.
+    unknowns: No live provider experiment or external price fetch ran; the available-price smoke used only a disposable retained local record.
+    scope: Live stats summary projection, shared estimate rounding, cost views, regression coverage, documentation, skill guidance, and changelog.
+  inspiration: Reused the existing API-equivalent estimator and rate-selection contract so live reporting applies the same cache-aware price semantics without a second formula.
+  discovered: Current telemetry already retains cost plus output and reasoning token states, so the new live views need only projection and aggregation changes. Reported cost must remain independent of estimate identity, pricing, token, and runtime eligibility.
+  verified: Focused cost and estimator tests passed. Isolated go test ./internal/cli ./internal/db and focused internal/experiment legacy-regeneration tests passed. mage build produced build/ktx. Its isolated summary JSON, text, and help smoke preserved reported zero while a missing retained price record left only the estimate unavailable; a seeded disposable local record produced an estimate of 0.000309 USD and 309 micro-USD with retained path, hash, source URL, timestamp, rate selection, and identity-group provenance. Isolated mage check passed race tests, vet, lint with 0 issues, and build; its database audit reported KTX_DB unset and forbidden=0. git diff --check passed, and focused regression tests preserved the two retained schema-6 artifact hashes.
+  next: Leave haiquyiapv in progress for independent evaluation. Do not record an evaluator verdict or terminal task status.
+  publication_order: 70

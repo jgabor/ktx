@@ -123,6 +123,8 @@ prompt-cache rate only when its state is measured:
 `cache_read / (uncached_input + cache_read + cache_write)`. It retains raw buckets,
 runtime-emitted provider/model identity, and temporal scope.
 It is not a provider request hit rate or I/O-cache rate.
+Schema 7 also publishes `runtime_reported_cost_usd` and the separate
+`api_equivalent_estimated_cost_usd`. Never substitute either view for the other.
 
 ### Inspect records and model telemetry
 
@@ -198,8 +200,14 @@ classes, schema, metric formulas, and claim limits.
   token-weighted prompt-cache hit rate is allowed; do not infer
   provider-internal state, request-hit behavior, TTL, eviction, eligibility,
   isolation, or prefix behavior.
-- Literal runtime cost zero remains measured zero but has no automatic billing
-  meaning. API-equivalent cost is a separately labeled estimate.
+- `runtime_reported_cost_usd` uses only runtime-emitted cost fields. A literal
+  zero remains measured and has no automatic billing meaning. Missing identity,
+  token, pricing, or cache-accounting evidence must not change it.
+- `api_equivalent_estimated_cost_usd` is a separate cache-aware price estimate.
+  It requires runtime-emitted provider/model identity, all five token buckets,
+  and a retained local price record. It does not fetch pricing or backfill
+  identity from configuration. Read its state, ordered reasons, components,
+  pricing provenance, and identity groups before using it.
 - Missing, unknown, malformed, and measured zero are distinct states. Never
   reconstruct a missing field from neighboring totals.
 - Originals are append-only. The first accepted source evidence and first

@@ -16,10 +16,12 @@
 package cli
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"sort"
 	"strconv"
@@ -179,14 +181,16 @@ func statsCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 type statsSummary struct {
-	SchemaVersion           int                                 `json:"schema_version"`
-	GeneratedAt             string                              `json:"generated_at"`
-	Window                  statsSummaryWindow                  `json:"window"`
-	Calls                   statsSummaryCalls                   `json:"calls"`
-	Outcomes                statsOutcomeTotals                  `json:"outcomes"`
-	Tokens                  statsSummaryTokens                  `json:"tokens"`
-	CacheReuse              statsSummaryCacheReuse              `json:"cache_reuse"`
-	PromptCacheTokenHitRate statsSummaryPromptCacheTokenHitRate `json:"prompt_cache_token_hit_rate"`
+	SchemaVersion                 int                                       `json:"schema_version"`
+	GeneratedAt                   string                                    `json:"generated_at"`
+	Window                        statsSummaryWindow                        `json:"window"`
+	Calls                         statsSummaryCalls                         `json:"calls"`
+	Outcomes                      statsOutcomeTotals                        `json:"outcomes"`
+	Tokens                        statsSummaryTokens                        `json:"tokens"`
+	CacheReuse                    statsSummaryCacheReuse                    `json:"cache_reuse"`
+	PromptCacheTokenHitRate       statsSummaryPromptCacheTokenHitRate       `json:"prompt_cache_token_hit_rate"`
+	RuntimeReportedCost           statsSummaryRuntimeReportedCost           `json:"runtime_reported_cost_usd"`
+	APIEquivalentEstimatedAPICost statsSummaryAPIEquivalentEstimatedAPICost `json:"api_equivalent_estimated_cost_usd"`
 }
 
 type statsBreakdown struct {
@@ -326,6 +330,85 @@ type statsSummaryCacheIdentityPartition struct {
 	MissingModelSteps int
 }
 
+type statsSummaryRuntimeReportedCost struct {
+	State            string                                    `json:"state"`
+	Value            *float64                                  `json:"value"`
+	Unit             string                                    `json:"unit"`
+	Formula          string                                    `json:"formula"`
+	Source           string                                    `json:"source"`
+	BillingSemantics string                                    `json:"billing_semantics"`
+	Reasons          []string                                  `json:"reasons"`
+	TemporalScope    statsSummaryPromptCacheTokenTemporalScope `json:"temporal_scope"`
+	RuntimeContracts []statsSummaryRuntimeContractPopulation   `json:"runtime_contracts"`
+}
+
+type statsSummaryRuntimeContractPopulation struct {
+	Runtime                string `json:"runtime"`
+	RuntimeVersion         string `json:"runtime_version"`
+	ContributingModelSteps int    `json:"contributing_model_steps"`
+}
+
+type statsSummaryAPIEquivalentEstimatedAPICost struct {
+	statsSummaryAPIEquivalentCostView
+	Provider       *string                                          `json:"provider"`
+	Model          *string                                          `json:"model"`
+	IdentityGroups []statsSummaryAPIEquivalentEstimatedAPICostGroup `json:"identity_groups"`
+}
+
+type statsSummaryAPIEquivalentEstimatedAPICostGroup struct {
+	statsSummaryAPIEquivalentCostView
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
+type statsSummaryAPIEquivalentCostView struct {
+	State          string                                    `json:"state"`
+	Value          *float64                                  `json:"value"`
+	MicroUSD       *string                                   `json:"micro_usd"`
+	Unit           string                                    `json:"unit"`
+	Formula        string                                    `json:"formula"`
+	Source         string                                    `json:"source"`
+	Aggregation    string                                    `json:"aggregation"`
+	Components     statsSummaryAPIEquivalentCostComponents   `json:"components"`
+	Pricing        statsSummaryPricingSnapshot               `json:"pricing"`
+	RateSelections []statsSummaryAPIEquivalentRateSelection  `json:"rate_selections"`
+	TemporalScope  statsSummaryPromptCacheTokenTemporalScope `json:"temporal_scope"`
+	Reasons        []string                                  `json:"reasons"`
+}
+
+type statsSummaryAPIEquivalentCostComponents struct {
+	UncachedInput statsSummaryIntegerMeasurement `json:"uncached_input"`
+	CacheRead     statsSummaryIntegerMeasurement `json:"cache_read"`
+	CacheWrite    statsSummaryIntegerMeasurement `json:"cache_write"`
+	Output        statsSummaryIntegerMeasurement `json:"output"`
+	Reasoning     statsSummaryIntegerMeasurement `json:"reasoning"`
+}
+
+type statsSummaryPricingSnapshot struct {
+	State        string   `json:"state"`
+	Provider     *string  `json:"provider"`
+	Model        *string  `json:"model"`
+	Path         *string  `json:"path"`
+	RecordSHA256 *string  `json:"record_sha256"`
+	SourceURL    *string  `json:"source_url"`
+	RetrievedAt  *string  `json:"retrieved_at"`
+	Reasons      []string `json:"reasons"`
+}
+
+type statsSummaryAPIEquivalentRateSelection struct {
+	Basis                   string                                  `json:"basis"`
+	ContextTierSize         *int64                                  `json:"context_tier_size"`
+	InputUSDPerMillion      float64                                 `json:"input_usd_per_million"`
+	OutputUSDPerMillion     float64                                 `json:"output_usd_per_million"`
+	CacheReadUSDPerMillion  *float64                                `json:"cache_read_usd_per_million"`
+	CacheWriteUSDPerMillion *float64                                `json:"cache_write_usd_per_million"`
+	ReasoningUSDPerMillion  float64                                 `json:"reasoning_usd_per_million"`
+	ReasoningRatePolicy     string                                  `json:"reasoning_rate_policy"`
+	ContributingModelSteps  int                                     `json:"contributing_model_steps"`
+	Components              statsSummaryAPIEquivalentCostComponents `json:"components"`
+	MicroUSD                string                                  `json:"micro_usd"`
+}
+
 type statsSummaryRequestedWindowCoverage struct {
 	State  string `json:"state"`
 	Reason string `json:"reason"`
@@ -350,6 +433,12 @@ type statsSummaryIntegerAccumulator struct {
 	malformed bool
 }
 
+type statsSummaryCostAccumulator struct {
+	value     big.Rat
+	missing   bool
+	malformed bool
+}
+
 const (
 	statsSummaryMeasured                              = "measured"
 	statsSummaryUnavailable                           = "unavailable"
@@ -370,6 +459,15 @@ const (
 	statsSummaryPromptCacheTokenHitRateKind           = cachemetric.PromptCacheTokenHitRateKind
 	statsSummaryPromptCacheTokenHitRateSource         = "runtime_emitted_model_step_telemetry"
 	statsSummaryPromptCacheTokenHitRateFormula        = cachemetric.PromptCacheTokenHitRateFormula
+	statsSummaryRuntimeReportedCostSource             = "runtime_emitted_model_step_telemetry"
+	statsSummaryRuntimeReportedCostMissing            = "runtime_reported_cost_missing"
+	statsSummaryRuntimeReportedCostMalformed          = "runtime_reported_cost_malformed"
+	statsSummaryRuntimeReportedCostNonfinite          = "runtime_reported_cost_nonfinite"
+	statsSummaryAPIEquivalentCostSource               = "runtime_emitted_model_step_telemetry_and_retained_pricing"
+	statsSummaryAPIEquivalentCostFormula              = "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1000000"
+	statsSummaryAPIEquivalentCostAggregation          = "round_each_model_step_to_micro_usd_then_sum"
+	statsSummaryPricingSnapshotUnavailable            = "pricing_snapshot_unavailable"
+	statsSummaryTokenMalformedSuffix                  = "_malformed"
 )
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
@@ -389,16 +487,23 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 		return nil, internalError("ktx stats summary: %v", err)
 	}
 	supportedCacheRows, unsupportedCacheRows := partitionStatsSummaryCacheRuntimeContract(cacheRows)
+	var prices *dbpkg.Prices
+	var pricesErr error
+	if len(supportedCacheRows) > 0 {
+		prices, pricesErr = dbpkg.LoadPrices()
+	}
 	windowSummary, calls, outcomes, tokens := aggregateStatsWindow(rows, window, now)
 	summary := statsSummary{
-		SchemaVersion:           statsSummarySchemaVersion,
-		GeneratedAt:             now.Format(time.RFC3339Nano),
-		Window:                  windowSummary,
-		Calls:                   calls,
-		Outcomes:                outcomes,
-		Tokens:                  tokens,
-		CacheReuse:              aggregateStatsSummaryCache(supportedCacheRows),
-		PromptCacheTokenHitRate: aggregateStatsSummaryPromptCacheTokenHitRate(supportedCacheRows, len(unsupportedCacheRows)),
+		SchemaVersion:                 statsSummarySchemaVersion,
+		GeneratedAt:                   now.Format(time.RFC3339Nano),
+		Window:                        windowSummary,
+		Calls:                         calls,
+		Outcomes:                      outcomes,
+		Tokens:                        tokens,
+		CacheReuse:                    aggregateStatsSummaryCache(supportedCacheRows),
+		PromptCacheTokenHitRate:       aggregateStatsSummaryPromptCacheTokenHitRate(supportedCacheRows, len(unsupportedCacheRows)),
+		RuntimeReportedCost:           aggregateStatsSummaryRuntimeReportedCost(cacheRows),
+		APIEquivalentEstimatedAPICost: aggregateStatsSummaryAPIEquivalentEstimatedAPICost(supportedCacheRows, len(unsupportedCacheRows), prices, pricesErr),
 	}
 
 	if format == FormatText {
@@ -796,6 +901,467 @@ func statsSummaryPromptCacheTokenTemporalScopeFromCache(cache statsSummaryCacheR
 	}
 }
 
+func aggregateStatsSummaryRuntimeReportedCost(rows []dbpkg.StatsSummaryCacheRow) statsSummaryRuntimeReportedCost {
+	cache := aggregateStatsSummaryCache(rows)
+	result := statsSummaryRuntimeReportedCost{
+		State:            statsSummaryUnavailable,
+		Unit:             "usd",
+		Formula:          "sum(runtime_reported_cost)",
+		Source:           statsSummaryRuntimeReportedCostSource,
+		BillingSemantics: statsSummaryUnavailable,
+		Reasons:          []string{},
+		TemporalScope:    statsSummaryPromptCacheTokenTemporalScopeFromCache(cache),
+		RuntimeContracts: statsSummaryRuntimeContractPopulations(rows),
+	}
+	var total statsSummaryCostAccumulator
+	for _, row := range rows {
+		total.add(row.Cost)
+	}
+	switch {
+	case len(rows) == 0:
+		result.Reasons = []string{statsSummaryNoContributingModelSteps}
+	case total.malformed:
+		result.State = statsSummaryMalformed
+		result.Reasons = []string{statsSummaryRuntimeReportedCostMalformed}
+	case total.missing:
+		result.State = statsSummaryMissing
+		result.Reasons = []string{statsSummaryRuntimeReportedCostMissing}
+	default:
+		value, _ := total.value.Float64()
+		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			result.State = statsSummaryUnavailable
+			result.Reasons = []string{statsSummaryRuntimeReportedCostNonfinite}
+			return result
+		}
+		result.State = statsSummaryMeasured
+		result.Value = &value
+	}
+	return result
+}
+
+func statsSummaryRuntimeContractPopulations(rows []dbpkg.StatsSummaryCacheRow) []statsSummaryRuntimeContractPopulation {
+	type contract struct{ runtime, version string }
+	counts := map[contract]int{}
+	for _, row := range rows {
+		counts[contract{runtime: row.Runtime, version: row.RuntimeVersion}]++
+	}
+	contracts := make([]statsSummaryRuntimeContractPopulation, 0, len(counts))
+	for key, count := range counts {
+		contracts = append(contracts, statsSummaryRuntimeContractPopulation{
+			Runtime: key.runtime, RuntimeVersion: key.version, ContributingModelSteps: count,
+		})
+	}
+	sort.Slice(contracts, func(i, j int) bool {
+		if contracts[i].Runtime != contracts[j].Runtime {
+			return contracts[i].Runtime < contracts[j].Runtime
+		}
+		return contracts[i].RuntimeVersion < contracts[j].RuntimeVersion
+	})
+	return contracts
+}
+
+func aggregateStatsSummaryAPIEquivalentEstimatedAPICost(rows []dbpkg.StatsSummaryCacheRow, unsupportedModelSteps int, prices *dbpkg.Prices, pricesErr error) statsSummaryAPIEquivalentEstimatedAPICost {
+	cache := aggregateStatsSummaryCache(rows)
+	result := statsSummaryAPIEquivalentEstimatedAPICost{
+		statsSummaryAPIEquivalentCostView: newStatsSummaryAPIEquivalentCostView(cache),
+		IdentityGroups:                    []statsSummaryAPIEquivalentEstimatedAPICostGroup{},
+	}
+	if len(rows) == 0 {
+		if unsupportedModelSteps > 0 {
+			result.Reasons = []string{statsSummaryUnsupportedRuntimeOrVersion}
+		} else {
+			result.Reasons = []string{statsSummaryNoContributingModelSteps}
+		}
+		result.Pricing = unavailableStatsSummaryPricingSnapshot(result.Reasons)
+		return result
+	}
+
+	partition := partitionStatsSummaryCacheIdentity(rows)
+	for _, group := range partition.Groups {
+		view := aggregateStatsSummaryAPIEquivalentEstimatedAPICostGroup(group.Identity, group.Rows, prices, pricesErr)
+		result.IdentityGroups = append(result.IdentityGroups, statsSummaryAPIEquivalentEstimatedAPICostGroup{
+			statsSummaryAPIEquivalentCostView: view,
+			Provider:                          group.Identity.Provider,
+			Model:                             group.Identity.Model,
+		})
+	}
+
+	blockers := []string{}
+	if unsupportedModelSteps > 0 {
+		blockers = append(blockers, statsSummaryUnsupportedRuntimeOrVersion)
+	}
+	if partition.MissingModelSteps > 0 {
+		blockers = append(blockers, statsSummaryRuntimeIdentityMissing)
+	}
+	if len(partition.Groups) > 1 {
+		blockers = append(blockers, statsSummaryRuntimeIdentityMixed)
+	}
+	if len(blockers) > 0 {
+		result.Reasons = orderStatsSummaryAPIEquivalentCostReasons(blockers)
+		result.Pricing = unavailableStatsSummaryPricingSnapshot(result.Reasons)
+		return result
+	}
+
+	group := result.IdentityGroups[0]
+	result.statsSummaryAPIEquivalentCostView = group.statsSummaryAPIEquivalentCostView
+	result.Provider = statsSummaryString(group.Provider)
+	result.Model = statsSummaryString(group.Model)
+	return result
+}
+
+func newStatsSummaryAPIEquivalentCostView(cache statsSummaryCacheReuse) statsSummaryAPIEquivalentCostView {
+	return statsSummaryAPIEquivalentCostView{
+		State:          statsSummaryUnavailable,
+		Unit:           "usd",
+		Formula:        statsSummaryAPIEquivalentCostFormula,
+		Source:         statsSummaryAPIEquivalentCostSource,
+		Aggregation:    statsSummaryAPIEquivalentCostAggregation,
+		Components:     unavailableStatsSummaryAPIEquivalentCostComponents(statsSummaryUnavailable),
+		Pricing:        unavailableStatsSummaryPricingSnapshot(nil),
+		RateSelections: []statsSummaryAPIEquivalentRateSelection{},
+		TemporalScope:  statsSummaryPromptCacheTokenTemporalScopeFromCache(cache),
+		Reasons:        []string{},
+	}
+}
+
+func aggregateStatsSummaryAPIEquivalentEstimatedAPICostGroup(identity statsSummaryRuntimeIdentity, rows []dbpkg.StatsSummaryCacheRow, prices *dbpkg.Prices, pricesErr error) statsSummaryAPIEquivalentCostView {
+	cache := aggregateStatsSummaryCache(rows)
+	result := newStatsSummaryAPIEquivalentCostView(cache)
+	result.Components = aggregateStatsSummaryAPIEquivalentCostComponents(rows)
+	pricing, price, priceAvailable := statsSummaryPricingSnapshotForIdentity(identity, prices, pricesErr)
+	result.Pricing = pricing
+
+	totalMicroUSD := big.NewInt(0)
+	rateAccumulators := map[string]*statsSummaryAPIEquivalentRateAccumulator{}
+	reasons := []string{}
+	for _, row := range rows {
+		estimate, stepReasons := statsSummaryAPIEquivalentCostForRow(row, price, priceAvailable)
+		reasons = append(reasons, stepReasons...)
+		if estimate == nil || estimate.Cost == nil || estimate.MicroUSD == nil {
+			continue
+		}
+		totalMicroUSD.Add(totalMicroUSD, estimate.MicroUSD)
+		key := statsSummaryAPIEquivalentRateSelectionKey(estimate.RateSelection)
+		accumulator := rateAccumulators[key]
+		if accumulator == nil {
+			accumulator = &statsSummaryAPIEquivalentRateAccumulator{selection: *estimate.RateSelection}
+			rateAccumulators[key] = accumulator
+		}
+		accumulator.add(row, estimate.MicroUSD)
+	}
+	if len(reasons) > 0 {
+		result.Reasons = orderStatsSummaryAPIEquivalentCostReasons(reasons)
+		return result
+	}
+	value, ok := dbpkg.APIEquivalentCostUSD(totalMicroUSD)
+	if !ok {
+		result.Reasons = []string{string(dbpkg.APIEquivalentCostNonfinite)}
+		return result
+	}
+	microUSD := totalMicroUSD.String()
+	result.State = statsSummaryMeasured
+	result.Value = value
+	result.MicroUSD = &microUSD
+	result.RateSelections = statsSummaryAPIEquivalentRateSelections(rateAccumulators)
+	return result
+}
+
+func statsSummaryPricingSnapshotForIdentity(identity statsSummaryRuntimeIdentity, prices *dbpkg.Prices, pricesErr error) (statsSummaryPricingSnapshot, dbpkg.Price, bool) {
+	path := (*string)(nil)
+	if prices != nil && prices.Path() != "" {
+		path = statsSummaryString(prices.Path())
+	}
+	result := statsSummaryPricingSnapshot{
+		State:    statsSummaryUnavailable,
+		Provider: statsSummaryString(identity.Provider),
+		Model:    statsSummaryString(identity.Model),
+		Path:     path,
+		Reasons:  []string{statsSummaryPricingSnapshotUnavailable},
+	}
+	if prices == nil || pricesErr != nil {
+		return result, dbpkg.Price{}, false
+	}
+	price, ok := prices.LookupRecord(identity.Provider, identity.Model)
+	if !ok {
+		return result, dbpkg.Price{}, false
+	}
+	data, err := json.Marshal(struct {
+		Provider string      `json:"provider"`
+		Model    string      `json:"model"`
+		Price    dbpkg.Price `json:"price"`
+	}{Provider: identity.Provider, Model: identity.Model, Price: price})
+	if err != nil {
+		return result, dbpkg.Price{}, false
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256(data))
+	result.State = "retained"
+	result.RecordSHA256 = &hash
+	result.Reasons = []string{}
+	if price.SourceURL != "" {
+		result.SourceURL = statsSummaryString(price.SourceURL)
+	}
+	if price.RetrievedAt != "" {
+		result.RetrievedAt = statsSummaryString(price.RetrievedAt)
+	}
+	return result, price, true
+}
+
+func unavailableStatsSummaryPricingSnapshot(reasons []string) statsSummaryPricingSnapshot {
+	return statsSummaryPricingSnapshot{State: statsSummaryUnavailable, Reasons: append([]string{}, reasons...)}
+}
+
+func unavailableStatsSummaryAPIEquivalentCostComponents(state string) statsSummaryAPIEquivalentCostComponents {
+	return statsSummaryAPIEquivalentCostComponents{
+		UncachedInput: unavailableStatsSummaryInteger(state),
+		CacheRead:     unavailableStatsSummaryInteger(state),
+		CacheWrite:    unavailableStatsSummaryInteger(state),
+		Output:        unavailableStatsSummaryInteger(state),
+		Reasoning:     unavailableStatsSummaryInteger(state),
+	}
+}
+
+func aggregateStatsSummaryAPIEquivalentCostComponents(rows []dbpkg.StatsSummaryCacheRow) statsSummaryAPIEquivalentCostComponents {
+	var accumulator statsSummaryAPIEquivalentCostComponentsAccumulator
+	for _, row := range rows {
+		accumulator.add(row)
+	}
+	return accumulator.measurement(len(rows))
+}
+
+type statsSummaryAPIEquivalentCostComponentsAccumulator struct {
+	uncachedInput statsSummaryIntegerAccumulator
+	cacheRead     statsSummaryIntegerAccumulator
+	cacheWrite    statsSummaryIntegerAccumulator
+	output        statsSummaryIntegerAccumulator
+	reasoning     statsSummaryIntegerAccumulator
+}
+
+func (a *statsSummaryAPIEquivalentCostComponentsAccumulator) add(row dbpkg.StatsSummaryCacheRow) {
+	a.uncachedInput.add(row.UncachedInput)
+	a.cacheRead.add(row.CacheRead)
+	a.cacheWrite.add(row.CacheWrite)
+	a.output.add(row.Output)
+	a.reasoning.add(row.Reasoning)
+}
+
+func (a *statsSummaryAPIEquivalentCostComponentsAccumulator) measurement(count int) statsSummaryAPIEquivalentCostComponents {
+	return statsSummaryAPIEquivalentCostComponents{
+		UncachedInput: a.uncachedInput.measurement(count),
+		CacheRead:     a.cacheRead.measurement(count),
+		CacheWrite:    a.cacheWrite.measurement(count),
+		Output:        a.output.measurement(count),
+		Reasoning:     a.reasoning.measurement(count),
+	}
+}
+
+func statsSummaryAPIEquivalentCostForRow(row dbpkg.StatsSummaryCacheRow, price dbpkg.Price, priceAvailable bool) (*dbpkg.APIEquivalentCostEstimate, []string) {
+	if statsSummaryAPIEquivalentContextTokenOverflow(row) {
+		return nil, []string{string(dbpkg.APIEquivalentCostContextTokenOverflow)}
+	}
+	inputs, malformedFields := statsSummaryAPIEquivalentCostInputs(row)
+	estimate := dbpkg.EstimateAPIEquivalentCost(inputs, price)
+	reasons := make([]string, 0, len(estimate.UnavailableReasons)+len(malformedFields)+1)
+	for _, reason := range estimate.UnavailableReasons {
+		if statsSummaryAPIEquivalentReasonIsReplacedUnavailable(reason, malformedFields) || (!priceAvailable && statsSummaryAPIEquivalentReasonIsPrice(reason)) {
+			continue
+		}
+		reasons = append(reasons, string(reason))
+	}
+	reasons = append(reasons, malformedFields...)
+	if !priceAvailable {
+		reasons = append(reasons, statsSummaryPricingSnapshotUnavailable)
+	}
+	if len(reasons) > 0 {
+		return nil, reasons
+	}
+	if estimate.Cost == nil || estimate.MicroUSD == nil || estimate.RateSelection == nil {
+		return nil, []string{string(dbpkg.APIEquivalentCostNonfinite)}
+	}
+	return &estimate, nil
+}
+
+func statsSummaryAPIEquivalentCostInputs(row dbpkg.StatsSummaryCacheRow) (dbpkg.APIEquivalentCostInputs, []string) {
+	uncachedInput, uncachedMalformed := statsSummaryAPIEquivalentTokenInput(row.UncachedInput, "uncached_input")
+	output, outputMalformed := statsSummaryAPIEquivalentTokenInput(row.Output, "output")
+	reasoning, reasoningMalformed := statsSummaryAPIEquivalentTokenInput(row.Reasoning, "reasoning")
+	cacheRead, cacheReadMalformed := statsSummaryAPIEquivalentTokenInput(row.CacheRead, "cache_read")
+	cacheWrite, cacheWriteMalformed := statsSummaryAPIEquivalentTokenInput(row.CacheWrite, "cache_write")
+	malformed := []string{}
+	for _, field := range []string{uncachedMalformed, outputMalformed, reasoningMalformed, cacheReadMalformed, cacheWriteMalformed} {
+		if field != "" {
+			malformed = append(malformed, field)
+		}
+	}
+	return dbpkg.APIEquivalentCostInputs{
+		UncachedInput: uncachedInput,
+		Output:        output,
+		Reasoning:     reasoning,
+		CacheRead:     cacheRead,
+		CacheWrite:    cacheWrite,
+	}, malformed
+}
+
+func statsSummaryAPIEquivalentTokenInput(measurement dbpkg.IntegerMeasurement, name string) (*float64, string) {
+	if measurement.State == dbpkg.MeasurementMalformed {
+		return nil, name + statsSummaryTokenMalformedSuffix
+	}
+	if measurement.State != dbpkg.MeasurementMeasured || measurement.Value == nil {
+		return nil, ""
+	}
+	if *measurement.Value >= 1<<53 {
+		return nil, name + "_invalid"
+	}
+	value := float64(*measurement.Value)
+	return &value, ""
+}
+
+func statsSummaryAPIEquivalentContextTokenOverflow(row dbpkg.StatsSummaryCacheRow) bool {
+	values := []dbpkg.IntegerMeasurement{row.UncachedInput, row.CacheRead, row.CacheWrite}
+	total := int64(0)
+	for _, measurement := range values {
+		if measurement.State != dbpkg.MeasurementMeasured || measurement.Value == nil || *measurement.Value < 0 {
+			return false
+		}
+		if *measurement.Value > math.MaxInt64-total {
+			return true
+		}
+		total += *measurement.Value
+	}
+	return false
+}
+
+func statsSummaryAPIEquivalentReasonIsReplacedUnavailable(reason dbpkg.APIEquivalentCostUnavailableReason, replacementFields []string) bool {
+	if !strings.HasSuffix(string(reason), "_unavailable") {
+		return false
+	}
+	field := strings.TrimSuffix(string(reason), "_unavailable")
+	for _, replacement := range replacementFields {
+		if replacement == field+statsSummaryTokenMalformedSuffix || replacement == field+"_invalid" {
+			return true
+		}
+	}
+	return false
+}
+
+func statsSummaryAPIEquivalentReasonIsPrice(reason dbpkg.APIEquivalentCostUnavailableReason) bool {
+	switch reason {
+	case dbpkg.APIEquivalentCostInputPriceUnavailable, dbpkg.APIEquivalentCostOutputPriceUnavailable,
+		dbpkg.APIEquivalentCostCacheReadPriceUnavailable, dbpkg.APIEquivalentCostCacheWritePriceUnavailable,
+		dbpkg.APIEquivalentCostInputPriceInvalid, dbpkg.APIEquivalentCostOutputPriceInvalid,
+		dbpkg.APIEquivalentCostCacheReadPriceInvalid, dbpkg.APIEquivalentCostCacheWritePriceInvalid,
+		dbpkg.APIEquivalentCostReasoningPriceInvalid:
+		return true
+	default:
+		return false
+	}
+}
+
+type statsSummaryAPIEquivalentRateAccumulator struct {
+	selection  dbpkg.APIEquivalentCostRateSelection
+	components statsSummaryAPIEquivalentCostComponentsAccumulator
+	microUSD   big.Int
+	count      int
+}
+
+func (a *statsSummaryAPIEquivalentRateAccumulator) add(row dbpkg.StatsSummaryCacheRow, microUSD *big.Int) {
+	a.components.add(row)
+	a.microUSD.Add(&a.microUSD, microUSD)
+	a.count++
+}
+
+func statsSummaryAPIEquivalentRateSelectionKey(selection *dbpkg.APIEquivalentCostRateSelection) string {
+	if selection == nil {
+		return ""
+	}
+	contextTierSize := ""
+	if selection.ContextTierSize != nil {
+		contextTierSize = strconv.FormatInt(*selection.ContextTierSize, 10)
+	}
+	optionalRate := func(value *float64) string {
+		if value == nil {
+			return ""
+		}
+		return strconv.FormatFloat(*value, 'g', -1, 64)
+	}
+	return strings.Join([]string{
+		selection.Basis, contextTierSize,
+		strconv.FormatFloat(selection.InputUSDPerMillion, 'g', -1, 64),
+		strconv.FormatFloat(selection.OutputUSDPerMillion, 'g', -1, 64),
+		optionalRate(selection.CacheReadUSDPerMillion), optionalRate(selection.CacheWriteUSDPerMillion),
+		strconv.FormatFloat(selection.ReasoningUSDPerMillion, 'g', -1, 64), selection.ReasoningRatePolicy,
+	}, "\x00")
+}
+
+func statsSummaryAPIEquivalentRateSelections(accumulators map[string]*statsSummaryAPIEquivalentRateAccumulator) []statsSummaryAPIEquivalentRateSelection {
+	keys := make([]string, 0, len(accumulators))
+	for key := range accumulators {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]statsSummaryAPIEquivalentRateSelection, 0, len(keys))
+	for _, key := range keys {
+		accumulator := accumulators[key]
+		selection := accumulator.selection
+		result = append(result, statsSummaryAPIEquivalentRateSelection{
+			Basis:                   selection.Basis,
+			ContextTierSize:         selection.ContextTierSize,
+			InputUSDPerMillion:      selection.InputUSDPerMillion,
+			OutputUSDPerMillion:     selection.OutputUSDPerMillion,
+			CacheReadUSDPerMillion:  selection.CacheReadUSDPerMillion,
+			CacheWriteUSDPerMillion: selection.CacheWriteUSDPerMillion,
+			ReasoningUSDPerMillion:  selection.ReasoningUSDPerMillion,
+			ReasoningRatePolicy:     selection.ReasoningRatePolicy,
+			ContributingModelSteps:  accumulator.count,
+			Components:              accumulator.components.measurement(accumulator.count),
+			MicroUSD:                accumulator.microUSD.String(),
+		})
+	}
+	return result
+}
+
+func orderStatsSummaryAPIEquivalentCostReasons(reasons []string) []string {
+	structural := []string{
+		statsSummaryNoContributingModelSteps,
+		statsSummaryUnsupportedRuntimeOrVersion,
+		statsSummaryRuntimeIdentityMissing,
+		statsSummaryRuntimeIdentityMixed,
+		statsSummaryPricingSnapshotUnavailable,
+	}
+	ordered := []string{}
+	for _, expected := range structural {
+		if containsStatsSummaryString(reasons, expected) {
+			ordered = append(ordered, expected)
+		}
+	}
+	typed := make([]dbpkg.APIEquivalentCostUnavailableReason, 0, len(reasons))
+	for _, reason := range reasons {
+		typed = append(typed, dbpkg.APIEquivalentCostUnavailableReason(reason))
+	}
+	for _, reason := range dbpkg.OrderAPIEquivalentCostUnavailableReasons(typed) {
+		value := string(reason)
+		if !containsStatsSummaryString(ordered, value) {
+			ordered = append(ordered, value)
+		}
+	}
+	remaining := []string{}
+	for _, reason := range reasons {
+		if reason != "" && !containsStatsSummaryString(ordered, reason) && !containsStatsSummaryString(remaining, reason) {
+			remaining = append(remaining, reason)
+		}
+	}
+	sort.Strings(remaining)
+	return append(ordered, remaining...)
+}
+
+func containsStatsSummaryString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 func statsSummaryString(value string) *string {
 	return &value
 }
@@ -880,6 +1446,26 @@ func (a *statsSummaryIntegerAccumulator) measurement(count int) statsSummaryInte
 		return unavailableStatsSummaryInteger(state)
 	}
 	return statsSummaryIntegerMeasurement{State: state, Value: new(big.Int).Set(&a.value)}
+}
+
+func (a *statsSummaryCostAccumulator) add(measurement dbpkg.CostMeasurement) {
+	switch measurement.State {
+	case dbpkg.MeasurementMeasured:
+		if measurement.Value == nil || math.IsNaN(*measurement.Value) || math.IsInf(*measurement.Value, 0) || *measurement.Value < 0 {
+			a.malformed = true
+			return
+		}
+		value := new(big.Rat).SetFloat64(*measurement.Value)
+		if value == nil {
+			a.malformed = true
+			return
+		}
+		a.value.Add(&a.value, value)
+	case dbpkg.MeasurementMalformed:
+		a.malformed = true
+	default:
+		a.missing = true
+	}
 }
 
 func aggregateStatsSummaryState(states ...string) string {
@@ -1017,8 +1603,10 @@ func printStatsText(w io.Writer, groups []statsGroup) {
 
 func printStatsSummaryText(w io.Writer, summary statsSummary) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tPROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE\tREQUESTED_WINDOW_COVERAGE\tREQUESTED_WINDOW_COVERAGE_REASON\tREQUESTED_WINDOW_COVERAGE_SCOPE\tFIRST_CONTRIBUTING_CAPTURE\tLAST_CONTRIBUTING_CAPTURE\tOBSERVED_SPAN_SECONDS\tCONTRIBUTING_KTX_SESSIONS\tCONTRIBUTING_MODEL_STEPS\tPROMPT_PREFIX_UNCACHED_INPUT\tPROMPT_PREFIX_CACHE_READ\tPROMPT_PREFIX_CACHE_WRITE\tPROMPT_PREFIX_LOGICAL_INPUT\tPROMPT_PREFIX_CACHED_INPUT_PCT\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tPROMPT_CACHE_TOKEN_HIT_RATE_STATE\tPROMPT_CACHE_TOKEN_HIT_RATE_REASON\tPROMPT_CACHE_TOKEN_HIT_RATE_KIND\tPROMPT_CACHE_TOKEN_HIT_RATE_SOURCE\tPROMPT_CACHE_TOKEN_HIT_RATE_RUNTIME\tPROMPT_CACHE_TOKEN_HIT_RATE_RUNTIME_VERSION\tPROMPT_CACHE_TOKEN_HIT_RATE_PROVIDER\tPROMPT_CACHE_TOKEN_HIT_RATE_MODEL\tPROMPT_CACHE_TOKEN_HIT_RATE_SCOPE\tPROMPT_CACHE_TOKEN_HIT_UNCACHED_INPUT\tPROMPT_CACHE_TOKEN_HIT_CACHE_READ\tPROMPT_CACHE_TOKEN_HIT_CACHE_WRITE\tPROMPT_CACHE_TOKEN_HIT_LOGICAL_INPUT")
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tPROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE\tREQUESTED_WINDOW_COVERAGE\tREQUESTED_WINDOW_COVERAGE_REASON\tREQUESTED_WINDOW_COVERAGE_SCOPE\tFIRST_CONTRIBUTING_CAPTURE\tLAST_CONTRIBUTING_CAPTURE\tOBSERVED_SPAN_SECONDS\tCONTRIBUTING_KTX_SESSIONS\tCONTRIBUTING_MODEL_STEPS\tPROMPT_PREFIX_UNCACHED_INPUT\tPROMPT_PREFIX_CACHE_READ\tPROMPT_PREFIX_CACHE_WRITE\tPROMPT_PREFIX_LOGICAL_INPUT\tPROMPT_PREFIX_CACHED_INPUT_PCT\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tPROMPT_CACHE_TOKEN_HIT_RATE_STATE\tPROMPT_CACHE_TOKEN_HIT_RATE_REASON\tPROMPT_CACHE_TOKEN_HIT_RATE_KIND\tPROMPT_CACHE_TOKEN_HIT_RATE_SOURCE\tPROMPT_CACHE_TOKEN_HIT_RATE_RUNTIME\tPROMPT_CACHE_TOKEN_HIT_RATE_RUNTIME_VERSION\tPROMPT_CACHE_TOKEN_HIT_RATE_PROVIDER\tPROMPT_CACHE_TOKEN_HIT_RATE_MODEL\tPROMPT_CACHE_TOKEN_HIT_RATE_SCOPE\tPROMPT_CACHE_TOKEN_HIT_UNCACHED_INPUT\tPROMPT_CACHE_TOKEN_HIT_CACHE_READ\tPROMPT_CACHE_TOKEN_HIT_CACHE_WRITE\tPROMPT_CACHE_TOKEN_HIT_LOGICAL_INPUT\tRUNTIME_REPORTED_COST_USD\tRUNTIME_REPORTED_COST_STATE\tRUNTIME_REPORTED_COST_REASONS\tRUNTIME_REPORTED_COST_SOURCE\tAPI_EQUIVALENT_ESTIMATED_COST_USD\tAPI_EQUIVALENT_ESTIMATED_COST_MICRO_USD\tAPI_EQUIVALENT_ESTIMATED_COST_STATE\tAPI_EQUIVALENT_ESTIMATED_COST_REASONS\tAPI_EQUIVALENT_ESTIMATED_COST_PROVIDER\tAPI_EQUIVALENT_ESTIMATED_COST_MODEL\tAPI_EQUIVALENT_ESTIMATED_COST_SOURCE\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_STATE\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_RECORD_SHA256\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_SOURCE_URL\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_RETRIEVED_AT")
 	rate := summary.PromptCacheTokenHitRate
+	reported := summary.RuntimeReportedCost
+	estimated := summary.APIEquivalentEstimatedAPICost
 	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s",
 		summary.Window.From, summary.Window.To,
 		summary.Calls.TotalWithOutput, summary.Calls.WithCompressedArtifact,
@@ -1041,7 +1629,7 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 		formatStatsSummaryInteger(summary.CacheReuse.CacheWrite),
 		formatStatsSummaryInteger(summary.CacheReuse.LogicalInput),
 		formatStatsSummarySharePercent(summary.CacheReuse.CachedInputShare))
-	fmt.Fprintf(tw, "\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+	fmt.Fprintf(tw, "\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 		formatStatsSummaryPromptCacheTokenHitRatePercent(rate),
 		rate.State,
 		formatStatsSummaryOptionalString(rate.Reason),
@@ -1055,7 +1643,22 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 		formatStatsSummaryInteger(rate.RawBuckets.UncachedInput),
 		formatStatsSummaryInteger(rate.RawBuckets.CacheRead),
 		formatStatsSummaryInteger(rate.RawBuckets.CacheWrite),
-		formatStatsSummaryInteger(rate.LogicalInput))
+		formatStatsSummaryInteger(rate.LogicalInput),
+		formatStatsSummaryUSD(reported.Value),
+		reported.State,
+		formatStatsSummaryReasons(reported.Reasons),
+		reported.Source,
+		formatStatsSummaryUSD(estimated.Value),
+		formatStatsSummaryOptionalString(estimated.MicroUSD),
+		estimated.State,
+		formatStatsSummaryReasons(estimated.Reasons),
+		formatStatsSummaryOptionalString(estimated.Provider),
+		formatStatsSummaryOptionalString(estimated.Model),
+		estimated.Source,
+		estimated.Pricing.State,
+		formatStatsSummaryOptionalString(estimated.Pricing.RecordSHA256),
+		formatStatsSummaryOptionalString(estimated.Pricing.SourceURL),
+		formatStatsSummaryOptionalString(estimated.Pricing.RetrievedAt))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
 }
 
@@ -1131,6 +1734,20 @@ func formatStatsSummaryPromptCacheTokenHitRatePercent(rate statsSummaryPromptCac
 	return rate.State
 }
 
+func formatStatsSummaryUSD(value *float64) string {
+	if value == nil {
+		return "-"
+	}
+	return strconv.FormatFloat(*value, 'g', -1, 64)
+}
+
+func formatStatsSummaryReasons(reasons []string) string {
+	if len(reasons) == 0 {
+		return "-"
+	}
+	return strings.Join(reasons, ",")
+}
+
 func formatStatsSummaryOptionalString(value *string) string {
 	if value == nil {
 		return "-"
@@ -1190,7 +1807,8 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "[now-window, now] interval. Rates use the full configured window duration.")
 	fmt.Fprintln(w, "Each call uses its earliest retained compressed artifact; equal timestamps use")
 	fmt.Fprintln(w, "the lexicographically smallest artifact ID. Calls without one use raw output.")
-	fmt.Fprintln(w, "The fixed-shape response contains window, call, aggregate outcome, token, and provider prompt/prefix-cache token aggregates only.")
+	fmt.Fprintln(w, "The fixed-shape response contains window, call, aggregate outcome, token, provider")
+	fmt.Fprintln(w, "prompt/prefix-cache token, runtime-reported-cost, and API-equivalent estimated-cost views.")
 	fmt.Fprintln(w, "Outcomes use the same call population: is_error=false is success, true is error,")
 	fmt.Fprintln(w, "and missing/invalid is unknown; exit_code is diagnostic only. Known is success+error;")
 	fmt.Fprintln(w, "total is known+unknown. Error rate is error/known; coverage is known/total.")
@@ -1211,6 +1829,18 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "It is not an I/O-cache rate, provider request hit rate, or evidence of provider")
 	fmt.Fprintln(w, "TTL, eviction, eligibility, isolation, or prefix composition. The cached-input")
 	fmt.Fprintln(w, "share remains a separate token share, not a provider hit rate.")
+	fmt.Fprintln(w, "RUNTIME_REPORTED_COST_USD is the sum of runtime-emitted cost fields. It keeps")
+	fmt.Fprintln(w, "a literal zero measured. Identity, token, pricing, and runtime-accounting")
+	fmt.Fprintln(w, "failures never replace or populate it. Its billing semantics remain unavailable.")
+	fmt.Fprintln(w, "API_EQUIVALENT_ESTIMATED_COST_USD is a separate price-derived USD estimate, never")
+	fmt.Fprintln(w, "a reported-cost repair. It requires one runtime-emitted provider/model identity")
+	fmt.Fprintln(w, "and complete uncached-input, cache-read, cache-write, output, and reasoning")
+	fmt.Fprintln(w, "tokens for every OpenCode 1.18.5 model step. It reads only the retained local")
+	fmt.Fprintln(w, "price record; it does not fetch prices or backfill identity from configuration.")
+	fmt.Fprintln(w, "Each estimate rounds per model step to micro-USD before exact aggregation. The")
+	fmt.Fprintln(w, "JSON view includes formula, components, identity groups, selected rates, and")
+	fmt.Fprintln(w, "pricing-record provenance. Mixed identities retain independent group views but")
+	fmt.Fprintln(w, "leave the aggregate estimate unavailable with ordered reasons.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")

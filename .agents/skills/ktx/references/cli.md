@@ -208,6 +208,13 @@ input buckets, positive logical input, one runtime-emitted provider/model, and
 the pinned runtime/version. A zero numerator stays measured zero; all other
 ineligible cases are unavailable with a machine-readable reason.
 It is not a provider request hit rate or I/O-cache rate.
+`runtime_reported_cost_usd` is a separate sum of runtime-emitted cost evidence;
+literal zero stays measured. `api_equivalent_estimated_cost_usd` is a cache-aware
+estimate from the retained local price record. It requires runtime-emitted
+provider/model identity and all five token buckets per supported step, never
+backfills configuration identity or fetches prices, and exposes ordered reasons,
+micro-USD, components, selected rates, pricing provenance, and per-identity
+groups. Do not use either cost view to populate the other.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It
 reports failures without failing the agent operation. Required benchmark

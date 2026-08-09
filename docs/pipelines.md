@@ -311,10 +311,10 @@ use the fixed reporting vocabulary described below; other inputs use an empty
 command label rather than exposing raw command text.
 
 `ktx stats summary` emits a fixed-shape aggregate for periodically polled clients.
-Its JSON contract contains only window metadata, headline call and token totals,
-and aggregate provider prompt/prefix-cache token evidence. The schema is closed:
-diagnostic arrays and new reporting dimensions require an intentional
-schema-version change.
+Its JSON contract contains window metadata, headline call and token totals,
+provider prompt/prefix-cache token evidence, and distinct runtime-reported and
+API-equivalent estimated cost views. The schema is closed: diagnostic arrays and
+new reporting dimensions require an intentional schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
 Summary schema 7 omits `delivery_breakdown`; callers that need those detailed
 groups should invoke the breakdown schema 2 command instead.
@@ -338,8 +338,8 @@ Historical calls, collection-only ingress, explicit compression without a hook
 observation, and other calls without retained disposition evidence report
 `unobserved` rather than an inferred outcome.
 
-The summary independently selects accepted OpenCode 1.18.5 model-step telemetry
-by `captured_at`. `cache_reuse` pools those steps' runtime-reported
+The summary independently selects accepted model-step telemetry by `captured_at`.
+`cache_reuse` pools only accepted OpenCode 1.18.5 steps' runtime-reported
 uncached-input, cache-read, and cache-write provider prompt/prefix-cache token
 buckets. This is not filesystem, memory, database, HTTP, or other I/O caching.
 It reports the first and last accepted capture, their observed span, and distinct
@@ -351,7 +351,8 @@ describe only the observed subset. `requested_window_coverage` remains unavailab
 with reason `collector_lifecycle_evidence_unavailable` because these rows do not
 prove continuous collector lifecycle or full requested-window coverage. The
 summary does not read benchmark aggregates or reconstruct provider requests. The
-breakdown does not query or emit model-step telemetry.
+breakdown does not query or emit model-step telemetry. Cost fields also retain this
+separation: they read model-step telemetry, never `tool_calls` cost fields.
 
 To avoid holding a long rollback-journal read while clients poll either command,
 the query first scans eligible source IDs and timestamps, closes that read, then
@@ -455,9 +456,108 @@ JSON contract is:
       "contributing_sessions": 2,
       "contributing_model_steps": 6
     }
+  },
+  "runtime_reported_cost_usd": {
+    "state": "measured",
+    "value": 0,
+    "unit": "usd",
+    "formula": "sum(runtime_reported_cost)",
+    "source": "runtime_emitted_model_step_telemetry",
+    "billing_semantics": "unavailable",
+    "reasons": [],
+    "temporal_scope": {
+      "scope": "observed_subset",
+      "requested_window_coverage": {
+        "state": "unavailable",
+        "reason": "collector_lifecycle_evidence_unavailable",
+        "scope": "observed_subset"
+      },
+      "first_contributing_capture": "2026-07-21T11:30:00Z",
+      "last_contributing_capture": "2026-07-21T12:00:00Z",
+      "observed_span_seconds": 1800,
+      "contributing_sessions": 2,
+      "contributing_model_steps": 6
+    },
+    "runtime_contracts": [
+      {
+        "runtime": "opencode",
+        "runtime_version": "1.18.5",
+        "contributing_model_steps": 6
+      }
+    ]
+  },
+  "api_equivalent_estimated_cost_usd": {
+    "state": "measured",
+    "value": 0.00765,
+    "micro_usd": "7650",
+    "unit": "usd",
+    "formula": "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1000000",
+    "source": "runtime_emitted_model_step_telemetry_and_retained_pricing",
+    "aggregation": "round_each_model_step_to_micro_usd_then_sum",
+    "components": {
+      "uncached_input": { "state": "measured", "value": 1000 },
+      "cache_read": { "state": "measured", "value": 3500 },
+      "cache_write": { "state": "measured", "value": 500 },
+      "output": { "state": "measured", "value": 200 },
+      "reasoning": { "state": "measured", "value": 100 }
+    },
+    "pricing": {
+      "state": "retained",
+      "provider": "openai",
+      "model": "gpt-5",
+      "path": "/data/ktx/prices.json",
+      "record_sha256": "30462b53c285c039afa852f64768d895b0660a45fa355236357f6d63952d85c7",
+      "source_url": "https://models.dev/api.json",
+      "retrieved_at": "2026-07-21T10:00:00Z",
+      "reasons": []
+    },
+    "rate_selections": [
+      {
+        "basis": "base",
+        "context_tier_size": null,
+        "input_usd_per_million": 2,
+        "output_usd_per_million": 8,
+        "cache_read_usd_per_million": 0.5,
+        "cache_write_usd_per_million": 3,
+        "reasoning_usd_per_million": 8,
+        "reasoning_rate_policy": "output_rate_fallback",
+        "contributing_model_steps": 6,
+        "components": {
+          "uncached_input": { "state": "measured", "value": 1000 },
+          "cache_read": { "state": "measured", "value": 3500 },
+          "cache_write": { "state": "measured", "value": 500 },
+          "output": { "state": "measured", "value": 200 },
+          "reasoning": { "state": "measured", "value": 100 }
+        },
+        "micro_usd": "7650"
+      }
+    ],
+    "temporal_scope": {
+      "scope": "observed_subset",
+      "requested_window_coverage": {
+        "state": "unavailable",
+        "reason": "collector_lifecycle_evidence_unavailable",
+        "scope": "observed_subset"
+      },
+      "first_contributing_capture": "2026-07-21T11:30:00Z",
+      "last_contributing_capture": "2026-07-21T12:00:00Z",
+      "observed_span_seconds": 1800,
+      "contributing_sessions": 2,
+      "contributing_model_steps": 6
+    },
+    "reasons": [],
+    "provider": "openai",
+    "model": "gpt-5",
+    "identity_groups": []
   }
 }
 ```
+
+The example omits the repeated full entry from `identity_groups` to keep the
+aggregate view readable. A measured aggregate has one such entry; each entry has
+the same estimate-view fields shown above plus its non-null `provider` and
+`model`. Mixed identities keep the aggregate unavailable and emit one full entry
+per sorted identity instead.
 
 The breakdown JSON contract is separate so its diagnostic rows cannot enlarge
 the summary:
@@ -639,6 +739,57 @@ provider request hit rate or I/O-cache rate. A runtime model step is not a
 provider request, and the retained evidence does not prove provider hits, misses,
 TTL, eviction, eligibility, isolation, prefix composition, or request boundaries.
 The older cached-input share is also not a provider hit rate.
+
+`runtime_reported_cost_usd` and `api_equivalent_estimated_cost_usd` are parallel
+evidence views. They have different sources and no fallback between them.
+`runtime_reported_cost_usd` sums the runtime's emitted `cost` field across every
+accepted model step in the requested interval. It does not require provider/model
+identity, cache-token completeness, retained pricing, or an eligible cache-accounting
+runtime. A literal runtime zero remains `state: measured` and `value: 0`; it is
+never replaced by an estimate. Missing cost evidence is `state: missing`, malformed
+cost evidence is `state: malformed`, and no model steps is `state: unavailable`.
+Its `runtime_contracts`, temporal scope, source, and `billing_semantics: unavailable`
+describe exactly what was observed without making a billing claim.
+
+`api_equivalent_estimated_cost_usd` is a separate cache-aware API price estimate.
+It considers only OpenCode 1.18.5 steps and requires, for every priced step, a
+runtime-emitted provider/model pair plus measured uncached input, cache read, cache
+write, output, and reasoning tokens. It does not backfill identity from runtime
+configuration. It reads the local retained `prices.json` record only; summary does
+not fetch prices, write the price cache, or use a provider response. `pricing`
+retains the exact provider/model record path, deterministic record hash, source URL
+when retained, and retrieval time when retained. An absent or unreadable record is
+`pricing_snapshot_unavailable`.
+
+The per-step formula is:
+
+```text
+(uncached_input*input_price + cache_read*cache_read_price +
+ cache_write*cache_write_price + output*output_price +
+ reasoning*reasoning_price) / 1000000
+```
+
+The shared estimator selects a retained base or supported context-tier rate for
+each model step. It uses an explicit reasoning rate when present and otherwise the
+same selected output rate. It requires a cache-read or cache-write rate only when
+that bucket is nonzero. Cache reads are never charged at the ordinary input rate.
+Each valid step rounds to integer micro-USD before the summary sums the values, so
+`micro_usd` is exact even when the public USD `value` is a float. `components` and
+the rate-selection groups show all five token buckets and the rates that priced
+them.
+
+One complete source identity can authorize the aggregate estimate. Missing
+identity, an unsupported runtime/version, or mixed identities leave the aggregate
+unavailable. `identity_groups` remains sorted by provider/model and exposes each
+complete population separately, with its own pricing provenance and result; it
+never applies one group's rates to another group's tokens. Required-token,
+price-component, invalid, nonfinite, and context-overflow failures also leave only
+the estimate unavailable. `reasons` is deterministic: aggregate identity/runtime
+and pricing-snapshot blockers precede the shared estimator's ordered reasons;
+unrecoverable stored-token states use the corresponding `<bucket>_malformed`
+reason. The text row uses `RUNTIME_REPORTED_COST_USD` and
+`API_EQUIVALENT_ESTIMATED_COST_USD` plus their state, reason, identity, and pricing
+provenance columns.
 
 ### Database evidence report
 

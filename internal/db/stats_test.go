@@ -307,6 +307,7 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 		t.Fatalf("got %d rows, want 5: %+v", len(rows), rows)
 	}
 	var measuredInput, unknownInput, malformedWrite, measuredZeroWrite int
+	var measuredOutput, measuredReasoning, measuredCostZero int
 	var inputTotal, readTotal, writeTotal int64
 	var captures []string
 	sessions := make(map[string]struct{})
@@ -323,6 +324,15 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 		if row.CacheRead.State == MeasurementMeasured {
 			readTotal += *row.CacheRead.Value
 		}
+		if row.Output.State == MeasurementMeasured && row.Output.Value != nil && *row.Output.Value == 2 {
+			measuredOutput++
+		}
+		if row.Reasoning.State == MeasurementMeasured && row.Reasoning.Value != nil && *row.Reasoning.Value == 0 {
+			measuredReasoning++
+		}
+		if row.Cost.State == MeasurementMeasured && row.Cost.Value != nil && *row.Cost.Value == 0 {
+			measuredCostZero++
+		}
 		switch row.CacheWrite.State {
 		case MeasurementMeasured:
 			writeTotal += *row.CacheWrite.Value
@@ -335,6 +345,9 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	}
 	if measuredInput != 4 || unknownInput != 1 || malformedWrite != 1 || measuredZeroWrite != 1 {
 		t.Errorf("states measured_input=%d unknown_input=%d malformed_write=%d measured_zero_write=%d", measuredInput, unknownInput, malformedWrite, measuredZeroWrite)
+	}
+	if measuredOutput != 5 || measuredReasoning != 5 || measuredCostZero != 5 {
+		t.Errorf("projected output=%d reasoning=%d cost_zero=%d, want 5/5/5", measuredOutput, measuredReasoning, measuredCostZero)
 	}
 	if inputTotal != 52 || readTotal != 102 || writeTotal != 62 {
 		t.Errorf("measured totals input=%d read=%d write=%d, want 52/102/62", inputTotal, readTotal, writeTotal)

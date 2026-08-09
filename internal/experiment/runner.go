@@ -219,7 +219,11 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err != nil {
 		return experimentDir, nil, 2, err
 	}
-	attempts = estimateAttempts(materialized, pricingEvidence)
+	if promptCacheMetricContractActivated(manifest) {
+		attempts = estimateAttemptsWithDetails(materialized, pricingEvidence)
+	} else {
+		attempts = estimateAttempts(materialized, pricingEvidence)
+	}
 	summary := BuildSummary(manifest, attempts)
 	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
 		return experimentDir, nil, 2, err
@@ -780,7 +784,12 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	if err != nil {
 		return Attempt{}, err
 	}
-	estimated := estimateAttempts([]Attempt{{Metrics: metrics}}, pricing)
+	var estimated []Attempt
+	if promptCacheMetricContractActivated(manifest) {
+		estimated = estimateAttemptsWithDetails([]Attempt{{Metrics: metrics}}, pricing)
+	} else {
+		estimated = estimateAttempts([]Attempt{{Metrics: metrics}}, pricing)
+	}
 	metrics.EstimatedAPICost = estimated[0].EstimatedAPICost
 	status := AttemptStatus(result.ExitCode, newIDs, metrics)
 	sessionID := &interval.SessionID

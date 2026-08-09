@@ -331,6 +331,10 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		methodologyVersion = "v4-eval-matrix"
 	}
 	cacheAware := isCacheAwareMethodology(methodologyVersion)
+	promptCacheTokenHitRate := promptCacheMetricContractActivated(manifest)
+	if promptCacheTokenHitRate {
+		attempts = sanitizePipelineAcceptanceCosts(attempts)
+	}
 	// Cache telemetry is optional evidence: a runtime that emits
 	// part.tokens.cache.{read,write} on step_finish produces cache
 	// counts on the attempts; a runtime that does not emits neither
@@ -358,7 +362,6 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		schemaVersion = 3
 	}
 	directCacheShare := supportsDirectCachedInputShare(manifest)
-	promptCacheTokenHitRate := promptCacheMetricContractActivated(manifest)
 	if directCacheShare {
 		schemaVersion = 4
 	}
@@ -552,8 +555,27 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		result["prompt_cache_token_hit_rate"] = metric
 		result["prompt_cache_token_hit_rate_comparison"] = comparison
 		result["prompt_cache_token_hit_rate_statement_authorization"] = authorization
+		acceptance := buildPipelineAcceptance(manifest, attempts)
+		result["pipeline_acceptance"] = acceptance
+		result["accepted"] = acceptance["accepted"]
+		result["acceptance_reasons"] = acceptance["reasons"]
 	}
 	return result
+}
+
+func sanitizePipelineAcceptanceCosts(attempts []Attempt) []Attempt {
+	for index := range attempts {
+		cost := attempts[index].EstimatedAPICost
+		if cost == nil || (!math.IsNaN(*cost) && !math.IsInf(*cost, 0) && *cost >= 0) {
+			continue
+		}
+		if attempts[index].estimatedAPICostDetail == nil {
+			attempts[index].estimatedAPICostDetail = &estimatedAPICostDetail{}
+		}
+		attempts[index].estimatedAPICostDetail.reasons = appendUnique(attempts[index].estimatedAPICostDetail.reasons, "estimated_cost_nonfinite")
+		attempts[index].EstimatedAPICost = nil
+	}
+	return attempts
 }
 
 func phaseDistributions(attempts []Attempt, minimum int) map[string]any {
@@ -719,7 +741,11 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	if err != nil {
 		return SummaryRegeneration{}, err
 	}
-	attempts = estimateAttempts(attempts, pricing)
+	if promptCacheMetricContractActivated(manifest) {
+		attempts = estimateAttemptsWithDetails(attempts, pricing)
+	} else {
+		attempts = estimateAttempts(attempts, pricing)
+	}
 	summary := BuildSummary(manifest, attempts)
 	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
 		return SummaryRegeneration{}, err
@@ -854,6 +880,13 @@ func RenderSummary(summary map[string]any) string {
 				}
 			}
 		}
+	}
+	if acceptance, ok := summary["pipeline_acceptance"].(map[string]any); ok {
+		baseline := anyMap(acceptance[Baseline])
+		candidate := anyMap(acceptance[Candidate])
+		lines = append(lines, fmt.Sprintf("pipeline_acceptance accepted=%v reasons=%s baseline_estimated_total=%s baseline_correct=%v baseline_estimated_cost_per_correct=%s candidate_estimated_total=%s candidate_correct=%v candidate_estimated_cost_per_correct=%s",
+			acceptance["accepted"], compactJSON(acceptance["reasons"]), compactJSON(baseline["estimated_total"]), baseline["correct_count"], compactJSON(baseline["estimated_cost_per_correct"]),
+			compactJSON(candidate["estimated_total"]), candidate["correct_count"], compactJSON(candidate["estimated_cost_per_correct"])))
 	}
 	return strings.Join(lines, "\n")
 }

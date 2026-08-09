@@ -36,7 +36,11 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	attempts = estimateAttempts(attempts, pricing)
+	if promptCacheMetricContractActivated(manifest) {
+		attempts = estimateAttemptsWithDetails(attempts, pricing)
+	} else {
+		attempts = estimateAttempts(attempts, pricing)
+	}
 	methodologyVersion := manifest.Methodology.Version
 	cacheAware := isCacheAwareMethodology(methodologyVersion)
 	seen := map[string]bool{}
@@ -129,6 +133,9 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report["prompt_cache_token_hit_rate"] = expectedSummaryValue["prompt_cache_token_hit_rate"]
 		report["prompt_cache_token_hit_rate_comparison"] = expectedSummaryValue["prompt_cache_token_hit_rate_comparison"]
 		report["prompt_cache_token_hit_rate_statement_authorization"] = expectedSummaryValue["prompt_cache_token_hit_rate_statement_authorization"]
+		report["pipeline_acceptance"] = expectedSummaryValue["pipeline_acceptance"]
+		report["accepted"] = expectedSummaryValue["accepted"]
+		report["acceptance_reasons"] = expectedSummaryValue["acceptance_reasons"]
 	}
 	return report, nil
 }

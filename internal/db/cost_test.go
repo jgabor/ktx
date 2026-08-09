@@ -404,3 +404,41 @@ func TestEstimateAPICostReasoningRateAndOutputFallback(t *testing.T) {
 		t.Fatalf("tier reasoning estimate = %v, want .0023", got)
 	}
 }
+
+func TestEstimateAPIEquivalentCostReportsOrderedAvailabilityAndRateProvenance(t *testing.T) {
+	input, output, reasoning, cacheRead, cacheWrite := 100.0, 10.0, 3.0, 5.0, 0.0
+	cacheRate := 0.25
+	price := Price{Input: 2, Output: 4, CacheRead: &cacheRate, InputSet: true, OutputSet: true}
+	estimate := EstimateAPIEquivalentCost(APIEquivalentCostInputs{
+		UncachedInput: &input, Output: &output, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite,
+	}, price)
+	if estimate.Cost == nil || *estimate.Cost != 0.000253 || estimate.RateSelection == nil {
+		t.Fatalf("estimate = %#v", estimate)
+	}
+	selection := estimate.RateSelection
+	if selection.Basis != "base" || selection.ContextTokenCount != 105 || selection.ReasoningRatePolicy != "output_rate_fallback" || selection.ReasoningUSDPerMillion != 4 {
+		t.Fatalf("rate selection = %#v", selection)
+	}
+
+	estimate = EstimateAPIEquivalentCost(APIEquivalentCostInputs{UncachedInput: &input, Output: nil, Reasoning: nil, CacheRead: nil, CacheWrite: &cacheWrite}, price)
+	want := []APIEquivalentCostUnavailableReason{
+		APIEquivalentCostOutputUnavailable, APIEquivalentCostReasoningUnavailable, APIEquivalentCostCacheReadUnavailable,
+	}
+	if estimate.Cost != nil || len(estimate.UnavailableReasons) != len(want) {
+		t.Fatalf("unavailable estimate = %#v", estimate)
+	}
+	for index, reason := range want {
+		if estimate.UnavailableReasons[index] != reason {
+			t.Fatalf("reason[%d] = %q, want %q", index, estimate.UnavailableReasons[index], reason)
+		}
+	}
+
+	cacheRead = 5
+	price.CacheRead = nil
+	estimate = EstimateAPIEquivalentCost(APIEquivalentCostInputs{
+		UncachedInput: &input, Output: &output, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite,
+	}, price)
+	if estimate.Cost != nil || len(estimate.UnavailableReasons) != 1 || estimate.UnavailableReasons[0] != APIEquivalentCostCacheReadPriceUnavailable {
+		t.Fatalf("missing cache rate estimate = %#v", estimate)
+	}
+}

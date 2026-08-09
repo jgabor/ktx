@@ -139,18 +139,48 @@ func estimateAttempts(attempts []Attempt, snapshot *pricingSnapshot) []Attempt {
 		input, output := int64(*attempts[i].TokensIn), int64(*attempts[i].TokensOut)
 		var reasoning, cacheRead, cacheWrite *int64
 		if attempts[i].Reasoning != nil {
-			v := int64(*attempts[i].Reasoning)
-			reasoning = &v
+			value := int64(*attempts[i].Reasoning)
+			reasoning = &value
 		}
 		if attempts[i].CacheRead != nil {
-			v := int64(*attempts[i].CacheRead)
-			cacheRead = &v
+			value := int64(*attempts[i].CacheRead)
+			cacheRead = &value
 		}
 		if attempts[i].CacheWrite != nil {
-			v := int64(*attempts[i].CacheWrite)
-			cacheWrite = &v
+			value := int64(*attempts[i].CacheWrite)
+			cacheWrite = &value
 		}
 		attempts[i].EstimatedAPICost = db.EstimateAPICost(db.EstimatedCostInputs{UncachedInput: input, Output: output, Reasoning: reasoning, CacheRead: cacheRead, CacheWrite: cacheWrite}, snapshot.Price)
 	}
 	return attempts
+}
+
+func estimateAttemptsWithDetails(attempts []Attempt, snapshot *pricingSnapshot) []Attempt {
+	for i := range attempts {
+		detail := &estimatedAPICostDetail{}
+		if snapshot == nil {
+			attempts[i].EstimatedAPICost = nil
+			detail.reasons = []string{"pricing_snapshot_unavailable"}
+		} else {
+			estimate := db.EstimateAPIEquivalentCost(db.APIEquivalentCostInputs{
+				UncachedInput: attempts[i].TokensIn,
+				Output:        attempts[i].TokensOut,
+				Reasoning:     attempts[i].Reasoning,
+				CacheRead:     attempts[i].CacheRead,
+				CacheWrite:    attempts[i].CacheWrite,
+			}, snapshot.Price)
+			attempts[i].EstimatedAPICost = estimate.Cost
+			for _, reason := range estimate.UnavailableReasons {
+				detail.reasons = append(detail.reasons, string(reason))
+			}
+			detail.rateSelection = estimate.RateSelection
+		}
+		attempts[i].estimatedAPICostDetail = detail
+	}
+	return attempts
+}
+
+type estimatedAPICostDetail struct {
+	reasons       []string
+	rateSelection *db.APIEquivalentCostRateSelection
 }

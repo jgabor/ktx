@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jgabor/ktx/internal/db"
 )
 
 func promptCacheTokenHitRateManifest() Manifest {
@@ -441,7 +443,7 @@ func TestPromptCacheTokenHitRateActivationValidationAndRegeneration(t *testing.T
 		t.Fatalf("successor summary = %#v", summary)
 	}
 	report, err := ValidateExperiment(dir)
-	if err != nil || report["valid"] != true || report["summary_byte_match"] != true || report["prompt_cache_token_hit_rate_comparison"] == nil {
+	if err != nil || report["valid"] != true || report["summary_byte_match"] != true || report["prompt_cache_token_hit_rate_comparison"] == nil || report["pipeline_acceptance"] == nil {
 		t.Fatalf("successor validation = report=%#v err=%v", report, err)
 	}
 }
@@ -460,6 +462,7 @@ func TestPromptCacheTokenHitRateContractDocument(t *testing.T) {
 	metric := anyMap(contract["metric"])
 	comparison := anyMap(contract["comparison"])
 	resampling := anyMap(comparison["resampling"])
+	acceptance := anyMap(contract["pipeline_acceptance"])
 	if contract["contract_version"] != promptCacheMetricContractV2 ||
 		activation["manifest_methodology_version"] != promptCacheHitRateMethodologyV6 ||
 		activation["manifest_methodology_cache_metric_contract"] != promptCacheMetricContractV2 ||
@@ -471,11 +474,21 @@ func TestPromptCacheTokenHitRateContractDocument(t *testing.T) {
 		resampling["seed"] != float64(promptCacheTokenHitRateBootstrapSeed) {
 		t.Fatalf("contract = %#v", contract)
 	}
+	if acceptance["name"] != "pipeline_acceptance" || acceptance["phase"] != MeasuredWarm ||
+		acceptance["minimum_complete_pairs"] != float64(pipelineAcceptanceMinimumCompletePairs) ||
+		acceptance["acceptance"] != "candidate_rounded_api_equivalent_estimated_cost_per_correct_strictly_lower_than_baseline" ||
+		anyMap(acceptance["rounding"])["scale_decimals"] != float64(db.APIEquivalentCostRoundingDecimals) ||
+		anyMap(acceptance["rounding"])["mode"] != db.APIEquivalentCostRoundingMode {
+		t.Fatalf("pipeline acceptance contract = %#v", acceptance)
+	}
+	if reasons := acceptance["reason_precedence"].([]any); len(reasons) != len(pipelineAcceptanceReasonPrecedence) || reasons[0] != pipelineAcceptanceReasonPrecedence[0] || reasons[len(reasons)-1] != pipelineAcceptanceReasonPrecedence[len(pipelineAcceptanceReasonPrecedence)-1] {
+		t.Fatalf("pipeline acceptance reasons = %#v", reasons)
+	}
 	documentation, err := os.ReadFile(filepath.Join(root, "docs", "cache-reuse-metric-contract.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, fragment := range []string{"cache-reuse-v2", "v6-prompt-cache-hit-rate", "prompt_cache_token_hit_rate_comparison", "percentage_point_delta", "aggregate_buckets", "deterministic percentile bootstrap"} {
+	for _, fragment := range []string{"cache-reuse-v2", "v6-prompt-cache-hit-rate", "prompt_cache_token_hit_rate_comparison", "percentage_point_delta", "aggregate_buckets", "deterministic percentile bootstrap", "Schema-5 pipeline acceptance", "estimated_cost_per_correct_rounded_tie", "accepted:false"} {
 		if !strings.Contains(string(documentation), fragment) {
 			t.Errorf("documentation omits %q", fragment)
 		}

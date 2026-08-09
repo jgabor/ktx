@@ -2,6 +2,7 @@ package experiment
 
 import (
 	"fmt"
+	"math/big"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -67,6 +68,7 @@ func pairedMetric(summary map[string]any, field string) *float64 {
 
 func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map[string]any {
 	rows := []map[string]any{}
+	hasPipelineAcceptance := false
 	var baseline map[string]any
 	for _, pair := range pairs {
 		if pair.Summary != nil {
@@ -125,6 +127,14 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 			}
 			if schemaVersion, _ := pair.Summary["schema_version"].(int); schemaVersion >= 5 {
 				row["prompt_cache_token_hit_rate_comparison"] = promptCacheTokenHitRateRankingComparison(pair.Summary)
+				if acceptance := anyMap(pair.Summary["pipeline_acceptance"]); len(acceptance) > 0 {
+					hasPipelineAcceptance = true
+					accepted := acceptance["accepted"] == true
+					row["pipeline_acceptance"] = acceptance
+					row["accepted"] = accepted
+					row["recommendation_eligible"] = accepted
+					row["crown_eligible"] = accepted
+				}
 			}
 		}
 		rows = append(rows, row)
@@ -160,7 +170,62 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 	if options.Variant != "" {
 		result["variant"] = options.Variant
 	}
+	if hasPipelineAcceptance {
+		result["recommendation"] = pipelineAcceptanceRecommendation(rows)
+	}
 	return result
+}
+
+func pipelineAcceptanceRecommendation(rows []map[string]any) map[string]any {
+	type eligibleCandidate struct {
+		pipeline string
+		cost     *big.Int
+	}
+	eligible := []eligibleCandidate{}
+	excluded := []any{}
+	for _, row := range rows {
+		if row["side"] != Candidate {
+			continue
+		}
+		acceptance := anyMap(row["pipeline_acceptance"])
+		if len(acceptance) == 0 {
+			continue
+		}
+		pipeline := fmt.Sprint(row["pipeline"])
+		if acceptance["accepted"] != true {
+			excluded = append(excluded, map[string]any{"pipeline": pipeline, "reasons": acceptance["reasons"]})
+			continue
+		}
+		candidate := anyMap(acceptance[Candidate])
+		perCorrect := anyMap(candidate["estimated_cost_per_correct"])
+		microUSD, ok := perCorrect["micro_usd"].(string)
+		cost := new(big.Int)
+		if _, parsed := cost.SetString(microUSD, 10); !ok || !parsed {
+			excluded = append(excluded, map[string]any{"pipeline": pipeline, "reasons": []string{"accepted_cost_projection_unavailable"}})
+			continue
+		}
+		eligible = append(eligible, eligibleCandidate{pipeline: pipeline, cost: cost})
+	}
+	sort.Slice(eligible, func(i, j int) bool {
+		if compared := eligible[i].cost.Cmp(eligible[j].cost); compared != 0 {
+			return compared < 0
+		}
+		return eligible[i].pipeline < eligible[j].pipeline
+	})
+	sort.Slice(excluded, func(i, j int) bool {
+		return fmt.Sprint(anyMap(excluded[i])["pipeline"]) < fmt.Sprint(anyMap(excluded[j])["pipeline"])
+	})
+	var selected any
+	if len(eligible) > 0 {
+		selected = eligible[0].pipeline
+	}
+	return map[string]any{
+		"basis":                    "accepted rounded API-equivalent estimated cost per correct",
+		"recommended_pipeline":     selected,
+		"crowned_pipeline":         selected,
+		"eligible_candidate_count": len(eligible),
+		"excluded_candidates":      excluded,
+	}
 }
 
 func promptCacheTokenHitRateRankingComparison(summary map[string]any) map[string]any {
@@ -242,6 +307,13 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["mean_tokens_in"], 6), formatSignificant(row["mean_cost"], 4),
 			formatSignificant(row["expected_cost_per_correct"], 4), formatSignificant(row["mean_tool_calls"], 3),
 			formatSignificant(row["tool_call_inflation_vs_baseline"], 3)))
+	}
+	if recommendation := anyMap(ranking["recommendation"]); len(recommendation) > 0 {
+		lines = append(lines, fmt.Sprintf("recommendation pipeline=%v crowned_pipeline=%v eligible_candidates=%v", recommendation["recommended_pipeline"], recommendation["crowned_pipeline"], recommendation["eligible_candidate_count"]))
+		for _, raw := range recommendation["excluded_candidates"].([]any) {
+			excluded := anyMap(raw)
+			lines = append(lines, fmt.Sprintf("pipeline_acceptance pipeline=%v accepted=false reasons=%s", excluded["pipeline"], compactJSON(excluded["reasons"])))
+		}
 	}
 	for _, row := range rows {
 		if _, ok := row["sample_classification"]; !ok {

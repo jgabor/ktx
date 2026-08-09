@@ -66,6 +66,7 @@ type Metrics struct {
 	ModelSteps             []SourceEvent `json:"model_steps,omitempty"`
 	sequence               *attemptSequence
 	wrapperModelIdentities []modelStepIdentity
+	estimatedAPICostDetail *estimatedAPICostDetail
 }
 
 type SessionLink struct {

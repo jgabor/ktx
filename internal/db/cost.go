@@ -11,7 +11,16 @@ import "math"
 // persisted cost uses the same precision as the benchmark headline.
 //
 // Both write-time callers use the same persisted precision.
-const costRoundDecimals = 6
+const (
+	// APIEquivalentCostRoundingDecimals is the persisted precision for one
+	// API-equivalent estimate in USD.
+	APIEquivalentCostRoundingDecimals = 6
+	// APIEquivalentCostRoundingMode describes math.Round for the non-negative
+	// cost values accepted by the estimator.
+	APIEquivalentCostRoundingMode = "half_away_from_zero"
+
+	costRoundDecimals = APIEquivalentCostRoundingDecimals
+)
 
 // PriceSource abstracts the cache lookup and the cold-fetch for
 // the deriver. The *Prices type in prices.go satisfies this
@@ -45,6 +54,208 @@ type EstimatedCostInputs struct {
 	Reasoning     *int64
 	CacheRead     *int64
 	CacheWrite    *int64
+}
+
+// APIEquivalentCostInputs preserves the completeness and numeric state of all
+// five priced token buckets. It intentionally has no reported-cost field.
+type APIEquivalentCostInputs struct {
+	UncachedInput *float64
+	Output        *float64
+	Reasoning     *float64
+	CacheRead     *float64
+	CacheWrite    *float64
+}
+
+// APIEquivalentCostUnavailableReason identifies why an API-equivalent
+// estimate is unavailable. The result keeps these reasons in a stable order.
+type APIEquivalentCostUnavailableReason string
+
+const (
+	APIEquivalentCostUncachedInputUnavailable   APIEquivalentCostUnavailableReason = "uncached_input_unavailable"
+	APIEquivalentCostOutputUnavailable          APIEquivalentCostUnavailableReason = "output_unavailable"
+	APIEquivalentCostReasoningUnavailable       APIEquivalentCostUnavailableReason = "reasoning_unavailable"
+	APIEquivalentCostCacheReadUnavailable       APIEquivalentCostUnavailableReason = "cache_read_unavailable"
+	APIEquivalentCostCacheWriteUnavailable      APIEquivalentCostUnavailableReason = "cache_write_unavailable"
+	APIEquivalentCostUncachedInputNonfinite     APIEquivalentCostUnavailableReason = "uncached_input_nonfinite"
+	APIEquivalentCostOutputNonfinite            APIEquivalentCostUnavailableReason = "output_nonfinite"
+	APIEquivalentCostReasoningNonfinite         APIEquivalentCostUnavailableReason = "reasoning_nonfinite"
+	APIEquivalentCostCacheReadNonfinite         APIEquivalentCostUnavailableReason = "cache_read_nonfinite"
+	APIEquivalentCostCacheWriteNonfinite        APIEquivalentCostUnavailableReason = "cache_write_nonfinite"
+	APIEquivalentCostUncachedInputInvalid       APIEquivalentCostUnavailableReason = "uncached_input_invalid"
+	APIEquivalentCostOutputInvalid              APIEquivalentCostUnavailableReason = "output_invalid"
+	APIEquivalentCostReasoningInvalid           APIEquivalentCostUnavailableReason = "reasoning_invalid"
+	APIEquivalentCostCacheReadInvalid           APIEquivalentCostUnavailableReason = "cache_read_invalid"
+	APIEquivalentCostCacheWriteInvalid          APIEquivalentCostUnavailableReason = "cache_write_invalid"
+	APIEquivalentCostContextTokenOverflow       APIEquivalentCostUnavailableReason = "context_token_count_overflow"
+	APIEquivalentCostInputPriceUnavailable      APIEquivalentCostUnavailableReason = "input_price_unavailable"
+	APIEquivalentCostOutputPriceUnavailable     APIEquivalentCostUnavailableReason = "output_price_unavailable"
+	APIEquivalentCostCacheReadPriceUnavailable  APIEquivalentCostUnavailableReason = "cache_read_price_unavailable"
+	APIEquivalentCostCacheWritePriceUnavailable APIEquivalentCostUnavailableReason = "cache_write_price_unavailable"
+	APIEquivalentCostInputPriceInvalid          APIEquivalentCostUnavailableReason = "input_price_invalid"
+	APIEquivalentCostOutputPriceInvalid         APIEquivalentCostUnavailableReason = "output_price_invalid"
+	APIEquivalentCostCacheReadPriceInvalid      APIEquivalentCostUnavailableReason = "cache_read_price_invalid"
+	APIEquivalentCostCacheWritePriceInvalid     APIEquivalentCostUnavailableReason = "cache_write_price_invalid"
+	APIEquivalentCostReasoningPriceInvalid      APIEquivalentCostUnavailableReason = "reasoning_price_invalid"
+	APIEquivalentCostNonfinite                  APIEquivalentCostUnavailableReason = "estimated_cost_nonfinite"
+)
+
+var apiEquivalentCostReasonPrecedence = []APIEquivalentCostUnavailableReason{
+	APIEquivalentCostUncachedInputUnavailable, APIEquivalentCostOutputUnavailable,
+	APIEquivalentCostReasoningUnavailable, APIEquivalentCostCacheReadUnavailable, APIEquivalentCostCacheWriteUnavailable,
+	APIEquivalentCostUncachedInputNonfinite, APIEquivalentCostOutputNonfinite,
+	APIEquivalentCostReasoningNonfinite, APIEquivalentCostCacheReadNonfinite, APIEquivalentCostCacheWriteNonfinite,
+	APIEquivalentCostUncachedInputInvalid, APIEquivalentCostOutputInvalid,
+	APIEquivalentCostReasoningInvalid, APIEquivalentCostCacheReadInvalid, APIEquivalentCostCacheWriteInvalid,
+	APIEquivalentCostContextTokenOverflow,
+	APIEquivalentCostInputPriceUnavailable, APIEquivalentCostOutputPriceUnavailable,
+	APIEquivalentCostCacheReadPriceUnavailable, APIEquivalentCostCacheWritePriceUnavailable,
+	APIEquivalentCostInputPriceInvalid, APIEquivalentCostOutputPriceInvalid,
+	APIEquivalentCostCacheReadPriceInvalid, APIEquivalentCostCacheWritePriceInvalid,
+	APIEquivalentCostReasoningPriceInvalid, APIEquivalentCostNonfinite,
+}
+
+// APIEquivalentCostRateSelection identifies the exact rates used for an
+// estimate. ReasoningRatePolicy is explicit when reasoning uses output pricing.
+type APIEquivalentCostRateSelection struct {
+	Basis                   string
+	ContextTokenCount       int64
+	ContextTierSize         *int64
+	InputUSDPerMillion      float64
+	OutputUSDPerMillion     float64
+	CacheReadUSDPerMillion  *float64
+	CacheWriteUSDPerMillion *float64
+	ReasoningUSDPerMillion  float64
+	ReasoningRatePolicy     string
+}
+
+// APIEquivalentCostEstimate is independent of provider-reported cost. A nil
+// Cost always has at least one ordered unavailable reason.
+type APIEquivalentCostEstimate struct {
+	Cost               *float64
+	UnavailableReasons []APIEquivalentCostUnavailableReason
+	RateSelection      *APIEquivalentCostRateSelection
+}
+
+// EstimateAPIEquivalentCost derives a price-based estimate independently of
+// provider-reported cost. It requires complete non-negative integer evidence
+// for uncached input, output, reasoning, cache read, and cache write.
+func EstimateAPIEquivalentCost(in APIEquivalentCostInputs, price Price) APIEquivalentCostEstimate {
+	uncachedInput, reasons := apiEquivalentToken(in.UncachedInput, APIEquivalentCostUncachedInputUnavailable, APIEquivalentCostUncachedInputNonfinite, APIEquivalentCostUncachedInputInvalid)
+	output, outputReasons := apiEquivalentToken(in.Output, APIEquivalentCostOutputUnavailable, APIEquivalentCostOutputNonfinite, APIEquivalentCostOutputInvalid)
+	reasoning, reasoningReasons := apiEquivalentToken(in.Reasoning, APIEquivalentCostReasoningUnavailable, APIEquivalentCostReasoningNonfinite, APIEquivalentCostReasoningInvalid)
+	cacheRead, cacheReadReasons := apiEquivalentToken(in.CacheRead, APIEquivalentCostCacheReadUnavailable, APIEquivalentCostCacheReadNonfinite, APIEquivalentCostCacheReadInvalid)
+	cacheWrite, cacheWriteReasons := apiEquivalentToken(in.CacheWrite, APIEquivalentCostCacheWriteUnavailable, APIEquivalentCostCacheWriteNonfinite, APIEquivalentCostCacheWriteInvalid)
+	reasons = append(reasons, outputReasons...)
+	reasons = append(reasons, reasoningReasons...)
+	reasons = append(reasons, cacheReadReasons...)
+	reasons = append(reasons, cacheWriteReasons...)
+	if len(reasons) > 0 {
+		return APIEquivalentCostEstimate{UnavailableReasons: orderAPIEquivalentCostReasons(reasons)}
+	}
+	if uncachedInput > math.MaxInt64-cacheRead || uncachedInput+cacheRead > math.MaxInt64-cacheWrite {
+		return APIEquivalentCostEstimate{UnavailableReasons: []APIEquivalentCostUnavailableReason{APIEquivalentCostContextTokenOverflow}}
+	}
+	selection := price.SelectRatesWithProvenance(uncachedInput + cacheRead + cacheWrite)
+	rates := selection.Rates
+	reasons = apiEquivalentRateReasons(rates, cacheRead, cacheWrite)
+	if len(reasons) > 0 {
+		return APIEquivalentCostEstimate{UnavailableReasons: orderAPIEquivalentCostReasons(reasons)}
+	}
+	cacheReadPrice, cacheWritePrice := 0.0, 0.0
+	if rates.CacheRead != nil {
+		cacheReadPrice = *rates.CacheRead
+	}
+	if rates.CacheWrite != nil {
+		cacheWritePrice = *rates.CacheWrite
+	}
+	reasoningPrice, reasoningPolicy := rates.Output, "output_rate_fallback"
+	if rates.Reasoning != nil {
+		reasoningPrice, reasoningPolicy = *rates.Reasoning, "selected_reasoning_rate"
+	}
+	if !validAPIEquivalentRate(reasoningPrice) {
+		return APIEquivalentCostEstimate{UnavailableReasons: []APIEquivalentCostUnavailableReason{APIEquivalentCostReasoningPriceInvalid}}
+	}
+	raw := float64(uncachedInput)*rates.Input + float64(cacheRead)*cacheReadPrice +
+		float64(cacheWrite)*cacheWritePrice + float64(output)*rates.Output + float64(reasoning)*reasoningPrice
+	if math.IsNaN(raw) || math.IsInf(raw, 0) || raw < 0 {
+		return APIEquivalentCostEstimate{UnavailableReasons: []APIEquivalentCostUnavailableReason{APIEquivalentCostNonfinite}}
+	}
+	cost := roundCost(raw / 1_000_000)
+	if cost == nil || math.IsNaN(*cost) || math.IsInf(*cost, 0) || *cost < 0 {
+		return APIEquivalentCostEstimate{UnavailableReasons: []APIEquivalentCostUnavailableReason{APIEquivalentCostNonfinite}}
+	}
+	return APIEquivalentCostEstimate{Cost: cost, RateSelection: &APIEquivalentCostRateSelection{
+		Basis: selection.Basis, ContextTokenCount: selection.ContextTokenCount, ContextTierSize: selection.ContextTierSize,
+		InputUSDPerMillion: rates.Input, OutputUSDPerMillion: rates.Output,
+		CacheReadUSDPerMillion: rates.CacheRead, CacheWriteUSDPerMillion: rates.CacheWrite,
+		ReasoningUSDPerMillion: reasoningPrice, ReasoningRatePolicy: reasoningPolicy,
+	}}
+}
+
+func apiEquivalentToken(value *float64, unavailable, nonfinite, invalid APIEquivalentCostUnavailableReason) (int64, []APIEquivalentCostUnavailableReason) {
+	if value == nil {
+		return 0, []APIEquivalentCostUnavailableReason{unavailable}
+	}
+	if math.IsNaN(*value) || math.IsInf(*value, 0) {
+		return 0, []APIEquivalentCostUnavailableReason{nonfinite}
+	}
+	if *value < 0 || math.Trunc(*value) != *value || *value >= math.Exp2(63) {
+		return 0, []APIEquivalentCostUnavailableReason{invalid}
+	}
+	return int64(*value), nil
+}
+
+func apiEquivalentRateReasons(rates PriceRates, cacheRead, cacheWrite int64) []APIEquivalentCostUnavailableReason {
+	reasons := []APIEquivalentCostUnavailableReason{}
+	if !(rates.InputSet || rates.Input != 0) {
+		reasons = append(reasons, APIEquivalentCostInputPriceUnavailable)
+	} else if !validAPIEquivalentRate(rates.Input) {
+		reasons = append(reasons, APIEquivalentCostInputPriceInvalid)
+	}
+	if !(rates.OutputSet || rates.Output != 0) {
+		reasons = append(reasons, APIEquivalentCostOutputPriceUnavailable)
+	} else if !validAPIEquivalentRate(rates.Output) {
+		reasons = append(reasons, APIEquivalentCostOutputPriceInvalid)
+	}
+	if cacheRead != 0 {
+		if rates.CacheRead == nil {
+			reasons = append(reasons, APIEquivalentCostCacheReadPriceUnavailable)
+		} else if !validAPIEquivalentRate(*rates.CacheRead) {
+			reasons = append(reasons, APIEquivalentCostCacheReadPriceInvalid)
+		}
+	}
+	if cacheWrite != 0 {
+		if rates.CacheWrite == nil {
+			reasons = append(reasons, APIEquivalentCostCacheWritePriceUnavailable)
+		} else if !validAPIEquivalentRate(*rates.CacheWrite) {
+			reasons = append(reasons, APIEquivalentCostCacheWritePriceInvalid)
+		}
+	}
+	return reasons
+}
+
+func validAPIEquivalentRate(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value >= 0
+}
+
+func orderAPIEquivalentCostReasons(reasons []APIEquivalentCostUnavailableReason) []APIEquivalentCostUnavailableReason {
+	ordered := []APIEquivalentCostUnavailableReason{}
+	for _, expected := range apiEquivalentCostReasonPrecedence {
+		for _, reason := range reasons {
+			if reason == expected {
+				seen := false
+				for _, existing := range ordered {
+					if existing == reason {
+						seen = true
+					}
+				}
+				if !seen {
+					ordered = append(ordered, reason)
+				}
+			}
+		}
+	}
+	return ordered
 }
 
 // EstimateAPICost derives an API-equivalent estimate independently of reported

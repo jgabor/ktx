@@ -939,6 +939,16 @@ New cache-aware methodology v5 runs under the pinned OpenCode 1.18.5 contract
 use summary schema v4 even when all estimates are NULL. Retained schema-v3
 experiments keep their historical schema and bytes.
 
+The explicitly activated schema-5 prompt-cache successor adds a separate
+`pipeline_acceptance` guard. It sums rounded API-equivalent estimates over the
+same complete measured-warm pairs, divides each side by its `full_pass=true`
+count, rounds each result to six decimal USD places with half-away-from-zero
+rounding, and accepts only a strictly lower candidate result. Candidate fact
+score and full-pass rate must not regress. Reported cost remains separate,
+including literal zero. Prompt-cache token hit rate is diagnostic and cannot
+override this guard. See [the cache-reuse metric contract](cache-reuse-metric-contract.md#schema-5-pipeline-acceptance)
+for ordered failure reasons and retained pricing provenance.
+
 Reported cost and estimated API cost have independent completeness gates.
 Estimation requires complete input, output, reasoning, cache-read, and
 cache-write token evidence; missing reported cost remains NULL but does not

@@ -61,7 +61,14 @@ computation: |
   pairs before calculating the comparison rate. Do not average attempt or
   pair fractions. The two-sided 95 percent interval uses a deterministic
   percentile bootstrap of 10,000 whole complete-pair bucket resamples with
-  seed 1; every resample recomputes both side rates from its bucket sums.
+   seed 1; every resample recomputes both side rates from its bucket sums.
+  Pipeline acceptance is separate from the diagnostic hit rate. It uses the
+  same complete measured-warm pairs and retained pricing snapshot. Sum each
+  side's per-attempt API-equivalent estimates rounded to micro-USD, divide by
+  its full-pass count, round to micro-USD half-away-from-zero, and accept only
+  a strictly lower candidate result. Candidate mean fact score and full-pass
+  rate must not be lower. Runtime-reported cost, including zero, is never an
+  acceptance input.
 
 claim_scope:
   evidence_kind: runtime_reported_model_steps
@@ -76,11 +83,14 @@ output:
   summary_schema: 5
   cache_metric_contract: cache-reuse-v2
   headline_phase: measured_warm
-  validation: |
-    Regenerate byte-identically from the manifest, attempts, retained streams,
-    and pricing snapshot. Directional wording is available only when there are
-    at least five complete pairs, quality is preserved, the two-sided 95 percent
-    interval excludes zero in that direction, and no blocker remains.
+   validation: |
+     Regenerate byte-identically from the manifest, attempts, retained streams,
+     and pricing snapshot. Directional wording is available only when there are
+     at least five complete pairs, quality is preserved, the two-sided 95 percent
+     interval excludes zero in that direction, and no blocker remains.
+     `pipeline_acceptance` reports accepted, ordered reasons, per-side estimated
+     totals, correct counts, cost per correct, rounding, quality, and retained
+     pricing provenance. A valid rejected candidate remains retained evidence.
 
 out_of_scope:
   - provider-native request, cache state, hit, miss, fill, eviction, eligibility, prefix, isolation, or TTL claims

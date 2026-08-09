@@ -1,0 +1,15 @@
+id: zwxzvnhaej
+artifact: progress
+record:
+  timestamp: 2026-08-09 20:34
+  type: feat
+  phase: build
+  what: Added the schema-5 pipeline acceptance guard with strict rounded API-equivalent estimated cost per correct, quality gates, retained pricing provenance, and recommendation exclusion for rejected candidates.
+  context:
+    intent: Make portable cost acceptance depend on complete paired evidence and quality, not diagnostic cache hit rate or provider-reported cost.
+    constraints: Preserve schemas 1 through 4, historical summaries, reported zero cost, cache-reuse-v1, no database migration, and the task lifecycle in progress.
+    scope: Shared estimator, schema-5 summary and validation output, ranking recommendation selection, contract and methodology documentation, and focused regression coverage.
+  discovered: The prior schema-5 path had only diagnostic hit-rate authorization. Existing compare completion already stays successful when a complete candidate is rejected by a new summary-level guard.
+  verified: Focused accepted, raw-tie, rounded-tie, missing/nonfinite estimate, zero-correct, pair, identity, protocol, quality, reported-zero, pricing, ranking, schema-5 validation, and legacy byte tests passed. The local build/ktx summarized a deterministic schema-5 fixture with accepted=false and bench validate returned valid=true with summary_byte_match=true. Isolated mage check passed tests, race, vet, lint, and build with 0 issues; the database audit reported KTX_DB unset and forbidden=0.
+  next: Leave the task in progress for independent evaluation. Do not record an evaluator verdict or terminal task status.
+  publication_order: 69

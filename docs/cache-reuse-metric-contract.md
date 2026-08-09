@@ -405,7 +405,8 @@ remain unchanged.
 An activated summary uses schema 5 and publishes
 `prompt_cache_token_hit_rate`,
 `prompt_cache_token_hit_rate_comparison`, and
-`prompt_cache_token_hit_rate_statement_authorization`. The metric is
+`prompt_cache_token_hit_rate_statement_authorization`, plus
+`pipeline_acceptance`, root `accepted`, and `acceptance_reasons`. The metric is
 token-weighted and uses the same pinned disjoint-bucket formula as the live
 schema 7 report:
 
@@ -441,3 +442,56 @@ incomplete evidence, identity mismatch, protocol mismatch, or any other blocker
 emits no directional statement. It does not authorize provider-internal state,
 request hit rate, TTL, eviction, eligibility, isolation, prefix, or provider
 request-boundary claims.
+
+## Schema-5 pipeline acceptance
+
+`prompt_cache_token_hit_rate` remains diagnostic. It is never the pipeline
+acceptance gate. An activated schema-5 comparison evaluates only the exact
+complete `measured_warm` cycle pairs used by the paired contract. It requires
+at least five pairs, stable retained identity, and compliant retained protocol.
+It does not pool identities or recover an omitted pair from another cohort.
+
+For each side, the guard sums the separately estimated API-equivalent costs for
+those exact pairs. A correct answer is a pair member with `full_pass=true`.
+The per-side estimated cost per correct is:
+
+```text
+sum(rounded per-attempt estimated API-equivalent USD) / count(full_pass=true)
+```
+
+Each per-attempt estimate rounds to six decimal USD places. The guard retains
+that total as exact integer micro-USD, divides by the full-pass count, then
+rounds the result to six decimal USD places with half-away-from-zero rounding.
+The candidate is accepted only when its rounded estimated cost per correct is
+strictly lower than the baseline's. A raw equality produces
+`estimated_cost_per_correct_raw_tie`; a raw improvement that rounds to the
+same micro-USD result produces `estimated_cost_per_correct_rounded_tie`.
+
+Quality must not regress on the same complete pairs. The candidate mean fact
+score must be greater than or equal to the baseline mean fact score, and the
+candidate full-pass rate must be greater than or equal to the baseline
+full-pass rate. The guard emits `fact_score_regressed` and
+`full_pass_rate_regressed` independently when those checks fail.
+
+`pipeline_acceptance` always emits pair checks, each side's estimated total,
+correct count, estimated cost per correct, quality values, rounding rule,
+ordered reasons, and `accepted`. Its retained pricing provenance names the
+provider, model, snapshot path, SHA-256, source URL, retrieval time when known,
+and the selected base or context-tier rates for every contributing estimate.
+The shared estimator prices uncached input, cache reads, cache writes, output,
+and reasoning. It returns ordered typed availability reasons for missing,
+nonfinite, invalid, or unpriced token and price inputs. It never reads,
+coalesces, or substitutes the runtime-reported cost.
+
+Runtime-reported `cost`, including a literal zero, remains unchanged evidence.
+It is not an acceptance input. Missing or nonfinite estimated cost, zero
+correct answers, incomplete pairs, unstable identity, protocol failure, quality
+regression, a tie, or a higher rounded estimated cost per correct rejects the
+candidate closed. The ordered machine reason precedence is in
+`tools/bench/cache-reuse-contract-v2.json`.
+
+A structurally valid experiment can therefore render successfully with
+`accepted:false`. `ktx bench compare` keeps its normal successful exit for that
+valid rejection. `ktx bench rank` retains the row as evidence, but marks it
+ineligible for recommendation and crown selection. Recommendation and crown
+selection consider accepted schema-5 candidates only.

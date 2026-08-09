@@ -236,9 +236,19 @@ func (t PriceTier) MarshalJSON() ([]byte, error) {
 	}{t.Tier, input, output, t.CacheRead, t.CacheWrite, t.Reasoning})
 }
 
-// SelectRates applies only models.dev context tiers. A tier begins at its
-// declared context size; unsupported tier types are ignored.
-func (p Price) SelectRates(contextTokens int64) PriceRates {
+// PriceRateSelection records which retained price record applies to a token
+// count. The base, a supported context tier, and the legacy context-over-200K
+// record are distinct provenance cases.
+type PriceRateSelection struct {
+	Rates             PriceRates
+	Basis             string
+	ContextTierSize   *int64
+	ContextTokenCount int64
+}
+
+// SelectRatesWithProvenance applies the same supported tier selection as
+// SelectRates and retains the selected record's provenance.
+func (p Price) SelectRatesWithProvenance(contextTokens int64) PriceRateSelection {
 	rates := PriceRates{Input: p.Input, Output: p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, InputSet: p.InputSet, OutputSet: p.OutputSet}
 	selectedTier := false
 	var selectedSize int64
@@ -249,10 +259,22 @@ func (p Price) SelectRates(contextTokens int64) PriceRates {
 			selectedSize = tier.Tier.Size
 		}
 	}
-	if !selectedTier && contextTokens > 200000 && p.ContextOver200K != nil {
-		rates = *p.ContextOver200K
+	selection := PriceRateSelection{Rates: rates, Basis: "base", ContextTokenCount: contextTokens}
+	if selectedTier {
+		size := selectedSize
+		selection.Basis, selection.ContextTierSize = "context_tier", &size
+		return selection
 	}
-	return rates
+	if !selectedTier && contextTokens > 200000 && p.ContextOver200K != nil {
+		selection.Rates, selection.Basis = *p.ContextOver200K, "legacy_context_over_200k"
+	}
+	return selection
+}
+
+// SelectRates applies only models.dev context tiers. A tier begins at its
+// declared context size; unsupported tier types are ignored.
+func (p Price) SelectRates(contextTokens int64) PriceRates {
+	return p.SelectRatesWithProvenance(contextTokens).Rates
 }
 
 // Prices is the parsed price cache plus its on-disk path. The in-memory

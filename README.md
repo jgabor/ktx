@@ -91,9 +91,12 @@ access and never create or migrate persistent state. Write-capable commands may
 create a database and transactionally migrate an older supported schema. If a
 query reports `schema-migration-required`, run `ktx db migrate`. See the
 [database safety contract](docs/database-safety.md) for command classes,
-hermetic development, and seeded migration rehearsal. Recover from a database
-newer than the binary by installing a binary that supports that schema or newer.
-Never lower `PRAGMA user_version`.
+hermetic development, and seeded migration rehearsal. The
+[critical-path performance and availability contract](docs/critical-path-performance.md)
+keeps component, process, product, and concurrency evidence distinct and defines
+hook acceptance and database-unavailable behavior. Recover from a database newer
+than the binary by installing a binary that supports that schema or newer. Never
+lower `PRAGMA user_version`.
 
 ### Live prompt-cache token hit rate
 

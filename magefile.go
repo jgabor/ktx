@@ -27,6 +27,7 @@ const (
 	hermeticNonceEnv          = "KTX_VERIFY_NONCE"
 	databaseAuditEnv          = "KTX_VERIFY_DB_AUDIT"
 	forbiddenDBPathsEnv       = "KTX_VERIFY_FORBIDDEN_DB_PATHS"
+	temporaryDirectoryEnv     = "TMPDIR"
 	boundaryNonceHexLength    = 32
 	maxForbiddenPayloadBytes  = 8192
 	maxForbiddenDatabasePaths = 16
@@ -170,7 +171,8 @@ func hermeticTarget(target string, body func() error) error {
 	directories := map[string]string{
 		"HOME": filepath.Join(root, "home"), "XDG_DATA_HOME": filepath.Join(root, "data"),
 		"XDG_CONFIG_HOME": filepath.Join(root, "config"), "XDG_CACHE_HOME": filepath.Join(root, "cache"),
-		"XDG_STATE_HOME": filepath.Join(root, "state"),
+		"XDG_STATE_HOME":      filepath.Join(root, "state"),
+		temporaryDirectoryEnv: filepath.Join(root, "tmp"),
 	}
 	for _, directory := range directories {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
@@ -297,6 +299,13 @@ func validateHermeticReentry() error {
 			return fmt.Errorf("application directories must be distinct: %s", name)
 		}
 		directories[clean] = true
+	}
+	temporaryDirectory := os.Getenv(temporaryDirectoryEnv)
+	if temporaryDirectory == "" || !filepath.IsAbs(temporaryDirectory) || !strictPathWithin(root, temporaryDirectory) {
+		return fmt.Errorf("%s must be contained under disposable root", temporaryDirectoryEnv)
+	}
+	if err := validateDirectory(temporaryDirectory, temporaryDirectoryEnv); err != nil {
+		return err
 	}
 	auditPath := os.Getenv(databaseAuditEnv)
 	if auditPath == "" || !filepath.IsAbs(auditPath) || !strictPathWithin(root, auditPath) {

@@ -26,6 +26,9 @@ func TestHermeticVerificationEnvironment(t *testing.T) {
 			t.Errorf("%s=%q is not a direct child of disposable root %q", key, value, root)
 		}
 	}
+	if value := os.Getenv(temporaryDirectoryEnv); value == "" || filepath.Dir(value) != root {
+		t.Errorf("%s=%q is not a direct child of disposable root %q", temporaryDirectoryEnv, value, root)
+	}
 	for _, key := range toolCacheVariables {
 		value := os.Getenv(key)
 		if value == "" {
@@ -77,6 +80,7 @@ func TestHermeticReentryValidationFailsClosed(t *testing.T) {
 		}},
 		{name: "duplicate app directories", mutate: func(t *testing.T, env map[string]string) { env["XDG_STATE_HOME"] = env["XDG_CACHE_HOME"] }},
 		{name: "app directory outside root", mutate: func(t *testing.T, env map[string]string) { env["XDG_DATA_HOME"] = t.TempDir() }},
+		{name: "temporary directory outside root", mutate: func(t *testing.T, env map[string]string) { env[temporaryDirectoryEnv] = t.TempDir() }},
 		{name: "audit outside root", mutate: func(t *testing.T, env map[string]string) {
 			env[databaseAuditEnv] = filepath.Join(t.TempDir(), "audit.jsonl")
 		}},
@@ -149,6 +153,11 @@ func validReentryEnvironment(t *testing.T) map[string]string {
 		}
 		env[name] = path
 	}
+	temporaryDirectory := filepath.Join(root, "tmp")
+	if err := os.Mkdir(temporaryDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	env[temporaryDirectoryEnv] = temporaryDirectory
 	for _, name := range toolCacheVariables {
 		env[name] = filepath.Join(t.TempDir(), strings.ToLower(name))
 	}
@@ -169,7 +178,7 @@ func setTestEnvironment(t *testing.T, values map[string]string) {
 	for name, value := range values {
 		t.Setenv(name, value)
 	}
-	for _, name := range []string{hermeticMarkerEnv, hermeticRootEnv, hermeticBoundaryIDEnv, hermeticCapabilityEnv, hermeticNonceEnv, databaseAuditEnv, forbiddenDBPathsEnv} {
+	for _, name := range []string{hermeticMarkerEnv, hermeticRootEnv, hermeticBoundaryIDEnv, hermeticCapabilityEnv, hermeticNonceEnv, databaseAuditEnv, forbiddenDBPathsEnv, temporaryDirectoryEnv} {
 		if _, exists := values[name]; !exists {
 			t.Setenv(name, "")
 		}

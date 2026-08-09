@@ -1,0 +1,16 @@
+id: aqyctmdhbw
+artifact: plan
+record:
+  name: Enforce typed foreign-lock and partial-hook outcomes
+  depends_on:
+    - iuyndimqgm
+    - jvqmmnjbre
+    - sikwslbpkj
+  status: pending
+  acceptance:
+    - GIVEN lock exhaustion during read-only open, write open, migration, source persistence, artifact persistence, or disposition persistence WHEN the error is rendered THEN JSON and text use database-unavailable with exit 4 and contain no SQLite driver wording.
+    - GIVEN a foreign lock prevents source acceptance WHEN a hook returns THEN the event is explicitly unaccepted, the agent receives the original output, and no persistence claim is made.
+    - GIVEN source evidence is accepted but later artifact or disposition work cannot complete WHEN the hook returns THEN the accepted source remains authoritative, the agent receives the original output, and a retry can converge without duplicate evidence.
+    - GIVEN the foreign lock is released WHEN the operation is retried THEN normal persistence resumes without manual repair or stale coordination state.
+    - GIVEN no durable spool exists WHEN availability is reported THEN ktx does not claim zero loss for unaccepted events or eventual progress against an indefinitely held foreign lock.
+  plan: brgeelxuec

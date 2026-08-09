@@ -1,0 +1,13 @@
+id: iuyndimqgm
+artifact: plan
+record:
+  name: Close same-runtime and process-local contention
+  depends_on:
+    - fdysxqmvxf
+  status: pending
+  acceptance:
+    - GIVEN ordinary hook and telemetry callbacks from one loaded runtime WHEN they target the same database THEN write-capable work follows one accepted order without callback-level write overlap.
+    - GIVEN one ktx process performs database work WHEN concurrent internal operations occur THEN it does not create competing write transactions against its own database handle.
+    - GIVEN a hook produces lossy output WHEN it responds THEN source evidence is accepted before transformed output can reach the agent.
+    - GIVEN ordinary and adverse callback outcomes WHEN verified THEN at least one success and one failure case preserve conservative pass-through, first-evidence ownership, and retry convergence.
+  plan: brgeelxuec

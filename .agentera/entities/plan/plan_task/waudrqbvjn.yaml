@@ -1,0 +1,20 @@
+id: waudrqbvjn
+artifact: plan
+record:
+  name: Synchronize and verify current state
+  depends_on:
+    - etszstkbbs
+    - dwqcferacw
+    - fdysxqmvxf
+    - iuyndimqgm
+    - jvqmmnjbre
+    - sikwslbpkj
+    - aqyctmdhbw
+    - kmmdueqvjw
+  status: pending
+  acceptance:
+    - GIVEN completed behavior WHEN current surfaces are inventoried THEN help, documentation, skills, TODO, and changelog agree without rewriting historical evidence.
+    - GIVEN the locally built binary WHEN focused and broad isolated checks run THEN component benchmarks, load scenarios, database safety, compatible migration rehearsal, mixed-version rejection, race-sensitive tests, and the authoritative repository gate pass.
+    - GIVEN retained database and benchmark contracts WHEN compatibility is checked THEN read-only behavior, evidence authority, output recovery, and existing cost and quality summaries remain unchanged.
+    - GIVEN closeout WHEN independently reviewed THEN implementation, tests, measurements, and project state support every plan-level acceptance claim.
+  plan: brgeelxuec

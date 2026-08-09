@@ -1,0 +1,15 @@
+id: sikwslbpkj
+artifact: plan
+record:
+  name: Integrate readers and schema transitions with coordinated ownership
+  depends_on:
+    - fdysxqmvxf
+    - jvqmmnjbre
+  status: pending
+  acceptance:
+    - GIVEN supported read-only commands and supported writers share a current local database WHEN their transactions overlap THEN readers remain non-mutating, accepted writes complete, and neither side exposes a SQLite lock error.
+    - GIVEN concurrent instances of a binary compatible with the target schema open one stale database WHEN migration runs THEN one complete compatible schema becomes visible and all supported instances converge without partial state.
+    - GIVEN an older binary encounters a database already migrated beyond its maximum schema WHEN it opens the database THEN the existing schema-incompatible contract remains authoritative and no downgrade or rollback occurs.
+    - GIVEN foreign readers or writers hold SQLite beyond the supported wait WHEN classified THEN they use the foreign-lock outcome rather than being counted as supported-concurrency success.
+    - GIVEN current, stale-compatible, and newer-incompatible schemas WHEN tested THEN each transition has an ordinary and an adverse case with exact post-state verification.
+  plan: brgeelxuec

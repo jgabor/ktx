@@ -1,0 +1,15 @@
+id: jvqmmnjbre
+artifact: plan
+record:
+  name: Coordinate supported writers across processes
+  depends_on:
+    - fdysxqmvxf
+    - iuyndimqgm
+  status: pending
+  acceptance:
+    - GIVEN concurrent supported write-capable commands target one local database WHEN the writer matrix runs THEN every accepted record reconciles exactly once and no caller receives a SQLite lock error.
+    - GIVEN distinct path spellings resolve to the same database WHEN supported writers run THEN they share one ownership boundary rather than bypassing coordination.
+    - GIVEN a writer terminates while owning coordination WHEN another supported writer proceeds THEN no stale ownership blocks recovery and no accepted evidence is duplicated.
+    - GIVEN uncontended and contended trials WHEN timing is compared THEN results remain descriptive unless task 2 evidence established an approved controlled-host budget; correctness never depends on an unstable timing threshold.
+    - GIVEN ordinary completion and forced termination WHEN tested THEN each coordination unit has at least one success and one adverse recovery case.
+  plan: brgeelxuec

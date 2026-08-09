@@ -71,7 +71,10 @@ func withWriteTx(ctx context.Context, database *sql.DB, fn func(*sql.Tx) error) 
 	return fmt.Errorf("db: write retries exhausted: %w", lastErr)
 }
 
-func isSQLiteLockError(err error) bool {
+// IsSQLiteLockError reports whether err wraps a SQLite lock failure.
+// Callers use it to render the stable database-availability contract without
+// exposing driver-specific diagnostics.
+func IsSQLiteLockError(err error) bool {
 	var sqliteErr *sqlite.Error
 	if !errors.As(err, &sqliteErr) {
 		return false
@@ -79,6 +82,8 @@ func isSQLiteLockError(err error) bool {
 	code := sqliteErr.Code() & 0xff
 	return code == sqlite3.SQLITE_BUSY || code == sqlite3.SQLITE_LOCKED
 }
+
+func isSQLiteLockError(err error) bool { return IsSQLiteLockError(err) }
 
 func waitWriteRetry(ctx context.Context, attempt int) bool {
 	delay := time.Duration(attempt+1) * 10 * time.Millisecond

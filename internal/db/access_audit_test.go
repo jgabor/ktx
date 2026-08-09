@@ -67,6 +67,40 @@ func TestDatabaseAccessAuditConcurrentWriters(t *testing.T) {
 	}
 }
 
+func TestDatabaseAccessAuditRejectsDatabaseOutsideVerificationRoot(t *testing.T) {
+	root := t.TempDir()
+	audit := filepath.Join(root, "audit.jsonl")
+	outside := filepath.Join(t.TempDir(), "outside", "ktx.db")
+	allowed := filepath.Join(root, "allowed", "ktx.db")
+	t.Setenv(verificationRootEnv, root)
+	t.Setenv(databaseAccessAuditEnv, audit)
+	t.Setenv(forbiddenDatabasePathsEnv, "[]")
+
+	if database, err := Open(outside); err == nil {
+		database.Close()
+		t.Fatal("outside-root open succeeded")
+	}
+	if _, err := os.Stat(filepath.Dir(outside)); !os.IsNotExist(err) {
+		t.Fatalf("outside-root parent was touched before rejection: %v", err)
+	}
+	if database, err := Open(allowed); err != nil {
+		t.Fatal(err)
+	} else if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	records := readDatabaseAccessRecords(t, audit)
+	if len(records) != 2 {
+		t.Fatalf("records = %#v, want two", records)
+	}
+	if !records[0].Forbidden || records[0].Path != lexicalPath(outside) {
+		t.Fatalf("outside-root record = %#v", records[0])
+	}
+	if records[1].Forbidden || records[1].Path != lexicalPath(allowed) {
+		t.Fatalf("allowed record = %#v", records[1])
+	}
+}
+
 func readDatabaseAccessRecords(t *testing.T, path string) []databaseAccessRecord {
 	t.Helper()
 	file, err := os.Open(path)

@@ -5,6 +5,10 @@ commands that persist evidence may create a database and transactionally migrate
 an older supported schema. Development, tests, CI, and rehearsal must never
 access the ambient live database.
 
+Critical-path evidence classes, participant ownership, hook acceptance, and
+the database-unavailable result are defined in the
+[critical-path performance and availability contract](critical-path-performance.md).
+
 ## Command classes
 
 | Class                                     | Surfaces                                                                                                                                                                  | Database behavior                                                                                                                                                                                                                                                   |
@@ -94,19 +98,39 @@ collection remains fail-closed and does not suppress failures.
 ## Hermetic development and CI verification
 
 `mage test`, `mage check`, and `mage verify` allocate one unique disposable
-application root per outer invocation. They unset `KTX_DB` and assign distinct
-`HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and
-`XDG_STATE_HOME` directories below that root. Go, Bun, and lint caches remain
-outside the application root through explicit `GOCACHE`, `GOMODCACHE`,
+application root per outer invocation. They unset inherited `KTX_DB` and assign
+distinct `HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`,
+`XDG_STATE_HOME`, and `TMPDIR` directories below that root. Each process in the
+nested target inherits those roots. Go, Bun, and lint caches remain outside the
+application root through explicit `GOCACHE`, `GOMODCACHE`,
 `BUN_INSTALL_CACHE_DIR`, and `GOLANGCI_LINT_CACHE` values.
 
 The verification boundary records database resolution, inspection, read-only
 open, and normal open attempts before filesystem or SQLite effects. It rejects
 any attempt to touch the captured ambient default database or incoming
-`KTX_DB`, and prints a bounded summary with `forbidden=0` on success.
+`KTX_DB`. It also rejects database paths outside the disposable root, so every
+resolved database path is beneath that root. It prints a bounded summary with
+`forbidden=0` on success.
 
 Focused manual commands that bypass Mage need an equivalent fresh disposable
-root. Never point development verification at the live database.
+root. Define and use `ktx_verify` for each such command:
+
+```sh
+ktx_verify() (
+  root=$(mktemp -d "${TMPDIR:-/tmp}/ktx-verify.XXXXXX") || return
+  trap 'rm -rf "$root"' EXIT HUP INT TERM
+  mkdir -p "$root/home" "$root/data" "$root/config" "$root/cache" "$root/state" "$root/tmp"
+  env -u KTX_DB \
+    HOME="$root/home" XDG_DATA_HOME="$root/data" \
+    XDG_CONFIG_HOME="$root/config" XDG_CACHE_HOME="$root/cache" \
+    XDG_STATE_HOME="$root/state" TMPDIR="$root/tmp" \
+    KTX_VERIFY_ROOT="$root" \
+    "$@"
+)
+```
+
+The development database boundary rejects a database outside
+`KTX_VERIFY_ROOT`. Never point development verification at the live database.
 
 ## Migration rehearsal
 

@@ -31,12 +31,13 @@ const (
 type ErrorCode string
 
 const (
-	CodeUsage              ErrorCode = "usage"
-	CodeNotFound           ErrorCode = "not-found"
-	CodeConflict           ErrorCode = "conflict"
-	CodeInternal           ErrorCode = "internal"
-	CodeSchemaIncompatible ErrorCode = "schema-incompatible"
-	CodeSchemaMigration    ErrorCode = "schema-migration-required"
+	CodeUsage               ErrorCode = "usage"
+	CodeNotFound            ErrorCode = "not-found"
+	CodeConflict            ErrorCode = "conflict"
+	CodeInternal            ErrorCode = "internal"
+	CodeDatabaseUnavailable ErrorCode = "database-unavailable"
+	CodeSchemaIncompatible  ErrorCode = "schema-incompatible"
+	CodeSchemaMigration     ErrorCode = "schema-migration-required"
 )
 
 // ExitCode returns the process exit code for the error class.
@@ -48,7 +49,7 @@ func (c ErrorCode) ExitCode() int {
 		return ExitNotFound
 	case CodeConflict:
 		return ExitConflict
-	case CodeInternal:
+	case CodeInternal, CodeDatabaseUnavailable:
 		return ExitInternal
 	case CodeSchemaIncompatible, CodeSchemaMigration:
 		return ExitSchemaIncompatible
@@ -66,6 +67,7 @@ type Error struct {
 	// (e.g. valid_examples for self-correcting usage errors). Nil is
 	// the common case — most errors carry only code + message.
 	Extra map[string]any
+	cause error
 }
 
 // commandExit carries a process status for commands that already rendered any
@@ -80,9 +82,18 @@ func exitWith(code int) error { return &commandExit{code: code} }
 
 func (e *Error) Error() string { return e.Message }
 
+func (e *Error) Unwrap() error { return e.cause }
+
 // newError constructs a typed error.
 func newError(code ErrorCode, format string, args ...any) *Error {
-	return &Error{Code: code, Message: fmt.Sprintf(format, args...)}
+	result := &Error{Code: code, Message: fmt.Sprintf(format, args...)}
+	for _, arg := range args {
+		if err, ok := arg.(error); ok {
+			result.cause = err
+			break
+		}
+	}
+	return result
 }
 
 // Constructors for each error class.

@@ -32,6 +32,9 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 		"golangci_lint_cache",
 		"forbidden=0",
 		"seeded temporary database",
+		"tmpdir",
+		"ktx_verify",
+		"database paths outside the disposable root",
 	} {
 		if !strings.Contains(lower, strings.ToLower(required)) {
 			t.Errorf("database safety documentation is missing %q", required)
@@ -69,6 +72,36 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 	for _, required := range []string{"non-live", "mktemp -d", "ktx_verify go test ./internal/router", "ktx_verify mage check"} {
 		if !strings.Contains(routing, required) {
 			t.Errorf("routing characterization is missing safe procedure %q", required)
+		}
+	}
+}
+
+func TestCriticalPathPerformanceContractDefinesDistinctBoundaries(t *testing.T) {
+	contents := strings.ToLower(readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "critical-path-performance.md")))
+	for _, required := range []string{
+		"component ceilings",
+		"real-process latency",
+		"product cost and quality",
+		"concurrency reliability",
+		"supported writers",
+		"supported read-only commands",
+		"compatible migrations",
+		"mixed-version binaries",
+		"foreign sqlite clients",
+		"source acceptance",
+		"artifact acceptance",
+		"disposition acceptance",
+		"pre-source failure is unaccepted",
+		"durable",
+		"retry-safe",
+		"database-unavailable",
+		"process exit `4`",
+		"database_path",
+		"correction",
+		"ktx_verify_root",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Errorf("critical-path contract is missing %q", required)
 		}
 	}
 }

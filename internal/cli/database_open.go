@@ -50,6 +50,9 @@ func openQueryDatabase(path string) (*dbpkg.DB, error) {
 }
 
 func databaseOpenError(path string, err error) error {
+	if classified := classifyDatabaseLockError(path, err); classified != nil {
+		return classified
+	}
 	var schemaErr *dbpkg.SchemaTooNewError
 	if !errors.As(err, &schemaErr) {
 		return err
@@ -75,6 +78,28 @@ func databaseOpenError(path string, err error) error {
 		"executable_sha256": identity.ExecutableSHA256,
 		"build_version":     identity.BuildVersion,
 		"correction":        correction,
+	}
+	return failure
+}
+
+func classifyDatabaseLockError(path string, err error) error {
+	if path == "" || !dbpkg.IsSQLiteLockError(err) {
+		return nil
+	}
+	return databaseUnavailableError(path)
+}
+
+func databaseUnavailableError(path string) error {
+	canonicalDB, err := dbpkg.CanonicalPath(path)
+	if err != nil {
+		return internalError("canonicalize unavailable database path: %v", err)
+	}
+	correction := "wait for the other database client to finish, then retry"
+	failure := newError(CodeDatabaseUnavailable,
+		"database at %s is unavailable; %s", canonicalDB, correction)
+	failure.Extra = map[string]any{
+		"database_path": canonicalDB,
+		"correction":    correction,
 	}
 	return failure
 }

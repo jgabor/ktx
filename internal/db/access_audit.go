@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
 	databaseAccessAuditEnv    = "KTX_VERIFY_DB_AUDIT"
 	forbiddenDatabasePathsEnv = "KTX_VERIFY_FORBIDDEN_DB_PATHS"
+	verificationRootEnv       = "KTX_VERIFY_ROOT"
 	maxAuditPathBytes         = 2048
 )
 
@@ -29,16 +31,21 @@ func AuditPathInspection(path string) error {
 }
 
 func auditDatabaseAccess(operation, path string) error {
+	normalized := lexicalPath(path)
+	root, rootBound := os.LookupEnv(verificationRootEnv)
+	outsideRoot := rootBound && !pathWithinVerificationRoot(root, normalized)
 	auditPath := os.Getenv(databaseAccessAuditEnv)
 	if auditPath == "" {
+		if outsideRoot {
+			return fmt.Errorf("db: verification blocked database outside disposable root %q", normalized)
+		}
 		return nil
 	}
-	normalized := lexicalPath(path)
 	forbidden, err := forbiddenDatabasePaths()
 	if err != nil {
 		return fmt.Errorf("db: access audit configuration: %w", err)
 	}
-	blocked := false
+	blocked := outsideRoot
 	for _, candidate := range forbidden {
 		if normalized == lexicalPath(candidate) {
 			blocked = true
@@ -68,6 +75,9 @@ func auditDatabaseAccess(operation, path string) error {
 		return fmt.Errorf("db: close access audit: %w", closeErr)
 	}
 	if blocked {
+		if outsideRoot {
+			return fmt.Errorf("db: verification blocked database outside disposable root %q", recordPath)
+		}
 		return fmt.Errorf("db: verification blocked forbidden database %q", recordPath)
 	}
 	return nil
@@ -95,4 +105,20 @@ func lexicalPath(path string) string {
 		return filepath.Clean(absolute)
 	}
 	return filepath.Clean(path)
+}
+
+func pathWithinVerificationRoot(root, path string) bool {
+	if root == "" {
+		return false
+	}
+	rootPath, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	relative, err := filepath.Rel(rootPath, path)
+	return err == nil && relative != "." && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }

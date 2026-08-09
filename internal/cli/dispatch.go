@@ -295,12 +295,14 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 
 	// 4. Open the database according to the command's declared access mode.
 	var db *dbpkg.DB
+	var databasePath string
 	if reg.opts.DatabaseAccess != DatabaseNone {
 		path, err := dbpkg.ResolvePath("")
 		if err != nil {
 			printError(stderr, internalError("dispatch: resolve db path: %v", err), formatStr)
 			return ExitInternal
 		}
+		databasePath = path
 		var opened *dbpkg.DB
 		switch reg.opts.DatabaseAccess {
 		case DatabaseReadOnly:
@@ -311,6 +313,9 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
 		}
 		if err != nil {
+			if classified := classifyDatabaseLockError(databasePath, err); classified != nil {
+				err = classified
+			}
 			printError(stderr, err, formatStr)
 			return exitCodeOf(err)
 		}
@@ -340,6 +345,9 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 		var status *commandExit
 		if errors.As(err, &status) {
 			return status.code
+		}
+		if classified := classifyDatabaseLockError(databasePath, err); classified != nil {
+			err = classified
 		}
 		printError(stderr, err, formatStr)
 		return exitCodeOf(err)

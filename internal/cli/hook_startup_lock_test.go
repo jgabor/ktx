@@ -3,9 +3,11 @@ package cli
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +94,68 @@ func TestHookRetriesStartupLock(t *testing.T) {
 	}
 	if err := holder.Wait(); err != nil {
 		t.Fatalf("exclusive lock holder: %v\n%s", err, holderOutput.String())
+	}
+}
+
+func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hook-startup-lock-failure.db")
+	initialized, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	ready := path + ".ready"
+	release := path + ".release"
+	holder, _ := startHookStartupHelper(t, "hold-exclusive", path, ready, release)
+	if err := holder.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.WriteFile(release, nil, 0o600)
+		_ = holder.Wait()
+	})
+	waitForHookStartupFile(t, ready, 5*time.Second)
+
+	t.Setenv("KTX_DB", path)
+	var stdout, stderr bytes.Buffer
+	if code := runWith([]string{"hook"}, &stdout, &stderr); code != ExitInternal {
+		t.Fatalf("hook exit code = %d, want %d; stdout=%q stderr=%q", code, ExitInternal, stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("hook stdout = %q, want empty", stdout.String())
+	}
+
+	var envelope struct {
+		Error struct {
+			Code         string `json:"code"`
+			DatabasePath string `json:"database_path"`
+			Correction   string `json:"correction"`
+			Message      string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode error: %v\nstderr=%s", err, stderr.String())
+	}
+	if envelope.Error.Code != string(CodeDatabaseUnavailable) {
+		t.Errorf("error code = %q, want %q", envelope.Error.Code, CodeDatabaseUnavailable)
+	}
+	wantPath, err := dbpkg.CanonicalPath(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Error.DatabasePath != wantPath {
+		t.Errorf("database_path = %q, want %q", envelope.Error.DatabasePath, wantPath)
+	}
+	if envelope.Error.Correction == "" {
+		t.Error("correction is empty")
+	}
+	for _, forbidden := range []string{"database is locked", "sqlite_busy", "sqlite_locked"} {
+		if strings.Contains(strings.ToLower(stderr.String()), forbidden) {
+			t.Errorf("stderr exposes driver lock wording %q: %q", forbidden, stderr.String())
+		}
 	}
 }
 

@@ -115,7 +115,7 @@ func dbMigrateLogic(pathOverride string, args []string, format string, stdout io
 		if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
 			return nil, notFoundError("ktx db migrate: database %q does not exist", canonical)
 		}
-		return nil, internalError("ktx db migrate: open database read-only: %v", err)
+		return nil, databaseOpenError(path, err)
 	}
 	var before int
 	readErr := readOnly.QueryRow(`PRAGMA user_version`).Scan(&before)
@@ -179,7 +179,7 @@ func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, e
 	}
 	report, err := dbreport.Generate(path, includeIdentifiers, time.Now())
 	if err != nil {
-		return nil, internalError("ktx db report: %v", err)
+		return nil, databaseOpenError(path, err)
 	}
 	if output != "-" {
 		if err := dbreport.WriteJSON(output, report); err != nil {

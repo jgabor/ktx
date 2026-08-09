@@ -1,0 +1,47 @@
+id: brgeelxuec
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-09
+    status: open
+    reviewed: 2026-08-09
+    critic_issues: 9 found, 9 addressed, 0 dismissed
+    title: "Plan: Measure and harden critical-path performance"
+  what: Establish reproducible engineering performance evidence, remove lock failures caused by supported ktx concurrency, and make the resulting reliability contract continuously verifiable without widening the public CLI.
+  why: ktx must stay invisible on an agent's critical path. Measured component and process behavior should direct optimization, while accepted evidence remains complete and SQLite contention never leaks as a raw operational failure.
+  constraints: Preserve one Go binary, one SQLite product database, synchronous in-flight transformation, original recovery before lossy delivery, append-oriented evidence authority, genuine read-only queries, existing cost and quality benchmark meaning, and conservative pass-through. Use disposable application roots for development evidence. Do not add a daemon, public performance command, runtime dependency, or durable spool without new evidence and approval. Publication requires explicit approval to archive the unrelated unfinished predecessor unchanged.
+  overall_acceptance: GIVEN representative component, process, migration, reader, writer, and foreign-lock workloads WHEN the completed system is measured and stressed THEN every record acknowledged as accepted is durable exactly once, events blocked before source acceptance pass through unchanged without a persistence claim, supported ktx concurrency exposes no SQLite lock error, bottleneck evidence is reproducible, and isolated repository verification passes.
+  scope:
+    included:
+      - explicit engineering performance, participant, acceptance, and database-availability contracts
+      - fixed component benchmark matrix and benchmark-only observability
+      - disposable real-process load and contention harness
+      - same-runtime callback ordering and process-local database ownership
+      - cross-process writer coordination and crash recovery
+      - supported reader and migration integration
+      - bounded typed behavior for foreign locks
+      - deterministic contention verification and current documentation synchronization
+    excluded:
+      - public ktx perf command
+      - daemon or general evaluation harness
+      - changes to cost and quality benchmark semantics
+      - ambient live-database experiments
+      - provider performance claims
+      - progress guarantees for arbitrary foreign SQLite clients
+    deferred:
+      - persistent session-owned hook worker
+      - durable ingestion spool
+      - hard performance thresholds on uncontrolled hosts
+      - public performance surface
+  design: Define separate component-ceiling, real-process, and concurrency contracts before changing behavior. Establish reproducible baselines, then close same-runtime overlap and give supported database participants one coherent ownership model. Preserve source durability and conservative delivery at each acceptance boundary. Integrate readers and compatible migrations, normalize unavoidable foreign contention, and convert the resulting invariants into mandatory checks while keeping timing descriptive unless a controlled host supports a stable budget.
+  unknowns:
+    - question: Can coordinated access to the single local database eliminate ktx-generated lock failures without exceeding the existing hook critical-path budget?
+      affects_task: 5
+      resolve_by: Use tasks 2 and 3 evidence before retaining task 5 changes. If correctness and the existing budget cannot both hold, stop tasks 5 through 7 and re-plan the deferred spool or persistent worker.
+    - question: What performance regression threshold is stable on available hosts?
+      affects_task: 8
+      resolve_by: Use repeated baseline variance. Gate timing only after a controlled environment, workload, sample policy, variance rule, and numeric budget are approved; otherwise keep timing descriptive.
+  surprises:
+    []
+  previous_plan_archived: bigjhadugb

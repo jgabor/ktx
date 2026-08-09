@@ -1,0 +1,19 @@
+id: kmmdueqvjw
+artifact: plan
+record:
+  name: Make contention and performance verification durable
+  depends_on:
+    - dwqcferacw
+    - fdysxqmvxf
+    - iuyndimqgm
+    - jvqmmnjbre
+    - sikwslbpkj
+    - aqyctmdhbw
+  status: pending
+  acceptance:
+    - GIVEN normal repository verification WHEN deterministic contention checks run THEN supported concurrent writes, mixed reads, compatible migration, mixed-version rejection, process termination, retries, and exact row reconciliation pass without ambient database access.
+    - GIVEN each new reliability invariant WHEN tests are inspected THEN it has at least one successful case and one adverse case that would fail if the invariant regressed.
+    - GIVEN extended engineering verification WHEN the load harness runs repeatedly THEN it emits retained descriptive results with environment and workload identity and no unsupported causal or provider claim.
+    - GIVEN a host lacks an approved stable timing budget WHEN verification evaluates performance THEN timing remains informational while correctness, exact reconciliation, and zero-lock invariants remain mandatory.
+    - GIVEN current user and developer documentation WHEN inspected THEN the guarantee boundary, acceptance phases, typed recovery, harness purpose, and distinction from ktx bench agree.
+  plan: brgeelxuec

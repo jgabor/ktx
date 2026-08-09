@@ -1,0 +1,14 @@
+id: etszstkbbs
+artifact: plan
+record:
+  name: Define measurement, participant, acceptance, and availability contracts
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN engineering performance is discussed WHEN its contract is inspected THEN component ceilings, real-process latency, product cost and quality, and concurrency reliability remain distinct evidence classes.
+    - GIVEN supported writers, supported read-only commands, compatible migrations, mixed-version binaries, and foreign SQLite clients WHEN behavior is specified THEN each participant has an explicit ownership span and required outcome.
+    - GIVEN a hook event crosses persistence phases WHEN acceptance is evaluated THEN source, artifact, and disposition acceptance are distinct; a pre-source failure is unaccepted, while every committed record remains durable and retry-safe.
+    - GIVEN database contention outlives bounded retries WHEN an operation fails THEN error code database-unavailable exits 4, identifies the database and correction, and never exposes database is locked, SQLITE_BUSY, or SQLITE_LOCKED wording.
+    - GIVEN development verification starts WHEN storage is resolved THEN every process uses a fresh disposable HOME and XDG root set, clears inherited KTX_DB, selects only a database beneath that root, and cannot access the ambient live database.
+  plan: brgeelxuec

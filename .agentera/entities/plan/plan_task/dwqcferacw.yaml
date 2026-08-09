@@ -1,0 +1,14 @@
+id: dwqcferacw
+artifact: plan
+record:
+  name: Establish component performance baselines and observability
+  depends_on:
+    - etszstkbbs
+  status: pending
+  acceptance:
+    - GIVEN parsers, configuration, routing, built-in stages, complete pipelines, and persistence operations WHEN benchmarked THEN fixed 1024-byte, 65536-byte, and 1048576-byte plain-text, JSON, and NDJSON workloads have stable names, generator seeds or fixture hashes, and versioned result fields.
+    - GIVEN component benchmarks run WHEN results are emitted THEN they report latency, throughput, processed bytes, and allocations with Go, operating-system, processor, filesystem, and workload identity.
+    - GIVEN success, passthrough, malformed, and failure workloads WHEN benchmarked THEN each testable unit has at least one ordinary and one adverse case without changing production behavior.
+    - GIVEN benchmark-only timing is enabled WHEN product evidence is inspected THEN no product database schema, telemetry meaning, or public command contract has changed.
+    - GIVEN at least one warm-up and five measured samples WHEN baselines are compared THEN reported distributions and environment identity make material run-to-run variance visible.
+  plan: brgeelxuec

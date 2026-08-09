@@ -1,0 +1,15 @@
+id: ynphmagjra
+artifact: progress
+record:
+  timestamp: 2026-08-09 18:32
+  type: fix
+  phase: build
+  what: Added docs/critical-path-performance.md, normalized exhausted SQLite lock opens in internal/cli/database_open.go to database-unavailable, and made magefile.go enforce isolated database-path ownership.
+  context:
+    intent: Establish authoritative, testable boundaries before component benchmarks, process loads, or concurrency coordination.
+    constraints: Preserve one binary, one SQLite product database, synchronous hook transformation, source-before-lossy delivery, read-only queries, and existing bench cost and quality semantics.
+    scope: docs/critical-path-performance.md, internal/cli/database_open.go, magefile.go, and focused regressions only.
+  discovered: The existing verification audit rejected ambient database paths but allowed test temporary databases outside its disposable root; setting TMPDIR beneath the root and rejecting outside-root paths closes that gap.
+  verified: Focused isolated go test runs passed for database access and lock bounds, then hook lock rendering and contract documentation. Isolated mage test passed with 969 audited attempts and forbidden=0. Isolated mage check passed tests, vet, lint with 0 issues, build, and the same forbidden=0 audit. The rebuilt ./build/ktx resolved db path beneath a fresh disposable root with KTX_DB unset.
+  next: Later work can add component baselines, real-process load scenarios, and coordination mechanisms without changing this contract.
+  publication_order: 66

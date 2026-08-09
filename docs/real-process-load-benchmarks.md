@@ -4,6 +4,9 @@
 developer-only harness, not a `ktx` command. It does not change `ktx bench`
 cost or quality semantics, and its timings are descriptive rather than gates.
 
+For a retained load report paired with component measurements, use the
+[durable engineering verification path](critical-path-performance.md#durable-engineering-verification).
+
 Run it from the repository root:
 
 ```sh
@@ -69,7 +72,9 @@ accepted record against the same physical database file.
 Scenario participants identify `supported-ktx` or `foreign-sqlite`. A foreign
 holder result is never counted as a supported-concurrency failure. Each
 scenario includes a bounded outcome, a process timeout, and a reconciliation
-oracle. A mismatch is evidence about current behavior, not a harness crash.
+oracle. `mage loadBench` reports the result descriptively; the durable
+engineering path rejects a mismatch, an unexpected supported lock failure, or
+a missing required scenario without applying a timing threshold.
 
 ## Safety checks
 

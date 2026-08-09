@@ -23,6 +23,32 @@ The developer-only [real-process load measurements](real-process-load-benchmarks
 runner supplies the second class and reports current contention behavior without
 changing it.
 
+## Durable engineering verification
+
+Use a new caller-chosen directory to retain the component and real-process
+reports together:
+
+```sh
+mkdir -p docs/notes
+KTX_ENGINEERING_EVIDENCE_DIR="$PWD/docs/notes/engineering-run" mage engineeringVerify
+```
+
+The directory must not already exist. The target runs the existing
+`mage componentBench` and `mage loadBench` targets in separate fresh Mage
+roots and writes `component-bench.json`, `real-process-load.json`, and
+`manifest.json`. The manifest records each report's schema version and SHA-256;
+the reports retain their environment and workload identities. It does not write
+product SQLite state.
+
+This is extended engineering evidence, not a timing gate or a replacement for
+`mage check`. It fails on reporter validation or the load harness's mandatory
+correctness, reconciliation, and supported-lock checks, but does not compare
+timing values to a threshold. Run `mage check` separately for the repository's
+ordinary test, mixed-version, and contract coverage. The target is not part of
+`mage verify` or tracked CI until a stable host and timing policy are approved.
+It does not change `ktx bench` cost or quality evidence, or make a provider
+claim.
+
 ## Participants and availability
 
 Each participant owns only the span below. No participant may claim another

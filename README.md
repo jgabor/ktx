@@ -281,6 +281,16 @@ mage verify        # authoritative local and CI verification
 mage build         # build build/ktx
 ```
 
+For retained, descriptive component and contention reports outside product
+SQLite, choose a new directory and run:
+
+```bash
+KTX_ENGINEERING_EVIDENCE_DIR="$PWD/docs/notes/engineering-run" mage engineeringVerify
+```
+
+This extended developer path retains report and manifest files. It does not add
+a timing gate, replace `mage check`, or change `ktx bench` evidence.
+
 `mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`, and
 the portable replay gate. Tracked CI runs this same command on every push and
 pull request. Verification requires both `golangci-lint` and `govulncheck`.

@@ -77,12 +77,18 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 }
 
 func TestCriticalPathPerformanceContractDefinesDistinctBoundaries(t *testing.T) {
-	contents := strings.ToLower(readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "critical-path-performance.md")))
+	contents := strings.ToLower(strings.ReplaceAll(readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "critical-path-performance.md")), "\n", " "))
 	for _, required := range []string{
 		"component ceilings",
 		"real-process latency",
 		"product cost and quality",
 		"concurrency reliability",
+		"durable engineering verification",
+		"mage engineeringverify",
+		"ktx_engineering_evidence_dir",
+		"manifest.json",
+		"not a timing gate",
+		"not part of `mage verify`",
 		"supported writers",
 		"supported read-only commands",
 		"compatible migrations",

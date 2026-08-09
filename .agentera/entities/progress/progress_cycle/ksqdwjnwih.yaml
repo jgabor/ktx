@@ -1,0 +1,15 @@
+id: ksqdwjnwih
+artifact: progress
+record:
+  timestamp: 2026-08-09 21:46
+  type: fix
+  phase: build
+  what: Added durable engineering verification for component and contention evidence without adding a product command or timing gate.
+  context:
+    intent: Retain reproducible component and real-process reports while making reconciliation and supported-lock correctness mandatory.
+    constraints: Reuse Mage component/load runners, preserve fresh HOME/XDG/TMPDIR roots and database audits, keep reports outside product SQLite, and avoid CI or provider-performance claims.
+    scope: Mage engineeringVerify report retention and validation, load-harness mandatory invariant validation, focused success/adverse tests, and aligned developer documentation.
+  discovered: loadBench previously emitted reconciliation mismatches and classified failures as descriptive report data, so extended verification could succeed without enforcing the mandatory correctness boundary.
+  verified: env -u KTX_DB KTX_ENGINEERING_EVIDENCE_DIR="$PWD/docs/notes/engineering-kmmdueqvjw-20260809-final" mage engineeringVerify passed. It retained manifest schema 1 with component report SHA-256 e49c5f6ba287858f64e4a23a0b303d09a27f3ff92d08ffa4d505809caa0fd5cb and load report SHA-256 4dc6d1c3a64e9dca9733d9668cf75fecab659c23ccc784df7f1129349414c714. Its component child recorded 108 opens with forbidden=0; its load child recorded 1086 accesses (open 451, open_read_only 92, resolve 543) with forbidden=0. Focused loadbench, componentbench, and critical-path documentation tests passed; the load validator covers success plus reconciliation and untyped-foreign-failure adverse cases. Isolated mage check passed race tests, vet, lint with 0 issues, build, and recorded 1003 accesses with forbidden=0.
+  next: kmmdueqvjw is complete; timing remains informational until a stable host policy is approved.
+  publication_order: 73

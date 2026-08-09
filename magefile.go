@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -31,10 +32,37 @@ const (
 	boundaryNonceHexLength    = 32
 	maxForbiddenPayloadBytes  = 8192
 	maxForbiddenDatabasePaths = 16
+	engineeringEvidenceDirEnv = "KTX_ENGINEERING_EVIDENCE_DIR"
+	engineeringManifestFile   = "manifest.json"
 )
 
 var applicationRootVariables = []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
 var toolCacheVariables = []string{"GOCACHE", "GOMODCACHE", "BUN_INSTALL_CACHE_DIR", "GOLANGCI_LINT_CACHE"}
+
+type engineeringReportSpec struct {
+	name         string
+	target       string
+	file         string
+	identityKeys []string
+}
+
+var engineeringReportSpecs = []engineeringReportSpec{
+	{name: "component", target: "componentBench", file: "component-bench.json", identityKeys: []string{"machine", "workloads", "benchmarks"}},
+	{name: "load", target: "loadBench", file: "real-process-load.json", identityKeys: []string{"environment", "payloads", "measurements", "scenarios"}},
+}
+
+type engineeringEvidenceManifest struct {
+	SchemaVersion int                         `json:"schema_version"`
+	Reports       []engineeringEvidenceReport `json:"reports"`
+}
+
+type engineeringEvidenceReport struct {
+	Name          string `json:"name"`
+	MageTarget    string `json:"mage_target"`
+	File          string `json:"file"`
+	SchemaVersion int    `json:"report_schema_version"`
+	SHA256        string `json:"sha256"`
+}
 
 func Build() error {
 	if err := os.MkdirAll("build", 0o755); err != nil {
@@ -88,6 +116,120 @@ func loadBench() error {
 		return err
 	}
 	return run("go", "run", "./tools/loadbench")
+}
+
+// EngineeringVerify retains component and real-process reports in an explicit
+// caller-owned directory. Each nested Mage target creates and audits its own
+// disposable application root.
+func EngineeringVerify() error {
+	directory, err := engineeringEvidenceDirectory()
+	if err != nil {
+		return err
+	}
+	return engineeringVerify(directory)
+}
+
+func engineeringEvidenceDirectory() (string, error) {
+	directory := strings.TrimSpace(os.Getenv(engineeringEvidenceDirEnv))
+	if directory == "" {
+		return "", fmt.Errorf("%s must name a new evidence directory", engineeringEvidenceDirEnv)
+	}
+	return filepath.Clean(directory), nil
+}
+
+func engineeringVerify(directory string) error {
+	if err := createEngineeringEvidenceDirectory(directory); err != nil {
+		return err
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve Mage executable: %w", err)
+	}
+	reports := make([]engineeringEvidenceReport, 0, len(engineeringReportSpecs))
+	for _, spec := range engineeringReportSpecs {
+		path := filepath.Join(directory, spec.file)
+		if err := runMageTargetToFile(executable, spec.target, path); err != nil {
+			return fmt.Errorf("run %s: %w", spec.target, err)
+		}
+		schemaVersion, digest, err := summarizeEngineeringReport(path, spec.identityKeys)
+		if err != nil {
+			return fmt.Errorf("validate %s: %w", spec.file, err)
+		}
+		reports = append(reports, engineeringEvidenceReport{
+			Name: spec.name, MageTarget: spec.target, File: spec.file,
+			SchemaVersion: schemaVersion, SHA256: digest,
+		})
+	}
+	return writeEngineeringEvidenceManifest(directory, reports)
+}
+
+func createEngineeringEvidenceDirectory(directory string) error {
+	if err := os.MkdirAll(filepath.Dir(directory), 0o700); err != nil {
+		return fmt.Errorf("create engineering evidence parent: %w", err)
+	}
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		return fmt.Errorf("create new engineering evidence directory %q: %w", directory, err)
+	}
+	return nil
+}
+
+func runMageTargetToFile(executable, target, path string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	command := exec.Command(executable, target)
+	command.Env = os.Environ()
+	command.Stdout = file
+	command.Stderr = os.Stderr
+	runErr := command.Run()
+	closeErr := file.Close()
+	if runErr != nil {
+		return runErr
+	}
+	return closeErr
+}
+
+func summarizeEngineeringReport(path string, identityKeys []string) (int, string, error) {
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return 0, "", err
+	}
+	var report map[string]json.RawMessage
+	if err := json.Unmarshal(contents, &report); err != nil {
+		return 0, "", err
+	}
+	var schemaVersion int
+	if err := json.Unmarshal(report["schema_version"], &schemaVersion); err != nil || schemaVersion <= 0 {
+		return 0, "", fmt.Errorf("schema_version must be a positive integer")
+	}
+	for _, key := range identityKeys {
+		value := strings.TrimSpace(string(report[key]))
+		if value == "" || value == "null" || value == "[]" || value == "{}" {
+			return 0, "", fmt.Errorf("%s is missing", key)
+		}
+	}
+	sum := sha256.Sum256(contents)
+	return schemaVersion, hex.EncodeToString(sum[:]), nil
+}
+
+func writeEngineeringEvidenceManifest(directory string, reports []engineeringEvidenceReport) error {
+	contents, err := json.MarshalIndent(engineeringEvidenceManifest{SchemaVersion: 1, Reports: reports}, "", "  ")
+	if err != nil {
+		return err
+	}
+	contents = append(contents, '\n')
+	file, err := os.OpenFile(filepath.Join(directory, engineeringManifestFile), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	_, writeErr := file.Write(contents)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	return closeErr
 }
 
 // ReplayFixture runs the bounded, offline repository gate for the retained fixture.

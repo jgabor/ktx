@@ -4,6 +4,9 @@
 `ktx` command, change `ktx bench` cost or quality semantics, or make a product
 performance claim.
 
+For a retained component report paired with the real-process report, use the
+[durable engineering verification path](critical-path-performance.md#durable-engineering-verification).
+
 Run it through Mage so it receives a fresh disposable application root:
 
 ```sh

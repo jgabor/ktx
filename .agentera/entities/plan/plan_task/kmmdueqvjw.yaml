@@ -9,7 +9,7 @@ record:
     - jvqmmnjbre
     - sikwslbpkj
     - aqyctmdhbw
-  status: pending
+  status: complete
   acceptance:
     - GIVEN normal repository verification WHEN deterministic contention checks run THEN supported concurrent writes, mixed reads, compatible migration, mixed-version rejection, process termination, retries, and exact row reconciliation pass without ambient database access.
     - GIVEN each new reliability invariant WHEN tests are inspected THEN it has at least one successful case and one adverse case that would fail if the invariant regressed.

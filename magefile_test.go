@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,65 @@ func TestHermeticVerificationEnvironment(t *testing.T) {
 func TestHermeticTargetsUseSingleBoundary(t *testing.T) {
 	if got := os.Getenv(hermeticBoundaryIDEnv); got == "" {
 		t.Fatal("hermetic boundary has no invocation identifier")
+	}
+}
+
+func TestEngineeringEvidenceDirectoryRequiresNewExplicitPath(t *testing.T) {
+	t.Setenv(engineeringEvidenceDirEnv, "")
+	if _, err := engineeringEvidenceDirectory(); err == nil {
+		t.Fatal("missing evidence directory succeeded")
+	}
+
+	directory := filepath.Join(t.TempDir(), "evidence")
+	t.Setenv(engineeringEvidenceDirEnv, directory)
+	got, err := engineeringEvidenceDirectory()
+	if err != nil || got != directory {
+		t.Fatalf("engineering evidence directory = %q, %v", got, err)
+	}
+	if err := createEngineeringEvidenceDirectory(got); err != nil {
+		t.Fatal(err)
+	}
+	if err := createEngineeringEvidenceDirectory(got); err == nil {
+		t.Fatal("existing evidence directory accepted")
+	}
+}
+
+func TestEngineeringReportSummaryRequiresIdentity(t *testing.T) {
+	directory := t.TempDir()
+	valid := filepath.Join(directory, "component.json")
+	if err := os.WriteFile(valid, []byte(`{"schema_version":1,"machine":{"go_version":"go"},"workloads":[{"name":"fixed"}],"benchmarks":[{"name":"parser"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	schemaVersion, digest, err := summarizeEngineeringReport(valid, engineeringReportSpecs[0].identityKeys)
+	if err != nil || schemaVersion != 1 || len(digest) != 64 {
+		t.Fatalf("valid report summary = %d, %q, %v", schemaVersion, digest, err)
+	}
+
+	invalid := filepath.Join(directory, "invalid.json")
+	if err := os.WriteFile(invalid, []byte(`{"schema_version":1,"machine":{"go_version":"go"},"workloads":[{"name":"fixed"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := summarizeEngineeringReport(invalid, engineeringReportSpecs[0].identityKeys); err == nil || !strings.Contains(err.Error(), "benchmarks") {
+		t.Fatalf("missing identity result = %v", err)
+	}
+}
+
+func TestEngineeringManifestRetainsReportReferences(t *testing.T) {
+	directory := t.TempDir()
+	reports := []engineeringEvidenceReport{{Name: "component", MageTarget: "componentBench", File: "component-bench.json", SchemaVersion: 1, SHA256: strings.Repeat("a", 64)}}
+	if err := writeEngineeringEvidenceManifest(directory, reports); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(directory, engineeringManifestFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest engineeringEvidenceManifest
+	if err := json.Unmarshal(contents, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.SchemaVersion != 1 || len(manifest.Reports) != 1 || manifest.Reports[0] != reports[0] {
+		t.Fatalf("manifest = %+v", manifest)
 	}
 }
 

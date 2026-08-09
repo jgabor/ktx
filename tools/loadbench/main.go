@@ -256,6 +256,9 @@ func run() (report, error) {
 			return report{}, err
 		}
 		measured.Scenarios = scenarios
+		if err := validateMandatoryLoadReport(measured); err != nil {
+			return report{}, err
+		}
 		return measured, nil
 	})
 }
@@ -283,6 +286,157 @@ func validateFixtures(fixtures []fixture) error {
 		}
 	}
 	return nil
+}
+
+func validateMandatoryLoadReport(measured report) error {
+	if measured.SchemaVersion != reportSchemaVersion || measured.WarmupRounds != warmupRounds || measured.MeasuredRounds != measuredRounds {
+		return fmt.Errorf("report contract schema=%d warmup=%d measured=%d", measured.SchemaVersion, measured.WarmupRounds, measured.MeasuredRounds)
+	}
+
+	seenConcurrency := make(map[int]bool, len(concurrencyLevels))
+	seenStream := false
+	for _, measurement := range measured.Measurements {
+		if err := validateMandatoryRound(measurement.Warmup); err != nil {
+			return fmt.Errorf("%s warmup: %w", measurement.Surface, err)
+		}
+		if len(measurement.Rounds) != measuredRounds {
+			return fmt.Errorf("%s measured rounds=%d, want %d", measurement.Surface, len(measurement.Rounds), measuredRounds)
+		}
+		for index, round := range measurement.Rounds {
+			if err := validateMandatoryRound(round); err != nil {
+				return fmt.Errorf("%s round %d: %w", measurement.Surface, index+1, err)
+			}
+		}
+
+		switch measurement.Surface {
+		case "one-shot-hook":
+			if !containsConcurrency(concurrencyLevels, measurement.Concurrency) || seenConcurrency[measurement.Concurrency] {
+				return fmt.Errorf("unexpected one-shot-hook concurrency %d", measurement.Concurrency)
+			}
+			seenConcurrency[measurement.Concurrency] = true
+			if err := validateMixedReadRounds(measurement); err != nil {
+				return err
+			}
+		case "sustained-wrapper-stream":
+			if seenStream || measurement.StreamEvents != streamEvents {
+				return fmt.Errorf("invalid sustained wrapper measurement")
+			}
+			seenStream = true
+		default:
+			return fmt.Errorf("unexpected measurement surface %q", measurement.Surface)
+		}
+	}
+	for _, concurrency := range concurrencyLevels {
+		if !seenConcurrency[concurrency] {
+			return fmt.Errorf("missing one-shot-hook concurrency %d", concurrency)
+		}
+	}
+	if !seenStream {
+		return fmt.Errorf("missing sustained-wrapper-stream measurement")
+	}
+	return validateMandatoryScenarios(measured.Scenarios)
+}
+
+func validateMandatoryRound(round round) error {
+	if !round.FreshOwnedDatabase || round.WriterAttempts <= 0 || round.WriterCompletions != round.WriterAttempts {
+		return fmt.Errorf("owned database or writer completion invariant failed")
+	}
+	if !round.Reconciliation.Matches {
+		return fmt.Errorf("reconciliation mismatch")
+	}
+	if len(round.Metrics.FailureCodes) != 0 || round.Outcome != "completed" {
+		return fmt.Errorf("supported operation reported failures")
+	}
+	for _, participant := range round.Participants {
+		if participant.Class == "supported-ktx" && participant.FailureCode != "" {
+			return fmt.Errorf("supported participant %q reported %q", participant.Role, participant.FailureCode)
+		}
+	}
+	return nil
+}
+
+func validateMixedReadRounds(measurement measurement) error {
+	rounds := append([]round{measurement.Warmup}, measurement.Rounds...)
+	for index, round := range rounds {
+		if !hasParticipant(round.Participants, "supported-ktx", "one-shot-hook-writers", "completed", "") ||
+			!hasParticipant(round.Participants, "supported-ktx", "read-only-query", "ok", "") {
+			return fmt.Errorf("one-shot-hook concurrency %d round %d lacks successful writer/read pair", measurement.Concurrency, index)
+		}
+	}
+	return nil
+}
+
+func validateMandatoryScenarios(scenarios []scenario) error {
+	if len(scenarios) != 7 {
+		return fmt.Errorf("scenario count=%d, want 7", len(scenarios))
+	}
+	byName := make(map[string]scenario, len(scenarios))
+	for _, scenario := range scenarios {
+		if _, exists := byName[scenario.Name]; exists {
+			return fmt.Errorf("duplicate scenario %q", scenario.Name)
+		}
+		if !scenario.FreshOwnedDatabase || !scenario.Reconciliation.Matches {
+			return fmt.Errorf("scenario %q lost ownership or reconciliation", scenario.Name)
+		}
+		byName[scenario.Name] = scenario
+	}
+	for _, name := range []string{
+		"supported-writer-path-alias", "foreign-held-reader", "foreign-held-writer", "supported-compatible-migration-race",
+	} {
+		scenario, ok := byName[name]
+		if !ok {
+			return fmt.Errorf("missing scenario %q", name)
+		}
+		if len(scenario.Metrics.FailureCodes) != 0 || scenario.Outcome != "completed" {
+			return fmt.Errorf("scenario %q reported an unexpected failure", name)
+		}
+	}
+
+	foreign, ok := byName["foreign-writer-reader-exhaustion"]
+	if !ok || !onlyFailure(foreign.Metrics, "database-unavailable") || foreign.Outcome != "completed-with-classified-failures" ||
+		!hasParticipant(foreign.Participants, "supported-ktx", "read-only-db-report", "database-unavailable", "database-unavailable") {
+		return fmt.Errorf("foreign writer/read-only exhaustion did not retain the typed availability result")
+	}
+	for _, participant := range foreign.Participants {
+		if participant.Role == "read-only-db-report" && participant.ExitCode != 4 {
+			return fmt.Errorf("foreign writer/read-only exhaustion exit=%d, want 4", participant.ExitCode)
+		}
+	}
+
+	duplicate, ok := byName["supported-duplicate-delivery"]
+	if !ok || duplicate.Metrics.Retries <= 0 || len(duplicate.Metrics.FailureCodes) != 0 || duplicate.Outcome != "completed" {
+		return fmt.Errorf("duplicate delivery did not converge through a retry")
+	}
+
+	termination, ok := byName["supported-process-termination-ownership-recovery"]
+	if !ok || !onlyFailure(termination.Metrics, "terminated") || termination.Outcome != "completed-with-classified-failures" ||
+		!hasParticipant(termination.Participants, "supported-ktx", "terminated-one-shot-hook", "terminated", "terminated") ||
+		!hasParticipant(termination.Participants, "supported-ktx", "recovery-one-shot-hook", "ok", "") {
+		return fmt.Errorf("process termination did not recover supported ownership")
+	}
+	return nil
+}
+
+func containsConcurrency(values []int, target int) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func onlyFailure(measured metrics, code string) bool {
+	return len(measured.FailureCodes) == 1 && measured.FailureCodes[code] == 1
+}
+
+func hasParticipant(participants []participant, class, role, outcome, failureCode string) bool {
+	for _, participant := range participants {
+		if participant.Class == class && participant.Role == role && participant.Outcome == outcome && participant.FailureCode == failureCode {
+			return true
+		}
+	}
+	return false
 }
 
 func fixedFixtures() []fixture {

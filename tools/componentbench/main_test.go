@@ -164,6 +164,7 @@ func TestComponentBenchmarkDocumentation(t *testing.T) {
 		"five measured samples",
 		"ktx bench",
 		"KTX_DB",
+		"durable engineering verification",
 	} {
 		if !strings.Contains(normalized, required) {
 			t.Errorf("documentation is missing %q", required)

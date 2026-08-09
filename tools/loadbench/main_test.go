@@ -94,6 +94,34 @@ func TestMetricsAndReconciliationExposeVarianceAndFailures(t *testing.T) {
 	}
 }
 
+func TestMandatoryLoadReportValidation(t *testing.T) {
+	t.Run("accepts required scenarios", func(t *testing.T) {
+		if err := validateMandatoryLoadReport(mandatoryLoadReport()); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("rejects reconciliation mismatch", func(t *testing.T) {
+		measured := mandatoryLoadReport()
+		measured.Measurements[0].Rounds[0].Reconciliation.Matches = false
+		if err := validateMandatoryLoadReport(measured); err == nil || !strings.Contains(err.Error(), "reconciliation") {
+			t.Fatalf("reconciliation mismatch = %v", err)
+		}
+	})
+
+	t.Run("rejects untyped foreign exhaustion", func(t *testing.T) {
+		measured := mandatoryLoadReport()
+		for index := range measured.Scenarios {
+			if measured.Scenarios[index].Name == "foreign-writer-reader-exhaustion" {
+				measured.Scenarios[index].Metrics.FailureCodes = map[string]int{"internal": 1}
+			}
+		}
+		if err := validateMandatoryLoadReport(measured); err == nil || !strings.Contains(err.Error(), "foreign writer") {
+			t.Fatalf("untyped foreign exhaustion = %v", err)
+		}
+	})
+}
+
 func TestLoadBenchmarkDocumentation(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "docs", "real-process-load-benchmarks.md"))
 	if err != nil {
@@ -113,10 +141,79 @@ func TestLoadBenchmarkDocumentation(t *testing.T) {
 		"foreign-writer-reader-exhaustion",
 		"stale-compatible",
 		"ktx bench",
+		"durable engineering verification",
 	} {
 		if !strings.Contains(normalized, required) {
 			t.Errorf("documentation is missing %q", required)
 		}
+	}
+}
+
+func mandatoryLoadReport() report {
+	measured := report{SchemaVersion: reportSchemaVersion, WarmupRounds: warmupRounds, MeasuredRounds: measuredRounds}
+	for _, concurrency := range concurrencyLevels {
+		measurement := measurement{Surface: "one-shot-hook", Concurrency: concurrency, Warmup: mandatoryMeasurementRound()}
+		for range measuredRounds {
+			measurement.Rounds = append(measurement.Rounds, mandatoryMeasurementRound())
+		}
+		measured.Measurements = append(measured.Measurements, measurement)
+	}
+	stream := measurement{Surface: "sustained-wrapper-stream", StreamEvents: streamEvents, Warmup: mandatoryRound()}
+	for range measuredRounds {
+		stream.Rounds = append(stream.Rounds, mandatoryRound())
+	}
+	measured.Measurements = append(measured.Measurements, stream)
+
+	for _, name := range []string{
+		"supported-writer-path-alias", "foreign-held-reader", "foreign-held-writer", "supported-compatible-migration-race",
+	} {
+		measured.Scenarios = append(measured.Scenarios, mandatoryScenario(name))
+	}
+	foreign := mandatoryScenario("foreign-writer-reader-exhaustion")
+	foreign.Metrics.FailureCodes = map[string]int{"database-unavailable": 1}
+	foreign.Outcome = "completed-with-classified-failures"
+	foreign.Participants = []participant{{Class: "supported-ktx", Role: "read-only-db-report", Outcome: "database-unavailable", ExitCode: 4, FailureCode: "database-unavailable"}}
+	measured.Scenarios = append(measured.Scenarios, foreign)
+
+	duplicate := mandatoryScenario("supported-duplicate-delivery")
+	duplicate.Metrics.Retries = 1
+	measured.Scenarios = append(measured.Scenarios, duplicate)
+
+	termination := mandatoryScenario("supported-process-termination-ownership-recovery")
+	termination.Metrics.FailureCodes = map[string]int{"terminated": 1}
+	termination.Outcome = "completed-with-classified-failures"
+	termination.Participants = []participant{
+		{Class: "supported-ktx", Role: "terminated-one-shot-hook", Outcome: "terminated", FailureCode: "terminated"},
+		{Class: "supported-ktx", Role: "recovery-one-shot-hook", Outcome: "ok"},
+	}
+	measured.Scenarios = append(measured.Scenarios, termination)
+	return measured
+}
+
+func mandatoryMeasurementRound() round {
+	measured := mandatoryRound()
+	measured.Participants = []participant{
+		{Class: "supported-ktx", Role: "one-shot-hook-writers", Outcome: "completed"},
+		{Class: "supported-ktx", Role: "read-only-query", Outcome: "ok"},
+	}
+	return measured
+}
+
+func mandatoryRound() round {
+	return round{
+		FreshOwnedDatabase: true, WriterAttempts: 1, WriterCompletions: 1,
+		Participants:   []participant{{Class: "supported-ktx", Role: "writer", Outcome: "completed"}},
+		Metrics:        metrics{FailureCodes: map[string]int{}},
+		Reconciliation: reconciliation{Matches: true}, Outcome: "completed",
+	}
+}
+
+func mandatoryScenario(name string) scenario {
+	return scenario{
+		Name: name, FreshOwnedDatabase: true,
+		Participants:   []participant{{Class: "supported-ktx", Role: "writer", Outcome: "ok"}},
+		Metrics:        metrics{FailureCodes: map[string]int{}},
+		Reconciliation: reconciliation{Matches: true}, Outcome: "completed",
 	}
 }
 

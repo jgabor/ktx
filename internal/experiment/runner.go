@@ -105,7 +105,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 		experimentID = runner.experimentID(ctx, options)
 	}
 	cacheControl := resolvedCacheControl{}
-	if options.methodologyVersion == "v5-cache-aware" {
+	if isCacheAwareMethodology(options.methodologyVersion) {
 		request := CacheCapabilityRequest{Runtime: "opencode", RuntimeVersion: runtime.Identities["opencode"], Provider: provider, Model: model}
 		cacheControl, err = resolveCacheControl(options.CacheControl, experimentID, request, runner.ResolveCacheCapability)
 		if err != nil {
@@ -157,7 +157,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 		return "", nil, 2, err
 	}
 	manifest.Pricing = pricing
-	if options.methodologyVersion == "v5-cache-aware" {
+	if isCacheAwareMethodology(options.methodologyVersion) {
 		manifest.CacheControl = &CacheControlManifest{Mode: cacheControl.mode, Source: cacheControl.source, NamespaceSHA256: cacheControl.hashes, WarmupCount: options.Warmup, IdleGapMS: 0, Model: options.Model, Provider: provider, Variant: options.Variant, RuntimeVersion: manifest.Identities["opencode"], TTFTAvailable: false, TTFTUnavailableReason: "retained OpenCode stream timestamps do not provide a reliable request start"}
 	}
 	if err := WriteJSON(filepath.Join(experimentDir, "manifest.json"), manifest); err != nil {
@@ -166,7 +166,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	attempts := []Attempt{}
 	ordinals := map[string]int{Baseline: 0, Candidate: 0}
 	executionOrder := 0
-	if options.methodologyVersion == "v5-cache-aware" {
+	if isCacheAwareMethodology(options.methodologyVersion) {
 		setup := setupSchedule(experimentID, options.Warmup)
 		for _, item := range setup {
 			if len(attempts) >= options.MaxAttempts {
@@ -200,7 +200,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 			ordinals[side]++
 			executionOrder++
 			role := ""
-			if options.methodologyVersion == "v5-cache-aware" {
+			if isCacheAwareMethodology(options.methodologyVersion) {
 				role = MeasuredWarm
 			}
 			attempt, err := runner.runAttempt(ctx, options, manifest, experimentDir, side, role, cycle, ordinals[side], executionOrder, cacheControl)
@@ -306,9 +306,9 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 		return err
 	}
 	options.methodologyVersion = methodology.Version
-	cacheAware := methodology.Version == "v5-cache-aware"
+	cacheAware := isCacheAwareMethodology(methodology.Version)
 	if !cacheAware && (options.CacheControl != "" || options.WarmupSet || options.Warmup != 0) {
-		return errors.New("--cache-control and --warmup require methodology v5-cache-aware")
+		return errors.New("--cache-control and --warmup require a cache-aware methodology")
 	}
 	if options.TargetValid <= 0 {
 		if cacheAware {
@@ -593,19 +593,40 @@ func methodologyMetadata(path string) (MethodologyMetadata, error) {
 	if err != nil {
 		return MethodologyMetadata{}, err
 	}
-	version := ""
+	version, cacheMetricContract := "", ""
+	seenVersion, seenCacheMetricContract := false, false
 	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
+			continue
+		}
 		key, value, ok := strings.Cut(line, ":")
-		if ok && strings.TrimSpace(key) == "methodology_version" {
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(key) {
+		case "methodology_version":
+			if seenVersion {
+				return MethodologyMetadata{}, fmt.Errorf("methodology_version appears more than once in %s", absolute)
+			}
+			seenVersion = true
 			version = strings.Trim(strings.TrimSpace(value), "\"'")
-			break
+		case "cache_metric_contract":
+			if seenCacheMetricContract {
+				return MethodologyMetadata{}, fmt.Errorf("cache_metric_contract appears more than once in %s", absolute)
+			}
+			seenCacheMetricContract = true
+			cacheMetricContract = strings.Trim(strings.TrimSpace(value), "\"'")
 		}
 	}
 	if version == "" {
 		return MethodologyMetadata{}, fmt.Errorf("methodology_version missing from %s", absolute)
 	}
 	hash := sha256Bytes(data)
-	return MethodologyMetadata{Version: version, Path: absolute, SHA256: hash}, nil
+	metadata := MethodologyMetadata{Version: version, Path: absolute, SHA256: hash, CacheMetricContract: cacheMetricContract}
+	if err := validateCacheMetricContractActivation(Manifest{Methodology: metadata}); err != nil {
+		return MethodologyMetadata{}, err
+	}
+	return metadata, nil
 }
 
 func sha256Bytes(data []byte) string {
@@ -743,7 +764,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	}
 	newIDs := []string{interval.SessionID}
 	metrics := ParseStream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
-	if options.methodologyVersion == "v5-cache-aware" {
+	if isCacheAwareMethodology(options.methodologyVersion) {
 		metrics = parseSchema3Stream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
 	}
 	metrics.ToolCallCount, err = attemptToolCallCount(database, interval.SessionID)
@@ -752,7 +773,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	}
 	// Ordered model-step evidence is an additive cache-aware attempt contract.
 	// Keep cache-less attempts on their existing serialized schema.
-	if options.methodologyVersion != "v5-cache-aware" {
+	if !isCacheAwareMethodology(options.methodologyVersion) {
 		metrics.ModelSteps = nil
 	}
 	pricing, err := loadPricingSnapshot(experimentDir, manifest.Pricing)
@@ -790,7 +811,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		"sessions_before": relativePath(experimentDir, beforePath), "sessions_after": relativePath(experimentDir, afterPath),
 	}
 	schemaVersion := 1
-	if options.methodologyVersion == "v5-cache-aware" {
+	if isCacheAwareMethodology(options.methodologyVersion) {
 		schemaVersion = 3
 	}
 	attempt := Attempt{

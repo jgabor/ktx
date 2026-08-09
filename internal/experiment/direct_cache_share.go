@@ -1,6 +1,10 @@
 package experiment
 
-import "math/big"
+import (
+	"math/big"
+
+	"github.com/jgabor/ktx/internal/cachemetric"
+)
 
 const (
 	directCacheContractVersion = "cache-reuse-v1"
@@ -10,7 +14,8 @@ const (
 
 func supportsDirectCachedInputShare(manifest Manifest) bool {
 	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 4) &&
-		manifest.Methodology.Version == "v5-cache-aware" &&
+		manifest.Methodology.Version == cacheAwareMethodologyV5 &&
+		manifest.Methodology.CacheMetricContract == "" &&
 		manifest.CacheControl != nil &&
 		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
 		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
@@ -58,11 +63,9 @@ func directCachedInputShareAttempt(manifest Manifest, attempt Attempt) map[strin
 		uncached := measurements["uncached_input"]["value"].(*big.Int)
 		read := measurements["cache_read"]["value"].(*big.Int)
 		write := measurements["cache_write"]["value"].(*big.Int)
-		logical := new(big.Int).Add(uncached, read)
-		logical.Add(logical, write)
+		logical, ratio, measured := cachemetric.PromptCacheTokenHitRate(uncached, read, write)
 		logicalInput = measuredDirectInteger(logical)
-		if logical.Sign() > 0 {
-			ratio := new(big.Rat).SetFrac(read, logical)
+		if measured {
 			value, _ := ratio.Float64()
 			share = map[string]any{"state": "measured", "value": value, "ratio": ratio.RatString()}
 		} else {

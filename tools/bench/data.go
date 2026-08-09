@@ -10,7 +10,7 @@ import (
 	"path"
 )
 
-//go:embed methodology-v1.yaml methodology-v2-tooluse.yaml methodology-v3.yaml methodology-v4-eval-matrix.yaml methodology-v5-cache-aware.yaml
+//go:embed methodology-v1.yaml methodology-v2-tooluse.yaml methodology-v3.yaml methodology-v4-eval-matrix.yaml methodology-v5-cache-aware.yaml methodology-v6-prompt-cache-hit-rate.yaml
 var methodologies embed.FS
 
 // ReadMethodology returns a published methodology and its repository-relative

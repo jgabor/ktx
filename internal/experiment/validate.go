@@ -16,6 +16,9 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		return nil, err
 	}
+	if err := validateCacheMetricContractActivation(manifest); err != nil {
+		return nil, err
+	}
 	attempts, err := LoadAttempts(experimentDir)
 	if err != nil {
 		return nil, err
@@ -35,7 +38,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	}
 	attempts = estimateAttempts(attempts, pricing)
 	methodologyVersion := manifest.Methodology.Version
-	cacheAware := methodologyVersion == "v5-cache-aware"
+	cacheAware := isCacheAwareMethodology(methodologyVersion)
 	seen := map[string]bool{}
 	checks := []map[string]any{}
 	valid := true
@@ -122,6 +125,11 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report["cached_input_share_comparison"] = expectedSummaryValue["cached_input_share_comparison"]
 		report["statement_authorization"] = expectedSummaryValue["statement_authorization"]
 	}
+	if promptCacheMetricContractActivated(manifest) {
+		report["prompt_cache_token_hit_rate"] = expectedSummaryValue["prompt_cache_token_hit_rate"]
+		report["prompt_cache_token_hit_rate_comparison"] = expectedSummaryValue["prompt_cache_token_hit_rate_comparison"]
+		report["prompt_cache_token_hit_rate_statement_authorization"] = expectedSummaryValue["prompt_cache_token_hit_rate_statement_authorization"]
+	}
 	return report, nil
 }
 
@@ -135,8 +143,11 @@ func validateV5Evidence(manifest Manifest, attempts []Attempt, pricing *pricingS
 	if supportsDirectCachedInputShare(manifest) {
 		expectedSchema = 4
 	}
+	if promptCacheMetricContractActivated(manifest) {
+		expectedSchema = 5
+	}
 	if schema, ok := summary["schema_version"].(float64); !ok || schema != expectedSchema {
-		reasons = append(reasons, fmt.Sprintf("v5 summary schema_version must be %.0f", expectedSchema))
+		reasons = append(reasons, fmt.Sprintf("%s summary schema_version must be %.0f", manifest.Methodology.Version, expectedSchema))
 	}
 	if manifest.Pricing == nil || pricing == nil {
 		reasons = append(reasons, "v5 pricing snapshot is required")

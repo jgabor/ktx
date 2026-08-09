@@ -2,6 +2,7 @@ package experiment
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"math"
 	"math/big"
@@ -228,6 +229,7 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	beforeHash := sha256.Sum256(before)
 	if _, err := RegenerateSummary(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -235,8 +237,15 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(after, before) {
-		t.Fatal("summary regeneration changed canonical bytes")
+	if afterHash := sha256.Sum256(after); !reflect.DeepEqual(after, before) || afterHash != beforeHash {
+		t.Fatalf("summary regeneration changed canonical bytes or hash: before=%x after=%x", beforeHash, afterHash)
+	}
+	var summary map[string]any
+	if err := json.Unmarshal(after, &summary); err != nil {
+		t.Fatal(err)
+	}
+	if summary["schema_version"] != float64(4) {
+		t.Fatalf("schema_version = %v, want 4", summary["schema_version"])
 	}
 	report, err := ValidateExperiment(dir)
 	if err != nil {

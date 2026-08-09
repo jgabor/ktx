@@ -123,6 +123,9 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 				paired, _ := pair.Summary["paired_baseline_minus_candidate"].(map[string]any)
 				row["paired_sample_classification"] = paired["sample_classification"]
 			}
+			if schemaVersion, _ := pair.Summary["schema_version"].(int); schemaVersion >= 5 {
+				row["prompt_cache_token_hit_rate_comparison"] = promptCacheTokenHitRateRankingComparison(pair.Summary)
+			}
 		}
 		rows = append(rows, row)
 	}
@@ -158,6 +161,19 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 		result["variant"] = options.Variant
 	}
 	return result
+}
+
+func promptCacheTokenHitRateRankingComparison(summary map[string]any) map[string]any {
+	comparison := anyMap(summary["prompt_cache_token_hit_rate_comparison"])
+	if len(comparison) == 0 {
+		return nil
+	}
+	return map[string]any{
+		"complete_pair_count": comparison["complete_pair_count"], "baseline_mean": comparison["baseline_mean"],
+		"candidate_mean": comparison["candidate_mean"], "percentage_point_delta": comparison["percentage_point_delta"],
+		"interval": comparison["interval"], "quality": comparison["quality"], "blocking_reasons": comparison["blocking_reasons"],
+		"statement_authorization": summary["prompt_cache_token_hit_rate_statement_authorization"],
+	}
 }
 
 func copyMap(destination, source map[string]any) {
@@ -237,6 +253,16 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["paired_mean_cache_read_saved_vs_baseline"], 6),
 			formatSignificant(row["paired_mean_cache_write_saved_vs_baseline"], 6),
 			formatSignificant(row["paired_mean_estimated_api_cost_saved_vs_baseline"], 6)))
+	}
+	for _, row := range rows {
+		comparison := anyMap(row["prompt_cache_token_hit_rate_comparison"])
+		authorization := anyMap(comparison["statement_authorization"])
+		for _, outcomeName := range []string{"higher", "lower"} {
+			outcome := anyMap(anyMap(authorization["outcomes"])[outcomeName])
+			if outcome["authorized"] == true {
+				lines = append(lines, fmt.Sprintf("prompt_cache_token_hit_rate pipeline=%v outcome=%s statement=%s", row["pipeline"], outcomeName, outcome["statement"]))
+			}
+		}
 	}
 	return strings.Join(lines, "\n")
 }

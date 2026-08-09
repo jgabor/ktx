@@ -1128,6 +1128,18 @@ measured-cycle pairs, and deterministic claim limits. TTFT is null:
 the OpenCode 1.18.5 JSONL format does not provide a reliable request-start
 timestamp.
 
+The future schema-5 prompt-cache token hit-rate successor is explicit. Use
+`tools/bench/methodology-v6-prompt-cache-hit-rate.yaml`, which writes
+`methodology.cache_metric_contract=cache-reuse-v2` into a new manifest. A v5
+manifest without that marker remains schema 4 and keeps its v1 output. The new
+summary's `prompt_cache_token_hit_rate_comparison` publishes baseline and
+candidate means, `percentage_point_delta`, complete pair count, interval,
+quality, ordered blockers, unavailable reasons, and raw pair evidence. Its
+statement surface renders only an authorized higher or lower token-weighted
+prompt-cache hit rate under the pinned disjoint-token formula. It does not make
+provider-internal, request-hit, TTL, eviction, eligibility, isolation, or prefix
+claims.
+
 Validation is methodology-aware. For a new OpenCode 1.18.5 v5 run it requires
 summary schema 4, retained pricing metadata and its hash-bound snapshot, exactly
 one cold observation and the configured warm-up count per side, explicit roles,
@@ -1140,6 +1152,11 @@ every attempt within a side, and differ across sides. This format check ensures
 only the SHA-256 digest—not the raw namespace—can occupy retained namespace
 metadata. Methodologies v1-v4 and retained schema-v3 v5 experiments preserve
 their historical validation and summary bytes.
+
+For an activated v6 run, validation additionally expects schema 5 and its
+`cache-reuse-v2` marker. It regenerates the same evidence fields and refuses a
+directional statement when any paired-evidence blocker remains. This successor
+does not rewrite retained schema 1 through 4 output.
 
 All cache-reuse views are derived from runtime-reported model-step fields.
 Cold, warm-up, and measured phase labels do not prove provider cache hits,

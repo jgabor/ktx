@@ -177,9 +177,10 @@ type PipelineMetadata struct {
 }
 
 type MethodologyMetadata struct {
-	Version string `json:"version"`
-	Path    string `json:"path"`
-	SHA256  string `json:"sha256"`
+	Version             string `json:"version"`
+	Path                string `json:"path"`
+	SHA256              string `json:"sha256"`
+	CacheMetricContract string `json:"cache_metric_contract,omitempty"`
 }
 
 type PricingSnapshotMetadata struct {

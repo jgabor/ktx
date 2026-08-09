@@ -4,6 +4,9 @@
 
 ### Added
 
+- Future benchmark manifests can explicitly activate schema 5 and the v2
+  token-weighted prompt-cache hit-rate contract with paired evidence and
+  fail-closed higher/lower statement authorization.
 - `ktx stats summary` schema 7 adds a provider/model-scoped, token-weighted prompt-cache token hit rate with raw buckets, runtime-emitted provenance, observed-subset scope, and explicit unavailable reasons.
 - `ktx stats summary` schema 6 reports the first and last contributing model-telemetry captures, observed span, contributing KTX session and model-step counts, and explicitly unavailable requested-window coverage for observed provider prompt/prefix-cache token subsets.
 

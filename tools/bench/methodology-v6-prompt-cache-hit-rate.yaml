@@ -1,0 +1,83 @@
+methodology_version: "v6-prompt-cache-hit-rate"
+cache_metric_contract: "cache-reuse-v2"
+date: "2026-08-09"
+
+scope: |
+  Compare compression strategies from retained runtime-reported model steps.
+  This explicitly activated methodology publishes token-weighted prompt-cache
+  hit-rate evidence and a fail-closed paired direction statement. It does not
+  describe provider requests or provider cache behavior.
+
+inputs:
+  agent:
+    binary: opencode
+    version: "1.18.5"
+  model:
+    id: "gpt-5.6-luna"
+    provider: "openai"
+    variant: "high"
+  task:
+    identifier: "crossfile-nav-v1"
+    prompt: "Use the task file supplied to ktx bench compare."
+    expected_output: "See tools/bench/tasks/crossfile-nav-v1.toml."
+  scoring:
+    function: multi_fact_fractional
+
+trials:
+  phases:
+    cold_observation: 1
+    warmup_default: 1
+    measured_warm_default: 5
+  accounting: |
+    cold_observation and warmup attempts are retained but never count toward
+    paired hit-rate evidence, quality aggregates, or target valid completions.
+    Only complete measured_warm cycle pairs can contribute to the comparison.
+  order: |
+    Measured cycles alternate baseline/candidate then candidate/baseline.
+    Setup order is deterministic from experiment-id parity.
+
+cache_control:
+  modes:
+    - auto
+    - isolated
+    - observed
+  contract: |
+    Observed mode records trial roles only. It does not establish provider cache
+    state. Isolated mode requires a confirmed adapter and distinct retained
+    namespace hashes per side; raw namespace values are never retained.
+  retained_metadata: |
+    Retain mode, source, namespace SHA-256 when applicable, phase, execution
+    order, idle gap, model, provider, variant, and runtime version.
+
+computation: |
+  Each contributing attempt uses cache_read /
+  (uncached_input + cache_read + cache_write). The three token buckets are
+  disjoint under the pinned OpenCode accounting contract. Every bucket must be
+  measured and non-negative; a zero cache_read remains a measured zero rate.
+  Pair only complete measured_warm attempts whose runtime-emitted runtime,
+  provider, and model match the manifest context and whose protocol provenance
+  is valid. Do not pool identities or reconstruct unavailable buckets.
+
+claim_scope:
+  evidence_kind: runtime_reported_model_steps
+  direct_metric: prompt_cache_token_hit_rate
+  comparison: prompt_cache_token_hit_rate_comparison
+  statement_authorization: prompt_cache_token_hit_rate_statement_authorization
+  provider_native_claims: unsupported
+  request_hit_rate_claims: unsupported
+  ttl_eviction_eligibility_isolation_prefix_claims: unsupported
+
+output:
+  summary_schema: 5
+  cache_metric_contract: cache-reuse-v2
+  headline_phase: measured_warm
+  validation: |
+    Regenerate byte-identically from the manifest, attempts, retained streams,
+    and pricing snapshot. Directional wording is available only when there are
+    at least five complete pairs, quality is preserved, the two-sided 95 percent
+    interval excludes zero in that direction, and no blocker remains.
+
+out_of_scope:
+  - provider-native request, cache state, hit, miss, fill, eviction, eligibility, prefix, isolation, or TTL claims
+  - causal or significance claims
+  - raw cache namespaces in retained evidence

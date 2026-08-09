@@ -381,3 +381,56 @@ rankings, cost-per-correct behavior, schemas, and bytes keep their historical
 meaning. Historical direct-provider fixtures remain compatibility/provenance
 material only and cannot authorize current collection or provider-native
 claims.
+
+## Explicit future prompt-cache token hit-rate contract
+
+The future successor is opt-in. A manifest activates it only when both fields
+are present exactly as follows:
+
+```json
+{
+  "methodology": {
+    "version": "v6-prompt-cache-hit-rate",
+    "cache_metric_contract": "cache-reuse-v2"
+  }
+}
+```
+
+The marker is carried from
+`tools/bench/methodology-v6-prompt-cache-hit-rate.yaml`. Missing, unknown, or
+mismatched markers do not upgrade a legacy manifest. Existing schema 1 through
+4 summaries, the v1 contract, retained bytes, hashes, and historical wording
+remain unchanged.
+
+An activated summary uses schema 5 and publishes
+`prompt_cache_token_hit_rate`,
+`prompt_cache_token_hit_rate_comparison`, and
+`prompt_cache_token_hit_rate_statement_authorization`. The metric is
+token-weighted and uses the same pinned disjoint-bucket formula as the live
+schema 7 report:
+
+```text
+cache_read / (uncached_input + cache_read + cache_write)
+```
+
+Every attempt row retains the three raw buckets, logical input, exact reduced
+ratio, source artifact, and identity provenance. A missing, malformed, or
+otherwise unavailable bucket remains unavailable. It is never reconstructed or
+treated as zero.
+
+The comparison uses complete `measured_warm` cycle pairs only. Each member must
+have matching runtime-emitted runtime, provider, and model identity, the pinned
+runtime version, and valid retained protocol provenance. Identity pooling is
+forbidden. Its machine output includes `baseline_mean`, `candidate_mean`,
+`percentage_point_delta`, `complete_pair_count`, the two-sided 95 percent
+interval in percentage points, same-pair quality, ordered blockers, unavailable
+reasons, and raw pair evidence.
+
+The statement authorization emits a statement only for `higher` or `lower`
+token-weighted prompt-cache hit rate. It fails closed unless the raw projection
+matches, no blocker remains, at least five complete pairs exist, quality is
+preserved, and the matching two-sided 95 percent interval excludes zero. A tie,
+incomplete evidence, identity mismatch, protocol mismatch, or any other blocker
+emits no directional statement. It does not authorize provider-internal state,
+request hit rate, TTL, eviction, eligibility, isolation, prefix, or provider
+request-boundary claims.

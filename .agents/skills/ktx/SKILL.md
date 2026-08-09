@@ -190,6 +190,12 @@ classes, schema, metric formulas, and claim limits.
   is unavailable and is not reconstructed.
 - Cached-input share is separate OpenCode-reported runtime evidence, not a
   provider cache hit rate. A model step is not proven to be one provider request.
+- Future benchmark prompt-cache token hit-rate output requires the explicit
+  `v6-prompt-cache-hit-rate` methodology marker and uses schema 5. Read its
+  paired blockers and authorization before reporting a direction. Only an
+  authorized higher or lower token-weighted prompt-cache hit rate is allowed;
+  do not infer provider-internal state, request-hit behavior, TTL, eviction,
+  eligibility, isolation, or prefix behavior.
 - Literal runtime cost zero remains measured zero but has no automatic billing
   meaning. API-equivalent cost is a separately labeled estimate.
 - Missing, unknown, malformed, and measured zero are distinct states. Never

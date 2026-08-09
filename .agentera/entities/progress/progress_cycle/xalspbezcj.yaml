@@ -1,0 +1,14 @@
+id: xalspbezcj
+artifact: progress
+record:
+  timestamp: 2026-08-09 18:18
+  type: feat
+  phase: build
+  what: Added the explicit schema-5 prompt-cache token hit-rate benchmark successor in internal/experiment/summary.go with cache-reuse-v2 output, paired evidence, and fail-closed higher/lower statements.
+  context:
+    intent: Publish the pinned token-weighted ratio without provider-internal or request-hit claims.
+    constraints: Legacy schemas 1 through 4, cache-reuse-v1, historical wording, and TODO.md remain unchanged.
+    scope: internal/experiment, internal/cachemetric, benchmark methodologies and contracts, CLI help, documentation, skill guidance, and regression tests.
+  verified: Focused successor, invalid/tie/missing/mismatch, projection, ranking, legacy regeneration/hash, cache-reuse-contract, and relevant package tests passed. ./build/ktx bench compare --summarize produced schema 5 and cache-reuse-v2; ./build/ktx bench validate returned valid=true and summary_byte_match=true. Isolated mage check passed with forbidden=0 and KTX_DB unset.
+  next: Leave this task in progress for independent evaluation; do not record a terminal status or evaluator verdict.
+  publication_order: 67

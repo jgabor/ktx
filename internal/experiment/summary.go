@@ -37,7 +37,7 @@ func CountValid(attempts []Attempt, minimumToolCalls int) map[string]int {
 }
 
 func CountValidForMethodology(attempts []Attempt, minimumToolCalls int, methodologyVersion string) map[string]int {
-	if methodologyVersion != "v5-cache-aware" {
+	if !isCacheAwareMethodology(methodologyVersion) {
 		return CountValid(attempts, minimumToolCalls)
 	}
 	counts := map[string]int{Baseline: 0, Candidate: 0}
@@ -50,10 +50,10 @@ func CountValidForMethodology(attempts []Attempt, minimumToolCalls int, methodol
 }
 
 func AttemptIsTargetValid(attempt Attempt, minimumToolCalls int, methodologyVersion string) bool {
-	if methodologyVersion == "v5-cache-aware" && attempt.Role != MeasuredWarm {
+	if isCacheAwareMethodology(methodologyVersion) && attempt.Role != MeasuredWarm {
 		return false
 	}
-	if methodologyVersion != "v5-cache-aware" {
+	if !isCacheAwareMethodology(methodologyVersion) {
 		return AttemptIsFullPass(attempt, minimumToolCalls)
 	}
 	return AttemptIsEvaluated(attempt, minimumToolCalls) && attempt.FullPass
@@ -330,7 +330,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 	if methodologyVersion == "" {
 		methodologyVersion = "v4-eval-matrix"
 	}
-	cacheAware := methodologyVersion == "v5-cache-aware"
+	cacheAware := isCacheAwareMethodology(methodologyVersion)
 	// Cache telemetry is optional evidence: a runtime that emits
 	// part.tokens.cache.{read,write} on step_finish produces cache
 	// counts on the attempts; a runtime that does not emits neither
@@ -358,8 +358,12 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		schemaVersion = 3
 	}
 	directCacheShare := supportsDirectCachedInputShare(manifest)
+	promptCacheTokenHitRate := promptCacheMetricContractActivated(manifest)
 	if directCacheShare {
 		schemaVersion = 4
+	}
+	if promptCacheTokenHitRate {
+		schemaVersion = 5
 	}
 	pipelines := map[string]any{}
 	exclusions := []any{}
@@ -543,6 +547,12 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		result["cached_input_share_comparison"] = comparison
 		result["statement_authorization"] = buildCacheStatementAuthorization(direct, secondary, comparison)
 	}
+	if promptCacheTokenHitRate {
+		metric, comparison, authorization := buildPromptCacheTokenHitRateContract(manifest, attempts)
+		result["prompt_cache_token_hit_rate"] = metric
+		result["prompt_cache_token_hit_rate_comparison"] = comparison
+		result["prompt_cache_token_hit_rate_statement_authorization"] = authorization
+	}
 	return result
 }
 
@@ -689,6 +699,9 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return SummaryRegeneration{}, fmt.Errorf("decode manifest: %w", err)
 	}
+	if err := validateCacheMetricContractActivation(manifest); err != nil {
+		return SummaryRegeneration{}, err
+	}
 	attempts, err := LoadAttempts(experimentDir)
 	if err != nil {
 		return SummaryRegeneration{}, err
@@ -718,7 +731,7 @@ func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {
 	var existing struct {
 		SchemaVersion int `json:"schema_version"`
 	}
-	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 3 {
+	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 4 {
 		manifest.historicalSummarySchema = existing.SchemaVersion
 	}
 }
@@ -770,6 +783,8 @@ func RenderSummary(summary map[string]any) string {
 		}
 		logicalInputFormula := "uncached_input+cache_read"
 		if _, ok := summary["direct_cached_input_share"]; ok {
+			logicalInputFormula = "uncached_input+cache_read+cache_write"
+		} else if _, ok := summary["prompt_cache_token_hit_rate"]; ok {
 			logicalInputFormula = "uncached_input+cache_read+cache_write"
 		}
 		lines = append(lines,
@@ -824,6 +839,20 @@ func RenderSummary(summary map[string]any) string {
 			outcome := anyMap(outcomes[name])
 			lines = append(lines, fmt.Sprintf("statement_authorization outcome=%s authorized=%v reasons=%s gates=%s evidence=%s scope=%v statement=%s",
 				name, outcome["authorized"], compactJSON(outcome["reasons"]), compactJSON(outcome["gates"]), compactJSON(outcome["evidence"]), outcome["scope"], compactJSON(outcome["statement"])))
+		}
+	}
+	if comparison, ok := summary["prompt_cache_token_hit_rate_comparison"].(map[string]any); ok {
+		quality := anyMap(comparison["quality"])
+		lines = append(lines, fmt.Sprintf("prompt_cache_token_hit_rate_comparison complete_pairs=%v baseline_mean=%s candidate_mean=%s percentage_point_delta=%s interval=%s quality_preserved=%v blocking_reasons=%s",
+			comparison["complete_pair_count"], compactJSON(comparison["baseline_mean"]), compactJSON(comparison["candidate_mean"]),
+			compactJSON(comparison["percentage_point_delta"]), compactJSON(comparison["interval"]), quality["preserved"], compactJSON(comparison["blocking_reasons"])))
+		if authorization, ok := summary["prompt_cache_token_hit_rate_statement_authorization"].(map[string]any); ok {
+			for _, outcomeName := range []string{"higher", "lower"} {
+				outcome := anyMap(anyMap(authorization["outcomes"])[outcomeName])
+				if outcome["authorized"] == true {
+					lines = append(lines, fmt.Sprintf("prompt_cache_token_hit_rate_statement outcome=%s statement=%s", outcomeName, outcome["statement"]))
+				}
+			}
 		}
 	}
 	return strings.Join(lines, "\n")

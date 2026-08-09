@@ -160,6 +160,15 @@ summaries. Validate retained evidence with:
 ktx bench validate --experiment .bench-data/<experiment-id>
 ```
 
+Future prompt-cache token hit-rate summaries are opt-in through
+`tools/bench/methodology-v6-prompt-cache-hit-rate.yaml`. Its explicit
+`cache-reuse-v2` manifest marker produces schema 5 with paired baseline and
+candidate means, a percentage-point delta, interval, quality, blockers, and raw
+evidence. It can render only an authorized higher or lower token-weighted
+prompt-cache hit rate. It does not report provider-internal state or request-hit,
+TTL, eviction, eligibility, isolation, or prefix behavior. Existing benchmark
+artifacts remain on their retained schemas and contracts.
+
 The [retained runtime compression telemetry report](docs/runtime-compression-telemetry-evidence.md)
 shows one historical ten-attempt comparison, its field-by-field availability,
 and an offline deterministic validation.

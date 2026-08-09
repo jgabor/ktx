@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/jgabor/ktx/internal/cache/reuse"
+	"github.com/jgabor/ktx/internal/cachemetric"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/router"
 )
@@ -366,9 +367,9 @@ const (
 	statsSummaryRequiredTokenBucketMissing            = "required_token_bucket_missing"
 	statsSummaryRequiredTokenBucketMalformed          = "required_token_bucket_malformed"
 	statsSummaryLogicalInputNotPositive               = "logical_input_not_positive"
-	statsSummaryPromptCacheTokenHitRateKind           = "token_weighted"
+	statsSummaryPromptCacheTokenHitRateKind           = cachemetric.PromptCacheTokenHitRateKind
 	statsSummaryPromptCacheTokenHitRateSource         = "runtime_emitted_model_step_telemetry"
-	statsSummaryPromptCacheTokenHitRateFormula        = "cache_read / (uncached_input + cache_read + cache_write)"
+	statsSummaryPromptCacheTokenHitRateFormula        = cachemetric.PromptCacheTokenHitRateFormula
 )
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
@@ -749,7 +750,11 @@ func aggregateStatsSummaryPromptCacheTokenHitRate(rows []dbpkg.StatsSummaryCache
 	case cache.LogicalInput.Value == nil || cache.LogicalInput.Value.Sign() <= 0:
 		rate.Reason = statsSummaryString(statsSummaryLogicalInputNotPositive)
 	default:
-		ratio := new(big.Rat).SetFrac(cache.CacheRead.Value, cache.LogicalInput.Value)
+		_, ratio, measured := cachemetric.PromptCacheTokenHitRate(cache.UncachedInput.Value, cache.CacheRead.Value, cache.CacheWrite.Value)
+		if !measured {
+			rate.Reason = statsSummaryString(statsSummaryLogicalInputNotPositive)
+			return rate
+		}
 		value, _ := ratio.Float64()
 		ratioText := ratio.RatString()
 		rate.State = statsSummaryMeasured

@@ -1,0 +1,70 @@
+{
+  "contract_version": "cache-reuse-v2",
+  "status": "prompt_cache_token_hit_rate_future_successor",
+  "activation": {
+    "manifest_methodology_version": "v6-prompt-cache-hit-rate",
+    "manifest_methodology_cache_metric_contract": "cache-reuse-v2",
+    "legacy_manifest_without_marker": "preserve_existing_schema_and_contract"
+  },
+  "metric": {
+    "name": "prompt_cache_token_hit_rate",
+    "kind": "token_weighted",
+    "unit": "token_fraction",
+    "formula": "cache_read / (uncached_input + cache_read + cache_write)",
+    "source": "retained_runtime_model_step_telemetry",
+    "accounting": "uncached_input_cache_read_and_cache_write_are_disjoint",
+    "availability": "all_three_nonnegative_buckets_measured_and_logical_input_positive",
+    "measured_zero": "zero_cache_read_with_positive_logical_input_is_measured_zero"
+  },
+  "comparison": {
+    "name": "prompt_cache_token_hit_rate_comparison",
+    "phase": "measured_warm",
+    "pairing_unit": "cycle",
+    "identity": "each_complete_pair_requires_one_matching_runtime_provider_model_and_pinned_runtime_version",
+    "identity_pooling": "forbidden",
+    "protocol_identity": "manifest_and_attempt_cache_control_and_pipeline_provenance_must_match",
+    "minimum_complete_pairs": 5,
+    "difference": "candidate_minus_baseline",
+    "difference_unit": "percentage_points",
+    "interval": "two_sided_95_percent_student_t_on_paired_differences",
+    "quality": "same_complete_pairs_candidate_mean_fact_score_and_full_pass_rate_not_lower",
+    "machine_fields": [
+      "baseline_mean",
+      "candidate_mean",
+      "percentage_point_delta",
+      "complete_pair_count",
+      "interval",
+      "quality",
+      "blocking_reasons",
+      "unavailable_reasons",
+      "pairs"
+    ]
+  },
+  "statement_authorization": {
+    "name": "prompt_cache_token_hit_rate_statement_authorization",
+    "outcomes": ["higher", "lower"],
+    "requires": [
+      "activated_contract",
+      "raw_projection_matches",
+      "no_blocking_reasons",
+      "at_least_five_complete_pairs",
+      "quality_preserved",
+      "directional_two_sided_95_percent_interval"
+    ],
+    "forbidden_claims": [
+      "provider_internal_cache_state",
+      "request_hit_rate",
+      "ttl",
+      "eviction",
+      "eligibility",
+      "isolation",
+      "prefix",
+      "provider_request_boundaries"
+    ]
+  },
+  "compatibility": {
+    "schemas_1_through_4_byte_identical": true,
+    "cache_reuse_v1_byte_identical": true,
+    "historical_statements_unchanged": true
+  }
+}

@@ -5,7 +5,7 @@ record:
   depends_on:
     - etszstkbbs
     - dwqcferacw
-  status: pending
+  status: complete
   acceptance:
     - GIVEN the locally built binary WHEN the harness runs THEN one-shot hook processes and sustained wrapper streams are measured separately from the in-process component ceilings.
     - GIVEN concurrency levels 1, 2, 4, 8, 16, and 32 WHEN writers share a fresh disposable database with supported read-only queries THEN a versioned report includes throughput, p50, p95, p99, maximum latency, retries, cumulative lock wait, failures by stable code, and expected-versus-persisted reconciliation.

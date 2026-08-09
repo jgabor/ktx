@@ -1,0 +1,15 @@
+id: eodifeavny
+artifact: progress
+record:
+  timestamp: 2026-08-09 19:37
+  type: feat
+  phase: build
+  what: Added `mage loadBench`, a developer-only harness that measures real one-shot hook processes and sustained wrapper streams against fresh disposable databases.
+  context:
+    intent: Establish reproducible process and contention evidence without changing writer, reader, migration, error, or public benchmark behavior.
+    constraints: Use the locally built binary, isolate every parent and worker HOME/XDG root, reject ambient KTX_DB, distinguish supported KTX from foreign SQLite participants, and keep timing descriptive.
+    scope: tools/loadbench, Mage invocation, load-harness documentation and skill guidance, changelog, focused regression tests, and task state.
+  discovered: The observed local run reconciled every ordinary hook level through 32 writers and the eight-event wrapper stream exactly; foreign held reader and writer scenarios delayed but did not fail the supported hook on this host.
+  verified: Focused isolated `go test ./tools/loadbench` and `golangci-lint run ./tools/loadbench` passed. A direct sentinel KTX_DB invocation failed before a report. Isolated `mage loadBench` rebuilt and used ./build/ktx, emitted schema version 1 JSON with one warm-up, five measured rounds, all required scenarios, and 1056 audited database accesses with forbidden=0. Isolated `mage check` passed race tests, vet, lint with 0 issues, build, and 971 audited accesses with forbidden=0.
+  next: Later reliability tasks can use this descriptive baseline to change and verify supported writer, reader, migration, and foreign-lock behavior.
+  publication_order: 68

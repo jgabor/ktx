@@ -19,6 +19,9 @@ not substitute for a result in another.
 
 The developer-only [component benchmark measurements](component-benchmarks.md)
 runner supplies the first evidence class. It does not change `ktx bench`.
+The developer-only [real-process load measurements](real-process-load-benchmarks.md)
+runner supplies the second class and reports current contention behavior without
+changing it.
 
 ## Participants and availability
 

@@ -78,6 +78,18 @@ func componentBench() error {
 	return run("go", "run", "./tools/componentbench")
 }
 
+// LoadBench measures real ktx processes against disposable databases as JSON.
+func LoadBench() error {
+	return hermeticTarget("loadBench", loadBench)
+}
+
+func loadBench() error {
+	if err := Build(); err != nil {
+		return err
+	}
+	return run("go", "run", "./tools/loadbench")
+}
+
 // ReplayFixture runs the bounded, offline repository gate for the retained fixture.
 func ReplayFixture() error {
 	return hermeticTarget("replayFixture", replayFixture)
@@ -101,7 +113,7 @@ func Vet() error {
 }
 
 func Fmt() error {
-	return run("gofmt", "-w", "cmd", "internal", "tools/bench/data.go", "tools/componentbench")
+	return run("gofmt", "-w", "cmd", "internal", "tools/bench/data.go", "tools/componentbench", "tools/loadbench")
 }
 
 func Lint() error {

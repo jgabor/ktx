@@ -1,0 +1,17 @@
+id: krdujfsett
+artifact: progress
+record:
+  timestamp: 2026-08-09 19:32
+  type: fix
+  phase: build
+  what: Corrected schema-5 prompt-cache token hit-rate comparison to aggregate each side from summed disjoint token buckets over the accepted complete paired population and to bootstrap whole-pair bucket contributions.
+  context:
+    intent: Resolve the accepted audit arithmetic defect without changing legacy benchmark behavior or authorizing a new verdict.
+    constraints: Preserve schemas 1 through 4, cache-reuse-v1 bytes and wording, task gpfpiuasaz in_progress, and its audit-1 FAIL evaluation exactly. Use only offline disposable verification roots and the local build/ktx.
+    unknowns: No live provider experiment ran. The local successor CLI smoke used a valid zero-complete-pair fixture, while nonzero and direction-reversal behavior is covered by package regressions.
+    scope: Schema-5 aggregate arithmetic and interval, direct-bucket projection checks, blocker semantics, regressions, v2 contract, methodology, and synchronized documentation.
+  inspiration: Accepted audit-1 showed that per-attempt ratio means can reverse the token-weighted population direction when denominators differ.
+  discovered: The original schema-5 path relabeled legacy per-attempt means as token-weighted population results. The pending correction also needed a direct-evidence bucket cross-check and had mislabeled an empty accepted population as projection-inconsistent.
+  verified: Focused schema-5 aggregate, reversal, unsuitable-bucket, empty-population, authorization, activation, regeneration, and contract tests passed. go test -race -count=1 ./internal/experiment passed in 10.938s. Legacy schema and regeneration tests passed; unchanged SHA-256 values were b5af125f for cache-reuse-v1, 8136d830 for schema 1, 276ddc38 for schema 2, and c0361dca for schema 3 goldens, while schema-4 regeneration preserved bytes and hash. mage build produced local build/ktx SHA-256 dd1f7541395e85d89546b05b820b6a1384386227986dd34977e6321368d20519. That binary summarized schema 5/cache-reuse-v2 and validated valid=true with summary_byte_match=true. Isolated mage check passed race tests, vet, lint with 0 issues, and build; the database audit recorded 966 attempts, forbidden=0, and ktx_db=unset.
+  next: Keep gpfpiuasaz in_progress with audit-1 FAIL unchanged. Commit this bounded correction for Prime to delegate independent re-review; do not record a verdict or complete the task.
+  publication_order: 68

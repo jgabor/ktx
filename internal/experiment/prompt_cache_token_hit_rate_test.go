@@ -3,7 +3,9 @@ package experiment
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"math"
+	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -112,6 +114,150 @@ func TestPromptCacheTokenHitRateActivationAndPairedEvidence(t *testing.T) {
 	}
 }
 
+func TestPromptCacheTokenHitRateAggregatesCompletePairBuckets(t *testing.T) {
+	attempts := comparisonPairs(5, 0, 0)
+	for cycle := 0; cycle < 5; cycle++ {
+		baseline, candidate := &attempts[cycle*2], &attempts[cycle*2+1]
+		if cycle < 3 {
+			baseline.ModelSteps[0].UncachedInput = MeasuredInteger(0)
+			baseline.ModelSteps[0].CacheRead = MeasuredInteger(1000)
+			candidate.ModelSteps[0].UncachedInput = MeasuredInteger(100)
+			candidate.ModelSteps[0].CacheRead = MeasuredInteger(900)
+			continue
+		}
+		baseline.ModelSteps[0].UncachedInput = MeasuredInteger(1)
+		baseline.ModelSteps[0].CacheRead = MeasuredInteger(0)
+		candidate.ModelSteps[0].UncachedInput = MeasuredInteger(0)
+		candidate.ModelSteps[0].CacheRead = MeasuredInteger(1)
+	}
+
+	manifest := promptCacheTokenHitRateManifest()
+	raw := buildCachedInputShareComparison(manifest, attempts)
+	if unweighted := anyMap(anyMap(raw["direct"])["paired_difference"])["mean"].(map[string]any)["ratio"]; unweighted != "17/50" {
+		t.Fatalf("unweighted pair mean = %v, want 17/50", unweighted)
+	}
+	summary := promptCacheTokenHitRateSummary(t, attempts)
+	comparison := anyMap(summary["prompt_cache_token_hit_rate_comparison"])
+	for field, want := range map[string]string{
+		"baseline_mean":          "1500/1501",
+		"candidate_mean":         "1351/1501",
+		"percentage_point_delta": "-14900/1501",
+	} {
+		if got := anyMap(comparison[field])["ratio"]; got != want {
+			t.Errorf("%s ratio = %v, want %s", field, got, want)
+		}
+	}
+	if difference := anyMap(comparison["raw_pair_difference"]); difference["direction"] != "lower" {
+		t.Errorf("aggregate direction = %#v, want lower", difference)
+	}
+	interval := anyMap(comparison["interval"])
+	if interval["method"] != promptCacheTokenHitRateBootstrapMethod ||
+		anyMap(interval["resampling"])["unit"] != "complete_pair_disjoint_token_buckets" {
+		t.Errorf("aggregate interval = %#v", interval)
+	}
+	intervalLower, lowerOK := finiteNumber(interval["lower"])
+	intervalUpper, upperOK := finiteNumber(interval["upper"])
+	if !lowerOK || !upperOK || intervalLower < -100 || intervalLower > intervalUpper || intervalUpper >= 0 || intervalUpper > 100 {
+		t.Errorf("aggregate interval bounds = %#v", interval)
+	}
+	aggregates := anyMap(comparison["aggregate_buckets"])
+	for side, want := range map[string]map[string]string{
+		Baseline:  {"uncached_input": "2", "cache_read": "3000", "cache_write": "0", "logical_input": "3002"},
+		Candidate: {"uncached_input": "300", "cache_read": "2702", "cache_write": "0", "logical_input": "3002"},
+	} {
+		view := anyMap(aggregates[side])
+		for field, expected := range want {
+			if got := fmt.Sprint(view[field]); got != expected {
+				t.Errorf("aggregate_buckets.%s.%s = %s, want %s", side, field, got, expected)
+			}
+		}
+	}
+	higher := promptCacheTokenHitRateOutcomeForSummary(t, summary, "higher")
+	lower := promptCacheTokenHitRateOutcomeForSummary(t, summary, "lower")
+	if higher["authorized"] != false || lower["authorized"] != true {
+		t.Fatalf("aggregate directional authorization = higher=%#v lower=%#v", higher, lower)
+	}
+	if statement, _ := lower["statement"].(string); !strings.Contains(statement, "lower token-weighted prompt-cache hit rate") {
+		t.Errorf("lower statement = %q", statement)
+	}
+	if again := promptCacheTokenHitRateSummary(t, attempts); !reflect.DeepEqual(summary, again) {
+		t.Fatal("aggregate comparison is not deterministic")
+	}
+	reversed := append([]Attempt(nil), attempts...)
+	for left, right := 0, len(reversed)-1; left < right; left, right = left+1, right-1 {
+		reversed[left], reversed[right] = reversed[right], reversed[left]
+	}
+	reversedComparison := anyMap(promptCacheTokenHitRateSummary(t, reversed)["prompt_cache_token_hit_rate_comparison"])
+	if !reflect.DeepEqual(comparison, reversedComparison) {
+		t.Fatal("aggregate comparison depends on attempt input order")
+	}
+	if _, err := json.Marshal(summary); err != nil {
+		t.Fatalf("aggregate summary is not finite JSON: %v", err)
+	}
+}
+
+func TestPromptCacheTokenHitRateRejectsUnavailableBucketsAndZeroDenominators(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*SourceEvent)
+	}{
+		{name: "missing bucket", mutate: func(step *SourceEvent) { step.CacheRead = UnknownInteger() }},
+		{name: "malformed bucket", mutate: func(step *SourceEvent) { step.CacheWrite = MalformedInteger() }},
+		{name: "negative bucket", mutate: func(step *SourceEvent) { step.UncachedInput = MeasuredInteger(-1) }},
+		{name: "zero denominator", mutate: func(step *SourceEvent) {
+			step.UncachedInput, step.CacheRead, step.CacheWrite = MeasuredInteger(0), MeasuredInteger(0), MeasuredInteger(0)
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			attempts := comparisonPairs(5, 20, 30)
+			test.mutate(&attempts[0].ModelSteps[0])
+			summary := promptCacheTokenHitRateSummary(t, attempts)
+			comparison := anyMap(summary["prompt_cache_token_hit_rate_comparison"])
+			if comparison["complete_pair_count"] != 4 {
+				t.Fatalf("complete_pair_count = %#v, want 4", comparison["complete_pair_count"])
+			}
+			blockers := comparison["blocking_reasons"].([]string)
+			for _, want := range []string{"direct_evidence_incomplete", "fewer_than_five_complete_pairs"} {
+				if !containsString(blockers, want) {
+					t.Errorf("blocking reason %q missing: %#v", want, blockers)
+				}
+			}
+			for _, outcomeName := range []string{"higher", "lower"} {
+				outcome := promptCacheTokenHitRateOutcomeForSummary(t, summary, outcomeName)
+				if outcome["authorized"] != false || outcome["statement"] != nil {
+					t.Errorf("%s authorized with unsuitable buckets: %#v", outcomeName, outcome)
+				}
+			}
+			if _, err := json.Marshal(summary); err != nil {
+				t.Fatalf("summary is not finite JSON: %v", err)
+			}
+		})
+	}
+}
+
+func TestPromptCacheTokenHitRateEmptyAcceptedPopulationIsUnavailableNotInconsistent(t *testing.T) {
+	attempts := comparisonPairs(5, 20, 30)
+	for index := range attempts {
+		attempts[index].ModelSteps[0].CacheRead = UnknownInteger()
+	}
+	summary := promptCacheTokenHitRateSummary(t, attempts)
+	comparison := anyMap(summary["prompt_cache_token_hit_rate_comparison"])
+	blockers := comparison["blocking_reasons"].([]string)
+	if comparison["complete_pair_count"] != 0 || comparison["aggregate_buckets"] != nil {
+		t.Fatalf("empty accepted population = %#v", comparison)
+	}
+	if !containsString(blockers, "direct_evidence_incomplete") || !containsString(blockers, "fewer_than_five_complete_pairs") || containsString(blockers, "evidence_projection_inconsistent") {
+		t.Fatalf("empty accepted population blockers = %#v", blockers)
+	}
+	for _, outcomeName := range []string{"higher", "lower"} {
+		outcome := promptCacheTokenHitRateOutcomeForSummary(t, summary, outcomeName)
+		if outcome["authorized"] != false || outcome["statement"] != nil {
+			t.Errorf("%s authorized an empty accepted population: %#v", outcomeName, outcome)
+		}
+	}
+}
+
 func TestPromptCacheTokenHitRateAuthorizationFailsClosed(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -170,7 +316,7 @@ func TestPromptCacheTokenHitRateAuthorizationRejectsProjectionDrift(t *testing.T
 		func(comparison map[string]any) { anyMap(comparison["interval"])["lower"] = math.NaN() },
 	} {
 		metric := promptCacheTokenHitRateMetricFromDirect(direct)
-		comparison := promptCacheTokenHitRateComparisonFromRaw(rawComparison)
+		comparison := promptCacheTokenHitRateComparisonFromRaw(direct, rawComparison)
 		mutate(comparison)
 		authorization := buildPromptCacheTokenHitRateAuthorization(direct, secondary, rawComparison, metric, comparison)
 		for _, outcomeName := range []string{"higher", "lower"} {
@@ -178,6 +324,25 @@ func TestPromptCacheTokenHitRateAuthorizationRejectsProjectionDrift(t *testing.T
 			if outcome["authorized"] != false || outcome["statement"] != nil || !containsString(outcome["reasons"].([]string), "evidence_projection_inconsistent") {
 				t.Fatalf("%s accepted a drifted projection: %#v", outcomeName, outcome)
 			}
+		}
+	}
+
+	firstPair := anyMap(rawComparison["pairs"].([]any)[0])
+	rawUsage := anyMap(anyMap(firstPair[Baseline])["raw_usage"])
+	for _, field := range []string{"uncached_input", "cache_read", "cache_write", "logical_input"} {
+		measurement := anyMap(rawUsage[field])
+		measurement["value"] = new(big.Int).Mul(measurement["value"].(*big.Int), big.NewInt(2))
+	}
+	metric := promptCacheTokenHitRateMetricFromDirect(direct)
+	comparison := promptCacheTokenHitRateComparisonFromRaw(direct, rawComparison)
+	if !containsString(comparison["blocking_reasons"].([]string), "evidence_projection_inconsistent") {
+		t.Fatalf("pair bucket drift did not block comparison: %#v", comparison)
+	}
+	authorization := buildPromptCacheTokenHitRateAuthorization(direct, secondary, rawComparison, metric, comparison)
+	for _, outcomeName := range []string{"higher", "lower"} {
+		outcome := anyMap(anyMap(authorization["outcomes"])[outcomeName])
+		if outcome["authorized"] != false || outcome["statement"] != nil || !containsString(outcome["reasons"].([]string), "evidence_projection_inconsistent") {
+			t.Fatalf("%s accepted drifted pair buckets: %#v", outcomeName, outcome)
 		}
 	}
 }
@@ -294,18 +459,23 @@ func TestPromptCacheTokenHitRateContractDocument(t *testing.T) {
 	activation := anyMap(contract["activation"])
 	metric := anyMap(contract["metric"])
 	comparison := anyMap(contract["comparison"])
+	resampling := anyMap(comparison["resampling"])
 	if contract["contract_version"] != promptCacheMetricContractV2 ||
 		activation["manifest_methodology_version"] != promptCacheHitRateMethodologyV6 ||
 		activation["manifest_methodology_cache_metric_contract"] != promptCacheMetricContractV2 ||
 		metric["formula"] != "cache_read / (uncached_input + cache_read + cache_write)" ||
-		comparison["identity_pooling"] != "forbidden" {
+		comparison["identity_pooling"] != "forbidden" ||
+		comparison["interval"] != "two_sided_95_percent_paired_cluster_bootstrap_percentile" ||
+		resampling["unit"] != "complete_pair_disjoint_token_buckets" ||
+		resampling["replicates"] != float64(promptCacheTokenHitRateBootstrapReplicates) ||
+		resampling["seed"] != float64(promptCacheTokenHitRateBootstrapSeed) {
 		t.Fatalf("contract = %#v", contract)
 	}
 	documentation, err := os.ReadFile(filepath.Join(root, "docs", "cache-reuse-metric-contract.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, fragment := range []string{"cache-reuse-v2", "v6-prompt-cache-hit-rate", "prompt_cache_token_hit_rate_comparison", "percentage_point_delta"} {
+	for _, fragment := range []string{"cache-reuse-v2", "v6-prompt-cache-hit-rate", "prompt_cache_token_hit_rate_comparison", "percentage_point_delta", "aggregate_buckets", "deterministic percentile bootstrap"} {
 		if !strings.Contains(string(documentation), fragment) {
 			t.Errorf("documentation omits %q", fragment)
 		}

@@ -57,6 +57,11 @@ computation: |
   Pair only complete measured_warm attempts whose runtime-emitted runtime,
   provider, and model match the manifest context and whose protocol provenance
   is valid. Do not pool identities or reconstruct unavailable buckets.
+  For each side, sum the three disjoint buckets across its exact complete
+  pairs before calculating the comparison rate. Do not average attempt or
+  pair fractions. The two-sided 95 percent interval uses a deterministic
+  percentile bootstrap of 10,000 whole complete-pair bucket resamples with
+  seed 1; every resample recomputes both side rates from its bucket sums.
 
 claim_scope:
   evidence_kind: runtime_reported_model_steps

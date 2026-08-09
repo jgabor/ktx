@@ -421,10 +421,17 @@ treated as zero.
 The comparison uses complete `measured_warm` cycle pairs only. Each member must
 have matching runtime-emitted runtime, provider, and model identity, the pinned
 runtime version, and valid retained protocol provenance. Identity pooling is
-forbidden. Its machine output includes `baseline_mean`, `candidate_mean`,
-`percentage_point_delta`, `complete_pair_count`, the two-sided 95 percent
-interval in percentage points, same-pair quality, ordered blockers, unavailable
-reasons, and raw pair evidence.
+forbidden. For each side, it sums `cache_read` and all three disjoint input
+buckets across the exact complete pairs, then calculates the side rate from
+those sums. It never averages attempt or pair fractions. The percentage-point
+delta is candidate aggregate rate minus baseline aggregate rate. Its two-sided
+95 percent interval uses a deterministic percentile bootstrap of 10,000 whole
+complete-pair bucket resamples with seed 1. Each resample recomputes both side
+rates from its bucket sums. Its machine output includes `baseline_mean`,
+`candidate_mean`, `percentage_point_delta`, `complete_pair_count`,
+`aggregate_buckets`, the two-sided 95 percent interval in percentage points,
+same-pair quality, ordered blockers, unavailable reasons, and raw pair
+evidence.
 
 The statement authorization emits a statement only for `higher` or `lower`
 token-weighted prompt-cache hit rate. It fails closed unless the raw projection

@@ -1132,13 +1132,16 @@ The future schema-5 prompt-cache token hit-rate successor is explicit. Use
 `tools/bench/methodology-v6-prompt-cache-hit-rate.yaml`, which writes
 `methodology.cache_metric_contract=cache-reuse-v2` into a new manifest. A v5
 manifest without that marker remains schema 4 and keeps its v1 output. The new
-summary's `prompt_cache_token_hit_rate_comparison` publishes baseline and
-candidate means, `percentage_point_delta`, complete pair count, interval,
-quality, ordered blockers, unavailable reasons, and raw pair evidence. Its
-statement surface renders only an authorized higher or lower token-weighted
-prompt-cache hit rate under the pinned disjoint-token formula. It does not make
-provider-internal, request-hit, TTL, eviction, eligibility, isolation, or prefix
-claims.
+summary's `prompt_cache_token_hit_rate_comparison` sums each side's three
+disjoint token buckets over the accepted complete pairs, then computes each
+rate and `percentage_point_delta` from those totals. It does not average
+attempt or pair rates. Its interval is a deterministic percentile bootstrap
+that resamples whole pair bucket contributions and recomputes both aggregate
+rates. The comparison also publishes complete pair count, quality, ordered
+blockers, unavailable reasons, and raw pair evidence. Its statement surface
+renders only an authorized higher or lower token-weighted prompt-cache hit rate
+under the pinned disjoint-token formula. It does not make provider-internal,
+request-hit, TTL, eviction, eligibility, isolation, or prefix claims.
 
 Validation is methodology-aware. For a new OpenCode 1.18.5 v5 run it requires
 summary schema 4, retained pricing metadata and its hash-bound snapshot, exactly

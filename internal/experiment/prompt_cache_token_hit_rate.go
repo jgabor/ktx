@@ -2,7 +2,9 @@ package experiment
 
 import (
 	"fmt"
+	"math"
 	"math/big"
+	"math/rand"
 	"reflect"
 	"sort"
 
@@ -11,11 +13,29 @@ import (
 
 const promptCacheTokenHitRateSource = "retained_runtime_model_step_telemetry"
 
+const (
+	promptCacheTokenHitRateBootstrapMethod     = "paired_cluster_bootstrap_percentile"
+	promptCacheTokenHitRateBootstrapReplicates = 10000
+	promptCacheTokenHitRateBootstrapSeed       = int64(1)
+)
+
+type promptCacheTokenBuckets struct {
+	uncachedInput *big.Int
+	cacheRead     *big.Int
+	cacheWrite    *big.Int
+}
+
+type promptCacheTokenPairBuckets struct {
+	cycle               int
+	baseline, candidate promptCacheTokenBuckets
+}
+
 var promptCacheTokenHitRateReasonPrecedence = []string{
 	"unsupported_runtime_accounting", "direct_evidence_incomplete", "evidence_projection_inconsistent",
 	"cycle_pair_incomplete", "protocol_noncompliant", "identity_provenance_unstable",
 	"runtime_emitted_identity_missing", "runtime_emitted_identity_conflict", "fewer_than_five_complete_pairs",
 	"two_sided_95_percent_interval_unavailable", "two_sided_95_percent_interval_contains_zero",
+	"aggregate_rate_tie", "aggregate_direction_interval_mismatch",
 	"quality_not_preserved", "candidate_not_higher", "candidate_not_lower",
 }
 
@@ -33,7 +53,7 @@ func buildPromptCacheTokenHitRateContract(manifest Manifest, attempts []Attempt)
 	secondary := buildSecondaryCacheEstimate(attempts)
 	rawComparison := buildCachedInputShareComparison(manifest, attempts)
 	metric := promptCacheTokenHitRateMetricFromDirect(direct)
-	comparison := promptCacheTokenHitRateComparisonFromRaw(rawComparison)
+	comparison := promptCacheTokenHitRateComparisonFromRaw(direct, rawComparison)
 	return metric, comparison, buildPromptCacheTokenHitRateAuthorization(direct, secondary, rawComparison, metric, comparison)
 }
 
@@ -86,12 +106,9 @@ func unavailablePromptCacheTokenHitRateMetric() map[string]any {
 	}
 }
 
-func promptCacheTokenHitRateComparisonFromRaw(raw map[string]any) map[string]any {
-	direct := anyMap(raw["direct"])
-	baseline := exactRationalMean(anyMap(direct[Baseline]))
-	candidate := exactRationalMean(anyMap(direct[Candidate]))
-	pairedDifference := anyMap(direct["paired_difference"])
-	blocking := append([]string(nil), stringSlice(raw["blocking_reasons"])...)
+func promptCacheTokenHitRateComparisonFromRaw(direct, raw map[string]any) map[string]any {
+	baseline, candidate, aggregateBuckets, pairedDifference, aggregateValid := promptCacheTokenHitRateAggregateComparison(direct, raw)
+	blocking := promptCacheTokenHitRateBlockingReasons(raw, pairedDifference, aggregateValid)
 	return map[string]any{
 		"contract_version": promptCacheMetricContractV2, "name": "prompt_cache_token_hit_rate_comparison",
 		"kind": cachemetric.PromptCacheTokenHitRateKind, "unit": cachemetric.PromptCacheTokenHitRateUnit,
@@ -102,8 +119,8 @@ func promptCacheTokenHitRateComparisonFromRaw(raw map[string]any) map[string]any
 		"baseline_mean": baseline, "candidate_mean": candidate,
 		"percentage_point_delta": percentagePointView(pairedDifference["mean"]),
 		"interval":               percentagePointInterval(pairedDifference), "quality": raw["quality"],
-		"blocking_reasons": blocking, "unavailable_reasons": append([]string(nil), blocking...),
-		"raw_pair_difference": pairedDifference,
+		"blocking_reasons": blocking, "unavailable_reasons": append([]string{}, blocking...),
+		"aggregate_buckets": aggregateBuckets, "raw_pair_difference": pairedDifference,
 	}
 }
 
@@ -119,24 +136,292 @@ func unavailablePromptCacheTokenHitRateComparison() map[string]any {
 		"protocol":      map[string]any{"expected_phase": MeasuredWarm, "compliant": false, "reasons": blocking},
 		"baseline_mean": nil, "candidate_mean": nil, "percentage_point_delta": nil, "interval": nil,
 		"quality": pairedQualityFromObservations(nil), "blocking_reasons": blocking, "unavailable_reasons": append([]string(nil), blocking...),
-		"raw_pair_difference": pairedDifferenceStatistics(nil),
+		"aggregate_buckets": nil, "raw_pair_difference": promptCacheTokenHitRatePairedStatistics(nil),
 	}
 }
 
-func exactRationalMean(distribution map[string]any) any {
-	values, ok := sliceValue(distribution["values"])
-	if !ok || len(values) == 0 {
-		return nil
+func promptCacheTokenHitRateAggregateComparison(direct, raw map[string]any) (any, any, any, map[string]any, bool) {
+	emptyStatistics := promptCacheTokenHitRatePairedStatistics(nil)
+	pairRows, pairsOK := sliceValue(raw["pairs"])
+	pairCount, pairCountOK := exactNonnegativeInt(raw["complete_pair_count"])
+	directRows, directOK := promptCacheTokenDirectAttemptsByID(direct)
+	if !pairsOK || !pairCountOK || pairCount != len(pairRows) || !directOK {
+		return nil, nil, nil, emptyStatistics, false
 	}
-	total := new(big.Rat)
-	for _, raw := range values {
-		ratio, ok := parseRationalView(anyMap(raw))
-		if !ok {
-			return nil
+	pairs := make([]promptCacheTokenPairBuckets, 0, len(pairRows))
+	seenCycles := map[int]bool{}
+	for _, value := range pairRows {
+		pair, pairOK := mapValue(value)
+		cycle, cycleOK := exactPositiveInt(pair["cycle"])
+		if !pairOK || !cycleOK || seenCycles[cycle] {
+			return nil, nil, nil, emptyStatistics, false
 		}
-		total.Add(total, ratio)
+		seenCycles[cycle] = true
+		baseline, baselineOK := promptCacheTokenBucketsForPairedAttempt(pair[Baseline], directRows, Baseline, cycle)
+		candidate, candidateOK := promptCacheTokenBucketsForPairedAttempt(pair[Candidate], directRows, Candidate, cycle)
+		if !baselineOK || !candidateOK {
+			return nil, nil, nil, emptyStatistics, false
+		}
+		pairs = append(pairs, promptCacheTokenPairBuckets{cycle: cycle, baseline: baseline, candidate: candidate})
 	}
-	return rationalView(new(big.Rat).Quo(total, big.NewRat(int64(len(values)), 1)))
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].cycle < pairs[j].cycle })
+	if len(pairs) == 0 {
+		return nil, nil, nil, emptyStatistics, true
+	}
+
+	baselineTotals, candidateTotals := newPromptCacheTokenBuckets(), newPromptCacheTokenBuckets()
+	for _, pair := range pairs {
+		baselineTotals.add(pair.baseline)
+		candidateTotals.add(pair.candidate)
+	}
+	_, baselineRate, baselineOK := promptCacheTokenBucketRate(baselineTotals)
+	_, candidateRate, candidateOK := promptCacheTokenBucketRate(candidateTotals)
+	if !baselineOK || !candidateOK {
+		return nil, nil, nil, emptyStatistics, false
+	}
+	return rationalView(baselineRate), rationalView(candidateRate), map[string]any{
+		"basis":  "sum_disjoint_token_buckets_over_complete_pairs",
+		Baseline: promptCacheTokenBucketView(baselineTotals), Candidate: promptCacheTokenBucketView(candidateTotals),
+	}, promptCacheTokenHitRatePairedStatistics(pairs), true
+}
+
+func promptCacheTokenDirectAttemptsByID(direct map[string]any) (map[string]map[string]any, bool) {
+	values, ok := sliceValue(direct["attempts"])
+	if !ok {
+		return nil, false
+	}
+	rows := make(map[string]map[string]any, len(values))
+	for _, value := range values {
+		row, rowOK := mapValue(value)
+		attemptID, idOK := nonemptyString(row["attempt_id"])
+		if !rowOK || !idOK || rows[attemptID] != nil {
+			return nil, false
+		}
+		rows[attemptID] = row
+	}
+	return rows, true
+}
+
+func promptCacheTokenBucketsForPairedAttempt(value any, directRows map[string]map[string]any, side string, cycle int) (promptCacheTokenBuckets, bool) {
+	pairRow, pairOK := mapValue(value)
+	attemptID, idOK := nonemptyString(pairRow["attempt_id"])
+	pairCycle, pairCycleOK := exactPositiveInt(pairRow["cycle"])
+	directRow, directOK := directRows[attemptID]
+	directCycle, directCycleOK := exactPositiveInt(directRow["cycle"])
+	if !pairOK || !idOK || !pairCycleOK || pairCycle != cycle || stringValue(pairRow["side"]) != side || stringValue(pairRow["phase"]) != MeasuredWarm ||
+		!directOK || !directCycleOK || directCycle != cycle || stringValue(directRow["side"]) != side || stringValue(directRow["phase"]) != MeasuredWarm {
+		return promptCacheTokenBuckets{}, false
+	}
+	pairBuckets, pairBucketsOK := promptCacheTokenBucketsFromPairAttempt(pairRow)
+	directBuckets, directBucketsOK := promptCacheTokenBucketsFromDirectAttempt(directRow)
+	if !pairBucketsOK || !directBucketsOK || !promptCacheTokenBucketsEqual(pairBuckets, directBuckets) {
+		return promptCacheTokenBuckets{}, false
+	}
+	return directBuckets, true
+}
+
+func promptCacheTokenBucketsFromPairAttempt(value any) (promptCacheTokenBuckets, bool) {
+	row, rowOK := mapValue(value)
+	rawUsage, usageOK := mapValue(row["raw_usage"])
+	if !rowOK || !usageOK {
+		return promptCacheTokenBuckets{}, false
+	}
+	return promptCacheTokenBucketsFromMeasurements(rawUsage, row["direct_share"])
+}
+
+func promptCacheTokenBucketsFromDirectAttempt(row map[string]any) (promptCacheTokenBuckets, bool) {
+	return promptCacheTokenBucketsFromMeasurements(row, row["share"])
+}
+
+func promptCacheTokenBucketsFromMeasurements(measurements map[string]any, declaredShare any) (promptCacheTokenBuckets, bool) {
+	uncached, uncachedOK := promptCacheTokenMeasuredInteger(measurements["uncached_input"])
+	read, readOK := promptCacheTokenMeasuredInteger(measurements["cache_read"])
+	write, writeOK := promptCacheTokenMeasuredInteger(measurements["cache_write"])
+	logical, rate, measured := cachemetric.PromptCacheTokenHitRate(uncached, read, write)
+	declaredLogical, logicalOK := promptCacheTokenMeasuredInteger(measurements["logical_input"])
+	declaredRate, rateOK := parseMeasuredShare(declaredShare)
+	if !uncachedOK || !readOK || !writeOK || !measured || !logicalOK || logical.Cmp(declaredLogical) != 0 || !rateOK || rate.Cmp(declaredRate) != 0 {
+		return promptCacheTokenBuckets{}, false
+	}
+	return promptCacheTokenBuckets{uncachedInput: uncached, cacheRead: read, cacheWrite: write}, true
+}
+
+func promptCacheTokenBucketsEqual(left, right promptCacheTokenBuckets) bool {
+	return left.uncachedInput.Cmp(right.uncachedInput) == 0 && left.cacheRead.Cmp(right.cacheRead) == 0 && left.cacheWrite.Cmp(right.cacheWrite) == 0
+}
+
+func promptCacheTokenMeasuredInteger(value any) (*big.Int, bool) {
+	measurement, measurementOK := mapValue(value)
+	if !measurementOK || stringValue(measurement["state"]) != "measured" {
+		return nil, false
+	}
+	var result *big.Int
+	switch number := measurement["value"].(type) {
+	case *big.Int:
+		if number != nil {
+			result = new(big.Int).Set(number)
+		}
+	case big.Int:
+		result = new(big.Int).Set(&number)
+	case int:
+		result = big.NewInt(int64(number))
+	case int64:
+		result = big.NewInt(number)
+	case uint:
+		result = new(big.Int).SetUint64(uint64(number))
+	case uint64:
+		result = new(big.Int).SetUint64(number)
+	}
+	return result, result != nil && result.Sign() >= 0
+}
+
+func newPromptCacheTokenBuckets() promptCacheTokenBuckets {
+	return promptCacheTokenBuckets{uncachedInput: new(big.Int), cacheRead: new(big.Int), cacheWrite: new(big.Int)}
+}
+
+func (buckets *promptCacheTokenBuckets) add(other promptCacheTokenBuckets) {
+	buckets.uncachedInput.Add(buckets.uncachedInput, other.uncachedInput)
+	buckets.cacheRead.Add(buckets.cacheRead, other.cacheRead)
+	buckets.cacheWrite.Add(buckets.cacheWrite, other.cacheWrite)
+}
+
+func promptCacheTokenBucketRate(buckets promptCacheTokenBuckets) (*big.Int, *big.Rat, bool) {
+	return cachemetric.PromptCacheTokenHitRate(buckets.uncachedInput, buckets.cacheRead, buckets.cacheWrite)
+}
+
+func promptCacheTokenBucketView(buckets promptCacheTokenBuckets) map[string]any {
+	logical, _, _ := promptCacheTokenBucketRate(buckets)
+	return map[string]any{
+		"uncached_input": new(big.Int).Set(buckets.uncachedInput), "cache_read": new(big.Int).Set(buckets.cacheRead),
+		"cache_write": new(big.Int).Set(buckets.cacheWrite), "logical_input": logical,
+	}
+}
+
+func promptCacheTokenHitRatePairedStatistics(pairs []promptCacheTokenPairBuckets) map[string]any {
+	result := map[string]any{
+		"count": len(pairs), "definition": "candidate_aggregate_token_hit_rate - baseline_aggregate_token_hit_rate",
+		"method": promptCacheTokenHitRateBootstrapMethod, "coverage": .95, "sides": 2,
+		"mean": nil, "sample_standard_deviation": nil, "interval": nil, "direction": "unavailable",
+		"descriptive_only": len(pairs) < 5,
+		"aggregation":      "sum(cache_read) / sum(uncached_input + cache_read + cache_write) by side over complete pairs",
+		"resampling": map[string]any{
+			"unit": "complete_pair_disjoint_token_buckets", "replicates": promptCacheTokenHitRateBootstrapReplicates,
+			"seed": promptCacheTokenHitRateBootstrapSeed,
+		},
+	}
+	if len(pairs) == 0 {
+		return result
+	}
+	baseline, candidate := newPromptCacheTokenBuckets(), newPromptCacheTokenBuckets()
+	for _, pair := range pairs {
+		baseline.add(pair.baseline)
+		candidate.add(pair.candidate)
+	}
+	_, baselineRate, baselineOK := promptCacheTokenBucketRate(baseline)
+	_, candidateRate, candidateOK := promptCacheTokenBucketRate(candidate)
+	if !baselineOK || !candidateOK {
+		return result
+	}
+	difference := new(big.Rat).Sub(candidateRate, baselineRate)
+	result["mean"] = rationalView(difference)
+	if len(pairs) < 5 {
+		return result
+	}
+
+	distribution := make([]float64, 0, promptCacheTokenHitRateBootstrapReplicates)
+	random := rand.New(rand.NewSource(promptCacheTokenHitRateBootstrapSeed))
+	for replicate := 0; replicate < promptCacheTokenHitRateBootstrapReplicates; replicate++ {
+		baseline, candidate := newPromptCacheTokenBuckets(), newPromptCacheTokenBuckets()
+		for draw := 0; draw < len(pairs); draw++ {
+			pair := pairs[random.Intn(len(pairs))]
+			baseline.add(pair.baseline)
+			candidate.add(pair.candidate)
+		}
+		_, baselineRate, baselineOK := promptCacheTokenBucketRate(baseline)
+		_, candidateRate, candidateOK := promptCacheTokenBucketRate(candidate)
+		if !baselineOK || !candidateOK {
+			return result
+		}
+		value, _ := new(big.Rat).Sub(candidateRate, baselineRate).Float64()
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return result
+		}
+		distribution = append(distribution, value)
+	}
+	lower, upper := quantile(distribution, .025), quantile(distribution, .975)
+	if lower == nil || upper == nil || math.IsNaN(*lower) || math.IsInf(*lower, 0) || math.IsNaN(*upper) || math.IsInf(*upper, 0) {
+		return result
+	}
+	result["interval"] = map[string]any{"lower": *lower, "upper": *upper}
+	if difference.Sign() > 0 && *lower > 0 {
+		result["direction"] = "higher"
+	} else if difference.Sign() < 0 && *upper < 0 {
+		result["direction"] = "lower"
+	} else {
+		result["direction"] = "inconclusive"
+	}
+	return result
+}
+
+func promptCacheTokenHitRateBlockingReasons(raw, statistics map[string]any, aggregateValid bool) []string {
+	blocking, blockingOK := strictStringSlice(raw["blocking_reasons"])
+	result := []string{}
+	if !blockingOK {
+		result = append(result, "evidence_projection_inconsistent")
+	}
+	for _, reason := range blocking {
+		switch reason {
+		case "fewer_than_five_complete_pairs", "two_sided_95_percent_interval_unavailable", "two_sided_95_percent_interval_contains_zero", "quality_not_preserved":
+			continue
+		default:
+			result = appendUnique(result, reason)
+		}
+	}
+	pairCount, pairCountOK := exactNonnegativeInt(raw["complete_pair_count"])
+	statisticsCount, statisticsCountOK := exactNonnegativeInt(statistics["count"])
+	if !aggregateValid || !pairCountOK || !statisticsCountOK || pairCount != statisticsCount {
+		result = appendUnique(result, "evidence_projection_inconsistent")
+	}
+	if pairCountOK && pairCount < 5 {
+		result = appendUnique(result, "fewer_than_five_complete_pairs")
+	}
+	if pairCountOK && pairCount >= 5 {
+		if _, intervalOK := mapValue(statistics["interval"]); !intervalOK {
+			result = appendUnique(result, "two_sided_95_percent_interval_unavailable")
+		} else {
+			switch stringValue(statistics["direction"]) {
+			case "higher", "lower":
+			case "inconclusive":
+				result = appendUnique(result, promptCacheTokenHitRateInconclusiveReason(statistics))
+			default:
+				result = appendUnique(result, "two_sided_95_percent_interval_unavailable")
+			}
+		}
+	}
+	quality, qualityOK := mapValue(raw["quality"])
+	if !qualityOK {
+		result = appendUnique(result, "evidence_projection_inconsistent")
+	} else if pairCountOK && pairCount > 0 && quality["preserved"] != true {
+		result = appendUnique(result, "quality_not_preserved")
+	}
+	return orderPromptCacheTokenHitRateReasons(result)
+}
+
+func promptCacheTokenHitRateInconclusiveReason(statistics map[string]any) string {
+	mean, meanOK := parseRationalView(anyMap(statistics["mean"]))
+	interval, intervalOK := mapValue(statistics["interval"])
+	lower, lowerOK := finiteNumber(interval["lower"])
+	upper, upperOK := finiteNumber(interval["upper"])
+	if !meanOK || !intervalOK || !lowerOK || !upperOK || lower > upper {
+		return "two_sided_95_percent_interval_unavailable"
+	}
+	if lower <= 0 && upper >= 0 {
+		return "two_sided_95_percent_interval_contains_zero"
+	}
+	if mean.Sign() == 0 {
+		return "aggregate_rate_tie"
+	}
+	return "aggregate_direction_interval_mismatch"
 }
 
 func percentagePointView(value any) any {
@@ -157,10 +442,14 @@ func percentagePointInterval(statistics map[string]any) any {
 	if !lowerOK || !upperOK {
 		return nil
 	}
-	return map[string]any{
+	result := map[string]any{
 		"method": statistics["method"], "coverage": statistics["coverage"], "sides": statistics["sides"],
 		"unit": "percentage_points", "lower": lower * 100, "upper": upper * 100,
 	}
+	if resampling, ok := mapValue(statistics["resampling"]); ok {
+		result["resampling"] = copyPromptCacheMap(resampling)
+	}
+	return result
 }
 
 func promptCacheTokenHitRatePairs(value any) []any {
@@ -257,8 +546,8 @@ func copyPromptCacheMap(source map[string]any) map[string]any {
 
 func buildPromptCacheTokenHitRateAuthorization(direct, secondary, rawComparison, metric, comparison map[string]any) map[string]any {
 	metricProjectionMatches := reflect.DeepEqual(metric, promptCacheTokenHitRateMetricFromDirect(direct))
-	comparisonProjectionMatches := reflect.DeepEqual(comparison, promptCacheTokenHitRateComparisonFromRaw(rawComparison))
-	legacy := buildCacheStatementAuthorization(direct, secondary, rawComparison)
+	comparisonProjectionMatches := reflect.DeepEqual(comparison, promptCacheTokenHitRateComparisonFromRaw(direct, rawComparison))
+	rawEvidenceAuthorization := buildCacheStatementAuthorization(direct, secondary, rawComparison)
 	blockers, blockersValid := strictStringSlice(comparison["blocking_reasons"])
 	quality := anyMap(comparison["quality"])
 	difference := anyMap(comparison["raw_pair_difference"])
@@ -278,8 +567,8 @@ func buildPromptCacheTokenHitRateAuthorization(direct, secondary, rawComparison,
 		"scope":                          "paired token-weighted prompt-cache hit rate under pinned disjoint token accounting",
 		"permanently_unsupported_claims": append([]string(nil), promptCacheTokenHitRateUnsupportedClaims...),
 		"outcomes": map[string]any{
-			"higher": promptCacheTokenHitRateDirectionalOutcome("higher", legacy, blockers, blockersValid, pairCount, pairCountValid, quality, difference, baseGates),
-			"lower":  promptCacheTokenHitRateDirectionalOutcome("lower", legacy, blockers, blockersValid, pairCount, pairCountValid, quality, difference, baseGates),
+			"higher": promptCacheTokenHitRateDirectionalOutcome("higher", rawEvidenceAuthorization, blockers, blockersValid, pairCount, pairCountValid, quality, difference, baseGates),
+			"lower":  promptCacheTokenHitRateDirectionalOutcome("lower", rawEvidenceAuthorization, blockers, blockersValid, pairCount, pairCountValid, quality, difference, baseGates),
 		},
 	}
 }
@@ -303,12 +592,8 @@ func unavailablePromptCacheTokenHitRateAuthorization(comparison map[string]any) 
 	}
 }
 
-func promptCacheTokenHitRateDirectionalOutcome(direction string, legacy map[string]any, blockers []string, blockersValid bool, pairCount int, pairCountValid bool, quality, difference, baseGates map[string]any) map[string]any {
-	legacyName := "candidate_higher_success"
-	if direction == "lower" {
-		legacyName = "candidate_lower"
-	}
-	legacyOutcome := anyMap(anyMap(legacy["outcomes"])[legacyName])
+func promptCacheTokenHitRateDirectionalOutcome(direction string, rawEvidenceAuthorization map[string]any, blockers []string, blockersValid bool, pairCount int, pairCountValid bool, quality, difference, baseGates map[string]any) map[string]any {
+	pairedEvidence := anyMap(anyMap(rawEvidenceAuthorization["outcomes"])["comparative_descriptive"])
 	reasons := append([]string(nil), blockers...)
 	if !blockersValid || baseGates["metric_projection_matches_raw_evidence"] != true || baseGates["comparison_projection_matches_raw_evidence"] != true || baseGates["contract_activated"] != true {
 		reasons = appendUnique(reasons, "evidence_projection_inconsistent")
@@ -319,12 +604,12 @@ func promptCacheTokenHitRateDirectionalOutcome(direction string, legacy map[stri
 	if quality["preserved"] != true {
 		reasons = appendUnique(reasons, "quality_not_preserved")
 	}
-	if legacyOutcome["authorized"] != true {
-		reasons = appendUnique(reasons, stringSlice(legacyOutcome["reasons"])...)
+	if pairedEvidence["authorized"] != true {
+		reasons = appendUnique(reasons, stringSlice(pairedEvidence["reasons"])...)
 	}
 	if stringValue(difference["direction"]) != direction {
 		if stringValue(difference["direction"]) == "inconclusive" {
-			reasons = appendUnique(reasons, "two_sided_95_percent_interval_contains_zero")
+			reasons = appendUnique(reasons, promptCacheTokenHitRateInconclusiveReason(difference))
 		} else if direction == "higher" {
 			reasons = appendUnique(reasons, "candidate_not_higher")
 		} else {
@@ -335,7 +620,7 @@ func promptCacheTokenHitRateDirectionalOutcome(direction string, legacy map[stri
 	authorized := len(reasons) == 0
 	gates := copyPromptCacheMap(baseGates)
 	gates["direction_matches_requested_outcome"] = stringValue(difference["direction"]) == direction
-	gates["legacy_evidence_authorization"] = legacyOutcome["authorized"] == true
+	gates["paired_evidence_authorization"] = pairedEvidence["authorized"] == true
 	evidence := map[string]any{
 		"reference": "prompt_cache_token_hit_rate_comparison.pairs", "complete_pair_count": pairCount,
 		"percentage_point_delta": percentagePointView(difference["mean"]),

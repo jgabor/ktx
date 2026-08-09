@@ -26,7 +26,14 @@
     "minimum_complete_pairs": 5,
     "difference": "candidate_minus_baseline",
     "difference_unit": "percentage_points",
-    "interval": "two_sided_95_percent_student_t_on_paired_differences",
+    "aggregation": "for each side over the exact accepted complete pairs, calculate sum(cache_read) / sum(uncached_input + cache_read + cache_write); never average attempt or pair fractions",
+    "interval": "two_sided_95_percent_paired_cluster_bootstrap_percentile",
+    "resampling": {
+      "unit": "complete_pair_disjoint_token_buckets",
+      "replicates": 10000,
+      "seed": 1,
+      "statistic": "candidate aggregate rate minus baseline aggregate rate after each whole-pair resample"
+    },
     "quality": "same_complete_pairs_candidate_mean_fact_score_and_full_pass_rate_not_lower",
     "machine_fields": [
       "baseline_mean",
@@ -37,6 +44,7 @@
       "quality",
       "blocking_reasons",
       "unavailable_reasons",
+      "aggregate_buckets",
       "pairs"
     ]
   },

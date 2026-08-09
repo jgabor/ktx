@@ -342,6 +342,13 @@ The summary independently selects accepted OpenCode 1.18.5 model-step telemetry
 by `captured_at`. `cache_reuse` pools those steps' runtime-reported
 uncached-input, cache-read, and cache-write provider prompt/prefix-cache token
 buckets. This is not filesystem, memory, database, HTTP, or other I/O caching.
+`cached_input_share` is measured only when every contributing step has a
+nonblank runtime-emitted provider and model and all steps have the same pair.
+Missing identity makes the share `missing` with reason
+`runtime_emitted_identity_unavailable`; more than one pair uses
+`runtime_emitted_identity_conflict`. Configured identity never fills source
+evidence. Rows without current event-hook or wrapper-stream collection
+provenance are excluded rather than historically reinterpreted.
 It reports the first and last accepted capture, their observed span, and distinct
 KTX session and model-step counts. Capture timestamps describe only that observed
 subset. `requested_window_coverage` remains unavailable with reason

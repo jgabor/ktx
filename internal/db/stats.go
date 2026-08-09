@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 // StatsRow is one tool_call row from the stats query. The
@@ -117,9 +119,10 @@ func (d *DB) StatsSummaryRows(from, to time.Time) ([]StatsSummaryRow, error) {
 	return statsSummaryRowsFor(d.db, from, to, nil)
 }
 
-// StatsSummaryCacheRows returns accepted runtime model-step observations whose
-// capture timestamp is in the inclusive [from, to] interval and whose runtime
-// identity matches the requested accounting contract.
+// StatsSummaryCacheRows returns accepted runtime model-step observations from
+// current trusted collection sources whose capture timestamp is in the inclusive
+// [from, to] interval and whose runtime identity matches the requested accounting
+// contract.
 func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion string) ([]StatsSummaryCacheRow, error) {
 	if d == nil || d.db == nil {
 		return nil, fmt.Errorf("db: stats summary cache: database is nil")
@@ -130,7 +133,8 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 			tokens_input, cache_read, cache_write,
 			tokens_input_state, cache_read_state, cache_write_state
 		FROM session_telemetry
-		WHERE runtime = ? AND runtime_version = ?`, runtime, runtimeVersion)
+		WHERE runtime = ? AND runtime_version = ?
+			AND source IN (?, ?)`, runtime, runtimeVersion, telemetry.SourceEventHook, telemetry.SourceWrapperStream)
 	if err != nil {
 		return nil, fmt.Errorf("db: stats summary cache query: %w", err)
 	}

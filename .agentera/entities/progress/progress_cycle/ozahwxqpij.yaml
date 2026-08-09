@@ -1,0 +1,16 @@
+id: ozahwxqpij
+artifact: progress
+record:
+  timestamp: 2026-08-09 16:46
+  type: fix
+  phase: build
+  what: Corrected the live cache-share source boundary to exclude legacy-provenance telemetry and documented the identity prerequisite.
+  context:
+    intent: Ensure only current trusted collection provenance can participate in the authoritative runtime-emitted provider/model population.
+    constraints: No migration, historical rewrite, configured-identity fallback, unrelated cleanup, or ambient live database access.
+    unknowns: No ambient or paid live telemetry was inspected.
+    scope: Stats cache-row source selection, one legacy-provenance regression, and the public stats contract.
+  discovered: The prior gate inspected provider/model values after selecting solely by runtime/version, so migrated legacy rows retaining identity values could yield a measured share despite unknown collection provenance.
+  verified: "PASS: focused TestStatsWindowLogic cases for measured same-identity, missing identity, mixed identity, and legacy provenance; TestStatsSummaryCacheRows; go test ./internal/db ./internal/cli -count=1; mage build. Every verification command used env -u KTX_DB and a newly allocated disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, and XDG_STATE_HOME. No schema or migration code changed; no ambient live database was accessed."
+  next: Leave plan task oixzlpbdav pending for writer-owned reevaluation; Prime may mark it complete only after PASS.
+  publication_order: 66

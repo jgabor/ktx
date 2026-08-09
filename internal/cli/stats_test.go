@@ -736,6 +736,49 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 	})
 
+	t.Run("legacy collection provenance cannot produce a share", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "ktx.db")
+		db, err := dbpkg.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		sid := seedSession(t, db)
+		raw, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { raw.Close() })
+		if _, err := raw.Exec(`INSERT INTO session_telemetry (
+				session_id, source_session_id, message_id, part_id, ordinal, reason,
+				tokens_input, cache_read, cache_write, provider, model,
+				runtime, runtime_version, source, captured_at,
+				cost_state, tokens_input_state, tokens_output_state,
+				tokens_reasoning_state, cache_read_state, cache_write_state)
+			VALUES (?, 'legacy-session', 'legacy-message', 'legacy-part', 1, 'stop',
+				10, 30, 0, 'openai', 'gpt-5.6-luna', ?, ?, 'legacy', ?,
+				'unknown', 'measured', 'unknown', 'unknown', 'measured', 'measured')`,
+			sid, reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, now.Add(-time.Minute).Format(time.RFC3339Nano)); err != nil {
+			t.Fatal(err)
+		}
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatal(err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		cache := got.CacheReuse
+		if cache.ContributingSessions != 0 || cache.ContributingModelSteps != 0 {
+			t.Fatalf("legacy telemetry contributed to cache population: %+v", cache)
+		}
+		if share := cache.CachedInputShare; share.State != statsSummaryMissing || share.Value != nil || share.Ratio != nil {
+			t.Errorf("cached_input_share = %+v, want no share", share)
+		}
+	})
+
 	t.Run("excludes invalid, out-of-window, and unsupported telemetry from window metadata", func(t *testing.T) {
 		db := openMemoryDB(t)
 		acceptedSessionID := seedSession(t, db)

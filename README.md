@@ -102,7 +102,11 @@ pipelines, tasks, methodologies, and corpus fixtures live under
 [`tools/bench`](tools/bench).
 
 A cache-aware live comparison separates cold observation, warm-up, and measured
-attempts:
+attempts. The current opt-in path uses methodology v6, summary schema 5, and
+`cache-reuse-v2` to report the token-weighted prompt-cache hit rate under the
+pinned contract. It does not authorize provider-request or provider-internal
+cache claims; methodology v5, schema 4, and `cache-reuse-v1` remain historical
+evidence.
 
 ```bash
 ./build/ktx bench compare --preflight --format json
@@ -111,7 +115,7 @@ attempts:
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \

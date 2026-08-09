@@ -138,6 +138,27 @@ func TestBenchPreflightContractSurfacesMatchBehavior(t *testing.T) {
 	}
 }
 
+func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
+	root := repositoryRoot(t)
+	var help bytes.Buffer
+	printBenchHelp(&help)
+	for name, contents := range map[string]string{
+		"help":    help.String(),
+		"readme":  readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"runbook": readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			assertContractText(t, contents,
+				[]string{"methodology-v6-prompt-cache-token-hit-rate.yaml"}, nil)
+		})
+	}
+
+	contract := readDocumentationFile(t, filepath.Join(root, "docs", "cache-reuse-metric-contract.md"))
+	assertContractText(t, contract,
+		[]string{"current machine-readable authority", "cache-reuse-contract-v2.json", "summary schema 5", "provider-internal claims", "cache-reuse-contract-v1.json", "historical evidence"},
+		[]string{"Future collection, derivation, and\nrendering work must implement that versioned contract"})
+}
+
 func assertContractText(t *testing.T, contents string, required, forbidden []string) {
 	t.Helper()
 	for _, issue := range contractTextIssues(contents, required, forbidden) {

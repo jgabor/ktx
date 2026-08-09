@@ -1,15 +1,26 @@
 # Runtime-reported cache reuse metric contract
 
-This contract defines two non-ranking views of retained OpenCode model-step
-evidence. The primary view is a direct cached-input share. The secondary view
-is a consecutive-step estimate adapted from Pi's cache-waste calculation. Both
-describe runtime-reported token fields; neither describes provider requests,
-cache hits or misses, eligible prefixes, isolation, expiry, or causality.
+## Current contract
 
-The machine-readable authority is
-`tools/bench/cache-reuse-contract-v1.json`. Future collection, derivation, and
-rendering work must implement that versioned contract rather than changing an
-existing summary schema or historical artifact in place.
+The current machine-readable authority for new cache-aware benchmark work is
+`tools/bench/cache-reuse-contract-v2.json`. It is activated explicitly by
+`tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml`.
+It emits summary schema 5. The token-weighted `prompt_cache_token_hit_rate` is
+reported under the pinned accounting contract. Provider-request and
+provider-internal claims remain forbidden.
+
+`cache-reuse-v2` supersedes v1 for new derivation and rendering. It does not
+rewrite retained summaries or change historical bytes, hashes, wording, or
+meaning.
+
+## Historical v1 contract
+
+The remainder of this document records `tools/bench/cache-reuse-contract-v1.json`
+as historical evidence. That contract defines two non-ranking views of retained
+OpenCode model-step evidence: a direct cached-input share and a consecutive-step
+estimate adapted from Pi's cache-waste calculation. Both describe
+runtime-reported token fields; neither describes provider requests, cache hits
+or misses, eligible prefixes, isolation, expiry, or causality.
 
 The active benchmark context is `openai/gpt-5.6-luna` with CLI variant
 `--variant high`. This configured context is retained as provenance but never
@@ -347,7 +358,7 @@ eligible and ineligible counts, and remains descriptive and non-ranking. It has
 no input to any direct outcome. Unsupported claim categories remain available
 as machine policy only and are never emitted as supported statements.
 
-## Current live-validation status
+## Historical v1 live-validation status
 
 The retained OpenCode 1.18.5 and `openai/gpt-5.6-luna` high v3 experiment
 passed validation: `valid=true`, `summary_byte_match=true`, 14/14 valid attempt

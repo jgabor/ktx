@@ -999,8 +999,10 @@ more are `descriptive`. The label does not block smoke runs.
 
 ### Cache-aware comparison
 
-Methodology v4 remains the default for compatibility. Select the cache-aware
-contract explicitly:
+Methodology v4 remains the default for compatibility. The current explicit
+cache-aware path is methodology v6, summary schema 5, and `cache-reuse-v2`.
+It reports the token-weighted prompt-cache hit rate under the pinned contract;
+provider-request and provider-internal cache claims remain forbidden.
 
 ```bash
 ./build/ktx bench compare --preflight --format json
@@ -1009,7 +1011,7 @@ contract explicitly:
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
@@ -1085,8 +1087,8 @@ records OpenCode runs as observed-only, and explicit isolation fails before an
 agent attempt. Historical retained artifacts with isolated metadata remain
 validatable evidence; their labels do not enable isolation for a new run.
 
-Schema-v4 cache-aware summaries expose distributions for each phase while
-keeping `measured_warm` as the headline, a cold-to-warm estimated-cost rebuild
+Retained methodology-v5 schema-4 summaries expose distributions for each phase
+while keeping `measured_warm` as the headline, a cold-to-warm estimated-cost rebuild
 penalty, and the first cumulative measured turn where candidate estimated API
 cost is below baseline after setup cost. Unavailable estimates produce null
 values with reasons. They also expose the OpenCode-reported direct cached-input
@@ -1095,18 +1097,24 @@ measured-cycle pairs, and deterministic claim limits. TTFT is null:
 the OpenCode 1.18.5 JSONL format does not provide a reliable request-start
 timestamp.
 
-Validation is methodology-aware. For a new OpenCode 1.18.5 v5 run it requires
-summary schema 4, retained pricing metadata and its hash-bound snapshot, exactly
+Current methodology-v6 schema-5 summaries use the `cache-reuse-v2`
+`prompt_cache_token_hit_rate`, `prompt_cache_token_hit_rate_comparison`, and
+`prompt_cache_token_hit_rate_statement_authorization` names. Complete paired
+evidence reports both means, candidate-minus-baseline percentage-point delta,
+pair count, interval, same-pair quality, and blocking reasons.
+
+Validation is methodology-aware. For a new OpenCode 1.18.5 v6 run it requires
+summary schema 5, retained pricing metadata and its hash-bound snapshot, exactly
 one cold observation and the configured warm-up count per side, explicit roles,
-cache metadata consistent
-with the manifest, and measured-warm-only target counts. Historical isolated evidence must
-use one stable namespace hash per side and different hashes across sides.
-Observed evidence must not retain a namespace hash. Historical isolated manifest and
-attempt hashes must be exactly 64 lowercase hexadecimal characters, agree for
-every attempt within a side, and differ across sides. This format check ensures
-only the SHA-256 digest—not the raw namespace—can occupy retained namespace
-metadata. Methodologies v1-v4 and retained schema-v3 v5 experiments preserve
-their historical validation and summary bytes.
+cache metadata consistent with the manifest, and measured-warm-only target
+counts. Historical isolated evidence must use one stable namespace hash per side
+and different hashes across sides. Observed evidence must not retain a namespace
+hash. Historical isolated manifest and attempt hashes must be exactly 64
+lowercase hexadecimal characters, agree for every attempt within a side, and
+differ across sides. This format check ensures only the SHA-256 digest—not the
+raw namespace—can occupy retained namespace metadata. Methodologies v1-v5,
+`cache-reuse-v1`, and retained summary schemas 1–4 preserve their historical
+validation, meaning, and bytes.
 
 All cache-reuse views are derived from runtime-reported model-step fields.
 Cold, warm-up, and measured phase labels do not prove provider cache hits,

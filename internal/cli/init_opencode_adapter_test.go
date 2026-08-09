@@ -194,6 +194,7 @@ if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
       printf '{"error":{"code":"schema-incompatible","message":"schema too new","actual_schema":%s,"maximum_schema":%s,"database_path":"%s","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","correction":"install a newer binary"}}\n' "$schema_actual" "$schema_max" "$KTX_TEST_DB_PATH" "$path" "$digest" >&2
       exit 5 ;;
     malformed) printf '{"error":{"code":"schema-incompatible"}}\n' >&2; exit 5 ;;
+    unavailable) printf '{"error":{"code":"database-unavailable","message":"database unavailable","database_path":"%s","correction":"retry"}}\n' "$KTX_TEST_DB_PATH" >&2; exit 4 ;;
     other) printf 'ordinary failure\n' >&2; exit 7 ;;
   esac
 fi
@@ -510,6 +511,7 @@ console.log(JSON.stringify(results))
 			{name: "HOMEDRIVE path change", scenario: "windows-homedrive", mode: "valid", wantCalls: 2, wantPathCalls: 2, wantDiagnostics: 2},
 			{name: "HOMEPATH path change", scenario: "windows-homepath", mode: "valid", wantCalls: 2, wantPathCalls: 2, wantDiagnostics: 2},
 			{name: "malformed exit five", scenario: "repeat", mode: "malformed", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
+			{name: "database unavailable", scenario: "repeat", mode: "unavailable", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
 			{name: "non schema errors", scenario: "repeat", mode: "other", wantCalls: 2, wantPathCalls: 1, wantDiagnostics: 2},
 			{name: "required benchmark", scenario: "repeat", mode: "valid", required: true, wantCalls: 3, wantPathCalls: 0, wantDiagnostics: 2, wantRejected: true},
 		} {
@@ -597,8 +599,11 @@ console.log(JSON.stringify(results))
 					t.Errorf("db path calls = %d, want %d", got, test.wantPathCalls)
 				}
 				diagnostic := "schema-incompatible"
-				if test.mode == "other" {
+				switch test.mode {
+				case "other":
 					diagnostic = "ordinary failure"
+				case "unavailable":
+					diagnostic = "database-unavailable"
 				}
 				if got := strings.Count(stderr.String()+stdout.String(), diagnostic); got != test.wantDiagnostics {
 					t.Errorf("diagnostics = %d, want %d; stdout=%q stderr=%q", got, test.wantDiagnostics, stdout.String(), stderr.String())

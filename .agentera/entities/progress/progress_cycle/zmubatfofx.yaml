@@ -1,0 +1,15 @@
+id: zmubatfofx
+artifact: progress
+record:
+  timestamp: 2026-08-09 21:25
+  type: fix
+  phase: build
+  what: Verified typed foreign-lock rendering and partial-hook delivery boundaries.
+  context:
+    intent: Keep bounded foreign-lock failures typed while preserving source and artifact authority.
+    constraints: Preserve one binary, one SQLite database, synchronous hooks, conservative pass-through, no daemon, and no durable spool.
+    scope: Hook foreign-lock regressions, generated OpenCode adapter coverage, availability-contract documentation, load verification, and isolated repository checks.
+  discovered: The existing dispatcher already classifies wrapped SQLite lock errors from hook persistence phases as database-unavailable; the missing evidence was phase-specific regression and availability-boundary coverage.
+  verified: Focused source, artifact, and disposition lock regressions passed. The OpenCode adapter preserves original output for database-unavailable exit 4. The availability contract now states that ktx has no durable spool, makes no zero-loss claim before source acceptance, and gives no progress guarantee for an indefinitely held foreign lock. Isolated mage loadBench rebuilt ./build/ktx, completed five measured 32-writer rounds with 32/32 completions and 33/33 reconciliation each, classified the held foreign writer/read-only case as database-unavailable with exit 4 and one retained bootstrap row, completed compatible migration with 3/3 reconciliation, and recorded 1086 accesses with forbidden=0. Isolated mage check passed race tests, vet, lint with 0 issues, build, and recorded 1003 accesses with forbidden=0.
+  next: aqyctmdhbw is complete; no production scope was added.
+  publication_order: 72

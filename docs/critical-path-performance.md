@@ -50,6 +50,9 @@ Each committed record is durable and retry-safe. The accepted source is
 persisted before any lossy delivery. These phases are not interchangeable: a
 source record alone does not prove artifact or disposition acceptance.
 
+Ktx has no durable spool. An event blocked before source acceptance is
+unaccepted, and ktx makes no zero-loss claim for that event. Ktx makes no progress guarantee while a foreign SQLite client holds a lock indefinitely.
+
 ## Database-unavailable result
 
 When bounded SQLite lock retries end without an accepted operation, the result

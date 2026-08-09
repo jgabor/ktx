@@ -6,7 +6,7 @@ record:
     - iuyndimqgm
     - jvqmmnjbre
     - sikwslbpkj
-  status: pending
+  status: complete
   acceptance:
     - GIVEN lock exhaustion during read-only open, write open, migration, source persistence, artifact persistence, or disposition persistence WHEN the error is rendered THEN JSON and text use database-unavailable with exit 4 and contain no SQLite driver wording.
     - GIVEN a foreign lock prevents source acceptance WHEN a hook returns THEN the event is explicitly unaccepted, the agent receives the original output, and no persistence claim is made.

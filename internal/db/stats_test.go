@@ -266,11 +266,14 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	from := time.Date(2026, 7, 21, 11, 30, 0, 0, time.UTC)
 	to := from.Add(30 * time.Minute)
 	sessionID := mustNewID(t)
-	if err := d.InsertSession(&Session{ID: sessionID, Agent: runtime}); err != nil {
-		t.Fatal(err)
+	otherSessionID := mustNewID(t)
+	for _, id := range []string{sessionID, otherSessionID} {
+		if err := d.InsertSession(&Session{ID: id, Agent: runtime}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	persist := func(name, capturedAt, runtime, runtimeVersion string, input, read, write telemetry.IntegerMeasurement) {
+	persist := func(name, sessionID, capturedAt, runtime, runtimeVersion string, input, read, write telemetry.IntegerMeasurement) {
 		t.Helper()
 		observation := telemetryObservation("source_"+name, "message_"+name, "part_"+name, 1, 0, 0)
 		observation.Runtime = runtime
@@ -286,15 +289,15 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 		return telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &value}
 	}
 
-	persist("from", from.Format(time.RFC3339Nano), runtime, runtimeVersion, measured(10), measured(20), measured(0))
-	persist("to", to.Format(time.RFC3339Nano), runtime, runtimeVersion,
+	persist("from", sessionID, from.Format(time.RFC3339Nano), runtime, runtimeVersion, measured(10), measured(20), measured(0))
+	persist("to", otherSessionID, to.Format(time.RFC3339Nano), runtime, runtimeVersion,
 		telemetry.IntegerMeasurement{State: telemetry.MeasurementUnknown}, measured(30), telemetry.IntegerMeasurement{State: telemetry.MeasurementMalformed})
-	persist("offset", "2026-07-21T13:30:00+02:00", runtime, runtimeVersion, measured(40), measured(50), measured(60))
-	persist("before", from.Add(-time.Nanosecond).Format(time.RFC3339Nano), runtime, runtimeVersion, measured(1), measured(1), measured(1))
-	persist("after", to.Add(time.Nanosecond).Format(time.RFC3339Nano), runtime, runtimeVersion, measured(1), measured(1), measured(1))
-	persist("invalid", "not-a-timestamp", runtime, runtimeVersion, measured(1), measured(1), measured(1))
-	persist("runtime", from.Format(time.RFC3339Nano), "other-runtime", runtimeVersion, measured(1), measured(1), measured(1))
-	persist("version", from.Format(time.RFC3339Nano), runtime, "1.18.4", measured(1), measured(1), measured(1))
+	persist("offset", otherSessionID, "2026-07-21T13:30:00+02:00", runtime, runtimeVersion, measured(40), measured(50), measured(60))
+	persist("before", sessionID, from.Add(-time.Nanosecond).Format(time.RFC3339Nano), runtime, runtimeVersion, measured(1), measured(1), measured(1))
+	persist("after", sessionID, to.Add(time.Nanosecond).Format(time.RFC3339Nano), runtime, runtimeVersion, measured(1), measured(1), measured(1))
+	persist("invalid", sessionID, "not-a-timestamp", runtime, runtimeVersion, measured(1), measured(1), measured(1))
+	persist("runtime", sessionID, from.Format(time.RFC3339Nano), "other-runtime", runtimeVersion, measured(1), measured(1), measured(1))
+	persist("version", sessionID, from.Format(time.RFC3339Nano), runtime, "1.18.4", measured(1), measured(1), measured(1))
 
 	rows, err := d.StatsSummaryCacheRows(from, to, runtime, runtimeVersion)
 	if err != nil {
@@ -303,9 +306,13 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	if len(rows) != 3 {
 		t.Fatalf("got %d rows, want 3: %+v", len(rows), rows)
 	}
-	var measuredInput, unknownInput, malformedWrite int
+	var measuredInput, unknownInput, malformedWrite, measuredZeroWrite int
 	var inputTotal, readTotal, writeTotal int64
+	var captures []string
+	sessions := make(map[string]struct{})
 	for _, row := range rows {
+		captures = append(captures, row.CapturedAt.Format(time.RFC3339Nano))
+		sessions[row.SessionID] = struct{}{}
 		switch row.UncachedInput.State {
 		case MeasurementMeasured:
 			measuredInput++
@@ -319,15 +326,26 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 		switch row.CacheWrite.State {
 		case MeasurementMeasured:
 			writeTotal += *row.CacheWrite.Value
+			if *row.CacheWrite.Value == 0 {
+				measuredZeroWrite++
+			}
 		case MeasurementMalformed:
 			malformedWrite++
 		}
 	}
-	if measuredInput != 2 || unknownInput != 1 || malformedWrite != 1 {
-		t.Errorf("states measured_input=%d unknown_input=%d malformed_write=%d", measuredInput, unknownInput, malformedWrite)
+	if measuredInput != 2 || unknownInput != 1 || malformedWrite != 1 || measuredZeroWrite != 1 {
+		t.Errorf("states measured_input=%d unknown_input=%d malformed_write=%d measured_zero_write=%d", measuredInput, unknownInput, malformedWrite, measuredZeroWrite)
 	}
 	if inputTotal != 50 || readTotal != 100 || writeTotal != 60 {
 		t.Errorf("measured totals input=%d read=%d write=%d, want 50/100/60", inputTotal, readTotal, writeTotal)
+	}
+	sort.Strings(captures)
+	wantCaptures := []string{from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), to.Format(time.RFC3339Nano)}
+	if !reflect.DeepEqual(captures, wantCaptures) {
+		t.Errorf("captures = %v, want %v", captures, wantCaptures)
+	}
+	if len(sessions) != 2 {
+		t.Errorf("contributing sessions = %d, want 2", len(sessions))
 	}
 }
 

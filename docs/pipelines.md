@@ -312,10 +312,11 @@ command label rather than exposing raw command text.
 
 `ktx stats summary` emits a fixed-shape aggregate for periodically polled clients.
 Its JSON contract contains only window metadata, headline call and token totals,
-and aggregate cache evidence. The schema is closed: diagnostic arrays and new
-reporting dimensions require an intentional schema-version change.
+and aggregate provider prompt/prefix-cache token evidence. The schema is closed:
+diagnostic arrays and new reporting dimensions require an intentional
+schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
-Summary schema 5 omits `delivery_breakdown`; callers that need those detailed
+Summary schema 6 omits `delivery_breakdown`; callers that need those detailed
 groups should invoke the breakdown schema 2 command instead.
 
 The summary and breakdown commands use an inclusive trailing window (`[from,
@@ -339,9 +340,15 @@ observation, and other calls without retained disposition evidence report
 
 The summary independently selects accepted OpenCode 1.18.5 model-step telemetry
 by `captured_at`. `cache_reuse` pools those steps' runtime-reported
-uncached-input, cache-read, and cache-write token buckets. It does not read
-benchmark aggregates or reconstruct provider requests. The breakdown does not
-query or emit model-step telemetry.
+uncached-input, cache-read, and cache-write provider prompt/prefix-cache token
+buckets. This is not filesystem, memory, database, HTTP, or other I/O caching.
+It reports the first and last accepted capture, their observed span, and distinct
+KTX session and model-step counts. Capture timestamps describe only that observed
+subset. `requested_window_coverage` remains unavailable with reason
+`collector_lifecycle_evidence_unavailable` because these rows do not prove
+continuous collector lifecycle or full requested-window coverage. The summary
+does not read benchmark aggregates or reconstruct provider requests. The
+breakdown does not query or emit model-step telemetry.
 
 To avoid holding a long rollback-journal read while clients poll either command,
 the query first scans eligible source IDs and timestamps, closes that read, then
@@ -358,7 +365,7 @@ JSON contract is:
 
 ```json
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -389,6 +396,16 @@ JSON contract is:
     "contract_version": "cache-reuse-v1",
     "runtime": "opencode",
     "runtime_version": "1.18.5",
+    "evidence_scope": "provider_prompt_prefix_cache_tokens",
+    "requested_window_coverage": {
+      "state": "unavailable",
+      "reason": "collector_lifecycle_evidence_unavailable",
+      "scope": "observed_subset"
+    },
+    "first_contributing_capture": "2026-07-21T11:30:00Z",
+    "last_contributing_capture": "2026-07-21T12:00:00Z",
+    "observed_span_seconds": 1800,
+    "contributing_sessions": 2,
     "contributing_model_steps": 6,
     "uncached_input": { "state": "measured", "value": 1000 },
     "cache_read": { "state": "measured", "value": 3500 },
@@ -504,9 +521,11 @@ all-known population with no errors, error rate is `0` and coverage is `100`.
 Breakdown groups do not carry per-group outcome rates. The summary's independent
 model-step/cache query does not change the tool-call outcome population.
 
-Summary schema 5 and breakdown schema 2 supersede their previous structured
+Summary schema 6 and breakdown schema 2 supersede their previous structured
 schemas without a compatibility bridge. Text output renders the same current
-fields and has no separate schema version.
+fields and has no separate schema version. Its `PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE`,
+`REQUESTED_WINDOW_COVERAGE`, capture, span, session, and model-step columns make
+the provider prompt/prefix-cache subset explicit.
 
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus
@@ -541,11 +560,24 @@ are never reconstructed from neighboring fields. `logical_input` is
 measured. `cached_input_share` pools the window totals rather than averaging
 per-step percentages. It is `not_applicable` when measured logical input is
 zero, otherwise it includes both a numeric token fraction and its exact reduced
-`ratio`. The text format renders that fraction as `CACHED_INPUT_PCT`.
+`ratio`. The text format renders that fraction as
+`PROMPT_PREFIX_CACHED_INPUT_PCT`.
 
-This is OpenCode-reported cached-input share, not a provider hit rate. A runtime
-model step is not a provider request, and the retained evidence does not prove
-provider hits, misses, eligibility, eviction, or request boundaries.
+`evidence_scope` is always `provider_prompt_prefix_cache_tokens`.
+`requested_window_coverage` is always `state: unavailable`,
+`reason: collector_lifecycle_evidence_unavailable`, and
+`scope: observed_subset`; the scope labels the metric rather than claiming that
+the requested interval was observed. With no accepted telemetry, contributing
+session and model-step counts are zero and the first/last capture and observed
+span are JSON `null`. One accepted capture has an observed span of zero.
+Missing, malformed, and measured-zero token buckets do not remove an accepted
+model step from this temporal metadata.
+
+This is provider prompt/prefix-cache token evidence, not filesystem, memory,
+database, HTTP, or other I/O caching, and the cached-input share is not a
+provider hit rate. A runtime model step is not a provider request, and the
+retained evidence does not prove provider hits, misses, eligibility, eviction,
+or request boundaries.
 
 ### Database evidence report
 

@@ -37,7 +37,7 @@ import (
 const (
 	statsDefaultLimit           = 20
 	statsDefaultWindow          = 30 * time.Minute
-	statsSummarySchemaVersion   = 5
+	statsSummarySchemaVersion   = 6
 	statsBreakdownSchemaVersion = 2
 	statsBreakdownDetailedLimit = 100
 )
@@ -256,17 +256,29 @@ type statsBreakdownTotals struct {
 }
 
 type statsSummaryCacheReuse struct {
-	ContractVersion        string                         `json:"contract_version"`
-	Runtime                string                         `json:"runtime"`
-	RuntimeVersion         string                         `json:"runtime_version"`
-	ContributingModelSteps int                            `json:"contributing_model_steps"`
-	UncachedInput          statsSummaryIntegerMeasurement `json:"uncached_input"`
-	CacheRead              statsSummaryIntegerMeasurement `json:"cache_read"`
-	CacheWrite             statsSummaryIntegerMeasurement `json:"cache_write"`
-	LogicalInput           statsSummaryIntegerMeasurement `json:"logical_input"`
-	CachedInputShare       statsSummaryShareMeasurement   `json:"cached_input_share"`
-	Formula                string                         `json:"formula"`
-	Unit                   string                         `json:"unit"`
+	ContractVersion          string                              `json:"contract_version"`
+	Runtime                  string                              `json:"runtime"`
+	RuntimeVersion           string                              `json:"runtime_version"`
+	EvidenceScope            string                              `json:"evidence_scope"`
+	RequestedWindowCoverage  statsSummaryRequestedWindowCoverage `json:"requested_window_coverage"`
+	FirstContributingCapture *string                             `json:"first_contributing_capture"`
+	LastContributingCapture  *string                             `json:"last_contributing_capture"`
+	ObservedSpanSeconds      *float64                            `json:"observed_span_seconds"`
+	ContributingSessions     int                                 `json:"contributing_sessions"`
+	ContributingModelSteps   int                                 `json:"contributing_model_steps"`
+	UncachedInput            statsSummaryIntegerMeasurement      `json:"uncached_input"`
+	CacheRead                statsSummaryIntegerMeasurement      `json:"cache_read"`
+	CacheWrite               statsSummaryIntegerMeasurement      `json:"cache_write"`
+	LogicalInput             statsSummaryIntegerMeasurement      `json:"logical_input"`
+	CachedInputShare         statsSummaryShareMeasurement        `json:"cached_input_share"`
+	Formula                  string                              `json:"formula"`
+	Unit                     string                              `json:"unit"`
+}
+
+type statsSummaryRequestedWindowCoverage struct {
+	State  string `json:"state"`
+	Reason string `json:"reason"`
+	Scope  string `json:"scope"`
 }
 
 type statsSummaryIntegerMeasurement struct {
@@ -288,10 +300,14 @@ type statsSummaryIntegerAccumulator struct {
 }
 
 const (
-	statsSummaryMeasured      = "measured"
-	statsSummaryMissing       = "missing"
-	statsSummaryMalformed     = "malformed"
-	statsSummaryNotApplicable = "not_applicable"
+	statsSummaryMeasured                              = "measured"
+	statsSummaryMissing                               = "missing"
+	statsSummaryMalformed                             = "malformed"
+	statsSummaryNotApplicable                         = "not_applicable"
+	statsSummaryPromptPrefixCacheEvidenceScope        = "provider_prompt_prefix_cache_tokens"
+	statsSummaryRequestedWindowCoverageUnavailable    = "unavailable"
+	statsSummaryCollectorLifecycleEvidenceUnavailable = "collector_lifecycle_evidence_unavailable"
+	statsSummaryObservedSubsetScope                   = "observed_subset"
 )
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
@@ -553,10 +569,21 @@ func statsBreakdownSizeBand(characters int) string {
 
 func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryCacheReuse {
 	var uncachedInput, cacheRead, cacheWrite statsSummaryIntegerAccumulator
+	sessions := make(map[string]struct{}, len(rows))
+	var firstCapture, lastCapture time.Time
+	var hasCapture bool
 	for _, row := range rows {
 		uncachedInput.add(row.UncachedInput)
 		cacheRead.add(row.CacheRead)
 		cacheWrite.add(row.CacheWrite)
+		sessions[row.SessionID] = struct{}{}
+		if !hasCapture || row.CapturedAt.Before(firstCapture) {
+			firstCapture = row.CapturedAt
+		}
+		if !hasCapture || row.CapturedAt.After(lastCapture) {
+			lastCapture = row.CapturedAt
+		}
+		hasCapture = true
 	}
 
 	uncachedInputTotal := uncachedInput.measurement(len(rows))
@@ -579,10 +606,17 @@ func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryC
 		}
 	}
 
-	return statsSummaryCacheReuse{
-		ContractVersion:        reuse.RequiredContractVersion,
-		Runtime:                reuse.RequiredRuntime,
-		RuntimeVersion:         reuse.RequiredRuntimeVersion,
+	cache := statsSummaryCacheReuse{
+		ContractVersion: reuse.RequiredContractVersion,
+		Runtime:         reuse.RequiredRuntime,
+		RuntimeVersion:  reuse.RequiredRuntimeVersion,
+		EvidenceScope:   statsSummaryPromptPrefixCacheEvidenceScope,
+		RequestedWindowCoverage: statsSummaryRequestedWindowCoverage{
+			State:  statsSummaryRequestedWindowCoverageUnavailable,
+			Reason: statsSummaryCollectorLifecycleEvidenceUnavailable,
+			Scope:  statsSummaryObservedSubsetScope,
+		},
+		ContributingSessions:   len(sessions),
 		ContributingModelSteps: len(rows),
 		UncachedInput:          uncachedInputTotal,
 		CacheRead:              cacheReadTotal,
@@ -592,6 +626,15 @@ func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryC
 		Formula:                "cache_read / logical_input",
 		Unit:                   "token_fraction",
 	}
+	if hasCapture {
+		first := firstCapture.UTC().Format(time.RFC3339Nano)
+		last := lastCapture.UTC().Format(time.RFC3339Nano)
+		span := lastCapture.Sub(firstCapture).Seconds()
+		cache.FirstContributingCapture = &first
+		cache.LastContributingCapture = &last
+		cache.ObservedSpanSeconds = &span
+	}
+	return cache
 }
 
 func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasurement) {
@@ -758,15 +801,24 @@ func printStatsText(w io.Writer, groups []statsGroup) {
 
 func printStatsSummaryText(w io.Writer, summary statsSummary) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tMODEL_STEPS\tUNCACHED_INPUT\tCACHE_READ\tCACHE_WRITE\tLOGICAL_INPUT\tCACHED_INPUT_PCT")
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n",
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tPROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE\tREQUESTED_WINDOW_COVERAGE\tREQUESTED_WINDOW_COVERAGE_REASON\tREQUESTED_WINDOW_COVERAGE_SCOPE\tFIRST_CONTRIBUTING_CAPTURE\tLAST_CONTRIBUTING_CAPTURE\tOBSERVED_SPAN_SECONDS\tCONTRIBUTING_KTX_SESSIONS\tCONTRIBUTING_MODEL_STEPS\tPROMPT_PREFIX_UNCACHED_INPUT\tPROMPT_PREFIX_CACHE_READ\tPROMPT_PREFIX_CACHE_WRITE\tPROMPT_PREFIX_LOGICAL_INPUT\tPROMPT_PREFIX_CACHED_INPUT_PCT")
+	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\n",
 		summary.Window.From, summary.Window.To,
 		summary.Calls.TotalWithOutput, summary.Calls.WithCompressedArtifact,
 		summary.Outcomes.SuccessfulCalls, summary.Outcomes.ErrorCalls, summary.Outcomes.UnknownCalls, summary.Outcomes.KnownCalls,
 		formatStatsPercent(summary.Outcomes.ErrorRatePctOfKnown), formatStatsPercent(summary.Outcomes.OutcomeCoveragePct),
 		summary.Tokens.RawEstimated, summary.Tokens.DeliveredEstimated,
 		summary.Tokens.RawEstimatedPerSecond, summary.Tokens.DeliveredEstimatedPerSecond,
-		formatStatsReduction(summary.Tokens.ReductionPercent), summary.CacheReuse.ContributingModelSteps,
+		formatStatsReduction(summary.Tokens.ReductionPercent),
+		summary.CacheReuse.EvidenceScope,
+		summary.CacheReuse.RequestedWindowCoverage.State,
+		summary.CacheReuse.RequestedWindowCoverage.Reason,
+		summary.CacheReuse.RequestedWindowCoverage.Scope,
+		formatStatsSummaryOptionalString(summary.CacheReuse.FirstContributingCapture),
+		formatStatsSummaryOptionalString(summary.CacheReuse.LastContributingCapture),
+		formatStatsObservedSpan(summary.CacheReuse.ObservedSpanSeconds),
+		summary.CacheReuse.ContributingSessions,
+		summary.CacheReuse.ContributingModelSteps,
 		formatStatsSummaryInteger(summary.CacheReuse.UncachedInput),
 		formatStatsSummaryInteger(summary.CacheReuse.CacheRead),
 		formatStatsSummaryInteger(summary.CacheReuse.CacheWrite),
@@ -840,6 +892,20 @@ func formatStatsSummarySharePercent(measurement statsSummaryShareMeasurement) st
 	return measurement.State
 }
 
+func formatStatsSummaryOptionalString(value *string) string {
+	if value == nil {
+		return "-"
+	}
+	return *value
+}
+
+func formatStatsObservedSpan(seconds *float64) string {
+	if seconds == nil {
+		return "-"
+	}
+	return strconv.FormatFloat(*seconds, 'f', -1, 64)
+}
+
 // printStatsHelp writes the `ktx stats` help.
 func printStatsHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx stats — per-tool-call statistics ranked by delivered tokens")
@@ -885,21 +951,26 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "[now-window, now] interval. Rates use the full configured window duration.")
 	fmt.Fprintln(w, "Each call uses its earliest retained compressed artifact; equal timestamps use")
 	fmt.Fprintln(w, "the lexicographically smallest artifact ID. Calls without one use raw output.")
-	fmt.Fprintln(w, "The fixed-shape response contains window, call, aggregate outcome, token, and cache aggregates only.")
+	fmt.Fprintln(w, "The fixed-shape response contains window, call, aggregate outcome, token, and provider prompt/prefix-cache token aggregates only.")
 	fmt.Fprintln(w, "Outcomes use the same call population: is_error=false is success, true is error,")
 	fmt.Fprintln(w, "and missing/invalid is unknown; exit_code is diagnostic only. Known is success+error;")
 	fmt.Fprintln(w, "total is known+unknown. Error rate is error/known; coverage is known/total.")
 	fmt.Fprintln(w, "Empty percentages are null/-; all-unknown is null/- error and 0 coverage.")
 	fmt.Fprintln(w, "Use 'ktx stats breakdown' for diagnostic delivery groups.")
 	fmt.Fprintln(w, "Accepted OpenCode 1.18.5 model steps use their captured_at timestamp in the")
-	fmt.Fprintln(w, "same interval. Cache token totals require every contributing value to be")
-	fmt.Fprintln(w, "measured. The cached-input share is cache_read / logical_input; it is not a provider hit rate.")
+	fmt.Fprintln(w, "same interval. The report includes first/last contributing capture, observed")
+	fmt.Fprintln(w, "span, session count, and model-step count. Requested-window coverage is")
+	fmt.Fprintln(w, "unavailable (collector_lifecycle_evidence_unavailable); the evidence scope is")
+	fmt.Fprintln(w, "the observed_subset of provider prompt/prefix-cache tokens, not filesystem,")
+	fmt.Fprintln(w, "memory, database, HTTP, or other I/O caching. Cache token totals require every")
+	fmt.Fprintln(w, "contributing value to be measured. The cached-input share is cache_read /")
+	fmt.Fprintln(w, "logical_input; it is not a provider hit rate.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 5 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 6 JSON object")
 	fmt.Fprintln(w, "  text            same current fields in one row; no separate schema version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")

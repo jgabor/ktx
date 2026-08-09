@@ -4,7 +4,7 @@ record:
   header:
     level: light
     created: 2026-08-09
-    status: open
+    status: complete
     title: "Plan: Model-telemetry window coverage"
   what: Extend `ktx stats summary` with truthful temporal metadata for its independently queried model-step telemetry. Report the earliest and latest contributing captures, their observed span, and distinct contributing session and model-step counts. Represent true requested-window coverage as unavailable because current evidence does not prove continuous collection, and label provider prompt/prefix-cache metrics as a subset.
   why: Prevent a short telemetry subset from appearing to describe an entire requested window.

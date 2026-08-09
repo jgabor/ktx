@@ -114,7 +114,10 @@ token-weighted delivery groups by safe command dimensions, profile, route,
 disposition, and output-size band; it omits model-step telemetry. Tool-call/
 artifact and model-telemetry views are queried independently without cross-view
 transactional consistency; they may originate from the same wrapper stream or
-from separate adapter callbacks.
+from separate adapter callbacks. Summary cache evidence is provider
+prompt/prefix-cache token evidence, not filesystem, memory, database, HTTP, or
+other I/O caching; it is an observed subset, not proven requested-window
+coverage.
 
 ### Inspect records and model telemetry
 

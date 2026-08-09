@@ -1,0 +1,17 @@
+id: vderpjsatt
+artifact: progress
+record:
+  timestamp: 2026-08-09 12:34
+  type: feat
+  phase: build
+  what: Published `ktx stats summary` schema 6 with first and last accepted model-telemetry captures, observed span, contributing KTX session and model-step counts, and explicitly unavailable requested-window coverage for observed provider prompt/prefix-cache token subsets.
+  context:
+    intent: Prevent partial runtime telemetry from appearing to cover an entire requested statistics window.
+    constraints: Preserve the independent model-step query, OpenCode 1.18.5 selection, measured-zero and unavailable token states, breakdown schema 2, and the prohibition on provider-internal claims or I/O-cache ambiguity.
+    unknowns: Collector-lifecycle evidence remains unavailable by design, so requested-window coverage stays unavailable. The local origin/main ref was absent, so the isolated worktree diff was applied rather than merged.
+    scope: Stats database projection, summary schema and renderers, focused contracts and tests, public pipeline documentation, KTX skill guidance, and required project-state closeout.
+  inspiration: The supplied prefix-caching metric article reinforced provider prompt/prefix-cache terminology and the distinction between unavailable telemetry and measured zero; recorded KTX evidence boundaries kept the summary stricter than a provider hit-rate claim.
+  discovered: The existing database query already selected the correct runtime/version and inclusive capture window but discarded session identity and parsed timestamps before aggregation. Returning those fields required no database migration. Capture span alone cannot prove continuous collection.
+  verified: Focused `go test` runs passed for `TestStatsSummaryCacheRows`, `TestStatsWindowLogic`, contract synchronization, and skill contracts. An isolated `mage check` passed race tests, vet, lint with 0 issues, and build; its verification audit recorded 966 attempts, forbidden=0, external caches, and KTX_DB unset. The rebuilt `./build/ktx` passed a fresh-environment schema-6 JSON smoke with zero counts, null capture/span fields, explicit provider prompt/prefix-cache evidence scope, and unavailable observed-subset coverage. Independent Audit report ses_019f30810ffesqyKmHEgrEAwel found no material defect. `git diff --check` passed.
+  next: Complete the plan lifecycle and commit this verified build cycle. A later explicit cycle may archive the completed plan if the terminal-sweep workflow requires archival.
+  publication_order: 64

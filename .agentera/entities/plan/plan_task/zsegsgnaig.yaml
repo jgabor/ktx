@@ -4,10 +4,20 @@ record:
   name: Publish truthful telemetry-window metadata
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN accepted telemetry spans sessions WHEN the summary runs THEN first and last captures, observed span, session count, and model-step count match contributing rows.
     - GIVEN continuous collection is unproven WHEN coverage is reported THEN its state is unavailable, its reason is explicit, and its scope is labeled subset.
     - GIVEN empty, invalid-time, out-of-window, or unsupported-runtime observations WHEN the summary runs THEN they cannot fabricate coverage or alter accepted counts.
     - GIVEN all output surfaces WHEN released THEN the next schema, token states, query independence, prompt/prefix-cache terminology, and unchanged breakdown agree.
   plan: xnzwgxhxev
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: independent Audit report ses_019f30810ffesqyKmHEgrEAwel
+      recorded_at: 2026-08-09 12:34
+      writer_command: agentera state plan record-evaluation

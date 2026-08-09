@@ -190,11 +190,16 @@ delivered estimated tokens. `stats summary` accepts positive Go durations such
 as `30m`, `24h`, or `72h`. `stats breakdown` uses the same window syntax and
 reports bounded delivery groups by safe command dimensions, profile, route,
 disposition, and raw-output-size band; it does not include cache telemetry.
-Summary JSON schema 5 and breakdown JSON schema 2 report aggregate outcomes over
+Summary JSON schema 6 and breakdown JSON schema 2 report aggregate outcomes over
 the same output-bearing, valid-timestamp calls in the inclusive window. Error
 rate divides errors by known outcomes; coverage divides known by total. Text
 renders those current fields without a separate schema version. Breakdown has
-no per-group rates, and cache/model-step selection remains independent.
+no per-group rates, and cache/model-step selection remains independent. Summary
+`cache_reuse` is provider prompt/prefix-cache token evidence, not filesystem,
+memory, database, HTTP, or other I/O caching. It reports observed first/last
+capture, span, KTX session and model-step counts; requested-window coverage is
+unavailable with `collector_lifecycle_evidence_unavailable` and scope
+`observed_subset`.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It
 reports failures without failing the agent operation. Required benchmark

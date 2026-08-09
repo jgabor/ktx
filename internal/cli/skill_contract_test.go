@@ -266,7 +266,7 @@ func validateSkillFactualContracts(files map[string]string) map[string][]string 
 		},
 		{
 			name:      "evidence limits",
-			required:  []string{"cannot prove collector lifecycle or requested-window coverage", "non-transactional views", "not exact reproduction", "Do not infer provider behavior", "causally attribute movement to compression"},
+			required:  []string{"cannot prove collector lifecycle or requested-window coverage", "provider prompt/prefix-cache token evidence", "not filesystem, memory, database, HTTP, or other I/O caching", "non-transactional views", "not exact reproduction", "Do not infer provider behavior", "causally attribute movement to compression"},
 			forbidden: []string{"Direct SQL proves collector lifecycle or requested-window coverage"},
 		},
 		{

@@ -20,4 +20,4 @@ record:
       description: "**Live cost and latency coverage** — Expose runtime-authoritative cost and latency where the runtime supplies them, with explicit provenance, temporal coverage, and measured/unknown/malformed states; report unsupported evidence as unknown. Keep model-step cache and cost evidence separate from `tool_calls`, preserve literal zero, and label API-equivalent cost as an estimate. → [Measurement](ARCHITECTURE.md#measurement)"
       severity: normal
       status: open
-      order: 21
+      order: 20

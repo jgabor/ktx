@@ -111,6 +111,12 @@ delivered estimated tokens are excluded.
 - Does not double-count recompressions.
 - Estimates tokens per call as `ceil(character_count / 4)` before summing.
 - Selects model-step telemetry independently by `captured_at`.
+- Reports accepted model-step first/last capture, observed span, distinct KTX
+  session count, and model-step count separately from tool-call totals.
+- Labels this as provider prompt/prefix-cache token evidence, not filesystem,
+  memory, database, HTTP, or other I/O caching.
+- Reports requested-window coverage as unavailable because capture timestamps do
+  not prove collector lifecycle; its scope is the observed telemetry subset.
 - Does not read benchmark aggregates.
 
 `stats breakdown` reports the same window call and token totals with up to 100
@@ -120,7 +126,7 @@ omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
 
-Summary schema 5 and breakdown schema 2 include aggregate `outcomes`. Their
+Summary schema 6 and breakdown schema 2 include aggregate `outcomes`. Their
 population is the same calls counted by `total_with_output`: non-null output and
 a valid RFC3339 timestamp in the inclusive window. Persisted `is_error=false` is
 success, `true` is error, and NULL or invalid is unknown. Persisted `exit_code`
@@ -165,6 +171,8 @@ Each numeric telemetry field independently has one state:
 These are source-observation states. Window totals are `measured` only when every
 contributing row measured that field; an incomplete aggregate is serialized as
 `missing`, while malformed takes precedence. Values are not reconstructed.
+These token states do not change the accepted model-step population or its
+capture, span, session, and model-step metadata.
 
 Cached-input share is `not_applicable` when measured logical input is zero. It
 uses pooled window totals, not an average of per-step percentages.
@@ -198,13 +206,18 @@ Runtime model-step evidence does not prove:
 - Billing meaning of a literal runtime-reported cost zero.
 - Causal attribution of token movement to compression.
 
-Always report runtime/version and contributing model-step count beside a cache
-metric. `stats summary` does not currently emit contributing session count,
-first/last capture, or requested-window coverage. Separate SQL can describe the
+Always report runtime/version, contributing KTX session and model-step counts,
+and first/last capture plus observed span beside provider prompt/prefix-cache
+token evidence. `stats summary` does this in `cache_reuse`, whose
+`evidence_scope` is `provider_prompt_prefix_cache_tokens`, not filesystem,
+memory, database, HTTP, or other I/O caching. Separate SQL can describe the
 observed capture span and counts within the summary interval, but it cannot
-prove collector lifecycle or requested-window coverage. Without independent
-collector-lifecycle evidence, report coverage as unavailable and label the
-observations as a subset rather than a window-wide KPI.
+prove collector lifecycle or requested-window coverage. The summary therefore
+reports `requested_window_coverage` as `state: unavailable`,
+`reason: collector_lifecycle_evidence_unavailable`, and
+`scope: observed_subset`, rather than presenting a window-wide KPI. With no
+accepted telemetry, the counts are zero and first/last capture and observed span
+are null.
 
 Character-derived tool-output estimates and runtime-reported model tokens are
 different evidence classes. Keep them parallel; do not add or subtract them.

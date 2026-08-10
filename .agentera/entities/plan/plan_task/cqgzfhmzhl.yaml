@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: bigjhadugb
   name: Complete prompt-cache benchmark publication guidance
-  status: pending
+  status: complete
   depends_on:
     - lofszlmrop
   acceptance:
@@ -11,3 +11,13 @@ record:
     - GIVEN retained methodology v5, schemas 1 through 4, cache-reuse-v1, and historical evidence WHEN verified THEN their bytes, hashes, meaning, and historical wording remain unchanged.
     - GIVEN schema-5 paired prompt-cache evidence WHEN summarized and rendered THEN machine-readable comparison fields and authorized higher/lower token-weighted wording remain correct while provider-internal claims remain forbidden.
     - GIVEN the corrected guidance surfaces WHEN focused synchronization and retained-boundary tests run THEN all pass without a live provider benchmark or ambient database access.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: cqgzfhmzhl-audit-1
+      source: audit:ses_019130360ffeAtZ9B971GiaQje
+      recorded_at: 2026-08-10 08:43
+      writer_command: agentera state plan record-evaluation

@@ -12,12 +12,16 @@ record:
     - Retained v5/v1 artifacts, historical evidence bytes and hashes, and historical-result wording remain unchanged.
   release_blocker: true
   severity: degraded
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[fix] Align agent-facing prompt-cache benchmark guidance"
+      status: resolved
+      order: 3
       severity: degraded
-      status: open
-      order: 1
+  lifecycle:
+    operation: resolve
+    reason: Completed and independently verified the replacement task that synchronizes current v6 benchmark guidance while preserving historical v5 evidence.
+    date: 2026-08-10

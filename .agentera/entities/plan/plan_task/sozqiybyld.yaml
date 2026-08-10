@@ -1,0 +1,24 @@
+id: sozqiybyld
+artifact: plan
+record:
+  name: Run the bounded ktx read lease-lifetime prototype
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN an existing large source and a supported `ktx read` whose output is blocked only after database-dependent materialization WHEN a supported hook targets the same database THEN the hook completes and persists before the blocked output is released, with no supported lock or availability failure.
+    - GIVEN ordinary present, missing, and large `ktx read` inputs WHEN the candidate runs THEN output bytes, exit outcomes, source authority, and observable command behavior remain unchanged.
+    - GIVEN absent, stale-compatible, and newer-incompatible database states WHEN `ktx read` is exercised THEN it remains non-creating and non-migrating, preserves typed schema outcomes, and creates no database, journal, WAL, or SHM artifact.
+    - GIVEN output failure or reader termination WHEN a later supported writer proceeds THEN no stale ownership remains, accepted evidence reconciles exactly once, and the ordinary and adverse cases each have a regression test.
+    - GIVEN two alternating baseline and candidate evidence pairs WHEN the prototype is evaluated with the blocked-reader regression, `mage engineeringVerify`, and `mage check` THEN retain it only if all supported-lock, exact-reconciliation, read-only, and compatibility checks pass and no matching component or real-process metric regresses beyond the observed baseline run-to-run range; otherwise revert it and record the measured result.
+  plan: ndpjdfjetg
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Tracked rollback is exact, but ignored build/ktx still contains the rejected candidate binary.
+    provenance:
+      attempt_id: audit-read-lease-2
+      source: Focused post-correction audit ses_014b9ac7dffee1bW7m5bPoSoPB
+      recorded_at: 2026-08-10 13:01
+      writer_command: agentera state plan record-evaluation

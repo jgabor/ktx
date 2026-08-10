@@ -1,0 +1,15 @@
+id: ivyyxusrlk
+artifact: progress
+record:
+  timestamp: 2026-08-10 13:01
+  type: chore
+  phase: build
+  what: Executed and rejected the bounded ktx read lease-lifetime prototype, then restored tracked source and the local binary to the baseline build.
+  context:
+    intent: Determine whether ending ktx read ownership before blocked stdout could remove supported-reader delay without breaking read, database-safety, or performance contracts.
+    constraints: Limit the candidate to ktx read; preserve byte-exact output, read-only and schema behavior, evidence authority, coordinator policy, public commands, and benchmark semantics; retain only if every behavioral and two-baseline metric gate passes.
+    scope: One temporary ktx read lifecycle candidate, focused ordinary and adverse tests, two alternating baseline/candidate engineering-evidence pairs, exact rollback, and independent audit.
+  discovered: "The candidate fixed the target behavior: after result materialization, a blocked reader no longer delayed an unrelated hook, and ordinary, failure, read-only, schema, reconciliation, and repository checks passed. The exact two-baseline range rule was too sensitive to host variance: independent audit confirmed 2,786 of 5,040 component observations outside the baseline range and found 152 of 616 load observations outside range under its reproducible mapping. The rule therefore required rejection despite functional success."
+  verified: Four alternating engineering runs were retained under /tmp/opencode/ktx-read-lease-engineering-{baseline-1,candidate-1,baseline-2,candidate-2}-46b8a1. All manifests and report hashes validated; workload and machine identities matched; ordinary supported rounds had empty failure maps and exact reconciliation; expected database-unavailable and termination classifications were unchanged. Candidate focused tests and mage check passed with 1,136 audited accesses and forbidden=0. Independent audit verified the metric rejection and exact tracked rollback. A correction rebuilt build/ktx from HEAD; its SHA-256 a4caa93156f48f196937648ee29a7edb14129abb43b7308f55eb08237e4e9efd exactly matches the clean baseline binary, and a DB-free local version smoke exited 0. The same audit session returned PASS for the complete rejected experiment and rollback.
+  next: Do not retry this candidate under the same range rule. First define a comparison policy that distinguishes host noise from repeatable regressions, then re-plan if early read-lease release remains the selected experiment.
+  publication_order: 76

@@ -1,0 +1,25 @@
+id: ndpjdfjetg
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-10
+    status: open
+    title: "Plan: Prototype early ktx read lease release"
+  what: Prototype ending supported database-read ownership for one `ktx read` operation after its database-dependent result is fully materialized but before downstream output delivery finishes. Retain the candidate only when measured evidence proves that blocked output no longer delays an unrelated supported writer and all existing read, evidence, and database-safety contracts remain intact.
+  why: A slow or blocked output consumer should not extend SQLite coordination after `ktx read` no longer needs the database. Shortening that ownership span can remove an avoidable supported-reader delay without weakening the bounded availability behavior that protects hooks today.
+  constraints: Limit the prototype to `ktx read`. Preserve byte-exact output, exit behavior, source authority, genuinely read-only access, schema diagnostics, and conservative hook behavior. Do not change other query commands, the coordinator algorithm, startup deadlines, SQLite durability, journal mode, busy retries, public commands, or product benchmark semantics. Do not add a daemon, spool, dependency, shared query abstraction, or compatibility path. Revert the candidate if measured acceptance fails.
+  overall_acceptance: GIVEN `ktx read` has fully obtained an existing large result while its output remains blocked WHEN an unrelated supported hook writes to the same local database THEN the hook completes before output release without `database-unavailable`, the read result remains byte-exact, no persistent read-side effect occurs, and all engineering and repository gates pass.
+  scope:
+    included:
+      - supported database ownership lifetime for `ktx read`
+      - ordinary, blocked-output, output-failure, and recovery behavior
+      - baseline and candidate component, real-process, reconciliation, and database-safety evidence
+      - current documentation and changelog only if the candidate is retained
+    excluded:
+      - other supported read-only commands
+      - generalized query or rendering lifecycle refactors
+      - coordinator, timeout, journal-mode, busy-retry, migration, or schema changes
+      - daemon, durable spool, public performance command, or provider claims
+  surprises:
+    []

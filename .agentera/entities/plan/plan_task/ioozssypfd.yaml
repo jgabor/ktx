@@ -4,10 +4,20 @@ record:
   name: Add the portable pipeline cost guard
   depends_on:
     - gpfpiuasaz
-  status: pending
+  status: complete
   acceptance:
     - GIVEN complete measured-warm pairs with stable identity, protocol, estimates, fact score, and full-pass rate WHEN evaluated THEN the guard accepts only strictly lower API-equivalent estimated cost per correct after documented rounding.
     - GIVEN a tie, missing or nonfinite cost, zero correct answers, incomplete pairs, or worse quality WHEN evaluated THEN the guard fails closed with ordered machine reasons.
     - GIVEN reported and estimated costs WHEN emitted THEN existing fields and literal reported zero are preserved and the shared estimator supplies pricing provenance and availability reasons.
     - GIVEN a valid rejected candidate WHEN compare and rank render it THEN compare succeeds with accepted false, and rank retains but cannot recommend or crown it.
   plan: bigjhadugb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: ioozssypfd-audit-1
+      source: audit:ses_019130360ffeAtZ9B971GiaQje
+      recorded_at: 2026-08-10 09:30
+      writer_command: agentera state plan record-evaluation

@@ -54,6 +54,7 @@ type fakeExecutor struct {
 	collectorContract    string
 	omitOpenCodeIdentity bool
 	fullStepUsage        bool
+	candidateInput       int
 }
 
 func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult, error) {
@@ -147,6 +148,9 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			fake.sides = append(fake.sides, side)
 			write(command.Stdout, `{"type":"tool_use","part":{}}`+"\n")
 			input := map[string]int{Baseline: 100, Candidate: 40}[side]
+			if side == Candidate && fake.candidateInput != 0 {
+				input = fake.candidateInput
+			}
 			if fake.fullStepUsage {
 				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"sessionID":%q,"messageID":"message","id":"part","type":"step-finish","reason":"stop","tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`+"\n", runtimeSession, input))
 			} else {
@@ -369,6 +373,45 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	if defaults.TargetValid != 5 || defaults.Warmup != 1 || defaults.MaxAttempts < 14 {
 		t.Fatalf("v5 defaults = target %d warmup %d max %d", defaults.TargetValid, defaults.Warmup, defaults.MaxAttempts)
+	}
+}
+
+func TestRunnerCompareKeepsValidRejectedCostGuardAsSuccess(t *testing.T) {
+	root := t.TempDir()
+	writeFixture := func(relative, value string) string {
+		path := filepath.Join(root, relative)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(value), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	writeFixture("README.md", "fixture\n")
+	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
+	methodology := writeFixture("tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml", "methodology_version: v6-prompt-cache-token-hit-rate\n")
+	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
+	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
+	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
+	auth := writeFixture("auth.json", "{}\n")
+	fake := &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.5", fullStepUsage: true, candidateInput: 100}
+	runner := &Runner{Executor: fake, Now: func() time.Time { return time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC) }, PID: 41, ResolvePrice: testPriceResolver}
+	directory, summary, code, err := runner.Compare(context.Background(), CompareOptions{
+		Model: "openai/test", Variant: "high", TaskFile: task, TargetValid: 1, MaxAttempts: 4, Warmup: 0, WarmupSet: true, CacheControl: "observed",
+		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "rejected-cost-guard",
+		DataDir: filepath.Join(root, "data"), Image: "image", AuthPath: auth, RepoRoot: root, MethodologyPath: methodology,
+		BaselineConfig: baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
+	})
+	if err != nil || code != 0 {
+		t.Fatalf("valid rejected Compare code=%d err=%v", code, err)
+	}
+	if summary["accepted"] != false || !containsString(summary["acceptance_reasons"].([]string), "candidate_estimated_api_cost_per_correct_not_lower") {
+		t.Fatalf("comparison acceptance = %#v", summary)
+	}
+	report, err := ValidateExperiment(directory)
+	if err != nil || report["valid"] != true || report["accepted"] != false {
+		t.Fatalf("rejected comparison validation report=%#v err=%v", report, err)
 	}
 }
 

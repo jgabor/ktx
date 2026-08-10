@@ -77,10 +77,13 @@ computation: |
   and disjoint under cache-reuse-v2; measured zero remains zero and incomplete
   evidence is unavailable. Phase distributions use evaluated attempts from that
   phase. Headline and paired distributions use measured_warm only. Paired
-  comparison is candidate minus baseline and reports rate means, a
-  percentage-point delta, pair count, two-sided 95% interval, same-pair quality,
-  and blockers. Higher or lower wording is authorized only under the retained
-  protocol and never establishes provider-internal behavior.
+   comparison is candidate minus baseline and reports rate means, a
+   percentage-point delta, pair count, two-sided 95% interval, same-pair quality,
+   and blockers. Higher or lower wording is authorized only under the retained
+   protocol and never establishes provider-internal behavior. The portable
+   pipeline guard separately accepts only a quality-preserving candidate with a
+   strictly lower six-decimal-rounded API-equivalent estimated cost per correct;
+   reported runtime cost remains separate, including literal zero.
 
 claim_scope:
   cache_metric_contract: cache-reuse-v2

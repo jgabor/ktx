@@ -13,6 +13,38 @@ provider-internal claims remain forbidden.
 rewrite retained summaries or change historical bytes, hashes, wording, or
 meaning.
 
+## Pipeline cost guard
+
+Schema-5 summaries add `pipeline_cost_guard` and top-level `accepted` and
+`acceptance_reasons` fields. The guard uses only complete measured-warm pairs
+that satisfy the retained identity and protocol checks. It keeps runtime-
+reported cost separate from price-derived API-equivalent estimates: an explicit
+reported zero remains a measured zero, not an unavailable estimate or a price
+substitution.
+
+For each side, the guard sums the paired API-equivalent estimates, divides by
+the count of full-pass answers, and rounds each estimate, side total, and
+cost-per-correct value to six decimal places. The candidate is accepted only
+when its rounded estimated cost per correct is strictly lower and its same-pair
+mean fact score and full-pass rate are not lower. A tie is rejected.
+
+Unavailable estimates retain their exact token or pricing availability reasons
+and retained pricing-snapshot provenance. Nonfinite values are unavailable,
+never zero. The guard reports machine reasons in this fixed order:
+
+1. `incomplete_pairs`
+2. `identity_provenance_unstable`
+3. `protocol_noncompliant`
+4. `estimated_api_cost_unavailable`
+5. `estimated_api_cost_nonfinite`
+6. `zero_correct_answers`
+7. `quality_not_preserved`
+8. `candidate_estimated_api_cost_per_correct_not_lower`
+
+An otherwise valid comparison with `accepted:false` is successful evidence.
+Rank output retains that candidate, marks it ineligible for recommendation, and
+orders it below the baseline and accepted candidates so it cannot take rank one.
+
 ## Historical v1 contract
 
 The remainder of this document records `tools/bench/cache-reuse-contract-v1.json`

@@ -331,6 +331,10 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		methodologyVersion = "v4-eval-matrix"
 	}
 	cacheAware := cacheAwareMethodology(methodologyVersion)
+	promptCacheTokenHitRate := supportsPromptCacheTokenHitRate(manifest)
+	if promptCacheTokenHitRate {
+		attempts = normalizePipelineCostEstimates(attempts)
+	}
 	// Cache telemetry is optional evidence: a runtime that emits
 	// part.tokens.cache.{read,write} on step_finish produces cache
 	// counts on the attempts; a runtime that does not emits neither
@@ -358,7 +362,6 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		schemaVersion = 3
 	}
 	directCacheShare := supportsDirectCachedInputShare(manifest)
-	promptCacheTokenHitRate := supportsPromptCacheTokenHitRate(manifest)
 	if directCacheShare {
 		schemaVersion = 4
 	}
@@ -554,6 +557,10 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		result[promptCacheTokenHitRateField] = buildPromptCacheTokenHitRate(direct)
 		result[promptCacheTokenHitRateComparisonField] = buildPromptCacheTokenHitRateComparison(comparison)
 		result[promptCacheTokenHitRateStatementAuthorizationField] = buildPromptCacheTokenHitRateStatementAuthorization(direct, secondary, comparison, result[promptCacheTokenHitRateComparisonField].(map[string]any))
+		guard := buildPipelineCostGuard(manifest, attempts, comparison)
+		result[pipelineCostGuardField] = guard
+		result["accepted"] = guard["accepted"]
+		result["acceptance_reasons"] = guard["reasons"]
 	}
 	return result
 }
@@ -861,6 +868,12 @@ func RenderSummary(summary map[string]any) string {
 		lines = append(lines, fmt.Sprintf("prompt_cache_token_hit_rate_comparison complete_pairs=%v baseline_mean=%s candidate_mean=%s percentage_point_delta=%s interval=%s direction=%v quality_preserved=%v blocking_reasons=%s",
 			comparison["complete_pair_count"], compactJSON(means[Baseline]), compactJSON(means[Candidate]), compactJSON(difference["percentage_point_delta"]),
 			compactJSON(difference["interval"]), difference["direction"], comparison["quality"].(map[string]any)["preserved"], compactJSON(comparison["blocking_reasons"])))
+	}
+	if guard, ok := summary[pipelineCostGuardField].(map[string]any); ok {
+		cost := guard["estimated_api_cost_per_correct"].(map[string]any)
+		lines = append(lines, fmt.Sprintf("pipeline_cost_guard accepted=%v reasons=%s complete_pairs=%v/%v baseline_estimated_api_cost_per_correct=%v candidate_estimated_api_cost_per_correct=%v comparison=%v rounding_decimals=%v",
+			guard["accepted"], compactJSON(guard["reasons"]), guard["complete_pair_count"], guard["required_complete_pair_count"],
+			cost[Baseline], cost[Candidate], cost["comparison"], guard["rounding_decimals"]))
 	}
 	if authorization, ok := summary[promptCacheTokenHitRateStatementAuthorizationField].(map[string]any); ok {
 		identity := anyMap(authorization["identity_provenance"])

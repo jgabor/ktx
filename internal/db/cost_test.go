@@ -404,3 +404,31 @@ func TestEstimateAPICostReasoningRateAndOutputFallback(t *testing.T) {
 		t.Fatalf("tier reasoning estimate = %v, want .0023", got)
 	}
 }
+
+func TestEstimateAPICostDetailsRetainsAvailabilityReasons(t *testing.T) {
+	result := EstimateAPICostDetails(EstimatedCostInputs{UncachedInput: 10, Output: 1}, Price{Input: 1, Output: 1, InputSet: true, OutputSet: true})
+	if result.Value != nil {
+		t.Fatalf("missing inputs estimate = %v, want nil", *result.Value)
+	}
+	want := []string{"reasoning_unavailable", "cache_read_unavailable", "cache_write_unavailable"}
+	if len(result.AvailabilityReasons) != len(want) {
+		t.Fatalf("availability reasons = %v, want %v", result.AvailabilityReasons, want)
+	}
+	for index := range want {
+		if result.AvailabilityReasons[index] != want[index] {
+			t.Fatalf("availability reasons = %v, want %v", result.AvailabilityReasons, want)
+		}
+	}
+
+	reasoning, cacheRead, cacheWrite := int64(0), int64(1), int64(0)
+	nonfinite := math.Inf(1)
+	result = EstimateAPICostDetails(EstimatedCostInputs{UncachedInput: 10, Output: 1, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}, Price{Input: 1, Output: 1, CacheRead: &nonfinite, InputSet: true, OutputSet: true})
+	if result.Value != nil || len(result.AvailabilityReasons) != 1 || result.AvailabilityReasons[0] != "pricing_cache_read_nonfinite" {
+		t.Fatalf("nonfinite rate result = %#v", result)
+	}
+	cacheRead = 0
+	result = EstimateAPICostDetails(EstimatedCostInputs{UncachedInput: 10, Output: 1, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}, Price{Input: 1, Output: 1, CacheRead: &nonfinite, InputSet: true, OutputSet: true})
+	if result.Value == nil || len(result.AvailabilityReasons) != 0 {
+		t.Fatalf("zero cache count should not consume a nonfinite cache rate: %#v", result)
+	}
+}

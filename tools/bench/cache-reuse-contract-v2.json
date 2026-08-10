@@ -50,6 +50,31 @@
     "uncertainty": "two_sided_95_percent_paired_student_t_interval",
     "quality_requirement": "candidate_mean_fact_score_and_full_pass_rate_not_lower_on_same_complete_pairs"
   },
+  "pipeline_cost_guard": {
+    "path": "pipeline_cost_guard",
+    "accepted_path": "accepted",
+    "purpose": "portable_quality_adjusted_api_equivalent_estimated_cost_gate",
+    "comparison_unit": "measured_cycle_pair",
+    "metric": "estimated_api_cost_per_correct",
+    "formula": "round(round(sum(estimated_api_cost), 6) / full_pass_count, 6)",
+    "rounding_decimals": 6,
+    "rounding": "round each API-equivalent estimate, side total, and cost per correct to six decimal places before comparison",
+    "pricing_provenance": "retained pricing snapshot metadata and hash",
+    "quality_requirement": "candidate_mean_fact_score_and_full_pass_rate_not_lower_on_same_complete_pairs",
+    "acceptance": "candidate_estimated_api_cost_per_correct_strictly_lower",
+    "availability": "every complete pair has a finite estimated API cost with retained pricing provenance",
+    "reported_cost": "runtime-reported observations remain separate and preserve literal zero",
+    "reason_precedence": [
+      "incomplete_pairs",
+      "identity_provenance_unstable",
+      "protocol_noncompliant",
+      "estimated_api_cost_unavailable",
+      "estimated_api_cost_nonfinite",
+      "zero_correct_answers",
+      "quality_not_preserved",
+      "candidate_estimated_api_cost_per_correct_not_lower"
+    ]
+  },
   "statement_authorization": {
     "path": "prompt_cache_token_hit_rate_statement_authorization",
     "higher_or_lower_wording": "token-weighted prompt-cache hit rate under the pinned contract (cache-reuse-v2)",

@@ -114,6 +114,11 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 			}
 		}
 		if pair.Summary != nil {
+			if accepted, reasons, guarded := pipelineCostGuardAcceptance(pair.Summary); guarded {
+				row["accepted"] = accepted
+				row["acceptance_reasons"] = reasons
+				row["recommendation_eligible"] = accepted
+			}
 			row["pair_tool_call_inflation"] = pair.Summary["tool_call_inflation"]
 			if schemaVersion, _ := pair.Summary["schema_version"].(int); schemaVersion >= 3 {
 				row["paired_mean_tokens_saved_vs_baseline"] = pairedMetric(pair.Summary, "tokens_in")
@@ -128,6 +133,10 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := rows[i], rows[j]
+		leftRejected, rightRejected := rejectedRankingRow(left), rejectedRankingRow(right)
+		if leftRejected != rightRejected {
+			return !leftRejected
+		}
 		lp, rp := summaryValue(left["full_pass_rate"]), summaryValue(right["full_pass_rate"])
 		lclass, rclass := passClass(lp), passClass(rp)
 		if lclass != rclass {
@@ -158,6 +167,33 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 		result["variant"] = options.Variant
 	}
 	return result
+}
+
+func pipelineCostGuardAcceptance(summary map[string]any) (bool, []string, bool) {
+	guard, guarded := summary[pipelineCostGuardField].(map[string]any)
+	if !guarded {
+		switch schema := summary["schema_version"].(type) {
+		case int:
+			if schema >= 5 {
+				return false, []string{"pipeline_cost_guard_unavailable"}, true
+			}
+		case float64:
+			if schema >= 5 {
+				return false, []string{"pipeline_cost_guard_unavailable"}, true
+			}
+		}
+		return false, nil, false
+	}
+	accepted, ok := guard["accepted"].(bool)
+	if !ok {
+		return false, []string{"pipeline_cost_guard_unavailable"}, true
+	}
+	return accepted, stringSlice(guard["reasons"]), true
+}
+
+func rejectedRankingRow(row map[string]any) bool {
+	accepted, guarded := row["accepted"].(bool)
+	return guarded && !accepted
 }
 
 func copyMap(destination, source map[string]any) {
@@ -226,6 +262,12 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["mean_tokens_in"], 6), formatSignificant(row["mean_cost"], 4),
 			formatSignificant(row["expected_cost_per_correct"], 4), formatSignificant(row["mean_tool_calls"], 3),
 			formatSignificant(row["tool_call_inflation_vs_baseline"], 3)))
+	}
+	for _, row := range rows {
+		if _, guarded := row["accepted"]; guarded {
+			lines = append(lines, fmt.Sprintf("acceptance pipeline=%v accepted=%v recommendation_eligible=%v reasons=%s",
+				row["pipeline"], row["accepted"], row["recommendation_eligible"], compactJSON(row["acceptance_reasons"])))
+		}
 	}
 	for _, row := range rows {
 		if _, ok := row["sample_classification"]; !ok {

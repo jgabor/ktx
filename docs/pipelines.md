@@ -1103,6 +1103,14 @@ Current methodology-v6 schema-5 summaries use the `cache-reuse-v2`
 evidence reports both means, candidate-minus-baseline percentage-point delta,
 pair count, interval, same-pair quality, and blocking reasons.
 
+Schema-5 also emits `pipeline_cost_guard` plus top-level `accepted` and
+`acceptance_reasons`. It accepts only a quality-preserving candidate whose
+complete paired API-equivalent estimated cost per correct is strictly lower
+after six-decimal rounding. Reported runtime cost remains separate, including a
+literal zero. A valid `accepted:false` comparison is successful evidence; rank
+retains it but marks it ineligible for recommendation and keeps it below the
+baseline and accepted candidates.
+
 Validation is methodology-aware. For a new OpenCode 1.18.5 v6 run it requires
 summary schema 5, retained pricing metadata and its hash-bound snapshot, exactly
 one cold observation and the configured warm-up count per side, explicit roles,

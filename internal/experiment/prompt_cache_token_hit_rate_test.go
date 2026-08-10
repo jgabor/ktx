@@ -153,6 +153,19 @@ func TestPromptCacheTokenHitRateContract(t *testing.T) {
 	if metric["kind"] != "token_weighted" || metric["formula"] != "sum(cache_read) / sum(uncached_input + cache_read + cache_write)" {
 		t.Fatalf("contract metric = %#v", metric)
 	}
+	guard := contract[pipelineCostGuardField].(map[string]any)
+	if guard["path"] != pipelineCostGuardField || guard["accepted_path"] != "accepted" || guard["rounding_decimals"] != float64(6) {
+		t.Fatalf("contract guard = %#v", guard)
+	}
+	reasons := guard["reason_precedence"].([]any)
+	if len(reasons) != len(pipelineCostGuardReasonPrecedence) {
+		t.Fatalf("contract guard precedence = %#v", reasons)
+	}
+	for index, want := range pipelineCostGuardReasonPrecedence {
+		if reasons[index] != want {
+			t.Fatalf("contract guard precedence = %#v, want %v", reasons, pipelineCostGuardReasonPrecedence)
+		}
+	}
 }
 
 func TestPromptCacheTokenHitRatePreservesV5ValidationWording(t *testing.T) {

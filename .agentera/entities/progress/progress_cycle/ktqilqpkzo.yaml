@@ -1,0 +1,14 @@
+id: ktqilqpkzo
+artifact: progress
+record:
+  timestamp: 2026-08-10 09:22
+  type: feat
+  phase: build
+  what: Implemented internal/experiment/pipeline_cost_guard.go for schema-5 prompt-cache comparisons. The guard emits top-level accepted and acceptance_reasons, accepts only complete stable protocol pairs with quality preserved and strictly lower rounded API-equivalent estimated cost per correct, preserves reported zero, and keeps rejected candidates in rank without recommendation eligibility or rank one.
+  context:
+    intent: Add the portable pipeline cost guard without altering historical summary contracts.
+    constraints: Apply only to cache-reuse-v2/schema 5; keep runtime-reported and API-equivalent costs separate; unavailable or nonfinite values are never zero; no live provider or ambient database.
+    scope: Shared cost estimation in internal/db/cost.go and internal/experiment/pricing.go; schema-5 summary, validation, ranking, current contract/docs, changelog, and focused regression coverage.
+  verified: PASS. With fresh disposable HOME/XDG roots and KTX_DB unset, go test ./internal/db ./internal/experiment ./internal/cli -count=1 passed. Focused TestPipelineCostGuard covered accept, rounded tie, missing pricing or estimate, nonfinite estimate, zero correct, incomplete pair, unstable identity, protocol failure, worse fact/full-pass quality, ordered combined reasons, literal reported zero, rank retention, and schemas 1-4. TestRunnerCompareKeepsValidRejectedCostGuardAsSuccess passed with accepted:false and code 0. Retained schema-4 output remained 190803 bytes with SHA-256 2eecff7f189b1939535094ecd124c421a3f819c066811b508d7fb50fc84e14be. mage build passed; ./build/ktx bench compare --preflight --format json reported eligible:true, model_attempts:0, and no reasons.
+  next: Keep ioozssypfd pending until Prime records audit PASS.
+  publication_order: 71

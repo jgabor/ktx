@@ -126,6 +126,9 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report[promptCacheTokenHitRateField] = expectedSummaryValue[promptCacheTokenHitRateField]
 		report[promptCacheTokenHitRateComparisonField] = expectedSummaryValue[promptCacheTokenHitRateComparisonField]
 		report[promptCacheTokenHitRateStatementAuthorizationField] = expectedSummaryValue[promptCacheTokenHitRateStatementAuthorizationField]
+		report[pipelineCostGuardField] = expectedSummaryValue[pipelineCostGuardField]
+		report["accepted"] = expectedSummaryValue["accepted"]
+		report["acceptance_reasons"] = expectedSummaryValue["acceptance_reasons"]
 	}
 	return report, nil
 }

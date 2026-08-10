@@ -4,14 +4,19 @@ package db
 
 import "math"
 
-// costRoundDecimals is the precision for the cost derivation. The
+// CostRoundDecimals is the precision for cost derivation. The
 // methodology-v1 headline number is six decimals
 // (`tools/bench/methodology-v1.yaml`'s `cost_per_correct = cost /
 // max(score, 1e-9)` plus the reproducibility `six decimal places` rule); the
 // persisted cost uses the same precision as the benchmark headline.
 //
 // Both write-time callers use the same persisted precision.
-const costRoundDecimals = 6
+const CostRoundDecimals = 6
+
+type EstimatedCostResult struct {
+	Value               *float64
+	AvailabilityReasons []string
+}
 
 // PriceSource abstracts the cache lookup and the cold-fetch for
 // the deriver. The *Prices type in prices.go satisfies this
@@ -51,36 +56,109 @@ type EstimatedCostInputs struct {
 // cost. Complete reasoning and cache counts are required; rates are selected
 // from supported context tiers using all prompt-side tokens.
 func EstimateAPICost(in EstimatedCostInputs, price Price) *float64 {
-	if in.Reasoning == nil || in.CacheRead == nil || in.CacheWrite == nil {
-		return nil
+	return EstimateAPICostDetails(in, price).Value
+}
+
+// EstimateAPICostDetails derives an API-equivalent estimate and retains every
+// deterministic reason it could not do so. Zero token counts and zero prices
+// are valid measured inputs.
+func EstimateAPICostDetails(in EstimatedCostInputs, price Price) EstimatedCostResult {
+	reasons := []string{}
+	if in.UncachedInput < 0 || in.Output < 0 {
+		reasons = append(reasons, "token_count_invalid")
+	}
+	if in.Reasoning == nil {
+		reasons = append(reasons, "reasoning_unavailable")
+	} else if *in.Reasoning < 0 {
+		reasons = append(reasons, "reasoning_invalid")
+	}
+	if in.CacheRead == nil {
+		reasons = append(reasons, "cache_read_unavailable")
+	} else if *in.CacheRead < 0 {
+		reasons = append(reasons, "cache_read_invalid")
+	}
+	if in.CacheWrite == nil {
+		reasons = append(reasons, "cache_write_unavailable")
+	} else if *in.CacheWrite < 0 {
+		reasons = append(reasons, "cache_write_invalid")
+	}
+	if len(reasons) > 0 {
+		return EstimatedCostResult{AvailabilityReasons: reasons}
 	}
 	contextTokens := in.UncachedInput + *in.CacheRead + *in.CacheWrite
 	rates := price.SelectRates(contextTokens)
 	if !rates.hasOrdinaryPrices() {
-		return nil
+		return EstimatedCostResult{AvailabilityReasons: []string{"pricing_input_or_output_unavailable"}}
 	}
-	if (*in.CacheRead != 0 && rates.CacheRead == nil) || (*in.CacheWrite != 0 && rates.CacheWrite == nil) {
-		return nil
+	if !validEstimatedCostRate(rates.Input) || !validEstimatedCostRate(rates.Output) {
+		return EstimatedCostResult{AvailabilityReasons: []string{estimatedCostRateReason("pricing_input_or_output", rates.Input, rates.Output)}}
+	}
+	if *in.CacheRead != 0 {
+		if rates.CacheRead == nil {
+			return EstimatedCostResult{AvailabilityReasons: []string{"pricing_cache_read_unavailable"}}
+		}
+		if !validEstimatedCostRate(*rates.CacheRead) {
+			return EstimatedCostResult{AvailabilityReasons: []string{estimatedCostRateReason("pricing_cache_read", *rates.CacheRead)}}
+		}
+	}
+	if *in.CacheWrite != 0 {
+		if rates.CacheWrite == nil {
+			return EstimatedCostResult{AvailabilityReasons: []string{"pricing_cache_write_unavailable"}}
+		}
+		if !validEstimatedCostRate(*rates.CacheWrite) {
+			return EstimatedCostResult{AvailabilityReasons: []string{estimatedCostRateReason("pricing_cache_write", *rates.CacheWrite)}}
+		}
 	}
 	cacheReadPrice, cacheWritePrice := 0.0, 0.0
-	if rates.CacheRead != nil {
+	if *in.CacheRead != 0 && rates.CacheRead != nil {
 		cacheReadPrice = *rates.CacheRead
 	}
-	if rates.CacheWrite != nil {
+	if *in.CacheWrite != 0 && rates.CacheWrite != nil {
 		cacheWritePrice = *rates.CacheWrite
 	}
 	reasoningPrice := rates.Output
 	if rates.Reasoning != nil {
+		if !validEstimatedCostRate(*rates.Reasoning) {
+			return EstimatedCostResult{AvailabilityReasons: []string{estimatedCostRateReason("pricing_reasoning", *rates.Reasoning)}}
+		}
 		reasoningPrice = *rates.Reasoning
 	}
 	raw := float64(in.UncachedInput)*rates.Input + float64(*in.CacheRead)*cacheReadPrice +
 		float64(*in.CacheWrite)*cacheWritePrice + float64(in.Output)*rates.Output + float64(*in.Reasoning)*reasoningPrice
-	return roundCost(raw / 1_000_000)
+	value := roundCost(raw / 1_000_000)
+	if value == nil {
+		return EstimatedCostResult{AvailabilityReasons: []string{"estimated_api_cost_nonfinite"}}
+	}
+	return EstimatedCostResult{Value: value}
+}
+
+func validEstimatedCostRate(value float64) bool {
+	return value >= 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func estimatedCostRateReason(prefix string, values ...float64) string {
+	for _, value := range values {
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return prefix + "_nonfinite"
+		}
+	}
+	return prefix + "_invalid"
 }
 
 func roundCost(raw float64) *float64 {
-	rounded := math.Round(raw*math.Pow(10, costRoundDecimals)) / math.Pow(10, costRoundDecimals)
+	if math.IsNaN(raw) || math.IsInf(raw, 0) {
+		return nil
+	}
+	rounded := math.Round(raw*math.Pow(10, CostRoundDecimals)) / math.Pow(10, CostRoundDecimals)
+	if math.IsNaN(rounded) || math.IsInf(rounded, 0) {
+		return nil
+	}
 	return &rounded
+}
+
+// RoundCost applies the shared API-equivalent cost precision.
+func RoundCost(raw float64) *float64 {
+	return roundCost(raw)
 }
 
 // costDeriver is the deep cost module. The instance is stateless
@@ -123,7 +201,7 @@ type costDeriver struct{}
 //
 //     cost_USD = (tokens_in * in_price + tokens_out * out_price) / 1_000_000
 //
-//     rounded to costRoundDecimals (6) decimal places. in_price and
+//     rounded to CostRoundDecimals (6) decimal places. in_price and
 //     out_price are USD per million tokens, the units models.dev
 //     uses for its cost.input and cost.output fields; the division
 //     by 1_000_000 converts to "USD per token" multiplied by token

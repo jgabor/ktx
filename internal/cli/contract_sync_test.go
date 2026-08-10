@@ -167,11 +167,21 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 				[]string{"summary schema 5", "cache-reuse-v2", "provider-internal"}, nil)
 		})
 	}
+	assertContractText(t, help.String(),
+		[]string{"--warmup N (default 1), --rounds N (default 5)"}, nil)
 
 	contract := readDocumentationFile(t, filepath.Join(root, "docs", "cache-reuse-metric-contract.md"))
 	assertContractText(t, contract,
 		[]string{"current machine-readable authority", "cache-reuse-contract-v2.json", "summary schema 5", "provider-internal claims", "cache-reuse-contract-v1.json", "historical evidence"},
 		[]string{"Future collection, derivation, and\nrendering work must implement that versioned contract"})
+}
+
+func TestCurrentPromptCacheTerminologyKeepsChangelogAndTODOAligned(t *testing.T) {
+	root := repositoryRoot(t)
+	assertContractText(t, readDocumentationFile(t, filepath.Join(root, "CHANGELOG.md")),
+		[]string{"methodology v6", "summary schema 5", "cache-reuse-v2"}, nil)
+	assertContractText(t, readDocumentationFile(t, filepath.Join(root, "TODO.md")),
+		[]string{"**Live latency coverage**"}, []string{"**Live cost and latency coverage**"})
 }
 
 func assertContractText(t *testing.T, contents string, required, forbidden []string) {

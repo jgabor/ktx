@@ -962,8 +962,8 @@ SHA-256, and summary regeneration uses that snapshot rather than live data.
 If the warm local cache lacks the model or cache rates, run `ktx prices update`.
 The retained pricing snapshot alone does not enable estimated-cost summary
 fields: those appear only when at least one attempt has a non-NULL estimate.
-New cache-aware methodology v5 runs under the pinned OpenCode 1.18.5 contract
-use summary schema v4 even when all estimates are NULL. Retained schema-v3
+Current cache-aware methodology v6 runs under the pinned OpenCode 1.18.5 contract
+and uses summary schema v5 even when all estimates are NULL. Retained schema-v3
 experiments keep their historical schema and bytes.
 
 Reported cost and estimated API cost have independent completeness gates.

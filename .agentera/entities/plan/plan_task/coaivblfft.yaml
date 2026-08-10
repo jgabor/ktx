@@ -8,10 +8,20 @@ record:
     - gpfpiuasaz
     - ioozssypfd
     - haiquyiapv
-  status: pending
+  status: complete
   acceptance:
     - GIVEN shipped behavior WHEN current surfaces are inventoried THEN help, documentation, skills, changelog, and TODO terminology agree while historical evidence is excluded from rewrites.
     - GIVEN retained and future contracts WHEN verified THEN schemas 1 through 4 regenerate byte-for-byte and schema 5 validates under its activation marker.
     - GIVEN the complete change set WHEN release readiness is checked THEN focused tests, isolated mage check, rebuilt JSON, text, and help smokes, seeded disposable migration rehearsal, Agentera validation, and independent audit pass.
     - GIVEN closeout WHEN committed THEN implementation, tests, evaluator provenance, and project state form one coherent change set.
   plan: bigjhadugb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: coaivblfft-audit-1
+      source: audit:ses_019130360ffeAtZ9B971GiaQje
+      recorded_at: 2026-08-10 11:15
+      writer_command: agentera state plan record-evaluation

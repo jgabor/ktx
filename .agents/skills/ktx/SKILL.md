@@ -182,8 +182,11 @@ classes, schema, metric formulas, and claim limits.
   evidence: `sum(cache_read) / sum(uncached_input + cache_read + cache_write)`.
   It requires measured input buckets, positive logical input, and one
   runtime-emitted provider/model pair; it is not a provider request hit rate.
-- Literal runtime cost zero remains measured zero but has no automatic billing
-  meaning. API-equivalent cost is a separately labeled estimate.
+- `runtime_reported_cost_usd` preserves literal runtime cost zero as measured but
+  has no automatic billing meaning. `api_equivalent_estimated_cost_usd` is a
+  separately labeled local-price-cache estimate that requires complete token
+  fields and runtime-emitted identity; it never fetches prices, backfills identity,
+  or replaces reported cost.
 - Missing, unknown, malformed, and measured zero are distinct states. Never
   reconstruct a missing field from neighboring totals.
 - Originals are append-only. The first accepted source evidence and first

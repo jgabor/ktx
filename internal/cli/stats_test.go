@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -929,7 +930,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if got["schema_version"] != float64(7) {
 			t.Errorf("schema_version = %v, want 7", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse", "runtime_reported_cost_usd", "api_equivalent_estimated_cost_usd")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
 		assertStatsJSONKeys(t, got["outcomes"].(map[string]any), "successful_calls", "error_calls", "unknown_calls", "known_calls", "total_calls", "error_rate_pct_of_known", "outcome_coverage_pct")
@@ -946,6 +947,11 @@ func TestStatsWindowLogic(t *testing.T) {
 		for _, field := range []string{"uncached_input", "cache_read", "cache_write", "logical_input"} {
 			assertStatsJSONKeys(t, rate["raw_buckets"].(map[string]any)[field].(map[string]any), "state", "value")
 		}
+		assertStatsJSONKeys(t, got["runtime_reported_cost_usd"].(map[string]any), "state", "value", "reasons", "source", "temporal_scope", "unit")
+		estimated := got["api_equivalent_estimated_cost_usd"].(map[string]any)
+		assertStatsJSONKeys(t, estimated, "state", "value", "availability_reasons", "formula", "source", "provider", "model", "components", "pricing", "temporal_scope", "unit")
+		assertStatsJSONKeys(t, estimated["components"].(map[string]any), "uncached_input", "cache_read", "cache_write", "output", "reasoning")
+		assertStatsJSONKeys(t, estimated["pricing"].(map[string]any), "state", "path", "record_sha256", "source_url", "retrieved_at")
 	})
 
 	t.Run("breakdown JSON schema contains the detailed version 2 contract", func(t *testing.T) {
@@ -983,7 +989,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &summaryText); err != nil {
 			t.Fatalf("text: %v", err)
 		}
-		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_SOURCE") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TEMPORAL_SCOPE") || !strings.Contains(summaryText.String(), "REQUESTED_WINDOW_COVERAGE") || !strings.Contains(summaryText.String(), "OBSERVED_SPAN_SECONDS") || !strings.Contains(summaryText.String(), "CONTRIBUTING_KTX_SESSIONS") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_READ") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || strings.Contains(summaryText.String(), "DISPOSITION") {
+		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_SOURCE") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TEMPORAL_SCOPE") || !strings.Contains(summaryText.String(), "REQUESTED_WINDOW_COVERAGE") || !strings.Contains(summaryText.String(), "OBSERVED_SPAN_SECONDS") || !strings.Contains(summaryText.String(), "CONTRIBUTING_KTX_SESSIONS") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_READ") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryText.String(), "RUNTIME_REPORTED_COST_USD") || !strings.Contains(summaryText.String(), "API_EQUIVALENT_ESTIMATED_COST_USD") || strings.Contains(summaryText.String(), "DISPOSITION") {
 			t.Errorf("summary text fields = %q", summaryText.String())
 		}
 		if strings.Count(strings.TrimSpace(summaryText.String()), "\n") != 1 {
@@ -993,7 +999,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 7") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "prompt_cache_token_hit_rate") || !strings.Contains(summaryHelp.String(), "token_weighted") || !strings.Contains(summaryHelp.String(), "runtime-emitted model steps") || !strings.Contains(summaryHelp.String(), "observed_subset") || !strings.Contains(summaryHelp.String(), "not a provider\nrequest hit rate") {
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 7") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "prompt_cache_token_hit_rate") || !strings.Contains(summaryHelp.String(), "token_weighted") || !strings.Contains(summaryHelp.String(), "runtime-emitted model steps") || !strings.Contains(summaryHelp.String(), "observed_subset") || !strings.Contains(summaryHelp.String(), "not a provider\nrequest hit rate") || !strings.Contains(summaryHelp.String(), "runtime_reported_cost_usd") || !strings.Contains(summaryHelp.String(), "api_equivalent_estimated_cost_usd") {
 			t.Errorf("summary help = %q", summaryHelp.String())
 		}
 
@@ -1012,6 +1018,106 @@ func TestStatsWindowLogic(t *testing.T) {
 			t.Errorf("breakdown help = %q", breakdownHelp.String())
 		}
 	})
+}
+
+func TestStatsSummaryCostViewsKeepReportedAndEstimatedCostsSeparate(t *testing.T) {
+	pricePath := filepath.Join(t.TempDir(), "prices.json")
+	if err := os.WriteFile(pricePath, []byte(`{
+  "openai": {
+    "gpt-test": {
+      "input": 1,
+      "output": 4,
+      "cache_read": 0.5,
+      "cache_write": 3,
+      "reasoning": 6,
+      "source_url": "https://models.dev/api.json",
+      "retrieved_at": "2026-08-10T12:00:00Z"
+    }
+  }
+}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prices := dbpkg.NewPrices(pricePath)
+	if err := prices.Load(); err != nil {
+		t.Fatal(err)
+	}
+	provider, model := "openai", "gpt-test"
+	measured := func(value int64) dbpkg.IntegerMeasurement {
+		return dbpkg.IntegerMeasurement{State: dbpkg.MeasurementMeasured, Value: &value}
+	}
+	base := func() dbpkg.StatsSummaryCacheRow {
+		return dbpkg.StatsSummaryCacheRow{
+			SessionID: "aaaaaaaaaaaaaaaa", CapturedAt: time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC),
+			Provider: &provider, Model: &model,
+			Cost:          dbpkg.CostMeasurement{State: dbpkg.MeasurementMeasured, Value: float64Pointer(0)},
+			UncachedInput: measured(100), CacheRead: measured(20), CacheWrite: measured(10),
+			Output: measured(4), Reasoning: measured(3),
+		}
+	}
+
+	rows := []dbpkg.StatsSummaryCacheRow{base()}
+	reported := aggregateStatsSummaryRuntimeReportedCost(rows)
+	estimated := aggregateStatsSummaryAPIEquivalentEstimatedAPICost(rows, prices, nil)
+	if reported.State != statsSummaryMeasured || reported.Value == nil || *reported.Value != 0 || len(reported.Reasons) != 0 {
+		t.Fatalf("reported cost = %#v, want measured zero", reported)
+	}
+	if estimated.State != statsSummaryMeasured || estimated.Value == nil || math.Abs(*estimated.Value-0.000174) > 1e-12 || len(estimated.AvailabilityReasons) != 0 {
+		t.Fatalf("estimated cost = %#v, want measured cache-aware estimate", estimated)
+	}
+	if estimated.Provider == nil || *estimated.Provider != provider || estimated.Model == nil || *estimated.Model != model || estimated.Pricing.State != statsSummaryPricingAvailable || estimated.Pricing.Path == nil || *estimated.Pricing.Path != pricePath || estimated.Pricing.RecordSHA256 == nil || estimated.Pricing.SourceURL == nil || *estimated.Pricing.SourceURL != "https://models.dev/api.json" || estimated.Pricing.RetrievedAt == nil || *estimated.Pricing.RetrievedAt != "2026-08-10T12:00:00Z" {
+		t.Errorf("estimated provenance = %#v", estimated)
+	}
+	for name, measurement := range map[string]statsSummaryIntegerMeasurement{
+		"uncached_input": estimated.Components.UncachedInput,
+		"cache_read":     estimated.Components.CacheRead,
+		"cache_write":    estimated.Components.CacheWrite,
+		"output":         estimated.Components.Output,
+		"reasoning":      estimated.Components.Reasoning,
+	} {
+		if measurement.State != statsSummaryMeasured || measurement.Value == nil {
+			t.Errorf("%s = %#v, want measured", name, measurement)
+		}
+	}
+
+	for _, test := range []struct {
+		name       string
+		mutate     func(*dbpkg.StatsSummaryCacheRow)
+		wantReason string
+	}{
+		{name: "missing runtime identity", mutate: func(row *dbpkg.StatsSummaryCacheRow) { row.Provider = nil }, wantReason: statsSummaryRuntimeIdentityUnavailable},
+		{name: "missing pricing", mutate: func(row *dbpkg.StatsSummaryCacheRow) { unknown := "not-cached"; row.Model = &unknown }, wantReason: statsSummaryPricingRecordUnavailable},
+		{name: "missing required output", mutate: func(row *dbpkg.StatsSummaryCacheRow) {
+			row.Output = dbpkg.IntegerMeasurement{State: dbpkg.MeasurementUnknown}
+		}, wantReason: "output_unavailable"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			row := base()
+			test.mutate(&row)
+			reported := aggregateStatsSummaryRuntimeReportedCost([]dbpkg.StatsSummaryCacheRow{row})
+			estimated := aggregateStatsSummaryAPIEquivalentEstimatedAPICost([]dbpkg.StatsSummaryCacheRow{row}, prices, nil)
+			if reported.State != statsSummaryMeasured || reported.Value == nil || *reported.Value != 0 {
+				t.Errorf("reported cost = %#v, want unchanged measured zero", reported)
+			}
+			if estimated.State != statsSummaryPricingUnavailable || !reflect.DeepEqual(estimated.AvailabilityReasons, []string{test.wantReason}) {
+				t.Errorf("estimated cost = %#v, want unavailable with %q", estimated, test.wantReason)
+			}
+		})
+	}
+
+	row := base()
+	row.Cost = dbpkg.CostMeasurement{State: dbpkg.MeasurementUnknown}
+	reported = aggregateStatsSummaryRuntimeReportedCost([]dbpkg.StatsSummaryCacheRow{row})
+	estimated = aggregateStatsSummaryAPIEquivalentEstimatedAPICost([]dbpkg.StatsSummaryCacheRow{row}, prices, nil)
+	if reported.State != statsSummaryMissing || estimated.State != statsSummaryMeasured || estimated.Value == nil || math.Abs(*estimated.Value-0.000174) > 1e-12 {
+		t.Errorf("reported and estimated availability are not independent: reported=%#v estimated=%#v", reported, estimated)
+	}
+
+	row = base()
+	row.Cost = dbpkg.CostMeasurement{State: dbpkg.MeasurementMeasured, Value: float64Pointer(math.Inf(1))}
+	reported = aggregateStatsSummaryRuntimeReportedCost([]dbpkg.StatsSummaryCacheRow{row})
+	if reported.State != statsSummaryMalformed || reported.Value != nil || !reflect.DeepEqual(reported.Reasons, []string{statsSummaryRuntimeReportedCostNonfinite}) {
+		t.Errorf("nonfinite reported cost = %#v, want unavailable without zero substitution", reported)
+	}
 }
 
 func TestStatsCommandDispatchesWindowViews(t *testing.T) {

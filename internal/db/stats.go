@@ -96,7 +96,10 @@ type StatsSummaryCacheRow struct {
 	CapturedAt    time.Time
 	Provider      *string
 	Model         *string
+	Cost          CostMeasurement
 	UncachedInput IntegerMeasurement
+	Output        IntegerMeasurement
+	Reasoning     IntegerMeasurement
 	CacheRead     IntegerMeasurement
 	CacheWrite    IntegerMeasurement
 }
@@ -130,8 +133,8 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 	from = from.UTC()
 	to = to.UTC()
 	rows, err := d.db.Query(`SELECT session_id, captured_at, provider, model,
-			tokens_input, cache_read, cache_write,
-			tokens_input_state, cache_read_state, cache_write_state
+			cost, tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
+			cost_state, tokens_input_state, tokens_output_state, tokens_reasoning_state, cache_read_state, cache_write_state
 		FROM session_telemetry
 		WHERE runtime = ? AND runtime_version = ?
 			AND source IN (?, ?)`, runtime, runtimeVersion, telemetry.SourceEventHook, telemetry.SourceWrapperStream)
@@ -142,10 +145,15 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 
 	result := make([]StatsSummaryCacheRow, 0)
 	for rows.Next() {
-		var sessionID, capturedAt, inputState, cacheReadState, cacheWriteState string
-		var input, cacheRead, cacheWrite sql.NullInt64
+		var sessionID, capturedAt, costState, inputState, outputState, reasoningState, cacheReadState, cacheWriteState string
+		var cost sql.NullFloat64
+		var input, output, reasoning, cacheRead, cacheWrite sql.NullInt64
 		var provider, model sql.NullString
-		if err := rows.Scan(&sessionID, &capturedAt, &provider, &model, &input, &cacheRead, &cacheWrite, &inputState, &cacheReadState, &cacheWriteState); err != nil {
+		if err := rows.Scan(
+			&sessionID, &capturedAt, &provider, &model,
+			&cost, &input, &output, &reasoning, &cacheRead, &cacheWrite,
+			&costState, &inputState, &outputState, &reasoningState, &cacheReadState, &cacheWriteState,
+		); err != nil {
 			return nil, fmt.Errorf("db: stats summary cache scan: %w", err)
 		}
 		captured, err := time.Parse(time.RFC3339Nano, capturedAt)
@@ -156,7 +164,10 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 		row := StatsSummaryCacheRow{
 			SessionID:     sessionID,
 			CapturedAt:    captured,
+			Cost:          databaseCostMeasurement(costState, cost),
 			UncachedInput: databaseIntegerMeasurement(inputState, input),
+			Output:        databaseIntegerMeasurement(outputState, output),
+			Reasoning:     databaseIntegerMeasurement(reasoningState, reasoning),
 			CacheRead:     databaseIntegerMeasurement(cacheReadState, cacheRead),
 			CacheWrite:    databaseIntegerMeasurement(cacheWriteState, cacheWrite),
 		}

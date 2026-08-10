@@ -1,0 +1,14 @@
+id: ufjvdyzdtp
+artifact: progress
+record:
+  timestamp: 2026-08-10 10:01
+  type: feat
+  phase: build
+  what: Added distinct live stats-summary cost views. Runtime-reported cost remains a measured/unknown/malformed runtime aggregate, while API-equivalent estimated cost uses complete runtime model-step usage and the local price cache with component, availability, and record-provenance fields.
+  context:
+    intent: Expose live cost views without conflating runtime billing evidence and API-equivalent pricing.
+    constraints: No database migration, provider call, identity backfill, tool-call attachment, or ambient database access.
+    scope: internal/db stats telemetry projection; stats summary JSON/text/help; focused regression coverage and synchronized live-stats guidance.
+  verified: "PASS. With fresh disposable HOME/XDG roots and KTX_DB unset: go test ./internal/cli ./internal/db passed; mage build passed; ./build/ktx stats summary --help rendered the separate cost-view contract. The focused regression covers literal reported zero with a nonzero cache-aware estimate, missing runtime identity, missing price, missing required output, and independent estimate availability when reported cost is missing."
+  next: Keep haiquyiapv pending until Prime records audit PASS; then inspect and commit the scoped change without pushing.
+  publication_order: 72

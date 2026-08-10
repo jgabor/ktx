@@ -313,6 +313,9 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	for _, row := range rows {
 		captures = append(captures, row.CapturedAt.Format(time.RFC3339Nano))
 		sessions[row.SessionID] = struct{}{}
+		if row.Cost.State != MeasurementMeasured || row.Cost.Value == nil || *row.Cost.Value != 0 || row.Output.State != MeasurementMeasured || row.Output.Value == nil || *row.Output.Value != 2 || row.Reasoning.State != MeasurementMeasured || row.Reasoning.Value == nil || *row.Reasoning.Value != 0 {
+			t.Errorf("cost/output/reasoning = %+v/%+v/%+v", row.Cost, row.Output, row.Reasoning)
+		}
 		switch row.UncachedInput.State {
 		case MeasurementMeasured:
 			measuredInput++

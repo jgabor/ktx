@@ -118,6 +118,8 @@ delivered estimated tokens are excluded.
 - Reports requested-window coverage as unavailable because capture timestamps do
   not prove collector lifecycle; its scope is the observed telemetry subset.
 - Does not read benchmark aggregates.
+- Separately reports runtime-emitted cost and an API-equivalent USD estimate from
+  the local price cache; the summary never refreshes that cache.
 
 `stats breakdown` reports the same window call and token totals with up to 100
 token-weighted delivery groups. Groups use safe tool, command, subcommand,
@@ -144,6 +146,7 @@ error_rate_pct_of_known = error_calls / known_calls * 100
 outcome_coverage_pct = known_calls / total_calls * 100
 logical_input = uncached_input + cache_read + cache_write
 prompt_cache_token_hit_rate = sum(cache_read) / sum(uncached_input + cache_read + cache_write)
+api_equivalent_estimated_cost_usd = sum((uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price) / 1000000)
 ```
 
 Empty outcome percentages are JSON `null` and text `-`. An all-unknown
@@ -183,6 +186,15 @@ source is `runtime_emitted_model_steps`, and it is not a provider request hit
 rate. A zero cache-read numerator with positive logical input is measured zero;
 zero logical input is `not_applicable`. Missing, malformed, unsupported, or
 mixed-identity evidence remains unavailable without reconstruction.
+
+`runtime_reported_cost_usd` sums runtime-emitted costs only. Its literal zero is
+measured; missing and malformed values stay unavailable and never suppress an
+otherwise valid estimate. `api_equivalent_estimated_cost_usd` is a distinct,
+price-derived view. It requires complete uncached-input, cache-read, cache-write,
+output, and reasoning fields plus one runtime-emitted provider/model identity.
+It reads a matching local price-cache record without a provider call, reports the
+record path, canonical hash, source URL, and retrieval time when available, and
+uses machine availability reasons instead of inventing pricing or identity.
 
 ## OpenCode Contract
 

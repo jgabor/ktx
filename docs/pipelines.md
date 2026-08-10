@@ -311,9 +311,10 @@ use the fixed reporting vocabulary described below; other inputs use an empty
 command label rather than exposing raw command text.
 
 `ktx stats summary` emits a fixed-shape aggregate for periodically polled clients.
-Its JSON contract contains only window metadata, headline call and token totals,
-and aggregate provider prompt/prefix-cache token evidence. The schema is closed:
-diagnostic arrays and new reporting dimensions require an intentional
+Its JSON contract contains window metadata, headline call and token totals,
+aggregate provider prompt/prefix-cache token evidence, and distinct
+runtime-reported and API-equivalent estimated cost views. The schema is closed:
+further diagnostic arrays and reporting dimensions require an intentional
 schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
 Summary schema 7 omits `delivery_breakdown`; callers that need those detailed
@@ -362,6 +363,18 @@ subset. `requested_window_coverage` remains unavailable with reason
 continuous collector lifecycle or full requested-window coverage. The summary
 does not read benchmark aggregates or reconstruct provider requests. The
 breakdown does not query or emit model-step telemetry.
+
+The same accepted model-step subset produces two independent USD views.
+`runtime_reported_cost_usd` sums only runtime-emitted cost fields; a literal zero
+remains a measured zero, while missing or malformed reported cost makes only that
+view unavailable. `api_equivalent_estimated_cost_usd` is a separate estimate, not
+a repair for reported cost. It requires one runtime-emitted provider/model identity
+and complete uncached-input, cache-read, cache-write, output, and reasoning fields
+for every contributing step. It prices each step through the local price cache,
+never fetches prices from a query, and exposes the cache record's path, canonical
+record hash, source URL, and retrieval timestamp when retained. Missing identity,
+price, or required tokens makes only the estimate unavailable with machine reasons;
+configured identity never fills a source row.
 
 To avoid holding a long rollback-journal read while clients poll either command,
 the query first scans eligible source IDs and timestamps, closes that read, then
@@ -441,6 +454,39 @@ them. The schema 7 contract is:
       "temporal_scope": "observed_subset",
       "unit": "token_fraction"
     }
+  },
+  "runtime_reported_cost_usd": {
+    "state": "measured",
+    "value": 0,
+    "reasons": [],
+    "source": "runtime_emitted_model_steps",
+    "temporal_scope": "observed_subset",
+    "unit": "usd"
+  },
+  "api_equivalent_estimated_cost_usd": {
+    "state": "measured",
+    "value": 0.012345,
+    "availability_reasons": [],
+    "formula": "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price) / 1000000",
+    "source": "runtime_emitted_model_steps_and_local_price_cache",
+    "provider": "openai",
+    "model": "gpt-5.6-luna",
+    "components": {
+      "uncached_input": { "state": "measured", "value": 1000 },
+      "cache_read": { "state": "measured", "value": 3500 },
+      "cache_write": { "state": "measured", "value": 500 },
+      "output": { "state": "measured", "value": 100 },
+      "reasoning": { "state": "measured", "value": 20 }
+    },
+    "pricing": {
+      "state": "available",
+      "path": "/home/alice/.local/share/ktx/prices.json",
+      "record_sha256": "...",
+      "source_url": "https://models.dev/api.json",
+      "retrieved_at": "2026-07-21T11:00:00Z"
+    },
+    "temporal_scope": "observed_subset",
+    "unit": "usd"
   }
 }
 ```
@@ -548,8 +594,8 @@ schemas without a compatibility bridge. Retained schema 6 summaries remain
 unchanged historical evidence. Text output renders the same current fields and
 has no separate schema version. Its `PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE`,
 `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, `REQUESTED_WINDOW_COVERAGE`, capture, span,
-session, and model-step columns make the provider prompt/prefix-cache subset
-explicit.
+session, model-step, `RUNTIME_REPORTED_COST_USD`, and
+`API_EQUIVALENT_ESTIMATED_COST_USD` columns make their scopes explicit.
 
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus
@@ -606,6 +652,20 @@ database, HTTP, or other I/O caching. `prompt_cache_token_hit_rate` has source
 provider request hit rate. A runtime model step is not a provider request, and
 the retained evidence does not prove provider hits, misses, eligibility,
 eviction, or request boundaries.
+
+`runtime_reported_cost_usd` uses the same model-step subset but remains runtime
+evidence: its state is `measured` only when every contributing cost is measured;
+otherwise it is `missing` or `malformed`. A reported zero is measured, not
+substituted from pricing, and its billing semantics remain unavailable.
+`api_equivalent_estimated_cost_usd` stays independent. Its components use the
+same complete-only state rules, and it calls the shared API-equivalent estimator
+for every model step so uncached input, cache read, cache write, output, and
+reasoning each use their applicable local price-cache rates. The estimate is
+available only with one runtime-emitted provider/model identity and a matching
+local price-cache record. The read-only summary never refreshes that cache.
+`availability_reasons` identifies unavailable identity, component, cache, or
+pricing evidence; `pricing.record_sha256` is the SHA-256 of the canonical local
+price record represented by the response.
 
 ### Database evidence report
 

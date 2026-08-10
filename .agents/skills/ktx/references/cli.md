@@ -204,6 +204,12 @@ unavailable with `collector_lifecycle_evidence_unavailable` and scope
 reports runtime-emitted model-step source, raw buckets, temporal scope, and
 token-fraction unit; it is not a provider request hit rate. It is measured only
 for one complete runtime-emitted provider/model pair and complete buckets.
+`runtime_reported_cost_usd` separately sums runtime-emitted cost and preserves a
+literal zero. `api_equivalent_estimated_cost_usd` is a separately labeled USD
+estimate that requires complete uncached-input, cache-read, cache-write, output,
+and reasoning fields, one runtime-emitted identity, and a matching local price
+cache record. It does not fetch prices, backfill identity, or replace reported
+cost; unavailable estimate reasons and price-record provenance remain explicit.
 Retained schema 6 summaries remain unchanged historical evidence.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It

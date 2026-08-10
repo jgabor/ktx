@@ -44,4 +44,3 @@ record:
       resolve_by: Use repeated baseline variance. Gate timing only after a controlled environment, workload, sample policy, variance rule, and numeric budget are approved; otherwise keep timing descriptive.
   surprises:
     []
-  previous_plan_archived: bigjhadugb

@@ -1,0 +1,13 @@
+id: cqgzfhmzhl
+artifact: plan
+record:
+  plan: bigjhadugb
+  name: Complete prompt-cache benchmark publication guidance
+  status: pending
+  depends_on:
+    - lofszlmrop
+  acceptance:
+    - GIVEN the current benchmark entry points WHEN help, README, pipelines, AGENTS.md, and the ktx benchmark skill reference are inspected THEN each consistently names methodology v6, summary schema 5, and cache-reuse-v2 for current prompt-cache comparisons.
+    - GIVEN retained methodology v5, schemas 1 through 4, cache-reuse-v1, and historical evidence WHEN verified THEN their bytes, hashes, meaning, and historical wording remain unchanged.
+    - GIVEN schema-5 paired prompt-cache evidence WHEN summarized and rendered THEN machine-readable comparison fields and authorized higher/lower token-weighted wording remain correct while provider-internal claims remain forbidden.
+    - GIVEN the corrected guidance surfaces WHEN focused synchronization and retained-boundary tests run THEN all pass without a live provider benchmark or ambient database access.

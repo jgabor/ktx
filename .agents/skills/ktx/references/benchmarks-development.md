@@ -35,6 +35,10 @@ Named methodologies, tasks, pipelines, and corpus fixtures live under
 ## Live Comparison
 
 Run offline preflight before paid work. Normal comparison runs preflight too.
+Current prompt-cache comparisons use methodology v6 and emit summary schema 5
+under `cache-reuse-v2`. Claims about provider-internal behavior remain forbidden.
+Methodology v5, summary schemas 1–4, and `cache-reuse-v1` remain historical
+evidence rather than the current entry point.
 
 ```bash
 ./build/ktx bench compare --preflight --format json
@@ -43,7 +47,7 @@ Run offline preflight before paid work. Normal comparison runs preflight too.
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \

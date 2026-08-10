@@ -236,6 +236,8 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      The generic preflight returns before task loading; --build adds image creation.")
 	fmt.Fprintln(w, "      Cache-aware opt-in: --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml")
 	fmt.Fprintln(w, "      with --cache-control auto|isolated|observed, --warmup N, --rounds N.")
+	fmt.Fprintln(w, "      This current path emits summary schema 5 under cache-reuse-v2.")
+	fmt.Fprintln(w, "      Claims about provider-internal behavior remain forbidden.")
 	fmt.Fprintln(w, "  rank --model <model> [--variant <name>] --task-file <path>")
 	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
 	fmt.Fprintln(w, "  validate --experiment <directory>")

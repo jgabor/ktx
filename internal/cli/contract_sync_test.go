@@ -143,13 +143,28 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	var help bytes.Buffer
 	printBenchHelp(&help)
 	for name, contents := range map[string]string{
-		"help":    help.String(),
-		"readme":  readDocumentationFile(t, filepath.Join(root, "README.md")),
-		"runbook": readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"help":            help.String(),
+		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
+		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertContractText(t, contents,
-				[]string{"methodology-v6-prompt-cache-token-hit-rate.yaml"}, nil)
+				[]string{"methodology-v6-prompt-cache-token-hit-rate.yaml"},
+				[]string{"methodology-v5-cache-aware.yaml"})
+		})
+	}
+	for name, contents := range map[string]string{
+		"help":            help.String(),
+		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
+		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
+	} {
+		t.Run(name+"-contract", func(t *testing.T) {
+			assertContractText(t, contents,
+				[]string{"summary schema 5", "cache-reuse-v2", "provider-internal"}, nil)
 		})
 	}
 

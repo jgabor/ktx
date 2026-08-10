@@ -1,0 +1,14 @@
+id: aldwxyavuf
+artifact: progress
+record:
+  timestamp: 2026-08-10 08:37
+  type: docs
+  phase: build
+  what: Completed current prompt-cache benchmark publication guidance across help, README, pipelines, AGENTS.md, and the ktx benchmark skill reference using methodology v6, summary schema 5, and cache-reuse-v2.
+  context:
+    intent: Resolve the focused replacement task by synchronizing the two stale operational surfaces and enforcing the complete current entry point.
+    constraints: Keep cqgzfhmzhl pending and TODO gzbjhqirbx open for evaluator action; preserve methodology v5, schemas 1 through 4, cache-reuse-v1, and historical evidence unchanged; forbid provider-internal claims.
+    scope: AGENTS.md, the benchmark-development skill reference, benchmark help wording, entry-point synchronization coverage, and the pre-created plan-task entity.
+  verified: PASS. Every verification command unset KTX_DB and used fresh disposable HOME/XDG roots. TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp passed for help, README, pipelines, AGENTS.md, and the benchmark skill reference, requiring methodology-v6-prompt-cache-token-hit-rate.yaml, summary schema 5, cache-reuse-v2, and provider-internal claim prohibition while rejecting the v5 methodology path on current surfaces. go test ./internal/cli -count=1 passed. TestPromptCacheTokenHitRateUsesExplicitFutureSchema, TestPromptCacheTokenHitRateKeepsSchemaFourBoundary, TestPromptCacheTokenHitRateContract, and TestPromptCacheTokenHitRatePreservesV5ValidationWording passed, including machine-readable paired fields and authorized higher/lower wording. Focused retained-boundary tests passed; schema 4 remained 190803 bytes with SHA-256 2eecff7f189b1939535094ecd124c421a3f819c066811b508d7fb50fc84e14be. Tracked schema 1, schema 2, schema 3, cache-reuse-v1, and methodology v5 matched HEAD byte-for-byte with SHA-256 values 8136d83008322a08a73f42f3a0ff92e8a85afc1ff3d05d50e394226add861e0d, 276ddc38f3f1779058d6be1aa622dc667440ec1595d8dc34cd62654a70844390, c0361dca17201732d00c96c777cea96b6e20311e4dfe6b175089d534cad188fa, b5af125fdedc8f484ed2d176760f2664ac9b9984a73926ea116cb2df90e8e30a, and 24d674cbe9f1d305c79906fe253a2154e77c7dc373d8f754df4a2e4d9cf6ea52. mage build passed; rebuilt ./build/ktx bench --help displayed the v6/schema-5/v2 current path and forbidden provider-internal claims; gofmt -d and git diff --check were empty. No live/provider benchmark or ambient database was used.
+  next: Leave cqgzfhmzhl pending and TODO gzbjhqirbx open until evaluator PASS and supersession.
+  publication_order: 70

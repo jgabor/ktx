@@ -299,21 +299,16 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	persist("runtime", sessionID, from.Format(time.RFC3339Nano), "other-runtime", runtimeVersion, measured(1), measured(1), measured(1))
 	persist("version", sessionID, from.Format(time.RFC3339Nano), runtime, "1.18.4", measured(1), measured(1), measured(1))
 
-	rows, err := d.StatsSummaryCacheRows(from, to)
+	rows, err := d.StatsSummaryCacheRows(from, to, runtime, runtimeVersion)
 	if err != nil {
 		t.Fatalf("StatsSummaryCacheRows: %v", err)
 	}
-	if len(rows) != 5 {
-		t.Fatalf("got %d rows, want 5: %+v", len(rows), rows)
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3: %+v", len(rows), rows)
 	}
 	var measuredInput, unknownInput, malformedWrite, measuredZeroWrite int
-	var measuredOutput, measuredReasoning, measuredCostZero int
 	var inputTotal, readTotal, writeTotal int64
-	var captures []string
-	sessions := make(map[string]struct{})
 	for _, row := range rows {
-		captures = append(captures, row.CapturedAt.Format(time.RFC3339Nano))
-		sessions[row.SessionID] = struct{}{}
 		switch row.UncachedInput.State {
 		case MeasurementMeasured:
 			measuredInput++
@@ -323,15 +318,6 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 		}
 		if row.CacheRead.State == MeasurementMeasured {
 			readTotal += *row.CacheRead.Value
-		}
-		if row.Output.State == MeasurementMeasured && row.Output.Value != nil && *row.Output.Value == 2 {
-			measuredOutput++
-		}
-		if row.Reasoning.State == MeasurementMeasured && row.Reasoning.Value != nil && *row.Reasoning.Value == 0 {
-			measuredReasoning++
-		}
-		if row.Cost.State == MeasurementMeasured && row.Cost.Value != nil && *row.Cost.Value == 0 {
-			measuredCostZero++
 		}
 		switch row.CacheWrite.State {
 		case MeasurementMeasured:
@@ -343,62 +329,11 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 			malformedWrite++
 		}
 	}
-	if measuredInput != 4 || unknownInput != 1 || malformedWrite != 1 || measuredZeroWrite != 1 {
+	if measuredInput != 2 || unknownInput != 1 || malformedWrite != 1 || measuredZeroWrite != 1 {
 		t.Errorf("states measured_input=%d unknown_input=%d malformed_write=%d measured_zero_write=%d", measuredInput, unknownInput, malformedWrite, measuredZeroWrite)
 	}
-	if measuredOutput != 5 || measuredReasoning != 5 || measuredCostZero != 5 {
-		t.Errorf("projected output=%d reasoning=%d cost_zero=%d, want 5/5/5", measuredOutput, measuredReasoning, measuredCostZero)
-	}
-	if inputTotal != 52 || readTotal != 102 || writeTotal != 62 {
-		t.Errorf("measured totals input=%d read=%d write=%d, want 52/102/62", inputTotal, readTotal, writeTotal)
-	}
-	sort.Strings(captures)
-	wantCaptures := []string{from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), to.Format(time.RFC3339Nano)}
-	if !reflect.DeepEqual(captures, wantCaptures) {
-		t.Errorf("captures = %v, want %v", captures, wantCaptures)
-	}
-	if len(sessions) != 2 {
-		t.Errorf("contributing sessions = %d, want 2", len(sessions))
-	}
-}
-
-func TestStatsSummaryCacheRowsPreservesSourceIdentity(t *testing.T) {
-	const runtime, runtimeVersion = "opencode", "1.18.5"
-	d := openMemoryDB(t)
-	from := time.Date(2026, 7, 21, 11, 30, 0, 0, time.UTC)
-	to := from.Add(time.Minute)
-	withIdentity, withoutIdentity := mustNewID(t), mustNewID(t)
-	for _, sessionID := range []string{withIdentity, withoutIdentity} {
-		if err := d.InsertSession(&Session{ID: sessionID, Agent: runtime}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	provider, model := "openai", "gpt-5"
-	persist := func(sessionID, source string, capturedAt string, provider, model *string) {
-		t.Helper()
-		observation := telemetryObservation(source, source, source, 1, 0, 0)
-		observation.Runtime, observation.RuntimeVersion = runtime, runtimeVersion
-		observation.Provider, observation.Model = provider, model
-		if _, err := d.PersistSessionTelemetry(sessionID, capturedAt, observation); err != nil {
-			t.Fatalf("PersistSessionTelemetry(%q): %v", source, err)
-		}
-	}
-	persist(withIdentity, "source-with-identity", from.Format(time.RFC3339Nano), &provider, &model)
-	persist(withoutIdentity, "source-without-identity", to.Format(time.RFC3339Nano), nil, nil)
-
-	rows, err := d.StatsSummaryCacheRows(from, to)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := make(map[string]StatsSummaryCacheRow, len(rows))
-	for _, row := range rows {
-		got[row.SessionID] = row
-	}
-	if row := got[withIdentity]; row.Provider == nil || *row.Provider != provider || row.Model == nil || *row.Model != model {
-		t.Fatalf("source identity = %#v/%#v", row.Provider, row.Model)
-	}
-	if row := got[withoutIdentity]; row.Provider != nil || row.Model != nil {
-		t.Fatalf("missing source identity = %#v/%#v", row.Provider, row.Model)
+	if inputTotal != 50 || readTotal != 100 || writeTotal != 60 {
+		t.Errorf("measured totals input=%d read=%d write=%d, want 50/100/60", inputTotal, readTotal, writeTotal)
 	}
 }
 

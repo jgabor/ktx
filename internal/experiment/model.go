@@ -53,20 +53,20 @@ type UsageEvidence struct {
 type Metrics struct {
 	StreamComplete bool `json:"stream_complete"`
 	Score
-	ToolCallCount          int           `json:"tool_call_count"`
-	TokensIn               *float64      `json:"tokens_in"`
-	TokensOut              *float64      `json:"tokens_out"`
-	Cost                   *float64      `json:"cost"`
-	CacheRead              *float64      `json:"cache_read"`
-	CacheWrite             *float64      `json:"cache_write"`
-	Reasoning              *float64      `json:"reasoning"`
-	EstimatedAPICost       *float64      `json:"estimated_api_cost"`
-	AnswerExcerpt          string        `json:"answer_excerpt"`
-	UsageEvidence          UsageEvidence `json:"usage_evidence"`
-	ModelSteps             []SourceEvent `json:"model_steps,omitempty"`
-	sequence               *attemptSequence
-	wrapperModelIdentities []modelStepIdentity
-	estimatedAPICostDetail *estimatedAPICostDetail
+	ToolCallCount           int      `json:"tool_call_count"`
+	TokensIn                *float64 `json:"tokens_in"`
+	TokensOut               *float64 `json:"tokens_out"`
+	Cost                    *float64 `json:"cost"`
+	CacheRead               *float64 `json:"cache_read"`
+	CacheWrite              *float64 `json:"cache_write"`
+	Reasoning               *float64 `json:"reasoning"`
+	EstimatedAPICost        *float64 `json:"estimated_api_cost"`
+	estimatedAPICostReasons []string
+	AnswerExcerpt           string        `json:"answer_excerpt"`
+	UsageEvidence           UsageEvidence `json:"usage_evidence"`
+	ModelSteps              []SourceEvent `json:"model_steps,omitempty"`
+	sequence                *attemptSequence
+	wrapperModelIdentities  []modelStepIdentity
 }
 
 type SessionLink struct {
@@ -178,10 +178,9 @@ type PipelineMetadata struct {
 }
 
 type MethodologyMetadata struct {
-	Version             string `json:"version"`
-	Path                string `json:"path"`
-	SHA256              string `json:"sha256"`
-	CacheMetricContract string `json:"cache_metric_contract,omitempty"`
+	Version string `json:"version"`
+	Path    string `json:"path"`
+	SHA256  string `json:"sha256"`
 }
 
 type PricingSnapshotMetadata struct {

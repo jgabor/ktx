@@ -1,159 +1,101 @@
 {
   "contract_version": "cache-reuse-v2",
-  "status": "prompt_cache_token_hit_rate_future_successor",
+  "status": "prompt_cache_token_hit_rate_implemented",
+  "supersedes": "cache-reuse-v1",
   "activation": {
-    "manifest_methodology_version": "v6-prompt-cache-hit-rate",
-    "manifest_methodology_cache_metric_contract": "cache-reuse-v2",
-    "legacy_manifest_without_marker": "preserve_existing_schema_and_contract"
+    "methodology_version": "v6-prompt-cache-token-hit-rate",
+    "summary_schema_version": 5,
+    "historical_summary_schemas_unchanged": [1, 2, 3, 4]
   },
-  "metric": {
-    "name": "prompt_cache_token_hit_rate",
+  "scope": {
+    "runtime": "opencode",
+    "runtime_version": "1.18.5",
+    "evidence_kind": "runtime_reported_model_steps",
+    "ranking_effect": "none"
+  },
+  "accounting": {
+    "input_buckets": ["uncached_input", "cache_read", "cache_write"],
+    "invariant": "uncached_input + cache_read + cache_write = logical_input",
+    "disjointness_requirement": "pinned_runtime_contract",
+    "measured_zero": "retained",
+    "unknown_or_malformed": "unavailable_not_backfilled"
+  },
+  "prompt_cache_token_hit_rate": {
     "kind": "token_weighted",
     "unit": "token_fraction",
-    "formula": "cache_read / (uncached_input + cache_read + cache_write)",
-    "source": "retained_runtime_model_step_telemetry",
-    "accounting": "uncached_input_cache_read_and_cache_write_are_disjoint",
-    "availability": "all_three_nonnegative_buckets_measured_and_logical_input_positive",
-    "measured_zero": "zero_cache_read_with_positive_logical_input_is_measured_zero"
+    "formula": "sum(cache_read) / sum(uncached_input + cache_read + cache_write)",
+    "contributing_steps": "all_accepted_model_steps_per_attempt",
+    "availability": "every_contributing_bucket_measured_and_logical_input_positive",
+    "output": {
+      "path": "prompt_cache_token_hit_rate",
+      "attempt_rate_field": "prompt_cache_token_hit_rate",
+      "source": "retained_raw_runtime_model_step_events"
+    }
   },
   "comparison": {
-    "name": "prompt_cache_token_hit_rate_comparison",
-    "phase": "measured_warm",
-    "pairing_unit": "cycle",
-    "identity": "each_complete_pair_requires_one_matching_runtime_provider_model_and_pinned_runtime_version",
-    "identity_pooling": "forbidden",
-    "protocol_identity": "manifest_and_attempt_cache_control_and_pipeline_provenance_must_match",
-    "minimum_complete_pairs": 5,
-    "difference": "candidate_minus_baseline",
-    "difference_unit": "percentage_points",
-    "aggregation": "for each side over the exact accepted complete pairs, calculate sum(cache_read) / sum(uncached_input + cache_read + cache_write); never average attempt or pair fractions",
-    "interval": "two_sided_95_percent_paired_cluster_bootstrap_percentile",
-    "resampling": {
-      "unit": "complete_pair_disjoint_token_buckets",
-      "replicates": 10000,
-      "seed": 1,
-      "statistic": "candidate aggregate rate minus baseline aggregate rate after each whole-pair resample"
-    },
-    "quality": "same_complete_pairs_candidate_mean_fact_score_and_full_pass_rate_not_lower",
-    "machine_fields": [
-      "baseline_mean",
-      "candidate_mean",
-      "percentage_point_delta",
+    "path": "prompt_cache_token_hit_rate_comparison",
+    "metric": "prompt_cache_token_hit_rate",
+    "unit": "measured_cycle_pair",
+    "difference": "candidate_prompt_cache_token_hit_rate - baseline_prompt_cache_token_hit_rate",
+    "machine_readable_fields": [
+      "prompt_cache_token_hit_rate.means.baseline",
+      "prompt_cache_token_hit_rate.means.candidate",
+      "prompt_cache_token_hit_rate.candidate_minus_baseline.percentage_point_delta",
       "complete_pair_count",
-      "interval",
+      "prompt_cache_token_hit_rate.candidate_minus_baseline.interval",
       "quality",
-      "blocking_reasons",
-      "unavailable_reasons",
-      "aggregate_buckets",
-      "pairs"
+      "blocking_reasons"
+    ],
+    "minimum_complete_pairs_for_direction": 5,
+    "uncertainty": "two_sided_95_percent_paired_student_t_interval",
+    "quality_requirement": "candidate_mean_fact_score_and_full_pass_rate_not_lower_on_same_complete_pairs"
+  },
+  "pipeline_cost_guard": {
+    "path": "pipeline_cost_guard",
+    "accepted_path": "accepted",
+    "purpose": "portable_quality_adjusted_api_equivalent_estimated_cost_gate",
+    "comparison_unit": "measured_cycle_pair",
+    "metric": "estimated_api_cost_per_correct",
+    "formula": "round(round(sum(estimated_api_cost), 6) / full_pass_count, 6)",
+    "rounding_decimals": 6,
+    "rounding": "round each API-equivalent estimate, side total, and cost per correct to six decimal places before comparison",
+    "pricing_provenance": "retained pricing snapshot metadata and hash",
+    "quality_requirement": "candidate_mean_fact_score_and_full_pass_rate_not_lower_on_same_complete_pairs",
+    "acceptance": "candidate_estimated_api_cost_per_correct_strictly_lower",
+    "availability": "every complete pair has a finite estimated API cost with retained pricing provenance",
+    "reported_cost": "runtime-reported observations remain separate and preserve literal zero",
+    "reason_precedence": [
+      "incomplete_pairs",
+      "identity_provenance_unstable",
+      "protocol_noncompliant",
+      "estimated_api_cost_unavailable",
+      "estimated_api_cost_nonfinite",
+      "zero_correct_answers",
+      "quality_not_preserved",
+      "candidate_estimated_api_cost_per_correct_not_lower"
     ]
   },
   "statement_authorization": {
-    "name": "prompt_cache_token_hit_rate_statement_authorization",
-    "outcomes": ["higher", "lower"],
-    "requires": [
-      "activated_contract",
-      "raw_projection_matches",
-      "no_blocking_reasons",
-      "at_least_five_complete_pairs",
-      "quality_preserved",
-      "directional_two_sided_95_percent_interval"
-    ],
-    "forbidden_claims": [
-      "provider_internal_cache_state",
-      "request_hit_rate",
-      "ttl",
-      "eviction",
-      "eligibility",
-      "isolation",
-      "prefix",
-      "provider_request_boundaries"
-    ]
+    "path": "prompt_cache_token_hit_rate_statement_authorization",
+    "higher_or_lower_wording": "token-weighted prompt-cache hit rate under the pinned contract (cache-reuse-v2)",
+    "provider_internal_claims": "forbidden"
   },
-  "pipeline_acceptance": {
-    "name": "pipeline_acceptance",
-    "phase": "measured_warm",
-    "pairing_unit": "cycle",
-    "minimum_complete_pairs": 5,
-    "identity_pooling": "forbidden",
-    "cost": {
-      "kind": "api_equivalent_estimated_cost",
-      "formula": "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1000000",
-      "source": "retained_pricing_snapshot",
-      "reported_cost": "not_an_input_and_never_replaced",
-      "per_side": "sum rounded per-attempt micro-USD over the exact complete pairs; divide by full_pass=true count"
-    },
-    "rounding": {
-      "currency": "usd",
-      "scale_decimals": 6,
-      "mode": "half_away_from_zero",
-      "per_attempt": "round each API-equivalent estimate to micro-USD before aggregation",
-      "per_correct": "sum exact micro-USD, divide by full-pass count, then round to micro-USD"
-    },
-    "quality": "same_complete_pairs_candidate_mean_fact_score_not_lower_and_full_pass_rate_not_lower",
-    "acceptance": "candidate_rounded_api_equivalent_estimated_cost_per_correct_strictly_lower_than_baseline",
-    "machine_fields": [
-      "accepted",
-      "reasons",
-      "pair_checks",
-      "baseline.estimated_total",
-      "baseline.correct_count",
-      "baseline.estimated_cost_per_correct",
-      "candidate.estimated_total",
-      "candidate.correct_count",
-      "candidate.estimated_cost_per_correct",
-      "quality",
-      "rounding",
-      "pricing_provenance"
-    ],
-    "estimate_unavailability_reasons": [
-      "uncached_input_unavailable",
-      "output_unavailable",
-      "reasoning_unavailable",
-      "cache_read_unavailable",
-      "cache_write_unavailable",
-      "uncached_input_nonfinite",
-      "output_nonfinite",
-      "reasoning_nonfinite",
-      "cache_read_nonfinite",
-      "cache_write_nonfinite",
-      "uncached_input_invalid",
-      "output_invalid",
-      "reasoning_invalid",
-      "cache_read_invalid",
-      "cache_write_invalid",
-      "context_token_count_overflow",
-      "input_price_unavailable",
-      "output_price_unavailable",
-      "cache_read_price_unavailable",
-      "cache_write_price_unavailable",
-      "input_price_invalid",
-      "output_price_invalid",
-      "cache_read_price_invalid",
-      "cache_write_price_invalid",
-      "reasoning_price_invalid",
-      "estimated_cost_nonfinite"
-    ],
-    "reason_precedence": [
-      "unsupported_runtime_accounting",
-      "incomplete_pairs",
-      "identity_unstable",
-      "protocol_noncompliant",
-      "estimated_cost_nonfinite",
-      "estimated_cost_unavailable",
-      "pricing_provenance_unavailable",
-      "zero_correct_answers",
-      "quality_evidence_unavailable",
-      "fact_score_regressed",
-      "full_pass_rate_regressed",
-      "estimated_cost_per_correct_raw_tie",
-      "estimated_cost_per_correct_rounded_tie",
-      "estimated_cost_per_correct_not_lower"
-    ]
-  },
+  "permanently_unsupported_claims": [
+    "provider_request",
+    "provider_cache_hit",
+    "provider_cache_miss",
+    "provider_cache_fill",
+    "provider_cache_eviction",
+    "provider_cache_eligibility",
+    "provider_visible_prefix",
+    "provider_cache_isolation",
+    "ttl_cause",
+    "missed_cost",
+    "causal_compression_effect"
+  ],
   "compatibility": {
-    "schemas_1_through_4_byte_identical": true,
-    "cache_reuse_v1_byte_identical": true,
-    "historical_statements_unchanged": true
+    "cache_reuse_v1_unchanged": true,
+    "historical_bytes_unchanged": true,
+    "historical_hashes_unchanged": true
   }
 }

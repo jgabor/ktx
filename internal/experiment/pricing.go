@@ -3,6 +3,7 @@ package experiment
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,60 +128,51 @@ func summaryHasEstimatedEvidence(data []byte) bool {
 	return visit(value)
 }
 
-func estimateAttempts(attempts []Attempt, snapshot *pricingSnapshot) []Attempt {
+func estimateAttemptAPICost(attempt Attempt, snapshot *pricingSnapshot) db.EstimatedCostResult {
+	reasons := []string{}
 	if snapshot == nil {
-		return attempts
+		reasons = append(reasons, "pricing_snapshot_unavailable")
 	}
-	for i := range attempts {
-		if attempts[i].TokensIn == nil || attempts[i].TokensOut == nil {
-			attempts[i].EstimatedAPICost = nil
+	values := map[string]*float64{
+		"uncached_input": attempt.TokensIn,
+		"output":         attempt.TokensOut,
+		"reasoning":      attempt.Reasoning,
+		"cache_read":     attempt.CacheRead,
+		"cache_write":    attempt.CacheWrite,
+	}
+	tokens := map[string]int64{}
+	for _, name := range []string{"uncached_input", "output", "reasoning", "cache_read", "cache_write"} {
+		value := values[name]
+		if value == nil {
+			reasons = append(reasons, name+"_unavailable")
 			continue
 		}
-		input, output := int64(*attempts[i].TokensIn), int64(*attempts[i].TokensOut)
-		var reasoning, cacheRead, cacheWrite *int64
-		if attempts[i].Reasoning != nil {
-			value := int64(*attempts[i].Reasoning)
-			reasoning = &value
+		if math.IsNaN(*value) || math.IsInf(*value, 0) {
+			reasons = append(reasons, name+"_nonfinite")
+			continue
 		}
-		if attempts[i].CacheRead != nil {
-			value := int64(*attempts[i].CacheRead)
-			cacheRead = &value
+		if *value < 0 || math.Trunc(*value) != *value || *value > math.MaxInt64 {
+			reasons = append(reasons, name+"_invalid")
+			continue
 		}
-		if attempts[i].CacheWrite != nil {
-			value := int64(*attempts[i].CacheWrite)
-			cacheWrite = &value
-		}
-		attempts[i].EstimatedAPICost = db.EstimateAPICost(db.EstimatedCostInputs{UncachedInput: input, Output: output, Reasoning: reasoning, CacheRead: cacheRead, CacheWrite: cacheWrite}, snapshot.Price)
+		tokens[name] = int64(*value)
 	}
-	return attempts
+	if len(reasons) > 0 {
+		return db.EstimatedCostResult{AvailabilityReasons: reasons}
+	}
+	input, output := tokens["uncached_input"], tokens["output"]
+	reasoning, cacheRead, cacheWrite := tokens["reasoning"], tokens["cache_read"], tokens["cache_write"]
+	return db.EstimateAPICostDetails(db.EstimatedCostInputs{
+		UncachedInput: input, Output: output,
+		Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite,
+	}, snapshot.Price)
 }
 
-func estimateAttemptsWithDetails(attempts []Attempt, snapshot *pricingSnapshot) []Attempt {
+func estimateAttempts(attempts []Attempt, snapshot *pricingSnapshot) []Attempt {
 	for i := range attempts {
-		detail := &estimatedAPICostDetail{}
-		if snapshot == nil {
-			attempts[i].EstimatedAPICost = nil
-			detail.reasons = []string{"pricing_snapshot_unavailable"}
-		} else {
-			estimate := db.EstimateAPIEquivalentCost(db.APIEquivalentCostInputs{
-				UncachedInput: attempts[i].TokensIn,
-				Output:        attempts[i].TokensOut,
-				Reasoning:     attempts[i].Reasoning,
-				CacheRead:     attempts[i].CacheRead,
-				CacheWrite:    attempts[i].CacheWrite,
-			}, snapshot.Price)
-			attempts[i].EstimatedAPICost = estimate.Cost
-			for _, reason := range estimate.UnavailableReasons {
-				detail.reasons = append(detail.reasons, string(reason))
-			}
-			detail.rateSelection = estimate.RateSelection
-		}
-		attempts[i].estimatedAPICostDetail = detail
+		estimate := estimateAttemptAPICost(attempts[i], snapshot)
+		attempts[i].EstimatedAPICost = estimate.Value
+		attempts[i].estimatedAPICostReasons = append([]string(nil), estimate.AvailabilityReasons...)
 	}
 	return attempts
-}
-
-type estimatedAPICostDetail struct {
-	reasons       []string
-	rateSelection *db.APIEquivalentCostRateSelection
 }

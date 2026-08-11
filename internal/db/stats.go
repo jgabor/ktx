@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jgabor/ktx/internal/telemetry"
 )
 
 // StatsRow is one tool_call row from the stats query. The
@@ -86,23 +88,14 @@ type StatsSummaryRow struct {
 }
 
 // StatsSummaryCacheRow is one accepted runtime model-step observation in a
-// bounded stats summary. Session, capture, runtime, and source identity fields
-// describe the contributing observation. Cost and all five token fields retain
-// their measured, unknown, or malformed state so callers cannot mistake a
-// partial sum for a complete one.
+// bounded stats summary. Numeric fields preserve their measured, unknown, or
+// malformed state so callers cannot mistake a partial sum for a complete one.
 type StatsSummaryCacheRow struct {
-	SessionID      string
-	CapturedAt     time.Time
-	Runtime        string
-	RuntimeVersion string
-	Provider       *string
-	Model          *string
-	UncachedInput  IntegerMeasurement
-	Output         IntegerMeasurement
-	Reasoning      IntegerMeasurement
-	CacheRead      IntegerMeasurement
-	CacheWrite     IntegerMeasurement
-	Cost           CostMeasurement
+	Provider      *string
+	Model         *string
+	UncachedInput IntegerMeasurement
+	CacheRead     IntegerMeasurement
+	CacheWrite    IntegerMeasurement
 }
 
 type statsSummarySelectedRow struct {
@@ -123,19 +116,21 @@ func (d *DB) StatsSummaryRows(from, to time.Time) ([]StatsSummaryRow, error) {
 	return statsSummaryRowsFor(d.db, from, to, nil)
 }
 
-// StatsSummaryCacheRows returns accepted runtime model-step observations whose
-// capture timestamp is in the inclusive [from, to] interval. Callers select
-// their supported runtime accounting contract from the returned source rows.
-func (d *DB) StatsSummaryCacheRows(from, to time.Time) ([]StatsSummaryCacheRow, error) {
+// StatsSummaryCacheRows returns accepted runtime model-step observations from
+// current trusted collection sources whose capture timestamp is in the inclusive
+// [from, to] interval and whose runtime identity matches the requested accounting
+// contract.
+func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion string) ([]StatsSummaryCacheRow, error) {
 	if d == nil || d.db == nil {
 		return nil, fmt.Errorf("db: stats summary cache: database is nil")
 	}
 	from = from.UTC()
 	to = to.UTC()
-	rows, err := d.db.Query(`SELECT session_id, captured_at, runtime, runtime_version, provider, model,
-			cost, tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
-			cost_state, tokens_input_state, tokens_output_state, tokens_reasoning_state, cache_read_state, cache_write_state
-		FROM session_telemetry`)
+	rows, err := d.db.Query(`SELECT captured_at, provider, model, tokens_input, cache_read, cache_write,
+			tokens_input_state, cache_read_state, cache_write_state
+		FROM session_telemetry
+		WHERE runtime = ? AND runtime_version = ?
+			AND source IN (?, ?)`, runtime, runtimeVersion, telemetry.SourceEventHook, telemetry.SourceWrapperStream)
 	if err != nil {
 		return nil, fmt.Errorf("db: stats summary cache query: %w", err)
 	}
@@ -143,31 +138,23 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time) ([]StatsSummaryCacheRow, 
 
 	result := make([]StatsSummaryCacheRow, 0)
 	for rows.Next() {
-		var sessionID, capturedAt, runtime, runtimeVersion, costState, inputState, outputState, reasoningState, cacheReadState, cacheWriteState string
-		var cost sql.NullFloat64
-		var input, output, reasoning, cacheRead, cacheWrite sql.NullInt64
+		var capturedAt, inputState, cacheReadState, cacheWriteState string
+		var input, cacheRead, cacheWrite sql.NullInt64
 		var provider, model sql.NullString
-		if err := rows.Scan(&sessionID, &capturedAt, &runtime, &runtimeVersion, &provider, &model,
-			&cost, &input, &output, &reasoning, &cacheRead, &cacheWrite,
-			&costState, &inputState, &outputState, &reasoningState, &cacheReadState, &cacheWriteState); err != nil {
+		if err := rows.Scan(
+			&capturedAt, &provider, &model, &input, &cacheRead, &cacheWrite,
+			&inputState, &cacheReadState, &cacheWriteState,
+		); err != nil {
 			return nil, fmt.Errorf("db: stats summary cache scan: %w", err)
 		}
 		captured, err := time.Parse(time.RFC3339Nano, capturedAt)
 		if err != nil || captured.Before(from) || captured.After(to) {
 			continue
 		}
-		captured = captured.UTC()
 		row := StatsSummaryCacheRow{
-			SessionID:      sessionID,
-			CapturedAt:     captured,
-			Runtime:        runtime,
-			RuntimeVersion: runtimeVersion,
-			UncachedInput:  databaseIntegerMeasurement(inputState, input),
-			Output:         databaseIntegerMeasurement(outputState, output),
-			Reasoning:      databaseIntegerMeasurement(reasoningState, reasoning),
-			CacheRead:      databaseIntegerMeasurement(cacheReadState, cacheRead),
-			CacheWrite:     databaseIntegerMeasurement(cacheWriteState, cacheWrite),
-			Cost:           databaseCostMeasurement(costState, cost),
+			UncachedInput: databaseIntegerMeasurement(inputState, input),
+			CacheRead:     databaseIntegerMeasurement(cacheReadState, cacheRead),
+			CacheWrite:    databaseIntegerMeasurement(cacheWriteState, cacheWrite),
 		}
 		if provider.Valid {
 			row.Provider = &provider.String

@@ -108,23 +108,15 @@ ktx stats summary --window 72h --format json
 ktx stats breakdown --window 72h --format json
 ```
 
-`stats` ranks residual delivered context. `stats summary` is the fixed-shape,
+`stats` ranks residual delivered context. `stats summary` is the compact,
 versioned report over one interval. `stats breakdown` reports bounded,
 token-weighted delivery groups by safe command dimensions, profile, route,
 disposition, and output-size band; it omits model-step telemetry. Tool-call/
 artifact and model-telemetry views are queried independently without cross-view
 transactional consistency; they may originate from the same wrapper stream or
-from separate adapter callbacks. Summary cache evidence is provider
-prompt/prefix-cache token evidence.
-It is not filesystem, memory, database, HTTP, or other I/O caching.
-It is an observed subset, not proven requested-window coverage. Schema 7's
-`PROMPT_CACHE_TOKEN_HIT_RATE_PCT` is a token-weighted
-prompt-cache rate only when its state is measured:
-`cache_read / (uncached_input + cache_read + cache_write)`. It retains raw buckets,
-runtime-emitted provider/model identity, and temporal scope.
-It is not a provider request hit rate or I/O-cache rate.
-Schema 7 also publishes `runtime_reported_cost_usd` and the separate
-`api_equivalent_estimated_cost_usd`. Never substitute either view for the other.
+from separate adapter callbacks. Summary `prompt_cache_token_hit_rate_pct` is
+runtime-reported cache-read token evidence in percentage units, not a provider
+request hit rate.
 
 ### Inspect records and model telemetry
 
@@ -185,31 +177,10 @@ classes, schema, metric formulas, and claim limits.
   `ceil(character_count / 4)` per call before aggregation.
 - A compressed-artifact count is coverage, not a success rate. Calls without an
   artifact use raw output and may be intentional passthrough or anti-worsening.
-- `PROMPT_CACHE_TOKEN_HIT_RATE_PCT` is a token-weighted prompt-cache rate, not a
-  provider request hit rate. It requires complete non-negative buckets, positive
-  logical input, one runtime-emitted provider/model, and the pinned
-  runtime/version. A zero numerator is measured zero; other unsuitable evidence
-  is unavailable and is not reconstructed.
-- Cached-input share is separate OpenCode-reported runtime evidence, not a
-  provider cache hit rate. A model step is not proven to be one provider request.
-- Opt-in benchmark prompt-cache token hit-rate output requires both
-  `v6-prompt-cache-hit-rate` and `cache-reuse-v2`; it uses schema 5. Read its
-  paired blockers and authorization before reporting a direction. Each side
-  rate comes from summed disjoint token buckets over accepted complete pairs;
-  it is not an average of attempt rates. Only an authorized higher or lower
-  token-weighted prompt-cache hit rate is allowed. Recommendation also requires
-  a quality-preserving, strictly lower API-equivalent estimated cost per correct.
-  A valid rejected candidate remains evidence but cannot be recommended or
-  crowned. Do not infer provider-internal state, request-hit behavior, TTL,
-  eviction, eligibility, isolation, or prefix behavior.
-- `runtime_reported_cost_usd` uses only runtime-emitted cost fields. A literal
-  zero remains measured and has no automatic billing meaning. Missing identity,
-  token, pricing, or cache-accounting evidence must not change it.
-- `api_equivalent_estimated_cost_usd` is a separate cache-aware price estimate.
-  It requires runtime-emitted provider/model identity, all five token buckets,
-  and a retained local price record. It does not fetch pricing or backfill
-  identity from configuration. Read its state, ordered reasons, components,
-  pricing provenance, and identity groups before using it.
+- `prompt_cache_token_hit_rate_pct` is compact runtime-reported cache-read token
+  evidence in percentage units. A measured zero stays zero; missing, malformed,
+  and not-applicable values stay unavailable and are never reconstructed. It is
+  not a provider request hit rate.
 - Missing, unknown, malformed, and measured zero are distinct states. Never
   reconstruct a missing field from neighboring totals.
 - Originals are append-only. The first accepted source evidence and first
@@ -260,10 +231,8 @@ investigate and correct the summary rather than treating it as canonical.
 - Do not analyze `.bench-data` when the user asks for live `ktx stats` or the
   operator database. Benchmarks and product telemetry are different sources.
 - Do not run tests or development commands against the ambient live database.
-- Do not call a cached-input share a hit rate, cache effectiveness, or billing
-  result. Use `PROMPT_CACHE_TOKEN_HIT_RATE_PCT` only with its schema 7 scope,
-  identity, and availability fields; it is not a provider request or I/O-cache
-  hit rate.
+- Do not treat `prompt_cache_token_hit_rate_pct` as a provider request hit,
+  cache-effectiveness, or billing result.
 - Do not add runtime model-step cost/cache values to `tool_calls`; they have a
   separate evidence scope.
 - Do not interpret missing error state as success or missing cost as zero.

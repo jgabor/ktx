@@ -528,7 +528,7 @@ func TestCachedInputShareComparisonAndValidationAgreeOnIsolationAuthority(t *tes
 			t.Fatal(err)
 		}
 		counts := CountValidForMethodology(attempts, manifest.Task.MinimumToolCalls, manifest.Methodology.Version)
-		reasons := validateV5Evidence(manifest, attempts, &pricingSnapshot{Provider: "openai", Model: "test"}, summaryData, counts)
+		reasons := validateCacheAwareEvidence(manifest, attempts, &pricingSnapshot{Provider: "openai", Model: "test"}, summaryData, counts)
 		return summary["cached_input_share_comparison"].(map[string]any), reasons
 	}
 

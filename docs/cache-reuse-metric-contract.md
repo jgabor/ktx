@@ -1,15 +1,58 @@
 # Runtime-reported cache reuse metric contract
 
-This contract defines two non-ranking views of retained OpenCode model-step
-evidence. The primary view is a direct cached-input share. The secondary view
-is a consecutive-step estimate adapted from Pi's cache-waste calculation. Both
-describe runtime-reported token fields; neither describes provider requests,
-cache hits or misses, eligible prefixes, isolation, expiry, or causality.
+## Current contract
 
-The machine-readable authority is
-`tools/bench/cache-reuse-contract-v1.json`. Future collection, derivation, and
-rendering work must implement that versioned contract rather than changing an
-existing summary schema or historical artifact in place.
+The current machine-readable authority for new cache-aware benchmark work is
+`tools/bench/cache-reuse-contract-v2.json`. It is activated explicitly by
+`tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml`.
+It emits summary schema 5. The token-weighted `prompt_cache_token_hit_rate` is
+reported under the pinned accounting contract. Provider-request and
+provider-internal claims remain forbidden.
+
+`cache-reuse-v2` supersedes v1 for new derivation and rendering. It does not
+rewrite retained summaries or change historical bytes, hashes, wording, or
+meaning.
+
+## Pipeline cost guard
+
+Schema-5 summaries add `pipeline_cost_guard` and top-level `accepted` and
+`acceptance_reasons` fields. The guard uses only complete measured-warm pairs
+that satisfy the retained identity and protocol checks. It keeps runtime-
+reported cost separate from price-derived API-equivalent estimates: an explicit
+reported zero remains a measured zero, not an unavailable estimate or a price
+substitution.
+
+For each side, the guard sums the paired API-equivalent estimates, divides by
+the count of full-pass answers, and rounds each estimate, side total, and
+cost-per-correct value to six decimal places. The candidate is accepted only
+when its rounded estimated cost per correct is strictly lower and its same-pair
+mean fact score and full-pass rate are not lower. A tie is rejected.
+
+Unavailable estimates retain their exact token or pricing availability reasons
+and retained pricing-snapshot provenance. Nonfinite values are unavailable,
+never zero. The guard reports machine reasons in this fixed order:
+
+1. `incomplete_pairs`
+2. `identity_provenance_unstable`
+3. `protocol_noncompliant`
+4. `estimated_api_cost_unavailable`
+5. `estimated_api_cost_nonfinite`
+6. `zero_correct_answers`
+7. `quality_not_preserved`
+8. `candidate_estimated_api_cost_per_correct_not_lower`
+
+An otherwise valid comparison with `accepted:false` is successful evidence.
+Rank output retains that candidate, marks it ineligible for recommendation, and
+orders it below the baseline and accepted candidates so it cannot take rank one.
+
+## Historical v1 contract
+
+The remainder of this document records `tools/bench/cache-reuse-contract-v1.json`
+as historical evidence. That contract defines two non-ranking views of retained
+OpenCode model-step evidence: a direct cached-input share and a consecutive-step
+estimate adapted from Pi's cache-waste calculation. Both describe
+runtime-reported token fields; neither describes provider requests, cache hits
+or misses, eligible prefixes, isolation, expiry, or causality.
 
 The active benchmark context is `openai/gpt-5.6-luna` with CLI variant
 `--variant high`. This configured context is retained as provenance but never
@@ -347,7 +390,7 @@ eligible and ineligible counts, and remains descriptive and non-ranking. It has
 no input to any direct outcome. Unsupported claim categories remain available
 as machine policy only and are never emitted as supported statements.
 
-## Current live-validation status
+## Historical v1 live-validation status
 
 The retained OpenCode 1.18.5 and `openai/gpt-5.6-luna` high v3 experiment
 passed validation: `valid=true`, `summary_byte_match=true`, 14/14 valid attempt
@@ -381,117 +424,3 @@ rankings, cost-per-correct behavior, schemas, and bytes keep their historical
 meaning. Historical direct-provider fixtures remain compatibility/provenance
 material only and cannot authorize current collection or provider-native
 claims.
-
-## Explicit future prompt-cache token hit-rate contract
-
-The future successor is opt-in. A manifest activates it only when both fields
-are present exactly as follows:
-
-```json
-{
-  "methodology": {
-    "version": "v6-prompt-cache-hit-rate",
-    "cache_metric_contract": "cache-reuse-v2"
-  }
-}
-```
-
-The marker is carried from
-`tools/bench/methodology-v6-prompt-cache-hit-rate.yaml`. Missing, unknown, or
-mismatched markers do not upgrade a legacy manifest. Existing schema 1 through
-4 summaries, the v1 contract, retained bytes, hashes, and historical wording
-remain unchanged.
-
-An activated summary uses schema 5 and publishes
-`prompt_cache_token_hit_rate`,
-`prompt_cache_token_hit_rate_comparison`, and
-`prompt_cache_token_hit_rate_statement_authorization`, plus
-`pipeline_acceptance`, root `accepted`, and `acceptance_reasons`. The metric is
-token-weighted and uses the same pinned disjoint-bucket formula as the live
-schema 7 report:
-
-```text
-cache_read / (uncached_input + cache_read + cache_write)
-```
-
-Every attempt row retains the three raw buckets, logical input, exact reduced
-ratio, source artifact, and identity provenance. A missing, malformed, or
-otherwise unavailable bucket remains unavailable. It is never reconstructed or
-treated as zero.
-
-The comparison uses complete `measured_warm` cycle pairs only. Each member must
-have matching runtime-emitted runtime, provider, and model identity, the pinned
-runtime version, and valid retained protocol provenance. Identity pooling is
-forbidden. For each side, it sums `cache_read` and all three disjoint input
-buckets across the exact complete pairs, then calculates the side rate from
-those sums. It never averages attempt or pair fractions. The percentage-point
-delta is candidate aggregate rate minus baseline aggregate rate. Its two-sided
-95 percent interval uses a deterministic percentile bootstrap of 10,000 whole
-complete-pair bucket resamples with seed 1. Each resample recomputes both side
-rates from its bucket sums. Its machine output includes `baseline_mean`,
-`candidate_mean`, `percentage_point_delta`, `complete_pair_count`,
-`aggregate_buckets`, the two-sided 95 percent interval in percentage points,
-same-pair quality, ordered blockers, unavailable reasons, and raw pair
-evidence.
-
-The statement authorization emits a statement only for `higher` or `lower`
-token-weighted prompt-cache hit rate. It fails closed unless the raw projection
-matches, no blocker remains, at least five complete pairs exist, quality is
-preserved, and the matching two-sided 95 percent interval excludes zero. A tie,
-incomplete evidence, identity mismatch, protocol mismatch, or any other blocker
-emits no directional statement. It does not authorize provider-internal state,
-request hit rate, TTL, eviction, eligibility, isolation, prefix, or provider
-request-boundary claims.
-
-## Schema-5 pipeline acceptance
-
-`prompt_cache_token_hit_rate` remains diagnostic. It is never the pipeline
-acceptance gate. An activated schema-5 comparison evaluates only the exact
-complete `measured_warm` cycle pairs used by the paired contract. It requires
-at least five pairs, stable retained identity, and compliant retained protocol.
-It does not pool identities or recover an omitted pair from another cohort.
-
-For each side, the guard sums the separately estimated API-equivalent costs for
-those exact pairs. A correct answer is a pair member with `full_pass=true`.
-The per-side estimated cost per correct is:
-
-```text
-sum(rounded per-attempt estimated API-equivalent USD) / count(full_pass=true)
-```
-
-Each per-attempt estimate rounds to six decimal USD places. The guard retains
-that total as exact integer micro-USD, divides by the full-pass count, then
-rounds the result to six decimal USD places with half-away-from-zero rounding.
-The candidate is accepted only when its rounded estimated cost per correct is
-strictly lower than the baseline's. A raw equality produces
-`estimated_cost_per_correct_raw_tie`; a raw improvement that rounds to the
-same micro-USD result produces `estimated_cost_per_correct_rounded_tie`.
-
-Quality must not regress on the same complete pairs. The candidate mean fact
-score must be greater than or equal to the baseline mean fact score, and the
-candidate full-pass rate must be greater than or equal to the baseline
-full-pass rate. The guard emits `fact_score_regressed` and
-`full_pass_rate_regressed` independently when those checks fail.
-
-`pipeline_acceptance` always emits pair checks, each side's estimated total,
-correct count, estimated cost per correct, quality values, rounding rule,
-ordered reasons, and `accepted`. Its retained pricing provenance names the
-provider, model, snapshot path, SHA-256, source URL, retrieval time when known,
-and the selected base or context-tier rates for every contributing estimate.
-The shared estimator prices uncached input, cache reads, cache writes, output,
-and reasoning. It returns ordered typed availability reasons for missing,
-nonfinite, invalid, or unpriced token and price inputs. It never reads,
-coalesces, or substitutes the runtime-reported cost.
-
-Runtime-reported `cost`, including a literal zero, remains unchanged evidence.
-It is not an acceptance input. Missing or nonfinite estimated cost, zero
-correct answers, incomplete pairs, unstable identity, protocol failure, quality
-regression, a tie, or a higher rounded estimated cost per correct rejects the
-candidate closed. The ordered machine reason precedence is in
-`tools/bench/cache-reuse-contract-v2.json`.
-
-A structurally valid experiment can therefore render successfully with
-`accepted:false`. `ktx bench compare` keeps its normal successful exit for that
-valid rejection. `ktx bench rank` retains the row as evidence, but marks it
-ineligible for recommendation and crown selection. Recommendation and crown
-selection consider accepted schema-5 candidates only.

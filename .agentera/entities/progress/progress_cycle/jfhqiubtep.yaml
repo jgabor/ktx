@@ -1,0 +1,14 @@
+id: jfhqiubtep
+artifact: progress
+record:
+  timestamp: 2026-08-10 10:56
+  type: docs
+  phase: build
+  what: Synchronized current prompt-cache comparison terminology across CLI help, pipeline documentation, changelog, and TODO. The selected v6 path now states cache-aware defaults; methodology v5, schemas 1–4, and cache-reuse-v1 remain historical evidence.
+  context:
+    intent: Make current benchmark surfaces agree without changing retained evidence.
+    constraints: No provider call, no ambient database access, no historical artifact rewrite, and no provider-internal claim.
+    scope: internal/cli benchmark help and contract tests; current documentation, changelog, TODO, and managed TODO state.
+  verified: "PASS. With fresh disposable HOME/XDG roots and KTX_DB unset: focused CLI terminology tests and retained-boundary experiment tests passed; final mage check passed with forbidden=0. Local ./build/ktx smokes parsed stats summary JSON schema 7, rendered text, and exposed methodology-v6, schema-5, cache-reuse-v2, warmup default 1, and rounds default 5 in bench help. A valid seeded schema-8 database remained at 8 after read-only doctor, then db migrate reported 8 to 9; its marker remained preserved and compression_dispositions exists. Agentera state validation passed for 620 entities and cross-capability validation passed. Unchanged historical SHA-256: schema1 8136d83008322a08a73f42f3a0ff92e8a85afc1ff3d05d50e394226add861e0d; schema2 276ddc38f3f1779058d6be1aa622dc667440ec1595d8dc34cd62654a70844390; schema3 c0361dca17201732d00c96c777cea96b6e20311e4dfe6b175089d534cad188fa; contract v1 b5af125fdedc8f484ed2d176760f2664ac9b9984a73926ea116cb2df90e8e30a; methodology v5 24d674cbe9f1d305c79906fe253a2154e77c7dc373d8f754df4a2e4d9cf6ea52."
+  next: Keep coaivblfft pending until an independent audit records PASS; then review its evaluation and task state.
+  publication_order: 73

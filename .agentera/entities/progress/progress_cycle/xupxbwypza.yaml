@@ -1,0 +1,16 @@
+id: xupxbwypza
+artifact: progress
+record:
+  timestamp: 2026-08-09 16:26
+  type: feat
+  phase: build
+  what: Established the live cache-rate identity boundary from persisted runtime model-step provider and model fields.
+  context:
+    intent: Ensure a live cache rate is calculated only for one complete, nonconflicting runtime-emitted provider/model population.
+    constraints: Read existing telemetry only; do not migrate, rewrite, infer, or backfill source identity from configured context.
+    unknowns: No ambient or paid live telemetry was inspected.
+    scope: Stats cache-row projection, cache-share identity gate, focused behavioral coverage, and no public schema or documentation change.
+  discovered: The live summary previously read only runtime/version and token buckets, so complete token data without source provider/model identity could produce a cache share.
+  verified: "Focused isolated tests passed: `go test ./internal/cli -run '^TestStatsWindowLogic$' -count=1 -v` covers a measured same-provider/model rate plus missing-source and mixed-source identity unavailability with `runtime_emitted_identity_unavailable` and `runtime_emitted_identity_conflict`; `go test ./internal/db -run '^TestStatsSummaryCacheRows$' -count=1 -v` passed; `go test ./internal/db ./internal/cli -count=1` passed; `mage build` passed. Every invocation used `env -u KTX_DB` and fresh HOME/XDG roots. No schema or migration code changed."
+  next: The dependent live hit-rate publication can expose its successor contract using this fail-closed source identity boundary.
+  publication_order: 65

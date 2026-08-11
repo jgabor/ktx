@@ -84,7 +84,8 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 	printDBHelp(&dbHelp)
 
 	assertContractText(t, summaryHelp.String(),
-		[]string{"schema_version 7", "Error rate is error/known", "coverage is known/total", "PROMPT_CACHE_TOKEN_HIT_RATE_PCT", "RUNTIME_REPORTED_COST_USD", "API_EQUIVALENT_ESTIMATED_COST_USD", "cache_read / (uncached_input + cache_read + cache_write)", "provider request hit rate", "I/O-cache rate", "collector_lifecycle_evidence_unavailable", "no separate schema version"}, nil)
+		[]string{"schema_version 8", "prompt_cache_token_hit_rate_pct", "percentage units", "measured zero", "request hit rate", "no separate schema version"},
+		[]string{"cache_read_share", "runtime_reported_cost_usd", "api_equivalent_estimated_cost_usd", "sum(cache_read)"})
 	assertContractText(t, breakdownHelp.String(),
 		[]string{"schema_version 2", "Known is success+error", "total is known+unknown", "no separate schema version", "do not report per-group outcome rates"}, nil)
 	assertContractText(t, dbHelp.String(),
@@ -96,18 +97,18 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 	} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
 		assertContractText(t, contents,
-			[]string{"Summary schema 7", "breakdown schema 2", "report schema 3", "prompt_cache_token_hit_rate", "runtime_reported_cost_usd", "api_equivalent_estimated_cost_usd", "cache_read / (uncached_input + cache_read + cache_write)", "PROMPT_CACHE_TOKEN_HIT_RATE_PCT", "provider prompt/prefix-cache", "collector_lifecycle_evidence_unavailable", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
+			[]string{"Summary schema 8", "breakdown schema 2", "report schema 3", "prompt_cache_token_hit_rate_pct", "percentage units", "measured zero", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
 			[]string{"\"schema_version\": 4", "\"schema_version\": 1", "Schema version 4 removes the version 3 `delivery_breakdown` member", "version 1 breakdown command"},
 		)
 	}
 	for _, relative := range []string{
-		"README.md",
 		filepath.Join(".agents", "skills", "ktx", "SKILL.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "cli.md"),
 	} {
-		contents := readDocumentationFile(t, filepath.Join(root, relative))
-		assertContractText(t, contents,
-			[]string{"PROMPT_CACHE_TOKEN_HIT_RATE_PCT", "token-weighted", "cache_read / (uncached_input + cache_read + cache_write)", "not a provider request hit rate", "not filesystem, memory, database, HTTP, or other I/O caching"}, nil)
+		assertContractText(t, readDocumentationFile(t, filepath.Join(root, relative)),
+			[]string{"prompt_cache_token_hit_rate_pct", "percentage", "provider request hit"},
+			[]string{"cache_read_share", "runtime_reported_cost_usd", "api_equivalent_estimated_cost_usd"},
+		)
 	}
 }
 
@@ -138,7 +139,7 @@ func TestBenchPreflightContractSurfacesMatchBehavior(t *testing.T) {
 	}
 }
 
-func TestPromptCacheSuccessorContractSurfacesMatchBehavior(t *testing.T) {
+func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	root := repositoryRoot(t)
 	var help bytes.Buffer
 	printBenchHelp(&help)
@@ -146,16 +147,42 @@ func TestPromptCacheSuccessorContractSurfacesMatchBehavior(t *testing.T) {
 		"help":            help.String(),
 		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
 		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
-		"metric-contract": readDocumentationFile(t, filepath.Join(root, "docs", "cache-reuse-metric-contract.md")),
-		"agent-guide":     readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "SKILL.md")),
-		"agent-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
-		"changelog":       readDocumentationFile(t, filepath.Join(root, "CHANGELOG.md")),
+		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
+		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertContractText(t, contents,
-				[]string{"v6-prompt-cache-hit-rate", "cache-reuse-v2", "strictly lower", "quality"}, nil)
+				[]string{"methodology-v6-prompt-cache-token-hit-rate.yaml"},
+				[]string{"methodology-v5-cache-aware.yaml"})
 		})
 	}
+	for name, contents := range map[string]string{
+		"help":            help.String(),
+		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
+		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
+	} {
+		t.Run(name+"-contract", func(t *testing.T) {
+			assertContractText(t, contents,
+				[]string{"summary schema 5", "cache-reuse-v2", "provider-internal"}, nil)
+		})
+	}
+	assertContractText(t, help.String(),
+		[]string{"--warmup N (default 1), --rounds N (default 5)"}, nil)
+
+	contract := readDocumentationFile(t, filepath.Join(root, "docs", "cache-reuse-metric-contract.md"))
+	assertContractText(t, contract,
+		[]string{"current machine-readable authority", "cache-reuse-contract-v2.json", "summary schema 5", "provider-internal claims", "cache-reuse-contract-v1.json", "historical evidence"},
+		[]string{"Future collection, derivation, and\nrendering work must implement that versioned contract"})
+}
+
+func TestCurrentPromptCacheTerminologyKeepsChangelogAndTODOAligned(t *testing.T) {
+	root := repositoryRoot(t)
+	assertContractText(t, readDocumentationFile(t, filepath.Join(root, "CHANGELOG.md")),
+		[]string{"methodology v6", "summary schema 5", "cache-reuse-v2"}, nil)
+	assertContractText(t, readDocumentationFile(t, filepath.Join(root, "TODO.md")),
+		[]string{"**Live latency coverage**"}, []string{"**Live cost and latency coverage**"})
 }
 
 func assertContractText(t *testing.T, contents string, required, forbidden []string) {

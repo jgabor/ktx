@@ -279,7 +279,7 @@ func TestStatsLogic(t *testing.T) {
 func TestStatsWindowLogic(t *testing.T) {
 	now := time.Date(2026, 7, 12, 0, 30, 0, 0, time.UTC)
 
-	t.Run("empty window has zero rates and unavailable reduction", func(t *testing.T) {
+	t.Run("empty window has zero totals and missing cache share", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -290,33 +290,24 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
-		if got.SchemaVersion != 7 || got.GeneratedAt != now.Format(time.RFC3339Nano) {
+		if got.SchemaVersion != 8 {
 			t.Errorf("metadata = %+v", got)
 		}
-		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != got.GeneratedAt {
+		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != now.Format(time.RFC3339Nano) {
 			t.Errorf("window = %+v", got.Window)
 		}
 		if got.Calls.TotalWithOutput != 0 || got.Calls.WithCompressedArtifact != 0 {
 			t.Errorf("calls = %+v", got.Calls)
 		}
-		if got.Outcomes != (statsOutcomeTotals{}) {
-			t.Errorf("outcomes = %+v", got.Outcomes)
-		}
-		if got.Tokens.RawEstimatedPerSecond != 0 || got.Tokens.DeliveredEstimatedPerSecond != 0 || got.Tokens.ReductionPercent != nil {
+		if got.Tokens.RawEstimated != 0 || got.Tokens.DeliveredEstimated != 0 {
 			t.Errorf("tokens = %+v", got.Tokens)
 		}
-		cache := got.CacheReuse
-		if cache.EvidenceScope != "provider_prompt_prefix_cache_tokens" || cache.RequestedWindowCoverage != (statsSummaryRequestedWindowCoverage{
-			State: "unavailable", Reason: "collector_lifecycle_evidence_unavailable", Scope: "observed_subset",
-		}) {
-			t.Errorf("cache coverage = %+v", cache)
-		}
-		if cache.ContributingSessions != 0 || cache.ContributingModelSteps != 0 || cache.FirstContributingCapture != nil || cache.LastContributingCapture != nil || cache.ObservedSpanSeconds != nil || cache.UncachedInput.State != "missing" || cache.CachedInputShare.State != "missing" {
-			t.Errorf("cache_reuse = %+v", got.CacheReuse)
+		if hitRate := got.PromptCacheTokenHitRatePct; hitRate.State != statsSummaryMissing || hitRate.Value != nil || hitRate.ContributingModelSteps != 0 {
+			t.Errorf("prompt_cache_token_hit_rate_pct = %+v", hitRate)
 		}
 	})
 
-	t.Run("outcomes reconcile between summary and breakdown", func(t *testing.T) {
+	t.Run("breakdown outcomes reconcile with its call population", func(t *testing.T) {
 		db := openMemoryDB(t)
 		sid := seedSession(t, db)
 		success, failure := false, true
@@ -327,18 +318,11 @@ func TestStatsWindowLogic(t *testing.T) {
 			{tool: "read", output: "also unknown"},
 		})
 
-		var summaryJSON, breakdownJSON bytes.Buffer
-		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &summaryJSON); err != nil {
-			t.Fatal(err)
-		}
+		var breakdownJSON bytes.Buffer
 		if _, err := statsBreakdownLogic(nil, FormatJSON, 30*time.Minute, now, db, &breakdownJSON); err != nil {
 			t.Fatal(err)
 		}
-		var summary statsSummary
 		var breakdown statsBreakdown
-		if err := json.Unmarshal(summaryJSON.Bytes(), &summary); err != nil {
-			t.Fatal(err)
-		}
 		if err := json.Unmarshal(breakdownJSON.Bytes(), &breakdown); err != nil {
 			t.Fatal(err)
 		}
@@ -346,11 +330,11 @@ func TestStatsWindowLogic(t *testing.T) {
 		errorRate, coverage := 50.0, 50.0
 		want.ErrorRatePctOfKnown = &errorRate
 		want.OutcomeCoveragePct = &coverage
-		if !reflect.DeepEqual(summary.Outcomes, want) || !reflect.DeepEqual(breakdown.Outcomes, want) {
-			t.Fatalf("summary outcomes=%+v breakdown outcomes=%+v want=%+v", summary.Outcomes, breakdown.Outcomes, want)
+		if !reflect.DeepEqual(breakdown.Outcomes, want) {
+			t.Fatalf("breakdown outcomes=%+v want=%+v", breakdown.Outcomes, want)
 		}
-		if summary.Outcomes.KnownCalls != summary.Outcomes.SuccessfulCalls+summary.Outcomes.ErrorCalls || summary.Outcomes.TotalCalls != summary.Outcomes.KnownCalls+summary.Outcomes.UnknownCalls || summary.Outcomes.TotalCalls != summary.Calls.TotalWithOutput {
-			t.Errorf("outcomes do not reconcile: outcomes=%+v calls=%+v", summary.Outcomes, summary.Calls)
+		if breakdown.Outcomes.KnownCalls != breakdown.Outcomes.SuccessfulCalls+breakdown.Outcomes.ErrorCalls || breakdown.Outcomes.TotalCalls != breakdown.Outcomes.KnownCalls+breakdown.Outcomes.UnknownCalls || breakdown.Outcomes.TotalCalls != breakdown.Calls.TotalWithOutput {
+			t.Errorf("outcomes do not reconcile: outcomes=%+v calls=%+v", breakdown.Outcomes, breakdown.Calls)
 		}
 	})
 
@@ -397,14 +381,11 @@ func TestStatsWindowLogic(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var summaryJSON, breakdownJSON, summaryText, breakdownText bytes.Buffer
+		var summaryJSON, breakdownJSON, breakdownText bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &summaryJSON); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := statsBreakdownLogic(nil, FormatJSON, 30*time.Minute, now, db, &breakdownJSON); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &summaryText); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := statsBreakdownLogic(nil, FormatText, 30*time.Minute, now, db, &breakdownText); err != nil {
@@ -420,13 +401,12 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		errorRate, coverage := 50.0, 25.0
 		want := statsOutcomeTotals{SuccessfulCalls: 1, ErrorCalls: 1, UnknownCalls: 6, KnownCalls: 2, TotalCalls: 8, ErrorRatePctOfKnown: &errorRate, OutcomeCoveragePct: &coverage}
-		if !reflect.DeepEqual(summary.Outcomes, want) || !reflect.DeepEqual(breakdown.Outcomes, want) {
-			t.Fatalf("summary outcomes=%+v breakdown outcomes=%+v want=%+v", summary.Outcomes, breakdown.Outcomes, want)
+		if !reflect.DeepEqual(breakdown.Outcomes, want) {
+			t.Fatalf("breakdown outcomes=%+v want=%+v", breakdown.Outcomes, want)
 		}
-		if summary.Calls != breakdown.Calls || !reflect.DeepEqual(summary.Tokens, breakdown.Tokens) || summary.Calls.TotalWithOutput != 8 {
+		if summary.Calls != breakdown.Calls || summary.Tokens.RawEstimated != breakdown.Tokens.RawEstimated || summary.Tokens.DeliveredEstimated != breakdown.Tokens.DeliveredEstimated || summary.Calls.TotalWithOutput != 8 {
 			t.Errorf("summary calls/tokens=%+v/%+v breakdown=%+v/%+v", summary.Calls, summary.Tokens, breakdown.Calls, breakdown.Tokens)
 		}
-		assertOutcomeTextColumns(t, "summary", summaryText.String(), "50.00", "25.00")
 		assertOutcomeTextColumns(t, "breakdown", breakdownText.String(), "50.00", "25.00")
 		encoded, err := json.Marshal(breakdown.DeliveryBreakdown)
 		if err != nil {
@@ -456,33 +436,25 @@ func TestStatsWindowLogic(t *testing.T) {
 				if !reflect.DeepEqual(outcomes.ErrorRatePctOfKnown, tt.wantErrorRate) || !reflect.DeepEqual(outcomes.OutcomeCoveragePct, tt.wantCoverage) {
 					t.Fatalf("outcomes = %+v", outcomes)
 				}
-				summary := statsSummary{Window: window, Calls: calls, Outcomes: outcomes, Tokens: tokens}
 				breakdown := statsBreakdown{Window: window, Calls: calls, Outcomes: outcomes, Tokens: tokens, DeliveryBreakdown: aggregateStatsBreakdown(tt.rows)}
-				for name, value := range map[string]any{"summary": summary, "breakdown": breakdown} {
-					encoded, err := json.Marshal(value)
-					if err != nil {
-						t.Fatal(err)
-					}
-					var rendered map[string]json.RawMessage
-					if err := json.Unmarshal(encoded, &rendered); err != nil {
-						t.Fatal(err)
-					}
-					var renderedOutcomes statsOutcomeTotals
-					if err := json.Unmarshal(rendered["outcomes"], &renderedOutcomes); err != nil {
-						t.Fatal(err)
-					}
-					if !reflect.DeepEqual(renderedOutcomes, outcomes) {
-						t.Errorf("%s JSON outcomes = %+v, want %+v", name, renderedOutcomes, outcomes)
-					}
+				encoded, err := json.Marshal(breakdown)
+				if err != nil {
+					t.Fatal(err)
 				}
-				for name, render := range map[string]func(*bytes.Buffer){
-					"summary":   func(buf *bytes.Buffer) { printStatsSummaryText(buf, summary) },
-					"breakdown": func(buf *bytes.Buffer) { printStatsBreakdownText(buf, breakdown) },
-				} {
-					var buf bytes.Buffer
-					render(&buf)
-					assertOutcomeTextColumns(t, name, buf.String(), tt.wantErrorText, tt.wantCoverageText)
+				var rendered map[string]json.RawMessage
+				if err := json.Unmarshal(encoded, &rendered); err != nil {
+					t.Fatal(err)
 				}
+				var renderedOutcomes statsOutcomeTotals
+				if err := json.Unmarshal(rendered["outcomes"], &renderedOutcomes); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(renderedOutcomes, outcomes) {
+					t.Errorf("breakdown JSON outcomes = %+v, want %+v", renderedOutcomes, outcomes)
+				}
+				var buf bytes.Buffer
+				printStatsBreakdownText(&buf, breakdown)
+				assertOutcomeTextColumns(t, "breakdown", buf.String(), tt.wantErrorText, tt.wantCoverageText)
 			})
 		}
 	})
@@ -509,12 +481,6 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		if got.Tokens.RawEstimated != 4 || got.Tokens.DeliveredEstimated != 3 {
 			t.Errorf("token totals = %+v, want raw 4 delivered 3", got.Tokens)
-		}
-		if math.Abs(got.Tokens.RawEstimatedPerSecond-4.0/1800) > 1e-12 || math.Abs(got.Tokens.DeliveredEstimatedPerSecond-3.0/1800) > 1e-12 {
-			t.Errorf("rates = %+v", got.Tokens)
-		}
-		if got.Tokens.ReductionPercent == nil || *got.Tokens.ReductionPercent != 25 {
-			t.Errorf("reduction_percent = %v, want 25", got.Tokens.ReductionPercent)
 		}
 	})
 
@@ -643,7 +609,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		assertDeliveryReconciliation(t, got)
 	})
 
-	t.Run("aggregates complete runtime cache telemetry with an exact share", func(t *testing.T) {
+	t.Run("aggregates complete runtime cache telemetry into a prompt-cache token hit rate percentage", func(t *testing.T) {
 		db := openMemoryDB(t)
 		firstSessionID := seedSession(t, db)
 		lastSessionID := "bbbbbbbbbbbbbbbb"
@@ -652,9 +618,8 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		firstCapture := now.Add(-30 * time.Minute)
 		firstCaptureOffset := firstCapture.In(time.FixedZone("UTC+02", 2*60*60))
-		provider, model := "openai", "gpt-5"
-		seedStatsTelemetryWithContractAndIdentity(t, db, firstSessionID, 1, firstCaptureOffset.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(20), measuredStatsToken(80), measuredStatsToken(0))
-		seedStatsTelemetryWithContractAndIdentity(t, db, lastSessionID, 2, now.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(30), measuredStatsToken(70), measuredStatsToken(0))
+		seedStatsTelemetry(t, db, firstSessionID, 1, firstCaptureOffset, measuredStatsToken(20), measuredStatsToken(80), measuredStatsToken(0))
+		seedStatsTelemetry(t, db, lastSessionID, 2, now, measuredStatsToken(30), measuredStatsToken(70), measuredStatsToken(0))
 
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -664,41 +629,139 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		cache := got.CacheReuse
-		if cache.ContractVersion != reuse.RequiredContractVersion || cache.Runtime != reuse.RequiredRuntime || cache.RuntimeVersion != reuse.RequiredRuntimeVersion || cache.EvidenceScope != "provider_prompt_prefix_cache_tokens" || cache.ContributingSessions != 2 || cache.ContributingModelSteps != 2 {
-			t.Fatalf("cache metadata = %+v", cache)
-		}
-		if cache.RequestedWindowCoverage != (statsSummaryRequestedWindowCoverage{
-			State: "unavailable", Reason: "collector_lifecycle_evidence_unavailable", Scope: "observed_subset",
-		}) {
-			t.Errorf("requested_window_coverage = %+v", cache.RequestedWindowCoverage)
-		}
-		if cache.FirstContributingCapture == nil || *cache.FirstContributingCapture != firstCapture.Format(time.RFC3339Nano) || cache.LastContributingCapture == nil || *cache.LastContributingCapture != now.Format(time.RFC3339Nano) || cache.ObservedSpanSeconds == nil || *cache.ObservedSpanSeconds != (30*time.Minute).Seconds() {
-			t.Errorf("capture metadata = first %v last %v span %v", cache.FirstContributingCapture, cache.LastContributingCapture, cache.ObservedSpanSeconds)
-		}
-		for name, measurement := range map[string]statsSummaryIntegerMeasurement{
-			"uncached_input": cache.UncachedInput,
-			"cache_read":     cache.CacheRead,
-			"cache_write":    cache.CacheWrite,
-			"logical_input":  cache.LogicalInput,
-		} {
-			if measurement.State != "measured" || measurement.Value == nil {
-				t.Fatalf("%s = %+v, want measured", name, measurement)
-			}
-		}
-		if cache.UncachedInput.Value.String() != "50" || cache.CacheRead.Value.String() != "150" || cache.CacheWrite.Value.String() != "0" || cache.LogicalInput.Value.String() != "200" {
-			t.Errorf("cache totals = input %v read %v write %v logical %v", cache.UncachedInput.Value, cache.CacheRead.Value, cache.CacheWrite.Value, cache.LogicalInput.Value)
-		}
-		if cache.CachedInputShare.State != "measured" || cache.CachedInputShare.Value == nil || math.Abs(*cache.CachedInputShare.Value-0.75) > 1e-12 || cache.CachedInputShare.Ratio == nil || *cache.CachedInputShare.Ratio != "3/4" {
-			t.Errorf("cached_input_share = %+v, want measured 3/4", cache.CachedInputShare)
-		}
-		rate := got.PromptCacheTokenHitRate
-		if rate.State != "measured" || rate.Value == nil || math.Abs(*rate.Value-0.75) > 1e-12 || rate.Ratio == nil || *rate.Ratio != "3/4" || rate.Formula != "cache_read / (uncached_input + cache_read + cache_write)" || rate.Kind != "token_weighted" || rate.Source != "runtime_emitted_model_step_telemetry" || rate.Provider == nil || *rate.Provider != provider || rate.Model == nil || *rate.Model != model {
-			t.Errorf("prompt_cache_token_hit_rate = %+v", rate)
+		hitRate := got.PromptCacheTokenHitRatePct
+		if hitRate.State != statsSummaryMeasured || hitRate.Value == nil || math.Abs(*hitRate.Value-75) > 1e-12 || hitRate.ContributingModelSteps != 2 {
+			t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want measured 75 across two steps", hitRate)
 		}
 	})
 
-	t.Run("excludes invalid, out-of-window, and unsupported telemetry from window metadata", func(t *testing.T) {
+	t.Run("zero cache read remains a measured percentage", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		seedStatsTelemetry(t, db, sid, 1, now.Add(-time.Minute), measuredStatsToken(10), measuredStatsToken(0), measuredStatsToken(0))
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatal(err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		hitRate := got.PromptCacheTokenHitRatePct
+		if hitRate.State != statsSummaryMeasured || hitRate.Value == nil || *hitRate.Value != 0 || hitRate.ContributingModelSteps != 1 {
+			t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want measured zero", hitRate)
+		}
+	})
+
+	t.Run("summary query leaves retained telemetry unchanged", func(t *testing.T) {
+		db := openMemoryDB(t)
+		sid := seedSession(t, db)
+		seedStatsTelemetry(t, db, sid, 1, now.Add(-time.Minute), measuredStatsToken(10), measuredStatsToken(20), measuredStatsToken(0))
+		before, err := db.ListSessionTelemetry(sid, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeBytes, err := json.Marshal(before)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatal(err)
+		}
+		after, err := db.ListSessionTelemetry(sid, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		afterBytes, err := json.Marshal(after)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(beforeBytes, afterBytes) {
+			t.Errorf("retained telemetry changed: before=%s after=%s", beforeBytes, afterBytes)
+		}
+	})
+
+	t.Run("does not aggregate a hit rate across missing or mixed runtime identities", func(t *testing.T) {
+		provider, model := "openai", "gpt-5.6-luna"
+		otherProvider, otherModel := "anthropic", "claude-sonnet-5"
+		for _, test := range []struct {
+			name   string
+			second struct{ provider, model *string }
+		}{
+			{
+				name: "missing source identity is not backfilled",
+			},
+			{
+				name:   "mixed source identity is unavailable",
+				second: struct{ provider, model *string }{provider: &otherProvider, model: &otherModel},
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				db := openMemoryDB(t)
+				sid := seedSession(t, db)
+				seedStatsTelemetryWithContract(t, db, sid, 1, now.Add(-2*time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
+				seedStatsTelemetryWithContract(t, db, sid, 2, now.Add(-time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, test.second.provider, test.second.model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
+
+				var buf bytes.Buffer
+				if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+					t.Fatal(err)
+				}
+				var got statsSummary
+				if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+					t.Fatal(err)
+				}
+				hitRate := got.PromptCacheTokenHitRatePct
+				if hitRate.State != statsSummaryMissing || hitRate.Value != nil || hitRate.ContributingModelSteps != 2 {
+					t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want missing", hitRate)
+				}
+			})
+		}
+	})
+
+	t.Run("legacy collection provenance cannot produce a hit rate", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "ktx.db")
+		db, err := dbpkg.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		sid := seedSession(t, db)
+		raw, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { raw.Close() })
+		if _, err := raw.Exec(`INSERT INTO session_telemetry (
+				session_id, source_session_id, message_id, part_id, ordinal, reason,
+				tokens_input, cache_read, cache_write, provider, model,
+				runtime, runtime_version, source, captured_at,
+				cost_state, tokens_input_state, tokens_output_state,
+				tokens_reasoning_state, cache_read_state, cache_write_state)
+			VALUES (?, 'legacy-session', 'legacy-message', 'legacy-part', 1, 'stop',
+				10, 30, 0, 'openai', 'gpt-5.6-luna', ?, ?, 'legacy', ?,
+				'unknown', 'measured', 'unknown', 'unknown', 'measured', 'measured')`,
+			sid, reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, now.Add(-time.Minute).Format(time.RFC3339Nano)); err != nil {
+			t.Fatal(err)
+		}
+
+		var buf bytes.Buffer
+		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
+			t.Fatal(err)
+		}
+		var got statsSummary
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		hitRate := got.PromptCacheTokenHitRatePct
+		if hitRate.State != statsSummaryMissing || hitRate.Value != nil || hitRate.ContributingModelSteps != 0 {
+			t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want no hit rate", hitRate)
+		}
+	})
+
+	t.Run("excludes invalid, out-of-window, and unsupported telemetry from the hit rate", func(t *testing.T) {
 		db := openMemoryDB(t)
 		acceptedSessionID := seedSession(t, db)
 		excludedSessionID := "bbbbbbbbbbbbbbbb"
@@ -707,11 +770,11 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		capture := now.Add(-time.Minute)
 		seedStatsTelemetry(t, db, acceptedSessionID, 1, capture, measuredStatsToken(10), measuredStatsToken(20), measuredStatsToken(0))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 2, "not-a-timestamp", reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 2, "not-a-timestamp", reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 		seedStatsTelemetry(t, db, excludedSessionID, 3, now.Add(-31*time.Minute), measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 		seedStatsTelemetry(t, db, excludedSessionID, 4, now.Add(time.Nanosecond), measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 5, capture.Format(time.RFC3339Nano), "other-runtime", reuse.RequiredRuntimeVersion, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 6, capture.Format(time.RFC3339Nano), reuse.RequiredRuntime, "1.18.4", measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 5, capture.Format(time.RFC3339Nano), "other-runtime", reuse.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 6, capture.Format(time.RFC3339Nano), reuse.RequiredRuntime, "1.18.4", nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -721,12 +784,9 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		cache := got.CacheReuse
-		if cache.ContributingSessions != 1 || cache.ContributingModelSteps != 1 || cache.FirstContributingCapture == nil || *cache.FirstContributingCapture != capture.Format(time.RFC3339Nano) || cache.LastContributingCapture == nil || *cache.LastContributingCapture != capture.Format(time.RFC3339Nano) || cache.ObservedSpanSeconds == nil || *cache.ObservedSpanSeconds != 0 {
-			t.Errorf("capture metadata = %+v", cache)
-		}
-		if cache.UncachedInput.State != "measured" || cache.UncachedInput.Value == nil || cache.UncachedInput.Value.String() != "10" || cache.CacheRead.State != "measured" || cache.CacheRead.Value == nil || cache.CacheRead.Value.String() != "20" {
-			t.Errorf("cache totals = %+v", cache)
+		hitRate := got.PromptCacheTokenHitRatePct
+		if hitRate.State != statsSummaryMeasured || hitRate.Value == nil || math.Abs(*hitRate.Value-200.0/3.0) > 1e-12 || hitRate.ContributingModelSteps != 1 {
+			t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want one accepted measured percentage", hitRate)
 		}
 	})
 
@@ -745,22 +805,13 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		cache := got.CacheReuse
-		if cache.ContributingSessions != 1 || cache.ContributingModelSteps != 2 || cache.FirstContributingCapture == nil || *cache.FirstContributingCapture != now.Add(-2*time.Minute).Format(time.RFC3339Nano) || cache.LastContributingCapture == nil || *cache.LastContributingCapture != now.Add(-time.Minute).Format(time.RFC3339Nano) || cache.ObservedSpanSeconds == nil || *cache.ObservedSpanSeconds != time.Minute.Seconds() {
-			t.Errorf("capture metadata = %+v", cache)
-		}
-		if cache.UncachedInput.State != "missing" || cache.UncachedInput.Value != nil {
-			t.Errorf("uncached_input = %+v, want missing", cache.UncachedInput)
-		}
-		if cache.CacheRead.State != "measured" || cache.CacheRead.Value == nil || cache.CacheRead.Value.String() != "20" {
-			t.Errorf("cache_read = %+v, want measured 20", cache.CacheRead)
-		}
-		if cache.CacheWrite.State != "malformed" || cache.CacheWrite.Value != nil || cache.LogicalInput.State != "malformed" || cache.CachedInputShare.State != "malformed" {
-			t.Errorf("cache states = write %+v logical %+v share %+v", cache.CacheWrite, cache.LogicalInput, cache.CachedInputShare)
+		hitRate := got.PromptCacheTokenHitRatePct
+		if hitRate.State != statsSummaryMalformed || hitRate.Value != nil || hitRate.ContributingModelSteps != 2 {
+			t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want malformed without reconstruction", hitRate)
 		}
 	})
 
-	t.Run("zero logical input makes the share not applicable", func(t *testing.T) {
+	t.Run("zero logical input makes the hit rate not applicable", func(t *testing.T) {
 		db := openMemoryDB(t)
 		sid := seedSession(t, db)
 		seedStatsTelemetry(t, db, sid, 1, now.Add(-time.Minute), measuredStatsToken(0), measuredStatsToken(0), measuredStatsToken(0))
@@ -773,17 +824,13 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		cache := got.CacheReuse
-		if cache.ContributingSessions != 1 || cache.ContributingModelSteps != 1 || cache.FirstContributingCapture == nil || cache.LastContributingCapture == nil || *cache.FirstContributingCapture != now.Add(-time.Minute).Format(time.RFC3339Nano) || *cache.LastContributingCapture != now.Add(-time.Minute).Format(time.RFC3339Nano) || cache.ObservedSpanSeconds == nil || *cache.ObservedSpanSeconds != 0 {
-			t.Errorf("zero-span capture metadata = %+v", cache)
-		}
-		share := cache.CachedInputShare
-		if share.State != "not_applicable" || share.Value != nil || share.Reason == nil || *share.Reason != "logical_input_not_positive" {
-			t.Errorf("cached_input_share = %+v", share)
+		hitRate := got.PromptCacheTokenHitRatePct
+		if hitRate.State != statsSummaryNotApplicable || hitRate.Value != nil || hitRate.ContributingModelSteps != 1 {
+			t.Errorf("prompt_cache_token_hit_rate_pct = %+v", hitRate)
 		}
 	})
 
-	t.Run("summary JSON schema has only the fixed version 7 contract keys", func(t *testing.T) {
+	t.Run("summary JSON schema has only the compact version 8 contract keys", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -793,42 +840,14 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		if got["schema_version"] != float64(7) {
-			t.Errorf("schema_version = %v, want 7", got["schema_version"])
+		if got["schema_version"] != float64(8) {
+			t.Errorf("schema_version = %v, want 8", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "cache_reuse", "prompt_cache_token_hit_rate", "runtime_reported_cost_usd", "api_equivalent_estimated_cost_usd")
+		assertStatsJSONKeys(t, got, "schema_version", "window", "calls", "tokens", "prompt_cache_token_hit_rate_pct")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
-		assertStatsJSONKeys(t, got["outcomes"].(map[string]any), "successful_calls", "error_calls", "unknown_calls", "known_calls", "total_calls", "error_rate_pct_of_known", "outcome_coverage_pct")
-		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated", "raw_estimated_per_second", "delivered_estimated_per_second", "reduction_percent")
-		cache := got["cache_reuse"].(map[string]any)
-		assertStatsJSONKeys(t, cache,
-			"contract_version", "runtime", "runtime_version", "evidence_scope", "requested_window_coverage",
-			"first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps",
-			"uncached_input", "cache_read", "cache_write", "logical_input", "cached_input_share", "formula", "unit")
-		assertStatsJSONKeys(t, cache["requested_window_coverage"].(map[string]any), "state", "reason", "scope")
-		for _, field := range []string{"uncached_input", "cache_read", "cache_write", "logical_input"} {
-			assertStatsJSONKeys(t, cache[field].(map[string]any), "state", "value")
-		}
-		assertStatsJSONKeys(t, cache["cached_input_share"].(map[string]any), "state", "value", "ratio", "reason")
-		rate := got["prompt_cache_token_hit_rate"].(map[string]any)
-		assertStatsJSONKeys(t, rate, "state", "value", "ratio", "reason", "kind", "unit", "formula", "source", "runtime", "runtime_version", "provider", "model", "raw_buckets", "logical_input", "temporal_scope")
-		assertStatsJSONKeys(t, rate["raw_buckets"].(map[string]any), "uncached_input", "cache_read", "cache_write")
-		for _, field := range []string{"uncached_input", "cache_read", "cache_write"} {
-			assertStatsJSONKeys(t, rate["raw_buckets"].(map[string]any)[field].(map[string]any), "state", "value")
-		}
-		assertStatsJSONKeys(t, rate["logical_input"].(map[string]any), "state", "value")
-		assertStatsJSONKeys(t, rate["temporal_scope"].(map[string]any), "scope", "requested_window_coverage", "first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps")
-		reported := got["runtime_reported_cost_usd"].(map[string]any)
-		assertStatsJSONKeys(t, reported, "state", "value", "unit", "formula", "source", "billing_semantics", "reasons", "temporal_scope", "runtime_contracts")
-		assertStatsJSONKeys(t, reported["temporal_scope"].(map[string]any), "scope", "requested_window_coverage", "first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps")
-		estimated := got["api_equivalent_estimated_cost_usd"].(map[string]any)
-		assertStatsJSONKeys(t, estimated, "state", "value", "micro_usd", "unit", "formula", "source", "aggregation", "components", "pricing", "rate_selections", "temporal_scope", "reasons", "provider", "model", "identity_groups")
-		for _, field := range []string{"uncached_input", "cache_read", "cache_write", "output", "reasoning"} {
-			assertStatsJSONKeys(t, estimated["components"].(map[string]any)[field].(map[string]any), "state", "value")
-		}
-		assertStatsJSONKeys(t, estimated["pricing"].(map[string]any), "state", "provider", "model", "path", "record_sha256", "source_url", "retrieved_at", "reasons")
-		assertStatsJSONKeys(t, estimated["temporal_scope"].(map[string]any), "scope", "requested_window_coverage", "first_contributing_capture", "last_contributing_capture", "observed_span_seconds", "contributing_sessions", "contributing_model_steps")
+		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated")
+		assertStatsJSONKeys(t, got["prompt_cache_token_hit_rate_pct"].(map[string]any), "state", "value", "contributing_model_steps")
 	})
 
 	t.Run("breakdown JSON schema contains the detailed version 2 contract", func(t *testing.T) {
@@ -866,7 +885,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic(nil, FormatText, 30*time.Minute, now, db, &summaryText); err != nil {
 			t.Fatalf("text: %v", err)
 		}
-		if !strings.Contains(summaryText.String(), "WINDOW") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE") || !strings.Contains(summaryText.String(), "REQUESTED_WINDOW_COVERAGE") || !strings.Contains(summaryText.String(), "OBSERVED_SPAN_SECONDS") || !strings.Contains(summaryText.String(), "CONTRIBUTING_KTX_SESSIONS") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHE_READ") || !strings.Contains(summaryText.String(), "PROMPT_PREFIX_CACHED_INPUT_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_REASON") || !strings.Contains(summaryText.String(), "RUNTIME_REPORTED_COST_USD") || !strings.Contains(summaryText.String(), "API_EQUIVALENT_ESTIMATED_COST_USD") || !strings.Contains(summaryText.String(), "API_EQUIVALENT_ESTIMATED_COST_PRICING_RECORD_SHA256") || strings.Contains(summaryText.String(), "DISPOSITION") {
+		if !strings.Contains(summaryText.String(), "WINDOW_SECONDS") || !strings.Contains(summaryText.String(), "RAW_TOK") || !strings.Contains(summaryText.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryText.String(), "CONTRIBUTING_MODEL_STEPS") || strings.Contains(summaryText.String(), "OUTCOME") || strings.Contains(summaryText.String(), "RAW_TPS") || strings.Contains(summaryText.String(), "REDUCTION") || strings.Contains(summaryText.String(), "CACHE_READ_SHARE") || strings.Contains(summaryText.String(), "RUNTIME_REPORTED") || strings.Contains(summaryText.String(), "API_EQUIVALENT") || strings.Contains(summaryText.String(), "DISPOSITION") {
 			t.Errorf("summary text fields = %q", summaryText.String())
 		}
 		if strings.Count(strings.TrimSpace(summaryText.String()), "\n") != 1 {
@@ -876,7 +895,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 7") || !strings.Contains(summaryHelp.String(), "fixed-shape") || !strings.Contains(summaryHelp.String(), "PROMPT_CACHE_TOKEN_HIT_RATE_PCT") || !strings.Contains(summaryHelp.String(), "RUNTIME_REPORTED_COST_USD") || !strings.Contains(summaryHelp.String(), "API_EQUIVALENT_ESTIMATED_COST_USD") || !strings.Contains(summaryHelp.String(), "cache_read / (uncached_input + cache_read + cache_write)") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || !strings.Contains(summaryHelp.String(), "I/O-cache rate") || !strings.Contains(summaryHelp.String(), "collector_lifecycle_evidence_unavailable") {
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 8") || !strings.Contains(summaryHelp.String(), "compact") || !strings.Contains(summaryHelp.String(), "prompt_cache_token_hit_rate_pct") || !strings.Contains(summaryHelp.String(), "percentage units") || !strings.Contains(summaryHelp.String(), "measured zero") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || strings.Contains(summaryHelp.String(), "cache_read_share") || strings.Contains(summaryHelp.String(), "sum(cache_read)") || strings.Contains(summaryHelp.String(), "runtime_reported_cost_usd") || strings.Contains(summaryHelp.String(), "api_equivalent_estimated_cost_usd") {
 			t.Errorf("summary help = %q", summaryHelp.String())
 		}
 
@@ -903,8 +922,8 @@ func TestStatsCommandDispatchesWindowViews(t *testing.T) {
 		wantField   string
 		forbidField string
 	}{
-		{name: "summary", wantField: "cache_reuse", forbidField: "delivery_breakdown"},
-		{name: "breakdown", wantField: "delivery_breakdown", forbidField: "cache_reuse"},
+		{name: "summary", wantField: "prompt_cache_token_hit_rate_pct", forbidField: "delivery_breakdown"},
+		{name: "breakdown", wantField: "delivery_breakdown", forbidField: "prompt_cache_token_hit_rate_pct"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			db := openMemoryDB(t)
@@ -1149,15 +1168,11 @@ func seedCompressedRow(t *testing.T, db *dbpkg.DB, sourceID, output, timestamp s
 
 func seedStatsTelemetry(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt time.Time, input, read, write telemetry.IntegerMeasurement) {
 	t.Helper()
-	seedStatsTelemetryWithContract(t, db, sessionID, ordinal, capturedAt.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, input, read, write)
+	provider, model := "openai", "gpt-5.6-luna"
+	seedStatsTelemetryWithContract(t, db, sessionID, ordinal, capturedAt.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, input, read, write)
 }
 
-func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, input, read, write telemetry.IntegerMeasurement) {
-	t.Helper()
-	seedStatsTelemetryWithContractAndIdentity(t, db, sessionID, ordinal, capturedAt, runtime, runtimeVersion, nil, nil, input, read, write)
-}
-
-func seedStatsTelemetryWithContractAndIdentity(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, provider, model *string, input, read, write telemetry.IntegerMeasurement) {
+func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, provider, model *string, input, read, write telemetry.IntegerMeasurement) {
 	t.Helper()
 	name := fmt.Sprintf("%d", ordinal)
 	observation := &telemetry.Observation{
@@ -1172,10 +1187,10 @@ func seedStatsTelemetryWithContractAndIdentity(t *testing.T, db *dbpkg.DB, sessi
 			CacheRead:  read,
 			CacheWrite: write,
 		},
-		Runtime:        runtime,
-		RuntimeVersion: runtimeVersion,
 		Provider:       provider,
 		Model:          model,
+		Runtime:        runtime,
+		RuntimeVersion: runtimeVersion,
 		Source:         telemetry.SourceEventHook,
 	}
 	inserted, err := db.PersistSessionTelemetry(sessionID, capturedAt, observation)

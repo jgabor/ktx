@@ -16,12 +16,10 @@
 package cli
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"sort"
 	"strconv"
@@ -30,7 +28,6 @@ import (
 	"time"
 
 	"github.com/jgabor/ktx/internal/cache/reuse"
-	"github.com/jgabor/ktx/internal/cachemetric"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/router"
 )
@@ -40,7 +37,7 @@ import (
 const (
 	statsDefaultLimit           = 20
 	statsDefaultWindow          = 30 * time.Minute
-	statsSummarySchemaVersion   = 7
+	statsSummarySchemaVersion   = 8
 	statsBreakdownSchemaVersion = 2
 	statsBreakdownDetailedLimit = 100
 )
@@ -181,16 +178,11 @@ func statsCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 type statsSummary struct {
-	SchemaVersion                 int                                       `json:"schema_version"`
-	GeneratedAt                   string                                    `json:"generated_at"`
-	Window                        statsSummaryWindow                        `json:"window"`
-	Calls                         statsSummaryCalls                         `json:"calls"`
-	Outcomes                      statsOutcomeTotals                        `json:"outcomes"`
-	Tokens                        statsSummaryTokens                        `json:"tokens"`
-	CacheReuse                    statsSummaryCacheReuse                    `json:"cache_reuse"`
-	PromptCacheTokenHitRate       statsSummaryPromptCacheTokenHitRate       `json:"prompt_cache_token_hit_rate"`
-	RuntimeReportedCost           statsSummaryRuntimeReportedCost           `json:"runtime_reported_cost_usd"`
-	APIEquivalentEstimatedAPICost statsSummaryAPIEquivalentEstimatedAPICost `json:"api_equivalent_estimated_cost_usd"`
+	SchemaVersion              int                                    `json:"schema_version"`
+	Window                     statsSummaryWindow                     `json:"window"`
+	Calls                      statsSummaryCalls                      `json:"calls"`
+	Tokens                     statsSummaryCompactTokens              `json:"tokens"`
+	PromptCacheTokenHitRatePct statsSummaryPromptCacheTokenHitRatePct `json:"prompt_cache_token_hit_rate_pct"`
 }
 
 type statsBreakdown struct {
@@ -232,6 +224,17 @@ type statsSummaryTokens struct {
 	ReductionPercent            *float64 `json:"reduction_percent"`
 }
 
+type statsSummaryCompactTokens struct {
+	RawEstimated       int `json:"raw_estimated"`
+	DeliveredEstimated int `json:"delivered_estimated"`
+}
+
+type statsSummaryPromptCacheTokenHitRatePct struct {
+	State                  string   `json:"state"`
+	Value                  *float64 `json:"value"`
+	ContributingModelSteps int      `json:"contributing_model_steps"`
+}
+
 type statsBreakdownDelivery struct {
 	DetailedGroupLimit    int                   `json:"detailed_group_limit"`
 	DistinctGroups        int                   `json:"distinct_groups"`
@@ -261,213 +264,17 @@ type statsBreakdownTotals struct {
 	DeliveredEstimated     int `json:"delivered_estimated"`
 }
 
-type statsSummaryCacheReuse struct {
-	ContractVersion          string                              `json:"contract_version"`
-	Runtime                  string                              `json:"runtime"`
-	RuntimeVersion           string                              `json:"runtime_version"`
-	EvidenceScope            string                              `json:"evidence_scope"`
-	RequestedWindowCoverage  statsSummaryRequestedWindowCoverage `json:"requested_window_coverage"`
-	FirstContributingCapture *string                             `json:"first_contributing_capture"`
-	LastContributingCapture  *string                             `json:"last_contributing_capture"`
-	ObservedSpanSeconds      *float64                            `json:"observed_span_seconds"`
-	ContributingSessions     int                                 `json:"contributing_sessions"`
-	ContributingModelSteps   int                                 `json:"contributing_model_steps"`
-	UncachedInput            statsSummaryIntegerMeasurement      `json:"uncached_input"`
-	CacheRead                statsSummaryIntegerMeasurement      `json:"cache_read"`
-	CacheWrite               statsSummaryIntegerMeasurement      `json:"cache_write"`
-	LogicalInput             statsSummaryIntegerMeasurement      `json:"logical_input"`
-	CachedInputShare         statsSummaryShareMeasurement        `json:"cached_input_share"`
-	Formula                  string                              `json:"formula"`
-	Unit                     string                              `json:"unit"`
-}
-
-type statsSummaryPromptCacheTokenHitRate struct {
-	State          string                                    `json:"state"`
-	Value          *float64                                  `json:"value"`
-	Ratio          *string                                   `json:"ratio"`
-	Reason         *string                                   `json:"reason"`
-	Kind           string                                    `json:"kind"`
-	Unit           string                                    `json:"unit"`
-	Formula        string                                    `json:"formula"`
-	Source         string                                    `json:"source"`
-	Runtime        string                                    `json:"runtime"`
-	RuntimeVersion string                                    `json:"runtime_version"`
-	Provider       *string                                   `json:"provider"`
-	Model          *string                                   `json:"model"`
-	RawBuckets     statsSummaryPromptCacheTokenRawBuckets    `json:"raw_buckets"`
-	LogicalInput   statsSummaryIntegerMeasurement            `json:"logical_input"`
-	TemporalScope  statsSummaryPromptCacheTokenTemporalScope `json:"temporal_scope"`
-}
-
-type statsSummaryPromptCacheTokenRawBuckets struct {
-	UncachedInput statsSummaryIntegerMeasurement `json:"uncached_input"`
-	CacheRead     statsSummaryIntegerMeasurement `json:"cache_read"`
-	CacheWrite    statsSummaryIntegerMeasurement `json:"cache_write"`
-}
-
-type statsSummaryPromptCacheTokenTemporalScope struct {
-	Scope                    string                              `json:"scope"`
-	RequestedWindowCoverage  statsSummaryRequestedWindowCoverage `json:"requested_window_coverage"`
-	FirstContributingCapture *string                             `json:"first_contributing_capture"`
-	LastContributingCapture  *string                             `json:"last_contributing_capture"`
-	ObservedSpanSeconds      *float64                            `json:"observed_span_seconds"`
-	ContributingSessions     int                                 `json:"contributing_sessions"`
-	ContributingModelSteps   int                                 `json:"contributing_model_steps"`
-}
-
-type statsSummaryRuntimeIdentity struct {
-	Provider string
-	Model    string
-}
-
-type statsSummaryCacheIdentityGroup struct {
-	Identity statsSummaryRuntimeIdentity
-	Rows     []dbpkg.StatsSummaryCacheRow
-}
-
-type statsSummaryCacheIdentityPartition struct {
-	Groups            []statsSummaryCacheIdentityGroup
-	MissingModelSteps int
-}
-
-type statsSummaryRuntimeReportedCost struct {
-	State            string                                    `json:"state"`
-	Value            *float64                                  `json:"value"`
-	Unit             string                                    `json:"unit"`
-	Formula          string                                    `json:"formula"`
-	Source           string                                    `json:"source"`
-	BillingSemantics string                                    `json:"billing_semantics"`
-	Reasons          []string                                  `json:"reasons"`
-	TemporalScope    statsSummaryPromptCacheTokenTemporalScope `json:"temporal_scope"`
-	RuntimeContracts []statsSummaryRuntimeContractPopulation   `json:"runtime_contracts"`
-}
-
-type statsSummaryRuntimeContractPopulation struct {
-	Runtime                string `json:"runtime"`
-	RuntimeVersion         string `json:"runtime_version"`
-	ContributingModelSteps int    `json:"contributing_model_steps"`
-}
-
-type statsSummaryAPIEquivalentEstimatedAPICost struct {
-	statsSummaryAPIEquivalentCostView
-	Provider       *string                                          `json:"provider"`
-	Model          *string                                          `json:"model"`
-	IdentityGroups []statsSummaryAPIEquivalentEstimatedAPICostGroup `json:"identity_groups"`
-}
-
-type statsSummaryAPIEquivalentEstimatedAPICostGroup struct {
-	statsSummaryAPIEquivalentCostView
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-}
-
-type statsSummaryAPIEquivalentCostView struct {
-	State          string                                    `json:"state"`
-	Value          *float64                                  `json:"value"`
-	MicroUSD       *string                                   `json:"micro_usd"`
-	Unit           string                                    `json:"unit"`
-	Formula        string                                    `json:"formula"`
-	Source         string                                    `json:"source"`
-	Aggregation    string                                    `json:"aggregation"`
-	Components     statsSummaryAPIEquivalentCostComponents   `json:"components"`
-	Pricing        statsSummaryPricingSnapshot               `json:"pricing"`
-	RateSelections []statsSummaryAPIEquivalentRateSelection  `json:"rate_selections"`
-	TemporalScope  statsSummaryPromptCacheTokenTemporalScope `json:"temporal_scope"`
-	Reasons        []string                                  `json:"reasons"`
-}
-
-type statsSummaryAPIEquivalentCostComponents struct {
-	UncachedInput statsSummaryIntegerMeasurement `json:"uncached_input"`
-	CacheRead     statsSummaryIntegerMeasurement `json:"cache_read"`
-	CacheWrite    statsSummaryIntegerMeasurement `json:"cache_write"`
-	Output        statsSummaryIntegerMeasurement `json:"output"`
-	Reasoning     statsSummaryIntegerMeasurement `json:"reasoning"`
-}
-
-type statsSummaryPricingSnapshot struct {
-	State        string   `json:"state"`
-	Provider     *string  `json:"provider"`
-	Model        *string  `json:"model"`
-	Path         *string  `json:"path"`
-	RecordSHA256 *string  `json:"record_sha256"`
-	SourceURL    *string  `json:"source_url"`
-	RetrievedAt  *string  `json:"retrieved_at"`
-	Reasons      []string `json:"reasons"`
-}
-
-type statsSummaryAPIEquivalentRateSelection struct {
-	Basis                   string                                  `json:"basis"`
-	ContextTierSize         *int64                                  `json:"context_tier_size"`
-	InputUSDPerMillion      float64                                 `json:"input_usd_per_million"`
-	OutputUSDPerMillion     float64                                 `json:"output_usd_per_million"`
-	CacheReadUSDPerMillion  *float64                                `json:"cache_read_usd_per_million"`
-	CacheWriteUSDPerMillion *float64                                `json:"cache_write_usd_per_million"`
-	ReasoningUSDPerMillion  float64                                 `json:"reasoning_usd_per_million"`
-	ReasoningRatePolicy     string                                  `json:"reasoning_rate_policy"`
-	ContributingModelSteps  int                                     `json:"contributing_model_steps"`
-	Components              statsSummaryAPIEquivalentCostComponents `json:"components"`
-	MicroUSD                string                                  `json:"micro_usd"`
-}
-
-type statsSummaryRequestedWindowCoverage struct {
-	State  string `json:"state"`
-	Reason string `json:"reason"`
-	Scope  string `json:"scope"`
-}
-
-type statsSummaryIntegerMeasurement struct {
-	State string   `json:"state"`
-	Value *big.Int `json:"value"`
-}
-
-type statsSummaryShareMeasurement struct {
-	State  string   `json:"state"`
-	Value  *float64 `json:"value"`
-	Ratio  *string  `json:"ratio"`
-	Reason *string  `json:"reason"`
-}
-
 type statsSummaryIntegerAccumulator struct {
 	value     big.Int
 	missing   bool
 	malformed bool
 }
 
-type statsSummaryCostAccumulator struct {
-	value     big.Rat
-	missing   bool
-	malformed bool
-}
-
 const (
-	statsSummaryMeasured                              = "measured"
-	statsSummaryUnavailable                           = "unavailable"
-	statsSummaryMissing                               = "missing"
-	statsSummaryMalformed                             = "malformed"
-	statsSummaryNotApplicable                         = "not_applicable"
-	statsSummaryPromptPrefixCacheEvidenceScope        = "provider_prompt_prefix_cache_tokens"
-	statsSummaryRequestedWindowCoverageUnavailable    = "unavailable"
-	statsSummaryCollectorLifecycleEvidenceUnavailable = "collector_lifecycle_evidence_unavailable"
-	statsSummaryObservedSubsetScope                   = "observed_subset"
-	statsSummaryRuntimeIdentityMissing                = "runtime_emitted_identity_missing"
-	statsSummaryRuntimeIdentityMixed                  = "runtime_emitted_identity_mixed"
-	statsSummaryNoContributingModelSteps              = "no_contributing_model_steps"
-	statsSummaryUnsupportedRuntimeOrVersion           = "unsupported_runtime_or_version"
-	statsSummaryRequiredTokenBucketMissing            = "required_token_bucket_missing"
-	statsSummaryRequiredTokenBucketMalformed          = "required_token_bucket_malformed"
-	statsSummaryLogicalInputNotPositive               = "logical_input_not_positive"
-	statsSummaryPromptCacheTokenHitRateKind           = cachemetric.PromptCacheTokenHitRateKind
-	statsSummaryPromptCacheTokenHitRateSource         = "runtime_emitted_model_step_telemetry"
-	statsSummaryPromptCacheTokenHitRateFormula        = cachemetric.PromptCacheTokenHitRateFormula
-	statsSummaryRuntimeReportedCostSource             = "runtime_emitted_model_step_telemetry"
-	statsSummaryRuntimeReportedCostMissing            = "runtime_reported_cost_missing"
-	statsSummaryRuntimeReportedCostMalformed          = "runtime_reported_cost_malformed"
-	statsSummaryRuntimeReportedCostNonfinite          = "runtime_reported_cost_nonfinite"
-	statsSummaryAPIEquivalentCostSource               = "runtime_emitted_model_step_telemetry_and_retained_pricing"
-	statsSummaryAPIEquivalentCostFormula              = "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1000000"
-	statsSummaryAPIEquivalentCostAggregation          = "round_each_model_step_to_micro_usd_then_sum"
-	statsSummaryPricingSnapshotUnavailable            = "pricing_snapshot_unavailable"
-	statsSummaryTokenMalformedSuffix                  = "_malformed"
+	statsSummaryMeasured      = "measured"
+	statsSummaryMissing       = "missing"
+	statsSummaryMalformed     = "malformed"
+	statsSummaryNotApplicable = "not_applicable"
 )
 
 func statsSummaryLogic(args []string, format string, window time.Duration, now time.Time, db *dbpkg.DB, stdout io.Writer) (any, error) {
@@ -482,28 +289,20 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 	if err != nil {
 		return nil, internalError("ktx stats summary: %v", err)
 	}
-	cacheRows, err := db.StatsSummaryCacheRows(from, now)
+	cacheRows, err := db.StatsSummaryCacheRows(from, now, reuse.RequiredRuntime, reuse.RequiredRuntimeVersion)
 	if err != nil {
 		return nil, internalError("ktx stats summary: %v", err)
 	}
-	supportedCacheRows, unsupportedCacheRows := partitionStatsSummaryCacheRuntimeContract(cacheRows)
-	var prices *dbpkg.Prices
-	var pricesErr error
-	if len(supportedCacheRows) > 0 {
-		prices, pricesErr = dbpkg.LoadPrices()
-	}
-	windowSummary, calls, outcomes, tokens := aggregateStatsWindow(rows, window, now)
+	windowSummary, calls, _, tokens := aggregateStatsWindow(rows, window, now)
 	summary := statsSummary{
-		SchemaVersion:                 statsSummarySchemaVersion,
-		GeneratedAt:                   now.Format(time.RFC3339Nano),
-		Window:                        windowSummary,
-		Calls:                         calls,
-		Outcomes:                      outcomes,
-		Tokens:                        tokens,
-		CacheReuse:                    aggregateStatsSummaryCache(supportedCacheRows),
-		PromptCacheTokenHitRate:       aggregateStatsSummaryPromptCacheTokenHitRate(supportedCacheRows, len(unsupportedCacheRows)),
-		RuntimeReportedCost:           aggregateStatsSummaryRuntimeReportedCost(cacheRows),
-		APIEquivalentEstimatedAPICost: aggregateStatsSummaryAPIEquivalentEstimatedAPICost(supportedCacheRows, len(unsupportedCacheRows), prices, pricesErr),
+		SchemaVersion: statsSummarySchemaVersion,
+		Window:        windowSummary,
+		Calls:         calls,
+		Tokens: statsSummaryCompactTokens{
+			RawEstimated:       tokens.RawEstimated,
+			DeliveredEstimated: tokens.DeliveredEstimated,
+		},
+		PromptCacheTokenHitRatePct: aggregateStatsSummaryPromptCacheTokenHitRatePct(cacheRows),
 	}
 
 	if format == FormatText {
@@ -736,687 +535,58 @@ func statsBreakdownSizeBand(characters int) string {
 	}
 }
 
-func aggregateStatsSummaryCache(rows []dbpkg.StatsSummaryCacheRow) statsSummaryCacheReuse {
+func aggregateStatsSummaryPromptCacheTokenHitRatePct(rows []dbpkg.StatsSummaryCacheRow) statsSummaryPromptCacheTokenHitRatePct {
 	var uncachedInput, cacheRead, cacheWrite statsSummaryIntegerAccumulator
-	sessions := make(map[string]struct{}, len(rows))
-	var firstCapture, lastCapture time.Time
-	var hasCapture bool
 	for _, row := range rows {
 		uncachedInput.add(row.UncachedInput)
 		cacheRead.add(row.CacheRead)
 		cacheWrite.add(row.CacheWrite)
-		sessions[row.SessionID] = struct{}{}
-		if !hasCapture || row.CapturedAt.Before(firstCapture) {
-			firstCapture = row.CapturedAt
-		}
-		if !hasCapture || row.CapturedAt.After(lastCapture) {
-			lastCapture = row.CapturedAt
-		}
-		hasCapture = true
 	}
 
-	uncachedInputTotal := uncachedInput.measurement(len(rows))
-	cacheReadTotal := cacheRead.measurement(len(rows))
-	cacheWriteTotal := cacheWrite.measurement(len(rows))
-	logicalInput := unavailableStatsSummaryInteger(aggregateStatsSummaryState(uncachedInputTotal.State, cacheReadTotal.State, cacheWriteTotal.State))
-	share := unavailableStatsSummaryShare(logicalInput.State)
-	if uncachedInputTotal.State == statsSummaryMeasured && cacheReadTotal.State == statsSummaryMeasured && cacheWriteTotal.State == statsSummaryMeasured {
-		logical := new(big.Int).Add(uncachedInputTotal.Value, cacheReadTotal.Value)
-		logical.Add(logical, cacheWriteTotal.Value)
-		logicalInput = statsSummaryIntegerMeasurement{State: statsSummaryMeasured, Value: logical}
-		if logical.Sign() > 0 {
-			ratio := new(big.Rat).SetFrac(cacheReadTotal.Value, logical)
-			value, _ := ratio.Float64()
-			ratioText := ratio.RatString()
-			share = statsSummaryShareMeasurement{State: statsSummaryMeasured, Value: &value, Ratio: &ratioText}
-		} else {
-			reason := "logical_input_not_positive"
-			share = statsSummaryShareMeasurement{State: statsSummaryNotApplicable, Reason: &reason}
-		}
-	}
-
-	cache := statsSummaryCacheReuse{
-		ContractVersion: reuse.RequiredContractVersion,
-		Runtime:         reuse.RequiredRuntime,
-		RuntimeVersion:  reuse.RequiredRuntimeVersion,
-		EvidenceScope:   statsSummaryPromptPrefixCacheEvidenceScope,
-		RequestedWindowCoverage: statsSummaryRequestedWindowCoverage{
-			State:  statsSummaryRequestedWindowCoverageUnavailable,
-			Reason: statsSummaryCollectorLifecycleEvidenceUnavailable,
-			Scope:  statsSummaryObservedSubsetScope,
-		},
-		ContributingSessions:   len(sessions),
-		ContributingModelSteps: len(rows),
-		UncachedInput:          uncachedInputTotal,
-		CacheRead:              cacheReadTotal,
-		CacheWrite:             cacheWriteTotal,
-		LogicalInput:           logicalInput,
-		CachedInputShare:       share,
-		Formula:                "cache_read / logical_input",
-		Unit:                   "token_fraction",
-	}
-	if hasCapture {
-		first := firstCapture.UTC().Format(time.RFC3339Nano)
-		last := lastCapture.UTC().Format(time.RFC3339Nano)
-		span := lastCapture.Sub(firstCapture).Seconds()
-		cache.FirstContributingCapture = &first
-		cache.LastContributingCapture = &last
-		cache.ObservedSpanSeconds = &span
-	}
-	return cache
-}
-
-func partitionStatsSummaryCacheRuntimeContract(rows []dbpkg.StatsSummaryCacheRow) (supported, unsupported []dbpkg.StatsSummaryCacheRow) {
-	for _, row := range rows {
-		if row.Runtime == reuse.RequiredRuntime && row.RuntimeVersion == reuse.RequiredRuntimeVersion {
-			supported = append(supported, row)
-			continue
-		}
-		unsupported = append(unsupported, row)
-	}
-	return supported, unsupported
-}
-
-func aggregateStatsSummaryPromptCacheTokenHitRate(rows []dbpkg.StatsSummaryCacheRow, unsupportedModelSteps int) statsSummaryPromptCacheTokenHitRate {
-	cache := aggregateStatsSummaryCache(rows)
-	rate := newStatsSummaryPromptCacheTokenHitRate(cache)
-	if len(rows) == 0 {
-		if unsupportedModelSteps > 0 {
-			rate.Reason = statsSummaryString(statsSummaryUnsupportedRuntimeOrVersion)
-		} else {
-			rate.Reason = statsSummaryString(statsSummaryNoContributingModelSteps)
-		}
-		return rate
-	}
-
-	partition := partitionStatsSummaryCacheIdentity(rows)
-	identity, identityReason := partition.aggregateIdentity()
-	if identityReason != "" {
-		rate.Reason = statsSummaryString(identityReason)
-		return rate
-	}
-
-	cache = aggregateStatsSummaryCache(partition.Groups[0].Rows)
-	rate.Provider = statsSummaryString(identity.Provider)
-	rate.Model = statsSummaryString(identity.Model)
-	rate.RawBuckets = statsSummaryPromptCacheTokenRawBuckets{
-		UncachedInput: cache.UncachedInput,
-		CacheRead:     cache.CacheRead,
-		CacheWrite:    cache.CacheWrite,
-	}
-	rate.LogicalInput = cache.LogicalInput
-	rate.TemporalScope = statsSummaryPromptCacheTokenTemporalScopeFromCache(cache)
-
-	switch {
-	case cache.UncachedInput.State == statsSummaryMalformed || cache.CacheRead.State == statsSummaryMalformed || cache.CacheWrite.State == statsSummaryMalformed:
-		rate.Reason = statsSummaryString(statsSummaryRequiredTokenBucketMalformed)
-	case cache.UncachedInput.State != statsSummaryMeasured || cache.CacheRead.State != statsSummaryMeasured || cache.CacheWrite.State != statsSummaryMeasured:
-		rate.Reason = statsSummaryString(statsSummaryRequiredTokenBucketMissing)
-	case cache.LogicalInput.Value == nil || cache.LogicalInput.Value.Sign() <= 0:
-		rate.Reason = statsSummaryString(statsSummaryLogicalInputNotPositive)
-	default:
-		_, ratio, measured := cachemetric.PromptCacheTokenHitRate(cache.UncachedInput.Value, cache.CacheRead.Value, cache.CacheWrite.Value)
-		if !measured {
-			rate.Reason = statsSummaryString(statsSummaryLogicalInputNotPositive)
-			return rate
-		}
-		value, _ := ratio.Float64()
-		ratioText := ratio.RatString()
-		rate.State = statsSummaryMeasured
-		rate.Value = &value
-		rate.Ratio = &ratioText
-		rate.Reason = nil
-	}
-	return rate
-}
-
-func newStatsSummaryPromptCacheTokenHitRate(cache statsSummaryCacheReuse) statsSummaryPromptCacheTokenHitRate {
-	return statsSummaryPromptCacheTokenHitRate{
-		State:          statsSummaryUnavailable,
-		Kind:           statsSummaryPromptCacheTokenHitRateKind,
-		Unit:           "token_fraction",
-		Formula:        statsSummaryPromptCacheTokenHitRateFormula,
-		Source:         statsSummaryPromptCacheTokenHitRateSource,
-		Runtime:        reuse.RequiredRuntime,
-		RuntimeVersion: reuse.RequiredRuntimeVersion,
-		RawBuckets: statsSummaryPromptCacheTokenRawBuckets{
-			UncachedInput: unavailableStatsSummaryInteger(statsSummaryUnavailable),
-			CacheRead:     unavailableStatsSummaryInteger(statsSummaryUnavailable),
-			CacheWrite:    unavailableStatsSummaryInteger(statsSummaryUnavailable),
-		},
-		LogicalInput:  unavailableStatsSummaryInteger(statsSummaryUnavailable),
-		TemporalScope: statsSummaryPromptCacheTokenTemporalScopeFromCache(cache),
-	}
-}
-
-func statsSummaryPromptCacheTokenTemporalScopeFromCache(cache statsSummaryCacheReuse) statsSummaryPromptCacheTokenTemporalScope {
-	return statsSummaryPromptCacheTokenTemporalScope{
-		Scope:                    cache.RequestedWindowCoverage.Scope,
-		RequestedWindowCoverage:  cache.RequestedWindowCoverage,
-		FirstContributingCapture: cache.FirstContributingCapture,
-		LastContributingCapture:  cache.LastContributingCapture,
-		ObservedSpanSeconds:      cache.ObservedSpanSeconds,
-		ContributingSessions:     cache.ContributingSessions,
-		ContributingModelSteps:   cache.ContributingModelSteps,
-	}
-}
-
-func aggregateStatsSummaryRuntimeReportedCost(rows []dbpkg.StatsSummaryCacheRow) statsSummaryRuntimeReportedCost {
-	cache := aggregateStatsSummaryCache(rows)
-	result := statsSummaryRuntimeReportedCost{
-		State:            statsSummaryUnavailable,
-		Unit:             "usd",
-		Formula:          "sum(runtime_reported_cost)",
-		Source:           statsSummaryRuntimeReportedCostSource,
-		BillingSemantics: statsSummaryUnavailable,
-		Reasons:          []string{},
-		TemporalScope:    statsSummaryPromptCacheTokenTemporalScopeFromCache(cache),
-		RuntimeContracts: statsSummaryRuntimeContractPopulations(rows),
-	}
-	var total statsSummaryCostAccumulator
-	for _, row := range rows {
-		total.add(row.Cost)
-	}
-	switch {
-	case len(rows) == 0:
-		result.Reasons = []string{statsSummaryNoContributingModelSteps}
-	case total.malformed:
-		result.State = statsSummaryMalformed
-		result.Reasons = []string{statsSummaryRuntimeReportedCostMalformed}
-	case total.missing:
-		result.State = statsSummaryMissing
-		result.Reasons = []string{statsSummaryRuntimeReportedCostMissing}
-	default:
-		value, _ := total.value.Float64()
-		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
-			result.State = statsSummaryUnavailable
-			result.Reasons = []string{statsSummaryRuntimeReportedCostNonfinite}
-			return result
-		}
-		result.State = statsSummaryMeasured
-		result.Value = &value
-	}
-	return result
-}
-
-func statsSummaryRuntimeContractPopulations(rows []dbpkg.StatsSummaryCacheRow) []statsSummaryRuntimeContractPopulation {
-	type contract struct{ runtime, version string }
-	counts := map[contract]int{}
-	for _, row := range rows {
-		counts[contract{runtime: row.Runtime, version: row.RuntimeVersion}]++
-	}
-	contracts := make([]statsSummaryRuntimeContractPopulation, 0, len(counts))
-	for key, count := range counts {
-		contracts = append(contracts, statsSummaryRuntimeContractPopulation{
-			Runtime: key.runtime, RuntimeVersion: key.version, ContributingModelSteps: count,
-		})
-	}
-	sort.Slice(contracts, func(i, j int) bool {
-		if contracts[i].Runtime != contracts[j].Runtime {
-			return contracts[i].Runtime < contracts[j].Runtime
-		}
-		return contracts[i].RuntimeVersion < contracts[j].RuntimeVersion
-	})
-	return contracts
-}
-
-func aggregateStatsSummaryAPIEquivalentEstimatedAPICost(rows []dbpkg.StatsSummaryCacheRow, unsupportedModelSteps int, prices *dbpkg.Prices, pricesErr error) statsSummaryAPIEquivalentEstimatedAPICost {
-	cache := aggregateStatsSummaryCache(rows)
-	result := statsSummaryAPIEquivalentEstimatedAPICost{
-		statsSummaryAPIEquivalentCostView: newStatsSummaryAPIEquivalentCostView(cache),
-		IdentityGroups:                    []statsSummaryAPIEquivalentEstimatedAPICostGroup{},
-	}
-	if len(rows) == 0 {
-		if unsupportedModelSteps > 0 {
-			result.Reasons = []string{statsSummaryUnsupportedRuntimeOrVersion}
-		} else {
-			result.Reasons = []string{statsSummaryNoContributingModelSteps}
-		}
-		result.Pricing = unavailableStatsSummaryPricingSnapshot(result.Reasons)
+	result := statsSummaryPromptCacheTokenHitRatePct{State: statsSummaryMissing, ContributingModelSteps: len(rows)}
+	state := aggregateStatsSummaryState(
+		uncachedInput.state(len(rows)),
+		cacheRead.state(len(rows)),
+		cacheWrite.state(len(rows)),
+	)
+	if state != statsSummaryMeasured {
+		result.State = state
 		return result
 	}
 
-	partition := partitionStatsSummaryCacheIdentity(rows)
-	for _, group := range partition.Groups {
-		view := aggregateStatsSummaryAPIEquivalentEstimatedAPICostGroup(group.Identity, group.Rows, prices, pricesErr)
-		result.IdentityGroups = append(result.IdentityGroups, statsSummaryAPIEquivalentEstimatedAPICostGroup{
-			statsSummaryAPIEquivalentCostView: view,
-			Provider:                          group.Identity.Provider,
-			Model:                             group.Identity.Model,
-		})
-	}
-
-	blockers := []string{}
-	if unsupportedModelSteps > 0 {
-		blockers = append(blockers, statsSummaryUnsupportedRuntimeOrVersion)
-	}
-	if partition.MissingModelSteps > 0 {
-		blockers = append(blockers, statsSummaryRuntimeIdentityMissing)
-	}
-	if len(partition.Groups) > 1 {
-		blockers = append(blockers, statsSummaryRuntimeIdentityMixed)
-	}
-	if len(blockers) > 0 {
-		result.Reasons = orderStatsSummaryAPIEquivalentCostReasons(blockers)
-		result.Pricing = unavailableStatsSummaryPricingSnapshot(result.Reasons)
+	logicalInput := new(big.Int).Add(&uncachedInput.value, &cacheRead.value)
+	logicalInput.Add(logicalInput, &cacheWrite.value)
+	if logicalInput.Sign() == 0 {
+		result.State = statsSummaryNotApplicable
 		return result
 	}
-
-	group := result.IdentityGroups[0]
-	result.statsSummaryAPIEquivalentCostView = group.statsSummaryAPIEquivalentCostView
-	result.Provider = statsSummaryString(group.Provider)
-	result.Model = statsSummaryString(group.Model)
-	return result
-}
-
-func newStatsSummaryAPIEquivalentCostView(cache statsSummaryCacheReuse) statsSummaryAPIEquivalentCostView {
-	return statsSummaryAPIEquivalentCostView{
-		State:          statsSummaryUnavailable,
-		Unit:           "usd",
-		Formula:        statsSummaryAPIEquivalentCostFormula,
-		Source:         statsSummaryAPIEquivalentCostSource,
-		Aggregation:    statsSummaryAPIEquivalentCostAggregation,
-		Components:     unavailableStatsSummaryAPIEquivalentCostComponents(statsSummaryUnavailable),
-		Pricing:        unavailableStatsSummaryPricingSnapshot(nil),
-		RateSelections: []statsSummaryAPIEquivalentRateSelection{},
-		TemporalScope:  statsSummaryPromptCacheTokenTemporalScopeFromCache(cache),
-		Reasons:        []string{},
-	}
-}
-
-func aggregateStatsSummaryAPIEquivalentEstimatedAPICostGroup(identity statsSummaryRuntimeIdentity, rows []dbpkg.StatsSummaryCacheRow, prices *dbpkg.Prices, pricesErr error) statsSummaryAPIEquivalentCostView {
-	cache := aggregateStatsSummaryCache(rows)
-	result := newStatsSummaryAPIEquivalentCostView(cache)
-	result.Components = aggregateStatsSummaryAPIEquivalentCostComponents(rows)
-	pricing, price, priceAvailable := statsSummaryPricingSnapshotForIdentity(identity, prices, pricesErr)
-	result.Pricing = pricing
-
-	totalMicroUSD := big.NewInt(0)
-	rateAccumulators := map[string]*statsSummaryAPIEquivalentRateAccumulator{}
-	reasons := []string{}
-	for _, row := range rows {
-		estimate, stepReasons := statsSummaryAPIEquivalentCostForRow(row, price, priceAvailable)
-		reasons = append(reasons, stepReasons...)
-		if estimate == nil || estimate.Cost == nil || estimate.MicroUSD == nil {
-			continue
-		}
-		totalMicroUSD.Add(totalMicroUSD, estimate.MicroUSD)
-		key := statsSummaryAPIEquivalentRateSelectionKey(estimate.RateSelection)
-		accumulator := rateAccumulators[key]
-		if accumulator == nil {
-			accumulator = &statsSummaryAPIEquivalentRateAccumulator{selection: *estimate.RateSelection}
-			rateAccumulators[key] = accumulator
-		}
-		accumulator.add(row, estimate.MicroUSD)
-	}
-	if len(reasons) > 0 {
-		result.Reasons = orderStatsSummaryAPIEquivalentCostReasons(reasons)
+	if !statsSummaryCacheIdentityAvailable(rows) {
 		return result
 	}
-	value, ok := dbpkg.APIEquivalentCostUSD(totalMicroUSD)
-	if !ok {
-		result.Reasons = []string{string(dbpkg.APIEquivalentCostNonfinite)}
-		return result
-	}
-	microUSD := totalMicroUSD.String()
+	percentage := new(big.Rat).SetFrac(&cacheRead.value, logicalInput)
+	percentage.Mul(percentage, big.NewRat(100, 1))
+	value, _ := percentage.Float64()
 	result.State = statsSummaryMeasured
-	result.Value = value
-	result.MicroUSD = &microUSD
-	result.RateSelections = statsSummaryAPIEquivalentRateSelections(rateAccumulators)
+	result.Value = &value
 	return result
 }
 
-func statsSummaryPricingSnapshotForIdentity(identity statsSummaryRuntimeIdentity, prices *dbpkg.Prices, pricesErr error) (statsSummaryPricingSnapshot, dbpkg.Price, bool) {
-	path := (*string)(nil)
-	if prices != nil && prices.Path() != "" {
-		path = statsSummaryString(prices.Path())
-	}
-	result := statsSummaryPricingSnapshot{
-		State:    statsSummaryUnavailable,
-		Provider: statsSummaryString(identity.Provider),
-		Model:    statsSummaryString(identity.Model),
-		Path:     path,
-		Reasons:  []string{statsSummaryPricingSnapshotUnavailable},
-	}
-	if prices == nil || pricesErr != nil {
-		return result, dbpkg.Price{}, false
-	}
-	price, ok := prices.LookupRecord(identity.Provider, identity.Model)
-	if !ok {
-		return result, dbpkg.Price{}, false
-	}
-	data, err := json.Marshal(struct {
-		Provider string      `json:"provider"`
-		Model    string      `json:"model"`
-		Price    dbpkg.Price `json:"price"`
-	}{Provider: identity.Provider, Model: identity.Model, Price: price})
-	if err != nil {
-		return result, dbpkg.Price{}, false
-	}
-	hash := fmt.Sprintf("%x", sha256.Sum256(data))
-	result.State = "retained"
-	result.RecordSHA256 = &hash
-	result.Reasons = []string{}
-	if price.SourceURL != "" {
-		result.SourceURL = statsSummaryString(price.SourceURL)
-	}
-	if price.RetrievedAt != "" {
-		result.RetrievedAt = statsSummaryString(price.RetrievedAt)
-	}
-	return result, price, true
-}
-
-func unavailableStatsSummaryPricingSnapshot(reasons []string) statsSummaryPricingSnapshot {
-	return statsSummaryPricingSnapshot{State: statsSummaryUnavailable, Reasons: append([]string{}, reasons...)}
-}
-
-func unavailableStatsSummaryAPIEquivalentCostComponents(state string) statsSummaryAPIEquivalentCostComponents {
-	return statsSummaryAPIEquivalentCostComponents{
-		UncachedInput: unavailableStatsSummaryInteger(state),
-		CacheRead:     unavailableStatsSummaryInteger(state),
-		CacheWrite:    unavailableStatsSummaryInteger(state),
-		Output:        unavailableStatsSummaryInteger(state),
-		Reasoning:     unavailableStatsSummaryInteger(state),
-	}
-}
-
-func aggregateStatsSummaryAPIEquivalentCostComponents(rows []dbpkg.StatsSummaryCacheRow) statsSummaryAPIEquivalentCostComponents {
-	var accumulator statsSummaryAPIEquivalentCostComponentsAccumulator
+func statsSummaryCacheIdentityAvailable(rows []dbpkg.StatsSummaryCacheRow) bool {
+	var provider, model string
+	var haveIdentity bool
 	for _, row := range rows {
-		accumulator.add(row)
-	}
-	return accumulator.measurement(len(rows))
-}
-
-type statsSummaryAPIEquivalentCostComponentsAccumulator struct {
-	uncachedInput statsSummaryIntegerAccumulator
-	cacheRead     statsSummaryIntegerAccumulator
-	cacheWrite    statsSummaryIntegerAccumulator
-	output        statsSummaryIntegerAccumulator
-	reasoning     statsSummaryIntegerAccumulator
-}
-
-func (a *statsSummaryAPIEquivalentCostComponentsAccumulator) add(row dbpkg.StatsSummaryCacheRow) {
-	a.uncachedInput.add(row.UncachedInput)
-	a.cacheRead.add(row.CacheRead)
-	a.cacheWrite.add(row.CacheWrite)
-	a.output.add(row.Output)
-	a.reasoning.add(row.Reasoning)
-}
-
-func (a *statsSummaryAPIEquivalentCostComponentsAccumulator) measurement(count int) statsSummaryAPIEquivalentCostComponents {
-	return statsSummaryAPIEquivalentCostComponents{
-		UncachedInput: a.uncachedInput.measurement(count),
-		CacheRead:     a.cacheRead.measurement(count),
-		CacheWrite:    a.cacheWrite.measurement(count),
-		Output:        a.output.measurement(count),
-		Reasoning:     a.reasoning.measurement(count),
-	}
-}
-
-func statsSummaryAPIEquivalentCostForRow(row dbpkg.StatsSummaryCacheRow, price dbpkg.Price, priceAvailable bool) (*dbpkg.APIEquivalentCostEstimate, []string) {
-	if statsSummaryAPIEquivalentContextTokenOverflow(row) {
-		return nil, []string{string(dbpkg.APIEquivalentCostContextTokenOverflow)}
-	}
-	inputs, malformedFields := statsSummaryAPIEquivalentCostInputs(row)
-	estimate := dbpkg.EstimateAPIEquivalentCost(inputs, price)
-	reasons := make([]string, 0, len(estimate.UnavailableReasons)+len(malformedFields)+1)
-	for _, reason := range estimate.UnavailableReasons {
-		if statsSummaryAPIEquivalentReasonIsReplacedUnavailable(reason, malformedFields) || (!priceAvailable && statsSummaryAPIEquivalentReasonIsPrice(reason)) {
-			continue
-		}
-		reasons = append(reasons, string(reason))
-	}
-	reasons = append(reasons, malformedFields...)
-	if !priceAvailable {
-		reasons = append(reasons, statsSummaryPricingSnapshotUnavailable)
-	}
-	if len(reasons) > 0 {
-		return nil, reasons
-	}
-	if estimate.Cost == nil || estimate.MicroUSD == nil || estimate.RateSelection == nil {
-		return nil, []string{string(dbpkg.APIEquivalentCostNonfinite)}
-	}
-	return &estimate, nil
-}
-
-func statsSummaryAPIEquivalentCostInputs(row dbpkg.StatsSummaryCacheRow) (dbpkg.APIEquivalentCostInputs, []string) {
-	uncachedInput, uncachedMalformed := statsSummaryAPIEquivalentTokenInput(row.UncachedInput, "uncached_input")
-	output, outputMalformed := statsSummaryAPIEquivalentTokenInput(row.Output, "output")
-	reasoning, reasoningMalformed := statsSummaryAPIEquivalentTokenInput(row.Reasoning, "reasoning")
-	cacheRead, cacheReadMalformed := statsSummaryAPIEquivalentTokenInput(row.CacheRead, "cache_read")
-	cacheWrite, cacheWriteMalformed := statsSummaryAPIEquivalentTokenInput(row.CacheWrite, "cache_write")
-	malformed := []string{}
-	for _, field := range []string{uncachedMalformed, outputMalformed, reasoningMalformed, cacheReadMalformed, cacheWriteMalformed} {
-		if field != "" {
-			malformed = append(malformed, field)
-		}
-	}
-	return dbpkg.APIEquivalentCostInputs{
-		UncachedInput: uncachedInput,
-		Output:        output,
-		Reasoning:     reasoning,
-		CacheRead:     cacheRead,
-		CacheWrite:    cacheWrite,
-	}, malformed
-}
-
-func statsSummaryAPIEquivalentTokenInput(measurement dbpkg.IntegerMeasurement, name string) (*float64, string) {
-	if measurement.State == dbpkg.MeasurementMalformed {
-		return nil, name + statsSummaryTokenMalformedSuffix
-	}
-	if measurement.State != dbpkg.MeasurementMeasured || measurement.Value == nil {
-		return nil, ""
-	}
-	if *measurement.Value >= 1<<53 {
-		return nil, name + "_invalid"
-	}
-	value := float64(*measurement.Value)
-	return &value, ""
-}
-
-func statsSummaryAPIEquivalentContextTokenOverflow(row dbpkg.StatsSummaryCacheRow) bool {
-	values := []dbpkg.IntegerMeasurement{row.UncachedInput, row.CacheRead, row.CacheWrite}
-	total := int64(0)
-	for _, measurement := range values {
-		if measurement.State != dbpkg.MeasurementMeasured || measurement.Value == nil || *measurement.Value < 0 {
+		if row.Provider == nil || row.Model == nil || strings.TrimSpace(*row.Provider) == "" || strings.TrimSpace(*row.Model) == "" {
 			return false
 		}
-		if *measurement.Value > math.MaxInt64-total {
-			return true
-		}
-		total += *measurement.Value
-	}
-	return false
-}
-
-func statsSummaryAPIEquivalentReasonIsReplacedUnavailable(reason dbpkg.APIEquivalentCostUnavailableReason, replacementFields []string) bool {
-	if !strings.HasSuffix(string(reason), "_unavailable") {
-		return false
-	}
-	field := strings.TrimSuffix(string(reason), "_unavailable")
-	for _, replacement := range replacementFields {
-		if replacement == field+statsSummaryTokenMalformedSuffix || replacement == field+"_invalid" {
-			return true
-		}
-	}
-	return false
-}
-
-func statsSummaryAPIEquivalentReasonIsPrice(reason dbpkg.APIEquivalentCostUnavailableReason) bool {
-	switch reason {
-	case dbpkg.APIEquivalentCostInputPriceUnavailable, dbpkg.APIEquivalentCostOutputPriceUnavailable,
-		dbpkg.APIEquivalentCostCacheReadPriceUnavailable, dbpkg.APIEquivalentCostCacheWritePriceUnavailable,
-		dbpkg.APIEquivalentCostInputPriceInvalid, dbpkg.APIEquivalentCostOutputPriceInvalid,
-		dbpkg.APIEquivalentCostCacheReadPriceInvalid, dbpkg.APIEquivalentCostCacheWritePriceInvalid,
-		dbpkg.APIEquivalentCostReasoningPriceInvalid:
-		return true
-	default:
-		return false
-	}
-}
-
-type statsSummaryAPIEquivalentRateAccumulator struct {
-	selection  dbpkg.APIEquivalentCostRateSelection
-	components statsSummaryAPIEquivalentCostComponentsAccumulator
-	microUSD   big.Int
-	count      int
-}
-
-func (a *statsSummaryAPIEquivalentRateAccumulator) add(row dbpkg.StatsSummaryCacheRow, microUSD *big.Int) {
-	a.components.add(row)
-	a.microUSD.Add(&a.microUSD, microUSD)
-	a.count++
-}
-
-func statsSummaryAPIEquivalentRateSelectionKey(selection *dbpkg.APIEquivalentCostRateSelection) string {
-	if selection == nil {
-		return ""
-	}
-	contextTierSize := ""
-	if selection.ContextTierSize != nil {
-		contextTierSize = strconv.FormatInt(*selection.ContextTierSize, 10)
-	}
-	optionalRate := func(value *float64) string {
-		if value == nil {
-			return ""
-		}
-		return strconv.FormatFloat(*value, 'g', -1, 64)
-	}
-	return strings.Join([]string{
-		selection.Basis, contextTierSize,
-		strconv.FormatFloat(selection.InputUSDPerMillion, 'g', -1, 64),
-		strconv.FormatFloat(selection.OutputUSDPerMillion, 'g', -1, 64),
-		optionalRate(selection.CacheReadUSDPerMillion), optionalRate(selection.CacheWriteUSDPerMillion),
-		strconv.FormatFloat(selection.ReasoningUSDPerMillion, 'g', -1, 64), selection.ReasoningRatePolicy,
-	}, "\x00")
-}
-
-func statsSummaryAPIEquivalentRateSelections(accumulators map[string]*statsSummaryAPIEquivalentRateAccumulator) []statsSummaryAPIEquivalentRateSelection {
-	keys := make([]string, 0, len(accumulators))
-	for key := range accumulators {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	result := make([]statsSummaryAPIEquivalentRateSelection, 0, len(keys))
-	for _, key := range keys {
-		accumulator := accumulators[key]
-		selection := accumulator.selection
-		result = append(result, statsSummaryAPIEquivalentRateSelection{
-			Basis:                   selection.Basis,
-			ContextTierSize:         selection.ContextTierSize,
-			InputUSDPerMillion:      selection.InputUSDPerMillion,
-			OutputUSDPerMillion:     selection.OutputUSDPerMillion,
-			CacheReadUSDPerMillion:  selection.CacheReadUSDPerMillion,
-			CacheWriteUSDPerMillion: selection.CacheWriteUSDPerMillion,
-			ReasoningUSDPerMillion:  selection.ReasoningUSDPerMillion,
-			ReasoningRatePolicy:     selection.ReasoningRatePolicy,
-			ContributingModelSteps:  accumulator.count,
-			Components:              accumulator.components.measurement(accumulator.count),
-			MicroUSD:                accumulator.microUSD.String(),
-		})
-	}
-	return result
-}
-
-func orderStatsSummaryAPIEquivalentCostReasons(reasons []string) []string {
-	structural := []string{
-		statsSummaryNoContributingModelSteps,
-		statsSummaryUnsupportedRuntimeOrVersion,
-		statsSummaryRuntimeIdentityMissing,
-		statsSummaryRuntimeIdentityMixed,
-		statsSummaryPricingSnapshotUnavailable,
-	}
-	ordered := []string{}
-	for _, expected := range structural {
-		if containsStatsSummaryString(reasons, expected) {
-			ordered = append(ordered, expected)
-		}
-	}
-	typed := make([]dbpkg.APIEquivalentCostUnavailableReason, 0, len(reasons))
-	for _, reason := range reasons {
-		typed = append(typed, dbpkg.APIEquivalentCostUnavailableReason(reason))
-	}
-	for _, reason := range dbpkg.OrderAPIEquivalentCostUnavailableReasons(typed) {
-		value := string(reason)
-		if !containsStatsSummaryString(ordered, value) {
-			ordered = append(ordered, value)
-		}
-	}
-	remaining := []string{}
-	for _, reason := range reasons {
-		if reason != "" && !containsStatsSummaryString(ordered, reason) && !containsStatsSummaryString(remaining, reason) {
-			remaining = append(remaining, reason)
-		}
-	}
-	sort.Strings(remaining)
-	return append(ordered, remaining...)
-}
-
-func containsStatsSummaryString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
-func statsSummaryString(value string) *string {
-	return &value
-}
-
-// partitionStatsSummaryCacheIdentity separates model steps by their exact
-// runtime-emitted provider/model pair. It never substitutes configured identity
-// for source evidence.
-func partitionStatsSummaryCacheIdentity(rows []dbpkg.StatsSummaryCacheRow) statsSummaryCacheIdentityPartition {
-	byIdentity := make(map[statsSummaryRuntimeIdentity]int)
-	partition := statsSummaryCacheIdentityPartition{}
-	for _, row := range rows {
-		identity, ok := statsSummaryCacheRowIdentity(row)
-		if !ok {
-			partition.MissingModelSteps++
+		if !haveIdentity {
+			provider, model, haveIdentity = *row.Provider, *row.Model, true
 			continue
 		}
-		index, exists := byIdentity[identity]
-		if !exists {
-			index = len(partition.Groups)
-			byIdentity[identity] = index
-			partition.Groups = append(partition.Groups, statsSummaryCacheIdentityGroup{Identity: identity})
+		if provider != *row.Provider || model != *row.Model {
+			return false
 		}
-		partition.Groups[index].Rows = append(partition.Groups[index].Rows, row)
 	}
-	sort.Slice(partition.Groups, func(i, j int) bool {
-		if partition.Groups[i].Identity.Provider != partition.Groups[j].Identity.Provider {
-			return partition.Groups[i].Identity.Provider < partition.Groups[j].Identity.Provider
-		}
-		return partition.Groups[i].Identity.Model < partition.Groups[j].Identity.Model
-	})
-	return partition
-}
-
-// aggregateIdentity returns the identity that can authorize one aggregate
-// metric. Multiple complete source identities remain available as separate
-// groups, but cannot authorize a pooled metric.
-func (partition statsSummaryCacheIdentityPartition) aggregateIdentity() (statsSummaryRuntimeIdentity, string) {
-	if partition.MissingModelSteps > 0 {
-		return statsSummaryRuntimeIdentity{}, statsSummaryRuntimeIdentityMissing
-	}
-	switch len(partition.Groups) {
-	case 0:
-		return statsSummaryRuntimeIdentity{}, statsSummaryNoContributingModelSteps
-	case 1:
-		return partition.Groups[0].Identity, ""
-	default:
-		return statsSummaryRuntimeIdentity{}, statsSummaryRuntimeIdentityMixed
-	}
-}
-
-func statsSummaryCacheRowIdentity(row dbpkg.StatsSummaryCacheRow) (statsSummaryRuntimeIdentity, bool) {
-	if row.Provider == nil || row.Model == nil || strings.TrimSpace(*row.Provider) == "" || strings.TrimSpace(*row.Model) == "" {
-		return statsSummaryRuntimeIdentity{}, false
-	}
-	return statsSummaryRuntimeIdentity{Provider: *row.Provider, Model: *row.Model}, true
+	return haveIdentity
 }
 
 func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasurement) {
@@ -1434,38 +604,14 @@ func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasuremen
 	}
 }
 
-func (a *statsSummaryIntegerAccumulator) measurement(count int) statsSummaryIntegerMeasurement {
-	state := statsSummaryMeasured
+func (a *statsSummaryIntegerAccumulator) state(count int) string {
 	switch {
 	case a.malformed:
-		state = statsSummaryMalformed
+		return statsSummaryMalformed
 	case count == 0 || a.missing:
-		state = statsSummaryMissing
+		return statsSummaryMissing
 	}
-	if state != statsSummaryMeasured {
-		return unavailableStatsSummaryInteger(state)
-	}
-	return statsSummaryIntegerMeasurement{State: state, Value: new(big.Int).Set(&a.value)}
-}
-
-func (a *statsSummaryCostAccumulator) add(measurement dbpkg.CostMeasurement) {
-	switch measurement.State {
-	case dbpkg.MeasurementMeasured:
-		if measurement.Value == nil || math.IsNaN(*measurement.Value) || math.IsInf(*measurement.Value, 0) || *measurement.Value < 0 {
-			a.malformed = true
-			return
-		}
-		value := new(big.Rat).SetFloat64(*measurement.Value)
-		if value == nil {
-			a.malformed = true
-			return
-		}
-		a.value.Add(&a.value, value)
-	case dbpkg.MeasurementMalformed:
-		a.malformed = true
-	default:
-		a.missing = true
-	}
+	return statsSummaryMeasured
 }
 
 func aggregateStatsSummaryState(states ...string) string {
@@ -1479,14 +625,6 @@ func aggregateStatsSummaryState(states ...string) string {
 		}
 	}
 	return result
-}
-
-func unavailableStatsSummaryInteger(state string) statsSummaryIntegerMeasurement {
-	return statsSummaryIntegerMeasurement{State: state}
-}
-
-func unavailableStatsSummaryShare(state string) statsSummaryShareMeasurement {
-	return statsSummaryShareMeasurement{State: state}
 }
 
 // statsLogic reads, aggregates, and renders the stats groups.
@@ -1603,62 +741,18 @@ func printStatsText(w io.Writer, groups []statsGroup) {
 
 func printStatsSummaryText(w io.Writer, summary statsSummary) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tPROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE\tREQUESTED_WINDOW_COVERAGE\tREQUESTED_WINDOW_COVERAGE_REASON\tREQUESTED_WINDOW_COVERAGE_SCOPE\tFIRST_CONTRIBUTING_CAPTURE\tLAST_CONTRIBUTING_CAPTURE\tOBSERVED_SPAN_SECONDS\tCONTRIBUTING_KTX_SESSIONS\tCONTRIBUTING_MODEL_STEPS\tPROMPT_PREFIX_UNCACHED_INPUT\tPROMPT_PREFIX_CACHE_READ\tPROMPT_PREFIX_CACHE_WRITE\tPROMPT_PREFIX_LOGICAL_INPUT\tPROMPT_PREFIX_CACHED_INPUT_PCT\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tPROMPT_CACHE_TOKEN_HIT_RATE_STATE\tPROMPT_CACHE_TOKEN_HIT_RATE_REASON\tPROMPT_CACHE_TOKEN_HIT_RATE_KIND\tPROMPT_CACHE_TOKEN_HIT_RATE_SOURCE\tPROMPT_CACHE_TOKEN_HIT_RATE_RUNTIME\tPROMPT_CACHE_TOKEN_HIT_RATE_RUNTIME_VERSION\tPROMPT_CACHE_TOKEN_HIT_RATE_PROVIDER\tPROMPT_CACHE_TOKEN_HIT_RATE_MODEL\tPROMPT_CACHE_TOKEN_HIT_RATE_SCOPE\tPROMPT_CACHE_TOKEN_HIT_UNCACHED_INPUT\tPROMPT_CACHE_TOKEN_HIT_CACHE_READ\tPROMPT_CACHE_TOKEN_HIT_CACHE_WRITE\tPROMPT_CACHE_TOKEN_HIT_LOGICAL_INPUT\tRUNTIME_REPORTED_COST_USD\tRUNTIME_REPORTED_COST_STATE\tRUNTIME_REPORTED_COST_REASONS\tRUNTIME_REPORTED_COST_SOURCE\tAPI_EQUIVALENT_ESTIMATED_COST_USD\tAPI_EQUIVALENT_ESTIMATED_COST_MICRO_USD\tAPI_EQUIVALENT_ESTIMATED_COST_STATE\tAPI_EQUIVALENT_ESTIMATED_COST_REASONS\tAPI_EQUIVALENT_ESTIMATED_COST_PROVIDER\tAPI_EQUIVALENT_ESTIMATED_COST_MODEL\tAPI_EQUIVALENT_ESTIMATED_COST_SOURCE\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_STATE\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_RECORD_SHA256\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_SOURCE_URL\tAPI_EQUIVALENT_ESTIMATED_COST_PRICING_RETRIEVED_AT")
-	rate := summary.PromptCacheTokenHitRate
-	reported := summary.RuntimeReportedCost
-	estimated := summary.APIEquivalentEstimatedAPICost
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s",
-		summary.Window.From, summary.Window.To,
-		summary.Calls.TotalWithOutput, summary.Calls.WithCompressedArtifact,
-		summary.Outcomes.SuccessfulCalls, summary.Outcomes.ErrorCalls, summary.Outcomes.UnknownCalls, summary.Outcomes.KnownCalls,
-		formatStatsPercent(summary.Outcomes.ErrorRatePctOfKnown), formatStatsPercent(summary.Outcomes.OutcomeCoveragePct),
-		summary.Tokens.RawEstimated, summary.Tokens.DeliveredEstimated,
-		summary.Tokens.RawEstimatedPerSecond, summary.Tokens.DeliveredEstimatedPerSecond,
-		formatStatsReduction(summary.Tokens.ReductionPercent),
-		summary.CacheReuse.EvidenceScope,
-		summary.CacheReuse.RequestedWindowCoverage.State,
-		summary.CacheReuse.RequestedWindowCoverage.Reason,
-		summary.CacheReuse.RequestedWindowCoverage.Scope,
-		formatStatsSummaryOptionalString(summary.CacheReuse.FirstContributingCapture),
-		formatStatsSummaryOptionalString(summary.CacheReuse.LastContributingCapture),
-		formatStatsObservedSpan(summary.CacheReuse.ObservedSpanSeconds),
-		summary.CacheReuse.ContributingSessions,
-		summary.CacheReuse.ContributingModelSteps,
-		formatStatsSummaryInteger(summary.CacheReuse.UncachedInput),
-		formatStatsSummaryInteger(summary.CacheReuse.CacheRead),
-		formatStatsSummaryInteger(summary.CacheReuse.CacheWrite),
-		formatStatsSummaryInteger(summary.CacheReuse.LogicalInput),
-		formatStatsSummarySharePercent(summary.CacheReuse.CachedInputShare))
-	fmt.Fprintf(tw, "\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-		formatStatsSummaryPromptCacheTokenHitRatePercent(rate),
-		rate.State,
-		formatStatsSummaryOptionalString(rate.Reason),
-		rate.Kind,
-		rate.Source,
-		rate.Runtime,
-		rate.RuntimeVersion,
-		formatStatsSummaryOptionalString(rate.Provider),
-		formatStatsSummaryOptionalString(rate.Model),
-		rate.TemporalScope.Scope,
-		formatStatsSummaryInteger(rate.RawBuckets.UncachedInput),
-		formatStatsSummaryInteger(rate.RawBuckets.CacheRead),
-		formatStatsSummaryInteger(rate.RawBuckets.CacheWrite),
-		formatStatsSummaryInteger(rate.LogicalInput),
-		formatStatsSummaryUSD(reported.Value),
-		reported.State,
-		formatStatsSummaryReasons(reported.Reasons),
-		reported.Source,
-		formatStatsSummaryUSD(estimated.Value),
-		formatStatsSummaryOptionalString(estimated.MicroUSD),
-		estimated.State,
-		formatStatsSummaryReasons(estimated.Reasons),
-		formatStatsSummaryOptionalString(estimated.Provider),
-		formatStatsSummaryOptionalString(estimated.Model),
-		estimated.Source,
-		estimated.Pricing.State,
-		formatStatsSummaryOptionalString(estimated.Pricing.RecordSHA256),
-		formatStatsSummaryOptionalString(estimated.Pricing.SourceURL),
-		formatStatsSummaryOptionalString(estimated.Pricing.RetrievedAt))
+	fmt.Fprintln(tw, "WINDOW_SECONDS\tWINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tCONTRIBUTING_MODEL_STEPS")
+	fmt.Fprintln(tw, strings.Join([]string{
+		strconv.FormatFloat(summary.Window.Seconds, 'f', -1, 64),
+		summary.Window.From,
+		summary.Window.To,
+		strconv.Itoa(summary.Calls.TotalWithOutput),
+		strconv.Itoa(summary.Calls.WithCompressedArtifact),
+		strconv.Itoa(summary.Tokens.RawEstimated),
+		strconv.Itoa(summary.Tokens.DeliveredEstimated),
+		formatStatsSummaryPromptCacheTokenHitRatePct(summary.PromptCacheTokenHitRatePct),
+		strconv.Itoa(summary.PromptCacheTokenHitRatePct.ContributingModelSteps),
+	}, "\t"))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
 }
 
@@ -1713,53 +807,11 @@ func formatStatsBreakdownOptional(value *string) string {
 	return *value
 }
 
-func formatStatsSummaryInteger(measurement statsSummaryIntegerMeasurement) string {
-	if measurement.State == statsSummaryMeasured && measurement.Value != nil {
-		return measurement.Value.String()
+func formatStatsSummaryPromptCacheTokenHitRatePct(hitRate statsSummaryPromptCacheTokenHitRatePct) string {
+	if hitRate.State != statsSummaryMeasured || hitRate.Value == nil {
+		return hitRate.State
 	}
-	return measurement.State
-}
-
-func formatStatsSummarySharePercent(measurement statsSummaryShareMeasurement) string {
-	if measurement.State == statsSummaryMeasured && measurement.Value != nil {
-		return strconv.FormatFloat(*measurement.Value*100, 'f', 2, 64)
-	}
-	return measurement.State
-}
-
-func formatStatsSummaryPromptCacheTokenHitRatePercent(rate statsSummaryPromptCacheTokenHitRate) string {
-	if rate.State == statsSummaryMeasured && rate.Value != nil {
-		return strconv.FormatFloat(*rate.Value*100, 'f', 2, 64)
-	}
-	return rate.State
-}
-
-func formatStatsSummaryUSD(value *float64) string {
-	if value == nil {
-		return "-"
-	}
-	return strconv.FormatFloat(*value, 'g', -1, 64)
-}
-
-func formatStatsSummaryReasons(reasons []string) string {
-	if len(reasons) == 0 {
-		return "-"
-	}
-	return strings.Join(reasons, ",")
-}
-
-func formatStatsSummaryOptionalString(value *string) string {
-	if value == nil {
-		return "-"
-	}
-	return *value
-}
-
-func formatStatsObservedSpan(seconds *float64) string {
-	if seconds == nil {
-		return "-"
-	}
-	return strconv.FormatFloat(*seconds, 'f', -1, 64)
+	return strconv.FormatFloat(*hitRate.Value, 'f', -1, 64)
 }
 
 // printStatsHelp writes the `ktx stats` help.
@@ -1799,55 +851,27 @@ func printStatsHelp(w io.Writer) {
 }
 
 func printStatsSummaryHelp(w io.Writer) {
-	fmt.Fprintln(w, "ktx stats summary — fixed-shape trailing-window aggregates")
+	fmt.Fprintln(w, "ktx stats summary — compact trailing-window aggregates")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx stats summary [--window DURATION] [--format text|json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Counts calls with non-NULL output and an RFC3339 timestamp in the inclusive")
-	fmt.Fprintln(w, "[now-window, now] interval. Rates use the full configured window duration.")
+	fmt.Fprintln(w, "[now-window, now] interval.")
 	fmt.Fprintln(w, "Each call uses its earliest retained compressed artifact; equal timestamps use")
 	fmt.Fprintln(w, "the lexicographically smallest artifact ID. Calls without one use raw output.")
-	fmt.Fprintln(w, "The fixed-shape response contains window, call, aggregate outcome, token, provider")
-	fmt.Fprintln(w, "prompt/prefix-cache token, runtime-reported-cost, and API-equivalent estimated-cost views.")
-	fmt.Fprintln(w, "Outcomes use the same call population: is_error=false is success, true is error,")
-	fmt.Fprintln(w, "and missing/invalid is unknown; exit_code is diagnostic only. Known is success+error;")
-	fmt.Fprintln(w, "total is known+unknown. Error rate is error/known; coverage is known/total.")
-	fmt.Fprintln(w, "Empty percentages are null/-; all-unknown is null/- error and 0 coverage.")
-	fmt.Fprintln(w, "Use 'ktx stats breakdown' for diagnostic delivery groups.")
-	fmt.Fprintln(w, "Accepted OpenCode 1.18.5 model steps use their captured_at timestamp in the")
-	fmt.Fprintln(w, "same interval. The report includes first/last contributing capture, observed")
-	fmt.Fprintln(w, "span, session count, and model-step count. Requested-window coverage is")
-	fmt.Fprintln(w, "unavailable (collector_lifecycle_evidence_unavailable); the evidence scope is")
-	fmt.Fprintln(w, "the observed_subset of provider prompt/prefix-cache tokens, not filesystem,")
-	fmt.Fprintln(w, "memory, database, HTTP, or other I/O caching. Cache token totals require every")
-	fmt.Fprintln(w, "contributing value to be measured. PROMPT_CACHE_TOKEN_HIT_RATE_PCT is the")
-	fmt.Fprintln(w, "token-weighted cache_read / (uncached_input + cache_read + cache_write) rate")
-	fmt.Fprintln(w, "from runtime-emitted model-step telemetry. It is available only for one")
-	fmt.Fprintln(w, "runtime-emitted provider/model population. Missing or mixed identity, missing")
-	fmt.Fprintln(w, "or malformed buckets, zero logical input, and unsupported runtime/version stay")
-	fmt.Fprintln(w, "unavailable with a machine-readable reason. A measured zero stays measured.")
-	fmt.Fprintln(w, "It is not an I/O-cache rate, provider request hit rate, or evidence of provider")
-	fmt.Fprintln(w, "TTL, eviction, eligibility, isolation, or prefix composition. The cached-input")
-	fmt.Fprintln(w, "share remains a separate token share, not a provider hit rate.")
-	fmt.Fprintln(w, "RUNTIME_REPORTED_COST_USD is the sum of runtime-emitted cost fields. It keeps")
-	fmt.Fprintln(w, "a literal zero measured. Identity, token, pricing, and runtime-accounting")
-	fmt.Fprintln(w, "failures never replace or populate it. Its billing semantics remain unavailable.")
-	fmt.Fprintln(w, "API_EQUIVALENT_ESTIMATED_COST_USD is a separate price-derived USD estimate, never")
-	fmt.Fprintln(w, "a reported-cost repair. It requires one runtime-emitted provider/model identity")
-	fmt.Fprintln(w, "and complete uncached-input, cache-read, cache-write, output, and reasoning")
-	fmt.Fprintln(w, "tokens for every OpenCode 1.18.5 model step. It reads only the retained local")
-	fmt.Fprintln(w, "price record; it does not fetch prices or backfill identity from configuration.")
-	fmt.Fprintln(w, "Each estimate rounds per model step to micro-USD before exact aggregation. The")
-	fmt.Fprintln(w, "JSON view includes formula, components, identity groups, selected rates, and")
-	fmt.Fprintln(w, "pricing-record provenance. Mixed identities retain independent group views but")
-	fmt.Fprintln(w, "leave the aggregate estimate unavailable with ordered reasons.")
+	fmt.Fprintln(w, "The closed response contains window, call totals, estimated token totals, and")
+	fmt.Fprintln(w, "prompt_cache_token_hit_rate_pct. In percentage units it is 0 to 100 when measured;")
+	fmt.Fprintln(w, "measured zero stays 0, and unavailable states keep their state with a null value.")
+	fmt.Fprintln(w, "contributing_model_steps is a count. This is token-weighted runtime reporting,")
+	fmt.Fprintln(w, "not a provider request hit rate or cache-internal claim.")
+	fmt.Fprintln(w, "Use 'ktx stats breakdown' for delivery diagnostics.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 7 JSON object")
-	fmt.Fprintln(w, "  text            same current fields in one row; no separate schema version")
+	fmt.Fprintln(w, "  json (default)  schema_version 8 JSON object")
+	fmt.Fprintln(w, "  text            one literal header and row; no separate schema version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 }

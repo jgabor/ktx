@@ -100,12 +100,17 @@ the two unchanged failed historical archives are recorded in
 `docs/cache-reuse-live-validation.md`. Duplicate handling is regression-tested;
 no duplicate callback occurred live in v3.
 
+Current prompt-cache comparisons use methodology v6 and emit summary schema 5
+under `cache-reuse-v2`. Claims about provider-internal behavior remain forbidden.
+Methodology v5, summary schemas 1–4, `cache-reuse-v1`, and the retained v3 result
+remain historical evidence.
+
 ```bash
 ./build/ktx bench compare --preflight --build --format json
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \

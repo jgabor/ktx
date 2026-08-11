@@ -405,88 +405,30 @@ func TestEstimateAPICostReasoningRateAndOutputFallback(t *testing.T) {
 	}
 }
 
-func TestEstimateAPIEquivalentCostReportsOrderedAvailabilityAndRateProvenance(t *testing.T) {
-	input, output, reasoning, cacheRead, cacheWrite := 100.0, 10.0, 3.0, 5.0, 0.0
-	cacheRate := 0.25
-	price := Price{Input: 2, Output: 4, CacheRead: &cacheRate, InputSet: true, OutputSet: true}
-	estimate := EstimateAPIEquivalentCost(APIEquivalentCostInputs{
-		UncachedInput: &input, Output: &output, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite,
-	}, price)
-	if estimate.Cost == nil || *estimate.Cost != 0.000253 || estimate.RateSelection == nil {
-		t.Fatalf("estimate = %#v", estimate)
+func TestEstimateAPICostDetailsRetainsAvailabilityReasons(t *testing.T) {
+	result := EstimateAPICostDetails(EstimatedCostInputs{UncachedInput: 10, Output: 1}, Price{Input: 1, Output: 1, InputSet: true, OutputSet: true})
+	if result.Value != nil {
+		t.Fatalf("missing inputs estimate = %v, want nil", *result.Value)
 	}
-	if estimate.MicroUSD == nil || estimate.MicroUSD.String() != "253" {
-		t.Fatalf("estimate micro-USD = %#v", estimate.MicroUSD)
+	want := []string{"reasoning_unavailable", "cache_read_unavailable", "cache_write_unavailable"}
+	if len(result.AvailabilityReasons) != len(want) {
+		t.Fatalf("availability reasons = %v, want %v", result.AvailabilityReasons, want)
 	}
-	selection := estimate.RateSelection
-	if selection.Basis != "base" || selection.ContextTokenCount != 105 || selection.ReasoningRatePolicy != "output_rate_fallback" || selection.ReasoningUSDPerMillion != 4 {
-		t.Fatalf("rate selection = %#v", selection)
-	}
-
-	estimate = EstimateAPIEquivalentCost(APIEquivalentCostInputs{UncachedInput: &input, Output: nil, Reasoning: nil, CacheRead: nil, CacheWrite: &cacheWrite}, price)
-	want := []APIEquivalentCostUnavailableReason{
-		APIEquivalentCostOutputUnavailable, APIEquivalentCostReasoningUnavailable, APIEquivalentCostCacheReadUnavailable,
-	}
-	if estimate.Cost != nil || len(estimate.UnavailableReasons) != len(want) {
-		t.Fatalf("unavailable estimate = %#v", estimate)
-	}
-	for index, reason := range want {
-		if estimate.UnavailableReasons[index] != reason {
-			t.Fatalf("reason[%d] = %q, want %q", index, estimate.UnavailableReasons[index], reason)
+	for index := range want {
+		if result.AvailabilityReasons[index] != want[index] {
+			t.Fatalf("availability reasons = %v, want %v", result.AvailabilityReasons, want)
 		}
 	}
 
-	cacheRead = 5
-	price.CacheRead = nil
-	estimate = EstimateAPIEquivalentCost(APIEquivalentCostInputs{
-		UncachedInput: &input, Output: &output, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite,
-	}, price)
-	if estimate.Cost != nil || len(estimate.UnavailableReasons) != 1 || estimate.UnavailableReasons[0] != APIEquivalentCostCacheReadPriceUnavailable {
-		t.Fatalf("missing cache rate estimate = %#v", estimate)
+	reasoning, cacheRead, cacheWrite := int64(0), int64(1), int64(0)
+	nonfinite := math.Inf(1)
+	result = EstimateAPICostDetails(EstimatedCostInputs{UncachedInput: 10, Output: 1, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}, Price{Input: 1, Output: 1, CacheRead: &nonfinite, InputSet: true, OutputSet: true})
+	if result.Value != nil || len(result.AvailabilityReasons) != 1 || result.AvailabilityReasons[0] != "pricing_cache_read_nonfinite" {
+		t.Fatalf("nonfinite rate result = %#v", result)
 	}
-}
-
-func TestEstimateAPIEquivalentCostRejectsNonfiniteAndOverflowedTokens(t *testing.T) {
-	one := 1.0
-	price := Price{Input: 1, Output: 1, InputSet: true, OutputSet: true}
-	inputs := APIEquivalentCostInputs{UncachedInput: &one, Output: &one, Reasoning: &one, CacheRead: &one, CacheWrite: &one}
-	for _, test := range []struct {
-		name   string
-		mutate func(*APIEquivalentCostInputs)
-		want   APIEquivalentCostUnavailableReason
-	}{
-		{
-			name: "nonfinite token",
-			mutate: func(in *APIEquivalentCostInputs) {
-				value := math.Inf(1)
-				in.Output = &value
-			},
-			want: APIEquivalentCostOutputNonfinite,
-		},
-		{
-			name: "negative token",
-			mutate: func(in *APIEquivalentCostInputs) {
-				value := -1.0
-				in.Reasoning = &value
-			},
-			want: APIEquivalentCostReasoningInvalid,
-		},
-		{
-			name: "context token overflow",
-			mutate: func(in *APIEquivalentCostInputs) {
-				value := math.Exp2(62)
-				in.UncachedInput, in.CacheRead, in.CacheWrite = &value, &value, &one
-			},
-			want: APIEquivalentCostContextTokenOverflow,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			input := inputs
-			test.mutate(&input)
-			estimate := EstimateAPIEquivalentCost(input, price)
-			if estimate.Cost != nil || estimate.MicroUSD != nil || len(estimate.UnavailableReasons) == 0 || estimate.UnavailableReasons[0] != test.want {
-				t.Fatalf("estimate = %#v, want %q", estimate, test.want)
-			}
-		})
+	cacheRead = 0
+	result = EstimateAPICostDetails(EstimatedCostInputs{UncachedInput: 10, Output: 1, Reasoning: &reasoning, CacheRead: &cacheRead, CacheWrite: &cacheWrite}, Price{Input: 1, Output: 1, CacheRead: &nonfinite, InputSet: true, OutputSet: true})
+	if result.Value == nil || len(result.AvailabilityReasons) != 0 {
+		t.Fatalf("zero cache count should not consume a nonfinite cache rate: %#v", result)
 	}
 }

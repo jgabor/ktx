@@ -91,41 +91,9 @@ access and never create or migrate persistent state. Write-capable commands may
 create a database and transactionally migrate an older supported schema. If a
 query reports `schema-migration-required`, run `ktx db migrate`. See the
 [database safety contract](docs/database-safety.md) for command classes,
-hermetic development, and seeded migration rehearsal. The
-[critical-path performance and availability contract](docs/critical-path-performance.md)
-keeps component, process, product, and concurrency evidence distinct and defines
-hook acceptance and database-unavailable behavior. Recover from a database newer
-than the binary by installing a binary that supports that schema or newer. Never
-lower `PRAGMA user_version`.
-
-### Live prompt-cache token hit rate
-
-`ktx stats summary --format json` emits schema 7. Its
-`prompt_cache_token_hit_rate` is a token-weighted rate:
-`cache_read / (uncached_input + cache_read + cache_write)`. The text view renders
-it as `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`. It is measured only for complete,
-non-negative OpenCode 1.18.5 buckets from one runtime-emitted provider/model
-population. It preserves zero cache read as a measured zero rate and otherwise
-reports a machine-readable unavailable reason. The result includes raw buckets,
-runtime/provider/model scope, and observed-subset temporal scope.
-It is not a provider request hit rate.
-It is not filesystem, memory, database, HTTP, or other I/O caching.
-See the [pipeline runbook](docs/pipelines.md#residual-waste-discovery) for the
-complete contract and claim limits.
-
-### Live cost views
-
-Schema 7 also keeps two live cost views separate. `runtime_reported_cost_usd`
-is only the runtime-emitted cost evidence. A literal `0` remains measured, even
-when an estimate is nonzero. `api_equivalent_estimated_cost_usd` is a distinct,
-cache-aware API price estimate that requires runtime-emitted provider/model
-identity, all five token buckets (uncached input, cache read, cache write, output,
-and reasoning), and a retained local price record. It never fills reported cost,
-backfills identity from configuration, fetches pricing, or claims billing meaning.
-The JSON output includes exact micro-USD aggregation, components, selected rates,
-pricing-record provenance, and separate identity groups when an aggregate cannot
-truthfully pool models. The text view labels the columns
-`RUNTIME_REPORTED_COST_USD` and `API_EQUIVALENT_ESTIMATED_COST_USD`.
+hermetic development, and seeded migration rehearsal. Recover from a database
+newer than the binary by installing a binary that supports that schema or newer.
+Never lower `PRAGMA user_version`.
 
 ## Benchmarking
 
@@ -134,7 +102,11 @@ pipelines, tasks, methodologies, and corpus fixtures live under
 [`tools/bench`](tools/bench).
 
 A cache-aware live comparison separates cold observation, warm-up, and measured
-attempts:
+attempts. The current opt-in path uses methodology v6, summary schema 5, and
+`cache-reuse-v2` to report the token-weighted prompt-cache hit rate under the
+pinned contract. It does not authorize provider-request or provider-internal
+cache claims; methodology v5, schema 4, and `cache-reuse-v1` remain historical
+evidence.
 
 ```bash
 ./build/ktx bench compare --preflight --format json
@@ -143,7 +115,7 @@ attempts:
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/methodology-v5-cache-aware.yaml \
+  --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task-file tools/bench/tasks/crossfile-nav-v1.toml \
@@ -176,24 +148,6 @@ summaries. Validate retained evidence with:
 ```bash
 ktx bench validate --experiment .bench-data/<experiment-id>
 ```
-
-Future prompt-cache token hit-rate summaries are opt-in through
-`tools/bench/methodology-v6-prompt-cache-hit-rate.yaml`. Its explicit
-`cache-reuse-v2` manifest marker produces schema 5. Each side rate is
-`sum(cache_read) / sum(uncached_input + cache_read + cache_write)` over the
-accepted complete pairs, not an average of attempt rates. The comparison also
-publishes the percentage-point delta, a deterministic whole-pair bootstrap
-interval, quality, blockers, and raw evidence. It can render only an authorized
-higher or lower token-weighted prompt-cache hit rate. It does not report
-provider-internal state or request-hit, TTL, eviction, eligibility, isolation,
-or prefix behavior. Existing benchmark artifacts remain on their retained
-schemas and contracts.
-
-Recommendation also requires quality-preserving `pipeline_acceptance`: the
-candidate must have a strictly lower API-equivalent estimated cost per correct
-without reducing same-pair mean fact score or full-pass rate. A valid rejected
-candidate remains evidence but is not eligible for recommendation or crown
-selection.
 
 The [retained runtime compression telemetry report](docs/runtime-compression-telemetry-evidence.md)
 shows one historical ten-attempt comparison, its field-by-field availability,
@@ -281,17 +235,11 @@ mage verify        # authoritative local and CI verification
 mage build         # build build/ktx
 ```
 
-For retained, descriptive component and contention reports outside product
-SQLite, choose a new directory and run:
-
-```bash
-KTX_ENGINEERING_EVIDENCE_DIR="$PWD/docs/notes/engineering-run" mage engineeringVerify
-```
-
-This extended developer path retains report and manifest files. It does not add
-a timing gate, replace `mage check`, or change `ktx bench` evidence. It does
-require load-report correctness, exact reconciliation, and supported-lock
-checks.
+For optional extended engineering evidence, run
+`KTX_ENGINEERING_EVIDENCE_DIR=<new-directory> mage engineeringVerify` with a
+new directory. It retains a hash manifest and requires correctness, exact
+reconciliation, and supported-lock checks; it does not add a timing gate or
+replace `mage check`.
 
 `mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`, and
 the portable replay gate. Tracked CI runs this same command on every push and

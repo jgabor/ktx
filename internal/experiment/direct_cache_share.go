@@ -1,24 +1,37 @@
 package experiment
 
-import (
-	"math/big"
-
-	"github.com/jgabor/ktx/internal/cachemetric"
-)
+import "math/big"
 
 const (
-	directCacheContractVersion = "cache-reuse-v1"
-	directCacheRuntime         = "opencode"
-	directCacheRuntimeVersion  = "1.18.5"
+	directCacheContractVersion                = "cache-reuse-v1"
+	promptCacheTokenHitRateContractVersion    = "cache-reuse-v2"
+	promptCacheTokenHitRateMethodologyVersion = "v6-prompt-cache-token-hit-rate"
+	directCacheRuntime                        = "opencode"
+	directCacheRuntimeVersion                 = "1.18.5"
 )
+
+func cacheAwareMethodology(version string) bool {
+	return version == "v5-cache-aware" || version == promptCacheTokenHitRateMethodologyVersion
+}
 
 func supportsDirectCachedInputShare(manifest Manifest) bool {
 	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 4) &&
-		manifest.Methodology.Version == cacheAwareMethodologyV5 &&
-		manifest.Methodology.CacheMetricContract == "" &&
+		manifest.Methodology.Version == "v5-cache-aware" &&
 		manifest.CacheControl != nil &&
 		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
 		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
+}
+
+func supportsPromptCacheTokenHitRate(manifest Manifest) bool {
+	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 5) &&
+		manifest.Methodology.Version == promptCacheTokenHitRateMethodologyVersion &&
+		manifest.CacheControl != nil &&
+		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
+		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
+}
+
+func supportsCacheTokenMetric(manifest Manifest) bool {
+	return supportsDirectCachedInputShare(manifest) || supportsPromptCacheTokenHitRate(manifest)
 }
 
 func buildDirectCachedInputShare(manifest Manifest, attempts []Attempt) map[string]any {
@@ -63,9 +76,11 @@ func directCachedInputShareAttempt(manifest Manifest, attempt Attempt) map[strin
 		uncached := measurements["uncached_input"]["value"].(*big.Int)
 		read := measurements["cache_read"]["value"].(*big.Int)
 		write := measurements["cache_write"]["value"].(*big.Int)
-		logical, ratio, measured := cachemetric.PromptCacheTokenHitRate(uncached, read, write)
+		logical := new(big.Int).Add(uncached, read)
+		logical.Add(logical, write)
 		logicalInput = measuredDirectInteger(logical)
-		if measured {
+		if logical.Sign() > 0 {
+			ratio := new(big.Rat).SetFrac(read, logical)
 			value, _ := ratio.Float64()
 			share = map[string]any{"state": "measured", "value": value, "ratio": ratio.RatString()}
 		} else {

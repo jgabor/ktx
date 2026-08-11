@@ -1,0 +1,16 @@
+id: vfttbeueas
+artifact: progress
+record:
+  timestamp: 2026-08-09 17:16
+  type: feat
+  phase: build
+  what: Published schema 7 live prompt-cache token hit-rate evidence from trusted runtime model-step telemetry.
+  context:
+    intent: Publish a truthful live prompt-cache token hit rate without inferring provider-request or cache-internal behavior.
+    constraints: Preserve the audited trusted-source and runtime-emitted identity boundary; do not add a migration, configured-identity backfill, historical rewrite, or benchmark contract change.
+    unknowns: No ambient or paid live telemetry was inspected; only synthetic focused coverage was used.
+    scope: Stats summary schema 7, text/help/current documentation, focused behavior and compatibility coverage, and no task lifecycle transition.
+  discovered: The former schema 6 cache share exposed raw buckets and coverage separately but did not bind the rate's formula, token-weighted kind, runtime source, raw buckets, and temporal scope into one versioned metric.
+  verified: "PASS: `go test ./internal/cli -run '^(TestStatsWindowLogic|TestOutcomeReportContractsPublishCurrentSchemasAndDenominators)$' -count=1` covers measured 3/4, measured zero, missing/mixed identity, incomplete, malformed, legacy-source exclusion, no telemetry mutation, schema-7 keys, text, help, and docs; `go test ./internal/db ./internal/cli -count=1` passed; `gofmt -d internal/cli/stats.go internal/cli/stats_test.go internal/cli/contract_sync_test.go` and `git diff --check` produced no output; `mage build` passed; the rebuilt `./build/ktx stats summary --help` and JSON/text empty-summary smoke emitted schema 7, `prompt_cache_token_hit_rate`, `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, the exact formula, token_weighted kind, runtime-emitted source, observed_subset temporal scope, and request/I-O exclusions. Every verification invocation used `env -u KTX_DB` with fresh HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, and XDG_STATE_HOME paths. No migration or retained telemetry rewrite occurred."
+  next: Leave lofszlmrop pending for Prime's evaluation and writer-owned completion transition.
+  publication_order: 67

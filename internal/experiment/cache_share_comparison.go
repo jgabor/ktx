@@ -4,7 +4,6 @@ import (
 	"math"
 	"math/big"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
@@ -145,7 +144,7 @@ func buildCachedInputShareComparison(manifest Manifest, attempts []Attempt) map[
 	blocking = appendUnique(blocking, protocolReasons...)
 	blocking = orderComparisonReasons(blocking)
 	return map[string]any{
-		"contract_version": cacheMetricContractVersion(manifest), "purpose": "controlled_descriptive_non_ranking",
+		"contract_version": directCacheContractVersion, "purpose": "controlled_descriptive_non_ranking",
 		"setup": map[string]any{"excluded_from_comparison": true, "observations": setup},
 		"protocol": map[string]any{
 			"expected_phase": MeasuredWarm, "pairing_unit": "cycle", "execution_policy": manifest.PipelineExecutionPolicy,
@@ -176,9 +175,6 @@ func compareCacheAttempt(manifest Manifest, attempt Attempt) comparedCacheAttemp
 		}
 	}
 	identityReason := runtimeIdentityReason(manifest, attempt)
-	if supportsPromptCacheTokenHitRate(manifest) {
-		identityReason = promptCacheTokenHitRateIdentityReason(manifest, attempt)
-	}
 	if identityReason != "" {
 		reasons = appendUnique(reasons, identityReason)
 	}
@@ -303,33 +299,6 @@ func runtimeIdentityReason(manifest Manifest, attempt Attempt) string {
 	configuredProvider, configuredModel, err := splitModel(manifest.Model)
 	if err != nil || !providers[configuredProvider] || !models[configuredModel] {
 		return "runtime_emitted_identity_conflict"
-	}
-	return ""
-}
-
-func promptCacheTokenHitRateIdentityReason(manifest Manifest, attempt Attempt) string {
-	provider, model, err := splitModel(manifest.Model)
-	if err != nil || manifest.CacheControl == nil || manifest.CacheControl.Provider != provider ||
-		manifest.CacheControl.Model != manifest.Model || manifest.CacheControl.RuntimeVersion != directCacheRuntimeVersion ||
-		manifest.Identities[directCacheRuntime] != directCacheRuntimeVersion {
-		return "identity_provenance_unstable"
-	}
-	steps := 0
-	for _, event := range attempt.ModelSteps {
-		if event.Kind != ModelStep {
-			continue
-		}
-		steps++
-		if event.Identity.Runtime == nil || event.Identity.Provider == nil || event.Identity.Model == nil ||
-			strings.TrimSpace(*event.Identity.Runtime) == "" || strings.TrimSpace(*event.Identity.Provider) == "" || strings.TrimSpace(*event.Identity.Model) == "" {
-			return "runtime_emitted_identity_missing"
-		}
-		if *event.Identity.Runtime != directCacheRuntime || *event.Identity.Provider != provider || *event.Identity.Model != model {
-			return "runtime_emitted_identity_conflict"
-		}
-	}
-	if steps == 0 {
-		return "runtime_emitted_identity_missing"
 	}
 	return ""
 }
@@ -526,7 +495,7 @@ func comparisonSecondaryEstimate(attempts []Attempt) map[string]any {
 
 func comparisonBlockingReasons(manifest Manifest, pairs int, stats, quality map[string]any) []string {
 	reasons := []string{}
-	if !supportsCacheMetricComparison(manifest) {
+	if !supportsCacheTokenMetric(manifest) {
 		return []string{"unsupported_runtime_accounting"}
 	}
 	if pairs < 5 {
@@ -546,7 +515,7 @@ func comparisonBlockingReasons(manifest Manifest, pairs int, stats, quality map[
 
 var comparisonReasonPrecedence = []string{
 	"unsupported_runtime_accounting", "direct_evidence_incomplete", "cycle_pair_incomplete", "protocol_noncompliant",
-	"identity_provenance_unstable", "runtime_emitted_identity_missing", "runtime_emitted_identity_conflict", "fewer_than_five_complete_pairs",
+	"identity_provenance_unstable", "runtime_emitted_identity_conflict", "fewer_than_five_complete_pairs",
 	"two_sided_95_percent_interval_unavailable", "two_sided_95_percent_interval_contains_zero", "quality_not_preserved",
 }
 

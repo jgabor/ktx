@@ -12,12 +12,12 @@ record:
     - GIVEN measured and unavailable identity cases WHEN verified THEN both pass their focused behavioral tests.
   plan: bigjhadugb
   evaluation:
-    attempt_count: 1
-    failure_count: 0
+    attempt_count: 2
+    failure_count: 1
     last_verdict: pass
-    last_failure_evidence: null
+    last_failure_evidence: Legacy source rows with persisted provider/model can still yield a measured live cache share, historically reinterpreting non-runtime-emitted identity; docs/pipelines.md also omits the identity prerequisite and exact unavailable reasons.
     provenance:
-      attempt_id: audit-1
-      source: "Independent Audit review: acceptance criteria and isolated cli/db tests passed; no correction required."
-      recorded_at: 2026-08-09 16:43
+      attempt_id: oixzlpbdav-audit-2
+      source: audit:ses_019130360ffeAtZ9B971GiaQje
+      recorded_at: 2026-08-09 16:52
       writer_command: agentera state plan record-evaluation

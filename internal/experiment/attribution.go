@@ -25,7 +25,7 @@ func newDeliveryEvidence(databasePath string, rows []dbpkg.DeliveryObservation) 
 
 func buildCompressionAttribution(manifest Manifest, attempts []Attempt) map[string]any {
 	logicalInputFormula := "uncached_input + cache_read"
-	if supportsDirectCachedInputShare(manifest) {
+	if supportsCacheTokenMetric(manifest) {
 		logicalInputFormula = "uncached_input + cache_read + cache_write"
 	}
 	classes := map[string]any{

@@ -2,7 +2,6 @@ package experiment
 
 import (
 	"fmt"
-	"math/big"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -68,7 +67,6 @@ func pairedMetric(summary map[string]any, field string) *float64 {
 
 func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map[string]any {
 	rows := []map[string]any{}
-	hasPipelineAcceptance := false
 	var baseline map[string]any
 	for _, pair := range pairs {
 		if pair.Summary != nil {
@@ -116,6 +114,11 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 			}
 		}
 		if pair.Summary != nil {
+			if accepted, reasons, guarded := pipelineCostGuardAcceptance(pair.Summary); guarded {
+				row["accepted"] = accepted
+				row["acceptance_reasons"] = reasons
+				row["recommendation_eligible"] = accepted
+			}
 			row["pair_tool_call_inflation"] = pair.Summary["tool_call_inflation"]
 			if schemaVersion, _ := pair.Summary["schema_version"].(int); schemaVersion >= 3 {
 				row["paired_mean_tokens_saved_vs_baseline"] = pairedMetric(pair.Summary, "tokens_in")
@@ -125,22 +128,15 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 				paired, _ := pair.Summary["paired_baseline_minus_candidate"].(map[string]any)
 				row["paired_sample_classification"] = paired["sample_classification"]
 			}
-			if schemaVersion, _ := pair.Summary["schema_version"].(int); schemaVersion >= 5 {
-				row["prompt_cache_token_hit_rate_comparison"] = promptCacheTokenHitRateRankingComparison(pair.Summary)
-				if acceptance := anyMap(pair.Summary["pipeline_acceptance"]); len(acceptance) > 0 {
-					hasPipelineAcceptance = true
-					accepted := acceptance["accepted"] == true
-					row["pipeline_acceptance"] = acceptance
-					row["accepted"] = accepted
-					row["recommendation_eligible"] = accepted
-					row["crown_eligible"] = accepted
-				}
-			}
 		}
 		rows = append(rows, row)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := rows[i], rows[j]
+		leftRejected, rightRejected := rejectedRankingRow(left), rejectedRankingRow(right)
+		if leftRejected != rightRejected {
+			return !leftRejected
+		}
 		lp, rp := summaryValue(left["full_pass_rate"]), summaryValue(right["full_pass_rate"])
 		lclass, rclass := passClass(lp), passClass(rp)
 		if lclass != rclass {
@@ -170,75 +166,34 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 	if options.Variant != "" {
 		result["variant"] = options.Variant
 	}
-	if hasPipelineAcceptance {
-		result["recommendation"] = pipelineAcceptanceRecommendation(rows)
-	}
 	return result
 }
 
-func pipelineAcceptanceRecommendation(rows []map[string]any) map[string]any {
-	type eligibleCandidate struct {
-		pipeline string
-		cost     *big.Int
+func pipelineCostGuardAcceptance(summary map[string]any) (bool, []string, bool) {
+	guard, guarded := summary[pipelineCostGuardField].(map[string]any)
+	if !guarded {
+		switch schema := summary["schema_version"].(type) {
+		case int:
+			if schema >= 5 {
+				return false, []string{"pipeline_cost_guard_unavailable"}, true
+			}
+		case float64:
+			if schema >= 5 {
+				return false, []string{"pipeline_cost_guard_unavailable"}, true
+			}
+		}
+		return false, nil, false
 	}
-	eligible := []eligibleCandidate{}
-	excluded := []any{}
-	for _, row := range rows {
-		if row["side"] != Candidate {
-			continue
-		}
-		acceptance := anyMap(row["pipeline_acceptance"])
-		if len(acceptance) == 0 {
-			continue
-		}
-		pipeline := fmt.Sprint(row["pipeline"])
-		if acceptance["accepted"] != true {
-			excluded = append(excluded, map[string]any{"pipeline": pipeline, "reasons": acceptance["reasons"]})
-			continue
-		}
-		candidate := anyMap(acceptance[Candidate])
-		perCorrect := anyMap(candidate["estimated_cost_per_correct"])
-		microUSD, ok := perCorrect["micro_usd"].(string)
-		cost := new(big.Int)
-		if _, parsed := cost.SetString(microUSD, 10); !ok || !parsed {
-			excluded = append(excluded, map[string]any{"pipeline": pipeline, "reasons": []string{"accepted_cost_projection_unavailable"}})
-			continue
-		}
-		eligible = append(eligible, eligibleCandidate{pipeline: pipeline, cost: cost})
+	accepted, ok := guard["accepted"].(bool)
+	if !ok {
+		return false, []string{"pipeline_cost_guard_unavailable"}, true
 	}
-	sort.Slice(eligible, func(i, j int) bool {
-		if compared := eligible[i].cost.Cmp(eligible[j].cost); compared != 0 {
-			return compared < 0
-		}
-		return eligible[i].pipeline < eligible[j].pipeline
-	})
-	sort.Slice(excluded, func(i, j int) bool {
-		return fmt.Sprint(anyMap(excluded[i])["pipeline"]) < fmt.Sprint(anyMap(excluded[j])["pipeline"])
-	})
-	var selected any
-	if len(eligible) > 0 {
-		selected = eligible[0].pipeline
-	}
-	return map[string]any{
-		"basis":                    "accepted rounded API-equivalent estimated cost per correct",
-		"recommended_pipeline":     selected,
-		"crowned_pipeline":         selected,
-		"eligible_candidate_count": len(eligible),
-		"excluded_candidates":      excluded,
-	}
+	return accepted, stringSlice(guard["reasons"]), true
 }
 
-func promptCacheTokenHitRateRankingComparison(summary map[string]any) map[string]any {
-	comparison := anyMap(summary["prompt_cache_token_hit_rate_comparison"])
-	if len(comparison) == 0 {
-		return nil
-	}
-	return map[string]any{
-		"complete_pair_count": comparison["complete_pair_count"], "baseline_mean": comparison["baseline_mean"],
-		"candidate_mean": comparison["candidate_mean"], "percentage_point_delta": comparison["percentage_point_delta"],
-		"interval": comparison["interval"], "quality": comparison["quality"], "blocking_reasons": comparison["blocking_reasons"],
-		"statement_authorization": summary["prompt_cache_token_hit_rate_statement_authorization"],
-	}
+func rejectedRankingRow(row map[string]any) bool {
+	accepted, guarded := row["accepted"].(bool)
+	return guarded && !accepted
 }
 
 func copyMap(destination, source map[string]any) {
@@ -308,11 +263,10 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["expected_cost_per_correct"], 4), formatSignificant(row["mean_tool_calls"], 3),
 			formatSignificant(row["tool_call_inflation_vs_baseline"], 3)))
 	}
-	if recommendation := anyMap(ranking["recommendation"]); len(recommendation) > 0 {
-		lines = append(lines, fmt.Sprintf("recommendation pipeline=%v crowned_pipeline=%v eligible_candidates=%v", recommendation["recommended_pipeline"], recommendation["crowned_pipeline"], recommendation["eligible_candidate_count"]))
-		for _, raw := range recommendation["excluded_candidates"].([]any) {
-			excluded := anyMap(raw)
-			lines = append(lines, fmt.Sprintf("pipeline_acceptance pipeline=%v accepted=false reasons=%s", excluded["pipeline"], compactJSON(excluded["reasons"])))
+	for _, row := range rows {
+		if _, guarded := row["accepted"]; guarded {
+			lines = append(lines, fmt.Sprintf("acceptance pipeline=%v accepted=%v recommendation_eligible=%v reasons=%s",
+				row["pipeline"], row["accepted"], row["recommendation_eligible"], compactJSON(row["acceptance_reasons"])))
 		}
 	}
 	for _, row := range rows {
@@ -325,16 +279,6 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["paired_mean_cache_read_saved_vs_baseline"], 6),
 			formatSignificant(row["paired_mean_cache_write_saved_vs_baseline"], 6),
 			formatSignificant(row["paired_mean_estimated_api_cost_saved_vs_baseline"], 6)))
-	}
-	for _, row := range rows {
-		comparison := anyMap(row["prompt_cache_token_hit_rate_comparison"])
-		authorization := anyMap(comparison["statement_authorization"])
-		for _, outcomeName := range []string{"higher", "lower"} {
-			outcome := anyMap(anyMap(authorization["outcomes"])[outcomeName])
-			if outcome["authorized"] == true {
-				lines = append(lines, fmt.Sprintf("prompt_cache_token_hit_rate pipeline=%v outcome=%s statement=%s", row["pipeline"], outcomeName, outcome["statement"]))
-			}
-		}
 	}
 	return strings.Join(lines, "\n")
 }

@@ -3,10 +3,9 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Live cost and latency coverage** — Expose runtime-authoritative cost and latency where the runtime supplies them, with explicit provenance, temporal coverage, and measured/unknown/malformed states; report unsupported evidence as unknown. Keep model-step cache and cost evidence separate from `tool_calls`, preserve literal zero, and label API-equivalent cost as an estimate. → [Measurement](ARCHITECTURE.md#measurement)"
   readiness:
     capability: build
-    reason: Expose authoritative cost and latency needed for representative comparison.
+    reason: Expose authoritative latency needed for representative comparison.
     dependencies:
       []
     blocked: null
@@ -17,7 +16,15 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Live cost and latency coverage** — Expose runtime-authoritative cost and latency where the runtime supplies them, with explicit provenance, temporal coverage, and measured/unknown/malformed states; report unsupported evidence as unknown. Keep model-step cache and cost evidence separate from `tool_calls`, preserve literal zero, and label API-equivalent cost as an estimate. → [Measurement](ARCHITECTURE.md#measurement)"
+      description: "[task] Live latency coverage"
       severity: normal
       status: open
       order: 20
+  kind: task
+  target_version: null
+  requirements:
+    - Expose runtime-authoritative latency where the runtime supplies it, with explicit provenance, temporal coverage, and measured/unknown/malformed states; report unsupported evidence as unknown.
+  acceptance:
+    []
+  release_blocker: false
+  title: Live latency coverage

@@ -4,7 +4,7 @@ record:
   header:
     level: light
     created: 2026-08-11
-    status: open
+    status: archived
     title: "Plan: Prototype post-retrieval ktx read ownership release"
   what: Test whether `ktx read` can end supported shared database ownership after fully retrieving a record but before downstream output delivery completes. Avoid the prior full-materialization allocation cost and use the retained focused comparison policy to decide whether to retain or revert the candidate.
   why: Blocked output currently extends database ownership after database work is complete. This can prevent a supported hook from writing and produce `database-unavailable`. The prior candidate fixed that contention but was rejected because it duplicated the complete encoded record.

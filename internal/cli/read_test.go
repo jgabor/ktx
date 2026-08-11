@@ -1,11 +1,8 @@
 // Table-driven tests for `ktx read` (internal/cli/read.go).
 //
-// `ktx read` is the I/O-primitive counterpart to `ktx write` (Decision
-// 2/8): raw JSON output, no --format flag, byte-faithful round-trip
-// from the persisted row. The acceptance contract is exercised by the
-// companion to write_test.go's AC 1: a persisted record fetched by
-// `ktx read` returns the same JSON shape that `ktx write` accepts on
-// stdin.
+// `ktx read` is the I/O-primitive counterpart to `ktx write`: raw JSON
+// output, no --format flag, and byte-faithful round-trip from the persisted
+// row.
 //
 // Coverage:
 //   - tool_call readback (raw JSON, exit 0)
@@ -18,7 +15,11 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -179,4 +180,94 @@ func TestRunReadWith_RoundTrip(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitUsage, stderr.String())
 		}
 	})
+}
+
+type persistThenFailWriter struct {
+	database *dbpkg.DB
+	record   *dbpkg.ToolCall
+	writes   int
+}
+
+func (writer *persistThenFailWriter) Write(_ []byte) (int, error) {
+	writer.writes++
+	if err := writer.database.PersistToolCall(writer.record); err != nil {
+		return 0, fmt.Errorf("persist while read output is being written: %w", err)
+	}
+	return 0, errors.New("injected read output failure")
+}
+
+func TestRunReadWithReleasesDatabaseBeforeOutputFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ktx.db")
+	t.Setenv("KTX_DB", path)
+	database := readTestDB(t)
+	seedToolCall(t, database, "outputreadsrcaaa", "outputfailsessaa")
+
+	writerDatabase, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writerDatabase.Close()
+	failing := &persistThenFailWriter{
+		database: writerDatabase,
+		record: &dbpkg.ToolCall{
+			ID: "outputfailsrcaaa", SessionID: "outputfailsessaa", Tool: "bash",
+			Input: "true", Output: "accepted", ContentHash: dbpkg.ContentHash("accepted"),
+			Timestamp: "2026-08-11T00:00:00Z", EventType: "tool_call",
+		},
+	}
+	var stderr bytes.Buffer
+	if code := runReadWith([]string{"outputreadsrcaaa"}, Options{Format: FormatJSON}, failing, &stderr); code != ExitInternal {
+		t.Fatalf("exit = %d, want %d; stderr=%q", code, ExitInternal, stderr.String())
+	}
+	if failing.writes != 1 {
+		t.Fatalf("output writes = %d, want 1", failing.writes)
+	}
+	stored, err := writerDatabase.GetToolCall("outputfailsrcaaa")
+	if err != nil {
+		t.Fatalf("writer did not proceed during failed output: %v", err)
+	}
+	if stored.Output != "accepted" {
+		t.Fatalf("stored output = %q, want accepted", stored.Output)
+	}
+}
+
+func TestRunWithReadPreservesOlderAndNewerSchemaFailures(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		version     int
+		failureCode ErrorCode
+	}{
+		{name: "older schema requires migration", version: dbpkg.MaxSupportedSchema() - 1, failureCode: CodeSchemaMigration},
+		{name: "newer schema requires a newer binary", version: dbpkg.MaxSupportedSchema() + 1, failureCode: CodeSchemaIncompatible},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			path := filepath.Join(directory, "ktx.db")
+			seedSchemaVersion(t, path, test.version)
+			t.Setenv("KTX_DB", path)
+			before := directorySnapshot(t, directory)
+
+			var stdout, stderr bytes.Buffer
+			if code := runWith([]string{"read", "abcdefghijklmnop"}, &stdout, &stderr); code != ExitSchemaIncompatible {
+				t.Fatalf("exit = %d, want %d; stdout=%q stderr=%q", code, ExitSchemaIncompatible, stdout.String(), stderr.String())
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty", stdout.String())
+			}
+			var envelope struct {
+				Error struct {
+					Code ErrorCode `json:"code"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode error: %v\nstderr=%s", err, stderr.String())
+			}
+			if envelope.Error.Code != test.failureCode {
+				t.Fatalf("error code = %q, want %q", envelope.Error.Code, test.failureCode)
+			}
+			if after := directorySnapshot(t, directory); !reflect.DeepEqual(after, before) {
+				t.Fatalf("read changed schema storage:\nbefore=%#v\nafter=%#v", before, after)
+			}
+		})
+	}
 }

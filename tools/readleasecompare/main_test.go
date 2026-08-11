@@ -14,6 +14,9 @@ func TestCompareUsesExplicitMappingAndCandidateOnlyTarget(t *testing.T) {
 	if report.MeasurementVerdict != "retain" || report.Decision != "retain" || report.RerunAllowed {
 		t.Fatalf("verdict = measurement %q decision %q rerun %t", report.MeasurementVerdict, report.Decision, report.RerunAllowed)
 	}
+	if report.SchemaVersion != 2 || report.PolicyVersion != "read-lease-v2" {
+		t.Fatalf("schema/policy = %d/%q", report.SchemaVersion, report.PolicyVersion)
+	}
 	if len(report.Metrics) != 15 {
 		t.Fatalf("metric count = %d, want 15", len(report.Metrics))
 	}
@@ -26,7 +29,7 @@ func TestCompareUsesExplicitMappingAndCandidateOnlyTarget(t *testing.T) {
 	}
 }
 
-func TestCompareNoiseIsInconclusiveOnce(t *testing.T) {
+func TestCompareSequenceOneNoiseAllowsOneRerun(t *testing.T) {
 	runs := testRuns([]float64{90, 100, 110, 120, 130}, []float64{100, 100, 100, 100, 100}, true)
 	first, err := compare(runs, append([]string(nil), requiredOrder...), 1, nil)
 	if err != nil {
@@ -35,12 +38,61 @@ func TestCompareNoiseIsInconclusiveOnce(t *testing.T) {
 	if first.MeasurementVerdict != "inconclusive" || !first.RerunAllowed || first.Decision != "inconclusive" {
 		t.Fatalf("first sequence = %#v", first)
 	}
-	second, err := compare(runs, append([]string(nil), requiredOrder...), 2, nil)
+	if first.Metrics[0].AllowedMaximum == nil {
+		t.Fatalf("noisy lower metric omitted its allowed maximum: %#v", first.Metrics[0])
+	}
+}
+
+func TestCompareSequenceTwoNoiseWithinAllowanceRetainsWithoutAuthorization(t *testing.T) {
+	runs := testRuns([]float64{90, 100, 110, 120, 130}, []float64{100, 100, 100, 100, 100}, true)
+	second, err := compare(runs, append([]string(nil), requiredOrder...), 2, passingExternalGates())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.MeasurementVerdict != "inconclusive" || second.RerunAllowed || second.Decision != "inconclusive" {
+	if second.MeasurementVerdict != "retain" || second.RerunAllowed || second.Decision != "retain" {
 		t.Fatalf("second sequence = %#v", second)
+	}
+	noisy := 0
+	for _, metric := range second.Metrics {
+		if metric.Status == "pass_non_authorizing_noisy" {
+			noisy++
+		} else if metric.Status != "pass" {
+			t.Fatalf("metric %q status = %q", metric.Name, metric.Status)
+		}
+		if metric.Direction == "lower" && metric.AllowedMaximum == nil {
+			t.Fatalf("metric %q omitted allowed maximum", metric.Name)
+		}
+		if metric.Direction == "higher" && metric.AllowedMinimum == nil {
+			t.Fatalf("metric %q omitted allowed minimum", metric.Name)
+		}
+	}
+	if noisy != 7 {
+		t.Fatalf("non-authorizing noisy timing metrics = %d, want 7", noisy)
+	}
+}
+
+func TestCompareSequenceTwoNoiseBeyondAllowanceRejects(t *testing.T) {
+	runs := testRuns([]float64{90, 100, 110, 120, 130}, []float64{140, 140, 140, 140, 140}, true)
+	report, err := compare(runs, append([]string(nil), requiredOrder...), 2, passingExternalGates())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.MeasurementVerdict != "reject" || report.Decision != "reject" || report.RerunAllowed {
+		t.Fatalf("report = measurement %q decision %q rerun %t", report.MeasurementVerdict, report.Decision, report.RerunAllowed)
+	}
+	if report.Metrics[0].Status != "regression" || report.Metrics[0].AllowedMaximum == nil {
+		t.Fatalf("noisy regression metric = %#v", report.Metrics[0])
+	}
+}
+
+func TestCompareStableRegressionRejects(t *testing.T) {
+	runs := testRuns([]float64{100, 100, 100, 100, 100}, []float64{106, 106, 106, 106, 106}, true)
+	report, err := compare(runs, append([]string(nil), requiredOrder...), 2, passingExternalGates())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Metrics[0].Status != "regression" || report.Decision != "reject" || report.RerunAllowed {
+		t.Fatalf("stable regression report = %#v", report)
 	}
 }
 
@@ -69,23 +121,26 @@ func TestCompareRejectsBlockedCandidateTarget(t *testing.T) {
 }
 
 func TestMetricAllowances(t *testing.T) {
-	lower := metricSpec{name: "latency", direction: "lower", practicalAllowance: 0.05, noiseLimit: 0.05}
-	if result := evaluateMetric(lower, []float64{100, 100, 100, 100, 100}, []float64{106, 106, 106, 106, 106}); result.Status != "regression" {
+	lower := metricSpec{name: "latency", direction: "lower", timing: true, practicalAllowance: 0.05, noiseLimit: 0.05}
+	if result := evaluateMetric(lower, []float64{100, 100, 100, 100, 100}, []float64{106, 106, 106, 106, 106}, 2); result.Status != "regression" {
 		t.Fatalf("latency allowance = %#v", result)
 	}
 	allocation := metricSpec{name: "allocation", direction: "lower", practicalAllowance: 0.10, noiseLimit: 0.05}
-	if result := evaluateMetric(allocation, []float64{100, 100, 100, 100, 100}, []float64{110, 110, 110, 110, 110}); result.Status != "pass" {
+	if result := evaluateMetric(allocation, []float64{100, 100, 100, 100, 100}, []float64{110, 110, 110, 110, 110}, 2); result.Status != "pass" {
 		t.Fatalf("allocation allowance = %#v", result)
 	}
-	p99 := metricSpec{name: "p99", direction: "lower", practicalAllowance: 0.10, noiseLimit: 0.10}
-	if result := evaluateMetric(p99, []float64{100, 100, 100, 100, 100}, []float64{110, 110, 110, 110, 110}); result.Status != "pass" {
+	if result := evaluateMetric(allocation, []float64{90, 100, 110, 120, 130}, []float64{100, 100, 100, 100, 100}, 2); result.Status != "pass" {
+		t.Fatalf("noisy allocation gate = %#v", result)
+	}
+	p99 := metricSpec{name: "p99", direction: "lower", timing: true, practicalAllowance: 0.10, noiseLimit: 0.10}
+	if result := evaluateMetric(p99, []float64{100, 100, 100, 100, 100}, []float64{110, 110, 110, 110, 110}, 2); result.Status != "pass" {
 		t.Fatalf("p99 allowance = %#v", result)
 	}
-	throughput := metricSpec{name: "throughput", direction: "higher", practicalAllowance: 0.05, noiseLimit: 0.05}
-	if result := evaluateMetric(throughput, []float64{100, 100, 100, 100, 100}, []float64{95, 95, 95, 95, 95}); result.Status != "pass" {
+	throughput := metricSpec{name: "throughput", direction: "higher", timing: true, practicalAllowance: 0.05, noiseLimit: 0.05}
+	if result := evaluateMetric(throughput, []float64{100, 100, 100, 100, 100}, []float64{95, 95, 95, 95, 95}, 2); result.Status != "pass" {
 		t.Fatalf("throughput allowance = %#v", result)
 	}
-	if result := evaluateMetric(throughput, []float64{100, 100, 100, 100, 100}, []float64{94, 94, 94, 94, 94}); result.Status != "regression" {
+	if result := evaluateMetric(throughput, []float64{100, 100, 100, 100, 100}, []float64{94, 94, 94, 94, 94}, 2); result.Status != "regression" {
 		t.Fatalf("throughput regression = %#v", result)
 	}
 }

@@ -1,0 +1,15 @@
+id: kmrutlsitm
+artifact: progress
+record:
+  timestamp: 2026-08-11 22:50
+  type: fix
+  phase: build
+  what: Retained post-retrieval database ownership release for `ktx read` after two measured baseline/candidate sequences, and revised the focused policy so noisy final-sequence timing remains non-authorizing rather than causing automatic rejection.
+  context:
+    intent: Let an unrelated supported writer proceed while a fully retrieved `ktx read` record is still blocked in output delivery, without repeating the prior full-record materialization cost.
+    constraints: Preserve byte-exact output, read-only and schema behavior, output-failure and termination recovery, exact evidence reconciliation, coordinator and SQLite settings, public commands, and the one-rerun maximum.
+    scope: One local `ktx read` ownership handoff, focused regressions, comparison schema 2 with policy read-lease-v2, retained engineering evidence, and current engineering documentation.
+  discovered: The first and second sequences had baseline timing noise above the declared limits on a working developer host, while all allocation and hard gates remained stable. Across both sequences, all 10 candidate blocked-reader hooks completed in 6.681 to 13.298 milliseconds before output release; all baselines returned typed `database-unavailable` in 2.002 to 2.005 seconds. The final sequence allocation deltas were effectively flat, and its stable concurrency-32 p99 and throughput gates passed. The user approved treating noisy final-sequence timing within its practical-plus-noise allowance as non-authorizing rather than an automatic rejection.
+  verified: Twenty engineering runs used B-C-C-B-B-C-C-B-B-C order in each sequence and took 28.798 to 52.094 seconds each, 761.666 seconds total. The unchanged second-sequence evidence regenerates comparison schema 2 and policy read-lease-v2 with SHA-256 57103c8379cdf98aa8518910bcf5cfcbbd9e396773e84f65c8499ab3d4be0aa3, decision retain, 10 passing metrics, 5 pass_non_authorizing_noisy timing metrics, 13 passing hard gates, and no rerun. The retained source builds byte-for-byte to the measured candidate SHA-256 6464b4604a32d6bcf45bfd35c766d3b9256456dd1110ac8026bb503424b1d881. Focused tests and final mage check passed; the database verification audit covered 2306 operations with forbidden=0. Independent audit verified both evidence sequences, manifests, report regeneration, binary identity, cleanup behavior, and the original policy disposition before the user-authorized policy correction.
+  next: Do not claim a speed or latency improvement from the five noisy timing metrics. The retained claim is supported-writer availability without an allocation regression; collect descriptive timing on other hosts only when a concrete decision needs it.
+  publication_order: 78

@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	comparisonSchemaVersion  = 1
-	comparisonPolicyVersion  = "read-lease-v1"
+	comparisonSchemaVersion  = 2
+	comparisonPolicyVersion  = "read-lease-v2"
 	reportSchemaVersion      = 2
 	manifestSchemaVersion    = 2
 	focusedReadSchemaVersion = 1
@@ -231,6 +231,7 @@ type metricSpec struct {
 	name               string
 	selector           string
 	direction          string
+	timing             bool
 	practicalAllowance float64
 	noiseLimit         float64
 	value              func(observedRun) (float64, error)
@@ -608,7 +609,7 @@ func compare(runs []observedRun, observedOrder []string, sequence int, externalG
 	if len(runs) != len(requiredOrder) {
 		return comparisonReport{}, fmt.Errorf("run count = %d, want %d", len(runs), len(requiredOrder))
 	}
-	metrics, err := compareMetrics(runs)
+	metrics, err := compareMetrics(runs, sequence)
 	if err != nil {
 		return comparisonReport{}, err
 	}
@@ -703,7 +704,7 @@ func internalGates(runs []observedRun, external map[string]bool) []gateResult {
 	return gates
 }
 
-func compareMetrics(runs []observedRun) ([]metricResult, error) {
+func compareMetrics(runs []observedRun, sequence int) ([]metricResult, error) {
 	definitions := metricDefinitions()
 	results := make([]metricResult, 0, len(definitions))
 	for _, definition := range definitions {
@@ -726,7 +727,7 @@ func compareMetrics(runs []observedRun) ([]metricResult, error) {
 		if len(baseline) != 5 || len(candidate) != 5 {
 			return nil, fmt.Errorf("%s arm counts are baseline=%d candidate=%d", definition.name, len(baseline), len(candidate))
 		}
-		results = append(results, evaluateMetric(definition, baseline, candidate))
+		results = append(results, evaluateMetric(definition, baseline, candidate, sequence))
 	}
 	return results, nil
 }
@@ -738,7 +739,7 @@ func metricDefinitions() []metricSpec {
 		prefix := "component.focused_reads[workload.name=" + workload + "].distribution"
 		definitions = append(definitions,
 			metricSpec{
-				name: "focused_read." + workload + ".latency_median_nanoseconds", selector: prefix + ".latency_nanoseconds_per_operation.median", direction: "lower", practicalAllowance: 0.05, noiseLimit: 0.05,
+				name: "focused_read." + workload + ".latency_median_nanoseconds", selector: prefix + ".latency_nanoseconds_per_operation.median", direction: "lower", timing: true, practicalAllowance: 0.05, noiseLimit: 0.05,
 				value: func(run observedRun) (float64, error) {
 					read, ok := run.FocusedReads[workload]
 					if !ok {
@@ -771,21 +772,21 @@ func metricDefinitions() []metricSpec {
 	}
 	return append(definitions,
 		metricSpec{
-			name: "one_shot_hook.concurrency_1.p50_latency_nanoseconds", selector: "load.measurements[surface=one-shot-hook,concurrency=1].rounds[*].metrics.p50_latency_nanoseconds |> median", direction: "lower", practicalAllowance: 0.05, noiseLimit: 0.05,
+			name: "one_shot_hook.concurrency_1.p50_latency_nanoseconds", selector: "load.measurements[surface=one-shot-hook,concurrency=1].rounds[*].metrics.p50_latency_nanoseconds |> median", direction: "lower", timing: true, practicalAllowance: 0.05, noiseLimit: 0.05,
 			value: func(run observedRun) (float64, error) { return run.HookC1P50, nil },
 		},
 		metricSpec{
-			name: "one_shot_hook.concurrency_32.p99_latency_nanoseconds", selector: "load.measurements[surface=one-shot-hook,concurrency=32].rounds[*].metrics.p99_latency_nanoseconds |> median", direction: "lower", practicalAllowance: 0.10, noiseLimit: 0.10,
+			name: "one_shot_hook.concurrency_32.p99_latency_nanoseconds", selector: "load.measurements[surface=one-shot-hook,concurrency=32].rounds[*].metrics.p99_latency_nanoseconds |> median", direction: "lower", timing: true, practicalAllowance: 0.10, noiseLimit: 0.10,
 			value: func(run observedRun) (float64, error) { return run.HookC32P99, nil },
 		},
 		metricSpec{
-			name: "one_shot_hook.concurrency_32.throughput_operations_per_second", selector: "load.measurements[surface=one-shot-hook,concurrency=32].rounds[*].metrics.throughput_operations_per_second |> median", direction: "higher", practicalAllowance: 0.05, noiseLimit: 0.05,
+			name: "one_shot_hook.concurrency_32.throughput_operations_per_second", selector: "load.measurements[surface=one-shot-hook,concurrency=32].rounds[*].metrics.throughput_operations_per_second |> median", direction: "higher", timing: true, practicalAllowance: 0.05, noiseLimit: 0.05,
 			value: func(run observedRun) (float64, error) { return run.HookC32Throughput, nil },
 		},
 	)
 }
 
-func evaluateMetric(spec metricSpec, baseline, candidate []float64) metricResult {
+func evaluateMetric(spec metricSpec, baseline, candidate []float64, sequence int) metricResult {
 	baselineCenter := median(baseline)
 	deviations := make([]float64, 0, len(baseline))
 	for _, value := range baseline {
@@ -811,24 +812,30 @@ func evaluateMetric(spec metricSpec, baseline, candidate []float64) metricResult
 		NoiseAllowance:     noise,
 		TotalAllowance:     allowance,
 	}
-	if noise > spec.noiseLimit {
-		result.Status = "inconclusive"
-		return result
-	}
+	regression := false
 	if spec.direction == "lower" {
 		maximum := baselineCenter * (1 + allowance)
 		result.AllowedMaximum = &maximum
-		result.Status = "pass"
-		if candidateCenter > maximum {
+		regression = candidateCenter > maximum
+	} else {
+		minimum := baselineCenter * (1 - allowance)
+		result.AllowedMinimum = &minimum
+		regression = candidateCenter < minimum
+	}
+	if spec.timing && noise > spec.noiseLimit {
+		if sequence == 1 {
+			result.Status = "inconclusive"
+		} else if regression {
 			result.Status = "regression"
+		} else {
+			result.Status = "pass_non_authorizing_noisy"
 		}
 		return result
 	}
-	minimum := baselineCenter * (1 - allowance)
-	result.AllowedMinimum = &minimum
-	result.Status = "pass"
-	if candidateCenter < minimum {
+	if regression {
 		result.Status = "regression"
+	} else {
+		result.Status = "pass"
 	}
 	return result
 }

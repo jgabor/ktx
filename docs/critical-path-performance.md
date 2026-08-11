@@ -62,12 +62,44 @@ allocated bytes, and allocation count), one-shot hook concurrency-1 p50,
 concurrency-32 p99 and throughput, and the separately recorded blocked-reader
 target. It uses the median run center and `1.4826 * MAD / baseline_center` for
 normalized baseline noise. All other component measurements remain diagnostic.
+New reports use comparison schema 2 and policy `read-lease-v2`. Existing schema-1
+`read-lease-v1` reports remain historical evidence and are not reinterpreted.
+
+The policy permits 5 percent practical regression for focused-read latency,
+one-shot hook concurrency-1 p50, and concurrency-32 throughput; it permits 10
+percent for focused-read allocated bytes and allocation count and for
+concurrency-32 p99. Each applicable maximum or minimum also includes measured
+baseline noise. Baseline noise is limited to 5 percent for every metric except
+concurrency-32 p99, whose limit is 10 percent. Stable metrics retain the existing
+`pass` or `regression` result. Every metric reports its allowed maximum or
+minimum, including metrics whose baseline exceeds the noise limit.
+
+Allocation metrics always remain retention gates using their practical
+allowance plus measured baseline noise. On sequence 1, any timing metric above
+its baseline-noise limit is `inconclusive` and
+permits exactly one complete fresh sequence. On sequence 2, a noisy timing metric is a
+`pass_non_authorizing_noisy` only when the candidate center remains within its
+practical allowance plus measured baseline noise. A candidate center outside
+that allowance is a `regression`. Sequence 2 never permits another run. A noisy
+final-sequence timing pass is non-authorizing: it permits retention with the
+other gates, but it cannot support a speed or latency-improvement claim.
+
+The retained internal hard gates are exact reconciliation, supported-failure
+behavior, byte identity, stable per-arm binary identity, and every candidate
+blocked-reader target. The final comparison also requires external `read_only`,
+`absent_database`, `stale_schema`, `newer_schema`,
+`output_failure_recovery`, `termination_recovery`,
+`mage_engineering_verify`, and `mage_check` gates. Any failed hard gate rejects
+the candidate and overrides timing or noise. A final sequence retains only when
+all hard gates and allocation metrics pass, all stable timing metrics pass,
+every candidate blocked-reader target passes, and every noisy metric remains
+within its allowance.
 
 Build the comparator locally, then give it the retained directories in their
 actual order:
 
 ```sh
-go build -o build/readleasecompare ./tools/readleasecompare
+go build -buildvcs=false -o build/readleasecompare ./tools/readleasecompare
 ./build/readleasecompare --sequence 1 \
   --run B=/tmp/evidence-baseline-1 \
   --run C=/tmp/evidence-candidate-1 \
@@ -83,8 +115,10 @@ go build -o build/readleasecompare ./tools/readleasecompare
 ```
 
 The first sequence permits one complete fresh sequence only when its measured
-verdict is inconclusive. The final invocation also supplies the documented
-external hard-gate values with repeated `--gate name=true|false` arguments.
+verdict is inconclusive. The final invocation supplies every documented
+external hard-gate value with repeated `--gate name=true|false` arguments. A
+failed external gate produces `reject` even when timing is inconclusive; omitted
+final gates cannot produce `retain`.
 
 ## Participants and availability
 

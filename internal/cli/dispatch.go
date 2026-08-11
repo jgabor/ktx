@@ -59,7 +59,8 @@ type RegisterOptions struct {
 
 	// DatabaseAccess asks the dispatcher to skip the database, open a
 	// persistent read-only query handle, or use the normal create/migrate/write
-	// path. The opened *dbpkg.DB lives at ctx.DB and is closed by the dispatcher.
+	// path. The opened *dbpkg.DB lives at ctx.DB and is normally closed by the
+	// dispatcher.
 	DatabaseAccess DatabaseAccess
 
 	// NeedsStdin asks the dispatcher to expose os.Stdin as ctx.Stdin.
@@ -132,7 +133,8 @@ type DispatchContext struct {
 	Stderr io.Writer
 
 	// DB is the opened *dbpkg.DB when DatabaseAccess is not DatabaseNone; nil otherwise.
-	// The dispatcher owns the Close; the verb must not call it.
+	// The dispatcher closes it after the command returns unless the command closes
+	// and clears it first.
 	DB *dbpkg.DB
 
 	// Passthrough mirrors RegisterOptions.PassthroughStdout so the
@@ -319,7 +321,6 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 			printError(stderr, err, formatStr)
 			return exitCodeOf(err)
 		}
-		defer opened.Close()
 		db = opened
 	}
 
@@ -341,6 +342,11 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 		Passthrough: reg.opts.PassthroughStdout,
 		Quiet:       global.Quiet || subQuiet,
 	}
+	defer func() {
+		if ctx.DB != nil {
+			_ = ctx.DB.Close()
+		}
+	}()
 	if _, err := reg.do(ctx); err != nil {
 		var status *commandExit
 		if errors.As(err, &status) {

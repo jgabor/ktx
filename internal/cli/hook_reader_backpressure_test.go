@@ -33,7 +33,7 @@ func TestHookReaderBackpressureProcessHelper(t *testing.T) {
 	os.Exit(code)
 }
 
-func TestHookBlockedByBackpressuredSupportedReaderIsBoundedAndRecovers(t *testing.T) {
+func TestBackpressuredReadReleasesDatabaseBeforeExactOutputCompletes(t *testing.T) {
 	const (
 		readerSourceID  = "stalledreadsrcaa"
 		blockedSourceID = "blockedhooksrcaa"
@@ -61,6 +61,15 @@ func TestHookBlockedByBackpressuredSupportedReaderIsBoundedAndRecovers(t *testin
 	}); err != nil {
 		t.Fatal(err)
 	}
+	readerRecord, err := database.GetToolCall(readerSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedOutput, err := json.Marshal(readerRecord)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedOutput = append(expectedOutput, '\n')
 
 	configHome := t.TempDir()
 	runtimeDir := t.TempDir()
@@ -84,17 +93,23 @@ func TestHookBlockedByBackpressuredSupportedReaderIsBoundedAndRecovers(t *testin
 		}
 	})
 
-	firstByte := make(chan error, 1)
+	type firstByteResult struct {
+		value byte
+		err   error
+	}
+	firstByte := make(chan firstByteResult, 1)
 	go func() {
 		var first [1]byte
 		_, err := io.ReadFull(readerStdout, first[:])
-		firstByte <- err
+		firstByte <- firstByteResult{value: first[0], err: err}
 	}()
+	var first byte
 	select {
-	case err := <-firstByte:
-		if err != nil {
-			t.Fatalf("read first supported-reader output byte: %v", err)
+	case result := <-firstByte:
+		if result.err != nil {
+			t.Fatalf("read first supported-reader output byte: %v", result.err)
 		}
+		first = result.value
 	case <-time.After(2 * time.Second):
 		t.Fatal("supported reader did not begin output")
 	}
@@ -119,21 +134,26 @@ func TestHookBlockedByBackpressuredSupportedReaderIsBoundedAndRecovers(t *testin
 	if errors.Is(hookContext.Err(), context.DeadlineExceeded) {
 		t.Fatalf("hook exceeded bounded startup wait: elapsed=%s stdout=%q stderr=%q", elapsed, hookStdout.String(), hookStderr.String())
 	}
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != ExitInternal {
-		t.Fatalf("blocked hook result = %v, want exit %d; stdout=%q stderr=%q", err, ExitInternal, hookStdout.String(), hookStderr.String())
+	if err != nil {
+		t.Fatalf("hook while read output remained blocked: %v; stdout=%q stderr=%q", err, hookStdout.String(), hookStderr.String())
 	}
 	if elapsed > 3*time.Second {
-		t.Fatalf("blocked hook exceeded startup bound: elapsed=%s", elapsed)
+		t.Fatalf("hook exceeded startup bound: elapsed=%s", elapsed)
 	}
-	t.Logf("blocked hook returned database-unavailable after %s", elapsed)
-	if hookStdout.Len() != 0 {
-		t.Fatalf("blocked hook stdout = %q, want empty", hookStdout.String())
+	if hookStderr.Len() != 0 {
+		t.Fatalf("hook stderr = %q, want empty", hookStderr.String())
 	}
-	assertBackpressuredHookUnavailable(t, path, hookStderr.Bytes())
-	assertHookEvidenceCounts(t, database, blockedSourceID, 0, 0, 0)
+	var envelope hookEnvelope
+	if err := json.Unmarshal(hookStdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode hook envelope: %v\nstdout=%s", err, hookStdout.String())
+	}
+	if envelope.SourceID != blockedSourceID || envelope.Output != original {
+		t.Errorf("hook envelope = %+v, want source %q and original output", envelope, blockedSourceID)
+	}
+	assertHookEvidenceCounts(t, database, blockedSourceID, 1, 0, 1)
 
-	if _, err := io.Copy(io.Discard, readerStdout); err != nil {
+	actualOutput := bytes.NewBuffer([]byte{first})
+	if _, err := io.Copy(actualOutput, readerStdout); err != nil {
 		t.Fatalf("release supported reader: %v", err)
 	}
 	select {
@@ -144,24 +164,66 @@ func TestHookBlockedByBackpressuredSupportedReaderIsBoundedAndRecovers(t *testin
 	case <-time.After(2 * time.Second):
 		t.Fatal("supported reader did not release coordination ownership")
 	}
+	if !bytes.Equal(actualOutput.Bytes(), expectedOutput) {
+		t.Fatalf("read output differs: got %d bytes, want %d", actualOutput.Len(), len(expectedOutput))
+	}
+}
 
-	retry := hookReaderBackpressureCommand("hook", path, configHome, runtimeDir, "")
-	retry.Stdin = bytes.NewReader(payload)
-	var retryStdout, retryStderr bytes.Buffer
-	retry.Stdout, retry.Stderr = &retryStdout, &retryStderr
-	retryStarted := time.Now()
-	if err := retry.Run(); err != nil {
-		t.Fatalf("hook retry after reader release: %v; stdout=%q stderr=%q", err, retryStdout.String(), retryStderr.String())
+func TestTerminatedReadLeavesNoDatabaseOwnership(t *testing.T) {
+	const (
+		readerSourceID  = "killedreadsrcaaa"
+		readerSessionID = "killedreadsessaa"
+		hookSourceID    = "afterkillsourcea"
+	)
+	path := filepath.Join(t.TempDir(), "reader-termination.db")
+	database, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Logf("hook retry persisted normally after reader release in %s", time.Since(retryStarted))
-	var envelope hookEnvelope
-	if err := json.Unmarshal(retryStdout.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode retry envelope: %v\nstdout=%s", err, retryStdout.String())
+	defer database.Close()
+	if err := database.InsertSession(&dbpkg.Session{ID: readerSessionID, Agent: "test"}); err != nil {
+		t.Fatal(err)
 	}
-	if envelope.SourceID != blockedSourceID || envelope.Output != original {
-		t.Errorf("retry envelope = %+v, want source %q and original output", envelope, blockedSourceID)
+	largeOutput := strings.Repeat("x", 2*1024*1024)
+	if err := database.PersistToolCall(&dbpkg.ToolCall{
+		ID: readerSourceID, SessionID: readerSessionID, Tool: "bash", Input: "true",
+		Output: largeOutput, ContentHash: dbpkg.ContentHash(largeOutput), Timestamp: "2026-08-11T00:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
 	}
-	assertHookEvidenceCounts(t, database, blockedSourceID, 1, 0, 1)
+
+	configHome := t.TempDir()
+	runtimeDir := t.TempDir()
+	reader := hookReaderBackpressureCommand("read", path, configHome, runtimeDir, readerSourceID)
+	readerStdout, err := reader.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var readerStderr bytes.Buffer
+	reader.Stderr = &readerStderr
+	if err := reader.Start(); err != nil {
+		t.Fatal(err)
+	}
+	var first [1]byte
+	if _, err := io.ReadFull(readerStdout, first[:]); err != nil {
+		t.Fatalf("read first byte: %v", err)
+	}
+	if err := reader.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Wait(); err == nil {
+		t.Fatal("terminated reader exited successfully")
+	}
+
+	payload := []byte(`{"id":"` + hookSourceID + `","tool":"bash","input":"true","output":"after termination","timestamp":"2026-08-11T00:00:01Z"}`)
+	hook := hookReaderBackpressureCommand("hook", path, configHome, runtimeDir, "")
+	hook.Stdin = bytes.NewReader(payload)
+	var hookStdout, hookStderr bytes.Buffer
+	hook.Stdout, hook.Stderr = &hookStdout, &hookStderr
+	if err := hook.Run(); err != nil {
+		t.Fatalf("hook after reader termination: %v; stdout=%q stderr=%q", err, hookStdout.String(), hookStderr.String())
+	}
+	assertHookEvidenceCounts(t, database, hookSourceID, 1, 0, 1)
 }
 
 func hookReaderBackpressureCommand(role, path, configHome, runtimeDir, sourceID string) *exec.Cmd {
@@ -179,26 +241,4 @@ func hookReaderBackpressureEnv(role, path, configHome, runtimeDir, sourceID stri
 		"XDG_CONFIG_HOME="+configHome,
 		"XDG_RUNTIME_DIR="+runtimeDir,
 	)
-}
-
-func assertBackpressuredHookUnavailable(t *testing.T, path string, stderr []byte) {
-	t.Helper()
-	var result struct {
-		Error struct {
-			Code         string `json:"code"`
-			DatabasePath string `json:"database_path"`
-			Correction   string `json:"correction"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(stderr, &result); err != nil {
-		t.Fatalf("decode database-unavailable result: %v\nstderr=%s", err, stderr)
-	}
-	canonicalPath, err := dbpkg.CanonicalPath(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Error.Code != string(CodeDatabaseUnavailable) || result.Error.DatabasePath != canonicalPath || result.Error.Correction == "" {
-		t.Errorf("database-unavailable result = %+v, want code, canonical path, and correction", result.Error)
-	}
-	assertNoHookLockDriverWording(t, string(stderr))
 }

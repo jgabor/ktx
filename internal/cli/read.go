@@ -38,9 +38,13 @@ func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
 	}
-	defer db.Close()
+	defer func() {
+		if db != nil {
+			_ = db.Close()
+		}
+	}()
 
-	_, err = readLogic(args, db, stdout)
+	_, err = readLogic(args, &db, stdout)
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
@@ -55,11 +59,12 @@ func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
 //  2. If --help, render printReadHelp and return.
 //  3. Validate exactly one positional (the ID).
 //  4. db.GetRecord(id): tool_calls first, then sessions.
-//  5. json.NewEncoder(stdout).Encode(record): raw JSON to stdout.
+//  5. Close the retrieved record's database handle and clear db.
+//  6. json.NewEncoder(stdout).Encode(record): raw JSON to stdout.
 //
 // Anything that fails becomes a typed *Error (usage / not-found /
 // internal) so the caller can map it to the right exit code.
-func readLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
+func readLogic(args []string, db **dbpkg.DB, stdout io.Writer) (any, error) {
 	var showHelp bool
 	fs := flag.NewFlagSet("ktx read", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we render our own errors and help
@@ -85,13 +90,19 @@ func readLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
 	}
 	id := rest[0]
 
-	record, err := db.GetRecord(id)
+	record, err := (*db).GetRecord(id)
 	if err != nil {
 		if errors.Is(err, dbpkg.ErrNotFound) {
 			return nil, notFoundError("ktx read: record %q not found", id)
 		}
 		return nil, internalError("ktx read: get record: %v", err)
 	}
+
+	// GetRecord has copied the row into Go-owned values. Release the
+	// read-only handle before stdout can block on a large record.
+	database := *db
+	*db = nil
+	_ = database.Close()
 
 	// Raw JSON, no --format awareness. json.NewEncoder writes a
 	// trailing newline, which matches the convention used by `ktx
@@ -109,7 +120,7 @@ func readLogic(args []string, db *dbpkg.DB, stdout io.Writer) (any, error) {
 // readLogic and surface the typed error to the dispatcher's
 // printError + exitCodeOf pipeline.
 func readCommandFunc(ctx *DispatchContext) (any, error) {
-	return readLogic(ctx.Args, ctx.DB, ctx.Stdout)
+	return readLogic(ctx.Args, &ctx.DB, ctx.Stdout)
 }
 
 // init registers `ktx read` with the dispatch module. After init

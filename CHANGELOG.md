@@ -15,4 +15,5 @@
 - Supported read-only database handles now coordinate with writers, and supported writers coordinate each SQLite transaction across processes.
 - OpenCode ordinary telemetry and hook callbacks now share one arrival-order queue, and each write-capable database handle uses one process-local SQLite connection.
 - SQLite lock exhaustion now returns `database-unavailable` with the canonical database path and retry guidance instead of driver lock diagnostics.
+- `ktx read` now releases supported read ownership after retrieving a record, so blocked output no longer delays an unrelated supported writer.
 - `ktx hook` now takes delivery footer policy from the selected retained artifact's recorded structured-recovery provenance. Exact retries preserve repaired JSON and NDJSON validity and ordinary retained-artifact footer behavior; legacy artifacts without provenance remain readable and keep conservative behavior without inferred reconstruction.

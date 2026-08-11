@@ -1,0 +1,14 @@
+id: tqvudmwwpk
+artifact: plan
+record:
+  name: Run the bounded post-retrieval read ownership prototype
+  depends_on:
+    []
+  status: in_progress
+  acceptance:
+    - GIVEN a large existing record and a supported `ktx read` whose output is blocked after delivery begins WHEN a supported hook writes to the same database THEN the hook completes and persists before output release without raw lock diagnostics or `database-unavailable`, and the read output remains byte-exact.
+    - GIVEN ordinary present, missing, and large records WHEN the candidate runs THEN output bytes, exit outcomes, source authority, and observable command behavior remain unchanged.
+    - GIVEN absent, stale-compatible, and newer-incompatible databases WHEN `ktx read` runs THEN it remains non-creating and non-migrating, preserves typed schema outcomes, and creates no persistent database, journal, WAL, or SHM artifact.
+    - GIVEN output failure or reader termination after record retrieval WHEN a later supported writer proceeds THEN no stale ownership remains, accepted evidence reconciles exactly once, and ordinary and adverse cases remain regression-tested.
+    - GIVEN five baseline and five candidate runs execute in `B-C-C-B-B-C-C-B-B-C` order WHEN the retained focused policy evaluates blocked-reader behavior, latency, throughput, allocations, and hard correctness gates THEN retain only a passing candidate; allow one fresh sequence only for an inconclusive first sequence, and otherwise reject, restore the baseline, and record the measured result.
+  plan: ysichlmcun

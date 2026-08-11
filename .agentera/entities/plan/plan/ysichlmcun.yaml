@@ -1,0 +1,25 @@
+id: ysichlmcun
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-11
+    status: open
+    title: "Plan: Prototype post-retrieval ktx read ownership release"
+  what: Test whether `ktx read` can end supported shared database ownership after fully retrieving a record but before downstream output delivery completes. Avoid the prior full-materialization allocation cost and use the retained focused comparison policy to decide whether to retain or revert the candidate.
+  why: Blocked output currently extends database ownership after database work is complete. This can prevent a supported hook from writing and produce `database-unavailable`. The prior candidate fixed that contention but was rejected because it duplicated the complete encoded record.
+  constraints: Limit behavior changes to `ktx read`. Preserve byte-exact output, exit behavior, genuinely read-only access, schema diagnostics, recovery, and exact evidence reconciliation. Preserve the coordinator, startup deadlines, SQLite durability, journal mode, busy retries, public commands, and product benchmark semantics. Do not repeat full-record output materialization or add a daemon, spool, dependency, compatibility path, or generalized query lifecycle abstraction. Retain the candidate only when every focused performance and correctness gate passes; otherwise restore the baseline and record the result.
+  overall_acceptance: GIVEN the post-retrieval ownership candidate and retained baseline are evaluated WHEN blocked-output, correctness, safety, recovery, and focused performance evidence is complete THEN the experiment produces an auditable retain-or-revert decision, and retention occurs only if supported writer progress improves without changing read behavior or recreating the prior allocation regression.
+  scope:
+    included:
+      - supported database ownership lifetime for `ktx read` after record retrieval and before output completion
+      - ordinary, blocked-output, output-failure, and termination-recovery behavior
+      - focused component, real-process, reconciliation, and database-safety evidence
+      - current documentation and changelog only if the candidate is retained
+    excluded:
+      - other supported read-only commands
+      - generalized query or rendering lifecycle refactors
+      - coordinator, timeout, journal-mode, busy-retry, migration, or schema changes
+      - daemon, durable spool, dependency, public performance command, or provider claims
+  surprises:
+    []

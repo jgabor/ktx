@@ -36,8 +36,11 @@ KTX_ENGINEERING_EVIDENCE_DIR="$PWD/docs/notes/engineering-run" mage engineeringV
 The directory must not already exist. The target runs the existing
 `mage componentBench` and `mage loadBench` targets in separate fresh Mage
 roots and writes `component-bench.json`, `real-process-load.json`, and
-`manifest.json`. The manifest records each report's schema version and SHA-256;
-the reports retain their environment and workload identities. It does not write
+`manifest.json`. These schema-2 reports and manifest record UTC RFC3339Nano
+`started_at`, `finished_at`, and non-negative `duration_nanoseconds`. The
+manifest records each report's schema version and SHA-256; the reports retain
+their environment and workload identities. Retained schema-1 evidence remains
+unchanged and has no inferred timing. The target does not write
 product SQLite state.
 
 This is extended engineering evidence, not a timing gate or a replacement for
@@ -48,6 +51,40 @@ ordinary test, mixed-version, and contract coverage. The target is not part of
 `mage verify` or tracked CI until a stable host and timing policy are approved.
 It does not change `ktx bench` cost or quality evidence, or make a provider
 claim.
+
+### Focused read comparison
+
+`tools/readleasecompare` is a developer-only retained-evidence comparator for
+the bounded `ktx read` ownership experiment. It accepts exactly ten new
+engineering-evidence directories in `B-C-C-B-B-C-C-B-B-C` order. Its explicit
+mapping gates only the four focused `ktx read` workload medians (latency,
+allocated bytes, and allocation count), one-shot hook concurrency-1 p50,
+concurrency-32 p99 and throughput, and the separately recorded blocked-reader
+target. It uses the median run center and `1.4826 * MAD / baseline_center` for
+normalized baseline noise. All other component measurements remain diagnostic.
+
+Build the comparator locally, then give it the retained directories in their
+actual order:
+
+```sh
+go build -o build/readleasecompare ./tools/readleasecompare
+./build/readleasecompare --sequence 1 \
+  --run B=/tmp/evidence-baseline-1 \
+  --run C=/tmp/evidence-candidate-1 \
+  --run C=/tmp/evidence-candidate-2 \
+  --run B=/tmp/evidence-baseline-2 \
+  --run B=/tmp/evidence-baseline-3 \
+  --run C=/tmp/evidence-candidate-3 \
+  --run C=/tmp/evidence-candidate-4 \
+  --run B=/tmp/evidence-baseline-4 \
+  --run B=/tmp/evidence-baseline-5 \
+  --run C=/tmp/evidence-candidate-5 \
+  --output /tmp/read-lease-comparison.json
+```
+
+The first sequence permits one complete fresh sequence only when its measured
+verdict is inconclusive. The final invocation also supplies the documented
+external hard-gate values with repeated `--gate name=true|false` arguments.
 
 ## Participants and availability
 

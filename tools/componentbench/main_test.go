@@ -110,7 +110,7 @@ func TestResultCarriesFiveMeasuredSamplesAndEnvironment(t *testing.T) {
 		t.Fatalf("benchmark count = %d, want 1", len(measured.Benchmarks))
 	}
 	benchmark := measured.Benchmarks[0]
-	if benchmark.SchemaVersion != resultSchemaVersion || len(benchmark.Samples) != measuredSamples || benchmark.Warmup.Operations != 1 {
+	if benchmark.SchemaVersion != benchmarkSchemaVersion || len(benchmark.Samples) != measuredSamples || benchmark.Warmup.Operations != 1 {
 		t.Fatalf("benchmark result = %#v", benchmark)
 	}
 	for _, sample := range benchmark.Samples {
@@ -120,6 +120,17 @@ func TestResultCarriesFiveMeasuredSamplesAndEnvironment(t *testing.T) {
 	}
 	if benchmark.Distribution.LatencyNanosecondsPerOperation.Minimum <= 0 || benchmark.Distribution.LatencyNanosecondsPerOperation.Maximum < benchmark.Distribution.LatencyNanosecondsPerOperation.Minimum {
 		t.Errorf("invalid latency distribution: %#v", benchmark.Distribution)
+	}
+	if len(measured.FocusedReads) != 4 {
+		t.Fatalf("focused read count = %d, want 4", len(measured.FocusedReads))
+	}
+	for index, focused := range measured.FocusedReads {
+		if focused.SchemaVersion != focusedReadSchemaVersion || focused.Workload != fixedFocusedReadWorkloads()[index].workloadID || len(focused.Samples) != measuredSamples {
+			t.Errorf("focused read %d = %#v", index, focused)
+		}
+		if focused.Distribution.LatencyNanosecondsPerOperation.Median <= 0 || focused.Distribution.AllocatedBytesPerOperation.Median < 0 || focused.Distribution.AllocationsPerOperation.Median < 0 {
+			t.Errorf("focused read distribution = %#v", focused.Distribution)
+		}
 	}
 	if _, err := json.Marshal(measured); err != nil {
 		t.Fatalf("marshal result: %v", err)
@@ -151,6 +162,15 @@ func TestPersistenceDoesNotUseKTXDB(t *testing.T) {
 	}
 }
 
+func TestComponentReportTimingRejectsInvalidOrder(t *testing.T) {
+	if err := validateReportTiming("2026-08-10T00:00:00.000000002Z", "2026-08-10T00:00:00.000000001Z", 0); err == nil || !strings.Contains(err.Error(), "precedes") {
+		t.Fatalf("reversed timing error = %v", err)
+	}
+	if err := validateReportTiming("2026-08-10T00:00:00.000000001Z", "2026-08-10T00:00:00.000000002Z", 1); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestComponentBenchmarkDocumentation(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "docs", "component-benchmarks.md"))
 	if err != nil {
@@ -165,6 +185,9 @@ func TestComponentBenchmarkDocumentation(t *testing.T) {
 		"ktx bench",
 		"KTX_DB",
 		"durable engineering verification",
+		"started_at",
+		"2097152",
+		"allocated bytes",
 	} {
 		if !strings.Contains(normalized, required) {
 			t.Errorf("documentation is missing %q", required)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHermeticVerificationEnvironment(t *testing.T) {
@@ -94,12 +95,22 @@ func TestEngineeringReportSummaryRequiresIdentity(t *testing.T) {
 	if _, _, err := summarizeEngineeringReport(invalid, engineeringReportSpecs[0].identityKeys); err == nil || !strings.Contains(err.Error(), "benchmarks") {
 		t.Fatalf("missing identity result = %v", err)
 	}
+
+	invalidTiming := filepath.Join(directory, "invalid-timing.json")
+	if err := os.WriteFile(invalidTiming, []byte(`{"schema_version":2,"started_at":"2026-08-10T00:00:00.000000002Z","finished_at":"2026-08-10T00:00:00.000000001Z","duration_nanoseconds":0,"machine":{"go_version":"go"},"workloads":[{"name":"fixed"}],"benchmarks":[{"name":"parser"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := summarizeEngineeringReport(invalidTiming, engineeringReportSpecs[0].identityKeys); err == nil || !strings.Contains(err.Error(), "timing") {
+		t.Fatalf("invalid timing result = %v", err)
+	}
 }
 
 func TestEngineeringManifestRetainsReportReferences(t *testing.T) {
 	directory := t.TempDir()
 	reports := []engineeringEvidenceReport{{Name: "component", MageTarget: "componentBench", File: "component-bench.json", SchemaVersion: 1, SHA256: strings.Repeat("a", 64)}}
-	if err := writeEngineeringEvidenceManifest(directory, reports); err != nil {
+	started := mustEngineeringTime(t, "2026-08-10T00:00:00.000000001Z")
+	finished := mustEngineeringTime(t, "2026-08-10T00:00:00.000000002Z")
+	if err := writeEngineeringEvidenceManifest(directory, reports, started, finished); err != nil {
 		t.Fatal(err)
 	}
 	contents, err := os.ReadFile(filepath.Join(directory, engineeringManifestFile))
@@ -110,9 +121,25 @@ func TestEngineeringManifestRetainsReportReferences(t *testing.T) {
 	if err := json.Unmarshal(contents, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.SchemaVersion != 1 || len(manifest.Reports) != 1 || manifest.Reports[0] != reports[0] {
+	if manifest.SchemaVersion != engineeringManifestSchema || manifest.StartedAt != "2026-08-10T00:00:00.000000001Z" || manifest.FinishedAt != "2026-08-10T00:00:00.000000002Z" || manifest.DurationNanoseconds != 1 || len(manifest.Reports) != 1 || manifest.Reports[0] != reports[0] {
 		t.Fatalf("manifest = %+v", manifest)
 	}
+}
+
+func TestEngineeringManifestSchemaOneIsPreservedWithoutTiming(t *testing.T) {
+	manifest := engineeringEvidenceManifest{SchemaVersion: 1, Reports: []engineeringEvidenceReport{{Name: "component"}}}
+	if err := validateEngineeringEvidenceManifest(manifest); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustEngineeringTime(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed
 }
 
 func TestHermeticReentryRejectsForgedMarkerBeforeBody(t *testing.T) {

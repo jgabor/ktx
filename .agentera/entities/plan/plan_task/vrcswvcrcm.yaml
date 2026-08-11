@@ -1,0 +1,14 @@
+id: vrcswvcrcm
+artifact: plan
+record:
+  plan: ndpjdfjetg
+  name: Instrument and rerun the ktx read lease prototype
+  status: in_progress
+  depends_on:
+    - sozqiybyld
+  acceptance:
+    - GIVEN component, load, and combined engineering evidence is produced WHEN a report or manifest completes THEN it records UTC started_at and finished_at values plus non-negative duration_nanoseconds, validates their ordering, and preserves retained schema-1 evidence without reinterpretation.
+    - GIVEN the read-lease candidate is measured WHEN focused engineering evidence is inspected THEN 1024-byte, 65536-byte, 1048576-byte, and 2097152-byte ktx read cases report stable workload identity, elapsed latency, allocated bytes, and allocation count, while blocked-reader outcome and hook latency are reported separately.
+    - GIVEN five baseline and five candidate runs execute in counterbalanced B-C-C-B-B-C-C-B-B-C order WHEN evidence is compared THEN only the predeclared read metrics, one-shot hook concurrency-1 p50, concurrency-32 p99 and throughput, and blocked-reader target determine the performance decision; unrelated component measurements remain diagnostic.
+    - GIVEN run-level gating values WHEN noise is evaluated THEN the baseline center is the median, baseline noise is 1.4826 times MAD divided by the center, noise above 5 percent for medians or throughput and 10 percent for p99 is inconclusive, and an inconclusive experiment receives at most one fresh rerun rather than rejection.
+    - GIVEN baseline noise is acceptable WHEN candidate centers are compared THEN median latency and throughput permit a 5 percent practical regression plus measured baseline noise, p99 permits 10 percent plus noise, allocation metrics permit 10 percent plus noise, and the candidate is retained only when the blocked-reader target succeeds in every candidate run and all exact reconciliation, supported-failure, byte-identity, read-only, schema, recovery, mage engineeringVerify, and mage check gates pass; otherwise it is reverted with the measured result recorded.

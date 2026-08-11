@@ -17,8 +17,8 @@ func TestFixedFixturesAreReproducible(t *testing.T) {
 	if err := validateFixtures(first); err != nil {
 		t.Fatal(err)
 	}
-	if len(first) != 2 || len(second) != len(first) {
-		t.Fatalf("fixture counts = %d and %d, want 2", len(first), len(second))
+	if len(first) != 3 || len(second) != len(first) {
+		t.Fatalf("fixture counts = %d and %d, want 3", len(first), len(second))
 	}
 	for index, fixture := range first {
 		if fixture.payloadIdentity != second[index].payloadIdentity || !bytes.Equal(fixture.data, second[index].data) {
@@ -120,6 +120,14 @@ func TestMandatoryLoadReportValidation(t *testing.T) {
 			t.Fatalf("untyped foreign exhaustion = %v", err)
 		}
 	})
+
+	t.Run("rejects reversed timestamps", func(t *testing.T) {
+		measured := mandatoryLoadReport()
+		measured.StartedAt, measured.FinishedAt = measured.FinishedAt, measured.StartedAt
+		if err := validateMandatoryLoadReport(measured); err == nil || !strings.Contains(err.Error(), "precedes") {
+			t.Fatalf("reversed timestamps = %v", err)
+		}
+	})
 }
 
 func TestLoadBenchmarkDocumentation(t *testing.T) {
@@ -142,6 +150,9 @@ func TestLoadBenchmarkDocumentation(t *testing.T) {
 		"stale-compatible",
 		"ktx bench",
 		"durable engineering verification",
+		"started_at",
+		"blocked-reader",
+		"hook latency",
 	} {
 		if !strings.Contains(normalized, required) {
 			t.Errorf("documentation is missing %q", required)
@@ -150,7 +161,10 @@ func TestLoadBenchmarkDocumentation(t *testing.T) {
 }
 
 func mandatoryLoadReport() report {
-	measured := report{SchemaVersion: reportSchemaVersion, WarmupRounds: warmupRounds, MeasuredRounds: measuredRounds}
+	measured := report{
+		SchemaVersion: reportSchemaVersion, StartedAt: "2026-08-10T00:00:00.000000001Z", FinishedAt: "2026-08-10T00:00:00.000000002Z", DurationNanoseconds: 1,
+		WarmupRounds: warmupRounds, MeasuredRounds: measuredRounds,
+	}
 	for _, concurrency := range concurrencyLevels {
 		measurement := measurement{Surface: "one-shot-hook", Concurrency: concurrency, Warmup: mandatoryMeasurementRound()}
 		for range measuredRounds {
@@ -187,6 +201,11 @@ func mandatoryLoadReport() report {
 		{Class: "supported-ktx", Role: "recovery-one-shot-hook", Outcome: "ok"},
 	}
 	measured.Scenarios = append(measured.Scenarios, termination)
+	measured.BlockedReaderTarget = blockedReaderTarget{
+		SchemaVersion: blockedReaderTargetSchema, Workload: fixedFixtures()[2].payloadIdentity,
+		ReaderOutputStarted: true, ReaderBackpressured: true, HookOutcome: "database-unavailable", HookExitCode: 4,
+		HookLatencyNanoseconds: 1, HookFailureCode: "database-unavailable", Reconciliation: reconciliation{Matches: true},
+	}
 	return measured
 }
 

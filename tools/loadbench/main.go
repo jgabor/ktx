@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,29 +27,47 @@ import (
 )
 
 const (
-	reportSchemaVersion = 1
-	warmupRounds        = 1
-	measuredRounds      = 5
-	streamEvents        = 8
-	processTimeout      = 12 * time.Second
-	foreignHoldDuration = 250 * time.Millisecond
-	terminationDelay    = 100 * time.Millisecond
-	aliasWriterCount    = 8
-	streamWorkerEnv     = "KTX_LOADBENCH_STREAM_WORKER"
-	streamPathEnv       = "KTX_LOADBENCH_STREAM_PATH"
+	reportSchemaVersion       = 2
+	blockedReaderTargetSchema = 1
+	warmupRounds              = 1
+	measuredRounds            = 5
+	streamEvents              = 8
+	processTimeout            = 12 * time.Second
+	foreignHoldDuration       = 250 * time.Millisecond
+	terminationDelay          = 100 * time.Millisecond
+	aliasWriterCount          = 8
+	blockedReaderDelay        = 50 * time.Millisecond
+	streamWorkerEnv           = "KTX_LOADBENCH_STREAM_WORKER"
+	streamPathEnv             = "KTX_LOADBENCH_STREAM_PATH"
 )
 
 var concurrencyLevels = []int{1, 2, 4, 8, 16, 32}
 
 type report struct {
-	SchemaVersion  int                 `json:"schema_version"`
-	WarmupRounds   int                 `json:"warmup_rounds"`
-	MeasuredRounds int                 `json:"measured_rounds"`
-	Environment    environmentIdentity `json:"environment"`
-	Payloads       []payloadIdentity   `json:"payloads"`
-	Measurements   []measurement       `json:"measurements"`
-	Scenarios      []scenario          `json:"scenarios"`
-	Preflight      preflight           `json:"preflight"`
+	SchemaVersion       int                 `json:"schema_version"`
+	StartedAt           string              `json:"started_at"`
+	FinishedAt          string              `json:"finished_at"`
+	DurationNanoseconds int64               `json:"duration_nanoseconds"`
+	WarmupRounds        int                 `json:"warmup_rounds"`
+	MeasuredRounds      int                 `json:"measured_rounds"`
+	Environment         environmentIdentity `json:"environment"`
+	Payloads            []payloadIdentity   `json:"payloads"`
+	Measurements        []measurement       `json:"measurements"`
+	Scenarios           []scenario          `json:"scenarios"`
+	BlockedReaderTarget blockedReaderTarget `json:"blocked_reader_target"`
+	Preflight           preflight           `json:"preflight"`
+}
+
+type blockedReaderTarget struct {
+	SchemaVersion          int             `json:"schema_version"`
+	Workload               payloadIdentity `json:"workload"`
+	ReaderOutputStarted    bool            `json:"reader_output_started"`
+	ReaderBackpressured    bool            `json:"reader_backpressured"`
+	HookOutcome            string          `json:"hook_outcome"`
+	HookExitCode           int             `json:"hook_exit_code"`
+	HookLatencyNanoseconds int64           `json:"hook_latency_nanoseconds"`
+	HookFailureCode        string          `json:"hook_failure_code,omitempty"`
+	Reconciliation         reconciliation  `json:"reconciliation"`
 }
 
 type environmentIdentity struct {
@@ -213,7 +232,8 @@ func run() (report, error) {
 	}
 	defer func() { _ = os.RemoveAll(root) }()
 
-	return withOwnedEnvironment(root, func() (report, error) {
+	started := time.Now().UTC()
+	measured, err := withOwnedEnvironment(root, func() (report, error) {
 		binary, hash, err := localBinary()
 		if err != nil {
 			return report{}, err
@@ -256,11 +276,24 @@ func run() (report, error) {
 			return report{}, err
 		}
 		measured.Scenarios = scenarios
-		if err := validateMandatoryLoadReport(measured); err != nil {
+		target, err := runBlockedReaderTarget(root, runner, fixtures[0], fixtures[2])
+		if err != nil {
 			return report{}, err
 		}
+		measured.BlockedReaderTarget = target
 		return measured, nil
 	})
+	if err != nil {
+		return report{}, err
+	}
+	finished := time.Now().UTC()
+	measured.StartedAt = started.Format(time.RFC3339Nano)
+	measured.FinishedAt = finished.Format(time.RFC3339Nano)
+	measured.DurationNanoseconds = finished.Sub(started).Nanoseconds()
+	if err := validateMandatoryLoadReport(measured); err != nil {
+		return report{}, err
+	}
+	return measured, nil
 }
 
 func validateStartup(ambient string, fixtures []fixture) error {
@@ -271,8 +304,8 @@ func validateStartup(ambient string, fixtures []fixture) error {
 }
 
 func validateFixtures(fixtures []fixture) error {
-	if len(fixtures) != 2 {
-		return fmt.Errorf("fixture count = %d, want 2", len(fixtures))
+	if len(fixtures) != 3 {
+		return fmt.Errorf("fixture count = %d, want 3", len(fixtures))
 	}
 	seen := make(map[string]bool, len(fixtures))
 	for _, fixture := range fixtures {
@@ -291,6 +324,9 @@ func validateFixtures(fixtures []fixture) error {
 func validateMandatoryLoadReport(measured report) error {
 	if measured.SchemaVersion != reportSchemaVersion || measured.WarmupRounds != warmupRounds || measured.MeasuredRounds != measuredRounds {
 		return fmt.Errorf("report contract schema=%d warmup=%d measured=%d", measured.SchemaVersion, measured.WarmupRounds, measured.MeasuredRounds)
+	}
+	if err := validateReportTiming(measured.StartedAt, measured.FinishedAt, measured.DurationNanoseconds); err != nil {
+		return fmt.Errorf("report timing: %w", err)
 	}
 
 	seenConcurrency := make(map[int]bool, len(concurrencyLevels))
@@ -334,7 +370,55 @@ func validateMandatoryLoadReport(measured report) error {
 	if !seenStream {
 		return fmt.Errorf("missing sustained-wrapper-stream measurement")
 	}
-	return validateMandatoryScenarios(measured.Scenarios)
+	if err := validateMandatoryScenarios(measured.Scenarios); err != nil {
+		return err
+	}
+	return validateBlockedReaderTarget(measured.BlockedReaderTarget)
+}
+
+func validateReportTiming(startedAt, finishedAt string, durationNanoseconds int64) error {
+	if durationNanoseconds < 0 {
+		return fmt.Errorf("duration_nanoseconds = %d", durationNanoseconds)
+	}
+	started, err := parseUTCTimestamp(startedAt)
+	if err != nil {
+		return fmt.Errorf("started_at: %w", err)
+	}
+	finished, err := parseUTCTimestamp(finishedAt)
+	if err != nil {
+		return fmt.Errorf("finished_at: %w", err)
+	}
+	if finished.Before(started) {
+		return fmt.Errorf("finished_at precedes started_at")
+	}
+	if got := finished.Sub(started).Nanoseconds(); got != durationNanoseconds {
+		return fmt.Errorf("duration_nanoseconds = %d, want %d", durationNanoseconds, got)
+	}
+	return nil
+}
+
+func parseUTCTimestamp(value string) (time.Time, error) {
+	if !strings.HasSuffix(value, "Z") {
+		return time.Time{}, fmt.Errorf("must be UTC RFC3339Nano")
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsed.UTC(), nil
+}
+
+func validateBlockedReaderTarget(target blockedReaderTarget) error {
+	if target.SchemaVersion != blockedReaderTargetSchema || target.Workload.Name != "blocked-reader-output-v1" || target.Workload.Bytes != 2*1024*1024 || target.Workload.GeneratorSeed == 0 || len(target.Workload.SHA256) != 64 {
+		return fmt.Errorf("blocked-reader target workload is invalid")
+	}
+	if !target.ReaderOutputStarted || !target.ReaderBackpressured || target.HookOutcome == "" || target.HookLatencyNanoseconds < 0 {
+		return fmt.Errorf("blocked-reader target outcome is incomplete")
+	}
+	if !target.Reconciliation.Matches {
+		return fmt.Errorf("blocked-reader target reconciliation mismatch")
+	}
+	return nil
 }
 
 func validateMandatoryRound(round round) error {
@@ -447,6 +531,7 @@ func fixedFixtures() []fixture {
 	}{
 		{name: "hook-output-v1", seed: 6001, size: 4096},
 		{name: "wrapper-stream-output-v1", seed: 6002, size: 1024},
+		{name: "blocked-reader-output-v1", seed: 6003, size: 2 * 1024 * 1024},
 	}
 	fixtures := make([]fixture, 0, len(definitions))
 	for _, definition := range definitions {
@@ -710,6 +795,104 @@ func runScenarios(root string, runner processRunner, payload fixture) ([]scenari
 		results = append(results, result)
 	}
 	return results, nil
+}
+
+func runBlockedReaderTarget(root string, runner processRunner, hookFixture, readerFixture fixture) (blockedReaderTarget, error) {
+	environment, err := newRoundEnvironment(root, "blocked-reader-target")
+	if err != nil {
+		return blockedReaderTarget{}, err
+	}
+	readerSourceID := stableID(500000)
+	setup := runner.hook(environment.env, hookPayload(readerSourceID, readerFixture))
+	if setup.Code != "ok" {
+		return blockedReaderTarget{}, fmt.Errorf("initialize blocked-reader target: %s", setup.Code)
+	}
+
+	context, cancel := context.WithTimeout(context.Background(), processTimeout)
+	defer cancel()
+	reader := exec.CommandContext(context, runner.binary, "read", readerSourceID)
+	reader.Env = environment.env
+	readerStdout, err := reader.StdoutPipe()
+	if err != nil {
+		return blockedReaderTarget{}, fmt.Errorf("open blocked-reader stdout: %w", err)
+	}
+	var readerStderr bytes.Buffer
+	reader.Stderr = &readerStderr
+	if err := reader.Start(); err != nil {
+		return blockedReaderTarget{}, fmt.Errorf("start blocked reader: %w", err)
+	}
+	readerDone := make(chan error, 1)
+	go func() { readerDone <- reader.Wait() }()
+	readerFinished := false
+	defer func() {
+		if readerFinished {
+			return
+		}
+		_ = readerStdout.Close()
+		_ = reader.Process.Kill()
+		select {
+		case <-readerDone:
+		case <-time.After(processTimeout):
+		}
+	}()
+
+	firstByte := make(chan error, 1)
+	go func() {
+		var first [1]byte
+		_, err := io.ReadFull(readerStdout, first[:])
+		firstByte <- err
+	}()
+	select {
+	case err := <-firstByte:
+		if err != nil {
+			return blockedReaderTarget{}, fmt.Errorf("read blocked-reader first byte: %w", err)
+		}
+	case <-context.Done():
+		return blockedReaderTarget{}, fmt.Errorf("blocked reader did not start output: %w", context.Err())
+	}
+	select {
+	case err := <-readerDone:
+		readerFinished = true
+		return blockedReaderTarget{}, fmt.Errorf("2 MiB reader did not remain backpressured: %v; stderr=%s", err, readerStderr.String())
+	case <-time.After(blockedReaderDelay):
+	}
+
+	hook := runner.hook(environment.env, hookPayload(stableID(500001), hookFixture))
+	if _, err := io.Copy(io.Discard, readerStdout); err != nil {
+		return blockedReaderTarget{}, fmt.Errorf("release blocked reader: %w", err)
+	}
+	select {
+	case err := <-readerDone:
+		readerFinished = true
+		if err != nil {
+			return blockedReaderTarget{}, fmt.Errorf("blocked reader after release: %v; stderr=%s", err, readerStderr.String())
+		}
+	case <-context.Done():
+		return blockedReaderTarget{}, fmt.Errorf("blocked reader did not finish after release: %w", context.Err())
+	}
+
+	persisted, query, err := runner.persistedCount(environment.env)
+	if err != nil {
+		return blockedReaderTarget{}, fmt.Errorf("reconcile blocked-reader target: %w", err)
+	}
+	if query.Code != "ok" {
+		return blockedReaderTarget{}, fmt.Errorf("query blocked-reader target: %s", query.Code)
+	}
+	expected := 1
+	if hook.Code == "ok" {
+		expected++
+	}
+	return blockedReaderTarget{
+		SchemaVersion:          blockedReaderTargetSchema,
+		Workload:               readerFixture.payloadIdentity,
+		ReaderOutputStarted:    true,
+		ReaderBackpressured:    true,
+		HookOutcome:            hook.Code,
+		HookExitCode:           hook.ExitCode,
+		HookLatencyNanoseconds: hook.LatencyNS,
+		HookFailureCode:        failureCode(hook),
+		Reconciliation:         exactReconciliation(expected, persisted),
+	}, nil
 }
 
 func runForeignWriterReaderExhaustionScenario(root string, runner processRunner, fixture fixture) (scenario, error) {

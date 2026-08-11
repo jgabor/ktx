@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 )
 
 var Default = Check
@@ -34,6 +35,7 @@ const (
 	maxForbiddenDatabasePaths = 16
 	engineeringEvidenceDirEnv = "KTX_ENGINEERING_EVIDENCE_DIR"
 	engineeringManifestFile   = "manifest.json"
+	engineeringManifestSchema = 2
 )
 
 var applicationRootVariables = []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
@@ -52,8 +54,11 @@ var engineeringReportSpecs = []engineeringReportSpec{
 }
 
 type engineeringEvidenceManifest struct {
-	SchemaVersion int                         `json:"schema_version"`
-	Reports       []engineeringEvidenceReport `json:"reports"`
+	SchemaVersion       int                         `json:"schema_version"`
+	StartedAt           string                      `json:"started_at"`
+	FinishedAt          string                      `json:"finished_at"`
+	DurationNanoseconds int64                       `json:"duration_nanoseconds"`
+	Reports             []engineeringEvidenceReport `json:"reports"`
 }
 
 type engineeringEvidenceReport struct {
@@ -142,6 +147,7 @@ func engineeringVerify(directory string) error {
 		return err
 	}
 
+	started := time.Now().UTC()
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("resolve Mage executable: %w", err)
@@ -161,7 +167,8 @@ func engineeringVerify(directory string) error {
 			SchemaVersion: schemaVersion, SHA256: digest,
 		})
 	}
-	return writeEngineeringEvidenceManifest(directory, reports)
+	finished := time.Now().UTC()
+	return writeEngineeringEvidenceManifest(directory, reports, started, finished)
 }
 
 func createEngineeringEvidenceDirectory(directory string) error {
@@ -204,6 +211,9 @@ func summarizeEngineeringReport(path string, identityKeys []string) (int, string
 	if err := json.Unmarshal(report["schema_version"], &schemaVersion); err != nil || schemaVersion <= 0 {
 		return 0, "", fmt.Errorf("schema_version must be a positive integer")
 	}
+	if err := validateEngineeringReportTiming(schemaVersion, report); err != nil {
+		return 0, "", err
+	}
 	for _, key := range identityKeys {
 		value := strings.TrimSpace(string(report[key]))
 		if value == "" || value == "null" || value == "[]" || value == "{}" {
@@ -214,8 +224,18 @@ func summarizeEngineeringReport(path string, identityKeys []string) (int, string
 	return schemaVersion, hex.EncodeToString(sum[:]), nil
 }
 
-func writeEngineeringEvidenceManifest(directory string, reports []engineeringEvidenceReport) error {
-	contents, err := json.MarshalIndent(engineeringEvidenceManifest{SchemaVersion: 1, Reports: reports}, "", "  ")
+func writeEngineeringEvidenceManifest(directory string, reports []engineeringEvidenceReport, started, finished time.Time) error {
+	manifest := engineeringEvidenceManifest{
+		SchemaVersion:       engineeringManifestSchema,
+		StartedAt:           started.UTC().Format(time.RFC3339Nano),
+		FinishedAt:          finished.UTC().Format(time.RFC3339Nano),
+		DurationNanoseconds: finished.Sub(started).Nanoseconds(),
+		Reports:             reports,
+	}
+	if err := validateEngineeringEvidenceManifest(manifest); err != nil {
+		return err
+	}
+	contents, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -230,6 +250,80 @@ func writeEngineeringEvidenceManifest(directory string, reports []engineeringEvi
 		return writeErr
 	}
 	return closeErr
+}
+
+func validateEngineeringReportTiming(schemaVersion int, report map[string]json.RawMessage) error {
+	if schemaVersion == 1 {
+		return nil
+	}
+	if schemaVersion != engineeringManifestSchema {
+		return fmt.Errorf("unsupported engineering report schema %d", schemaVersion)
+	}
+	return validateEngineeringTimingFields(report["started_at"], report["finished_at"], report["duration_nanoseconds"])
+}
+
+func validateEngineeringEvidenceManifest(manifest engineeringEvidenceManifest) error {
+	if manifest.SchemaVersion == 1 {
+		return nil
+	}
+	if manifest.SchemaVersion != engineeringManifestSchema {
+		return fmt.Errorf("unsupported engineering manifest schema %d", manifest.SchemaVersion)
+	}
+	started, err := parseEngineeringTimestamp(manifest.StartedAt)
+	if err != nil {
+		return fmt.Errorf("manifest started_at: %w", err)
+	}
+	finished, err := parseEngineeringTimestamp(manifest.FinishedAt)
+	if err != nil {
+		return fmt.Errorf("manifest finished_at: %w", err)
+	}
+	if manifest.DurationNanoseconds < 0 || finished.Before(started) {
+		return fmt.Errorf("manifest timing order is invalid")
+	}
+	if got := finished.Sub(started).Nanoseconds(); got != manifest.DurationNanoseconds {
+		return fmt.Errorf("manifest duration_nanoseconds = %d, want %d", manifest.DurationNanoseconds, got)
+	}
+	return nil
+}
+
+func validateEngineeringTimingFields(startedRaw, finishedRaw, durationRaw json.RawMessage) error {
+	var startedAt, finishedAt string
+	var durationNanoseconds int64
+	if err := json.Unmarshal(startedRaw, &startedAt); err != nil {
+		return fmt.Errorf("started_at must be a UTC RFC3339Nano string")
+	}
+	if err := json.Unmarshal(finishedRaw, &finishedAt); err != nil {
+		return fmt.Errorf("finished_at must be a UTC RFC3339Nano string")
+	}
+	if err := json.Unmarshal(durationRaw, &durationNanoseconds); err != nil {
+		return fmt.Errorf("duration_nanoseconds must be an integer")
+	}
+	started, err := parseEngineeringTimestamp(startedAt)
+	if err != nil {
+		return fmt.Errorf("started_at: %w", err)
+	}
+	finished, err := parseEngineeringTimestamp(finishedAt)
+	if err != nil {
+		return fmt.Errorf("finished_at: %w", err)
+	}
+	if durationNanoseconds < 0 || finished.Before(started) {
+		return fmt.Errorf("timing order is invalid")
+	}
+	if got := finished.Sub(started).Nanoseconds(); got != durationNanoseconds {
+		return fmt.Errorf("duration_nanoseconds = %d, want %d", durationNanoseconds, got)
+	}
+	return nil
+}
+
+func parseEngineeringTimestamp(value string) (time.Time, error) {
+	if !strings.HasSuffix(value, "Z") {
+		return time.Time{}, fmt.Errorf("must be UTC RFC3339Nano")
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsed.UTC(), nil
 }
 
 // ReplayFixture runs the bounded, offline repository gate for the retained fixture.
@@ -255,7 +349,7 @@ func Vet() error {
 }
 
 func Fmt() error {
-	return run("gofmt", "-w", "cmd", "internal", "tools/bench/data.go", "tools/componentbench", "tools/loadbench")
+	return run("gofmt", "-w", "cmd", "internal", "tools/bench/data.go", "tools/componentbench", "tools/loadbench", "tools/readleasecompare")
 }
 
 func Lint() error {

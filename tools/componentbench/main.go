@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jgabor/ktx/internal/cli"
 	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/parser"
@@ -25,20 +27,28 @@ import (
 )
 
 const (
-	resultSchemaVersion = 1
-	warmupSamples       = 1
-	measuredSamples     = 5
-	maximumSampleBytes  = 1 << 20
-	maximumOperations   = 64
+	resultSchemaVersion      = 2
+	benchmarkSchemaVersion   = 1
+	focusedReadSchemaVersion = 1
+	warmupSamples            = 1
+	measuredSamples          = 5
+	maximumSampleBytes       = 1 << 20
+	maximumOperations        = 64
+	focusedReadSessionID     = "readbenchsession"
+	focusedReadSourceID      = "readbenchsourcea"
 )
 
 type result struct {
-	SchemaVersion   int               `json:"schema_version"`
-	WarmupSamples   int               `json:"warmup_samples"`
-	MeasuredSamples int               `json:"measured_samples"`
-	Machine         machineIdentity   `json:"machine"`
-	Workloads       []workloadID      `json:"workloads"`
-	Benchmarks      []benchmarkResult `json:"benchmarks"`
+	SchemaVersion       int                 `json:"schema_version"`
+	StartedAt           string              `json:"started_at"`
+	FinishedAt          string              `json:"finished_at"`
+	DurationNanoseconds int64               `json:"duration_nanoseconds"`
+	WarmupSamples       int                 `json:"warmup_samples"`
+	MeasuredSamples     int                 `json:"measured_samples"`
+	Machine             machineIdentity     `json:"machine"`
+	Workloads           []workloadID        `json:"workloads"`
+	Benchmarks          []benchmarkResult   `json:"benchmarks"`
+	FocusedReads        []focusedReadResult `json:"focused_reads"`
 }
 
 type machineIdentity struct {
@@ -77,6 +87,15 @@ type benchmarkResult struct {
 	Warmup                     sample       `json:"warmup"`
 	Samples                    []sample     `json:"samples"`
 	Distribution               distribution `json:"distribution"`
+}
+
+type focusedReadResult struct {
+	SchemaVersion int          `json:"schema_version"`
+	Name          string       `json:"name"`
+	Workload      workloadID   `json:"workload"`
+	Warmup        sample       `json:"warmup"`
+	Samples       []sample     `json:"samples"`
+	Distribution  distribution `json:"distribution"`
 }
 
 type sample struct {
@@ -159,8 +178,20 @@ func run() (result, error) {
 }
 
 func runWithRoot(root, configHome string) (result, error) {
+	started := time.Now().UTC()
 	workloads := fixedWorkloads()
-	return runSpecs(root, configHome, workloads, benchmarkSpecs(workloads))
+	measured, err := runSpecs(root, configHome, workloads, benchmarkSpecs(workloads))
+	if err != nil {
+		return result{}, err
+	}
+	finished := time.Now().UTC()
+	measured.StartedAt = started.Format(time.RFC3339Nano)
+	measured.FinishedAt = finished.Format(time.RFC3339Nano)
+	measured.DurationNanoseconds = finished.Sub(started).Nanoseconds()
+	if err := validateComponentReport(measured); err != nil {
+		return result{}, err
+	}
+	return measured, nil
 }
 
 func runSpecs(root, configHome string, workloads []workload, specs []benchmarkSpec) (result, error) {
@@ -189,7 +220,81 @@ func runSpecs(root, configHome string, workloads []workload, specs []benchmarkSp
 		}
 		measured.Benchmarks = append(measured.Benchmarks, measurement)
 	}
+	focusedReads, err := measureFocusedReads(ctx, fixedFocusedReadWorkloads())
+	if err != nil {
+		return result{}, err
+	}
+	measured.FocusedReads = focusedReads
 	return measured, nil
+}
+
+func validateComponentReport(measured result) error {
+	if measured.SchemaVersion != resultSchemaVersion {
+		return fmt.Errorf("component report schema = %d, want %d", measured.SchemaVersion, resultSchemaVersion)
+	}
+	if err := validateReportTiming(measured.StartedAt, measured.FinishedAt, measured.DurationNanoseconds); err != nil {
+		return fmt.Errorf("component report timing: %w", err)
+	}
+	expected := fixedFocusedReadWorkloads()
+	if len(measured.FocusedReads) != len(expected) {
+		return fmt.Errorf("focused read measurements = %d, want %d", len(measured.FocusedReads), len(expected))
+	}
+	for index, measurement := range measured.FocusedReads {
+		if measurement.SchemaVersion != focusedReadSchemaVersion || measurement.Name != "ktx-read" || measurement.Workload != expected[index].workloadID {
+			return fmt.Errorf("focused read measurement %d has invalid identity", index+1)
+		}
+		if err := validateSample(measurement.Warmup); err != nil {
+			return fmt.Errorf("focused read %s warmup: %w", measurement.Workload.Name, err)
+		}
+		if len(measurement.Samples) != measuredSamples {
+			return fmt.Errorf("focused read %s samples = %d, want %d", measurement.Workload.Name, len(measurement.Samples), measuredSamples)
+		}
+		for sampleIndex, sample := range measurement.Samples {
+			if err := validateSample(sample); err != nil {
+				return fmt.Errorf("focused read %s sample %d: %w", measurement.Workload.Name, sampleIndex+1, err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateReportTiming(startedAt, finishedAt string, durationNanoseconds int64) error {
+	if durationNanoseconds < 0 {
+		return fmt.Errorf("duration_nanoseconds = %d", durationNanoseconds)
+	}
+	started, err := parseUTCTimestamp(startedAt)
+	if err != nil {
+		return fmt.Errorf("started_at: %w", err)
+	}
+	finished, err := parseUTCTimestamp(finishedAt)
+	if err != nil {
+		return fmt.Errorf("finished_at: %w", err)
+	}
+	if finished.Before(started) {
+		return fmt.Errorf("finished_at precedes started_at")
+	}
+	if got := finished.Sub(started).Nanoseconds(); got != durationNanoseconds {
+		return fmt.Errorf("duration_nanoseconds = %d, want %d", durationNanoseconds, got)
+	}
+	return nil
+}
+
+func parseUTCTimestamp(value string) (time.Time, error) {
+	if !strings.HasSuffix(value, "Z") {
+		return time.Time{}, fmt.Errorf("must be UTC RFC3339Nano")
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsed.UTC(), nil
+}
+
+func validateSample(measured sample) error {
+	if measured.Operations <= 0 || measured.ProcessedBytes < 0 || measured.LatencyNanosecondsPerOperation < 0 || measured.ThroughputBytesPerSecond < 0 {
+		return fmt.Errorf("invalid metric values")
+	}
+	return nil
 }
 
 func withEnvironment(name, value string, fn func() error) error {
@@ -227,6 +332,27 @@ func fixedWorkloads() []workload {
 				data: data,
 			})
 		}
+	}
+	return workloads
+}
+
+func fixedFocusedReadWorkloads() []workload {
+	sizes := []int{1024, 65536, 1048576, 2097152}
+	workloads := make([]workload, 0, len(sizes))
+	for index, size := range sizes {
+		seed := uint64(2000 + index)
+		data := generateWorkload("plain-text", size, seed)
+		sum := sha256.Sum256(data)
+		workloads = append(workloads, workload{
+			workloadID: workloadID{
+				Name:          fmt.Sprintf("ktx-read-output-%d", size),
+				Kind:          "ktx-read-output",
+				Bytes:         len(data),
+				GeneratorSeed: seed,
+				SHA256:        hex.EncodeToString(sum[:]),
+			},
+			data: data,
+		})
 	}
 	return workloads
 }
@@ -594,6 +720,84 @@ func persistenceBenchmarkSpec(workload workload, caseName string) benchmarkSpec 
 	}
 }
 
+func measureFocusedReads(ctx *benchmarkContext, workloads []workload) ([]focusedReadResult, error) {
+	results := make([]focusedReadResult, 0, len(workloads))
+	for _, workload := range workloads {
+		measurement, err := measureFocusedRead(ctx, workload)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, measurement)
+	}
+	return results, nil
+}
+
+func measureFocusedRead(ctx *benchmarkContext, workload workload) (focusedReadResult, error) {
+	ctx.sequence++
+	path := filepath.Join(ctx.root, "database", fmt.Sprintf("focused-read-%d.db", ctx.sequence))
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return focusedReadResult{}, err
+	}
+	database, err := dbpkg.Open(path)
+	if err != nil {
+		return focusedReadResult{}, err
+	}
+	if err := database.InsertSession(&dbpkg.Session{
+		ID: focusedReadSessionID, Agent: "componentbench", StartedAt: "2026-08-09T00:00:00Z", LastSeenAt: "2026-08-09T00:00:00Z",
+	}); err != nil {
+		_ = database.Close()
+		return focusedReadResult{}, err
+	}
+	output := string(workload.data)
+	if err := database.PersistToolCall(&dbpkg.ToolCall{
+		ID: focusedReadSourceID, SessionID: focusedReadSessionID, Tool: "read", Input: "component-benchmark",
+		Output: output, ContentHash: dbpkg.ContentHash(output), Timestamp: "2026-08-09T00:00:00Z",
+	}); err != nil {
+		_ = database.Close()
+		return focusedReadResult{}, err
+	}
+	if err := database.Close(); err != nil {
+		return focusedReadResult{}, err
+	}
+
+	operation := benchmarkOperation{run: func() error {
+		var stderr bytes.Buffer
+		if code := cli.RunForComponentBench([]string{"read", focusedReadSourceID}, io.Discard, &stderr); code != 0 {
+			return fmt.Errorf("ktx read exit %d: %s", code, strings.TrimSpace(stderr.String()))
+		}
+		return nil
+	}}
+	var warmup sample
+	var samples []sample
+	err = withEnvironment("KTX_DB", path, func() error {
+		var err error
+		warmup, err = measureOperation(operation, int64(workload.Bytes), 1)
+		if err != nil {
+			return err
+		}
+		samples = make([]sample, 0, measuredSamples)
+		for sampleIndex := 0; sampleIndex < measuredSamples; sampleIndex++ {
+			measured, err := measureOperation(operation, int64(workload.Bytes), operationsFor(int64(workload.Bytes)))
+			if err != nil {
+				return err
+			}
+			samples = append(samples, measured)
+		}
+		return nil
+	})
+	if err != nil {
+		return focusedReadResult{}, fmt.Errorf("measure focused read %s: %w", workload.Name, err)
+	}
+	return focusedReadResult{
+		SchemaVersion: focusedReadSchemaVersion,
+		Name:          "ktx-read",
+		Workload:      workload.workloadID,
+		Warmup:        warmup,
+		Samples:       samples,
+		Distribution:  distributionFor(samples),
+	}, nil
+}
+
 func benchmarkID(index int) string {
 	id := make([]byte, 16)
 	for position := len(id) - 1; position >= 0; position-- {
@@ -640,7 +844,7 @@ func measure(ctx *benchmarkContext, spec benchmarkSpec) (benchmarkResult, error)
 	}
 
 	return benchmarkResult{
-		SchemaVersion:              resultSchemaVersion,
+		SchemaVersion:              benchmarkSchemaVersion,
 		Name:                       spec.Name,
 		Component:                  spec.Component,
 		Case:                       spec.Case,

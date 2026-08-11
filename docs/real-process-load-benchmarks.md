@@ -21,8 +21,9 @@ warm-up, measured round, and scenario. Each worker receives only an explicit
 
 ## Report contract
 
-The JSON report has `schema_version: 1`, one warm-up round, and five measured
-rounds. It records the local binary path and SHA-256, Go version, operating
+The JSON report has `schema_version: 2`, one warm-up round, and five measured
+rounds. It records UTC RFC3339Nano `started_at`, `finished_at`, and non-negative
+`duration_nanoseconds`, the local binary path and SHA-256, Go version, operating
 system, architecture, processor, disposable environment names, fixed payload
 names, seeds, byte counts, and hashes.
 
@@ -62,6 +63,12 @@ The harness also runs bounded scenarios for:
 - `supported-process-termination-ownership-recovery`: termination of a hook
   process while it owns supported-writer coordination and is blocked by a
   foreign writer, followed by a successful supported recovery write.
+
+It separately records a real-process `blocked_reader_target`. A 2 MiB `ktx
+read` output is deliberately backpressured after its first byte, then a
+one-shot hook runs before that output is released. The target records the
+blocked-reader outcome and hook latency independently, plus its exact
+reconciliation result. It does not make a timing claim.
 
 Supported writers coordinate each database transaction through the local
 database file. The operating system releases that ownership when the process

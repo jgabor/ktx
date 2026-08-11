@@ -41,9 +41,20 @@ Persistence uses only a database created beneath the runner's temporary root.
 It does not resolve `KTX_DB`, create product telemetry, or alter the product
 database schema.
 
+### Focused `ktx read` measurements
+
+The report also measures the production `ktx read` path against fixed
+`ktx-read-output` source records with 1024, 65536, 1048576, and 2097152-byte
+outputs. Each focused result retains its workload name, byte count, generator
+seed, SHA-256, latency, allocated bytes, and allocation count. The runner sets
+`KTX_DB` only to a database beneath its own temporary root for this operation;
+it does not resolve, create, or alter product telemetry.
+
 ## Result contract
 
-The JSON document has `schema_version: 1`. Each benchmark also has a versioned
+The JSON document has `schema_version: 2`. It records UTC RFC3339Nano
+`started_at`, `finished_at`, and non-negative `duration_nanoseconds` values.
+Each ordinary benchmark retains its versioned
 `schema_version` and identifies its component, case, workload, and processed
 bytes per operation. A sample reports:
 

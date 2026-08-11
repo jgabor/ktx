@@ -4,7 +4,7 @@ record:
   header:
     level: light
     created: 2026-08-10
-    status: open
+    status: complete
     title: "Plan: Prototype early ktx read lease release"
   what: Prototype ending supported database-read ownership for one `ktx read` operation after its database-dependent result is fully materialized but before downstream output delivery finishes. Retain the candidate only when measured evidence proves that blocked output no longer delays an unrelated supported writer and all existing read, evidence, and database-safety contracts remain intact.
   why: A slow or blocked output consumer should not extend SQLite coordination after `ktx read` no longer needs the database. Shortening that ownership span can remove an avoidable supported-reader delay without weakening the bounded availability behavior that protects hooks today.

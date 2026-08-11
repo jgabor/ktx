@@ -44,6 +44,19 @@ func TestCompareNoiseIsInconclusiveOnce(t *testing.T) {
 	}
 }
 
+func TestCompareFailedExternalGateOverridesInconclusiveMeasurement(t *testing.T) {
+	runs := testRuns([]float64{90, 100, 110, 120, 130}, []float64{100, 100, 100, 100, 100}, true)
+	gates := passingExternalGates()
+	gates["mage_check"] = false
+	report, err := compare(runs, append([]string(nil), requiredOrder...), 1, gates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.MeasurementVerdict != "inconclusive" || report.Decision != "reject" || report.RerunAllowed {
+		t.Fatalf("report = measurement %q decision %q rerun %t", report.MeasurementVerdict, report.Decision, report.RerunAllowed)
+	}
+}
+
 func TestCompareRejectsBlockedCandidateTarget(t *testing.T) {
 	runs := testRuns([]float64{100, 100, 100, 100, 100}, []float64{100, 100, 100, 100, 100}, false)
 	report, err := compare(runs, append([]string(nil), requiredOrder...), 1, nil)

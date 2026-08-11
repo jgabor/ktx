@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: ndpjdfjetg
   name: Instrument and rerun the ktx read lease prototype
-  status: in_progress
+  status: complete
   depends_on:
     - sozqiybyld
   acceptance:
@@ -12,3 +12,13 @@ record:
     - GIVEN five baseline and five candidate runs execute in counterbalanced B-C-C-B-B-C-C-B-B-C order WHEN evidence is compared THEN only the predeclared read metrics, one-shot hook concurrency-1 p50, concurrency-32 p99 and throughput, and blocked-reader target determine the performance decision; unrelated component measurements remain diagnostic.
     - GIVEN run-level gating values WHEN noise is evaluated THEN the baseline center is the median, baseline noise is 1.4826 times MAD divided by the center, noise above 5 percent for medians or throughput and 10 percent for p99 is inconclusive, and an inconclusive experiment receives at most one fresh rerun rather than rejection.
     - GIVEN baseline noise is acceptable WHEN candidate centers are compared THEN median latency and throughput permit a 5 percent practical regression plus measured baseline noise, p99 permits 10 percent plus noise, allocation metrics permit 10 percent plus noise, and the candidate is retained only when the blocked-reader target succeeds in every candidate run and all exact reconciliation, supported-failure, byte-identity, read-only, schema, recovery, mage engineeringVerify, and mage check gates pass; otherwise it is reverted with the measured result recorded.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-read-lease-rerun-1
+      source: Independent audit and focused correction audit ses_00e1490ecffeO6eB76upL9Syhn
+      recorded_at: 2026-08-11 20:01
+      writer_command: agentera state plan record-evaluation

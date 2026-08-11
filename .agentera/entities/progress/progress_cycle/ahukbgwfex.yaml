@@ -1,0 +1,15 @@
+id: ahukbgwfex
+artifact: progress
+record:
+  timestamp: 2026-08-11 20:01
+  type: test
+  phase: build
+  what: Added first-class engineering durations and a reproducible noise-aware read-lease comparator, then rejected and reverted the read-lease candidate after a decisive five-pair allocation regression.
+  context:
+    intent: Measure the functionally successful early read-lease release with focused causal metrics and a policy that separates baseline noise, hard correctness gates, and practical regressions.
+    constraints: Preserve schema-1 evidence, public commands, database coordination, read-only and schema behavior, exact output, cost and quality benchmarks, and every supported-lock and reconciliation invariant; retain the candidate only if all focused gates pass.
+    scope: Schema-2 engineering timing, focused read measurements, a versioned comparison tool, one B-C-C-B-B-C-C-B-B-C experiment sequence, comparator correction, candidate rollback, and current documentation.
+  discovered: "The candidate consistently removed the blocked-reader delay: all five candidate hooks completed in 5.212 to 6.295 milliseconds before output release, while all baselines returned typed database-unavailable near 2.002 seconds. Baseline noise was acceptable, but full JSON materialization increased allocated bytes by 17.49 percent at 1 KiB, 96.29 percent at 64 KiB, 100.50 percent at 1 MiB, and 101.02 percent at 2 MiB; 1 MiB latency also exceeded its allowance. The measured policy therefore rejected the candidate without a second sequence."
+  verified: Instrumentation commit e9e6406 records UTC RFC3339Nano started_at and finished_at plus exact duration_nanoseconds in schema-2 component, load, and engineering manifests while tests preserve schema-1 evidence without inferred timing. Ten retained runs under /tmp/opencode/ktx-vrcswvcrcm-evidence-seq1-* followed B-C-C-B-B-C-C-B-B-C and took 22.986 to 25.758 seconds each, 243.885 seconds total. The comparator owns 15 focused gates and the MAD policy; retained comparison SHA-256 is 8b09a1b1482ead10319386c2098c6b83e662a51800c38afc109ee23b37404d5f. All exact reconciliation, supported-failure, byte identity, binary identity, read-only, absent/stale/newer schema, output-failure, termination, engineering verification, and repository gates passed with forbidden=0. Independent audit reproduced every gate and the decisive rejection. A bounded correction made failed external hard gates override inconclusive timing; focused tests passed and regenerated comparison remained byte-identical. Final mage check passed tests, race coverage, vet, lint with 0 issues, build, and 2370 audited accesses with forbidden=0. Candidate code is absent and the current binary matches the measured baseline SHA-256 798a336fcc3ae0f21667caa34d268271d3da72f6a2871a322a0d413fbcc9ec35.
+  next: Do not retain the full-materialization candidate. A future experiment must avoid duplicating the complete encoded record, for example by shortening ownership without a second full-size buffer, and must use the retained focused comparison policy.
+  publication_order: 77

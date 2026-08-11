@@ -615,13 +615,11 @@ func compare(runs []observedRun, observedOrder []string, sequence int, externalG
 	gates := internalGates(runs, externalGates)
 	measurementVerdict := measurementVerdict(metrics, gates)
 	decision := measurementVerdict
-	if measurementVerdict == "retain" {
-		switch externalGateStatus(gates) {
-		case "pass":
-			decision = "retain"
-		case "fail":
-			decision = "reject"
-		default:
+	switch externalGateStatus(gates) {
+	case "fail":
+		decision = "reject"
+	case "not_evaluated":
+		if measurementVerdict == "retain" {
 			decision = "pending-hard-gates"
 		}
 	}
@@ -647,7 +645,7 @@ func compare(runs []observedRun, observedOrder []string, sequence int, externalG
 		HardGates:          gates,
 		MeasurementVerdict: measurementVerdict,
 		Decision:           decision,
-		RerunAllowed:       measurementVerdict == "inconclusive" && sequence == 1,
+		RerunAllowed:       decision == "inconclusive" && sequence == 1,
 	}, nil
 }
 

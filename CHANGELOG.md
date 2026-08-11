@@ -6,9 +6,7 @@
 
 - Current prompt-cache comparisons use methodology v6 and `cache-reuse-v2` to emit token-weighted summary schema 5; methodology v5, summary schemas 1–4, and `cache-reuse-v1` remain historical evidence.
 - Schema-5 prompt-cache benchmark summaries now publish a fail-closed, quality-adjusted API-equivalent cost guard; valid rejected candidates remain evidence but are not recommended by rank.
-- `ktx stats summary` schema 7 now keeps `runtime_reported_cost_usd` separate from the cache-aware `api_equivalent_estimated_cost_usd`, including availability reasons and local price-record provenance.
-- `ktx stats summary` schema 7 publishes the token-weighted, runtime-emitted `prompt_cache_token_hit_rate` with its source, raw input buckets, and observed temporal scope; it is not a provider request hit rate.
-- `ktx stats summary` schema 6 reports the first and last contributing model-telemetry captures, observed span, contributing KTX session and model-step counts, and explicitly unavailable requested-window coverage for observed provider prompt/prefix-cache token subsets.
+- `ktx stats summary` schema 8 is a compact closed object with window, call and token totals, and runtime-reported `prompt_cache_token_hit_rate_pct` in percentage units; measured zero remains zero and unavailable values remain null. Retained schema 6 summaries remain unchanged historical evidence.
 
 ### Fixed
 

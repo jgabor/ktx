@@ -190,27 +190,15 @@ delivered estimated tokens. `stats summary` accepts positive Go durations such
 as `30m`, `24h`, or `72h`. `stats breakdown` uses the same window syntax and
 reports bounded delivery groups by safe command dimensions, profile, route,
 disposition, and raw-output-size band; it does not include cache telemetry.
-Summary JSON schema 7 and breakdown JSON schema 2 report aggregate outcomes over
-the same output-bearing, valid-timestamp calls in the inclusive window. Error
-rate divides errors by known outcomes; coverage divides known by total. Text
-renders those current fields without a separate schema version. Breakdown has
-no per-group rates, and cache/model-step selection remains independent. Summary
-`cache_reuse` is provider prompt/prefix-cache token evidence, not filesystem,
-memory, database, HTTP, or other I/O caching. It reports observed first/last
-capture, span, KTX session and model-step counts; requested-window coverage is
-unavailable with `collector_lifecycle_evidence_unavailable` and scope
-`observed_subset`. Its `prompt_cache_token_hit_rate` is `token_weighted`:
-`sum(cache_read) / sum(uncached_input + cache_read + cache_write)`. The rate
-reports runtime-emitted model-step source, raw buckets, temporal scope, and
-token-fraction unit; it is not a provider request hit rate. It is measured only
-for one complete runtime-emitted provider/model pair and complete buckets.
-`runtime_reported_cost_usd` separately sums runtime-emitted cost and preserves a
-literal zero. `api_equivalent_estimated_cost_usd` is a separately labeled USD
-estimate that requires complete uncached-input, cache-read, cache-write, output,
-and reasoning fields, one runtime-emitted identity, and a matching local price
-cache record. It does not fetch prices, backfill identity, or replace reported
-cost; unavailable estimate reasons and price-record provenance remain explicit.
-Retained schema 6 summaries remain unchanged historical evidence.
+Summary schema 8 is a compact closed object with window, call totals, estimated
+token totals, and `prompt_cache_token_hit_rate_pct`. Breakdown JSON schema 2 retains aggregate
+outcomes and delivery groups. Summary text renders only its literal fields and
+has no separate schema version. `prompt_cache_token_hit_rate_pct` is runtime-reported
+cache-read token evidence in percentage units, not a provider request hit rate.
+It keeps measured zero as zero; missing, malformed, and not-applicable evidence
+stays unavailable with a null value and is never reconstructed. The summary emits no buckets, formula, ratio,
+identity, runtime, coverage, timestamps, cost, or pricing provenance. Retained
+schema 6 summaries remain unchanged historical evidence.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It
 reports failures without failing the agent operation. Required benchmark

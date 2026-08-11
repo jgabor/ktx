@@ -310,15 +310,13 @@ pack or a more aggressive profile would have the highest impact. Command labels
 use the fixed reporting vocabulary described below; other inputs use an empty
 command label rather than exposing raw command text.
 
-`ktx stats summary` emits a fixed-shape aggregate for periodically polled clients.
-Its JSON contract contains window metadata, headline call and token totals,
-aggregate provider prompt/prefix-cache token evidence, and distinct
-runtime-reported and API-equivalent estimated cost views. The schema is closed:
-further diagnostic arrays and reporting dimensions require an intentional
-schema-version change.
+`ktx stats summary` emits a compact closed aggregate for periodically polled
+clients. Its JSON contract contains only the window, headline call and token
+totals, and a runtime-reported `prompt_cache_token_hit_rate_pct`. The schema is
+closed: further fields require an intentional schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
-Summary schema 7 omits `delivery_breakdown`; callers that need those detailed
-groups should invoke the breakdown schema 2 command instead.
+Summary schema 8 omits outcomes, delivery rates, cost views, and cache detail.
+Callers that need delivery groups should invoke the breakdown schema 2 command.
 
 The summary and breakdown commands use an inclusive trailing window (`[from,
 to]`) ending at one captured wall-clock time. Only calls with non-NULL output and
@@ -339,62 +337,20 @@ Historical calls, collection-only ingress, explicit compression without a hook
 observation, and other calls without retained disposition evidence report
 `unobserved` rather than an inferred outcome.
 
-The summary independently selects accepted OpenCode 1.18.5 model-step telemetry
-by `captured_at`. `cache_reuse` pools those steps' runtime-reported
-uncached-input, cache-read, and cache-write provider prompt/prefix-cache token
-buckets. This is not filesystem, memory, database, HTTP, or other I/O caching.
-Its `prompt_cache_token_hit_rate` is a `token_weighted` rate with formula
-`sum(cache_read) / sum(uncached_input + cache_read + cache_write)`. Its source
-is runtime-emitted model steps (`runtime_emitted_model_steps`); `raw_buckets`
-retains every summed bucket and `temporal_scope` is `observed_subset`. It is not
-a provider request hit rate.
-The rate is measured only when every contributing step has a nonblank
-runtime-emitted provider and model, all steps have the same pair, every bucket is
-measured, and logical input is positive. A measured zero cache read remains a
-measured zero rate. Missing identity makes the rate `missing` with reason
-`runtime_emitted_identity_unavailable`; more than one pair uses
-`runtime_emitted_identity_conflict`. Configured identity never fills source
-evidence. Rows without current event-hook or wrapper-stream collection
-provenance are excluded rather than historically reinterpreted.
-It reports the first and last accepted capture, their observed span, and distinct
-KTX session and model-step counts. Capture timestamps describe only that observed
-subset. `requested_window_coverage` remains unavailable with reason
-`collector_lifecycle_evidence_unavailable` because these rows do not prove
-continuous collector lifecycle or full requested-window coverage. The summary
-does not read benchmark aggregates or reconstruct provider requests. The
-breakdown does not query or emit model-step telemetry.
+Summary `prompt_cache_token_hit_rate_pct` is in percentage units from 0 to 100
+when `measured`; measured zero remains `0`. Unavailable states retain the state
+and use `null` for `value`. `contributing_model_steps` is a count. The percentage
+is token-weighted runtime reporting, not a provider request hit rate or
+cache-internal claim. The breakdown does not query or emit model-step telemetry.
 
-The same accepted model-step subset produces two independent USD views.
-`runtime_reported_cost_usd` sums only runtime-emitted cost fields; a literal zero
-remains a measured zero, while missing or malformed reported cost makes only that
-view unavailable. `api_equivalent_estimated_cost_usd` is a separate estimate, not
-a repair for reported cost. It requires one runtime-emitted provider/model identity
-and complete uncached-input, cache-read, cache-write, output, and reasoning fields
-for every contributing step. It prices each step through the local price cache,
-never fetches prices from a query, and exposes the cache record's path, canonical
-record hash, source URL, and retrieval timestamp when retained. Missing identity,
-price, or required tokens makes only the estimate unavailable with machine reasons;
-configured identity never fills a source row.
-
-To avoid holding a long rollback-journal read while clients poll either command,
-the query first scans eligible source IDs and timestamps, closes that read, then
-fetches output lengths and artifacts for those IDs in batches. No transaction
-spans those phases: an artifact committed after the source scan can appear in the
-result. Source calls are append-only, so the selected source set remains stable.
-The summary's model-step query is also independent; no transaction spans the
-tool-call and telemetry views.
-
-The default window is `30m`; `--window` accepts a positive Go duration. Token
-estimates apply `ceil(character count / 4)` to each call before summing, matching
-`ktx stats`. Per-second rates divide by the full configured window. The current
-summary JSON contract is schema 7. Retained schema 6 summaries keep their
-original bytes and meaning; this read-only query neither migrates nor rewrites
-them. The schema 7 contract is:
+The default window is `30m`; `--window` accepts a positive Go duration. The
+current summary JSON contract is schema 8. Retained schema 6
+summaries keep their original bytes and meaning; this read-only query neither
+migrates nor rewrites them. The schema 8 contract is:
 
 ```json
 {
-  "schema_version": 7,
-  "generated_at": "2026-07-21T12:00:00Z",
+  "schema_version": 8,
   "window": {
     "seconds": 1800,
     "from": "2026-07-21T11:30:00Z",
@@ -404,89 +360,14 @@ them. The schema 7 contract is:
     "total_with_output": 51,
     "with_compressed_artifact": 42
   },
-  "outcomes": {
-    "successful_calls": 40,
-    "error_calls": 5,
-    "unknown_calls": 6,
-    "known_calls": 45,
-    "total_calls": 51,
-    "error_rate_pct_of_known": 11.11111111111111,
-    "outcome_coverage_pct": 88.23529411764706
-  },
   "tokens": {
     "raw_estimated": 37370,
-    "delivered_estimated": 14200,
-    "raw_estimated_per_second": 20.761111111111113,
-    "delivered_estimated_per_second": 7.888888888888889,
-    "reduction_percent": 62.001605565962
+    "delivered_estimated": 14200
   },
-  "cache_reuse": {
-    "contract_version": "cache-reuse-v1",
-    "runtime": "opencode",
-    "runtime_version": "1.18.5",
-    "provider": "openai",
-    "model": "gpt-5.6-luna",
-    "evidence_scope": "provider_prompt_prefix_cache_tokens",
-    "requested_window_coverage": {
-      "state": "unavailable",
-      "reason": "collector_lifecycle_evidence_unavailable",
-      "scope": "observed_subset"
-    },
-    "first_contributing_capture": "2026-07-21T11:30:00Z",
-    "last_contributing_capture": "2026-07-21T12:00:00Z",
-    "observed_span_seconds": 1800,
-    "contributing_sessions": 2,
-    "contributing_model_steps": 6,
-    "prompt_cache_token_hit_rate": {
-      "state": "measured",
-      "value": 0.7,
-      "ratio": "7/10",
-      "reason": null,
-      "formula": "sum(cache_read) / sum(uncached_input + cache_read + cache_write)",
-      "kind": "token_weighted",
-      "source": "runtime_emitted_model_steps",
-      "raw_buckets": {
-        "uncached_input": { "state": "measured", "value": 1000 },
-        "cache_read": { "state": "measured", "value": 3500 },
-        "cache_write": { "state": "measured", "value": 500 },
-        "logical_input": { "state": "measured", "value": 5000 }
-      },
-      "temporal_scope": "observed_subset",
-      "unit": "token_fraction"
-    }
-  },
-  "runtime_reported_cost_usd": {
+  "prompt_cache_token_hit_rate_pct": {
     "state": "measured",
-    "value": 0,
-    "reasons": [],
-    "source": "runtime_emitted_model_steps",
-    "temporal_scope": "observed_subset",
-    "unit": "usd"
-  },
-  "api_equivalent_estimated_cost_usd": {
-    "state": "measured",
-    "value": 0.012345,
-    "availability_reasons": [],
-    "formula": "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price) / 1000000",
-    "source": "runtime_emitted_model_steps_and_local_price_cache",
-    "provider": "openai",
-    "model": "gpt-5.6-luna",
-    "components": {
-      "uncached_input": { "state": "measured", "value": 1000 },
-      "cache_read": { "state": "measured", "value": 3500 },
-      "cache_write": { "state": "measured", "value": 500 },
-      "output": { "state": "measured", "value": 100 },
-      "reasoning": { "state": "measured", "value": 20 }
-    },
-    "pricing": {
-      "state": "available",
-      "path": "/home/alice/.local/share/ktx/prices.json",
-      "record_sha256": "...",
-      "source_url": "https://models.dev/api.json",
-      "retrieved_at": "2026-07-21T11:00:00Z"
-    },
-    "temporal_scope": "observed_subset",
-    "unit": "usd"
+    "value": 70,
+    "contributing_model_steps": 6
   }
 }
 ```
@@ -565,13 +446,13 @@ the summary:
 }
 ```
 
-`reduction_percent` is `(raw_estimated - delivered_estimated) /
+The breakdown's `reduction_percent` is `(raw_estimated - delivered_estimated) /
 raw_estimated * 100`, and is `null` when `raw_estimated` is zero. Calls with an
 empty (but non-NULL) output are included in the call counts and contribute zero
 tokens. `with_compressed_artifact` measures retained-artifact coverage, not
 whether compression reduced output size.
 
-The aggregate `outcomes` population is exactly the same output-bearing calls
+The breakdown aggregate `outcomes` population is exactly the same output-bearing calls
 with valid RFC3339 timestamps in the inclusive window. Classification uses only
 persisted `is_error`: `false` is successful, `true` is error, and NULL or invalid
 is unknown. The formulas are:
@@ -586,16 +467,13 @@ outcome_coverage_pct = known_calls / total_calls * 100
 For an empty population, both percentages are JSON `null` and text `-`. For an
 all-unknown population, error rate is `null`/`-` and coverage is `0`. For an
 all-known population with no errors, error rate is `0` and coverage is `100`.
-Breakdown groups do not carry per-group outcome rates. The summary's independent
-model-step/cache query does not change the tool-call outcome population.
+Breakdown groups do not carry per-group outcome rates.
 
-Summary schema 7 and breakdown schema 2 supersede their previous structured
+Summary schema 8 and breakdown schema 2 supersede their previous structured
 schemas without a compatibility bridge. Retained schema 6 summaries remain
-unchanged historical evidence. Text output renders the same current fields and
-has no separate schema version. Its `PROVIDER_PROMPT_PREFIX_CACHE_EVIDENCE`,
-`PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, `REQUESTED_WINDOW_COVERAGE`, capture, span,
-session, model-step, `RUNTIME_REPORTED_COST_USD`, and
-`API_EQUIVALENT_ESTIMATED_COST_USD` columns make their scopes explicit.
+unchanged historical evidence. Summary text output has one literal row with its
+window, calls, token totals, `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, and contributing
+model-step count; it has no separate schema version.
 
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus
@@ -620,52 +498,6 @@ size bands use character counts: `empty` (0), `1-1k` (1-1024), `1k-10k`
 Disposition does not replace existing delivery semantics: artifact coverage and
 delivered estimates use the first retained artifact, including artifacts whose
 delivery provenance is unavailable.
-
-Each cache bucket total is `measured` only when every contributing model step
-measured that bucket. A measured zero participates in the sum. Missing or null
-runtime fields produce a `missing` total; malformed fields produce a
-`malformed` total and take precedence. Values remain `null` in either state and
-are never reconstructed from neighboring fields. `logical_input` is
-`uncached_input + cache_read + cache_write` only when all three totals are
-measured. `prompt_cache_token_hit_rate` is `token_weighted`, pools the window
-totals rather than averaging per-step percentages, and retains those values as
-its `raw_buckets`. Its formula is
-`sum(cache_read) / sum(uncached_input + cache_read + cache_write)`. It is
-`not_applicable` when measured logical input is zero; a zero cache-read numerator
-with positive logical input remains measured zero. A measured rate includes both
-a numeric token fraction and its exact reduced `ratio`. The text format renders
-that fraction as `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`.
-
-`evidence_scope` is always `provider_prompt_prefix_cache_tokens`.
-`requested_window_coverage` is always `state: unavailable`,
-`reason: collector_lifecycle_evidence_unavailable`, and
-`scope: observed_subset`; the scope labels the metric rather than claiming that
-the requested interval was observed. With no accepted telemetry, contributing
-session and model-step counts are zero and the first/last capture and observed
-span are JSON `null`. One accepted capture has an observed span of zero.
-Missing, malformed, and measured-zero token buckets do not remove an accepted
-model step from this temporal metadata.
-
-This is provider prompt/prefix-cache token evidence, not filesystem, memory,
-database, HTTP, or other I/O caching. `prompt_cache_token_hit_rate` has source
-`runtime_emitted_model_steps` and temporal scope `observed_subset`; it is not a
-provider request hit rate. A runtime model step is not a provider request, and
-the retained evidence does not prove provider hits, misses, eligibility,
-eviction, or request boundaries.
-
-`runtime_reported_cost_usd` uses the same model-step subset but remains runtime
-evidence: its state is `measured` only when every contributing cost is measured;
-otherwise it is `missing` or `malformed`. A reported zero is measured, not
-substituted from pricing, and its billing semantics remain unavailable.
-`api_equivalent_estimated_cost_usd` stays independent. Its components use the
-same complete-only state rules, and it calls the shared API-equivalent estimator
-for every model step so uncached input, cache read, cache write, output, and
-reasoning each use their applicable local price-cache rates. The estimate is
-available only with one runtime-emitted provider/model identity and a matching
-local price-cache record. The read-only summary never refreshes that cache.
-`availability_reasons` identifies unavailable identity, component, cache, or
-pricing evidence; `pricing.record_sha256` is the SHA-256 of the canonical local
-price record represented by the response.
 
 ### Database evidence report
 

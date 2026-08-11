@@ -109,17 +109,12 @@ delivered estimated tokens are excluded.
 - Uses the first compressed artifact by timestamp and smallest ID tie-breaker.
 - Uses raw output when no artifact exists.
 - Does not double-count recompressions.
-- Estimates tokens per call as `ceil(character_count / 4)` before summing.
-- Selects model-step telemetry independently by `captured_at`.
-- Reports accepted model-step first/last capture, observed span, distinct KTX
-  session count, and model-step count separately from tool-call totals.
-- Labels this as provider prompt/prefix-cache token evidence, not filesystem,
-  memory, database, HTTP, or other I/O caching.
-- Reports requested-window coverage as unavailable because capture timestamps do
-  not prove collector lifecycle; its scope is the observed telemetry subset.
-- Does not read benchmark aggregates.
-- Separately reports runtime-emitted cost and an API-equivalent USD estimate from
-  the local price cache; the summary never refreshes that cache.
+- Reports `prompt_cache_token_hit_rate_pct` in percentage units from 0 to 100
+  when `measured`; measured zero remains `0`.
+- Unavailable states retain the state and use `null` for the value.
+- `contributing_model_steps` is a count.
+- The percentage is token-weighted runtime reporting, not a provider request hit
+  rate or cache-internal claim.
 
 `stats breakdown` reports the same window call and token totals with up to 100
 token-weighted delivery groups. Groups use safe tool, command, subcommand,
@@ -128,32 +123,27 @@ omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
 
-Summary schema 7 and breakdown schema 2 include aggregate `outcomes`. Retained
-schema 6 summaries remain historical bytes and are not migrated or rewritten by
-the read-only summary query. The population is the same calls counted by
-`total_with_output`: non-null output and
-a valid RFC3339 timestamp in the inclusive window. Persisted `is_error=false` is
-success, `true` is error, and NULL or invalid is unknown. Persisted `exit_code`
-is diagnostic only.
+Summary schema 8 is compact. The breakdown schema 2 includes aggregate `outcomes`.
+Retained schema 6 summaries remain historical bytes and are not migrated or
+rewritten by the read-only summary query. The breakdown population is the same
+calls counted by `total_with_output`: non-null output and a valid RFC3339
+timestamp in the inclusive window. Persisted `is_error=false` is success, `true`
+is error, and NULL or invalid is unknown. Persisted `exit_code` is diagnostic
+only.
 
-Headline formulas:
+Breakdown formulas:
 
 ```text
-reduction_percent = (raw_estimated - delivered_estimated) / raw_estimated * 100
 known_calls = successful_calls + error_calls
 total_calls = known_calls + unknown_calls
 error_rate_pct_of_known = error_calls / known_calls * 100
 outcome_coverage_pct = known_calls / total_calls * 100
-logical_input = uncached_input + cache_read + cache_write
-prompt_cache_token_hit_rate = sum(cache_read) / sum(uncached_input + cache_read + cache_write)
-api_equivalent_estimated_cost_usd = sum((uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price) / 1000000)
 ```
 
 Empty outcome percentages are JSON `null` and text `-`. An all-unknown
 population has a null error rate and zero coverage. An all-known population with
 no errors has zero error rate and 100 percent coverage. Breakdown has no
-per-group outcome rates. Text has no separate schema version. The model-step/cache
-query remains independent.
+per-group outcome rates. Text has no separate schema version.
 
 `with_compressed_artifact` is coverage, not a success rate. A missing artifact
 does not state why raw output was delivered.
@@ -176,25 +166,6 @@ Each numeric telemetry field independently has one state:
 These are source-observation states. Window totals are `measured` only when every
 contributing row measured that field; an incomplete aggregate is serialized as
 `missing`, while malformed takes precedence. Values are not reconstructed.
-These token states do not change the accepted model-step population or its
-capture, span, session, and model-step metadata.
-
-`prompt_cache_token_hit_rate` is `token_weighted`, uses pooled window totals
-rather than an average of per-step percentages, and carries its raw buckets,
-formula, source, temporal scope, and `token_fraction` unit in schema 7. Its
-source is `runtime_emitted_model_steps`, and it is not a provider request hit
-rate. A zero cache-read numerator with positive logical input is measured zero;
-zero logical input is `not_applicable`. Missing, malformed, unsupported, or
-mixed-identity evidence remains unavailable without reconstruction.
-
-`runtime_reported_cost_usd` sums runtime-emitted costs only. Its literal zero is
-measured; missing and malformed values stay unavailable and never suppress an
-otherwise valid estimate. `api_equivalent_estimated_cost_usd` is a distinct,
-price-derived view. It requires complete uncached-input, cache-read, cache-write,
-output, and reasoning fields plus one runtime-emitted provider/model identity.
-It reads a matching local price-cache record without a provider call, reports the
-record path, canonical hash, source URL, and retrieval time when available, and
-uses machine availability reasons instead of inventing pricing or identity.
 
 ## OpenCode Contract
 
@@ -224,22 +195,6 @@ Runtime model-step evidence does not prove:
 - Provider-visible prefix composition or request boundaries.
 - Billing meaning of a literal runtime-reported cost zero.
 - Causal attribution of token movement to compression.
-
-Always report runtime/version, runtime-emitted provider/model when one complete
-identity pair exists, contributing KTX session and model-step counts, and
-first/last capture plus observed span beside provider prompt/prefix-cache token
-evidence. `stats summary` does this in `cache_reuse`, whose
-`evidence_scope` is `provider_prompt_prefix_cache_tokens`, not filesystem,
-memory, database, HTTP, or other I/O caching. Its
-`prompt_cache_token_hit_rate` source is runtime-emitted model steps; configured
-identity never fills a missing source identity. Separate SQL can describe the
-observed capture span and counts within the summary interval, but it cannot
-prove collector lifecycle or requested-window coverage. The summary therefore
-reports `requested_window_coverage` as `state: unavailable`,
-`reason: collector_lifecycle_evidence_unavailable`, and
-`scope: observed_subset`, rather than presenting a window-wide KPI. With no
-accepted telemetry, the counts are zero and first/last capture and observed span
-are null.
 
 Character-derived tool-output estimates and runtime-reported model tokens are
 different evidence classes. Keep them parallel; do not add or subtract them.

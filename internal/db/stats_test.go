@@ -308,14 +308,7 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	}
 	var measuredInput, unknownInput, malformedWrite, measuredZeroWrite int
 	var inputTotal, readTotal, writeTotal int64
-	var captures []string
-	sessions := make(map[string]struct{})
 	for _, row := range rows {
-		captures = append(captures, row.CapturedAt.Format(time.RFC3339Nano))
-		sessions[row.SessionID] = struct{}{}
-		if row.Cost.State != MeasurementMeasured || row.Cost.Value == nil || *row.Cost.Value != 0 || row.Output.State != MeasurementMeasured || row.Output.Value == nil || *row.Output.Value != 2 || row.Reasoning.State != MeasurementMeasured || row.Reasoning.Value == nil || *row.Reasoning.Value != 0 {
-			t.Errorf("cost/output/reasoning = %+v/%+v/%+v", row.Cost, row.Output, row.Reasoning)
-		}
 		switch row.UncachedInput.State {
 		case MeasurementMeasured:
 			measuredInput++
@@ -341,14 +334,6 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	}
 	if inputTotal != 50 || readTotal != 100 || writeTotal != 60 {
 		t.Errorf("measured totals input=%d read=%d write=%d, want 50/100/60", inputTotal, readTotal, writeTotal)
-	}
-	sort.Strings(captures)
-	wantCaptures := []string{from.Format(time.RFC3339Nano), from.Format(time.RFC3339Nano), to.Format(time.RFC3339Nano)}
-	if !reflect.DeepEqual(captures, wantCaptures) {
-		t.Errorf("captures = %v, want %v", captures, wantCaptures)
-	}
-	if len(sessions) != 2 {
-		t.Errorf("contributing sessions = %d, want 2", len(sessions))
 	}
 }
 

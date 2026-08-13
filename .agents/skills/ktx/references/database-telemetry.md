@@ -113,8 +113,11 @@ delivered estimated tokens are excluded.
   when `measured`; measured zero remains `0`.
 - Unavailable states retain the state and use `null` for the value.
 - `contributing_model_steps` is a count.
-- The percentage is token-weighted runtime reporting, not a provider request hit
-  rate or cache-internal claim.
+- The percentage pools all accepted providers and models under OpenCode 1.18.5,
+  including missing provider/model identities, by summing token buckets. It does
+  not average per-identity percentages.
+- The percentage is token-weighted runtime reporting, not a provider request
+  hit rate or cache-internal claim.
 
 `stats breakdown` reports the same window call and token totals with up to 100
 token-weighted delivery groups. Groups use safe tool, command, subcommand,

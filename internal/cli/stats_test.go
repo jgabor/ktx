@@ -684,7 +684,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("does not aggregate a hit rate across missing or mixed runtime identities", func(t *testing.T) {
+	t.Run("token-weights the hit rate across missing and mixed runtime identities", func(t *testing.T) {
 		provider, model := "openai", "gpt-5.6-luna"
 		otherProvider, otherModel := "anthropic", "claude-sonnet-5"
 		for _, test := range []struct {
@@ -695,7 +695,7 @@ func TestStatsWindowLogic(t *testing.T) {
 				name: "missing source identity is not backfilled",
 			},
 			{
-				name:   "mixed source identity is unavailable",
+				name:   "mixed source identity is pooled",
 				second: struct{ provider, model *string }{provider: &otherProvider, model: &otherModel},
 			},
 		} {
@@ -703,7 +703,7 @@ func TestStatsWindowLogic(t *testing.T) {
 				db := openMemoryDB(t)
 				sid := seedSession(t, db)
 				seedStatsTelemetryWithContract(t, db, sid, 1, now.Add(-2*time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
-				seedStatsTelemetryWithContract(t, db, sid, 2, now.Add(-time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, test.second.provider, test.second.model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
+				seedStatsTelemetryWithContract(t, db, sid, 2, now.Add(-time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, test.second.provider, test.second.model, measuredStatsToken(90), measuredStatsToken(10), measuredStatsToken(0))
 
 				var buf bytes.Buffer
 				if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -714,8 +714,8 @@ func TestStatsWindowLogic(t *testing.T) {
 					t.Fatal(err)
 				}
 				hitRate := got.PromptCacheTokenHitRatePct
-				if hitRate.State != statsSummaryMissing || hitRate.Value != nil || hitRate.ContributingModelSteps != 2 {
-					t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want missing", hitRate)
+				if hitRate.State != statsSummaryMeasured || hitRate.Value == nil || math.Abs(*hitRate.Value-200.0/7.0) > 1e-12 || hitRate.ContributingModelSteps != 2 {
+					t.Errorf("prompt_cache_token_hit_rate_pct = %+v, want token-weighted 200/7", hitRate)
 				}
 			})
 		}
@@ -895,7 +895,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 8") || !strings.Contains(summaryHelp.String(), "compact") || !strings.Contains(summaryHelp.String(), "prompt_cache_token_hit_rate_pct") || !strings.Contains(summaryHelp.String(), "percentage units") || !strings.Contains(summaryHelp.String(), "measured zero") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || strings.Contains(summaryHelp.String(), "cache_read_share") || strings.Contains(summaryHelp.String(), "sum(cache_read)") || strings.Contains(summaryHelp.String(), "runtime_reported_cost_usd") || strings.Contains(summaryHelp.String(), "api_equivalent_estimated_cost_usd") {
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 8") || !strings.Contains(summaryHelp.String(), "compact") || !strings.Contains(summaryHelp.String(), "prompt_cache_token_hit_rate_pct") || !strings.Contains(summaryHelp.String(), "percentage units") || !strings.Contains(summaryHelp.String(), "measured zero") || !strings.Contains(summaryHelp.String(), "all accepted models and providers") || !strings.Contains(summaryHelp.String(), "weighting them by tokens") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || strings.Contains(summaryHelp.String(), "cache_read_share") || strings.Contains(summaryHelp.String(), "sum(cache_read)") || strings.Contains(summaryHelp.String(), "runtime_reported_cost_usd") || strings.Contains(summaryHelp.String(), "api_equivalent_estimated_cost_usd") {
 			t.Errorf("summary help = %q", summaryHelp.String())
 		}
 

@@ -84,7 +84,7 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 	printDBHelp(&dbHelp)
 
 	assertContractText(t, summaryHelp.String(),
-		[]string{"schema_version 8", "prompt_cache_token_hit_rate_pct", "percentage units", "measured zero", "request hit rate", "no separate schema version"},
+		[]string{"schema_version 8", "prompt_cache_token_hit_rate_pct", "percentage units", "measured zero", "all accepted models and providers", "weighting them by tokens", "request hit rate", "no separate schema version"},
 		[]string{"cache_read_share", "runtime_reported_cost_usd", "api_equivalent_estimated_cost_usd", "sum(cache_read)"})
 	assertContractText(t, breakdownHelp.String(),
 		[]string{"schema_version 2", "Known is success+error", "total is known+unknown", "no separate schema version", "do not report per-group outcome rates"}, nil)
@@ -97,7 +97,7 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 	} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
 		assertContractText(t, contents,
-			[]string{"Summary schema 8", "breakdown schema 2", "report schema 3", "prompt_cache_token_hit_rate_pct", "percentage units", "measured zero", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
+			[]string{"Summary schema 8", "breakdown schema 2", "report schema 3", "prompt_cache_token_hit_rate_pct", "percentage units", "measured zero", "all accepted", "providers and models", "token-weighted", "known_calls = successful_calls + error_calls", "outcome_coverage_pct = known_calls / total_calls * 100", "no separate schema version"},
 			[]string{"\"schema_version\": 4", "\"schema_version\": 1", "Schema version 4 removes the version 3 `delivery_breakdown` member", "version 1 breakdown command"},
 		)
 	}

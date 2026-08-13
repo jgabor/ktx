@@ -560,33 +560,12 @@ func aggregateStatsSummaryPromptCacheTokenHitRatePct(rows []dbpkg.StatsSummaryCa
 		result.State = statsSummaryNotApplicable
 		return result
 	}
-	if !statsSummaryCacheIdentityAvailable(rows) {
-		return result
-	}
 	percentage := new(big.Rat).SetFrac(&cacheRead.value, logicalInput)
 	percentage.Mul(percentage, big.NewRat(100, 1))
 	value, _ := percentage.Float64()
 	result.State = statsSummaryMeasured
 	result.Value = &value
 	return result
-}
-
-func statsSummaryCacheIdentityAvailable(rows []dbpkg.StatsSummaryCacheRow) bool {
-	var provider, model string
-	var haveIdentity bool
-	for _, row := range rows {
-		if row.Provider == nil || row.Model == nil || strings.TrimSpace(*row.Provider) == "" || strings.TrimSpace(*row.Model) == "" {
-			return false
-		}
-		if !haveIdentity {
-			provider, model, haveIdentity = *row.Provider, *row.Model, true
-			continue
-		}
-		if provider != *row.Provider || model != *row.Model {
-			return false
-		}
-	}
-	return haveIdentity
 }
 
 func (a *statsSummaryIntegerAccumulator) add(measurement dbpkg.IntegerMeasurement) {
@@ -862,7 +841,9 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "The closed response contains window, call totals, estimated token totals, and")
 	fmt.Fprintln(w, "prompt_cache_token_hit_rate_pct. In percentage units it is 0 to 100 when measured;")
 	fmt.Fprintln(w, "measured zero stays 0, and unavailable states keep their state with a null value.")
-	fmt.Fprintln(w, "contributing_model_steps is a count. This is token-weighted runtime reporting,")
+	fmt.Fprintln(w, "contributing_model_steps is a count. The rate pools all accepted models and providers")
+	fmt.Fprintln(w, "for the supported runtime contract, weighting them by tokens rather than averaging rates.")
+	fmt.Fprintln(w, "This is token-weighted runtime reporting,")
 	fmt.Fprintln(w, "not a provider request hit rate or cache-internal claim.")
 	fmt.Fprintln(w, "Use 'ktx stats breakdown' for delivery diagnostics.")
 	fmt.Fprintln(w)

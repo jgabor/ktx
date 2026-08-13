@@ -116,7 +116,8 @@ artifact and model-telemetry views are queried independently without cross-view
 transactional consistency; they may originate from the same wrapper stream or
 from separate adapter callbacks. Summary `prompt_cache_token_hit_rate_pct` is
 runtime-reported cache-read token evidence in percentage units, not a provider
-request hit rate.
+request hit rate. It pools all accepted providers and models under the supported
+runtime contract by token volume rather than averaging their percentages.
 
 ### Inspect records and model telemetry
 
@@ -180,7 +181,8 @@ classes, schema, metric formulas, and claim limits.
 - `prompt_cache_token_hit_rate_pct` is compact runtime-reported cache-read token
   evidence in percentage units. A measured zero stays zero; missing, malformed,
   and not-applicable values stay unavailable and are never reconstructed. It is
-  not a provider request hit rate.
+  token-weighted across all accepted providers and models, not a provider request
+  hit rate.
 - Missing, unknown, malformed, and measured zero are distinct states. Never
   reconstruct a missing field from neighboring totals.
 - Originals are append-only. The first accepted source evidence and first

@@ -2515,6 +2515,57 @@ decisions:
     feeds_into: Trusted OpenCode and Codex ingress implementation, retry persistence
       and conflict handling, compressed-result reuse, and implementation Tasks
       3-5
+  - number: 36
+    date: 2026-08-13
+    question: Should the live prompt-cache token percentage remain unavailable
+      when a summary window contains multiple or missing provider/model
+      identities, or should the summary pool all accepted model steps?
+    context: The compact live summary is intended to provide one window-level
+      headline while the separate breakdown command owns diagnostics. The active
+      30-minute operator window contained 126 complete accepted OpenCode 1.18.5
+      model steps across three OpenAI model identities, so the existing
+      single-provider/model eligibility rule returned null despite every token
+      bucket being measured. The pinned runtime contract normalizes uncached
+      input, cache read, and cache write as disjoint buckets independently of the
+      optional provider/model identity fields.
+    alternatives:
+      - name: Keep one provider/model identity per summary rate
+        status: rejected
+        description: Preserves the strict prior boundary but makes ordinary
+          mixed-model summary windows unavailable even when all required token
+          evidence is complete.
+      - name: Pool models only within one provider
+        status: rejected
+        description: Covers common model switching but still makes the headline
+          depend on optional provider identity even though the selected runtime
+          contract defines the bucket semantics.
+      - name: Pool all accepted rows under the supported runtime contract
+        status: chosen
+        description: Sum the three token buckets across accepted rows regardless
+          of provider/model presence or equality, then calculate one
+          token-weighted percentage. Unsupported runtime versions and incomplete
+          or malformed buckets remain unavailable.
+    choice: Supersede the live single-provider/model eligibility requirement for
+      `ktx stats summary`. For every accepted OpenCode 1.18.5 model step in the
+      requested window, sum cache read, uncached input, and cache write, then
+      report `sum(cache_read) / sum(uncached_input + cache_read + cache_write) *
+      100`. Include rows with different or missing provider/model identities.
+      This is pooling by token volume, not an arithmetic mean of per-step,
+      per-model, or per-provider percentages. Keep empty, unknown, malformed,
+      incomplete, unsupported, and zero-denominator populations unavailable;
+      preserve measured zero. Keep benchmark comparison identity gates and all
+      prohibitions on provider-request and cache-internal claims unchanged.
+    reasoning: The summary answers a runtime-contract window question, and all
+      accepted rows share that accounting contract. Provider/model identity does
+      not change the normalized bucket formula. Token weighting preserves the
+      exact aggregate numerator and denominator, while averaging subgroup rates
+      would distort differently sized populations. The existing summary schema
+      remains version 8 because its JSON shape, field types, units, and formula
+      are unchanged; the broader population is a compatible refinement recorded
+      in the metric documentation rather than a wire-contract break.
+    confidence: firm
+    feeds_into: Live stats summary schema, aggregation eligibility, tests, help,
+      changelog, pipeline documentation, and agent-facing telemetry guidance.
 archive:
   - summary: "Decision 1 (2026-06-15): Wrapper (ktx run) + sidecar (ktx write) +
       adapters (ktx init), all writing to the..."

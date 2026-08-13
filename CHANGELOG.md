@@ -6,7 +6,7 @@
 
 - Current prompt-cache comparisons use methodology v6 and `cache-reuse-v2` to emit token-weighted summary schema 5; methodology v5, summary schemas 1–4, and `cache-reuse-v1` remain historical evidence.
 - Schema-5 prompt-cache benchmark summaries now publish a fail-closed, quality-adjusted API-equivalent cost guard; valid rejected candidates remain evidence but are not recommended by rank.
-- `ktx stats summary` schema 8 is a compact closed object with window, call and token totals, and runtime-reported `prompt_cache_token_hit_rate_pct` in percentage units; measured zero remains zero and unavailable values remain null. Retained schema 6 summaries remain unchanged historical evidence.
+- `ktx stats summary` schema 8 now token-weights `prompt_cache_token_hit_rate_pct` across all accepted providers and models under the supported runtime contract without changing the response shape. Measured zero remains zero, incomplete evidence remains null, and retained schema 6 summaries remain unchanged historical evidence.
 - `mage engineeringVerify` retains paired component and real-process reports plus a hash manifest. It requires load correctness, exact reconciliation, and supported-lock checks while keeping timing descriptive.
 - Engineering reports now record first-class wall-clock timing, focused `ktx read` measurements, and a reproducible noise-aware comparison contract while preserving retained schema-1 evidence.
 

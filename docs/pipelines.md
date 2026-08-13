@@ -340,13 +340,19 @@ observation, and other calls without retained disposition evidence report
 Summary `prompt_cache_token_hit_rate_pct` is in percentage units from 0 to 100
 when `measured`; measured zero remains `0`. Unavailable states retain the state
 and use `null` for `value`. `contributing_model_steps` is a count. The percentage
-is token-weighted runtime reporting, not a provider request hit rate or
-cache-internal claim. The breakdown does not query or emit model-step telemetry.
+is `sum(cache_read) / sum(uncached_input + cache_read + cache_write) * 100`
+across all accepted OpenCode 1.18.5 model steps in the window. It pools all
+accepted providers and models, including missing provider/model identities, by
+token volume; it does not average
+per-step, per-model, or per-provider percentages. Every contributing step must
+have all three measured buckets. This is token-weighted runtime reporting, not a
+provider request hit rate or cache-internal claim. The breakdown does not query
+or emit model-step telemetry.
 
 The default window is `30m`; `--window` accepts a positive Go duration. The
-current summary JSON contract is schema 8. Retained schema 6
-summaries keep their original bytes and meaning; this read-only query neither
-migrates nor rewrites them. The schema 8 contract is:
+current summary JSON contract is schema 8. Retained schema 6 summaries keep
+their original bytes and meaning; this read-only query neither migrates nor
+rewrites them. The schema 8 contract is:
 
 ```json
 {

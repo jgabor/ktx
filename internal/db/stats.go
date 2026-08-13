@@ -91,8 +91,6 @@ type StatsSummaryRow struct {
 // bounded stats summary. Numeric fields preserve their measured, unknown, or
 // malformed state so callers cannot mistake a partial sum for a complete one.
 type StatsSummaryCacheRow struct {
-	Provider      *string
-	Model         *string
 	UncachedInput IntegerMeasurement
 	CacheRead     IntegerMeasurement
 	CacheWrite    IntegerMeasurement
@@ -126,7 +124,7 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 	}
 	from = from.UTC()
 	to = to.UTC()
-	rows, err := d.db.Query(`SELECT captured_at, provider, model, tokens_input, cache_read, cache_write,
+	rows, err := d.db.Query(`SELECT captured_at, tokens_input, cache_read, cache_write,
 			tokens_input_state, cache_read_state, cache_write_state
 		FROM session_telemetry
 		WHERE runtime = ? AND runtime_version = ?
@@ -140,9 +138,8 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 	for rows.Next() {
 		var capturedAt, inputState, cacheReadState, cacheWriteState string
 		var input, cacheRead, cacheWrite sql.NullInt64
-		var provider, model sql.NullString
 		if err := rows.Scan(
-			&capturedAt, &provider, &model, &input, &cacheRead, &cacheWrite,
+			&capturedAt, &input, &cacheRead, &cacheWrite,
 			&inputState, &cacheReadState, &cacheWriteState,
 		); err != nil {
 			return nil, fmt.Errorf("db: stats summary cache scan: %w", err)
@@ -155,12 +152,6 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 			UncachedInput: databaseIntegerMeasurement(inputState, input),
 			CacheRead:     databaseIntegerMeasurement(cacheReadState, cacheRead),
 			CacheWrite:    databaseIntegerMeasurement(cacheWriteState, cacheWrite),
-		}
-		if provider.Valid {
-			row.Provider = &provider.String
-		}
-		if model.Valid {
-			row.Model = &model.String
 		}
 		result = append(result, row)
 	}

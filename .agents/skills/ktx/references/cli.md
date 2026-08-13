@@ -196,7 +196,9 @@ outcomes and delivery groups. Summary text renders only its literal fields and
 has no separate schema version. `prompt_cache_token_hit_rate_pct` is runtime-reported
 cache-read token evidence in percentage units, not a provider request hit rate.
 It keeps measured zero as zero; missing, malformed, and not-applicable evidence
-stays unavailable with a null value and is never reconstructed. The summary emits no buckets, formula, ratio,
+stays unavailable with a null value and is never reconstructed. It is
+token-weighted across all accepted providers and models under the supported
+runtime contract; it is not an average of their percentages. The summary emits no buckets, formula, ratio,
 identity, runtime, coverage, timestamps, cost, or pricing provenance. Retained
 schema 6 summaries remain unchanged historical evidence.
 

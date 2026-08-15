@@ -4,7 +4,7 @@
 
 ### Added
 
-- Optional `[logs]` configuration now writes bounded private typed JSONL diagnostics, and `ktx config show` reports its effective state and destination without creating the file.
+- Optional `[logs]` configuration now makes one best-effort private typed JSONL append for database-unavailable diagnostics without changing stderr behavior.
 - Current prompt-cache comparisons use methodology v6 and `cache-reuse-v2` to emit token-weighted summary schema 5; methodology v5, summary schemas 1–4, and `cache-reuse-v1` remain historical evidence.
 - Schema-5 prompt-cache benchmark summaries now publish a fail-closed, quality-adjusted API-equivalent cost guard; valid rejected candidates remain evidence but are not recommended by rank.
 - `ktx stats summary` schema 8 now token-weights `prompt_cache_token_hit_rate_pct` across all accepted providers and models under the supported runtime contract without changing the response shape. Measured zero remains zero, incomplete evidence remains null, and retained schema 6 summaries remain unchanged historical evidence.

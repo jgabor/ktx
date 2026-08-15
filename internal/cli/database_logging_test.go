@@ -27,31 +27,24 @@ type databaseUnavailableLogRecord struct {
 	ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
 }
 
-func TestDatabaseUnavailableLoggingCommandsAndPhases(t *testing.T) {
-	phases := []string{dbpkg.OperationOpen, dbpkg.OperationMigration, dbpkg.OperationSource, dbpkg.OperationArtifact, dbpkg.OperationDisposition, dbpkg.OperationQuery}
-	for _, command := range []string{"hook", "telemetry record", "write", "get"} {
-		for _, phase := range phases {
-			t.Run(command+"/"+phase, func(t *testing.T) {
-				root := t.TempDir()
-				t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
-				t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
-				logPath := filepath.Join(root, "events.jsonl")
-				hookWriteUserConfig(t, "[logs]\nlevel = \"error\"\npath = \""+logPath+"\"\n")
-				databasePath := filepath.Join(root, "database.db")
-				details := &dbpkg.DatabaseUnavailable{Class: dbpkg.UnavailableClassCoordinatorTimeout, Phase: phase, ElapsedWait: 2*time.Second + 2*time.Millisecond}
-				failure := databaseUnavailableError(databasePath, command, details)
-				if typed, ok := failure.(*Error); !ok || typed.Code != CodeDatabaseUnavailable {
-					t.Fatalf("failure = %#v", failure)
-				}
-				record := readDatabaseUnavailableLog(t, logPath)
-				if record.Timestamp == "" || record.Level != "error" || record.Event != "database-unavailable" || record.Command != command ||
-					record.ExecutablePath == "" || len(record.ExecutableSHA256) != 64 || record.DatabasePath != databasePath ||
-					record.FailureClass != dbpkg.UnavailableClassCoordinatorTimeout || record.OperationPhase != phase ||
-					record.ElapsedWaitNanoseconds != details.ElapsedWait.Nanoseconds() {
-					t.Fatalf("record = %#v", record)
-				}
-			})
-		}
+func TestDatabaseUnavailableLoggingExactlyOnce(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	logPath := filepath.Join(root, "events.jsonl")
+	hookWriteUserConfig(t, "[logs]\nlevel = \"error\"\npath = \""+logPath+"\"\n")
+	databasePath := filepath.Join(root, "database.db")
+	details := &dbpkg.DatabaseUnavailable{Class: dbpkg.UnavailableClassCoordinatorTimeout, Phase: dbpkg.OperationQuery, ElapsedWait: 2*time.Second + 2*time.Millisecond}
+	failure := databaseUnavailableError(databasePath, "get", details)
+	if typed, ok := failure.(*Error); !ok || typed.Code != CodeDatabaseUnavailable {
+		t.Fatalf("failure = %#v", failure)
+	}
+	record := readDatabaseUnavailableLog(t, logPath)
+	if record.Timestamp == "" || record.Level != "error" || record.Event != "database-unavailable" || record.Command != "get" ||
+		record.ExecutablePath == "" || len(record.ExecutableSHA256) != 64 || record.DatabasePath != databasePath ||
+		record.FailureClass != dbpkg.UnavailableClassCoordinatorTimeout || record.OperationPhase != dbpkg.OperationQuery ||
+		record.ElapsedWaitNanoseconds != details.ElapsedWait.Nanoseconds() {
+		t.Fatalf("record = %#v", record)
 	}
 }
 

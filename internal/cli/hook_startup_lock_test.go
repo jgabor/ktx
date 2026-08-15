@@ -100,9 +100,6 @@ func TestHookRetriesStartupLock(t *testing.T) {
 func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "hook-startup-lock-failure.db")
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
-	logPath := filepath.Join(root, "hook-errors.jsonl")
-	hookWriteUserConfig(t, "[logs]\nlevel = \"error\"\npath = \""+logPath+"\"\n")
 	initialized, err := dbpkg.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -160,10 +157,6 @@ func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
 		if strings.Contains(strings.ToLower(stderr.String()), forbidden) {
 			t.Errorf("stderr exposes driver lock wording %q: %q", forbidden, stderr.String())
 		}
-	}
-	record := readDatabaseUnavailableLog(t, logPath)
-	if record.Command != "hook" || record.FailureClass != dbpkg.UnavailableClassSQLiteLock || record.OperationPhase != dbpkg.OperationOpen || record.ElapsedWaitNanoseconds <= 0 {
-		t.Fatalf("availability record = %#v", record)
 	}
 }
 

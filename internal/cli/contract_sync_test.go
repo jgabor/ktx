@@ -78,17 +78,27 @@ func TestToolOutcomeContractSurfacesMatchBehavior(t *testing.T) {
 
 func TestLoggingContractSurfacesMatchBehavior(t *testing.T) {
 	root := repositoryRoot(t)
+	var help bytes.Buffer
+	printHelp(&help)
+	helpText := help.String()
+	helpText = helpText[strings.Index(helpText, "Logging:"):strings.Index(helpText, "Run 'ktx")]
+	example := readDocumentationFile(t, filepath.Join(root, "ktx.example.toml"))
+	example = example[strings.Index(example, "# ── Diagnostic logging"):strings.Index(example, "[pipeline.default]")]
 	for name, contents := range map[string]string{
-		"example": readDocumentationFile(t, filepath.Join(root, "ktx.example.toml")),
+		"help":    helpText,
+		"example": example,
 		"runbook": readDocumentationFile(t, filepath.Join(root, "docs", "logging.md")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertContractText(t, contents, []string{
 				"[logs]", "error", "debug", "info", "warn", "off",
-				"absolute", "best-effort", "JSONL", "sensitive", "stderr",
-			}, nil)
+				"absolute", "best-effort", "sensitive", "stderr",
+			}, []string{"rotation", "16 KiB", "5 MiB", "25 ms", "50 ms", "adapter", "runtime_surface", "config show"})
 		})
 	}
+	assertContractText(t, helpText, []string{"XDG state", "ten typed fields", "no retry", "Unsafe targets"}, nil)
+	assertContractText(t, example,
+		[]string{"XDG_STATE_HOME", "timestamp", "elapsed_wait_nanoseconds", "no retry", "unsafe targets"}, nil)
 
 	runbook := readDocumentationFile(t, filepath.Join(root, "docs", "logging.md"))
 	for _, field := range []string{

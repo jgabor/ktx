@@ -15,11 +15,11 @@ When `path` is omitted, ktx uses `$XDG_STATE_HOME/ktx/ktx.log`, or
 must be absolute. Invalid logging settings disable file logging without changing
 ordinary commands. A TOML syntax error still makes configuration loading fail.
 
-Ktx marshals one closed record and makes one best-effort append attempt. Sink
-errors do not change stdout, stderr, exit status, database behavior, or adapter
-fallback. New files are private. Ktx rejects non-regular targets, symlink-following
-targets, existing POSIX files with group or other permissions, and destinations
-that alias the active database.
+Ktx marshals one closed record and makes one best-effort append attempt with no
+retry. Sink errors do not change stdout, stderr, exit status, or database
+behavior. New files are private. Ktx rejects non-regular targets,
+symlink-following targets, existing POSIX files with group or other permissions,
+and destinations that alias the active database.
 
 The `database-unavailable` record contains only:
 

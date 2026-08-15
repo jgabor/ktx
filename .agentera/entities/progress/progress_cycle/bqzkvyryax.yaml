@@ -1,0 +1,16 @@
+id: bqzkvyryax
+artifact: progress
+record:
+  timestamp: 2026-08-16 00:29
+  type: docs
+  phase: build
+  what: Synchronized docs/logging.md, ktx.example.toml, and CLI help; restored config inspection and router characterization boundaries; removed the remaining hook-specific logging assertion; and added an adapter-free database-unavailable end-to-end regression.
+  context:
+    intent: Complete the final structured logging synchronization task without adding logging capability.
+    constraints: Preserve the completed dependency evaluation state, leave the selected task pending for audit, keep ambient KTX_DB unset, use fresh disposable roots, retain Windows current-user DACL creation, and do not push.
+    unknowns: Windows DACL behavior was cross-compiled and its descriptor construction ran on Linux, but no Windows host executed CreateFile or inspected the resulting ACL.
+    scope: Public help, example configuration, logging runbook, changelog, config-show compatibility, focused logging tests, built-binary verification, and project evidence.
+  discovered: The retained config-show implementation already preserved its pre-logging JSON and text shapes. The stale contract remained in help-adjacent documentation and hook-specific test coverage, while lock platform files, rotation and size policy tests, and the Bun logging integration were already absent after the completed dependency.
+  verified: Focused config, logging, router, documentation, exact-output isolation, and adapter-free locked-database tests passed. The built binary produced one ten-field event for an actual locked get command with exit 4, unchanged stdout and stable stderr content; no config, off, invalid logging, failed sink, and database-alias cases wrote an event or changed command behavior. Logging and focused CLI race tests passed. Windows amd64 logging tests cross-compiled. mage check passed tests, vet, lint with 0 issues, build, and a database audit with 3577 attempts and forbidden=0. mage verify passed the same repository gates, vulnerability and replay checks, and a database audit with 3578 attempts and forbidden=0. Production Go lines changed from 39576 to 39582 and test Go lines from 47776 to 47927; line count was descriptive, not a correctness gate.
+  next: Audit the still-pending synchronization task against the retained contract and verification evidence.
+  publication_order: 93

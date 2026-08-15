@@ -28,20 +28,17 @@
 # error, and off. File logging is independent of stderr diagnostics.
 #
 # An omitted path uses $XDG_STATE_HOME/ktx/ktx.log, falling back to
-# ~/.local/state/ktx/ktx.log. Relative paths resolve beneath the state directory;
-# absolute paths are explicit overrides. `ktx config show` resolves and reports
-# the effective destination without creating it.
+# ~/.local/state/ktx/ktx.log. A configured path must be absolute.
 #
-# Records are typed JSONL and no record exceeds 16 KiB. The private active file
-# is limited to 5 MiB; rotation retains one previous file. Logging makes one
-# best-effort coordination attempt with a nominal 25 ms target and no retries.
-# Contention drops only the file event. The 50 ms wall-clock safety ceiling
-# allows scheduler tolerance and is not a hard real-time guarantee. Paths and
-# hashes in records are sensitive retained identifiers.
+# A database-unavailable event contains timestamp, level, event, ktx_command,
+# executable_path, executable_sha256, database_path, failure_class,
+# operation_phase, and elapsed_wait_nanoseconds. Paths and hashes are sensitive.
+# Ktx makes one best-effort append attempt with no retry, rejects unsafe targets,
+# and keeps file logging independent of stderr diagnostics.
 #
 # [logs]
 # level = "error"
-# path = "ktx/ktx.log"
+# path = "/absolute/path/to/ktx.log"
 
 [pipeline.default]
 

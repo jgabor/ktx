@@ -86,7 +86,7 @@ const (
 	historicalContractPath   = "ktx.example.toml"
 	historicalContractClass  = "documented_contract"
 	historicalContractSHA256 = "6dbdb9ddf16e72f40837fa6a97056fe3d60026256a5841d295f05584a04b215c"
-	currentContractSHA256    = "e460c1034155abc6d9f2bfda4ffd925b35ffe3dd130a585f86989d9bb8f5a53b"
+	currentContractSHA256    = "548465a3c97e9ce1d8b3bc35b66fcc998dc87a4993c4dd974da3981eebab9600"
 )
 
 type fixtureCharacterization struct {
@@ -184,8 +184,9 @@ func validateCharacterizationReferences(t *testing.T, root string, references []
 			continue
 		}
 		seen[reference.Path] = true
-		// These references retain implementation that the frozen characterization
-		// measured. Intentional later routing and config changes do not rewrite it.
+		// These references retain the router implementation that the frozen
+		// characterization measured. Intentional later routing changes do not
+		// rewrite that historical snapshot.
 		if reference.Path == "internal/router/router.go" || reference.Path == "internal/router/router_test.go" {
 			continue
 		}

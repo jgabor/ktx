@@ -4,7 +4,7 @@ record:
   name: Replace logging with the minimal ktx-owned path
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN no [logs] section WHEN a command runs THEN logging creates, opens, changes, or writes no destination path; GIVEN a valid section WHEN settings resolve THEN level is required, accepted thresholds are debug through error plus off, omitted path uses the XDG state log, and a configured path must be absolute.
     - GIVEN a successfully parsed TOML document with missing, invalid, or unknown [logs] settings WHEN an ordinary command runs THEN logging is disabled without changing that command; GIVEN a whole-document TOML syntax error THEN existing configuration failure behavior remains unchanged.
@@ -14,12 +14,12 @@ record:
     - GIVEN the replacement is complete WHEN source and focused tests are inspected THEN runtime-surface flags and generated-plugin arguments, cross-process locks, rotation, timing thresholds, record-size limits, static correction retention, broad configuration-output changes, and their obsolete tests are absent; no compatibility shim remains for the undistributed adapter flag.
   plan: uhxmqfdaia
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Windows log creation inherited the parent ACL and did not ensure new sensitive log files were private; all other simplification criteria passed.
     provenance:
-      attempt_id: gldzahjduf-audit-1
+      attempt_id: gldzahjduf-audit-2
       source: audit task ses_ff8990422ffeiEcF3v80nx05n0
-      recorded_at: 2026-08-16 00:00
+      recorded_at: 2026-08-16 00:14
       writer_command: agentera state plan record-evaluation

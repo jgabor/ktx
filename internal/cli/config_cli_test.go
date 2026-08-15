@@ -114,16 +114,25 @@ profile = "default"
 	}
 }
 
-func TestConfigShow_InvalidLogsDoNotChangeConfigInspection(t *testing.T) {
+func TestConfigShow_LogsDoNotChangeConfigInspection(t *testing.T) {
 	configTestEnv(t)
-	hookWriteUserConfig(t, "[logs]\nunknown = true\n")
-
-	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
-	if code != ExitOK {
-		t.Fatalf("exit=%d, want %d; stdout=%q stderr=%q", code, ExitOK, stdout, stderr)
-	}
-	if stdout == "" || stderr != "" {
-		t.Fatalf("stdout=%q stderr=%q", stdout, stderr)
+	const pipeline = "[pipeline.default]\nstages = [\"strip-ansi\"]\n"
+	hookWriteUserConfig(t, pipeline)
+	for _, format := range []string{FormatJSON, FormatText} {
+		code, baseline, stderr := runConfigDispatch(t, []string{"show", "--format", format})
+		if code != ExitOK || stderr != "" {
+			t.Fatalf("baseline format=%s exit=%d stderr=%q", format, code, stderr)
+		}
+		for name, logs := range map[string]string{
+			"valid":   "[logs]\nlevel = \"error\"\npath = \"/tmp/events.jsonl\"\n",
+			"invalid": "[logs]\nunknown = true\n",
+		} {
+			hookWriteUserConfig(t, pipeline+"\n"+logs)
+			code, stdout, stderr := runConfigDispatch(t, []string{"show", "--format", format})
+			if code != ExitOK || stderr != "" || stdout != baseline {
+				t.Fatalf("%s format=%s exit=%d stdout=%q, want %q; stderr=%q", name, format, code, stdout, baseline, stderr)
+			}
+		}
 	}
 }
 

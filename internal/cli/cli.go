@@ -165,5 +165,11 @@ func printHelp(w io.Writer) {
 		fmt.Fprintf(w, "  %-8s %s\n", v.Name, v.Description)
 	}
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Logging:")
+	fmt.Fprintln(w, "  Optional [logs] requires level debug, info, warn, error, or off. An optional")
+	fmt.Fprintln(w, "  absolute path overrides the XDG state default. Database-unavailable records")
+	fmt.Fprintln(w, "  use ten typed fields and one best-effort append with no retry. Paths and hashes")
+	fmt.Fprintln(w, "  are sensitive. Unsafe targets are rejected. File logging is independent of stderr.")
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx <command> --help' for command-specific help.")
 }

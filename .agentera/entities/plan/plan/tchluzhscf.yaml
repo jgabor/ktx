@@ -1,0 +1,29 @@
+id: tchluzhscf
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-15
+    status: open
+    title: "Plan: Characterize sustained database contention"
+  what: Run a bounded disposable stress sweep that increases sustained concurrent agent streams until supported database-unavailable is reproduced or the declared maximum load completes without failure.
+  why: The matched four-stream workload measured a mixed-load throughput penalty but no availability failure. A controlled threshold characterization must reproduce the active-use failure before selecting a production coordination change.
+  constraints: Preserve production source and database behavior, one SQLite product database, journal and retry policy, schema and migration safety, evidence authority, and public surfaces. Use only temporary experiment copies, fresh disposable application roots, and fresh disposable databases. Do not access the ambient live database, retain experimental production changes, add WAL, change timeouts, or make a product performance claim.
+  overall_acceptance: GIVEN matched sustained writers-only and mixed read-write workloads at increasing declared load levels WHEN the bounded sweep completes THEN it records actual times, percentages, supported failure rates, participant fairness, and exact reconciliation, stops after the first reproducible failure or the maximum level, and identifies the next investigation without changing shipped behavior.
+  scope:
+    included:
+      - eight writer streams with sixteen sequential hooks each
+      - escalation to sixteen writer streams only when the eight-stream level has no supported failure
+      - matched writers-only and two-reader mixed workloads at each executed level
+      - sixteen sequential queries per reader stream
+      - one warm-up and five measured fresh-database rounds
+      - actual latency, throughput, failure, fairness, and reconciliation evidence
+    excluded:
+      - permanent harness or production behavior changes
+      - WAL, timeout, retry, schema, migration, or coordination changes
+      - daemon, queue, spool, dependency, or per-agent database
+      - representative database-size seeding
+      - ambient live-database access
+      - public CLI and product benchmark changes
+  surprises:
+    []

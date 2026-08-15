@@ -1,0 +1,14 @@
+id: lfqcucylxf
+artifact: plan
+record:
+  name: Run the sustained contention threshold sweep
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN the eight-stream level WHEN writers-only and mixed workloads run THEN each stream submits sixteen unique hooks sequentially, two mixed reader streams each submit sixteen queries, all participants share one fresh disposable database per round, and expected records reconcile exactly.
+    - GIVEN the eight-stream measured rounds contain no supported failure WHEN the sweep continues THEN the same matched workloads run with sixteen writer streams; otherwise escalation stops after the reproduced failure.
+    - GIVEN each executed level has one warm-up and five measured rounds WHEN results are summarized THEN actual p50, p95, p99, maximum latency, throughput, database-unavailable rate, per-stream completions, maximum participant time, and mixed-versus-writers-only penalties are reported as values and percentages.
+    - GIVEN a supported failure occurs WHEN the level is evaluated THEN the failure must recur in the fixed measured workload with its participant class, workload arm, elapsed time, failure code, and exact persisted reconciliation visible; otherwise the result remains no-reproduction rather than inferred success.
+    - GIVEN the bounded sweep concludes WHEN temporary experiment changes are removed THEN the production worktree and built behavior match the pre-experiment source, repository verification passes with zero forbidden database access, and durable project state records whether writers-only, mixed load, or neither reproduced the failure.
+  plan: tchluzhscf

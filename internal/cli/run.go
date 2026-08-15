@@ -259,7 +259,7 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 		printError(stderr, internalError("ktx run: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(path)
+	db, err := openDatabase(path, "run")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -57,63 +56,8 @@ func TestConfigShow_JSON_NoKtxToml(t *testing.T) {
 	if len(stages) != 0 {
 		t.Errorf("default stages = %v, want empty", stages)
 	}
-	logs := env["logs"].(map[string]any)
-	if logs["enabled"] != false || logs["level"] != "off" || logs["destination"] != "" {
-		t.Fatalf("logs = %v, want disabled", logs)
-	}
-}
-
-func TestConfigShow_LoggingJSONAndTextDoNotCreateDestination(t *testing.T) {
-	configTestEnv(t)
-	stateHome := t.TempDir()
-	t.Setenv("XDG_STATE_HOME", stateHome)
-	hookWriteUserConfig(t, "[logs]\npath = \"diagnostics/events.jsonl\"\n")
-	wantPath := filepath.Join(stateHome, "diagnostics", "events.jsonl")
-
-	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
-	if code != ExitOK {
-		t.Fatalf("json exit=%d stderr=%q", code, stderr)
-	}
-	var env map[string]any
-	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
-		t.Fatal(err)
-	}
-	logs := env["logs"].(map[string]any)
-	if logs["enabled"] != true || logs["level"] != "error" || logs["destination"] != wantPath {
-		t.Fatalf("logs = %v", logs)
-	}
-	if _, err := os.Stat(wantPath); !os.IsNotExist(err) {
-		t.Fatalf("inspection created destination: %v", err)
-	}
-
-	code, stdout, stderr = runConfigDispatch(t, []string{"show", "--format", "text"})
-	if code != ExitOK {
-		t.Fatalf("text exit=%d stderr=%q", code, stderr)
-	}
-	for _, want := range []string{"LOGGING", "true", "error", wantPath} {
-		if !strings.Contains(stdout, want) {
-			t.Errorf("text output missing %q:\n%s", want, stdout)
-		}
-	}
-	if _, err := os.Stat(wantPath); !os.IsNotExist(err) {
-		t.Fatalf("inspection created destination: %v", err)
-	}
-}
-
-func TestConfigShow_LoggingOffDoesNotResolveDestination(t *testing.T) {
-	configTestEnv(t)
-	hookWriteUserConfig(t, "[logs]\nlevel = \"off\"\npath = \"../../outside.log\"\n")
-	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
-	if code != ExitOK {
-		t.Fatalf("exit=%d stderr=%q", code, stderr)
-	}
-	var env map[string]any
-	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
-		t.Fatal(err)
-	}
-	logs := env["logs"].(map[string]any)
-	if logs["enabled"] != false || logs["level"] != "off" || logs["destination"] != "" {
-		t.Fatalf("logs = %v", logs)
+	if _, ok := env["logs"]; ok {
+		t.Fatalf("config show unexpectedly includes logging: %v", env)
 	}
 }
 
@@ -170,15 +114,15 @@ profile = "default"
 	}
 }
 
-func TestConfigShow_InvalidLogs(t *testing.T) {
+func TestConfigShow_InvalidLogsDoNotChangeConfigInspection(t *testing.T) {
 	configTestEnv(t)
 	hookWriteUserConfig(t, "[logs]\nunknown = true\n")
 
 	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
-	if code != ExitUsage {
-		t.Fatalf("exit=%d, want %d; stdout=%q stderr=%q", code, ExitUsage, stdout, stderr)
+	if code != ExitOK {
+		t.Fatalf("exit=%d, want %d; stdout=%q stderr=%q", code, ExitOK, stdout, stderr)
 	}
-	if stdout != "" || !strings.Contains(stderr, "[logs] unknown setting") {
+	if stdout == "" || stderr != "" {
 		t.Fatalf("stdout=%q stderr=%q", stdout, stderr)
 	}
 }
@@ -272,7 +216,7 @@ func TestConfigHelp(t *testing.T) {
 		t.Fatalf("renderHelp exit=%d", code)
 	}
 	help := stdout.String()
-	for _, want := range []string{"show", "ktx plugin list", "No [logs] section means off", "16 KiB", "5 MiB", "nominal 25 ms", "50 ms wall-clock", "independent of stderr"} {
+	for _, want := range []string{"show", "ktx plugin list", "profiles", "routes"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help text missing %q:\n%s", want, help)
 		}

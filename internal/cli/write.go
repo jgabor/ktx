@@ -39,7 +39,7 @@ func runWriteWith(args []string, opts Options, stdin io.Reader, stdout, stderr i
 		printError(stderr, internalError("ktx write: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(path)
+	db, err := openDatabase(path, "write")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

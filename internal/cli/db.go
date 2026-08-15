@@ -115,7 +115,7 @@ func dbMigrateLogic(pathOverride string, args []string, format string, stdout io
 		if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
 			return nil, notFoundError("ktx db migrate: database %q does not exist", canonical)
 		}
-		return nil, databaseOpenError(path, err)
+		return nil, databaseOpenError(path, "db migrate", err)
 	}
 	var before int
 	readErr := readOnly.DB().QueryRow(`PRAGMA user_version`).Scan(&before)
@@ -124,12 +124,12 @@ func dbMigrateLogic(pathOverride string, args []string, format string, stdout io
 		return nil, internalError("ktx db migrate: read schema version: %v", err)
 	}
 	if before > dbpkg.MaxSupportedSchema() {
-		return nil, databaseOpenError(path, &dbpkg.SchemaTooNewError{Actual: before, Maximum: dbpkg.MaxSupportedSchema()})
+		return nil, databaseOpenError(path, "db migrate", &dbpkg.SchemaTooNewError{Actual: before, Maximum: dbpkg.MaxSupportedSchema()})
 	}
 
 	after := before
 	if before < dbpkg.MaxSupportedSchema() {
-		database, err := openExistingDatabase(path)
+		database, err := openExistingDatabase(path, "db")
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +179,7 @@ func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, e
 	}
 	report, err := dbreport.Generate(path, includeIdentifiers, time.Now())
 	if err != nil {
-		return nil, databaseOpenError(path, err)
+		return nil, databaseOpenError(path, "db report", err)
 	}
 	if output != "-" {
 		if err := dbreport.WriteJSON(output, report); err != nil {

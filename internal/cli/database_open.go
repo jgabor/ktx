@@ -10,31 +10,23 @@ import (
 	"github.com/jgabor/ktx/internal/logging"
 )
 
-func openDatabase(path string) (*dbpkg.DB, error) {
-	return openDatabaseForSurface(path, "")
-}
-
-func openDatabaseForSurface(path, runtimeSurface string) (*dbpkg.DB, error) {
+func openDatabase(path, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.Open(path)
 	if err == nil {
 		return database, nil
 	}
-	return nil, databaseOpenError(path, err, runtimeSurface)
+	return nil, databaseOpenError(path, command, err)
 }
 
-func openExistingDatabase(path string) (*dbpkg.DB, error) {
+func openExistingDatabase(path, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.OpenExisting(path)
 	if err == nil {
 		return database, nil
 	}
-	return nil, databaseOpenError(path, err)
+	return nil, databaseOpenError(path, command, err)
 }
 
-func openQueryDatabase(path string) (*dbpkg.DB, error) {
-	return openQueryDatabaseForSurface(path, "")
-}
-
-func openQueryDatabaseForSurface(path, runtimeSurface string) (*dbpkg.DB, error) {
+func openQueryDatabase(path, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.OpenQuery(path)
 	if err == nil {
 		return database, nil
@@ -57,11 +49,11 @@ func openQueryDatabaseForSurface(path, runtimeSurface string) (*dbpkg.DB, error)
 		}
 		return nil, failure
 	}
-	return nil, databaseOpenError(path, err, runtimeSurface)
+	return nil, databaseOpenError(path, command, err)
 }
 
-func databaseOpenError(path string, err error, runtimeSurface ...string) error {
-	if classified := classifyDatabaseLockError(path, err, dbpkg.OperationOpen, time.Now(), runtimeSurface...); classified != nil {
+func databaseOpenError(path, command string, err error) error {
+	if classified := classifyDatabaseLockError(path, command, err, dbpkg.OperationOpen, time.Now()); classified != nil {
 		return classified
 	}
 	var schemaErr *dbpkg.SchemaTooNewError
@@ -93,7 +85,7 @@ func databaseOpenError(path string, err error, runtimeSurface ...string) error {
 	return failure
 }
 
-func classifyDatabaseLockError(path string, err error, fallbackPhase string, started time.Time, runtimeSurface ...string) error {
+func classifyDatabaseLockError(path, command string, err error, fallbackPhase string, started time.Time) error {
 	if path == "" || !dbpkg.IsDatabaseUnavailable(err) {
 		return nil
 	}
@@ -102,14 +94,10 @@ func classifyDatabaseLockError(path string, err error, fallbackPhase string, sta
 		err = dbpkg.AttributeDatabaseUnavailable(fallbackPhase, started, err)
 		details, _ = dbpkg.DatabaseUnavailableDetails(err)
 	}
-	surface := ""
-	if len(runtimeSurface) > 0 {
-		surface = runtimeSurface[0]
-	}
-	return databaseUnavailableError(path, surface, details)
+	return databaseUnavailableError(path, command, details)
 }
 
-func databaseUnavailableError(path, runtimeSurface string, details *dbpkg.DatabaseUnavailable) error {
+func databaseUnavailableError(path, command string, details *dbpkg.DatabaseUnavailable) error {
 	canonicalDB, err := dbpkg.CanonicalPath(path)
 	if err != nil {
 		return internalError("canonicalize unavailable database path: %v", err)
@@ -130,29 +118,33 @@ func databaseUnavailableError(path, runtimeSurface string, details *dbpkg.Databa
 		"elapsed_wait_nanoseconds": details.ElapsedWait.Nanoseconds(),
 		"correction":               correction,
 	}
-	if runtimeSurface != "" {
-		writeDatabaseUnavailableEvent(runtimeSurface, canonicalDB, identity.ExecutablePath, identity.ExecutableSHA256, details, correction)
-	}
+	writeDatabaseUnavailableEvent(command, canonicalDB, identity.ExecutablePath, identity.ExecutableSHA256, details)
 	return failure
 }
 
-func writeDatabaseUnavailableEvent(runtimeSurface, databasePath, executablePath, executableSHA256 string, details *dbpkg.DatabaseUnavailable, correction string) {
-	cfg, err := config.Load()
-	if err != nil || cfg.Logs == nil {
+func writeDatabaseUnavailableEvent(command, databasePath, executablePath, executableSHA256 string, details *dbpkg.DatabaseUnavailable) {
+	cfg, err := config.LoadLogs()
+	if err != nil || cfg == nil {
 		return
 	}
-	level, ok := logging.ParseLevel(cfg.Logs.Level)
+	level, ok := logging.ParseLevel(cfg.Level)
 	if !ok {
 		return
 	}
-	logging.New(level, cfg.Logs.Path, databasePath).Write(logging.DatabaseUnavailable{
-		RuntimeSurface:         runtimeSurface,
+	path := cfg.Path
+	if path == "" {
+		path, err = logging.DefaultPath()
+		if err != nil {
+			return
+		}
+	}
+	logging.AppendDatabaseUnavailable(logging.Config{Level: level, Path: path}, databasePath, logging.DatabaseUnavailable{
+		Command:                command,
 		ExecutablePath:         executablePath,
 		ExecutableSHA256:       executableSHA256,
 		DatabasePath:           databasePath,
 		FailureClass:           details.Class,
 		OperationPhase:         details.Phase,
 		ElapsedWaitNanoseconds: details.ElapsedWait.Nanoseconds(),
-		Correction:             correction,
 	})
 }

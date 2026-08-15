@@ -168,7 +168,7 @@ if [ "$1 $2" = "db path" ]; then
 fi
 payload=$(cat)
 printf '%s\t%s\n' "$*" "$payload" >> "$KTX_TEST_LOG"
-if [ "$1" = "hook" ] || [ "$1 $4" = "telemetry record" ]; then
+if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
   case "$KTX_TEST_SCHEMA_MODE" in
     valid)
       path=$(readlink -f "$0"); digest=$(sha256sum "$path" | cut -d' ' -f1)
@@ -352,7 +352,7 @@ console.log(JSON.stringify(output))
 		var observations []map[string]any
 		for ordinal, call := range calls[:6] {
 			fields := strings.SplitN(call, "\t", 2)
-			if len(fields) != 2 || fields[0] != "telemetry --runtime-surface opencode-telemetry record" {
+			if len(fields) != 2 || fields[0] != "telemetry record" {
 				t.Fatalf("telemetry call = %q", call)
 			}
 			var observation map[string]any
@@ -391,7 +391,7 @@ console.log(JSON.stringify(output))
 				t.Errorf("generated/wrapper states differ for case %d: got %v want %v", i, got, want)
 			}
 		}
-		if !strings.HasPrefix(calls[6], "hook --runtime-surface opencode-hook\t") {
+		if !strings.HasPrefix(calls[6], "hook\t") {
 			t.Fatalf("tool call = %q", calls[6])
 		}
 	})
@@ -401,7 +401,7 @@ console.log(JSON.stringify(output))
 		if output["output"] != "compressed tool output" {
 			t.Fatalf("tool output = %#v", output)
 		}
-		if len(calls) != 2 || !strings.HasPrefix(calls[0], "telemetry --runtime-surface opencode-telemetry record\t") || !strings.HasPrefix(calls[1], "hook --runtime-surface opencode-hook\t") {
+		if len(calls) != 2 || !strings.HasPrefix(calls[0], "telemetry record\t") || !strings.HasPrefix(calls[1], "hook\t") {
 			t.Fatalf("calls = %q, want telemetry then hook", calls)
 		}
 	})
@@ -703,7 +703,7 @@ console.log("ok")
 			t.Fatal(err)
 		}
 		calls := strings.Split(strings.TrimSpace(string(data)), "\n")
-		if len(calls) != 2 || !strings.HasPrefix(calls[0], "hook --runtime-surface opencode-hook\t") || !strings.HasPrefix(calls[1], "hook --runtime-surface opencode-hook\t") {
+		if len(calls) != 2 || !strings.HasPrefix(calls[0], "hook\t") || !strings.HasPrefix(calls[1], "hook\t") {
 			t.Fatalf("factory calls=%q, want candidate A then B and no third call", calls)
 		}
 		canonicalA, _ := filepath.Abs(filepath.Join(binDir, "ktx"))
@@ -752,7 +752,7 @@ console.log("ok")
 		if output["output"] != "compressed tool output" || len(calls) != 11 {
 			t.Fatalf("output=%#v calls=%q", output, calls)
 		}
-		if !strings.HasPrefix(calls[0], "telemetry collector-open\t") || !strings.HasPrefix(calls[10], "hook --runtime-surface opencode-hook\t") {
+		if !strings.HasPrefix(calls[0], "telemetry collector-open\t") || !strings.HasPrefix(calls[10], "hook\t") {
 			t.Fatalf("required call boundaries=%q", calls)
 		}
 		for index, call := range calls[1:10] {

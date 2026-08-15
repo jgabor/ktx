@@ -49,7 +49,7 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx list: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(path)
+	db, err := openQueryDatabase(path, "list")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

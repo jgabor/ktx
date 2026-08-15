@@ -150,9 +150,6 @@ type DispatchContext struct {
 	// flag so ctx.Args never sees it; verbs that respect --quiet
 	// read this field rather than re-parsing ctx.Args.
 	Quiet bool
-
-	// RuntimeSurface is set only by generated adapters for typed diagnostics.
-	RuntimeSurface string
 }
 
 // registeredVerb pairs the per-verb options with the verb's logic.
@@ -220,7 +217,7 @@ func runDispatchWithOptions(verb string, args []string, global Options, stdout, 
 		printError(stderr, usageError("unknown command %q", verb), FormatJSON)
 		return ExitUsage
 	}
-	return runRegisteredVerb(reg, args, global, stdout, stderr)
+	return runRegisteredVerb(verb, reg, args, global, stdout, stderr)
 }
 
 // runRegisteredVerb executes a single registered verb end-to-end.
@@ -243,7 +240,7 @@ func runDispatchWithOptions(verb string, args []string, global Options, stdout, 
 //
 // Each step is conditional so a verb that needs nothing (the
 // baseline) does no I/O.
-func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout, stderr io.Writer) int {
+func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Options, stdout, stderr io.Writer) int {
 	// 1. ParseArgs: optional verb-specific parsing.
 	rest := args
 	var parsedArgs any
@@ -288,8 +285,6 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 	var subQuiet bool
 	fs.BoolVar(&subQuiet, "quiet", false, "suppress non-essential output")
 	fs.BoolVar(&subQuiet, "q", false, "suppress non-essential output (shorthand)")
-	var runtimeSurface string
-	fs.StringVar(&runtimeSurface, "runtime-surface", "", "runtime adapter surface")
 	if err := fs.Parse(rest); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return renderHelp(reg.opts.Help, stdout)
@@ -300,11 +295,6 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 	if showHelp {
 		return renderHelp(reg.opts.Help, stdout)
 	}
-	if runtimeSurface != "" && runtimeSurface != "opencode-hook" && runtimeSurface != "opencode-telemetry" {
-		printError(stderr, usageError("invalid runtime surface %q", runtimeSurface), formatStr)
-		return ExitUsage
-	}
-
 	// 4. Open the database according to the command's declared access mode.
 	var db *dbpkg.DB
 	var databasePath string
@@ -319,14 +309,14 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 		var opened *dbpkg.DB
 		switch reg.opts.DatabaseAccess {
 		case DatabaseReadOnly:
-			opened, err = openQueryDatabase(path)
+			opened, err = openQueryDatabase(path, verb)
 		case DatabaseReadWrite:
-			opened, err = openDatabaseForSurface(path, runtimeSurface)
+			opened, err = openDatabase(path, verb)
 		default:
 			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
 		}
 		if err != nil {
-			if classified := classifyDatabaseLockError(databasePath, err, dbpkg.OperationOpen, openStarted, runtimeSurface); classified != nil {
+			if classified := classifyDatabaseLockError(databasePath, verb, err, dbpkg.OperationOpen, openStarted); classified != nil {
 				err = classified
 			}
 			printError(stderr, err, formatStr)
@@ -343,16 +333,15 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 
 	// 6. Build the context and invoke the verb.
 	ctx := &DispatchContext{
-		Args:           fs.Args(),
-		ParsedArgs:     parsedArgs,
-		Format:         formatStr,
-		Stdin:          stdin,
-		Stdout:         stdout,
-		Stderr:         stderr,
-		DB:             db,
-		Passthrough:    reg.opts.PassthroughStdout,
-		Quiet:          global.Quiet || subQuiet,
-		RuntimeSurface: runtimeSurface,
+		Args:        fs.Args(),
+		ParsedArgs:  parsedArgs,
+		Format:      formatStr,
+		Stdin:       stdin,
+		Stdout:      stdout,
+		Stderr:      stderr,
+		DB:          db,
+		Passthrough: reg.opts.PassthroughStdout,
+		Quiet:       global.Quiet || subQuiet,
 	}
 	defer func() {
 		if ctx.DB != nil {
@@ -369,7 +358,7 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 		if reg.opts.DatabaseAccess == DatabaseReadOnly {
 			phase = dbpkg.OperationQuery
 		}
-		if classified := classifyDatabaseLockError(databasePath, err, phase, operationStarted, runtimeSurface); classified != nil {
+		if classified := classifyDatabaseLockError(databasePath, verb, err, phase, operationStarted); classified != nil {
 			err = classified
 		}
 		printError(stderr, err, formatStr)

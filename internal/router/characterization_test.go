@@ -186,7 +186,7 @@ func validateCharacterizationReferences(t *testing.T, root string, references []
 		seen[reference.Path] = true
 		// These references retain implementation that the frozen characterization
 		// measured. Intentional later routing and config changes do not rewrite it.
-		if reference.Path == "internal/router/router.go" || reference.Path == "internal/router/router_test.go" || reference.Path == "internal/config/config.go" {
+		if reference.Path == "internal/router/router.go" || reference.Path == "internal/router/router_test.go" {
 			continue
 		}
 		if reference.Path == historicalContractPath || reference.EvidenceClass == historicalContractClass {

@@ -8,27 +8,31 @@ import (
 	"testing"
 )
 
-func TestRotationMakesActiveAndPreviousPrivate(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "events.log")
-	if err := os.WriteFile(path, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(path, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Truncate(path, maxFileBytes); err != nil {
+func TestRejectsPublicAndSymlinkTargets(t *testing.T) {
+	root := t.TempDir()
+	databasePath := filepath.Join(root, "ktx.db")
+	if err := os.WriteFile(databasePath, []byte("database"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	New(Error, path, "").Write(testEvent{level: Error})
+	public := filepath.Join(root, "public.log")
+	if err := os.WriteFile(public, []byte("before"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(public, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	AppendDatabaseUnavailable(Config{Level: Error, Path: public}, databasePath, testEvent(databasePath))
+	if got, _ := os.ReadFile(public); string(got) != "before" {
+		t.Fatalf("public file changed: %q", got)
+	}
 
-	for _, candidate := range []string{path, path + ".1"} {
-		info, err := os.Stat(candidate)
-		if err != nil {
-			t.Fatalf("stat %s: %v", candidate, err)
-		}
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Errorf("mode of %s = %#o, want 0600", candidate, got)
-		}
+	link := filepath.Join(root, "events.log")
+	if err := os.Symlink(databasePath, link); err != nil {
+		t.Fatal(err)
+	}
+	AppendDatabaseUnavailable(Config{Level: Error, Path: link}, databasePath, testEvent(databasePath))
+	if got, _ := os.ReadFile(databasePath); string(got) != "database" {
+		t.Fatalf("symlink target changed: %q", got)
 	}
 }

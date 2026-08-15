@@ -1,0 +1,16 @@
+id: yaimddoorc
+artifact: progress
+record:
+  timestamp: 2026-08-15 23:48
+  type: refactor
+  phase: build
+  what: Replaced internal/logging with one typed best-effort JSONL append from internal/cli/database_open.go. Removed adapter flags, locks, rotation, limits, correction retention, and config-show expansion.
+  context:
+    intent: Replace the overbuilt logger with the minimal ktx-owned database-unavailable append path.
+    constraints: Keep the implementation task pending for audit; do not perform the final broad synchronization task or access the ambient database.
+    unknowns: "Resolved: logging-specific settings are independent while ordinary config behavior and router characterization remain intact."
+    scope: Implementation, focused tests, generated adapter arguments, minimal safety docs, verification, and required active-plan artifacts.
+  discovered: Logging resolution can remain separate in internal/config/logs.go. The ordinary config and frozen routing characterization hashes are restored exactly.
+  verified: go test and go test -race passed for config, logging, router, and CLI. Windows logging cross-compiled. A disposable locked-database get emitted exactly one event and retained exit 4. mage build and mage check passed with KTX_DB unset and fresh HOME/XDG/TMPDIR roots.
+  next: Audit the pending implementation task, then synchronize remaining public current-state surfaces separately.
+  publication_order: 91

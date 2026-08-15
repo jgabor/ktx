@@ -1,57 +1,39 @@
 # Structured diagnostic logging
 
-Ktx can retain deliberate diagnostic events in one local file as typed JSONL.
-No [logs] section means file logging is off. A present section defaults to the
-inclusive `error` level. Valid levels are `debug`, `info`, `warn`, `error`, and
-`off`. The file sink is best effort and independent of stderr diagnostics.
+Ktx can append database-unavailable diagnostics to one typed JSONL file. No
+`[logs]` section means file logging is off. A section requires `level`; valid
+values are `debug`, `info`, `warn`, `error`, and `off`.
 
 ```toml
 [logs]
 level = "error"
-path = "ktx/ktx.log"
+path = "/absolute/path/to/ktx.log"
 ```
 
-When `path` is omitted, the destination is
-`$XDG_STATE_HOME/ktx/ktx.log`, or `~/.local/state/ktx/ktx.log` when
-`XDG_STATE_HOME` is unset. Relative paths resolve beneath the state directory.
-By contrast, absolute paths are explicit overrides. `ktx config show --format json` and
-`ktx config show --format text` report the effective enabled state, level, and
-destination without creating the destination.
+When `path` is omitted, ktx uses `$XDG_STATE_HOME/ktx/ktx.log`, or
+`~/.local/state/ktx/ktx.log` when `XDG_STATE_HOME` is unset. A configured path
+must be absolute. Invalid logging settings disable file logging without changing
+ordinary commands. A TOML syntax error still makes configuration loading fail.
 
-Each record is one typed JSON object followed by a newline. Records are at most
-16 KiB. The active file is at most 5 MiB, and rotation retains one previous
-file. Ktx creates directories with private access and keeps the destination and
-coordination file private to the current user. It rejects non-regular targets
-and destinations that alias the active database.
+Ktx marshals one closed record and makes one best-effort append attempt. Sink
+errors do not change stdout, stderr, exit status, database behavior, or adapter
+fallback. New files are private. Ktx rejects non-regular targets, symlink-following
+targets, existing POSIX files with group or other permissions, and destinations
+that alias the active database.
 
-Logging makes one best-effort coordination attempt with a nominal 25 ms
-internal target and no retries. Contention drops only the file event. Tests use
-a 50 ms wall-clock safety ceiling for scheduler tolerance. It is not a hard real-time guarantee.
-Sink errors do not change stdout, stderr, or the
-command exit code.
+The `database-unavailable` record contains only:
 
-## Database-unavailable event
-
-The first production record has `event` equal to `database-unavailable` and
-exactly these typed fields:
-
-- `timestamp` (RFC 3339 timestamp string)
-- `level` (`error`)
-- `event` (`database-unavailable`)
-- `runtime_surface` (string)
-- `executable_path` (string)
-- `executable_sha256` (string)
-- `database_path` (string)
-- `failure_class` (string)
-- `operation_phase` (string)
-- `elapsed_wait_nanoseconds` (integer)
-- `correction` (string)
-
-Ktx writes this event before the OpenCode adapter parses the command result.
-Therefore, an enabled sink retains the typed event even if adapter parsing
-falls back to a generic `[ktx] hook failed (exit 4): ...` stderr diagnostic.
+- `timestamp`
+- `level`
+- `event`
+- `ktx_command`
+- `executable_path`
+- `executable_sha256`
+- `database_path`
+- `failure_class`
+- `operation_phase`
+- `elapsed_wait_nanoseconds`
 
 Records do not include tool payloads, database content, SQL, raw driver errors,
-credentials, secrets, arbitrary wrapped errors, or undeclared fields. Paths
-and hashes are sensitive retained identifiers, not anonymous telemetry. Protect
-and delete the log files according to the sensitivity of those identifiers.
+credentials, secrets, or arbitrary fields. Paths and hashes are sensitive
+retained identifiers.

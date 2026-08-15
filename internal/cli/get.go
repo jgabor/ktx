@@ -50,7 +50,7 @@ func runGetWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx get: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(path)
+	db, err := openQueryDatabase(path, "get")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

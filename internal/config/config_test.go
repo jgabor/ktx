@@ -99,11 +99,11 @@ func TestLoad_Logs(t *testing.T) {
 		wantIssue string
 	}{
 		{name: "absent"},
-		{name: "defaults", body: "[logs]\n", wantLevel: "error"},
-		{name: "configured", body: "[logs]\nlevel = \"warn\"\npath = \"diagnostics/events.jsonl\"\n", wantLevel: "warn", wantPath: "diagnostics/events.jsonl"},
+		{name: "missing level", body: "[logs]\n", wantIssue: "level is required"},
+		{name: "configured", body: "[logs]\nlevel = \"warn\"\npath = \"/tmp/events.jsonl\"\n", wantLevel: "warn", wantPath: "/tmp/events.jsonl"},
 		{name: "off", body: "[logs]\nlevel = \"off\"\n", wantLevel: "off"},
-		{name: "empty level", body: "[logs]\nlevel = \"\"\n", wantIssue: "level must not be empty"},
-		{name: "empty path", body: "[logs]\npath = \"\"\n", wantIssue: "path must not be empty"},
+		{name: "empty level", body: "[logs]\nlevel = \"\"\n", wantIssue: "level is required"},
+		{name: "relative path", body: "[logs]\nlevel = \"error\"\npath = \"events.log\"\n", wantIssue: "path must be absolute"},
 		{name: "unknown", body: "[logs]\nformat = \"text\"\n", wantIssue: "unknown setting"},
 		{name: "bad type", body: "[logs]\nlevel = 2\n", wantIssue: "[logs]"},
 		{name: "bad level", body: "[logs]\nlevel = \"trace\"\n", wantIssue: "is invalid"},
@@ -119,29 +119,30 @@ func TestLoad_Logs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load: %v", err)
 			}
+			if got := cfg.PipelineDefault; tt.body != "" && (len(got) != 1 || got[0] != "strip-ansi") {
+				t.Fatalf("unrelated pipeline = %v", got)
+			}
+			logs, logsErr := LoadLogs()
 			if tt.wantIssue != "" {
-				if cfg.LogsError == nil || !strings.Contains(cfg.LogsError.Error(), tt.wantIssue) {
-					t.Fatalf("LogsError = %v, want %q", cfg.LogsError, tt.wantIssue)
+				if logsErr == nil || !strings.Contains(logsErr.Error(), tt.wantIssue) {
+					t.Fatalf("LoadLogs error = %v, want %q", logsErr, tt.wantIssue)
 				}
-				if cfg.Logs != nil {
-					t.Fatalf("Logs = %#v, want nil", cfg.Logs)
-				}
-				if got := cfg.PipelineDefault; len(got) != 1 || got[0] != "strip-ansi" {
-					t.Fatalf("unrelated pipeline = %v", got)
+				if logs != nil {
+					t.Fatalf("Logs = %#v, want nil", logs)
 				}
 				return
 			}
 			if tt.body == "" {
-				if cfg.Logs != nil {
-					t.Fatalf("Logs = %#v, want nil", cfg.Logs)
+				if logs != nil || logsErr != nil {
+					t.Fatalf("Logs = %#v, error = %v", logs, logsErr)
 				}
 				return
 			}
-			if cfg.LogsError != nil || cfg.Logs == nil {
-				t.Fatalf("Logs = %#v, LogsError = %v", cfg.Logs, cfg.LogsError)
+			if logsErr != nil || logs == nil {
+				t.Fatalf("Logs = %#v, error = %v", logs, logsErr)
 			}
-			if cfg.Logs.Level != tt.wantLevel || cfg.Logs.Path != tt.wantPath {
-				t.Fatalf("Logs = %#v, want level=%q path=%q", cfg.Logs, tt.wantLevel, tt.wantPath)
+			if logs.Level != tt.wantLevel || logs.Path != tt.wantPath {
+				t.Fatalf("Logs = %#v, want level=%q path=%q", logs, tt.wantLevel, tt.wantPath)
 			}
 		})
 	}

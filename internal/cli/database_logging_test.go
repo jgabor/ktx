@@ -18,21 +18,20 @@ type databaseUnavailableLogRecord struct {
 	Timestamp              string `json:"timestamp"`
 	Level                  string `json:"level"`
 	Event                  string `json:"event"`
-	RuntimeSurface         string `json:"runtime_surface"`
+	Command                string `json:"ktx_command"`
 	ExecutablePath         string `json:"executable_path"`
 	ExecutableSHA256       string `json:"executable_sha256"`
 	DatabasePath           string `json:"database_path"`
 	FailureClass           string `json:"failure_class"`
 	OperationPhase         string `json:"operation_phase"`
 	ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
-	Correction             string `json:"correction"`
 }
 
-func TestDatabaseUnavailableLoggingSurfacesAndPhases(t *testing.T) {
+func TestDatabaseUnavailableLoggingCommandsAndPhases(t *testing.T) {
 	phases := []string{dbpkg.OperationOpen, dbpkg.OperationMigration, dbpkg.OperationSource, dbpkg.OperationArtifact, dbpkg.OperationDisposition, dbpkg.OperationQuery}
-	for _, surface := range []string{"opencode-hook", "opencode-telemetry"} {
+	for _, command := range []string{"hook", "telemetry record", "write", "get"} {
 		for _, phase := range phases {
-			t.Run(surface+"/"+phase, func(t *testing.T) {
+			t.Run(command+"/"+phase, func(t *testing.T) {
 				root := t.TempDir()
 				t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 				t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
@@ -40,15 +39,15 @@ func TestDatabaseUnavailableLoggingSurfacesAndPhases(t *testing.T) {
 				hookWriteUserConfig(t, "[logs]\nlevel = \"error\"\npath = \""+logPath+"\"\n")
 				databasePath := filepath.Join(root, "database.db")
 				details := &dbpkg.DatabaseUnavailable{Class: dbpkg.UnavailableClassCoordinatorTimeout, Phase: phase, ElapsedWait: 2*time.Second + 2*time.Millisecond}
-				failure := databaseUnavailableError(databasePath, surface, details)
+				failure := databaseUnavailableError(databasePath, command, details)
 				if typed, ok := failure.(*Error); !ok || typed.Code != CodeDatabaseUnavailable {
 					t.Fatalf("failure = %#v", failure)
 				}
 				record := readDatabaseUnavailableLog(t, logPath)
-				if record.Timestamp == "" || record.Level != "error" || record.Event != "database-unavailable" || record.RuntimeSurface != surface ||
+				if record.Timestamp == "" || record.Level != "error" || record.Event != "database-unavailable" || record.Command != command ||
 					record.ExecutablePath == "" || len(record.ExecutableSHA256) != 64 || record.DatabasePath != databasePath ||
 					record.FailureClass != dbpkg.UnavailableClassCoordinatorTimeout || record.OperationPhase != phase ||
-					record.ElapsedWaitNanoseconds != details.ElapsedWait.Nanoseconds() || record.Correction == "" {
+					record.ElapsedWaitNanoseconds != details.ElapsedWait.Nanoseconds() {
 					t.Fatalf("record = %#v", record)
 				}
 			})
@@ -65,7 +64,7 @@ func TestDatabaseUnavailableLoggingIsolation(t *testing.T) {
 
 	render := func() string {
 		var stderr bytes.Buffer
-		printError(&stderr, databaseUnavailableError(databasePath, "opencode-hook", details), FormatJSON)
+		printError(&stderr, databaseUnavailableError(databasePath, "hook", details), FormatJSON)
 		return stderr.String()
 	}
 
@@ -94,7 +93,7 @@ func TestDatabaseUnavailableLoggingIsolation(t *testing.T) {
 
 	logPath := filepath.Join(root, "other-failure.log")
 	hookWriteUserConfig(t, "[logs]\nlevel = \"error\"\npath = \""+logPath+"\"\n")
-	if classified := classifyDatabaseLockError(databasePath, errors.New("secret arbitrary failure"), dbpkg.OperationOpen, time.Now(), "opencode-hook"); classified != nil {
+	if classified := classifyDatabaseLockError(databasePath, "hook", errors.New("secret arbitrary failure"), dbpkg.OperationOpen, time.Now()); classified != nil {
 		t.Fatalf("other failure classified: %v", classified)
 	}
 	if _, err := os.Stat(logPath); !errors.Is(err, os.ErrNotExist) {

@@ -10,7 +10,7 @@
 //
 //	ktx config show [--format json|text]
 //
-// JSON output includes profiles, routes, and effective logging settings.
+// JSON output includes profiles and routes.
 //
 // DatabaseNone: config inspection operates on ktx.toml only.
 package cli
@@ -22,7 +22,6 @@ import (
 	"sort"
 
 	"github.com/jgabor/ktx/internal/config"
-	"github.com/jgabor/ktx/internal/logging"
 )
 
 // configCommandFunc is the dispatch entry point.
@@ -41,8 +40,7 @@ func configCommandFunc(ctx *DispatchContext) (any, error) {
 }
 
 // configShow reads ktx.toml and prints the active pipeline
-// configuration. JSON preserves the profiles and routes fields and adds logs;
-// text renders the profile table followed by effective logging settings.
+// configuration. JSON preserves the profiles and routes fields.
 func configShow(format string, stdout io.Writer) (any, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -51,10 +49,6 @@ func configShow(format string, stdout io.Writer) (any, error) {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	if cfg.LogsError != nil {
-		return nil, usageError("ktx config show: %v", cfg.LogsError)
-	}
-
 	profiles := cfg.Profiles
 	if profiles == nil {
 		profiles = map[string]config.Profile{}
@@ -65,45 +59,18 @@ func configShow(format string, stdout io.Writer) (any, error) {
 		profiles["default"] = config.Profile{}
 	}
 
-	logs, err := effectiveLogConfig(cfg.Logs)
-	if err != nil {
-		return nil, usageError("ktx config show: %v", err)
-	}
 	if format == FormatText {
-		return configShowText(stdout, profiles, logs)
+		return configShowText(stdout, profiles)
 	}
 
 	// JSON (default)
-	return configShowJSON(stdout, profiles, cfg.Routes, logs)
-}
-
-type effectiveLogs struct {
-	Enabled     bool   `json:"enabled"`
-	Level       string `json:"level"`
-	Destination string `json:"destination"`
-}
-
-func effectiveLogConfig(configured *config.LogConfig) (effectiveLogs, error) {
-	if configured == nil {
-		return effectiveLogs{Level: "off"}, nil
-	}
-	logs := effectiveLogs{Level: configured.Level}
-	if configured.Level == "off" {
-		return logs, nil
-	}
-	destination, err := logging.ResolvePath(configured.Path)
-	if err != nil {
-		return effectiveLogs{}, err
-	}
-	logs.Enabled = true
-	logs.Destination = destination
-	return logs, nil
+	return configShowJSON(stdout, profiles, cfg.Routes)
 }
 
 // configShowJSON renders the profiles and routes as a JSON envelope.
 // Empty stages arrays are emitted as [] (not null) so agents can
 // unmarshal without nil-checking. Empty routes is emitted as [].
-func configShowJSON(stdout io.Writer, profiles map[string]config.Profile, routes []config.RouteRule, logs effectiveLogs) (any, error) {
+func configShowJSON(stdout io.Writer, profiles map[string]config.Profile, routes []config.RouteRule) (any, error) {
 	type profileEntry struct {
 		Stages []string `json:"stages"`
 	}
@@ -133,7 +100,6 @@ func configShowJSON(stdout io.Writer, profiles map[string]config.Profile, routes
 	envelope := map[string]any{
 		"profiles": out,
 		"routes":   routeOut,
-		"logs":     logs,
 	}
 	_ = json.NewEncoder(stdout).Encode(envelope)
 	return nil, nil
@@ -141,7 +107,7 @@ func configShowJSON(stdout io.Writer, profiles map[string]config.Profile, routes
 
 // configShowText renders a human-readable table: one row per profile
 // with name and comma-separated stages list.
-func configShowText(stdout io.Writer, profiles map[string]config.Profile, logs effectiveLogs) (any, error) {
+func configShowText(stdout io.Writer, profiles map[string]config.Profile) (any, error) {
 	fmt.Fprintln(stdout, "PROFILE    STAGES")
 	// Sorted with "default" first, then alphabetical.
 	names := make([]string, 0, len(profiles))
@@ -166,13 +132,6 @@ func configShowText(stdout io.Writer, profiles map[string]config.Profile, logs e
 		}
 		fmt.Fprintf(stdout, "%-10s %s\n", name, stagesStr)
 	}
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "LOGGING  LEVEL  DESTINATION")
-	destination := logs.Destination
-	if destination == "" {
-		destination = "(none)"
-	}
-	fmt.Fprintf(stdout, "%-8t %-6s %s\n", logs.Enabled, logs.Level, destination)
 	return nil, nil
 }
 
@@ -191,28 +150,13 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx config show [--format json|text]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Shows pipeline stages and the effective file-logging configuration.")
+	fmt.Fprintln(w, "Shows pipeline stages and routes.")
 	fmt.Fprintln(w, "The 'default' profile is always present (the passthrough path when no")
 	fmt.Fprintln(w, "ktx.toml exists).")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Format:")
-	fmt.Fprintln(w, "  json   {profiles:{default:{stages:[...]}, ...}, routes:[...], logs:{...}}")
-	fmt.Fprintln(w, "  text   profile rows followed by logging enabled, level, and destination")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Logging:")
-	fmt.Fprintln(w, "  No [logs] section means off. A present section defaults to level error.")
-	fmt.Fprintln(w, "  Levels are inclusive: debug, info, warn, error, or off.")
-	fmt.Fprintln(w, "  The default destination is $XDG_STATE_HOME/ktx/ktx.log, with")
-	fmt.Fprintln(w, "  ~/.local/state/ktx/ktx.log as the home fallback. Relative paths resolve")
-	fmt.Fprintln(w, "  beneath the state directory; absolute paths are explicit overrides.")
-	fmt.Fprintln(w, "  Inspection resolves the destination but does not create it.")
-	fmt.Fprintln(w, "  Records are typed JSONL, at most 16 KiB each. The private active file")
-	fmt.Fprintln(w, "  is limited to 5 MiB and rotation retains one previous file.")
-	fmt.Fprintln(w, "  File logging is best effort and independent of stderr diagnostics.")
-	fmt.Fprintln(w, "  Paths and hashes in records are sensitive retained identifiers.")
-	fmt.Fprintln(w, "  Coordination makes one attempt with a nominal 25 ms target, no retries.")
-	fmt.Fprintln(w, "  Contention drops only the file event. A 50 ms wall-clock")
-	fmt.Fprintln(w, "  safety ceiling allows scheduler tolerance; it is not a hard real-time guarantee.")
+	fmt.Fprintln(w, "  json   {profiles:{default:{stages:[...]}, ...}, routes:[...]}")
+	fmt.Fprintln(w, "  text   profile rows")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Example:")
 	fmt.Fprintln(w, "  ktx config show --format json")

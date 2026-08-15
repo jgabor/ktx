@@ -1,0 +1,15 @@
+id: gldzahjduf
+artifact: plan
+record:
+  name: Replace logging with the minimal ktx-owned path
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN no [logs] section WHEN a command runs THEN logging creates, opens, changes, or writes no destination path; GIVEN a valid section WHEN settings resolve THEN level is required, accepted thresholds are debug through error plus off, omitted path uses the XDG state log, and a configured path must be absolute.
+    - GIVEN a successfully parsed TOML document with missing, invalid, or unknown [logs] settings WHEN an ordinary command runs THEN logging is disabled without changing that command; GIVEN a whole-document TOML syntax error THEN existing configuration failure behavior remains unchanged.
+    - GIVEN any command classifies database-unavailable WHEN error logging is accepted THEN one central emission boundary writes exactly one event containing timestamp, level, event, ktx command, executable path and SHA-256, database path, failure class, operation phase, and elapsed wait; plain hook, telemetry, one non-adapter write command, and one read-only query require no adapter-only argument and produce no duplicates.
+    - GIVEN an accepted event WHEN the sink writes THEN it marshals one closed record and makes one append attempt with no retry; configuration or sink failure leaves stderr bytes, stdout, exit status, database behavior, and conservative adapter fallback unchanged.
+    - GIVEN a destination is new or existing WHEN logging evaluates it THEN new files are private, existing POSIX files with group or other permission bits are rejected, non-regular and symlink-following targets are rejected through the minimal supported safe-open boundary, and canonical aliases of the active database are rejected without changing the primary command.
+    - GIVEN the replacement is complete WHEN source and focused tests are inspected THEN runtime-surface flags and generated-plugin arguments, cross-process locks, rotation, timing thresholds, record-size limits, static correction retention, broad configuration-output changes, and their obsolete tests are absent; no compatibility shim remains for the undistributed adapter flag.
+  plan: uhxmqfdaia

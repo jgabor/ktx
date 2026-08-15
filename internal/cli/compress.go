@@ -92,7 +92,7 @@ func runCompressWith(args []string, opts Options, stdout, stderr io.Writer) int 
 		printError(stderr, internalError("ktx compress: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(path)
+	db, err := openDatabase(path, "compress")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

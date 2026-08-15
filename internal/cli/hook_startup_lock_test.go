@@ -125,7 +125,7 @@ func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
 
 	t.Setenv("KTX_DB", path)
 	var stdout, stderr bytes.Buffer
-	if code := runWith([]string{"hook", "--runtime-surface", "opencode-hook"}, &stdout, &stderr); code != ExitInternal {
+	if code := runWith([]string{"hook"}, &stdout, &stderr); code != ExitInternal {
 		t.Fatalf("hook exit code = %d, want %d; stdout=%q stderr=%q", code, ExitInternal, stdout.String(), stderr.String())
 	}
 	if stdout.Len() != 0 {
@@ -162,7 +162,7 @@ func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
 		}
 	}
 	record := readDatabaseUnavailableLog(t, logPath)
-	if record.RuntimeSurface != "opencode-hook" || record.FailureClass != dbpkg.UnavailableClassSQLiteLock || record.OperationPhase != dbpkg.OperationOpen || record.ElapsedWaitNanoseconds <= 0 {
+	if record.Command != "hook" || record.FailureClass != dbpkg.UnavailableClassSQLiteLock || record.OperationPhase != dbpkg.OperationOpen || record.ElapsedWaitNanoseconds <= 0 {
 		t.Fatalf("availability record = %#v", record)
 	}
 }

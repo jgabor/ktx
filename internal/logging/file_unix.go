@@ -15,3 +15,14 @@ func openNoFollow(path string, flags int, perm os.FileMode) (*os.File, error) {
 	}
 	return os.NewFile(uintptr(fd), path), nil
 }
+
+func rejectPublicPermissions(file *os.File) error {
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		return os.ErrPermission
+	}
+	return nil
+}

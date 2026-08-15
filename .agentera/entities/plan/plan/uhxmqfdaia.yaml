@@ -1,0 +1,43 @@
+id: uhxmqfdaia
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-15
+    status: open
+    reviewed: 2026-08-15
+    critic_issues: 4 found, 4 addressed, 0 dismissed
+    title: "Plan: Simplify structured logging"
+  what: Replace the recently added logging subsystem with one small ktx-owned, best-effort typed JSON Lines append path. Remove adapter attribution dependencies, cross-process coordination, rotation, timing thresholds, record-size policy, excess event fields, and public contracts that exist only for those policies.
+  why: The current implementation exceeds the requested outcome and created failures in machinery the product does not need. Ktx needs configurable generic logging and durable database-unavailable evidence without changing command behavior or depending on a runtime adapter.
+  constraints: No [logs] section means no log destination resolution, creation, open, permission change, or write; normal configuration-file reads remain unchanged. A present section requires level with debug, info, warn, error, or off; path is optional, defaults to the XDG state log, and must be absolute when configured. Only semantic [logs] errors after successful TOML parsing disable the sink without changing ordinary commands; whole-document TOML syntax errors retain existing behavior. Ktx records each classified database-unavailable exactly once at a central ktx-owned boundary. Perform one typed JSON object plus newline append with no retry. Create new files privately, reject unsafe targets and active-database aliases, and retain only minimal platform-specific safe-open behavior needed for the current trust boundary. Preserve stderr, stdout, exit codes, database behavior, executable identity, schema and migration safety, retries, and adapter fallback. Do not retain arbitrary fields, payloads, database content, SQL, raw wrapped errors, credentials, or secrets. Do not add rotation, lock files, coordination timing, record-size limits, OTLP, tracing, metrics, multiple sinks or formats, environment overrides, daemon behavior, or dependencies.
+  overall_acceptance: GIVEN minimal logging is configured WHEN any ktx command classifies database-unavailable THEN ktx independently appends exactly one private typed event containing only ktx-owned diagnostic facts, while disabled, invalid, unsafe, or failed sinks leave existing command and database behavior unchanged and all obsolete logging machinery is absent.
+  scope:
+    included:
+      - small logging-specific configuration resolution
+      - debug, info, warn, error, and off filtering with an optional absolute destination
+      - one append-only typed JSON Lines sink
+      - central exactly-once database-unavailable emission for adapter and non-adapter commands
+      - ktx-owned command, executable identity, database target, failure class, phase, and elapsed wait fields
+      - minimal safe-open and database-alias protections
+      - removal of runtime-surface CLI and generated-adapter coupling
+      - removal of lock, rotation, timing, record-limit, configuration-output, test, and documentation policies that only supported the discarded design
+      - restoration of unrelated router characterization
+    excluded:
+      - retention and exact cross-process integrity guarantees
+      - runtime or provider attribution
+      - additional production event schemas
+      - automatic stdout or stderr capture
+      - external observability, multiple sinks, and custom formats
+      - ambient live-database access
+    deferred:
+      - retention policy until actual logging volume requires it
+      - cross-process coordination until a record-corruption failure is reproduced
+      - additional typed production events
+  design: Resolve logging settings independently from ordinary command success. After ktx centrally classifies a database-unavailable result, submit one closed event containing only ktx-owned facts and the current command. Validate the configured destination with the smallest safe-open boundary, make one append attempt, and ignore sink failure. Generated adapters remain consumers of stderr and do not participate in logging. Remove contracts and tests that exist only for discarded retention, coordination, timing, size, and adapter-attribution policies.
+  unknowns:
+    - question: Can logging settings be resolved separately while restoring existing routing and configuration characterization and preserving ordinary configuration behavior?
+      affects_task: 1
+      resolve_by: Task 1 must prove the separation with focused characterization before final synchronization; if it cannot, replan rather than retain a broad characterization exemption or a parallel error channel in the main configuration object.
+  surprises:
+    []

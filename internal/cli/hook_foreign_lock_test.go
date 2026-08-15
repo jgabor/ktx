@@ -288,7 +288,7 @@ func assertHookForeignLockRendered(t *testing.T, path, operationPhase string, er
 		t.Fatalf("error = %v, want wrapped SQLite lock error", err)
 	}
 	started := time.Now().Add(-time.Millisecond)
-	classified := classifyDatabaseLockError(path, dbpkg.AttributeDatabaseUnavailable(operationPhase, started, err), operationPhase, started)
+	classified := classifyDatabaseLockError(path, "hook", dbpkg.AttributeDatabaseUnavailable(operationPhase, started, err), operationPhase, started)
 	if classified == nil {
 		t.Fatalf("classifyDatabaseLockError(%v) = nil", err)
 	}

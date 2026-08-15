@@ -1,0 +1,16 @@
+id: ofadktmlop
+artifact: progress
+record:
+  timestamp: 2026-08-15 21:38
+  type: fix
+  phase: build
+  what: Reserved scheduling headroom beneath the 25 ms logging coordination limit and shortened lock polling without changing record, rotation, privacy, or failure-isolation behavior.
+  context:
+    intent: Correct the audited coordination-budget overshoot only.
+    constraints: Keep the task pending and preserve whole records, bounded rotation, privacy, failure isolation, and Linux local-filesystem support.
+    unknowns: Repeated contention and rotation checks resolved the timing concern for re-evaluation.
+    scope: Lock acquisition timing and its focused contention diagnostic.
+  discovered: A 20 ms acquisition budget dropped one event during a concurrent focused/race run; 22 ms retained the required record integrity while leaving measured scheduling headroom.
+  verified: The exact contention reproducer passed 20/20; measured contention passed 20/20 with a 22.411227 ms maximum wait. Ten eight-process rotation runs preserved 8000/8000 complete records, bounded active plus previous storage, and observed a 10.557577 ms maximum wait. Focused tests, the logging race test, mage build, and mage check passed with isolated disposable environments and KTX_DB unset.
+  next: Leave task mwqgjygkyy pending for independent re-evaluation.
+  publication_order: 85

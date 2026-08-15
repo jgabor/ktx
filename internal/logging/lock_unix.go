@@ -13,7 +13,7 @@ var errLockBusy = errors.New("logging lock busy")
 
 func acquire(file *os.File, limit time.Duration) (time.Duration, error) {
 	started := time.Now()
-	deadline := started.Add(limit - time.Millisecond)
+	deadline := started.Add(limit)
 	for {
 		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if err == nil {
@@ -26,8 +26,8 @@ func acquire(file *os.File, limit time.Duration) (time.Duration, error) {
 		if remaining <= 0 {
 			return time.Since(started), errLockBusy
 		}
-		if remaining > time.Millisecond {
-			remaining = time.Millisecond
+		if remaining > lockPollInterval {
+			remaining = lockPollInterval
 		}
 		time.Sleep(remaining)
 	}

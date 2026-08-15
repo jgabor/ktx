@@ -14,7 +14,7 @@ var errLockBusy = errors.New("logging lock busy")
 
 func acquire(file *os.File, limit time.Duration) (time.Duration, error) {
 	started := time.Now()
-	deadline := started.Add(limit - time.Millisecond)
+	deadline := started.Add(limit)
 	for {
 		err := windows.LockFileEx(windows.Handle(file.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &windows.Overlapped{})
 		if err == nil {
@@ -27,8 +27,8 @@ func acquire(file *os.File, limit time.Duration) (time.Duration, error) {
 		if remaining <= 0 {
 			return time.Since(started), errLockBusy
 		}
-		if remaining > time.Millisecond {
-			remaining = time.Millisecond
+		if remaining > lockPollInterval {
+			remaining = lockPollInterval
 		}
 		time.Sleep(remaining)
 	}

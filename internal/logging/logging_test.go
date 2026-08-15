@@ -155,6 +155,7 @@ func TestContentionDropsWithinBudget(t *testing.T) {
 	if wait > maxLockWait {
 		t.Fatalf("coordination wait = %s, want <= %s", wait, maxLockWait)
 	}
+	t.Logf("coordination wait=%s", wait)
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("active log exists or stat failed: %v", err)
 	}

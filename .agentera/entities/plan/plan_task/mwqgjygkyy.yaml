@@ -13,3 +13,13 @@ record:
     - GIVEN a new or existing destination WHEN logging evaluates it THEN access is private to the current user, non-regular targets and canonical aliases of the active database are rejected, and sink contention or failure changes neither command output nor status.
     - GIVEN malformed, empty, or unknown [logs] settings WHEN configuration is inspected THEN the issue is reported; ordinary commands disable file logging without changing unrelated output, status, accepted persistence, or database behavior.
   plan: lxyymlqiye
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Logging lock acquisition exceeded the 25 ms coordination budget in independent contention runs (25.390471 ms and 25.057914 ms); whole-record and rotation checks otherwise passed.
+    provenance:
+      attempt_id: mwqgjygkyy-audit-1
+      source: audit task ses_ff91ed90bffeg4dRzTUtn3jpCc
+      recorded_at: 2026-08-15 21:28
+      writer_command: agentera state plan record-evaluation

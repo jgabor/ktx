@@ -1,0 +1,15 @@
+id: hhqjcwlfzy
+artifact: progress
+record:
+  timestamp: 2026-08-15 19:21
+  type: test
+  phase: build
+  what: Characterized sustained supported database contention through sixteen concurrent writer streams without changing production source.
+  context:
+    intent: Reproduce database-unavailable under fixed sustained multi-agent load before selecting a production coordination change.
+    constraints: Use temporary overlays and fresh disposable databases only; preserve production source, live database isolation, journal, retry, schema, migration, and public behavior.
+    scope: Eight- and sixteen-writer levels, sixteen sequential hooks per writer, matched writers-only and two-reader mixed arms, one warm-up and five measured rounds.
+  discovered: Neither level reproduced a supported failure. At eight writers the mixed arm completed 800 of 800 measured participant operations; at sixteen writers it completed 1440 of 1440. Every writer and reader completed sixteen operations per round, database-unavailable remained zero, and every database reconciled exactly. The result is no-reproduction, not success. Raw supported concurrency at these levels is not sufficient to explain the active-use error.
+  verified: Independent audit validated the fixed workload identities, escalation rule, unique sessions, report hashes, per-round counts, throughput and penalty calculations, maximum participant times, zero failure maps, and zero ambient path hits. Production source had no diff. Final mage check passed tests, race coverage, vet, lint with zero issues, build, and 3557 audited database accesses with forbidden=0 and KTX_DB unset.
+  next: Check whether active agents use different ktx executable identities or older adapters. If identities match, capture which specific reader or foreign SQLite owner overlaps the next observed failure before changing coordination.
+  publication_order: 82

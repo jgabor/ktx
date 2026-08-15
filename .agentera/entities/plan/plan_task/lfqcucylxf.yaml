@@ -4,7 +4,7 @@ record:
   name: Run the sustained contention threshold sweep
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN the eight-stream level WHEN writers-only and mixed workloads run THEN each stream submits sixteen unique hooks sequentially, two mixed reader streams each submit sixteen queries, all participants share one fresh disposable database per round, and expected records reconcile exactly.
     - GIVEN the eight-stream measured rounds contain no supported failure WHEN the sweep continues THEN the same matched workloads run with sixteen writer streams; otherwise escalation stops after the reproduced failure.

@@ -126,7 +126,7 @@ func New(level Level, configuredPath, databasePath string) *Sink {
 	if s.disabled {
 		return s
 	}
-	path, err := resolvePath(configuredPath)
+	path, err := ResolvePath(configuredPath)
 	if err != nil {
 		s.disabled = true
 		return s
@@ -153,7 +153,8 @@ func (s *Sink) write(event Event) (time.Duration, bool) {
 	return wait, err == nil
 }
 
-func resolvePath(configured string) (string, error) {
+// ResolvePath returns the effective log destination without creating it.
+func ResolvePath(configured string) (string, error) {
 	if filepath.IsAbs(configured) {
 		return filepath.Clean(configured), nil
 	}

@@ -1,0 +1,16 @@
+id: ijpuqxolae
+artifact: progress
+record:
+  timestamp: 2026-08-15 23:10
+  type: feat
+  phase: build
+  what: Published effective logging state through config inspection and synchronized command help, the example configuration, the diagnostic runbook, contract checks, and current documented-contract evidence.
+  context:
+    intent: Complete the logging plan's public-contract and verification increment without changing the implemented sink or database behavior.
+    constraints: Preserve existing config fields, diagnostics, output, status, adapter fallback, database behavior, and the completed-task evaluation state; leave jeujadglta pending for audit.
+    unknowns: Independent audit remains.
+    scope: Config JSON and text inspection, logging help and documentation, contract synchronization, focused end-to-end and race checks, and repository verification.
+  discovered: The example configuration is an exact retained routing-characterization input, so its current SHA-256 reference had to advance with the required logging documentation while the historical reference remained unchanged.
+  verified: Focused config, documentation, sink, database-unavailable, and generated-adapter tests passed for internal/cli, internal/config, and internal/logging. The local build config smoke check preserved profiles and routes, reported enabled error logging and the resolved destination in JSON and text, created neither the destination nor a database, and exited successfully. Focused race checks passed for internal/logging and internal/cli. The routing contract checks passed after synchronizing the current example hash. Final mage check passed all repository tests, vet, lint with 0 issues, build, and the database access audit with forbidden=0. Every test, build, and smoke invocation used a fresh disposable HOME, all XDG roots, and TMPDIR with KTX_DB unset.
+  next: Leave jeujadglta pending for independent audit.
+  publication_order: 89

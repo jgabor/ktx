@@ -4,7 +4,7 @@ record:
   name: Record typed database availability events
   depends_on:
     - mwqgjygkyy
-  status: pending
+  status: complete
   acceptance:
     - GIVEN database-unavailable and an enabled error sink WHEN the failure is reported THEN one error event records timestamp, runtime surface, executable identity, database path, failure class, operation phase, elapsed wait, and correction using the closed event schema.
     - GIVEN the availability event is serialized WHEN its fields are inspected THEN it excludes payloads, database content, SQL, raw driver wording, credentials, secrets, arbitrary wrapped errors, and undeclared fields, and documentation treats paths and hashes as sensitive retained data rather than anonymous data.
@@ -13,12 +13,12 @@ record:
     - GIVEN hook and telemetry failures at each bounded availability phase WHEN focused regression tests run THEN enabled, disabled, below-threshold, and sink-failure cases preserve the existing content-exclusion and diagnostic contracts.
   plan: lxyymlqiye
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Missing generated-plugin integration regression proving a real ktx coordinator-timeout is logged before the adapter uses its generic prefixed stderr fallback; implementation ordering otherwise passed.
     provenance:
-      attempt_id: fxhllbyvqx-audit-1
+      attempt_id: fxhllbyvqx-audit-2
       source: audit task ses_ff8f5049effe63U0EfmISEOZsh
-      recorded_at: 2026-08-15 22:15
+      recorded_at: 2026-08-15 22:33
       writer_command: agentera state plan record-evaluation

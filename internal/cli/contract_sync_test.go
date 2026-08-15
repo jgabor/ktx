@@ -76,6 +76,40 @@ func TestToolOutcomeContractSurfacesMatchBehavior(t *testing.T) {
 	}
 }
 
+func TestLoggingContractSurfacesMatchBehavior(t *testing.T) {
+	root := repositoryRoot(t)
+	var help bytes.Buffer
+	printConfigHelp(&help)
+	for name, contents := range map[string]string{
+		"help":    help.String(),
+		"example": readDocumentationFile(t, filepath.Join(root, "ktx.example.toml")),
+		"runbook": readDocumentationFile(t, filepath.Join(root, "docs", "logging.md")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			assertContractText(t, contents, []string{
+				"No [logs] section means", "error", "debug", "info", "warn", "off",
+				"Relative paths", "absolute paths", "typed JSONL", "16 KiB", "5 MiB",
+				"one previous", "private", "sensitive retained identifiers", "stderr",
+				"nominal 25 ms", "no retries", "drops only the file event", "50 ms wall-clock",
+				"not a hard real-time guarantee",
+			}, nil)
+		})
+	}
+
+	runbook := readDocumentationFile(t, filepath.Join(root, "docs", "logging.md"))
+	for _, field := range []string{
+		"`timestamp`", "`level`", "`event`", "`runtime_surface`", "`executable_path`",
+		"`executable_sha256`", "`database_path`", "`failure_class`", "`operation_phase`",
+		"`elapsed_wait_nanoseconds`", "`correction`",
+	} {
+		if !strings.Contains(runbook, field) {
+			t.Errorf("logging runbook is missing field %s", field)
+		}
+	}
+	assertContractText(t, runbook,
+		[]string{"before the OpenCode adapter parses", "[ktx] hook failed (exit 4): ...", "payloads", "database content", "SQL", "raw driver errors", "credentials", "secrets", "arbitrary wrapped errors", "undeclared fields"}, nil)
+}
+
 func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T) {
 	root := repositoryRoot(t)
 	var summaryHelp, breakdownHelp, dbHelp bytes.Buffer

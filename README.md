@@ -85,6 +85,8 @@ command prefix, subcommand, and exit status.
 See [`ktx.example.toml`](ktx.example.toml) for a working configuration and
 [`docs/pipelines.md`](docs/pipelines.md) for stage, routing, and benchmark
 guidance. Originals remain addressable through `ktx read` and `ktx decompress`.
+For the optional structured diagnostic file sink, see
+[`docs/logging.md`](docs/logging.md).
 
 Database access is forward-only. Query commands use enforced read-only SQLite
 access and never create or migrate persistent state. Write-capable commands may

@@ -21,6 +21,28 @@
 # returns the original output unchanged before the pipeline. Unknown is not
 # success, but may follow ordinary `any` routing or default fallback behavior.
 
+# ── Diagnostic logging ───────────────────────────────────────────────
+#
+# No [logs] section means file logging is off. Uncommenting the section enables
+# an inclusive error threshold by default. Valid levels are debug, info, warn,
+# error, and off. File logging is independent of stderr diagnostics.
+#
+# An omitted path uses $XDG_STATE_HOME/ktx/ktx.log, falling back to
+# ~/.local/state/ktx/ktx.log. Relative paths resolve beneath the state directory;
+# absolute paths are explicit overrides. `ktx config show` resolves and reports
+# the effective destination without creating it.
+#
+# Records are typed JSONL and no record exceeds 16 KiB. The private active file
+# is limited to 5 MiB; rotation retains one previous file. Logging makes one
+# best-effort coordination attempt with a nominal 25 ms target and no retries.
+# Contention drops only the file event. The 50 ms wall-clock safety ceiling
+# allows scheduler tolerance and is not a hard real-time guarantee. Paths and
+# hashes in records are sensitive retained identifiers.
+#
+# [logs]
+# level = "error"
+# path = "ktx/ktx.log"
+
 [pipeline.default]
 
 # Pipeline timeout for ktx hook (the agent's critical path). ktx compress

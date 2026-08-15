@@ -32,7 +32,7 @@ warm-up, measured round, and scenario. Each worker receives only an explicit
 
 ## Report contract
 
-The JSON report has `schema_version: 2`, one warm-up round, and five measured
+The JSON report has `schema_version: 3`, one warm-up round, and five measured
 rounds. It records UTC RFC3339Nano `started_at`, `finished_at`, and non-negative
 `duration_nanoseconds`, the local binary path and SHA-256, Go version, operating
 system, architecture, processor, disposable environment names, fixed payload
@@ -46,6 +46,25 @@ transaction.
 Sustained `ktx run` streams are reported as a separate surface with eight
 newline-delimited tool events per stream. Neither surface represents the
 in-process component measurements in [component benchmarks](component-benchmarks.md).
+
+The report also contains matched `writers-only` and `mixed-agent` workloads.
+Each round initializes a fresh empty database without a hook source, then starts
+four identified writer streams from one barrier. Each writer has a distinct
+agent and session identity and submits eight unique one-shot hooks sequentially;
+the four streams run concurrently. Exactly 32 hooks must complete and reconcile.
+The mixed workload starts the same writers and one identified reader stream from
+the same barrier. The reader performs eight read-only reports against that
+database. Writer and reader attempts, completions, process-bounded outcomes,
+latencies, failure codes, and metrics remain separate.
+
+Across the five measured rounds, each workload reports actual hook p50, p95,
+p99, and maximum latency, throughput, and failure rate. The matched contention
+summary reports the writers-only and mixed values, the actual penalty, and its
+percentage of the writers-only value. For latency and failure rate, penalty is
+mixed minus writers-only. For throughput, penalty is writers-only minus mixed.
+A percentage is zero when both values are zero, and `null` when a nonzero
+penalty has a zero writers-only denominator. Timing is descriptive and is not a
+hard gate.
 
 Each round reports throughput, p50, p95, p99, maximum process latency,
 retries, cumulative lock-wait time, stable failure-code counts, and exact
@@ -93,6 +112,11 @@ scenario includes a bounded outcome, a process timeout, and a reconciliation
 oracle. `mage loadBench` reports the result descriptively; the durable
 engineering path rejects a mismatch, an unexpected supported lock failure, or
 a missing required scenario without applying a timing threshold.
+
+The durable engineering validator also requires both agent workloads. It
+rejects missing hooks, failed readers, duplicate agent or session identities,
+missing required participants, any supported-participant failure code in these
+workloads, and expected-versus-persisted reconciliation mismatches.
 
 ## Safety checks
 

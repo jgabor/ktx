@@ -1,0 +1,15 @@
+id: juenrbtttn
+artifact: progress
+record:
+  timestamp: 2026-08-15 18:29
+  type: test
+  phase: build
+  what: Added schema-3 matched writers-only and mixed-agent real-process load evidence without changing production database behavior.
+  context:
+    intent: Measure the database contention penalty from several agent streams operating while read-only queries run.
+    constraints: Use only fresh disposable databases; preserve production coordination, journal, retry, schema, migration, CLI, and product benchmark behavior.
+    scope: Developer load harness, report validation, Mage engineering identity, tests, and documentation.
+  discovered: The first descriptive baseline completed every supported operation without database-unavailable. Mixed read/write load reduced aggregate writer throughput from 184.988 to 154.617 operations per second, a 16.417 percent penalty. Hook p50 rose 12.475 percent and p95 rose 13.309 percent, while p99 and maximum were lower in this sample. Timing remains descriptive.
+  verified: The schema-3 report from tools/loadbench/main.go reconciled 384 of 384 hooks and 48 of 48 read-only queries across warm-up and measured rounds with distinct sessions and zero supported failures. Independent audit validated manifest hashes, identities, counts, penalties, and adverse validation. mage engineeringVerify passed with 4602 audited database-boundary operations and forbidden=0. mage check passed tests, race coverage, vet, lint with zero issues, build, and forbidden=0.
+  next: Use the matched workload and contention penalties when evaluating future database coordination candidates; do not treat this single-host timing sample as a product performance claim.
+  publication_order: 81

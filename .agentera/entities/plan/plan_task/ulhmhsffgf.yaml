@@ -4,7 +4,7 @@ record:
   name: Add matched mixed-agent load evidence
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN a fresh disposable database and four distinct agent sessions WHEN the writers-only workload runs THEN all four streams start from a common barrier, each submits eight unique hooks sequentially, all 32 hooks complete within the process bound, and expected sources reconcile exactly.
     - GIVEN the same writer workload and one read-only stream WHEN the mixed workload runs THEN the reader completes eight queries against the shared disposable database, writer and reader outcomes remain independently visible, supported failure codes remain empty, and expected records reconcile exactly.

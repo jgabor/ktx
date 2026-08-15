@@ -27,12 +27,14 @@ import (
 )
 
 const (
-	reportSchemaVersion       = 2
+	reportSchemaVersion       = 3
 	blockedReaderTargetSchema = 1
 	blockedDecompressSchema   = 2
 	warmupRounds              = 1
 	measuredRounds            = 5
 	streamEvents              = 8
+	agentWriterStreams        = 4
+	agentReaderStreams        = 1
 	processTimeout            = 12 * time.Second
 	foreignHoldDuration       = 250 * time.Millisecond
 	terminationDelay          = 100 * time.Millisecond
@@ -54,6 +56,8 @@ type report struct {
 	Environment         environmentIdentity `json:"environment"`
 	Payloads            []payloadIdentity   `json:"payloads"`
 	Measurements        []measurement       `json:"measurements"`
+	AgentLoads          []agentLoad         `json:"agent_loads"`
+	ContentionPenalties contentionPenalties `json:"contention_penalties"`
 	Scenarios           []scenario          `json:"scenarios"`
 	BlockedReaderTarget blockedReaderTarget `json:"blocked_reader_target"`
 	Preflight           preflight           `json:"preflight"`
@@ -151,8 +155,11 @@ type round struct {
 	BootstrapToolCalls int            `json:"bootstrap_tool_calls"`
 	WriterAttempts     int            `json:"writer_attempts"`
 	WriterCompletions  int            `json:"writer_completions"`
+	ReaderAttempts     int            `json:"reader_attempts,omitempty"`
+	ReaderCompletions  int            `json:"reader_completions,omitempty"`
 	Participants       []participant  `json:"participants"`
 	Metrics            metrics        `json:"metrics"`
+	ReaderMetrics      *metrics       `json:"reader_metrics,omitempty"`
 	Reconciliation     reconciliation `json:"reconciliation"`
 	Outcome            string         `json:"outcome"`
 }
@@ -171,6 +178,8 @@ type scenario struct {
 type participant struct {
 	Class       string `json:"class"`
 	Role        string `json:"role"`
+	AgentID     string `json:"agent_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
 	Outcome     string `json:"outcome"`
 	Attempts    int    `json:"attempts,omitempty"`
 	Completions int    `json:"completions,omitempty"`
@@ -185,11 +194,41 @@ type metrics struct {
 	P95LatencyNanoseconds         float64        `json:"p95_latency_nanoseconds"`
 	P99LatencyNanoseconds         float64        `json:"p99_latency_nanoseconds"`
 	MaximumLatencyNanoseconds     int64          `json:"maximum_latency_nanoseconds"`
+	FailureRate                   float64        `json:"failure_rate"`
 	Retries                       int            `json:"retries"`
 	RetryScope                    string         `json:"retry_scope"`
 	CumulativeLockWaitNanoseconds int64          `json:"cumulative_lock_wait_nanoseconds"`
 	LockWaitScope                 string         `json:"lock_wait_scope"`
 	FailureCodes                  map[string]int `json:"failure_codes"`
+}
+
+type agentLoad struct {
+	Name                   string   `json:"name"`
+	WriterStreams          int      `json:"writer_streams"`
+	EventsPerWriterStream  int      `json:"events_per_writer_stream"`
+	ReaderStreams          int      `json:"reader_streams"`
+	QueriesPerReaderStream int      `json:"queries_per_reader_stream"`
+	SupportedFailureCodes  []string `json:"supported_failure_codes"`
+	Warmup                 round    `json:"warmup"`
+	Rounds                 []round  `json:"rounds"`
+	MeasuredWriterMetrics  metrics  `json:"measured_writer_metrics"`
+	MeasuredReaderMetrics  *metrics `json:"measured_reader_metrics,omitempty"`
+}
+
+type contentionPenalties struct {
+	P50LatencyNanoseconds         penalty `json:"p50_latency_nanoseconds"`
+	P95LatencyNanoseconds         penalty `json:"p95_latency_nanoseconds"`
+	P99LatencyNanoseconds         penalty `json:"p99_latency_nanoseconds"`
+	MaximumLatencyNanoseconds     penalty `json:"maximum_latency_nanoseconds"`
+	ThroughputOperationsPerSecond penalty `json:"throughput_operations_per_second"`
+	FailureRate                   penalty `json:"failure_rate"`
+}
+
+type penalty struct {
+	WritersOnly    float64  `json:"writers_only"`
+	MixedAgent     float64  `json:"mixed_agent"`
+	ActualPenalty  float64  `json:"actual_penalty"`
+	PercentPenalty *float64 `json:"percent_penalty"`
 }
 
 type reconciliation struct {
@@ -327,6 +366,12 @@ func run() (report, error) {
 			return report{}, err
 		}
 		measured.Measurements = append(measured.Measurements, wrappers)
+		agentLoads, penalties, err := runAgentLoads(root, runner, fixtures[0])
+		if err != nil {
+			return report{}, err
+		}
+		measured.AgentLoads = agentLoads
+		measured.ContentionPenalties = penalties
 
 		scenarios, err := runScenarios(root, runner, fixtures[0])
 		if err != nil {
@@ -508,10 +553,132 @@ func validateMandatoryLoadReport(measured report) error {
 	if !seenStream {
 		return fmt.Errorf("missing sustained-wrapper-stream measurement")
 	}
+	if err := validateAgentLoads(measured.AgentLoads, measured.ContentionPenalties); err != nil {
+		return err
+	}
 	if err := validateMandatoryScenarios(measured.Scenarios); err != nil {
 		return err
 	}
 	return validateBlockedReaderTarget(measured.BlockedReaderTarget)
+}
+
+func validateAgentLoads(loads []agentLoad, penalties contentionPenalties) error {
+	if len(loads) != 2 {
+		return fmt.Errorf("agent load count=%d, want 2", len(loads))
+	}
+	byName := make(map[string]agentLoad, len(loads))
+	for _, load := range loads {
+		if _, exists := byName[load.Name]; exists {
+			return fmt.Errorf("duplicate agent load %q", load.Name)
+		}
+		byName[load.Name] = load
+	}
+	for _, contract := range []struct {
+		name    string
+		readers int
+	}{{"writers-only", 0}, {"mixed-agent", agentReaderStreams}} {
+		load, ok := byName[contract.name]
+		if !ok {
+			return fmt.Errorf("missing required agent load %q", contract.name)
+		}
+		if load.WriterStreams != agentWriterStreams || load.EventsPerWriterStream != streamEvents ||
+			load.ReaderStreams != contract.readers || load.QueriesPerReaderStream != contract.readers*streamEvents ||
+			len(load.SupportedFailureCodes) != 0 {
+			return fmt.Errorf("%s workload identity is invalid", contract.name)
+		}
+		if len(load.Rounds) != measuredRounds {
+			return fmt.Errorf("%s measured rounds=%d, want %d", contract.name, len(load.Rounds), measuredRounds)
+		}
+		rounds := append([]round{load.Warmup}, load.Rounds...)
+		for index, measured := range rounds {
+			if err := validateAgentLoadRound(measured, contract.readers); err != nil {
+				return fmt.Errorf("%s round %d: %w", contract.name, index, err)
+			}
+		}
+		if len(load.MeasuredWriterMetrics.FailureCodes) != 0 || load.MeasuredWriterMetrics.FailureRate != 0 {
+			return fmt.Errorf("%s aggregate writers reported unsupported failures", contract.name)
+		}
+		if contract.readers == 0 && load.MeasuredReaderMetrics != nil {
+			return fmt.Errorf("writers-only aggregate unexpectedly reports readers")
+		}
+		if contract.readers != 0 && (load.MeasuredReaderMetrics == nil || len(load.MeasuredReaderMetrics.FailureCodes) != 0 || load.MeasuredReaderMetrics.FailureRate != 0) {
+			return fmt.Errorf("mixed-agent aggregate reader failed")
+		}
+	}
+	writers := byName["writers-only"].MeasuredWriterMetrics
+	mixed := byName["mixed-agent"].MeasuredWriterMetrics
+	if !penaltiesEqual(penalties, compareAgentLoads(writers, mixed)) {
+		return fmt.Errorf("contention penalties do not match measured writer metrics")
+	}
+	return nil
+}
+
+func validateAgentLoadRound(measured round, readers int) error {
+	expectedWriters := agentWriterStreams * streamEvents
+	if measured.BootstrapToolCalls != 0 || measured.WriterAttempts != expectedWriters || measured.WriterCompletions != expectedWriters ||
+		measured.ReaderAttempts != readers*streamEvents || measured.ReaderCompletions != measured.ReaderAttempts ||
+		measured.Reconciliation.ExpectedMinimum != expectedWriters || measured.Reconciliation.ExpectedMaximum != expectedWriters || measured.Reconciliation.Persisted != expectedWriters {
+		return fmt.Errorf("attempt, completion, or reconciliation count is invalid: writers=%d/%d readers=%d/%d persisted=%d/%d", measured.WriterCompletions, measured.WriterAttempts, measured.ReaderCompletions, measured.ReaderAttempts, measured.Reconciliation.Persisted, expectedWriters)
+	}
+	if err := validateMandatoryRound(measured); err != nil {
+		return err
+	}
+	if measured.TimeoutNanoseconds != int64(processTimeout) {
+		return fmt.Errorf("process completion bound is invalid")
+	}
+	seenAgents := make(map[string]bool, agentWriterStreams+readers)
+	seenSessions := make(map[string]bool, agentWriterStreams+readers)
+	writers, readerCount := 0, 0
+	for _, participant := range measured.Participants {
+		if participant.Role != "writer-stream" && participant.Role != "reader-stream" {
+			continue
+		}
+		if participant.Class != "supported-ktx" || participant.AgentID == "" || participant.SessionID == "" ||
+			seenAgents[participant.AgentID] || seenSessions[participant.SessionID] {
+			return fmt.Errorf("duplicate or missing participant/session identity")
+		}
+		seenAgents[participant.AgentID] = true
+		seenSessions[participant.SessionID] = true
+		if participant.Attempts != streamEvents || participant.Completions != streamEvents || participant.Outcome != "completed" || participant.FailureCode != "" {
+			return fmt.Errorf("participant %q did not complete", participant.AgentID)
+		}
+		if participant.Role == "writer-stream" {
+			writers++
+		} else {
+			readerCount++
+		}
+	}
+	if writers != agentWriterStreams || readerCount != readers ||
+		!hasParticipant(measured.Participants, "engineering-harness", "empty-database-initializer", "ok", "") ||
+		!hasParticipant(measured.Participants, "supported-ktx", "reconciliation-query", "ok", "") {
+		return fmt.Errorf("missing required participants")
+	}
+	if readers == 0 && measured.ReaderMetrics != nil {
+		return fmt.Errorf("writers-only round unexpectedly reports reader metrics")
+	}
+	if readers != 0 && (measured.ReaderMetrics == nil || len(measured.ReaderMetrics.FailureCodes) != 0 || measured.ReaderMetrics.FailureRate != 0) {
+		return fmt.Errorf("reader failed")
+	}
+	return nil
+}
+
+func penaltiesEqual(left, right contentionPenalties) bool {
+	return penaltyEqual(left.P50LatencyNanoseconds, right.P50LatencyNanoseconds) &&
+		penaltyEqual(left.P95LatencyNanoseconds, right.P95LatencyNanoseconds) &&
+		penaltyEqual(left.P99LatencyNanoseconds, right.P99LatencyNanoseconds) &&
+		penaltyEqual(left.MaximumLatencyNanoseconds, right.MaximumLatencyNanoseconds) &&
+		penaltyEqual(left.ThroughputOperationsPerSecond, right.ThroughputOperationsPerSecond) &&
+		penaltyEqual(left.FailureRate, right.FailureRate)
+}
+
+func penaltyEqual(left, right penalty) bool {
+	if left.WritersOnly != right.WritersOnly || left.MixedAgent != right.MixedAgent || left.ActualPenalty != right.ActualPenalty {
+		return false
+	}
+	if left.PercentPenalty == nil || right.PercentPenalty == nil {
+		return left.PercentPenalty == nil && right.PercentPenalty == nil
+	}
+	return *left.PercentPenalty == *right.PercentPenalty
 }
 
 func validateReportTiming(startedAt, finishedAt string, durationNanoseconds int64) error {
@@ -840,6 +1007,194 @@ func runHookRound(root string, runner processRunner, fixture fixture, concurrenc
 		Reconciliation: reconciliation,
 		Outcome:        measurementOutcome(metrics, reconciliation),
 	}, nil
+}
+
+func runAgentLoads(root string, runner processRunner, fixture fixture) ([]agentLoad, contentionPenalties, error) {
+	loads := make([]agentLoad, 0, 2)
+	for _, readers := range []int{0, agentReaderStreams} {
+		name := "writers-only"
+		if readers != 0 {
+			name = "mixed-agent"
+		}
+		load := agentLoad{
+			Name: name, WriterStreams: agentWriterStreams, EventsPerWriterStream: streamEvents,
+			ReaderStreams: readers, QueriesPerReaderStream: readers * streamEvents,
+			SupportedFailureCodes: []string{},
+		}
+		var writerResults, readerResults []processResult
+		var measuredElapsed time.Duration
+		for roundIndex := 0; roundIndex < warmupRounds+measuredRounds; roundIndex++ {
+			measured, writers, readers, elapsed, err := runAgentLoadRound(root, runner, fixture, name, roundIndex, load.ReaderStreams)
+			if err != nil {
+				return nil, contentionPenalties{}, err
+			}
+			if roundIndex < warmupRounds {
+				load.Warmup = measured
+				continue
+			}
+			load.Rounds = append(load.Rounds, measured)
+			writerResults = append(writerResults, writers...)
+			readerResults = append(readerResults, readers...)
+			measuredElapsed += elapsed
+		}
+		load.MeasuredWriterMetrics = summarize(writerResults, completed(writerResults), measuredElapsed, 0)
+		if load.ReaderStreams != 0 {
+			readerMetrics := summarize(readerResults, completed(readerResults), measuredElapsed, 0)
+			load.MeasuredReaderMetrics = &readerMetrics
+		}
+		loads = append(loads, load)
+	}
+	return loads, compareAgentLoads(loads[0].MeasuredWriterMetrics, loads[1].MeasuredWriterMetrics), nil
+}
+
+func runAgentLoadRound(root string, runner processRunner, fixture fixture, name string, roundIndex, readerStreams int) (round, []processResult, []processResult, time.Duration, error) {
+	environment, err := newRoundEnvironment(root, fmt.Sprintf("agent-%s-%02d", name, roundIndex))
+	if err != nil {
+		return round{}, nil, nil, 0, err
+	}
+	if err := initializeRoundDatabase(environment.db); err != nil {
+		return round{}, nil, nil, 0, fmt.Errorf("initialize %s round %d: %w", name, roundIndex, err)
+	}
+
+	baseID := 600000 + roundIndex*100 + readerStreams*1000
+	start := time.Now()
+	writers, readers := concurrentAgentStreams(runner, environment, fixture, name, roundIndex, baseID, readerStreams)
+	elapsed := time.Since(start)
+	allWriters := make([]processResult, 0, agentWriterStreams*streamEvents)
+	participants := make([]participant, 0, agentWriterStreams+readerStreams+2)
+	for streamIndex, results := range writers {
+		allWriters = append(allWriters, results...)
+		identity := fmt.Sprintf("writer-%d", streamIndex+1)
+		participant := aggregateParticipant("supported-ktx", "writer-stream", results)
+		participant.AgentID = identity
+		participant.SessionID = agentSessionID(name, roundIndex, identity)
+		participants = append(participants, participant)
+	}
+	allReaders := make([]processResult, 0, readerStreams*streamEvents)
+	for streamIndex, results := range readers {
+		allReaders = append(allReaders, results...)
+		identity := fmt.Sprintf("reader-%d", streamIndex+1)
+		participant := aggregateParticipant("supported-ktx", "reader-stream", results)
+		participant.AgentID = identity
+		participant.SessionID = agentSessionID(name, roundIndex, identity)
+		participants = append(participants, participant)
+	}
+	persisted, finalQuery, err := runner.persistedCount(environment.env)
+	if err != nil {
+		return round{}, nil, nil, 0, fmt.Errorf("reconcile %s round %d: %w", name, roundIndex, err)
+	}
+	participants = append(participants,
+		participant{Class: "engineering-harness", Role: "empty-database-initializer", Outcome: "ok"},
+		participantFromResult("supported-ktx", "reconciliation-query", finalQuery),
+	)
+
+	writerMetrics := summarize(allWriters, completed(allWriters), elapsed, 0)
+	readerMetrics := summarize(allReaders, completed(allReaders), elapsed, 0)
+	addFailure(writerMetrics.FailureCodes, finalQuery)
+	reconciliation := exactReconciliation(agentWriterStreams*streamEvents, persisted)
+	if !reconciliation.Matches {
+		writerMetrics.FailureCodes["reconciliation-mismatch"]++
+	}
+	if completed(allReaders) != len(allReaders) {
+		writerMetrics.FailureCodes["reader-failed"]++
+	}
+	measured := round{
+		FreshOwnedDatabase: true, TimeoutNanoseconds: int64(processTimeout),
+		WriterAttempts: len(allWriters), WriterCompletions: completed(allWriters),
+		ReaderAttempts: len(allReaders), ReaderCompletions: completed(allReaders),
+		Participants: participants, Metrics: writerMetrics,
+		Reconciliation: reconciliation, Outcome: measurementOutcome(writerMetrics, reconciliation),
+	}
+	if readerStreams != 0 {
+		measured.ReaderMetrics = &readerMetrics
+	}
+	return measured, allWriters, allReaders, elapsed, nil
+}
+
+func concurrentAgentStreams(runner processRunner, environment roundEnvironment, fixture fixture, name string, roundIndex, baseID, readerStreams int) ([][]processResult, [][]processResult) {
+	start := make(chan struct{})
+	type streamResult struct {
+		index   int
+		results []processResult
+	}
+	writers := make(chan streamResult, agentWriterStreams)
+	for streamIndex := 0; streamIndex < agentWriterStreams; streamIndex++ {
+		streamIndex := streamIndex
+		go func() {
+			<-start
+			sessionID := agentSessionID(name, roundIndex, fmt.Sprintf("writer-%d", streamIndex+1))
+			results := make([]processResult, 0, streamEvents)
+			for eventIndex := 0; eventIndex < streamEvents; eventIndex++ {
+				results = append(results, runner.hook(environment.env, agentHookPayload(sessionID, stableID(baseID+streamIndex*streamEvents+eventIndex), fixture)))
+			}
+			writers <- streamResult{index: streamIndex, results: results}
+		}()
+	}
+	readers := make(chan []processResult, readerStreams)
+	for range readerStreams {
+		go func() {
+			<-start
+			results := make([]processResult, 0, streamEvents)
+			for range streamEvents {
+				results = append(results, runner.query(environment.env))
+			}
+			readers <- results
+		}()
+	}
+	close(start)
+	writerResults := make([][]processResult, agentWriterStreams)
+	for range agentWriterStreams {
+		result := <-writers
+		writerResults[result.index] = result.results
+	}
+	readerResults := make([][]processResult, 0, readerStreams)
+	for range readerStreams {
+		readerResults = append(readerResults, <-readers)
+	}
+	return writerResults, readerResults
+}
+
+func agentSessionID(load string, round int, identity string) string {
+	return fmt.Sprintf("loadbench-%s-%02d-%s", load, round, identity)
+}
+
+func initializeRoundDatabase(path string) error {
+	database, err := dbpkg.Open(path)
+	if err != nil {
+		return err
+	}
+	return database.Close()
+}
+
+func compareAgentLoads(writersOnly, mixed metrics) contentionPenalties {
+	return contentionPenalties{
+		P50LatencyNanoseconds:         latencyPenalty(writersOnly.P50LatencyNanoseconds, mixed.P50LatencyNanoseconds),
+		P95LatencyNanoseconds:         latencyPenalty(writersOnly.P95LatencyNanoseconds, mixed.P95LatencyNanoseconds),
+		P99LatencyNanoseconds:         latencyPenalty(writersOnly.P99LatencyNanoseconds, mixed.P99LatencyNanoseconds),
+		MaximumLatencyNanoseconds:     latencyPenalty(float64(writersOnly.MaximumLatencyNanoseconds), float64(mixed.MaximumLatencyNanoseconds)),
+		ThroughputOperationsPerSecond: throughputPenalty(writersOnly.ThroughputOperationsPerSecond, mixed.ThroughputOperationsPerSecond),
+		FailureRate:                   latencyPenalty(writersOnly.FailureRate, mixed.FailureRate),
+	}
+}
+
+func latencyPenalty(baseline, mixed float64) penalty {
+	return newPenalty(baseline, mixed, mixed-baseline)
+}
+
+func throughputPenalty(baseline, mixed float64) penalty {
+	return newPenalty(baseline, mixed, baseline-mixed)
+}
+
+func newPenalty(baseline, mixed, actual float64) penalty {
+	result := penalty{WritersOnly: baseline, MixedAgent: mixed, ActualPenalty: actual}
+	if baseline != 0 || actual == 0 {
+		percentage := 0.0
+		if baseline != 0 {
+			percentage = actual / baseline * 100
+		}
+		result.PercentPenalty = &percentage
+	}
+	return result
 }
 
 func runWrapperMeasurement(root string, runner processRunner, fixture fixture) (measurement, error) {
@@ -1546,6 +1901,23 @@ func hookPayload(id string, fixture fixture) []byte {
 	return payload
 }
 
+func agentHookPayload(sessionID, callID string, fixture fixture) []byte {
+	payload, err := json.Marshal(map[string]any{
+		"runtime": "opencode",
+		"input": map[string]any{
+			"tool": "bash", "sessionID": sessionID, "callID": callID,
+			"args": map[string]string{"command": "loadbench agent stream"},
+		},
+		"output": map[string]any{
+			"output": string(fixture.data), "metadata": map[string]int{"exit": 0},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return payload
+}
+
 func openCodePayload(fixture fixture) ([]byte, error) {
 	return json.Marshal(map[string]any{
 		"runtime": "opencode",
@@ -1881,12 +2253,17 @@ func summarize(results []processResult, completedOperations int, elapsed time.Du
 			lockWait += result.LatencyNS
 		}
 	}
+	failureRate := 0.0
+	if len(results) != 0 {
+		failureRate = float64(len(results)-completed(results)) / float64(len(results))
+	}
 	return metrics{
 		ThroughputOperationsPerSecond: throughput(completedOperations, elapsed),
 		P50LatencyNanoseconds:         percentile(latencies, 0.50),
 		P95LatencyNanoseconds:         percentile(latencies, 0.95),
 		P99LatencyNanoseconds:         percentile(latencies, 0.99),
 		MaximumLatencyNanoseconds:     maximum(latencies),
+		FailureRate:                   failureRate,
 		Retries:                       retries,
 		RetryScope:                    "harness duplicate deliveries after the initial submission; product-internal retry counts are not exposed",
 		CumulativeLockWaitNanoseconds: lockWait,

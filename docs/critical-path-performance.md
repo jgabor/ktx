@@ -44,7 +44,7 @@ their environment and workload identities. Retained schema-1 evidence remains
 unchanged and has no inferred timing. The target does not write
 product SQLite state.
 
-The current component report is schema 3, the load report is schema 2, and the
+The current component report is schema 3, the load report is schema 3, and the
 blocked-decompression report is schema 2. The manifest remains schema 2.
 
 This is extended engineering evidence, not a timing gate or a replacement for

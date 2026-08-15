@@ -51,7 +51,7 @@ type engineeringReportSpec struct {
 
 var engineeringReportSpecs = []engineeringReportSpec{
 	{name: "component", target: "componentBench", file: "component-bench.json", identityKeys: []string{"machine", "workloads", "benchmarks"}},
-	{name: "load", target: "loadBench", file: "real-process-load.json", identityKeys: []string{"environment", "payloads", "measurements", "scenarios"}},
+	{name: "load", target: "loadBench", file: "real-process-load.json", identityKeys: []string{"environment", "payloads", "measurements", "agent_loads", "contention_penalties", "scenarios"}},
 	{name: "blocked-decompression", target: "decompressProcessBench", file: "blocked-decompression.json", identityKeys: []string{"environment", "target"}},
 }
 

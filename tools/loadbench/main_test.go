@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -130,6 +131,66 @@ func TestMandatoryLoadReportValidation(t *testing.T) {
 	})
 }
 
+func TestAgentLoadValidation(t *testing.T) {
+	valid := mandatoryLoadReport()
+	if err := validateMandatoryLoadReport(valid); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		edit func(*report)
+		want string
+	}{
+		{name: "missing hooks", edit: func(report *report) { report.AgentLoads[0].Rounds[0].WriterCompletions-- }, want: "completion"},
+		{name: "failed reader", edit: func(report *report) {
+			round := &report.AgentLoads[1].Rounds[0]
+			round.ReaderCompletions--
+			round.ReaderMetrics.FailureCodes["database-unavailable"] = 1
+		}, want: "completion"},
+		{name: "duplicate identity", edit: func(report *report) {
+			round := &report.AgentLoads[0].Rounds[0]
+			round.Participants[3].AgentID = round.Participants[2].AgentID
+		}, want: "identity"},
+		{name: "missing participant", edit: func(report *report) {
+			round := &report.AgentLoads[0].Rounds[0]
+			round.Participants = round.Participants[1:]
+		}, want: "participants"},
+		{name: "unexpected supported failure", edit: func(report *report) {
+			report.AgentLoads[0].Rounds[0].Metrics.FailureCodes["database-unavailable"] = 1
+		}, want: "failures"},
+		{name: "reconciliation mismatch", edit: func(report *report) {
+			report.AgentLoads[1].Rounds[0].Reconciliation.Persisted--
+			report.AgentLoads[1].Rounds[0].Reconciliation.Matches = false
+		}, want: "reconciliation"},
+		{name: "invalid penalty", edit: func(report *report) {
+			report.ContentionPenalties.P95LatencyNanoseconds.ActualPenalty++
+		}, want: "penalties"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			measured := mandatoryLoadReport()
+			test.edit(&measured)
+			if err := validateMandatoryLoadReport(measured); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validation error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestContentionPenaltiesReportActualAndPercent(t *testing.T) {
+	writers := metrics{P50LatencyNanoseconds: 100, P95LatencyNanoseconds: 200, P99LatencyNanoseconds: 300, MaximumLatencyNanoseconds: 400, ThroughputOperationsPerSecond: 40}
+	mixed := metrics{P50LatencyNanoseconds: 110, P95LatencyNanoseconds: 240, P99LatencyNanoseconds: 360, MaximumLatencyNanoseconds: 500, ThroughputOperationsPerSecond: 30}
+	measured := compareAgentLoads(writers, mixed)
+	if measured.P50LatencyNanoseconds.ActualPenalty != 10 || *measured.P50LatencyNanoseconds.PercentPenalty != 10 ||
+		measured.ThroughputOperationsPerSecond.ActualPenalty != 10 || *measured.ThroughputOperationsPerSecond.PercentPenalty != 25 {
+		t.Fatalf("penalties = %#v", measured)
+	}
+	if measured.FailureRate.PercentPenalty == nil || *measured.FailureRate.PercentPenalty != 0 {
+		t.Fatalf("zero-baseline failure percentage = %v, want 0", measured.FailureRate.PercentPenalty)
+	}
+}
+
 func TestBlockedDecompressionReportValidation(t *testing.T) {
 	valid := validBlockedDecompressionReport()
 	if err := validateBlockedDecompressionReport(valid); err != nil {
@@ -209,6 +270,11 @@ func TestLoadBenchmarkDocumentation(t *testing.T) {
 		"backpressured 2 MiB `ktx decompress`",
 		"artifact, disposition, and session reconciliation",
 		"hook latency",
+		"matched `writers-only` and `mixed-agent` workloads",
+		"Exactly 32 hooks",
+		"duplicate agent or session identities",
+		"actual hook p50, p95, p99",
+		"percentage",
 	} {
 		if !strings.Contains(normalized, required) {
 			t.Errorf("documentation is missing %q", required)
@@ -233,6 +299,26 @@ func mandatoryLoadReport() report {
 		stream.Rounds = append(stream.Rounds, mandatoryRound())
 	}
 	measured.Measurements = append(measured.Measurements, stream)
+	for _, readers := range []int{0, agentReaderStreams} {
+		name := "writers-only"
+		if readers != 0 {
+			name = "mixed-agent"
+		}
+		load := agentLoad{
+			Name: name, WriterStreams: agentWriterStreams, EventsPerWriterStream: streamEvents,
+			ReaderStreams: readers, QueriesPerReaderStream: readers * streamEvents,
+			SupportedFailureCodes: []string{}, Warmup: mandatoryAgentLoadRound(readers),
+			MeasuredWriterMetrics: metrics{FailureCodes: map[string]int{}},
+		}
+		if readers != 0 {
+			load.MeasuredReaderMetrics = &metrics{FailureCodes: map[string]int{}}
+		}
+		for range measuredRounds {
+			load.Rounds = append(load.Rounds, mandatoryAgentLoadRound(readers))
+		}
+		measured.AgentLoads = append(measured.AgentLoads, load)
+	}
+	measured.ContentionPenalties = compareAgentLoads(measured.AgentLoads[0].MeasuredWriterMetrics, measured.AgentLoads[1].MeasuredWriterMetrics)
 
 	for _, name := range []string{
 		"supported-writer-path-alias", "foreign-held-reader", "foreign-held-writer", "supported-compatible-migration-race",
@@ -261,6 +347,34 @@ func mandatoryLoadReport() report {
 		SchemaVersion: blockedReaderTargetSchema, Workload: fixedFixtures()[2].payloadIdentity,
 		ReaderOutputStarted: true, ReaderBackpressured: true, HookOutcome: "database-unavailable", HookExitCode: 4,
 		HookLatencyNanoseconds: 1, HookFailureCode: "database-unavailable", Reconciliation: reconciliation{Matches: true},
+	}
+	return measured
+}
+
+func mandatoryAgentLoadRound(readers int) round {
+	measured := round{
+		FreshOwnedDatabase: true, TimeoutNanoseconds: int64(processTimeout),
+		WriterAttempts: agentWriterStreams * streamEvents, WriterCompletions: agentWriterStreams * streamEvents,
+		ReaderAttempts: readers * streamEvents, ReaderCompletions: readers * streamEvents,
+		Metrics:        metrics{FailureCodes: map[string]int{}},
+		Reconciliation: exactReconciliation(agentWriterStreams*streamEvents, agentWriterStreams*streamEvents), Outcome: "completed",
+		Participants: []participant{
+			{Class: "engineering-harness", Role: "empty-database-initializer", Outcome: "ok"},
+			{Class: "supported-ktx", Role: "reconciliation-query", Outcome: "ok"},
+		},
+	}
+	for index := 1; index <= agentWriterStreams; index++ {
+		measured.Participants = append(measured.Participants, participant{
+			Class: "supported-ktx", Role: "writer-stream", AgentID: fmt.Sprintf("writer-%d", index), SessionID: fmt.Sprintf("session-writer-%d", index),
+			Outcome: "completed", Attempts: streamEvents, Completions: streamEvents,
+		})
+	}
+	if readers != 0 {
+		measured.Participants = append(measured.Participants, participant{
+			Class: "supported-ktx", Role: "reader-stream", AgentID: "reader-1", SessionID: "session-reader-1",
+			Outcome: "completed", Attempts: streamEvents, Completions: streamEvents,
+		})
+		measured.ReaderMetrics = &metrics{FailureCodes: map[string]int{}}
 	}
 	return measured
 }

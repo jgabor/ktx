@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- OpenCode database-unavailable diagnostics now identify the callback surface, pinned executable, database target, stable failure class, operation phase, and elapsed wait without exposing driver text or persisted content.
 - Supported read-only database handles now coordinate with writers, and supported writers coordinate each SQLite transaction across processes.
 - OpenCode ordinary telemetry and hook callbacks now share one arrival-order queue, and each write-capable database handle uses one process-local SQLite connection.
 - SQLite lock exhaustion now returns `database-unavailable` with the canonical database path and retry guidance instead of driver lock diagnostics.

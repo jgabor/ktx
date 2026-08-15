@@ -164,7 +164,12 @@ uses this stable surface:
 
 - error code `database-unavailable`;
 - process exit `4`;
-- canonical `database_path` and a non-empty `correction` in JSON; and
+- canonical `database_path`, `executable_path`, and `executable_sha256`;
+- `failure_class` set to `coordinator-timeout` or
+  `sqlite-lock-exhaustion`;
+- `operation_phase` set to `open`, `migration`, `source`, `artifact`,
+  `disposition`, or `query`;
+- non-negative `elapsed_wait_nanoseconds` and a non-empty `correction` in JSON;
 - a text message that identifies the database and tells the caller to wait for
   the other database client to finish, then retry.
 
@@ -172,6 +177,11 @@ The rendered result does not include driver lock wording. It applies to a
 read-only open, write open, compatible migration, source persistence, artifact
 persistence, and disposition persistence when the operation surfaces the
 availability failure.
+
+For ordinary OpenCode callbacks, the generated plugin validates those fields
+against its pinned executable and database target, adds `runtime_surface` as
+`opencode-hook` or `opencode-telemetry`, and emits one sanitized diagnostic.
+It does not copy unrecognized fields from command stderr.
 
 ## Development verification storage
 

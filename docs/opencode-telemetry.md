@@ -283,7 +283,10 @@ Failure behavior depends on the command:
   plugin loading.
 - Telemetry and tool-hook failures are written to stderr and fail open. Tool
   output remains unchanged; optional telemetry persistence does not fail the
-  OpenCode operation.
+  OpenCode operation. A `database-unavailable` failure emits one bounded
+  diagnostic with the callback surface, pinned executable path and SHA-256,
+  canonical database path, stable failure class, operation phase, elapsed wait,
+  and correction. Other failures keep their existing diagnostics.
 - If an event shape is rejected after an OpenCode upgrade, compare it with the
   pinned version above before changing the contract. Do not infer missing token
   values or provider-request semantics.

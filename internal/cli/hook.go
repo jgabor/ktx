@@ -637,7 +637,8 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 			Pipeline:    pipeJSON,
 			Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
 		}
-		if err := db.InsertCompressed(c); err != nil {
+		started := time.Now()
+		if err := dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationArtifact, started, db.InsertCompressed(c)); err != nil {
 			return nil, internalError("ktx hook: persist compressed: %v", err)
 		}
 		compressedID = &cid
@@ -663,7 +664,9 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	return nil, nil
 }
 
-func recordHookCompressionDisposition(database *dbpkg.DB, sourceID, artifactID string, execution pipelineExecution) error {
+func recordHookCompressionDisposition(database *dbpkg.DB, sourceID, artifactID string, execution pipelineExecution) (err error) {
+	started := time.Now()
+	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationDisposition, started, err) }()
 	disposition := dbpkg.CompressionDispositionIntentionalPassthrough
 	if execution.antiWorseningRejected {
 		disposition = dbpkg.CompressionDispositionAntiWorseningRejected

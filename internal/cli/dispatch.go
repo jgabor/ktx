@@ -42,6 +42,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
@@ -299,6 +300,7 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 	var db *dbpkg.DB
 	var databasePath string
 	if reg.opts.DatabaseAccess != DatabaseNone {
+		openStarted := time.Now()
 		path, err := dbpkg.ResolvePath("")
 		if err != nil {
 			printError(stderr, internalError("dispatch: resolve db path: %v", err), formatStr)
@@ -315,7 +317,7 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
 		}
 		if err != nil {
-			if classified := classifyDatabaseLockError(databasePath, err); classified != nil {
+			if classified := classifyDatabaseLockError(databasePath, err, dbpkg.OperationOpen, openStarted); classified != nil {
 				err = classified
 			}
 			printError(stderr, err, formatStr)
@@ -347,12 +349,17 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 			_ = ctx.DB.Close()
 		}
 	}()
+	operationStarted := time.Now()
 	if _, err := reg.do(ctx); err != nil {
 		var status *commandExit
 		if errors.As(err, &status) {
 			return status.code
 		}
-		if classified := classifyDatabaseLockError(databasePath, err); classified != nil {
+		phase := dbpkg.OperationSource
+		if reg.opts.DatabaseAccess == DatabaseReadOnly {
+			phase = dbpkg.OperationQuery
+		}
+		if classified := classifyDatabaseLockError(databasePath, err, phase, operationStarted); classified != nil {
 			err = classified
 		}
 		printError(stderr, err, formatStr)

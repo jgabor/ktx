@@ -1,0 +1,12 @@
+id: rksfvvadlv
+artifact: progress
+record:
+  timestamp: 2026-08-15 19:59
+  type: feat
+  phase: build
+  what: Added bounded database-unavailable attribution in internal/db/availability.go and the generated OpenCode adapter.
+  context:
+    intent: Attribute active OpenCode database-unavailable failures without changing persistence behavior.
+  verified: Focused go tests passed for database classes, six phases, hook failures, adapter sanitization, and docs. mage build and mage check passed with KTX_DB unset under fresh disposable HOME and XDG roots.
+  next: Orchestrator audits pending task vaznwjcyxa.
+  publication_order: 83

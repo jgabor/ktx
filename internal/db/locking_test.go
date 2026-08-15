@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -365,11 +366,16 @@ func TestForeignSQLiteLocksRemainOutsideSupportedOwnership(t *testing.T) {
 			_ = holder.Wait()
 		})
 		waitForFile(t, ready, 5*time.Second)
-		if database, err := OpenReadOnly(path); err == nil || !IsSQLiteLockError(err) {
+		database, err := OpenReadOnly(path)
+		if err == nil || !IsSQLiteLockError(err) {
 			if database != nil {
 				_ = database.Close()
 			}
 			t.Fatalf("foreign writer result = %v, want SQLite lock\n%s", err, output.String())
+		}
+		details, ok := DatabaseUnavailableDetails(err)
+		if !ok || details.Class != UnavailableClassSQLiteLock || details.Phase != OperationOpen || details.ElapsedWait <= 0 {
+			t.Errorf("foreign writer attribution = %+v, %v", details, ok)
 		}
 		if err := os.WriteFile(release, nil, 0o600); err != nil {
 			t.Fatal(err)
@@ -685,6 +691,20 @@ func TestWriterCoordinatorAcquisitionHonorsContext(t *testing.T) {
 			t.Fatalf("process-local coordinator retry after release: %v", err)
 		}
 	})
+}
+
+func TestDatabaseUnavailableAttributionUsesBoundedPhases(t *testing.T) {
+	for _, phase := range []string{OperationOpen, OperationMigration, OperationSource, OperationArtifact, OperationDisposition, OperationQuery} {
+		raw := fmt.Errorf("%w: %w", errCoordinationUnavailable, context.DeadlineExceeded)
+		err := AttributeDatabaseUnavailable(phase, time.Now().Add(-time.Millisecond), raw)
+		details, ok := DatabaseUnavailableDetails(err)
+		if !ok || details.Class != UnavailableClassCoordinatorTimeout || details.Phase != phase || details.ElapsedWait <= 0 {
+			t.Errorf("phase %q attribution = %+v, %v", phase, details, ok)
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("phase %q lost cause: %v", phase, err)
+		}
+	}
 }
 
 func TestOpenRetriesStartupLock(t *testing.T) {

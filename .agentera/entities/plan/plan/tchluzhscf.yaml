@@ -4,7 +4,7 @@ record:
   header:
     level: light
     created: 2026-08-15
-    status: open
+    status: archived
     title: "Plan: Characterize sustained database contention"
   what: Run a bounded disposable stress sweep that increases sustained concurrent agent streams until supported database-unavailable is reproduced or the declared maximum load completes without failure.
   why: The matched four-stream workload measured a mixed-load throughput penalty but no availability failure. A controlled threshold characterization must reproduce the active-use failure before selecting a production coordination change.

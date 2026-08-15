@@ -142,6 +142,7 @@ var IDPattern = regexp.MustCompile(`^[a-z]{16}$`)
 // PRAGMA user_version gates migration so a current-schema open performs no
 // write transaction. Stale schemas are migrated and versioned atomically.
 func Open(path string) (*DB, error) {
+	started := time.Now()
 	if path == "" {
 		return nil, errors.New("db: open: path is empty")
 	}
@@ -166,18 +167,20 @@ func Open(path string) (*DB, error) {
 		// every pooled connection, not just the first.
 		dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", path, sqliteBusyTimeoutMS)
 		var openErr error
+		openStarted := time.Now()
 		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
 		if openErr != nil {
-			return openErr
+			return AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr)
 		}
+		migrationStarted := time.Now()
 		if migrateErr := migrate(database); migrateErr != nil {
 			_ = database.Close()
-			return migrateErr
+			return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, migrateErr)
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("db: open %q: %w", path, err)
+		return nil, fmt.Errorf("db: open %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
 
 	return &DB{db: database, writer: writer}, nil
@@ -187,6 +190,7 @@ func Open(path string) (*DB, error) {
 // capability. SQLite mode=rw keeps an absent or concurrently removed target
 // absent while retaining the normal transactional migration behavior.
 func OpenExisting(path string) (*DB, error) {
+	started := time.Now()
 	if path == "" {
 		return nil, errors.New("db: open existing: path is empty")
 	}
@@ -207,18 +211,20 @@ func OpenExisting(path string) (*DB, error) {
 	err = writer.withLock(ctx, false, func() error {
 		dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=rw&_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
 		var openErr error
+		openStarted := time.Now()
 		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
 		if openErr != nil {
-			return openErr
+			return AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr)
 		}
+		migrationStarted := time.Now()
 		if migrateErr := migrate(database); migrateErr != nil {
 			_ = database.Close()
-			return migrateErr
+			return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, migrateErr)
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("db: open existing %q: %w", path, err)
+		return nil, fmt.Errorf("db: open existing %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
 	return &DB{db: database, writer: writer}, nil
 }
@@ -229,6 +235,7 @@ func OpenExisting(path string) (*DB, error) {
 // Close, so supported writers cannot overlap its SQLite reads or change the
 // schema after OpenQuery validates it.
 func OpenReadOnly(path string) (*DB, error) {
+	started := time.Now()
 	if err := auditDatabaseAccess("open_read_only", path); err != nil {
 		return nil, err
 	}
@@ -244,18 +251,18 @@ func OpenReadOnly(path string) (*DB, error) {
 	defer cancel()
 	lease, err := reader.acquire(ctx, false, coordinationShared)
 	if err != nil {
-		return nil, err
+		return nil, AttributeDatabaseUnavailable(OperationOpen, started, err)
 	}
 	uri := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=ro&_pragma=busy_timeout(%d)", sqliteBusyTimeoutMS)
 	database, err := openSQLiteWithRetry(uri, 1, startupLockRetryPolicy())
 	if err != nil {
 		_ = lease.Close()
-		return nil, err
+		return nil, AttributeDatabaseUnavailable(OperationOpen, started, err)
 	}
 	if _, err := database.Exec("PRAGMA query_only = ON"); err != nil {
 		_ = database.Close()
 		_ = lease.Close()
-		return nil, err
+		return nil, AttributeDatabaseUnavailable(OperationOpen, started, err)
 	}
 	return &DB{db: database, lease: lease}, nil
 }
@@ -264,6 +271,7 @@ func OpenReadOnly(path string) (*DB, error) {
 // An absent database is represented by an ephemeral empty current schema so
 // query commands preserve their empty/not-found results without creating a file.
 func OpenQuery(path string) (*DB, error) {
+	started := time.Now()
 	if path == "" {
 		return nil, errors.New("db: open query: path is empty")
 	}
@@ -284,7 +292,7 @@ func OpenQuery(path string) (*DB, error) {
 	version, err := readSchemaVersionWithRetry(database.db, startupLockRetryPolicy())
 	if err != nil {
 		database.Close()
-		return nil, fmt.Errorf("db: read query schema version %q: %w", path, err)
+		return nil, fmt.Errorf("db: read query schema version %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
 	if version < schemaVersion {
 		database.Close()

@@ -1,0 +1,29 @@
+id: lbkajgalgi
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-15
+    status: open
+    title: "Plan: Attribute database unavailability"
+  what: Add bounded failure-only attribution to database-unavailable diagnostics so an active OpenCode failure identifies its runtime surface, pinned executable identity, database target, failure class, operation phase, and elapsed wait.
+  why: Sustained supported concurrency through sixteen writers and two readers did not reproduce the intermittent active-use failure. Precise attribution is required before selecting another coordination change.
+  constraints: Preserve existing exit codes, correction guidance, executable-identity checks, schema and migration safety, database behavior, retry policy, and successful-command output. Add diagnostics only for database-unavailable failures. Do not expose payloads, database content, SQL, or raw driver wording. Do not access the ambient live database during development or verification.
+  overall_acceptance: GIVEN an OpenCode database-unavailable failure WHEN its diagnostic is emitted THEN the bounded evidence distinguishes the runtime surface, executable identity, database target, failure class, operation phase, and elapsed wait without exposing content or changing database behavior.
+  scope:
+    included:
+      - OpenCode hook and telemetry failure surfaces
+      - pinned canonical executable path and SHA-256
+      - canonical database path
+      - supported coordinator timeout and SQLite lock-exhaustion classes
+      - open, migration, source, artifact, disposition, and query phases
+      - elapsed wait and existing correction guidance
+      - focused regression tests and diagnostic documentation
+    excluded:
+      - success-path logging
+      - payloads, database rows, SQL, and raw driver wording
+      - locking, timeout, retry, journal, schema, migration, or transaction changes
+      - ambient live-database observation
+      - new telemetry storage or benchmark claims
+  surprises:
+    []

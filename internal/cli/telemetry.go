@@ -269,17 +269,24 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 		}
 		sessionHint = benchmarkEnv.SessionID
 	}
+	started := time.Now()
 	sessionID, err := db.ResolveSessionID(sessionHint, capturedAt)
 	if err == nil {
 		_, err = db.PersistSessionTelemetry(sessionID, capturedAt, observation)
 	}
+	err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, started, err)
 	if err != nil {
 		if required {
 			return internalError("ktx telemetry record: required persistence failed: %v", err)
 		}
 		// Session telemetry is optional. Keep the failure visible to the operator,
 		// but do not turn this side channel into a failed agent operation.
-		fmt.Fprintf(stderr, "ktx: telemetry not recorded: %v\n", err)
+		path, pathErr := dbpkg.ResolvePath("")
+		if classified := classifyDatabaseLockError(path, err, dbpkg.OperationSource, started); pathErr == nil && classified != nil {
+			printError(stderr, classified, FormatJSON)
+		} else {
+			fmt.Fprintf(stderr, "ktx: telemetry not recorded: %v\n", err)
+		}
 	}
 	return nil
 }
@@ -328,7 +335,9 @@ func decodeRecordCost(raw json.RawMessage) telemetry.CostMeasurement {
 	return telemetry.DecodeCostMeasurement(raw, telemetry.MeasurementMeasured)
 }
 
-func listTelemetry(args []string, format string, db *dbpkg.DB, stdout io.Writer) error {
+func listTelemetry(args []string, format string, db *dbpkg.DB, stdout io.Writer) (err error) {
+	started := time.Now()
+	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationQuery, started, err) }()
 	fs := flag.NewFlagSet("ktx telemetry list", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var sessionID string

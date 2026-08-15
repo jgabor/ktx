@@ -63,7 +63,7 @@ func TestHookForeignLockBeforeSourceLeavesEventUnaccepted(t *testing.T) {
 	if err == nil {
 		t.Fatal("hook succeeded while the foreign write lock was held")
 	}
-	assertHookForeignLockRendered(t, path, err)
+	assertHookForeignLockRendered(t, path, dbpkg.OperationSource, err)
 	if stdout.Len() != 0 {
 		t.Fatalf("hook wrote an envelope before source acceptance: %q", stdout.String())
 	}
@@ -141,7 +141,7 @@ command = %q
 		if err == nil {
 			t.Fatal("hook succeeded while the artifact write was foreign-locked")
 		}
-		assertHookForeignLockRendered(t, path, err)
+		assertHookForeignLockRendered(t, path, dbpkg.OperationArtifact, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("hook did not return after artifact lock exhaustion")
 	}
@@ -215,7 +215,7 @@ func TestHookForeignLockDuringDispositionKeepsAcceptedEvidence(t *testing.T) {
 	if err == nil {
 		t.Fatal("disposition persistence succeeded while the foreign write lock was held")
 	}
-	assertHookForeignLockRendered(t, path, err)
+	assertHookForeignLockRendered(t, path, dbpkg.OperationDisposition, err)
 
 	releaseHookForeignWriteLock(t, lock)
 	if _, err := d.GetToolCall(src.ID); err != nil {
@@ -282,12 +282,13 @@ func releaseHookForeignWriteLock(t *testing.T, database *sql.DB) {
 	}
 }
 
-func assertHookForeignLockRendered(t *testing.T, path string, err error) {
+func assertHookForeignLockRendered(t *testing.T, path, operationPhase string, err error) {
 	t.Helper()
 	if !dbpkg.IsSQLiteLockError(err) {
 		t.Fatalf("error = %v, want wrapped SQLite lock error", err)
 	}
-	classified := classifyDatabaseLockError(path, err)
+	started := time.Now().Add(-time.Millisecond)
+	classified := classifyDatabaseLockError(path, dbpkg.AttributeDatabaseUnavailable(operationPhase, started, err), operationPhase, started)
 	if classified == nil {
 		t.Fatalf("classifyDatabaseLockError(%v) = nil", err)
 	}
@@ -311,15 +312,23 @@ func assertHookForeignLockRendered(t *testing.T, path string, err error) {
 		}
 		var envelope struct {
 			Error struct {
-				Code         string `json:"code"`
-				DatabasePath string `json:"database_path"`
-				Correction   string `json:"correction"`
+				Code                   string `json:"code"`
+				DatabasePath           string `json:"database_path"`
+				ExecutablePath         string `json:"executable_path"`
+				ExecutableSHA256       string `json:"executable_sha256"`
+				FailureClass           string `json:"failure_class"`
+				OperationPhase         string `json:"operation_phase"`
+				ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
+				Correction             string `json:"correction"`
 			} `json:"error"`
 		}
 		if decodeErr := json.Unmarshal(rendered.Bytes(), &envelope); decodeErr != nil {
 			t.Fatalf("decode database-unavailable result: %v\n%s", decodeErr, rendered.String())
 		}
-		if envelope.Error.Code != string(CodeDatabaseUnavailable) || envelope.Error.DatabasePath != canonicalPath || envelope.Error.Correction == "" {
+		if envelope.Error.Code != string(CodeDatabaseUnavailable) || envelope.Error.DatabasePath != canonicalPath ||
+			envelope.Error.ExecutablePath == "" || len(envelope.Error.ExecutableSHA256) != 64 ||
+			envelope.Error.FailureClass != dbpkg.UnavailableClassSQLiteLock || envelope.Error.OperationPhase != operationPhase ||
+			envelope.Error.ElapsedWaitNanoseconds <= 0 || envelope.Error.Correction == "" {
 			t.Errorf("database-unavailable result = %+v", envelope.Error)
 		}
 	}

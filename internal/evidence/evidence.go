@@ -43,6 +43,7 @@ package evidence
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jgabor/ktx/internal/correlation"
 	dbpkg "github.com/jgabor/ktx/internal/db"
@@ -95,6 +96,8 @@ type Result struct {
 // row; PersistArtifact uses it to decide whether a no-transform delivery
 // should look up a prior artifact.
 func PersistSource(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolCall) (inserted bool, err error) {
+	started := time.Now()
+	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, started, err) }()
 	if database == nil {
 		return false, fmt.Errorf("evidence: nil database")
 	}
@@ -122,7 +125,9 @@ func PersistSource(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolCal
 //
 // For a fresh source: the compressed candidate is always inserted (ordinary
 // distinct observation) and the returned output is the candidate's output.
-func PersistArtifact(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolCall, sourceInserted bool, compressed *dbpkg.Compressed) (Result, error) {
+func PersistArtifact(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolCall, sourceInserted bool, compressed *dbpkg.Compressed) (result Result, err error) {
+	started := time.Now()
+	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationArtifact, started, err) }()
 	if database == nil {
 		return Result{}, fmt.Errorf("evidence: nil database")
 	}

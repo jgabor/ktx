@@ -1,0 +1,14 @@
+id: vaznwjcyxa
+artifact: plan
+record:
+  name: Add bounded failure attribution
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN an ordinary OpenCode hook or telemetry command fails with database-unavailable WHEN the failure is reported THEN one diagnostic identifies the runtime surface, pinned canonical executable path and SHA-256, canonical database path, failure class, operation phase, elapsed wait, and existing correction guidance.
+    - GIVEN a supported coordinator timeout or SQLite lock exhaustion WHEN either failure is classified THEN the diagnostic uses distinct stable classes without raw driver wording.
+    - GIVEN persistence fails during open, migration, source, artifact, disposition, or query work WHEN the diagnostic is produced THEN it reports the matching bounded phase.
+    - GIVEN a successful command or a different failure class WHEN OpenCode handles the result THEN no database-unavailable attribution is added and existing behavior remains unchanged.
+    - GIVEN diagnostic and adapter regression tests run with KTX_DB unset and fresh disposable application roots WHEN verification completes THEN each new failure-only field and content-exclusion boundary is covered and the repository check passes.
+  plan: lbkajgalgi

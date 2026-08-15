@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
@@ -50,7 +51,7 @@ func openQueryDatabase(path string) (*dbpkg.DB, error) {
 }
 
 func databaseOpenError(path string, err error) error {
-	if classified := classifyDatabaseLockError(path, err); classified != nil {
+	if classified := classifyDatabaseLockError(path, err, dbpkg.OperationOpen, time.Now()); classified != nil {
 		return classified
 	}
 	var schemaErr *dbpkg.SchemaTooNewError
@@ -82,24 +83,38 @@ func databaseOpenError(path string, err error) error {
 	return failure
 }
 
-func classifyDatabaseLockError(path string, err error) error {
+func classifyDatabaseLockError(path string, err error, fallbackPhase string, started time.Time) error {
 	if path == "" || !dbpkg.IsDatabaseUnavailable(err) {
 		return nil
 	}
-	return databaseUnavailableError(path)
+	details, ok := dbpkg.DatabaseUnavailableDetails(err)
+	if !ok {
+		err = dbpkg.AttributeDatabaseUnavailable(fallbackPhase, started, err)
+		details, _ = dbpkg.DatabaseUnavailableDetails(err)
+	}
+	return databaseUnavailableError(path, details)
 }
 
-func databaseUnavailableError(path string) error {
+func databaseUnavailableError(path string, details *dbpkg.DatabaseUnavailable) error {
 	canonicalDB, err := dbpkg.CanonicalPath(path)
 	if err != nil {
 		return internalError("canonicalize unavailable database path: %v", err)
+	}
+	identity, err := currentBinaryCapabilities()
+	if err != nil {
+		return internalError("runtime identity is unavailable after detecting database unavailability: %v", err)
 	}
 	correction := "wait for the other database client to finish, then retry"
 	failure := newError(CodeDatabaseUnavailable,
 		"database at %s is unavailable; %s", canonicalDB, correction)
 	failure.Extra = map[string]any{
-		"database_path": canonicalDB,
-		"correction":    correction,
+		"database_path":            canonicalDB,
+		"executable_path":          identity.ExecutablePath,
+		"executable_sha256":        identity.ExecutableSHA256,
+		"failure_class":            details.Class,
+		"operation_phase":          details.Phase,
+		"elapsed_wait_nanoseconds": details.ElapsedWait.Nanoseconds(),
+		"correction":               correction,
 	}
 	return failure
 }

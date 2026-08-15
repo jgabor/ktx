@@ -150,6 +150,18 @@ interface KtxSchemaIncompatibility {
   correction: string
 }
 
+interface KtxDatabaseUnavailable {
+  code: "database-unavailable"
+  database_path: string
+  executable_path: string
+  executable_sha256: string
+  failure_class: "coordinator-timeout" | "sqlite-lock-exhaustion"
+  operation_phase: "open" | "migration" | "source" | "artifact" | "disposition" | "query"
+  elapsed_wait_nanoseconds: number
+  message: string
+  correction: string
+}
+
 interface KtxCommandResult {
   stdout: string
   stderr: string
@@ -170,6 +182,31 @@ const parseSchemaIncompatibility = (
         error.executable_sha256 !== executableSHA256 || !nonblank(error.build_version) ||
         !nonblank(error.message) || !nonblank(error.correction)) return null
     return error as KtxSchemaIncompatibility
+  } catch {
+    return null
+  }
+}
+
+const parseDatabaseUnavailable = (
+  stderr: string, databasePath: string, executablePath: string, executableSHA256: string,
+): KtxDatabaseUnavailable | null => {
+  try {
+    const value = JSON.parse(stderr) as { error?: Partial<KtxDatabaseUnavailable> }
+    const error = value?.error
+    if (!error || error.code !== "database-unavailable" ||
+        error.database_path !== databasePath || error.executable_path !== executablePath ||
+        error.executable_sha256 !== executableSHA256 ||
+        (error.failure_class !== "coordinator-timeout" && error.failure_class !== "sqlite-lock-exhaustion") ||
+        !["open", "migration", "source", "artifact", "disposition", "query"].includes(error.operation_phase || "") ||
+        !Number.isSafeInteger(error.elapsed_wait_nanoseconds) || (error.elapsed_wait_nanoseconds as number) < 0 ||
+        !nonblank(error.message) || !nonblank(error.correction)) return null
+    return {
+      code: "database-unavailable", database_path: error.database_path,
+      executable_path: error.executable_path, executable_sha256: error.executable_sha256,
+      failure_class: error.failure_class, operation_phase: error.operation_phase,
+      elapsed_wait_nanoseconds: error.elapsed_wait_nanoseconds,
+      message: error.message, correction: error.correction,
+    } as KtxDatabaseUnavailable
   } catch {
     return null
   }
@@ -402,7 +439,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     return canonical
   }
 
-  const ordinaryCommand = (args: string[], payload: string, label: string): Promise<KtxCommandResult | null> => {
+  const ordinaryCommand = (args: string[], payload: string, label: string, runtimeSurface: "opencode-hook" | "opencode-telemetry"): Promise<KtxCommandResult | null> => {
     let result: KtxCommandResult | null = null
     const next = ordinaryQueue.then(async () => {
       const databasePath = await currentDatabasePath()
@@ -431,6 +468,13 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         fingerprintAfter = await databaseFingerprint(databasePath)
       } catch {
         // Command diagnostics remain authoritative when metadata cannot be observed.
+      }
+      const unavailable = parseDatabaseUnavailable(
+        commandResult.stderr.trim(), databasePath, ktxExecutable, ktxExecutableSHA256,
+      )
+      if (unavailable) {
+        console.error(JSON.stringify({ error: { ...unavailable, runtime_surface: runtimeSurface } }))
+        return
       }
       if (commandResult.exitCode === 5) {
         const incompatibility = parseSchemaIncompatibility(
@@ -530,7 +574,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       observation.provider = identity.provider
       observation.model = identity.model
     }
-		const result = await ordinaryCommand(["telemetry", "record"], JSON.stringify(observation), "telemetry record")
+		const result = await ordinaryCommand(["telemetry", "record"], JSON.stringify(observation), "telemetry record", "opencode-telemetry")
 		if (result?.stderr.trim()) console.error(result.stderr.trim())
   }
 
@@ -575,7 +619,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		envelope = await next
 	  } else {
 		const next = eventQueue.then(async () => {
-		  const result = await ordinaryCommand(["hook"], JSON.stringify(record), "hook")
+		  const result = await ordinaryCommand(["hook"], JSON.stringify(record), "hook", "opencode-hook")
 		  if (!result) return null
 		  try {
 			return JSON.parse(result.stdout) as KtxEnvelope

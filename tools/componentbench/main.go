@@ -27,28 +27,33 @@ import (
 )
 
 const (
-	resultSchemaVersion      = 2
-	benchmarkSchemaVersion   = 1
-	focusedReadSchemaVersion = 1
-	warmupSamples            = 1
-	measuredSamples          = 5
-	maximumSampleBytes       = 1 << 20
-	maximumOperations        = 64
-	focusedReadSessionID     = "readbenchsession"
-	focusedReadSourceID      = "readbenchsourcea"
+	resultSchemaVersion            = 3
+	benchmarkSchemaVersion         = 1
+	focusedReadSchemaVersion       = 1
+	focusedDecompressSchemaVersion = 1
+	warmupSamples                  = 1
+	measuredSamples                = 5
+	maximumSampleBytes             = 1 << 20
+	maximumOperations              = 64
+	focusedReadSessionID           = "readbenchsession"
+	focusedReadSourceID            = "readbenchsourcea"
+	focusedDecompressSessionID     = "decbenchsessiona"
+	focusedDecompressSourceID      = "decbenchsourceaa"
+	focusedDecompressArtifactID    = "decbenchartifact"
 )
 
 type result struct {
-	SchemaVersion       int                 `json:"schema_version"`
-	StartedAt           string              `json:"started_at"`
-	FinishedAt          string              `json:"finished_at"`
-	DurationNanoseconds int64               `json:"duration_nanoseconds"`
-	WarmupSamples       int                 `json:"warmup_samples"`
-	MeasuredSamples     int                 `json:"measured_samples"`
-	Machine             machineIdentity     `json:"machine"`
-	Workloads           []workloadID        `json:"workloads"`
-	Benchmarks          []benchmarkResult   `json:"benchmarks"`
-	FocusedReads        []focusedReadResult `json:"focused_reads"`
+	SchemaVersion         int                 `json:"schema_version"`
+	StartedAt             string              `json:"started_at"`
+	FinishedAt            string              `json:"finished_at"`
+	DurationNanoseconds   int64               `json:"duration_nanoseconds"`
+	WarmupSamples         int                 `json:"warmup_samples"`
+	MeasuredSamples       int                 `json:"measured_samples"`
+	Machine               machineIdentity     `json:"machine"`
+	Workloads             []workloadID        `json:"workloads"`
+	Benchmarks            []benchmarkResult   `json:"benchmarks"`
+	FocusedReads          []focusedReadResult `json:"focused_reads"`
+	FocusedDecompressions []focusedReadResult `json:"focused_decompressions"`
 }
 
 type machineIdentity struct {
@@ -225,6 +230,11 @@ func runSpecs(root, configHome string, workloads []workload, specs []benchmarkSp
 		return result{}, err
 	}
 	measured.FocusedReads = focusedReads
+	focusedDecompressions, err := measureFocusedDecompressions(ctx, fixedFocusedDecompressWorkloads())
+	if err != nil {
+		return result{}, err
+	}
+	measured.FocusedDecompressions = focusedDecompressions
 	return measured, nil
 }
 
@@ -253,6 +263,33 @@ func validateComponentReport(measured result) error {
 			if err := validateSample(sample); err != nil {
 				return fmt.Errorf("focused read %s sample %d: %w", measurement.Workload.Name, sampleIndex+1, err)
 			}
+		}
+	}
+	expectedDecompressions := fixedFocusedDecompressWorkloads()
+	if len(measured.FocusedDecompressions) != len(expectedDecompressions) {
+		return fmt.Errorf("focused decompression measurements = %d, want %d", len(measured.FocusedDecompressions), len(expectedDecompressions))
+	}
+	for index, measurement := range measured.FocusedDecompressions {
+		if measurement.SchemaVersion != focusedDecompressSchemaVersion || measurement.Name != "ktx-decompress" || measurement.Workload != expectedDecompressions[index].workloadID {
+			return fmt.Errorf("focused decompression measurement %d has invalid identity", index+1)
+		}
+		if err := validateFocusedSamples(measurement); err != nil {
+			return fmt.Errorf("focused decompression %s: %w", measurement.Workload.Name, err)
+		}
+	}
+	return nil
+}
+
+func validateFocusedSamples(measurement focusedReadResult) error {
+	if err := validateSample(measurement.Warmup); err != nil {
+		return fmt.Errorf("warmup: %w", err)
+	}
+	if len(measurement.Samples) != measuredSamples {
+		return fmt.Errorf("samples = %d, want %d", len(measurement.Samples), measuredSamples)
+	}
+	for index, measured := range measurement.Samples {
+		if err := validateSample(measured); err != nil {
+			return fmt.Errorf("sample %d: %w", index+1, err)
 		}
 	}
 	return nil
@@ -350,6 +387,23 @@ func fixedFocusedReadWorkloads() []workload {
 				Bytes:         len(data),
 				GeneratorSeed: seed,
 				SHA256:        hex.EncodeToString(sum[:]),
+			},
+			data: data,
+		})
+	}
+	return workloads
+}
+
+func fixedFocusedDecompressWorkloads() []workload {
+	workloads := make([]workload, 0, 4)
+	for index, size := range []int{1024, 65536, 1048576, 2097152} {
+		seed := uint64(3000 + index)
+		data := generateWorkload("plain-text", size, seed)
+		sum := sha256.Sum256(data)
+		workloads = append(workloads, workload{
+			workloadID: workloadID{
+				Name: fmt.Sprintf("ktx-decompress-output-%d", size), Kind: "ktx-decompress-output",
+				Bytes: size, GeneratorSeed: seed, SHA256: hex.EncodeToString(sum[:]),
 			},
 			data: data,
 		})
@@ -791,6 +845,92 @@ func measureFocusedRead(ctx *benchmarkContext, workload workload) (focusedReadRe
 	return focusedReadResult{
 		SchemaVersion: focusedReadSchemaVersion,
 		Name:          "ktx-read",
+		Workload:      workload.workloadID,
+		Warmup:        warmup,
+		Samples:       samples,
+		Distribution:  distributionFor(samples),
+	}, nil
+}
+
+func measureFocusedDecompressions(ctx *benchmarkContext, workloads []workload) ([]focusedReadResult, error) {
+	results := make([]focusedReadResult, 0, len(workloads))
+	for _, workload := range workloads {
+		measurement, err := measureFocusedDecompression(ctx, workload)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, measurement)
+	}
+	return results, nil
+}
+
+func measureFocusedDecompression(ctx *benchmarkContext, workload workload) (focusedReadResult, error) {
+	ctx.sequence++
+	path := filepath.Join(ctx.root, "database", fmt.Sprintf("focused-decompress-%d.db", ctx.sequence))
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return focusedReadResult{}, err
+	}
+	database, err := dbpkg.Open(path)
+	if err != nil {
+		return focusedReadResult{}, err
+	}
+	closeWithError := func(measurement focusedReadResult, cause error) (focusedReadResult, error) {
+		_ = database.Close()
+		return measurement, cause
+	}
+	if err := database.InsertSession(&dbpkg.Session{
+		ID: focusedDecompressSessionID, Agent: "componentbench", StartedAt: "2026-08-09T00:00:00Z", LastSeenAt: "2026-08-09T00:00:00Z",
+	}); err != nil {
+		return closeWithError(focusedReadResult{}, err)
+	}
+	output := string(workload.data)
+	if err := database.PersistToolCall(&dbpkg.ToolCall{
+		ID: focusedDecompressSourceID, SessionID: focusedDecompressSessionID, Tool: "read", Input: "component-benchmark",
+		Output: output, ContentHash: dbpkg.ContentHash(output), Timestamp: "2026-08-09T00:00:00Z",
+	}); err != nil {
+		return closeWithError(focusedReadResult{}, err)
+	}
+	if err := database.InsertCompressed(&dbpkg.Compressed{
+		ID: focusedDecompressArtifactID, SourceID: focusedDecompressSourceID, Output: "compressed",
+		ContentHash: dbpkg.ContentHash("compressed"), Pipeline: `[]`, Timestamp: "2026-08-09T00:00:01Z",
+	}); err != nil {
+		return closeWithError(focusedReadResult{}, err)
+	}
+	if err := database.Close(); err != nil {
+		return focusedReadResult{}, err
+	}
+
+	operation := benchmarkOperation{run: func() error {
+		var stderr bytes.Buffer
+		if code := cli.RunForComponentBench([]string{"decompress", focusedDecompressArtifactID}, io.Discard, &stderr); code != 0 {
+			return fmt.Errorf("ktx decompress exit %d: %s", code, strings.TrimSpace(stderr.String()))
+		}
+		return nil
+	}}
+	var warmup sample
+	var samples []sample
+	err = withEnvironment("KTX_DB", path, func() error {
+		var err error
+		warmup, err = measureOperation(operation, int64(workload.Bytes), 1)
+		if err != nil {
+			return err
+		}
+		samples = make([]sample, 0, measuredSamples)
+		for range measuredSamples {
+			measured, err := measureOperation(operation, int64(workload.Bytes), operationsFor(int64(workload.Bytes)))
+			if err != nil {
+				return err
+			}
+			samples = append(samples, measured)
+		}
+		return nil
+	})
+	if err != nil {
+		return focusedReadResult{}, fmt.Errorf("measure focused decompression %s: %w", workload.Name, err)
+	}
+	return focusedReadResult{
+		SchemaVersion: focusedDecompressSchemaVersion,
+		Name:          "ktx-decompress",
 		Workload:      workload.workloadID,
 		Warmup:        warmup,
 		Samples:       samples,

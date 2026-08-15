@@ -22,20 +22,21 @@ import (
 var Default = Check
 
 const (
-	hermeticMarkerEnv         = "KTX_VERIFY_HERMETIC"
-	hermeticRootEnv           = "KTX_VERIFY_ROOT"
-	hermeticBoundaryIDEnv     = "KTX_VERIFY_BOUNDARY_ID"
-	hermeticCapabilityEnv     = "KTX_VERIFY_CAPABILITY"
-	hermeticNonceEnv          = "KTX_VERIFY_NONCE"
-	databaseAuditEnv          = "KTX_VERIFY_DB_AUDIT"
-	forbiddenDBPathsEnv       = "KTX_VERIFY_FORBIDDEN_DB_PATHS"
-	temporaryDirectoryEnv     = "TMPDIR"
-	boundaryNonceHexLength    = 32
-	maxForbiddenPayloadBytes  = 8192
-	maxForbiddenDatabasePaths = 16
-	engineeringEvidenceDirEnv = "KTX_ENGINEERING_EVIDENCE_DIR"
-	engineeringManifestFile   = "manifest.json"
-	engineeringManifestSchema = 2
+	hermeticMarkerEnv          = "KTX_VERIFY_HERMETIC"
+	hermeticRootEnv            = "KTX_VERIFY_ROOT"
+	hermeticBoundaryIDEnv      = "KTX_VERIFY_BOUNDARY_ID"
+	hermeticCapabilityEnv      = "KTX_VERIFY_CAPABILITY"
+	hermeticNonceEnv           = "KTX_VERIFY_NONCE"
+	databaseAuditEnv           = "KTX_VERIFY_DB_AUDIT"
+	forbiddenDBPathsEnv        = "KTX_VERIFY_FORBIDDEN_DB_PATHS"
+	temporaryDirectoryEnv      = "TMPDIR"
+	boundaryNonceHexLength     = 32
+	maxForbiddenPayloadBytes   = 8192
+	maxForbiddenDatabasePaths  = 16
+	engineeringEvidenceDirEnv  = "KTX_ENGINEERING_EVIDENCE_DIR"
+	engineeringManifestFile    = "manifest.json"
+	engineeringManifestSchema  = 2
+	engineeringReportMaxSchema = 3
 )
 
 var applicationRootVariables = []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
@@ -51,6 +52,7 @@ type engineeringReportSpec struct {
 var engineeringReportSpecs = []engineeringReportSpec{
 	{name: "component", target: "componentBench", file: "component-bench.json", identityKeys: []string{"machine", "workloads", "benchmarks"}},
 	{name: "load", target: "loadBench", file: "real-process-load.json", identityKeys: []string{"environment", "payloads", "measurements", "scenarios"}},
+	{name: "blocked-decompression", target: "decompressProcessBench", file: "blocked-decompression.json", identityKeys: []string{"environment", "target"}},
 }
 
 type engineeringEvidenceManifest struct {
@@ -121,6 +123,18 @@ func loadBench() error {
 		return err
 	}
 	return run("go", "run", "./tools/loadbench")
+}
+
+// DecompressProcessBench emits the blocked-decompression process report.
+func DecompressProcessBench() error {
+	return hermeticTarget("decompressProcessBench", decompressProcessBench)
+}
+
+func decompressProcessBench() error {
+	if err := Build(); err != nil {
+		return err
+	}
+	return run("go", "run", "./tools/loadbench", "--blocked-decompression")
 }
 
 // EngineeringVerify retains component and real-process reports in an explicit
@@ -256,7 +270,7 @@ func validateEngineeringReportTiming(schemaVersion int, report map[string]json.R
 	if schemaVersion == 1 {
 		return nil
 	}
-	if schemaVersion != engineeringManifestSchema {
+	if schemaVersion < engineeringManifestSchema || schemaVersion > engineeringReportMaxSchema {
 		return fmt.Errorf("unsupported engineering report schema %d", schemaVersion)
 	}
 	return validateEngineeringTimingFields(report["started_at"], report["finished_at"], report["duration_nanoseconds"])

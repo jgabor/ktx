@@ -50,9 +50,18 @@ seed, SHA-256, latency, allocated bytes, and allocation count. The runner sets
 `KTX_DB` only to a database beneath its own temporary root for this operation;
 it does not resolve, create, or alter product telemetry.
 
+### Focused `ktx decompress` measurements
+
+The report measures the production `ktx decompress` path against fixed
+`ktx-decompress-output` records with recovered outputs of 1024, 65536,
+1048576, and 2097152 bytes. Each result retains the stable workload name,
+kind, byte count, generator seed, SHA-256, latency, allocated bytes, and
+allocation count. The source and compressed rows exist only in a database
+beneath the runner's temporary root.
+
 ## Result contract
 
-The JSON document has `schema_version: 2`. It records UTC RFC3339Nano
+The JSON document has `schema_version: 3`. It records UTC RFC3339Nano
 `started_at`, `finished_at`, and non-negative `duration_nanoseconds` values.
 Each ordinary benchmark retains its versioned
 `schema_version` and identifies its component, case, workload, and processed

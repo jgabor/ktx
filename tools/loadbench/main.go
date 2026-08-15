@@ -29,6 +29,7 @@ import (
 const (
 	reportSchemaVersion       = 2
 	blockedReaderTargetSchema = 1
+	blockedDecompressSchema   = 1
 	warmupRounds              = 1
 	measuredRounds            = 5
 	streamEvents              = 8
@@ -56,6 +57,41 @@ type report struct {
 	Scenarios           []scenario          `json:"scenarios"`
 	BlockedReaderTarget blockedReaderTarget `json:"blocked_reader_target"`
 	Preflight           preflight           `json:"preflight"`
+}
+
+type blockedDecompressionReport struct {
+	SchemaVersion       int                        `json:"schema_version"`
+	StartedAt           string                     `json:"started_at"`
+	FinishedAt          string                     `json:"finished_at"`
+	DurationNanoseconds int64                      `json:"duration_nanoseconds"`
+	Environment         environmentIdentity        `json:"environment"`
+	Target              blockedDecompressionTarget `json:"target"`
+}
+
+type blockedDecompressionTarget struct {
+	SchemaVersion                   int                         `json:"schema_version"`
+	Workload                        payloadIdentity             `json:"workload"`
+	OutputStarted                   bool                        `json:"output_started"`
+	Backpressured                   bool                        `json:"backpressured"`
+	HookObservedBeforeOutputRelease bool                        `json:"hook_observed_before_output_release"`
+	HookOutcome                     string                      `json:"hook_outcome"`
+	HookExitCode                    int                         `json:"hook_exit_code"`
+	HookLatencyNanoseconds          int64                       `json:"hook_latency_nanoseconds"`
+	HookFailureCode                 string                      `json:"hook_failure_code,omitempty"`
+	Participants                    []participant               `json:"participants"`
+	Reconciliation                  decompressionReconciliation `json:"reconciliation"`
+}
+
+type decompressionReconciliation struct {
+	ExpectedSources       int  `json:"expected_sources"`
+	PersistedSources      int  `json:"persisted_sources"`
+	ExpectedArtifacts     int  `json:"expected_artifacts"`
+	PersistedArtifacts    int  `json:"persisted_artifacts"`
+	ExpectedDispositions  int  `json:"expected_dispositions"`
+	PersistedDispositions int  `json:"persisted_dispositions"`
+	ExpectedSessions      int  `json:"expected_sessions"`
+	PersistedSessions     int  `json:"persisted_sessions"`
+	Matches               bool `json:"matches"`
 }
 
 type blockedReaderTarget struct {
@@ -193,6 +229,24 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) == 2 && os.Args[1] == "--blocked-decompression" {
+		measured, err := runBlockedDecompressionReport()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "loadbench: %v\n", err)
+			os.Exit(1)
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(measured); err != nil {
+			fmt.Fprintf(os.Stderr, "loadbench: encode report: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) != 1 {
+		fmt.Fprintln(os.Stderr, "loadbench: unexpected arguments")
+		os.Exit(1)
+	}
 
 	measured, err := run()
 	if err != nil {
@@ -294,6 +348,84 @@ func run() (report, error) {
 		return report{}, err
 	}
 	return measured, nil
+}
+
+func runBlockedDecompressionReport() (blockedDecompressionReport, error) {
+	fixtures := fixedFixtures()
+	if err := validateStartup(os.Getenv("KTX_DB"), fixtures); err != nil {
+		return blockedDecompressionReport{}, err
+	}
+	root, err := os.MkdirTemp("", "ktx-decompress-process-")
+	if err != nil {
+		return blockedDecompressionReport{}, err
+	}
+	defer func() { _ = os.RemoveAll(root) }()
+	binary, hash, err := localBinary()
+	if err != nil {
+		return blockedDecompressionReport{}, err
+	}
+	started := time.Now().UTC()
+	target, err := runBlockedDecompressionTarget(root, processRunner{binary: binary}, fixtures[0], fixtures[2])
+	if err != nil {
+		return blockedDecompressionReport{}, err
+	}
+	finished := time.Now().UTC()
+	measured := blockedDecompressionReport{
+		SchemaVersion: blockedDecompressSchema,
+		StartedAt:     started.Format(time.RFC3339Nano), FinishedAt: finished.Format(time.RFC3339Nano),
+		DurationNanoseconds: finished.Sub(started).Nanoseconds(),
+		Environment: environmentIdentity{
+			KTXPath: binary, KTXSHA256: hash, GoVersion: runtime.Version(), OperatingSystem: runtime.GOOS,
+			Architecture: runtime.GOARCH, Processor: processorIdentity(),
+			DatabaseSelection:     "explicit KTX_DB beneath a fresh owned round root",
+			DisposableEnvironment: []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "TMPDIR"},
+		},
+		Target: target,
+	}
+	if err := validateBlockedDecompressionReport(measured); err != nil {
+		return blockedDecompressionReport{}, err
+	}
+	return measured, nil
+}
+
+func validateBlockedDecompressionReport(measured blockedDecompressionReport) error {
+	if measured.SchemaVersion != blockedDecompressSchema || measured.DurationNanoseconds < 0 {
+		return fmt.Errorf("blocked-decompression report identity is invalid")
+	}
+	started, startErr := time.Parse(time.RFC3339Nano, measured.StartedAt)
+	finished, finishErr := time.Parse(time.RFC3339Nano, measured.FinishedAt)
+	if startErr != nil || finishErr != nil || finished.Sub(started).Nanoseconds() != measured.DurationNanoseconds {
+		return fmt.Errorf("blocked-decompression report timing is invalid")
+	}
+	target := measured.Target
+	if target.SchemaVersion != blockedDecompressSchema || target.Workload.Name != "blocked-decompression-output-v1" ||
+		target.Workload.Bytes != 2*1024*1024 || target.Workload.GeneratorSeed != 6003 || len(target.Workload.SHA256) != 64 {
+		return fmt.Errorf("blocked-decompression workload identity is invalid")
+	}
+	if !target.OutputStarted || !target.Backpressured || !target.HookObservedBeforeOutputRelease || target.HookLatencyNanoseconds < 0 {
+		return fmt.Errorf("blocked-decompression observation is incomplete")
+	}
+	if target.HookOutcome != "ok" && target.HookOutcome != "database-unavailable" {
+		return fmt.Errorf("unsupported hook failure %q", target.HookOutcome)
+	}
+	if (target.HookOutcome == "ok" && (target.HookExitCode != 0 || target.HookFailureCode != "")) ||
+		(target.HookOutcome == "database-unavailable" && (target.HookExitCode != 4 || target.HookFailureCode != "database-unavailable")) {
+		return fmt.Errorf("hook outcome identity is inconsistent")
+	}
+	if len(target.Participants) != 3 ||
+		!hasParticipant(target.Participants, "supported-ktx", "blocked-decompression", "backpressured", "") ||
+		!hasParticipant(target.Participants, "supported-ktx", "unrelated-one-shot-hook", target.HookOutcome, target.HookFailureCode) ||
+		!hasParticipant(target.Participants, "engineering-harness", "exact-reconciliation", "matched", "") {
+		return fmt.Errorf("blocked-decompression participant identity is invalid")
+	}
+	if !target.Reconciliation.Matches ||
+		target.Reconciliation.ExpectedSources != target.Reconciliation.PersistedSources ||
+		target.Reconciliation.ExpectedArtifacts != target.Reconciliation.PersistedArtifacts ||
+		target.Reconciliation.ExpectedDispositions != target.Reconciliation.PersistedDispositions ||
+		target.Reconciliation.ExpectedSessions != target.Reconciliation.PersistedSessions {
+		return fmt.Errorf("blocked-decompression reconciliation mismatch")
+	}
+	return nil
 }
 
 func validateStartup(ambient string, fixtures []fixture) error {
@@ -893,6 +1025,130 @@ func runBlockedReaderTarget(root string, runner processRunner, hookFixture, read
 		HookFailureCode:        failureCode(hook),
 		Reconciliation:         exactReconciliation(expected, persisted),
 	}, nil
+}
+
+func runBlockedDecompressionTarget(root string, runner processRunner, hookFixture, outputFixture fixture) (blockedDecompressionTarget, error) {
+	environment, err := newRoundEnvironment(root, "blocked-decompression-target")
+	if err != nil {
+		return blockedDecompressionTarget{}, err
+	}
+	sourceID := stableID(510000)
+	setup := runner.hook(environment.env, hookPayload(sourceID, outputFixture))
+	if setup.Code != "ok" {
+		return blockedDecompressionTarget{}, fmt.Errorf("initialize blocked decompression: %s", setup.Code)
+	}
+	artifactID, err := seedCompressedArtifact(environment.db)
+	if err != nil {
+		return blockedDecompressionTarget{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), processTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, runner.binary, "decompress", artifactID)
+	command.Env = environment.env
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return blockedDecompressionTarget{}, err
+	}
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	if err := command.Start(); err != nil {
+		return blockedDecompressionTarget{}, err
+	}
+	done := make(chan error, 1)
+	go func() { done <- command.Wait() }()
+	finished := false
+	defer func() {
+		if finished {
+			return
+		}
+		_ = stdout.Close()
+		_ = command.Process.Kill()
+		<-done
+	}()
+	var first [1]byte
+	if _, err := io.ReadFull(stdout, first[:]); err != nil {
+		return blockedDecompressionTarget{}, fmt.Errorf("observe decompression output start: %w", err)
+	}
+	select {
+	case err := <-done:
+		finished = true
+		return blockedDecompressionTarget{}, fmt.Errorf("decompression did not remain backpressured: %v; stderr=%s", err, stderr.String())
+	case <-time.After(blockedReaderDelay):
+	}
+
+	hook := runner.hook(environment.env, hookPayload(stableID(510001), hookFixture))
+	_ = stdout.Close()
+	select {
+	case <-done:
+		finished = true
+	case <-time.After(processTimeout):
+		_ = command.Process.Kill()
+		<-done
+		finished = true
+	}
+	reconciled, err := reconcileDecompressionDatabase(environment.db, hook.Code == "ok")
+	if err != nil {
+		return blockedDecompressionTarget{}, err
+	}
+	workload := outputFixture.payloadIdentity
+	workload.Name = "blocked-decompression-output-v1"
+	return blockedDecompressionTarget{
+		SchemaVersion: blockedDecompressSchema, Workload: workload,
+		OutputStarted: true, Backpressured: true, HookObservedBeforeOutputRelease: true,
+		HookOutcome: hook.Code, HookExitCode: hook.ExitCode, HookLatencyNanoseconds: hook.LatencyNS, HookFailureCode: failureCode(hook),
+		Participants: []participant{
+			{Class: "supported-ktx", Role: "blocked-decompression", Outcome: "backpressured"},
+			participantFromResult("supported-ktx", "unrelated-one-shot-hook", hook),
+			{Class: "engineering-harness", Role: "exact-reconciliation", Outcome: "matched"},
+		},
+		Reconciliation: reconciled,
+	}, nil
+}
+
+func seedCompressedArtifact(path string) (string, error) {
+	database, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		return "", err
+	}
+	defer database.Close()
+	var sourceID string
+	if err := database.QueryRow(`SELECT id FROM tool_calls ORDER BY timestamp, id LIMIT 1`).Scan(&sourceID); err != nil {
+		return "", fmt.Errorf("find decompression source: %w", err)
+	}
+	id := stableID(510002)
+	compressed := []byte("x")
+	sum := sha256.Sum256(compressed)
+	if _, err := database.Exec(`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, sourceID, string(compressed), hex.EncodeToString(sum[:]), `{}`, "2026-08-15T00:00:00Z"); err != nil {
+		return "", fmt.Errorf("seed decompression artifact: %w", err)
+	}
+	return id, nil
+}
+
+func reconcileDecompressionDatabase(path string, hookPersisted bool) (decompressionReconciliation, error) {
+	database, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		return decompressionReconciliation{}, err
+	}
+	defer database.Close()
+	counts := make([]int, 4)
+	for index, query := range []string{"SELECT count(*) FROM tool_calls", "SELECT count(*) FROM compressed", "SELECT count(*) FROM compression_dispositions", "SELECT count(*) FROM sessions"} {
+		if err := database.QueryRow(query).Scan(&counts[index]); err != nil {
+			return decompressionReconciliation{}, err
+		}
+	}
+	expected := 1
+	if hookPersisted {
+		expected = 2
+	}
+	result := decompressionReconciliation{
+		ExpectedSources: expected, PersistedSources: counts[0], ExpectedArtifacts: 1, PersistedArtifacts: counts[1],
+		ExpectedDispositions: expected, PersistedDispositions: counts[2], ExpectedSessions: 1, PersistedSessions: counts[3],
+	}
+	result.Matches = result.ExpectedSources == result.PersistedSources && result.ExpectedArtifacts == result.PersistedArtifacts &&
+		result.ExpectedDispositions == result.PersistedDispositions && result.ExpectedSessions == result.PersistedSessions
+	return result, nil
 }
 
 func runForeignWriterReaderExhaustionScenario(root string, runner processRunner, fixture fixture) (scenario, error) {

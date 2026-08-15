@@ -130,6 +130,57 @@ func TestMandatoryLoadReportValidation(t *testing.T) {
 	})
 }
 
+func TestBlockedDecompressionReportValidation(t *testing.T) {
+	valid := validBlockedDecompressionReport()
+	if err := validateBlockedDecompressionReport(valid); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		edit func(*blockedDecompressionReport)
+		want string
+	}{
+		{name: "malformed identity", edit: func(report *blockedDecompressionReport) { report.Target.Workload.Name = "blocked-reader-output-v1" }, want: "identity"},
+		{name: "missing reconciliation", edit: func(report *blockedDecompressionReport) { report.Target.Reconciliation = decompressionReconciliation{} }, want: "reconciliation"},
+		{name: "unsupported failure", edit: func(report *blockedDecompressionReport) { report.Target.HookOutcome = "timed-out" }, want: "unsupported"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			measured := valid
+			measured.Target.Participants = append([]participant(nil), valid.Target.Participants...)
+			test.edit(&measured)
+			if err := validateBlockedDecompressionReport(measured); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validation error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func validBlockedDecompressionReport() blockedDecompressionReport {
+	started := time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC)
+	reconciliation := decompressionReconciliation{
+		ExpectedSources: 1, PersistedSources: 1, ExpectedArtifacts: 1, PersistedArtifacts: 1,
+		ExpectedDispositions: 1, PersistedDispositions: 1, ExpectedSessions: 1, PersistedSessions: 1, Matches: true,
+	}
+	return blockedDecompressionReport{
+		SchemaVersion: blockedDecompressSchema, StartedAt: started.Format(time.RFC3339Nano),
+		FinishedAt: started.Add(time.Nanosecond).Format(time.RFC3339Nano), DurationNanoseconds: 1,
+		Target: blockedDecompressionTarget{
+			SchemaVersion: blockedDecompressSchema,
+			Workload:      payloadIdentity{Name: "blocked-decompression-output-v1", Bytes: 2 * 1024 * 1024, GeneratorSeed: 6003, SHA256: strings.Repeat("a", 64)},
+			OutputStarted: true, Backpressured: true, HookObservedBeforeOutputRelease: true,
+			HookOutcome: "database-unavailable", HookExitCode: 4, HookLatencyNanoseconds: 1, HookFailureCode: "database-unavailable",
+			Participants: []participant{
+				{Class: "supported-ktx", Role: "blocked-decompression", Outcome: "backpressured"},
+				{Class: "supported-ktx", Role: "unrelated-one-shot-hook", Outcome: "database-unavailable", ExitCode: 4, FailureCode: "database-unavailable"},
+				{Class: "engineering-harness", Role: "exact-reconciliation", Outcome: "matched"},
+			},
+			Reconciliation: reconciliation,
+		},
+	}
+}
+
 func TestLoadBenchmarkDocumentation(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "docs", "real-process-load-benchmarks.md"))
 	if err != nil {
@@ -152,6 +203,9 @@ func TestLoadBenchmarkDocumentation(t *testing.T) {
 		"durable engineering verification",
 		"started_at",
 		"blocked-reader",
+		"decompressProcessBench",
+		"backpressured 2 MiB `ktx decompress`",
+		"artifact, disposition, and session reconciliation",
 		"hook latency",
 	} {
 		if !strings.Contains(normalized, required) {

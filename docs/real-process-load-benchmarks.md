@@ -4,6 +4,15 @@
 developer-only harness, not a `ktx` command. It does not change `ktx bench`
 cost or quality semantics, and its timings are descriptive rather than gates.
 
+`mage decompressProcessBench` emits a separate schema-1 engineering report for
+one deliberately backpressured 2 MiB `ktx decompress` process and an unrelated
+supported hook. It retains output-start and backpressure barriers, whether the
+hook was observed before output release, hook latency and outcome, participant
+classes, and exact source, artifact, disposition, and session reconciliation.
+Only `ok` and the supported `database-unavailable` outcome validate; malformed
+identity, missing reconciliation, and other failures reject the report. This
+target does not alter the load-report schema.
+
 For a retained load report paired with component measurements, use the
 [durable engineering verification path](critical-path-performance.md#durable-engineering-verification).
 
@@ -11,6 +20,7 @@ Run it from the repository root:
 
 ```sh
 mage loadBench > real-process-load.json
+mage decompressProcessBench > blocked-decompression.json
 ```
 
 Mage rebuilds `./build/ktx` before starting the harness. The harness uses that

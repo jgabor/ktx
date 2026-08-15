@@ -132,8 +132,48 @@ func TestResultCarriesFiveMeasuredSamplesAndEnvironment(t *testing.T) {
 			t.Errorf("focused read distribution = %#v", focused.Distribution)
 		}
 	}
+	if len(measured.FocusedDecompressions) != 4 {
+		t.Fatalf("focused decompression count = %d, want 4", len(measured.FocusedDecompressions))
+	}
+	for index, focused := range measured.FocusedDecompressions {
+		if focused.SchemaVersion != focusedDecompressSchemaVersion || focused.Name != "ktx-decompress" || focused.Workload != fixedFocusedDecompressWorkloads()[index].workloadID || len(focused.Samples) != measuredSamples {
+			t.Errorf("focused decompression %d = %#v", index, focused)
+		}
+		if focused.Distribution.LatencyNanosecondsPerOperation.Median <= 0 || focused.Distribution.AllocatedBytesPerOperation.Median < 0 || focused.Distribution.AllocationsPerOperation.Median < 0 {
+			t.Errorf("focused decompression distribution = %#v", focused.Distribution)
+		}
+	}
 	if _, err := json.Marshal(measured); err != nil {
 		t.Fatalf("marshal result: %v", err)
+	}
+}
+
+func TestFocusedDecompressionWorkloadsAreStable(t *testing.T) {
+	first, second := fixedFocusedDecompressWorkloads(), fixedFocusedDecompressWorkloads()
+	for index, size := range []int{1024, 65536, 1048576, 2097152} {
+		if first[index].Bytes != size || first[index].Kind != "ktx-decompress-output" || first[index].GeneratorSeed == 0 || first[index].workloadID != second[index].workloadID || !bytes.Equal(first[index].data, second[index].data) {
+			t.Fatalf("workload %d is not stable: %#v", index, first[index])
+		}
+	}
+	first[0].data[0] ^= 1
+	sum := sha256.Sum256(first[0].data)
+	if hex.EncodeToString(sum[:]) == first[0].SHA256 {
+		t.Fatal("changed decompression workload retained its identity hash")
+	}
+}
+
+func TestFocusedDecompressionSampleValidation(t *testing.T) {
+	valid := focusedReadResult{Warmup: sample{Operations: 1}, Samples: make([]sample, measuredSamples)}
+	for index := range valid.Samples {
+		valid.Samples[index].Operations = 1
+	}
+	if err := validateFocusedSamples(valid); err != nil {
+		t.Fatal(err)
+	}
+	invalid := valid
+	invalid.Samples = invalid.Samples[:measuredSamples-1]
+	if err := validateFocusedSamples(invalid); err == nil || !strings.Contains(err.Error(), "samples") {
+		t.Fatalf("invalid sample count error = %v", err)
 	}
 }
 
@@ -188,6 +228,8 @@ func TestComponentBenchmarkDocumentation(t *testing.T) {
 		"started_at",
 		"2097152",
 		"allocated bytes",
+		"ktx decompress",
+		"schema_version: 3",
 	} {
 		if !strings.Contains(normalized, required) {
 			t.Errorf("documentation is missing %q", required)

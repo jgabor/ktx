@@ -103,6 +103,14 @@ func TestEngineeringReportSummaryRequiresIdentity(t *testing.T) {
 	if _, _, err := summarizeEngineeringReport(invalidTiming, engineeringReportSpecs[0].identityKeys); err == nil || !strings.Contains(err.Error(), "timing") {
 		t.Fatalf("invalid timing result = %v", err)
 	}
+
+	current := filepath.Join(directory, "current.json")
+	if err := os.WriteFile(current, []byte(`{"schema_version":3,"started_at":"2026-08-10T00:00:00.000000001Z","finished_at":"2026-08-10T00:00:00.000000002Z","duration_nanoseconds":1,"machine":{"go_version":"go"},"workloads":[{"name":"fixed"}],"benchmarks":[{"name":"parser"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if schemaVersion, _, err := summarizeEngineeringReport(current, engineeringReportSpecs[0].identityKeys); err != nil || schemaVersion != 3 {
+		t.Fatalf("current report summary = %d, %v", schemaVersion, err)
+	}
 }
 
 func TestEngineeringManifestRetainsReportReferences(t *testing.T) {

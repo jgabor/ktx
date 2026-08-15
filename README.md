@@ -237,9 +237,9 @@ mage build         # build build/ktx
 
 For optional extended engineering evidence, run
 `KTX_ENGINEERING_EVIDENCE_DIR=<new-directory> mage engineeringVerify` with a
-new directory. It retains a hash manifest and requires correctness, exact
-reconciliation, and supported-lock checks; it does not add a timing gate or
-replace `mage check`.
+new directory. It retains component, real-process load, and blocked-decompression
+reports in a hash manifest and requires correctness, exact reconciliation, and
+supported-lock checks; it does not add a timing gate or replace `mage check`.
 
 `mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`, and
 the portable replay gate. Tracked CI runs this same command on every push and

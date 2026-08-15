@@ -33,20 +33,25 @@ mkdir -p docs/notes
 KTX_ENGINEERING_EVIDENCE_DIR="$PWD/docs/notes/engineering-run" mage engineeringVerify
 ```
 
-The directory must not already exist. The target runs the existing
-`mage componentBench` and `mage loadBench` targets in separate fresh Mage
-roots and writes `component-bench.json`, `real-process-load.json`, and
-`manifest.json`. These schema-2 reports and manifest record UTC RFC3339Nano
+The directory must not already exist. The target runs `mage componentBench`,
+`mage loadBench`, and `mage decompressProcessBench` in separate fresh Mage
+roots. It writes `component-bench.json`, `real-process-load.json`,
+`blocked-decompression.json`, and `manifest.json`. These versioned reports and
+the schema-2 manifest record UTC RFC3339Nano
 `started_at`, `finished_at`, and non-negative `duration_nanoseconds`. The
 manifest records each report's schema version and SHA-256; the reports retain
 their environment and workload identities. Retained schema-1 evidence remains
 unchanged and has no inferred timing. The target does not write
 product SQLite state.
 
+The current component report is schema 3, the load report is schema 2, and the
+blocked-decompression report is schema 1. The manifest remains schema 2.
+
 This is extended engineering evidence, not a timing gate or a replacement for
-`mage check`. It fails on reporter validation or the load harness's mandatory
-correctness, reconciliation, and supported-lock checks, but does not compare
-timing values to a threshold. Run `mage check` separately for the repository's
+`mage check`. It fails on reporter validation, the load harness's mandatory
+correctness, reconciliation, and supported-lock checks, or an invalid
+blocked-decompression database-availability result. It does not compare timing
+values to a threshold. Run `mage check` separately for the repository's
 ordinary test, mixed-version, and contract coverage. The target is not part of
 `mage verify` or tracked CI until a stable host and timing policy are approved.
 It does not change `ktx bench` cost or quality evidence, or make a provider
@@ -115,7 +120,9 @@ go build -buildvcs=false -o build/readleasecompare ./tools/readleasecompare
 ```
 
 The first sequence permits one complete fresh sequence only when its measured
-verdict is inconclusive. The final invocation supplies every documented
+verdict is inconclusive and all internal hard gates pass. Every invocation may
+supply each external hard-gate value with repeated `--gate name=true|false`
+arguments. Before final retention, the comparator requires every named
 external hard-gate value with repeated `--gate name=true|false` arguments. A
 failed external gate produces `reject` even when timing is inconclusive; omitted
 final gates cannot produce `retain`.

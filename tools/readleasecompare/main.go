@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	comparisonSchemaVersion  = 2
-	comparisonPolicyVersion  = "read-lease-v2"
-	reportSchemaVersion      = 2
-	manifestSchemaVersion    = 2
-	focusedReadSchemaVersion = 1
+	comparisonSchemaVersion      = 2
+	comparisonPolicyVersion      = "read-lease-v2"
+	reportSchemaVersion          = 2
+	componentReportSchemaVersion = 3
+	manifestSchemaVersion        = 2
+	focusedReadSchemaVersion     = 1
 )
 
 var requiredOrder = []string{"B", "C", "C", "B", "B", "C", "C", "B", "B", "C"}
@@ -368,10 +369,10 @@ func readRun(position int, arm, directory string) (observedRun, error) {
 	if err := json.Unmarshal(componentBytes, &component); err != nil {
 		return observedRun{}, fmt.Errorf("run %d decode component report: %w", position, err)
 	}
-	if component.SchemaVersion != reportSchemaVersion || componentInfo.SchemaVersion != component.SchemaVersion {
+	if (component.SchemaVersion != reportSchemaVersion && component.SchemaVersion != componentReportSchemaVersion) || componentInfo.SchemaVersion != component.SchemaVersion {
 		return observedRun{}, fmt.Errorf("run %d component report schema %d lacks focused read policy evidence", position, component.SchemaVersion)
 	}
-	if err := validateTemporal(component.SchemaVersion, component.StartedAt, component.FinishedAt, component.DurationNanoseconds, reportSchemaVersion); err != nil {
+	if err := validateTemporal(component.SchemaVersion, component.StartedAt, component.FinishedAt, component.DurationNanoseconds, component.SchemaVersion); err != nil {
 		return observedRun{}, fmt.Errorf("run %d component report: %w", position, err)
 	}
 	focusedReads, err := indexedFocusedReads(component.FocusedReads)

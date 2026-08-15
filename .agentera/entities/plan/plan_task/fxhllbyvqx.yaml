@@ -12,3 +12,13 @@ record:
     - GIVEN a successful command or another failure class WHEN it completes THEN it emits no database-unavailable event, and the generic logger accepts only deliberate typed event call sites rather than scraping process streams.
     - GIVEN hook and telemetry failures at each bounded availability phase WHEN focused regression tests run THEN enabled, disabled, below-threshold, and sink-failure cases preserve the existing content-exclusion and diagnostic contracts.
   plan: lxyymlqiye
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Missing generated-plugin integration regression proving a real ktx coordinator-timeout is logged before the adapter uses its generic prefixed stderr fallback; implementation ordering otherwise passed.
+    provenance:
+      attempt_id: fxhllbyvqx-audit-1
+      source: audit task ses_ff8f5049effe63U0EfmISEOZsh
+      recorded_at: 2026-08-15 22:15
+      writer_command: agentera state plan record-evaluation

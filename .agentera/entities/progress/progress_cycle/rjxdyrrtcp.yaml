@@ -1,0 +1,16 @@
+id: rjxdyrrtcp
+artifact: progress
+record:
+  timestamp: 2026-08-15 22:28
+  type: fix
+  phase: build
+  what: Added a disposable generated OpenCode adapter integration regression proving that a real ktx coordinator-timeout event is retained before the adapter emits its generic hook fallback.
+  context:
+    intent: Close the failed audit with one ordering regression and no production behavior change.
+    constraints: Keep the task pending for re-audit; preserve the 25 ms logging coordination target, 50 ms safety ceiling, one hook attempt, best-effort event drop, diagnostics, exit status, and adapter fallback.
+    unknowns: Independent re-audit remains.
+    scope: Generated OpenCode plugin execution, a production CLI subprocess, a held disposable database coordination lock, adapter-boundary parser rejection, and retained event assertions.
+  discovered: A copied package test executable can run the production CLI entry point as the plugin-pinned ktx subprocess. Holding the disposable database file lock produces the real coordinator-timeout; the test-only Bun process boundary verifies the retained log before adding malformed stderr that forces the generic fallback.
+  verified: The focused integration test passed once and then 3/3 repeated runs. go test ./internal/cli ./internal/logging passed; go test -race ./internal/cli ./internal/logging passed; mage build passed; mage check passed all tests, vet, lint with 0 issues, build, and database audit with forbidden=0. Every invocation used fresh disposable HOME, all XDG roots, and TMPDIR with KTX_DB unset.
+  next: Leave fxhllbyvqx pending for independent re-audit; jeujadglta remains unstarted.
+  publication_order: 88

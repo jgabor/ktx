@@ -1,0 +1,28 @@
+id: lgrxfiolmc
+artifact: health
+record:
+  date: 2026-08-15
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: stable — the scoped terminal-plan artifacts are current and closure evidence passed.
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited terminal-plan closure check, not a codebase-wide audit. Runtime, test, documentation, changelog, progress, and plan artifacts were modified on or after the plan creation date. The independent task audit verified all five acceptance criteria, unintended effects, hermetic repository checks, and a clean tracked worktree with PASS.
+  trends:
+    comparison_target: Plan creation on 2026-08-15.
+    stable: All delegated build artifact families are current and the only task has a persisted PASS evaluation.
+    resolved: Bounded database-unavailable attribution is implemented and independently verified.
+    carried_forward: Decisions, vision, and profile detail remain deferred from startup; profile-derived state remains stale.
+  patterns:
+    - Limited closure evidence kept artifact freshness, task evaluation, and plan lifecycle distinct.
+  appended_at: 2026-08-15T18:11:35.547Z

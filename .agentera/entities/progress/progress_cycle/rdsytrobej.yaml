@@ -1,0 +1,16 @@
+id: rdsytrobej
+artifact: progress
+record:
+  timestamp: 2026-08-15 22:59
+  type: fix
+  phase: build
+  what: Corrected structured-log rotation so a permissive existing active file is made private before it becomes the retained previous file, with a POSIX regression covering both files.
+  context:
+    intent: Close the failed logging audit with the smallest permission-ordering correction.
+    constraints: Preserve logging output, retention, rotation, failure isolation, database behavior, and the recorded failed evaluation.
+    unknowns: Independent re-audit remains.
+    scope: The rotation branch and one supported-POSIX permission regression.
+  discovered: The active file was made private only after rotation opened its replacement, so rename preserved the old 0644 mode on the retained file.
+  verified: The regression failed before the correction because the retained file was 0644, then passed 20 consecutive runs. The complete internal/logging package and its race suite passed. mage build passed. mage check passed all repository tests, vet, lint with 0 issues, build, and the database access audit with forbidden=0. Every verification invocation used a fresh disposable HOME, all XDG roots, and TMPDIR with KTX_DB unset.
+  next: Leave jeujadglta pending with its failed evaluation intact for independent re-audit.
+  publication_order: 90

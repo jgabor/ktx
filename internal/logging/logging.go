@@ -212,6 +212,9 @@ func (s *Sink) append(record []byte) (time.Duration, error) {
 			return wait, err
 		}
 		if info.Size() <= maxFileBytes {
+			if err := os.Chmod(s.path, 0o600); err != nil {
+				return wait, err
+			}
 			if err := os.Rename(s.path, previous); err != nil {
 				return wait, err
 			}

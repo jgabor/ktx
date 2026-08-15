@@ -1,0 +1,16 @@
+id: ugpuzxqgpc
+artifact: progress
+record:
+  timestamp: 2026-08-16 00:09
+  type: fix
+  phase: build
+  what: Created Windows log files with a protected DACL granting file-all access only to the current process user, while preserving reparse-point and regular-file checks.
+  context:
+    intent: Correct the failed Windows privacy criterion without restoring discarded logging machinery.
+    constraints: Keep the implementation task pending for re-audit, preserve its failed evaluation, avoid new dependencies, do not access the ambient database, and do not push.
+    unknowns: Runtime ACL behavior was not executed on a Windows host.
+    scope: Windows log creation, deterministic DACL construction coverage, isolated verification, and required progress state.
+  discovered: The existing x/sys/windows dependency provides token-user lookup and SDDL conversion, so the correction needed no dependency or ACL subsystem.
+  verified: Focused and race tests passed for config, logging, router, and CLI. The Windows logging package and tests cross-compiled for amd64. mage build and mage check passed with KTX_DB unset and fresh disposable HOME/XDG/TMPDIR roots. The full Windows CLI cross-build remains blocked by unchanged Unix-only syscall use in internal/experiment.
+  next: Re-audit the still-pending implementation task against the retained failed evaluation and this correction.
+  publication_order: 92

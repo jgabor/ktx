@@ -13,3 +13,13 @@ record:
     - GIVEN a destination is new or existing WHEN logging evaluates it THEN new files are private, existing POSIX files with group or other permission bits are rejected, non-regular and symlink-following targets are rejected through the minimal supported safe-open boundary, and canonical aliases of the active database are rejected without changing the primary command.
     - GIVEN the replacement is complete WHEN source and focused tests are inspected THEN runtime-surface flags and generated-plugin arguments, cross-process locks, rotation, timing thresholds, record-size limits, static correction retention, broad configuration-output changes, and their obsolete tests are absent; no compatibility shim remains for the undistributed adapter flag.
   plan: uhxmqfdaia
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Windows log creation inherited the parent ACL and did not ensure new sensitive log files were private; all other simplification criteria passed.
+    provenance:
+      attempt_id: gldzahjduf-audit-1
+      source: audit task ses_ff8990422ffeiEcF3v80nx05n0
+      recorded_at: 2026-08-16 00:00
+      writer_command: agentera state plan record-evaluation

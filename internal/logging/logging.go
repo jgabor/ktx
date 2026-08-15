@@ -144,3 +144,7 @@ func samePath(path, databasePath string) bool {
 	dbAbs, dbErr := filepath.Abs(databasePath)
 	return logErr == nil && dbErr == nil && filepath.Clean(logAbs) == filepath.Clean(dbAbs)
 }
+
+func privateLogDACL(userSID string) string {
+	return "D:P(A;;FA;;;" + userSID + ")"
+}

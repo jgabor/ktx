@@ -26,6 +26,13 @@ func TestDefaultPath(t *testing.T) {
 	}
 }
 
+func TestPrivateLogDACL(t *testing.T) {
+	const sid = "S-1-5-21-1000"
+	if got, want := privateLogDACL(sid), "D:P(A;;FA;;;"+sid+")"; got != want {
+		t.Fatalf("privateLogDACL() = %q, want %q", got, want)
+	}
+}
+
 func TestAppendDatabaseUnavailable(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "logs", "events.jsonl")
 	AppendDatabaseUnavailable(Config{Level: Error, Path: path}, "", testEvent("/tmp/ktx.db"))

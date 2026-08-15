@@ -1,0 +1,14 @@
+id: dmzwbzdoja
+artifact: plan
+record:
+  name: Run the bounded reader coexistence experiment
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN fixed multi-process mixed workloads and a fresh disposable database per run WHEN baseline and candidate execute in alternating order through concurrency 32 THEN each report identifies workload, binary, database ownership, actual latency and throughput, percentage changes, failure codes, and exact expected-versus-persisted reconciliation.
+    - GIVEN a supported read-only command has completed active database retrieval while downstream output remains backpressured WHEN an unrelated supported hook writes to the same database THEN the candidate hook completes before output release with exit 0, no database-unavailable result, byte-exact reader output, and exact source, artifact, disposition, and session reconciliation.
+    - GIVEN concurrent reads, writes, duplicate delivery, compatible migration, newer schema, output failure, process termination, and foreign SQLite contention WHEN candidate behavior is verified THEN read-only commands remain non-creating and non-migrating, accepted evidence remains durable exactly once, incompatible schemas remain protected, and foreign exhaustion retains the stable typed result.
+    - GIVEN baseline noise is measured WHEN normal performance is compared THEN retain only if concurrency-1 hook p50 stays within 5 percent plus noise, concurrency-32 p99 stays within 10 percent plus noise, concurrency-32 throughput stays within 5 percent plus noise, focused read allocation metrics stay within 10 percent plus noise, and every hard correctness and safety gate passes.
+    - GIVEN the complete candidate evidence WHEN the experiment concludes THEN retain and document only a passing candidate; otherwise restore the baseline exactly, record the rejection and measured reason, and leave product behavior unchanged. In either case, isolated engineering verification and the full repository check must pass with zero forbidden database access.
+  plan: zyepyllubx

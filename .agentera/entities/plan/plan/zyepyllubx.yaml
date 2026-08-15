@@ -1,0 +1,28 @@
+id: zyepyllubx
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-15
+    status: open
+    title: "Plan: Test SQLite-native reader coexistence"
+  what: Run a bounded baseline/candidate experiment to determine whether supported read-only commands can coexist with concurrent supported writers after active database retrieval completes, without extending shared ownership through downstream output delivery.
+  why: Multiple agents can currently exhaust the bounded database wait when read-only and write-capable commands overlap. The experiment will test a database-wide reader policy rather than another command-specific output-buffering fix.
+  constraints: Preserve one binary, one SQLite product database, read-only enforcement, transactional forward migration, source-before-lossy-delivery, first-evidence authority, exact retry behavior, and bounded typed foreign-lock failures. Use only fresh disposable application roots and databases. Do not introduce WAL, alter writer coordination or retry deadlines, add a daemon, queue, spool, dependency, public command, per-agent database, or product benchmark semantic.
+  overall_acceptance: GIVEN fixed baseline and candidate workloads exercise concurrent supported readers and writers WHEN correctness, database safety, lock handling, and normal performance are compared THEN the experiment records actual times and percentages and retains the candidate only if supported availability improves without violating any hard gate or practical performance allowance; otherwise it restores the baseline.
+  scope:
+    included:
+      - one temporary candidate for database-wide supported reader coexistence
+      - deterministic mixed read/write and backpressured-output scenarios
+      - alternating baseline/candidate engineering evidence
+      - correctness, reconciliation, schema, migration, recovery, and performance evaluation
+      - current tests and documentation only if the candidate is retained
+    excluded:
+      - WAL or other journal-mode changes
+      - writer coordination, timeout, or retry-policy changes
+      - daemon, persistent worker, in-memory queue, or durable spool
+      - per-agent databases or evidence aggregation changes
+      - public CLI or product benchmark changes
+      - ambient live-database experiments
+  surprises:
+    []

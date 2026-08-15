@@ -83,6 +83,8 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [ ] **Wrapper `step_finish` enrichment** — Trigger only if a concrete use case requires per-tool cost evidence. Runtime-emitted model-step cache and cost fields remain benchmark/recorded-stream evidence and must not be attached to `tool_calls`; missing fields remain unavailable. → [Measurement](ARCHITECTURE.md#measurement)
 - [ ] **Structured parsers for high-volume tools** — Trigger only when the representative residual-delivery study shows that one recurring command or output shape dominates safely addressable raw-delivered volume and existing stages cannot represent it faithfully. Validate the parser through the targeted residual-delivery experiment; preserve failure blocks, exact occurrence counts, and the smallest faithful representation before the global gate. → [Pipeline](ARCHITECTURE.md#pipeline)
 
+## ⇉ Degraded
+
 ## → Normal
 
 - [ ] [id:askdmcbmqv] **Layer 5 boundary** — Run a structured discussion and record the history/memory boundary, lifecycle, storage, consumption, and external-tool choice. → [Question](ARCHITECTURE.md#layer-5-boundary)
@@ -111,5 +113,3 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [x] [id:vbmateedph] **JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)
 - [x] [id:lujbwsgbnz] **Model-telemetry window coverage** — Extend `ktx stats summary` with the first and last contributing model-telemetry capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window provider prompt/prefix-cache token KPI. Here, prompt/prefix-cache telemetry means runtime-reported provider token fields used for discounted input/output token accounting, not filesystem, memory, database, HTTP, or other I/O caches. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and do not infer provider-internal prompt/prefix-cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition. → [Measurement](ARCHITECTURE.md#measurement)
 - [x] [id:gzbjhqirbx] [fix] Align agent-facing prompt-cache benchmark guidance
-
-## → Degraded

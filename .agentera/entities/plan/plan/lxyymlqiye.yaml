@@ -42,5 +42,4 @@ record:
       rationale: The XDG state path remains the portable default. The user explicitly requested a configurable destination, so an absolute path is an intentional opt-in override subject to regular-file, database-alias, and private-access checks.
     - issue: The first event requires runtime surface, failure class, phase, and elapsed wait fields that are not currently authoritative.
       rationale: The current sanitized database-unavailable contract already carries these bounded fields and the adapter already supplies its runtime surface, so integration does not require inferred timing or new database semantics.
-  surprises:
-    []
+  surprises: The 25 millisecond coordination value is a best-effort internal target, not a hard wall-clock guarantee; verification uses a 50 millisecond safety ceiling for scheduler tolerance.

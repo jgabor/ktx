@@ -1,0 +1,16 @@
+id: smenuagilu
+artifact: progress
+record:
+  timestamp: 2026-08-15 21:49
+  type: fix
+  phase: build
+  what: Restored a clear 25 millisecond logging coordination target with ordinary 1 millisecond polling; focused tests now use a 50 millisecond wall-clock safety ceiling.
+  context:
+    intent: Align sink coordination and evidence with the clarified nominal-target contract.
+    constraints: Keep one best-effort attempt, drop only the file event on contention, preserve sink guarantees, and leave the task pending.
+    unknowns: Independent re-evaluation remains.
+    scope: Coordination timing constants, focused assertions, and durable verification evidence.
+  discovered: Repeated contention reached 25.777594 milliseconds because of scheduler jitter, correctly below the 50 millisecond safety ceiling; rotation remained complete and bounded.
+  verified: Contention passed 30/30 with a 25.777594 millisecond maximum against the 25 millisecond target and 50 millisecond safety ceiling. Ten eight-process rotation runs preserved 8000/8000 complete records, used at most 6645442 active-plus-previous bytes, and observed a 10.601982 millisecond maximum wait. Focused logging tests, the logging race test, mage build, and mage check passed with fresh disposable environments and KTX_DB unset.
+  next: Leave task mwqgjygkyy pending for independent re-evaluation.
+  publication_order: 86

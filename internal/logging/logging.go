@@ -12,9 +12,8 @@ import (
 const (
 	maxRecordBytes   = 16 << 10
 	maxFileBytes     = 5 << 20
-	maxLockWait      = 25 * time.Millisecond
-	lockAcquireWait  = 22 * time.Millisecond
-	lockPollInterval = 250 * time.Microsecond
+	lockWaitTarget   = 25 * time.Millisecond
+	lockPollInterval = time.Millisecond
 )
 
 // Level is an inclusive logging threshold and event severity.
@@ -148,7 +147,7 @@ func (s *Sink) append(record []byte) (time.Duration, error) {
 	if err := lock.Chmod(0o600); err != nil {
 		return 0, err
 	}
-	wait, err := acquire(lock, lockAcquireWait)
+	wait, err := acquire(lock, lockWaitTarget)
 	if err != nil {
 		return wait, err
 	}

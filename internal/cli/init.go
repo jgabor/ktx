@@ -574,7 +574,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       observation.provider = identity.provider
       observation.model = identity.model
     }
-		const result = await ordinaryCommand(["telemetry", "record"], JSON.stringify(observation), "telemetry record", "opencode-telemetry")
+		const result = await ordinaryCommand(["telemetry", "--runtime-surface", "opencode-telemetry", "record"], JSON.stringify(observation), "telemetry record", "opencode-telemetry")
 		if (result?.stderr.trim()) console.error(result.stderr.trim())
   }
 
@@ -612,14 +612,14 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 	  let envelope: KtxEnvelope | null
 	  if (required) {
 		const next = eventQueue.then(async () => {
-		  const strict = await ktxRequiredCommand(ktxExecutable, ["hook"], JSON.stringify(record))
+		  const strict = await ktxRequiredCommand(ktxExecutable, ["hook", "--runtime-surface", "opencode-hook"], JSON.stringify(record))
 		  return requiredEnvelope(strict, input, requiredSessionID)
 		})
 		eventQueue = next.then(() => undefined, () => undefined)
 		envelope = await next
 	  } else {
 		const next = eventQueue.then(async () => {
-		  const result = await ordinaryCommand(["hook"], JSON.stringify(record), "hook", "opencode-hook")
+		  const result = await ordinaryCommand(["hook", "--runtime-surface", "opencode-hook"], JSON.stringify(record), "hook", "opencode-hook")
 		  if (!result) return null
 		  try {
 			return JSON.parse(result.stdout) as KtxEnvelope

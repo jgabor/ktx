@@ -97,6 +97,35 @@ func TestRejectedEventsDoNoFilesystemWork(t *testing.T) {
 	}
 }
 
+func TestDatabaseUnavailableSchema(t *testing.T) {
+	record, err := json.Marshal(DatabaseUnavailable{
+		RuntimeSurface: "opencode-hook", ExecutablePath: "/tmp/ktx", ExecutableSHA256: strings.Repeat("a", 64),
+		DatabasePath: "/tmp/ktx.db", FailureClass: "coordinator-timeout", OperationPhase: "open",
+		ElapsedWaitNanoseconds: 2_002_000_000, Correction: "retry",
+	}.logRecord(time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(record, &fields); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"timestamp", "level", "event", "runtime_surface", "executable_path", "executable_sha256", "database_path", "failure_class", "operation_phase", "elapsed_wait_nanoseconds", "correction"}
+	if len(fields) != len(want) {
+		t.Fatalf("fields = %v", fields)
+	}
+	for _, field := range want {
+		if _, ok := fields[field]; !ok {
+			t.Errorf("missing field %q", field)
+		}
+	}
+	for _, forbidden := range []string{"payload", "database_content", "sql", "error", "credentials", "secret"} {
+		if _, ok := fields[forbidden]; ok {
+			t.Errorf("unexpected field %q", forbidden)
+		}
+	}
+}
+
 func TestRejectsUnsafeDestinations(t *testing.T) {
 	root := t.TempDir()
 	database := filepath.Join(root, "ktx.db")

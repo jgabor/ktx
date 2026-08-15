@@ -1,0 +1,16 @@
+id: vnaqjnutbd
+artifact: progress
+record:
+  timestamp: 2026-08-15 22:07
+  type: feat
+  phase: build
+  what: Added the closed database-unavailable JSONL event in internal/logging and adapter-supplied opencode-hook and opencode-telemetry attribution before stderr parsing.
+  context:
+    intent: Retain typed database availability failures even when the OpenCode plugin uses its generic prefixed stderr fallback.
+    constraints: Preserve diagnostics, output, exit status, database behavior, schema handling, executable validation, and best-effort sink isolation; do not start broad contract synchronization.
+    unknowns: Independent audit remains.
+    scope: Typed availability event, deliberate hook and telemetry call sites, generated adapter attribution, and focused regression coverage.
+  discovered: The generated adapter must pass runtime surface into ktx before database open because a coordinator-timeout can make adapter-side parsing fall back to its generic prefixed stderr form.
+  verified: The event retains 11 declared fields only. go test ./internal/logging ./internal/cli passed, focused race tests passed, generated plugin argv was checked with build/ktx, and mage build plus mage check passed in fresh disposable environments with KTX_DB unset.
+  next: Leave fxhllbyvqx pending for independent audit; jeujadglta remains unstarted.
+  publication_order: 87

@@ -282,7 +282,7 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 		// Session telemetry is optional. Keep the failure visible to the operator,
 		// but do not turn this side channel into a failed agent operation.
 		path, pathErr := dbpkg.ResolvePath("")
-		if classified := classifyDatabaseLockError(path, err, dbpkg.OperationSource, started); pathErr == nil && classified != nil {
+		if classified := classifyDatabaseLockError(path, err, dbpkg.OperationSource, started, "opencode-telemetry"); pathErr == nil && classified != nil {
 			printError(stderr, classified, FormatJSON)
 		} else {
 			fmt.Fprintf(stderr, "ktx: telemetry not recorded: %v\n", err)
@@ -417,9 +417,9 @@ func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
 	}
 	var db *dbpkg.DB
 	if ctx.Args[0] == "list" {
-		db, err = openQueryDatabase(path)
+		db, err = openQueryDatabaseForSurface(path, "opencode-telemetry")
 	} else {
-		db, err = openDatabase(path)
+		db, err = openDatabaseForSurface(path, "opencode-telemetry")
 	}
 	if err != nil {
 		if _, ok := err.(*Error); ok {
@@ -428,7 +428,17 @@ func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
 		return telemetryDatabaseFailure(ctx, fmt.Errorf("open database: %w", err))
 	}
 	defer db.Close()
-	return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, db, ctx.Stdout, ctx.Stderr)
+	result, err := telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, db, ctx.Stdout, ctx.Stderr)
+	if err != nil {
+		phase := dbpkg.OperationSource
+		if ctx.Args[0] == "list" {
+			phase = dbpkg.OperationQuery
+		}
+		if classified := classifyDatabaseLockError(path, err, phase, time.Now(), "opencode-telemetry"); classified != nil {
+			err = classified
+		}
+	}
+	return result, err
 }
 
 func telemetryDatabaseFailure(ctx *DispatchContext, err error) (any, error) {

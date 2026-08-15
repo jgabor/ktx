@@ -98,7 +98,11 @@ func TestHookRetriesStartupLock(t *testing.T) {
 }
 
 func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "hook-startup-lock-failure.db")
+	root := t.TempDir()
+	path := filepath.Join(root, "hook-startup-lock-failure.db")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	logPath := filepath.Join(root, "hook-errors.jsonl")
+	hookWriteUserConfig(t, "[logs]\nlevel = \"error\"\npath = \""+logPath+"\"\n")
 	initialized, err := dbpkg.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +125,7 @@ func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
 
 	t.Setenv("KTX_DB", path)
 	var stdout, stderr bytes.Buffer
-	if code := runWith([]string{"hook"}, &stdout, &stderr); code != ExitInternal {
+	if code := runWith([]string{"hook", "--runtime-surface", "opencode-hook"}, &stdout, &stderr); code != ExitInternal {
 		t.Fatalf("hook exit code = %d, want %d; stdout=%q stderr=%q", code, ExitInternal, stdout.String(), stderr.String())
 	}
 	if stdout.Len() != 0 {
@@ -156,6 +160,10 @@ func TestHookStartupLockFailureRendersDatabaseUnavailable(t *testing.T) {
 		if strings.Contains(strings.ToLower(stderr.String()), forbidden) {
 			t.Errorf("stderr exposes driver lock wording %q: %q", forbidden, stderr.String())
 		}
+	}
+	record := readDatabaseUnavailableLog(t, logPath)
+	if record.RuntimeSurface != "opencode-hook" || record.FailureClass != dbpkg.UnavailableClassSQLiteLock || record.OperationPhase != dbpkg.OperationOpen || record.ElapsedWaitNanoseconds <= 0 {
+		t.Fatalf("availability record = %#v", record)
 	}
 }
 

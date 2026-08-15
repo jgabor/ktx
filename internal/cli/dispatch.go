@@ -150,6 +150,9 @@ type DispatchContext struct {
 	// flag so ctx.Args never sees it; verbs that respect --quiet
 	// read this field rather than re-parsing ctx.Args.
 	Quiet bool
+
+	// RuntimeSurface is set only by generated adapters for typed diagnostics.
+	RuntimeSurface string
 }
 
 // registeredVerb pairs the per-verb options with the verb's logic.
@@ -285,6 +288,8 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 	var subQuiet bool
 	fs.BoolVar(&subQuiet, "quiet", false, "suppress non-essential output")
 	fs.BoolVar(&subQuiet, "q", false, "suppress non-essential output (shorthand)")
+	var runtimeSurface string
+	fs.StringVar(&runtimeSurface, "runtime-surface", "", "runtime adapter surface")
 	if err := fs.Parse(rest); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return renderHelp(reg.opts.Help, stdout)
@@ -294,6 +299,10 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 	}
 	if showHelp {
 		return renderHelp(reg.opts.Help, stdout)
+	}
+	if runtimeSurface != "" && runtimeSurface != "opencode-hook" && runtimeSurface != "opencode-telemetry" {
+		printError(stderr, usageError("invalid runtime surface %q", runtimeSurface), formatStr)
+		return ExitUsage
 	}
 
 	// 4. Open the database according to the command's declared access mode.
@@ -312,12 +321,12 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 		case DatabaseReadOnly:
 			opened, err = openQueryDatabase(path)
 		case DatabaseReadWrite:
-			opened, err = openDatabase(path)
+			opened, err = openDatabaseForSurface(path, runtimeSurface)
 		default:
 			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
 		}
 		if err != nil {
-			if classified := classifyDatabaseLockError(databasePath, err, dbpkg.OperationOpen, openStarted); classified != nil {
+			if classified := classifyDatabaseLockError(databasePath, err, dbpkg.OperationOpen, openStarted, runtimeSurface); classified != nil {
 				err = classified
 			}
 			printError(stderr, err, formatStr)
@@ -334,15 +343,16 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 
 	// 6. Build the context and invoke the verb.
 	ctx := &DispatchContext{
-		Args:        fs.Args(),
-		ParsedArgs:  parsedArgs,
-		Format:      formatStr,
-		Stdin:       stdin,
-		Stdout:      stdout,
-		Stderr:      stderr,
-		DB:          db,
-		Passthrough: reg.opts.PassthroughStdout,
-		Quiet:       global.Quiet || subQuiet,
+		Args:           fs.Args(),
+		ParsedArgs:     parsedArgs,
+		Format:         formatStr,
+		Stdin:          stdin,
+		Stdout:         stdout,
+		Stderr:         stderr,
+		DB:             db,
+		Passthrough:    reg.opts.PassthroughStdout,
+		Quiet:          global.Quiet || subQuiet,
+		RuntimeSurface: runtimeSurface,
 	}
 	defer func() {
 		if ctx.DB != nil {
@@ -359,7 +369,7 @@ func runRegisteredVerb(reg registeredVerb, args []string, global Options, stdout
 		if reg.opts.DatabaseAccess == DatabaseReadOnly {
 			phase = dbpkg.OperationQuery
 		}
-		if classified := classifyDatabaseLockError(databasePath, err, phase, operationStarted); classified != nil {
+		if classified := classifyDatabaseLockError(databasePath, err, phase, operationStarted, runtimeSurface); classified != nil {
 			err = classified
 		}
 		printError(stderr, err, formatStr)

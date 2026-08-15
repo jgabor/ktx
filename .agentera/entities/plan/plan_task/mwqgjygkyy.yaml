@@ -4,7 +4,7 @@ record:
   name: Establish the configurable structured log sink
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN no [logs] section WHEN any command runs THEN no log path is resolved, no state directory or log file is created, and current behavior is unchanged.
     - GIVEN a [logs] section WHEN settings are resolved THEN omitted level means error, debug through error apply an inclusive severity threshold, off performs no filesystem work, omitted path uses the XDG state log with the standard home-state fallback, a relative path uses the state directory, and an absolute path is honored as an explicit override.
@@ -14,12 +14,12 @@ record:
     - GIVEN malformed, empty, or unknown [logs] settings WHEN configuration is inspected THEN the issue is reported; ordinary commands disable file logging without changing unrelated output, status, accepted persistence, or database behavior.
   plan: lxyymlqiye
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Logging lock acquisition exceeded the 25 ms coordination budget in independent contention runs (25.390471 ms and 25.057914 ms); whole-record and rotation checks otherwise passed.
     provenance:
-      attempt_id: mwqgjygkyy-audit-1
+      attempt_id: mwqgjygkyy-audit-2
       source: audit task ses_ff91ed90bffeg4dRzTUtn3jpCc
-      recorded_at: 2026-08-15 21:28
+      recorded_at: 2026-08-15 21:54
       writer_command: agentera state plan record-evaluation

@@ -66,6 +66,51 @@ type Event interface {
 	logLevel() Level
 }
 
+// DatabaseUnavailable is the closed schema for a database availability error.
+// Executable and database paths and the executable hash are sensitive retained
+// data; they are identifiers, not anonymous telemetry.
+type DatabaseUnavailable struct {
+	RuntimeSurface         string
+	ExecutablePath         string
+	ExecutableSHA256       string
+	DatabasePath           string
+	FailureClass           string
+	OperationPhase         string
+	ElapsedWaitNanoseconds int64
+	Correction             string
+}
+
+type databaseUnavailableRecord struct {
+	Timestamp              string `json:"timestamp"`
+	Level                  string `json:"level"`
+	Event                  string `json:"event"`
+	RuntimeSurface         string `json:"runtime_surface"`
+	ExecutablePath         string `json:"executable_path"`
+	ExecutableSHA256       string `json:"executable_sha256"`
+	DatabasePath           string `json:"database_path"`
+	FailureClass           string `json:"failure_class"`
+	OperationPhase         string `json:"operation_phase"`
+	ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
+	Correction             string `json:"correction"`
+}
+
+func (DatabaseUnavailable) logLevel() Level { return Error }
+func (e DatabaseUnavailable) logRecord(now time.Time) any {
+	return databaseUnavailableRecord{
+		Timestamp:              now.Format(time.RFC3339Nano),
+		Level:                  Error.String(),
+		Event:                  "database-unavailable",
+		RuntimeSurface:         e.RuntimeSurface,
+		ExecutablePath:         e.ExecutablePath,
+		ExecutableSHA256:       e.ExecutableSHA256,
+		DatabasePath:           e.DatabasePath,
+		FailureClass:           e.FailureClass,
+		OperationPhase:         e.OperationPhase,
+		ElapsedWaitNanoseconds: e.ElapsedWaitNanoseconds,
+		Correction:             e.Correction,
+	}
+}
+
 // Sink appends accepted events to one bounded JSON Lines destination.
 type Sink struct {
 	level        Level

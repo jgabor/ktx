@@ -4,7 +4,7 @@ record:
   header:
     level: light
     created: 2026-08-15
-    status: open
+    status: archived
     title: "Plan: Test SQLite-native reader coexistence"
   what: Run a bounded baseline/candidate experiment to determine whether supported read-only commands can coexist with concurrent supported writers after active database retrieval completes, without extending shared ownership through downstream output delivery.
   why: Multiple agents can currently exhaust the bounded database wait when read-only and write-capable commands overlap. The experiment will test a database-wide reader policy rather than another command-specific output-buffering fix.

@@ -1,0 +1,30 @@
+id: hcttarsibl
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-15
+    status: open
+    title: "Plan: Add mixed-agent load measurements"
+  what: Extend the developer-only real-process engineering evidence with matched writers-only and mixed-agent workloads that measure sustained supported database use across concurrent agent streams and read-only queries.
+  why: Existing burst and bounded lock scenarios prove cross-process correctness but do not quantify the contention penalty from several agents producing sequential callbacks while reads occur. Matched workloads will separate normal writer cost from reader-induced contention without touching the active database.
+  constraints: Preserve production database behavior, one binary, one SQLite product database, existing journal and retry policy, supported participant ownership, read-only enforcement, schema and migration safety, evidence authority, and product benchmark semantics. Use only fresh disposable application roots and databases. Do not add WAL, a daemon, queue, spool, dependency, public command, per-agent database, live-database access, or a production performance claim.
+  overall_acceptance: GIVEN matched fixed writers-only and mixed-agent workloads share a fresh disposable database per measured round WHEN engineering verification runs THEN the report shows actual latency, throughput, failure, and contention-penalty values and percentages, proves every participant and accepted record reconciles exactly, and leaves production behavior unchanged.
+  scope:
+    included:
+      - matched writers-only and mixed-agent real-process measurements
+      - four concurrent agent streams with eight sequential hook events per stream
+      - one mixed-mode reader stream with eight read-only queries
+      - start barriers, bounded completion, participant outcomes, and exact reconciliation
+      - success and adverse report validation
+      - engineering documentation and verification integration
+    excluded:
+      - production database or coordination changes
+      - WAL or other journal-mode changes
+      - retry, timeout, schema, or migration changes
+      - daemon, persistent worker, queue, spool, or per-agent database
+      - representative database-size seeding
+      - ambient live-database access
+      - public CLI or product benchmark changes
+  surprises:
+    []

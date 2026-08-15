@@ -1,0 +1,14 @@
+id: ulhmhsffgf
+artifact: plan
+record:
+  name: Add matched mixed-agent load evidence
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN a fresh disposable database and four distinct agent sessions WHEN the writers-only workload runs THEN all four streams start from a common barrier, each submits eight unique hooks sequentially, all 32 hooks complete within the process bound, and expected sources reconcile exactly.
+    - GIVEN the same writer workload and one read-only stream WHEN the mixed workload runs THEN the reader completes eight queries against the shared disposable database, writer and reader outcomes remain independently visible, supported failure codes remain empty, and expected records reconcile exactly.
+    - GIVEN five measured rounds after warm-up WHEN the report is rendered THEN it publishes writers-only and mixed hook p50, p95, p99, maximum latency, throughput, failure rates, and mixed-versus-writers-only contention penalties as actual values and percentages while timing remains descriptive.
+    - GIVEN malformed or incomplete workload evidence WHEN validation runs THEN missing hooks, failed readers, duplicate identities, missing participants, unexpected supported failures, and reconciliation mismatches are rejected; focused tests include at least one passing and one failing case for each new testable contract.
+    - GIVEN the new measurements and validators WHEN repository verification runs THEN the engineering target requires the workloads, uses only disposable database roots, reports zero forbidden database access, and the full test, race, vet, lint, and build checks pass without changing production behavior or existing retained evidence semantics.
+  plan: hcttarsibl

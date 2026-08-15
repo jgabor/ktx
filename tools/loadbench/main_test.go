@@ -142,6 +142,7 @@ func TestBlockedDecompressionReportValidation(t *testing.T) {
 		want string
 	}{
 		{name: "malformed identity", edit: func(report *blockedDecompressionReport) { report.Target.Workload.Name = "blocked-reader-output-v1" }, want: "identity"},
+		{name: "output mismatch", edit: func(report *blockedDecompressionReport) { report.Target.OutputByteExact = false }, want: "byte-exact"},
 		{name: "missing reconciliation", edit: func(report *blockedDecompressionReport) { report.Target.Reconciliation = decompressionReconciliation{} }, want: "reconciliation"},
 		{name: "unsupported failure", edit: func(report *blockedDecompressionReport) { report.Target.HookOutcome = "timed-out" }, want: "unsupported"},
 	}
@@ -170,6 +171,7 @@ func validBlockedDecompressionReport() blockedDecompressionReport {
 			SchemaVersion: blockedDecompressSchema,
 			Workload:      payloadIdentity{Name: "blocked-decompression-output-v1", Bytes: 2 * 1024 * 1024, GeneratorSeed: 6003, SHA256: strings.Repeat("a", 64)},
 			OutputStarted: true, Backpressured: true, HookObservedBeforeOutputRelease: true,
+			OutputBytes: 2 * 1024 * 1024, OutputSHA256: strings.Repeat("a", 64), OutputByteExact: true,
 			HookOutcome: "database-unavailable", HookExitCode: 4, HookLatencyNanoseconds: 1, HookFailureCode: "database-unavailable",
 			Participants: []participant{
 				{Class: "supported-ktx", Role: "blocked-decompression", Outcome: "backpressured"},

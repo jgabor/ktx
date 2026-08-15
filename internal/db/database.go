@@ -226,7 +226,8 @@ func OpenExisting(path string) (*DB, error) {
 // OpenReadOnly opens an existing SQLite database with a single connection.
 // SQLite's mode=ro is the write-enforcement boundary; query_only adds defense
 // in depth. The returned handle holds shared supported-access ownership until
-// Close, so supported writers cannot overlap its SQLite reads.
+// Close, so supported writers cannot overlap its SQLite reads or change the
+// schema after OpenQuery validates it.
 func OpenReadOnly(path string) (*DB, error) {
 	if err := auditDatabaseAccess("open_read_only", path); err != nil {
 		return nil, err

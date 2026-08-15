@@ -4,7 +4,7 @@ record:
   name: Run the bounded reader coexistence experiment
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN fixed multi-process mixed workloads and a fresh disposable database per run WHEN baseline and candidate execute in alternating order through concurrency 32 THEN each report identifies workload, binary, database ownership, actual latency and throughput, percentage changes, failure codes, and exact expected-versus-persisted reconciliation.
     - GIVEN a supported read-only command has completed active database retrieval while downstream output remains backpressured WHEN an unrelated supported hook writes to the same database THEN the candidate hook completes before output release with exit 0, no database-unavailable result, byte-exact reader output, and exact source, artifact, disposition, and session reconciliation.

@@ -29,7 +29,7 @@ import (
 const (
 	reportSchemaVersion       = 2
 	blockedReaderTargetSchema = 1
-	blockedDecompressSchema   = 1
+	blockedDecompressSchema   = 2
 	warmupRounds              = 1
 	measuredRounds            = 5
 	streamEvents              = 8
@@ -74,6 +74,9 @@ type blockedDecompressionTarget struct {
 	OutputStarted                   bool                        `json:"output_started"`
 	Backpressured                   bool                        `json:"backpressured"`
 	HookObservedBeforeOutputRelease bool                        `json:"hook_observed_before_output_release"`
+	OutputBytes                     int                         `json:"output_bytes"`
+	OutputSHA256                    string                      `json:"output_sha256"`
+	OutputByteExact                 bool                        `json:"output_byte_exact"`
 	HookOutcome                     string                      `json:"hook_outcome"`
 	HookExitCode                    int                         `json:"hook_exit_code"`
 	HookLatencyNanoseconds          int64                       `json:"hook_latency_nanoseconds"`
@@ -404,6 +407,9 @@ func validateBlockedDecompressionReport(measured blockedDecompressionReport) err
 	}
 	if !target.OutputStarted || !target.Backpressured || !target.HookObservedBeforeOutputRelease || target.HookLatencyNanoseconds < 0 {
 		return fmt.Errorf("blocked-decompression observation is incomplete")
+	}
+	if !target.OutputByteExact || target.OutputBytes != target.Workload.Bytes || target.OutputSHA256 != target.Workload.SHA256 {
+		return fmt.Errorf("blocked-decompression output is not byte-exact")
 	}
 	if target.HookOutcome != "ok" && target.HookOutcome != "database-unavailable" {
 		return fmt.Errorf("unsupported hook failure %q", target.HookOutcome)
@@ -1078,10 +1084,16 @@ func runBlockedDecompressionTarget(root string, runner processRunner, hookFixtur
 	}
 
 	hook := runner.hook(environment.env, hookPayload(stableID(510001), hookFixture))
-	_ = stdout.Close()
+	output := bytes.NewBuffer([]byte{first[0]})
+	if _, err := io.Copy(output, stdout); err != nil {
+		return blockedDecompressionTarget{}, fmt.Errorf("release decompression output: %w", err)
+	}
 	select {
-	case <-done:
+	case err := <-done:
 		finished = true
+		if err != nil {
+			return blockedDecompressionTarget{}, fmt.Errorf("decompression after output release: %w; stderr=%s", err, stderr.String())
+		}
 	case <-time.After(processTimeout):
 		_ = command.Process.Kill()
 		<-done
@@ -1093,9 +1105,11 @@ func runBlockedDecompressionTarget(root string, runner processRunner, hookFixtur
 	}
 	workload := outputFixture.payloadIdentity
 	workload.Name = "blocked-decompression-output-v1"
+	outputSum := sha256.Sum256(output.Bytes())
 	return blockedDecompressionTarget{
 		SchemaVersion: blockedDecompressSchema, Workload: workload,
 		OutputStarted: true, Backpressured: true, HookObservedBeforeOutputRelease: true,
+		OutputBytes: output.Len(), OutputSHA256: hex.EncodeToString(outputSum[:]), OutputByteExact: bytes.Equal(output.Bytes(), outputFixture.data),
 		HookOutcome: hook.Code, HookExitCode: hook.ExitCode, HookLatencyNanoseconds: hook.LatencyNS, HookFailureCode: failureCode(hook),
 		Participants: []participant{
 			{Class: "supported-ktx", Role: "blocked-decompression", Outcome: "backpressured"},

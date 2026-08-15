@@ -1,0 +1,15 @@
+id: laoiluwhux
+artifact: progress
+record:
+  timestamp: 2026-08-15 17:49
+  type: test
+  phase: build
+  what: Executed and rejected the database-wide reader coexistence candidate, restored production reader ownership, and retained byte-exact blocked-decompression evidence plus a schema-stability regression.
+  context:
+    intent: Determine whether SQLite active-query locking could replace handle-lifetime supported reader ownership under concurrent agents.
+    constraints: Preserve current-schema queries, mixed-version protection, read-only safety, writer coordination, exact evidence authority, and existing journal and retry policy.
+    scope: One temporary reader-ownership candidate, two alternating engineering sequences, one bounded correctness correction, and retained test and harness evidence.
+  discovered: The candidate removed blocked-output writer failures and passed the measured load allowances, but TestOpenQueryKeepsValidatedSchemaStableUntilClose reproduced a hard contract failure. Without the lifetime shared lease, user_version could advance after OpenQuery validation while the old handle remained usable. The candidate was therefore rejected and production ownership was restored.
+  verified: The restored source passes TestOpenQueryKeepsValidatedSchemaStableUntilClose repeatedly and the full internal database suite. Final isolated mage engineeringVerify passed all component, load, blocked-decompression, manifest, and database-safety checks. Final mage check passed tests, race coverage, vet, lint with zero issues, build, and 3557 audited database accesses with forbidden=0 and KTX_DB unset.
+  next: Do not remove handle-lifetime reader ownership without an atomic schema-validation and typed-query boundary. Future contention work should use a separately planned approach that preserves that guarantee.
+  publication_order: 80

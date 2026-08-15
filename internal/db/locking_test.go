@@ -182,6 +182,58 @@ func TestSupportedReaderAndWriterOwnershipAcrossProcesses(t *testing.T) {
 	assertSessionCount(t, path, 2)
 }
 
+func TestOpenQueryKeepsValidatedSchemaStableUntilClose(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "query-schema.db")
+	writer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+
+	reader, err := OpenQuery(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	err = writer.withWriteTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`PRAGMA user_version = ` + strconv.Itoa(schemaVersion+1))
+		return err
+	})
+	cancel()
+	if err == nil {
+		reader.Close()
+		t.Fatal("newer schema became visible through an open query handle")
+	}
+	if !IsDatabaseUnavailable(err) {
+		reader.Close()
+		t.Fatalf("schema transition error = %v, want database unavailable", err)
+	}
+	if version, err := reader.SchemaVersion(); err != nil || version != schemaVersion {
+		reader.Close()
+		t.Fatalf("open query schema = %d, %v; want %d", version, err, schemaVersion)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writer.withWriteTx(context.Background(), func(tx *sql.Tx) error {
+		_, err := tx.Exec(`PRAGMA user_version = ` + strconv.Itoa(schemaVersion+1))
+		return err
+	}); err != nil {
+		t.Fatalf("schema transition after query close: %v", err)
+	}
+	if database, err := OpenQuery(path); err == nil {
+		database.Close()
+		t.Fatal("OpenQuery accepted newer schema")
+	} else {
+		var target *SchemaTooNewError
+		if !errors.As(err, &target) {
+			t.Fatalf("OpenQuery newer schema error = %v", err)
+		}
+	}
+}
+
 func TestSupportedCompatibleMigrationAcrossProcesses(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "stale-coordination.db")
 	initialized, err := Open(path)

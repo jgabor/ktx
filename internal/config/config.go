@@ -155,6 +155,19 @@ type Config struct {
 	// profile. Nil when no [[route]] blocks exist. Profile references and
 	// exit-status values are validated at load time.
 	Routes []RouteRule
+
+	// Logs is non-nil only when a valid [logs] table is present. LogsError
+	// records a fault confined to that table so ordinary config consumers can
+	// continue with logging disabled while `ktx config show` diagnoses it.
+	Logs      *LogConfig
+	LogsError *ParseError
+}
+
+// LogConfig is the validated optional [logs] table. Path is empty when the
+// default state-directory destination is selected.
+type LogConfig struct {
+	Level string
+	Path  string
 }
 
 // ParseError is returned by Load when a discovered ktx.toml contains a syntax
@@ -320,6 +333,9 @@ func loadFile(path string) (*Config, error) {
 		}
 		return nil, &ParseError{Path: path, Line: 0, Msg: err.Error()}
 	}
+	if cfg.LogsError != nil {
+		cfg.LogsError.Path = path
+	}
 	return cfg, nil
 }
 
@@ -334,8 +350,14 @@ type tomlConfig struct {
 		Timeout       string   `toml:"timeout"`
 		RecoverFooter *bool    `toml:"recover_footer"` // nil = default false
 	} `toml:"pipeline"`
-	Plugin []tomlPlugin `toml:"plugin"`
-	Route  []tomlRoute  `toml:"route"`
+	Plugin []tomlPlugin   `toml:"plugin"`
+	Route  []tomlRoute    `toml:"route"`
+	Logs   toml.Primitive `toml:"logs"`
+}
+
+type tomlLogs struct {
+	Level *string `toml:"level"`
+	Path  *string `toml:"path"`
 }
 
 // tomlPlugin maps a single [[plugin]] block. Name and Command are
@@ -365,7 +387,8 @@ type tomlRoute struct {
 // return *ParseError.
 func parse(data []byte) (*Config, error) {
 	var decoded tomlConfig
-	if _, err := toml.Decode(string(data), &decoded); err != nil {
+	metadata, err := toml.Decode(string(data), &decoded)
+	if err != nil {
 		var pe toml.ParseError
 		if errors.As(err, &pe) {
 			return nil, &ParseError{
@@ -419,6 +442,9 @@ func parse(data []byte) (*Config, error) {
 	cfg := &Config{
 		PipelineDefault: profiles["default"].Stages,
 		Profiles:        profiles,
+	}
+	if metadata.IsDefined("logs") {
+		cfg.Logs, cfg.LogsError = parseLogs(metadata, decoded.Logs)
 	}
 
 	for i, p := range decoded.Plugin {
@@ -475,4 +501,37 @@ func parse(data []byte) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func parseLogs(metadata toml.MetaData, primitive toml.Primitive) (*LogConfig, *ParseError) {
+	var raw tomlLogs
+	if err := metadata.PrimitiveDecode(primitive, &raw); err != nil {
+		return nil, &ParseError{Msg: fmt.Sprintf("[logs]: %v", err)}
+	}
+	for _, key := range metadata.Undecoded() {
+		parts := key
+		if len(parts) > 0 && parts[0] == "logs" {
+			return nil, &ParseError{Msg: fmt.Sprintf("[logs] unknown setting %q", key.String())}
+		}
+	}
+	level := "error"
+	if raw.Level != nil {
+		level = *raw.Level
+		if level == "" {
+			return nil, &ParseError{Msg: "[logs] level must not be empty"}
+		}
+	}
+	switch level {
+	case "debug", "info", "warn", "error", "off":
+	default:
+		return nil, &ParseError{Msg: fmt.Sprintf("[logs] level %q is invalid; valid values are debug, info, warn, error, or off", level)}
+	}
+	path := ""
+	if raw.Path != nil {
+		path = *raw.Path
+		if path == "" {
+			return nil, &ParseError{Msg: "[logs] path must not be empty"}
+		}
+	}
+	return &LogConfig{Level: level, Path: path}, nil
 }

@@ -90,6 +90,63 @@ func TestLoad_MissingConfig(t *testing.T) {
 	})
 }
 
+func TestLoad_Logs(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantLevel string
+		wantPath  string
+		wantIssue string
+	}{
+		{name: "absent"},
+		{name: "defaults", body: "[logs]\n", wantLevel: "error"},
+		{name: "configured", body: "[logs]\nlevel = \"warn\"\npath = \"diagnostics/events.jsonl\"\n", wantLevel: "warn", wantPath: "diagnostics/events.jsonl"},
+		{name: "off", body: "[logs]\nlevel = \"off\"\n", wantLevel: "off"},
+		{name: "empty level", body: "[logs]\nlevel = \"\"\n", wantIssue: "level must not be empty"},
+		{name: "empty path", body: "[logs]\npath = \"\"\n", wantIssue: "path must not be empty"},
+		{name: "unknown", body: "[logs]\nformat = \"text\"\n", wantIssue: "unknown setting"},
+		{name: "bad type", body: "[logs]\nlevel = 2\n", wantIssue: "[logs]"},
+		{name: "bad level", body: "[logs]\nlevel = \"trace\"\n", wantIssue: "is invalid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chdirTemp(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			if tt.body != "" {
+				writeUserConfig(t, "[pipeline.default]\nstages = [\"strip-ansi\"]\n\n"+tt.body)
+			}
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if tt.wantIssue != "" {
+				if cfg.LogsError == nil || !strings.Contains(cfg.LogsError.Error(), tt.wantIssue) {
+					t.Fatalf("LogsError = %v, want %q", cfg.LogsError, tt.wantIssue)
+				}
+				if cfg.Logs != nil {
+					t.Fatalf("Logs = %#v, want nil", cfg.Logs)
+				}
+				if got := cfg.PipelineDefault; len(got) != 1 || got[0] != "strip-ansi" {
+					t.Fatalf("unrelated pipeline = %v", got)
+				}
+				return
+			}
+			if tt.body == "" {
+				if cfg.Logs != nil {
+					t.Fatalf("Logs = %#v, want nil", cfg.Logs)
+				}
+				return
+			}
+			if cfg.LogsError != nil || cfg.Logs == nil {
+				t.Fatalf("Logs = %#v, LogsError = %v", cfg.Logs, cfg.LogsError)
+			}
+			if cfg.Logs.Level != tt.wantLevel || cfg.Logs.Path != tt.wantPath {
+				t.Fatalf("Logs = %#v, want level=%q path=%q", cfg.Logs, tt.wantLevel, tt.wantPath)
+			}
+		})
+	}
+}
+
 // TestLoad_UserConfig covers the user-level path: a ktx.toml at
 // $XDG_CONFIG_HOME/ktx/ktx.toml is parsed, the stages array
 // populates PipelineDefault, and the order is preserved.

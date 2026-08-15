@@ -1,0 +1,46 @@
+id: lxyymlqiye
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-15
+    status: open
+    reviewed: 2026-08-15
+    critic_issues: 7 found, 5 addressed, 2 dismissed
+    title: "Plan: Add configurable structured logging"
+  what: Add one generic structured file-logging facility configured through an optional [logs] section with a severity threshold and optional destination path. Use database-unavailable as the first typed production event while preserving current stderr diagnostics and allowing future deliberate event schemas.
+  why: Intermittent runtime failures can disappear with process stderr. A reusable bounded logging sink preserves opted-in diagnostic evidence without adding one-off settings or a broad observability subsystem.
+  constraints: No [logs] section means no file logging. A present section defaults to error and supports debug, info, warn, error, and off. An omitted path uses the XDG state location, with the standard home-state fallback; relative paths resolve beneath that state directory, while an absolute path is an explicit user override. Keep JSON Lines, typed event schemas, private access, bounded retention, and best-effort failure isolation. Existing stderr and stdout, exit codes, executable identity, schema and migration safety, locking, retries, database behavior, and conservative adapter fallback must not change. Never capture arbitrary process streams, payloads, database content, SQL, raw wrapped errors, credentials, or secrets. Do not add OTLP, tracing, metrics export, multiple sinks or formats, per-component levels, environment overrides, daemon behavior, or runtime dependencies.
+  overall_acceptance: GIVEN file logging is explicitly configured WHEN deliberate events meet the selected severity THEN ktx appends private bounded structured records to the resolved regular file, records a sanitized database-unavailable event, and leaves stderr, stdout, command status, database behavior, and adapter fallback unchanged for enabled, disabled, contended, and failed sinks.
+  scope:
+    included:
+      - optional [logs] configuration with level and path
+      - debug, info, warn, error, and off filtering
+      - default XDG state destination and explicit path overrides
+      - typed JSON Lines records with common timestamp, level, and event fields
+      - lazy file creation, private access, concurrent record integrity, and fixed bounded retention
+      - database-unavailable as the first production event
+      - configuration inspection, examples, diagnostic documentation, and hermetic regression evidence
+    excluded:
+      - automatic stdout or stderr capture
+      - arbitrary event field maps
+      - payloads, database rows or content, SQL, raw wrapped errors, credentials, and secrets
+      - OTLP, tracing, metrics export, multiple sinks or formats, and per-component levels
+      - logging environment overrides
+      - locking, timeout, retry, journal, schema, migration, or transaction changes
+      - ambient live-database access
+    deferred:
+      - additional production event schemas beyond database-unavailable
+      - external observability export and tracing
+  design: Resolve logging settings without database access or changes to unrelated command behavior. Filter typed events before lazily opening one private regular file. Serialize concurrent append and rotation so each accepted event remains one complete record, while contention or sink failure drops only the file copy. Keep user-facing diagnostics independent from file logging. Integrate the existing sanitized availability event first, then synchronize configuration, help, examples, and verification evidence.
+  unknowns:
+    - question: Can supported concurrent short-lived ktx processes preserve complete records and bounded rotation within the logging coordination budget on supported local filesystems?
+      affects_task: 1
+      resolve_by: Task 1 must prove the contract with focused concurrent characterization before Task 2 begins; if it cannot, stop and replan rather than weaken record integrity, retention, or command isolation.
+  rejected:
+    - issue: A configured absolute log path conflicts with the XDG state location and must be prohibited.
+      rationale: The XDG state path remains the portable default. The user explicitly requested a configurable destination, so an absolute path is an intentional opt-in override subject to regular-file, database-alias, and private-access checks.
+    - issue: The first event requires runtime surface, failure class, phase, and elapsed wait fields that are not currently authoritative.
+      rationale: The current sanitized database-unavailable contract already carries these bounded fields and the adapter already supplies its runtime surface, so integration does not require inferred timing or new database semantics.
+  surprises:
+    []

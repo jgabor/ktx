@@ -1,0 +1,16 @@
+id: ygyfabyaut
+artifact: progress
+record:
+  timestamp: 2026-08-15 21:20
+  type: feat
+  phase: build
+  what: Established the optional configurable structured JSONL sink and logging-specific configuration validation.
+  context:
+    intent: Establish the configurable structured log sink.
+    constraints: No production event integration or broad documentation synchronization; preserve command and database behavior.
+    unknowns: The required concurrent-process integrity, retention, and coordination gate passed.
+    scope: Optional logs configuration, typed sink, safety, bounded rotation, and focused regression evidence.
+  discovered: Concurrent local-file characterization preserved all records with bounded rotation inside the coordination budget.
+  verified: Focused config, CLI, sink, race, built-binary behavior, and repository checks passed; 800 of 800 concurrent records survived rotation and the latest observed maximum coordination wait was 4.140279ms.
+  next: Leave task mwqgjygkyy pending for orchestrator audit before database-unavailable event integration.
+  publication_order: 84

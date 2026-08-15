@@ -1,0 +1,14 @@
+id: jeujadglta
+artifact: plan
+record:
+  name: Synchronize logging contracts and verification evidence
+  depends_on:
+    - mwqgjygkyy
+    - fxhllbyvqx
+  status: pending
+  acceptance:
+    - GIVEN the feature is complete WHEN configuration is inspected in JSON and text forms THEN existing configuration fields remain compatible and the effective logging state, level, and destination are visible without creating the destination.
+    - GIVEN users consult command help, example configuration, and diagnostic documentation WHEN they configure logging THEN all surfaces agree on default-off behavior, level filtering, destination resolution, JSON Lines shape, fixed retention, private access, sensitive path retention, and stderr independence.
+    - GIVEN enabled, disabled, invalid, contended, concurrent, rotating, and failed sinks WHEN end-to-end verification runs under fresh disposable HOME and XDG roots with KTX_DB unset THEN records remain valid and bounded, prohibited content is absent, command behavior is unchanged, and no ambient database is accessed.
+    - GIVEN all targeted behavior is verified WHEN the repository check and current-state synchronization complete THEN tests, race checks, vet, lint, build, documentation contracts, and exact project evidence all pass.
+  plan: lxyymlqiye

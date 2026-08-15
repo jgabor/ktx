@@ -51,6 +51,9 @@ func configShow(format string, stdout io.Writer) (any, error) {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
+	if cfg.LogsError != nil {
+		return nil, usageError("ktx config show: %v", cfg.LogsError)
+	}
 
 	profiles := cfg.Profiles
 	if profiles == nil {

@@ -111,6 +111,19 @@ profile = "default"
 	}
 }
 
+func TestConfigShow_InvalidLogs(t *testing.T) {
+	configTestEnv(t)
+	hookWriteUserConfig(t, "[logs]\nunknown = true\n")
+
+	code, stdout, stderr := runConfigDispatch(t, []string{"show"})
+	if code != ExitUsage {
+		t.Fatalf("exit=%d, want %d; stdout=%q stderr=%q", code, ExitUsage, stdout, stderr)
+	}
+	if stdout != "" || !strings.Contains(stderr, "[logs] unknown setting") {
+		t.Fatalf("stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
 // TestConfigShow_JSON_DeterministicStages covers a ktx.toml
 // referencing the four deterministic stages surfaces them in the active
 // pipeline.profiles.default.stages array via `ktx config show --json`.

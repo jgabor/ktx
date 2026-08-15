@@ -1,0 +1,15 @@
+id: mwqgjygkyy
+artifact: plan
+record:
+  name: Establish the configurable structured log sink
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN no [logs] section WHEN any command runs THEN no log path is resolved, no state directory or log file is created, and current behavior is unchanged.
+    - GIVEN a [logs] section WHEN settings are resolved THEN omitted level means error, debug through error apply an inclusive severity threshold, off performs no filesystem work, omitted path uses the XDG state log with the standard home-state fallback, a relative path uses the state directory, and an absolute path is honored as an explicit override.
+    - GIVEN an accepted typed event WHEN it is written THEN one valid JSON object no larger than 16 KiB is appended as one line with timestamp, level, event, and only fields allowed by that event schema; below-threshold and oversized events do not create or modify the file.
+    - GIVEN the active file would exceed 5 MiB WHEN the next event is accepted THEN one previous file is retained, total active and previous storage remains bounded, and concurrent supported processes preserve complete non-interleaved records without waiting more than 25 milliseconds for logging coordination.
+    - GIVEN a new or existing destination WHEN logging evaluates it THEN access is private to the current user, non-regular targets and canonical aliases of the active database are rejected, and sink contention or failure changes neither command output nor status.
+    - GIVEN malformed, empty, or unknown [logs] settings WHEN configuration is inspected THEN the issue is reported; ordinary commands disable file logging without changing unrelated output, status, accepted persistence, or database behavior.
+  plan: lxyymlqiye

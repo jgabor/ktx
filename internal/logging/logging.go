@@ -43,26 +43,38 @@ type Config struct {
 // DatabaseUnavailable is the closed database-unavailable event schema.
 // Paths and the executable hash are sensitive retained identifiers.
 type DatabaseUnavailable struct {
-	Command                string
-	ExecutablePath         string
-	ExecutableSHA256       string
-	DatabasePath           string
-	FailureClass           string
-	OperationPhase         string
-	ElapsedWaitNanoseconds int64
+	Command                      string
+	ExecutablePath               string
+	ExecutableSHA256             string
+	DatabasePath                 string
+	FailureClass                 string
+	OperationPhase               string
+	ElapsedWaitNanoseconds       int64
+	CoordinatorRequestedMode     string
+	CoordinatorSnapshotAvailable *bool
+	CoordinatorBlockers          []LockBlocker
+}
+
+// LockBlocker identifies one observed process holding a conflicting flock.
+type LockBlocker struct {
+	PID  int    `json:"pid"`
+	Mode string `json:"mode"`
 }
 
 type databaseUnavailableRecord struct {
-	Timestamp              string `json:"timestamp"`
-	Level                  string `json:"level"`
-	Event                  string `json:"event"`
-	Command                string `json:"ktx_command"`
-	ExecutablePath         string `json:"executable_path"`
-	ExecutableSHA256       string `json:"executable_sha256"`
-	DatabasePath           string `json:"database_path"`
-	FailureClass           string `json:"failure_class"`
-	OperationPhase         string `json:"operation_phase"`
-	ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
+	Timestamp                    string        `json:"timestamp"`
+	Level                        string        `json:"level"`
+	Event                        string        `json:"event"`
+	Command                      string        `json:"ktx_command"`
+	ExecutablePath               string        `json:"executable_path"`
+	ExecutableSHA256             string        `json:"executable_sha256"`
+	DatabasePath                 string        `json:"database_path"`
+	FailureClass                 string        `json:"failure_class"`
+	OperationPhase               string        `json:"operation_phase"`
+	ElapsedWaitNanoseconds       int64         `json:"elapsed_wait_nanoseconds"`
+	CoordinatorRequestedMode     string        `json:"coordinator_requested_mode,omitempty"`
+	CoordinatorSnapshotAvailable *bool         `json:"coordinator_snapshot_available,omitempty"`
+	CoordinatorBlockers          []LockBlocker `json:"coordinator_blockers,omitempty"`
 }
 
 // AppendDatabaseUnavailable makes one best-effort append attempt.
@@ -71,16 +83,19 @@ func AppendDatabaseUnavailable(cfg Config, databasePath string, event DatabaseUn
 		return
 	}
 	record, err := json.Marshal(databaseUnavailableRecord{
-		Timestamp:              time.Now().UTC().Format(time.RFC3339Nano),
-		Level:                  Error.String(),
-		Event:                  "database-unavailable",
-		Command:                event.Command,
-		ExecutablePath:         event.ExecutablePath,
-		ExecutableSHA256:       event.ExecutableSHA256,
-		DatabasePath:           event.DatabasePath,
-		FailureClass:           event.FailureClass,
-		OperationPhase:         event.OperationPhase,
-		ElapsedWaitNanoseconds: event.ElapsedWaitNanoseconds,
+		Timestamp:                    time.Now().UTC().Format(time.RFC3339Nano),
+		Level:                        Error.String(),
+		Event:                        "database-unavailable",
+		Command:                      event.Command,
+		ExecutablePath:               event.ExecutablePath,
+		ExecutableSHA256:             event.ExecutableSHA256,
+		DatabasePath:                 event.DatabasePath,
+		FailureClass:                 event.FailureClass,
+		OperationPhase:               event.OperationPhase,
+		ElapsedWaitNanoseconds:       event.ElapsedWaitNanoseconds,
+		CoordinatorRequestedMode:     event.CoordinatorRequestedMode,
+		CoordinatorSnapshotAvailable: event.CoordinatorSnapshotAvailable,
+		CoordinatorBlockers:          event.CoordinatorBlockers,
 	})
 	if err != nil {
 		return

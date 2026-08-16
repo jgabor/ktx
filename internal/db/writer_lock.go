@@ -10,6 +10,8 @@ import (
 
 const writerLockRetryDelay = 5 * time.Millisecond
 
+const maxReportedLockHolders = 8
+
 var (
 	errWriterLockBusy          = errors.New("writer lock busy")
 	errCoordinationUnavailable = errors.New("database coordination unavailable")
@@ -21,6 +23,39 @@ const (
 	coordinationShared coordinationMode = iota
 	coordinationExclusive
 )
+
+func (m coordinationMode) String() string {
+	if m == coordinationExclusive {
+		return "exclusive"
+	}
+	return "shared"
+}
+
+// LockHolder is bounded ownership information observed for a coordination timeout.
+type LockHolder struct {
+	PID  int
+	Mode string
+}
+
+type coordinationTimeoutError struct {
+	RequestedMode              coordinationMode
+	OwnershipSnapshotAvailable bool
+	LockHolders                []LockHolder
+	err                        error
+}
+
+func (e *coordinationTimeoutError) Error() string { return e.err.Error() }
+func (e *coordinationTimeoutError) Unwrap() error { return e.err }
+
+func newCoordinationTimeout(mode coordinationMode, file *os.File, path string, cause error) error {
+	holders, available := observeLockHolders(file, path, mode)
+	return &coordinationTimeoutError{
+		RequestedMode:              mode,
+		OwnershipSnapshotAvailable: available,
+		LockHolders:                holders,
+		err:                        fmt.Errorf("%w: %w", errCoordinationUnavailable, cause),
+	}
+}
 
 // writerCoordinator coordinates supported shared and exclusive access to one
 // database file. The operating system releases its lock when a process exits.
@@ -41,7 +76,7 @@ type coordinationLease struct{ file *os.File }
 
 func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coordinationMode) (*coordinationLease, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("%w: %w", errCoordinationUnavailable, err)
+		return nil, newCoordinationTimeout(mode, nil, c.path, err)
 	}
 	flags := os.O_RDONLY
 	if mode == coordinationExclusive {
@@ -60,8 +95,9 @@ func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coord
 		if err == nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				_ = unlockWriterFile(file)
+				timeout := newCoordinationTimeout(mode, file, c.path, ctxErr)
 				_ = file.Close()
-				return nil, fmt.Errorf("%w: %w", errCoordinationUnavailable, ctxErr)
+				return nil, timeout
 			}
 			break
 		}
@@ -74,8 +110,9 @@ func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coord
 		case <-timer.C:
 		case <-ctx.Done():
 			timer.Stop()
+			timeout := newCoordinationTimeout(mode, file, c.path, ctx.Err())
 			_ = file.Close()
-			return nil, fmt.Errorf("%w: %w", errCoordinationUnavailable, ctx.Err())
+			return nil, timeout
 		}
 	}
 	return &coordinationLease{file: file}, nil
@@ -94,13 +131,13 @@ func (c *writerCoordinator) withLock(ctx context.Context, create bool, fn func()
 	}
 
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return fmt.Errorf("%w: %w", errCoordinationUnavailable, ctxErr)
+		return newCoordinationTimeout(coordinationExclusive, nil, c.path, ctxErr)
 	}
 	select {
 	case c.mu <- struct{}{}:
 		defer func() { <-c.mu }()
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %w", errCoordinationUnavailable, ctx.Err())
+		return newCoordinationTimeout(coordinationExclusive, nil, c.path, ctx.Err())
 	}
 
 	lease, err := c.acquire(ctx, create, coordinationExclusive)

@@ -34,6 +34,14 @@ The `database-unavailable` record contains only:
 - `operation_phase`
 - `elapsed_wait_nanoseconds`
 
+Coordinator-timeout records also contain `coordinator_requested_mode`
+(`shared` or `exclusive`) and `coordinator_snapshot_available`. On Linux, a
+successful `/proc/locks` snapshot can add up to eight `coordinator_blockers`,
+each containing only `pid` and held `mode`. An available snapshot with no
+matching holder has no blockers; an unavailable snapshot reports
+`coordinator_snapshot_available` as false. Other failure classes keep the
+ten-field record above.
+
 Records do not include tool payloads, database content, SQL, raw driver errors,
 credentials, secrets, or arbitrary fields. Paths and hashes are sensitive
 retained identifiers.

@@ -12,19 +12,23 @@ import (
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/logging"
 )
 
 type databaseUnavailableLogRecord struct {
-	Timestamp              string `json:"timestamp"`
-	Level                  string `json:"level"`
-	Event                  string `json:"event"`
-	Command                string `json:"ktx_command"`
-	ExecutablePath         string `json:"executable_path"`
-	ExecutableSHA256       string `json:"executable_sha256"`
-	DatabasePath           string `json:"database_path"`
-	FailureClass           string `json:"failure_class"`
-	OperationPhase         string `json:"operation_phase"`
-	ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
+	Timestamp                    string                `json:"timestamp"`
+	Level                        string                `json:"level"`
+	Event                        string                `json:"event"`
+	Command                      string                `json:"ktx_command"`
+	ExecutablePath               string                `json:"executable_path"`
+	ExecutableSHA256             string                `json:"executable_sha256"`
+	DatabasePath                 string                `json:"database_path"`
+	FailureClass                 string                `json:"failure_class"`
+	OperationPhase               string                `json:"operation_phase"`
+	ElapsedWaitNanoseconds       int64                 `json:"elapsed_wait_nanoseconds"`
+	CoordinatorRequestedMode     string                `json:"coordinator_requested_mode"`
+	CoordinatorSnapshotAvailable *bool                 `json:"coordinator_snapshot_available"`
+	CoordinatorBlockers          []logging.LockBlocker `json:"coordinator_blockers"`
 }
 
 func TestDatabaseUnavailableLoggingExactlyOnce(t *testing.T) {
@@ -34,7 +38,11 @@ func TestDatabaseUnavailableLoggingExactlyOnce(t *testing.T) {
 	logPath := filepath.Join(root, "events.jsonl")
 	hookWriteUserConfig(t, "[logs]\nlevel = \"error\"\npath = \""+logPath+"\"\n")
 	databasePath := filepath.Join(root, "database.db")
-	details := &dbpkg.DatabaseUnavailable{Class: dbpkg.UnavailableClassCoordinatorTimeout, Phase: dbpkg.OperationQuery, ElapsedWait: 2*time.Second + 2*time.Millisecond}
+	available := false
+	details := &dbpkg.DatabaseUnavailable{
+		Class: dbpkg.UnavailableClassCoordinatorTimeout, Phase: dbpkg.OperationQuery, ElapsedWait: 2*time.Second + 2*time.Millisecond,
+		RequestedLockMode: "exclusive", OwnershipSnapshotAvailable: &available,
+	}
 	failure := databaseUnavailableError(databasePath, "get", details)
 	if typed, ok := failure.(*Error); !ok || typed.Code != CodeDatabaseUnavailable {
 		t.Fatalf("failure = %#v", failure)
@@ -43,7 +51,8 @@ func TestDatabaseUnavailableLoggingExactlyOnce(t *testing.T) {
 	if record.Timestamp == "" || record.Level != "error" || record.Event != "database-unavailable" || record.Command != "get" ||
 		record.ExecutablePath == "" || len(record.ExecutableSHA256) != 64 || record.DatabasePath != databasePath ||
 		record.FailureClass != dbpkg.UnavailableClassCoordinatorTimeout || record.OperationPhase != dbpkg.OperationQuery ||
-		record.ElapsedWaitNanoseconds != details.ElapsedWait.Nanoseconds() {
+		record.ElapsedWaitNanoseconds != details.ElapsedWait.Nanoseconds() || record.CoordinatorRequestedMode != "exclusive" ||
+		record.CoordinatorSnapshotAvailable == nil || *record.CoordinatorSnapshotAvailable {
 		t.Fatalf("record = %#v", record)
 	}
 }

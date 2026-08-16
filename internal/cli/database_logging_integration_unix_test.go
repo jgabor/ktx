@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -101,6 +102,17 @@ func TestGetDatabaseUnavailableLoggingEndToEnd(t *testing.T) {
 	record := readDatabaseUnavailableLog(t, logPath)
 	if record.Command != "get" || record.FailureClass != dbpkg.UnavailableClassCoordinatorTimeout || record.OperationPhase != dbpkg.OperationOpen {
 		t.Fatalf("record = %#v", record)
+	}
+	if record.CoordinatorRequestedMode != "shared" || record.CoordinatorSnapshotAvailable == nil {
+		t.Fatalf("coordinator attribution = %#v", record)
+	}
+	if runtime.GOOS == "linux" {
+		if !*record.CoordinatorSnapshotAvailable || len(record.CoordinatorBlockers) != 1 ||
+			record.CoordinatorBlockers[0].PID != holder.Process.Pid || record.CoordinatorBlockers[0].Mode != "exclusive" {
+			t.Fatalf("linux blockers = %#v, holder pid %d", record, holder.Process.Pid)
+		}
+	} else if *record.CoordinatorSnapshotAvailable || len(record.CoordinatorBlockers) != 0 {
+		t.Fatalf("non-linux snapshot = %#v", record)
 	}
 
 	for name, configBody := range map[string]string{

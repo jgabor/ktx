@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -695,10 +694,11 @@ func TestWriterCoordinatorAcquisitionHonorsContext(t *testing.T) {
 
 func TestDatabaseUnavailableAttributionUsesBoundedPhases(t *testing.T) {
 	for _, phase := range []string{OperationOpen, OperationMigration, OperationSource, OperationArtifact, OperationDisposition, OperationQuery} {
-		raw := fmt.Errorf("%w: %w", errCoordinationUnavailable, context.DeadlineExceeded)
+		raw := newCoordinationTimeout(coordinationExclusive, nil, "", context.DeadlineExceeded)
 		err := AttributeDatabaseUnavailable(phase, time.Now().Add(-time.Millisecond), raw)
 		details, ok := DatabaseUnavailableDetails(err)
-		if !ok || details.Class != UnavailableClassCoordinatorTimeout || details.Phase != phase || details.ElapsedWait <= 0 {
+		if !ok || details.Class != UnavailableClassCoordinatorTimeout || details.Phase != phase || details.ElapsedWait <= 0 ||
+			details.RequestedLockMode != "exclusive" || details.OwnershipSnapshotAvailable == nil || *details.OwnershipSnapshotAvailable {
 			t.Errorf("phase %q attribution = %+v, %v", phase, details, ok)
 		}
 		if !errors.Is(err, context.DeadlineExceeded) {

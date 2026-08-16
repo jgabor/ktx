@@ -138,13 +138,20 @@ func writeDatabaseUnavailableEvent(command, databasePath, executablePath, execut
 			return
 		}
 	}
+	blockers := make([]logging.LockBlocker, len(details.LockHolders))
+	for i, holder := range details.LockHolders {
+		blockers[i] = logging.LockBlocker{PID: holder.PID, Mode: holder.Mode}
+	}
 	logging.AppendDatabaseUnavailable(logging.Config{Level: level, Path: path}, databasePath, logging.DatabaseUnavailable{
-		Command:                command,
-		ExecutablePath:         executablePath,
-		ExecutableSHA256:       executableSHA256,
-		DatabasePath:           databasePath,
-		FailureClass:           details.Class,
-		OperationPhase:         details.Phase,
-		ElapsedWaitNanoseconds: details.ElapsedWait.Nanoseconds(),
+		Command:                      command,
+		ExecutablePath:               executablePath,
+		ExecutableSHA256:             executableSHA256,
+		DatabasePath:                 databasePath,
+		FailureClass:                 details.Class,
+		OperationPhase:               details.Phase,
+		ElapsedWaitNanoseconds:       details.ElapsedWait.Nanoseconds(),
+		CoordinatorRequestedMode:     details.RequestedLockMode,
+		CoordinatorSnapshotAvailable: details.OwnershipSnapshotAvailable,
+		CoordinatorBlockers:          blockers,
 	})
 }

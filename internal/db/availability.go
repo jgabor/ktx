@@ -20,10 +20,13 @@ const (
 
 // DatabaseUnavailable describes a bounded database availability failure.
 type DatabaseUnavailable struct {
-	Class       string
-	Phase       string
-	ElapsedWait time.Duration
-	err         error
+	Class                      string
+	Phase                      string
+	ElapsedWait                time.Duration
+	RequestedLockMode          string
+	OwnershipSnapshotAvailable *bool
+	LockHolders                []LockHolder
+	err                        error
 }
 
 func (e *DatabaseUnavailable) Error() string {
@@ -44,7 +47,15 @@ func AttributeDatabaseUnavailable(phase string, started time.Time, err error) er
 	if errors.Is(err, errCoordinationUnavailable) {
 		class = UnavailableClassCoordinatorTimeout
 	}
-	return &DatabaseUnavailable{Class: class, Phase: phase, ElapsedWait: time.Since(started), err: err}
+	details := &DatabaseUnavailable{Class: class, Phase: phase, ElapsedWait: time.Since(started), err: err}
+	var timeout *coordinationTimeoutError
+	if errors.As(err, &timeout) {
+		available := timeout.OwnershipSnapshotAvailable
+		details.RequestedLockMode = timeout.RequestedMode.String()
+		details.OwnershipSnapshotAvailable = &available
+		details.LockHolders = timeout.LockHolders
+	}
+	return details
 }
 
 // DatabaseUnavailableDetails returns bounded attribution when present.

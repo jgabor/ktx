@@ -64,6 +64,32 @@ func TestAppendDatabaseUnavailable(t *testing.T) {
 	}
 }
 
+func TestAppendDatabaseUnavailableCoordinatorFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	available := true
+	event := testEvent("/tmp/ktx.db")
+	event.CoordinatorRequestedMode = "shared"
+	event.CoordinatorSnapshotAvailable = &available
+	event.CoordinatorBlockers = []LockBlocker{{PID: 42, Mode: "exclusive"}}
+	AppendDatabaseUnavailable(Config{Level: Error, Path: path}, "", event)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	if record["coordinator_requested_mode"] != "shared" || record["coordinator_snapshot_available"] != true {
+		t.Fatalf("record = %#v", record)
+	}
+	blockers, ok := record["coordinator_blockers"].([]any)
+	if !ok || len(blockers) != 1 {
+		t.Fatalf("blockers = %#v", record["coordinator_blockers"])
+	}
+}
+
 func TestOffDoesNoFilesystemWork(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "missing", "events.jsonl")
 	AppendDatabaseUnavailable(Config{Level: Off, Path: path}, "", testEvent("/tmp/ktx.db"))

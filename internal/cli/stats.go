@@ -38,8 +38,8 @@ import (
 const (
 	statsDefaultLimit           = 20
 	statsDefaultWindow          = 30 * time.Minute
-	statsSummarySchemaVersion   = 9
-	statsBreakdownSchemaVersion = 3
+	statsSummarySchemaVersion   = 10
+	statsBreakdownSchemaVersion = 4
 	statsBreakdownDetailedLimit = 100
 )
 
@@ -184,6 +184,7 @@ type statsSummary struct {
 	Calls                      statsSummaryCalls                      `json:"calls"`
 	Tokens                     statsSummaryCompactTokens              `json:"tokens"`
 	PromptCacheTokenHitRatePct statsSummaryPromptCacheTokenHitRatePct `json:"prompt_cache_token_hit_rate_pct"`
+	AgentAttribution           statsAgentAttribution                  `json:"agent_attribution"`
 	Latency                    statsLatency                           `json:"latency"`
 }
 
@@ -193,6 +194,7 @@ type statsBreakdown struct {
 	Window            statsSummaryWindow     `json:"window"`
 	Calls             statsSummaryCalls      `json:"calls"`
 	Outcomes          statsOutcomeTotals     `json:"outcomes"`
+	AgentAttribution  statsAgentAttribution  `json:"agent_attribution"`
 	Tokens            statsSummaryTokens     `json:"tokens"`
 	DeliveryBreakdown statsBreakdownDelivery `json:"delivery_breakdown"`
 	Latency           statsLatency           `json:"latency"`
@@ -217,6 +219,14 @@ type statsOutcomeTotals struct {
 	TotalCalls          int      `json:"total_calls"`
 	ErrorRatePctOfKnown *float64 `json:"error_rate_pct_of_known"`
 	OutcomeCoveragePct  *float64 `json:"outcome_coverage_pct"`
+}
+
+type statsAgentAttribution struct {
+	Authority       string   `json:"authority"`
+	IdentifiedCalls int      `json:"identified_calls"`
+	UnknownCalls    int      `json:"unknown_calls"`
+	TotalCalls      int      `json:"total_calls"`
+	CoveragePct     *float64 `json:"coverage_pct"`
 }
 
 type statsSummaryTokens struct {
@@ -329,6 +339,7 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 			DeliveredEstimated: tokens.DeliveredEstimated,
 		},
 		PromptCacheTokenHitRatePct: aggregateStatsSummaryPromptCacheTokenHitRatePct(cacheRows),
+		AgentAttribution:           aggregateStatsAgentAttribution(rows),
 		Latency:                    aggregateStatsLatency(rows),
 	}
 
@@ -359,6 +370,7 @@ func statsBreakdownLogic(args []string, format string, window time.Duration, now
 		Window:            windowSummary,
 		Calls:             calls,
 		Outcomes:          outcomes,
+		AgentAttribution:  aggregateStatsAgentAttribution(rows),
 		Tokens:            tokens,
 		DeliveryBreakdown: aggregateStatsBreakdown(rows),
 		Latency:           aggregateStatsLatency(rows),
@@ -370,6 +382,23 @@ func statsBreakdownLogic(args []string, format string, window time.Duration, now
 		_ = json.NewEncoder(stdout).Encode(breakdown)
 	}
 	return nil, nil
+}
+
+func aggregateStatsAgentAttribution(rows []dbpkg.StatsSummaryRow) statsAgentAttribution {
+	result := statsAgentAttribution{Authority: "trusted_ingress"}
+	for _, row := range rows {
+		result.TotalCalls++
+		if row.AgentAttributionAuthority == dbpkg.AgentAttributionIdentified {
+			result.IdentifiedCalls++
+		} else {
+			result.UnknownCalls++
+		}
+	}
+	if result.TotalCalls > 0 {
+		coverage := float64(result.IdentifiedCalls) / float64(result.TotalCalls) * 100
+		result.CoveragePct = &coverage
+	}
+	return result
 }
 
 func validateStatsWindowCommand(command string, args []string, format string, window time.Duration, stdout io.Writer, printHelp func(io.Writer)) (bool, error) {
@@ -815,7 +844,7 @@ func printStatsText(w io.Writer, groups []statsGroup) {
 
 func printStatsSummaryText(w io.Writer, summary statsSummary) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_SECONDS\tWINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tCONTRIBUTING_MODEL_STEPS\tLATENCY_STATE\tLATENCY_UNIT\tLATENCY_AUTHORITY\tLATENCY_MEASURED\tLATENCY_UNKNOWN\tLATENCY_MALFORMED\tLATENCY_COVERAGE_PCT\tLATENCY_FROM\tLATENCY_TO\tLATENCY_MIN\tLATENCY_P50\tLATENCY_P95\tLATENCY_MAX\tLATENCY_AVERAGE")
+	fmt.Fprintln(tw, "WINDOW_SECONDS\tWINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tCONTRIBUTING_MODEL_STEPS\tATTRIBUTION_AUTHORITY\tATTRIBUTION_IDENTIFIED\tATTRIBUTION_UNKNOWN\tATTRIBUTION_TOTAL\tATTRIBUTION_COVERAGE_PCT\tLATENCY_STATE\tLATENCY_UNIT\tLATENCY_AUTHORITY\tLATENCY_MEASURED\tLATENCY_UNKNOWN\tLATENCY_MALFORMED\tLATENCY_COVERAGE_PCT\tLATENCY_FROM\tLATENCY_TO\tLATENCY_MIN\tLATENCY_P50\tLATENCY_P95\tLATENCY_MAX\tLATENCY_AVERAGE")
 	fields := []string{
 		strconv.FormatFloat(summary.Window.Seconds, 'f', -1, 64),
 		summary.Window.From,
@@ -826,6 +855,11 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 		strconv.Itoa(summary.Tokens.DeliveredEstimated),
 		formatStatsSummaryPromptCacheTokenHitRatePct(summary.PromptCacheTokenHitRatePct),
 		strconv.Itoa(summary.PromptCacheTokenHitRatePct.ContributingModelSteps),
+		summary.AgentAttribution.Authority,
+		strconv.Itoa(summary.AgentAttribution.IdentifiedCalls),
+		strconv.Itoa(summary.AgentAttribution.UnknownCalls),
+		strconv.Itoa(summary.AgentAttribution.TotalCalls),
+		formatStatsPercent(summary.AgentAttribution.CoveragePct),
 	}
 	fields = append(fields, formatStatsLatencyText(summary.Latency)...)
 	fmt.Fprintln(tw, strings.Join(fields, "\t"))
@@ -834,15 +868,20 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 
 func printStatsBreakdownText(w io.Writer, breakdown statsBreakdown) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tLATENCY_STATE\tLATENCY_UNIT\tLATENCY_AUTHORITY\tLATENCY_MEASURED\tLATENCY_UNKNOWN\tLATENCY_MALFORMED\tLATENCY_COVERAGE_PCT\tLATENCY_FROM\tLATENCY_TO\tLATENCY_MIN\tLATENCY_P50\tLATENCY_P95\tLATENCY_MAX\tLATENCY_AVERAGE")
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%s\n",
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tATTRIBUTION_AUTHORITY\tATTRIBUTION_IDENTIFIED\tATTRIBUTION_UNKNOWN\tATTRIBUTION_TOTAL\tATTRIBUTION_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tLATENCY_STATE\tLATENCY_UNIT\tLATENCY_AUTHORITY\tLATENCY_MEASURED\tLATENCY_UNKNOWN\tLATENCY_MALFORMED\tLATENCY_COVERAGE_PCT\tLATENCY_FROM\tLATENCY_TO\tLATENCY_MIN\tLATENCY_P50\tLATENCY_P95\tLATENCY_MAX\tLATENCY_AVERAGE")
+	fields := []string{
 		breakdown.Window.From, breakdown.Window.To,
-		breakdown.Calls.TotalWithOutput, breakdown.Calls.WithCompressedArtifact,
-		breakdown.Outcomes.SuccessfulCalls, breakdown.Outcomes.ErrorCalls, breakdown.Outcomes.UnknownCalls, breakdown.Outcomes.KnownCalls,
+		strconv.Itoa(breakdown.Calls.TotalWithOutput), strconv.Itoa(breakdown.Calls.WithCompressedArtifact),
+		strconv.Itoa(breakdown.Outcomes.SuccessfulCalls), strconv.Itoa(breakdown.Outcomes.ErrorCalls), strconv.Itoa(breakdown.Outcomes.UnknownCalls), strconv.Itoa(breakdown.Outcomes.KnownCalls),
 		formatStatsPercent(breakdown.Outcomes.ErrorRatePctOfKnown), formatStatsPercent(breakdown.Outcomes.OutcomeCoveragePct),
-		breakdown.Tokens.RawEstimated, breakdown.Tokens.DeliveredEstimated,
-		breakdown.Tokens.RawEstimatedPerSecond, breakdown.Tokens.DeliveredEstimatedPerSecond,
-		formatStatsReduction(breakdown.Tokens.ReductionPercent), strings.Join(formatStatsLatencyText(breakdown.Latency), "\t"))
+		breakdown.AgentAttribution.Authority, strconv.Itoa(breakdown.AgentAttribution.IdentifiedCalls), strconv.Itoa(breakdown.AgentAttribution.UnknownCalls),
+		strconv.Itoa(breakdown.AgentAttribution.TotalCalls), formatStatsPercent(breakdown.AgentAttribution.CoveragePct),
+		strconv.Itoa(breakdown.Tokens.RawEstimated), strconv.Itoa(breakdown.Tokens.DeliveredEstimated),
+		strconv.FormatFloat(breakdown.Tokens.RawEstimatedPerSecond, 'f', 4, 64), strconv.FormatFloat(breakdown.Tokens.DeliveredEstimatedPerSecond, 'f', 4, 64),
+		formatStatsReduction(breakdown.Tokens.ReductionPercent),
+	}
+	fields = append(fields, formatStatsLatencyText(breakdown.Latency)...)
+	fmt.Fprintln(tw, strings.Join(fields, "\t"))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
 
 	fmt.Fprintln(w)
@@ -967,13 +1006,15 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "Latency reports measured, unknown, and malformed call counts, runtime authority,")
 	fmt.Fprintln(w, "measured coverage and contributing bounds, and measured-only millisecond distributions.")
 	fmt.Fprintln(w, "When no measured latency exists, state is unavailable and distribution values are null.")
+	fmt.Fprintln(w, "Agent attribution counts identified only for trusted-ingress authority; every other call is unknown.")
+	fmt.Fprintln(w, "Coverage uses the same output-bearing call population; an empty population has null coverage.")
 	fmt.Fprintln(w, "Use 'ktx stats breakdown' for delivery diagnostics.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 9 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 10 JSON object")
 	fmt.Fprintln(w, "  text            one literal header and row; no separate schema version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
@@ -998,12 +1039,14 @@ func printStatsBreakdownHelp(w io.Writer) {
 	fmt.Fprintln(w, "Latency reports measured, unknown, and malformed call counts, runtime authority,")
 	fmt.Fprintln(w, "measured coverage and contributing bounds, and measured-only millisecond distributions.")
 	fmt.Fprintln(w, "When no measured latency exists, state is unavailable and distribution values are null.")
+	fmt.Fprintln(w, "Agent attribution counts identified only for trusted-ingress authority; every other call is unknown.")
+	fmt.Fprintln(w, "Coverage uses the same output-bearing call population; an empty population has null coverage.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 3 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 4 JSON object")
 	fmt.Fprintln(w, "  text            same current headline fields plus groups; no separate schema version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")

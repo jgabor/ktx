@@ -4,6 +4,7 @@
 
 ### Added
 
+- `ktx stats summary` schema 10 and `ktx stats breakdown` schema 4 report trusted-ingress agent-attribution coverage over the exact output-bearing call population; historical and unverified calls remain unknown, and empty coverage is null.
 - New wrapper sessions record the launched executable as identified ownership; complete recognized OpenCode and Codex hooks can identify reused sessions, while compatibility input remains unknown and the first trusted identity wins.
 - Schema 12 records session attribution authority separately from the existing agent label; historical labels remain readable and migrate as unknown.
 - `ktx stats summary` schema 9 and `ktx stats breakdown` schema 3 report requested-window latency states, runtime provenance, measured coverage and time bounds, and millisecond distributions; unavailable latency remains null.

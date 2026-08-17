@@ -76,19 +76,20 @@ func (d *DB) StatsRows() ([]StatsRow, error) {
 // estimate. HasCompressedArtifact reports retained-artifact coverage even when
 // the selected artifact output is NULL.
 type StatsSummaryRow struct {
-	Tool                  string
-	Input                 string
-	Timestamp             string
-	Profile               string
-	Route                 string
-	Disposition           string
-	IsError               *bool
-	RawChars              int
-	DeliveredChars        int
-	HasCompressedArtifact bool
-	LatencyMs             *int64
-	LatencyState          string
-	LatencyAuthority      string
+	Tool                      string
+	Input                     string
+	Timestamp                 string
+	Profile                   string
+	Route                     string
+	Disposition               string
+	IsError                   *bool
+	RawChars                  int
+	DeliveredChars            int
+	HasCompressedArtifact     bool
+	LatencyMs                 *int64
+	LatencyState              string
+	LatencyAuthority          string
+	AgentAttributionAuthority string
 }
 
 // StatsSummaryCacheRow is one accepted runtime model-step observation in a
@@ -271,10 +272,12 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''), tc.timestamp,
 		       CASE WHEN typeof(tc.is_error) = 'integer' AND tc.is_error IN (0, 1) THEN tc.is_error END,
 		       tc.latency_ms, tc.latency_state, tc.latency_authority,
+		       COALESCE(s.agent_attribution_authority, 'unknown'),
 		       LENGTH(tc.output),
 		       cd.profile, cd.route, cd.disposition,
 		       c.id, LENGTH(c.output)
 		FROM tool_calls tc
+		LEFT JOIN sessions s ON s.id = tc.session_id
 		LEFT JOIN compression_dispositions cd ON cd.source_id = tc.id
 		LEFT JOIN compressed c ON c.id = (
 			SELECT first.id FROM compressed first
@@ -289,19 +292,19 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	}
 	for rows.Next() {
 		var (
-			sourceID                       string
-			tool, input, timestamp         string
-			isError                        sql.NullInt64
-			latency                        sql.NullInt64
-			latencyState, latencyAuthority string
-			rawChars                       int
-			profile, route, disposition    sql.NullString
-			artifactID                     sql.NullString
-			artifactChars                  sql.NullInt64
+			sourceID                                                  string
+			tool, input, timestamp                                    string
+			isError                                                   sql.NullInt64
+			latency                                                   sql.NullInt64
+			latencyState, latencyAuthority, agentAttributionAuthority string
+			rawChars                                                  int
+			profile, route, disposition                               sql.NullString
+			artifactID                                                sql.NullString
+			artifactChars                                             sql.NullInt64
 		)
 		if err := rows.Scan(
 			&sourceID, &tool, &input, &timestamp, &isError,
-			&latency, &latencyState, &latencyAuthority, &rawChars,
+			&latency, &latencyState, &latencyAuthority, &agentAttributionAuthority, &rawChars,
 			&profile, &route, &disposition,
 			&artifactID, &artifactChars,
 		); err != nil {
@@ -320,6 +323,7 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 			current.row.Timestamp = timestamp
 			current.row.LatencyState = latencyState
 			current.row.LatencyAuthority = latencyAuthority
+			current.row.AgentAttributionAuthority = agentAttributionAuthority
 			if latency.Valid {
 				value := latency.Int64
 				current.row.LatencyMs = &value

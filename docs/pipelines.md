@@ -312,11 +312,12 @@ command label rather than exposing raw command text.
 
 `ktx stats summary` emits a compact closed aggregate for periodically polled
 clients. Its JSON contract contains the window, headline call and token totals,
-a runtime-reported `prompt_cache_token_hit_rate_pct`, and latency evidence. The
+a runtime-reported `prompt_cache_token_hit_rate_pct`, agent-attribution coverage,
+and latency evidence. The
 schema is closed: further fields require an intentional schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
-Summary schema 9 omits outcomes, delivery rates, cost views, and cache detail.
-Callers that need delivery groups should invoke the breakdown schema 3 command.
+Summary schema 10 omits outcomes, delivery rates, cost views, and cache detail.
+Callers that need delivery groups should invoke the breakdown schema 4 command.
 
 The summary and breakdown commands use an inclusive trailing window (`[from,
 to]`) ending at one captured wall-clock time. Only calls with non-NULL output and
@@ -359,14 +360,24 @@ When no measured value exists, latency state is `unavailable`, contributing
 bounds and distribution values are `null`, and the distribution count is zero.
 Unsupported ingress remains unknown; ktx does not infer local timing.
 
+Agent-attribution coverage uses this same output-bearing call population.
+`identified_calls` includes only sessions whose attribution authority is
+`identified`, established by trusted ingress. Every other call is unknown,
+including calls from historical or unverified sessions whose agent label is
+non-empty. Identified plus unknown calls reconcile exactly to `total_calls` and
+`calls.total_with_output`. `coverage_pct` is identified calls divided by total
+calls. It is `null` when the population is empty, not a fabricated 0% or 100%.
+Text output reports the same counts, percentage, and `trusted_ingress` authority
+boundary.
+
 The default window is `30m`; `--window` accepts a positive Go duration. The
-current summary JSON contract is schema 9. Retained schema 6 summaries keep
+current summary JSON contract is schema 10. Retained schema 6 summaries keep
 their original bytes and meaning; this read-only query neither migrates nor
-rewrites them. The schema 9 contract is:
+rewrites them. The schema 10 contract is:
 
 ```json
 {
-  "schema_version": 9,
+  "schema_version": 10,
   "window": {
     "seconds": 1800,
     "from": "2026-07-21T11:30:00Z",
@@ -384,6 +395,13 @@ rewrites them. The schema 9 contract is:
     "state": "measured",
     "value": 70,
     "contributing_model_steps": 6
+  },
+  "agent_attribution": {
+    "authority": "trusted_ingress",
+    "identified_calls": 42,
+    "unknown_calls": 9,
+    "total_calls": 51,
+    "coverage_pct": 82.35294117647058
   },
   "latency": {
     "state": "measured",
@@ -413,7 +431,7 @@ the summary:
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -432,6 +450,13 @@ the summary:
     "total_calls": 51,
     "error_rate_pct_of_known": 11.11111111111111,
     "outcome_coverage_pct": 88.23529411764706
+  },
+  "agent_attribution": {
+    "authority": "trusted_ingress",
+    "identified_calls": 42,
+    "unknown_calls": 9,
+    "total_calls": 51,
+    "coverage_pct": 82.35294117647058
   },
   "tokens": {
     "raw_estimated": 37370,
@@ -525,12 +550,13 @@ all-unknown population, error rate is `null`/`-` and coverage is `0`. For an
 all-known population with no errors, error rate is `0` and coverage is `100`.
 Breakdown groups do not carry per-group outcome rates.
 
-Summary schema 9 and breakdown schema 3 supersede their previous structured
+Summary schema 10 and breakdown schema 4 supersede their previous structured
 schemas without a compatibility bridge. Retained schema 6 summaries remain
 unchanged historical evidence. Summary text output has one literal row with its
-window, calls, token totals, `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, and contributing
-model-step count plus latency state, authority, coverage, bounds, and
-distribution; it has no separate schema version.
+window, calls, token totals, `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, contributing
+model-step count, attribution counts and authority, plus latency state,
+authority, coverage, bounds, and distribution; it has no separate schema
+version. Breakdown text also has no separate schema version.
 
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus

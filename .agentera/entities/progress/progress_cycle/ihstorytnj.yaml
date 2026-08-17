@@ -1,0 +1,15 @@
+id: ihstorytnj
+artifact: progress
+record:
+  timestamp: 2026-08-17 22:03
+  type: feat
+  phase: build
+  what: internal/cli/stats.go now reports trusted-ingress attribution in stats summary schema 10 and breakdown schema 4. Identified, unknown, and total calls use StatsSummaryRows, and empty coverage is null.
+  context:
+    intent: Report live attribution coverage over the existing output-bearing statistics population.
+    constraints: Preserve prior trusted-ingress behavior; no rankings, cost allocation, adapters, reconstruction, or database-safety example cleanup.
+    unknowns: none
+    scope: Live stats query, summary and breakdown JSON/text contracts, focused tests, docs, changelog, and plan state.
+  verified: go test ./internal/db ./internal/cli passed; mage check passed with 0 issues; isolated ./build/ktx stats summary JSON/text runs reconciled 1 identified call and rendered empty coverage as null.
+  next: Orchestrate must persist the audit verdict before this task can complete.
+  publication_order: 103

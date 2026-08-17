@@ -126,7 +126,10 @@ omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
 
-Summary schema 9 is compact. The breakdown schema 3 includes aggregate `outcomes`.
+Summary schema 10 is compact. The breakdown schema 4 includes aggregate `outcomes`.
+Both report trusted ingress attribution coverage over the same output-bearing
+call population. Historical and unverified sessions remain unknown. Text output
+has no separate schema version.
 Retained schema 6 summaries remain historical bytes and are not migrated or
 rewritten by the read-only summary query. The breakdown population is the same
 calls counted by `total_with_output`: non-null output and a valid RFC3339

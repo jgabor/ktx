@@ -212,7 +212,8 @@ func TestStatsSummaryRowsNormalizesOutcomeStorageClasses(t *testing.T) {
 	}
 	t.Cleanup(func() { database.Close() })
 	if _, err := database.Exec(`
-		CREATE TABLE tool_calls (id TEXT PRIMARY KEY, tool TEXT, input TEXT, output TEXT, timestamp TEXT, is_error, latency_ms INTEGER, latency_state TEXT NOT NULL DEFAULT 'unknown', latency_authority TEXT NOT NULL DEFAULT 'unknown');
+		CREATE TABLE sessions (id TEXT PRIMARY KEY, agent_attribution_authority TEXT NOT NULL DEFAULT 'unknown');
+		CREATE TABLE tool_calls (id TEXT PRIMARY KEY, session_id TEXT, tool TEXT, input TEXT, output TEXT, timestamp TEXT, is_error, latency_ms INTEGER, latency_state TEXT NOT NULL DEFAULT 'unknown', latency_authority TEXT NOT NULL DEFAULT 'unknown');
 		CREATE TABLE compression_dispositions (source_id TEXT PRIMARY KEY, profile TEXT, route TEXT, disposition TEXT);
 		CREATE TABLE compressed (id TEXT PRIMARY KEY, source_id TEXT, output TEXT, timestamp TEXT);
 	`); err != nil {

@@ -190,9 +190,11 @@ delivered estimated tokens. `stats summary` accepts positive Go durations such
 as `30m`, `24h`, or `72h`. `stats breakdown` uses the same window syntax and
 reports bounded delivery groups by safe command dimensions, profile, route,
 disposition, and raw-output-size band; it does not include cache telemetry.
-Summary schema 9 is a compact closed object with window, call totals, estimated
-token totals, `prompt_cache_token_hit_rate_pct`, and latency evidence. Breakdown JSON schema 3 retains aggregate
-outcomes and delivery groups. Summary text renders only its literal fields and
+Summary schema 10 is a compact closed object with window, call totals, estimated
+token totals, `prompt_cache_token_hit_rate_pct`, attribution coverage, and
+latency evidence. Breakdown JSON schema 4 retains aggregate outcomes and
+delivery groups. Both use the same output-bearing call population, count only
+trusted ingress authority as identified, and leave empty coverage null. Summary text renders only its literal fields and
 has no separate schema version. `prompt_cache_token_hit_rate_pct` is runtime-reported
 cache-read token evidence in percentage units, not a provider request hit rate.
 It keeps measured zero as zero; missing, malformed, and not-applicable evidence

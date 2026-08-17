@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"sort"
 	"strconv"
@@ -37,8 +38,8 @@ import (
 const (
 	statsDefaultLimit           = 20
 	statsDefaultWindow          = 30 * time.Minute
-	statsSummarySchemaVersion   = 8
-	statsBreakdownSchemaVersion = 2
+	statsSummarySchemaVersion   = 9
+	statsBreakdownSchemaVersion = 3
 	statsBreakdownDetailedLimit = 100
 )
 
@@ -183,6 +184,7 @@ type statsSummary struct {
 	Calls                      statsSummaryCalls                      `json:"calls"`
 	Tokens                     statsSummaryCompactTokens              `json:"tokens"`
 	PromptCacheTokenHitRatePct statsSummaryPromptCacheTokenHitRatePct `json:"prompt_cache_token_hit_rate_pct"`
+	Latency                    statsLatency                           `json:"latency"`
 }
 
 type statsBreakdown struct {
@@ -193,6 +195,7 @@ type statsBreakdown struct {
 	Outcomes          statsOutcomeTotals     `json:"outcomes"`
 	Tokens            statsSummaryTokens     `json:"tokens"`
 	DeliveryBreakdown statsBreakdownDelivery `json:"delivery_breakdown"`
+	Latency           statsLatency           `json:"latency"`
 }
 
 type statsSummaryWindow struct {
@@ -233,6 +236,29 @@ type statsSummaryPromptCacheTokenHitRatePct struct {
 	State                  string   `json:"state"`
 	Value                  *float64 `json:"value"`
 	ContributingModelSteps int      `json:"contributing_model_steps"`
+}
+
+type statsLatency struct {
+	State            string                   `json:"state"`
+	Unit             string                   `json:"unit"`
+	Authority        string                   `json:"authority"`
+	MeasuredCalls    int                      `json:"measured_calls"`
+	UnknownCalls     int                      `json:"unknown_calls"`
+	MalformedCalls   int                      `json:"malformed_calls"`
+	TotalCalls       int                      `json:"total_calls"`
+	CoveragePct      *float64                 `json:"coverage_pct"`
+	ContributingFrom *string                  `json:"contributing_from"`
+	ContributingTo   *string                  `json:"contributing_to"`
+	Distribution     statsLatencyDistribution `json:"distribution_ms"`
+}
+
+type statsLatencyDistribution struct {
+	Count   int      `json:"count"`
+	Min     *float64 `json:"min"`
+	P50     *float64 `json:"p50"`
+	P95     *float64 `json:"p95"`
+	Max     *float64 `json:"max"`
+	Average *float64 `json:"average"`
 }
 
 type statsBreakdownDelivery struct {
@@ -303,6 +329,7 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 			DeliveredEstimated: tokens.DeliveredEstimated,
 		},
 		PromptCacheTokenHitRatePct: aggregateStatsSummaryPromptCacheTokenHitRatePct(cacheRows),
+		Latency:                    aggregateStatsLatency(rows),
 	}
 
 	if format == FormatText {
@@ -334,6 +361,7 @@ func statsBreakdownLogic(args []string, format string, window time.Duration, now
 		Outcomes:          outcomes,
 		Tokens:            tokens,
 		DeliveryBreakdown: aggregateStatsBreakdown(rows),
+		Latency:           aggregateStatsLatency(rows),
 	}
 
 	if format == FormatText {
@@ -413,6 +441,66 @@ func aggregateStatsWindow(rows []dbpkg.StatsSummaryRow, window time.Duration, no
 		tokens.ReductionPercent = &reduction
 	}
 	return windowSummary, calls, outcomes, tokens
+}
+
+func aggregateStatsLatency(rows []dbpkg.StatsSummaryRow) statsLatency {
+	result := statsLatency{State: "unavailable", Unit: dbpkg.LatencyUnitMilliseconds, Authority: dbpkg.LatencyAuthorityRuntime}
+	values := make([]float64, 0, len(rows))
+	var first, last string
+	for _, row := range rows {
+		result.TotalCalls++
+		switch row.LatencyState {
+		case dbpkg.LatencyStateMeasured:
+			if row.LatencyMs == nil || row.LatencyAuthority != dbpkg.LatencyAuthorityRuntime {
+				result.MalformedCalls++
+				continue
+			}
+			result.MeasuredCalls++
+			values = append(values, float64(*row.LatencyMs))
+			if first == "" || row.Timestamp < first {
+				first = row.Timestamp
+			}
+			if last == "" || row.Timestamp > last {
+				last = row.Timestamp
+			}
+		case dbpkg.LatencyStateMalformed:
+			result.MalformedCalls++
+		default:
+			result.UnknownCalls++
+		}
+	}
+	if result.TotalCalls > 0 {
+		coverage := float64(result.MeasuredCalls) / float64(result.TotalCalls) * 100
+		result.CoveragePct = &coverage
+	}
+	result.Distribution.Count = len(values)
+	if len(values) == 0 {
+		return result
+	}
+	result.State = "measured"
+	result.ContributingFrom, result.ContributingTo = &first, &last
+	sort.Float64s(values)
+	min, max := values[0], values[len(values)-1]
+	p50, p95 := statsPercentile(values, .5), statsPercentile(values, .95)
+	total := 0.0
+	for _, value := range values {
+		total += value
+	}
+	average := math.Round(total/float64(len(values))*100) / 100
+	result.Distribution.Min, result.Distribution.P50 = &min, &p50
+	result.Distribution.P95, result.Distribution.Max = &p95, &max
+	result.Distribution.Average = &average
+	return result
+}
+
+func statsPercentile(values []float64, fraction float64) float64 {
+	position := float64(len(values)-1) * fraction
+	lower, upper := int(math.Floor(position)), int(math.Ceil(position))
+	value := values[lower]
+	if lower != upper {
+		value += (values[upper] - value) * (position - float64(lower))
+	}
+	return math.Round(value*100) / 100
 }
 
 func estimatedTokens(characters int) int {
@@ -720,8 +808,8 @@ func printStatsText(w io.Writer, groups []statsGroup) {
 
 func printStatsSummaryText(w io.Writer, summary statsSummary) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_SECONDS\tWINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tCONTRIBUTING_MODEL_STEPS")
-	fmt.Fprintln(tw, strings.Join([]string{
+	fmt.Fprintln(tw, "WINDOW_SECONDS\tWINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tRAW_TOK\tDELIVERED_TOK\tPROMPT_CACHE_TOKEN_HIT_RATE_PCT\tCONTRIBUTING_MODEL_STEPS\tLATENCY_STATE\tLATENCY_UNIT\tLATENCY_AUTHORITY\tLATENCY_MEASURED\tLATENCY_UNKNOWN\tLATENCY_MALFORMED\tLATENCY_COVERAGE_PCT\tLATENCY_FROM\tLATENCY_TO\tLATENCY_MIN\tLATENCY_P50\tLATENCY_P95\tLATENCY_MAX\tLATENCY_AVERAGE")
+	fields := []string{
 		strconv.FormatFloat(summary.Window.Seconds, 'f', -1, 64),
 		summary.Window.From,
 		summary.Window.To,
@@ -731,21 +819,23 @@ func printStatsSummaryText(w io.Writer, summary statsSummary) {
 		strconv.Itoa(summary.Tokens.DeliveredEstimated),
 		formatStatsSummaryPromptCacheTokenHitRatePct(summary.PromptCacheTokenHitRatePct),
 		strconv.Itoa(summary.PromptCacheTokenHitRatePct.ContributingModelSteps),
-	}, "\t"))
+	}
+	fields = append(fields, formatStatsLatencyText(summary.Latency)...)
+	fmt.Fprintln(tw, strings.Join(fields, "\t"))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
 }
 
 func printStatsBreakdownText(w io.Writer, breakdown statsBreakdown) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT")
-	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\n",
+	fmt.Fprintln(tw, "WINDOW_FROM\tWINDOW_TO\tCALLS\tCOMPRESSED\tSUCCESSFUL\tERROR\tUNKNOWN\tKNOWN\tERROR_PCT_KNOWN\tOUTCOME_COVERAGE_PCT\tRAW_TOK\tDELIVERED_TOK\tRAW_TPS\tDELIVERED_TPS\tREDUCTION_PCT\tLATENCY_STATE\tLATENCY_UNIT\tLATENCY_AUTHORITY\tLATENCY_MEASURED\tLATENCY_UNKNOWN\tLATENCY_MALFORMED\tLATENCY_COVERAGE_PCT\tLATENCY_FROM\tLATENCY_TO\tLATENCY_MIN\tLATENCY_P50\tLATENCY_P95\tLATENCY_MAX\tLATENCY_AVERAGE")
+	fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t%.4f\t%.4f\t%s\t%s\n",
 		breakdown.Window.From, breakdown.Window.To,
 		breakdown.Calls.TotalWithOutput, breakdown.Calls.WithCompressedArtifact,
 		breakdown.Outcomes.SuccessfulCalls, breakdown.Outcomes.ErrorCalls, breakdown.Outcomes.UnknownCalls, breakdown.Outcomes.KnownCalls,
 		formatStatsPercent(breakdown.Outcomes.ErrorRatePctOfKnown), formatStatsPercent(breakdown.Outcomes.OutcomeCoveragePct),
 		breakdown.Tokens.RawEstimated, breakdown.Tokens.DeliveredEstimated,
 		breakdown.Tokens.RawEstimatedPerSecond, breakdown.Tokens.DeliveredEstimatedPerSecond,
-		formatStatsReduction(breakdown.Tokens.ReductionPercent))
+		formatStatsReduction(breakdown.Tokens.ReductionPercent), strings.Join(formatStatsLatencyText(breakdown.Latency), "\t"))
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
 
 	fmt.Fprintln(w)
@@ -763,6 +853,28 @@ func printStatsBreakdownText(w io.Writer, breakdown statsBreakdown) {
 			other.Calls, other.WithCompressedArtifact, other.RawEstimated, other.DeliveredEstimated)
 	}
 	tw.Flush() //nolint:errcheck // best-effort formatting; errors are not actionable
+}
+
+func formatStatsLatencyText(latency statsLatency) []string {
+	value := func(v *float64) string {
+		if v == nil {
+			return "-"
+		}
+		return strconv.FormatFloat(*v, 'f', -1, 64)
+	}
+	text := func(v *string) string {
+		if v == nil {
+			return "-"
+		}
+		return *v
+	}
+	return []string{
+		latency.State, latency.Unit, latency.Authority,
+		strconv.Itoa(latency.MeasuredCalls), strconv.Itoa(latency.UnknownCalls), strconv.Itoa(latency.MalformedCalls),
+		value(latency.CoveragePct), text(latency.ContributingFrom), text(latency.ContributingTo),
+		value(latency.Distribution.Min), value(latency.Distribution.P50), value(latency.Distribution.P95),
+		value(latency.Distribution.Max), value(latency.Distribution.Average),
+	}
 }
 
 func formatStatsReduction(reduction *float64) string {
@@ -845,13 +957,16 @@ func printStatsSummaryHelp(w io.Writer) {
 	fmt.Fprintln(w, "for the supported runtime contract, weighting them by tokens rather than averaging rates.")
 	fmt.Fprintln(w, "This is token-weighted runtime reporting,")
 	fmt.Fprintln(w, "not a provider request hit rate or cache-internal claim.")
+	fmt.Fprintln(w, "Latency reports measured, unknown, and malformed call counts, runtime authority,")
+	fmt.Fprintln(w, "measured coverage and contributing bounds, and measured-only millisecond distributions.")
+	fmt.Fprintln(w, "When no measured latency exists, state is unavailable and distribution values are null.")
 	fmt.Fprintln(w, "Use 'ktx stats breakdown' for delivery diagnostics.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 8 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 9 JSON object")
 	fmt.Fprintln(w, "  text            one literal header and row; no separate schema version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
@@ -873,12 +988,15 @@ func printStatsBreakdownHelp(w io.Writer) {
 	fmt.Fprintln(w, "exit_code is diagnostic only. Known is success+error; total is known+unknown.")
 	fmt.Fprintln(w, "Empty percentages are null/-; all-unknown is null/- error and 0 coverage.")
 	fmt.Fprintln(w, "Detailed groups do not report per-group outcome rates.")
+	fmt.Fprintln(w, "Latency reports measured, unknown, and malformed call counts, runtime authority,")
+	fmt.Fprintln(w, "measured coverage and contributing bounds, and measured-only millisecond distributions.")
+	fmt.Fprintln(w, "When no measured latency exists, state is unavailable and distribution values are null.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --window DURATION  positive Go duration (default 30m)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
-	fmt.Fprintln(w, "  json (default)  schema_version 2 JSON object")
+	fmt.Fprintln(w, "  json (default)  schema_version 3 JSON object")
 	fmt.Fprintln(w, "  text            same current headline fields plus groups; no separate schema version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")

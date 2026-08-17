@@ -290,7 +290,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v\noutput: %s", err, buf.String())
 		}
-		if got.SchemaVersion != 8 {
+		if got.SchemaVersion != 9 {
 			t.Errorf("metadata = %+v", got)
 		}
 		if got.Window.Seconds != 1800 || got.Window.From != now.Add(-30*time.Minute).Format(time.RFC3339Nano) || got.Window.To != now.Format(time.RFC3339Nano) {
@@ -830,7 +830,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 	})
 
-	t.Run("summary JSON schema has only the compact version 8 contract keys", func(t *testing.T) {
+	t.Run("summary JSON schema has only the compact version 9 contract keys", func(t *testing.T) {
 		db := openMemoryDB(t)
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -840,17 +840,17 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		if got["schema_version"] != float64(8) {
-			t.Errorf("schema_version = %v, want 8", got["schema_version"])
+		if got["schema_version"] != float64(9) {
+			t.Errorf("schema_version = %v, want 9", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "window", "calls", "tokens", "prompt_cache_token_hit_rate_pct")
+		assertStatsJSONKeys(t, got, "schema_version", "window", "calls", "tokens", "prompt_cache_token_hit_rate_pct", "latency")
 		assertStatsJSONKeys(t, got["window"].(map[string]any), "seconds", "from", "to")
 		assertStatsJSONKeys(t, got["calls"].(map[string]any), "total_with_output", "with_compressed_artifact")
 		assertStatsJSONKeys(t, got["tokens"].(map[string]any), "raw_estimated", "delivered_estimated")
 		assertStatsJSONKeys(t, got["prompt_cache_token_hit_rate_pct"].(map[string]any), "state", "value", "contributing_model_steps")
 	})
 
-	t.Run("breakdown JSON schema contains the detailed version 2 contract", func(t *testing.T) {
+	t.Run("breakdown JSON schema contains the detailed version 3 contract", func(t *testing.T) {
 		db := openMemoryDB(t)
 		sid := seedSession(t, db)
 		seedCalls(t, db, sid, []callSeed{{tool: "read", output: "result"}})
@@ -862,10 +862,10 @@ func TestStatsWindowLogic(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Fatalf("json unmarshal: %v", err)
 		}
-		if got["schema_version"] != float64(2) {
-			t.Errorf("schema_version = %v, want 2", got["schema_version"])
+		if got["schema_version"] != float64(3) {
+			t.Errorf("schema_version = %v, want 3", got["schema_version"])
 		}
-		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "delivery_breakdown")
+		assertStatsJSONKeys(t, got, "schema_version", "generated_at", "window", "calls", "outcomes", "tokens", "delivery_breakdown", "latency")
 		assertStatsJSONKeys(t, got["outcomes"].(map[string]any), "successful_calls", "error_calls", "unknown_calls", "known_calls", "total_calls", "error_rate_pct_of_known", "outcome_coverage_pct")
 		delivery := got["delivery_breakdown"].(map[string]any)
 		assertStatsJSONKeys(t, delivery, "detailed_group_limit", "distinct_groups", "omitted_distinct_groups", "groups", "other")
@@ -895,7 +895,7 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsSummaryLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &summaryHelp); err != nil {
 			t.Fatalf("help: %v", err)
 		}
-		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 8") || !strings.Contains(summaryHelp.String(), "compact") || !strings.Contains(summaryHelp.String(), "prompt_cache_token_hit_rate_pct") || !strings.Contains(summaryHelp.String(), "percentage units") || !strings.Contains(summaryHelp.String(), "measured zero") || !strings.Contains(summaryHelp.String(), "all accepted models and providers") || !strings.Contains(summaryHelp.String(), "weighting them by tokens") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || strings.Contains(summaryHelp.String(), "cache_read_share") || strings.Contains(summaryHelp.String(), "sum(cache_read)") || strings.Contains(summaryHelp.String(), "runtime_reported_cost_usd") || strings.Contains(summaryHelp.String(), "api_equivalent_estimated_cost_usd") {
+		if !strings.Contains(summaryHelp.String(), "ktx stats summary") || !strings.Contains(summaryHelp.String(), "schema_version 9") || !strings.Contains(summaryHelp.String(), "compact") || !strings.Contains(summaryHelp.String(), "prompt_cache_token_hit_rate_pct") || !strings.Contains(summaryHelp.String(), "percentage units") || !strings.Contains(summaryHelp.String(), "measured zero") || !strings.Contains(summaryHelp.String(), "all accepted models and providers") || !strings.Contains(summaryHelp.String(), "weighting them by tokens") || !strings.Contains(summaryHelp.String(), "provider request hit rate") || strings.Contains(summaryHelp.String(), "cache_read_share") || strings.Contains(summaryHelp.String(), "sum(cache_read)") || strings.Contains(summaryHelp.String(), "runtime_reported_cost_usd") || strings.Contains(summaryHelp.String(), "api_equivalent_estimated_cost_usd") {
 			t.Errorf("summary help = %q", summaryHelp.String())
 		}
 
@@ -910,10 +910,42 @@ func TestStatsWindowLogic(t *testing.T) {
 		if _, err := statsBreakdownLogic([]string{"--help"}, FormatJSON, 30*time.Minute, now, db, &breakdownHelp); err != nil {
 			t.Fatalf("breakdown help: %v", err)
 		}
-		if !strings.Contains(breakdownHelp.String(), "ktx stats breakdown") || !strings.Contains(breakdownHelp.String(), "schema_version 2") || !strings.Contains(breakdownHelp.String(), "up to 100") {
+		if !strings.Contains(breakdownHelp.String(), "ktx stats breakdown") || !strings.Contains(breakdownHelp.String(), "schema_version 3") || !strings.Contains(breakdownHelp.String(), "up to 100") {
 			t.Errorf("breakdown help = %q", breakdownHelp.String())
 		}
 	})
+}
+
+func TestLatencyStatisticsJSONAndText(t *testing.T) {
+	measured := int64(25)
+	rows := []dbpkg.StatsSummaryRow{
+		{Timestamp: "2026-07-12T00:00:01Z", LatencyMs: &measured, LatencyState: dbpkg.LatencyStateMeasured, LatencyAuthority: dbpkg.LatencyAuthorityRuntime},
+		{Timestamp: "2026-07-12T00:00:02Z", LatencyState: dbpkg.LatencyStateMalformed, LatencyAuthority: dbpkg.LatencyAuthorityRuntime},
+	}
+	latency := aggregateStatsLatency(rows)
+	if latency.MeasuredCalls != 1 || latency.MalformedCalls != 1 || latency.UnknownCalls != 0 || latency.CoveragePct == nil || *latency.CoveragePct != 50 || latency.Distribution.Min == nil || *latency.Distribution.Min != 25 {
+		t.Fatalf("measured latency = %+v", latency)
+	}
+	encoded, err := json.Marshal(statsSummary{Latency: latency})
+	if err != nil || !strings.Contains(string(encoded), `"state":"measured"`) || !strings.Contains(string(encoded), `"malformed_calls":1`) || !strings.Contains(string(encoded), `"min":25`) {
+		t.Fatalf("JSON latency = %s, err %v", encoded, err)
+	}
+	var text bytes.Buffer
+	printStatsBreakdownText(&text, statsBreakdown{Latency: latency})
+	if !strings.Contains(text.String(), "LATENCY_STATE") || !strings.Contains(text.String(), "measured") || !strings.Contains(text.String(), "milliseconds") {
+		t.Fatalf("text latency = %q", text.String())
+	}
+
+	unavailable := aggregateStatsLatency([]dbpkg.StatsSummaryRow{{LatencyState: dbpkg.LatencyStateUnknown, LatencyAuthority: dbpkg.LatencyAuthorityUnknown}})
+	encoded, err = json.Marshal(statsSummary{Latency: unavailable})
+	if err != nil || !strings.Contains(string(encoded), `"state":"unavailable"`) || !strings.Contains(string(encoded), `"min":null`) {
+		t.Fatalf("unavailable JSON latency = %s, err %v", encoded, err)
+	}
+	text.Reset()
+	printStatsSummaryText(&text, statsSummary{Latency: unavailable})
+	if !strings.Contains(text.String(), "unavailable") || !strings.Contains(text.String(), "milliseconds") {
+		t.Fatalf("unavailable text latency = %q", text.String())
+	}
 }
 
 func TestStatsCommandDispatchesWindowViews(t *testing.T) {

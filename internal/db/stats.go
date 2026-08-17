@@ -78,6 +78,7 @@ func (d *DB) StatsRows() ([]StatsRow, error) {
 type StatsSummaryRow struct {
 	Tool                  string
 	Input                 string
+	Timestamp             string
 	Profile               string
 	Route                 string
 	Disposition           string
@@ -85,6 +86,9 @@ type StatsSummaryRow struct {
 	RawChars              int
 	DeliveredChars        int
 	HasCompressedArtifact bool
+	LatencyMs             *int64
+	LatencyState          string
+	LatencyAuthority      string
 }
 
 // StatsSummaryCacheRow is one accepted runtime model-step observation in a
@@ -264,8 +268,9 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	}
 
 	rows, err := database.Query(`
-		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''),
+		SELECT tc.id, COALESCE(tc.tool, ''), COALESCE(tc.input, ''), tc.timestamp,
 		       CASE WHEN typeof(tc.is_error) = 'integer' AND tc.is_error IN (0, 1) THEN tc.is_error END,
+		       tc.latency_ms, tc.latency_state, tc.latency_authority,
 		       LENGTH(tc.output),
 		       cd.profile, cd.route, cd.disposition,
 		       c.id, LENGTH(c.output)
@@ -284,16 +289,19 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 	}
 	for rows.Next() {
 		var (
-			sourceID                    string
-			tool, input                 string
-			isError                     sql.NullInt64
-			rawChars                    int
-			profile, route, disposition sql.NullString
-			artifactID                  sql.NullString
-			artifactChars               sql.NullInt64
+			sourceID                       string
+			tool, input, timestamp         string
+			isError                        sql.NullInt64
+			latency                        sql.NullInt64
+			latencyState, latencyAuthority string
+			rawChars                       int
+			profile, route, disposition    sql.NullString
+			artifactID                     sql.NullString
+			artifactChars                  sql.NullInt64
 		)
 		if err := rows.Scan(
-			&sourceID, &tool, &input, &isError, &rawChars,
+			&sourceID, &tool, &input, &timestamp, &isError,
+			&latency, &latencyState, &latencyAuthority, &rawChars,
 			&profile, &route, &disposition,
 			&artifactID, &artifactChars,
 		); err != nil {
@@ -309,6 +317,13 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 			current.rawSet = true
 			current.row.Tool = tool
 			current.row.Input = input
+			current.row.Timestamp = timestamp
+			current.row.LatencyState = latencyState
+			current.row.LatencyAuthority = latencyAuthority
+			if latency.Valid {
+				value := latency.Int64
+				current.row.LatencyMs = &value
+			}
 			if isError.Valid && (isError.Int64 == 0 || isError.Int64 == 1) {
 				value := isError.Int64 == 1
 				current.row.IsError = &value

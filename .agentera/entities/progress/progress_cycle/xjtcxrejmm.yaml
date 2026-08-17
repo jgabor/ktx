@@ -1,0 +1,15 @@
+id: xjtcxrejmm
+artifact: progress
+record:
+  timestamp: 2026-08-17 19:52
+  type: feat
+  phase: build
+  what: internal/cli/stats.go now publishes requested-window latency state counts, measured coverage and bounds, runtime authority, and millisecond distributions in stats summary and breakdown.
+  context:
+    intent: Publish live latency statistics without changing collection or migration behavior.
+    constraints: Keep kechhdkfah in progress for orchestrator evaluation; preserve legacy dbreport behavior.
+    unknowns: None remaining in implementation scope.
+    scope: Windowed stats query, summary and breakdown JSON/text rendering, focused tests, help, and changelog.
+  verified: go test ./internal/db ./internal/cli passed; mage build passed; local build JSON summary and text breakdown smoke checks passed; mage check passed with 0 lint issues and forbidden=0.
+  next: Orchestrator evaluation of task kechhdkfah; do not start synchronization work yet.
+  publication_order: 97

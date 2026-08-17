@@ -4,7 +4,7 @@ record:
   name: Normalize runtime timing without guessing
   depends_on:
     - niduddtklm
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN complete valid timing from a supported runtime WHEN a tool call is ingested THEN latency is measured with authoritative provenance.
     - GIVEN missing timing from a supported runtime WHEN a tool call is ingested THEN latency is unknown rather than zero.
@@ -12,3 +12,13 @@ record:
     - GIVEN a runtime path that supplies no authoritative timing WHEN a tool call is ingested THEN latency remains unknown without a local substitute.
     - GIVEN ingestion tests WHEN they run THEN each supported timing decoder has at least one passing and one rejecting case.
   plan: tapdgjsdtr
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: audit report ses_fef33bbbaffezAwC3YEW9o1ytI
+      recorded_at: 2026-08-17 19:40
+      writer_command: agentera state plan record-evaluation

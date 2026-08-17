@@ -5,7 +5,7 @@ record:
   depends_on:
     - niduddtklm
     - thgijwqmfb
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN tool calls in a requested window WHEN live summary or breakdown statistics are requested THEN all qualifying calls are counted by latency state.
     - GIVEN measured calls WHEN latency statistics are produced THEN coverage, contributing time bounds, provenance, and measured distributions are reported in milliseconds.

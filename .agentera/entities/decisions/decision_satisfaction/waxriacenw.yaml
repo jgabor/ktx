@@ -1,6 +1,9 @@
 id: waxriacenw
 artifact: decisions
 record:
-  state: provisionally_satisfied
-  evidence: Implementation retains runtime cost independently from cache-aware estimated_api_cost, snapshots the resolved pricing record into new experiments, validates its SHA-256, regenerates summaries from that retained artifact, and migrates bench_runs additively for reasoning and estimated cost. Focused pricing, stream, summary, snapshot, and migration tests pass. Review follow-up also retains nullable base/tier reasoning rates with explicit output-rate fallback, completeness-gates every CLI usage field, gates non-v5 estimated summary surfaces on actual observations, decouples token eligibility from reported-cost completeness, applies hash and embedded model identity validation to every methodology, rejects ungrounded retained estimates, and directly exercises the user_version 2 to 3 migration. Mage check passes on 2026-07-15. Awaiting user confirmation.
+  state: user_confirmed_satisfied
+  evidence: 'Implementation retains runtime cost independently from cache-aware estimated_api_cost, snapshots the resolved pricing record into new experiments, validates its SHA-256, regenerates summaries from that retained artifact, and migrates bench_runs additively for reasoning and estimated cost. Focused pricing, stream, summary, snapshot, and migration tests pass. Review follow-up also retains nullable base/tier reasoning rates with explicit output-rate fallback, completeness-gates every CLI usage field, gates non-v5 estimated summary surfaces on actual observations, decouples token eligibility from reported-cost completeness, applies hash and embedded model identity validation to every methodology, rejects ungrounded retained estimates, and directly exercises the user_version 2 to 3 migration. Mage check passes on 2026-07-15. On 2026-08-17, the user confirmed the operating interpretation: ktx may aggregate, compare, and describe the value emitted by OpenCode as the runtime''s reported cost without resolving its upstream derivation; this does not make the value a verified provider invoice. The telemetry contract and agent reference now state this rule.'
+  user_confirmation:
+    confirmed_by: user
+    confirmed_at: '2026-08-17T00:00:00Z'
   decision: tjpgeboggp

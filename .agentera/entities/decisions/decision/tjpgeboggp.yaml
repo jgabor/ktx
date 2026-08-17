@@ -4,7 +4,7 @@ migration_provenance:
   kind: inherited_decision_confidence
   source: current_projection
   source_path: .agentera/decisions.yaml
-  source_record_sha256: 7eea9185a1d2296765b12e7a389d43955ce59e1b93c8d587bf43eac0e479cf1f
+  source_record_sha256: 02d9331b6a216d870dd4d70abcb44e127463b835d1d8879ccb1bd654444195d2
   confidence: high
 record:
   date: 2026-07-15

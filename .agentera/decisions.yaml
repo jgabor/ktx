@@ -2255,7 +2255,7 @@ decisions:
       migration; experiment manifests, attempts, summaries, validation;
       benchmark methodology
     satisfaction:
-      state: satisfied
+      state: user_confirmed_satisfied
       evidence: >-
         Implementation retains runtime cost independently from cache-aware
         estimated_api_cost, snapshots the resolved pricing record into new
@@ -2274,6 +2274,9 @@ decisions:
         emitted by OpenCode as the runtime's reported cost without resolving its
         upstream derivation; this does not make the value a verified provider
         invoice. The telemetry contract and agent reference now state this rule.
+      user_confirmation:
+        confirmed_by: user
+        confirmed_at: '2026-08-17T00:00:00Z'
   - number: 28
     date: 2026-07-15
     question: How should schema-v3 benchmark evidence describe small, variable

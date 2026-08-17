@@ -4,7 +4,7 @@ record:
   name: Attribute new sessions at trusted ingress
   depends_on:
     - lhdzqsaawa
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN KTX launches an agent executable WHEN the wrapper opens its session THEN that executable is recorded as identified ownership.
     - GIVEN a recognized OpenCode or Codex hook schema WHEN it creates or reuses a session THEN its runtime can establish identified ownership.
@@ -12,3 +12,13 @@ record:
     - GIVEN exact sequential or concurrent retries WHEN attribution is applied THEN they converge without changing first evidence or incrementing ownership twice.
     - GIVEN two different trusted runtimes reach one session WHEN the later observation arrives THEN the first trusted identity remains authoritative and later evidence is still retained under existing source ownership rules.
   plan: thgeosacjv
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: audit ses_feec10e53ffe06F46g1C44f6ab
+      recorded_at: 2026-08-17 21:46
+      writer_command: agentera state plan record-evaluation

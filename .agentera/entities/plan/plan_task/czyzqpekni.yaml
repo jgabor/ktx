@@ -5,7 +5,7 @@ record:
   depends_on:
     - hcaiaeseji
     - wxmpwfphcv
-  status: in_progress
+  status: blocked
   description: Remove repeated current-schema hook lock handoffs while preserving ordered durable acceptance.
   acceptance:
     - GIVEN a valid current-schema delivery that creates or advances evidence WHEN processing completes THEN parsing, configuration, cost derivation, and transformation occur outside exclusive coordination and exactly one exclusive coordination window contains all database commits.
@@ -15,12 +15,12 @@ record:
     - GIVEN transformation, artifact, or disposition failure WHEN the hook returns THEN every earlier accepted phase remains durable, recovery and original-output behavior remain unchanged, and creation or migration may retain separate exclusive ownership.
   plan: lcptmsddpa
   evaluation:
-    attempt_count: 1
-    failure_count: 1
+    attempt_count: 2
+    failure_count: 2
     last_verdict: fail
-    last_failure_evidence: Current-schema hook dispatch still takes an exclusive open window before parsing, so changing hooks use at least two windows and rejected/retry paths use one. Progress also omits the reported prohibited ambient read-only access caveat.
+    last_failure_evidence: OpenHook validates schema before external work, but WithHookWriter does not recheck under exclusive coordination; a newer binary can migrate between those points and the older hook can then write a newer schema.
     provenance:
-      attempt_id: audit-1
+      attempt_id: audit-2
       source: orchestrate audit
-      recorded_at: 2026-08-17 20:03
+      recorded_at: 2026-08-17 20:28
       writer_command: agentera state plan record-evaluation

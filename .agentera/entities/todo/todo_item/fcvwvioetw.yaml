@@ -1,0 +1,25 @@
+id: fcvwvioetw
+artifact: todo
+record:
+  kind: bug
+  target_version: null
+  title: Revalidate hook schema inside coordinated writer window
+  requirements:
+    - Before any hook evidence commit, recheck the database schema while holding the hook exclusive coordination window.
+    - If another binary migrated the database beyond this binary, return the existing schema-incompatible result and write no evidence.
+    - Preserve one current-schema coordination window and phased source, artifact, and disposition commits.
+  acceptance:
+    - A race that migrates the database after hook fast-open but before writer acquisition produces schema incompatibility with zero hook evidence writes.
+    - Current-schema hooks retain one exclusive coordination window, and absent or stale databases retain safe coordinated creation or migration.
+    - Hermetic race, migration, retry, and database-safety verification passes.
+  release_blocker: false
+  severity: degraded
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[bug] Revalidate hook schema inside coordinated writer window"
+      severity: degraded
+      status: open
+      order: 1

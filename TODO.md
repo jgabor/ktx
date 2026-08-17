@@ -82,6 +82,8 @@ Each task must run a structured discussion, append the resulting choice to the r
 
 ## ⇉ Degraded
 
+- [ ] [id:fcvwvioetw] [bug] Revalidate hook schema inside coordinated writer window
+
 ## → Normal
 
 <a id="discuss-layer-5-boundary"></a>

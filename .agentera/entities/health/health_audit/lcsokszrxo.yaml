@@ -1,0 +1,28 @@
+id: lcsokszrxo
+artifact: health
+record:
+  date: 2026-08-17
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: improving — trusted session attribution code, tests, documentation, TODO, progress, and evaluator state are current after the completed plan.
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited terminal-plan closure check, not a codebase-wide audit. All delegated attribution artifacts were modified on or after plan creation. Four tasks are complete with persisted PASS evaluations, the TODO projection reconciles, final verification passed, and the closure audit found no blocker.
+  trends:
+    comparison_target: Plan creation on 2026-08-17.
+    stable: Database safety, first-evidence ownership, retry convergence, historical unknown state, and forward-only migration remain explicit.
+    resolved: New trusted wrapper and recognized hook evidence identifies sessions, mixed-runtime ownership is first-trusted, and live statistics publish identified-versus-unknown coverage.
+    carried_forward: Decisions, vision, and profile detail remain deferred; profile state remains stale. No decision satisfaction was inferred.
+  patterns:
+    []
+  appended_at: 2026-08-17T20:25:00.139Z

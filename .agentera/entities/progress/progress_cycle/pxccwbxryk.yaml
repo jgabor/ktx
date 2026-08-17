@@ -1,0 +1,17 @@
+id: pxccwbxryk
+artifact: progress
+record:
+  timestamp: 2026-08-17 22:03
+  type: docs
+  phase: build
+  what: Synchronized plan, progress, TODO, changelog, public documentation, and provisional decision evidence for the delivered hook provenance and coordination behavior.
+  context:
+    intent: Synchronize durable state and public documentation with already delivered behavior.
+    constraints: No product behavior, ambient database access, task or plan completion, user-confirmed satisfaction, physical storage rename, or artifact-kind implementation.
+    unknowns: Evaluator verdict remains pending.
+    scope: Plan and progress evidence, affected firm-decision provisional satisfaction, TODO, changelog, and public hook/database contracts.
+  inspiration: Close the final state-synchronization task without changing product behavior or claiming evaluator or user completion.
+  discovered: The integrated hook task passed its replacement audit after measured-round labels were corrected. The exhausted predecessor remains superseded by the schema-recheck replacement, and the schema-recheck TODO is resolved.
+  verified: Schema 11 retains closed-vocabulary first-wins source and artifact producer provenance and truthful bounded blocker labels. Current-schema hooks use one exclusive window for separate source, artifact, and disposition commits, with fast-open coordinated creation or migration fallback and a schema recheck under writer ownership that rejects concurrent upgrades with zero hook writes. The pinned 4,096-byte seed-6001 hook-only workload used concurrency 1/2/4/8/16/32, one warmup plus five measured rounds per level, produced 6 warmup and 30 measured labels, completed 378/378 participants, reconciled 36/36 rounds, observed zero failures, and retained exact totals of 378 sources, artifacts, dispositions, source producers, and artifact producers.
+  next: Leave plan task awahctknix in_progress for evaluator verdict. Keep the earlier prohibited ambient read-only schema check excluded from acceptance evidence. Full Windows CLI compilation remains blocked by pre-existing Unix syscall use. Physical compressed-storage rename and artifact-kind work remain deferred. Do not push.
+  publication_order: 104

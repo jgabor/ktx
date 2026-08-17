@@ -1,0 +1,6 @@
+id: rgxgnevrau
+artifact: decisions
+record:
+  decision: gspugoqrpd
+  state: provisionally_satisfied
+  evidence: docs/critical-path-performance.md records current-schema hook processing before one exclusive coordination window with separate ordered source, artifact, and disposition commits. Fast-open falls back to coordinated creation or migration, and schema is rechecked before source acceptance. mage hookContention completed 378/378 participants and reconciled 36/36 rounds with zero observed failures. Awaiting user confirmation.

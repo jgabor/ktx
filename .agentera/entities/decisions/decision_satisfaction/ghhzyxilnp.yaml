@@ -1,0 +1,6 @@
+id: ghhzyxilnp
+artifact: decisions
+record:
+  decision: yxlsglvpof
+  state: provisionally_satisfied
+  evidence: Schema 11 and docs/opencode-telemetry.md retain independent closed-vocabulary producer provenance on newly accepted source and artifact rows with first-wins retry authority; historical rows remain unknown. Fresh, exact-duplicate, conflicting, transformed, passthrough, and later-phase-failure tests reconciled exact source, artifact, disposition, session, roll-up, and producer totals. Physical compressed-storage naming and artifact-kind work remain deferred. Awaiting user confirmation.

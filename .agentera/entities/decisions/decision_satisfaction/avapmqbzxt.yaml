@@ -1,0 +1,6 @@
+id: avapmqbzxt
+artifact: decisions
+record:
+  decision: iklzthoapi
+  state: provisionally_satisfied
+  evidence: docs/database-safety.md records current-schema hook fast-open, coordinated Open fallback, and the writer-owned schema recheck. Focused mixed-version, migration, rollback, newer-schema, database-safety, and mage check verification passed on disposable roots; a concurrent upgrade produced zero hook writes. The earlier prohibited ambient read-only schema check is excluded. Full Windows CLI compilation remains blocked by pre-existing Unix syscall use. Awaiting user confirmation.

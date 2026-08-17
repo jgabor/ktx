@@ -75,10 +75,12 @@ proof to establish runtime authority. Missing history is also unknown. New
 runtime-authoritative evidence uses milliseconds and distinguishes measured,
 unknown, and malformed observations.
 
-Schema 11 adds nullable producer provenance to source and compressed-artifact
-rows. Migration leaves historical provenance NULL and does not infer a producer
-from stored content. Source and artifact ownership remain independent and
-first-wins; the migration adds no provenance index.
+Schema 11 adds nullable, independent closed-vocabulary producer provenance to
+newly accepted source and compressed-artifact rows. Exact retries preserve the
+first accepted producer. Migration leaves historical provenance NULL and does
+not infer a producer from stored content. Source and artifact ownership remain
+independent; the migration adds no provenance index, does not rename physical
+compressed storage, and does not add artifact kinds.
 
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.

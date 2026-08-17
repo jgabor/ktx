@@ -16,11 +16,11 @@
 - Engineering verification now retains a separate blocked-decompression process report with output barriers, byte-exact output evidence, hook timing and outcome, participant classes, and exact storage reconciliation.
 - Engineering reports now record first-class wall-clock timing, focused `ktx read` measurements, and a reproducible noise-aware comparison contract while preserving retained schema-1 evidence.
 - Real-process load reports now compare matched writers-only and mixed-agent workloads with distinct sessions, exact reconciliation, supported failure rates, and actual and percentage contention penalties.
-- A pinned developer hook-only contention workload reports bounded observed outcomes and exact source, session, artifact, disposition, and producer reconciliation on disposable databases.
+- A pinned developer hook-only contention workload uses the 4,096-byte seed-6001 fixture at concurrency 1/2/4/8/16/32. Its one warmup and five measured rounds per level produced 6 warmup and 30 measured labels, 378/378 completions, 36/36 reconciled rounds, zero observed failures, and exact totals of 378 sources, artifacts, dispositions, source producers, and artifact producers on disposable databases.
 
 ### Fixed
 
-- Current-schema hooks now revalidate schema and keep ordered source, artifact, and disposition commits inside one exclusive coordination window. A concurrent upgrade fails closed before evidence writes, while complete exact retries and pre-source rejections remain read-only.
+- Current-schema hooks now fast-open without exclusive coordination, fall back to coordinated creation or migration, then revalidate schema under writer ownership and keep ordered source, artifact, and disposition commits inside one exclusive coordination window. A concurrent upgrade fails closed before hook evidence writes, while complete exact retries and pre-source rejections remain read-only.
 - Database-unavailable diagnostics now identify the callback surface, pinned executable, database target, stable failure class, operation phase, elapsed wait, and observed Linux coordination blockers without exposing driver text or persisted content.
 - Linux coordinator-timeout diagnostics now label verified supported blocker commands from a closed vocabulary and report all uncertain identities as `unknown`.
 - Supported read-only database handles now coordinate with writers, and supported writers coordinate each SQLite transaction across processes.

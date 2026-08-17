@@ -269,8 +269,10 @@ Version-7 runtime event rows migrate as accepted model steps where applicable;
 they cannot be reinterpreted as duplicate callback occurrences that were never
 stored. Existing tool calls receive no reconstructed compression disposition;
 statistics report them as `unobserved` until new hook evidence is retained.
-Existing source and artifact rows also retain NULL producer provenance; the
-migration does not infer a command from stored content.
+New source and artifact rows retain independent closed-vocabulary producer
+provenance with first-wins retry authority. Existing rows retain NULL producer
+provenance; migration does not infer a command from stored content. Schema 11
+does not rename physical compressed storage or add artifact kinds.
 
 Migration is one SQLite transaction. Invalid legacy provenance, a copy error,
 or another migration failure rolls back the table shape, rows, associations,

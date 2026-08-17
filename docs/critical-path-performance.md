@@ -50,14 +50,18 @@ blocked-decompression report is schema 2. The manifest remains schema 2.
 ### Hook-only contention workload
 
 `mage hookContention` runs only `./build/ktx hook` participants during each
-contention interval. It uses concurrency 1, 2, 4, 8, 16, and 32, with one
+contention interval. It uses the 4,096-byte seed-6001 fixture at concurrency
+1, 2, 4, 8, 16, and 32, with one
 warmup and five measured rounds per level, the existing two-attempt/two-second
 startup retry settings, the default two-second pipeline timeout, and a
 12-second harness process timeout. Each round uses a fresh disposable database
 and reconciles exact source, session, session roll-up, artifact, disposition,
 and hook-producer counts. Its schema-1 JSON reports observed completions and
 failures for this workload only, with each round labeled `warmup` or `measured`.
-It does not establish general availability or a latency bound.
+The retained run produced 6 warmup and 30 measured labels, 378/378 participant
+completions, 36/36 reconciled rounds, zero observed failures, and exact totals
+of 378 sources, artifacts, dispositions, source producers, and artifact
+producers. It does not establish general availability or a latency bound.
 
 This is extended engineering evidence, not a timing gate or a replacement for
 `mage check`. It fails on reporter validation, the load harness's mandatory

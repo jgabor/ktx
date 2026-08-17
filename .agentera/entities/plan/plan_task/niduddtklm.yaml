@@ -12,3 +12,13 @@ record:
     - GIVEN a database newer than the binary WHEN it is opened THEN the existing forward-compatibility failure remains intact.
     - GIVEN contract validation tests WHEN they run THEN each testable state has at least one passing and one rejecting case.
   plan: tapdgjsdtr
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: audit report ses_fef3d3c40ffeWvtuxCs6c9fdAb
+      recorded_at: 2026-08-17 19:29
+      writer_command: agentera state plan record-evaluation

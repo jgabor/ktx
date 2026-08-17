@@ -4,7 +4,7 @@ record:
   name: Normalize runtime timing without guessing
   depends_on:
     - niduddtklm
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN complete valid timing from a supported runtime WHEN a tool call is ingested THEN latency is measured with authoritative provenance.
     - GIVEN missing timing from a supported runtime WHEN a tool call is ingested THEN latency is unknown rather than zero.

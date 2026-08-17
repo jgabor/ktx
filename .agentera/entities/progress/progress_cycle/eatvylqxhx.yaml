@@ -1,0 +1,13 @@
+id: eatvylqxhx
+artifact: progress
+record:
+  timestamp: 2026-08-17 19:36
+  type: feat
+  phase: build
+  what: Normalized authoritative runtime timing at ingestion.
+  context:
+    intent: Persist runtime timing without guessing or replacing missing evidence.
+    constraints: Runtime-supplied timing only; preserve measured zero and retry identity behavior.
+    scope: Ingress normalization and parser ingestion tests only.
+  verified: internal/parser/parser.go now maps OpenCode state.time to measured, unknown, or malformed latency evidence and leaves flat ingress unknown. go test ./internal/parser, go test ./internal/..., mage build, mage check, and ./build/ktx binary-capabilities --format json passed under fresh disposable roots.
+  publication_order: 96

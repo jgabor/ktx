@@ -111,22 +111,30 @@ func buildToolCall(ev *parsedEvent) (*dbpkg.ToolCall, error) {
 	} else {
 		ts = normaliseTimestamp(ts)
 	}
+	latencyState, latencyAuthority := ev.LatencyState, ev.LatencyAuthority
+	if latencyState == "" {
+		latencyState = dbpkg.LatencyStateUnknown
+		latencyAuthority = dbpkg.LatencyAuthorityUnknown
+	}
 	return &dbpkg.ToolCall{
-		ID:          id,
-		Tool:        ev.Tool,
-		Input:       ev.Input,
-		Output:      ev.Output,
-		ContentHash: dbpkg.ContentHash(ev.Output),
-		Timestamp:   ts,
-		EventType:   "tool_call",
-		TokensIn:    ev.TokensIn,
-		TokensOut:   ev.TokensOut,
-		Cost:        ev.Cost,
-		LatencyMs:   ev.LatencyMs,
-		Model:       ev.Model,
-		Provider:    ev.Provider,
-		ExitCode:    ev.ExitCode,
-		IsError:     ev.IsError,
+		ID:               id,
+		Tool:             ev.Tool,
+		Input:            ev.Input,
+		Output:           ev.Output,
+		ContentHash:      dbpkg.ContentHash(ev.Output),
+		Timestamp:        ts,
+		EventType:        "tool_call",
+		TokensIn:         ev.TokensIn,
+		TokensOut:        ev.TokensOut,
+		Cost:             ev.Cost,
+		LatencyMs:        ev.LatencyMs,
+		LatencyState:     latencyState,
+		LatencyUnit:      dbpkg.LatencyUnitMilliseconds,
+		LatencyAuthority: latencyAuthority,
+		Model:            ev.Model,
+		Provider:         ev.Provider,
+		ExitCode:         ev.ExitCode,
+		IsError:          ev.IsError,
 	}, nil
 }
 
@@ -153,12 +161,14 @@ type parsedEvent struct {
 	// Cost-publication fields. nil = absent in the source event.
 	// Populated by parseToolEvent when the event carries the field;
 	// buildToolCall copies the pointer through to the persisted row.
-	TokensIn  *int64
-	TokensOut *int64
-	Cost      *float64
-	LatencyMs *int64
-	Model     *string
-	Provider  *string
+	TokensIn         *int64
+	TokensOut        *int64
+	Cost             *float64
+	LatencyMs        *int64
+	LatencyState     string
+	LatencyAuthority string
+	Model            *string
+	Provider         *string
 
 	// Failure-signal fields. nil = absent in the source event.
 	ExitCode *int64
@@ -258,7 +268,7 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 					ev.Output = runtimeError
 				}
 			}
-			ev.LatencyMs = latencyFromState(state["time"])
+			ev.LatencyMs, ev.LatencyState, ev.LatencyAuthority = latencyFromState(state["time"])
 			// Defensive cost reads inside state.metadata. OpenCode's
 			// bash/edit/etc. tools populate state.metadata with tool-
 			// specific output (output, exit, description, truncated)
@@ -337,7 +347,6 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 	// the wrapper. Real OpenCode events reach the OpenCode branch above
 	// and never exercise this path; flat-fallback runtimes that do
 	// not emit cost fields leave the pointers nil.
-	ev.LatencyMs = latencyFromState(firstNonEmptyRaw(top["time"], top["duration"]))
 	ev.TokensIn = int64PtrFromRaw(top["tokens_in"], top["tokensIn"], top["input_tokens"])
 	ev.TokensOut = int64PtrFromRaw(top["tokens_out"], top["tokensOut"], top["output_tokens"])
 	ev.Cost = float64PtrFromRaw(top["cost"], top["cost_usd"])
@@ -361,30 +370,21 @@ func firstNonEmptyRaw(values ...json.RawMessage) json.RawMessage {
 	return nil
 }
 
-// latencyFromState returns the millisecond delta between state.time.end
-// and state.time.start when both are present and numeric. A missing
-// start or end, a non-numeric value, or an end-before-start returns nil
-// — the wrapper records the tool_call with NULL latency_ms rather than
-// guess. OpenCode's tool_use event always emits both fields on a
-// completed state, so a successful extraction is the common case for
-// real OpenCode events; the nil return is reserved for malformed or
-// partial inputs.
-func latencyFromState(raw json.RawMessage) *int64 {
+// latencyFromState accepts only OpenCode's runtime timing pair. An absent pair
+// is unknown; an invalid or partial pair is malformed.
+func latencyFromState(raw json.RawMessage) (*int64, string, string) {
 	if len(raw) == 0 {
-		return nil
+		return nil, dbpkg.LatencyStateUnknown, dbpkg.LatencyAuthorityUnknown
 	}
 	var tm struct {
-		Start int64 `json:"start"`
-		End   int64 `json:"end"`
+		Start *int64 `json:"start"`
+		End   *int64 `json:"end"`
 	}
-	if err := json.Unmarshal(raw, &tm); err != nil {
-		return nil
+	if err := json.Unmarshal(raw, &tm); err != nil || tm.Start == nil || tm.End == nil || *tm.End < *tm.Start {
+		return nil, dbpkg.LatencyStateMalformed, dbpkg.LatencyAuthorityRuntime
 	}
-	if tm.Start == 0 || tm.End == 0 || tm.End < tm.Start {
-		return nil
-	}
-	delta := tm.End - tm.Start
-	return &delta
+	delta := *tm.End - *tm.Start
+	return &delta, dbpkg.LatencyStateMeasured, dbpkg.LatencyAuthorityRuntime
 }
 
 // int64PtrFromRaw returns the first non-empty RawMessage that parses as

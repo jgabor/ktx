@@ -51,6 +51,9 @@ func TestParseEvent(t *testing.T) {
 		if tc.LatencyMs == nil || *tc.LatencyMs != 3 {
 			t.Errorf("LatencyMs = %v, want pointer to 3", tc.LatencyMs)
 		}
+		if tc.LatencyState != dbpkg.LatencyStateMeasured || tc.LatencyUnit != dbpkg.LatencyUnitMilliseconds || tc.LatencyAuthority != dbpkg.LatencyAuthorityRuntime {
+			t.Errorf("latency evidence = (%q, %q, %q), want measured milliseconds from runtime", tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority)
+		}
 		// OpenCode provider default (runtime-known single exception):
 		// the parser fills provider="opencode" because the wrapper
 		// knows its agent. No "provider" field in the source event.
@@ -138,7 +141,7 @@ func TestParseEvent(t *testing.T) {
 		}
 	})
 
-	t.Run("OpenCode tool_use with state.time missing end (latency nil)", func(t *testing.T) {
+	t.Run("OpenCode tool_use with state.time missing end is malformed", func(t *testing.T) {
 		// A partial state.time (only start, no end) must NOT produce a
 		// latency_ms value. The parser returns nil rather than guessing.
 		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"x","time":{"start":100}}}}`
@@ -148,6 +151,28 @@ func TestParseEvent(t *testing.T) {
 		}
 		if tc.LatencyMs != nil {
 			t.Errorf("LatencyMs = %v, want nil (missing end)", tc.LatencyMs)
+		}
+		if tc.LatencyState != dbpkg.LatencyStateMalformed || tc.LatencyAuthority != dbpkg.LatencyAuthorityRuntime {
+			t.Errorf("latency evidence = (%q, %q), want malformed runtime", tc.LatencyState, tc.LatencyAuthority)
+		}
+	})
+
+	t.Run("OpenCode tool_use with reversed timing is malformed", func(t *testing.T) {
+		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"x","time":{"start":101,"end":100}}}}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok {
+			t.Fatalf("ParseEvent returned (nil, false); want populated tool_call")
+		}
+		if tc.LatencyMs != nil || tc.LatencyState != dbpkg.LatencyStateMalformed || tc.LatencyAuthority != dbpkg.LatencyAuthorityRuntime {
+			t.Errorf("latency evidence = (%v, %q, %q), want nil, malformed, runtime", tc.LatencyMs, tc.LatencyState, tc.LatencyAuthority)
+		}
+	})
+
+	t.Run("OpenCode tool_use preserves measured zero", func(t *testing.T) {
+		const payload = `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"input":{},"output":"x","time":{"start":100,"end":100}}}}`
+		tc, ok := ParseEvent([]byte(payload))
+		if !ok || tc.LatencyMs == nil || *tc.LatencyMs != 0 || tc.LatencyState != dbpkg.LatencyStateMeasured {
+			t.Fatalf("latency evidence = (%v, %q), want measured zero", tc.LatencyMs, tc.LatencyState)
 		}
 	})
 
@@ -193,6 +218,9 @@ func TestParseEvent(t *testing.T) {
 		// empty). Here both are populated; tool wins.
 		if tc.Tool != "read" {
 			t.Errorf("Tool = %q, want %q", tc.Tool, "read")
+		}
+		if tc.LatencyMs != nil || tc.LatencyState != dbpkg.LatencyStateUnknown || tc.LatencyAuthority != dbpkg.LatencyAuthorityUnknown {
+			t.Errorf("flat latency evidence = (%v, %q, %q), want nil, unknown, unknown", tc.LatencyMs, tc.LatencyState, tc.LatencyAuthority)
 		}
 		// input wins over args (first non-empty alias). args is null,
 		// which is empty after Unmarshal (RawMessage for null is `null`,

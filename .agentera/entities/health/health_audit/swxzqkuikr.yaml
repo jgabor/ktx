@@ -1,0 +1,28 @@
+id: swxzqkuikr
+artifact: health
+record:
+  date: 2026-08-17
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "improving: hook coordination, producer provenance, blocker attribution, verification, and project state are current after the completed plan."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited terminal-plan closure check, not a codebase-wide audit. All delegated code, tests, documentation, changelog, TODO, plan, progress, and provisional decision evidence were updated on or after plan creation. Six completed tasks have latest PASS evaluations, and the exhausted predecessor is superseded by a completed latest-PASS replacement.
+  trends:
+    comparison_target: Plan creation on 2026-08-17.
+    stable: All delegated artifact families are current and the open plan has six complete tasks plus one superseded predecessor.
+    resolved: Schema 10 producer provenance, bounded blocker labels, one-window phased hook commits, mixed-version schema recheck, and pinned integrated contention evidence are synchronized.
+    carried_forward: One prohibited historical ambient read remains excluded from acceptance evidence without a retained before/after hash. Full Windows CLI compilation remains blocked by pre-existing Unix-only syscall use. Physical compressed-storage naming and artifact kinds remain deferred.
+  patterns:
+    - Independent evaluation caught command-inventory, process-identity, startup-lock, mixed-version, and report-label gaps before plan closure.
+  appended_at: 2026-08-17T20:16:41.817Z

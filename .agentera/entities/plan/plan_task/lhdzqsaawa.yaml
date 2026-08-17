@@ -11,3 +11,13 @@ record:
     - GIVEN migration is interrupted or invalid WHEN the database is reopened THEN no partial attribution state is published and existing evidence remains intact.
     - GIVEN current readers and retained evidence WHEN compatibility is checked THEN unchanged contracts remain readable or any changed public shape is explicitly versioned.
   plan: thgeosacjv
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: audit ses_feed54f63ffemBV6hKC60yObps
+      recorded_at: 2026-08-17 21:28
+      writer_command: agentera state plan record-evaluation

@@ -48,9 +48,10 @@ func observeLockHolders(file *os.File, path string, requested coordinationMode) 
 	if err != nil {
 		return holders, true
 	}
+	currentOwner := uint32(os.Geteuid())
 	for i := range holders {
 		holder := holders[i]
-		holders[i].Command = inspectProcessCommand("/proc", holder.PID, currentInfo, func() bool {
+		holders[i].Command = inspectProcessCommand("/proc", holder.PID, currentInfo, currentOwner, func() bool {
 			latest, err := os.ReadFile("/proc/locks")
 			if err != nil {
 				return false
@@ -72,8 +73,12 @@ func observeLockHolders(file *os.File, path string, requested coordinationMode) 
 	return holders, true
 }
 
-func inspectProcessCommand(procRoot string, pid int, currentExecutable os.FileInfo, stillOwnsLock func() bool) string {
+func inspectProcessCommand(procRoot string, pid int, currentExecutable os.FileInfo, currentOwner uint32, stillOwnsLock func() bool) string {
 	directory := procRoot + "/" + strconv.Itoa(pid)
+	owner, err := processOwner(directory)
+	if err != nil || owner != currentOwner {
+		return "unknown"
+	}
 	started, err := processStartTime(directory + "/stat")
 	if err != nil {
 		return "unknown"
@@ -93,7 +98,23 @@ func inspectProcessCommand(procRoot string, pid int, currentExecutable os.FileIn
 	if err != nil || confirmed != started {
 		return "unknown"
 	}
+	confirmedExecutable, err := os.Stat(directory + "/exe")
+	if err != nil || !os.SameFile(confirmedExecutable, currentExecutable) {
+		return "unknown"
+	}
 	return BlockerCommandLabel(argv)
+}
+
+func processOwner(path string) (uint32, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, os.ErrInvalid
+	}
+	return stat.Uid, nil
 }
 
 func processStartTime(path string) (string, error) {

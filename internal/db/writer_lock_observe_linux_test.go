@@ -62,6 +62,10 @@ func TestInspectProcessCommandFailsClosed(t *testing.T) {
 	if err := os.Symlink(executablePath, filepath.Join(directory, "exe")); err != nil {
 		t.Fatal(err)
 	}
+	currentOwner, err := processOwner(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
 	writeStat := func(start string) {
 		t.Helper()
 		fields := append([]string{"S"}, make([]string, 18)...)
@@ -78,13 +82,18 @@ func TestInspectProcessCommandFailsClosed(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(directory, "cmdline"), []byte("ktx\x00--format\x00json\x00hook\x00"+payload+"\x00"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return true }); got != "hook" {
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool { return true }); got != "hook" {
 		t.Fatalf("verified command = %q, want hook", got)
 	}
-	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return false }); got != "unknown" {
+	t.Run("foreign ownership", func(t *testing.T) {
+		if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner+1, func() bool { return true }); got != "unknown" {
+			t.Fatalf("foreign owner command = %q, want unknown", got)
+		}
+	})
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool { return false }); got != "unknown" {
 		t.Fatalf("lost lock command = %q, want unknown", got)
 	}
-	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool {
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool {
 		writeStat("101")
 		return true
 	}); got != "unknown" {
@@ -99,25 +108,58 @@ func TestInspectProcessCommandFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := inspectProcessCommand(procRoot, pid, foreign, func() bool { return true }); got != "unknown" {
+	if got := inspectProcessCommand(procRoot, pid, foreign, currentOwner, func() bool { return true }); got != "unknown" {
 		t.Fatalf("foreign executable command = %q, want unknown", got)
+	}
+	exePath := filepath.Join(directory, "exe")
+	t.Run("executable replaced during inspection", func(t *testing.T) {
+		if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool {
+			if err := os.Remove(exePath); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(foreignPath, exePath); err != nil {
+				t.Fatal(err)
+			}
+			return true
+		}); got != "unknown" {
+			t.Fatalf("replaced executable command = %q, want unknown", got)
+		}
+	})
+	if err := os.Remove(exePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(executablePath, exePath); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("executable disappears during inspection", func(t *testing.T) {
+		if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool {
+			if err := os.Remove(exePath); err != nil {
+				t.Fatal(err)
+			}
+			return true
+		}); got != "unknown" {
+			t.Fatalf("disappeared executable command = %q, want unknown", got)
+		}
+	})
+	if err := os.Symlink(executablePath, exePath); err != nil {
+		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(directory, "cmdline"), []byte("ktx\x00unsupported\x00"+payload+"\x00"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return true }); got != "unknown" {
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool { return true }); got != "unknown" {
 		t.Fatalf("unsupported command = %q, want unknown", got)
 	}
 	if err := os.Remove(filepath.Join(directory, "cmdline")); err != nil {
 		t.Fatal(err)
 	}
-	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return true }); got != "unknown" {
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool { return true }); got != "unknown" {
 		t.Fatalf("inspection failure command = %q, want unknown", got)
 	}
 	if err := os.WriteFile(filepath.Join(directory, "cmdline"), []byte("ktx\x00hook\x00"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool {
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, currentOwner, func() bool {
 		if err := os.Remove(filepath.Join(directory, "stat")); err != nil {
 			t.Fatal(err)
 		}

@@ -1,0 +1,16 @@
+id: ukwaowjnqf
+artifact: progress
+record:
+  timestamp: 2026-08-17 19:00
+  type: fix
+  phase: build
+  what: Corrected Linux blocker attribution to require matching process ownership and final executable identity revalidation.
+  context:
+    intent: Attribute a supported blocker only while its owner, process start, executable, argv, and lock ownership remain verified.
+    constraints: Preserve the closed command label and event shape; retain no owner, executable path, or argv; add no success logging.
+    unknowns: No task blocker remains.
+    scope: Linux process identity inspection and deterministic regression tests only.
+  discovered: The prior check treated a pre-argv executable match and stable process start time as sufficient, but process start time survives exec.
+  verified: Focused identity tests, full internal/db tests, internal/db race tests, Darwin and Windows internal/db test compilation, and mage check passed. Mage reported 0 issues and forbidden=0. Every verification ran with KTX_DB unset and fresh disposable HOME, XDG, and TMP roots.
+  next: Re-audit this task while it remains in progress.
+  publication_order: 97

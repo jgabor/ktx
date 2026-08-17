@@ -13,3 +13,13 @@ record:
     - GIVEN successful coordination or a non-coordinator database failure WHEN logging is inspected THEN no blocker-command metadata or extra event is added.
     - GIVEN logging is disabled, invalid, unsafe, or unavailable WHEN attribution fails or the sink rejects the event THEN stdout, stderr, exit status, database behavior, and sink isolation remain unchanged.
   plan: lcptmsddpa
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Linux blocker labeling does not require matching process ownership and does not revalidate executable identity after argv inspection and final lock ownership confirmation.
+    provenance:
+      attempt_id: audit-1
+      source: orchestrate audit
+      recorded_at: 2026-08-17 18:52
+      writer_command: agentera state plan record-evaluation

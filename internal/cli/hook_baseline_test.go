@@ -32,6 +32,7 @@ func TestCommandBaselineInventories(t *testing.T) {
 		{"ktx compress", "artifact", "compress"},
 		{"component benchmark", "source", "componentbench"},
 		{"component benchmark", "artifact", "componentbench"},
+		{"load benchmark fixture", "artifact", "loadbench-fixture"},
 	}
 	for _, tc := range producerCases {
 		if got := baselineProducerLabel(tc.surface, tc.evidence, "payload says hook"); got != tc.want {
@@ -80,6 +81,8 @@ func baselineProducerLabel(surface, evidence, _ string) string {
 		return "compress"
 	case "component benchmark:source", "component benchmark:artifact":
 		return "componentbench"
+	case "load benchmark fixture:artifact":
+		return "loadbench-fixture"
 	default:
 		return "unknown"
 	}

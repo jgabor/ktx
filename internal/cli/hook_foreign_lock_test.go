@@ -14,7 +14,6 @@ import (
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
-	"github.com/jgabor/ktx/internal/evidence"
 )
 
 func TestHookForeignLockStageHelper(t *testing.T) {
@@ -181,75 +180,105 @@ command = %q
 
 func TestHookForeignLockDuringDispositionKeepsAcceptedEvidence(t *testing.T) {
 	d, path := hookForeignLockDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, "[pipeline.default]\nstages = [\"head:1\"]\n")
 	const (
-		sessionID = "foreign-lock-disposition-session"
-		callID    = "foreign-lock-disposition-call"
+		runtimeSessionID = "foreign-lock-disposition-session"
+		callID           = "foreign-lock-disposition-call"
 	)
-	mustWrapSession(t, d, sessionID)
-	src := mustResolveOpenCode(t, sessionID, callID)
-	runtime := "opencode"
-	tc := &dbpkg.ToolCall{
-		ID:          src.ID,
-		SessionID:   sessionID,
-		Tool:        "bash",
-		Input:       `{"command":"true"}`,
-		Output:      "original tool output\n",
-		ContentHash: dbpkg.ContentHash("original tool output\n"),
-		Timestamp:   "2026-08-09T00:00:00Z",
-		Runtime:     &runtime,
-	}
-	sourceInserted, err := evidence.PersistSource(d, src, tc)
-	if err != nil || !sourceInserted {
-		t.Fatalf("persist source = %t, %v", sourceInserted, err)
-	}
-	result, err := evidence.PersistArtifact(d, src, tc, sourceInserted, &dbpkg.Compressed{
-		Output:      "compressed\n",
-		ContentHash: dbpkg.ContentHash("compressed\n"),
-		Pipeline:    `{"profile":"default","route":"default_fallback"}`,
-		Timestamp:   "2026-08-09T00:00:01Z",
-	})
-	if err != nil || !result.Transformed {
-		t.Fatalf("persist artifact = %+v, %v", result, err)
-	}
+	original := strings.Repeat("line one\nline two\n", 20)
+	payload := openCodeHookPayload(t, runtimeSessionID, callID, "bash", `{"command":"true"}`, original)
+	sourceID := mustOpenCodeID(t, runtimeSessionID, callID)
 
-	lock := holdHookForeignWriteLock(t, path)
+	var stdout, stderr bytes.Buffer
 	var observations []string
-	err = recordHookCompressionDispositionObserved(d, result.SourceID, result.CompressedID, pipelineExecution{
-		profile: "default", route: "default_fallback",
-	}, func(kind, phase string) { observations = append(observations, kind+":"+phase) })
-	if err == nil {
-		t.Fatal("disposition persistence succeeded while the foreign write lock was held")
+	artifactAccepted := make(chan struct{})
+	continueHook := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(continueHook)
+		}
+	}()
+	done := make(chan error, 1)
+	go func() {
+		_, err := hookLogicObserved(strings.NewReader(payload), d, &stdout, &stderr, func(kind, phase string) {
+			observations = append(observations, kind+":"+phase)
+			if kind == hookAcceptanceCommit && phase == dbpkg.OperationArtifact {
+				close(artifactAccepted)
+				<-continueHook
+			}
+		})
+		done <- err
+	}()
+	select {
+	case <-artifactAccepted:
+	case err := <-done:
+		t.Fatalf("hook stopped before artifact acceptance: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("hook did not reach artifact acceptance")
+	}
+	lock := holdHookForeignWriteLock(t, path)
+	close(continueHook)
+	released = true
+	var err error
+	select {
+	case err = <-done:
+		if err == nil {
+			t.Fatal("hook succeeded while the disposition write was foreign-locked")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("hook did not return after disposition lock exhaustion")
 	}
 	assertHookForeignLockRendered(t, path, dbpkg.OperationDisposition, err)
-	if len(observations) != 0 {
-		t.Fatalf("failed disposition observations = %v, want none", observations)
+	if stdout.Len() != 0 {
+		t.Fatalf("hook wrote an envelope instead of preserving the adapter's original-output fallback: %q", stdout.String())
 	}
+	if stderr.Len() != 0 {
+		t.Fatalf("hook wrote unexpected stage diagnostics: %q", stderr.String())
+	}
+	assertHookObservations(t, observations, dbpkg.OperationSource, dbpkg.OperationArtifact)
 
 	releaseHookForeignWriteLock(t, lock)
-	if _, err := d.GetToolCall(src.ID); err != nil {
+	source, err := d.GetToolCall(sourceID)
+	if err != nil {
 		t.Fatalf("accepted source was lost after disposition failure: %v", err)
 	}
-	if _, err := d.GetCompressed(result.CompressedID); err != nil {
+	if source.Output != original {
+		t.Fatalf("retained source output = %q, want original-output fallback", source.Output)
+	}
+	artifact, err := d.GetCompressedBySource(sourceID)
+	if err != nil {
 		t.Fatalf("accepted artifact was lost after disposition failure: %v", err)
 	}
-	if _, err := d.GetCompressionDisposition(src.ID); !errors.Is(err, dbpkg.ErrNotFound) {
+	if artifact.Output != "line one\n" {
+		t.Fatalf("retained artifact output = %q, want transformed output", artifact.Output)
+	}
+	if _, err := d.GetCompressionDisposition(sourceID); !errors.Is(err, dbpkg.ErrNotFound) {
 		t.Fatalf("disposition after failed phase = %v, want not found", err)
 	}
 
-	if err := recordHookCompressionDispositionObserved(d, result.SourceID, result.CompressedID, pipelineExecution{
-		profile: "default", route: "default_fallback",
-	}, func(kind, phase string) { observations = append(observations, kind+":"+phase) }); err != nil {
-		t.Fatalf("retry disposition after foreign lock release: %v", err)
+	retryStdout, retryStderr, retryObservations, err := runObservedHook(t, d, payload)
+	if err != nil || retryStderr != "" {
+		t.Fatalf("retry hook = %v, stderr=%q", err, retryStderr)
 	}
-	assertHookObservations(t, observations, dbpkg.OperationDisposition)
-	disposition, err := d.GetCompressionDisposition(src.ID)
+	var envelope hookEnvelope
+	if err := json.Unmarshal([]byte(retryStdout), &envelope); err != nil {
+		t.Fatalf("decode retry envelope: %v\nstdout=%s", err, retryStdout)
+	}
+	if envelope.SourceID != sourceID || envelope.CompressedID == nil || *envelope.CompressedID != artifact.ID || envelope.Output != artifact.Output {
+		t.Errorf("retry envelope = %+v, want retained source and artifact", envelope)
+	}
+	assertHookObservations(t, retryObservations, dbpkg.OperationSource, dbpkg.OperationArtifact, dbpkg.OperationDisposition)
+	disposition, err := d.GetCompressionDisposition(sourceID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if disposition.Disposition != dbpkg.CompressionDispositionArtifactPersisted || disposition.ArtifactID != result.CompressedID {
+	if disposition.Disposition != dbpkg.CompressionDispositionArtifactPersisted || disposition.ArtifactID != artifact.ID {
 		t.Errorf("retried disposition = %+v", disposition)
 	}
-	assertHookEvidenceCounts(t, d, src.ID, 1, 1, 1)
+	assertHookEvidenceCounts(t, d, sourceID, 1, 1, 1)
 }
 
 func hookForeignLockDB(t *testing.T) (*dbpkg.DB, string) {

@@ -1,0 +1,16 @@
+id: sztgwpgvws
+artifact: progress
+record:
+  timestamp: 2026-08-17 18:29
+  type: fix
+  phase: build
+  what: "Closed the two audit gaps in the command and hook baseline: the load benchmark's direct artifact fixture now has a bounded producer label, and disposition failure now runs through a complete transformed hook delivery paused after artifact acceptance."
+  context:
+    intent: Correct audit-1 without implementing producer provenance or changing production hook coordination.
+    constraints: Preserve separate source, artifact, and disposition commits; add no producer fields, blocker output, successful-lock logging, coordination consolidation, dependencies, WAL, daemon, spool, or raw sensitive logging.
+    unknowns: No downstream-changing unknown remains. The evaluator still owns the task verdict.
+    scope: The closed producer inventory, critical-path contract, and hook foreign-lock characterization.
+  discovered: The load benchmark seeds one decompression artifact directly, outside ktx command dispatch, so only that fixture surface receives the loadbench-fixture label. The existing test-only hook phase observer can pause after the artifact commit and before disposition without changing production behavior.
+  verified: Focused inventory and disposition tests passed in 0.390s. Full internal/cli and tools/loadbench tests passed in 21.460s and 0.054s. Focused race tests passed in 1.442s. mage check passed all tests, race checks, vet, lint with 0 issues, build, and the database audit with 3583 attempts and forbidden=0. Every test and check unset KTX_DB and used a fresh disposable HOME and XDG root.
+  next: Keep task hcaiaeseji in_progress while the orchestrator records the new evaluator verdict.
+  publication_order: 95

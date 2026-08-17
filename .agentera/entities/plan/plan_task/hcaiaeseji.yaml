@@ -4,7 +4,7 @@ record:
   name: Freeze the command and hook baseline
   depends_on:
     []
-  status: complete
+  status: in_progress
   description: Establish the closed command inventory, current hook outcome matrix, and deterministic coordination and commit-count evidence before behavior changes.
   acceptance:
     - GIVEN every current source and artifact creation surface WHEN the inventory is checked THEN each first-accepting producer has one closed label and no producer is inferred from payload content.
@@ -13,3 +13,13 @@ record:
     - GIVEN a current-schema hook WHEN test instrumentation observes coordination and commits THEN exclusive acquisitions and each acceptance commit are countable without emitting successful-lock production logs.
     - GIVEN each characterized behavior WHEN tests are reviewed THEN at least one success and one relevant failure case exist per testable unit.
   plan: lcptmsddpa
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Artifact producer inventory omits loadbench fixture creation; disposition-failure characterization bypasses full hook delivery and does not assert output, retained rows, ordering, and retry behavior.
+    provenance:
+      attempt_id: audit-1
+      source: orchestrate audit
+      recorded_at: 2026-08-17 18:20
+      writer_command: agentera state plan record-evaluation

@@ -146,13 +146,14 @@ The command that first accepts a source or artifact is selected from the
 invocation surface, never from payload fields or content. The closed producer
 labels are:
 
-| Invocation surface                   | Source label     | Artifact label   |
-| ------------------------------------ | ---------------- | ---------------- |
-| `ktx write`                          | `write`          | not applicable   |
-| `ktx hook`                           | `hook`           | `hook`           |
-| `ktx run`                            | `run`            | not applicable   |
-| `ktx compress`                       | not applicable   | `compress`       |
-| component benchmark fixture creation | `componentbench` | `componentbench` |
+| Invocation surface                   | Source label     | Artifact label      |
+| ------------------------------------ | ---------------- | ------------------- |
+| `ktx write`                          | `write`          | not applicable      |
+| `ktx hook`                           | `hook`           | `hook`              |
+| `ktx run`                            | `run`            | not applicable      |
+| `ktx compress`                       | not applicable   | `compress`          |
+| component benchmark fixture creation | `componentbench` | `componentbench`    |
+| load benchmark fixture creation      | not applicable   | `loadbench-fixture` |
 
 Historical or otherwise unattributed rows use `unknown`; they are not inferred
 from row content. Source and artifact labels are independent because a later

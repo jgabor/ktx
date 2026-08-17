@@ -1,0 +1,28 @@
+id: dxsjozcmyw
+artifact: health
+record:
+  date: 2026-08-17
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: improving — live latency code, tests, documentation, TODO, progress, and evaluator state are current after the completed plan.
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited terminal-plan closure check, not a codebase-wide audit. All delegated live latency artifact families were modified on or after plan creation. Four tasks are complete with latest persisted PASS evaluations, corrections retain their earlier failure evidence, the managed and canonical TODO views agree, and the closure audit found no blocker.
+  trends:
+    comparison_target: Plan creation on 2026-08-17.
+    stable: Database safety, first-evidence ownership, read-only query behavior, forward-only migration, and unsupported timing paths remain explicit.
+    resolved: Runtime latency now has explicit evidence states and authority, supported OpenCode timing is normalized without guessing, and requested-window statistics publish measured coverage and canonical temporal bounds.
+    carried_forward: Decisions and vision detail remain deferred; profile detail remains deferred and stale. No decision satisfaction was inferred.
+  patterns:
+    - Task audits caught mixed-offset temporal ordering and canonical TODO drift before closure; both corrections passed bounded re-evaluation.
+  appended_at: 2026-08-17T18:35:08.756Z

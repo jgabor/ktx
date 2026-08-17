@@ -328,7 +328,20 @@ func extractCodexFields(toolName string, toolInputRaw, toolResponseRaw json.RawM
 // envelope are the dispatcher's responsibility. The plugin level
 // (tool.execute.after) catches non-zero exit and leaves output.output
 // unchanged (conservative failure at the plugin level).
+type hookPhaseObserver func(kind, phase string)
+
+const (
+	hookExclusiveAcquisition = "exclusive_acquisition"
+	hookAcceptanceCommit     = "acceptance_commit"
+)
+
 func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, error) {
+	return hookLogicObserved(stdin, db, stdout, stderr, nil)
+}
+
+// hookLogicObserved exposes successful hook write phases to package tests.
+// It does not emit production output or change phase ownership.
+func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, observe hookPhaseObserver) (any, error) {
 	if os.Getenv("KTX_SESSION_ID") != "" {
 		return nil, nil
 	}
@@ -517,9 +530,12 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 			}
 			return nil, internalError("ktx hook: persist tool_call: %v", err)
 		}
+		observeHookCommit(observe, dbpkg.OperationSource)
 		sourceInserted = inserted
 	} else if err := db.PersistToolCall(&tc); err != nil {
 		return nil, internalError("ktx hook: persist tool_call: %v", err)
+	} else {
+		observeHookCommit(observe, dbpkg.OperationSource)
 	}
 
 	sourceID := tc.ID
@@ -535,13 +551,13 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 				return nil, internalError("ktx hook: load existing compressed artifact: %v", artifactErr)
 			}
 			if result.Transformed {
-				if dispositionErr := recordHookCompressionDisposition(db, result.SourceID, result.CompressedID, pipelineExecution{}); dispositionErr != nil {
+				if dispositionErr := recordHookCompressionDispositionObserved(db, result.SourceID, result.CompressedID, pipelineExecution{}, observe); dispositionErr != nil {
 					return nil, internalError("ktx hook: persist compression disposition: %v", dispositionErr)
 				}
 				return nil, writeTrustedHookOutput(stdout, isCodex, result, result.Output, runtimeSessionID, runtimeCallID)
 			}
 		}
-		if dispositionErr := recordHookCompressionDisposition(db, sourceID, "", pipelineExecution{}); dispositionErr != nil {
+		if dispositionErr := recordHookCompressionDispositionObserved(db, sourceID, "", pipelineExecution{}, observe); dispositionErr != nil {
 			return nil, internalError("ktx hook: persist compression disposition: %v", dispositionErr)
 		}
 		return nil, usageError("%v", err)
@@ -600,7 +616,10 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		if err != nil {
 			return nil, internalError("ktx hook: persist compressed: %v", err)
 		}
-		if err := recordHookCompressionDisposition(db, result.SourceID, result.CompressedID, execution); err != nil {
+		if candidate != nil {
+			observeHookCommit(observe, dbpkg.OperationArtifact)
+		}
+		if err := recordHookCompressionDispositionObserved(db, result.SourceID, result.CompressedID, execution, observe); err != nil {
 			return nil, internalError("ktx hook: persist compression disposition: %v", err)
 		}
 
@@ -641,13 +660,14 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 		if err := dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationArtifact, started, db.InsertCompressed(c)); err != nil {
 			return nil, internalError("ktx hook: persist compressed: %v", err)
 		}
+		observeHookCommit(observe, dbpkg.OperationArtifact)
 		compressedID = &cid
 	}
 	artifactID := ""
 	if compressedID != nil {
 		artifactID = *compressedID
 	}
-	if err := recordHookCompressionDisposition(db, sourceID, artifactID, execution); err != nil {
+	if err := recordHookCompressionDispositionObserved(db, sourceID, artifactID, execution, observe); err != nil {
 		return nil, internalError("ktx hook: persist compression disposition: %v", err)
 	}
 
@@ -664,7 +684,7 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 	return nil, nil
 }
 
-func recordHookCompressionDisposition(database *dbpkg.DB, sourceID, artifactID string, execution pipelineExecution) (err error) {
+func recordHookCompressionDispositionObserved(database *dbpkg.DB, sourceID, artifactID string, execution pipelineExecution, observe hookPhaseObserver) (err error) {
 	started := time.Now()
 	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationDisposition, started, err) }()
 	disposition := dbpkg.CompressionDispositionIntentionalPassthrough
@@ -692,11 +712,23 @@ func recordHookCompressionDisposition(database *dbpkg.DB, sourceID, artifactID s
 			}
 		}
 	}
-	return database.RecordCompressionDisposition(&dbpkg.CompressionDisposition{
+	err = database.RecordCompressionDisposition(&dbpkg.CompressionDisposition{
 		SourceID: sourceID, Profile: profile, Route: route,
 		Disposition: disposition, ArtifactID: artifactID,
 		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 	})
+	if err == nil {
+		observeHookCommit(observe, dbpkg.OperationDisposition)
+	}
+	return err
+}
+
+func observeHookCommit(observe hookPhaseObserver, phase string) {
+	if observe == nil {
+		return
+	}
+	observe(hookExclusiveAcquisition, phase)
+	observe(hookAcceptanceCommit, phase)
 }
 
 // buildRecoveryFooter produces a single-line recovery footer appended to

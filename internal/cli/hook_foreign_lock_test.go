@@ -122,9 +122,12 @@ command = %q
 	sourceID := mustOpenCodeID(t, runtimeSessionID, callID)
 
 	var stdout, stderr bytes.Buffer
+	var observations []string
 	done := make(chan error, 1)
 	go func() {
-		_, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr)
+		_, err := hookLogicObserved(strings.NewReader(payload), d, &stdout, &stderr, func(kind, phase string) {
+			observations = append(observations, kind+":"+phase)
+		})
 		done <- err
 	}()
 	waitForHookForeignLockFile(t, ready, 5*time.Second)
@@ -148,6 +151,7 @@ command = %q
 	if stdout.Len() != 0 {
 		t.Fatalf("hook wrote an envelope after artifact failure: %q", stdout.String())
 	}
+	assertHookObservations(t, observations, dbpkg.OperationSource)
 
 	releaseHookForeignWriteLock(t, lock)
 	if _, err := d.GetToolCall(sourceID); err != nil {
@@ -209,13 +213,17 @@ func TestHookForeignLockDuringDispositionKeepsAcceptedEvidence(t *testing.T) {
 	}
 
 	lock := holdHookForeignWriteLock(t, path)
-	err = recordHookCompressionDisposition(d, result.SourceID, result.CompressedID, pipelineExecution{
+	var observations []string
+	err = recordHookCompressionDispositionObserved(d, result.SourceID, result.CompressedID, pipelineExecution{
 		profile: "default", route: "default_fallback",
-	})
+	}, func(kind, phase string) { observations = append(observations, kind+":"+phase) })
 	if err == nil {
 		t.Fatal("disposition persistence succeeded while the foreign write lock was held")
 	}
 	assertHookForeignLockRendered(t, path, dbpkg.OperationDisposition, err)
+	if len(observations) != 0 {
+		t.Fatalf("failed disposition observations = %v, want none", observations)
+	}
 
 	releaseHookForeignWriteLock(t, lock)
 	if _, err := d.GetToolCall(src.ID); err != nil {
@@ -228,11 +236,12 @@ func TestHookForeignLockDuringDispositionKeepsAcceptedEvidence(t *testing.T) {
 		t.Fatalf("disposition after failed phase = %v, want not found", err)
 	}
 
-	if err := recordHookCompressionDisposition(d, result.SourceID, result.CompressedID, pipelineExecution{
+	if err := recordHookCompressionDispositionObserved(d, result.SourceID, result.CompressedID, pipelineExecution{
 		profile: "default", route: "default_fallback",
-	}); err != nil {
+	}, func(kind, phase string) { observations = append(observations, kind+":"+phase) }); err != nil {
 		t.Fatalf("retry disposition after foreign lock release: %v", err)
 	}
+	assertHookObservations(t, observations, dbpkg.OperationDisposition)
 	disposition, err := d.GetCompressionDisposition(src.ID)
 	if err != nil {
 		t.Fatal(err)

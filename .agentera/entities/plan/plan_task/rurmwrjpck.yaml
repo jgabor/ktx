@@ -1,0 +1,15 @@
+id: rurmwrjpck
+artifact: plan
+record:
+  name: Attribute supported blocker commands
+  depends_on:
+    - hcaiaeseji
+  status: pending
+  description: Extend coordinator-timeout diagnostics with a truthful bounded command label for verified supported blockers.
+  acceptance:
+    - GIVEN a live supported blocker with verified process identity WHEN a coordinator timeout is recorded THEN the blocker includes only its closed command label alongside existing PID and held mode.
+    - GIVEN process disappearance, PID reuse ambiguity, identity mismatch, unsupported executable, foreign ownership, or inspection failure WHEN attribution runs THEN the command remains explicitly unknown rather than guessed.
+    - GIVEN a command with arbitrary arguments WHEN blocker metadata is persisted THEN raw command lines, arguments, executable paths, environments, and payload-derived values are absent.
+    - GIVEN successful coordination or a non-coordinator database failure WHEN logging is inspected THEN no blocker-command metadata or extra event is added.
+    - GIVEN logging is disabled, invalid, unsafe, or unavailable WHEN attribution fails or the sink rejects the event THEN stdout, stderr, exit status, database behavior, and sink isolation remain unchanged.
+  plan: lcptmsddpa

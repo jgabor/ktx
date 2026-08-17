@@ -1,0 +1,16 @@
+id: ppqghciszo
+artifact: progress
+record:
+  timestamp: 2026-08-17 18:13
+  type: test
+  phase: build
+  what: Froze the source/artifact producer vocabulary, blocker attribution outcomes, and current hook acceptance matrix. Added a test-only observer for successful exclusive acquisitions and ordered acceptance commits.
+  context:
+    intent: Establish executable baseline evidence before provenance, blocker-label, or coordination behavior changes.
+    constraints: Preserve separate source, artifact, and disposition commits; do not add producer fields, blocker output, successful-lock logging, or coordination consolidation.
+    unknowns: No downstream-changing unknown remains. Component benchmark fixture creation is a producer surface but a separate executable, so supported blocker attribution treats it as foreign.
+    scope: docs/critical-path-performance.md and hook characterization under internal/cli.
+  discovered: Current first-accepting producer labels are write, hook, run, compress, and componentbench. Supported lock-acquiring ktx labels collapse benchmark operations to bench and distinguish telemetry record/list and db migrate/report. Foreign, unavailable, ambiguous, reused, or unsupported identities remain unknown.
+  verified: Focused baseline tests passed in 1.230s. The full internal/cli package passed in 22.021s. Focused race tests passed in 4.540s. mage check passed tests, race checks, vet, lint with 0 issues, build, and a database audit with 3583 attempts and forbidden=0. Every invocation unset KTX_DB and used fresh disposable HOME and XDG roots.
+  next: Persist first-wins source and artifact producer provenance using the frozen labels without changing the hook commit order.
+  publication_order: 94

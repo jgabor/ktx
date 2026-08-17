@@ -1,0 +1,15 @@
+id: wxmpwfphcv
+artifact: plan
+record:
+  name: Persist first-wins producer provenance
+  depends_on:
+    - hcaiaeseji
+  status: pending
+  description: Retain bounded producer ownership independently for accepted source and artifact rows.
+  acceptance:
+    - GIVEN a newly accepted source WHEN it is retrieved through a full structured row view THEN it identifies the command that first accepted the source while content-only output remains unchanged.
+    - GIVEN an artifact accepted with its source or created later by another command WHEN its row is inspected THEN it identifies the command that first accepted that artifact independently of source provenance.
+    - GIVEN exact or concurrent retries WHEN an accepted row already exists THEN its producer is neither replaced nor backfilled.
+    - GIVEN a historical database WHEN it migrates forward THEN existing rows retain unknown producer state without inferred values or row-content rewrites, while newer-schema rejection remains unchanged.
+    - GIVEN provenance persistence WHEN hook write behavior is measured THEN it adds no separate transaction or provenance index.
+  plan: lcptmsddpa

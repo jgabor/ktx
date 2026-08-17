@@ -1,0 +1,15 @@
+id: hcaiaeseji
+artifact: plan
+record:
+  name: Freeze the command and hook baseline
+  depends_on:
+    []
+  status: complete
+  description: Establish the closed command inventory, current hook outcome matrix, and deterministic coordination and commit-count evidence before behavior changes.
+  acceptance:
+    - GIVEN every current source and artifact creation surface WHEN the inventory is checked THEN each first-accepting producer has one closed label and no producer is inferred from payload content.
+    - GIVEN every current lock-acquiring command WHEN blocker-label eligibility is checked THEN supported, foreign, unavailable, and ambiguous identities have explicit expected outcomes.
+    - GIVEN fresh, exact-retry, conflicting-retry, passthrough, transformed, malformed-config, pipeline-failure, artifact-failure, and disposition-failure deliveries WHEN characterization runs THEN current rows, outputs, errors, and ordered acceptance points are executable expectations.
+    - GIVEN a current-schema hook WHEN test instrumentation observes coordination and commits THEN exclusive acquisitions and each acceptance commit are countable without emitting successful-lock production logs.
+    - GIVEN each characterized behavior WHEN tests are reviewed THEN at least one success and one relevant failure case exist per testable unit.
+  plan: lcptmsddpa

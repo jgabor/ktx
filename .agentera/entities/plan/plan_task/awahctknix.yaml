@@ -1,0 +1,17 @@
+id: awahctknix
+artifact: plan
+record:
+  name: Synchronize project state
+  depends_on:
+    - hcaiaeseji
+    - wxmpwfphcv
+    - rurmwrjpck
+    - czyzqpekni
+    - avknacywzn
+  status: pending
+  description: Reconcile durable planning and project-memory evidence after implementation verification.
+  acceptance:
+    - GIVEN all implementation and verification tasks are complete WHEN project state is synchronized THEN task status, progress evidence, changelog, TODO, and documentation describe the same delivered behavior.
+    - GIVEN affected decisions have implementation evidence WHEN satisfaction is reviewed THEN only provisional evidence is recorded and user confirmation is not claimed.
+    - GIVEN deferred physical naming and artifact-kind work remains unselected WHEN the plan closes THEN it is not implemented or presented as completed.
+  plan: lcptmsddpa

@@ -1,0 +1,16 @@
+id: avknacywzn
+artifact: plan
+record:
+  name: Prove integrated hook behavior
+  depends_on:
+    - rurmwrjpck
+    - czyzqpekni
+  status: pending
+  description: Verify provenance, blocker labels, phased durability, and reduced coordination together under hermetic hook-only contention.
+  acceptance:
+    - GIVEN the pinned hook-only contention workload with existing retry and timeout settings WHEN it runs on disposable roots THEN observed availability outcomes are reported without generalizing beyond that workload.
+    - GIVEN fresh, duplicate, conflicting, transformed, passthrough, and later-phase-failure deliveries WHEN reconciliation runs THEN source, session roll-up, artifact, disposition, and producer counts match exactly.
+    - GIVEN supported, foreign, exited, and identity-ambiguous blockers WHEN synthetic contention runs THEN command attribution is truthful, bounded, deterministic, and private.
+    - GIVEN current, older supported, and newer unsupported schemas WHEN verification runs THEN ordinary open, forward migration, rollback, and incompatibility behavior remain unchanged.
+    - GIVEN the integrated change WHEN repository verification completes THEN focused tests, race checks, vet, lint, build, migration rehearsal, database-safety checks, public documentation, and changelog all agree.
+  plan: lcptmsddpa

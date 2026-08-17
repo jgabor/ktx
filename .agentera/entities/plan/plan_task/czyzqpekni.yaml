@@ -1,0 +1,16 @@
+id: czyzqpekni
+artifact: plan
+record:
+  name: Use one hook coordination window with phased commits
+  depends_on:
+    - hcaiaeseji
+    - wxmpwfphcv
+  status: pending
+  description: Remove repeated current-schema hook lock handoffs while preserving ordered durable acceptance.
+  acceptance:
+    - GIVEN a valid current-schema delivery that creates or advances evidence WHEN processing completes THEN parsing, configuration, cost derivation, and transformation occur outside exclusive coordination and exactly one exclusive coordination window contains all database commits.
+    - GIVEN pre-source validation rejection or a fully satisfied exact retry WHEN processing completes THEN no exclusive coordination window or write transaction is used.
+    - GIVEN source, artifact, and disposition acceptance WHEN a hook changes evidence THEN each remains a separate ordered commit inside the one coordination window.
+    - GIVEN a preflight race or conflicting retry WHEN final source validation runs inside exclusive coordination THEN first-wins authority and conflict behavior remain unchanged.
+    - GIVEN transformation, artifact, or disposition failure WHEN the hook returns THEN every earlier accepted phase remains durable, recovery and original-output behavior remain unchanged, and creation or migration may retain separate exclusive ownership.
+  plan: lcptmsddpa

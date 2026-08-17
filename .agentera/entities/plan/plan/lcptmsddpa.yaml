@@ -1,0 +1,38 @@
+id: lcptmsddpa
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-17
+    status: open
+    reviewed: 2026-08-17
+    critic_issues: 5 found, 5 addressed, 0 dismissed
+    title: "Plan: Trace database producers and streamline hook coordination"
+  what: Persist bounded command provenance for accepted source and artifact rows, identify observable blocking ktx commands in coordinator-timeout diagnostics, and reduce current-schema hook persistence to one exclusive coordination window while retaining ordered source, artifact, and disposition commits.
+  why: Successful evidence and failed coordination need traceable command ownership, while repeated hook lock handoffs currently create avoidable contention. The change must improve observability and coordination without weakening durable evidence, retry safety, recovery, or migration behavior.
+  constraints: Preserve one SQLite database, safe automatic migration, newer-schema rejection, first-wins source and artifact authority, conflict detection, exact retries, source retention after later failures, adapter fallback, stdout, stderr, exit codes, privacy rules, and log-sink isolation. Keep source, artifact, and disposition as separate commits. Do not add WAL, a daemon, a runtime dependency, raw argument logging, payload or content logging, successful-lock logging, provenance indexes, or routine ambient-live verification. Historical rows receive no inferred provenance.
+  overall_acceptance: GIVEN a current-schema database WHEN hooks accept or advance evidence and coordination failures are observed THEN each changing hook uses one exclusive coordination window with ordered phased durability, accepted source and artifact rows retain bounded first-wins producer provenance, observable supported blockers receive truthful closed command labels, and ordinary command behavior and privacy remain unchanged.
+  scope:
+    included:
+      - Bounded producer provenance for accepted source and artifact rows.
+      - Truthful closed command labels for observable supported coordination blockers.
+      - One current-schema exclusive coordination window per hook that changes evidence.
+      - Ordered source, artifact, and disposition commits within that window.
+      - Hermetic contention, migration, retry, privacy, and reconciliation evidence.
+    excluded:
+      - Performance changes for report, statistics, and other long-running query commands.
+      - Database snapshots, WAL, daemons, durable ingress spools, and database partitioning.
+      - Raw process command lines, arguments, environments, payloads, SQL, and database content in diagnostics.
+    deferred:
+      - Renaming the physical compressed-artifact storage before a real non-compression artifact exists.
+      - Adding an artifact kind before a second concrete artifact kind is accepted.
+  design: First establish the closed producer and blocker vocabularies and freeze the existing hook acceptance matrix. Add successful-row provenance and failure attribution as independent evidence surfaces. Hook processing then completes parsing, configuration, cost derivation, and transformation before requesting exclusive coordination. A delivery that changes evidence holds one exclusive coordination window while preserving the existing ordered source, artifact, and disposition commits. Integrated evidence closes the work only after retries, failures, migration, privacy, and contention reconcile.
+  unknowns:
+    - question: Which current commands can first accept source or artifact rows, and which supported lock holders can be mapped safely to closed labels?
+      affects_task: 2
+      resolve_by: Task 1 inventories every producer and lock-acquiring command before provenance or blocker labels are published.
+    - question: Can an already-complete exact retry avoid transformation and exclusive ownership without changing malformed-config and recovery behavior?
+      affects_task: 4
+      resolve_by: Task 1 freezes the retry and recovery matrix; Task 4 must preserve it or stop for replanning.
+  surprises:
+    []

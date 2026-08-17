@@ -140,6 +140,33 @@ participant's outcome.
 | Mixed-version binaries       | The binary that opens a database and compares its supported schema range.                                                                    | A binary never writes a newer database it cannot understand. It reports schema incompatibility and directs recovery by moving the binary forward, never by lowering the database version.                                                                                                                                                                   |
 | Foreign SQLite clients       | Their own process, lock, transaction, and release schedule.                                                                                  | ktx has no progress guarantee while a foreign client retains contention. After bounded retries, ktx reports database availability without exposing driver diagnostics.                                                                                                                                                                                      |
 
+### Closed command vocabulary
+
+The command that first accepts a source or artifact is selected from the
+invocation surface, never from payload fields or content. The closed producer
+labels are:
+
+| Invocation surface                   | Source label     | Artifact label   |
+| ------------------------------------ | ---------------- | ---------------- |
+| `ktx write`                          | `write`          | not applicable   |
+| `ktx hook`                           | `hook`           | `hook`           |
+| `ktx run`                            | `run`            | not applicable   |
+| `ktx compress`                       | not applicable   | `compress`       |
+| component benchmark fixture creation | `componentbench` | `componentbench` |
+
+Historical or otherwise unattributed rows use `unknown`; they are not inferred
+from row content. Source and artifact labels are independent because a later
+explicit compression can create an artifact for a source accepted elsewhere.
+
+The closed labels for supported ktx processes that acquire database
+coordination are `write`, `compress`, `hook`, `run`, `get`, `read`, `list`,
+`stats`, `decompress`, `bench`, `telemetry record`, `telemetry list`, `doctor`,
+`db migrate`, and `db report`. For every label, verified live identity maps to
+that label. A foreign executable, unavailable identity, ambiguous identity, PID
+reuse, or an unsupported command maps to `unknown`. Arguments and payload
+content never supply or repair a label. This is an expected attribution matrix;
+blocker command labels are not yet emitted.
+
 ## Hook acceptance
 
 Hook processing has three separate acceptance points, in this order:

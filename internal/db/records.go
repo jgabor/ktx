@@ -152,12 +152,13 @@ func normalizeLatencyEvidence(tc *ToolCall) error {
 // is still open, and zero ToolCallCount is a real value for an unused
 // session.
 type Session struct {
-	ID            string `json:"id"`
-	Agent         string `json:"agent"`
-	StartedAt     string `json:"started_at"`
-	EndedAt       string `json:"ended_at"`
-	LastSeenAt    string `json:"last_seen_at"`
-	ToolCallCount int64  `json:"tool_call_count"`
+	ID                        string `json:"id"`
+	Agent                     string `json:"agent"`
+	AgentAttributionAuthority string `json:"-"`
+	StartedAt                 string `json:"started_at"`
+	EndedAt                   string `json:"ended_at"`
+	LastSeenAt                string `json:"last_seen_at"`
+	ToolCallCount             int64  `json:"tool_call_count"`
 }
 
 // NewID returns a fresh 16-character lowercase alphabetic nanoid.
@@ -200,12 +201,19 @@ func (d *DB) InsertSession(s *Session) error {
 }
 
 func (d *DB) insertSession(s *Session, write func(context.Context, func(*sql.Tx) error) error) error {
+	authority := s.AgentAttributionAuthority
+	if authority == "" {
+		authority = AgentAttributionUnknown
+	}
+	if authority != AgentAttributionUnknown && authority != AgentAttributionIdentified {
+		return fmt.Errorf("db: insert session %q: invalid agent attribution authority %q", s.ID, authority)
+	}
 	ctx, cancel := writeContext()
 	defer cancel()
 	err := write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO sessions (id, agent, started_at, ended_at, last_seen_at, tool_call_count) VALUES (?, ?, ?, ?, ?, ?)`,
-			s.ID, s.Agent, s.StartedAt, s.EndedAt, s.LastSeenAt, s.ToolCallCount,
+			`INSERT INTO sessions (id, agent, agent_attribution_authority, started_at, ended_at, last_seen_at, tool_call_count) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			s.ID, s.Agent, authority, s.StartedAt, s.EndedAt, s.LastSeenAt, s.ToolCallCount,
 		)
 		return err
 	})
@@ -611,6 +619,7 @@ func (d *DB) GetSession(id string) (*Session, error) {
 	err := d.db.QueryRow(
 		`SELECT id,
 		        COALESCE(agent, ''),
+		        agent_attribution_authority,
 		        COALESCE(started_at, ''),
 		        COALESCE(ended_at, ''),
 		        COALESCE(last_seen_at, ''),
@@ -618,7 +627,7 @@ func (d *DB) GetSession(id string) (*Session, error) {
 		 FROM sessions WHERE id = ?`,
 		id,
 	).Scan(
-		&s.ID, &s.Agent, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
+		&s.ID, &s.Agent, &s.AgentAttributionAuthority, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -666,6 +675,7 @@ func (d *DB) ListSessions() ([]Session, error) {
 	rows, err := d.db.Query(
 		`SELECT id,
 		        COALESCE(agent, ''),
+		        agent_attribution_authority,
 		        COALESCE(started_at, ''),
 		        COALESCE(ended_at, ''),
 		        COALESCE(last_seen_at, ''),
@@ -682,7 +692,7 @@ func (d *DB) ListSessions() ([]Session, error) {
 	for rows.Next() {
 		var s Session
 		if err := rows.Scan(
-			&s.ID, &s.Agent, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
+			&s.ID, &s.Agent, &s.AgentAttributionAuthority, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
 		); err != nil {
 			return nil, fmt.Errorf("db: scan session: %w", err)
 		}

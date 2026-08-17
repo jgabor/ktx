@@ -82,6 +82,11 @@ not infer a producer from stored content. Source and artifact ownership remain
 independent; the migration adds no provenance index, does not rename physical
 compressed storage, and does not add artifact kinds.
 
+Schema 12 adds explicit attribution authority to sessions. Existing labels are
+preserved but migrate as `unknown`; migration does not infer attribution from
+historical text. New rows can distinguish identified attribution from unknown
+authority independently of the label.
+
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.
 
@@ -94,8 +99,8 @@ with code `schema-incompatible` before writes. The diagnostic includes:
 {
   "error": {
     "code": "schema-incompatible",
-    "actual_schema": 12,
-    "maximum_schema": 11,
+    "actual_schema": 13,
+    "maximum_schema": 12,
     "database_path": "/canonical/path/to/ktx.db",
     "executable_path": "/canonical/path/to/ktx",
     "executable_sha256": "<64 lowercase hexadecimal characters>",

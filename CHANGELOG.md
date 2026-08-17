@@ -4,6 +4,7 @@
 
 ### Added
 
+- Schema 12 records session attribution authority separately from the existing agent label; historical labels remain readable and migrate as unknown.
 - `ktx stats summary` schema 9 and `ktx stats breakdown` schema 3 report requested-window latency states, runtime provenance, measured coverage and time bounds, and millisecond distributions; unavailable latency remains null.
 - Schema 10 preserves latency values while recording explicit measured, unknown, or malformed state, milliseconds, and runtime authority; migrated history remains non-authoritative.
 - `view_image` uses an explicit empty passthrough profile by default, and the example configuration exposes the same route.

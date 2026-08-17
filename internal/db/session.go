@@ -28,6 +28,11 @@ import (
 	"strings"
 )
 
+const (
+	AgentAttributionUnknown    = "unknown"
+	AgentAttributionIdentified = "identified"
+)
+
 // SessionFile is the ppid-keyed session identity cache.
 type SessionFile struct {
 	SessionID     string `json:"session_id"`

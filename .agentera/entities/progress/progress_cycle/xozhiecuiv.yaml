@@ -1,0 +1,15 @@
+id: xozhiecuiv
+artifact: progress
+record:
+  timestamp: 2026-08-17 21:18
+  type: feat
+  phase: build
+  what: internal/db/schema.go adds schema 11 session attribution authority. Historical labels migrate as unknown, identified and unknown are stored independently of labels, interrupted migrations roll back, and Session JSON stays unchanged.
+  context:
+    intent: Establish attribution authority and compatibility for plan task lhdzqsaawa.
+    constraints: Preserve historical labels and evidence, do not infer trust from text, keep existing public session JSON stable, and leave ingress mutation and statistics to later tasks.
+    unknowns: None remain for this task.
+    scope: Database schema, session persistence/read seams, migration and compatibility tests, database safety documentation, and changelog.
+  verified: env -u KTX_DB go test ./internal/db passed; env -u KTX_DB go test ./internal/cli -run TestDoctorReadOnlySchemaMatrix passed; env -u KTX_DB mage check passed with 0 issues and forbidden=0; env -u KTX_DB mage build passed; isolated ./build/ktx migration reported schema 10 to 11, preserved the legacy label and marker, and stored unknown authority.
+  next: Trusted ingress can now claim identified authority without changing existing session readers.
+  publication_order: 101

@@ -202,13 +202,13 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			wantCode:    ExitOK,
 			checkName:   "schema_version",
 			checkStatus: doctorStatusOK,
-			detail:      "supported schema 11",
+			detail:      "supported schema 12",
 		},
 		{
 			name: "newer schema is incompatible",
 			seed: func(t *testing.T, path string) {
 				seedDoctorDatabase(t, path, func(d *dbpkg.DB) {
-					if _, err := d.DB().Exec(`PRAGMA user_version = 12`); err != nil {
+					if _, err := d.DB().Exec(`PRAGMA user_version = 13`); err != nil {
 						t.Fatalf("set newer user_version: %v", err)
 					}
 				})

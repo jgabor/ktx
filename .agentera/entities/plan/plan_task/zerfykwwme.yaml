@@ -1,0 +1,14 @@
+id: zerfykwwme
+artifact: plan
+record:
+  name: Report live attribution coverage
+  depends_on:
+    - lhdzqsaawa
+    - nbuodvfknx
+  status: pending
+  acceptance:
+    - GIVEN the existing live-statistics window WHEN attribution is reported THEN identified and unknown counts use the same output-bearing call population and reconcile exactly to its total.
+    - GIVEN historical or unverified sessions contribute calls WHEN coverage is calculated THEN those calls count as unknown regardless of their legacy label.
+    - GIVEN no calls contribute to the window WHEN coverage is rendered THEN the empty denominator is explicit and no percentage is fabricated.
+    - GIVEN JSON and text output WHEN operators inspect attribution coverage THEN both formats describe the same values and authority boundary.
+  plan: thgeosacjv

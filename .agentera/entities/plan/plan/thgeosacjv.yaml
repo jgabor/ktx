@@ -1,0 +1,35 @@
+id: thgeosacjv
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-17
+    status: open
+    reviewed: 2026-08-17
+    critic_issues: 2 found, 2 addressed, 0 dismissed
+    title: "Plan: Trusted session agent attribution"
+  what: Establish authoritative agent identity for new sessions at trusted ingress and report how much live evidence has identified versus unknown ownership.
+  why: Make agent-specific evidence trustworthy and measurable without converting caller claims or historical labels into facts.
+  constraints: Preserve first-evidence and first-session ownership, existing session records, retry convergence, database safety, and unknown as a real evidence state. Trust the executable launched by the wrapper and recognized native adapter schemas. Do not reconstruct historical identity or trust generic runtime text.
+  overall_acceptance: GIVEN new and historical evidence from wrapper, hook, retry, and mixed-runtime paths WHEN sessions and live statistics are inspected THEN only trusted new ingress has identified ownership, all other evidence remains unknown, first trusted mixed-runtime ownership is stable, and coverage reconciles to the declared live population.
+  scope:
+    included:
+      - Trusted attribution authority for new session evidence
+      - Wrapper and recognized native hook attribution
+      - Retry, concurrency, and mixed-runtime first-owner behavior
+      - Identified-versus-unknown coverage in live statistics
+      - Migration, compatibility, documentation, and backlog synchronization
+    excluded:
+      - Historical identity backfill or inference
+      - Trusting generic flat or sidecar runtime claims
+      - Adding a new runtime adapter
+      - New per-agent ranking or cost-allocation reports beyond attribution coverage
+    deferred:
+      []
+  design: Establish attribution authority and compatibility before changing ingress writers. Populate that authority only from trusted new observations, then consume the same state in existing windowed statistics. Finish with end-to-end verification and synchronized public and project state.
+  unknowns:
+    - question: Which retained readers, exports, or benchmark validators treat the existing session agent label as authoritative rather than descriptive?
+      affects_task: 1
+      resolve_by: Inventory current consumers before selecting the compatible persisted representation; preserve historical labels while treating their attribution authority as unknown.
+  surprises:
+    []

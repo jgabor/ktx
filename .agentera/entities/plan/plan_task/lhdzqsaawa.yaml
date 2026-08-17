@@ -1,0 +1,13 @@
+id: lhdzqsaawa
+artifact: plan
+record:
+  name: Establish attribution authority and compatibility
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN an existing database WHEN it is opened by the new binary THEN every prior session remains readable and no historical label becomes trusted attribution.
+    - GIVEN a new session WHEN attribution is stored THEN identified and unknown authority remain distinguishable without interpreting the label alone.
+    - GIVEN migration is interrupted or invalid WHEN the database is reopened THEN no partial attribution state is published and existing evidence remains intact.
+    - GIVEN current readers and retained evidence WHEN compatibility is checked THEN unchanged contracts remain readable or any changed public shape is explicitly versioned.
+  plan: thgeosacjv

@@ -1,0 +1,14 @@
+id: nbuodvfknx
+artifact: plan
+record:
+  name: Attribute new sessions at trusted ingress
+  depends_on:
+    - lhdzqsaawa
+  status: pending
+  acceptance:
+    - GIVEN KTX launches an agent executable WHEN the wrapper opens its session THEN that executable is recorded as identified ownership.
+    - GIVEN a recognized OpenCode or Codex hook schema WHEN it creates or reuses a session THEN its runtime can establish identified ownership.
+    - GIVEN generic, incomplete, malformed, or unrecognized input WHEN accepted for compatibility THEN it cannot self-qualify and the session remains unknown.
+    - GIVEN exact sequential or concurrent retries WHEN attribution is applied THEN they converge without changing first evidence or incrementing ownership twice.
+    - GIVEN two different trusted runtimes reach one session WHEN the later observation arrives THEN the first trusted identity remains authoritative and later evidence is still retained under existing source ownership rules.
+  plan: thgeosacjv

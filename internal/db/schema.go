@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 11
+const schemaVersion = 12
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -143,6 +143,7 @@ var schemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS sessions (
 		id              TEXT PRIMARY KEY,
 		agent           TEXT,
+		agent_attribution_authority TEXT NOT NULL DEFAULT 'unknown' CHECK (agent_attribution_authority IN ('identified','unknown')),
 		started_at      TEXT,
 		ended_at        TEXT,
 		last_seen_at    TEXT,
@@ -458,6 +459,13 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 		return fmt.Errorf("db: read schema version: %w", err)
 	}
 	if version == schemaVersion {
+		columns, err := tableColumns(db, "sessions")
+		if err != nil {
+			return fmt.Errorf("db: inspect current sessions schema: %w", err)
+		}
+		if _, ok := columns["agent_attribution_authority"]; !ok {
+			return fmt.Errorf("db: current sessions schema is missing agent attribution authority")
+		}
 		return nil
 	}
 	if version > schemaVersion {
@@ -519,6 +527,16 @@ func migrateTx(tx *sql.Tx) error {
 	}
 	if err := migrateRuntimeEventsV8(tx); err != nil {
 		return err
+	}
+
+	sessionColumns, err := tableColumns(tx, "sessions")
+	if err != nil {
+		return fmt.Errorf("db: inspect sessions: %w", err)
+	}
+	if _, ok := sessionColumns["agent_attribution_authority"]; !ok {
+		if _, err := tx.Exec(`ALTER TABLE sessions ADD COLUMN agent_attribution_authority TEXT NOT NULL DEFAULT 'unknown' CHECK (agent_attribution_authority IN ('identified','unknown'))`); err != nil {
+			return fmt.Errorf("db: add session attribution authority: %w", err)
+		}
 	}
 
 	have, err := tableColumns(tx, "tool_calls")

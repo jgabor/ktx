@@ -70,6 +70,11 @@ proof to establish runtime authority. Missing history is also unknown. New
 runtime-authoritative evidence uses milliseconds and distinguishes measured,
 unknown, and malformed observations.
 
+Schema 11 adds nullable producer provenance to source and compressed-artifact
+rows. Migration leaves historical provenance NULL and does not infer a producer
+from stored content. Source and artifact ownership remain independent and
+first-wins; the migration adds no provenance index.
+
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.
 
@@ -82,8 +87,8 @@ with code `schema-incompatible` before writes. The diagnostic includes:
 {
   "error": {
     "code": "schema-incompatible",
-    "actual_schema": 11,
-    "maximum_schema": 10,
+    "actual_schema": 12,
+    "maximum_schema": 11,
     "database_path": "/canonical/path/to/ktx.db",
     "executable_path": "/canonical/path/to/ktx",
     "executable_sha256": "<64 lowercase hexadecimal characters>",

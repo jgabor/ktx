@@ -273,6 +273,9 @@ func TestRunRunWith_Dispatch(t *testing.T) {
 				continue
 			}
 			if rec.Tool == "bash" {
+				if rec.Producer == nil || *rec.Producer != dbpkg.ProducerRun {
+					t.Errorf("run source producer = %v, want run", rec.Producer)
+				}
 				found = true
 				break
 			}

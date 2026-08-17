@@ -124,6 +124,9 @@ func TestHook_Identity(t *testing.T) {
 	if source.Output != "hello\nline 2\nline 3\nline 4\nline 5\n" {
 		t.Errorf("persisted output = %q, want original", source.Output)
 	}
+	if source.Producer == nil || *source.Producer != dbpkg.ProducerHook {
+		t.Errorf("source producer = %v, want hook", source.Producer)
+	}
 }
 
 func TestHook_WithPipeline(t *testing.T) {
@@ -161,6 +164,13 @@ recover_footer = false
 	source, _ := d.GetToolCall("hookpipe01")
 	if source.Output != "line 1\nline 2\nline 3\nline 4\nline 5\n" {
 		t.Errorf("persisted original = %q, want full 5 lines", source.Output)
+	}
+	artifact, err := d.GetCompressed(*env.CompressedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.Producer == nil || *source.Producer != dbpkg.ProducerHook || artifact.Producer == nil || *artifact.Producer != dbpkg.ProducerHook {
+		t.Errorf("hook producers = source %v artifact %v", source.Producer, artifact.Producer)
 	}
 }
 

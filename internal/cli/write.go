@@ -113,6 +113,9 @@ func writeLogic(args []string, stdin io.Reader, db *dbpkg.DB, stdout io.Writer) 
 // missing, and persists the record via db.PersistToolCall. The record
 // ID (tc.ID) is printed as raw JSON.
 func writeToolCallLogic(tc *dbpkg.ToolCall, db *dbpkg.DB, stdout io.Writer) (any, error) {
+	producer := dbpkg.ProducerWrite
+	tc.Producer = &producer
+
 	// Required structural fields. id, tool, and timestamp are
 	// meaningless if empty; input, output, and content_hash are accepted as
 	// supplied (including empty strings, e.g. a tool with no output).

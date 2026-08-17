@@ -80,8 +80,8 @@ func TestCompressionDispositionMigrationDoesNotBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	if MaxSupportedSchema() != 10 {
-		t.Fatalf("MaxSupportedSchema = %d, want 10", MaxSupportedSchema())
+	if MaxSupportedSchema() != 11 {
+		t.Fatalf("MaxSupportedSchema = %d, want 11", MaxSupportedSchema())
 	}
 	var rows int
 	if err := database.db.QueryRow(`SELECT count(*) FROM compression_dispositions`).Scan(&rows); err != nil {
@@ -111,7 +111,7 @@ func TestLatencyEvidenceMigrationPreservesHistoricalValuesAsUnknown(t *testing.T
 	if err := database.PersistToolCall(&ToolCall{ID: "historicalnullaa", SessionID: sessionID}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.db.Exec(`ALTER TABLE tool_calls DROP COLUMN latency_state; ALTER TABLE tool_calls DROP COLUMN latency_unit; ALTER TABLE tool_calls DROP COLUMN latency_authority; PRAGMA user_version = 9`); err != nil {
+	if _, err := database.db.Exec(`ALTER TABLE tool_calls DROP COLUMN latency_state; ALTER TABLE tool_calls DROP COLUMN latency_unit; ALTER TABLE tool_calls DROP COLUMN latency_authority; ALTER TABLE tool_calls DROP COLUMN producer; ALTER TABLE compressed DROP COLUMN producer; PRAGMA user_version = 9`); err != nil {
 		t.Fatal(err)
 	}
 	if err := database.Close(); err != nil {
@@ -144,6 +144,59 @@ func TestLatencyEvidenceMigrationPreservesHistoricalValuesAsUnknown(t *testing.T
 	want := [][]string{{"NULL", "unknown", "milliseconds", "unknown"}, {"27", "unknown", "milliseconds", "unknown"}, {"0", "unknown", "milliseconds", "unknown"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("migrated latency evidence = %#v, want %#v", got, want)
+	}
+}
+
+func TestProducerMigrationLeavesHistoricalRowsUnknown(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "schema-10.db")
+	database, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID := seedSessionAndCalls(t, database, []callFixture{{id: "provenancesource", output: "original"}})[0]
+	seedCompressedWithID(t, database, "provenanceartif", sourceID, "short", "2026-08-17T12:00:00Z")
+	if _, err := database.db.Exec(`ALTER TABLE tool_calls DROP COLUMN producer; ALTER TABLE compressed DROP COLUMN producer; PRAGMA user_version = 10`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	database, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	var sourceProducer, artifactProducer sql.NullString
+	if err := database.db.QueryRow(`SELECT producer FROM tool_calls WHERE id = ?`, sourceID).Scan(&sourceProducer); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.db.QueryRow(`SELECT producer FROM compressed WHERE id = 'provenanceartif'`).Scan(&artifactProducer); err != nil {
+		t.Fatal(err)
+	}
+	if sourceProducer.Valid || artifactProducer.Valid {
+		t.Fatalf("historical producers = source %v artifact %v, want NULL", sourceProducer, artifactProducer)
+	}
+	source, err := database.GetToolCall(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.Output != "original" {
+		t.Fatalf("migrated source = %+v", source)
+	}
+	artifact, err := database.GetCompressed("provenanceartif")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if artifact.Output != "short" {
+		t.Fatalf("migrated artifact = %+v", artifact)
+	}
+	var producerIndexes int
+	if err := database.db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'index' AND sql LIKE '%producer%'`).Scan(&producerIndexes); err != nil {
+		t.Fatal(err)
+	}
+	if producerIndexes != 0 {
+		t.Fatalf("producer indexes = %d, want 0", producerIndexes)
 	}
 }
 

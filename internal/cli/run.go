@@ -531,6 +531,8 @@ func teeAndParseRuntime(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID s
 		// SessionID, which the parser does not know. The wrapper fills
 		// it before persisting.
 		tc.SessionID = sessionID
+		producer := dbpkg.ProducerRun
+		tc.Producer = &producer
 
 		// Resolve deterministic identity from the native correlation
 		// tuple the parser extracted. For OpenCode tool_use events the

@@ -50,7 +50,7 @@ func seedToolCallForCompress(t *testing.T, d *DB) string {
 // TestInsertCompressed covers the happy path + FK rejection leg of
 // the acceptance contract.
 func TestInsertCompressed(t *testing.T) {
-	t.Run("happy path persists all 6 columns", func(t *testing.T) {
+	t.Run("happy path persists all columns", func(t *testing.T) {
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
@@ -80,7 +80,7 @@ func TestInsertCompressed(t *testing.T) {
 		}
 
 		// Re-read via GetCompressed to confirm the row round-trips
-		// with all 6 columns populated.
+		// with all columns populated.
 		got, err := d.GetCompressed(cid)
 		if err != nil {
 			t.Fatalf("GetCompressed: %v", err)

@@ -61,17 +61,17 @@ func TestCommandBaselineInventories(t *testing.T) {
 func baselineProducerLabel(surface, evidence, _ string) string {
 	switch surface + ":" + evidence {
 	case "ktx write:source":
-		return "write"
+		return string(dbpkg.ProducerWrite)
 	case "ktx hook:source", "ktx hook:artifact":
-		return "hook"
+		return string(dbpkg.ProducerHook)
 	case "ktx run:source":
-		return "run"
+		return string(dbpkg.ProducerRun)
 	case "ktx compress:artifact":
-		return "compress"
+		return string(dbpkg.ProducerCompress)
 	case "component benchmark:source", "component benchmark:artifact":
-		return "componentbench"
+		return string(dbpkg.ProducerComponentBench)
 	case "load benchmark fixture:artifact":
-		return "loadbench-fixture"
+		return string(dbpkg.ProducerLoadFixture)
 	default:
 		return "unknown"
 	}

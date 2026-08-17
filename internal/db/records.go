@@ -42,6 +42,19 @@ const (
 	LatencyAuthorityUnknown = "unknown"
 )
 
+// Producer is the bounded command label that first accepted a source or
+// artifact. A nil producer means the row is historical or unattributed.
+type Producer string
+
+const (
+	ProducerWrite          Producer = "write"
+	ProducerHook           Producer = "hook"
+	ProducerRun            Producer = "run"
+	ProducerCompress       Producer = "compress"
+	ProducerComponentBench Producer = "componentbench"
+	ProducerLoadFixture    Producer = "loadbench-fixture"
+)
+
 // ToolCall is the flat JSON tool_call payload.
 //
 // Required fields are persisted to the tool_calls table. The optional
@@ -96,6 +109,8 @@ type ToolCall struct {
 	// through JSON and SQL round-trips). runtime records the agent
 	// runtime that executed the tool call.
 	Runtime *string `json:"runtime"`
+
+	Producer *Producer `json:"producer"`
 }
 
 func normalizeLatencyEvidence(tc *ToolCall) error {
@@ -225,12 +240,12 @@ func (d *DB) CloseSession(id, endedAt string) error {
 // transaction keeps the aggregate consistent with the evidence — a
 // tool_call never exists without its session counters reflecting it.
 //
-// The INSERT writes all 17 columns: the 8 core fields (id, session_id, tool,
+// The INSERT writes all columns: the 8 core fields (id, session_id, tool,
 // input, output, content_hash, timestamp, event_type), the 6
 // cost-publication fields (tokens_in, tokens_out, cost, latency_ms, model,
 // provider), the 2 failure-signal fields (exit_code, is_error), and the
-// runtime field. These fields are passed as the *int64 / *float64 / *string
-// pointer values on the ToolCall struct; a nil pointer round-trips to
+// runtime and producer fields. These fields are passed as pointer values on
+// the ToolCall struct; a nil pointer round-trips to
 // SQL NULL. A non-nil pointer to zero persists as 0, preserving the
 // distinction between an absent field and a measured zero.
 //
@@ -274,12 +289,12 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 		query := `INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
-			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority, producer
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		args := []any{
 			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
 			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
-			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority,
+			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority, tc.Producer,
 		}
 		if _, ok := columns["latency_state"]; !ok {
 			query = `INSERT INTO tool_calls (id, session_id, tool, input, output, content_hash, timestamp, event_type, tokens_in, tokens_out, cost, latency_ms, model, provider, exit_code, is_error, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -340,12 +355,12 @@ func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 			`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
-			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority, producer
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO NOTHING`,
 			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
 			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
-			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority,
+			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority, tc.Producer,
 		)
 		if err != nil {
 			return fmt.Errorf("db: insert retry-safe tool_call %q: %w", tc.ID, err)
@@ -417,7 +432,7 @@ func conflictReason(tool, input, output string, runtime sql.NullString, tc *Tool
 // The returned struct carries the persisted shape including the
 // cost-publication fields (tokens_in, tokens_out, cost, latency_ms,
 // model, provider), the failure-signal fields (exit_code, is_error), and
-// the runtime field. The columns are nullable; the Scan uses
+// the runtime and producer fields. The columns are nullable; the Scan uses
 // sql.NullInt64 / sql.NullFloat64 / sql.NullString intermediates so
 // NULL is converted back to a nil pointer on the ToolCall struct,
 // preserving the 'field absent' distinction. A non-NULL column with
@@ -436,6 +451,7 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		isError                                     sql.NullInt64
 		runtime                                     sql.NullString
 		latencyState, latencyUnit, latencyAuthority string
+		producer                                    sql.NullString
 	)
 	columns, err := tableColumns(d.db, "tool_calls")
 	if err != nil {
@@ -443,13 +459,13 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 	}
 	query := `SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type,
 		        tokens_in, tokens_out, cost, latency_ms, model, provider,
-		        exit_code, is_error, runtime, latency_state, latency_unit, latency_authority
+		        exit_code, is_error, runtime, latency_state, latency_unit, latency_authority, producer
 		 FROM tool_calls WHERE id = ?`
 	dest := []any{
 		&tc.ID, &tc.SessionID, &tc.Tool, &tc.Input, &tc.Output,
 		&tc.ContentHash, &tc.Timestamp, &tc.EventType,
 		&tokensIn, &tokensOut, &cost, &latencyMs, &model, &provider,
-		&exitCode, &isError, &runtime, &latencyState, &latencyUnit, &latencyAuthority,
+		&exitCode, &isError, &runtime, &latencyState, &latencyUnit, &latencyAuthority, &producer,
 	}
 	if _, ok := columns["latency_state"]; !ok {
 		query = `SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type, tokens_in, tokens_out, cost, latency_ms, model, provider, exit_code, is_error, runtime FROM tool_calls WHERE id = ?`
@@ -501,6 +517,10 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 	if runtime.Valid {
 		v := runtime.String
 		tc.Runtime = &v
+	}
+	if producer.Valid {
+		v := Producer(producer.String)
+		tc.Producer = &v
 	}
 	return &tc, nil
 }

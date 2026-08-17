@@ -1,7 +1,7 @@
 // Schema migration tests for the `compressed` table.
 //
 // Covers the migration acceptance:
-//   - fresh-DB has `compressed` with all 6 columns
+//   - fresh-DB has `compressed` with all columns
 //   - older DB gains `compressed` on next open
 //   - re-open is a no-op (idempotency)
 //   - partial-column forward-fix (hand-built fixture via
@@ -26,15 +26,15 @@ import (
 // TABLE. Order matches the CREATE TABLE column order; doctor and the
 // partial-forward-fix path both rely on the order being deterministic.
 var expectedCompressedColumns = []string{
-	"id", "source_id", "output", "content_hash", "pipeline", "timestamp",
+	"id", "source_id", "output", "content_hash", "pipeline", "timestamp", "producer",
 }
 
 // TestCompressedMigration_FreshDB covers the "fresh database created by
 // the current binary" leg: OpenMemory runs migrate() which includes the
 // `CREATE TABLE IF NOT EXISTS compressed` statement, so the table and
-// all 6 columns must be present from the start (no ALTER needed).
+// all columns must be present from the start (no ALTER needed).
 func TestCompressedMigration_FreshDB(t *testing.T) {
-	t.Run("compressed table exists with all 6 columns", func(t *testing.T) {
+	t.Run("compressed table exists with all columns", func(t *testing.T) {
 		d, err := OpenMemory()
 		if err != nil {
 			t.Fatalf("OpenMemory: %v", err)
@@ -88,10 +88,10 @@ func TestCompressedMigration_FreshDB(t *testing.T) {
 // unmigrated fixture exactly as the older schema would have left it
 // (sessions, tool_calls with all cost-publication columns, bench_runs),
 // then run migrate()
-// against it. The compressed table must appear with all 6 columns
+// against it. The compressed table must appear with all columns
 // and existing tables/rows must be untouched.
 func TestCompressedMigration_PreM4Database(t *testing.T) {
-	t.Run("unmigrated DB gains compressed table with all 6 columns", func(t *testing.T) {
+	t.Run("unmigrated DB gains compressed table with all columns", func(t *testing.T) {
 		raw, err := sql.Open(sqliteDriver, "file::memory:?_pragma=foreign_keys(1)")
 		if err != nil {
 			t.Fatalf("open raw sqlite: %v", err)
@@ -177,7 +177,7 @@ func TestCompressedMigration_PreM4Database(t *testing.T) {
 			t.Fatalf("migrate unmigrated DB: %v", err)
 		}
 
-		// compressed must now exist with all 6 columns.
+		// compressed must now exist with all columns.
 		have, err := tableColumns(raw, "compressed")
 		if err != nil {
 			t.Fatalf("tableColumns(compressed) after migrate: %v", err)
@@ -311,7 +311,7 @@ func TestCompressedMigration_PartialForwardFix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tableColumns after migrate: %v", err)
 	}
-	// All 6 columns must now be present.
+	// All columns must now be present.
 	for _, want := range expectedCompressedColumns {
 		if _, ok := have[want]; !ok {
 			t.Errorf("compressed column %q missing after forward-fix (have %v)", want, sortedKeys(have))

@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -21,27 +22,37 @@ func TestPersistToolCallOnceConcurrentRetry(t *testing.T) {
 	const deliveries = 12
 	start := make(chan struct{})
 	results := make(chan bool, deliveries)
+	winners := make(chan Producer, deliveries)
 	errs := make(chan error, deliveries)
 	var wg sync.WaitGroup
 	for i := 0; i < deliveries; i++ {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 			<-start
 			runtime := "codex"
+			producer := ProducerHook
+			if i%2 != 0 {
+				producer = ProducerRun
+			}
 			tc := &ToolCall{
 				ID: "abcdefghijklmnop", SessionID: "session", Tool: "exec",
 				Input: `{"cmd":"go test ./..."}`, Output: "ok\n", Timestamp: "2026-07-12T10:00:01Z",
 				ContentHash: ContentHash("ok\n"), Runtime: &runtime,
+				Producer: &producer,
 			}
 			inserted, err := d.PersistToolCallOnce(tc)
 			results <- inserted
+			if inserted {
+				winners <- producer
+			}
 			errs <- err
-		}()
+		}(i)
 	}
 	close(start)
 	wg.Wait()
 	close(results)
+	close(winners)
 	close(errs)
 
 	inserted := 0
@@ -57,6 +68,11 @@ func TestPersistToolCallOnceConcurrentRetry(t *testing.T) {
 	}
 	if inserted != 1 {
 		t.Fatalf("inserted deliveries = %d, want 1", inserted)
+	}
+	winner := <-winners
+	stored, err := d.GetToolCall("abcdefghijklmnop")
+	if err != nil || stored.Producer == nil || *stored.Producer != winner {
+		t.Fatalf("stored producer = %v, %v; want %q", stored.Producer, err, winner)
 	}
 	session, err := d.GetSession("session")
 	if err != nil {
@@ -96,6 +112,30 @@ func TestPersistToolCallOnceConflictPreservesFirstEvidence(t *testing.T) {
 	}
 }
 
+func TestPersistToolCallOnceDoesNotBackfillProducer(t *testing.T) {
+	d, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if err := d.InsertSession(&Session{ID: "session", Agent: "test", StartedAt: "2026-08-17T10:00:00Z", LastSeenAt: "2026-08-17T10:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	tc := &ToolCall{ID: "abcdefghijklmnop", SessionID: "session", Tool: "exec", Input: "same", Output: "same", Timestamp: "2026-08-17T10:00:01Z"}
+	if inserted, err := d.PersistToolCallOnce(tc); err != nil || !inserted {
+		t.Fatalf("first insert = %t, %v", inserted, err)
+	}
+	producer := ProducerHook
+	tc.Producer = &producer
+	if inserted, err := d.PersistToolCallOnce(tc); err != nil || inserted {
+		t.Fatalf("retry insert = %t, %v", inserted, err)
+	}
+	stored, err := d.GetToolCall(tc.ID)
+	if err != nil || stored.Producer != nil {
+		t.Fatalf("stored producer = %v, %v; want nil", stored.Producer, err)
+	}
+}
+
 func TestInsertCompressedOnceConcurrentRetry(t *testing.T) {
 	d, err := Open(t.TempDir() + "/ktx.db")
 	if err != nil {
@@ -122,7 +162,11 @@ func TestInsertCompressedOnceConcurrentRetry(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			candidate := &Compressed{ID: fmt.Sprintf("artifact%08d", i), SourceID: tc.ID, Output: "short", ContentHash: ContentHash("short"), Pipeline: `["head:1"]`, Timestamp: "2026-07-12T10:00:02Z"}
+			producer := ProducerHook
+			if i%2 != 0 {
+				producer = ProducerCompress
+			}
+			candidate := &Compressed{ID: fmt.Sprintf("artifact%08d", i), SourceID: tc.ID, Output: "short", ContentHash: ContentHash("short"), Pipeline: `["head:1"]`, Timestamp: "2026-07-12T10:00:02Z", Producer: &producer}
 			stored, _, err := d.InsertCompressedOnce(candidate)
 			if stored != nil {
 				ids <- stored.ID
@@ -154,5 +198,48 @@ func TestInsertCompressedOnceConcurrentRetry(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("compressed rows = %d, want 1", count)
+	}
+	stored, err := d.GetCompressed(winner)
+	if err != nil || stored.Producer == nil {
+		t.Fatalf("stored producer = %v, %v", stored, err)
+	}
+	winnerIndex := strings.TrimLeft(strings.TrimPrefix(winner, "artifact"), "0")
+	var index int
+	if winnerIndex != "" {
+		if _, err := fmt.Sscan(winnerIndex, &index); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantProducer := ProducerHook
+	if index%2 != 0 {
+		wantProducer = ProducerCompress
+	}
+	if *stored.Producer != wantProducer {
+		t.Errorf("stored producer = %q, want %q", *stored.Producer, wantProducer)
+	}
+}
+
+func TestInsertCompressedOnceDoesNotBackfillProducer(t *testing.T) {
+	d, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if err := d.InsertSession(&Session{ID: "session", Agent: "test", StartedAt: "2026-08-17T10:00:00Z", LastSeenAt: "2026-08-17T10:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	tc := &ToolCall{ID: "abcdefghijklmnop", SessionID: "session", Tool: "exec", Output: "original", Timestamp: "2026-08-17T10:00:01Z"}
+	if err := d.PersistToolCall(tc); err != nil {
+		t.Fatal(err)
+	}
+	first := &Compressed{ID: "firstartifactxxx", SourceID: tc.ID, Output: "short", Timestamp: "2026-08-17T10:00:02Z"}
+	if stored, inserted, err := d.InsertCompressedOnce(first); err != nil || !inserted || stored.ID != first.ID {
+		t.Fatalf("first artifact = %+v, %t, %v", stored, inserted, err)
+	}
+	producer := ProducerCompress
+	retry := &Compressed{ID: "retryartifactxxx", SourceID: tc.ID, Output: "short", Timestamp: "2026-08-17T10:00:03Z", Producer: &producer}
+	stored, inserted, err := d.InsertCompressedOnce(retry)
+	if err != nil || inserted || stored.ID != first.ID || stored.Producer != nil {
+		t.Fatalf("retry artifact = %+v, %t, %v; want first unknown producer", stored, inserted, err)
 	}
 }

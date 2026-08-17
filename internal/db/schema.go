@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 10
+const schemaVersion = 11
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -168,7 +168,8 @@ var schemaStatements = []string{
 		provider     TEXT,
 		exit_code    INTEGER,
 		is_error     INTEGER,
-		runtime      TEXT
+		runtime      TEXT,
+		producer     TEXT
 	)`,
 	`CREATE TABLE IF NOT EXISTS bench_runs (
 		id                  TEXT PRIMARY KEY,
@@ -199,7 +200,8 @@ var schemaStatements = []string{
 		output       TEXT,
 		content_hash TEXT,
 		pipeline     TEXT,
-		timestamp    TEXT
+		timestamp    TEXT,
+		producer     TEXT
 	)`,
 	// compressed_source_id_idx accelerates `ktx decompress <id>`'s
 	// source_id lookup (the reversal primitive GetSourceOutput). The
@@ -298,9 +300,7 @@ var failureSignalColumns = []costColumn{
 	{Name: "is_error", Type: "INTEGER"},
 }
 
-// runtimeColumns are the runtime columns on tool_calls. runtime
-// records the agent runtime that executed the tool call. Idempotency
-// mirrors costColumns and failureSignalColumns.
+// runtimeColumns are the nullable runtime fields on tool_calls.
 var runtimeColumns = []costColumn{
 	{Name: "runtime", Type: "TEXT"},
 }
@@ -309,6 +309,12 @@ var latencyEvidenceColumns = []costColumn{
 	{Name: "latency_state", Type: "TEXT NOT NULL DEFAULT 'unknown'"},
 	{Name: "latency_unit", Type: "TEXT NOT NULL DEFAULT 'milliseconds'"},
 	{Name: "latency_authority", Type: "TEXT NOT NULL DEFAULT 'unknown'"},
+}
+
+// producerColumns are nullable so migration leaves historical ownership
+// unknown.
+var producerColumns = []costColumn{
+	{Name: "producer", Type: "TEXT"},
 }
 
 // benchRunsColumn enumerates a single bench_runs column. The list is the
@@ -378,7 +384,7 @@ type compressedColumn struct {
 	Type string
 }
 
-// compressedColumns are the 6 columns of the `compressed` table:
+// compressedColumns are the columns of the `compressed` table:
 // id (nanoid), source_id (FK → tool_calls.id),
 // output (the compressed bytes), content_hash (SHA-256 of compressed
 // output, recomputed per the integrity rule), pipeline (JSON selection and
@@ -393,6 +399,7 @@ var compressedColumns = []compressedColumn{
 	{Name: "content_hash", Type: "TEXT"},
 	{Name: "pipeline", Type: "TEXT"},
 	{Name: "timestamp", Type: "TEXT"},
+	{Name: "producer", Type: "TEXT"},
 }
 
 // DefaultPath resolves the default database path:
@@ -555,6 +562,16 @@ func migrateTx(tx *sql.Tx) error {
 		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("db: add latency evidence column %q: %w", col.Name, err)
+		}
+	}
+
+	for _, col := range producerColumns {
+		if _, ok := have[col.Name]; ok {
+			continue
+		}
+		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("db: add producer column %q: %w", col.Name, err)
 		}
 	}
 

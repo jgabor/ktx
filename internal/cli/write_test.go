@@ -263,7 +263,7 @@ func TestRunWriteWith_FailureSignalFields(t *testing.T) {
 		preSeedSession(t, d, "zyxwvutsrqponmlk")
 
 		payload := `{"id":"abcdefghijklmnop","session_id":"zyxwvutsrqponmlk","tool":"bash","input":"x","output":"y","content_hash":"` +
-			dbpkg.ContentHash("y") + `","timestamp":"2026-06-26T12:00:00Z","event_type":"tool_call","is_error":true,"exit_code":127}`
+			dbpkg.ContentHash("y") + `","timestamp":"2026-06-26T12:00:00Z","event_type":"tool_call","is_error":true,"exit_code":127,"producer":"hook"}`
 		stdin := bytes.NewBufferString(payload)
 		var stdout, stderr bytes.Buffer
 		code := runWriteWith(nil, Options{Format: FormatJSON}, stdin, &stdout, &stderr)
@@ -280,6 +280,23 @@ func TestRunWriteWith_FailureSignalFields(t *testing.T) {
 		}
 		if got.ExitCode == nil || *got.ExitCode != 127 {
 			t.Errorf("ExitCode = %v, want pointer to 127", got.ExitCode)
+		}
+		if got.Producer == nil || *got.Producer != dbpkg.ProducerWrite {
+			t.Errorf("Producer = %v, want write", got.Producer)
+		}
+		if stdout.String() != "\"abcdefghijklmnop\"\n" {
+			t.Errorf("write output = %q, want unchanged ID", stdout.String())
+		}
+		var readOut, readErr bytes.Buffer
+		if code := runReadWith([]string{"abcdefghijklmnop"}, Options{Format: FormatJSON}, &readOut, &readErr); code != ExitOK {
+			t.Fatalf("read exit = %d, stderr=%q", code, readErr.String())
+		}
+		var row map[string]any
+		if err := json.Unmarshal(readOut.Bytes(), &row); err != nil {
+			t.Fatal(err)
+		}
+		if row["producer"] != "write" || row["output"] != "y" {
+			t.Errorf("structured row producer/output = %v/%v", row["producer"], row["output"])
 		}
 	})
 

@@ -270,6 +270,8 @@ func compressCore(sourceID string, reg *pipeline.Registry, db *dbpkg.DB, stderr 
 		Pipeline:    pipelineJSON,
 		Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
 	}
+	producer := dbpkg.ProducerCompress
+	c.Producer = &producer
 	if err := db.InsertCompressed(c); err != nil {
 		if errors.Is(err, dbpkg.ErrSourceNotFound) {
 			return "", "", "", notFoundError("source tool_call %q not found", sourceID)

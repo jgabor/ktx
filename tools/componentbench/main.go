@@ -751,6 +751,7 @@ func persistenceBenchmarkSpec(workload workload, caseName string) benchmarkSpec 
 					if caseName == "failure" {
 						callSessionID = "mmmmmmmmmmmmmmmm"
 					}
+					producer := dbpkg.ProducerComponentBench
 					err := database.PersistToolCall(&dbpkg.ToolCall{
 						ID:          benchmarkID(index),
 						SessionID:   callSessionID,
@@ -759,6 +760,7 @@ func persistenceBenchmarkSpec(workload workload, caseName string) benchmarkSpec 
 						Output:      output,
 						ContentHash: hash,
 						Timestamp:   "2026-08-09T00:00:00Z",
+						Producer:    &producer,
 					})
 					if caseName == "failure" {
 						if err == nil {
@@ -803,9 +805,10 @@ func measureFocusedRead(ctx *benchmarkContext, workload workload) (focusedReadRe
 		return focusedReadResult{}, err
 	}
 	output := string(workload.data)
+	producer := dbpkg.ProducerComponentBench
 	if err := database.PersistToolCall(&dbpkg.ToolCall{
 		ID: focusedReadSourceID, SessionID: focusedReadSessionID, Tool: "read", Input: "component-benchmark",
-		Output: output, ContentHash: dbpkg.ContentHash(output), Timestamp: "2026-08-09T00:00:00Z",
+		Output: output, ContentHash: dbpkg.ContentHash(output), Timestamp: "2026-08-09T00:00:00Z", Producer: &producer,
 	}); err != nil {
 		_ = database.Close()
 		return focusedReadResult{}, err
@@ -884,15 +887,16 @@ func measureFocusedDecompression(ctx *benchmarkContext, workload workload) (focu
 		return closeWithError(focusedReadResult{}, err)
 	}
 	output := string(workload.data)
+	producer := dbpkg.ProducerComponentBench
 	if err := database.PersistToolCall(&dbpkg.ToolCall{
 		ID: focusedDecompressSourceID, SessionID: focusedDecompressSessionID, Tool: "read", Input: "component-benchmark",
-		Output: output, ContentHash: dbpkg.ContentHash(output), Timestamp: "2026-08-09T00:00:00Z",
+		Output: output, ContentHash: dbpkg.ContentHash(output), Timestamp: "2026-08-09T00:00:00Z", Producer: &producer,
 	}); err != nil {
 		return closeWithError(focusedReadResult{}, err)
 	}
 	if err := database.InsertCompressed(&dbpkg.Compressed{
 		ID: focusedDecompressArtifactID, SourceID: focusedDecompressSourceID, Output: "compressed",
-		ContentHash: dbpkg.ContentHash("compressed"), Pipeline: `[]`, Timestamp: "2026-08-09T00:00:01Z",
+		ContentHash: dbpkg.ContentHash("compressed"), Pipeline: `[]`, Timestamp: "2026-08-09T00:00:01Z", Producer: &producer,
 	}); err != nil {
 		return closeWithError(focusedReadResult{}, err)
 	}

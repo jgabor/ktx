@@ -54,6 +54,7 @@ func compressTestDB(t *testing.T) *dbpkg.DB {
 // a long struct literal).
 func seedSource(t *testing.T, d *dbpkg.DB, toolCallID, sessionID, output string) {
 	t.Helper()
+	producer := dbpkg.ProducerWrite
 	if err := d.InsertSession(&dbpkg.Session{
 		ID:         sessionID,
 		Agent:      "test-agent",
@@ -71,6 +72,7 @@ func seedSource(t *testing.T, d *dbpkg.DB, toolCallID, sessionID, output string)
 		ContentHash: dbpkg.ContentHash(output),
 		Timestamp:   "2026-06-24T12:00:00Z",
 		EventType:   "tool_call",
+		Producer:    &producer,
 	}); err != nil {
 		t.Fatalf("PersistToolCall: %v", err)
 	}
@@ -189,6 +191,17 @@ func TestRunCompressWith_IdentityRoundTrip(t *testing.T) {
 	}
 	if comp.Pipeline != `{"profile":"default","route":"default_fallback","stages":[],"structured_fallback":false}` {
 		t.Errorf("Pipeline = %q, want empty default profile (no stages ran)", comp.Pipeline)
+	}
+	source, err := d.GetToolCall("abcdefghijklmnop")
+	if err != nil || source.Producer == nil || *source.Producer != dbpkg.ProducerWrite {
+		t.Fatalf("source producer = %v, %v; want write", source.Producer, err)
+	}
+	if comp.Producer == nil || *comp.Producer != dbpkg.ProducerCompress {
+		t.Fatalf("artifact producer = %v, want compress", comp.Producer)
+	}
+	structured, err := json.Marshal(comp)
+	if err != nil || !bytes.Contains(structured, []byte(`"producer":"compress"`)) {
+		t.Fatalf("structured artifact = %s, %v", structured, err)
 	}
 
 	// decompress <compressed-id> → source bytes verbatim.

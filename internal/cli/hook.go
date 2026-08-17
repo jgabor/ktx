@@ -496,6 +496,8 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	if tc.Timestamp == "" {
 		tc.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
+	producer := dbpkg.ProducerHook
+	tc.Producer = &producer
 
 	sessionHint := tc.SessionID
 	if benchmarkEnv, present, envErr := benchcontract.ReadEnvironment(); present {
@@ -610,6 +612,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 				ContentHash: dbpkg.ContentHash(compressedOutput),
 				Pipeline:    pipeJSON,
 				Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
+				Producer:    &producer,
 			}
 		}
 		result, err := evidence.PersistArtifact(db, src, &tc, sourceInserted, candidate)
@@ -655,6 +658,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 			ContentHash: hash,
 			Pipeline:    pipeJSON,
 			Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
+			Producer:    &producer,
 		}
 		started := time.Now()
 		if err := dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationArtifact, started, db.InsertCompressed(c)); err != nil {

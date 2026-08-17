@@ -158,6 +158,11 @@ labels are:
 Historical or otherwise unattributed rows use `unknown`; they are not inferred
 from row content. Source and artifact labels are independent because a later
 explicit compression can create an artifact for a source accepted elsewhere.
+Schema 11 stores the nullable label on each source and artifact row. The label
+is part of the row's existing acceptance transaction. Exact and concurrent
+retries keep the first row's value and do not fill a NULL value. The migration
+adds no provenance index and leaves historical values NULL. Full structured
+source and artifact rows expose the label; content-only output is unchanged.
 
 The closed labels for supported ktx processes that acquire database
 coordination are `write`, `compress`, `hook`, `run`, `get`, `read`, `list`,

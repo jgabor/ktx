@@ -1,0 +1,17 @@
+id: znmfqfkvxv
+artifact: progress
+record:
+  timestamp: 2026-08-17 19:23
+  type: feat
+  phase: build
+  what: Persisted independent first-wins producer provenance on newly accepted source and artifact rows using the established closed command vocabulary. Schema 11 adds nullable columns in the existing acceptance transactions, while historical rows remain unknown and content-only output remains unchanged.
+  context:
+    intent: Retain truthful bounded command ownership independently for accepted source and artifact evidence.
+    constraints: Preserved physical compressed naming, separate source/artifact/disposition commits, first evidence, exact conflicts, public content-only output, rollback safety, and the no-index/no-extra-transaction boundary.
+    unknowns: Windows CLI cross-compilation is still blocked outside this change by Unix-only syscall fields in internal/experiment; the changed database package cross-compiles for Windows.
+    scope: Schema migration, source and artifact row contracts, all actual producer call sites, focused regression coverage, operator documentation, changelog, and project progress.
+  inspiration: The need to distinguish which supported invocation first accepted each source and artifact, including explicit compression that creates an artifact after a different command accepted its source.
+  discovered: Producer ownership must remain independent at the two acceptance boundaries. Retry convergence already supplies the required first-wins behavior when producer is inserted with the row and omitted from equality and update paths; no new transaction or index is needed.
+  verified: Focused tests passed for internal/db, internal/evidence, internal/cli, tools/componentbench, and tools/loadbench. The migration matrix, injected rollback, newer-schema behavior, exact and concurrent retries, cross-producer compression, structured source output, and direct benchmark fixtures passed. Race tests passed for internal/db, internal/evidence, and internal/cli. Windows compilation passed for internal/db; internal/cli remains blocked by existing syscall use in internal/experiment, while Darwin compilation passed for both packages. mage check passed all tests, vet, lint with 0 issues, build, and the database-safety audit with KTX_DB unset. A fresh-root local build smoke confirmed hook producer output and byte-exact decompression.
+  next: Leave plan task wxmpwfphcv in progress for orchestrator evaluation. No push or external publication was performed.
+  publication_order: 98

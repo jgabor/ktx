@@ -63,12 +63,13 @@ import (
 // Timestamp is the compression time (RFC3339Nano string, supplied by the
 // caller).
 type Compressed struct {
-	ID          string `json:"id"`
-	SourceID    string `json:"source_id"`
-	Output      string `json:"output"`
-	ContentHash string `json:"content_hash"`
-	Pipeline    string `json:"pipeline"`
-	Timestamp   string `json:"timestamp"`
+	ID          string    `json:"id"`
+	SourceID    string    `json:"source_id"`
+	Output      string    `json:"output"`
+	ContentHash string    `json:"content_hash"`
+	Pipeline    string    `json:"pipeline"`
+	Timestamp   string    `json:"timestamp"`
+	Producer    *Producer `json:"producer"`
 }
 
 // DeliveryObservation identifies the retained rows that determine how many
@@ -141,7 +142,7 @@ var ErrSourceNotFound = fmt.Errorf("db: compressed source_id not found: %w", Err
 
 // InsertCompressed persists one `compressed` row.
 // The write uses the shared bounded transaction retry path. The INSERT writes
-// all 6 columns; the caller is responsible for
+// all columns; the caller is responsible for
 // generating id via NewID, computing ContentHash via
 // ContentHash(compressedOutput) (the integrity rule, recomputed from
 // the compressed output), and marshalling the Pipeline JSON record.
@@ -177,9 +178,9 @@ func (d *DB) InsertCompressed(c *Compressed) error {
 		}
 
 		_, err = tx.ExecContext(ctx,
-			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp,
+			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, producer)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp, c.Producer,
 		)
 		return err
 	})
@@ -209,11 +210,11 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 	)
 	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
-			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp)
-		 SELECT ?, ?, ?, ?, ?, ?
+			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, producer)
+			 SELECT ?, ?, ?, ?, ?, ?, ?
 		 WHERE EXISTS (SELECT 1 FROM tool_calls WHERE id = ?)
 		   AND NOT EXISTS (SELECT 1 FROM compressed WHERE source_id = ?)`,
-			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp,
+			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp, c.Producer,
 			c.SourceID, c.SourceID,
 		)
 		if err != nil {
@@ -227,10 +228,10 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 		if !inserted {
 			var existing Compressed
 			err := tx.QueryRowContext(ctx,
-				`SELECT id, source_id, output, content_hash, pipeline, timestamp
+				`SELECT id, source_id, output, content_hash, pipeline, timestamp, producer
 				 FROM compressed WHERE source_id = ?
 				 ORDER BY timestamp ASC, id ASC LIMIT 1`, c.SourceID,
-			).Scan(&existing.ID, &existing.SourceID, &existing.Output, &existing.ContentHash, &existing.Pipeline, &existing.Timestamp)
+			).Scan(&existing.ID, &existing.SourceID, &existing.Output, &existing.ContentHash, &existing.Pipeline, &existing.Timestamp, &existing.Producer)
 			if err == sql.ErrNoRows {
 				return ErrSourceNotFound
 			}
@@ -256,11 +257,11 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 func (d *DB) GetCompressed(id string) (*Compressed, error) {
 	var c Compressed
 	err := d.db.QueryRow(
-		`SELECT id, source_id, output, content_hash, pipeline, timestamp
+		`SELECT id, source_id, output, content_hash, pipeline, timestamp, producer
 		 FROM compressed WHERE id = ?`,
 		id,
 	).Scan(
-		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp,
+		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp, &c.Producer,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -278,12 +279,12 @@ func (d *DB) GetCompressed(id string) (*Compressed, error) {
 func (d *DB) GetCompressedBySource(sourceID string) (*Compressed, error) {
 	var c Compressed
 	err := d.db.QueryRow(
-		`SELECT id, source_id, output, content_hash, pipeline, timestamp
+		`SELECT id, source_id, output, content_hash, pipeline, timestamp, producer
 		 FROM compressed WHERE source_id = ?
 		 ORDER BY timestamp ASC, id ASC LIMIT 1`,
 		sourceID,
 	).Scan(
-		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp,
+		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp, &c.Producer,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound

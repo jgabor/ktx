@@ -479,7 +479,8 @@ func TestOpenWithoutMigration_PreM3Fixture(t *testing.T) {
 			provider     TEXT,
 			exit_code    INTEGER,
 			is_error     INTEGER,
-			runtime      TEXT
+			runtime      TEXT,
+			producer     TEXT
 		)`); err != nil {
 			t.Fatalf("create tool_calls: %v", err)
 		}

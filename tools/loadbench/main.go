@@ -1488,8 +1488,8 @@ func seedCompressedArtifact(path string) (string, error) {
 	id := stableID(510002)
 	compressed := []byte("x")
 	sum := sha256.Sum256(compressed)
-	if _, err := database.Exec(`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp) VALUES (?, ?, ?, ?, ?, ?)`,
-		id, sourceID, string(compressed), hex.EncodeToString(sum[:]), `{}`, "2026-08-15T00:00:00Z"); err != nil {
+	if _, err := database.Exec(`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, producer) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, sourceID, string(compressed), hex.EncodeToString(sum[:]), `{}`, "2026-08-15T00:00:00Z", dbpkg.ProducerLoadFixture); err != nil {
 		return "", fmt.Errorf("seed decompression artifact: %w", err)
 	}
 	return id, nil

@@ -258,7 +258,7 @@ transaction rollback.
 
 ## Database migration and failure behavior
 
-Write-capable commands automatically migrate an older database to version 9.
+Write-capable commands automatically migrate an older database to version 11.
 Read-only `telemetry list` instead reports `schema-migration-required`; run
 `ktx db migrate` explicitly before retrying the query. The migration
 preserves unrelated session, tool-call, benchmark, compressed, and recorded-
@@ -269,11 +269,13 @@ Version-7 runtime event rows migrate as accepted model steps where applicable;
 they cannot be reinterpreted as duplicate callback occurrences that were never
 stored. Existing tool calls receive no reconstructed compression disposition;
 statistics report them as `unobserved` until new hook evidence is retained.
+Existing source and artifact rows also retain NULL producer provenance; the
+migration does not infer a command from stored content.
 
 Migration is one SQLite transaction. Invalid legacy provenance, a copy error,
 or another migration failure rolls back the table shape, rows, associations,
 unrelated evidence, indexes, and schema version. There is no automatic downgrade
-from version 9; rollback here means the failed upgrade leaves the prior database
+from version 11; rollback here means the failed upgrade leaves the prior database
 intact so the cause can be corrected and the command retried. Back up the
 database file before upgrading if an operator needs release-level rollback.
 

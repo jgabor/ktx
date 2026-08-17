@@ -174,6 +174,9 @@ func printGetText(w io.Writer, record any) {
 		fmt.Fprintf(w, "content_hash: %s\n", r.ContentHash)
 		fmt.Fprintf(w, "timestamp:    %s\n", r.Timestamp)
 		fmt.Fprintf(w, "event_type:   %s\n", r.EventType)
+		if r.Producer != nil {
+			fmt.Fprintf(w, "producer:     %s\n", *r.Producer)
+		}
 		// Cost-publication section. Rendered only when at
 		// least one cost pointer is non-nil. Field name column is padded
 		// to 12 chars after the 2-space indent, matching the main

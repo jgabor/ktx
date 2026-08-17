@@ -10,7 +10,42 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	dbpkg "github.com/jgabor/ktx/internal/db"
 )
+
+func TestDecompressionFixtureRecordsLoadProducer(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fixture.db")
+	database, err := dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InsertSession(&dbpkg.Session{ID: "session", Agent: "test", StartedAt: "2026-08-17T00:00:00Z", LastSeenAt: "2026-08-17T00:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.PersistToolCall(&dbpkg.ToolCall{ID: "abcdefghijklmnop", SessionID: "session", Tool: "read", Output: "original", Timestamp: "2026-08-17T00:00:01Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	id, err := seedCompressedArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database, err = dbpkg.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	artifact, err := database.GetCompressed(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if artifact.Producer == nil || *artifact.Producer != dbpkg.ProducerLoadFixture {
+		t.Fatalf("load fixture producer = %v, %v", artifact.Producer, err)
+	}
+}
 
 func TestFixedFixturesAreReproducible(t *testing.T) {
 	first := fixedFixtures()

@@ -11,8 +11,59 @@ import (
 	"strings"
 	"testing"
 
+	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/pipeline/stages"
 )
+
+func TestDirectFixturesRecordComponentProducer(t *testing.T) {
+	root := t.TempDir()
+	ctx := &benchmarkContext{root: root, configHome: filepath.Join(root, "config")}
+	var persistence benchmarkSpec
+	for _, spec := range benchmarkSpecs(fixedWorkloads()) {
+		if spec.Component == "persistence" && spec.Case == "success" {
+			persistence = spec
+			break
+		}
+	}
+	operation, err := persistence.newOperation(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := operation.run(); err != nil {
+		t.Fatal(err)
+	}
+	if err := operation.close(); err != nil {
+		t.Fatal(err)
+	}
+	database, err := dbpkg.Open(filepath.Join(root, "database", "persistence-1.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	row, err := database.GetToolCall(benchmarkID(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Producer == nil || *row.Producer != dbpkg.ProducerComponentBench {
+		t.Fatalf("component fixture producer = %v, %v", row.Producer, err)
+	}
+
+	if _, err := measureFocusedDecompression(ctx, fixedWorkloads()[0]); err != nil {
+		t.Fatal(err)
+	}
+	artifactDB, err := dbpkg.Open(filepath.Join(root, "database", "focused-decompress-2.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer artifactDB.Close()
+	artifact, err := artifactDB.GetCompressed(focusedDecompressArtifactID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if artifact.Producer == nil || *artifact.Producer != dbpkg.ProducerComponentBench {
+		t.Fatalf("component artifact producer = %v", artifact.Producer)
+	}
+}
 
 func TestFixedWorkloadsAreReproducibleAndValid(t *testing.T) {
 	first := fixedWorkloads()

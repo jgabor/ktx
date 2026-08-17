@@ -358,6 +358,10 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		if errors.As(err, &status) {
 			return status.code
 		}
+		var schemaErr *dbpkg.SchemaTooNewError
+		if errors.As(err, &schemaErr) {
+			err = databaseOpenError(databasePath, verb, err)
+		}
 		phase := dbpkg.OperationSource
 		if reg.opts.DatabaseAccess == DatabaseReadOnly {
 			phase = dbpkg.OperationQuery

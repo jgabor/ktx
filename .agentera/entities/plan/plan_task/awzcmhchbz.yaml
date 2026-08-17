@@ -1,0 +1,17 @@
+id: awzcmhchbz
+artifact: plan
+record:
+  plan: lcptmsddpa
+  name: Revalidate schema inside hook writer window
+  status: in_progress
+  depends_on:
+    - hcaiaeseji
+    - wxmpwfphcv
+  acceptance:
+    - GIVEN a hook validated the current schema before external work WHEN another supported binary migrates the database before hook writer ownership THEN the hook reports the existing schema-incompatible result and commits no source, artifact, disposition, or roll-up evidence.
+    - GIVEN a current-schema hook that creates or advances evidence WHEN its writer window begins THEN schema validation and all phased commits occur inside the same single exclusive coordination window.
+    - GIVEN a pre-source rejection or fully satisfied exact retry WHEN processing completes THEN no exclusive coordination window or write transaction is used.
+    - GIVEN an absent or older supported database WHEN a hook opens it THEN existing coordinated creation or forward migration behavior, rollback, and schema recheck remain unchanged.
+    - GIVEN current, stale, absent, and concurrently upgraded schemas WHEN hermetic verification runs THEN one success and one relevant failure case per path pass without ambient database access.
+  evidence:
+    []

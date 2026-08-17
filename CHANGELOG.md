@@ -19,7 +19,7 @@
 
 ### Fixed
 
-- Current-schema hooks now keep ordered source, artifact, and disposition commits inside one exclusive coordination window. Complete exact retries and pre-source rejections remain read-only.
+- Current-schema hooks now revalidate schema and keep ordered source, artifact, and disposition commits inside one exclusive coordination window. A concurrent upgrade fails closed before evidence writes, while complete exact retries and pre-source rejections remain read-only.
 - Database-unavailable diagnostics now identify the callback surface, pinned executable, database target, stable failure class, operation phase, elapsed wait, and observed Linux coordination blockers without exposing driver text or persisted content.
 - Linux coordinator-timeout diagnostics now label verified supported blocker commands from a closed vocabulary and report all uncertain identities as `unknown`.
 - Supported read-only database handles now coordinate with writers, and supported writers coordinate each SQLite transaction across processes.

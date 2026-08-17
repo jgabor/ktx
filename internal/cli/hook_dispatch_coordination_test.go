@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,11 +13,18 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 const hookDispatchHelperEnv = "KTX_HOOK_DISPATCH_HELPER"
+
+const (
+	hookDispatchStageEnv     = "KTX_HOOK_DISPATCH_STAGE"
+	hookDispatchStageReady   = "KTX_HOOK_DISPATCH_STAGE_READY"
+	hookDispatchStageRelease = "KTX_HOOK_DISPATCH_STAGE_RELEASE"
+)
 
 func TestHookDispatchProcessHelper(t *testing.T) {
 	if os.Getenv(hookDispatchHelperEnv) != "1" {
@@ -29,6 +38,43 @@ func TestHookDispatchProcessHelper(t *testing.T) {
 	}
 	if code != want {
 		t.Fatalf("hook exit = %d, want %d; stdout=%q stderr=%q", code, want, stdout.String(), stderr.String())
+	}
+	if want == ExitSchemaIncompatible {
+		var envelope struct {
+			Error struct {
+				Code          string `json:"code"`
+				ActualSchema  int    `json:"actual_schema"`
+				MaximumSchema int    `json:"maximum_schema"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+			t.Fatalf("decode schema-incompatible result: %v; stderr=%q", err, stderr.String())
+		}
+		if stdout.Len() != 0 || envelope.Error.Code != string(CodeSchemaIncompatible) ||
+			envelope.Error.ActualSchema != dbpkg.MaxSupportedSchema()+1 || envelope.Error.MaximumSchema != dbpkg.MaxSupportedSchema() {
+			t.Fatalf("schema-incompatible result stdout=%q error=%+v", stdout.String(), envelope.Error)
+		}
+	}
+}
+
+func TestHookDispatchStageHelper(t *testing.T) {
+	if os.Getenv(hookDispatchStageEnv) != "1" {
+		return
+	}
+	ready := os.Getenv(hookDispatchStageReady)
+	release := os.Getenv(hookDispatchStageRelease)
+	if ready == "" || release == "" {
+		t.Fatal("dispatch stage paths are required")
+	}
+	if err := os.WriteFile(ready, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitForHookDispatchFile(t, release, 5*time.Second)
+	if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(os.Stdout, "compressed\n"); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -144,6 +190,83 @@ func TestHookDispatchFallbackRaces(t *testing.T) {
 	}
 }
 
+func TestHookDispatchRejectsSchemaUpgradeBeforeWriterOwnership(t *testing.T) {
+	root := newHookDispatchRoot(t)
+	initializeHookDispatchDatabase(t, root.database)
+	writeHookDispatchConfig(t, root, fmt.Sprintf(`[pipeline.default]
+stages = ["dispatch-schema-race:-test.run=^TestHookDispatchStageHelper$"]
+
+[[plugin]]
+name = "dispatch-schema-race"
+command = %q
+`, os.Args[0]))
+	ready := filepath.Join(root.root, "stage-ready")
+	release := filepath.Join(root.root, "stage-release")
+	t.Setenv(hookDispatchStageEnv, "1")
+	t.Setenv(hookDispatchStageReady, ready)
+	t.Setenv(hookDispatchStageRelease, release)
+
+	payload := openCodeHookPayload(t, "dispatch-upgrade-session", "dispatch-upgrade-call", "bash", `{"command":"true"}`, strings.Repeat("first\nsecond\n", 20))
+	sourceID := mustOpenCodeID(t, "dispatch-upgrade-session", "dispatch-upgrade-call")
+	audit := root.audit("concurrent-upgrade")
+	command, output := newHookDispatchCommand(root, audit, payload, ExitSchemaIncompatible)
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waited := false
+	t.Cleanup(func() {
+		_ = os.WriteFile(release, nil, 0o600)
+		if !waited {
+			_ = command.Process.Kill()
+			_ = command.Wait()
+		}
+	})
+	waitForHookDispatchFile(t, ready, 5*time.Second)
+
+	upgrader, err := dbpkg.OpenHook(root.database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = upgrader.WithHookWriter(func(*dbpkg.HookWriter) error {
+		_, err := upgrader.DB().Exec(`PRAGMA user_version = ` + strconv.Itoa(dbpkg.MaxSupportedSchema()+1))
+		return err
+	})
+	if closeErr := upgrader.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		t.Fatalf("coordinated schema upgrade: %v", err)
+	}
+	if err := os.WriteFile(release, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Wait(); err != nil {
+		t.Fatalf("hook dispatch helper: %v: %s", err, output.String())
+	}
+	waited = true
+	assertExclusiveCoordinationCount(t, audit, 1)
+
+	raw, err := sql.Open("sqlite", "file:"+root.database+"?mode=ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	for table, query := range map[string]string{
+		"tool_calls":               `SELECT count(*) FROM tool_calls WHERE id = ?`,
+		"compressed":               `SELECT count(*) FROM compressed WHERE source_id = ?`,
+		"compression_dispositions": `SELECT count(*) FROM compression_dispositions WHERE source_id = ?`,
+	} {
+		var count int
+		if err := raw.QueryRow(query, sourceID).Scan(&count); err != nil || count != 0 {
+			t.Errorf("%s rows = %d, %v; want 0", table, count, err)
+		}
+	}
+	var sessions, rollup int
+	if err := raw.QueryRow(`SELECT count(*), COALESCE(sum(tool_call_count), 0) FROM sessions`).Scan(&sessions, &rollup); err != nil || sessions != 0 || rollup != 0 {
+		t.Errorf("session evidence count=%d rollup=%d err=%v; want zero", sessions, rollup, err)
+	}
+}
+
 type hookDispatchRoot struct {
 	root, home, data, config, cache, state, runtime, temporary, database string
 }
@@ -199,6 +322,14 @@ func runHookDispatchProcess(t *testing.T, root hookDispatchRoot, audit, payload 
 }
 
 func runHookDispatchCommand(root hookDispatchRoot, audit, payload string, wantExit int) error {
+	command, output := newHookDispatchCommand(root, audit, payload, wantExit)
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("hook dispatch helper: %w: %s", err, output.String())
+	}
+	return nil
+}
+
+func newHookDispatchCommand(root hookDispatchRoot, audit, payload string, wantExit int) (*exec.Cmd, *bytes.Buffer) {
 	command := exec.Command(os.Args[0], "-test.run=^TestHookDispatchProcessHelper$")
 	command.Env = append(hookDispatchBaseEnvironment(),
 		hookDispatchHelperEnv+"=1",
@@ -215,10 +346,10 @@ func runHookDispatchCommand(root hookDispatchRoot, audit, payload string, wantEx
 		"KTX_VERIFY_FORBIDDEN_DB_PATHS=[]",
 	)
 	command.Stdin = strings.NewReader(payload)
-	if output, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("hook dispatch helper: %w: %s", err, output)
-	}
-	return nil
+	output := new(bytes.Buffer)
+	command.Stdout = output
+	command.Stderr = output
+	return command, output
 }
 
 func hookDispatchBaseEnvironment() []string {
@@ -268,4 +399,16 @@ func exclusiveCoordinationCount(t *testing.T, path string) int {
 		}
 	}
 	return count
+}
+
+func waitForHookDispatchFile(t *testing.T, path string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", path)
 }

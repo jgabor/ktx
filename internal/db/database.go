@@ -505,12 +505,25 @@ type DB struct {
 // coordination again.
 type HookWriter struct{ db *DB }
 
-// WithHookWriter runs fn while holding one exclusive coordination lease.
-// Transactions started by HookWriter methods remain separate commits.
+// WithHookWriter validates the schema and runs fn while holding one exclusive
+// coordination lease. Transactions started by HookWriter methods remain
+// separate commits.
 func (d *DB) WithHookWriter(fn func(*HookWriter) error) error {
 	ctx, cancel := writeContext()
 	defer cancel()
-	return d.writer.withLock(ctx, false, func() error { return fn(&HookWriter{db: d}) })
+	return d.writer.withLock(ctx, false, func() error {
+		version, err := d.SchemaVersion()
+		if err != nil {
+			return fmt.Errorf("db: recheck hook schema version: %w", err)
+		}
+		if version > schemaVersion {
+			return newerSchemaError(version)
+		}
+		if version < schemaVersion {
+			return fmt.Errorf("db: hook schema version %d requires migration to version %d", version, schemaVersion)
+		}
+		return fn(&HookWriter{db: d})
+	})
 }
 
 // PrepareToolCall performs soft-fail cost derivation before hook coordination.

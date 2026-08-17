@@ -4,7 +4,7 @@ record:
   name: Prove integrated hook behavior
   depends_on:
     - rurmwrjpck
-    - czyzqpekni
+    - awzcmhchbz
   status: pending
   description: Verify provenance, blocker labels, phased durability, and reduced coordination together under hermetic hook-only contention.
   acceptance:

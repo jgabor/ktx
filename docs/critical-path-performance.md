@@ -182,11 +182,13 @@ For a current-schema delivery that can change evidence, parsing, configuration
 loading, cost derivation, route selection, and transformation finish before one
 OS-level exclusive coordination window begins. Source, artifact, and
 disposition then use the three separate SQLite commits below while that one
-window remains held. This is phased durability, not one atomic transaction.
-Final source validation runs inside the window so a preflight race cannot
-replace first-wins evidence. Pre-source rejection and a fully satisfied exact
-retry use bounded reads without exclusive coordination or a write transaction.
-Database creation and stale-schema migration retain their lifecycle ownership.
+window remains held. The window first revalidates the schema, so a migration by
+a newer supported binary after the hook's fast open fails closed before source
+acceptance. This is phased durability, not one atomic transaction. Final source
+validation runs inside the window so a preflight race cannot replace first-wins
+evidence. Pre-source rejection and a fully satisfied exact retry use bounded
+reads without exclusive coordination or a write transaction. Database creation
+and stale-schema migration retain their lifecycle ownership.
 
 | Acceptance             | Commit and ownership                                                                                                                                                               | Required delivery behavior                                                                                                                                                                                                  |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

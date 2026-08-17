@@ -142,6 +142,10 @@ func ppidStartTime(pid int) (int64, bool) {
 // timestamp is used as started_at and last_seen_at for newly created sessions
 // and as ended_at for sessions closed by the staleness path.
 func (d *DB) ResolveSessionID(hint, timestamp string) (string, error) {
+	return d.resolveSessionIDWith(hint, timestamp, d.CloseSession, d.openSession)
+}
+
+func (d *DB) resolveSessionIDWith(hint, timestamp string, closeSession func(string, string) error, openSession func(int, string) (string, error)) (string, error) {
 	// Caller-provided session_id (sidecar path): trust and verify.
 	if hint != "" {
 		exists, err := d.SessionExists(hint)
@@ -161,18 +165,18 @@ func (d *DB) ResolveSessionID(hint, timestamp string) (string, error) {
 		return "", err
 	}
 
-	if sf != nil && d.canReuse(ppid, sf, timestamp) {
+	if sf != nil && d.canReuseWith(ppid, sf, timestamp, closeSession) {
 		return sf.SessionID, nil
 	}
 
-	return d.openSession(ppid, timestamp)
+	return openSession(ppid, timestamp)
 }
 
 // canReuse reports whether the session file's session can be reused. As a
 // side effect, it closes the old session (sets ended_at) when it returns
 // false and the old session still exists in the database — so the caller
 // only has to openSession() on a false result.
-func (d *DB) canReuse(ppid int, sf *SessionFile, timestamp string) bool {
+func (d *DB) canReuseWith(ppid int, sf *SessionFile, timestamp string, closeSession func(string, string) error) bool {
 	exists, err := d.SessionExists(sf.SessionID)
 	if err != nil || !exists {
 		// File points at a session that's gone from the DB. Nothing to
@@ -189,7 +193,7 @@ func (d *DB) canReuse(ppid int, sf *SessionFile, timestamp string) bool {
 	if !alive || startTime != sf.PPIDStartTime {
 		// Parent died or PID was reused. Close the old session so it is not
 		// left open forever; a new one opens on the next line.
-		_ = d.CloseSession(sf.SessionID, timestamp)
+		_ = closeSession(sf.SessionID, timestamp)
 		return false
 	}
 	return true
@@ -226,6 +230,10 @@ func (d *DB) OpenNamedSession(agent string, ppid int, timestamp string) (string,
 // "unknown" agent) and the wrapper path (caller-supplied agent). Splitting
 // it from the public surface keeps the unknown-vs-named choice mechanical.
 func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string, error) {
+	return d.openNamedSessionWith(agent, ppid, timestamp, d.InsertSession)
+}
+
+func (d *DB) openNamedSessionWith(agent string, ppid int, timestamp string, insertSession func(*Session) error) (string, error) {
 	id, err := NewID()
 	if err != nil {
 		return "", fmt.Errorf("db: generate session id: %w", err)
@@ -235,7 +243,7 @@ func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string,
 	// tool_calls yet, and the persist layer treats 0 as a meaningful
 	// value (see the comment on the Session struct in records.go), not
 	// as missing.
-	if err := d.InsertSession(&Session{
+	if err := insertSession(&Session{
 		ID:         id,
 		Agent:      agent,
 		StartedAt:  timestamp,
@@ -256,4 +264,13 @@ func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string,
 		return "", err
 	}
 	return id, nil
+}
+
+// ResolveSessionID resolves hook session ownership without reacquiring the
+// exclusive coordination lease held by the writer.
+func (w *HookWriter) ResolveSessionID(hint, timestamp string) (string, error) {
+	open := func(ppid int, timestamp string) (string, error) {
+		return w.db.openNamedSessionWith("unknown", ppid, timestamp, w.InsertSession)
+	}
+	return w.db.resolveSessionIDWith(hint, timestamp, w.CloseSession, open)
 }

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -95,22 +96,8 @@ func TestHookForeignLockBeforeSourceLeavesEventUnaccepted(t *testing.T) {
 func TestHookForeignLockAfterSourceKeepsSourceAndRetryConverges(t *testing.T) {
 	d, path := hookForeignLockDB(t)
 	hookChdirTemp(t)
-	configRoot := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", configRoot)
-	ready := filepath.Join(t.TempDir(), "stage-ready")
-	release := filepath.Join(t.TempDir(), "stage-release")
-	t.Setenv("KTX_HOOK_FOREIGN_LOCK_STAGE", "1")
-	t.Setenv("KTX_HOOK_FOREIGN_LOCK_READY", ready)
-	t.Setenv("KTX_HOOK_FOREIGN_LOCK_RELEASE", release)
-	t.Cleanup(func() { _ = os.WriteFile(release, nil, 0o600) })
-	hookWriteUserConfig(t, fmt.Sprintf(`[pipeline.default]
-stages = ["foreign-lock-stage:-test.run=^TestHookForeignLockStageHelper$"]
-timeout = "5s"
-
-[[plugin]]
-name = "foreign-lock-stage"
-command = %q
-`, os.Args[0]))
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, "[pipeline.default]\nstages = [\"head:1\"]\n")
 
 	const (
 		runtimeSessionID = "foreign-lock-artifact-runtime"
@@ -122,22 +109,32 @@ command = %q
 
 	var stdout, stderr bytes.Buffer
 	var observations []string
+	sourceAccepted := make(chan struct{})
+	continueHook := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
 		_, err := hookLogicObserved(strings.NewReader(payload), d, &stdout, &stderr, func(kind, phase string) {
 			observations = append(observations, kind+":"+phase)
+			if kind == hookAcceptanceCommit && phase == dbpkg.OperationSource {
+				close(sourceAccepted)
+				<-continueHook
+			}
 		})
 		done <- err
 	}()
-	waitForHookForeignLockFile(t, ready, 5*time.Second)
+	select {
+	case <-sourceAccepted:
+	case err := <-done:
+		t.Fatalf("hook stopped before source acceptance: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("hook did not reach source acceptance")
+	}
 	if source, err := d.GetToolCall(sourceID); err != nil || source.Output != original {
 		t.Fatalf("source before artifact lock = %+v, %v", source, err)
 	}
 
 	lock := holdHookForeignWriteLock(t, path)
-	if err := os.WriteFile(release, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	close(continueHook)
 	select {
 	case err := <-done:
 		if err == nil {
@@ -172,10 +169,73 @@ command = %q
 	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode retry envelope: %v\nstdout=%s", err, stdout.String())
 	}
-	if envelope.SourceID != sourceID || envelope.CompressedID == nil || !strings.HasPrefix(envelope.Output, "compressed\n") || len(envelope.Output) >= len(original) {
+	if envelope.SourceID != sourceID || envelope.CompressedID == nil || envelope.Output != "original tool output\n" || len(envelope.Output) >= len(original) {
 		t.Errorf("retry envelope = %+v, want retained source and compressed output", envelope)
 	}
 	assertHookEvidenceCounts(t, d, sourceID, 1, 1, 1)
+}
+
+func TestHookFinalSourceValidationClosesPreflightRace(t *testing.T) {
+	d, _ := hookForeignLockDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	ready := filepath.Join(t.TempDir(), "stage-ready")
+	release := filepath.Join(t.TempDir(), "stage-release")
+	t.Setenv("KTX_HOOK_FOREIGN_LOCK_STAGE", "1")
+	t.Setenv("KTX_HOOK_FOREIGN_LOCK_READY", ready)
+	t.Setenv("KTX_HOOK_FOREIGN_LOCK_RELEASE", release)
+	hookWriteUserConfig(t, fmt.Sprintf(`[pipeline.default]
+stages = ["race-stage:-test.run=^TestHookForeignLockStageHelper$"]
+
+[[plugin]]
+name = "race-stage"
+command = %q
+`, os.Args[0]))
+
+	const runtimeSessionID, callID = "preflight-race-session", "preflight-race-call"
+	payload := openCodeHookPayload(t, runtimeSessionID, callID, "bash", `{"command":"true"}`, "loser")
+	sourceID := mustOpenCodeID(t, runtimeSessionID, callID)
+	var stdout, stderr bytes.Buffer
+	var observations []string
+	done := make(chan error, 1)
+	go func() {
+		_, err := hookLogicObserved(strings.NewReader(payload), d, &stdout, &stderr, func(kind, phase string) {
+			observations = append(observations, kind+":"+phase)
+		})
+		done <- err
+	}()
+	waitForHookForeignLockFile(t, ready, 5*time.Second)
+
+	if err := d.InsertSession(&dbpkg.Session{ID: "preflightracesess", Agent: "test", StartedAt: "2026-08-17T00:00:00Z", LastSeenAt: "2026-08-17T00:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	runtimeName := "opencode"
+	producer := dbpkg.ProducerHook
+	winner := &dbpkg.ToolCall{ID: sourceID, SessionID: "preflightracesess", Tool: "bash", Input: `{"command":"true"}`, Output: "winner", ContentHash: dbpkg.ContentHash("winner"), Timestamp: "2026-08-17T00:00:00Z", Runtime: &runtimeName, Producer: &producer}
+	if _, err := d.PersistToolCallOnce(winner); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(release, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := <-done
+	var cliErr *Error
+	if !errors.As(err, &cliErr) || cliErr.Code != CodeConflict {
+		t.Fatalf("hook race = %v, want conflict", err)
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("race output stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if want := []string{hookExclusiveAcquisition + ":coordination"}; !reflect.DeepEqual(observations, want) {
+		t.Fatalf("race observations = %v, want %v", observations, want)
+	}
+	stored, err := d.GetToolCall(sourceID)
+	if err != nil || stored.Output != "winner" {
+		t.Fatalf("retained winner = %+v, %v", stored, err)
+	}
+	if _, err := d.GetCompressedBySource(sourceID); !errors.Is(err, dbpkg.ErrNotFound) {
+		t.Fatalf("race artifact = %v, want not found", err)
+	}
 }
 
 func TestHookForeignLockDuringDispositionKeepsAcceptedEvidence(t *testing.T) {

@@ -1,0 +1,16 @@
+id: cvwqcfyjdv
+artifact: progress
+record:
+  timestamp: 2026-08-17 19:56
+  type: feat
+  phase: build
+  what: Current-schema hooks now use one exclusive coordination window while retaining separate ordered source, artifact, and disposition commits.
+  context:
+    intent: Remove repeated current-schema hook lock handoffs without weakening first-wins authority or phased durability.
+    constraints: No ambient database, WAL, daemon, spool, dependency, output change, or atomic replacement of the three acceptance commits.
+    unknowns: "The fully satisfied retry boundary is resolved by current pipeline outcome: retained artifact authority always short-circuits, while retained passthrough advances only when current transformation produces an artifact."
+    scope: Hook-specific coordination, persistence plumbing, focused tests, performance contract, changelog, and backlog state.
+  discovered: A complete passthrough retry can remain read-only only when the current pipeline does not produce a new artifact; changed configuration can still advance evidence. Final source validation inside coordination closes that preflight race.
+  verified: Focused hook phase, staged durability, preflight race, concurrent retry, startup contention, and lifecycle tests passed. Affected-package tests and race tests passed. mage check passed. The locally built CLI passed a fresh-root exact-retry smoke, and a seeded schema-9 database migrated to schema 11. Darwin arm64 built; Windows amd64 database and evidence packages compiled, while the full Windows CLI remains blocked by existing syscall use in internal/experiment.
+  next: Keep this plan task in progress for orchestrator evaluation, then run the integrated hook evidence task if accepted.
+  publication_order: 99

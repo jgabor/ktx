@@ -178,6 +178,16 @@ PID and held mode.
 
 Hook processing has three separate acceptance points, in this order:
 
+For a current-schema delivery that can change evidence, parsing, configuration
+loading, cost derivation, route selection, and transformation finish before one
+OS-level exclusive coordination window begins. Source, artifact, and
+disposition then use the three separate SQLite commits below while that one
+window remains held. This is phased durability, not one atomic transaction.
+Final source validation runs inside the window so a preflight race cannot
+replace first-wins evidence. Pre-source rejection and a fully satisfied exact
+retry use bounded reads without exclusive coordination or a write transaction.
+Database creation and stale-schema migration retain their lifecycle ownership.
+
 | Acceptance             | Commit and ownership                                                                                                                                                               | Required delivery behavior                                                                                                                                                                                                  |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Source acceptance      | The source tool-call row and its session roll-up commit. This is the first acceptance point.                                                                                       | A pre-source failure is unaccepted. No source, artifact, or disposition is claimed, and the adapter preserves the original tool output.                                                                                     |

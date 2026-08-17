@@ -35,6 +35,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -155,6 +156,10 @@ var ErrSourceNotFound = fmt.Errorf("db: compressed source_id not found: %w", Err
 // indexed SELECT against tool_calls.id) so the error class is
 // deterministic regardless of driver error-string drift.
 func (d *DB) InsertCompressed(c *Compressed) error {
+	return d.insertCompressed(c, d.withWriteTx)
+}
+
+func (d *DB) insertCompressed(c *Compressed, write func(context.Context, func(*sql.Tx) error) error) error {
 	if c == nil {
 		return errors.New("db: insert compressed: nil compressed")
 	}
@@ -167,7 +172,7 @@ func (d *DB) InsertCompressed(c *Compressed) error {
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	err := write(ctx, func(tx *sql.Tx) error {
 		var one int
 		err := tx.QueryRowContext(ctx, `SELECT 1 FROM tool_calls WHERE id = ? LIMIT 1`, c.SourceID).Scan(&one)
 		if err == sql.ErrNoRows {
@@ -195,6 +200,10 @@ func (d *DB) InsertCompressed(c *Compressed) error {
 // winner's artifact is returned to every caller and later candidates are not
 // persisted.
 func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
+	return d.insertCompressedOnce(c, d.withWriteTx)
+}
+
+func (d *DB) insertCompressedOnce(c *Compressed, write func(context.Context, func(*sql.Tx) error) error) (*Compressed, bool, error) {
 	if c == nil {
 		return nil, false, errors.New("db: insert compressed once: nil compressed")
 	}
@@ -208,7 +217,7 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 		stored   *Compressed
 		inserted bool
 	)
-	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	err := write(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, producer)
 			 SELECT ?, ?, ?, ?, ?, ?, ?
@@ -248,6 +257,18 @@ func (d *DB) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
 		return nil, false, err
 	}
 	return stored, inserted, nil
+}
+
+func (w *HookWriter) InsertCompressed(c *Compressed) error {
+	return w.db.insertCompressed(c, w.write)
+}
+
+func (w *HookWriter) InsertCompressedOnce(c *Compressed) (*Compressed, bool, error) {
+	return w.db.insertCompressedOnce(c, w.write)
+}
+
+func (w *HookWriter) GetCompressedBySource(sourceID string) (*Compressed, error) {
+	return w.db.GetCompressedBySource(sourceID)
 }
 
 // GetCompressed fetches a `compressed` row by id.

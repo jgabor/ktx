@@ -31,6 +31,10 @@ type CompressionDisposition struct {
 // permits one promotion to an authoritative artifact, and never downgrades or
 // replaces artifact authority. The upsert is atomic under concurrent retries.
 func (d *DB) RecordCompressionDisposition(disposition *CompressionDisposition) error {
+	return d.recordCompressionDisposition(disposition, d.withWriteTx)
+}
+
+func (d *DB) recordCompressionDisposition(disposition *CompressionDisposition, write func(context.Context, func(*sql.Tx) error) error) error {
 	if disposition == nil {
 		return errors.New("db: record compression disposition: nil disposition")
 	}
@@ -40,7 +44,7 @@ func (d *DB) RecordCompressionDisposition(disposition *CompressionDisposition) e
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	if err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	if err := write(ctx, func(tx *sql.Tx) error {
 		var retained string
 		err := tx.QueryRowContext(ctx, `SELECT disposition FROM compression_dispositions WHERE source_id = ?`, disposition.SourceID).Scan(&retained)
 		if err == nil && retained == CompressionDispositionArtifactPersisted {
@@ -72,6 +76,14 @@ func (d *DB) RecordCompressionDisposition(disposition *CompressionDisposition) e
 		return fmt.Errorf("db: record compression disposition for %q: %w", disposition.SourceID, err)
 	}
 	return nil
+}
+
+func (w *HookWriter) RecordCompressionDisposition(disposition *CompressionDisposition) error {
+	return w.db.recordCompressionDisposition(disposition, w.write)
+}
+
+func (w *HookWriter) GetCompressed(id string) (*Compressed, error) {
+	return w.db.GetCompressed(id)
 }
 
 func validateCompressionDisposition(disposition *CompressionDisposition) error {

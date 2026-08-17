@@ -131,7 +131,7 @@ func TestHookPhaseBaseline(t *testing.T) {
 			t.Fatalf("retry = %v, stderr=%q", err, stderr)
 		}
 		assertHookEnvelopeOutput(t, stdout, "first\n", true)
-		assertHookObservations(t, observations, dbpkg.OperationSource, dbpkg.OperationArtifact, dbpkg.OperationDisposition)
+		assertHookObservations(t, observations)
 		assertHookEvidenceCounts(t, d, mustOpenCodeID(t, "baseline-retry-session", "baseline-retry-call"), 1, 1, 1)
 	})
 
@@ -228,9 +228,12 @@ func assertHookEnvelopeOutput(t *testing.T, encoded, output string, compressed b
 
 func assertHookObservations(t *testing.T, got []string, phases ...string) {
 	t.Helper()
-	want := make([]string, 0, len(phases)*2)
+	var want []string
+	if len(phases) > 0 {
+		want = append(want, hookExclusiveAcquisition+":coordination")
+	}
 	for _, phase := range phases {
-		want = append(want, hookExclusiveAcquisition+":"+phase, hookAcceptanceCommit+":"+phase)
+		want = append(want, hookAcceptanceCommit+":"+phase)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("hook observations = %v, want %v", got, want)

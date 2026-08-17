@@ -5,7 +5,7 @@ record:
   depends_on:
     - hcaiaeseji
     - wxmpwfphcv
-  status: pending
+  status: in_progress
   description: Remove repeated current-schema hook lock handoffs while preserving ordered durable acceptance.
   acceptance:
     - GIVEN a valid current-schema delivery that creates or advances evidence WHEN processing completes THEN parsing, configuration, cost derivation, and transformation occur outside exclusive coordination and exactly one exclusive coordination window contains all database commits.

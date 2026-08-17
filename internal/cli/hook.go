@@ -509,67 +509,28 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		}
 		sessionHint = benchmarkEnv.SessionID
 	}
-	sessionID, err := db.ResolveSessionID(sessionHint, tc.Timestamp)
-	if err != nil {
-		return nil, internalError("ktx hook: resolve session: %v", err)
-	}
-	tc.SessionID = sessionID
-
 	if tc.ContentHash == "" && tc.Output != "" {
 		tc.ContentHash = dbpkg.ContentHash(tc.Output)
 	}
-
-	sourceInserted := false
-	if isCodex || isOpenCode {
-		inserted, err := evidence.PersistSource(db, src, &tc)
-		if err != nil {
-			if errors.Is(err, dbpkg.ErrToolCallConflict) {
-				label := "Codex"
-				if isOpenCode {
-					label = "OpenCode"
-				}
-				return nil, conflictError("ktx hook: %s retry conflicts with the evidence already stored for source %q", label, tc.ID)
-			}
-			return nil, internalError("ktx hook: persist tool_call: %v", err)
-		}
-		observeHookCommit(observe, dbpkg.OperationSource)
-		sourceInserted = inserted
-	} else if err := db.PersistToolCall(&tc); err != nil {
-		return nil, internalError("ktx hook: persist tool_call: %v", err)
-	} else {
-		observeHookCommit(observe, dbpkg.OperationSource)
-	}
+	db.PrepareToolCall(&tc)
 
 	sourceID := tc.ID
-
-	cfg, err := config.Load()
+	trusted := isCodex || isOpenCode
+	preflight, err := preflightHookRetry(db, trusted, &tc)
 	if err != nil {
-		// A malformed current config cannot supersede a first artifact already
-		// retained for an exact trusted retry. Return that artifact without a
-		// footer because footer policy is unavailable from the broken snapshot.
-		if (isCodex || isOpenCode) && !sourceInserted {
-			result, artifactErr := evidence.PersistArtifact(db, src, &tc, false, nil)
-			if artifactErr != nil {
-				return nil, internalError("ktx hook: load existing compressed artifact: %v", artifactErr)
-			}
-			if result.Transformed {
-				if dispositionErr := recordHookCompressionDispositionObserved(db, result.SourceID, result.CompressedID, pipelineExecution{}, observe); dispositionErr != nil {
-					return nil, internalError("ktx hook: persist compression disposition: %v", dispositionErr)
-				}
-				return nil, writeTrustedHookOutput(stdout, isCodex, result, result.Output, runtimeSessionID, runtimeCallID)
-			}
-		}
-		if dispositionErr := recordHookCompressionDispositionObserved(db, sourceID, "", pipelineExecution{}, observe); dispositionErr != nil {
-			return nil, internalError("ktx hook: persist compression disposition: %v", dispositionErr)
-		}
-		return nil, usageError("%v", err)
+		return nil, hookSourceError(err, isOpenCode, sourceID)
+	}
+	if preflight.sourceExists {
+		tc.SessionID = preflight.sessionID
 	}
 
-	// Resolve route, stages, timeout, and footer from the same loaded snapshot.
-	// enforceTimeout=true puts the pipeline on the agent's critical path.
-	execution, err := compressPipelineWithConfig(&tc, cfg, nil, stderr, true)
-	if err != nil {
-		return nil, err
+	cfg, configErr := config.Load()
+	var execution pipelineExecution
+	var pipelineErr error
+	if configErr == nil {
+		// Route selection and transformation stay outside exclusive database
+		// coordination.
+		execution, pipelineErr = compressPipelineWithConfig(&tc, cfg, nil, stderr, true)
 	}
 	compressedOutput := execution.output
 	pipeJSON := execution.artifactPipelineRecord()
@@ -598,97 +559,88 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 			envelopeOutput = compressedOutput + footer
 		}
 	}
+	if preflight.complete && (preflight.result.Transformed || !transformed) {
+		if configErr != nil && !preflight.result.Transformed {
+			return nil, usageError("%v", configErr)
+		}
+		if pipelineErr != nil {
+			return nil, pipelineErr
+		}
+		return nil, writeHookResult(stdout, isCodex, trusted, preflight.result, tc.Output, execution, runtimeSessionID, runtimeCallID)
+	}
 
-	// Evidence-safe artifact persistence for Codex and OpenCode trusted
-	// paths. Once an artifact exists, exact retries return the first persisted
-	// artifact even when the current pipeline configuration differs. A
-	// concurrent no-transform retry may return source output if it checks before
-	// the first artifact is persisted; later retries return that artifact.
-	if isCodex || isOpenCode {
-		var candidate *dbpkg.Compressed
-		if transformed {
-			candidate = &dbpkg.Compressed{
-				Output:      compressedOutput,
-				ContentHash: dbpkg.ContentHash(compressedOutput),
-				Pipeline:    pipeJSON,
-				Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
-				Producer:    &producer,
+	var candidate *dbpkg.Compressed
+	if transformed {
+		candidate = &dbpkg.Compressed{Output: compressedOutput, ContentHash: dbpkg.ContentHash(compressedOutput), Pipeline: pipeJSON, Timestamp: time.Now().UTC().Format(time.RFC3339Nano), Producer: &producer}
+	}
+	var result evidence.Result
+	coordinationStarted := time.Now()
+	err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, coordinationStarted, db.WithHookWriter(func(writer *dbpkg.HookWriter) error {
+		observeHookAcquisition(observe)
+		if !preflight.sourceExists {
+			retainedSessionID, exists, err := db.ValidateToolCallRetry(&tc)
+			if err != nil {
+				return err
+			}
+			if exists {
+				tc.SessionID = retainedSessionID
+			} else {
+				sessionID, err := writer.ResolveSessionID(sessionHint, tc.Timestamp)
+				if err != nil {
+					return dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, time.Now(), err)
+				}
+				tc.SessionID = sessionID
 			}
 		}
-		result, err := evidence.PersistArtifact(db, src, &tc, sourceInserted, candidate)
+		inserted, err := evidence.PersistSource(writer, src, &tc)
 		if err != nil {
-			return nil, internalError("ktx hook: persist compressed: %v", err)
+			return err
+		}
+		observeHookCommit(observe, dbpkg.OperationSource)
+		if configErr != nil {
+			result, err = evidence.PersistArtifact(writer, src, &tc, inserted, nil)
+			if err != nil {
+				return err
+			}
+			return recordHookCompressionDispositionObserved(writer, sourceID, result.CompressedID, pipelineExecution{}, observe)
+		}
+		if pipelineErr != nil {
+			return pipelineErr
+		}
+		result, err = evidence.PersistArtifact(writer, src, &tc, inserted, candidate)
+		if err != nil {
+			return err
 		}
 		if candidate != nil {
 			observeHookCommit(observe, dbpkg.OperationArtifact)
 		}
-		if err := recordHookCompressionDispositionObserved(db, result.SourceID, result.CompressedID, execution, observe); err != nil {
-			return nil, internalError("ktx hook: persist compression disposition: %v", err)
+		return recordHookCompressionDispositionObserved(writer, result.SourceID, result.CompressedID, execution, observe)
+	}))
+	if err != nil {
+		if errors.Is(err, dbpkg.ErrToolCallConflict) {
+			return nil, hookSourceError(err, isOpenCode, sourceID)
 		}
-
-		// The footer is agent-visible decoration on the authoritative
-		// (possibly stored) artifact; it is never persisted or appended to a
-		// repaired structured fallback. Exact retries use the selected retained
-		// artifact's provenance, not the discarded current candidate's result.
-		structuredFallback, _ := pipeline.StructuredFallbackFromRecord(result.ArtifactPipeline)
-		finalOutput := result.Output
-		if result.Transformed && execution.recoverFooter && !structuredFallback {
-			footer := buildRecoveryFooter(result.SourceID, len(tc.Output), len(result.Output))
-			if len(result.Output)+len(footer) < len(tc.Output) {
-				finalOutput = result.Output + footer
-			}
+		if pipelineErr != nil && errors.Is(err, pipelineErr) {
+			return nil, pipelineErr
 		}
-
-		return nil, writeTrustedHookOutput(stdout, isCodex, result, finalOutput, runtimeSessionID, runtimeCallID)
+		return nil, internalError("ktx hook: persist evidence: %v", err)
 	}
-
-	// Flat/non-runtime path: ordinary compressed persistence + envelope
-	// encoding.
-	var compressedID *string
-	if transformed {
-		hash := dbpkg.ContentHash(compressedOutput)
-		cid, err := dbpkg.NewID()
-		if err != nil {
-			return nil, internalError("ktx hook: generate compressed id: %v", err)
+	if configErr != nil {
+		if result.Transformed {
+			return nil, writeHookResult(stdout, isCodex, trusted, result, tc.Output, pipelineExecution{}, runtimeSessionID, runtimeCallID)
 		}
-		c := &dbpkg.Compressed{
-			ID:          cid,
-			SourceID:    sourceID,
-			Output:      compressedOutput,
-			ContentHash: hash,
-			Pipeline:    pipeJSON,
-			Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
-			Producer:    &producer,
-		}
-		started := time.Now()
-		if err := dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationArtifact, started, db.InsertCompressed(c)); err != nil {
-			return nil, internalError("ktx hook: persist compressed: %v", err)
-		}
-		observeHookCommit(observe, dbpkg.OperationArtifact)
-		compressedID = &cid
+		return nil, usageError("%v", configErr)
 	}
-	artifactID := ""
-	if compressedID != nil {
-		artifactID = *compressedID
-	}
-	if err := recordHookCompressionDispositionObserved(db, sourceID, artifactID, execution, observe); err != nil {
-		return nil, internalError("ktx hook: persist compression disposition: %v", err)
-	}
-
-	enc := json.NewEncoder(stdout)
-	enc.SetEscapeHTML(false)
-	envelope := hookEnvelope{
-		Output:       envelopeOutput,
-		CompressedID: compressedID,
-		SourceID:     sourceID,
-	}
-	if err := enc.Encode(envelope); err != nil {
-		return nil, internalError("ktx hook: write envelope: %v", err)
-	}
-	return nil, nil
+	_ = envelopeOutput
+	return nil, writeHookResult(stdout, isCodex, trusted, result, tc.Output, execution, runtimeSessionID, runtimeCallID)
 }
 
-func recordHookCompressionDispositionObserved(database *dbpkg.DB, sourceID, artifactID string, execution pipelineExecution, observe hookPhaseObserver) (err error) {
+type hookDispositionStore interface {
+	GetCompressed(string) (*dbpkg.Compressed, error)
+	RecordCompressionDisposition(*dbpkg.CompressionDisposition) error
+}
+
+func recordHookCompressionDispositionObserved(database hookDispositionStore, sourceID, artifactID string, execution pipelineExecution, observe hookPhaseObserver) (err error) {
 	started := time.Now()
 	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationDisposition, started, err) }()
 	disposition := dbpkg.CompressionDispositionIntentionalPassthrough
@@ -731,8 +683,88 @@ func observeHookCommit(observe hookPhaseObserver, phase string) {
 	if observe == nil {
 		return
 	}
-	observe(hookExclusiveAcquisition, phase)
 	observe(hookAcceptanceCommit, phase)
+}
+
+func observeHookAcquisition(observe hookPhaseObserver) {
+	if observe != nil {
+		observe(hookExclusiveAcquisition, "coordination")
+	}
+}
+
+type hookRetryPreflight struct {
+	sourceExists bool
+	sessionID    string
+	complete     bool
+	result       evidence.Result
+}
+
+func preflightHookRetry(database *dbpkg.DB, trusted bool, tc *dbpkg.ToolCall) (hookRetryPreflight, error) {
+	if !trusted {
+		return hookRetryPreflight{}, nil
+	}
+	sessionID, exists, err := database.ValidateToolCallRetry(tc)
+	if err != nil || !exists {
+		return hookRetryPreflight{sourceExists: exists, sessionID: sessionID}, err
+	}
+	state := hookRetryPreflight{sourceExists: true, sessionID: sessionID}
+	artifact, artifactErr := database.GetCompressedBySource(tc.ID)
+	disposition, dispositionErr := database.GetCompressionDisposition(tc.ID)
+	if dispositionErr != nil {
+		if errors.Is(dispositionErr, dbpkg.ErrNotFound) {
+			return state, nil
+		}
+		return state, dispositionErr
+	}
+	if artifactErr == nil && disposition.Disposition == dbpkg.CompressionDispositionArtifactPersisted && disposition.ArtifactID == artifact.ID {
+		state.complete = true
+		state.result = evidence.Result{SourceID: tc.ID, Output: artifact.Output, CompressedID: artifact.ID, ArtifactPipeline: artifact.Pipeline, Transformed: true}
+		return state, nil
+	}
+	if errors.Is(artifactErr, dbpkg.ErrNotFound) && disposition.Disposition != dbpkg.CompressionDispositionArtifactPersisted {
+		state.complete = true
+		state.result = evidence.Result{SourceID: tc.ID, Output: tc.Output}
+		return state, nil
+	}
+	if artifactErr != nil && !errors.Is(artifactErr, dbpkg.ErrNotFound) {
+		return state, artifactErr
+	}
+	return state, nil
+}
+
+func hookSourceError(err error, isOpenCode bool, sourceID string) error {
+	if !errors.Is(err, dbpkg.ErrToolCallConflict) {
+		return internalError("ktx hook: inspect tool_call: %v", err)
+	}
+	label := "Codex"
+	if isOpenCode {
+		label = "OpenCode"
+	}
+	return conflictError("ktx hook: %s retry conflicts with the evidence already stored for source %q", label, sourceID)
+}
+
+func writeHookResult(stdout io.Writer, isCodex, trusted bool, result evidence.Result, original string, execution pipelineExecution, runtimeSessionID, runtimeCallID string) error {
+	structuredFallback, _ := pipeline.StructuredFallbackFromRecord(result.ArtifactPipeline)
+	output := result.Output
+	if result.Transformed && execution.recoverFooter && !structuredFallback {
+		footer := buildRecoveryFooter(result.SourceID, len(original), len(result.Output))
+		if len(result.Output)+len(footer) < len(original) {
+			output += footer
+		}
+	}
+	if trusted {
+		return writeTrustedHookOutput(stdout, isCodex, result, output, runtimeSessionID, runtimeCallID)
+	}
+	var compressedID *string
+	if result.CompressedID != "" {
+		compressedID = &result.CompressedID
+	}
+	enc := json.NewEncoder(stdout)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(hookEnvelope{Output: output, CompressedID: compressedID, SourceID: result.SourceID}); err != nil {
+		return internalError("ktx hook: write envelope: %v", err)
+	}
+	return nil
 }
 
 // buildRecoveryFooter produces a single-line recovery footer appended to

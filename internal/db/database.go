@@ -449,6 +449,22 @@ type DB struct {
 	lease  *coordinationLease
 }
 
+// HookWriter keeps a hook's independently committed acceptance phases under
+// one process-wide exclusive coordination lease. Its methods do not acquire
+// coordination again.
+type HookWriter struct{ db *DB }
+
+// WithHookWriter runs fn while holding one exclusive coordination lease.
+// Transactions started by HookWriter methods remain separate commits.
+func (d *DB) WithHookWriter(fn func(*HookWriter) error) error {
+	ctx, cancel := writeContext()
+	defer cancel()
+	return d.writer.withLock(ctx, false, func() error { return fn(&HookWriter{db: d}) })
+}
+
+// PrepareToolCall performs soft-fail cost derivation before hook coordination.
+func (d *DB) PrepareToolCall(tc *ToolCall) { d.deriveCost(tc) }
+
 func (d *DB) withWriteTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	return d.writer.withLock(ctx, false, func() error {
 		return withWriteTx(ctx, d.db, fn)

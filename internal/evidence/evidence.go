@@ -81,6 +81,17 @@ type Result struct {
 	Inserted bool
 }
 
+type sourceStore interface {
+	PersistToolCall(*dbpkg.ToolCall) error
+	PersistToolCallOnce(*dbpkg.ToolCall) (bool, error)
+}
+
+type artifactStore interface {
+	InsertCompressed(*dbpkg.Compressed) error
+	InsertCompressedOnce(*dbpkg.Compressed) (*dbpkg.Compressed, bool, error)
+	GetCompressedBySource(string) (*dbpkg.Compressed, error)
+}
+
 // PersistSource persists the source row and session roll-up for one
 // tool-call delivery. The caller resolves identity via correlation.Resolve
 // and sets tc.ID to src.ID before calling this function.
@@ -95,7 +106,7 @@ type Result struct {
 // The returned inserted flag reports whether this call inserted the source
 // row; PersistArtifact uses it to decide whether a no-transform delivery
 // should look up a prior artifact.
-func PersistSource(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolCall) (inserted bool, err error) {
+func PersistSource(database sourceStore, src correlation.Source, tc *dbpkg.ToolCall) (inserted bool, err error) {
 	started := time.Now()
 	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, started, err) }()
 	if database == nil {
@@ -125,7 +136,7 @@ func PersistSource(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolCal
 //
 // For a fresh source: the compressed candidate is always inserted (ordinary
 // distinct observation) and the returned output is the candidate's output.
-func PersistArtifact(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolCall, sourceInserted bool, compressed *dbpkg.Compressed) (result Result, err error) {
+func PersistArtifact(database artifactStore, src correlation.Source, tc *dbpkg.ToolCall, sourceInserted bool, compressed *dbpkg.Compressed) (result Result, err error) {
 	started := time.Now()
 	defer func() { err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationArtifact, started, err) }()
 	if database == nil {
@@ -154,7 +165,7 @@ func PersistArtifact(database *dbpkg.DB, src correlation.Source, tc *dbpkg.ToolC
 	return persistArtifactFresh(database, tc, cand)
 }
 
-func persistArtifactEligible(database *dbpkg.DB, tc *dbpkg.ToolCall, sourceInserted bool, compressed *dbpkg.Compressed) (Result, error) {
+func persistArtifactEligible(database artifactStore, tc *dbpkg.ToolCall, sourceInserted bool, compressed *dbpkg.Compressed) (Result, error) {
 	if compressed != nil {
 		stored, inserted, err := database.InsertCompressedOnce(compressed)
 		if err != nil {
@@ -197,7 +208,7 @@ func persistArtifactEligible(database *dbpkg.DB, tc *dbpkg.ToolCall, sourceInser
 	return Result{SourceID: tc.ID, Output: tc.Output, Transformed: false}, nil
 }
 
-func persistArtifactFresh(database *dbpkg.DB, tc *dbpkg.ToolCall, compressed *dbpkg.Compressed) (Result, error) {
+func persistArtifactFresh(database artifactStore, tc *dbpkg.ToolCall, compressed *dbpkg.Compressed) (Result, error) {
 	if compressed != nil {
 		if err := database.InsertCompressed(compressed); err != nil {
 			return Result{}, err

@@ -15,6 +15,7 @@
 package db
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -195,9 +196,13 @@ func (d *DB) SessionExists(id string) (bool, error) {
 // caller is responsible for generating the id via NewID and for writing the
 // ppid session file when this is part of the adapter/hook open path.
 func (d *DB) InsertSession(s *Session) error {
+	return d.insertSession(s, d.withWriteTx)
+}
+
+func (d *DB) insertSession(s *Session, write func(context.Context, func(*sql.Tx) error) error) error {
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	err := write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO sessions (id, agent, started_at, ended_at, last_seen_at, tool_call_count) VALUES (?, ?, ?, ?, ?, ?)`,
 			s.ID, s.Agent, s.StartedAt, s.EndedAt, s.LastSeenAt, s.ToolCallCount,
@@ -214,10 +219,14 @@ func (d *DB) InsertSession(s *Session) error {
 // close). It returns ErrNotFound when no session matches id, so the close
 // path surfaces a clear not-found rather than a silent no-op.
 func (d *DB) CloseSession(id, endedAt string) error {
+	return d.closeSession(id, endedAt, d.withWriteTx)
+}
+
+func (d *DB) closeSession(id, endedAt string, write func(context.Context, func(*sql.Tx) error) error) error {
 	ctx, cancel := writeContext()
 	defer cancel()
 	var rows int64
-	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	err := write(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE sessions SET ended_at = ? WHERE id = ?`, endedAt, id)
 		if err != nil {
 			return err
@@ -272,16 +281,19 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 	if err := normalizeLatencyEvidence(tc); err != nil {
 		return fmt.Errorf("db: persist tool_call %q: %w", tc.ID, err)
 	}
+	d.deriveCost(tc) // write-time cost derivation; soft-fail, see helper
+	return d.persistToolCallPrepared(tc, d.withWriteTx)
+}
+
+func (d *DB) persistToolCallPrepared(tc *ToolCall, write func(context.Context, func(*sql.Tx) error) error) error {
 	eventType := tc.EventType
 	if eventType == "" {
 		eventType = "tool_call"
 	}
 
-	d.deriveCost(tc) // write-time cost derivation; soft-fail, see helper
-
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	err := write(ctx, func(tx *sql.Tx) error {
 		columns, err := tableColumns(tx, "tool_calls")
 		if err != nil {
 			return err
@@ -340,17 +352,20 @@ func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 	if err := normalizeLatencyEvidence(tc); err != nil {
 		return false, fmt.Errorf("db: persist tool_call %q: %w", tc.ID, err)
 	}
+	d.deriveCost(tc)
+	return d.persistToolCallOncePrepared(tc, d.withWriteTx)
+}
+
+func (d *DB) persistToolCallOncePrepared(tc *ToolCall, write func(context.Context, func(*sql.Tx) error) error) (bool, error) {
 	eventType := tc.EventType
 	if eventType == "" {
 		eventType = "tool_call"
 	}
 
-	d.deriveCost(tc)
-
 	ctx, cancel := writeContext()
 	defer cancel()
 	var didInsert bool
-	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	err := write(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
@@ -399,6 +414,32 @@ func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 	return didInsert, nil
 }
 
+func (w *HookWriter) write(ctx context.Context, fn func(*sql.Tx) error) error {
+	return withWriteTx(ctx, w.db.db, fn)
+}
+
+func (w *HookWriter) PersistToolCall(tc *ToolCall) error {
+	if err := normalizeLatencyEvidence(tc); err != nil {
+		return fmt.Errorf("db: persist tool_call %q: %w", tc.ID, err)
+	}
+	return w.db.persistToolCallPrepared(tc, w.write)
+}
+
+func (w *HookWriter) PersistToolCallOnce(tc *ToolCall) (bool, error) {
+	if err := normalizeLatencyEvidence(tc); err != nil {
+		return false, fmt.Errorf("db: persist tool_call %q: %w", tc.ID, err)
+	}
+	return w.db.persistToolCallOncePrepared(tc, w.write)
+}
+
+func (w *HookWriter) InsertSession(s *Session) error {
+	return w.db.insertSession(s, w.write)
+}
+
+func (w *HookWriter) CloseSession(id, endedAt string) error {
+	return w.db.closeSession(id, endedAt, w.write)
+}
+
 func sameOptionalString(stored sql.NullString, incoming *string) bool {
 	if incoming == nil {
 		return !stored.Valid
@@ -425,6 +466,26 @@ func conflictReason(tool, input, output string, runtime sql.NullString, tc *Tool
 	default:
 		return ""
 	}
+}
+
+// ValidateToolCallRetry performs the read-only half of hook retry handling.
+// It reports an exact retained source without starting a write transaction.
+func (d *DB) ValidateToolCallRetry(tc *ToolCall) (sessionID string, exists bool, err error) {
+	var tool, input, output string
+	var runtime sql.NullString
+	err = d.db.QueryRow(
+		`SELECT session_id, tool, input, output, runtime FROM tool_calls WHERE id = ?`, tc.ID,
+	).Scan(&sessionID, &tool, &input, &output, &runtime)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("db: inspect existing tool_call %q: %w", tc.ID, err)
+	}
+	if reason := conflictReason(tool, input, output, runtime, tc); reason != "" {
+		return "", true, fmt.Errorf("%w: %q %s", ErrToolCallConflict, tc.ID, reason)
+	}
+	return sessionID, true, nil
 }
 
 // GetToolCall fetches a tool_call row by id. It returns ErrNotFound when no

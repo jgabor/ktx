@@ -14,3 +14,13 @@ record:
     - GIVEN all focused checks pass WHEN the repository gate runs THEN tests, race checks, vet, lint, and build pass.
     - GIVEN verified completion WHEN project state is synchronized THEN the plan and Live latency coverage task reflect the evidence actually produced.
   plan: tapdgjsdtr
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: TODO.md canonical Priority 2 Live latency coverage checkbox remains open while managed TODO yxgpazidvy is resolved; mark the canonical checkbox complete and verify reconciliation.
+    provenance:
+      attempt_id: audit-1
+      source: audit report ses_fef0b50c6ffel4WUhJufV3fR1N
+      recorded_at: 2026-08-17 20:24
+      writer_command: agentera state plan record-evaluation

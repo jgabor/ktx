@@ -5,10 +5,20 @@ record:
   depends_on:
     - lhdzqsaawa
     - nbuodvfknx
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN the existing live-statistics window WHEN attribution is reported THEN identified and unknown counts use the same output-bearing call population and reconcile exactly to its total.
     - GIVEN historical or unverified sessions contribute calls WHEN coverage is calculated THEN those calls count as unknown regardless of their legacy label.
     - GIVEN no calls contribute to the window WHEN coverage is rendered THEN the empty denominator is explicit and no percentage is fabricated.
     - GIVEN JSON and text output WHEN operators inspect attribution coverage THEN both formats describe the same values and authority boundary.
   plan: thgeosacjv
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: audit ses_feeabd64affe8w92O3uYIhW6Ck
+      recorded_at: 2026-08-17 22:07
+      writer_command: agentera state plan record-evaluation

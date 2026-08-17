@@ -1,0 +1,14 @@
+id: wjcoprcabt
+artifact: progress
+record:
+  timestamp: 2026-08-17 17:28
+  type: feat
+  phase: build
+  what: Updated internal/config/config.go and ktx.example.toml so view_image selects an empty passthrough profile.
+  context:
+    intent: Keep image-bearing tool output unchanged by default.
+    constraints: Preserve global passthrough behavior and user configuration authority.
+    scope: Default configuration, example configuration, focused tests, and characterization evidence.
+  discovered: The no-file default can expose explicit route provenance without augmenting user-authored configurations.
+  verified: Isolated mage check passed; build/ktx config show exposed the route in no-config and example environments.
+  publication_order: 94

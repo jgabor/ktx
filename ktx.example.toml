@@ -174,6 +174,15 @@ stages = ["unwrap-result", "json-compact", "strip-ansi", "dedup-blank", "normali
 # # pass on ephemeral mid-fact and crossfile tasks. No token-budget stage.
 # stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
 
+# Keep image-bearing output unchanged and skip text transformations.
+[pipeline.passthrough]
+stages = []
+recover_footer = false
+
+[[route]]
+tool = "view_image"
+profile = "passthrough"
+
 # A dedicated JSON-only profile may suppress the footer because
 # json-compact omits no semantic content. Do NOT copy recover_footer = false
 # to profiles containing head, truncate, keep-ends, token-budget, grep,

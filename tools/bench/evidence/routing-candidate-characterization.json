@@ -31,7 +31,7 @@
       },
       {
         "path": "internal/config/config.go",
-        "sha256": "e04545b13813288cc43feda133908e08ed7784b6b94ffb612092137270dc2b2c",
+        "sha256": "08fcc2c813fe0bec8c0789a9feecd64d12068cf61936ecec1ccbdc7e5d90d125",
         "evidence_class": "implemented_behavior"
       },
       {

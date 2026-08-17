@@ -12,8 +12,9 @@
 //	command = "/bin/cat"
 //	description = "passthrough"
 //
-// Missing / empty config → empty stages, nil plugins (the no-config
-// default; `ktx compress` runs the passthrough pipeline). Single
+// Missing config → an explicit passthrough profile for view_image and
+// otherwise empty stages (the no-config default; `ktx compress` runs the
+// passthrough pipeline). Single
 // scope: user-level $XDG_CONFIG_HOME/ktx/ktx.toml; passthrough when
 // absent. Per-invocation only — no caching
 // across processes (no global state; each `ktx compress` invocation
@@ -144,8 +145,8 @@ type Config struct {
 	// Profiles holds every discovered pipeline profile from the
 	// [pipeline.<name>] tables (e.g. default, json, logs), each with
 	// its own stages and optional timeout / recover_footer overrides.
-	// Nil when ktx.toml is absent (the no-config passthrough path);
-	// resolvers fall back to the const defaults in that case. The
+	// The no-config path contains only the built-in passthrough profile;
+	// parsed user configs are not augmented. The
 	// "default" key is present whenever a [pipeline.default] table
 	// exists, and its Stages mirror PipelineDefault.
 	Profiles map[string]Profile
@@ -222,11 +223,17 @@ func Load() (*Config, error) {
 	return defaultConfig(), nil
 }
 
-// defaultConfig is the no-file / load-error-safe baseline: no profiles
-// (nil Profiles → passthrough pipeline), and the resolvers return the
-// const defaults (DefaultPipelineTimeout, recover_footer off).
+// defaultConfig is the no-file / load-error-safe baseline. view_image has an
+// explicit empty passthrough profile; all other tools use the empty default
+// fallback. Both paths preserve output byte-for-byte.
 func defaultConfig() *Config {
-	return &Config{}
+	recoverFooter := false
+	return &Config{
+		Profiles: map[string]Profile{
+			"passthrough": {Stages: []string{}, RecoverFooter: &recoverFooter},
+		},
+		Routes: []RouteRule{{Tool: "view_image", ExitStatus: "any", Profile: "passthrough"}},
+	}
 }
 
 // ResolveTimeout returns the effective pipeline deadline for a profile:

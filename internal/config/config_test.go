@@ -1232,7 +1232,7 @@ stages = ["strip-ansi", "head:100"]
 		}
 	})
 
-	t.Run("no-config default → nil Routes", func(t *testing.T) {
+	t.Run("no-config default → view_image passthrough route", func(t *testing.T) {
 		chdirTemp(t)
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
@@ -1240,8 +1240,8 @@ stages = ["strip-ansi", "head:100"]
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if cfg.Routes != nil {
-			t.Errorf("Routes = %v, want nil (no config)", cfg.Routes)
+		if len(cfg.Routes) != 1 || cfg.Routes[0].Tool != "view_image" || cfg.Routes[0].Profile != "passthrough" {
+			t.Errorf("Routes = %v, want view_image passthrough route", cfg.Routes)
 		}
 	})
 }

@@ -6,10 +6,20 @@ record:
     - lhdzqsaawa
     - nbuodvfknx
     - zerfykwwme
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN focused migration, ingress, retry, mixed-runtime, and statistics checks WHEN they run THEN each testable unit has at least one accepted and one fail-closed case.
     - GIVEN the locally built CLI and an isolated disposable database WHEN identified and unknown sessions are exercised THEN inspection and live statistics satisfy the complete plan acceptance.
     - GIVEN the repository-wide verification gate WHEN it completes THEN tests, vet, lint, and build pass without accessing an ambient live database.
     - GIVEN all acceptance evidence is retained WHEN project state is synchronized THEN documentation states the trust and coverage contract and the matching TODO item is complete.
   plan: thgeosacjv
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: audit ses_feea14cceffejEhvwPHzZvsQvf
+      recorded_at: 2026-08-17 22:22
+      writer_command: agentera state plan record-evaluation

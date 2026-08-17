@@ -5,6 +5,7 @@ package db
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"os"
 	"sort"
 	"strconv"
@@ -33,9 +34,108 @@ func observeLockHolders(file *os.File, path string, requested coordinationMode) 
 	if err != nil {
 		return nil, false
 	}
-	return parseProcLocks(data, stat.Dev, stat.Ino, requested, func(pid int) (bool, bool) {
+	holders, available := parseProcLocks(data, stat.Dev, stat.Ino, requested, func(pid int) (bool, bool) {
 		return inspectProcessFileDescriptors("/proc/"+strconv.Itoa(pid)+"/fd", fileInfo)
 	})
+	if !available {
+		return nil, false
+	}
+	currentExecutable, err := os.Executable()
+	if err != nil {
+		return holders, true
+	}
+	currentInfo, err := os.Stat(currentExecutable)
+	if err != nil {
+		return holders, true
+	}
+	for i := range holders {
+		holder := holders[i]
+		holders[i].Command = inspectProcessCommand("/proc", holder.PID, currentInfo, func() bool {
+			latest, err := os.ReadFile("/proc/locks")
+			if err != nil {
+				return false
+			}
+			observed, ok := parseProcLocks(latest, stat.Dev, stat.Ino, requested, func(pid int) (bool, bool) {
+				return inspectProcessFileDescriptors("/proc/"+strconv.Itoa(pid)+"/fd", fileInfo)
+			})
+			if !ok {
+				return false
+			}
+			for _, candidate := range observed {
+				if candidate.PID == holder.PID && candidate.Mode == holder.Mode {
+					return true
+				}
+			}
+			return false
+		})
+	}
+	return holders, true
+}
+
+func inspectProcessCommand(procRoot string, pid int, currentExecutable os.FileInfo, stillOwnsLock func() bool) string {
+	directory := procRoot + "/" + strconv.Itoa(pid)
+	started, err := processStartTime(directory + "/stat")
+	if err != nil {
+		return "unknown"
+	}
+	executable, err := os.Stat(directory + "/exe")
+	if err != nil || !os.SameFile(executable, currentExecutable) {
+		return "unknown"
+	}
+	argv, err := readProcessArgv(directory + "/cmdline")
+	if err != nil {
+		return "unknown"
+	}
+	if stillOwnsLock == nil || !stillOwnsLock() {
+		return "unknown"
+	}
+	confirmed, err := processStartTime(directory + "/stat")
+	if err != nil || confirmed != started {
+		return "unknown"
+	}
+	return BlockerCommandLabel(argv)
+}
+
+func processStartTime(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	closing := bytes.LastIndexByte(data, ')')
+	if closing < 0 {
+		return "", os.ErrInvalid
+	}
+	fields := strings.Fields(string(data[closing+1:]))
+	if len(fields) < 20 {
+		return "", os.ErrInvalid
+	}
+	return fields[19], nil
+}
+
+func readProcessArgv(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 4096))
+	if err != nil || len(data) == 0 {
+		return nil, os.ErrInvalid
+	}
+	parts := bytes.Split(data, []byte{0})
+	if data[len(data)-1] != 0 {
+		parts = parts[:len(parts)-1]
+	}
+	argv := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if len(part) > 0 {
+			argv = append(argv, string(part))
+		}
+	}
+	if len(argv) == 0 {
+		return nil, os.ErrInvalid
+	}
+	return argv, nil
 }
 
 func inspectProcessFileDescriptors(directory string, target os.FileInfo) (bool, bool) {
@@ -110,7 +210,7 @@ func parseProcLocks(data []byte, device, inode uint64, requested coordinationMod
 		if requested == coordinationShared && mode == "shared" {
 			continue
 		}
-		holder := LockHolder{PID: pid, Mode: mode}
+		holder := LockHolder{PID: pid, Mode: mode, Command: "unknown"}
 		if _, ok := seen[holder]; !ok {
 			seen[holder] = struct{}{}
 			holders = append(holders, holder)

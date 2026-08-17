@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -33,8 +34,61 @@ func (m coordinationMode) String() string {
 
 // LockHolder is bounded ownership information observed for a coordination timeout.
 type LockHolder struct {
-	PID  int
-	Mode string
+	PID     int
+	Mode    string
+	Command string
+}
+
+// BlockerCommandLabel returns the closed label for a supported ktx command.
+// It never returns argument or payload text.
+func BlockerCommandLabel(argv []string) string {
+	if len(argv) < 2 {
+		return "unknown"
+	}
+	args := argv[1:]
+	for len(args) > 0 && strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "--quiet", "-q":
+			args = args[1:]
+		case "--format", "--expect-runtime-sha256":
+			if len(args) < 2 {
+				return "unknown"
+			}
+			args = args[2:]
+		default:
+			if strings.HasPrefix(args[0], "--format=") || strings.HasPrefix(args[0], "--expect-runtime-sha256=") ||
+				strings.HasPrefix(args[0], "--quiet=") || strings.HasPrefix(args[0], "-q=") {
+				args = args[1:]
+				continue
+			}
+			return "unknown"
+		}
+	}
+	if len(args) == 0 {
+		return "unknown"
+	}
+	switch args[0] {
+	case "write", "compress", "hook", "run", "get", "read", "list", "stats", "decompress", "bench", "doctor":
+		return args[0]
+	case "telemetry":
+		if len(args) > 1 && (args[1] == "record" || args[1] == "list") {
+			return "telemetry " + args[1]
+		}
+	case "db":
+		nested := args[1:]
+		if len(nested) > 0 && nested[0] == "--path" {
+			if len(nested) < 2 {
+				return "unknown"
+			}
+			nested = nested[2:]
+		} else if len(nested) > 0 && strings.HasPrefix(nested[0], "--path=") {
+			nested = nested[1:]
+		}
+		if len(nested) > 0 && (nested[0] == "migrate" || nested[0] == "report") {
+			return "db " + nested[0]
+		}
+	}
+	return "unknown"
 }
 
 type coordinationTimeoutError struct {

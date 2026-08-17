@@ -108,7 +108,8 @@ func TestGetDatabaseUnavailableLoggingEndToEnd(t *testing.T) {
 	}
 	if runtime.GOOS == "linux" {
 		if !*record.CoordinatorSnapshotAvailable || len(record.CoordinatorBlockers) != 1 ||
-			record.CoordinatorBlockers[0].PID != holder.Process.Pid || record.CoordinatorBlockers[0].Mode != "exclusive" {
+			record.CoordinatorBlockers[0].PID != holder.Process.Pid || record.CoordinatorBlockers[0].Mode != "exclusive" ||
+			record.CoordinatorBlockers[0].Command != "unknown" {
 			t.Fatalf("linux blockers = %#v, holder pid %d", record, holder.Process.Pid)
 		}
 	} else if *record.CoordinatorSnapshotAvailable || len(record.CoordinatorBlockers) != 0 {

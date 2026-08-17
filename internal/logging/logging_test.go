@@ -70,7 +70,7 @@ func TestAppendDatabaseUnavailableCoordinatorFields(t *testing.T) {
 	event := testEvent("/tmp/ktx.db")
 	event.CoordinatorRequestedMode = "shared"
 	event.CoordinatorSnapshotAvailable = &available
-	event.CoordinatorBlockers = []LockBlocker{{PID: 42, Mode: "exclusive"}}
+	event.CoordinatorBlockers = []LockBlocker{{PID: 42, Mode: "exclusive", Command: "hook"}}
 	AppendDatabaseUnavailable(Config{Level: Error, Path: path}, "", event)
 
 	data, err := os.ReadFile(path)
@@ -87,6 +87,10 @@ func TestAppendDatabaseUnavailableCoordinatorFields(t *testing.T) {
 	blockers, ok := record["coordinator_blockers"].([]any)
 	if !ok || len(blockers) != 1 {
 		t.Fatalf("blockers = %#v", record["coordinator_blockers"])
+	}
+	blocker, ok := blockers[0].(map[string]any)
+	if !ok || len(blocker) != 3 || blocker["pid"] != float64(42) || blocker["mode"] != "exclusive" || blocker["command"] != "hook" {
+		t.Fatalf("blocker = %#v", blockers[0])
 	}
 }
 

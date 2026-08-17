@@ -37,8 +37,11 @@ The `database-unavailable` record contains only:
 Coordinator-timeout records also contain `coordinator_requested_mode`
 (`shared` or `exclusive`) and `coordinator_snapshot_available`. On Linux, a
 successful `/proc/locks` snapshot can add up to eight `coordinator_blockers`,
-each containing only `pid` and held `mode`. An available snapshot with no
-matching holder has no blockers; an unavailable snapshot reports
+each containing only `pid`, held `mode`, and a closed `command` label. Ktx
+reports `unknown` unless the live process still owns the matching lock, has the
+same process lifetime, uses the current executable, and names a supported
+command. It never stores inspected arguments or command lines. An available
+snapshot with no matching holder has no blockers; an unavailable snapshot reports
 `coordinator_snapshot_available` as false. Other failure classes keep the
 ten-field record above.
 

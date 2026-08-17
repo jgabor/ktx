@@ -1,0 +1,16 @@
+id: albvqfgkgi
+artifact: progress
+record:
+  timestamp: 2026-08-17 18:44
+  type: feat
+  phase: build
+  what: Added fail-closed Linux blocker command attribution to coordinator-timeout diagnostics.
+  context:
+    intent: Attribute verified supported lock holders with only a closed command label.
+    constraints: Fail closed to unknown; retain no inspected argv, paths, environment, or payload values; preserve output, database behavior, event count, and sink isolation.
+    unknowns: No task blocker remains. Full Windows CLI compilation has an unrelated existing portability failure.
+    scope: Linux process and lock inspection, closed blocker schema, focused tests, logging documentation, and changelog.
+  discovered: Full Windows CLI test compilation remains blocked by existing Unix-only syscall use in internal/experiment; the changed db and logging packages compile for Windows.
+  verified: Focused db, logging, CLI, foreign-flock integration, and race tests passed. Full affected packages passed. Darwin CLI and Windows db/logging test compilation passed. mage build and mage check passed with KTX_DB unset and fresh disposable HOME/XDG/TMP roots.
+  next: The orchestrator can evaluate this task while it remains in progress.
+  publication_order: 96

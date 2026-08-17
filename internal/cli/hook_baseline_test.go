@@ -14,13 +14,6 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
-var baselineBlockerCommands = map[string]struct{}{
-	"write": {}, "compress": {}, "hook": {}, "run": {},
-	"get": {}, "read": {}, "list": {}, "stats": {}, "decompress": {},
-	"bench": {}, "telemetry record": {}, "telemetry list": {}, "doctor": {},
-	"db migrate": {}, "db report": {},
-}
-
 func TestCommandBaselineInventories(t *testing.T) {
 	producerCases := []struct {
 		surface, evidence, want string
@@ -54,17 +47,13 @@ func TestCommandBaselineInventories(t *testing.T) {
 		}
 	}
 
-	for command := range baselineBlockerCommands {
-		if got := baselineBlockerLabel(command, "supported"); got != command {
+	for _, command := range []string{"write", "compress", "hook", "run", "get", "read", "list", "stats", "decompress", "bench", "telemetry record", "telemetry list", "doctor", "db migrate", "db report"} {
+		argv := append([]string{"/verified/ktx"}, strings.Fields(command)...)
+		if got := dbpkg.BlockerCommandLabel(argv); got != command {
 			t.Errorf("supported %q = %q", command, got)
 		}
-		for _, identity := range []string{"foreign", "unavailable", "ambiguous"} {
-			if got := baselineBlockerLabel(command, identity); got != "unknown" {
-				t.Errorf("%s %q = %q, want unknown", identity, command, got)
-			}
-		}
 	}
-	if got := baselineBlockerLabel("unsupported", "supported"); got != "unknown" {
+	if got := dbpkg.BlockerCommandLabel([]string{"/verified/ktx", "unsupported"}); got != "unknown" {
 		t.Errorf("unsupported command = %q, want unknown", got)
 	}
 }
@@ -86,16 +75,6 @@ func baselineProducerLabel(surface, evidence, _ string) string {
 	default:
 		return "unknown"
 	}
-}
-
-func baselineBlockerLabel(command, identity string) string {
-	if identity != "supported" {
-		return "unknown"
-	}
-	if _, ok := baselineBlockerCommands[command]; !ok {
-		return "unknown"
-	}
-	return command
 }
 
 func TestHookBaselineStageHelper(t *testing.T) {

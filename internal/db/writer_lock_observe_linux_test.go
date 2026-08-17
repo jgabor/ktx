@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,7 +30,7 @@ func TestParseProcLocksMatchesAndBoundsBlockers(t *testing.T) {
 	if !available || len(holders) != maxReportedLockHolders {
 		t.Fatalf("holders=%#v available=%v", holders, available)
 	}
-	want := []LockHolder{{PID: 20, Mode: "exclusive"}, {PID: 30, Mode: "shared"}, {PID: 40, Mode: "exclusive"}}
+	want := []LockHolder{{PID: 20, Mode: "exclusive", Command: "unknown"}, {PID: 30, Mode: "shared", Command: "unknown"}, {PID: 40, Mode: "exclusive", Command: "unknown"}}
 	for i := range want {
 		if holders[i] != want[i] {
 			t.Fatalf("holders[%d]=%#v, want %#v", i, holders[i], want[i])
@@ -36,8 +38,106 @@ func TestParseProcLocksMatchesAndBoundsBlockers(t *testing.T) {
 	}
 
 	sharedHolders, available := parseProcLocks([]byte(data), device, inode, coordinationShared, nil)
-	if !available || len(sharedHolders) != maxReportedLockHolders || sharedHolders[0] != (LockHolder{PID: 20, Mode: "exclusive"}) {
+	if !available || len(sharedHolders) != maxReportedLockHolders || sharedHolders[0] != (LockHolder{PID: 20, Mode: "exclusive", Command: "unknown"}) {
 		t.Fatalf("shared holders=%#v available=%v", sharedHolders, available)
+	}
+}
+
+func TestInspectProcessCommandFailsClosed(t *testing.T) {
+	root := t.TempDir()
+	executablePath := filepath.Join(root, "ktx")
+	if err := os.WriteFile(executablePath, []byte("binary"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	currentExecutable, err := os.Stat(executablePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	procRoot := filepath.Join(root, "proc")
+	pid := 42
+	directory := filepath.Join(procRoot, strconv.Itoa(pid))
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(executablePath, filepath.Join(directory, "exe")); err != nil {
+		t.Fatal(err)
+	}
+	writeStat := func(start string) {
+		t.Helper()
+		fields := append([]string{"S"}, make([]string, 18)...)
+		for i := 1; i < len(fields); i++ {
+			fields[i] = "0"
+		}
+		fields = append(fields, start)
+		if err := os.WriteFile(filepath.Join(directory, "stat"), []byte("42 (ktx worker) "+strings.Join(fields, " ")+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeStat("100")
+	payload := "/private/path token=secret payload-derived-value"
+	if err := os.WriteFile(filepath.Join(directory, "cmdline"), []byte("ktx\x00--format\x00json\x00hook\x00"+payload+"\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return true }); got != "hook" {
+		t.Fatalf("verified command = %q, want hook", got)
+	}
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return false }); got != "unknown" {
+		t.Fatalf("lost lock command = %q, want unknown", got)
+	}
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool {
+		writeStat("101")
+		return true
+	}); got != "unknown" {
+		t.Fatalf("reused pid command = %q, want unknown", got)
+	}
+	writeStat("100")
+	foreignPath := filepath.Join(root, "foreign")
+	if err := os.WriteFile(foreignPath, []byte("foreign"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := os.Stat(foreignPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := inspectProcessCommand(procRoot, pid, foreign, func() bool { return true }); got != "unknown" {
+		t.Fatalf("foreign executable command = %q, want unknown", got)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "cmdline"), []byte("ktx\x00unsupported\x00"+payload+"\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return true }); got != "unknown" {
+		t.Fatalf("unsupported command = %q, want unknown", got)
+	}
+	if err := os.Remove(filepath.Join(directory, "cmdline")); err != nil {
+		t.Fatal(err)
+	}
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool { return true }); got != "unknown" {
+		t.Fatalf("inspection failure command = %q, want unknown", got)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "cmdline"), []byte("ktx\x00hook\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := inspectProcessCommand(procRoot, pid, currentExecutable, func() bool {
+		if err := os.Remove(filepath.Join(directory, "stat")); err != nil {
+			t.Fatal(err)
+		}
+		return true
+	}); got != "unknown" {
+		t.Fatalf("disappeared process command = %q, want unknown", got)
+	}
+}
+
+func TestReadProcessArgvRejectsTruncatedCommand(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cmdline")
+	if err := os.WriteFile(path, []byte("ktx\x00hook"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	argv, err := readProcessArgv(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := BlockerCommandLabel(argv); got != "unknown" {
+		t.Fatalf("truncated command = %q, want unknown", got)
 	}
 }
 
@@ -151,7 +251,7 @@ func assertObservedLockHolder(t *testing.T, err error, mode string) {
 	if !timeout.OwnershipSnapshotAvailable {
 		t.Fatal("ownership snapshot unavailable")
 	}
-	want := LockHolder{PID: os.Getpid(), Mode: mode}
+	want := LockHolder{PID: os.Getpid(), Mode: mode, Command: "unknown"}
 	for _, holder := range timeout.LockHolders {
 		if holder == want {
 			return

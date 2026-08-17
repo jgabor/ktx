@@ -165,8 +165,9 @@ coordination are `write`, `compress`, `hook`, `run`, `get`, `read`, `list`,
 `db migrate`, and `db report`. For every label, verified live identity maps to
 that label. A foreign executable, unavailable identity, ambiguous identity, PID
 reuse, or an unsupported command maps to `unknown`. Arguments and payload
-content never supply or repair a label. This is an expected attribution matrix;
-blocker command labels are not yet emitted.
+content never supply or repair a label. Linux coordinator-timeout diagnostics
+emit the verified label, or explicit `unknown`, beside each observed holder's
+PID and held mode.
 
 ## Hook acceptance
 

@@ -19,6 +19,7 @@
 ### Fixed
 
 - Database-unavailable diagnostics now identify the callback surface, pinned executable, database target, stable failure class, operation phase, elapsed wait, and observed Linux coordination blockers without exposing driver text or persisted content.
+- Linux coordinator-timeout diagnostics now label verified supported blocker commands from a closed vocabulary and report all uncertain identities as `unknown`.
 - Supported read-only database handles now coordinate with writers, and supported writers coordinate each SQLite transaction across processes.
 - OpenCode ordinary telemetry and hook callbacks now share one arrival-order queue, and each write-capable database handle uses one process-local SQLite connection.
 - SQLite lock exhaustion now returns `database-unavailable` with the canonical database path and retry guidance instead of driver lock diagnostics.

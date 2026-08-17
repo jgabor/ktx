@@ -57,8 +57,9 @@ type DatabaseUnavailable struct {
 
 // LockBlocker identifies one observed process holding a conflicting flock.
 type LockBlocker struct {
-	PID  int    `json:"pid"`
-	Mode string `json:"mode"`
+	PID     int    `json:"pid"`
+	Mode    string `json:"mode"`
+	Command string `json:"command"`
 }
 
 type databaseUnavailableRecord struct {

@@ -190,16 +190,19 @@ delivered estimated tokens. `stats summary` accepts positive Go durations such
 as `30m`, `24h`, or `72h`. `stats breakdown` uses the same window syntax and
 reports bounded delivery groups by safe command dimensions, profile, route,
 disposition, and raw-output-size band; it does not include cache telemetry.
-Summary schema 8 is a compact closed object with window, call totals, estimated
-token totals, and `prompt_cache_token_hit_rate_pct`. Breakdown JSON schema 2 retains aggregate
+Summary schema 9 is a compact closed object with window, call totals, estimated
+token totals, `prompt_cache_token_hit_rate_pct`, and latency evidence. Breakdown JSON schema 3 retains aggregate
 outcomes and delivery groups. Summary text renders only its literal fields and
 has no separate schema version. `prompt_cache_token_hit_rate_pct` is runtime-reported
 cache-read token evidence in percentage units, not a provider request hit rate.
 It keeps measured zero as zero; missing, malformed, and not-applicable evidence
 stays unavailable with a null value and is never reconstructed. It is
 token-weighted across all accepted providers and models under the supported
-runtime contract; it is not an average of their percentages. The summary emits no buckets, formula, ratio,
-identity, runtime, coverage, timestamps, cost, or pricing provenance. Retained
+runtime contract; it is not an average of their percentages. The summary emits no cache buckets, formula, ratio,
+identity, cost, or pricing provenance. Latency reports runtime authority,
+millisecond units, requested-window measured/unknown/malformed counts, measured
+coverage and UTC contributing bounds, and a measured-only distribution. With no
+measured values, state is unavailable and bounds and distribution values are null. Retained
 schema 6 summaries remain unchanged historical evidence.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It

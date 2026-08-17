@@ -2,7 +2,7 @@ id: yxgpazidvy
 artifact: todo
 record:
   severity: normal
-  status: open
+  status: resolved
   readiness:
     capability: build
     reason: Expose authoritative latency needed for representative comparison.
@@ -17,9 +17,9 @@ record:
     public:
       present: true
       description: "[task] Live latency coverage"
+      status: resolved
+      order: 4
       severity: normal
-      status: open
-      order: 20
   kind: task
   target_version: null
   requirements:
@@ -28,3 +28,7 @@ record:
     []
   release_blocker: false
   title: Live latency coverage
+  lifecycle:
+    operation: resolve
+    reason: Runtime-authoritative latency storage, ingestion, reporting, documentation, and isolated verification are complete.
+    date: 2026-08-17

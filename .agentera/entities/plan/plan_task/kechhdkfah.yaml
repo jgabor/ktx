@@ -5,7 +5,7 @@ record:
   depends_on:
     - niduddtklm
     - thgijwqmfb
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN tool calls in a requested window WHEN live summary or breakdown statistics are requested THEN all qualifying calls are counted by latency state.
     - GIVEN measured calls WHEN latency statistics are produced THEN coverage, contributing time bounds, provenance, and measured distributions are reported in milliseconds.
@@ -14,12 +14,12 @@ record:
     - GIVEN reporting tests WHEN they run THEN JSON and text each cover one measured case and one unavailable or malformed case.
   plan: tapdgjsdtr
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Contributing latency bounds compare RFC3339 strings lexicographically, so mixed UTC offsets can report false chronological bounds; parse instants and emit canonical UTC bounds, with a mixed-offset regression.
     provenance:
-      attempt_id: audit-1
-      source: audit report ses_fef248fa5ffeSs8d77xDqOFTYS
-      recorded_at: 2026-08-17 19:57
+      attempt_id: audit-2
+      source: audit report ses_fef184e37ffe31RMDzKlF7i9jz
+      recorded_at: 2026-08-17 20:10
       writer_command: agentera state plan record-evaluation

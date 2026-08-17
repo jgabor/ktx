@@ -1,0 +1,16 @@
+id: yahuzvcnvt
+artifact: progress
+record:
+  timestamp: 2026-08-17 20:19
+  type: docs
+  phase: build
+  what: Synchronized public and agent-facing latency contracts with schema 10 storage, supported OpenCode ingestion, unsupported ingress, and stats summary schema 9 and breakdown schema 3.
+  context:
+    intent: Publish exact latency meanings, provenance, temporal coverage, units, unsupported paths, and verification evidence.
+    constraints: Preserve implemented behavior, use isolated disposable database roots, and leave the final plan task in progress for evaluation.
+    unknowns: None.
+    scope: Public latency documentation, contract regression, managed TODO and plan state, and final progress evidence.
+  discovered: The public pipelines and agent reference contracts still named summary schema 8 and breakdown schema 2; the contract synchronization test encoded the same stale versions.
+  verified: "PASS: isolated go test covered TestLatencyEvidenceMigrationPreservesHistoricalValuesAsUnknown, TestLatencyEvidenceContract, TestParseEvent including unsupported flat ingress, TestLatencyStatisticsJSONAndText, TestLatencyStatisticsOrdersMixedOffsetsAsInstants, stats end-to-end checks, and contract synchronization. A locally built ./build/ktx emitted schema 9 JSON and text with unavailable latency, milliseconds, runtime authority, zero counts, and null bounds/distribution against fresh disposable state. Isolated mage check passed all tests and race checks, vet, lint, and build; its database audit reported forbidden=0 and ktx_db=unset."
+  next: Keep plan task pdhjiqtnhr in progress for orchestrator evaluation.
+  publication_order: 99

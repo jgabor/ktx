@@ -126,13 +126,20 @@ omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
 
-Summary schema 8 is compact. The breakdown schema 2 includes aggregate `outcomes`.
+Summary schema 9 is compact. The breakdown schema 3 includes aggregate `outcomes`.
 Retained schema 6 summaries remain historical bytes and are not migrated or
 rewritten by the read-only summary query. The breakdown population is the same
 calls counted by `total_with_output`: non-null output and a valid RFC3339
 timestamp in the inclusive window. Persisted `is_error=false` is success, `true`
 is error, and NULL or invalid is unknown. Persisted `exit_code` is diagnostic
 only.
+
+Both schemas classify latency as measured, unknown, or malformed. Measured
+values have runtime authority and millisecond units. Coverage uses all calls in
+the requested window; contributing UTC RFC3339Nano bounds and the distribution
+use measured calls only. Mixed offsets are ordered as instants. With no measured
+values, state is unavailable and bounds and distribution values are null.
+Unsupported ingress remains unknown; ktx does not infer timing.
 
 Breakdown formulas:
 

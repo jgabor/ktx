@@ -311,12 +311,12 @@ use the fixed reporting vocabulary described below; other inputs use an empty
 command label rather than exposing raw command text.
 
 `ktx stats summary` emits a compact closed aggregate for periodically polled
-clients. Its JSON contract contains only the window, headline call and token
-totals, and a runtime-reported `prompt_cache_token_hit_rate_pct`. The schema is
-closed: further fields require an intentional schema-version change.
+clients. Its JSON contract contains the window, headline call and token totals,
+a runtime-reported `prompt_cache_token_hit_rate_pct`, and latency evidence. The
+schema is closed: further fields require an intentional schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
-Summary schema 8 omits outcomes, delivery rates, cost views, and cache detail.
-Callers that need delivery groups should invoke the breakdown schema 2 command.
+Summary schema 9 omits outcomes, delivery rates, cost views, and cache detail.
+Callers that need delivery groups should invoke the breakdown schema 3 command.
 
 The summary and breakdown commands use an inclusive trailing window (`[from,
 to]`) ending at one captured wall-clock time. Only calls with non-NULL output and
@@ -349,14 +349,24 @@ have all three measured buckets. This is token-weighted runtime reporting, not a
 provider request hit rate or cache-internal claim. The breakdown does not query
 or emit model-step telemetry.
 
+Both windowed commands classify every qualifying call's persisted latency as
+`measured`, `unknown`, or `malformed`. Measured observations have `runtime`
+authority and millisecond units. The distribution contains measured values
+only. Coverage is measured calls divided by all qualifying calls, including
+unknown and malformed calls. Contributing bounds cover measured calls only;
+timestamps are ordered as instants and emitted as canonical UTC RFC3339Nano.
+When no measured value exists, latency state is `unavailable`, contributing
+bounds and distribution values are `null`, and the distribution count is zero.
+Unsupported ingress remains unknown; ktx does not infer local timing.
+
 The default window is `30m`; `--window` accepts a positive Go duration. The
-current summary JSON contract is schema 8. Retained schema 6 summaries keep
+current summary JSON contract is schema 9. Retained schema 6 summaries keep
 their original bytes and meaning; this read-only query neither migrates nor
-rewrites them. The schema 8 contract is:
+rewrites them. The schema 9 contract is:
 
 ```json
 {
-  "schema_version": 8,
+  "schema_version": 9,
   "window": {
     "seconds": 1800,
     "from": "2026-07-21T11:30:00Z",
@@ -374,6 +384,26 @@ rewrites them. The schema 8 contract is:
     "state": "measured",
     "value": 70,
     "contributing_model_steps": 6
+  },
+  "latency": {
+    "state": "measured",
+    "unit": "milliseconds",
+    "authority": "runtime",
+    "measured_calls": 42,
+    "unknown_calls": 8,
+    "malformed_calls": 1,
+    "total_calls": 51,
+    "coverage_pct": 82.35294117647058,
+    "contributing_from": "2026-07-21T11:31:00.123456789Z",
+    "contributing_to": "2026-07-21T11:59:30Z",
+    "distribution_ms": {
+      "count": 42,
+      "min": 0,
+      "p50": 12,
+      "p95": 40,
+      "max": 55,
+      "average": 14.5
+    }
   }
 }
 ```
@@ -383,7 +413,7 @@ the summary:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "generated_at": "2026-07-21T12:00:00Z",
   "window": {
     "seconds": 1800,
@@ -448,6 +478,26 @@ the summary:
       "raw_estimated": 0,
       "delivered_estimated": 0
     }
+  },
+  "latency": {
+    "state": "measured",
+    "unit": "milliseconds",
+    "authority": "runtime",
+    "measured_calls": 42,
+    "unknown_calls": 8,
+    "malformed_calls": 1,
+    "total_calls": 51,
+    "coverage_pct": 82.35294117647058,
+    "contributing_from": "2026-07-21T11:31:00.123456789Z",
+    "contributing_to": "2026-07-21T11:59:30Z",
+    "distribution_ms": {
+      "count": 42,
+      "min": 0,
+      "p50": 12,
+      "p95": 40,
+      "max": 55,
+      "average": 14.5
+    }
   }
 }
 ```
@@ -475,11 +525,12 @@ all-unknown population, error rate is `null`/`-` and coverage is `0`. For an
 all-known population with no errors, error rate is `0` and coverage is `100`.
 Breakdown groups do not carry per-group outcome rates.
 
-Summary schema 8 and breakdown schema 2 supersede their previous structured
+Summary schema 9 and breakdown schema 3 supersede their previous structured
 schemas without a compatibility bridge. Retained schema 6 summaries remain
 unchanged historical evidence. Summary text output has one literal row with its
 window, calls, token totals, `PROMPT_CACHE_TOKEN_HIT_RATE_PCT`, and contributing
-model-step count; it has no separate schema version.
+model-step count plus latency state, authority, coverage, bounds, and
+distribution; it has no separate schema version.
 
 Breakdown delivery groups are ranked by delivered estimate and capped at 100.
 `other` contains the exact totals for omitted groups, so detailed groups plus

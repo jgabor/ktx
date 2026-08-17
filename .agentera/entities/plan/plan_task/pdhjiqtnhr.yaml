@@ -6,7 +6,7 @@ record:
     - niduddtklm
     - thgijwqmfb
     - kechhdkfah
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN the completed behavior WHEN public documentation is read THEN state meanings, provenance, temporal coverage, units, and unsupported paths match the CLI.
     - GIVEN migration, ingestion, reporting, and unsupported-path checks WHEN they run in isolated database-safe environments THEN they pass without ambient database access.

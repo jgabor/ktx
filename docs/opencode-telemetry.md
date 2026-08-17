@@ -41,6 +41,16 @@ The generated plugin declares two OpenCode hooks:
 | `tool.execute.after` | Sends tool output to `ktx hook` for persistence and optional compression.                          |
 | `event`              | Normalizes accepted model-step events and sends optional token evidence to `ktx telemetry record`. |
 
+The wrapper's accepted OpenCode `tool_use` shape also normalizes
+`part.state.time.start` and `end` as tool-call latency. A valid non-reversed
+pair is measured runtime evidence in milliseconds, including measured zero.
+Missing `state.time` is unknown. A partial, non-numeric, or reversed pair is
+malformed runtime evidence and has no numeric latency. OpenCode plugin
+`tool.execute.after` callbacks, Codex events, and flat wrapper events do not
+supply this timing contract, so they remain unknown unless a supported runtime
+event supplies latency. ktx does not measure elapsed time locally or reconstruct
+historical authority.
+
 When OpenCode runs under `ktx run`, the wrapper sets `KTX_SESSION_ID`. The
 plugin then noops both hooks, leaving the wrapper as the single evidence path.
 The wrapper normalizes identifiable `step_finish` records into the same model-

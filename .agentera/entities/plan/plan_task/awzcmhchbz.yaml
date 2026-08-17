@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: lcptmsddpa
   name: Revalidate schema inside hook writer window
-  status: in_progress
+  status: complete
   depends_on:
     - hcaiaeseji
     - wxmpwfphcv
@@ -15,3 +15,13 @@ record:
     - GIVEN current, stale, absent, and concurrently upgraded schemas WHEN hermetic verification runs THEN one success and one relevant failure case per path pass without ambient database access.
   evidence:
     []
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: orchestrate audit
+      recorded_at: 2026-08-17 21:11
+      writer_command: agentera state plan record-evaluation

@@ -5,7 +5,7 @@ record:
   depends_on:
     - rurmwrjpck
     - awzcmhchbz
-  status: pending
+  status: in_progress
   description: Verify provenance, blocker labels, phased durability, and reduced coordination together under hermetic hook-only contention.
   acceptance:
     - GIVEN the pinned hook-only contention workload with existing retry and timeout settings WHEN it runs on disposable roots THEN observed availability outcomes are reported without generalizing beyond that workload.

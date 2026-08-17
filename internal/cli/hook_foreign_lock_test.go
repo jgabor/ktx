@@ -159,6 +159,7 @@ func TestHookForeignLockAfterSourceKeepsSourceAndRetryConverges(t *testing.T) {
 	if _, err := d.GetCompressionDisposition(sourceID); !errors.Is(err, dbpkg.ErrNotFound) {
 		t.Fatalf("disposition after failed artifact phase = %v, want not found", err)
 	}
+	assertHookEvidenceCounts(t, d, sourceID, 1, 0, 0)
 
 	stdout.Reset()
 	stderr.Reset()
@@ -318,6 +319,7 @@ func TestHookForeignLockDuringDispositionKeepsAcceptedEvidence(t *testing.T) {
 	if _, err := d.GetCompressionDisposition(sourceID); !errors.Is(err, dbpkg.ErrNotFound) {
 		t.Fatalf("disposition after failed phase = %v, want not found", err)
 	}
+	assertHookEvidenceCounts(t, d, sourceID, 1, 1, 0)
 
 	retryStdout, retryStderr, retryObservations, err := runObservedHook(t, d, payload)
 	if err != nil || retryStderr != "" {
@@ -458,6 +460,32 @@ func assertHookEvidenceCounts(t *testing.T, d *dbpkg.DB, sourceID string, wantSo
 		}
 		if got != check.want {
 			t.Errorf("%s rows for %q = %d, want %d", check.table, sourceID, got, check.want)
+		}
+	}
+	for _, check := range []struct {
+		name  string
+		query string
+		want  int
+	}{
+		{name: "hook source producers", query: `SELECT count(*) FROM tool_calls WHERE id = ? AND producer = 'hook'`, want: wantSources},
+		{name: "hook artifact producers", query: `SELECT count(*) FROM compressed WHERE source_id = ? AND producer = 'hook'`, want: wantArtifacts},
+	} {
+		var got int
+		if err := d.DB().QueryRow(check.query, sourceID).Scan(&got); err != nil {
+			t.Fatalf("count %s: %v", check.name, err)
+		}
+		if got != check.want {
+			t.Errorf("%s for %q = %d, want %d", check.name, sourceID, got, check.want)
+		}
+	}
+	if wantSources == 1 {
+		var sessions, rollup int
+		if err := d.DB().QueryRow(`SELECT count(*), COALESCE(sum(s.tool_call_count), 0)
+			FROM sessions s JOIN tool_calls t ON t.session_id = s.id WHERE t.id = ?`, sourceID).Scan(&sessions, &rollup); err != nil {
+			t.Fatalf("reconcile session roll-up: %v", err)
+		}
+		if sessions != 1 || rollup != 1 {
+			t.Errorf("session count/roll-up for %q = %d/%d, want 1/1", sourceID, sessions, rollup)
 		}
 	}
 }

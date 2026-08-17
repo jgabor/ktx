@@ -16,6 +16,7 @@
 - Engineering verification now retains a separate blocked-decompression process report with output barriers, byte-exact output evidence, hook timing and outcome, participant classes, and exact storage reconciliation.
 - Engineering reports now record first-class wall-clock timing, focused `ktx read` measurements, and a reproducible noise-aware comparison contract while preserving retained schema-1 evidence.
 - Real-process load reports now compare matched writers-only and mixed-agent workloads with distinct sessions, exact reconciliation, supported failure rates, and actual and percentage contention penalties.
+- A pinned developer hook-only contention workload reports bounded observed outcomes and exact source, session, artifact, disposition, and producer reconciliation on disposable databases.
 
 ### Fixed
 

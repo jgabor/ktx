@@ -47,6 +47,18 @@ product SQLite state.
 The current component report is schema 3, the load report is schema 3, and the
 blocked-decompression report is schema 2. The manifest remains schema 2.
 
+### Hook-only contention workload
+
+`mage hookContention` runs only `./build/ktx hook` participants during each
+contention interval. It uses concurrency 1, 2, 4, 8, 16, and 32, with one
+warmup and five measured rounds per level, the existing two-attempt/two-second
+startup retry settings, the default two-second pipeline timeout, and a
+12-second harness process timeout. Each round uses a fresh disposable database
+and reconciles exact source, session, session roll-up, artifact, disposition,
+and hook-producer counts. Its schema-1 JSON reports observed completions and
+failures for this workload only. It does not establish general availability or
+a latency bound.
+
 This is extended engineering evidence, not a timing gate or a replacement for
 `mage check`. It fails on reporter validation, the load harness's mandatory
 correctness, reconciliation, and supported-lock checks, or an invalid

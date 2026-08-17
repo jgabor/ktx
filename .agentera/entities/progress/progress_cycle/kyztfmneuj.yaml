@@ -1,0 +1,17 @@
+id: kyztfmneuj
+artifact: progress
+record:
+  timestamp: 2026-08-17 21:37
+  type: test
+  phase: build
+  what: Added a pinned hermetic hook-only contention target and strengthened hook reconciliation checks for source, session roll-up, artifact, disposition, and closed producer counts. The target reports only observed workload outcomes.
+  context:
+    intent: Prove producer provenance, blocker attribution, phased hook durability, and schema behavior together without changing product behavior.
+    constraints: No ambient database access, WAL, dependency, daemon, spool, raw sensitive logging, report or telemetry optimization, or general availability claim.
+    unknowns: Full Windows CLI compilation remains blocked by existing Unix-only syscall use in internal/experiment. The Windows database tests and load harness compile, and full CLI plus load harness compile for Darwin arm64 and Linux arm64.
+    scope: Hook-only engineering evidence, exact reconciliation coverage, focused compatibility checks, public engineering documentation, changelog, and required state reconciliation.
+  inspiration: Existing loadbench process runners, fixed fixture identity, concurrency levels, retry settings, and disposable-root enforcement supplied the narrow reusable boundary.
+  discovered: Flat hook contention intentionally shares one fallback session per fresh round, so exact reconciliation is one session per round and a roll-up equal to accepted calls. Distinct OpenCode call identities still produce exact first-wins source and artifact evidence.
+  verified: The final schema-1 hook-only report used the 4,096-byte seed-6001 fixture, concurrency 1/2/4/8/16/32, one warmup and five measured rounds per level, two startup attempts within two seconds, the two-second pipeline timeout, and a 12-second process timeout. All 378 hook participants completed with zero failures; 36/36 rounds reconciled 378 sources, 36 sessions, roll-up 378, 378 artifacts, 378 dispositions, 378 hook source producers, and 378 hook artifact producers. Focused race tests passed fresh, exact duplicate, conflict, transformed, passthrough, pipeline-failure, artifact-failure, disposition-failure, current-schema, concurrent-upgrade, supported/foreign/exited/ambiguous blocker, bounded private-label, migration, rollback, and newer-schema cases. The full schema/migration matrix passed. mage check passed all repository race tests, vet, lint with zero issues, build, and 5,836 audited database operations with forbidden=0. Built CLI binary-capability and absent read-only smoke passed without database creation. A disposable schema 9 rehearsal reported migration to schema 11 and preserved one historical source with unknown producer. Database-safety tests passed. Darwin arm64 and Linux arm64 CLI/load-harness builds, Windows amd64 load-harness build, and Windows amd64 database test compilation passed.
+  next: Keep plan task avknacywzn in progress for independent evaluation. Do not push.
+  publication_order: 102

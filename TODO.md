@@ -82,8 +82,6 @@ Each task must run a structured discussion, append the resulting choice to the r
 
 ## ⇉ Degraded
 
-- [ ] [id:fcvwvioetw] [bug] Revalidate hook schema inside coordinated writer window
-
 ## → Normal
 
 <a id="discuss-layer-5-boundary"></a>
@@ -114,3 +112,4 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [x] [id:lujbwsgbnz] **Model-telemetry window coverage** — Extend `ktx stats summary` with the first and last contributing model-telemetry capture, contributing session and model-step counts, and requested-window coverage so a short telemetry subset cannot be presented as a full-window provider prompt/prefix-cache token KPI. Here, prompt/prefix-cache telemetry means runtime-reported provider token fields used for discounted input/output token accounting, not filesystem, memory, database, HTTP, or other I/O caches. Label incomplete coverage as a subset rather than a window-wide KPI; preserve the independent model-step query and do not infer provider-internal prompt/prefix-cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition. → [Measurement](ARCHITECTURE.md#measurement)
 - [x] [id:gzbjhqirbx] [fix] Align agent-facing prompt-cache benchmark guidance
 - [x] [id:yxgpazidvy] [task] Live latency coverage
+- [x] [id:fcvwvioetw] [bug] Revalidate hook schema inside coordinated writer window

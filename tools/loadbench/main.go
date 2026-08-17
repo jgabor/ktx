@@ -28,6 +28,7 @@ import (
 
 const (
 	reportSchemaVersion       = 3
+	hookContentionSchema      = 1
 	blockedReaderTargetSchema = 1
 	blockedDecompressSchema   = 2
 	warmupRounds              = 1
@@ -61,6 +62,46 @@ type report struct {
 	Scenarios           []scenario          `json:"scenarios"`
 	BlockedReaderTarget blockedReaderTarget `json:"blocked_reader_target"`
 	Preflight           preflight           `json:"preflight"`
+}
+
+type hookContentionReport struct {
+	SchemaVersion               int                   `json:"schema_version"`
+	Environment                 environmentIdentity   `json:"environment"`
+	Workload                    payloadIdentity       `json:"workload"`
+	WarmupRounds                int                   `json:"warmup_rounds"`
+	MeasuredRounds              int                   `json:"measured_rounds"`
+	ConcurrencyLevels           []int                 `json:"concurrency_levels"`
+	ProcessTimeoutNanoseconds   int64                 `json:"process_timeout_nanoseconds"`
+	PipelineTimeoutNanoseconds  int64                 `json:"pipeline_timeout_nanoseconds"`
+	StartupRetryNanoseconds     int64                 `json:"startup_retry_nanoseconds"`
+	StartupRetryMaximumAttempts int                   `json:"startup_retry_maximum_attempts"`
+	Rounds                      []hookContentionRound `json:"rounds"`
+}
+
+type hookContentionRound struct {
+	Kind           string                       `json:"kind"`
+	Concurrency    int                          `json:"concurrency"`
+	Round          int                          `json:"round"`
+	Attempts       int                          `json:"attempts"`
+	Completions    int                          `json:"completions"`
+	FailureCodes   map[string]int               `json:"failure_codes"`
+	Reconciliation hookContentionReconciliation `json:"reconciliation"`
+}
+
+type hookContentionReconciliation struct {
+	ExpectedSources        int  `json:"expected_sources"`
+	PersistedSources       int  `json:"persisted_sources"`
+	ExpectedSessions       int  `json:"expected_sessions"`
+	PersistedSessions      int  `json:"persisted_sessions"`
+	ExpectedSessionRollup  int  `json:"expected_session_rollup"`
+	PersistedSessionRollup int  `json:"persisted_session_rollup"`
+	ExpectedArtifacts      int  `json:"expected_artifacts"`
+	PersistedArtifacts     int  `json:"persisted_artifacts"`
+	ExpectedDispositions   int  `json:"expected_dispositions"`
+	PersistedDispositions  int  `json:"persisted_dispositions"`
+	SourceHookProducers    int  `json:"source_hook_producers"`
+	ArtifactHookProducers  int  `json:"artifact_hook_producers"`
+	Matches                bool `json:"matches"`
 }
 
 type blockedDecompressionReport struct {
@@ -285,6 +326,20 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) == 2 && os.Args[1] == "--hook-contention" {
+		measured, err := runHookContentionReport()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "loadbench: %v\n", err)
+			os.Exit(1)
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(measured); err != nil {
+			fmt.Fprintf(os.Stderr, "loadbench: encode report: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) != 1 {
 		fmt.Fprintln(os.Stderr, "loadbench: unexpected arguments")
 		os.Exit(1)
@@ -301,6 +356,113 @@ func main() {
 		fmt.Fprintf(os.Stderr, "loadbench: encode report: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func runHookContentionReport() (hookContentionReport, error) {
+	fixtures := fixedFixtures()
+	if err := validateStartup(os.Getenv("KTX_DB"), fixtures); err != nil {
+		return hookContentionReport{}, err
+	}
+	root, err := os.MkdirTemp("", "ktx-hook-contention-")
+	if err != nil {
+		return hookContentionReport{}, err
+	}
+	defer func() { _ = os.RemoveAll(root) }()
+	binary, hash, err := localBinary()
+	if err != nil {
+		return hookContentionReport{}, err
+	}
+	report := hookContentionReport{
+		SchemaVersion: hookContentionSchema, Workload: fixtures[0].payloadIdentity,
+		WarmupRounds: warmupRounds, MeasuredRounds: measuredRounds,
+		ConcurrencyLevels:         append([]int(nil), concurrencyLevels...),
+		ProcessTimeoutNanoseconds: processTimeout.Nanoseconds(), PipelineTimeoutNanoseconds: (2 * time.Second).Nanoseconds(),
+		StartupRetryNanoseconds: (2 * time.Second).Nanoseconds(), StartupRetryMaximumAttempts: 2,
+		Environment: environmentIdentity{
+			KTXPath: binary, KTXSHA256: hash, GoVersion: runtime.Version(), OperatingSystem: runtime.GOOS,
+			Architecture: runtime.GOARCH, Processor: processorIdentity(),
+			DatabaseSelection:     "explicit KTX_DB beneath a fresh owned round root",
+			DisposableEnvironment: []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "TMPDIR"},
+		},
+	}
+	for _, concurrency := range concurrencyLevels {
+		for roundIndex := 0; roundIndex < warmupRounds+measuredRounds; roundIndex++ {
+			measured, err := runHookContentionRound(root, processRunner{binary: binary}, fixtures[0], concurrency, roundIndex)
+			if err != nil {
+				return hookContentionReport{}, err
+			}
+			report.Rounds = append(report.Rounds, measured)
+		}
+	}
+	return report, nil
+}
+
+func runHookContentionRound(root string, runner processRunner, fixture fixture, concurrency, roundIndex int) (hookContentionRound, error) {
+	environment, err := newRoundEnvironment(root, fmt.Sprintf("hook-only-%02d-%02d", concurrency, roundIndex))
+	if err != nil {
+		return hookContentionRound{}, err
+	}
+	if err := initializeRoundDatabase(environment.db); err != nil {
+		return hookContentionRound{}, err
+	}
+	configDir := filepath.Join(environment.root, "config", "ktx")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		return hookContentionRound{}, err
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "ktx.toml"), []byte("[pipeline.default]\nstages = [\"head:1\"]\n"), 0o600); err != nil {
+		return hookContentionRound{}, err
+	}
+	payloads := make([][]byte, concurrency)
+	base := 900000 + concurrency*1000 + roundIndex*100
+	for index := range payloads {
+		payloads[index] = agentHookPayload(fmt.Sprintf("hook-only-%d-%d-%d", concurrency, roundIndex, index), stableID(base+index), fixture)
+	}
+	results := concurrentDistinctPayloads(runner, environment.env, payloads)
+	reconciliation, err := reconcileHookContention(environment.db, concurrency)
+	if err != nil {
+		return hookContentionRound{}, err
+	}
+	failures := summarize(results, completed(results), 0, 0).FailureCodes
+	if len(failures) != 0 || !reconciliation.Matches {
+		return hookContentionRound{}, fmt.Errorf("hook-only contention %d/%d failed: failures=%v reconciliation=%+v", concurrency, roundIndex, failures, reconciliation)
+	}
+	var kind string
+	var number int
+	if roundIndex < warmupRounds {
+		kind, number = "warmup", roundIndex+1
+	} else {
+		number = roundIndex - warmupRounds + 1
+	}
+	return hookContentionRound{Kind: kind, Concurrency: concurrency, Round: number, Attempts: concurrency, Completions: completed(results), FailureCodes: failures, Reconciliation: reconciliation}, nil
+}
+
+func reconcileHookContention(path string, expected int) (hookContentionReconciliation, error) {
+	database, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro")
+	if err != nil {
+		return hookContentionReconciliation{}, err
+	}
+	defer database.Close()
+	result := hookContentionReconciliation{ExpectedSources: expected, ExpectedSessions: 1, ExpectedSessionRollup: expected, ExpectedArtifacts: expected, ExpectedDispositions: expected}
+	queries := []struct {
+		query string
+		dest  *int
+	}{
+		{`SELECT count(*) FROM tool_calls`, &result.PersistedSources},
+		{`SELECT count(*) FROM sessions`, &result.PersistedSessions},
+		{`SELECT COALESCE(sum(tool_call_count), 0) FROM sessions`, &result.PersistedSessionRollup},
+		{`SELECT count(*) FROM compressed`, &result.PersistedArtifacts},
+		{`SELECT count(*) FROM compression_dispositions`, &result.PersistedDispositions},
+		{`SELECT count(*) FROM tool_calls WHERE producer = 'hook'`, &result.SourceHookProducers},
+		{`SELECT count(*) FROM compressed WHERE producer = 'hook'`, &result.ArtifactHookProducers},
+	}
+	for _, item := range queries {
+		if err := database.QueryRow(item.query).Scan(item.dest); err != nil {
+			return hookContentionReconciliation{}, err
+		}
+	}
+	result.Matches = result.PersistedSources == expected && result.PersistedSessions == 1 && result.PersistedSessionRollup == expected &&
+		result.PersistedArtifacts == expected && result.PersistedDispositions == expected && result.SourceHookProducers == expected && result.ArtifactHookProducers == expected
+	return result, nil
 }
 
 func streamWorker() error {
@@ -2028,6 +2190,24 @@ func concurrentPayloads(runner processRunner, environment []string, payload []by
 	close(start)
 	collected := make([]processResult, 0, count)
 	for range count {
+		collected = append(collected, <-results)
+	}
+	return collected
+}
+
+func concurrentDistinctPayloads(runner processRunner, environment []string, payloads [][]byte) []processResult {
+	start := make(chan struct{})
+	results := make(chan processResult, len(payloads))
+	for _, payload := range payloads {
+		payload := payload
+		go func() {
+			<-start
+			results <- runner.hook(environment, payload)
+		}()
+	}
+	close(start)
+	collected := make([]processResult, 0, len(payloads))
+	for range payloads {
 		collected = append(collected, <-results)
 	}
 	return collected

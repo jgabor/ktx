@@ -125,6 +125,18 @@ func loadBench() error {
 	return run("go", "run", "./tools/loadbench")
 }
 
+// HookContention runs the pinned hook-only contention workload.
+func HookContention() error {
+	return hermeticTarget("hookContention", hookContention)
+}
+
+func hookContention() error {
+	if err := Build(); err != nil {
+		return err
+	}
+	return run("go", "run", "./tools/loadbench", "--hook-contention")
+}
+
 // DecompressProcessBench emits the blocked-decompression process report.
 func DecompressProcessBench() error {
 	return hermeticTarget("decompressProcessBench", decompressProcessBench)

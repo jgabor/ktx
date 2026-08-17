@@ -1,0 +1,17 @@
+id: btktifjxrv
+artifact: progress
+record:
+  timestamp: 2026-08-17 21:56
+  type: fix
+  phase: build
+  what: Corrected hook-contention schema-1 round labels so measured rounds emit the closed value `measured`, added closed-label validation and focused coverage, and clarified the report contract.
+  context:
+    intent: Apply the bounded correction accepted from the independent audit without changing the pinned workload or product behavior.
+    constraints: Workload, totals, retries, timeouts, product behavior, and availability claims remain unchanged. All verification used fresh disposable roots with KTX_DB unset.
+    unknowns: none
+    scope: tools/loadbench report labeling and tests, the hook-only report contract, and retry progress state.
+  inspiration: Independent audit attempt audit-1 failed plan task avknacywzn because all 30 measured round labels were empty and no focused label test existed.
+  discovered: The measured branch assigned the round number but left the kind field at its empty Go zero value; the report path did not validate the closed label vocabulary.
+  verified: Focused label and complete loadbench tests passed. The regenerated pinned report had schema 1, 6 warmup labels, 30 measured labels, 36 reconciled rounds, 378/378 completions, and no failures; its audit recorded 1,206 operations and forbidden=0. Affected loadbench and CLI race tests passed. mage check passed all tests, vet, lint with zero issues, native build, and 5,836 audited operations with forbidden=0. Native build, Darwin arm64 and Linux arm64 CLI/loadbench builds, Windows amd64 loadbench build, and Windows amd64 database test compilation passed.
+  next: Leave plan task avknacywzn in_progress with its audit-1 FAIL evaluation for independent re-audit. Do not push.
+  publication_order: 103

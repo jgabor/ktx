@@ -56,8 +56,8 @@ startup retry settings, the default two-second pipeline timeout, and a
 12-second harness process timeout. Each round uses a fresh disposable database
 and reconciles exact source, session, session roll-up, artifact, disposition,
 and hook-producer counts. Its schema-1 JSON reports observed completions and
-failures for this workload only. It does not establish general availability or
-a latency bound.
+failures for this workload only, with each round labeled `warmup` or `measured`.
+It does not establish general availability or a latency bound.
 
 This is extended engineering evidence, not a timing gate or a replacement for
 `mage check`. It fails on reporter validation, the load harness's mandatory

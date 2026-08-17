@@ -105,6 +105,39 @@ func TestWorkerEnvironmentSelectsOnlyOwnedDatabase(t *testing.T) {
 	}
 }
 
+func TestHookContentionRoundLabels(t *testing.T) {
+	report := hookContentionReport{
+		WarmupRounds:      warmupRounds,
+		MeasuredRounds:    measuredRounds,
+		ConcurrencyLevels: append([]int(nil), concurrencyLevels...),
+	}
+	kindCounts := map[string]int{}
+	for _, concurrency := range report.ConcurrencyLevels {
+		for roundIndex := 0; roundIndex < warmupRounds+measuredRounds; roundIndex++ {
+			kind, number := hookContentionRoundLabel(roundIndex)
+			kindCounts[kind]++
+			report.Rounds = append(report.Rounds, hookContentionRound{Kind: kind, Concurrency: concurrency, Round: number})
+		}
+	}
+	if len(report.ConcurrencyLevels) != 6 || kindCounts["warmup"] != 6 || kindCounts["measured"] != 30 || len(kindCounts) != 2 {
+		t.Fatalf("concurrency levels=%d, kind counts=%v", len(report.ConcurrencyLevels), kindCounts)
+	}
+	if err := validateHookContentionRoundLabels(report); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, kind := range []string{"", "unknown"} {
+		t.Run(fmt.Sprintf("rejects_%q", kind), func(t *testing.T) {
+			invalid := report
+			invalid.Rounds = append([]hookContentionRound(nil), report.Rounds...)
+			invalid.Rounds[0].Kind = kind
+			if err := validateHookContentionRoundLabels(invalid); err == nil || !strings.Contains(err.Error(), "kind") {
+				t.Fatalf("invalid kind %q error = %v", kind, err)
+			}
+		})
+	}
+}
+
 func TestMetricsAndReconciliationExposeVarianceAndFailures(t *testing.T) {
 	results := []processResult{
 		{Code: "ok", LatencyNS: 10},

@@ -14,3 +14,13 @@ record:
     - GIVEN current, older supported, and newer unsupported schemas WHEN verification runs THEN ordinary open, forward migration, rollback, and incompatibility behavior remain unchanged.
     - GIVEN the integrated change WHEN repository verification completes THEN focused tests, race checks, vet, lint, build, migration rehearsal, database-safety checks, public documentation, and changelog all agree.
   plan: lcptmsddpa
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Hook contention schema-1 report leaves measured round kind empty; independent output shows kind_counts with 30 empty and 6 warmup labels, and no focused label test exists.
+    provenance:
+      attempt_id: audit-1
+      source: orchestrate audit
+      recorded_at: 2026-08-17 21:45
+      writer_command: agentera state plan record-evaluation

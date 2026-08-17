@@ -394,6 +394,9 @@ func runHookContentionReport() (hookContentionReport, error) {
 			report.Rounds = append(report.Rounds, measured)
 		}
 	}
+	if err := validateHookContentionRoundLabels(report); err != nil {
+		return hookContentionReport{}, err
+	}
 	return report, nil
 }
 
@@ -426,14 +429,36 @@ func runHookContentionRound(root string, runner processRunner, fixture fixture, 
 	if len(failures) != 0 || !reconciliation.Matches {
 		return hookContentionRound{}, fmt.Errorf("hook-only contention %d/%d failed: failures=%v reconciliation=%+v", concurrency, roundIndex, failures, reconciliation)
 	}
-	var kind string
-	var number int
-	if roundIndex < warmupRounds {
-		kind, number = "warmup", roundIndex+1
-	} else {
-		number = roundIndex - warmupRounds + 1
-	}
+	kind, number := hookContentionRoundLabel(roundIndex)
 	return hookContentionRound{Kind: kind, Concurrency: concurrency, Round: number, Attempts: concurrency, Completions: completed(results), FailureCodes: failures, Reconciliation: reconciliation}, nil
+}
+
+func hookContentionRoundLabel(roundIndex int) (string, int) {
+	if roundIndex < warmupRounds {
+		return "warmup", roundIndex + 1
+	}
+	return "measured", roundIndex - warmupRounds + 1
+}
+
+func validateHookContentionRoundLabels(report hookContentionReport) error {
+	var warmups, measured int
+	for _, round := range report.Rounds {
+		switch round.Kind {
+		case "warmup":
+			warmups++
+		case "measured":
+			measured++
+		default:
+			return fmt.Errorf("hook-only contention round kind %q is invalid", round.Kind)
+		}
+	}
+	if want := len(report.ConcurrencyLevels) * report.WarmupRounds; warmups != want {
+		return fmt.Errorf("hook-only contention warmup labels=%d, want %d", warmups, want)
+	}
+	if want := len(report.ConcurrencyLevels) * report.MeasuredRounds; measured != want {
+		return fmt.Errorf("hook-only contention measured labels=%d, want %d", measured, want)
+	}
+	return nil
 }
 
 func reconcileHookContention(path string, expected int) (hookContentionReconciliation, error) {

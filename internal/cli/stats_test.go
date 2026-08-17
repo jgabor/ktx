@@ -948,6 +948,20 @@ func TestLatencyStatisticsJSONAndText(t *testing.T) {
 	}
 }
 
+func TestLatencyStatisticsOrdersMixedOffsetsAsInstants(t *testing.T) {
+	measured := int64(25)
+	latency := aggregateStatsLatency([]dbpkg.StatsSummaryRow{
+		{Timestamp: "2026-07-21T13:30:00.123456789+02:00", LatencyMs: &measured, LatencyState: dbpkg.LatencyStateMeasured, LatencyAuthority: dbpkg.LatencyAuthorityRuntime},
+		{Timestamp: "2026-07-21T12:00:00.5Z", LatencyMs: &measured, LatencyState: dbpkg.LatencyStateMeasured, LatencyAuthority: dbpkg.LatencyAuthorityRuntime},
+	})
+	if latency.ContributingFrom == nil || *latency.ContributingFrom != "2026-07-21T11:30:00.123456789Z" {
+		t.Fatalf("contributing_from = %v", latency.ContributingFrom)
+	}
+	if latency.ContributingTo == nil || *latency.ContributingTo != "2026-07-21T12:00:00.5Z" {
+		t.Fatalf("contributing_to = %v", latency.ContributingTo)
+	}
+}
+
 func TestStatsCommandDispatchesWindowViews(t *testing.T) {
 	for _, tt := range []struct {
 		name        string

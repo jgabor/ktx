@@ -13,3 +13,13 @@ record:
     - GIVEN no measured latency WHEN statistics are produced THEN latency is unavailable rather than zero.
     - GIVEN reporting tests WHEN they run THEN JSON and text each cover one measured case and one unavailable or malformed case.
   plan: tapdgjsdtr
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Contributing latency bounds compare RFC3339 strings lexicographically, so mixed UTC offsets can report false chronological bounds; parse instants and emit canonical UTC bounds, with a mixed-offset regression.
+    provenance:
+      attempt_id: audit-1
+      source: audit report ses_fef248fa5ffeSs8d77xDqOFTYS
+      recorded_at: 2026-08-17 19:57
+      writer_command: agentera state plan record-evaluation

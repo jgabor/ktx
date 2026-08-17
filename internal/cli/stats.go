@@ -446,7 +446,7 @@ func aggregateStatsWindow(rows []dbpkg.StatsSummaryRow, window time.Duration, no
 func aggregateStatsLatency(rows []dbpkg.StatsSummaryRow) statsLatency {
 	result := statsLatency{State: "unavailable", Unit: dbpkg.LatencyUnitMilliseconds, Authority: dbpkg.LatencyAuthorityRuntime}
 	values := make([]float64, 0, len(rows))
-	var first, last string
+	var first, last time.Time
 	for _, row := range rows {
 		result.TotalCalls++
 		switch row.LatencyState {
@@ -455,13 +455,18 @@ func aggregateStatsLatency(rows []dbpkg.StatsSummaryRow) statsLatency {
 				result.MalformedCalls++
 				continue
 			}
+			timestamp, err := time.Parse(time.RFC3339Nano, row.Timestamp)
+			if err != nil {
+				result.MalformedCalls++
+				continue
+			}
 			result.MeasuredCalls++
 			values = append(values, float64(*row.LatencyMs))
-			if first == "" || row.Timestamp < first {
-				first = row.Timestamp
+			if result.MeasuredCalls == 1 || timestamp.Before(first) {
+				first = timestamp
 			}
-			if last == "" || row.Timestamp > last {
-				last = row.Timestamp
+			if result.MeasuredCalls == 1 || timestamp.After(last) {
+				last = timestamp
 			}
 		case dbpkg.LatencyStateMalformed:
 			result.MalformedCalls++
@@ -478,7 +483,9 @@ func aggregateStatsLatency(rows []dbpkg.StatsSummaryRow) statsLatency {
 		return result
 	}
 	result.State = "measured"
-	result.ContributingFrom, result.ContributingTo = &first, &last
+	from := first.UTC().Format(time.RFC3339Nano)
+	to := last.UTC().Format(time.RFC3339Nano)
+	result.ContributingFrom, result.ContributingTo = &from, &to
 	sort.Float64s(values)
 	min, max := values[0], values[len(values)-1]
 	p50, p95 := statsPercentile(values, .5), statsPercentile(values, .95)

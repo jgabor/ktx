@@ -1,0 +1,16 @@
+id: coeheicuru
+artifact: progress
+record:
+  timestamp: 2026-08-17 20:05
+  type: fix
+  phase: build
+  what: Corrected latency contributing bounds to order parsed RFC3339 instants and emit canonical UTC RFC3339Nano; added mixed-offset regression coverage.
+  context:
+    intent: Correct the accepted mixed-offset latency-bound audit finding.
+    constraints: Preserve public schemas, collection, migration, and unrelated statistics.
+    unknowns: None.
+    scope: Latency bound aggregation, focused regression, audit plan state, and this progress evidence.
+  discovered: Lexicographic RFC3339 ordering can reverse chronology when accepted timestamps use different offsets.
+  verified: "PASS: focused mixed-offset regression; full internal/cli tests; gofmt and diff checks; mage check with all packages, vet, lint, and build; local build stats summary smoke. Every invocation unset KTX_DB and used fresh disposable HOME/XDG roots."
+  next: Keep the latency statistics task in progress for evaluator review.
+  publication_order: 98

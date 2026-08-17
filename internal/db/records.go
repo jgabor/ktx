@@ -223,6 +223,37 @@ func (d *DB) insertSession(s *Session, write func(context.Context, func(*sql.Tx)
 	return nil
 }
 
+// IdentifySession records the first trusted runtime identity observed for a
+// session. Later trusted observations leave that identity unchanged.
+func (d *DB) IdentifySession(id, agent string) error {
+	return d.identifySession(id, agent, d.withWriteTx)
+}
+
+func (d *DB) identifySession(id, agent string, write func(context.Context, func(*sql.Tx) error) error) error {
+	if agent == "" {
+		return errors.New("db: identify session: agent is empty")
+	}
+	ctx, cancel := writeContext()
+	defer cancel()
+	var exists bool
+	err := write(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `UPDATE sessions
+			SET agent = ?, agent_attribution_authority = ?
+			WHERE id = ? AND agent_attribution_authority = ?`,
+			agent, AgentAttributionIdentified, id, AgentAttributionUnknown); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ?`, id).Scan(&exists)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("db: identify session %q: %w", id, err)
+	}
+	return nil
+}
+
 // CloseSession sets ended_at on the session row (UPDATE on
 // close). It returns ErrNotFound when no session matches id, so the close
 // path surfaces a clear not-found rather than a silent no-op.
@@ -442,6 +473,10 @@ func (w *HookWriter) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 
 func (w *HookWriter) InsertSession(s *Session) error {
 	return w.db.insertSession(s, w.write)
+}
+
+func (w *HookWriter) IdentifySession(id, agent string) error {
+	return w.db.identifySession(id, agent, w.write)
 }
 
 func (w *HookWriter) CloseSession(id, endedAt string) error {

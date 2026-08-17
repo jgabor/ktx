@@ -1,0 +1,15 @@
+id: luiggpmepu
+artifact: progress
+record:
+  timestamp: 2026-08-17 21:40
+  type: feat
+  phase: build
+  what: internal/db/records.go now applies first-wins identified session ownership. internal/cli/run.go opens wrapper sessions as identified, and internal/cli/hook.go applies ownership only for complete recognized OpenCode or Codex provenance.
+  context:
+    intent: Attribute new sessions at trusted ingress for plan task nbuodvfknx.
+    constraints: Only KTX-controlled wrapper observation or complete recognized adapter provenance establishes identity; preserve first ownership and all source evidence; leave statistics to the next task.
+    unknowns: None remain for implementation; evaluator verdict is pending.
+    scope: Wrapper and hook ingress, atomic session ownership, focused regression tests, changelog, and progress.
+  verified: "PASS: env -u KTX_DB go test ./internal/db ./internal/cli -run focused attribution tests; isolated mage check reported 0 issues and forbidden=0; isolated mage build passed; isolated ./build/ktx run /bin/true stored /bin/true|identified|0."
+  next: Keep nbuodvfknx in_progress until Orchestrate records the audit verdict; live attribution statistics remain the next task.
+  publication_order: 102

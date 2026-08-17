@@ -4,7 +4,7 @@ record:
   name: Attribute new sessions at trusted ingress
   depends_on:
     - lhdzqsaawa
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN KTX launches an agent executable WHEN the wrapper opens its session THEN that executable is recorded as identified ownership.
     - GIVEN a recognized OpenCode or Codex hook schema WHEN it creates or reuses a session THEN its runtime can establish identified ownership.

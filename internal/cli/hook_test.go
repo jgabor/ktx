@@ -383,6 +383,58 @@ func TestHook_GeneratesIDWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestHookSessionAttributionUsesOnlyRecognizedCompleteSchemas(t *testing.T) {
+	t.Run("recognized runtimes identify once and retain both sources", func(t *testing.T) {
+		d := hookTestDB(t)
+		hookChdirTemp(t)
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		payloads := []string{
+			`{"runtime":"opencode","input":{"tool":"bash","sessionID":"oc-session","callID":"oc-call","args":{"command":"true"}},"output":{"output":"ok"}}`,
+			codexPayloadFor(t, "codex-session", "codex-call", "Bash", map[string]any{"command": "true"}, map[string]any{"aggregated_output": "ok"}),
+		}
+		for _, payload := range payloads {
+			if _, err := hookLogic(strings.NewReader(payload), d, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sessions, err := d.ListSessions()
+		if err != nil || len(sessions) != 1 {
+			t.Fatalf("sessions = %#v, err = %v", sessions, err)
+		}
+		if sessions[0].Agent != "opencode" || sessions[0].AgentAttributionAuthority != dbpkg.AgentAttributionIdentified {
+			t.Fatalf("mixed-runtime attribution = %#v", sessions[0])
+		}
+		if n := countRows(t, d, "tool_calls"); n != 2 {
+			t.Fatalf("tool_calls = %d, want both runtime sources retained", n)
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		payload string
+	}{
+		{"generic runtime text", `{"runtime":"other","tool":"bash","input":"true","output":"ok"}`},
+		{"incomplete OpenCode schema", `{"runtime":"opencode","input":{"tool":"bash","args":{"command":"true"}},"output":{"output":"ok"}}`},
+		{"incomplete Codex schema", codexPayloadFor(t, "", "", "Bash", map[string]any{"command": "true"}, map[string]any{"aggregated_output": "ok"})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := hookTestDB(t)
+			hookChdirTemp(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			if _, err := hookLogic(strings.NewReader(tc.payload), d, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+				t.Fatal(err)
+			}
+			sessions, err := d.ListSessions()
+			if err != nil || len(sessions) != 1 {
+				t.Fatalf("sessions = %#v, err = %v", sessions, err)
+			}
+			if sessions[0].AgentAttributionAuthority != dbpkg.AgentAttributionUnknown {
+				t.Fatalf("untrusted attribution = %#v", sessions[0])
+			}
+		})
+	}
+}
+
 func TestHook_GeneratesTimestampWhenEmpty(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)

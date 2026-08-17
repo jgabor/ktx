@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -46,6 +47,41 @@ func TestSessionAttributionAuthority(t *testing.T) {
 	}
 	if err := database.InsertSession(&Session{ID: "invalidsessionaaa", Agent: "opencode", AgentAttributionAuthority: "label"}); err == nil {
 		t.Fatal("invalid attribution authority was accepted")
+	}
+}
+
+func TestIdentifySessionFirstTrustedIdentityWins(t *testing.T) {
+	database, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if err := database.InsertSession(&Session{ID: "attributionsessaa", Agent: "unknown"}); err != nil {
+		t.Fatal(err)
+	}
+
+	const attempts = 20
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := database.IdentifySession("attributionsessaa", "opencode"); err != nil {
+				t.Errorf("IdentifySession retry: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if err := database.IdentifySession("attributionsessaa", "codex"); err != nil {
+		t.Fatal(err)
+	}
+
+	session, err := database.GetSession("attributionsessaa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.Agent != "opencode" || session.AgentAttributionAuthority != AgentAttributionIdentified {
+		t.Fatalf("session = %#v, want first trusted opencode identity", session)
 	}
 }
 

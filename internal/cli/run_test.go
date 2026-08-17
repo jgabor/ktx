@@ -56,6 +56,18 @@ func TestExecuteRun_RunCmdInjection(t *testing.T) {
 		if got := stdout.String(); got != "ok\n" {
 			t.Fatalf("stdout = %q, want %q (agent stdout did not pass through)", got, "ok\n")
 		}
+		d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer d.Close()
+		sessions, err := d.ListSessions()
+		if err != nil || len(sessions) != 1 {
+			t.Fatalf("sessions = %#v, err = %v", sessions, err)
+		}
+		if sessions[0].Agent != "fake-agent" || sessions[0].AgentAttributionAuthority != dbpkg.AgentAttributionIdentified {
+			t.Fatalf("wrapper attribution = %#v", sessions[0])
+		}
 	})
 
 	t.Run("production runCmd is exec.CommandContext by default", func(t *testing.T) {

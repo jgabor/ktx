@@ -593,6 +593,15 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 				tc.SessionID = sessionID
 			}
 		}
+		if src.Eligible {
+			runtime := "opencode"
+			if isCodex {
+				runtime = "codex"
+			}
+			if err := writer.IdentifySession(tc.SessionID, runtime); err != nil {
+				return err
+			}
+		}
 		inserted, err := evidence.PersistSource(writer, src, &tc)
 		if err != nil {
 			return err

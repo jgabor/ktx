@@ -210,7 +210,7 @@ func (d *DB) canReuseWith(ppid int, sf *SessionFile, timestamp string, closeSess
 // the next invocation can detect PID reuse; it is 0 on non-Linux, where the
 // conservative fallback never compares it.
 func (d *DB) openSession(ppid int, timestamp string) (string, error) {
-	return d.openNamedSession("unknown", ppid, timestamp)
+	return d.openNamedSession("unknown", AgentAttributionUnknown, ppid, timestamp)
 }
 
 // OpenNamedSession creates a new session with the supplied agent name and
@@ -228,17 +228,17 @@ func (d *DB) OpenNamedSession(agent string, ppid int, timestamp string) (string,
 	if agent == "" {
 		return "", errors.New("db: open named session: agent is empty")
 	}
-	return d.openNamedSession(agent, ppid, timestamp)
+	return d.openNamedSession(agent, AgentAttributionIdentified, ppid, timestamp)
 }
 
 // openNamedSession is the shared implementation for the hook path (default
 // "unknown" agent) and the wrapper path (caller-supplied agent). Splitting
 // it from the public surface keeps the unknown-vs-named choice mechanical.
-func (d *DB) openNamedSession(agent string, ppid int, timestamp string) (string, error) {
-	return d.openNamedSessionWith(agent, ppid, timestamp, d.InsertSession)
+func (d *DB) openNamedSession(agent, authority string, ppid int, timestamp string) (string, error) {
+	return d.openNamedSessionWith(agent, authority, ppid, timestamp, d.InsertSession)
 }
 
-func (d *DB) openNamedSessionWith(agent string, ppid int, timestamp string, insertSession func(*Session) error) (string, error) {
+func (d *DB) openNamedSessionWith(agent, authority string, ppid int, timestamp string, insertSession func(*Session) error) (string, error) {
 	id, err := NewID()
 	if err != nil {
 		return "", fmt.Errorf("db: generate session id: %w", err)
@@ -249,10 +249,11 @@ func (d *DB) openNamedSessionWith(agent string, ppid int, timestamp string, inse
 	// value (see the comment on the Session struct in records.go), not
 	// as missing.
 	if err := insertSession(&Session{
-		ID:         id,
-		Agent:      agent,
-		StartedAt:  timestamp,
-		LastSeenAt: timestamp,
+		ID:                        id,
+		Agent:                     agent,
+		AgentAttributionAuthority: authority,
+		StartedAt:                 timestamp,
+		LastSeenAt:                timestamp,
 	}); err != nil {
 		return "", err
 	}
@@ -275,7 +276,7 @@ func (d *DB) openNamedSessionWith(agent string, ppid int, timestamp string, inse
 // exclusive coordination lease held by the writer.
 func (w *HookWriter) ResolveSessionID(hint, timestamp string) (string, error) {
 	open := func(ppid int, timestamp string) (string, error) {
-		return w.db.openNamedSessionWith("unknown", ppid, timestamp, w.InsertSession)
+		return w.db.openNamedSessionWith("unknown", AgentAttributionUnknown, ppid, timestamp, w.InsertSession)
 	}
 	return w.db.resolveSessionIDWith(hint, timestamp, w.CloseSession, open)
 }

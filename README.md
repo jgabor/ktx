@@ -70,6 +70,13 @@ A racing retry may receive source output while no artifact exists yet, but later
 retries return the first artifact and cannot replace it. Use the source ID from
 inspection or a recovery cue with commands such as `ktx read` and `ktx compress`.
 
+Session agent attribution has a separate trust boundary from the readable agent
+label. A wrapper identifies the executable it launches. Complete, recognized
+OpenCode and Codex hook events can identify a session; generic or incomplete
+events remain unknown. Exact retries converge, and the first trusted identity
+wins when runtimes share a session while later source evidence remains stored.
+Historical labels migrate as unknown rather than being reconstructed.
+
 ## Configuration and data
 
 The default database is `$XDG_DATA_HOME/ktx/ktx.db`; set `KTX_DB` to select a

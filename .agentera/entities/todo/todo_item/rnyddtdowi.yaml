@@ -20,4 +20,4 @@ record:
       description: "**Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)"
       severity: normal
       status: open
-      order: 15
+      order: 14

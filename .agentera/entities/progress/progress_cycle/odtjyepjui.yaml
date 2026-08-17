@@ -1,0 +1,14 @@
+id: odtjyepjui
+artifact: progress
+record:
+  timestamp: 2026-08-17 22:15
+  type: chore
+  phase: build
+  what: Verified and synchronized trusted session agent attribution.
+  context:
+    intent: Verify the completed attribution outcome and synchronize public and project state.
+    constraints: No ambient database access; retain the plan task in progress for audit.
+    scope: Attribution documentation, focused and full verification, TODO resolution, and progress evidence.
+  verified: "Focused commands: env -u KTX_DB HOME=<temp>/home XDG_DATA_HOME=<temp>/data XDG_CONFIG_HOME=<temp>/config XDG_CACHE_HOME=<temp>/cache XDG_STATE_HOME=<temp>/state TMPDIR=<temp>/tmp KTX_VERIFY_ROOT=<temp> go test ./internal/db -run 'Test(SessionAttributionAuthority|IdentifySessionFirstTrustedIdentityWins|SessionAttributionMigrationIsAtomicAndDoesNotTrustLabels|CurrentSchemaMissingAttributionAuthorityFailsClosed)$'; the same environment with go test ./internal/cli -run 'Test(ExecuteRun_RunCmdInjection|HookSessionAttributionUsesOnlyRecognizedCompleteSchemas|StatsWindowLogic)$' -v; both passed. mage build passed. ./build/ktx hook with complete and incomplete OpenCode payloads in separate disposable owner sessions, followed by list, get, stats summary, and stats breakdown in JSON and text, produced one identified and one unknown session; both stats schemas reported identified=1, unknown=1, total=2, coverage=50%, and text agreed. Hermetic mage check passed all tests, vet, lint, and build with forbidden database operations=0 and KTX_DB unset."
+  next: Orchestrate records the audit verdict before completing the in-progress plan task.
+  publication_order: 104

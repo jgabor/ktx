@@ -20,4 +20,4 @@ record:
       description: "**Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. Include route validation, route-to-profile visibility, and stage or plugin collisions without executing configured stages. → [Pipeline](ARCHITECTURE.md#pipeline)"
       severity: normal
       status: open
-      order: 9
+      order: 8

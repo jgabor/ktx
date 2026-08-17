@@ -6,7 +6,7 @@ record:
     - lhdzqsaawa
     - nbuodvfknx
     - zerfykwwme
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN focused migration, ingress, retry, mixed-runtime, and statistics checks WHEN they run THEN each testable unit has at least one accepted and one fail-closed case.
     - GIVEN the locally built CLI and an isolated disposable database WHEN identified and unknown sessions are exercised THEN inspection and live statistics satisfy the complete plan acceptance.

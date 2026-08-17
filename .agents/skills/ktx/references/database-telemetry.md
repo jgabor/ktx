@@ -170,6 +170,14 @@ These are source-observation states. Window totals are `measured` only when ever
 contributing row measured that field; an incomplete aggregate is serialized as
 `missing`, while malformed takes precedence. Values are not reconstructed.
 
+Runtime-reported cost is the `cost` value emitted by the supported runtime and
+retained by ktx without reinterpretation. Treat it as the runtime's authoritative
+reported cost for normal analysis; do not reopen its upstream derivation before
+aggregating or comparing it. This authority does not make it a verified provider
+invoice or bank charge. Keep it separate from price-derived estimated cost,
+which applies retained `prices.json` rates to complete runtime-observed token
+fields.
+
 ## OpenCode Contract
 
 The generated OpenCode plugin currently supports the reviewed OpenCode 1.18.5

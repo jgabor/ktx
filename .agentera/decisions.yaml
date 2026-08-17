@@ -2255,8 +2255,9 @@ decisions:
       migration; experiment manifests, attempts, summaries, validation;
       benchmark methodology
     satisfaction:
-      state: provisionally_satisfied
-      evidence: Implementation retains runtime cost independently from cache-aware
+      state: satisfied
+      evidence: >-
+        Implementation retains runtime cost independently from cache-aware
         estimated_api_cost, snapshots the resolved pricing record into new
         experiments, validates its SHA-256, regenerates summaries from that
         retained artifact, and migrates bench_runs additively for reasoning and
@@ -2268,7 +2269,11 @@ decisions:
         completeness, applies hash and embedded model identity validation to
         every methodology, rejects ungrounded retained estimates, and directly
         exercises the user_version 2 to 3 migration. Mage check passes on
-        2026-07-15. Awaiting user confirmation.
+        2026-07-15. On 2026-08-17, the user confirmed the operating
+        interpretation: ktx may aggregate, compare, and describe the value
+        emitted by OpenCode as the runtime's reported cost without resolving its
+        upstream derivation; this does not make the value a verified provider
+        invoice. The telemetry contract and agent reference now state this rule.
   - number: 28
     date: 2026-07-15
     question: How should schema-v3 benchmark evidence describe small, variable

@@ -111,6 +111,19 @@ fields must be non-negative safe JSON integers no greater than `2^53 - 1`;
 missing data. Additional fields are ignored so additive OpenCode metadata does
 not invalidate the event.
 
+### Cost interpretation
+
+ktx retains `step-finish.part.cost` without reinterpretation. For routine
+analysis, this is the authoritative runtime-reported cost: the cost OpenCode
+reported for the model step. Its upstream derivation does not need to be
+resolved before the value can be aggregated, compared, or described as
+OpenCode's reported cost. It is not a verified provider invoice or bank charge.
+
+Price-derived estimated cost is separate. It multiplies complete
+runtime-observed token fields by the applicable retained `prices.json` rates.
+Neither value replaces the other, and a literal runtime-reported zero remains
+zero even when the price-derived estimate is nonzero.
+
 Provider and model are not fields on `StepFinishPart`. They are available from
 a preceding assistant `message.updated` event whose `properties.info.id` and
 `properties.info.sessionID` match the part:

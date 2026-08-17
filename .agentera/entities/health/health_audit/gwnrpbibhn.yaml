@@ -1,0 +1,28 @@
+id: gwnrpbibhn
+artifact: health
+record:
+  date: 2026-08-17
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "stable: post-rebase project state now distinguishes schema 10 latency evidence from schema 11 producer provenance."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited post-rebase correction, not a codebase-wide audit. Main schema 10 retains latency evidence; rebased schema 11 adds nullable first-wins source and artifact producer provenance. This corrects the earlier closure wording without changing its historical verification evidence.
+  trends:
+    comparison_target: Rebased hook-coordination plan closure on 2026-08-17.
+    stable: Runtime, migration, retry, provenance, blocker attribution, and hook coordination checks remain passed after rebase.
+    resolved: Current project state now names schema 10 as latency evidence and schema 11 as producer provenance.
+    carried_forward: The earlier prohibited ambient read remains excluded without a retained before/after hash. Full Windows CLI compilation remains blocked by pre-existing Unix-only syscall use. Physical compressed-storage naming and artifact kinds remain deferred.
+  patterns:
+    - Append-only correction preserves historical closure evidence while making the rebased schema sequence explicit.
+  appended_at: 2026-08-17T20:42:39.901Z

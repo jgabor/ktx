@@ -63,6 +63,13 @@ backfill historical calls or infer outcomes from artifacts. Missing rows remain
 non-artifact disposition to the first authoritative artifact, but never
 downgrades or replaces artifact authority.
 
+Schema 10 adds explicit latency state, unit, and authority to `tool_calls`.
+Migration preserves historical numeric latency, including zero, but labels it
+unknown with unknown authority because the old schema did not retain enough
+proof to establish runtime authority. Missing history is also unknown. New
+runtime-authoritative evidence uses milliseconds and distinguishes measured,
+unknown, and malformed observations.
+
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.
 
@@ -75,8 +82,8 @@ with code `schema-incompatible` before writes. The diagnostic includes:
 {
   "error": {
     "code": "schema-incompatible",
-    "actual_schema": 10,
-    "maximum_schema": 9,
+    "actual_schema": 11,
+    "maximum_schema": 10,
     "database_path": "/canonical/path/to/ktx.db",
     "executable_path": "/canonical/path/to/ktx",
     "executable_sha256": "<64 lowercase hexadecimal characters>",

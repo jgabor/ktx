@@ -1,0 +1,16 @@
+id: xpwxiesefu
+artifact: progress
+record:
+  timestamp: 2026-08-17 19:25
+  type: feat
+  phase: build
+  what: Added schema 10 latency state, unit, and authority fields in internal/db. Historical zero, positive, and missing latency migrate as unknown with unknown authority.
+  context:
+    intent: Establish the persisted latency evidence contract and safe forward migration.
+    constraints: Runtime timing only; preserve historical values without inferred authority; preserve read-only and newer-schema behavior.
+    unknowns: "Resolved: no existing latency record has enough retained proof to become runtime-authoritative during migration."
+    scope: Normalized evidence contract, persistence, migration, inspection, tests, and contract documentation only.
+  discovered: Existing latency rows lack retained proof that their numeric value came from runtime timing, so none qualify as runtime-authoritative after migration.
+  verified: Focused latency contract and migration tests passed; internal/db passed; focused CLI get and doctor tests passed; mage check passed with 0 issues; mage build passed; local schema-9 migration preserved 0, 27, and NULL as unknown milliseconds with unknown authority; local schema-11 migration failed with schema-incompatible and exit 5 while retaining user_version 11.
+  next: Runtime normalization and windowed latency statistics remain separate pending tasks.
+  publication_order: 95

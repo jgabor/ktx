@@ -961,6 +961,56 @@ func TestPersistToolCall_FailureSignalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLatencyEvidenceContract(t *testing.T) {
+	cases := []struct {
+		name                   string
+		latency                *int64
+		state, unit, authority string
+		wantErr                bool
+	}{
+		{name: "measured zero", latency: ptrInt64(0), state: LatencyStateMeasured, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityRuntime},
+		{name: "measured positive", latency: ptrInt64(12), state: LatencyStateMeasured, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityRuntime},
+		{name: "unknown missing", state: LatencyStateUnknown, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityUnknown},
+		{name: "malformed runtime value", state: LatencyStateMalformed, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityRuntime},
+		{name: "reject measured missing", state: LatencyStateMeasured, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityRuntime, wantErr: true},
+		{name: "reject measured negative", latency: ptrInt64(-1), state: LatencyStateMeasured, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityRuntime, wantErr: true},
+		{name: "reject unknown runtime authority", state: LatencyStateUnknown, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityRuntime, wantErr: true},
+		{name: "reject malformed numeric value", latency: ptrInt64(1), state: LatencyStateMalformed, unit: LatencyUnitMilliseconds, authority: LatencyAuthorityRuntime, wantErr: true},
+		{name: "reject wrong unit", latency: ptrInt64(1), state: LatencyStateMeasured, unit: "seconds", authority: LatencyAuthorityRuntime, wantErr: true},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			d, err := OpenMemory()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer d.Close()
+			sessionID := mustNewID(t)
+			if err := d.InsertSession(&Session{ID: sessionID}); err != nil {
+				t.Fatal(err)
+			}
+			in := &ToolCall{ID: mustNewID(t), SessionID: sessionID, LatencyMs: test.latency, LatencyState: test.state, LatencyUnit: test.unit, LatencyAuthority: test.authority}
+			err = d.PersistToolCall(in)
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("PersistToolCall accepted invalid latency evidence")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := d.GetToolCall(in.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !int64PtrEqual(got.LatencyMs, test.latency) || got.LatencyState != test.state || got.LatencyUnit != test.unit || got.LatencyAuthority != test.authority {
+				t.Fatalf("latency evidence = (%v, %q, %q, %q), want (%v, %q, %q, %q)", got.LatencyMs, got.LatencyState, got.LatencyUnit, got.LatencyAuthority, test.latency, test.state, test.unit, test.authority)
+			}
+		})
+	}
+}
+
 func int64PtrEqual(a, b *int64) bool {
 	if a == nil && b == nil {
 		return true

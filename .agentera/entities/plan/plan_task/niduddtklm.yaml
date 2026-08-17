@@ -1,0 +1,14 @@
+id: niduddtklm
+artifact: plan
+record:
+  name: Establish the latency evidence contract
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN measured zero, positive, missing, and invalid timing evidence WHEN each observation is represented THEN measured, unknown, and malformed remain distinct.
+    - GIVEN latency evidence WHEN it is inspected THEN its unit and runtime authority are explicit.
+    - GIVEN an existing supported database WHEN it migrates forward THEN stored data is preserved without upgrading unproven history to authoritative evidence.
+    - GIVEN a database newer than the binary WHEN it is opened THEN the existing forward-compatibility failure remains intact.
+    - GIVEN contract validation tests WHEN they run THEN each testable state has at least one passing and one rejecting case.
+  plan: tapdgjsdtr

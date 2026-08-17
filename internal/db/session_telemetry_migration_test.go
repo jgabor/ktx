@@ -354,7 +354,7 @@ func snapshotUnrelatedEvidence(t *testing.T, db *sql.DB) [][]string {
 	t.Helper()
 	var snapshot [][]string
 	for _, query := range []string{
-		`SELECT * FROM sessions ORDER BY id`, `SELECT * FROM tool_calls ORDER BY id`,
+		`SELECT * FROM sessions ORDER BY id`, `SELECT id,session_id,tool,input,output,content_hash,timestamp,event_type,tokens_in,tokens_out,cost,latency_ms,model,provider,exit_code,is_error,runtime FROM tool_calls ORDER BY id`,
 		`SELECT * FROM compressed ORDER BY id`, `SELECT * FROM bench_runs ORDER BY id`,
 		`SELECT * FROM recorded_streams ORDER BY id`,
 	} {

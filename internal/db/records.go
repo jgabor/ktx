@@ -33,6 +33,15 @@ var ErrNotFound = errors.New("db: not found")
 // different evidence. The first persisted row remains authoritative.
 var ErrToolCallConflict = errors.New("db: tool_call identity conflict")
 
+const (
+	LatencyStateMeasured    = "measured"
+	LatencyStateUnknown     = "unknown"
+	LatencyStateMalformed   = "malformed"
+	LatencyUnitMilliseconds = "milliseconds"
+	LatencyAuthorityRuntime = "runtime"
+	LatencyAuthorityUnknown = "unknown"
+)
+
 // ToolCall is the flat JSON tool_call payload.
 //
 // Required fields are persisted to the tool_calls table. The optional
@@ -64,12 +73,15 @@ type ToolCall struct {
 	// Optional cost-publication fields (persisted when present;
 	// NULL when absent; pointer types preserve the absent-vs-zero
 	// distinction through JSON and SQL round-trips).
-	TokensIn  *int64   `json:"tokens_in"`
-	TokensOut *int64   `json:"tokens_out"`
-	Cost      *float64 `json:"cost"`
-	LatencyMs *int64   `json:"latency_ms"`
-	Model     *string  `json:"model"`
-	Provider  *string  `json:"provider"`
+	TokensIn         *int64   `json:"tokens_in"`
+	TokensOut        *int64   `json:"tokens_out"`
+	Cost             *float64 `json:"cost"`
+	LatencyMs        *int64   `json:"latency_ms"`
+	LatencyState     string   `json:"latency_state"`
+	LatencyUnit      string   `json:"latency_unit"`
+	LatencyAuthority string   `json:"latency_authority"`
+	Model            *string  `json:"model"`
+	Provider         *string  `json:"provider"`
 
 	// Optional failure-signal fields (persisted when present;
 	// NULL when absent; pointer types preserve the absent-vs-zero
@@ -84,6 +96,38 @@ type ToolCall struct {
 	// through JSON and SQL round-trips). runtime records the agent
 	// runtime that executed the tool call.
 	Runtime *string `json:"runtime"`
+}
+
+func normalizeLatencyEvidence(tc *ToolCall) error {
+	if tc.LatencyState == "" {
+		tc.LatencyState = LatencyStateUnknown
+	}
+	if tc.LatencyUnit == "" {
+		tc.LatencyUnit = LatencyUnitMilliseconds
+	}
+	if tc.LatencyAuthority == "" {
+		tc.LatencyAuthority = LatencyAuthorityUnknown
+	}
+	if tc.LatencyUnit != LatencyUnitMilliseconds {
+		return fmt.Errorf("latency unit %q is invalid", tc.LatencyUnit)
+	}
+	switch tc.LatencyState {
+	case LatencyStateMeasured:
+		if tc.LatencyMs == nil || *tc.LatencyMs < 0 || tc.LatencyAuthority != LatencyAuthorityRuntime {
+			return errors.New("measured latency requires a non-negative value and runtime authority")
+		}
+	case LatencyStateUnknown:
+		if tc.LatencyAuthority != LatencyAuthorityUnknown {
+			return errors.New("unknown latency requires unknown authority")
+		}
+	case LatencyStateMalformed:
+		if tc.LatencyMs != nil || tc.LatencyAuthority != LatencyAuthorityRuntime {
+			return errors.New("malformed latency requires no value and runtime authority")
+		}
+	default:
+		return fmt.Errorf("latency state %q is invalid", tc.LatencyState)
+	}
+	return nil
 }
 
 // Session is a row in the sessions table. The JSON tags mirror
@@ -210,6 +254,9 @@ func (d *DB) CloseSession(id, endedAt string) error {
 //
 // EventType defaults to "tool_call" when empty.
 func (d *DB) PersistToolCall(tc *ToolCall) error {
+	if err := normalizeLatencyEvidence(tc); err != nil {
+		return fmt.Errorf("db: persist tool_call %q: %w", tc.ID, err)
+	}
 	eventType := tc.EventType
 	if eventType == "" {
 		eventType = "tool_call"
@@ -220,16 +267,25 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 	ctx, cancel := writeContext()
 	defer cancel()
 	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx,
-			`INSERT INTO tool_calls (
+		columns, err := tableColumns(tx, "tool_calls")
+		if err != nil {
+			return err
+		}
+		query := `INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
-			exit_code, is_error, runtime
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		args := []any{
 			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
 			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
-			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
-		)
+			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority,
+		}
+		if _, ok := columns["latency_state"]; !ok {
+			query = `INSERT INTO tool_calls (id, session_id, tool, input, output, content_hash, timestamp, event_type, tokens_in, tokens_out, cost, latency_ms, model, provider, exit_code, is_error, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			args = args[:17]
+		}
+		_, err = tx.ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("db: insert tool_call %q: %w", tc.ID, err)
 		}
@@ -266,6 +322,9 @@ func (d *DB) PersistToolCall(tc *ToolCall) error {
 // The insert-or-observe decision and session roll-up share one transaction, so
 // concurrent deliveries cannot double-count a tool call.
 func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
+	if err := normalizeLatencyEvidence(tc); err != nil {
+		return false, fmt.Errorf("db: persist tool_call %q: %w", tc.ID, err)
+	}
 	eventType := tc.EventType
 	if eventType == "" {
 		eventType = "tool_call"
@@ -281,12 +340,12 @@ func (d *DB) PersistToolCallOnce(tc *ToolCall) (bool, error) {
 			`INSERT INTO tool_calls (
 			id, session_id, tool, input, output, content_hash, timestamp, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
-			exit_code, is_error, runtime
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO NOTHING`,
 			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
 			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
-			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime,
+			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority,
 		)
 		if err != nil {
 			return fmt.Errorf("db: insert retry-safe tool_call %q: %w", tc.ID, err)
@@ -367,28 +426,37 @@ func conflictReason(tool, input, output string, runtime sql.NullString, tc *Tool
 func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 	var tc ToolCall
 	var (
-		tokensIn  sql.NullInt64
-		tokensOut sql.NullInt64
-		cost      sql.NullFloat64
-		latencyMs sql.NullInt64
-		model     sql.NullString
-		provider  sql.NullString
-		exitCode  sql.NullInt64
-		isError   sql.NullInt64
-		runtime   sql.NullString
+		tokensIn                                    sql.NullInt64
+		tokensOut                                   sql.NullInt64
+		cost                                        sql.NullFloat64
+		latencyMs                                   sql.NullInt64
+		model                                       sql.NullString
+		provider                                    sql.NullString
+		exitCode                                    sql.NullInt64
+		isError                                     sql.NullInt64
+		runtime                                     sql.NullString
+		latencyState, latencyUnit, latencyAuthority string
 	)
-	err := d.db.QueryRow(
-		`SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type,
+	columns, err := tableColumns(d.db, "tool_calls")
+	if err != nil {
+		return nil, fmt.Errorf("db: inspect tool_calls: %w", err)
+	}
+	query := `SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type,
 		        tokens_in, tokens_out, cost, latency_ms, model, provider,
-		        exit_code, is_error, runtime
-		 FROM tool_calls WHERE id = ?`,
-		id,
-	).Scan(
+		        exit_code, is_error, runtime, latency_state, latency_unit, latency_authority
+		 FROM tool_calls WHERE id = ?`
+	dest := []any{
 		&tc.ID, &tc.SessionID, &tc.Tool, &tc.Input, &tc.Output,
 		&tc.ContentHash, &tc.Timestamp, &tc.EventType,
 		&tokensIn, &tokensOut, &cost, &latencyMs, &model, &provider,
-		&exitCode, &isError, &runtime,
-	)
+		&exitCode, &isError, &runtime, &latencyState, &latencyUnit, &latencyAuthority,
+	}
+	if _, ok := columns["latency_state"]; !ok {
+		query = `SELECT id, session_id, tool, input, output, content_hash, timestamp, event_type, tokens_in, tokens_out, cost, latency_ms, model, provider, exit_code, is_error, runtime FROM tool_calls WHERE id = ?`
+		dest = dest[:17]
+		latencyState, latencyUnit, latencyAuthority = LatencyStateUnknown, LatencyUnitMilliseconds, LatencyAuthorityUnknown
+	}
+	err = d.db.QueryRow(query, id).Scan(dest...)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -411,6 +479,9 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		v := latencyMs.Int64
 		tc.LatencyMs = &v
 	}
+	tc.LatencyState = latencyState
+	tc.LatencyUnit = latencyUnit
+	tc.LatencyAuthority = latencyAuthority
 	if model.Valid {
 		v := model.String
 		tc.Model = &v

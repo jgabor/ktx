@@ -129,6 +129,11 @@ func TestRunGetWith_FormatAcceptance(t *testing.T) {
 		if !strings.Contains(out, "cost:") {
 			t.Errorf("text output missing Costs cost: %q", out)
 		}
+		for _, want := range []string{"Latency evidence:", "state:        unknown", "unit:         milliseconds", "authority:    unknown"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("text output missing %q: %q", want, out)
+			}
+		}
 	})
 
 	t.Run("--format text after id emits text renderer", func(t *testing.T) {

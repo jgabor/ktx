@@ -1,0 +1,35 @@
+id: tapdgjsdtr
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-17
+    status: open
+    reviewed: 2026-08-17
+    critic_issues: 2 found, 2 addressed, 0 dismissed
+    title: "Plan: Live latency coverage"
+  what: Report trustworthy tool-call latency from runtime-authoritative evidence, with explicit state, provenance, temporal coverage, and bounded live statistics.
+  why: Latency comparisons are useful only when measured values are separated from missing, malformed, and unsupported evidence. This work makes later representative and post-change comparisons safe to interpret.
+  constraints: Use only timing supplied by a supported runtime. Preserve measured zero. Do not infer timing, provenance, or authority from missing evidence. Preserve read-only query behavior, forward-only database compatibility, existing evidence ownership, and isolated database-safe verification.
+  overall_acceptance: GIVEN a supported or unsupported runtime tool call within a requested window WHEN KTX ingests and reports its latency evidence THEN the result distinguishes measured, unknown, and malformed states, identifies authoritative provenance and temporal coverage, computes distributions only from measured values, and never presents unavailable evidence as zero.
+  scope:
+    included:
+      - Runtime-authoritative tool-call latency states and provenance
+      - Safe migration of existing latency evidence
+      - OpenCode wrapper timing and explicit unknown handling for unsupported hook paths
+      - Windowed latency output in live summary and breakdown reports
+      - Public documentation, focused regression coverage, and repository verification
+    excluded:
+      - Locally timed substitutes for runtime evidence
+      - New timing capabilities for runtimes or hooks that do not supply authoritative timing
+      - Provider-internal performance claims
+      - Benchmark harness timing unrelated to live tool-call evidence
+    deferred:
+      []
+  design: Establish the evidence contract before changing collection or reporting. Normalize each supported runtime observation into one explicit state with provenance, then aggregate only window-qualified evidence. Publish state coverage and measured distributions through existing live reporting surfaces. Finish by reconciling documentation, task state, migrations, and verification evidence.
+  unknowns:
+    - question: Which existing latency records retain enough evidence to qualify as runtime-authoritative after migration?
+      affects_task: 1
+      resolve_by: Inspect retained runtime identity and source evidence before defining migration classification; records without sufficient proof remain unknown.
+  surprises:
+    []

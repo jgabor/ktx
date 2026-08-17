@@ -1,0 +1,16 @@
+id: pdhjiqtnhr
+artifact: plan
+record:
+  name: Synchronize contract and verification evidence
+  depends_on:
+    - niduddtklm
+    - thgijwqmfb
+    - kechhdkfah
+  status: pending
+  acceptance:
+    - GIVEN the completed behavior WHEN public documentation is read THEN state meanings, provenance, temporal coverage, units, and unsupported paths match the CLI.
+    - GIVEN migration, ingestion, reporting, and unsupported-path checks WHEN they run in isolated database-safe environments THEN they pass without ambient database access.
+    - GIVEN the changed CLI WHEN the local binary is built and invoked THEN its structured and text latency output matches the declared contract.
+    - GIVEN all focused checks pass WHEN the repository gate runs THEN tests, race checks, vet, lint, and build pass.
+    - GIVEN verified completion WHEN project state is synchronized THEN the plan and Live latency coverage task reflect the evidence actually produced.
+  plan: tapdgjsdtr

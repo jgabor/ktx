@@ -201,6 +201,11 @@ func printGetText(w io.Writer, record any) {
 				fmt.Fprintf(w, "  provider:     %s\n", *r.Provider)
 			}
 		}
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "Latency evidence:")
+		fmt.Fprintf(w, "  state:        %s\n", r.LatencyState)
+		fmt.Fprintf(w, "  unit:         %s\n", r.LatencyUnit)
+		fmt.Fprintf(w, "  authority:    %s\n", r.LatencyAuthority)
 	case *dbpkg.Session:
 		fmt.Fprintf(w, "id:              %s\n", r.ID)
 		fmt.Fprintf(w, "agent:           %s\n", r.Agent)

@@ -70,10 +70,6 @@ Each task must run a structured discussion, append the resulting choice to the r
 
 - [ ] **Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)
 
-<a id="discuss-layer-5-boundary"></a>
-
-- [ ] **Layer 5 boundary** — Run a structured discussion and record the history/memory boundary, lifecycle, storage, consumption, and external-tool choice. → [Question](ARCHITECTURE.md#layer-5-boundary)
-
 <a id="discuss-trust-redaction-and-audit"></a>
 
 - [ ] **Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)
@@ -86,6 +82,8 @@ Each task must run a structured discussion, append the resulting choice to the r
 ## ⇉ Degraded
 
 ## → Normal
+
+<a id="discuss-layer-5-boundary"></a>
 
 - [ ] [id:askdmcbmqv] **Layer 5 boundary** — Run a structured discussion and record the history/memory boundary, lifecycle, storage, consumption, and external-tool choice. → [Question](ARCHITECTURE.md#layer-5-boundary)
 - [ ] [id:cdtonnugnx] **Trusted session agent attribution** — Populate session agent identity for new evidence only from recognized trusted ingress, preserve `unknown` for historical or unverified sources, and expose identified-versus-unknown coverage in live statistics. Cover wrapper, hook, retry, and mixed-runtime ownership without reconstructing identity. → [Ingress](ARCHITECTURE.md#ingress)

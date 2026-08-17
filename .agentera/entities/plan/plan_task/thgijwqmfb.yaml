@@ -1,0 +1,14 @@
+id: thgijwqmfb
+artifact: plan
+record:
+  name: Normalize runtime timing without guessing
+  depends_on:
+    - niduddtklm
+  status: pending
+  acceptance:
+    - GIVEN complete valid timing from a supported runtime WHEN a tool call is ingested THEN latency is measured with authoritative provenance.
+    - GIVEN missing timing from a supported runtime WHEN a tool call is ingested THEN latency is unknown rather than zero.
+    - GIVEN malformed or reversed timing WHEN a tool call is ingested THEN latency is malformed and has no measured value.
+    - GIVEN a runtime path that supplies no authoritative timing WHEN a tool call is ingested THEN latency remains unknown without a local substitute.
+    - GIVEN ingestion tests WHEN they run THEN each supported timing decoder has at least one passing and one rejecting case.
+  plan: tapdgjsdtr

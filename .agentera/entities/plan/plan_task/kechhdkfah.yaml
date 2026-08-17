@@ -1,0 +1,15 @@
+id: kechhdkfah
+artifact: plan
+record:
+  name: Publish windowed latency statistics
+  depends_on:
+    - niduddtklm
+    - thgijwqmfb
+  status: pending
+  acceptance:
+    - GIVEN tool calls in a requested window WHEN live summary or breakdown statistics are requested THEN all qualifying calls are counted by latency state.
+    - GIVEN measured calls WHEN latency statistics are produced THEN coverage, contributing time bounds, provenance, and measured distributions are reported in milliseconds.
+    - GIVEN unknown or malformed calls WHEN distributions are computed THEN those calls affect coverage but not measured values.
+    - GIVEN no measured latency WHEN statistics are produced THEN latency is unavailable rather than zero.
+    - GIVEN reporting tests WHEN they run THEN JSON and text each cover one measured case and one unavailable or malformed case.
+  plan: tapdgjsdtr

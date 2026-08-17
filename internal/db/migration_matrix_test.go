@@ -80,8 +80,8 @@ func TestCompressionDispositionMigrationDoesNotBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	if MaxSupportedSchema() != 9 {
-		t.Fatalf("MaxSupportedSchema = %d, want 9", MaxSupportedSchema())
+	if MaxSupportedSchema() != 10 {
+		t.Fatalf("MaxSupportedSchema = %d, want 10", MaxSupportedSchema())
 	}
 	var rows int
 	if err := database.db.QueryRow(`SELECT count(*) FROM compression_dispositions`).Scan(&rows); err != nil {
@@ -89,6 +89,61 @@ func TestCompressionDispositionMigrationDoesNotBackfill(t *testing.T) {
 	}
 	if rows != 0 {
 		t.Fatalf("migrated disposition rows = %d, want 0 (no historical inference)", rows)
+	}
+}
+
+func TestLatencyEvidenceMigrationPreservesHistoricalValuesAsUnknown(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "schema-9.db")
+	database, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := mustNewID(t)
+	if err := database.InsertSession(&Session{ID: sessionID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.PersistToolCall(&ToolCall{ID: "historicalzeroaa", SessionID: sessionID, LatencyMs: ptrInt64(0)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.PersistToolCall(&ToolCall{ID: "historicalposaaa", SessionID: sessionID, LatencyMs: ptrInt64(27)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.PersistToolCall(&ToolCall{ID: "historicalnullaa", SessionID: sessionID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.db.Exec(`ALTER TABLE tool_calls DROP COLUMN latency_state; ALTER TABLE tool_calls DROP COLUMN latency_unit; ALTER TABLE tool_calls DROP COLUMN latency_authority; PRAGMA user_version = 9`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	database, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	rows, err := database.db.Query(`SELECT latency_ms, latency_state, latency_unit, latency_authority FROM tool_calls ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got [][]string
+	for rows.Next() {
+		var value sql.NullInt64
+		var state, unit, authority string
+		if err := rows.Scan(&value, &state, &unit, &authority); err != nil {
+			t.Fatal(err)
+		}
+		text := "NULL"
+		if value.Valid {
+			text = fmt.Sprint(value.Int64)
+		}
+		got = append(got, []string{text, state, unit, authority})
+	}
+	want := [][]string{{"NULL", "unknown", "milliseconds", "unknown"}, {"27", "unknown", "milliseconds", "unknown"}, {"0", "unknown", "milliseconds", "unknown"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("migrated latency evidence = %#v, want %#v", got, want)
 	}
 }
 

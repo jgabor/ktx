@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -161,6 +161,9 @@ var schemaStatements = []string{
 		tokens_out   INTEGER,
 		cost         REAL,
 		latency_ms   INTEGER,
+		latency_state TEXT NOT NULL DEFAULT 'unknown' CHECK (latency_state IN ('measured','unknown','malformed')),
+		latency_unit TEXT NOT NULL DEFAULT 'milliseconds' CHECK (latency_unit = 'milliseconds'),
+		latency_authority TEXT NOT NULL DEFAULT 'unknown' CHECK (latency_authority IN ('runtime','unknown')),
 		model        TEXT,
 		provider     TEXT,
 		exit_code    INTEGER,
@@ -300,6 +303,12 @@ var failureSignalColumns = []costColumn{
 // mirrors costColumns and failureSignalColumns.
 var runtimeColumns = []costColumn{
 	{Name: "runtime", Type: "TEXT"},
+}
+
+var latencyEvidenceColumns = []costColumn{
+	{Name: "latency_state", Type: "TEXT NOT NULL DEFAULT 'unknown'"},
+	{Name: "latency_unit", Type: "TEXT NOT NULL DEFAULT 'milliseconds'"},
+	{Name: "latency_authority", Type: "TEXT NOT NULL DEFAULT 'unknown'"},
 }
 
 // benchRunsColumn enumerates a single bench_runs column. The list is the
@@ -536,6 +545,16 @@ func migrateTx(tx *sql.Tx) error {
 		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("db: add runtime column %q: %w", col.Name, err)
+		}
+	}
+
+	for _, col := range latencyEvidenceColumns {
+		if _, ok := have[col.Name]; ok {
+			continue
+		}
+		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("db: add latency evidence column %q: %w", col.Name, err)
 		}
 	}
 

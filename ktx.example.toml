@@ -301,11 +301,10 @@ profile = "json-compact"
 # exit_status = "failure"
 # profile = "default"
 #
-# Route file-read output (the "read" tool) to a wider keep-ends so the
-# top of large files survives — mid-file facts matter for navigation:
+# Route file-read output (the "read" tool) through the default keep-ends window:
 #
 # [pipeline.freads]
-# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:200:50"]
+# stages = ["strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"]
 #
 # [[route]]
 # tool = "read"

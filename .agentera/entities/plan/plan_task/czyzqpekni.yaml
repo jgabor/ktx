@@ -14,3 +14,13 @@ record:
     - GIVEN a preflight race or conflicting retry WHEN final source validation runs inside exclusive coordination THEN first-wins authority and conflict behavior remain unchanged.
     - GIVEN transformation, artifact, or disposition failure WHEN the hook returns THEN every earlier accepted phase remains durable, recovery and original-output behavior remain unchanged, and creation or migration may retain separate exclusive ownership.
   plan: lcptmsddpa
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Current-schema hook dispatch still takes an exclusive open window before parsing, so changing hooks use at least two windows and rejected/retry paths use one. Progress also omits the reported prohibited ambient read-only access caveat.
+    provenance:
+      attempt_id: audit-1
+      source: orchestrate audit
+      recorded_at: 2026-08-17 20:03
+      writer_command: agentera state plan record-evaluation

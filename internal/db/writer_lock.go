@@ -203,6 +203,9 @@ func (c *writerCoordinator) withLock(ctx context.Context, create bool, fn func()
 			err = fmt.Errorf("db: release writer coordination for %q: %w", c.path, closeErr)
 		}
 	}()
+	if err := auditDatabaseAccess("exclusive_coordination", c.path); err != nil {
+		return err
+	}
 
 	return fn()
 }

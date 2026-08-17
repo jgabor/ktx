@@ -18,6 +18,14 @@ func openDatabase(path, command string) (*dbpkg.DB, error) {
 	return nil, databaseOpenError(path, command, err)
 }
 
+func openHookDatabase(path, command string) (*dbpkg.DB, error) {
+	database, err := dbpkg.OpenHook(path)
+	if err == nil {
+		return database, nil
+	}
+	return nil, databaseOpenError(path, command, err)
+}
+
 func openExistingDatabase(path, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.OpenExisting(path)
 	if err == nil {

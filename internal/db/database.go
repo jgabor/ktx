@@ -229,6 +229,57 @@ func OpenExisting(path string) (*DB, error) {
 	return &DB{db: database, writer: writer}, nil
 }
 
+// OpenHook opens a current-schema database without creation, migration, or
+// exclusive coordination. Missing and older supported databases fall back to
+// Open, which rechecks and updates the schema under exclusive coordination.
+func OpenHook(path string) (*DB, error) {
+	started := time.Now()
+	if path == "" {
+		return nil, errors.New("db: open hook: path is empty")
+	}
+	if err := auditDatabaseAccess("open", path); err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Open(path)
+		}
+		return nil, fmt.Errorf("db: inspect hook target %q: %w", path, err)
+	}
+
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("db: open hook: canonicalize %q: %w", path, err)
+	}
+	writer, err := newWriterCoordinator(path)
+	if err != nil {
+		return nil, fmt.Errorf("db: open hook: coordinate %q: %w", path, err)
+	}
+	dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=rw&_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
+	database, err := openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
+	if err != nil {
+		if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
+			return Open(path)
+		}
+		return nil, fmt.Errorf("db: open hook %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
+	}
+	version, err := readSchemaVersionWithRetry(database, startupLockRetryPolicy())
+	if err != nil {
+		_ = database.Close()
+		return nil, fmt.Errorf("db: read hook schema version %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
+	}
+	if version == schemaVersion {
+		return &DB{db: database, writer: writer}, nil
+	}
+	if closeErr := database.Close(); closeErr != nil {
+		return nil, fmt.Errorf("db: close hook database %q: %w", path, closeErr)
+	}
+	if version > schemaVersion {
+		return nil, newerSchemaError(version)
+	}
+	return Open(path)
+}
+
 // OpenReadOnly opens an existing SQLite database with a single connection.
 // SQLite's mode=ro is the write-enforcement boundary; query_only adds defense
 // in depth. The returned handle holds shared supported-access ownership until

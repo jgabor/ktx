@@ -1,0 +1,17 @@
+id: rpkrrwliux
+artifact: progress
+record:
+  timestamp: 2026-08-17 20:23
+  type: fix
+  phase: build
+  what: Corrected hook dispatch so a current-schema database opens without creation, migration, or exclusive coordination before hook processing. Missing and older supported databases retain the coordinated creation or migration fallback, and successful hook writes retain their separate phased commits inside one writer window.
+  context:
+    intent: Close the failed audit gap without changing hook evidence, retry, failure, or output contracts.
+    constraints: Preserved producer schema 10, first-wins evidence, separate source/artifact/disposition commits, transactional forward migration, newer-schema rejection, and unrelated command open behavior.
+    unknowns: One early failed targeted invocation under commit 2d371cf used ambient HOME with KTX_DB unset and reached a read-only schema check against the ambient DB. It is excluded from acceptance evidence. There is no retained before/after hash proving unchanged bytes. All authoritative verification uses fresh isolated roots. The ambient DB was not inspected again. Full Windows CLI compilation remains blocked outside this change by existing Unix-only syscall use in internal/experiment; the changed database package compiles for Windows and the full CLI compiles for Darwin.
+    scope: Hook-specific database opening, dispatcher observation coverage, database-safety documentation, and the required durable caveat.
+  inspiration: The audit showed that the phased hook logic was correct but the dispatcher still acquired a separate exclusive startup window first.
+  discovered: "The narrow seam was database opening: a mode=rw current-schema check can return the normal writer-capable handle, while absent and stale paths can delegate unchanged to the coordinated Open path for schema recheck and transactional migration."
+  verified: Focused entrypoint, phased-commit, lifecycle, migration, process, and race tests passed. Full internal/db and internal/cli packages passed. mage check passed repository race tests, vet, lint with zero issues, build, and 5,832 audited database operations with forbidden=0 and KTX_DB unset. The built CLI hook smoke passed for absent then current-schema calls. Schema 9 migration rehearsal reached schema 10, retained its marker, restored compression_dispositions, and passed integrity_check. Darwin arm64 CLI and Windows amd64 database-package compilation passed.
+  next: Keep plan task czyzqpekni in progress with its audit-1 failure state for independent re-audit. Do not push.
+  publication_order: 100

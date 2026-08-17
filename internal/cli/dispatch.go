@@ -311,7 +311,11 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		case DatabaseReadOnly:
 			opened, err = openQueryDatabase(path, verb)
 		case DatabaseReadWrite:
-			opened, err = openDatabase(path, verb)
+			if verb == "hook" {
+				opened, err = openHookDatabase(path, verb)
+			} else {
+				opened, err = openDatabase(path, verb)
+			}
 		default:
 			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
 		}

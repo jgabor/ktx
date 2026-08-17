@@ -80,8 +80,9 @@ func writeTrustedHookOutput(stdout io.Writer, isCodex bool, result evidence.Resu
 }
 
 // hookCommandFunc is the dispatch entry point for `ktx hook`. The
-// dispatcher opens the DB for writes and exposes stdin
-// (NeedsStdin=true, PassthroughStdout=true).
+// dispatcher opens a current schema without exclusive coordination and exposes
+// stdin (NeedsStdin=true, PassthroughStdout=true). Creation and migration keep
+// the normal coordinated fallback.
 func hookCommandFunc(ctx *DispatchContext) (any, error) {
 	return hookLogic(ctx.Stdin, ctx.DB, ctx.Stdout, ctx.Stderr)
 }

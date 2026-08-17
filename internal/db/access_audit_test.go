@@ -35,14 +35,17 @@ func TestDatabaseAccessAuditRecordsBeforeAccess(t *testing.T) {
 	}
 
 	records := readDatabaseAccessRecords(t, audit)
-	if len(records) != 2 {
-		t.Fatalf("records = %#v, want two", records)
+	if len(records) != 3 {
+		t.Fatalf("records = %#v, want three", records)
 	}
 	if records[0].Operation != "open" || !records[0].Forbidden || records[0].Path != lexicalPath(forbidden) {
 		t.Fatalf("forbidden record = %#v", records[0])
 	}
 	if records[1].Operation != "open" || records[1].Forbidden || records[1].Path != lexicalPath(allowed) {
 		t.Fatalf("allowed record = %#v", records[1])
+	}
+	if records[2].Operation != "exclusive_coordination" || records[2].Forbidden || records[2].Path != lexicalPath(allowed) {
+		t.Fatalf("coordination record = %#v", records[2])
 	}
 }
 
@@ -90,14 +93,17 @@ func TestDatabaseAccessAuditRejectsDatabaseOutsideVerificationRoot(t *testing.T)
 	}
 
 	records := readDatabaseAccessRecords(t, audit)
-	if len(records) != 2 {
-		t.Fatalf("records = %#v, want two", records)
+	if len(records) != 3 {
+		t.Fatalf("records = %#v, want three", records)
 	}
 	if !records[0].Forbidden || records[0].Path != lexicalPath(outside) {
 		t.Fatalf("outside-root record = %#v", records[0])
 	}
 	if records[1].Forbidden || records[1].Path != lexicalPath(allowed) {
 		t.Fatalf("allowed record = %#v", records[1])
+	}
+	if records[2].Operation != "exclusive_coordination" || records[2].Forbidden || records[2].Path != lexicalPath(allowed) {
+		t.Fatalf("coordination record = %#v", records[2])
 	}
 }
 

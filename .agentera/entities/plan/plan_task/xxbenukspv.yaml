@@ -1,0 +1,25 @@
+id: xxbenukspv
+artifact: plan
+record:
+  name: Synchronize the successor experiment outcome
+  depends_on:
+    - yednfkrdxj
+    - lcymgtrvbd
+    - kdrnmgdllx
+  status: complete
+  acceptance:
+    - GIVEN the successor experiment closes WHEN state is synchronized THEN its result is exactly one of validated candidate, evidence-backed no-candidate, or blocked with recovery.
+    - GIVEN the earlier no-change cycle WHEN the successor result is recorded THEN the earlier evidence remains historical and is not rewritten as the successor result.
+    - GIVEN a candidate survives controlled comparison WHEN downstream readiness is updated THEN post-change live validation becomes actionable for only that candidate; otherwise it is resolved as not applicable or blocked with the exact recovery condition.
+    - GIVEN closeout completes WHEN plan, progress, and TODO are reconciled THEN shipped defaults remain unchanged and no provider-internal, continuity, or default-change claim is made.
+  plan: uzzjvrljiw
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: successor-sync-audit-1
+      source: audit:ses_fe4442960ffe0M9ppE5polZqTN
+      recorded_at: 2026-08-19 22:38
+      writer_command: agentera state plan record-evaluation

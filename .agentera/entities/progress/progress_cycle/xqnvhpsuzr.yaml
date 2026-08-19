@@ -1,0 +1,17 @@
+id: xqnvhpsuzr
+artifact: progress
+record:
+  timestamp: 2026-08-19 22:30
+  type: correction
+  phase: build
+  what: Corrected the controlled comparison after comparison-audit-1 so every lossy production footer carries the same valid 16-character source ID persisted before footer construction and used for recovery.
+  context:
+    intent: Correct the audited controlled-comparison recovery evidence and derived metrics.
+    corrects: blvupogswu
+    audit_attempt: comparison-audit-1
+    constraints: One bounded audit correction only; preserve the paired seven-case method and existing gates; no runtime application, route/profile/default/config change, rollout, TODO resolution, task completion, commit, or satisfaction claim.
+    scope: Existing generated matrix, actual built-in registry and Runner, production footer bytes, isolated in-memory source persistence and shipped recovery lookup, derived receipts/reports, and isolated verification.
+  discovered: The two lossy cases emitted 105-byte and 106-byte cues using persisted IDs comparemiddlexxx and comparetailxxxxx. The IDs parsed from the emitted footers matched the persisted IDs, and shipped GetSourceOutput recovery returned byte-exact originals. Gross savings remain 1,745 bytes; corrected cues total 211 bytes and corrected positive net savings are 1,534 bytes, so the disposition remains accept_experiment_only.
+  verified: "Controlled receipt SHA-256 c21119c3b6bfecc8e6dd57db908b2d3e9bf1d272dfb0ae1cf5c3fb248c9e7223, controlled report SHA-256 eafb51a2397b74d7e6f029f6338eb261d08ae8c036a251d847cab77de1b7b2fa, evaluator SHA-256 381f308e2e31040d8410ae810c2018b00c8eb2a6181a297f7302b9d1ffdcb47d. Candidate receipt/report were regenerated as c853726ee0f0d9330b0593e198b6675ec7d403e2ed6277fc13758000ca14d8a6 and 0b81216ac03fa4664403b586206eb1c13c3adfb69f66d5f4857e4bad7019f0c8. With KTX_DB unset and fresh disposable HOME/XDG/TMP roots: focused internal/pipeline, internal/cli, internal/router, and internal/config tests passed; mage build passed; local ./build/ktx binary-capabilities passed with executable SHA-256 07dae0c1022240389d6e1d8bed5835cdd6e3103ce41ce3c4df698963c38c9ab6; git diff --check passed. Recovery used an explicit in-memory database; no ambient or live database was accessed."
+  next: Re-audit the corrected experiment-only evidence without completing the active task or applying the candidate at runtime.
+  publication_order: 125

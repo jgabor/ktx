@@ -1,0 +1,27 @@
+id: kdrnmgdllx
+artifact: plan
+record:
+  name: Apply and compare the provisional candidate
+  depends_on:
+    - lcymgtrvbd
+  status: superseded
+  acceptance:
+    - GIVEN one provisional candidate exists WHEN behavior changes THEN exactly one reversible intervention is applied and no shipped default changes.
+    - GIVEN the intervention WHEN baseline and candidate are compared THEN attempts are paired across the complete representative matrix.
+    - GIVEN paired results WHEN correctness is evaluated THEN task behavior, required facts, errors, exact occurrence counts, passthrough, and lossy-output recovery are preserved.
+    - GIVEN recovery cues, tool-call effects, and latency are included WHEN value is evaluated THEN net savings remain positive.
+    - GIVEN any hard gate fails or no provisional candidate exists WHEN the task closes THEN behavior remains or returns unchanged and no candidate metrics are manufactured.
+  plan: uzzjvrljiw
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Behavioral comparison passed, but corrected candidate report/receipt retain stale embedded receipt and evaluator hashes, so the complete retained evidence package is internally inconsistent.
+    provenance:
+      attempt_id: comparison-audit-2
+      source: audit:ses_fe462a2a3ffeA4nV5AHyf77O5F
+      recorded_at: 2026-08-19 22:14
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - qbgtlitmuh
+  superseded_reason: Behavioral comparison passed and the regenerated active evidence chain passed independent integrity audit.

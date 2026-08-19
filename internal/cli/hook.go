@@ -800,6 +800,11 @@ func buildRecoveryFooter(sourceID string, originalBytes, compressedBytes int) st
 	)
 }
 
+// RecoveryFooter returns the footer used for agent-visible compressed output.
+func RecoveryFooter(sourceID string, originalBytes, compressedBytes int) string {
+	return buildRecoveryFooter(sourceID, originalBytes, compressedBytes)
+}
+
 func init() {
 	Register("hook", RegisterOptions{
 		Description:       "in-flight tool_call compression (persist original, return compressed)",

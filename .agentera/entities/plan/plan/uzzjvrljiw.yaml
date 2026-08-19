@@ -1,0 +1,44 @@
+id: uzzjvrljiw
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-19
+    status: complete
+    reviewed: 2026-08-19
+    critic_issues: 4 found, 4 addressed, 0 dismissed
+    revised: Moved representative evidence before selection, separated blocked from no-candidate, allowed partial safe applicability, and conditioned live validation on a surviving candidate.
+    title: "Plan: Successor targeted residual-delivery experiment"
+  what: Determine whether one partially applicable, safe residual-delivery optimization exists by completing the representative evidence matrix before candidate selection and controlled comparison.
+  why: Fulfill the original experiment intent without treating missing evidence as no opportunity or requiring every historical call to benefit.
+  constraints: Use only supported metadata routing; preserve required facts, errors, exact counts, passthrough, and recovery; use authorized non-live or disposable evidence; keep missing evidence distinct from no-candidate; change at most one route or transform; leave shipped defaults unchanged.
+  overall_acceptance: GIVEN the selected residual subgroup WHEN the successor experiment closes THEN a complete representative matrix supports either one controlled candidate result or an evidence-backed no-candidate result, while incomplete evidence remains blocked and shipped defaults remain unchanged.
+  scope:
+    included:
+      - The read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k opportunity signal
+      - Representative head, middle, tail, structured, failure, eligible, and passthrough cases
+      - Partial safe applicability under currently supported metadata routing
+      - At most one reversible route or transform intervention
+      - Paired controlled comparison and project-state synchronization
+    excluded:
+      - New routing predicates or content-based automatic routing
+      - Ambient live database access or unauthorized retained-content inspection
+      - Shipped-default changes or post-change rollout
+      - Provider-internal cache conclusions or collection-continuity claims
+      - Unrelated pipeline, benchmark, or cleanup work
+    deferred:
+      - Post-change live validation
+      - Any shipped-default proposal
+  design: "First establish the representative cases and immutable evaluation rules. Evaluate bounded interventions against that complete matrix and select at most one provisional candidate, allowing safe partial applicability with passthrough elsewhere. Apply and compare only the selected candidate, then synchronize one of three distinct outcomes: validated candidate, evidence-backed no-candidate, or blocked for missing authorized evidence."
+  unknowns:
+    - question: Can representative cases establish recurring opportunity and safety without unauthorized live-content access or prohibited persistence?
+      affects_task: 2
+      resolve_by: Task 1 completes the authorized matrix or records a blocked outcome with the exact evidence or authorization needed.
+    - question: Does any bounded intervention safely improve a subset under the existing metadata-only routing contract?
+      affects_task: 3
+      resolve_by: Task 2 evaluates plausible bounded candidates against the complete matrix and selects at most one provisional candidate.
+    - question: Will a provisional candidate preserve behavior and retain positive net savings after recovery and runtime costs?
+      affects_task: 4
+      resolve_by: Task 3 performs the paired comparison and either retains or reverts the candidate before state synchronization.
+  surprises:
+    []

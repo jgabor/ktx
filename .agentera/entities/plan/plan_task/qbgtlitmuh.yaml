@@ -1,0 +1,27 @@
+id: qbgtlitmuh
+artifact: plan
+record:
+  plan: uzzjvrljiw
+  name: Regenerate and validate controlled-comparison evidence integrity
+  status: complete
+  depends_on:
+    - yednfkrdxj
+    - zcdzcvlpxc
+  acceptance:
+    - GIVEN the passing controlled comparison WHEN evidence is regenerated THEN every embedded receipt, report, evaluator, matrix, and source hash identifies the current retained bytes without circular or stale references.
+    - GIVEN evidence-only regeneration WHEN results are compared THEN the audited seven-case behavioral outcomes, 1,745 gross bytes, 211 cue bytes, 1,534 net bytes, recovery proof, call scope, and latency aggregates remain unchanged.
+    - GIVEN the regenerated package WHEN independently audited THEN it is internally reproducible and no candidate route, profile, default, config, or runtime application exists.
+    - GIVEN replacement audit passes WHEN it closes THEN it may supersede blocked task kdrnmgdllx while preserving both failed evaluations.
+  evidence:
+    - Controlled behavioral criteria passed in audit ses_fe462a2a3ffeA4nV5AHyf77O5F; only stale embedded candidate hashes remain blocking.
+    - Blocked predecessor kdrnmgdllx remains historical until this replacement completes with PASS.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Matrix report embeds stale evaluator hash 32db7f... while current evaluator is 505e60..., and the integrity test omits validation of the matrix-report evaluator/source edges.
+    provenance:
+      attempt_id: integrity-audit-2
+      source: audit:ses_fe451a1a7ffeXHnAwsmld0g5uB
+      recorded_at: 2026-08-19 22:30
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,15 @@
+id: sutpkhqoex
+artifact: progress
+record:
+  timestamp: 2026-08-19 22:18
+  type: fix
+  phase: build
+  what: Regenerated the retained candidate hash references in acyclic order and added a focused integrity regression check without changing experiment behavior or runtime configuration.
+  context:
+    intent: Restore byte-current identities across the retained targeted-residual candidate and controlled-comparison evidence package.
+    constraints: Evidence-only regeneration; preserve seven-case outcomes, retained latency, blocked predecessor history, and absence from runtime routes, profiles, defaults, and configuration. Do not complete or supersede a task, resolve TODO state, apply the candidate, commit, or claim satisfaction.
+    scope: Current matrix and evaluator bytes, candidate receipt and report, controlled receipt and report, focused integrity test, and isolated verification.
+  discovered: The acyclic ownership order is matrix sources and evaluators, candidate receipt, candidate report, controlled receipt, controlled report, then this progress record. The candidate evaluator reference and receipt citation were stale; the controlled receipt remained byte-current and independent, while the controlled report required the new candidate identities. Blocked predecessor kdrnmgdllx remains blocked with attempt_count 2, failure_count 2, and last_verdict fail; both failed evaluations remain authoritative history.
+  verified: Matrix evaluator 505e60e7768c148b01210361be88f495ddb04d8b9257e0c7055f7bc46d1b5b39, matrix JSON 7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32, and matrix report 9927bd8bc35b52b55dd568cc6744cb130322326683a40b6689c13314b4a59d56 lead to candidate receipt 10b05a904935a4e331ce7be7b3fc1b54c25e60882ec81fff8a7d5c19aa36ae04 and candidate report 941708f3377365f669f38910f01cc87a9f13fc86899bba23ca41a32f8286e3e4; controlled evaluator 381f308e2e31040d8410ae810c2018b00c8eb2a6181a297f7302b9d1ffdcb47d and retained controlled receipt c21119c3b6bfecc8e6dd57db908b2d3e9bf1d272dfb0ae1cf5c3fb248c9e7223 lead to controlled report 7c2559f35cdde8697df8bd5297207caa3aef4fbaac4be05dc7313ae4e1a30067. All seven cases remain unchanged at 1,745 gross bytes, 211 cue bytes, and 1,534 net bytes; two cue IDs drive byte-exact recovery; additional agent/runtime calls remain zero; retained latency aggregates and the 2 ms gate are unchanged. With KTX_DB unset and fresh HOME/XDG/TMP roots, the integrity, bounded candidate, controlled comparison, pipeline, CLI, router, and config tests passed; mage build passed; local binary-capabilities passed with executable SHA-256 07dae0c1022240389d6e1d8bed5835cdd6e3103ce41ce3c4df698963c38c9ab6; git diff --check passed. Repository search found the candidate only in evidence, tests, and project-memory records, not runtime application surfaces. No ambient or live database was accessed.
+  next: Independently audit this replacement package while leaving qbgtlitmuh in progress and kdrnmgdllx blocked.
+  publication_order: 126

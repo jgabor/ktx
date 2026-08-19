@@ -1,0 +1,17 @@
+id: wqfhnzbkca
+artifact: progress
+record:
+  timestamp: 2026-08-19 21:31
+  type: fix
+  phase: build
+  what: Corrected the representative evidence matrix after audit by adding complete deterministic generators, behavioral validation for every case, and a current re-audited historical source hash chain.
+  context:
+    intent: Resolve every blocking finding from the first matrix audit without evaluating or selecting a compression candidate.
+    constraints: No candidate evaluation, route or transform selection, rollout, live database or content access, benchmark comparison, TODO resolution, task completion, commit, or satisfaction claim.
+    unknowns: Candidate safety and reduction remain unknown until a later task evaluates a bounded candidate against every retained case.
+    scope: Successor matrix JSON and report, co-located focused generator and validator, current historical source verification, and this append-only correction record.
+  inspiration: Corrects progress dciyxyadss after audit attempt matrix-audit-1 failed.
+  discovered: Current committed source bytes hash to diagnosis afb1dee3499109545a04ed6608ac0448e1890ebc5ac9d03f1b4712685c258fc0, ranking c6a4f025770566589186b3017cf96fb08fbcb36559419cc999e5cfa4e0571903, and historical aggregates 7671534015cca4bc0df841966c016e0d1d016e18f2df0abba25615a976e990ca. Their required substantive claims and citations were rechecked, and only successor artifacts now cite the current chain; historical artifacts and prior audit records were not rewritten.
+  verified: "Retained report SHA-256 9927bd8bc35b52b55dd568cc6744cb130322326683a40b6689c13314b4a59d56, matrix SHA-256 7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32, and focused generator/validator SHA-256 32db7f9425412b6a572ec41128bae8f7371016b0c14b8f7d3db5fe857107eb0b. The test generates all seven exact-length inputs, validates exact fact/error counts, JSON validity, outcome semantics, eligibility, byte-exact passthrough without artifact, byte-exact recovery, category coverage, and routing/provenance schema. With KTX_DB unset and fresh disposable HOME/XDG/TMP roots per invocation: mage build passed; go test ./internal/pipeline ./internal/router ./internal/config passed; changed ./build/ktx binary-capabilities passed with executable SHA-256 d186bc7f1e1e6d74ec44407cb041057e5b47c29d675364721607621a612d3c88; git diff --check passed. No database-capable command ran."
+  next: Return task yednfkrdxj for bounded re-audit while preserving its in-progress state and existing failed evaluation provenance.
+  publication_order: 120

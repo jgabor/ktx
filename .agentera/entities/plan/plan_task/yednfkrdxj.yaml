@@ -1,0 +1,23 @@
+id: yednfkrdxj
+artifact: plan
+record:
+  name: Establish the representative evidence matrix
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the selected opportunity signal WHEN the matrix is retained THEN it covers representative head, middle, tail, structured, failure, eligible, and passthrough cases.
+    - GIVEN each case WHEN expected behavior is specified THEN required facts, exact occurrence counts, errors, recovery, eligibility, and passthrough are explicit before candidate evaluation.
+    - GIVEN evidence sources are assembled WHEN provenance is checked THEN they are existing non-live fixtures, generated cases, or explicitly authorized disposable evidence and never the ambient live database.
+    - GIVEN representative recurrence or safety cannot be established WHEN this task closes THEN the outcome is blocked with an exact recovery condition and is not labeled no-candidate.
+  plan: uzzjvrljiw
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Matrix cases were symbolic rather than byte-reproducible, validator checked metadata only, and historical recurrence source hashes did not match committed bytes.
+    provenance:
+      attempt_id: matrix-audit-2
+      source: audit:ses_fe48843e4ffek65SDYKPKghR7X
+      recorded_at: 2026-08-19 21:30
+      writer_command: agentera state plan record-evaluation

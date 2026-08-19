@@ -1,0 +1,16 @@
+id: blvupogswu
+artifact: progress
+record:
+  timestamp: 2026-08-19 22:00
+  type: test
+  phase: build
+  what: Retained the isolated paired comparison of the provisional keep-ends candidate across all seven generated matrix cases without changing shipped behavior.
+  context:
+    intent: Apply and compare exactly one provisional candidate in reversible experiment state.
+    constraints: Preserve existing uncommitted work and shipped configuration; make no live, provider, cache, continuity, completion, or satisfaction claim.
+    unknowns: Live behavior and continuity-qualified rollout value remain unmeasured and out of scope.
+    scope: Generated local registry, Runner, recovery, cue, tool-call-effect, byte, and latency evidence only.
+  discovered: The candidate passed every safety gate and retained 1,546 net bytes after two UTF-8 recovery cues. The two lossy cases recovered byte-exact originals through isolated shipped database recovery; pipeline execution added no agent/runtime tool calls. All candidate latency means were below the predeclared 2 ms local operational gate.
+  verified: The retained machine receipt and concise report record seven paired cases, hashes, raw latency aggregates, recovery exercises, and experiment-only disposition. Isolated focused tests, mage build, the local binary-capabilities command, repository search for configuration application, and git diff --check passed with KTX_DB unset and fresh HOME/XDG/TMP roots. No ambient database or DB-capable CLI command was used.
+  next: The separate synchronization task may consume this experiment-only result; no rollout, default proposal, TODO resolution, or decision satisfaction follows from it.
+  publication_order: 124

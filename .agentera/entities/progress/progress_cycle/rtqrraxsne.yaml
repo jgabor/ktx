@@ -1,0 +1,16 @@
+id: rtqrraxsne
+artifact: progress
+record:
+  timestamp: 2026-08-19 21:35
+  type: test
+  phase: build
+  what: Evaluated two bounded built-in pipeline candidates against every case in the corrected representative matrix and retained no provisional candidate.
+  context:
+    intent: Test the smallest plausible metadata-routed interventions under one complete safety and passthrough contract.
+    constraints: No runtime candidate application, route/profile/default change, live or ambient database access, raw historical content, rollout, TODO resolution, plan-task completion, commit, or satisfaction claim.
+    unknowns: Tool-call effects, latency, live behavior, and whether another future bounded transform can reduce these shapes remain unmeasured.
+    scope: Existing head:10 and json-compact stages, explicit-success read routing, seven generated matrix cases, recovery-cue byte accounting, and retained evaluation evidence.
+  discovered: Broad head truncation saved 13,149 mechanical bytes after three 97-byte recovery cues but failed required-fact/count gates in eligible head, middle, and tail cases. Strict JSON compaction preserved every gate and byte-exact passthrough but saved zero bytes because the structured case was already compact. No candidate met both safety and positive-net-savings gates.
+  verified: "Evaluation artifact SHA-256 9d59bc7d012f7c9f139f2cee2e2be84d40e5c043eea1af007b1e3647e1dcd890, machine receipt SHA-256 7e61deeaf7774454e5ebfff5027b93fefc3e9508d311fc4eaae589550a32f147, evaluator test SHA-256 f871372ae3fd4b1ad4730bd09c76e80523269082ca2da85663e1082bada97cf6. With KTX_DB unset and fresh disposable HOME/XDG/TMP roots per invocation: mage build passed; go test ./internal/pipeline ./internal/router ./internal/config passed; ./build/ktx binary-capabilities passed with executable SHA-256 d186bc7f1e1e6d74ec44407cb041057e5b47c29d675364721607621a612d3c88; git diff --check passed. No database-capable command ran."
+  next: Audit this bounded no-candidate evaluation while preserving the active plan task and all uncommitted matrix/plan state.
+  publication_order: 121

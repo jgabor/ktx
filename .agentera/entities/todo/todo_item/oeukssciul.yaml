@@ -3,22 +3,33 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Post-change live validation** — Roll out only the selected candidate, retain fixed pre-change and post-change windows, and compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency. Do not use absolute daily totals alone, and revert the candidate if required facts or operational behavior regress. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
   readiness:
     capability: optimize
-    reason: Validate the selected change against fixed live windows and revert on regression.
+    reason: Run the separately gated post-change live validation for only keep-ends:73:1 using the retained controlled successor evidence.
     dependencies:
       - artifact: todo
-        id: cfbgxtzxym
+        id: edwzszsqjr
     blocked: null
     gate: null
     queue_rank: 8
-    order_reason: TODO.md Priority 3 order after the targeted experiment.
+    order_reason: Immediately actionable only after the resolved successor candidate outcome; rollout itself remains unexecuted.
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Post-change live validation** — Roll out only the selected candidate, retain fixed pre-change and post-change windows, and compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency. Do not use absolute daily totals alone, and revert the candidate if required facts or operational behavior regress. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[experiment] Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 607b5a9daa8d892abc929e62860eb0e4683a59ece42f478222dadc2fd7e2e66e). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
       severity: normal
       status: open
       order: 12
+  kind: experiment
+  requirements:
+    - Candidate scope is only keep-ends:73:1; no alternative candidate, profile, route, transform, configuration, or default change is authorized.
+    - Before rollout, predeclare and retain fixed pre-change and post-change windows, authoritative collection-continuity evidence, and authoritative closure for both windows.
+    - Measure delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior including byte-exact recovery, tool-call inflation, and latency; absolute daily totals alone are insufficient.
+    - Rollout must be reversible and must revert keep-ends:73:1 if required facts, recovery, or operational behavior regress.
+  acceptance:
+    - Only keep-ends:73:1 is rolled out after continuity and fixed-window gates are satisfied.
+    - Pre/post evidence contains every required metric and authoritative continuity and closure evidence.
+    - Any regression triggers revert; absent regression, live evidence remains distinct from controlled experiment evidence and does not itself establish provider-internal behavior or a shipped-default change.
+  release_blocker: false
+  title: "Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 607b5a9daa8d892abc929e62860eb0e4683a59ece42f478222dadc2fd7e2e66e). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"

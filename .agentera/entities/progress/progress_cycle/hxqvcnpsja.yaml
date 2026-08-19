@@ -1,0 +1,17 @@
+id: hxqvcnpsja
+artifact: progress
+record:
+  timestamp: 2026-08-19 23:00
+  type: fix
+  phase: build
+  what: Corrected the stale matrix evaluator identity and replaced loose evidence-chain substring checks with exact named-edge validation.
+  context:
+    intent: Retry active replacement task qbgtlitmuh after integrity-audit-1 with one bounded evidence-integrity correction.
+    constraints: Preserve behavioral evidence and runtime behavior; do not apply the candidate, complete or supersede tasks, resolve TODO state, or claim satisfaction.
+    scope: Matrix report identity, exact integrity validation, downstream candidate and controlled report references, and isolated verification.
+    predecessor: sutpkhqoex
+    audit_attempt: integrity-audit-1
+  discovered: The matrix report alone retained the obsolete evaluator digest. The controlled receipt and evaluator had no changed dependency and remained byte-identical. Exact validation now requires one named reference per edge and compares matrix JSON source-chain entries and matrix-report references to the current aggregate, ranking, diagnosis, matrix JSON, and evaluator bytes.
+  verified: Matrix sources remain 7671534015cca4bc0df841966c016e0d1d016e18f2df0abba25615a976e990ca, c6a4f025770566589186b3017cf96fb08fbcb36559419cc999e5cfa4e0571903, and afb1dee3499109545a04ed6608ac0448e1890ebc5ac9d03f1b4712685c258fc0; evaluator 505e60e7768c148b01210361be88f495ddb04d8b9257e0c7055f7bc46d1b5b39 and matrix JSON 7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32 lead to matrix report 3310b77416220aed4feeda986181074d502d39489da3a432c5dbd1d49282da72, candidate receipt d9624b7e0ab97c71b6488c3fcb22c4c3fb9b67bd190fd9e472b262b6dcf14b26, candidate report c074cbefbb4006b215cf9e5dd56a6d936e822bf31b52154536a9b9c40ac574fe, unchanged controlled receipt c21119c3b6bfecc8e6dd57db908b2d3e9bf1d272dfb0ae1cf5c3fb248c9e7223 and evaluator 381f308e2e31040d8410ae810c2018b00c8eb2a6181a297f7302b9d1ffdcb47d, then controlled report c8d316a07d42ae519b7ff82a7fce47779c7c9a4cab9077ee6655f753bd8d4554. With KTX_DB unset and fresh HOME/XDG/TMP roots, focused integrity/candidate/controlled tests and the pipeline, CLI, router, and config packages passed; mage build passed; local binary-capabilities passed with executable SHA-256 07dae0c1022240389d6e1d8bed5835cdd6e3103ce41ce3c4df698963c38c9ab6; git diff --check passed. Behavioral totals remain 1,745 gross, 211 cue, and 1,534 net bytes; two recovery exercises, zero additional agent/runtime calls, retained latency aggregates, and the 2 ms gate are unchanged. No runtime application changed and no ambient or live database was accessed.
+  next: Independently audit the corrected replacement package while leaving qbgtlitmuh in progress and predecessor tasks unchanged.
+  publication_order: 127

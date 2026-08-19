@@ -1,0 +1,17 @@
+id: qhpsuznkam
+artifact: progress
+record:
+  timestamp: 2026-08-19 21:43
+  type: correction
+  phase: build
+  what: Corrected the bounded candidate evaluation after candidate-audit-1 by adding the omitted keep-ends:73:1 candidate and byte-exact production recovery-footer accounting.
+  context:
+    intent: Correct the bounded candidate evaluation using the omitted keep-ends candidate and byte-exact production recovery-footer accounting.
+    corrects: rtqrraxsne
+    audit_attempt: candidate-audit-1
+    constraints: One bounded audit correction only; no runtime candidate application, route/profile/default/config change, live or ambient database access, rollout, TODO change, task completion, commit, or satisfaction claim.
+    scope: The same seven-case matrix, supported explicit-success read routing, existing registered stages and runner, and the production recovery-footer helper.
+  discovered: keep-ends:73:1 passed every immutable fact, exact-count, error, recovery, partial-applicability, and passthrough gate. It saved 1,745 gross bytes; its two UTF-8 recovery footers were 100 and 99 bytes, leaving 1,546 positive net bytes. It is the one provisional candidate. Head:10 remains rejected for required-fact/count loss despite 13,143 corrected net bytes after three 99-byte footers. Json-compact remains rejected for zero net savings.
+  verified: "Evaluation report SHA-256 1dc435956edba134432f65dfd600e02e299c3c346ab4c8a8defbe32ca1fac9ea, machine receipt SHA-256 9e3c1dd822b56f7d6d065b8f7e3867b065f51c1ab18aa12c0413ccba1df9249a, evaluator test SHA-256 6d929100274cfcea182aefb482bdc2e68d1feba8c73c3c5d957653e359f101d6. With KTX_DB unset and fresh disposable HOME/XDG/TMP roots per invocation: focused Go tests for internal/pipeline, internal/cli, internal/router, and internal/config passed; mage build passed; ./build/ktx binary-capabilities --format json passed with executable SHA-256 07dae0c1022240389d6e1d8bed5835cdd6e3103ce41ce3c4df698963c38c9ab6; git diff --check passed. No database-capable command ran."
+  next: Audit the corrected provisional disposition while preserving the active plan task and all uncommitted state.
+  publication_order: 122

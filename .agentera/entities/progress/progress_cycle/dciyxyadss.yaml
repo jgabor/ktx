@@ -1,0 +1,16 @@
+id: dciyxyadss
+artifact: progress
+record:
+  timestamp: 2026-08-19 21:19
+  type: test
+  phase: build
+  what: Established the deterministic representative evidence matrix for the targeted residual opportunity signal without evaluating a route or transform candidate.
+  context:
+    intent: Establish pre-candidate representative safety and eligibility expectations for the selected opportunity signal.
+    constraints: No candidate evaluation, route or transform selection, rollout, live database access, raw historical-content inspection, benchmark, TODO resolution, task completion, or decision-satisfaction claim.
+    unknowns: Candidate safety and reduction remain unknown until a later candidate passes every applicable matrix case.
+    scope: Deterministic behavior shapes, historical aggregate recurrence provenance, immutable evaluation rules, focused validation, and retained evidence only.
+  discovered: Historical aggregate recurrence is retained separately from generated behavior-shape coverage. The supplied diagnosis hash differs from the current committed diagnosis bytes; both hashes are recorded without changing historical evidence.
+  verified: "MATRIX READY. Evidence artifact .agentera/verification/targeted-residual-evidence-matrix-20260819.md SHA-256 c826f5cf0815bec1221e4a8a1947d06d52721d25bd7a57f1d5f452bb2d057565. Matrix SHA-256 84ec2323231ceef32b1174b0401a6c5e7ecd674828a46b43fbdade6fb3e4537c: 7 cases, 4 eligible, 3 passthrough; head 1, middle 1, tail 1, structured 1, failure 1. Fresh isolated roots with KTX_DB unset: mage build passed; go test ./internal/pipeline ./internal/router ./internal/config passed; changed ./build/ktx binary-capabilities passed; git diff --check passed. No database-capable command ran."
+  next: Evaluate bounded candidates against every retained case; do not select or compare a candidate that fails any immutable expectation.
+  publication_order: 119

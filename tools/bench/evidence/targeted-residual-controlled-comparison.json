@@ -1,0 +1,331 @@
+{
+  "schema": "ktx.targeted-residual-controlled-comparison.v1",
+  "intervention": {
+    "scope": "test-only registry/Runner invocation",
+    "shipped_configuration_changed": false,
+    "stage": "keep-ends:73:1"
+  },
+  "latency_policy": {
+    "candidate_mean_gate_ns": 2000000,
+    "clock": "time.Since monotonic nanoseconds",
+    "order": "alternating baseline-first/candidate-first",
+    "paired_samples_per_case": 1000,
+    "summary": "count/sum/min/max/mean; mean is integer sum/count",
+    "warmups_per_case": 100
+  },
+  "tool_call_effect": {
+    "additional_agent_runtime_calls": 0,
+    "definition": "pipeline execution introduces no agent/runtime tool calls; each lossy result exercises one local retained-original retrieval"
+  },
+  "cases": [
+    {
+      "id": "eligible-head",
+      "input_bytes": 4096,
+      "input_sha256": "650281c6d9eab42e1447f97549ecfce1bed3ebcc2644c91fc9c8bb027f660bf3",
+      "eligible": true,
+      "baseline": {
+        "output_bytes": 4096,
+        "output_sha256": "650281c6d9eab42e1447f97549ecfce1bed3ebcc2644c91fc9c8bb027f660bf3",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 256364,
+          "min": 40,
+          "max": 10640,
+          "mean": 256
+        }
+      },
+      "candidate": {
+        "output_bytes": 4096,
+        "output_sha256": "650281c6d9eab42e1447f97549ecfce1bed3ebcc2644c91fc9c8bb027f660bf3",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 3365879,
+          "min": 1713,
+          "max": 308771,
+          "mean": 3365
+        }
+      },
+      "gross_bytes_saved": 0,
+      "net_bytes_saved": 0,
+      "safety": "pass",
+      "recovery_exercised": false,
+      "persisted_source_id": null,
+      "footer_source_id": null,
+      "recovery_sha256": null,
+      "recovery_byte_exact": false,
+      "additional_tool_calls": 0
+    },
+    {
+      "id": "eligible-middle",
+      "input_bytes": 5120,
+      "input_sha256": "034ed08e1ece0b63af0b6b79067ddb3dad05032175a11b6b40e558de32afb6c1",
+      "eligible": true,
+      "baseline": {
+        "output_bytes": 5120,
+        "output_sha256": "034ed08e1ece0b63af0b6b79067ddb3dad05032175a11b6b40e558de32afb6c1",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 223506,
+          "min": 50,
+          "max": 9959,
+          "mean": 223
+        }
+      },
+      "candidate": {
+        "output_bytes": 4759,
+        "output_sha256": "2baa2365d4abbbaaaa7ee19da2a37412b5e0332c59b33ef4a8c10d36bdb64336",
+        "cue_bytes": 105,
+        "cue_sha256": "cccfe91fb54a251ecdaceb8a2644f09db1ce6347b2aeaea7c9b81f78fe70bec7",
+        "ran": ["keep-ends:73:1"],
+        "latency_ns": {
+          "count": 1000,
+          "sum": 3849124,
+          "min": 2215,
+          "max": 76947,
+          "mean": 3849
+        }
+      },
+      "gross_bytes_saved": 361,
+      "net_bytes_saved": 256,
+      "safety": "pass",
+      "recovery_exercised": true,
+      "persisted_source_id": "comparemiddlexxx",
+      "footer_source_id": "comparemiddlexxx",
+      "recovery_sha256": "034ed08e1ece0b63af0b6b79067ddb3dad05032175a11b6b40e558de32afb6c1",
+      "recovery_byte_exact": true,
+      "additional_tool_calls": 0
+    },
+    {
+      "id": "eligible-tail",
+      "input_bytes": 6144,
+      "input_sha256": "fc3154a51ba6175122a8f44e9c70f98c23b3ef22cb2cf67c04e8aec2c9c350ee",
+      "eligible": true,
+      "baseline": {
+        "output_bytes": 6144,
+        "output_sha256": "fc3154a51ba6175122a8f44e9c70f98c23b3ef22cb2cf67c04e8aec2c9c350ee",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 258053,
+          "min": 50,
+          "max": 19678,
+          "mean": 258
+        }
+      },
+      "candidate": {
+        "output_bytes": 4760,
+        "output_sha256": "2403ead2d9d8266571de830b884ef4d140dfe5e64087be5efa483c944695bf09",
+        "cue_bytes": 106,
+        "cue_sha256": "c4f23fe6b89702e66bc9dc257759502dab79241112fa6248bcb5fe982f1c814a",
+        "ran": ["keep-ends:73:1"],
+        "latency_ns": {
+          "count": 1000,
+          "sum": 4144508,
+          "min": 2414,
+          "max": 49605,
+          "mean": 4144
+        }
+      },
+      "gross_bytes_saved": 1384,
+      "net_bytes_saved": 1278,
+      "safety": "pass",
+      "recovery_exercised": true,
+      "persisted_source_id": "comparetailxxxxx",
+      "footer_source_id": "comparetailxxxxx",
+      "recovery_sha256": "fc3154a51ba6175122a8f44e9c70f98c23b3ef22cb2cf67c04e8aec2c9c350ee",
+      "recovery_byte_exact": true,
+      "additional_tool_calls": 0
+    },
+    {
+      "id": "eligible-structured",
+      "input_bytes": 7168,
+      "input_sha256": "069e32242585e2db5356d38064dde1e341ac29912359b9fd146fc99bb5a502c9",
+      "eligible": true,
+      "baseline": {
+        "output_bytes": 7168,
+        "output_sha256": "069e32242585e2db5356d38064dde1e341ac29912359b9fd146fc99bb5a502c9",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 314137,
+          "min": 170,
+          "max": 11892,
+          "mean": 314
+        }
+      },
+      "candidate": {
+        "output_bytes": 7168,
+        "output_sha256": "069e32242585e2db5356d38064dde1e341ac29912359b9fd146fc99bb5a502c9",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 32568124,
+          "min": 30378,
+          "max": 430314,
+          "mean": 32568
+        }
+      },
+      "gross_bytes_saved": 0,
+      "net_bytes_saved": 0,
+      "safety": "pass",
+      "recovery_exercised": false,
+      "persisted_source_id": null,
+      "footer_source_id": null,
+      "recovery_sha256": null,
+      "recovery_byte_exact": false,
+      "additional_tool_calls": 0
+    },
+    {
+      "id": "reject-failure",
+      "input_bytes": 4096,
+      "input_sha256": "dab99b454c1b351161d6eec770fb6b5c0baabb4f75481775fc85c6bc678ecb70",
+      "eligible": false,
+      "baseline": {
+        "output_bytes": 4096,
+        "output_sha256": "dab99b454c1b351161d6eec770fb6b5c0baabb4f75481775fc85c6bc678ecb70",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 245358,
+          "min": 40,
+          "max": 31591,
+          "mean": 245
+        }
+      },
+      "candidate": {
+        "output_bytes": 4096,
+        "output_sha256": "dab99b454c1b351161d6eec770fb6b5c0baabb4f75481775fc85c6bc678ecb70",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 453962,
+          "min": 40,
+          "max": 215743,
+          "mean": 453
+        }
+      },
+      "gross_bytes_saved": 0,
+      "net_bytes_saved": 0,
+      "safety": "pass",
+      "recovery_exercised": false,
+      "persisted_source_id": null,
+      "footer_source_id": null,
+      "recovery_sha256": null,
+      "recovery_byte_exact": false,
+      "additional_tool_calls": 0
+    },
+    {
+      "id": "reject-tool",
+      "input_bytes": 4096,
+      "input_sha256": "0e8f3b2ef8078a4e0302194101672fe0d79e66755a4e4ea13b599bd4b5504dd1",
+      "eligible": false,
+      "baseline": {
+        "output_bytes": 4096,
+        "output_sha256": "0e8f3b2ef8078a4e0302194101672fe0d79e66755a4e4ea13b599bd4b5504dd1",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 346079,
+          "min": 40,
+          "max": 16482,
+          "mean": 346
+        }
+      },
+      "candidate": {
+        "output_bytes": 4096,
+        "output_sha256": "0e8f3b2ef8078a4e0302194101672fe0d79e66755a4e4ea13b599bd4b5504dd1",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 314732,
+          "min": 40,
+          "max": 13215,
+          "mean": 314
+        }
+      },
+      "gross_bytes_saved": 0,
+      "net_bytes_saved": 0,
+      "safety": "pass",
+      "recovery_exercised": false,
+      "persisted_source_id": null,
+      "footer_source_id": null,
+      "recovery_sha256": null,
+      "recovery_byte_exact": false,
+      "additional_tool_calls": 0
+    },
+    {
+      "id": "reject-unknown-outcome",
+      "input_bytes": 4096,
+      "input_sha256": "4476dc367935aeddbb2169e78339a8d1ec4b132ce92b751e5cccf3122ac7946d",
+      "eligible": false,
+      "baseline": {
+        "output_bytes": 4096,
+        "output_sha256": "4476dc367935aeddbb2169e78339a8d1ec4b132ce92b751e5cccf3122ac7946d",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 276451,
+          "min": 40,
+          "max": 14277,
+          "mean": 276
+        }
+      },
+      "candidate": {
+        "output_bytes": 4096,
+        "output_sha256": "4476dc367935aeddbb2169e78339a8d1ec4b132ce92b751e5cccf3122ac7946d",
+        "cue_bytes": 0,
+        "cue_sha256": null,
+        "ran": null,
+        "latency_ns": {
+          "count": 1000,
+          "sum": 391301,
+          "min": 40,
+          "max": 79412,
+          "mean": 391
+        }
+      },
+      "gross_bytes_saved": 0,
+      "net_bytes_saved": 0,
+      "safety": "pass",
+      "recovery_exercised": false,
+      "persisted_source_id": null,
+      "footer_source_id": null,
+      "recovery_sha256": null,
+      "recovery_byte_exact": false,
+      "additional_tool_calls": 0
+    }
+  ],
+  "totals": {
+    "additional_agent_runtime_tool_calls": 0,
+    "gross_bytes_saved": 1745,
+    "net_bytes_saved": 1534,
+    "recovery_cue_bytes": 211,
+    "recovery_exercises": 2
+  },
+  "disposition": "accept_experiment_only"
+}

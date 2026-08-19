@@ -1,0 +1,26 @@
+id: zcdzcvlpxc
+artifact: plan
+record:
+  plan: uzzjvrljiw
+  name: Validate the corrected provisional candidate evidence
+  status: complete
+  depends_on:
+    - yednfkrdxj
+  acceptance:
+    - GIVEN the corrected evaluation artifacts WHEN evidence is validated THEN keep-ends:73:1 is tested through the actual registered stage, runner, and production recovery-footer byte format across all seven matrix cases.
+    - GIVEN candidate results WHEN accounting is checked THEN gross bytes, UTF-8 cue bytes, net savings, immutable safety gates, and byte-exact passthrough are correct for keep-ends, head, and json-compact.
+    - GIVEN the footer helper was shared for evaluation WHEN behavior is checked THEN production recovery output remains byte-for-byte unchanged and no candidate route, profile, default, or runtime application is introduced.
+    - GIVEN independent audit passes WHEN replacement closes THEN it retains exactly one provisional candidate and may supersede blocked task lcymgtrvbd without erasing its failed evaluations.
+  evidence:
+    - Corrected report, receipt, evaluator, and canonical progress qhpsuznkam.
+    - Blocked predecessor lcymgtrvbd remains historical until this replacement completes with PASS.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: replacement-audit-1
+      source: audit:ses_fe46c1ecaffepFOVKq94RON6b6
+      recorded_at: 2026-08-19 21:53
+      writer_command: agentera state plan record-evaluation

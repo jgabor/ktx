@@ -1,0 +1,213 @@
+{
+  "schema": "ktx.targeted-residual-candidate-evaluation.v1",
+  "matrix_sha256": "7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32",
+  "matrix_report_sha256": "3310b77416220aed4feeda986181074d502d39489da3a432c5dbd1d49282da72",
+  "evaluator_sha256": "505e60e7768c148b01210361be88f495ddb04d8b9257e0c7055f7bc46d1b5b39",
+  "routing": {
+    "predicates": ["tool=read", "exit_status=success"],
+    "otherwise": "byte_exact_passthrough"
+  },
+  "recovery_cue": {
+    "enabled": true,
+    "source_id": "evaluationsrcxxx",
+    "format": "existing hook recovery footer"
+  },
+  "candidates": [
+    {
+      "id": "broad-head-10",
+      "stage": "head:10",
+      "disposition": "rejected",
+      "gross_bytes_saved": 13440,
+      "recovery_cue_bytes": 315,
+      "net_bytes_saved": 13125,
+      "failed_gate": "required facts and exact occurrence counts",
+      "cases": [
+        {
+          "id": "eligible-head",
+          "input_bytes": 4096,
+          "output_bytes": 640,
+          "status": "fail",
+          "failed_gates": [
+            "required fact occurrence count: REPEATED_FACT (1, want 3)"
+          ]
+        },
+        {
+          "id": "eligible-middle",
+          "input_bytes": 5120,
+          "output_bytes": 640,
+          "status": "fail",
+          "failed_gates": [
+            "required fact occurrence count: MIDDLE_REQUIRED (0, want 1)",
+            "required fact occurrence count: REPEATED_FACT (1, want 4)"
+          ]
+        },
+        {
+          "id": "eligible-tail",
+          "input_bytes": 6144,
+          "output_bytes": 640,
+          "status": "fail",
+          "failed_gates": [
+            "required fact occurrence count: TAIL_REQUIRED (0, want 1)",
+            "required fact occurrence count: REPEATED_FACT (1, want 5)"
+          ]
+        },
+        {
+          "id": "eligible-structured",
+          "input_bytes": 7168,
+          "output_bytes": 7168,
+          "status": "pass",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-failure",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-tool",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-unknown-outcome",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        }
+      ]
+    },
+    {
+      "id": "strict-json-compact",
+      "stage": "json-compact",
+      "transform_applicability": "one complete JSON value or valid nonblank NDJSON; other input is returned unchanged",
+      "disposition": "rejected",
+      "gross_bytes_saved": 0,
+      "recovery_cue_bytes": 0,
+      "net_bytes_saved": 0,
+      "failed_gate": "positive mechanical net byte savings after recovery cue",
+      "cases": [
+        {
+          "id": "eligible-head",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_unchanged",
+          "failed_gates": []
+        },
+        {
+          "id": "eligible-middle",
+          "input_bytes": 5120,
+          "output_bytes": 5120,
+          "status": "pass_unchanged",
+          "failed_gates": []
+        },
+        {
+          "id": "eligible-tail",
+          "input_bytes": 6144,
+          "output_bytes": 6144,
+          "status": "pass_unchanged",
+          "failed_gates": []
+        },
+        {
+          "id": "eligible-structured",
+          "input_bytes": 7168,
+          "output_bytes": 7168,
+          "status": "pass_unchanged",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-failure",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-tool",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-unknown-outcome",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        }
+      ]
+    },
+    {
+      "id": "balanced-keep-ends-73-1",
+      "stage": "keep-ends:73:1",
+      "transform_applicability": "inputs over 74 lines; shorter input is returned unchanged",
+      "disposition": "provisional",
+      "gross_bytes_saved": 1745,
+      "recovery_cue_bytes": 211,
+      "net_bytes_saved": 1534,
+      "failed_gate": null,
+      "cases": [
+        {
+          "id": "eligible-head",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_unchanged",
+          "failed_gates": []
+        },
+        {
+          "id": "eligible-middle",
+          "input_bytes": 5120,
+          "output_bytes": 4759,
+          "status": "pass",
+          "recovery_cue_bytes": 105,
+          "net_bytes_saved": 256,
+          "failed_gates": []
+        },
+        {
+          "id": "eligible-tail",
+          "input_bytes": 6144,
+          "output_bytes": 4760,
+          "status": "pass",
+          "recovery_cue_bytes": 106,
+          "net_bytes_saved": 1278,
+          "failed_gates": []
+        },
+        {
+          "id": "eligible-structured",
+          "input_bytes": 7168,
+          "output_bytes": 7168,
+          "status": "pass_unchanged",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-failure",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-tool",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        },
+        {
+          "id": "reject-unknown-outcome",
+          "input_bytes": 4096,
+          "output_bytes": 4096,
+          "status": "pass_byte_exact_passthrough",
+          "failed_gates": []
+        }
+      ]
+    }
+  ],
+  "selection": "balanced-keep-ends-73-1",
+  "disposition": "one_provisional_candidate"
+}

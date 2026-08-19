@@ -1,0 +1,27 @@
+id: lcymgtrvbd
+artifact: plan
+record:
+  name: Evaluate bounded candidate interventions
+  depends_on:
+    - yednfkrdxj
+  status: superseded
+  acceptance:
+    - GIVEN a complete representative matrix WHEN candidates are evaluated THEN plausible route and transform interventions are measured against the same retained cases and rules.
+    - GIVEN a routing candidate WHEN its scope is evaluated THEN it uses only supported metadata predicates and does not infer output size or content class in routing.
+    - GIVEN a candidate safely applies to only part of the matrix WHEN eligibility is evaluated THEN partial improvement is allowed and all ineligible cases pass through unchanged.
+    - GIVEN evaluated candidates WHEN selection closes THEN at most one provisional candidate is retained with its evidence and every rejected candidate has a recorded failed gate.
+    - GIVEN no candidate is retained WHEN the outcome is recorded THEN the complete matrix, rather than missing evidence, substantiates the no-candidate result.
+  plan: uzzjvrljiw
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: "Corrected candidate evaluation produced corrupt progress entity qhpsuznkam: record type correction violates the canonical progress contract, so no valid non-empty verified evidence is available for evaluation."
+    provenance:
+      attempt_id: candidate-evidence-2
+      source: orchestrate:progress-presence-check
+      recorded_at: 2026-08-19 21:44
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - zcdzcvlpxc
+  superseded_reason: Corrected candidate evaluation and canonical evidence passed independent audit in replacement task.

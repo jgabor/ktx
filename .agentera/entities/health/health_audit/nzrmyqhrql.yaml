@@ -1,0 +1,28 @@
+id: nzrmyqhrql
+artifact: health
+record:
+  date: 2026-08-19
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "stable: successor residual experiment evidence is current, internally linked, and synchronized."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited terminal-plan closure check, not a codebase-wide audit. Current matrix, candidate, controlled-comparison, successor-outcome, progress, and TODO artifacts match their retained hashes; four tasks have final PASS and two failed predecessors remain superseded with history preserved.
+  trends:
+    comparison_target: Successor targeted residual-delivery experiment created on 2026-08-19.
+    stable: Shipped defaults and runtime routing remain unchanged; historical and successor evidence remain separate.
+    resolved: One experiment-only candidate passed the generated seven-case controlled comparison and the active evidence chain is internally current.
+    carried_forward: Live behavior, continuity-qualified windows, provider effects, and rollout value remain for the separately gated live-validation task.
+  patterns:
+    - Replacement tasks preserved failed evaluations while correcting reproducibility, recovery, and evidence-integrity defects.
+  appended_at: 2026-08-19T20:42:06.259Z

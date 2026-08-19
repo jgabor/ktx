@@ -1,0 +1,16 @@
+id: ehqvilzjhr
+artifact: progress
+record:
+  timestamp: 2026-08-19 22:33
+  type: docs
+  phase: build
+  what: Synchronized the successor targeted residual experiment as exactly validated candidate (experiment-only), retained the earlier no-change cycle as historical, and made the separate live-validation TODO actionable only for keep-ends:73:1 without rollout.
+  context:
+    intent: Record the successor experiment outcome without altering the prior historical outcome or executing rollout.
+    constraints: Generated/local/controlled evidence only; no live, model, provider-internal, continuity, rollout, default-change, or satisfaction claim; no runtime/config/default/profile/route/transform change.
+    unknowns: Live behavior remains untested until oeukssciul passes its independent gates.
+    scope: Project-state synchronization only. Active task xxbenukspv remains in progress as required; plan lifecycle is unchanged.
+  discovered: "Active chain: yednfkrdxj, zcdzcvlpxc, and qbgtlitmuh are complete with final PASS evaluations; lcymgtrvbd and kdrnmgdllx remain superseded with failed evaluation history retained. Successor TODO edwzszsqjr is resolved; oeukssciul remains open and depends on it."
+  verified: "Outcome artifact targeted-residual-successor-outcome-20260819.md SHA-256 607b5a9daa8d892abc929e62860eb0e4683a59ece42f478222dadc2fd7e2e66e. Active evidence hashes: matrix report 3310b77416220aed4feeda986181074d502d39489da3a432c5dbd1d49282da72 and JSON 7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32; candidate receipt d9624b7e0ab97c71b6488c3fcb22c4c3fb9b67bd190fd9e472b262b6dcf14b26 and report c074cbefbb4006b215cf9e5dd56a6d936e822bf31b52154536a9b9c40ac574fe; controlled receipt c21119c3b6bfecc8e6dd57db908b2d3e9bf1d272dfb0ae1cf5c3fb248c9e7223 and report c8d316a07d42ae519b7ff82a7fce47779c7c9a4cab9077ee6655f753bd8d4554. Result: seven generated cases, 1745 gross, 211 cue, 1534 net bytes, 2/2 cue-ID-driven byte-exact recovery, zero additional agent/runtime calls in mechanical scope, and local latency means below 2 ms. TODO reconciliation reported 0 drift and 0 conflicts after typed writes. Shipped defaults are unchanged."
+  next: oeukssciul remains open for only keep-ends:73:1 and requires fixed pre/post windows, authoritative continuity and closure, all specified comparative metrics, reversible rollout, and regression-triggered revert.
+  publication_order: 128

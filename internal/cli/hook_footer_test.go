@@ -38,6 +38,13 @@ func TestBuildRecoveryFooter_ContainsRecoveryCommand(t *testing.T) {
 	}
 }
 
+func TestRecoveryFooter_ProductionBytes(t *testing.T) {
+	want := "\n[ktx] output compressed: 4759 bytes (7% reduction) • get full output with `ktx read comparemiddlexxx`\n"
+	if got := RecoveryFooter("comparemiddlexxx", 5120, 4759); got != want {
+		t.Fatalf("RecoveryFooter bytes = %q, want %q", got, want)
+	}
+}
+
 func TestHook_FooterGate_Suppresses(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)

@@ -1,0 +1,15 @@
+id: ljpodlcfto
+artifact: progress
+record:
+  timestamp: 2026-08-19 11:59
+  type: docs
+  phase: build
+  what: "Synchronized the representative residual-delivery study outcome: the audited multidimensional candidate now identifies the targeted experiment, the study TODO is resolved, and the experiment is eligible without execution."
+  context:
+    intent: Synchronize retained study evidence into TODO and progress state without executing the experiment or changing code, configuration, routing, transforms, profiles, or defaults.
+    constraints: Treat historical descriptive findings and future continuity-qualified default evidence as separate claim classes; make no continuity, default-change, or decision-satisfaction claim.
+    scope: Study closeout, targeted experiment identification and eligibility, progress evidence, and TODO reconciliation only.
+  discovered: The insufficient-evidence branch is not applicable because the multidimensional residual ranking passed audit. Historical descriptive findings identify only the bounded experiment candidate; they do not establish collection continuity or justify a default change.
+  verified: "Verified retained artifacts and SHA-256 digests: historical-aggregates-20260812-19.md = 2af75efe91d7754dd60fc41f8d6b6c7e264f2eddecbaec1b21eafe7688d55f17; multidimensional-residual-ranking-20260819.md = cd8f4d9de48a95073a7952c53585352706ab41c8b1a5e58394a3eaa3b9583562 (audit PASS); shipped-default-evidence-gate-20260819.md = c9a71ce6dffad4a819a0f025e304f0f1893b6aaa3742bd4f4236444f4531b83c (audit PASS). Candidate: read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k. The targeted experiment became actionable and was not executed."
+  next: Run the targeted experiment separately. Keep shipped defaults unchanged unless a future proposal has continuity-qualified post-deployment evidence.
+  publication_order: 113

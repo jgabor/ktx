@@ -1,0 +1,15 @@
+id: uzbddwutqx
+artifact: progress
+record:
+  timestamp: 2026-08-19 13:22
+  type: docs
+  phase: build
+  what: Retained the corrected targeted residual diagnosis with controlled isolated verification and an explicit unknown/recovery outcome.
+  context:
+    intent: Correct the failed evidence-retention requirement for active plan task qrgivncvfx.
+    constraints: Verification artifact and typed progress only; no product, route, profile, default, plan-status, comparison, or decision-satisfaction change.
+    scope: Exact read/default_fallback/anti_worsening_rejected/1k-10k historical subgroup.
+  discovered: Supported tool and authoritative-outcome metadata can route a generated read case, but current predicates cannot isolate the 1k-10k band; absent command and subcommand add no usable predicates, and head:1 demonstrates mechanical reduction rather than safety or recurring opportunity.
+  verified: "Verified .agentera/verification/targeted-residual-diagnosis-20260819.md at SHA-256 37e2af3c74cb7b43f336edf60691ee5dbc3cb00a0a476b26495a8ea32290b31d. With KTX_DB unset and fresh disposable HOME/XDG roots per invocation: mage build passed; go test ./internal/pipeline/... ./internal/router ./internal/config ./internal/cli/... passed; no-config delivered 6400/6400 bytes with no artifact; configured default strip-ansi delivered 6400/6400 with no artifact; configured tool=read plus explicit success routed to head:1, preserved the first line, delivered 32/6400 bytes, and created an artifact. Outcome remains unknown/recovery required; head:1 is not safety evidence."
+  next: Recover only with controlled representative head, middle, tail, structured, and failure cases that preserve required facts and failure behavior before selecting any route or transform.
+  publication_order: 115

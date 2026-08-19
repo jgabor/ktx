@@ -1,0 +1,15 @@
+id: uctoqnyhbq
+artifact: progress
+record:
+  timestamp: 2026-08-19 12:06
+  type: docs
+  phase: build
+  what: "Correction to progress ljpodlcfto: synchronized stale duplicate entries in the public Immediately actionable TODO projection."
+  context:
+    intent: Correct the single blocking audit finding without changing the experiment or plan status.
+    constraints: Limit changes to TODO.md, typed TODO reconciliation metadata, and this append-only progress correction; preserve experiment scope and make no continuity, default-change, or decision-satisfaction claim.
+    scope: TODO.md:20, TODO.md:24, TODO reconciliation, and progress correction metadata.
+  discovered: The blocking audit finding came from unmanaged duplicate projection entries at TODO.md:20 and TODO.md:24; managed TODO records and progress ljpodlcfto were already correct.
+  verified: TODO.md:20 now marks the representative residual-delivery study complete. TODO.md:24 retains the existing experiment scope and names read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k with evidence labeled historical descriptive only. Typed TODO repair matched 26 managed rows with no duplicate, stale, or conflicting rows; post-repair state reports managed 26, drifted 0, conflicts 0. tklctomuvz is resolved; cfbgxtzxym remains open, actionable, and eligible, and no experiment was executed in this correction.
+  next: Run cfbgxtzxym separately; keep shipped defaults unchanged unless future continuity-qualified evidence supports a proposal.
+  publication_order: 114

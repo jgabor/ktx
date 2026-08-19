@@ -1,0 +1,28 @@
+id: rlpxtxnpxf
+artifact: health
+record:
+  date: 2026-08-19
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "stable: targeted residual experiment artifacts and synchronized TODO state are current."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited post-plan closure check, not a codebase-wide audit. All delegated evidence and progress artifacts were created during the plan, retained hashes match, all four tasks have final PASS evaluations, and TODO reconciliation reports zero drift or conflicts.
+  trends:
+    comparison_target: Targeted residual-delivery experiment plan created on 2026-08-19.
+    stable: Historical, prospective no-change, and future default evidence remain separate; shipped defaults remain unchanged.
+    resolved: The experiment TODO records an audited no-change/no-candidate outcome without manufactured comparison metrics.
+    carried_forward: Safety, precise subgroup routing, recurring reduction, correctness, and net savings remain unknown pending representative controlled evidence.
+  patterns:
+    - Fail-closed evidence gates prevented an unsupported intervention and benchmark claim.
+  appended_at: 2026-08-19T11:42:37.319Z

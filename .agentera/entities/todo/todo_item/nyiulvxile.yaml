@@ -1,0 +1,37 @@
+id: nyiulvxile
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Retain multidimensional residual-ranking rows
+  requirements:
+    - Regenerate the fixed historical rankings with tool, disposition, profile, route, normalized command or subcommand, output-size band, call count, artifact count, raw estimate, and delivered estimate.
+    - Retain only aggregate-safe rows, reconcile detailed and omitted totals, and preserve continuity-unknown, cache-separate, and defaults-unchanged boundaries.
+  acceptance:
+    - GIVEN the fixed historical windows WHEN ranking evidence is retained THEN every declared dimension and measure is available for each detailed target-tool group.
+    - GIVEN omitted rows WHEN candidate eligibility is assessed THEN their reconciled totals either preserve the ranking or force an explicit no-candidate outcome.
+    - GIVEN complete multidimensional evidence WHEN the result is reviewed THEN at most one reproducible bounded subgroup is selected or a fully evidenced no-candidate outcome is retained.
+  release_blocker: false
+  severity: degraded
+  readiness:
+    capability: optimize
+    reason: Complete the multidimensional ranking required by the blocked residual-delivery study.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 1
+    order_reason: Blocks the active representative residual-delivery plan after evaluator retry exhaustion.
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Retain multidimensional residual-ranking rows"
+      status: resolved
+      order: 8
+      severity: degraded
+  lifecycle:
+    operation: resolve
+    reason: Retained and independently verified complete multidimensional target rows, reconciliation, and one bounded candidate.
+    date: 2026-08-19

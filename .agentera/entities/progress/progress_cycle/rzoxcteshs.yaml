@@ -1,0 +1,15 @@
+id: rzoxcteshs
+artifact: progress
+record:
+  timestamp: 2026-08-19 12:00
+  type: docs
+  phase: build
+  what: Retained complete multidimensional target-tool rows for both fixed historical windows and selected one bounded experiment candidate.
+  context:
+    intent: Replace the incomplete residual ranking with reproducible aggregate-safe multidimensional evidence.
+    constraints: No raw content, hashes, arbitrary labels, plan completion, TODO resolution, production changes, cache conflation, or default changes.
+    unknowns: Historical collection continuity remains unknown.
+    scope: Fixed 72-hour and seven-day target-tool breakdown rows, omitted-row reconciliation, and one candidate selection.
+  verified: "The artifact reproduces current grouping semantics, retains every read/bash/grep group with all dimensions and measures, and exactly reconciles full-report detailed plus omitted calls, artifacts, raw estimates, and delivered estimates. Artifact: .agentera/verification/multidimensional-residual-ranking-20260819.md; SHA-256 cd8f4d9de48a95073a7952c53585352706ab41c8b1a5e58394a3eaa3b9583562."
+  next: Use only the selected read/default/default_fallback/anti_worsening_rejected/1k-10k subgroup for a bounded experiment; continuity remains unknown and defaults remain unchanged.
+  publication_order: 111

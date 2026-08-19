@@ -4,9 +4,19 @@ record:
   name: Apply the shipped-default evidence gate
   depends_on:
     - pjlntcecvr
-  status: pending
+  status: complete
   acceptance:
-    - GIVEN no shipped-default proposal follows from the study WHEN the gate is evaluated THEN defaults remain unchanged and seven-day collection is not presented as completed.
-    - GIVEN a shipped-default proposal is considered WHEN evidence is reviewed THEN a complete seven-day interval passes the same continuity, coverage, and reconciliation checks first.
-    - GIVEN the 72-hour and seven-day evidence materially disagree WHEN a recommendation is evaluated THEN no shipped-default change is recommended.
+    - GIVEN the study uses historical evidence WHEN the default-change gate is evaluated THEN shipped defaults remain unchanged regardless of candidate selection.
+    - GIVEN a candidate is selected for experimentation WHEN the gate is recorded THEN a future fully elapsed post-deployment interval with authoritative continuity and closure evidence remains required for any default proposal.
+    - GIVEN future continuity-qualified and historical evidence materially disagree WHEN a recommendation is evaluated THEN no shipped-default change is recommended.
   plan: mfvqyhmoki
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-ojhdwofblz-1
+      source: audit:ses_fe68dd6f7ffeZrNU47t0jWDu0U
+      recorded_at: 2026-08-19 11:57
+      writer_command: agentera state plan record-evaluation

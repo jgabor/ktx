@@ -1,0 +1,41 @@
+id: vldwxfscik
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-19
+    status: complete
+    reviewed: 2026-08-19
+    critic_issues: 3 found, 3 addressed, 0 dismissed
+    revised: Added an explicit no-change branch, isolated experiment boundaries, and claim-class separation.
+    title: "Plan: Targeted residual-delivery experiment"
+  what: Diagnose the selected residual-delivery subgroup, apply at most one justified intervention, and retain a controlled baseline-versus-candidate result.
+  why: Convert the historical descriptive candidate into reproducible prospective evidence without broadening routing policy or changing shipped defaults.
+  constraints: Use only supported routing predicates; change at most one route or transform; preserve errors, exact counts, and recovery; use isolated disposable state; leave shipped defaults unchanged; make no provider-internal, collection-continuity, or default-change claim.
+  overall_acceptance: GIVEN the selected subgroup WHEN the experiment closes THEN retained evidence identifies the rejection cause, records either one validated bounded improvement or an explicit no-change outcome, preserves correctness and recovery, and leaves shipped defaults unchanged.
+  scope:
+    included:
+      - The selected read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k subgroup
+      - Controlled diagnosis using retained non-live cases or explicitly approved disposable evidence
+      - At most one supported route correction or one safe transform change
+      - Paired baseline and candidate comparison
+      - Retained experiment evidence and project-state synchronization
+    excluded:
+      - New routing predicates or content-based automatic routing
+      - Changes to shipped default profiles or rollout behavior
+      - Ambient live database access
+      - Provider-internal cache conclusions or collection-continuity claims
+      - Unrelated pipeline, benchmark, or cleanup work
+    deferred:
+      - Any shipped-default proposal
+      - Post-deployment continuity-qualified validation
+  design: First classify the selected subgroup's rejection cause. Use that evidence to choose at most one reversible intervention or an explicit no-change result. Compare baseline and candidate behavior under controlled, paired conditions, retain only an improvement that passes correctness and cost gates, then synchronize the bounded outcome without generalizing it into a default recommendation.
+  unknowns:
+    - question: Is the selected subgroup dominated by a correctable route miss, an ineffective transform rejected by anti-worsening, or output with no recurring safe reduction?
+      affects_task: 2
+      resolve_by: Task 1 classifies the cause using supported metadata and controlled cases; task 2 follows only the supported branch.
+    - question: Will the selected intervention preserve task behavior and produce positive net savings after recovery and runtime costs?
+      affects_task: 4
+      resolve_by: Task 3 retains paired evidence and rejects the intervention when any correctness or net-savings gate fails.
+  surprises:
+    []

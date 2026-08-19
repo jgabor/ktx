@@ -7,10 +7,20 @@ record:
     - mivdseapfu
     - pjlntcecvr
     - otqicdwrwn
-  status: pending
+  status: complete
   acceptance:
-    - GIVEN one candidate is selected WHEN project state is synchronized THEN the study outcome is recorded and the targeted experiment becomes eligible without being executed.
-    - GIVEN evidence is insufficient WHEN state is synchronized THEN the study remains open with an exact recovery condition and downstream experimentation remains blocked.
-    - GIVEN sufficient evidence shows no safe opportunity WHEN state is synchronized THEN the study closes and unnecessary downstream experimentation is explicitly blocked or superseded.
-    - GIVEN all plan work is evaluated WHEN closeout completes THEN plan, progress, and TODO state agree with retained evidence and make no unverified completion claim.
+    - GIVEN one candidate is selected WHEN project state is synchronized THEN the targeted experiment becomes eligible without being executed and its evidence is labeled historical descriptive.
+    - GIVEN evidence is insufficient WHEN state is synchronized THEN the study retains the no-candidate outcome and downstream experimentation remains blocked.
+    - GIVEN the study closes WHEN evidence is summarized THEN historical descriptive findings and future continuity-qualified default evidence remain separate claim classes.
+    - GIVEN all plan work is evaluated WHEN closeout completes THEN plan, progress, and TODO state agree with retained evidence and make no unverified continuity or default-change claim.
   plan: mfvqyhmoki
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: TODO.md immediate projection still shows the resolved study unchecked and a generic targeted experiment, contradicting synchronized managed rows.
+    provenance:
+      attempt_id: audit-uctoqnyhbq-2
+      source: audit:ses_fe68863d6ffetoaw61B585vS68
+      recorded_at: 2026-08-19 12:08
+      writer_command: agentera state plan record-evaluation

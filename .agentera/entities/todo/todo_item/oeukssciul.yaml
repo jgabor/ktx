@@ -21,4 +21,4 @@ record:
       description: "**Post-change live validation** — Roll out only the selected candidate, retain fixed pre-change and post-change windows, and compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency. Do not use absolute daily totals alone, and revert the candidate if required facts or operational behavior regress. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
       severity: normal
       status: open
-      order: 13
+      order: 12

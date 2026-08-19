@@ -1,0 +1,15 @@
+id: gajccmrdyq
+artifact: progress
+record:
+  timestamp: 2026-08-19 10:53
+  type: docs
+  phase: build
+  what: Retained fixed historical delivery aggregates from a schema-11 live-source backup.
+  context:
+    intent: Provide durable aggregate evidence for the active historical-analysis task.
+    constraints: No raw content or content-derived labels retained; live source was not migrated or written.
+    unknowns: Collection continuity remains unknown.
+    scope: Historical delivery aggregates and separately scoped runtime-cache telemetry only.
+  verified: "Read-only/query-only source remained schema 11; only the disposable backup migrated to schema 13. Fixed 72-hour and seven-day totals reconcile detailed and omitted groups for read, bash, grep, and the full aggregate. Study: .agentera/verification/historical-aggregates-20260812-19.md sha256 2af75efe91d7754dd60fc41f8d6b6c7e264f2eddecbaec1b21eafe7688d55f17."
+  next: Keep continuity unknown and do not make a shipped-default claim from this historical evidence.
+  publication_order: 109

@@ -1,0 +1,23 @@
+id: qrgivncvfx
+artifact: plan
+record:
+  name: Diagnose the selected subgroup
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the exact selected subgroup WHEN controlled cases are examined THEN each rejection is classified as route miss, anti-worsening rejection, or no recurring safe reduction with retained evidence.
+    - GIVEN a route-miss hypothesis WHEN it is evaluated THEN only currently supported metadata predicates may establish that classification.
+    - GIVEN the controlled evidence is incomplete or contradictory WHEN diagnosis closes THEN the result remains unknown and the recovery condition is recorded instead of selecting an intervention.
+    - GIVEN diagnosis finds no safe opportunity WHEN the outcome is recorded THEN it explicitly selects no change.
+  plan: vldwxfscik
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: Diagnosis returned an unknown/recovery branch but did not write the required retained evidence artifact or append a typed progress record with non-empty verified evidence.
+    provenance:
+      attempt_id: diagnose-read-subgroup-2
+      source: audit:ses_fe63ceda8ffeEAM7r3CifoLvPH
+      recorded_at: 2026-08-19 13:25
+      writer_command: agentera state plan record-evaluation

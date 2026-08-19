@@ -1,0 +1,15 @@
+id: ojhdwofblz
+artifact: progress
+record:
+  timestamp: 2026-08-19 11:54
+  type: docs
+  phase: build
+  what: Applied the shipped-default evidence gate to the selected historical experiment candidate while leaving defaults unchanged.
+  context:
+    intent: Retain the evidence-class boundary governing any future default proposal.
+    constraints: No experiment execution, raw-content inspection, product or database changes, continuity claim, provider-behavior claim, or task completion.
+    unknowns: Historical continuity remains unknown; cache evidence is separate.
+    scope: Historical evidence gate and selected read/absent command-subcommand/default/default_fallback/anti_worsening_rejected/1k-10k candidate.
+  verified: Verified both supplied source SHA-256 hashes and retained the gate result in .agentera/verification/shipped-default-evidence-gate-20260819.md; SHA-256 c9a71ce6dffad4a819a0f025e304f0f1893b6aaa3742bd4f4236444f4531b83c. Git status before and after showed no new product configuration, route/profile/default, code, or live-database changes; only the verification artifact and this typed progress record were added by this task.
+  next: Before any default proposal, require a future fully elapsed post-deployment interval with authoritative continuity and closure evidence; if continuity-qualified evidence materially disagrees with historical evidence, recommend no shipped-default change.
+  publication_order: 112

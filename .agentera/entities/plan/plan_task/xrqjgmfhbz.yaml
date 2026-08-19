@@ -1,0 +1,25 @@
+id: xrqjgmfhbz
+artifact: plan
+record:
+  name: Synchronize the experiment outcome
+  depends_on:
+    - qrgivncvfx
+    - wafvcmtqof
+    - mkrwuoptqa
+  status: complete
+  acceptance:
+    - GIVEN the comparison passed WHEN state is synchronized THEN the experiment TODO resolves to one bounded prospective result with its retained evidence.
+    - GIVEN diagnosis or comparison selected no change WHEN state is synchronized THEN the experiment TODO resolves with the explicit no-change reason and evidence.
+    - GIVEN the experiment closes WHEN findings are summarized THEN historical descriptive selection, prospective experiment evidence, and future continuity-qualified default evidence remain separate claim classes.
+    - GIVEN all plan work is evaluated WHEN closeout completes THEN plan, progress, and TODO state agree, shipped defaults remain unchanged, and no provider-internal or continuity claim is made.
+  plan: vldwxfscik
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: synchronize-experiment-outcome-1
+      source: audit:ses_fe630647cffeC7hgmTj2k7I1UA
+      recorded_at: 2026-08-19 13:39
+      writer_command: agentera state plan record-evaluation

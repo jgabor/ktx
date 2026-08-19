@@ -1,0 +1,23 @@
+id: wafvcmtqof
+artifact: plan
+record:
+  name: Apply one evidence-backed intervention
+  depends_on:
+    - qrgivncvfx
+  status: complete
+  acceptance:
+    - GIVEN diagnosis proves a route miss identifiable by supported metadata WHEN an intervention is applied THEN exactly one bounded route correction is introduced.
+    - GIVEN routing is not the supported cause but controlled cases show a recurring safe reduction WHEN an intervention is applied THEN exactly one bounded transform change is introduced.
+    - GIVEN neither intervention branch is supported WHEN this task closes THEN behavior remains unchanged and the no-change outcome is retained.
+    - GIVEN behavior changes WHEN focused coverage is evaluated THEN each changed behavior has at least one passing and one rejecting case and preserves errors, exact occurrence counts, and recovery.
+  plan: vldwxfscik
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: no-change-intervention-1
+      source: audit:ses_fe638d7eeffeER7ZhooWwAN70W
+      recorded_at: 2026-08-19 13:29
+      writer_command: agentera state plan record-evaluation

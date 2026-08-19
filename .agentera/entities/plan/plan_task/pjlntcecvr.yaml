@@ -4,9 +4,22 @@ record:
   name: Rank residual delivery and choose an outcome
   depends_on:
     - mivdseapfu
-  status: pending
+  status: superseded
   acceptance:
-    - GIVEN validated evidence WHEN target tools are analyzed THEN raw-delivered read, bash, and grep groups are ranked by delivered estimate across the declared dimensions.
+    - GIVEN validated historical evidence WHEN target tools are analyzed THEN raw-delivered read, bash, and grep groups are ranked by delivered estimate across the declared dimensions.
     - GIVEN omitted groups or coverage gaps could alter the ranking WHEN candidate eligibility is assessed THEN no candidate is selected and the insufficiency is recorded.
-    - GIVEN evidence is adequate WHEN the study concludes THEN it selects at most one subgroup with a quantitative rationale or records an evidence-backed no-candidate outcome.
+    - GIVEN evidence is adequate WHEN the study concludes THEN it selects at most one bounded experiment candidate or an evidence-backed no-candidate outcome while continuity remains unknown and defaults remain unchanged.
   plan: mfvqyhmoki
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Retained ranking lacks profile, route, normalized command/subcommand, output-size band, call count, and raw-estimate rows required for a reproducible bounded subgroup.
+    provenance:
+      attempt_id: audit-ranking-2
+      source: audit:ses_fe6bd43dcffeyA3sQCPeTF3HEj
+      recorded_at: 2026-08-19 11:05
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - fehyupijgh
+  superseded_reason: Replaced by the evaluated multidimensional ranking after retry exhaustion.

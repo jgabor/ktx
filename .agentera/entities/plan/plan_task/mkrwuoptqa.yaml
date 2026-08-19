@@ -1,0 +1,24 @@
+id: mkrwuoptqa
+artifact: plan
+record:
+  name: Compare baseline and candidate
+  depends_on:
+    - wafvcmtqof
+  status: complete
+  acceptance:
+    - GIVEN an intervention exists WHEN the controlled comparison runs THEN baseline and candidate are paired across head, middle, tail, structured, and failure cases in isolated disposable state.
+    - GIVEN paired results WHEN correctness is evaluated THEN task outcomes, errors, exact occurrence counts, and lossy-output recovery are unchanged.
+    - GIVEN recovery cues and runtime costs are included WHEN savings are calculated THEN retained evidence shows positive net savings not erased by additional tool calls or pipeline latency.
+    - GIVEN any correctness or net-savings gate fails WHEN the comparison closes THEN the intervention is rejected and no candidate behavior remains selected.
+    - GIVEN task 2 retained a no-change outcome WHEN comparison is evaluated THEN the absence of a candidate is recorded without manufacturing benchmark evidence.
+  plan: vldwxfscik
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: no-candidate-comparison-1
+      source: audit:ses_fe6359942ffe9cVJg5gIjt77AG
+      recorded_at: 2026-08-19 13:33
+      writer_command: agentera state plan record-evaluation

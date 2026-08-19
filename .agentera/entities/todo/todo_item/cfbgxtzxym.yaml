@@ -2,8 +2,7 @@ id: cfbgxtzxym
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Targeted residual-delivery experiment** — Change one candidate subgroup selected by the representative study. Fix routing when route misses dominate; add or alter a transform only when retained examples show a recurring safe opportunity. When opportunities are comparable, prefer a command-specific `bash` or `grep` route correction over broad `read` truncation. Cover head, middle, tail, structured, and failure examples, then run a controlled baseline/candidate comparison. Require unchanged task correctness, preserved errors and exact occurrence counts, working recovery for lossy output, positive net savings after any recovery cue, and no savings erased by tool-call inflation or pipeline latency. Do not alter the existing `default`, `search`, or `git-diff` profiles without subgroup-specific evidence. → [Pipeline](ARCHITECTURE.md#pipeline) · [Benchmark](ARCHITECTURE.md#benchmark)"
+  status: resolved
   readiness:
     capability: optimize
     reason: Test the single candidate selected by the representative residual-delivery study.
@@ -18,7 +17,21 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Targeted residual-delivery experiment** — Change one candidate subgroup selected by the representative study. Fix routing when route misses dominate; add or alter a transform only when retained examples show a recurring safe opportunity. When opportunities are comparable, prefer a command-specific `bash` or `grep` route correction over broad `read` truncation. Cover head, middle, tail, structured, and failure examples, then run a controlled baseline/candidate comparison. Require unchanged task correctness, preserved errors and exact occurrence counts, working recovery for lossy output, positive net savings after any recovery cue, and no savings erased by tool-call inflation or pipeline latency. Do not alter the existing `default`, `search`, or `git-diff` profiles without subgroup-specific evidence. → [Pipeline](ARCHITECTURE.md#pipeline) · [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[experiment] **Targeted residual-delivery experiment** — Audited no-change/no-candidate outcome for `read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k`: supported metadata routed a generated case, but neither safe precise subgroup routing nor recurring safe transform reduction was established. No intervention or candidate was selected; no comparison, benchmark, metrics, prospective improvement, default change, provider-internal claim, or collection-continuity claim. Historical descriptive selection, this prospective no-change cycle, and future continuity-qualified default evidence remain separate claim classes. Retained evidence: `targeted-residual-final-outcome-20260819.md` (SHA-256 `06a22433f51069678f8a5a855f7bacbc2433370fd0b0b7800443ccccb24d89c9`)."
+      status: resolved
+      order: 10
       severity: normal
-      status: open
-      order: 2
+  kind: experiment
+  requirements:
+    - "Candidate: read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k."
+    - "Evidence class: historical descriptive only; this identifies the experiment subgroup but does not establish collection continuity or support a shipped-default change."
+    - Shipped defaults remain unchanged; any future default proposal requires continuity-qualified post-deployment evidence.
+  acceptance:
+    []
+  release_blocker: false
+  title: "**Targeted residual-delivery experiment** — Audited no-change/no-candidate outcome for `read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k`: supported metadata routed a generated case, but neither safe precise subgroup routing nor recurring safe transform reduction was established. No intervention or candidate was selected; no comparison, benchmark, metrics, prospective improvement, default change, provider-internal claim, or collection-continuity claim. Historical descriptive selection, this prospective no-change cycle, and future continuity-qualified default evidence remain separate claim classes. Retained evidence: `targeted-residual-final-outcome-20260819.md` (SHA-256 `06a22433f51069678f8a5a855f7bacbc2433370fd0b0b7800443ccccb24d89c9`)."
+  target_version: null
+  lifecycle:
+    operation: resolve
+    reason: "Audited no-change/no-candidate outcome: supported metadata routed a generated case, but neither safe precise subgroup routing nor recurring safe transform reduction was established. No intervention or candidate was selected; no comparison, benchmark, metrics, prospective improvement, default change, provider-internal claim, or collection-continuity claim. Retained outcome: targeted-residual-final-outcome-20260819.md (SHA-256 06a22433f51069678f8a5a855f7bacbc2433370fd0b0b7800443ccccb24d89c9)."
+    date: 2026-08-19

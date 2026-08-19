@@ -2,8 +2,8 @@ id: tklctomuvz
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Representative residual-delivery study** — Using only read-only aggregate queries, retain a `ktx stats breakdown --window 72h --format json` result for an interval during which supported ingress was enabled throughout; record the requested bounds, whether collection was continuous, and any known attribution, outcome, latency, or collection gaps. Rank raw-delivered `read`, `bash`, and `grep` groups by disposition, profile, route, normalized command or subcommand, output-size band, call count, and raw and delivered estimates. Analyze a complete seven-day interval before proposing shipped-default changes. Report runtime cache evidence separately with its actual capture scope; do not treat it as tool-delivery evidence. Do not persist new content-derived features before the trust/redaction discussion is resolved. Select at most one evidence-backed subgroup for experimentation; if coverage or signal is insufficient, retain the study and select none. → [Pipeline](ARCHITECTURE.md#pipeline) · [Measurement](ARCHITECTURE.md#measurement)"
+  status: resolved
+  description: "**Representative residual-delivery study** — Create a consistent read-only backup of the live database and migrate only the disposable copy needed by current aggregate queries. Retain breakdown results for one fixed, fully elapsed historical 72-hour interval and one fixed seven-day interval; report collection continuity as unknown and use historical evidence only to select at most one bounded experiment candidate. Rank raw-delivered `read`, `bash`, and `grep` groups by disposition, profile, route, normalized command or subcommand, output-size band, call count, and raw and delivered estimates. Keep runtime cache evidence separate with its actual capture scope. Before proposing shipped-default changes, require a fully elapsed post-deployment interval with authoritative continuity and closure evidence. Do not persist new content-derived features before the trust/redaction discussion is resolved; if coverage or signal is insufficient, retain the study and select none. → [Pipeline](ARCHITECTURE.md#pipeline) · [Measurement](ARCHITECTURE.md#measurement)"
   readiness:
     capability: optimize
     reason: Select one evidence-backed residual-delivery candidate from a representative live interval.
@@ -20,7 +20,11 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Representative residual-delivery study** — Using only read-only aggregate queries, retain a `ktx stats breakdown --window 72h --format json` result for an interval during which supported ingress was enabled throughout; record the requested bounds, whether collection was continuous, and any known attribution, outcome, latency, or collection gaps. Rank raw-delivered `read`, `bash`, and `grep` groups by disposition, profile, route, normalized command or subcommand, output-size band, call count, and raw and delivered estimates. Analyze a complete seven-day interval before proposing shipped-default changes. Report runtime cache evidence separately with its actual capture scope; do not treat it as tool-delivery evidence. Do not persist new content-derived features before the trust/redaction discussion is resolved. Select at most one evidence-backed subgroup for experimentation; if coverage or signal is insufficient, retain the study and select none. → [Pipeline](ARCHITECTURE.md#pipeline) · [Measurement](ARCHITECTURE.md#measurement)"
+      description: "**Representative residual-delivery study** — Create a consistent read-only backup of the live database and migrate only the disposable copy needed by current aggregate queries. Retain breakdown results for one fixed, fully elapsed historical 72-hour interval and one fixed seven-day interval; report collection continuity as unknown and use historical evidence only to select at most one bounded experiment candidate. Rank raw-delivered `read`, `bash`, and `grep` groups by disposition, profile, route, normalized command or subcommand, output-size band, call count, and raw and delivered estimates. Keep runtime cache evidence separate with its actual capture scope. Before proposing shipped-default changes, require a fully elapsed post-deployment interval with authoritative continuity and closure evidence. Do not persist new content-derived features before the trust/redaction discussion is resolved; if coverage or signal is insufficient, retain the study and select none. → [Pipeline](ARCHITECTURE.md#pipeline) · [Measurement](ARCHITECTURE.md#measurement)"
+      status: resolved
+      order: 9
       severity: normal
-      status: open
-      order: 17
+  lifecycle:
+    operation: resolve
+    reason: Study retained historical aggregates, selected the multidimensional read/default_fallback 1k-10k candidate after audit PASS, and retained the shipped-default gate after audit PASS; evidence is historical descriptive only, continuity remains unproven, and defaults remain unchanged.
+    date: 2026-08-19

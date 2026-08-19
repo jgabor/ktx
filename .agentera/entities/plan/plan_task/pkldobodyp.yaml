@@ -1,0 +1,26 @@
+id: pkldobodyp
+artifact: plan
+record:
+  plan: mfvqyhmoki
+  name: Require ingress closure evidence
+  status: complete
+  depends_on:
+    - elyczfhleg
+  acceptance:
+    - GIVEN an ingress has started without authoritative stopped or interrupted closure evidence WHEN a requested window is evaluated THEN it is not continuous and reports a missing_closure gap through the requested end.
+    - GIVEN authoritative closure evidence spans the requested end and no other gap exists WHEN continuity is evaluated THEN the requested span may qualify.
+    - GIVEN lifecycle observations fall outside the requested span WHEN gaps are reported THEN every gap is clipped to that span.
+    - GIVEN the behavior is documented or diagnosed WHEN naming the requirement THEN it uses closure evidence and missing_closure rather than terminal terminology.
+  evidence:
+    - Focused regressions cover missing closure, normal closure, interrupted closure, and pre-window restart behavior.
+    - Isolated mage check passes with KTX_DB unset and disposable HOME and XDG directories.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-seedbqonxp-1
+      source: audit:ses_fe979f8b5ffeztQZXos4o6Fbvr
+      recorded_at: 2026-08-19 08:57
+      writer_command: agentera state plan record-evaluation

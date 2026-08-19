@@ -1,0 +1,12 @@
+id: pjlntcecvr
+artifact: plan
+record:
+  name: Rank residual delivery and choose an outcome
+  depends_on:
+    - mivdseapfu
+  status: pending
+  acceptance:
+    - GIVEN validated evidence WHEN target tools are analyzed THEN raw-delivered read, bash, and grep groups are ranked by delivered estimate across the declared dimensions.
+    - GIVEN omitted groups or coverage gaps could alter the ranking WHEN candidate eligibility is assessed THEN no candidate is selected and the insufficiency is recorded.
+    - GIVEN evidence is adequate WHEN the study concludes THEN it selects at most one subgroup with a quantitative rationale or records an evidence-backed no-candidate outcome.
+  plan: mfvqyhmoki

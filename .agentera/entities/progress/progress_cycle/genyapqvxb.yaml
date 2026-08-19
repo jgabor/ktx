@@ -1,0 +1,16 @@
+id: genyapqvxb
+artifact: progress
+record:
+  timestamp: 2026-08-18 21:38
+  type: chore
+  phase: audit
+  what: Qualified the operator evidence source and rejected the candidate 72-hour window as incomplete.
+  context:
+    intent: Select the exact live database boundary and determine whether a 72-hour study window has authoritative continuity evidence.
+    constraints: Read-only operator study only; no migration, write, collection, initialization, content-derived field, or plan-task transition.
+    unknowns: No retained supported-ingress enablement or interruption evidence covers the candidate interval.
+    scope: Database qualification and continuity assessment only; no aggregate capture or ranking.
+  discovered: "The resolved target is ~/.local/share/ktx/ktx.db. Candidate interval: 2026-08-15T19:37:33Z through 2026-08-18T19:37:33Z. The documented retained data model provides tool-call and session evidence; runtime event intervals are benchmark collector evidence, not a live supported-ingress continuity ledger. Therefore activity or aggregate rows cannot establish continuous collection."
+  verified: "Read-only commands: `./build/ktx db path` resolved ~/.local/share/ktx/ktx.db; `./build/ktx doctor --format json` reported that existing database opened read-only and uses supported schema 11; `./build/ktx db report --format json` completed as existing-artifact inspection; `date -u --iso-8601=seconds` anchored the candidate end at 2026-08-18T19:37:33+00:00. `docs/database-safety.md` classifies db path as DB-free and doctor/db report as non-migrating inspection. No command observed a retained live ingress enablement, disablement, or gap record for the interval."
+  next: Reject this interval; do not run aggregate capture for it. Recovery requires a future complete 72-hour interval with an authoritative retained, database-targeted ingress-continuity record covering every supported ingress from start through end and explicitly recording any interruption; only then run the read-only breakdown query.
+  publication_order: 105

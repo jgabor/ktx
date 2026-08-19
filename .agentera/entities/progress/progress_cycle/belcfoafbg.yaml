@@ -1,0 +1,16 @@
+id: belcfoafbg
+artifact: progress
+record:
+  timestamp: 2026-08-18 22:38
+  type: fix
+  phase: build
+  what: Corrected the failed ingress-continuity audit without closing the task.
+  context:
+    intent: Make future wrapper-owned continuity evidence collectible and keep study qualification fail closed.
+    constraints: Metadata only; no activity-derived continuity; no historical qualification; read-only evaluation remains non-mutating.
+    unknowns: No qualifying future 72-hour interval has elapsed yet.
+    scope: Requested-span clamping, wrapper run lifecycle wiring, schema documentation, and isolated verification.
+  discovered: The earlier implementation exposed database APIs only and let a pre-window stop/restart gap escape into later windows. The wrapper-owned run process is the authoritative production lifecycle boundary; hook and write activity cannot establish continuity.
+  verified: Focused database continuity tests and wrapper production-path tests passed, including a non-zero stop/restart wholly before the requested window, normal started/stopped retention, and interrupted startup retention. The rebuilt local CLI recorded a run-only interval and started/stopped observations. Isolated mage check passed with forbidden database accesses equal to zero. A disposable schema-12 database migrated to schema 13 with both continuity tables empty, confirming no backfill.
+  next: Orchestration must re-evaluate before changing task status. Historical evidence remains unknown; hook and write activity remains unqualified; a fully elapsed future wrapper interval is still required.
+  publication_order: 107

@@ -1,0 +1,16 @@
+id: wommmxgtcv
+artifact: progress
+record:
+  timestamp: 2026-08-18 22:17
+  type: feat
+  phase: build
+  what: Added bounded supported-ingress continuity evidence and fail-closed study-window qualification.
+  context:
+    intent: Retain metadata-only continuity evidence for future live residual-delivery study windows.
+    constraints: Supported ingresses only; no content-derived retention; forward-only schema migration; read-only evaluation.
+    unknowns: Historical intervals remain unqualified because no evidence is backfilled.
+    scope: Collection interval scope, ingress lifecycle observations, continuity gap evaluation, schema migration, and focused verification.
+  discovered: The checkout already supported schema 12 despite earlier task context naming schema 11, so the additive migration advances the observed repository schema from 12 to 13.
+  verified: Scope retention records the SQLite-resolved main database target and normalized selected set limited to run, write, and hook. Lifecycle rows accept only ingress identity, started/stopped/interrupted state, RFC3339Nano time, and ingress_process authority. Focused tests passed for uninterrupted coverage, interruption, missing evidence, conflicting starts, zero-gap restart, rejected caller authority, pre-deployment unknown spans, and read-only evaluation without file changes. Future or pre-deployment windows fail with explicit gaps. An explicitly seeded disposable schema-12 database migrated through local ./build/ktx to schema 13 and contained both new tables. Isolated mage check passed with KTX_DB unset and fresh HOME plus all XDG directories; its access audit reported forbidden=0.
+  next: Orchestration should evaluate this implementation before changing the plan task status; historical study evidence remains unknown and a future fully elapsed instrumented interval is required.
+  publication_order: 106

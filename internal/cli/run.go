@@ -276,6 +276,45 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 		return ExitInternal
 	}
 
+	continuityStarted := time.Now().UTC()
+	interval, err := db.OpenCollectionInterval([]string{"run"}, continuityStarted.Format(time.RFC3339Nano))
+	if err != nil {
+		printError(stderr, internalError("ktx run: open continuity interval: %v", err), opts.Format)
+		return ExitInternal
+	}
+	observation := dbpkg.IngressObservation{
+		IntervalID: interval.ID,
+		Ingress:    "run",
+		InstanceID: sessionID,
+		Authority:  dbpkg.IngressProcessAuthority,
+	}
+	observation.State = "started"
+	observation.ObservedAt = continuityStarted.Format(time.RFC3339Nano)
+	if err := db.RetainIngressObservation(observation); err != nil {
+		printError(stderr, internalError("ktx run: retain continuity start: %v", err), opts.Format)
+		return ExitInternal
+	}
+	continuityFinished := false
+	finishContinuity := func(state string, ended time.Time) {
+		if continuityFinished {
+			return
+		}
+		continuityFinished = true
+		observation.State = state
+		observation.ObservedAt = ended.Format(time.RFC3339Nano)
+		if err := db.RetainIngressObservation(observation); err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: retain run continuity %s: %v\n", state, err)
+			return
+		}
+		result, err := db.EvaluateContinuity(interval.ID, continuityStarted, ended)
+		if err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: evaluate run continuity: %v\n", err)
+		} else if state == "stopped" && !result.Continuous {
+			fmt.Fprintln(stderr, "ktx: warning: run continuity closed with a coverage gap")
+		}
+	}
+	defer func() { finishContinuity("interrupted", time.Now().UTC()) }()
+
 	// Spawn the child with KTX_SESSION_ID exported. The child
 	// inherits the wrapper's stdin and stderr (the agent can read input
 	// and write diagnostics directly); only stdout is intercepted for
@@ -340,7 +379,13 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	// (wrapper closes immediately on child process exit). Close failure
 	// is logged but does not fail the user's command — the agent ran,
 	// and the user gets its exit code.
-	endedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	continuityEnded := time.Now().UTC()
+	continuityState := "stopped"
+	if ctx.Err() != nil {
+		continuityState = "interrupted"
+	}
+	finishContinuity(continuityState, continuityEnded)
+	endedAt := continuityEnded.Format(time.RFC3339Nano)
 	if err := db.CloseSession(sessionID, endedAt); err != nil {
 		fmt.Fprintf(stderr, "ktx: warning: close session %q: %v\n", sessionID, err)
 	}

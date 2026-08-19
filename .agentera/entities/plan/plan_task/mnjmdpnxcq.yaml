@@ -1,0 +1,29 @@
+id: mnjmdpnxcq
+artifact: plan
+record:
+  plan: mfvqyhmoki
+  name: Retain bounded ingress-continuity evidence
+  status: superseded
+  depends_on:
+    - elyczfhleg
+  acceptance:
+    - GIVEN a collection interval is opened WHEN its scope is recorded THEN the exact database target and selected supported-ingress set are retained.
+    - GIVEN an ingress starts, stops, restarts, or is interrupted WHEN continuity evidence is retained THEN it contains only authoritative identity, state, time, and authority metadata.
+    - GIVEN continuity is evaluated WHEN evidence is missing, conflicting, or interrupted THEN the affected span is reported as an explicit gap rather than continuous coverage.
+    - GIVEN instrumentation is deployed WHEN a study window is qualified THEN only a fully elapsed post-deployment interval may pass, historical evidence remains unknown, and read-only queries do not migrate or write.
+  evidence:
+    - Focused pass and fail checks cover uninterrupted, interrupted, missing, conflicting, and restart observations.
+    - Repository verification runs with KTX_DB unset and disposable HOME and XDG directories.
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: A started interval without authoritative stopped/interrupted terminal evidence is treated as continuously active and can falsely qualify post-crash windows.
+    provenance:
+      attempt_id: audit-belcfoafbg-2
+      source: audit:ses_fe979f8b5ffeztQZXos4o6Fbvr
+      recorded_at: 2026-08-18 22:46
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - pkldobodyp
+  superseded_reason: Replaced by the evaluated closure-evidence correction after retry exhaustion.

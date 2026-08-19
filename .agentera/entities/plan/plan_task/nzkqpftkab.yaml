@@ -1,0 +1,16 @@
+id: nzkqpftkab
+artifact: plan
+record:
+  name: Synchronize the study outcome
+  depends_on:
+    - elyczfhleg
+    - mivdseapfu
+    - pjlntcecvr
+    - otqicdwrwn
+  status: pending
+  acceptance:
+    - GIVEN one candidate is selected WHEN project state is synchronized THEN the study outcome is recorded and the targeted experiment becomes eligible without being executed.
+    - GIVEN evidence is insufficient WHEN state is synchronized THEN the study remains open with an exact recovery condition and downstream experimentation remains blocked.
+    - GIVEN sufficient evidence shows no safe opportunity WHEN state is synchronized THEN the study closes and unnecessary downstream experimentation is explicitly blocked or superseded.
+    - GIVEN all plan work is evaluated WHEN closeout completes THEN plan, progress, and TODO state agree with retained evidence and make no unverified completion claim.
+  plan: mfvqyhmoki

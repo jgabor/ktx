@@ -1,0 +1,12 @@
+id: otqicdwrwn
+artifact: plan
+record:
+  name: Apply the shipped-default evidence gate
+  depends_on:
+    - pjlntcecvr
+  status: pending
+  acceptance:
+    - GIVEN no shipped-default proposal follows from the study WHEN the gate is evaluated THEN defaults remain unchanged and seven-day collection is not presented as completed.
+    - GIVEN a shipped-default proposal is considered WHEN evidence is reviewed THEN a complete seven-day interval passes the same continuity, coverage, and reconciliation checks first.
+    - GIVEN the 72-hour and seven-day evidence materially disagree WHEN a recommendation is evaluated THEN no shipped-default change is recommended.
+  plan: mfvqyhmoki

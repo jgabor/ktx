@@ -1,0 +1,14 @@
+id: mivdseapfu
+artifact: plan
+record:
+  name: Capture and validate 72-hour aggregates
+  depends_on:
+    - elyczfhleg
+    - mnjmdpnxcq
+  status: pending
+  acceptance:
+    - GIVEN a qualified interval WHEN aggregate evidence is captured THEN its requested bounds, generation time, call totals, and raw and delivered estimates are retained.
+    - GIVEN detailed and omitted groups WHEN the report is validated THEN calls, artifact counts, and raw and delivered estimates reconcile with the complete aggregate.
+    - GIVEN outcome, attribution, or latency coverage is partial or unavailable WHEN reported THEN the gap remains explicit and is never interpreted as zero.
+    - GIVEN runtime cache evidence is included WHEN the report is assembled THEN it has a separate actual capture scope and no tool-delivery or provider-internal claim.
+  plan: mfvqyhmoki

@@ -6,10 +6,12 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jgabor/ktx/internal/cli/testutil"
 	dbpkg "github.com/jgabor/ktx/internal/db"
@@ -68,6 +70,48 @@ func TestExecuteRun_RunCmdInjection(t *testing.T) {
 		if sessions[0].Agent != "fake-agent" || sessions[0].AgentAttributionAuthority != dbpkg.AgentAttributionIdentified {
 			t.Fatalf("wrapper attribution = %#v", sessions[0])
 		}
+		var intervalID, target, ingresses, openedAt string
+		if err := d.DB().QueryRow(`SELECT id,database_target,supported_ingresses,opened_at FROM collection_intervals`).Scan(&intervalID, &target, &ingresses, &openedAt); err != nil {
+			t.Fatal(err)
+		}
+		if target != filepath.Clean(os.Getenv("KTX_DB")) || ingresses != `["run"]` {
+			t.Fatalf("run interval target=%q ingresses=%s", target, ingresses)
+		}
+		rows, err := d.DB().Query(`SELECT instance_id,state,observed_at,authority FROM ingress_continuity WHERE interval_id=? ORDER BY rowid`, intervalID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var states, observedAt []string
+		for rows.Next() {
+			var instance, state, at, authority string
+			if err := rows.Scan(&instance, &state, &at, &authority); err != nil {
+				t.Fatal(err)
+			}
+			if instance != sessions[0].ID || authority != dbpkg.IngressProcessAuthority {
+				t.Fatalf("run continuity instance=%q authority=%q", instance, authority)
+			}
+			states = append(states, state)
+			observedAt = append(observedAt, at)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(states, []string{"started", "stopped"}) {
+			t.Fatalf("run continuity states = %#v", states)
+		}
+		from, err := time.Parse(time.RFC3339Nano, openedAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		to, err := time.Parse(time.RFC3339Nano, observedAt[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := d.EvaluateContinuity(intervalID, from, to)
+		if err != nil || !result.Continuous || len(result.Gaps) != 0 {
+			t.Fatalf("run continuity = %+v, %v", result, err)
+		}
 	})
 
 	t.Run("production runCmd is exec.CommandContext by default", func(t *testing.T) {
@@ -87,6 +131,45 @@ func TestExecuteRun_RunCmdInjection(t *testing.T) {
 			t.Fatalf("default runCmd = %s, want os/exec.CommandContext", got)
 		}
 	})
+}
+
+func TestExecuteRunRetainsInterruptedStartup(t *testing.T) {
+	testutil.WithTempXDG(t)
+	missing := filepath.Join(t.TempDir(), "missing-agent")
+	origRunCmd := runCmd
+	t.Cleanup(func() { runCmd = origRunCmd })
+	runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, missing)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := executeRun("fake-agent", nil, runOptions{Format: FormatJSON}, &stdout, &stderr); code != ExitUsage {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitUsage, stderr.String())
+	}
+	d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	rows, err := d.DB().Query(`SELECT state FROM ingress_continuity ORDER BY rowid`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var states []string
+	for rows.Next() {
+		var state string
+		if err := rows.Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		states = append(states, state)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(states, []string{"started", "interrupted"}) {
+		t.Fatalf("run continuity states = %#v", states)
+	}
 }
 
 func TestWrapperRetainsModelStepsSeparatelyWithFirstEvidenceAuthority(t *testing.T) {

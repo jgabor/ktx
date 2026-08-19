@@ -1,0 +1,22 @@
+id: elyczfhleg
+artifact: plan
+record:
+  name: Qualify the evidence source and window
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN study execution is authorized WHEN the source is selected THEN the exact database and read-only boundary are recorded without migration or write activity.
+    - GIVEN a candidate 72-hour interval WHEN continuity is assessed THEN the basis for supported-ingress coverage and every known gap are recorded.
+    - GIVEN collection continuity cannot be established WHEN the interval is reviewed THEN it is rejected as incomplete and an exact recovery condition is recorded.
+  plan: mfvqyhmoki
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-genyapqvxb-1
+      source: audit:ses_fe99d4c42ffe4IhfEJ5kY215FQ
+      recorded_at: 2026-08-18 21:42
+      writer_command: agentera state plan record-evaluation

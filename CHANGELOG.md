@@ -4,6 +4,7 @@
 
 ### Added
 
+- Schema 13 retains metadata-only `run` ingress collection scope and lifecycle closure evidence. Continuity qualification reports explicit gaps for missing closure, interruption, conflict, pre-deployment history, and unelapsed windows; read-only evaluation does not migrate or backfill evidence.
 - `ktx stats summary` schema 10 and `ktx stats breakdown` schema 4 report trusted-ingress agent-attribution coverage over the exact output-bearing call population; historical and unverified calls remain unknown, and empty coverage is null.
 - New wrapper sessions record the launched executable as identified ownership; complete recognized OpenCode and Codex hooks can identify reused sessions, while compatibility input remains unknown and the first trusted identity wins.
 - Schema 12 records session attribution authority separately from the existing agent label; historical labels remain readable and migrate as unknown.

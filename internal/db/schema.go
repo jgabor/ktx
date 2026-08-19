@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 12
+const schemaVersion = 13
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -122,6 +122,23 @@ const createSessionTelemetryTable = `CREATE TABLE IF NOT EXISTS session_telemetr
 const createSessionTelemetryOrderIndex = `CREATE INDEX IF NOT EXISTS session_telemetry_session_order_idx
 	ON session_telemetry(session_id, ordinal, runtime, source_session_id, message_id, part_id)`
 
+const createCollectionIntervalsTable = `CREATE TABLE IF NOT EXISTS collection_intervals (
+		id TEXT PRIMARY KEY,
+		database_target TEXT NOT NULL,
+		supported_ingresses TEXT NOT NULL,
+		opened_at TEXT NOT NULL
+	)`
+
+const createIngressContinuityTable = `CREATE TABLE IF NOT EXISTS ingress_continuity (
+		interval_id TEXT NOT NULL REFERENCES collection_intervals(id),
+		ingress TEXT NOT NULL,
+		instance_id TEXT NOT NULL,
+		state TEXT NOT NULL CHECK (state IN ('started','stopped','interrupted')),
+		observed_at TEXT NOT NULL,
+		authority TEXT NOT NULL CHECK (authority = 'ingress_process'),
+		PRIMARY KEY (interval_id, ingress, instance_id, state, observed_at)
+	)`
+
 // schemaStatements creates the current database schema. The statements remain
 // idempotent so stale and partially migrated databases can be repaired safely.
 //
@@ -172,6 +189,8 @@ var schemaStatements = []string{
 		runtime      TEXT,
 		producer     TEXT
 	)`,
+	createCollectionIntervalsTable,
+	createIngressContinuityTable,
 	`CREATE TABLE IF NOT EXISTS bench_runs (
 		id                  TEXT PRIMARY KEY,
 		agent               TEXT,

@@ -1,0 +1,16 @@
+id: seedbqonxp
+artifact: progress
+record:
+  timestamp: 2026-08-19 08:50
+  type: fix
+  phase: build
+  what: Required authoritative ingress closure evidence before a requested continuity span can qualify.
+  context:
+    intent: Prevent an unclosed started observation from qualifying a post-crash window.
+    constraints: Preserve metadata-only retention, no-backfill history, read-only evaluation, run-only production wiring, and requested-window clipping.
+    unknowns: Future study windows still require separately retained authoritative lifecycle evidence.
+    scope: Continuity evaluation, focused regressions, requirement terminology, and isolated verification.
+  discovered: A started observation without stopped or interrupted closure evidence had been treated as active indefinitely.
+  verified: Focused database regressions passed for missing closure, normal stopped closure, interrupted closure, and pre-window restart clipping. Focused wrapper tests passed. A fresh isolated mage build and mage check passed with KTX_DB unset, disposable HOME and all XDG directories, forbidden database accesses equal to zero, and 0 lint issues.
+  next: Coordinator should evaluate the active replacement task; do not qualify historical or future study windows without closure evidence spanning the requested end.
+  publication_order: 108

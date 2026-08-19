@@ -1,0 +1,43 @@
+id: mfvqyhmoki
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-18
+    status: open
+    reviewed: 2026-08-18
+    critic_issues: 3 found, 3 addressed, 0 dismissed
+    revised: Required evidenced collection continuity, a fail-closed omitted-group gate, and a conditional seven-day default-change gate.
+    title: "Plan: Representative residual-delivery study"
+  what: Produce a retained, aggregate-safe live evidence study that qualifies a 72-hour interval, ranks residual delivery, and selects at most one candidate without changing shipped defaults.
+  why: Choose context-reduction work from measured residual delivered volume rather than intuition while preserving evidence, privacy, and default-change safety boundaries.
+  constraints: Use explicitly authorized read-only database access; record collection gaps; keep cache evidence separate; make no provider-internal cache claims; persist no new content-derived features before the trust/redaction decision; do not change routes, profiles, transforms, or defaults.
+  overall_acceptance: GIVEN an authorized evidence source WHEN the study completes THEN it retains a qualified and reconciled aggregate report, states all coverage limits, selects at most one evidence-backed candidate or an explicit no-candidate outcome, and makes no shipped-default recommendation without a qualifying seven-day interval.
+  scope:
+    included:
+      - Authorized read-only aggregate collection
+      - Qualification and analysis of one 72-hour interval
+      - Separate runtime-cache evidence scope
+      - At-most-one candidate or explicit no-candidate outcome
+      - Conditional seven-day default-change gate
+      - Final TODO, progress, and plan synchronization
+    excluded:
+      - Route, profile, transform, or parser changes
+      - Execution of the targeted residual-delivery experiment
+      - Applying shipped-default changes
+      - New content-derived persistence
+      - Provider-internal cache conclusions
+    deferred:
+      - Targeted residual-delivery experiment
+      - Post-change live validation
+  design: Qualify the evidence source and collection continuity before capture, validate aggregate reconciliation and coverage before ranking, fail closed when bounded output can hide the answer, apply the seven-day gate only to default-change recommendations, then synchronize project state according to the candidate or no-candidate outcome.
+  unknowns:
+    - question: Does an authorized source contain a continuous 72-hour interval with supported ingress enabled throughout?
+      affects_task: 2
+      resolve_by: Task 1 records the continuity basis and gaps; task 2 waits for a qualifying interval if continuity is unavailable.
+    - question: Does the bounded breakdown expose every relevant target group outside the undifferentiated other bucket?
+      affects_task: 3
+      resolve_by: Task 2 reconciles detailed and omitted groups; task 3 selects no candidate when omissions could change the ranking.
+    - question: Will the study produce any basis for proposing a shipped-default change?
+      affects_task: 4
+      resolve_by: Task 3 records the candidate outcome; task 4 requires seven-day evidence only before a default-change recommendation.

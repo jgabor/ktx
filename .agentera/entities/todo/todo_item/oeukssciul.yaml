@@ -5,19 +5,19 @@ record:
   status: open
   readiness:
     capability: optimize
-    reason: Repository prerequisites now support schema 14 explicit collection, recovery linkage, runtime timing, and frozen-window reporting; operator deployment and live requalification remain pending.
+    reason: The installed operator binary now supports schema 14; ambient database migration, adapter refresh, runtime restart, collection start, and live requalification remain pending.
     dependencies:
       - artifact: todo
         id: edwzszsqjr
     blocked:
-      reason: The installed operator binary and ambient live database remain on schema 11, the generated adapter has not been refreshed, and no backup, migration, configuration, restart, collection, baseline, or rollout is authorized.
-      recovery: Build and verify the schema-14 binary, obtain explicit operator authorization, quiesce writers and retain a database-plus-sidecar backup, deploy and migrate forward, refresh the generated OpenCode adapter, restart under one explicit collection identity, then requalify the frozen report before scheduling either window.
+      reason: The ambient live database remains on schema 11, the generated OpenCode adapter has not been refreshed, and no backup, migration, configuration, restart, collection, baseline, or rollout is authorized.
+      recovery: Obtain explicit operator authorization, quiesce writers and retain a database-plus-sidecar backup, migrate the live database forward with the installed schema-14 binary, refresh the generated OpenCode adapter, restart under one explicit collection identity, then requalify the frozen report before scheduling either window.
     gate:
       state: pending
-      reason: No ambient live effect or exact window is authorized until the schema-14 runtime and adapter are deployed and the read-only preflight is requalified.
-      recovery: Complete the authorized deployment sequence, run the corrected preflight, and retain a qualified report before deriving fixed UTC bounds.
+      reason: No database migration, adapter refresh, runtime restart, collection, or exact window is authorized until the remaining live effects are approved and requalification passes.
+      recovery: Complete the authorized migration and adapter sequence, run the corrected preflight, and retain a qualified report before deriving fixed UTC bounds.
     queue_rank: 8
-    order_reason: Repository instrumentation is ready, but operator deployment and requalification still block every live-validation task.
+    order_reason: The schema-14 binary is installed, but migration, adapter refresh, and requalification still block every live-validation task.
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:

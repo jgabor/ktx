@@ -119,7 +119,17 @@ require schema 14.
 Schema 15 adds nullable nanosecond epoch forms of tool-call and session-telemetry
 timestamps plus indexes used by bounded stats queries. Migration parses valid
 RFC3339 timestamps into the sortable columns and leaves malformed timestamps
-NULL, without changing the retained text or other evidence.
+NULL, without changing the retained text or other evidence. Bounded `stats`,
+`stats summary`, and `stats breakdown` windows select on these indexed numeric
+columns while preserving the existing inclusive time boundary and malformed
+timestamp exclusion behavior.
+
+Supported ktx readers and writers coordinate on the physical database file with
+writer-preferred admission. Once a writer is waiting, later supported readers
+wait behind it while existing readers finish. Linux and BSD use separate
+admission and ownership ranges where their lock semantics require it; Windows
+also uses separate ranges. This coordination creates no sidecar or database
+state, and genuinely read-only commands remain read-only.
 
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.

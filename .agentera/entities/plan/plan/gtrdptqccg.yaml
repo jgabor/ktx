@@ -1,0 +1,35 @@
+id: gtrdptqccg
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-20
+    status: open
+    reviewed: 2026-08-20
+    critic_issues: 2 found, 2 addressed, 0 dismissed
+    title: "Plan: Make stats faster and evidence writes reliable"
+  what: Make recent stats queries index-selective and give waiting evidence writers priority over later stats readers, while preserving current database safety, migration, reporting, and failure contracts.
+  why: Stats currently scan historical rows while holding shared database coordination. The retained error log shows exclusive telemetry writers repeatedly reaching the two-second coordinator timeout behind one or more stats readers. Faster bounded reads and writer-preferred admission reduce reporting cost and prevent supported stats traffic from starving evidence collection.
+  constraints: Preserve genuinely read-only queries, forward-only safe migration, physical database identity across aliases, automatic lock release after process exit, the existing two-second timeout, structured database-unavailable results, public stats schemas, textual timestamps, and historical evidence. Use no daemon or new runtime dependency. Development and verification must use disposable application roots and must not access the ambient live database.
+  overall_acceptance: GIVEN a current or compatibly migrated database under periodic stats traffic WHEN recent-window reports and evidence writes run concurrently THEN reports use bounded indexed evidence, retain their existing results, and later stats readers do not prevent a waiting supported writer from completing within the existing availability contract.
+  scope:
+    included:
+      - Sortable numeric time evidence for tool calls and model telemetry
+      - Indexed SQL filtering for summary and breakdown windows
+      - Writer-preferred shared and exclusive database coordination
+      - Compatible migration, focused regression coverage, and contract documentation
+    excluded:
+      - A separate starvation reproduction experiment
+      - SQLite journal-mode changes
+      - Longer availability timeouts
+      - Public CLI or stats-schema changes
+      - A daemon, durable queue, or general lock-service framework
+    deferred:
+      - Changes for indefinitely held foreign SQLite locks
+  design: First make relevant historical and newly written timestamps sortable and range-indexed without changing their public representation. Then make supported coordination admit existing readers, one waiting writer, and later readers in that order. Finally verify their combined behavior and synchronize project state and documentation.
+  unknowns:
+    - question: Can writer-preferred admission preserve physical-file coordination and genuinely read-only behavior on every currently supported locking platform without adding a persistent service?
+      affects_task: 2
+      resolve_by: At the start of task 2, select the smallest process-shared admission mechanism that satisfies both contracts. If none does, stop and re-invoke Plan before weakening either contract.
+  surprises:
+    []

@@ -1,0 +1,14 @@
+id: hvsbajpzuo
+artifact: plan
+record:
+  name: Synchronize contracts and project state
+  depends_on:
+    - aqfmhgjwbd
+    - busxtrsfli
+    - ucuikuwrhf
+  status: in_progress
+  acceptance:
+    - GIVEN implementation and verification are complete WHEN database safety and performance documentation are read THEN they describe indexed stats windows and writer-preferred supported coordination accurately.
+    - GIVEN the completed work WHEN project backlog and plan state are read THEN both implementation outcomes and their verification are current.
+    - GIVEN final repository status WHEN completion is reported THEN only intended changes remain and all required evidence is identified.
+  plan: gtrdptqccg

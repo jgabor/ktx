@@ -5,7 +5,7 @@ record:
   depends_on:
     - aqfmhgjwbd
     - busxtrsfli
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN periodic stats readers and supported telemetry writers WHEN the combined workload runs THEN no writer times out because later stats readers bypass it.
     - GIVEN the same retained evidence and fixed window WHEN old and optimized aggregation results are compared THEN all public values agree.
@@ -13,3 +13,13 @@ record:
     - GIVEN isolated focused checks and the repository-wide check WHEN they complete THEN tests, vetting, linting, and the local build pass without ambient database access.
     - GIVEN ordinary and adverse combined cases WHEN tests run THEN each changed behavior has at least one success case and one bounded failure or exclusion case.
   plan: gtrdptqccg
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-ses-fe006d8acffe
+      source: audit task ses_fe006d8acffedEb5FnO1kx43gi
+      recorded_at: 2026-08-20 18:24
+      writer_command: agentera state plan record-evaluation

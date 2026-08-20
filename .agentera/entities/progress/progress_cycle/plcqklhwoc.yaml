@@ -1,0 +1,16 @@
+id: plcqklhwoc
+artifact: progress
+record:
+  timestamp: 2026-08-20 18:28
+  type: docs
+  phase: build
+  what: Synchronized database safety, critical-path performance, executable backlog, and active plan state for indexed stats windows and writer-preferred coordination.
+  context:
+    intent: Synchronize completed performance and availability outcomes with public contracts and project state.
+    constraints: Preserve unrelated state, use typed Agentera writers, do not change decision satisfaction, and do not access ambient live data.
+    unknowns: BSD ordering was not natively executed; evidence is semantics-backed and compile-checked.
+    scope: Documentation, TODO backlog, active plan status, progress evidence, and final repository characterization only.
+  discovered: Existing contracts covered the schema index and supported writer ordering separately, but the performance contract did not state indexed stats selection and the backlog did not record either completed outcome.
+  verified: mage check passed with tests, vet, lint, local build, KTX_DB unset, and database audit forbidden=0 (6191 attempts). Documentation now states indexed bounded stats selection, preserved timestamp behavior, writer-preferred admission, Linux test coverage, and the BSD native-execution caveat. git diff --check passed. Final status contains only the three pre-existing evaluated task updates, the pre-existing untracked plan and active task entities, three synchronized documentation/backlog files, and this progress cycle.
+  next: Leave hvsbajpzuo in_progress for orchestration evaluation.
+  publication_order: 136

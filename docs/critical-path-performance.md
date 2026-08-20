@@ -148,6 +148,11 @@ final gates cannot produce `retain`.
 Each participant owns only the span below. No participant may claim another
 participant's outcome.
 
+Bounded `stats`, `stats summary`, and `stats breakdown` windows select retained
+RFC3339 evidence through indexed nanosecond epoch columns. Valid timestamps keep
+the existing inclusive boundary behavior, and malformed timestamps remain
+excluded. This changes query selection cost, not the public aggregate values.
+
 | Participant                  | Ownership span                                                                                                                               | Required outcome                                                                                                                                                                                                                                                                                                                                            |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Supported writers            | `write`, `compress`, `hook`, `run`, telemetry recording, and benchmark collection while they create or change ktx evidence.                  | Coordinate each database transaction through the local database file, then commit their own evidence transaction or report unavailability after bounded retries. The operating system releases ownership when a process ends. An accepted source remains durable, and an eligible exact retry does not duplicate that source or its authoritative artifact. |
@@ -197,7 +202,9 @@ admission and ownership; Windows uses separate byte ranges. A waiting writer
 holds admission closed until existing readers finish and it acquires exclusive
 ownership, so later readers cannot pass it. Admission does not create a sidecar
 file or database state, hard-link aliases use the same kernel lock identity,
-and process exit releases abandoned admission and ownership.
+and process exit releases abandoned admission and ownership. Linux ordering is
+verified by deterministic contention tests. BSD behavior is backed by lock
+semantics tests and cross-compilation, not native BSD execution.
 
 ## Hook acceptance
 

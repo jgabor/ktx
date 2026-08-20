@@ -4,7 +4,7 @@ record:
   name: Prefer waiting evidence writers
   depends_on:
     - aqfmhgjwbd
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN active readers and a waiting writer WHEN another stats reader arrives THEN the existing readers finish, the writer runs next, and the later reader waits.
     - GIVEN multiple supported processes or aliases of the same physical database WHEN they coordinate THEN they observe one writer-preferred admission order.
@@ -12,3 +12,13 @@ record:
     - GIVEN a genuinely read-only command WHEN it coordinates THEN it creates or migrates no persistent database state.
     - GIVEN coordination cannot finish within the existing deadline WHEN the command reports failure THEN its exit status, classification, bounded diagnostics, and correction remain compatible.
   plan: gtrdptqccg
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: FreeBSD flock and fcntl locks interact, so an active reader can prevent the writer from acquiring admission while a later reader bypasses it; internal/db/writer_lock_unix.go requires a BSD-safe correction.
+    provenance:
+      attempt_id: audit-ses-fe01d8bb6ffe-pass2
+      source: audit task ses_fe01d8bb6ffeHuvo6IWj9qQXMl correction review
+      recorded_at: 2026-08-20 18:06
+      writer_command: agentera state plan record-evaluation

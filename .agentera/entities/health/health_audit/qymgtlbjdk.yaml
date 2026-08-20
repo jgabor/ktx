@@ -1,0 +1,28 @@
+id: qymgtlbjdk
+artifact: health
+record:
+  date: 2026-08-20
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "stable: indexed stats, writer-preferred coordination, verification, documentation, and plan evidence are current."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited terminal-plan closure check, not a codebase-wide audit. All four tasks have final PASS evaluations; implementation, verification, documentation, backlog, and plan artifacts were updated after plan creation and closure status contains only the intended final task transition.
+  trends:
+    comparison_target: Plan gtrdptqccg terminal closure on 2026-08-20.
+    stable: Public stats schemas, textual timestamps, the two-second timeout, read-only behavior, and database-unavailable contracts remain compatible.
+    resolved: Recent stats windows are index-selective and supported waiting writers precede later stats readers.
+    carried_forward: BSD coordination is semantics-backed and compile-checked but was not executed on a native BSD host.
+  patterns:
+    - One bounded correction separated BSD lock ranges and one bounded documentation correction aligned platform contracts.
+  appended_at: 2026-08-20T16:37:55.647Z

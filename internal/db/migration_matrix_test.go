@@ -80,8 +80,8 @@ func TestCompressionDispositionMigrationDoesNotBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	if MaxSupportedSchema() != 14 {
-		t.Fatalf("MaxSupportedSchema = %d, want 14", MaxSupportedSchema())
+	if MaxSupportedSchema() != 15 {
+		t.Fatalf("MaxSupportedSchema = %d, want 15", MaxSupportedSchema())
 	}
 	var rows int
 	if err := database.db.QueryRow(`SELECT count(*) FROM compression_dispositions`).Scan(&rows); err != nil {

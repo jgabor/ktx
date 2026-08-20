@@ -116,6 +116,11 @@ Explicit collection setup verifies the SQLite-resolved database target and the
 exact `run` ingress set before reuse; mismatches are rejected. Read-only opens
 require schema 14.
 
+Schema 15 adds nullable nanosecond epoch forms of tool-call and session-telemetry
+timestamps plus indexes used by bounded stats queries. Migration parses valid
+RFC3339 timestamps into the sortable columns and leaves malformed timestamps
+NULL, without changing the retained text or other evidence.
+
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.
 

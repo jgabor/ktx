@@ -106,16 +106,16 @@ func insertSessionTelemetryTx(ctx context.Context, tx *sql.Tx, sessionID, captur
 	result, err := tx.ExecContext(ctx, `INSERT INTO session_telemetry (
 			session_id, source_session_id, message_id, part_id, ordinal, reason, cost,
 			tokens_input, tokens_output, tokens_reasoning, cache_read, cache_write,
-			provider, model, runtime, runtime_version, source, captured_at,
+			provider, model, runtime, runtime_version, source, captured_at, captured_at_unix_nano,
 			cost_state, tokens_input_state, tokens_output_state, tokens_reasoning_state,
 			cache_read_state, cache_write_state
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(runtime, source_session_id, message_id, part_id) DO NOTHING`,
 		sessionID, observation.SessionID, observation.MessageID, observation.PartID,
 		observation.Ordinal, observation.Reason, observation.Cost.Value,
 		observation.Tokens.Input.Value, observation.Tokens.Output.Value, observation.Tokens.Reasoning.Value,
 		observation.Tokens.CacheRead.Value, observation.Tokens.CacheWrite.Value,
-		observation.Provider, observation.Model, observation.Runtime, observation.RuntimeVersion, observation.Source, capturedAt,
+		observation.Provider, observation.Model, observation.Runtime, observation.RuntimeVersion, observation.Source, capturedAt, sortableTimestamp(capturedAt),
 		observation.Cost.State, observation.Tokens.Input.State, observation.Tokens.Output.State,
 		observation.Tokens.Reasoning.State, observation.Tokens.CacheRead.State, observation.Tokens.CacheWrite.State,
 	)

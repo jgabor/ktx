@@ -1,0 +1,14 @@
+id: aqfmhgjwbd
+artifact: plan
+record:
+  name: Make recent stats windows index-selective
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a newly persisted valid timestamp WHEN its text and sortable forms are read THEN both identify the same instant.
+    - GIVEN a compatible historical database WHEN it is migrated THEN valid timestamps become sortable, malformed timestamps remain excluded, and retained evidence is otherwise unchanged.
+    - GIVEN a recent bounded window within substantial history WHEN summary or breakdown runs THEN the database selects the window through its time index rather than scanning all historical timestamps.
+    - GIVEN UTC, offset, inclusive-boundary, out-of-window, and malformed timestamps WHEN stats are calculated THEN existing inclusion and output behavior is preserved.
+    - GIVEN focused tests for each timestamp conversion and window selector WHEN they run THEN each testable unit has at least one accepted case and one excluded or malformed case.
+  plan: gtrdptqccg

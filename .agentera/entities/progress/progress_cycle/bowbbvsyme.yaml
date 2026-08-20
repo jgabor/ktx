@@ -1,0 +1,13 @@
+id: bowbbvsyme
+artifact: progress
+record:
+  timestamp: 2026-08-20 17:38
+  type: feat
+  phase: build
+  what: Made bounded stats summary and cache windows use indexed sortable timestamps while retaining textual timestamps.
+  context:
+    intent: Complete plan task aqfmhgjwbd without changing public stats output or read-only query behavior.
+  discovered: Schema 15 backfills valid historical RFC3339 timestamps to nanosecond epoch columns and leaves malformed values NULL. Tool-call and telemetry selectors now use indexed inclusive ranges.
+  verified: go test ./internal/db passed. mage check passed with 0 issues under a fresh disposable application root; the verification audit reported forbidden=0 and ktx_db=unset. Focused tests confirmed timestamp equivalence, malformed exclusion, migration preservation, inclusive UTC and offset behavior, and EXPLAIN QUERY PLAN use of both time indexes.
+  next: None for this task.
+  publication_order: 132

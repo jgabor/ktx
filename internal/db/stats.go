@@ -129,11 +129,12 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 	}
 	from = from.UTC()
 	to = to.UTC()
-	rows, err := d.db.Query(`SELECT captured_at, tokens_input, cache_read, cache_write,
+	rows, err := d.db.Query(`SELECT tokens_input, cache_read, cache_write,
 			tokens_input_state, cache_read_state, cache_write_state
 		FROM session_telemetry
-		WHERE runtime = ? AND runtime_version = ?
-			AND source IN (?, ?)`, runtime, runtimeVersion, telemetry.SourceEventHook, telemetry.SourceWrapperStream)
+		WHERE captured_at_unix_nano BETWEEN ? AND ?
+			AND runtime = ? AND runtime_version = ?
+			AND source IN (?, ?)`, from.UnixNano(), to.UnixNano(), runtime, runtimeVersion, telemetry.SourceEventHook, telemetry.SourceWrapperStream)
 	if err != nil {
 		return nil, fmt.Errorf("db: stats summary cache query: %w", err)
 	}
@@ -141,17 +142,13 @@ func (d *DB) StatsSummaryCacheRows(from, to time.Time, runtime, runtimeVersion s
 
 	result := make([]StatsSummaryCacheRow, 0)
 	for rows.Next() {
-		var capturedAt, inputState, cacheReadState, cacheWriteState string
+		var inputState, cacheReadState, cacheWriteState string
 		var input, cacheRead, cacheWrite sql.NullInt64
 		if err := rows.Scan(
-			&capturedAt, &input, &cacheRead, &cacheWrite,
+			&input, &cacheRead, &cacheWrite,
 			&inputState, &cacheReadState, &cacheWriteState,
 		); err != nil {
 			return nil, fmt.Errorf("db: stats summary cache scan: %w", err)
-		}
-		captured, err := time.Parse(time.RFC3339Nano, capturedAt)
-		if err != nil || captured.Before(from) || captured.After(to) {
-			continue
 		}
 		row := StatsSummaryCacheRow{
 			UncachedInput: databaseIntegerMeasurement(inputState, input),
@@ -224,24 +221,20 @@ func forEachStatsSummaryBatch(ids []string, fn func([]string) error) error {
 // and artifact lengths are read in phase two.
 func statsSummarySourceIDs(database *sql.DB, from, to time.Time) ([]string, error) {
 	rows, err := database.Query(`
-		SELECT id, timestamp
+		SELECT id
 		FROM tool_calls
-		WHERE output IS NOT NULL AND timestamp IS NOT NULL
-	`)
+		WHERE timestamp_unix_nano BETWEEN ? AND ? AND output IS NOT NULL
+	`, from.UnixNano(), to.UnixNano())
 	if err != nil {
 		return nil, fmt.Errorf("db: stats summary source query: %w", err)
 	}
 
 	selected := make(map[string]struct{})
 	for rows.Next() {
-		var sourceID, timestamp string
-		if err := rows.Scan(&sourceID, &timestamp); err != nil {
+		var sourceID string
+		if err := rows.Scan(&sourceID); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("db: stats summary source scan: %w", err)
-		}
-		parsed, err := time.Parse(time.RFC3339Nano, timestamp)
-		if err != nil || parsed.Before(from) || parsed.After(to) {
-			continue
 		}
 		selected[sourceID] = struct{}{}
 	}

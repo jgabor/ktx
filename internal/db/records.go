@@ -337,19 +337,20 @@ func (d *DB) persistToolCallPrepared(tc *ToolCall, write func(context.Context, f
 		if err != nil {
 			return err
 		}
+		timestampUnixNano := sortableTimestamp(tc.Timestamp)
 		query := `INSERT INTO tool_calls (
-			id, session_id, tool, input, output, content_hash, timestamp, event_type,
+			id, session_id, tool, input, output, content_hash, timestamp, timestamp_unix_nano, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
 			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority, producer
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		args := []any{
-			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
+			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, timestampUnixNano, eventType,
 			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
 			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority, tc.Producer,
 		}
 		if _, ok := columns["latency_state"]; !ok {
 			query = `INSERT INTO tool_calls (id, session_id, tool, input, output, content_hash, timestamp, event_type, tokens_in, tokens_out, cost, latency_ms, model, provider, exit_code, is_error, runtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			args = args[:17]
+			args = append(args[:7], args[8:18]...)
 		}
 		_, err = tx.ExecContext(ctx, query, args...)
 		if err != nil {
@@ -405,14 +406,15 @@ func (d *DB) persistToolCallOncePrepared(tc *ToolCall, write func(context.Contex
 	defer cancel()
 	var didInsert bool
 	err := write(ctx, func(tx *sql.Tx) error {
+		timestampUnixNano := sortableTimestamp(tc.Timestamp)
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO tool_calls (
-			id, session_id, tool, input, output, content_hash, timestamp, event_type,
+			id, session_id, tool, input, output, content_hash, timestamp, timestamp_unix_nano, event_type,
 			tokens_in, tokens_out, cost, latency_ms, model, provider,
 			exit_code, is_error, runtime, latency_state, latency_unit, latency_authority, producer
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO NOTHING`,
-			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, eventType,
+			tc.ID, tc.SessionID, tc.Tool, tc.Input, tc.Output, tc.ContentHash, tc.Timestamp, timestampUnixNano, eventType,
 			tc.TokensIn, tc.TokensOut, tc.Cost, tc.LatencyMs, tc.Model, tc.Provider,
 			tc.ExitCode, isErrorSQL(tc.IsError), tc.Runtime, tc.LatencyState, tc.LatencyUnit, tc.LatencyAuthority, tc.Producer,
 		)

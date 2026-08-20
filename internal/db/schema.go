@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 )
 
-const schemaVersion = 14
+const schemaVersion = 15
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -104,6 +105,7 @@ const createSessionTelemetryTable = `CREATE TABLE IF NOT EXISTS session_telemetr
 		runtime_version    TEXT NOT NULL,
 		source             TEXT NOT NULL DEFAULT 'legacy',
 		captured_at        TEXT NOT NULL,
+		captured_at_unix_nano INTEGER,
 		cost_state              TEXT NOT NULL DEFAULT 'measured' CHECK (cost_state IN ('measured','unknown','malformed')),
 		tokens_input_state       TEXT NOT NULL DEFAULT 'measured' CHECK (tokens_input_state IN ('measured','unknown','malformed')),
 		tokens_output_state      TEXT NOT NULL DEFAULT 'measured' CHECK (tokens_output_state IN ('measured','unknown','malformed')),
@@ -214,6 +216,7 @@ var schemaStatements = []string{
 		output       TEXT,
 		content_hash TEXT,
 		timestamp    TEXT,
+		timestamp_unix_nano INTEGER,
 		event_type   TEXT DEFAULT 'tool_call',
 		tokens_in    INTEGER,
 		tokens_out   INTEGER,
@@ -654,6 +657,33 @@ func migrateTx(tx *sql.Tx) error {
 			return fmt.Errorf("db: add producer column %q: %w", col.Name, err)
 		}
 	}
+	if _, ok := have["timestamp_unix_nano"]; !ok {
+		if _, err := tx.Exec(`ALTER TABLE tool_calls ADD COLUMN timestamp_unix_nano INTEGER`); err != nil {
+			return fmt.Errorf("db: add sortable tool-call timestamp: %w", err)
+		}
+	}
+
+	telemetryColumns, err := tableColumns(tx, "session_telemetry")
+	if err != nil {
+		return fmt.Errorf("db: inspect session_telemetry: %w", err)
+	}
+	if _, ok := telemetryColumns["captured_at_unix_nano"]; !ok {
+		if _, err := tx.Exec(`ALTER TABLE session_telemetry ADD COLUMN captured_at_unix_nano INTEGER`); err != nil {
+			return fmt.Errorf("db: add sortable telemetry timestamp: %w", err)
+		}
+	}
+	if err := backfillSortableTimestamps(tx, "tool_calls", "id", "timestamp", "timestamp_unix_nano"); err != nil {
+		return err
+	}
+	if err := backfillSortableTimestamps(tx, "session_telemetry", "rowid", "captured_at", "captured_at_unix_nano"); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS tool_calls_timestamp_unix_nano_idx ON tool_calls(timestamp_unix_nano)`); err != nil {
+		return fmt.Errorf("db: create tool-call time index: %w", err)
+	}
+	if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS session_telemetry_runtime_time_idx ON session_telemetry(runtime, runtime_version, captured_at_unix_nano)`); err != nil {
+		return fmt.Errorf("db: create telemetry time index: %w", err)
+	}
 
 	haveBR, err := tableColumns(tx, "bench_runs")
 	if err != nil {
@@ -730,6 +760,44 @@ func migrateTx(tx *sql.Tx) error {
 		}
 	}
 
+	return nil
+}
+
+func backfillSortableTimestamps(tx *sql.Tx, table, key, textColumn, sortableColumn string) error {
+	rows, err := tx.Query(`SELECT ` + key + `, ` + textColumn + ` FROM ` + table + ` WHERE ` + sortableColumn + ` IS NULL`)
+	if err != nil {
+		return fmt.Errorf("db: read %s timestamps: %w", table, err)
+	}
+	type update struct {
+		key any
+		ns  int64
+	}
+	var updates []update
+	for rows.Next() {
+		var keyValue any
+		var text sql.NullString
+		if err := rows.Scan(&keyValue, &text); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("db: scan %s timestamp: %w", table, err)
+		}
+		if text.Valid {
+			if parsed, err := time.Parse(time.RFC3339Nano, text.String); err == nil {
+				updates = append(updates, update{key: keyValue, ns: parsed.UnixNano()})
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("db: iterate %s timestamps: %w", table, err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("db: close %s timestamps: %w", table, err)
+	}
+	for _, item := range updates {
+		if _, err := tx.Exec(`UPDATE `+table+` SET `+sortableColumn+` = ? WHERE `+key+` = ?`, item.ns, item.key); err != nil {
+			return fmt.Errorf("db: backfill %s timestamp: %w", table, err)
+		}
+	}
 	return nil
 }
 

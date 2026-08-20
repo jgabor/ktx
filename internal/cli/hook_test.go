@@ -270,6 +270,86 @@ recover_footer = true
 	}
 }
 
+func TestHookRetainsByteExactRecoveryAttemptOnlyAfterDeliveredCue(t *testing.T) {
+	d := hookTestDB(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["keep-ends:2:1"]
+recover_footer = true
+`)
+	collectionID, sessionID := "collectionabcdef", "sessionabcdefghi"
+	t.Setenv("KTX_COLLECTION_ID", collectionID)
+	t.Setenv("KTX_SESSION_ID", sessionID)
+	now := time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano)
+	if _, err := d.EnsureCollectionInterval(collectionID, []string{"run"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertSession(&dbpkg.Session{ID: sessionID, Agent: "opencode", AgentAttributionAuthority: dbpkg.AgentAttributionIdentified, StartedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	original := strings.Repeat("first\nmiddle\nlast\n", 20)
+	initial := map[string]any{"runtime": "opencode", "input": map[string]any{"tool": "bash", "sessionID": "ses_original", "callID": "call_original", "args": map[string]any{"command": "fixture"}}, "output": map[string]any{"output": original, "metadata": map[string]any{"exit": 0}}}
+	body, _ := json.Marshal(initial)
+	var hookOut, hookErr bytes.Buffer
+	if _, err := hookLogic(bytes.NewReader(body), d, &hookOut, &hookErr); err != nil {
+		t.Fatal(err)
+	}
+	var envelope hookEnvelope
+	if err := json.Unmarshal(hookOut.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if !envelope.RecoveryCue || envelope.CompressedID == nil {
+		t.Fatalf("envelope=%+v", envelope)
+	}
+	if err := d.AcknowledgeRecoveryCue(dbpkg.RecoveryCueDelivery{CollectionID: collectionID, SourceID: envelope.SourceID, ArtifactID: *envelope.CompressedID, SessionID: sessionID, RuntimeSessionID: "ses_original", RuntimeCallID: "call_original", DeliveredAt: now, Authority: dbpkg.RecoveryDeliveryAuthority}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := d.GetToolCall(envelope.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovered, _ := json.Marshal(source)
+	recovery := map[string]any{"runtime": "opencode", "input": map[string]any{"tool": "bash", "sessionID": "ses_recovery", "callID": "call_recovery", "args": map[string]any{"command": "ktx read " + envelope.SourceID}}, "output": map[string]any{"output": string(recovered), "metadata": map[string]any{"exit": 0}}}
+	body, _ = json.Marshal(recovery)
+	hookOut.Reset()
+	hookErr.Reset()
+	if _, err := hookLogic(bytes.NewReader(body), d, &hookOut, &hookErr); err != nil {
+		t.Fatal(err)
+	}
+	var cueSource, state string
+	var exact bool
+	if err := d.DB().QueryRow(`SELECT cue_source_id,result_state,byte_exact FROM recovery_attempts`).Scan(&cueSource, &state, &exact); err != nil {
+		t.Fatal(err)
+	}
+	if cueSource != envelope.SourceID || state != "succeeded" || !exact {
+		t.Fatalf("attempt cue=%q state=%q exact=%v", cueSource, state, exact)
+	}
+	invoke := func(callID, command string, exit any) {
+		t.Helper()
+		metadata := map[string]any{}
+		if exit != nil {
+			metadata["exit"] = exit
+		}
+		payload := map[string]any{"runtime": "opencode", "input": map[string]any{"tool": "bash", "sessionID": "ses_recovery", "callID": callID, "args": map[string]any{"command": command}}, "output": map[string]any{"output": string(recovered), "metadata": metadata}}
+		encoded, _ := json.Marshal(payload)
+		hookOut.Reset()
+		hookErr.Reset()
+		if _, err := hookLogic(bytes.NewReader(encoded), d, &hookOut, &hookErr); err != nil {
+			t.Fatal(err)
+		}
+	}
+	invoke("call_failed", "ktx read "+envelope.SourceID, 2)
+	invoke("call_unknown", "ktx read "+envelope.SourceID, nil)
+	invoke("call_composed", "ktx read "+envelope.SourceID+" | cat", 0)
+	var attempts, failed int
+	if err := d.DB().QueryRow(`SELECT count(*),sum(result_state='failed') FROM recovery_attempts`).Scan(&attempts, &failed); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 || failed != 1 {
+		t.Fatalf("attempts=%d failed=%d, want exact success plus authoritative failure only", attempts, failed)
+	}
+}
+
 func TestHook_FailureGate(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)

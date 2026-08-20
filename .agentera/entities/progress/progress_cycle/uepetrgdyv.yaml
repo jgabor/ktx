@@ -1,0 +1,15 @@
+id: uepetrgdyv
+artifact: progress
+record:
+  timestamp: 2026-08-20 01:20
+  type: feat
+  phase: build
+  what: Implemented repository-only live-validation evidence prerequisites for the keep-ends candidate while leaving ambient live state unchanged.
+  context:
+    intent: Provide one fail-closed same-population path for transformed delivery, lifecycle, timing, recovery, and frozen-window reporting.
+    constraints: No installed binary, adapter, ambient database, configuration, runtime, schedule, rollout, default, commit, or push effect.
+    scope: Plan dfhrqsldya, final task swjlbowjib.
+  discovered: Schema-13 continuity was insufficient because ordinary wrapper and transforming-hook evidence were separate. Schema 14 now retains future-only joined runtime observations, cue acknowledgements, and recovery attempts. Independent audit found delivered-output and recovery-window authority gaps; bounded corrections added byte-exact delivery reconciliation and exact half-open filtering.
+  verified: mage check passed with zero issues under a fresh disposable application root. A separately seeded schema-11 database migrated transactionally to schema 14; doctor passed and all three new evidence tables were present. The rebuilt binary reported maximum schema 14. A disposable 72-hour empty-window smoke emitted schema ktx.stats.live-validation/v1, retained controlled required facts at 11/11, blocked missing live evidence, and exited 3. Canonical state validation passed and TODO reconciliation reported zero drift and conflicts.
+  next: Keep live validation blocked until the operator explicitly authorizes quiesced backup, schema-14 deployment and migration, adapter refresh, runtime restart, explicit collection start, and read-only requalification; only then derive fixed UTC windows.
+  publication_order: 131

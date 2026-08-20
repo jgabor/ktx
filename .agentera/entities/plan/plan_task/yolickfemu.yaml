@@ -1,0 +1,17 @@
+id: yolickfemu
+artifact: plan
+record:
+  name: Synchronize the live-validation outcome
+  depends_on:
+    - rngyxkkjrm
+    - qyioveacol
+    - mgjtppspte
+    - fdanomhopq
+    - ltymdzagxe
+  status: pending
+  acceptance:
+    - GIVEN validation completed with a retain or revert decision WHEN state is synchronized THEN the live-validation TODO resolves with fixed-window evidence, hashes, coverage, and final rollout state.
+    - GIVEN the controlled predecessor evidence WHEN live findings are recorded THEN controlled and live claim classes remain separate and unchanged.
+    - GIVEN closeout completes WHEN plan, progress, and TODO are reconciled THEN they agree with the retained configuration state and have zero drift or conflicts.
+    - GIVEN any future shipped-default proposal WHEN this task closes THEN it remains a separate gated decision and is not implied by live-validation completion.
+  plan: wbiubhkths

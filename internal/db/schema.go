@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 13
+const schemaVersion = 14
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -139,6 +139,46 @@ const createIngressContinuityTable = `CREATE TABLE IF NOT EXISTS ingress_continu
 		PRIMARY KEY (interval_id, ingress, instance_id, state, observed_at)
 	)`
 
+const createRuntimeSourceObservationsTable = `CREATE TABLE IF NOT EXISTS runtime_source_observations (
+		collection_id TEXT NOT NULL REFERENCES collection_intervals(id),
+		session_id TEXT NOT NULL REFERENCES sessions(id),
+		source_id TEXT NOT NULL REFERENCES tool_calls(id),
+		latency_ms INTEGER,
+		latency_state TEXT NOT NULL CHECK (latency_state IN ('measured','unknown','malformed')),
+		latency_unit TEXT NOT NULL CHECK (latency_unit = 'milliseconds'),
+		latency_authority TEXT NOT NULL CHECK (latency_authority IN ('runtime','unknown')),
+		delivered_bytes INTEGER CHECK (delivered_bytes IS NULL OR delivered_bytes >= 0),
+		recovery_cue_observed INTEGER NOT NULL DEFAULT 0 CHECK (recovery_cue_observed IN (0,1)),
+		observed_at TEXT NOT NULL,
+		PRIMARY KEY (collection_id, source_id),
+		CHECK ((latency_state = 'measured') = (latency_ms IS NOT NULL)),
+		CHECK (latency_ms IS NULL OR latency_ms >= 0)
+	)`
+
+const createRecoveryCueDeliveriesTable = `CREATE TABLE IF NOT EXISTS recovery_cue_deliveries (
+		collection_id TEXT NOT NULL REFERENCES collection_intervals(id),
+		source_id TEXT NOT NULL REFERENCES tool_calls(id),
+		artifact_id TEXT NOT NULL REFERENCES compressed(id),
+		session_id TEXT NOT NULL REFERENCES sessions(id),
+		runtime_session_id TEXT NOT NULL,
+		runtime_call_id TEXT NOT NULL,
+		delivered_at TEXT NOT NULL,
+		authority TEXT NOT NULL CHECK (authority = 'opencode_adapter'),
+		PRIMARY KEY (collection_id, source_id)
+	)`
+
+const createRecoveryAttemptsTable = `CREATE TABLE IF NOT EXISTS recovery_attempts (
+		attempt_source_id TEXT PRIMARY KEY REFERENCES tool_calls(id),
+		collection_id TEXT NOT NULL,
+		cue_source_id TEXT NOT NULL,
+		attempted_at TEXT NOT NULL,
+		result_state TEXT NOT NULL CHECK (result_state IN ('succeeded','failed')),
+		byte_exact INTEGER CHECK (byte_exact IN (0,1)),
+		authority TEXT NOT NULL CHECK (authority = 'opencode_hook'),
+		FOREIGN KEY (collection_id,cue_source_id) REFERENCES recovery_cue_deliveries(collection_id,source_id),
+		CHECK ((result_state = 'succeeded') = (byte_exact IS NOT NULL))
+	)`
+
 // schemaStatements creates the current database schema. The statements remain
 // idempotent so stale and partially migrated databases can be repaired safely.
 //
@@ -191,6 +231,7 @@ var schemaStatements = []string{
 	)`,
 	createCollectionIntervalsTable,
 	createIngressContinuityTable,
+	createRuntimeSourceObservationsTable,
 	`CREATE TABLE IF NOT EXISTS bench_runs (
 		id                  TEXT PRIMARY KEY,
 		agent               TEXT,
@@ -228,6 +269,8 @@ var schemaStatements = []string{
 	// index is created idempotently alongside the table; re-open is a
 	// no-op via CREATE INDEX IF NOT EXISTS.
 	`CREATE INDEX IF NOT EXISTS compressed_source_id_idx ON compressed(source_id)`,
+	createRecoveryCueDeliveriesTable,
+	createRecoveryAttemptsTable,
 	`CREATE TABLE IF NOT EXISTS compression_dispositions (
 		source_id    TEXT PRIMARY KEY REFERENCES tool_calls(id),
 		profile      TEXT,

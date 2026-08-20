@@ -8,7 +8,7 @@ The exact opportunity signal remains `read / command absent / subcommand absent 
 
 ## Inventory
 
-The machine-readable matrix is `tools/bench/evidence/targeted-residual-evidence-matrix.json`, SHA-256 `7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32`.
+The machine-readable matrix is `tools/bench/evidence/targeted-residual-evidence-matrix.json`, SHA-256 `b13a859487c0fbd329174fdda3e67c212761aa61152bf278208f5d1a8257a2d9`.
 
 It contains 7 bounded cases: 4 eligible and 3 rejecting byte-exact passthrough cases. Category coverage is head 1, middle 1, tail 1, structured 1, failure 1, eligible 4, and passthrough 3. All generated outputs are 4,096–7,168 bytes, within the selected 1k-10k band. The tool rule has positive `read` and rejecting `bash` cases. The explicit-success rule has positive success and rejecting failure/unknown cases.
 

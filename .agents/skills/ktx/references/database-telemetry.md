@@ -96,6 +96,7 @@ ktx binary-capabilities --format json
 ktx stats --limit 20 --format json
 ktx stats summary --window 72h --format json
 ktx stats breakdown --window 72h --format json
+ktx stats live-validation --from <UTC> --to <UTC> --collection <id> --ingress run --candidate keep-ends:73:1 --format json
 ```
 
 `stats` groups and ranks by delivered estimated tokens. Uncompressed calls use
@@ -125,6 +126,13 @@ profile, route, disposition, and raw-output-size dimensions; `other` reconciles
 omitted groups exactly. It does not query or emit model-step telemetry.
 `unobserved` means no retained disposition evidence exists; do not infer a cause
 from absent artifact coverage.
+
+`stats live-validation` is a separate schema-14 fixed-window query over
+future-only explicit-collection evidence. It applies exact half-open UTC bounds
+in Go, uses wrapper-observed bytes only after byte-for-byte reconciliation with
+hook-owned source and artifact evidence, counts distinct followed cues, and
+requires closed run and continuity authority. Blocked evidence exits 3 after
+emitting the complete report; the query never creates or migrates a database.
 
 Summary schema 10 is compact. The breakdown schema 4 includes aggregate `outcomes`.
 Both report trusted ingress attribution coverage over the same output-bearing

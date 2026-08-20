@@ -1,0 +1,13 @@
+id: qeqoihpbxa
+artifact: plan
+record:
+  name: Retain authoritative cue delivery and recovery outcomes
+  depends_on:
+    - wzmtotgbmh
+  status: complete
+  acceptance:
+    - GIVEN a lossy artifact includes a recovery cue WHEN the adapter applies that output THEN future evidence links one delivered cue to its source, artifact, collection, and trusted runtime identity.
+    - GIVEN a recognized exact recovery invocation follows a delivered cue WHEN its authoritative result is retained THEN the attempt links to that cue and records whether the recovered original is byte-exact.
+    - GIVEN repeated attempts target one cue WHEN cue-follow rate is computed THEN that cue contributes at most once to the numerator while each authoritative attempt remains auditable.
+    - GIVEN historical, malformed, unlinked, failed, or unacknowledged activity WHEN queried THEN it remains unknown or failed and never becomes delivered, followed, or byte-exact evidence.
+  plan: dfhrqsldya

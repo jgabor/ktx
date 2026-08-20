@@ -263,12 +263,18 @@ if [ "$1 $2" = "telemetry event-record" ]; then
 	else printf '{"ok":true,"session_id":"%s","interval_id":"%s","epoch_id":"%s","epoch_ordinal":%s,"ordinal":%s,"kind":"%s","contract":"%s"}\n' "$session" "$interval" "$epoch" "$epoch_ordinal" "$ordinal" "$kind" "$contract"
   fi
 fi
+if [ "$1 $2" = "telemetry cue-delivered" ]; then
+  if [ "$KTX_TEST_BAD_RESPONSE" = cue-ack ]; then printf '{"ok":false}\n'
+  else printf '{"ok":true,"collection_id":"collectionabcdef","session_id":"aaaaaaaaaaaaaaaa","source_id":"sourceabcdefghij","artifact_id":"artifactabcdefgh"}\n'
+  fi
+fi
 if [ "$1" = "hook" ]; then
   if [ "$KTX_TEST_HOOK_FAIL" = "1" ]; then
     printf 'hook unavailable\n' >&2
     exit 7
   fi
   if [ "$KTX_TEST_BAD_RESPONSE" = hook-envelope ]; then printf '{"output":7,"compressed_id":false,"source_id":""}\n'
+  elif [ "$KTX_TEST_RECOVERY_CUE" = 1 ]; then printf '{"output":"compressed tool output with cue","compressed_id":"artifactabcdefgh","source_id":"sourceabcdefghij","ktx_session_id":"aaaaaaaaaaaaaaaa","runtime_session_id":"ses_1","call_id":"call_1","recovery_cue":true}\n'
   else printf '{"output":"compressed tool output","compressed_id":"compressedid","source_id":"sourceid","ktx_session_id":"aaaaaaaaaaaaaaaa","runtime_session_id":"ses_1","call_id":"call_1"}\n'
   fi
 fi
@@ -409,6 +415,20 @@ console.log(JSON.stringify(output))
 	t.Run("wrapper ownership disables both evidence paths", func(t *testing.T) {
 		output, calls, _ := run(t, "KTX_SESSION_ID=wrapper-session")
 		if output["output"] != "original tool output" || len(calls) != 0 {
+			t.Fatalf("output=%#v calls=%q", output, calls)
+		}
+	})
+
+	t.Run("explicit collection executes strict hook path", func(t *testing.T) {
+		output, calls, _ := run(t, "KTX_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_COLLECTION_ID=collectionabcdef")
+		if output["output"] != "compressed tool output" || len(calls) != 7 || !strings.HasPrefix(calls[6], "hook\t") {
+			t.Fatalf("output=%#v calls=%q", output, calls)
+		}
+	})
+
+	t.Run("explicit collection acknowledges applied recovery cue", func(t *testing.T) {
+		output, calls, _ := run(t, "KTX_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_COLLECTION_ID=collectionabcdef", "KTX_TEST_RECOVERY_CUE=1")
+		if output["output"] != "compressed tool output with cue" || len(calls) != 8 || !strings.HasPrefix(calls[6], "hook\t") || !strings.HasPrefix(calls[7], "telemetry cue-delivered\t") {
 			t.Fatalf("output=%#v calls=%q", output, calls)
 		}
 	})

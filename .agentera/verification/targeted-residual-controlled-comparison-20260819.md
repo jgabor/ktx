@@ -4,7 +4,7 @@
 
 **ACCEPT FOR THIS ISOLATED EXPERIMENT ONLY.** The single intervention `keep-ends:73:1` passed the seven paired generated cases. It remains absent from shipped configuration, defaults, profiles, and routes. This result does not authorize rollout.
 
-Machine receipt: `tools/bench/evidence/targeted-residual-controlled-comparison.json` (SHA-256 `c21119c3b6bfecc8e6dd57db908b2d3e9bf1d272dfb0ae1cf5c3fb248c9e7223`). Evaluator: `internal/pipeline/controlled_comparison_test.go` (SHA-256 `381f308e2e31040d8410ae810c2018b00c8eb2a6181a297f7302b9d1ffdcb47d`).
+Machine receipt: `tools/bench/evidence/targeted-residual-controlled-comparison.json` (SHA-256 `5bf1e31399276e4368a5dd5674bd5535a076eec1a3eaff9c156dcd6d9f3c21e3`). Evaluator: `internal/pipeline/controlled_comparison_test.go` (SHA-256 `381f308e2e31040d8410ae810c2018b00c8eb2a6181a297f7302b9d1ffdcb47d`).
 
 ## Method
 
@@ -30,6 +30,6 @@ Gross savings were 1,745 bytes. UTF-8 recovery cues were 211 bytes. Net savings 
 
 ## Evidence boundary
 
-Prerequisite identities matched: matrix report `3310b77416220aed4feeda986181074d502d39489da3a432c5dbd1d49282da72`, matrix JSON `7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32`, corrected candidate report `c074cbefbb4006b215cf9e5dd56a6d936e822bf31b52154536a9b9c40ac574fe`, corrected candidate receipt `d9624b7e0ab97c71b6488c3fcb22c4c3fb9b67bd190fd9e472b262b6dcf14b26`, and corrected candidate evaluator `505e60e7768c148b01210361be88f495ddb04d8b9257e0c7055f7bc46d1b5b39`.
+Prerequisite identities matched: matrix report `6be3c9bcb79292acf447d87656a3d4ea86994560cae7a6b342e549c71b771c83`, matrix JSON `b13a859487c0fbd329174fdda3e67c212761aa61152bf278208f5d1a8257a2d9`, corrected candidate report `25830fcb921a93abba5e429b031a17933842cb18ce6ebaaa1c41a24418058ec5`, corrected candidate receipt `e676f4255a584a4bcd728e3fe0cd512a8fa2c99c4ff1596fa4cad258d6dc746f`, and corrected candidate evaluator `505e60e7768c148b01210361be88f495ddb04d8b9257e0c7055f7bc46d1b5b39`.
 
 This is generated local pipeline evidence. It makes no provider, cache, continuity, live-rollout, or model-behavior claim. A hard-gate failure would have emitted `reject_retain_unchanged` and failed the evaluator rather than retaining candidate metrics as an accepted result.

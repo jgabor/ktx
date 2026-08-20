@@ -106,6 +106,7 @@ byte-exact passthrough. The wrapper exits with the child's exit code.
 ktx stats --limit 10 --format text
 ktx stats summary --window 72h --format json
 ktx stats breakdown --window 72h --format json
+ktx stats live-validation --from <UTC> --to <UTC> --collection <id> --ingress run --candidate keep-ends:73:1 --format json
 ```
 
 `stats` ranks residual delivered context. `stats summary` is the compact,
@@ -118,6 +119,13 @@ from separate adapter callbacks. Summary `prompt_cache_token_hit_rate_pct` is
 runtime-reported cache-read token evidence in percentage units, not a provider
 request hit rate. It pools all accepted providers and models under the supported
 runtime contract by token volume rather than averaging their percentages.
+
+`stats live-validation` is a schema-14, read-only report for one explicit
+OpenCode collection and half-open UTC window. It validates the pinned controlled
+candidate artifacts and fails closed on missing delivery, disposition, recovery,
+run closure, latency, or continuity authority. A blocked report is still emitted
+and exits 3. Do not run the explicit collection, migrate an operator database, or
+refresh an installed adapter without separate authorization.
 
 ### Inspect records and model telemetry
 

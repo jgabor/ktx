@@ -1,0 +1,13 @@
+id: wzmtotgbmh
+artifact: plan
+record:
+  name: Establish an explicit same-population collection path
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN an ordinary wrapper invocation WHEN it runs without the explicit collection mode THEN stdout, hook suppression, and evidence ownership remain unchanged.
+    - GIVEN the explicit mode wraps a supported OpenCode runtime WHEN a tool completes THEN transformed delivery, wrapper lifecycle, and runtime timing resolve to the same trusted session and source identities without duplicate or conflicting source evidence.
+    - GIVEN required adapter ownership or correlation is absent or contradictory WHEN collection starts or an event arrives THEN the collection fails closed and cannot produce qualified evidence.
+    - GIVEN several wrapper runs belong to one collection WHEN continuity is evaluated THEN authoritative intervals are combined exactly and every gap, interruption, or missing closure remains visible.
+  plan: dfhrqsldya

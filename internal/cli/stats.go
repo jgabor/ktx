@@ -76,6 +76,9 @@ type statsParsedArgs struct {
 // trigger "flag provided but not defined." This mirrors how
 // extractFormat handles --format: scan, extract, return the rest.
 func parseStatsArgs(args []string) ([]string, any, error) {
+	if len(args) == 2 && args[0] == "live-validation" && (args[1] == "--help" || args[1] == "-h") {
+		return []string{args[1], args[0]}, statsParsedArgs{Limit: statsDefaultLimit, Window: statsDefaultWindow}, nil
+	}
 	limit := statsDefaultLimit
 	window := statsDefaultWindow
 	var limitSet, windowSet bool
@@ -146,6 +149,7 @@ func init() {
 		DatabaseAccess: DatabaseReadOnly,
 		FormatDefault:  FormatJSON,
 		Help:           printStatsHelp,
+		HelpForArgs:    printStatsNestedHelp,
 		ParseArgs:      parseStatsArgs,
 	}, statsCommandFunc)
 }
@@ -168,6 +172,14 @@ func statsCommandFunc(ctx *DispatchContext) (any, error) {
 					return nil, usageError("ktx stats breakdown: --limit is only valid for grouped stats")
 				}
 				return statsBreakdownLogic(ctx.Args[1:], ctx.Format, parsed.Window, time.Now(), ctx.DB, ctx.Stdout)
+			case "live-validation":
+				if parsed.LimitSet || parsed.WindowSet {
+					return nil, usageError("ktx stats live-validation: --limit and --window are not supported")
+				}
+				if err := statsLiveValidationLogic(ctx.Args[1:], ctx.Format, ctx.DB, ctx.Stdout); err != nil {
+					return nil, err
+				}
+				return nil, nil
 			}
 		}
 		if parsed.WindowSet {
@@ -952,6 +964,14 @@ func formatStatsSummaryPromptCacheTokenHitRatePct(hitRate statsSummaryPromptCach
 }
 
 // printStatsHelp writes the `ktx stats` help.
+func printStatsNestedHelp(args []string, w io.Writer) bool {
+	if len(args) == 1 && args[0] == "live-validation" {
+		printStatsLiveValidationHelp(w)
+		return true
+	}
+	return false
+}
+
 func printStatsHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx stats — per-tool-call statistics ranked by delivered tokens")
 	fmt.Fprintln(w)
@@ -959,6 +979,7 @@ func printStatsHelp(w io.Writer) {
 	fmt.Fprintln(w, "  ktx stats [--format text|json] [--limit N]")
 	fmt.Fprintln(w, "  ktx stats summary [--window DURATION] [--format text|json]")
 	fmt.Fprintln(w, "  ktx stats breakdown [--window DURATION] [--format text|json]")
+	fmt.Fprintln(w, "  ktx stats live-validation --from UTC --to UTC --collection ID --ingress run --candidate keep-ends:73:1 [--matrix PATH] [--receipt PATH] [--format json|text]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Lists tool/command groups ranked by total delivered tokens (descending).")
 	fmt.Fprintln(w, "Uncompressed tool calls are included with delivered tokens equal to raw tokens.")
@@ -976,6 +997,7 @@ func printStatsHelp(w io.Writer) {
 	fmt.Fprintln(w, "Exit codes:")
 	fmt.Fprintln(w, "  0  stats listed (may be empty)")
 	fmt.Fprintln(w, "  1  usage error (unknown flag, invalid --limit or --window)")
+	fmt.Fprintln(w, "  3  structured live-validation report is blocked")
 	fmt.Fprintln(w, "  4  internal error (database failure)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
@@ -985,6 +1007,36 @@ func printStatsHelp(w io.Writer) {
 	fmt.Fprintln(w, "  ktx get    query a single record by ID")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
+}
+
+func printStatsLiveValidationHelp(w io.Writer) {
+	fmt.Fprintln(w, "ktx stats live-validation — evaluate one frozen explicit-collection window")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  ktx stats live-validation --from UTC --to UTC --collection ID --ingress run --candidate keep-ends:73:1 [--matrix PATH] [--receipt PATH] [--format json|text]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Required flags:")
+	fmt.Fprintln(w, "  --from UTC       inclusive RFC3339 UTC bound")
+	fmt.Fprintln(w, "  --to UTC         exclusive RFC3339 UTC bound; qualification requires exactly 259200 seconds")
+	fmt.Fprintln(w, "  --collection ID  explicit 16-letter collection identity")
+	fmt.Fprintln(w, "  --ingress run    frozen supported ingress")
+	fmt.Fprintln(w, "  --candidate keep-ends:73:1  frozen candidate identity")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Controlled artifacts:")
+	fmt.Fprintln(w, "  --matrix PATH   default tools/bench/evidence/targeted-residual-evidence-matrix.json")
+	fmt.Fprintln(w, "  --receipt PATH  default tools/bench/evidence/targeted-residual-controlled-comparison.json")
+	fmt.Fprintln(w, "Overrides select locations for the exact pinned retained bytes; hash mismatches block qualification.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Every hard gate must pass for qualified status. Otherwise the complete structured blocked report is emitted before exit 3.")
+	fmt.Fprintln(w, "Recovery reports identity coverage, distinct cue-follow, and authoritative byte-exact attempt rates separately.")
+	fmt.Fprintln(w, "The command is read-only and does not create, migrate, or update persistent state.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Exit codes:")
+	fmt.Fprintln(w, "  0  help shown or report qualified")
+	fmt.Fprintln(w, "  1  invalid flags, bounds, ingress, candidate, or artifact input")
+	fmt.Fprintln(w, "  3  structured report emitted with blocked qualification")
+	fmt.Fprintln(w, "  4  database or report failure")
+	fmt.Fprintln(w, "  5  database schema is newer than this binary")
 }
 
 func printStatsSummaryHelp(w io.Writer) {

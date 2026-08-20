@@ -1,0 +1,13 @@
+id: qyioveacol
+artifact: plan
+record:
+  name: Collect and close the pre-change window
+  depends_on:
+    - rngyxkkjrm
+  status: pending
+  acceptance:
+    - GIVEN the qualified unchanged environment WHEN the baseline runs THEN the selected traffic scope remains on prior behavior for the entire fixed 72-hour window.
+    - GIVEN the baseline reaches its end WHEN continuity is evaluated THEN authoritative lifecycle evidence spans the requested end with no gap.
+    - GIVEN a valid closed baseline WHEN evidence is retained THEN a consistent read-only snapshot contains every predeclared normalized metric, denominator, and coverage value.
+    - GIVEN closure, continuity, or required evidence is incomplete WHEN baseline evaluation runs THEN the window is rejected and rescheduled rather than interpreted as zero or success.
+  plan: wbiubhkths

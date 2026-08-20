@@ -1,0 +1,40 @@
+id: dfhrqsldya
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-19
+    status: archived
+    reviewed: 2026-08-19
+    critic_issues: 3 found, 3 addressed, 0 dismissed
+    title: "Plan: Live-validation evidence prerequisites"
+  what: Add the minimum future-only evidence needed to evaluate one continuity-qualified keep-ends rollout without changing ordinary wrapper behavior or touching the ambient live environment.
+  why: The existing checkout supports schema 13 and generic aggregates, but no current path can prove transformation, cue delivery, recovery, lifecycle, and runtime latency for the same trusted population.
+  constraints: Preserve ordinary ktx run transparency and single-owner hook behavior; keep historical absence unknown; retain no footer or recovered content beyond existing source records; use read-only reporting; make no ambient database, configuration, adapter, restart, schedule, or rollout change.
+  overall_acceptance: GIVEN repository-only implementation and isolated evidence WHEN the replacement is evaluated THEN one explicit supported OpenCode collection path can retain and report all frozen live-validation denominators fail-closed while ordinary behavior and live state remain unchanged.
+  scope:
+    included:
+      - Explicit same-population collection mode for supported OpenCode
+      - Future-only cue delivery and recovery linkage
+      - Campaign-scoped fixed-window validation report
+      - Controlled required-fact gate and isolated schema migration evidence
+      - Documentation and project-state synchronization
+    excluded:
+      - Ambient live database or configuration access
+      - Installed binary or adapter replacement
+      - Runtime restart, window scheduling, rollout, or shipped-default change
+      - Provider-internal or causal claims
+    deferred:
+      - Operator deployment and live requalification until separately authorized
+  design: Establish one explicit collection path that combines adapter-owned transformed delivery with wrapper-owned lifecycle and timing under shared trusted identity. Retain only the missing future evidence. Evaluate frozen windows through one read-only report that joins operational measurements with the existing controlled safety gate and blocks on every unknown, gap, or insufficient population.
+  unknowns:
+    - question: Can the pinned OpenCode stream and callback identities be joined without weakening first-evidence ownership?
+      affects_task: 1
+      resolve_by: Require pinned-fixture and real-process isolated evidence before exposing the collection mode as qualified.
+    - question: Can an adapter-owned cue acknowledgement distinguish applied output from merely generated hook output?
+      affects_task: 2
+      resolve_by: Retain only positive post-application acknowledgement; classify every absent or conflicting acknowledgement as unknown.
+  surprises: |-
+    The wrapper path owns continuity and runtime latency but intentionally does not transform, while the transforming hook is disabled under the wrapper; reporting changes alone cannot qualify one shared population.
+    Same-population delivery and timing evidence required a future-only schema-14 boundary beyond schema-13 continuity; migration leaves historical evidence unknown.
+  previous_plan_archived: wbiubhkths

@@ -96,10 +96,25 @@ evidence or infer continuity from historical sessions, tool calls, or other
 activity. The wrapper records its owned `run` process boundary; hook and write
 activity is not promoted into continuity evidence. These tables are created
 only by the normal write-capable or explicit migration paths. Read-only opens
-still require schema 13 and never create, migrate, backfill, or update them.
+never create, migrate, backfill, or update them.
 Continuity requires authoritative stopped or interrupted closure evidence that
 spans the requested end. A start without that evidence reports a
 `missing_closure` gap clipped to the requested span.
+
+Schema 14 adds future-only `runtime_source_observations`,
+`recovery_cue_deliveries`, and `recovery_attempts`. Runtime observations link one
+explicit collection and wrapper session to an existing OpenCode source owned by
+the hook, and retain runtime timing plus delivered byte count separately from
+the append-only source row. Cue delivery is acknowledged only after the
+generated adapter assigns a
+lossy hook envelope carrying a recovery cue. Recovery attempts link exact
+supported `ktx read <source-id>` shell calls with authoritative outcomes to that
+delivery and retain byte-exactness for successful reads. Repeated attempts stay
+separate. Migration creates all three tables empty and leaves historical timing,
+delivery, and recovery unknown.
+Explicit collection setup verifies the SQLite-resolved database target and the
+exact `run` ingress set before reuse; mismatches are rejected. Read-only opens
+require schema 14.
 
 `doctor` remains a read-only preflight. It reports an older schema as degraded
 and never upgrades it.

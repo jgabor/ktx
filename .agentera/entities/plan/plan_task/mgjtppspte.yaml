@@ -1,0 +1,13 @@
+id: mgjtppspte
+artifact: plan
+record:
+  name: Apply the reversible candidate rollout
+  depends_on:
+    - qyioveacol
+  status: pending
+  acceptance:
+    - GIVEN a valid closed baseline and explicit rollout authorization WHEN the rollout begins THEN the exact prior configuration and its verified restoration procedure are retained first.
+    - GIVEN the candidate is activated WHEN routing is inspected THEN only explicit-success read traffic selects keep-ends:73:1 with recovery enabled.
+    - GIVEN activation completes WHEN identity is retained THEN rollout time, binary, configuration, profile, route order, candidate, and evidence target are unambiguous.
+    - GIVEN rollback is rehearsed WHEN readiness is evaluated THEN prior behavior can be restored without changing shipped defaults or unrelated routing.
+  plan: wbiubhkths

@@ -6,12 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
+	"github.com/jgabor/ktx/internal/correlation"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/telemetry"
 	"github.com/jgabor/ktx/internal/telemetry/opencode"
@@ -58,11 +60,60 @@ func telemetryLogic(args []string, format string, stdin io.Reader, db *dbpkg.DB,
 		return nil, recordCollectorOpen(args[1:], stdin, db, stdout)
 	case "event-record":
 		return nil, recordRuntimeEvent(args[1:], stdin, db, stdout)
+	case "cue-delivered":
+		return nil, acknowledgeRecoveryCue(args[1:], stdin, db, stdout)
 	case "list":
 		return nil, listTelemetry(args[1:], format, db, stdout)
 	default:
 		return nil, usageError("ktx telemetry: unknown subcommand %q (want record or list)", args[0])
 	}
+}
+
+type recoveryCueAckInput struct {
+	SourceID, ArtifactID, SessionID, RuntimeSessionID, CallID string
+}
+
+func (i *recoveryCueAckInput) UnmarshalJSON(data []byte) error {
+	type wire struct {
+		SourceID         string `json:"source_id"`
+		ArtifactID       string `json:"artifact_id"`
+		SessionID        string `json:"session_id"`
+		RuntimeSessionID string `json:"runtime_session_id"`
+		CallID           string `json:"call_id"`
+	}
+	var w wire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return err
+	}
+	i.SourceID, i.ArtifactID, i.SessionID, i.RuntimeSessionID, i.CallID = w.SourceID, w.ArtifactID, w.SessionID, w.RuntimeSessionID, w.CallID
+	return nil
+}
+
+func acknowledgeRecoveryCue(args []string, stdin io.Reader, db *dbpkg.DB, stdout io.Writer) error {
+	if len(args) != 0 {
+		return usageError("ktx telemetry cue-delivered: unexpected arguments")
+	}
+	collectionID := strings.TrimSpace(os.Getenv("KTX_COLLECTION_ID"))
+	sessionID := strings.TrimSpace(os.Getenv("KTX_SESSION_ID"))
+	if !dbpkg.IDPattern.MatchString(collectionID) || !dbpkg.IDPattern.MatchString(sessionID) {
+		return usageError("ktx telemetry cue-delivered: explicit collection ownership is absent")
+	}
+	var in recoveryCueAckInput
+	if err := json.NewDecoder(stdin).Decode(&in); err != nil {
+		return usageError("ktx telemetry cue-delivered: parse input: %v", err)
+	}
+	if in.SessionID != sessionID {
+		return usageError("ktx telemetry cue-delivered: session ownership mismatch")
+	}
+	src, err := correlation.Resolve(correlation.NativeTuple{Runtime: "opencode", SessionID: in.RuntimeSessionID, CallID: in.CallID}, correlation.Trusted(correlation.ProvenanceOpenCodeHook))
+	if err != nil || src.ID != in.SourceID {
+		return usageError("ktx telemetry cue-delivered: native identity mismatch")
+	}
+	err = db.AcknowledgeRecoveryCue(dbpkg.RecoveryCueDelivery{CollectionID: collectionID, SourceID: in.SourceID, ArtifactID: in.ArtifactID, SessionID: sessionID, RuntimeSessionID: in.RuntimeSessionID, RuntimeCallID: in.CallID, DeliveredAt: time.Now().UTC().Format(time.RFC3339Nano), Authority: dbpkg.RecoveryDeliveryAuthority})
+	if err != nil {
+		return conflictError("ktx telemetry cue-delivered: acknowledgement conflict: %v", err)
+	}
+	return json.NewEncoder(stdout).Encode(map[string]any{"ok": true, "collection_id": collectionID, "session_id": sessionID, "source_id": in.SourceID, "artifact_id": in.ArtifactID})
 }
 
 type collectorOpenInput struct {
@@ -408,7 +459,7 @@ func measurementText(measurement dbpkg.IntegerMeasurement) string {
 }
 
 func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
-	if len(ctx.Args) == 0 || (ctx.Args[0] != "record" && ctx.Args[0] != "list" && ctx.Args[0] != "collector-open" && ctx.Args[0] != "event-record") {
+	if len(ctx.Args) == 0 || (ctx.Args[0] != "record" && ctx.Args[0] != "list" && ctx.Args[0] != "collector-open" && ctx.Args[0] != "event-record" && ctx.Args[0] != "cue-delivered") {
 		return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, nil, ctx.Stdout, ctx.Stderr)
 	}
 	path, err := dbpkg.ResolvePath("")
@@ -475,4 +526,5 @@ func printTelemetryHelp(w io.Writer) {
 	fmt.Fprintln(w, "is best-effort: failures are reported on stderr without failing the command.")
 	fmt.Fprintf(w, "This is %s: %s.\n", opencodeTelemetryEvidence, opencodeTelemetryClaimBoundary)
 	fmt.Fprintln(w, "list returns at most 100 observations by default; --limit accepts 1 through 1000.")
+	fmt.Fprintln(w, "cue-delivered is an adapter-only acknowledgement used by explicit collection.")
 }

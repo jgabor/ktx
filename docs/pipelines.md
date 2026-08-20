@@ -301,6 +301,8 @@ ktx stats --format text
 ktx stats --limit 5
 ktx stats summary --window 30m --format json
 ktx stats breakdown --window 30m --format json
+ktx stats live-validation --from 2026-08-01T00:00:00Z --to 2026-08-04T00:00:00Z \
+  --collection collectionabcdef --ingress run --candidate keep-ends:73:1 --format json
 ```
 
 Groups with fewer than 2 calls or fewer than 50 delivered tokens
@@ -316,6 +318,13 @@ a runtime-reported `prompt_cache_token_hit_rate_pct`, agent-attribution coverage
 and latency evidence. The
 schema is closed: further fields require an intentional schema-version change.
 `ktx stats breakdown` owns the detailed delivery groups.
+`ktx stats live-validation` is a purpose-specific, read-only report for frozen
+explicit-collection windows. Its closed `ktx.stats.live-validation/v1` JSON
+contract reports each hard gate as `qualified` or `blocked`, uses only linked
+future evidence, and validates the checked-in controlled matrix and receipt.
+Installed operation may override those artifact paths with `--matrix` and
+`--receipt`. A blocked report exits with the conflict status after emitting the
+report; it never creates or migrates a database.
 Summary schema 10 omits outcomes, delivery rates, cost views, and cache detail.
 Callers that need delivery groups should invoke the breakdown schema 4 command.
 

@@ -1,0 +1,14 @@
+id: qkhyyyeuqs
+artifact: plan
+record:
+  name: Expose a frozen-window validation report
+  depends_on:
+    - wzmtotgbmh
+    - qeqoihpbxa
+  status: complete
+  acceptance:
+    - GIVEN explicit UTC bounds, collection identity, supported ingress, and candidate identity WHEN the report runs THEN it emits stable machine-readable populations, numerators, denominators, authorities, coverage, and gates for delivery, dispositions, outcomes, recovery, tool-call inflation, latency, and continuity.
+    - GIVEN the predeclared controlled matrix and its receipt WHEN required-fact safety is evaluated THEN all 11 assertions are the denominator, exact-count preservation is the numerator, and any result below 11 of 11 is an unfavorable regression; organic live output is never treated as a fact oracle.
+    - GIVEN zero, unknown, below-floor, conflicting, unclosed, or discontinuous evidence WHEN a gate is evaluated THEN the report blocks that gate rather than reporting zero change or not applicable.
+    - GIVEN the report reads an explicit database and retained artifacts WHEN it completes THEN it has made no database, configuration, adapter, or runtime mutation.
+  plan: dfhrqsldya

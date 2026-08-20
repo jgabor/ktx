@@ -5,19 +5,24 @@ record:
   status: open
   readiness:
     capability: optimize
-    reason: Run the separately gated post-change live validation for only keep-ends:73:1 using the retained controlled successor evidence.
+    reason: Repository prerequisites now support schema 14 explicit collection, recovery linkage, runtime timing, and frozen-window reporting; operator deployment and live requalification remain pending.
     dependencies:
       - artifact: todo
         id: edwzszsqjr
-    blocked: null
-    gate: null
+    blocked:
+      reason: The installed operator binary and ambient live database remain on schema 11, the generated adapter has not been refreshed, and no backup, migration, configuration, restart, collection, baseline, or rollout is authorized.
+      recovery: Build and verify the schema-14 binary, obtain explicit operator authorization, quiesce writers and retain a database-plus-sidecar backup, deploy and migrate forward, refresh the generated OpenCode adapter, restart under one explicit collection identity, then requalify the frozen report before scheduling either window.
+    gate:
+      state: pending
+      reason: No ambient live effect or exact window is authorized until the schema-14 runtime and adapter are deployed and the read-only preflight is requalified.
+      recovery: Complete the authorized deployment sequence, run the corrected preflight, and retain a qualified report before deriving fixed UTC bounds.
     queue_rank: 8
-    order_reason: Immediately actionable only after the resolved successor candidate outcome; rollout itself remains unexecuted.
+    order_reason: Repository instrumentation is ready, but operator deployment and requalification still block every live-validation task.
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[experiment] Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 607b5a9daa8d892abc929e62860eb0e4683a59ece42f478222dadc2fd7e2e66e). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[experiment] Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 a9fdd4c8d2b29422683db2d8f82fbf23fcc53aba465e5480af196a0bcafef82b). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
       severity: normal
       status: open
       order: 12
@@ -32,4 +37,4 @@ record:
     - Pre/post evidence contains every required metric and authoritative continuity and closure evidence.
     - Any regression triggers revert; absent regression, live evidence remains distinct from controlled experiment evidence and does not itself establish provider-internal behavior or a shipped-default change.
   release_blocker: false
-  title: "Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 607b5a9daa8d892abc929e62860eb0e4683a59ece42f478222dadc2fd7e2e66e). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
+  title: "Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 a9fdd4c8d2b29422683db2d8f82fbf23fcc53aba465e5480af196a0bcafef82b). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"

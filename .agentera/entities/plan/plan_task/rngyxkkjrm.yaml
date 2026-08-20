@@ -1,0 +1,24 @@
+id: rngyxkkjrm
+artifact: plan
+record:
+  name: Freeze the protocol and qualify the live environment
+  depends_on:
+    []
+  status: blocked
+  acceptance:
+    - GIVEN live validation is proposed WHEN preflight completes THEN the exact database, binary, schema, selected ingress, current configuration, and continuity authority are retained without mutation.
+    - GIVEN the protocol is frozen WHEN collection is scheduled THEN exact UTC bounds for two equal 72-hour windows and the excluded rollout gap are retained before the baseline opens.
+    - GIVEN required metrics WHEN definitions are retained THEN every numerator, denominator, coverage value, comparison unit, regression threshold, recovery measure, tool-call-inflation measure, and latency authority is specified before observing results.
+    - GIVEN migration or configuration mutation is required WHEN execution reaches that boundary THEN a consistent backup and explicit operator authorization are retained before any effect.
+    - GIVEN schema, ingress continuity, metric observability, or authorization is insufficient WHEN qualification closes THEN the task blocks with an exact recovery condition and no baseline claim.
+  plan: wbiubhkths
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Corrected preflight still lacks an authoritative required-fact regression population/denominator and defines cue-follow using attempts rather than distinct delivered cues followed.
+    provenance:
+      attempt_id: live-preflight-audit-2
+      source: audit:ses_fe420b05affe8BGEVikuHp0FjL
+      recorded_at: 2026-08-19 23:21
+      writer_command: agentera state plan record-evaluation

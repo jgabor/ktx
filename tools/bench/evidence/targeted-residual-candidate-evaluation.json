@@ -1,7 +1,7 @@
 {
   "schema": "ktx.targeted-residual-candidate-evaluation.v1",
-  "matrix_sha256": "7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32",
-  "matrix_report_sha256": "3310b77416220aed4feeda986181074d502d39489da3a432c5dbd1d49282da72",
+  "matrix_sha256": "b13a859487c0fbd329174fdda3e67c212761aa61152bf278208f5d1a8257a2d9",
+  "matrix_report_sha256": "6be3c9bcb79292acf447d87656a3d4ea86994560cae7a6b342e549c71b771c83",
   "evaluator_sha256": "505e60e7768c148b01210361be88f495ddb04d8b9257e0c7055f7bc46d1b5b39",
   "routing": {
     "predicates": ["tool=read", "exit_status=success"],

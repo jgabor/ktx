@@ -1,0 +1,14 @@
+id: fdanomhopq
+artifact: plan
+record:
+  name: Collect and close the post-change window
+  depends_on:
+    - mgjtppspte
+  status: pending
+  acceptance:
+    - GIVEN the candidate is active WHEN post collection runs THEN the same traffic scope is observed for the complete fixed 72-hour window.
+    - GIVEN the post window reaches its end WHEN continuity is evaluated THEN authoritative lifecycle evidence spans the requested end with no gap.
+    - GIVEN lossy candidate outputs occur WHEN recovery is evaluated THEN the predeclared live recovery measure includes retained byte-exact recovery evidence.
+    - GIVEN a valid closed post window WHEN evidence is retained THEN a consistent read-only snapshot contains every predeclared metric, denominator, and coverage value.
+    - GIVEN the post window is incomplete, incomparable, or lacks required evidence WHEN evaluation runs THEN the prior configuration is restored before any rescheduled attempt.
+  plan: wbiubhkths

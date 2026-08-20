@@ -1,0 +1,44 @@
+id: wbiubhkths
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-19
+    status: archived
+    reviewed: 2026-08-19
+    critic_issues: 5 found, 5 addressed, 0 dismissed
+    revised: Added explicit operator authorization, equal fixed windows with a rollout gap, pre-rollout metric-observability gates, valid reverted completion, and descriptive claim limits.
+    title: "Plan: Post-change live validation for keep-ends"
+  what: Run a continuity-qualified pre/post live validation of only keep-ends:73:1 and retain an evidence-backed experimental retain-or-revert decision.
+  why: Determine whether the controlled candidate improves real operation without sacrificing facts, recovery, outcome coverage, tool-call behavior, or latency.
+  constraints: Use two equal fully elapsed 72-hour UTC windows separated by an excluded rollout gap; require authoritative continuity and closure; obtain explicit operator authorization before live migration or configuration mutation; preserve rollback; make no provider-internal, causal, or shipped-default claim.
+  overall_acceptance: GIVEN the authorized candidate rollout WHEN validation closes THEN comparable continuity-qualified windows support either experimental retention or verified reversion, every required metric and coverage value is retained, and incomplete evidence is never treated as success.
+  scope:
+    included:
+      - Read-only live preflight and evidence-authority qualification
+      - Authorized forward migration when required for schema-13 continuity evidence
+      - One fixed 72-hour pre-change window and one fixed 72-hour post-change window
+      - A reversible success-qualified read rollout of keep-ends:73:1 with recovery enabled
+      - Normalized operational comparison, retain-or-revert decision, and project-state synchronization
+    excluded:
+      - Any alternative candidate, content-based routing, or new routing predicate
+      - Changes to the shipped default profile or unrelated routes and configuration
+      - Provider-internal, causal model-behavior, or prompt-cache claims
+      - A shipped-default recommendation or rollout beyond the validated experimental scope
+      - Development or test access to the ambient live database
+    deferred:
+      - Any shipped-default proposal
+      - Broader rollout beyond the selected live validation scope
+  design: First freeze an observable, continuity-qualified protocol and obtain authorization for any live mutation. Collect and close the unchanged baseline, apply one reversible candidate during an excluded rollout gap, collect and close an equivalent post window, then compare normalized evidence and either retain the experimental rollout or restore the prior configuration. Synchronize the decision without broadening its claims.
+  unknowns:
+    - question: Does the live environment use a compatible schema and a supported ingress with authoritative lifecycle evidence for the intended traffic?
+      affects_task: 2
+      resolve_by: Task 1 verifies schema, binary, database, ingress, and closure authority; it blocks with an exact recovery condition when qualification fails.
+    - question: Can recovery behavior, tool-call inflation, outcome coverage, and latency all be measured with trustworthy live denominators?
+      affects_task: 2
+      resolve_by: Task 1 predeclares each metric and authority; unavailable metrics block baseline collection rather than becoming zero.
+    - question: Will keep-ends:73:1 retain positive normalized value without correctness or operational regression?
+      affects_task: 5
+      resolve_by: Tasks 2 through 4 retain comparable windows; task 5 applies the predeclared gates and retains or reverts the rollout.
+  surprises:
+    []

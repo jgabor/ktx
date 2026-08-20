@@ -1,0 +1,15 @@
+id: ltymdzagxe
+artifact: plan
+record:
+  name: Compare live evidence and retain or revert
+  depends_on:
+    - qyioveacol
+    - mgjtppspte
+    - fdanomhopq
+  status: pending
+  acceptance:
+    - GIVEN valid comparable windows WHEN results are calculated THEN delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery, tool-call inflation, and latency are compared using the predeclared normalized units.
+    - GIVEN descriptive results WHEN interpretation is recorded THEN absolute daily totals, provider-internal behavior, and causal model claims are excluded.
+    - GIVEN any required-fact, recovery, continuity, outcome-coverage, tool-call, latency, or positive-value hard gate fails WHEN disposition is selected THEN the exact prior configuration is restored and the candidate is recorded as reverted.
+    - GIVEN every predeclared gate passes WHEN disposition is selected THEN keep-ends:73:1 may remain only as the bounded experimental rollout and shipped defaults remain unchanged.
+  plan: wbiubhkths

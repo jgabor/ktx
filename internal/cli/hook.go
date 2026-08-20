@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
@@ -28,6 +29,7 @@ type hookEnvelope struct {
 	KTXSessionID     string  `json:"ktx_session_id,omitempty"`
 	RuntimeSessionID string  `json:"runtime_session_id,omitempty"`
 	CallID           string  `json:"call_id,omitempty"`
+	RecoveryCue      bool    `json:"recovery_cue,omitempty"`
 }
 
 // codexPostToolUseEvent is the sole hook_event_name value accepted for Codex
@@ -49,7 +51,7 @@ type codexHookOutput struct {
 	Reason   string `json:"reason,omitempty"`
 }
 
-func writeTrustedHookOutput(stdout io.Writer, isCodex bool, result evidence.Result, output, runtimeSessionID, runtimeCallID string) error {
+func writeTrustedHookOutput(stdout io.Writer, isCodex bool, result evidence.Result, output, runtimeSessionID, runtimeCallID string, recoveryCue bool) error {
 	enc := json.NewEncoder(stdout)
 	enc.SetEscapeHTML(false)
 	if isCodex {
@@ -68,8 +70,13 @@ func writeTrustedHookOutput(stdout io.Writer, isCodex bool, result evidence.Resu
 		compressedID = &result.CompressedID
 	}
 	envelope := hookEnvelope{Output: output, CompressedID: compressedID, SourceID: result.SourceID}
+	envelope.RecoveryCue = recoveryCue
 	if benchmarkEnv, present, _ := benchcontract.ReadEnvironment(); present {
 		envelope.KTXSessionID = benchmarkEnv.SessionID
+		envelope.RuntimeSessionID = runtimeSessionID
+		envelope.CallID = runtimeCallID
+	} else if os.Getenv("KTX_COLLECTION_ID") != "" {
+		envelope.KTXSessionID = os.Getenv("KTX_SESSION_ID")
 		envelope.RuntimeSessionID = runtimeSessionID
 		envelope.CallID = runtimeCallID
 	}
@@ -343,8 +350,17 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 // hookLogicObserved exposes successful hook write phases to package tests.
 // It does not emit production output or change phase ownership.
 func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, observe hookPhaseObserver) (any, error) {
-	if os.Getenv("KTX_SESSION_ID") != "" {
+	collectionID := os.Getenv("KTX_COLLECTION_ID")
+	if os.Getenv("KTX_SESSION_ID") != "" && collectionID == "" {
 		return nil, nil
+	}
+	if collectionID != "" {
+		if !dbpkg.IDPattern.MatchString(collectionID) || os.Getenv("KTX_SESSION_ID") == "" {
+			return nil, usageError("ktx hook: invalid explicit collection ownership")
+		}
+		if err := db.ValidateCollectionInterval(collectionID, []string{"run"}); err != nil {
+			return nil, usageError("ktx hook: collection ownership mismatch: %v", err)
+		}
 	}
 
 	body, err := io.ReadAll(stdin)
@@ -501,6 +517,9 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	tc.Producer = &producer
 
 	sessionHint := tc.SessionID
+	if collectionID != "" {
+		sessionHint = os.Getenv("KTX_SESSION_ID")
+	}
 	if benchmarkEnv, present, envErr := benchcontract.ReadEnvironment(); present {
 		if envErr != nil {
 			return nil, usageError("ktx hook: %v", envErr)
@@ -566,6 +585,9 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		}
 		if pipelineErr != nil {
 			return nil, pipelineErr
+		}
+		if err := retainRecoveryAttempt(db, collectionID, isOpenCode && src.Eligible, &tc); err != nil {
+			return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 		}
 		return nil, writeHookResult(stdout, isCodex, trusted, preflight.result, tc.Output, execution, runtimeSessionID, runtimeCallID)
 	}
@@ -637,12 +659,57 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	}
 	if configErr != nil {
 		if result.Transformed {
+			if err := retainRecoveryAttempt(db, collectionID, isOpenCode && src.Eligible, &tc); err != nil {
+				return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
+			}
 			return nil, writeHookResult(stdout, isCodex, trusted, result, tc.Output, pipelineExecution{}, runtimeSessionID, runtimeCallID)
 		}
 		return nil, usageError("%v", configErr)
 	}
 	_ = envelopeOutput
+	if err := retainRecoveryAttempt(db, collectionID, isOpenCode && src.Eligible, &tc); err != nil {
+		return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
+	}
 	return nil, writeHookResult(stdout, isCodex, trusted, result, tc.Output, execution, runtimeSessionID, runtimeCallID)
+}
+
+func retainRecoveryAttempt(db *dbpkg.DB, collectionID string, trustedOpenCode bool, tc *dbpkg.ToolCall) error {
+	if collectionID == "" || !trustedOpenCode || tc.Tool != "bash" || tc.IsError == nil {
+		return nil
+	}
+	var input map[string]json.RawMessage
+	if json.Unmarshal([]byte(tc.Input), &input) != nil || len(input) != 1 {
+		return nil
+	}
+	var command string
+	if json.Unmarshal(input["command"], &command) != nil {
+		return nil
+	}
+	parts := strings.Split(command, " ")
+	if len(parts) != 3 || parts[0] != "ktx" || parts[1] != "read" || !dbpkg.IDPattern.MatchString(parts[2]) {
+		return nil
+	}
+	cue, err := db.RecoveryCue(collectionID, parts[2])
+	if errors.Is(err, dbpkg.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	attempt := dbpkg.RecoveryAttempt{AttemptSourceID: tc.ID, CollectionID: collectionID, CueSourceID: cue.SourceID, AttemptedAt: tc.Timestamp, Authority: dbpkg.RecoveryAttemptAuthority}
+	if *tc.IsError {
+		attempt.ResultState = "failed"
+		return db.RetainRecoveryAttempt(attempt)
+	}
+	attempt.ResultState = "succeeded"
+	var recovered dbpkg.ToolCall
+	exact := false
+	if json.Unmarshal([]byte(tc.Output), &recovered) == nil && recovered.ID == cue.SourceID {
+		source, getErr := db.GetToolCall(cue.SourceID)
+		exact = getErr == nil && recovered.Output == source.Output && recovered.ContentHash == source.ContentHash && dbpkg.ContentHash(recovered.Output) == source.ContentHash
+	}
+	attempt.ByteExact = &exact
+	return db.RetainRecoveryAttempt(attempt)
 }
 
 type hookDispositionStore interface {
@@ -763,7 +830,7 @@ func writeHookResult(stdout io.Writer, isCodex, trusted bool, result evidence.Re
 		}
 	}
 	if trusted {
-		return writeTrustedHookOutput(stdout, isCodex, result, output, runtimeSessionID, runtimeCallID)
+		return writeTrustedHookOutput(stdout, isCodex, result, output, runtimeSessionID, runtimeCallID, result.Transformed && execution.recoverFooter && strings.Contains(output, "`ktx read "+result.SourceID+"`"))
 	}
 	var compressedID *string
 	if result.CompressedID != "" {
@@ -790,14 +857,7 @@ func writeHookResult(stdout io.Writer, isCodex, trusted bool, result evidence.Re
 // reduction percent alone conveys the loss magnitude at lower token
 // cost than carrying both sizes.
 func buildRecoveryFooter(sourceID string, originalBytes, compressedBytes int) string {
-	reduction := 0
-	if originalBytes > 0 && compressedBytes < originalBytes {
-		reduction = (originalBytes - compressedBytes) * 100 / originalBytes
-	}
-	return fmt.Sprintf(
-		"\n[ktx] output compressed: %d bytes (%d%% reduction) • get full output with `ktx read %s`\n",
-		compressedBytes, reduction, sourceID,
-	)
+	return dbpkg.RecoveryFooter(sourceID, originalBytes, compressedBytes)
 }
 
 // RecoveryFooter returns the footer used for agent-visible compressed output.
@@ -901,9 +961,9 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "passthrough (Codex leaves the tool result unchanged). The envelope")
 	fmt.Fprintln(w, "documented above does not apply to the Codex path.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "When KTX_SESSION_ID is set in the environment, the hook exits 0 with no")
-	fmt.Fprintln(w, "output. This noop guard keeps the `ktx run` wrapper the single source")
-	fmt.Fprintln(w, "of truth when both the wrapper and an adapter are active in one session.")
+	fmt.Fprintln(w, "When only KTX_SESSION_ID is set, the hook exits 0 with no output so")
+	fmt.Fprintln(w, "ordinary `ktx run` remains the single evidence owner. Explicit collection")
+	fmt.Fprintln(w, "also sets KTX_COLLECTION_ID and keeps the hook active with strict ownership.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This verb is called by `ktx init` adapters: the OpenCode plugin's")
 	fmt.Fprintln(w, "tool.execute.after hook and the Codex PostToolUse command hook. It is not")

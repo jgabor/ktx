@@ -1,0 +1,18 @@
+id: kqzptwfrsa
+artifact: progress
+record:
+  timestamp: 2026-08-19 23:30
+  type: correction
+  phase: build
+  what: Corrected the retained live preflight protocol after the failed audit; readiness remains BLOCKED and no window was scheduled.
+  context:
+    intent: Correct the audited live preflight protocol while preserving the blocked readiness and no-effect boundary.
+    prior_progress: vysgrxqhjn
+    audit_attempt: live-preflight-audit-1
+    task: rngyxkkjrm
+    constraints: One bounded protocol/evidence correction only; no live query, migration, backup, config mutation, restart, schedule, baseline, task-status change, commit, or push.
+  corrected: The deterministic rule now freezes both exact 72-hour UTC windows and the explicit 24-hour excluded gap together at least 24 hours after requalification, invalidating and requalifying on any missed fixed start. Every required metric now has exact count and coverage floors, with zero, unknown, and insufficient baseline evidence blocking rather than becoming not applicable. Migration effects now state that schema 11 already has producer provenance, schema 12 adds session-attribution authority, and schema 13 adds empty continuity tables without backfill.
+  blocked_by: Installed binary maximum/schema 11; absent schema 13 continuity; absent linked recovery denominator; absent completed wrapper-run denominator; zero runtime-authoritative latency coverage; and absent operator authorization.
+  verified: Corrected artifact SHA-256 is c25006d73846feb478487c8ad08eb736793016c500808fb714f5b2c90acad434. Only the retained preflight artifact and this new progress record were changed in this correction. No live command or database/config operation was run.
+  next: Obtain authorization and satisfy the retained prerequisites before requalification; only a successful requalification may generate a schedule.
+  publication_order: 130

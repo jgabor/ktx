@@ -153,7 +153,7 @@ func TestCurrentSchemaMissingAttributionAuthorityFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, agent TEXT); PRAGMA user_version = 13`); err != nil {
+	if _, err := raw.Exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, agent TEXT); PRAGMA user_version = 14`); err != nil {
 		t.Fatal(err)
 	}
 	if err := raw.Close(); err != nil {

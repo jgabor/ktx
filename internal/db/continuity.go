@@ -23,7 +23,10 @@ type IngressObservation struct {
 }
 
 type ContinuityGap struct {
-	Ingress, From, To, Reason string
+	Ingress string `json:"ingress"`
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Reason  string `json:"reason"`
 }
 
 type ContinuityResult struct {
@@ -63,6 +66,63 @@ func (d *DB) OpenCollectionInterval(ingresses []string, openedAt string) (*Colle
 		return nil, err
 	}
 	return &CollectionInterval{ID: id, DatabaseTarget: target, SupportedIngresses: ingresses, OpenedAt: openedAt}, nil
+}
+
+// EnsureCollectionInterval creates a caller-named collection or verifies that
+// the existing collection names the same database and ingress set.
+func (d *DB) EnsureCollectionInterval(id string, ingresses []string, openedAt string) (*CollectionInterval, error) {
+	if !IDPattern.MatchString(id) {
+		return nil, ErrContinuityInvalid
+	}
+	var target string
+	if err := d.db.QueryRow(`SELECT file FROM pragma_database_list WHERE name = 'main'`).Scan(&target); err != nil || strings.TrimSpace(target) == "" {
+		return nil, ErrContinuityInvalid
+	}
+	ingresses = normalizedIngresses(ingresses)
+	if len(ingresses) == 0 {
+		return nil, ErrContinuityInvalid
+	}
+	if _, err := time.Parse(time.RFC3339Nano, openedAt); err != nil {
+		return nil, ErrContinuityInvalid
+	}
+	encoded, _ := json.Marshal(ingresses)
+	ctx, cancel := writeContext()
+	defer cancel()
+	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+		var storedTarget, storedIngresses, storedOpened string
+		err := tx.QueryRow(`SELECT database_target,supported_ingresses,opened_at FROM collection_intervals WHERE id=?`, id).Scan(&storedTarget, &storedIngresses, &storedOpened)
+		if errors.Is(err, sql.ErrNoRows) {
+			_, err = tx.Exec(`INSERT INTO collection_intervals (id,database_target,supported_ingresses,opened_at) VALUES (?,?,?,?)`, id, target, string(encoded), openedAt)
+			return err
+		}
+		if err != nil || storedTarget != target || storedIngresses != string(encoded) {
+			return ErrContinuityInvalid
+		}
+		openedAt = storedOpened
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &CollectionInterval{ID: id, DatabaseTarget: target, SupportedIngresses: ingresses, OpenedAt: openedAt}, nil
+}
+
+func (d *DB) ValidateCollectionInterval(id string, ingresses []string) error {
+	if !IDPattern.MatchString(id) {
+		return errors.Join(ErrContinuityInvalid, errors.New("invalid collection id"))
+	}
+	var target, storedTarget, storedIngresses string
+	if err := d.db.QueryRow(`SELECT file FROM pragma_database_list WHERE name = 'main'`).Scan(&target); err != nil || strings.TrimSpace(target) == "" {
+		return errors.Join(ErrContinuityInvalid, errors.New("database target unavailable"))
+	}
+	encoded, _ := json.Marshal(normalizedIngresses(ingresses))
+	if err := d.db.QueryRow(`SELECT database_target,supported_ingresses FROM collection_intervals WHERE id=?`, id).Scan(&storedTarget, &storedIngresses); err != nil {
+		return errors.Join(ErrContinuityInvalid, errors.New("collection not found"))
+	}
+	if storedTarget != target || storedIngresses != string(encoded) {
+		return errors.Join(ErrContinuityInvalid, errors.New("database target or ingress differs"))
+	}
+	return nil
 }
 
 func normalizedIngresses(values []string) []string {

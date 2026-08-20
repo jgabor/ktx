@@ -80,8 +80,8 @@ func TestCompressionDispositionMigrationDoesNotBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	if MaxSupportedSchema() != 13 {
-		t.Fatalf("MaxSupportedSchema = %d, want 13", MaxSupportedSchema())
+	if MaxSupportedSchema() != 14 {
+		t.Fatalf("MaxSupportedSchema = %d, want 14", MaxSupportedSchema())
 	}
 	var rows int
 	if err := database.db.QueryRow(`SELECT count(*) FROM compression_dispositions`).Scan(&rows); err != nil {
@@ -89,6 +89,20 @@ func TestCompressionDispositionMigrationDoesNotBackfill(t *testing.T) {
 	}
 	if rows != 0 {
 		t.Fatalf("migrated disposition rows = %d, want 0 (no historical inference)", rows)
+	}
+	if err := database.db.QueryRow(`SELECT count(*) FROM runtime_source_observations`).Scan(&rows); err != nil {
+		t.Fatalf("query runtime_source_observations: %v", err)
+	}
+	if rows != 0 {
+		t.Fatalf("migrated runtime source observations = %d, want 0 (history remains unknown)", rows)
+	}
+	for _, table := range []string{"recovery_cue_deliveries", "recovery_attempts"} {
+		if err := database.db.QueryRow(`SELECT count(*) FROM ` + table).Scan(&rows); err != nil {
+			t.Fatalf("query %s: %v", table, err)
+		}
+		if rows != 0 {
+			t.Fatalf("migrated %s rows = %d, want 0", table, rows)
+		}
 	}
 }
 

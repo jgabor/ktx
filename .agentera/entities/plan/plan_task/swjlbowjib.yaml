@@ -1,0 +1,15 @@
+id: swjlbowjib
+artifact: plan
+record:
+  name: Verify and synchronize the replacement
+  depends_on:
+    - wzmtotgbmh
+    - qeqoihpbxa
+    - qkhyyyeuqs
+  status: complete
+  acceptance:
+    - GIVEN disposable application roots and a seeded schema-11 database WHEN verification runs THEN migration to schema 14, same-population collection, cue recovery, fixed-window reporting, and ordinary compatibility pass without ambient database access.
+    - GIVEN public command or adapter behavior changes WHEN implementation is complete THEN help, operator documentation, database safety guidance, and generated adapter expectations agree with tested behavior.
+    - GIVEN repository evidence passes independent audit WHEN project state is synchronized THEN the live-validation item remains blocked only on explicit operator deployment, backup, migration, configuration, restart, and window authorization.
+    - GIVEN no live authorization WHEN this plan completes THEN no exact live window, rollout, or shipped-default claim exists.
+  plan: dfhrqsldya

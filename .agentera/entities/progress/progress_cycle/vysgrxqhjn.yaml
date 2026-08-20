@@ -1,0 +1,16 @@
+id: vysgrxqhjn
+artifact: progress
+record:
+  timestamp: 2026-08-19 23:12
+  type: docs
+  phase: build
+  what: Retained the read-only live qualification protocol; readiness is BLOCKED and no baseline was opened.
+  context:
+    intent: Qualify the ambient live environment without mutation before any keep-ends:73:1 baseline or rollout.
+    constraints: Read-only operator preflight only; no migration, database write, config mutation, restart, rollout, baseline start, plan status change, commit, or push.
+    unknowns: Whether an authorized schema-13 runtime plus recovery and run-denominator instrumentation will be deployed and prove full continuity and metric coverage.
+    scope: Exact live binary, database, schema, adapter candidates, config semantics, continuity authority, metric definitions, gates, scheduling rule, and recovery prerequisites.
+  discovered: The installed operator binary and live database are both schema 11, while authoritative selected-ingress continuity and closure require schema 13 wrapper-owned run boundaries. Live latency coverage is zero, and linked recovery-attempt and completed-run denominators needed for recovery and tool-call inflation are absent.
+  verified: Artifact .agentera/verification/live-keep-ends-preflight-20260819.md has SHA-256 28cb572f666cc3ed6637400af4e1f5d1d02ec3968fd9bf8e752ed7ab403757bc. DB-free binary-capabilities identified ~/.local/share/go/bin/ktx SHA-256 43e2e2f07bd7e5850a35eb74ee30b4339a716f64e557591115712c25ec554478, build dev, max schema 11; db path resolved ~/.local/share/ktx/ktx.db. Existing-artifact doctor opened it read-only and reported schema 11. DB-free config show retained current semantics and config SHA-256 10465b59b18c77ea5872b21237611bb61e33d5dbd6e8c813cd6700c333c0e1cd; adapter --show found OpenCode and Codex installations but did not prove runtime selection. Genuinely read-only stats reported 0/11455 runtime-authoritative latency observations. No direct SQLite access or write-capable ktx command was used. Git status before work contained only the active untracked plan entities; no product, config, TODO, or plan status was changed.
+  next: Require a consistent quiesced database-and-sidecar backup and explicit operator authorization before binary replacement, schema 13 migration, configuration change, adapter refresh, runtime restart, rollout, or baseline start. Add authoritative linked recovery events and completed-run denominators, then requalify and schedule exact UTC bounds by the retained rule.
+  publication_order: 129

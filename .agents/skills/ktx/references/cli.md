@@ -182,6 +182,7 @@ ktx read <source-id>
 ktx stats --limit 20 --format json
 ktx stats summary --window 30m --format json
 ktx stats breakdown --window 30m --format json
+ktx stats live-validation --from <UTC> --to <UTC> --collection <id> --ingress run --candidate keep-ends:73:1 --format json
 ktx telemetry list --session <id> --limit 1000 --format json
 ```
 
@@ -206,6 +207,13 @@ millisecond units, requested-window measured/unknown/malformed counts, measured
 coverage and UTC contributing bounds, and a measured-only distribution. With no
 measured values, state is unavailable and bounds and distribution values are null. Retained
 schema 6 summaries remain unchanged historical evidence.
+
+`stats live-validation` requires schema 14 and an explicit collection created by
+`ktx run --collection=<id> opencode ...`. It reads one half-open `[from,to)`
+window, validates the pinned `keep-ends:73:1` controlled artifacts, and reports
+delivery, disposition, outcome, distinct-cue recovery, wrapper-run, latency, and
+continuity gates. It emits a structured blocked report and exits 3 when any
+required population or authority is insufficient. The command is read-only.
 
 Ordinary `telemetry record` is an adapter-facing best-effort write command. It
 reports failures without failing the agent operation. Required benchmark

@@ -87,6 +87,8 @@ type RegisterOptions struct {
 	// Help writes the verb's --help block to w. When nil, the dispatcher
 	// reports that help is unavailable and exits successfully.
 	Help func(io.Writer)
+	// HelpForArgs optionally renders nested help before database access.
+	HelpForArgs func([]string, io.Writer) bool
 
 	// ParseArgs lets a verb consume command-specific flags before the shared
 	// flag set runs. Parsed values are carried to the command in
@@ -293,6 +295,9 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		return ExitUsage
 	}
 	if showHelp {
+		if reg.opts.HelpForArgs != nil && reg.opts.HelpForArgs(fs.Args(), stdout) {
+			return ExitOK
+		}
 		return renderHelp(reg.opts.Help, stdout)
 	}
 	// 4. Open the database according to the command's declared access mode.

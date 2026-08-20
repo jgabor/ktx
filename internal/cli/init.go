@@ -108,9 +108,8 @@ type initParsedArgs struct {
 //     conservative failure at the plugin level.
 //   - Ordinary telemetry and tool-result callbacks share one queue, so one
 //     callback finishes its ktx work before the next callback starts it.
-//   - Noops when KTX_SESSION_ID is present: when the user
-//     is also running the agent under `ktx run`, the wrapper owns
-//     persistence and the plugin would otherwise double-record.
+//   - Noops when KTX_SESSION_ID is present for an ordinary wrapper run. An
+//     explicit collection keeps the hook active under wrapper-owned lifecycle.
 //
 // Candidate check: the plugin factory resolves one ktx from PATH, verifies its
 // canonical path, digest, version, and capability response, then invokes that
@@ -128,6 +127,7 @@ interface KtxEnvelope {
 	ktx_session_id?: string
 	runtime_session_id?: string
 	call_id?: string
+	recovery_cue?: boolean
 }
 
 interface KtxBinaryCapabilities {
@@ -314,7 +314,8 @@ const requiredEnvelope = (value: unknown, input: any, sessionID: string): KtxEnv
       !(envelope.compressed_id === null || typeof envelope.compressed_id === "string") ||
       !nonblank(envelope.source_id) || envelope.ktx_session_id !== sessionID ||
       !nonblank(input?.sessionID) || envelope.runtime_session_id !== input.sessionID ||
-      !nonblank(input?.callID) || envelope.call_id !== input.callID) {
+      !nonblank(input?.callID) || envelope.call_id !== input.callID ||
+      !(envelope.recovery_cue === undefined || typeof envelope.recovery_cue === "boolean")) {
     throw new Error("ktx hook envelope contract mismatch")
   }
   return {
@@ -324,6 +325,7 @@ const requiredEnvelope = (value: unknown, input: any, sessionID: string): KtxEnv
     ktx_session_id: envelope.ktx_session_id as string,
     runtime_session_id: envelope.runtime_session_id as string,
     call_id: envelope.call_id as string,
+	recovery_cue: envelope.recovery_cue as boolean | undefined,
   }
 }
 
@@ -580,8 +582,8 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 
   return {
     "event": async ({ event }: any) => {
-      // The wrapper owns all evidence when it supplies the session.
-      if (process.env.KTX_SESSION_ID) return
+      // An ordinary wrapper owns all evidence when it supplies the session.
+      if (process.env.KTX_SESSION_ID && !process.env.KTX_COLLECTION_ID) return
 	  if (required) {
 		epochOrdinal++
 		const acceptedOrdinal = epochOrdinal
@@ -600,8 +602,8 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       await next
     },
     "tool.execute.after": async (input: any, output: any) => {
-      // Noop when wrapper is active
-      if (process.env.KTX_SESSION_ID) return
+      // Noop when an ordinary wrapper is active.
+      if (process.env.KTX_SESSION_ID && !process.env.KTX_COLLECTION_ID) return
 
       const record = {
         runtime: "opencode",
@@ -610,10 +612,10 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       }
 
 	  let envelope: KtxEnvelope | null
-	  if (required) {
+	  if (required || process.env.KTX_COLLECTION_ID) {
 		const next = eventQueue.then(async () => {
 		  const strict = await ktxRequiredCommand(ktxExecutable, ["hook"], JSON.stringify(record))
-		  return requiredEnvelope(strict, input, requiredSessionID)
+		  return requiredEnvelope(strict, input, required ? requiredSessionID : process.env.KTX_SESSION_ID || "")
 		})
 		eventQueue = next.then(() => undefined, () => undefined)
 		envelope = await next
@@ -636,6 +638,12 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         // The agent sees the compressed output instead of the original.
         if (output && typeof output === "object" && "output" in output) {
           output.output = envelope.output
+		  if (process.env.KTX_COLLECTION_ID && envelope.recovery_cue) {
+			if (!envelope.compressed_id) throw new Error("ktx recovery cue lacks artifact identity")
+			const ack = await ktxRequiredCommand(ktxExecutable, ["telemetry", "cue-delivered"], JSON.stringify({source_id:envelope.source_id,artifact_id:envelope.compressed_id,session_id:envelope.ktx_session_id,runtime_session_id:envelope.runtime_session_id,call_id:envelope.call_id}))
+			const value = ack as Record<string, unknown>
+			if (value?.ok !== true || value.collection_id !== process.env.KTX_COLLECTION_ID || value.session_id !== envelope.ktx_session_id || value.source_id !== envelope.source_id || value.artifact_id !== envelope.compressed_id) throw new Error("ktx recovery cue acknowledgement mismatch")
+		  }
         }
       }
       // On failure (envelope === null), output is left unchanged.
@@ -1055,9 +1063,9 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The OpenCode plugin subscribes to event for optional model-step telemetry and")
 	fmt.Fprintln(w, "tool.execute.after for tool-result compression. It delegates to `ktx telemetry")
-	fmt.Fprintln(w, "record` and `ktx hook` respectively. When KTX_SESSION_ID is")
-	fmt.Fprintln(w, "set in the environment, the plugin noops so the wrapper")
-	fmt.Fprintln(w, "path remains the single source of truth.")
+	fmt.Fprintln(w, "record` and `ktx hook` respectively. With KTX_SESSION_ID alone, the plugin")
+	fmt.Fprintln(w, "noops so the ordinary wrapper remains the single evidence owner. Explicit")
+	fmt.Fprintln(w, "collection also sets KTX_COLLECTION_ID and keeps the hooks active.")
 	fmt.Fprintln(w, "The wrapper records identifiable OpenCode step_finish model telemetry itself")
 	fmt.Fprintln(w, "while the generated hooks noop, preventing duplicate evidence.")
 	fmt.Fprintf(w, "Telemetry is %s. It is %s.\n", opencodeTelemetryEvidence, opencodeTelemetryClaimBoundary)

@@ -82,6 +82,7 @@ type runOptions struct {
 	Format       string
 	Quiet        bool
 	RecordStream bool
+	CollectionID string
 }
 
 // runRunWith executes `ktx run` with injected output streams.
@@ -90,6 +91,12 @@ type runOptions struct {
 // invokes executeRun, returning the child's exit code directly.
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	runOpts := runOptions{Format: opts.Format, Quiet: opts.Quiet}
+	var err error
+	args, runOpts.CollectionID, err = extractCollectionFlag(args)
+	if err != nil {
+		printError(stderr, usageError("ktx run: %v", err), opts.Format)
+		return ExitUsage
+	}
 	// Subcommand-local --quiet / --help / --record-stream. The dispatch
 	// module already extracts --help when invoked through dispatch; parse the
 	// flag set here for direct callers.
@@ -125,6 +132,23 @@ func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	agent := rest[0]
 
 	return executeRun(agent, agentArgs, runOpts, stdout, stderr)
+}
+
+func extractCollectionFlag(args []string) ([]string, string, error) {
+	rest := make([]string, 0, len(args))
+	var id string
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "--collection=") {
+			rest = append(rest, arg)
+			continue
+		}
+		value := strings.TrimPrefix(arg, "--collection=")
+		if id != "" || !dbpkg.IDPattern.MatchString(value) {
+			return nil, "", fmt.Errorf("--collection requires one 16-letter lowercase ID")
+		}
+		id = value
+	}
+	return rest, id, nil
 }
 
 // parseRunArgs walks args and extracts --help/-h, --quiet/-q, and
@@ -277,7 +301,12 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	}
 
 	continuityStarted := time.Now().UTC()
-	interval, err := db.OpenCollectionInterval([]string{"run"}, continuityStarted.Format(time.RFC3339Nano))
+	var interval *dbpkg.CollectionInterval
+	if opts.CollectionID == "" {
+		interval, err = db.OpenCollectionInterval([]string{"run"}, continuityStarted.Format(time.RFC3339Nano))
+	} else {
+		interval, err = db.EnsureCollectionInterval(opts.CollectionID, []string{"run"}, continuityStarted.Format(time.RFC3339Nano))
+	}
 	if err != nil {
 		printError(stderr, internalError("ktx run: open continuity interval: %v", err), opts.Format)
 		return ExitInternal
@@ -343,6 +372,9 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), "KTX_SESSION_ID="+sessionID)
+	if opts.CollectionID != "" {
+		cmd.Env = append(cmd.Env, "KTX_COLLECTION_ID="+opts.CollectionID, "KTX_DB="+path)
+	}
 
 	stdoutR, err := cmd.StdoutPipe()
 	if err != nil {
@@ -371,7 +403,7 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	if opts.RecordStream {
 		teeOut = io.MultiWriter(stdout, &streamBuf)
 	}
-	toolCalls := teeAndParseRuntime(stdoutR, teeOut, db, sessionID, stderr, filepath.Base(agent))
+	toolCalls, collectionErr := teeAndParseRuntimeCollection(stdoutR, teeOut, db, sessionID, stderr, filepath.Base(agent), opts.CollectionID)
 
 	waitErr := cmd.Wait()
 
@@ -413,6 +445,10 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 			// error after a successful Start). Treat as internal.
 			exitCode = ExitInternal
 		}
+	}
+	if collectionErr != nil {
+		printError(stderr, internalError("ktx run: collection failed closed: %v", collectionErr), opts.Format)
+		exitCode = ExitInternal
 	}
 
 	if !opts.Quiet {
@@ -474,6 +510,7 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 		Format:       ctx.Format,
 		Quiet:        ctx.Quiet || postAgentQuiet,
 		RecordStream: parsed.recordStream || postAgentRecordStream,
+		CollectionID: parsed.collectionID,
 	}
 
 	exitCode := executeRun(agent, agentArgs, opts, ctx.Stdout, ctx.Stderr)
@@ -497,10 +534,17 @@ func init() {
 // runParsedArgs carries command-specific flags to runCommandFunc.
 type runParsedArgs struct {
 	recordStream bool
+	collectionID string
 }
 
 // parseRunDispatchArgs extracts ktx flags placed before the agent command.
 func parseRunDispatchArgs(args []string) ([]string, any, error) {
+	var collectionID string
+	var err error
+	args, collectionID, err = extractCollectionFlag(args)
+	if err != nil {
+		return nil, nil, err
+	}
 	var recordStream bool
 	rest := make([]string, 0, len(args))
 	for _, a := range args {
@@ -514,7 +558,7 @@ func parseRunDispatchArgs(args []string) ([]string, any, error) {
 		}
 		rest = append(rest, a)
 	}
-	return rest, runParsedArgs{recordStream: recordStream}, nil
+	return rest, runParsedArgs{recordStream: recordStream, collectionID: collectionID}, nil
 }
 
 // teeAndParse reads from r, writes each line to stdout (transparent
@@ -538,6 +582,11 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, 
 }
 
 func teeAndParseRuntime(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, stderr io.Writer, runtimeName string) int {
+	count, _ := teeAndParseRuntimeCollection(r, stdout, db, sessionID, stderr, runtimeName, "")
+	return count
+}
+
+func teeAndParseRuntimeCollection(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, stderr io.Writer, runtimeName, collectionID string) (int, error) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), maxAgentLine)
 	var persisted int
@@ -576,6 +625,25 @@ func teeAndParseRuntime(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID s
 		// SessionID, which the parser does not know. The wrapper fills
 		// it before persisting.
 		tc.SessionID = sessionID
+		if collectionID != "" {
+			if !nc.Trusted || nc.Runtime != telemetryopencode.Runtime {
+				return persisted, dbpkg.ErrContinuityInvalid
+			}
+			src, err := correlation.Resolve(correlation.NativeTuple{Runtime: nc.Runtime, SessionID: nc.SessionID, CallID: nc.CallID}, correlation.Trusted(correlation.ProvenanceOpenCodeWrapper))
+			if err != nil {
+				return persisted, err
+			}
+			err = db.RetainRuntimeSourceObservation(dbpkg.RuntimeSourceObservation{
+				CollectionID: collectionID, SessionID: sessionID, SourceID: src.ID,
+				LatencyMs: tc.LatencyMs, LatencyState: tc.LatencyState, LatencyUnit: tc.LatencyUnit,
+				LatencyAuthority: tc.LatencyAuthority, ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+			}, tc.Output)
+			if err != nil {
+				return persisted, err
+			}
+			persisted++
+			continue
+		}
 		producer := dbpkg.ProducerRun
 		tc.Producer = &producer
 
@@ -619,7 +687,7 @@ func teeAndParseRuntime(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID s
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(stderr, "ktx: warning: read agent stdout: %v\n", err)
 	}
-	return persisted
+	return persisted, nil
 }
 
 // writeRunSummary emits the one-line run summary to w. The summary uses
@@ -661,8 +729,11 @@ func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w, "      --record-stream  persist the agent's JSONL stdout into the")
 	fmt.Fprintln(w, "                        recorded_streams table (enables")
 	fmt.Fprintln(w, "                        `ktx bench run --replay <session-id>`)")
+	fmt.Fprintln(w, "      --collection=<id>  explicitly let the supported OpenCode hook own")
+	fmt.Fprintln(w, "                         transformed source evidence while this wrapper")
+	fmt.Fprintln(w, "                         owns lifecycle and runtime timing")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Note: --quiet/-q and --record-stream may also appear after the agent")
+	fmt.Fprintln(w, "Note: --quiet/-q, --record-stream, and --collection=<id> may also appear after the agent")
 	fmt.Fprintln(w, "command; the wrapper recognises them anywhere on its command line.")
 	fmt.Fprintln(w, "Other flags pass through to the agent.")
 	fmt.Fprintln(w)

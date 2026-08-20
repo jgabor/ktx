@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -131,6 +133,166 @@ func TestExecuteRun_RunCmdInjection(t *testing.T) {
 			t.Fatalf("default runCmd = %s, want os/exec.CommandContext", got)
 		}
 	})
+}
+
+func TestExecuteRunExplicitCollectionFailsWithoutHookOwnedSource(t *testing.T) {
+	testutil.WithTempXDG(t)
+	origRunCmd := runCmd
+	t.Cleanup(func() { runCmd = origRunCmd })
+	const payload = `{"type":"tool_use","sessionID":"ses_1","timestamp":"2026-06-18T12:00:00Z","part":{"type":"tool","tool":"bash","callID":"call_001","state":{"input":{"command":"echo hi"},"output":"hi","time":{"start":1,"end":2}}}}`
+	runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "/bin/echo", payload)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := executeRun("opencode", nil, runOptions{Format: FormatJSON, CollectionID: "collectionabcdef"}, &stdout, &stderr)
+	if code != ExitInternal {
+		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
+	}
+	if stdout.String() != payload+"\n" {
+		t.Fatalf("stdout = %q, want transparent payload", stdout.String())
+	}
+	d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	var sources, timings int
+	if err := d.DB().QueryRow(`SELECT count(*) FROM tool_calls`).Scan(&sources); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DB().QueryRow(`SELECT count(*) FROM runtime_source_observations`).Scan(&timings); err != nil {
+		t.Fatal(err)
+	}
+	if sources != 0 || timings != 0 {
+		t.Fatalf("sources=%d timings=%d, want no qualified evidence", sources, timings)
+	}
+}
+
+func TestExecuteRunExplicitCollectionJoinsHookSourceAndRuntimeTiming(t *testing.T) {
+	testutil.WithTempXDG(t)
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["keep-ends:2:1"]
+recover_footer = true
+`)
+	t.Setenv("KTX_RUN_COLLECTION_CHILD", "1")
+	origRunCmd := runCmd
+	t.Cleanup(func() { runCmd = origRunCmd })
+	runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, os.Args[0], "-test.run=^TestExplicitCollectionChildProcess$")
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := executeRun("opencode", nil, runOptions{Format: FormatJSON, Quiet: true, CollectionID: "collectionabcdef"}, &stdout, &stderr)
+	if code != ExitOK {
+		t.Fatalf("exit code = %d, want 0 (stderr=%q)", code, stderr.String())
+	}
+	var event map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &event); err != nil {
+		t.Fatalf("stdout is not the unchanged child JSONL event: %v: %q", err, stdout.String())
+	}
+	if event["type"] != "tool_use" {
+		t.Fatalf("stdout event = %#v", event)
+	}
+
+	d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	var sourceID, sessionID, producer string
+	var sourceCount, wrapperCount, compressedCount int
+	if err := d.DB().QueryRow(`SELECT id,session_id,producer FROM tool_calls`).Scan(&sourceID, &sessionID, &producer); err != nil {
+		t.Fatal(err)
+	}
+	if producer != string(dbpkg.ProducerHook) {
+		t.Fatalf("producer = %q", producer)
+	}
+	if err := d.DB().QueryRow(`SELECT count(*) FROM tool_calls`).Scan(&sourceCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DB().QueryRow(`SELECT count(*) FROM tool_calls WHERE producer=?`, dbpkg.ProducerRun).Scan(&wrapperCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DB().QueryRow(`SELECT count(*) FROM compressed WHERE source_id=?`, sourceID).Scan(&compressedCount); err != nil {
+		t.Fatal(err)
+	}
+	if sourceCount != 1 || wrapperCount != 0 || compressedCount != 1 {
+		t.Fatalf("sources=%d wrapper=%d transformed=%d", sourceCount, wrapperCount, compressedCount)
+	}
+	var cueSource, cueArtifact, cueSession string
+	if err := d.DB().QueryRow(`SELECT source_id,artifact_id,session_id FROM recovery_cue_deliveries`).Scan(&cueSource, &cueArtifact, &cueSession); err != nil {
+		t.Fatal(err)
+	}
+	if cueSource != sourceID || cueSession != sessionID || cueArtifact == "" {
+		t.Fatalf("cue source=%q artifact=%q session=%q", cueSource, cueArtifact, cueSession)
+	}
+	var collection, observedSession, observedSource, state, authority string
+	var latency int64
+	if err := d.DB().QueryRow(`SELECT collection_id,session_id,source_id,latency_ms,latency_state,latency_authority FROM runtime_source_observations`).Scan(&collection, &observedSession, &observedSource, &latency, &state, &authority); err != nil {
+		t.Fatal(err)
+	}
+	if collection != "collectionabcdef" || observedSession != sessionID || observedSource != sourceID || latency != 1 || state != dbpkg.LatencyStateMeasured || authority != dbpkg.LatencyAuthorityRuntime {
+		t.Fatalf("runtime observation = collection=%q session=%q source=%q latency=%d state=%q authority=%q", collection, observedSession, observedSource, latency, state, authority)
+	}
+	var started, stopped string
+	if err := d.DB().QueryRow(`SELECT min(observed_at),max(observed_at) FROM ingress_continuity WHERE interval_id=?`, collection).Scan(&started, &stopped); err != nil {
+		t.Fatal(err)
+	}
+	from, err := time.Parse(time.RFC3339Nano, started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := time.Parse(time.RFC3339Nano, stopped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	continuity, err := d.EvaluateContinuity(collection, from, to)
+	if err != nil || !continuity.Continuous || len(continuity.Gaps) != 0 {
+		t.Fatalf("continuity = %+v, err=%v", continuity, err)
+	}
+}
+
+func TestExplicitCollectionChildProcess(t *testing.T) {
+	if os.Getenv("KTX_RUN_COLLECTION_CHILD") != "1" {
+		return
+	}
+	d, err := dbpkg.Open(os.Getenv("KTX_DB"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	defer d.Close()
+	var output strings.Builder
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&output, "line %02d\n", i)
+	}
+	record := map[string]any{"runtime": "opencode", "input": map[string]any{"sessionID": "ses_collection", "callID": "call_collection", "tool": "bash", "args": map[string]any{"command": "fixture"}}, "output": map[string]any{"output": output.String()}}
+	body, _ := json.Marshal(record)
+	var envelope, hookStderr bytes.Buffer
+	if _, err := hookLogic(bytes.NewReader(body), d, &envelope, &hookStderr); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(3)
+	}
+	var result hookEnvelope
+	if err := json.Unmarshal(envelope.Bytes(), &result); err != nil || result.CompressedID == nil {
+		fmt.Fprintln(os.Stderr, "hook did not transform fixture")
+		os.Exit(4)
+	}
+	if !result.RecoveryCue {
+		fmt.Fprintln(os.Stderr, "hook did not emit recovery cue metadata")
+		os.Exit(5)
+	}
+	ackBody, _ := json.Marshal(map[string]any{"source_id": result.SourceID, "artifact_id": *result.CompressedID, "session_id": result.KTXSessionID, "runtime_session_id": result.RuntimeSessionID, "call_id": result.CallID})
+	var ack bytes.Buffer
+	if err := acknowledgeRecoveryCue(nil, bytes.NewReader(ackBody), d, &ack); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(6)
+	}
+	event := map[string]any{"type": "tool_use", "sessionID": "ses_collection", "timestamp": "2026-08-19T12:00:00Z", "part": map[string]any{"type": "tool", "tool": "bash", "callID": "call_collection", "state": map[string]any{"input": map[string]any{"command": "fixture"}, "output": result.Output, "time": map[string]any{"start": 1, "end": 2}}}}
+	encoded, _ := json.Marshal(event)
+	_, _ = os.Stdout.Write(append(encoded, '\n'))
+	os.Exit(0)
 }
 
 func TestExecuteRunRetainsInterruptedStartup(t *testing.T) {

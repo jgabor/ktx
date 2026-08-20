@@ -4,7 +4,7 @@
 
 **ONE PROVISIONAL CANDIDATE RETAINED.** All three bounded candidates ran over all seven retained matrix cases under the same immutable rules. `keep-ends:73:1` passed every gate with positive mechanical net savings. No product route, profile, default, or runtime behavior changed.
 
-The machine-readable receipt is `tools/bench/evidence/targeted-residual-candidate-evaluation.json`, SHA-256 `d9624b7e0ab97c71b6488c3fcb22c4c3fb9b67bd190fd9e472b262b6dcf14b26`.
+The machine-readable receipt is `tools/bench/evidence/targeted-residual-candidate-evaluation.json`, SHA-256 `e676f4255a584a4bcd728e3fe0cd512a8fa2c99c4ff1596fa4cad258d6dc746f`.
 
 ## Candidate inventory and outcomes
 
@@ -34,8 +34,8 @@ All cases retained byte-exact originals for recovery. Error state/text were unto
 
 ## Evidence identity and limits
 
-- Corrected matrix report: `3310b77416220aed4feeda986181074d502d39489da3a432c5dbd1d49282da72`.
-- Matrix JSON: `7eece02dc19887eafb17403bc0a0c11c9d737a3d08d55fe226470f095c548a32`.
+- Corrected matrix report: `6be3c9bcb79292acf447d87656a3d4ea86994560cae7a6b342e549c71b771c83`.
+- Matrix JSON: `b13a859487c0fbd329174fdda3e67c212761aa61152bf278208f5d1a8257a2d9`.
 - Evaluator test after candidate coverage: `505e60e7768c148b01210361be88f495ddb04d8b9257e0c7055f7bc46d1b5b39`.
 
 The evaluator uses the shipped built-in registry and runner, including the anti-worsening gate, and the production recovery-footer helper. Cue accounting uses UTF-8 byte lengths and the deterministic valid 16-character `evaluationsrcxxx` source ID. This is generated mechanical evidence only. It does not measure tool-call effects, latency, live behavior, historical content, provider behavior, or rollout impact. Provisional retention is not rollout approval.

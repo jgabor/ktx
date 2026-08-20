@@ -59,6 +59,28 @@ unchanged. Without the wrapper, the plugin handles both hooks. The persisted
 runtime tuple deduplicates a model step seen through both paths, and the first
 accepted row—including its collection provenance—remains authoritative.
 
+`ktx run --collection=<16-letter-id> opencode ...` is a separate explicit
+same-population path. It keeps stdout as the wrapper's transparent JSONL
+pass-through but leaves the pinned OpenCode plugin active. The plugin and hook
+own transformed delivery and the append-only source row; the wrapper owns the
+session lifecycle and retains runtime timing separately only after that
+hook-owned source resolves to the same session and native source identity.
+Reuse the same collection ID across runs to retain all run intervals together.
+Database-target or ingress disagreement, an invalid ID, missing hook ownership,
+contradictory correlation, and duplicate timing fail the collection closed.
+Continuity reports every between-run gap, interruption, conflicting boundary,
+and missing closure; missing activity is never inferred as coverage.
+
+When that explicit path delivers a lossy artifact with a recovery cue, the
+generated adapter acknowledges delivery only after assigning the hook envelope
+output. Future-only metadata links the delivery to its collection, wrapper
+session, trusted OpenCode identity, source, and first artifact. A later trusted
+OpenCode bash callback is linked as a recovery attempt only for the exact
+`ktx read <source-id>` command and an explicit exit result. Successful output is
+parsed as the stored source record and compared with the retained original;
+byte-exactness is never inferred from malformed, composed, unlinked, unknown,
+or failed activity. Repeated attempts remain separate while sharing one cue.
+
 On the unwrapped ordinary path, the plugin accepts `event` and
 `tool.execute.after` callbacks through one arrival-order queue. It starts no
 later callback's ktx work until the earlier callback finishes. A hook changes
@@ -305,9 +327,10 @@ Failure behavior depends on the command:
   instance. Refresh the generated plugin to pick up source changes and restart
   OpenCode after replacing the installed binary. A database schema increase by
   itself does not require adapter regeneration.
-- If OpenCode is wrapped by `ktx run`, `KTX_SESSION_ID` intentionally disables
-  the plugin hooks. Test the unwrapped path without `ktx run` when diagnosing
-  plugin loading.
+- Ordinary `ktx run` intentionally disables the plugin hooks through
+  `KTX_SESSION_ID`. The explicit `--collection=<id>` mode is the only wrapper
+  path that keeps them active; it requires the generated pinned plugin and
+  fails closed when ownership or correlation is absent.
 - Telemetry and tool-hook failures are written to stderr and fail open. Tool
   output remains unchanged; optional telemetry persistence does not fail the
   OpenCode operation. A `database-unavailable` failure emits one bounded

@@ -190,8 +190,10 @@ content never supply or repair a label. Linux coordinator-timeout diagnostics
 emit the verified label, or explicit `unknown`, beside each observed holder's
 PID and held mode.
 
-Supported processes use a writer-preferred admission lock on the same physical
-database file before taking shared or exclusive ownership. A waiting writer
+Supported processes use a writer-preferred admission lock and an independent
+ownership lock on the same physical database file. Linux uses a byte-range
+admission lock with `flock` ownership; BSD systems use separate byte ranges for
+admission and ownership; Windows uses separate byte ranges. A waiting writer
 holds admission closed until existing readers finish and it acquires exclusive
 ownership, so later readers cannot pass it. Admission does not create a sidecar
 file or database state, hard-link aliases use the same kernel lock identity,

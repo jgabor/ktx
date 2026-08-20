@@ -1,0 +1,16 @@
+id: nmluyyqqui
+artifact: progress
+record:
+  timestamp: 2026-08-20 18:02
+  type: fix
+  phase: build
+  what: Corrected BSD writer admission to use independent fcntl byte ranges for admission and ownership.
+  context:
+    intent: Remove the BSD lock-family interaction that lets later readers bypass a waiting writer.
+    constraints: Preserve Linux and Windows behavior, physical-file identity, read-only opens, the existing deadline and errors, and OS cleanup without persistent coordination state.
+    unknowns: BSD behavior was not executed on native BSD kernels; cross-compilation proves build compatibility only.
+    scope: BSD lock primitive selection and its contract documentation only.
+  discovered: BSD flock and fcntl locks can interact, so mixing them cannot provide writer preference. Separate fcntl ranges preserve one physical-file identity without that cross-family conflict.
+  verified: On Linux, the writer-order, hard-link, timeout, and read-only focused set passed 20 runs; the full internal/db suite passed; mage build passed. FreeBSD, Darwin, NetBSD, and OpenBSD internal/db test binaries cross-compiled. DragonFlyBSD cross-compilation remains unavailable because modernc.org/libc excludes that target, so it is not claimed as semantic proof.
+  next: Leave the task in progress for native-platform re-evaluation.
+  publication_order: 134

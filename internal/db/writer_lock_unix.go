@@ -28,6 +28,32 @@ func tryLockWriterFile(file *os.File, mode coordinationMode) error {
 	}
 }
 
+func tryLockWriterGate(file *os.File, mode coordinationMode) error {
+	lockType := int16(syscall.F_RDLCK)
+	if mode == coordinationExclusive {
+		lockType = syscall.F_WRLCK
+	}
+	err := syscall.FcntlFlock(file.Fd(), syscall.F_SETLK, &syscall.Flock_t{
+		Type:   lockType,
+		Whence: 0,
+		Start:  1,
+		Len:    1,
+	})
+	if errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EAGAIN) {
+		return errWriterLockBusy
+	}
+	return err
+}
+
+func unlockWriterGate(file *os.File) error {
+	return syscall.FcntlFlock(file.Fd(), syscall.F_SETLK, &syscall.Flock_t{
+		Type:   syscall.F_UNLCK,
+		Whence: 0,
+		Start:  1,
+		Len:    1,
+	})
+}
+
 func unlockWriterFile(file *os.File) error {
 	return syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 }

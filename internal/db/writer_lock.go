@@ -112,10 +112,12 @@ func newCoordinationTimeout(mode coordinationMode, file *os.File, path string, c
 }
 
 // writerCoordinator coordinates supported shared and exclusive access to one
-// database file. The operating system releases its lock when a process exits.
+// database file. A short admission lock prevents new readers from passing a
+// waiting writer. The operating system releases both locks when a process exits.
 type writerCoordinator struct {
-	path string
-	mu   chan struct{}
+	path         string
+	mu           chan struct{}
+	gateAcquired func()
 }
 
 func newWriterCoordinator(path string) (*writerCoordinator, error) {
@@ -145,19 +147,16 @@ func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coord
 	}
 
 	for {
-		err = tryLockWriterFile(file, mode)
+		err = tryLockWriterGate(file, mode)
 		if err == nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				_ = unlockWriterFile(file)
-				timeout := newCoordinationTimeout(mode, file, c.path, ctxErr)
-				_ = file.Close()
-				return nil, timeout
+			if c.gateAcquired != nil {
+				c.gateAcquired()
 			}
 			break
 		}
 		if !errors.Is(err, errWriterLockBusy) {
 			_ = file.Close()
-			return nil, fmt.Errorf("db: acquire coordination for %q: %w", c.path, err)
+			return nil, fmt.Errorf("db: acquire coordination gate for %q: %w", c.path, err)
 		}
 		timer := time.NewTimer(writerLockRetryDelay)
 		select {
@@ -168,6 +167,40 @@ func (c *writerCoordinator) acquire(ctx context.Context, create bool, mode coord
 			_ = file.Close()
 			return nil, timeout
 		}
+	}
+
+	for {
+		err = tryLockWriterFile(file, mode)
+		if err == nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				_ = unlockWriterFile(file)
+				_ = unlockWriterGate(file)
+				timeout := newCoordinationTimeout(mode, file, c.path, ctxErr)
+				_ = file.Close()
+				return nil, timeout
+			}
+			break
+		}
+		if !errors.Is(err, errWriterLockBusy) {
+			_ = unlockWriterGate(file)
+			_ = file.Close()
+			return nil, fmt.Errorf("db: acquire coordination for %q: %w", c.path, err)
+		}
+		timer := time.NewTimer(writerLockRetryDelay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			timeout := newCoordinationTimeout(mode, file, c.path, ctx.Err())
+			_ = unlockWriterGate(file)
+			_ = file.Close()
+			return nil, timeout
+		}
+	}
+	if err := unlockWriterGate(file); err != nil {
+		_ = unlockWriterFile(file)
+		_ = file.Close()
+		return nil, fmt.Errorf("db: release coordination gate for %q: %w", c.path, err)
 	}
 	return &coordinationLease{file: file}, nil
 }

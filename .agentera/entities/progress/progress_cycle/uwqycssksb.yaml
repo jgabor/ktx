@@ -1,0 +1,16 @@
+id: uwqycssksb
+artifact: progress
+record:
+  timestamp: 2026-08-20 17:53
+  type: fix
+  phase: build
+  what: Added process-shared writer-preferred database admission without persistent coordination state.
+  context:
+    intent: Prevent late stats readers from bypassing a waiting evidence writer.
+    constraints: Preserve the two-second deadline, database-unavailable surface, hard-link coordination, read-only behavior, and process-exit recovery without a daemon, sidecar, dependency, or journal change.
+    unknowns: Runtime contention behavior was exercised on Linux; Darwin and Windows implementations were compile-checked but not run on those hosts.
+    scope: Database-file admission coordination, focused tests, and the critical-path contract.
+  discovered: A short shared/exclusive byte-range admission lock can gate the existing physical-file ownership lock on Unix and Windows while preserving hard-link identity and read-only opens.
+  verified: The focused writer-order test passed 20 consecutive runs; internal/db passed; Darwin and Windows test binaries cross-compiled; mage build passed. mage check passed all tests and failed only on a pre-existing gofumpt finding in unchanged internal/cache/reuse/runtime_controls_test.go:351.
+  next: Leave the task in progress for orchestration evaluation.
+  publication_order: 133

@@ -109,6 +109,25 @@ func TestSQLiteProcessHelper(t *testing.T) {
 		if err := tx.Commit(); err != nil {
 			t.Fatal(err)
 		}
+	case "hold-coordinator-writer":
+		coordinator, err := newWriterCoordinator(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		coordinator.gateAcquired = func() {
+			if err := os.WriteFile(os.Getenv("KTX_SQLITE_STARTED"), []byte("started"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		lease, err := coordinator.acquire(context.Background(), false, coordinationExclusive)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Close()
+		if err := os.WriteFile(os.Getenv("KTX_SQLITE_READY"), []byte("ready"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		waitForFile(t, os.Getenv("KTX_SQLITE_RELEASE"), 10*time.Second)
 	default:
 		t.Fatalf("unknown helper role %q", os.Getenv("KTX_SQLITE_ROLE"))
 	}
@@ -180,6 +199,74 @@ func TestSupportedReaderAndWriterOwnershipAcrossProcesses(t *testing.T) {
 	writerWaited = true
 
 	assertSessionCount(t, path, 2)
+}
+
+func TestWaitingWriterPrecedesLaterReaderAcrossHardLink(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "writer-preference.db")
+	initialized, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initialized.Close(); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(dir, "writer-preference-alias.db")
+	if err := os.Link(path, alias); err != nil {
+		t.Fatal(err)
+	}
+
+	firstReady, firstRelease := path+".first-ready", path+".first-release"
+	first, firstOutput := startDBHelper(t, path, "hold-reader", map[string]string{
+		"KTX_SQLITE_READY": firstReady, "KTX_SQLITE_RELEASE": firstRelease,
+	})
+	waitForFile(t, firstReady, 5*time.Second)
+
+	writerStarted, writerReady, writerRelease := path+".writer-started", path+".writer-ready", path+".writer-release"
+	writer, writerOutput := startDBHelper(t, path, "hold-coordinator-writer", map[string]string{
+		"KTX_SQLITE_STARTED": writerStarted, "KTX_SQLITE_READY": writerReady,
+		"KTX_SQLITE_RELEASE": writerRelease, "KTX_SQLITE_ID": "preferredwritera",
+	})
+	waitForFile(t, writerStarted, 5*time.Second)
+
+	lateReady, lateRelease := path+".late-ready", path+".late-release"
+	late, lateOutput := startDBHelper(t, alias, "hold-reader", map[string]string{
+		"KTX_SQLITE_READY": lateReady, "KTX_SQLITE_RELEASE": lateRelease,
+	})
+	t.Cleanup(func() {
+		for _, release := range []string{firstRelease, writerRelease, lateRelease} {
+			_ = os.WriteFile(release, nil, 0o600)
+		}
+		for _, command := range []*exec.Cmd{first, writer, late} {
+			if command.Process != nil {
+				_ = command.Process.Kill()
+			}
+		}
+	})
+
+	if err := os.WriteFile(firstRelease, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Wait(); err != nil {
+		t.Fatalf("first reader: %v\n%s", err, firstOutput.String())
+	}
+	waitForFile(t, writerReady, 5*time.Second)
+	if _, err := os.Stat(lateReady); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("later reader entered before waiting writer: %v", err)
+	}
+	if err := os.WriteFile(writerRelease, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Wait(); err != nil {
+		t.Fatalf("writer: %v\n%s", err, writerOutput.String())
+	}
+	waitForFile(t, lateReady, 5*time.Second)
+	if err := os.WriteFile(lateRelease, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := late.Wait(); err != nil {
+		t.Fatalf("later reader: %v\n%s", err, lateOutput.String())
+	}
 }
 
 func TestOpenQueryKeepsValidatedSchemaStableUntilClose(t *testing.T) {

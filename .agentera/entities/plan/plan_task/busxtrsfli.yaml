@@ -1,0 +1,14 @@
+id: busxtrsfli
+artifact: plan
+record:
+  name: Prefer waiting evidence writers
+  depends_on:
+    - aqfmhgjwbd
+  status: in_progress
+  acceptance:
+    - GIVEN active readers and a waiting writer WHEN another stats reader arrives THEN the existing readers finish, the writer runs next, and the later reader waits.
+    - GIVEN multiple supported processes or aliases of the same physical database WHEN they coordinate THEN they observe one writer-preferred admission order.
+    - GIVEN a waiting or active participant exits, times out, or fails WHEN a later participant retries THEN abandoned ownership does not block it.
+    - GIVEN a genuinely read-only command WHEN it coordinates THEN it creates or migrates no persistent database state.
+    - GIVEN coordination cannot finish within the existing deadline WHEN the command reports failure THEN its exit status, classification, bounded diagnostics, and correction remain compatible.
+  plan: gtrdptqccg

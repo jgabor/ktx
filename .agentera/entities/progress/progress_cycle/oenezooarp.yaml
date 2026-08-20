@@ -1,0 +1,16 @@
+id: oenezooarp
+artifact: progress
+record:
+  timestamp: 2026-08-20 18:19
+  type: test
+  phase: build
+  what: Added integrated regression coverage for stats availability, optimized aggregate equivalence, and exact evidence reconciliation.
+  context:
+    intent: Verify combined stats-reader and evidence-writer behavior without changing public reporting or persistence contracts.
+    constraints: Preserve the two-second timeout, hard-link coordination, read-only behavior, database-unavailable behavior, and public stats values.
+    unknowns: BSD coordination remains compile-checked rather than natively executed.
+    scope: Integrated database regression coverage and repository verification only.
+  discovered: The first repository-wide check completed tests but found one pre-existing gofumpt violation; formatting that declaration was required before the check could pass.
+  verified: "PASS: env -u KTX_DB with fresh HOME and XDG roots go test ./internal/db -run 'TestStatsSummaryRows$|TestStatsSummaryCacheRows$|TestWaitingWriterPrecedesLaterReaderAcrossHardLink$|TestWriteTimeoutIsBoundedByContract$|TestStatsSummaryRowsReleasesPhaseOneReadBeforePhaseTwo$|TestPeriodicStatsReadersDoNotStarveEvidenceWriters$' -count=10. PASS: env -u KTX_DB with fresh HOME and XDG roots mage check; tests, vet, lint, and local build all passed, with audit forbidden=0 and ktx_db=unset. The earlier mage check did not fully pass because gofumpt reported internal/cache/reuse/runtime_controls_test.go; it was corrected before the passing rerun."
+  next: Leave task ucuikuwrhf in progress for orchestration evaluation.
+  publication_order: 135

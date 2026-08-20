@@ -139,6 +139,15 @@ func TestStatsSummaryRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StatsSummaryRows: %v", err)
 	}
+	legacy, err := legacyStatsSummaryRows(d.db, from, to)
+	if err != nil {
+		t.Fatalf("legacy stats summary: %v", err)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Timestamp < rows[j].Timestamp })
+	sort.Slice(legacy, func(i, j int) bool { return legacy[i].Timestamp < legacy[j].Timestamp })
+	if !reflect.DeepEqual(rows, legacy) {
+		t.Fatalf("optimized stats rows differ from legacy rows:\noptimized=%+v\nlegacy=%+v", rows, legacy)
+	}
 	if len(rows) != 7 {
 		t.Fatalf("got %d rows, want 7: %+v", len(rows), rows)
 	}
@@ -304,6 +313,13 @@ func TestStatsSummaryCacheRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StatsSummaryCacheRows: %v", err)
 	}
+	legacy, err := legacyStatsSummaryCacheRows(d.db, from, to, runtime, runtimeVersion)
+	if err != nil {
+		t.Fatalf("legacy stats cache summary: %v", err)
+	}
+	if !reflect.DeepEqual(rows, legacy) {
+		t.Fatalf("optimized cache rows differ from legacy rows:\noptimized=%+v\nlegacy=%+v", rows, legacy)
+	}
 	if len(rows) != 3 {
 		t.Fatalf("got %d rows, want 3: %+v", len(rows), rows)
 	}
@@ -373,6 +389,71 @@ func TestForEachStatsSummaryBatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func legacyStatsSummaryRows(database *sql.DB, from, to time.Time) ([]StatsSummaryRow, error) {
+	rows, err := database.Query(`SELECT id, timestamp FROM tool_calls WHERE output IS NOT NULL AND timestamp IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id, timestamp string
+		if err := rows.Scan(&id, &timestamp); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		parsed, err := time.Parse(time.RFC3339Nano, timestamp)
+		if err == nil && !parsed.Before(from) && !parsed.After(to) {
+			ids = append(ids, id)
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	selected := make(map[string]*statsSummarySelectedRow, len(ids))
+	for _, id := range ids {
+		selected[id] = &statsSummarySelectedRow{}
+	}
+	if err := forEachStatsSummaryBatch(ids, func(batch []string) error {
+		return statsSummaryLengths(database, batch, selected)
+	}); err != nil {
+		return nil, err
+	}
+	result := make([]StatsSummaryRow, 0, len(ids))
+	for _, id := range ids {
+		result = append(result, selected[id].row)
+	}
+	return result, nil
+}
+
+func legacyStatsSummaryCacheRows(database *sql.DB, from, to time.Time, runtime, version string) ([]StatsSummaryCacheRow, error) {
+	rows, err := database.Query(`SELECT captured_at, tokens_input, cache_read, cache_write,
+		tokens_input_state, cache_read_state, cache_write_state
+		FROM session_telemetry WHERE runtime = ? AND runtime_version = ? AND source IN (?, ?)`,
+		runtime, version, telemetry.SourceEventHook, telemetry.SourceWrapperStream)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []StatsSummaryCacheRow
+	for rows.Next() {
+		var capturedAt, inputState, readState, writeState string
+		var input, read, write sql.NullInt64
+		if err := rows.Scan(&capturedAt, &input, &read, &write, &inputState, &readState, &writeState); err != nil {
+			return nil, err
+		}
+		captured, err := time.Parse(time.RFC3339Nano, capturedAt)
+		if err != nil || captured.Before(from) || captured.After(to) {
+			continue
+		}
+		result = append(result, StatsSummaryCacheRow{
+			UncachedInput: databaseIntegerMeasurement(inputState, input),
+			CacheRead:     databaseIntegerMeasurement(readState, read),
+			CacheWrite:    databaseIntegerMeasurement(writeState, write),
+		})
+	}
+	return result, rows.Err()
 }
 
 // callFixture is a minimal tool_call fixture for seeding.

@@ -348,7 +348,8 @@ func sameCacheInput(a, b cacheInput) bool {
 }
 
 func equalInt64(a, b *int64) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
-func equalBool(a, b *bool) bool   { return a == nil && b == nil || a != nil && b != nil && *a == *b }
+
+func equalBool(a, b *bool) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
 
 func classifyRuntimeCache(input cacheInput) string {
 	if input.Eligible != nil && !*input.Eligible {

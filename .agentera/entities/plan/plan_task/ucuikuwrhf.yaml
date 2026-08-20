@@ -1,0 +1,15 @@
+id: ucuikuwrhf
+artifact: plan
+record:
+  name: Verify combined availability and reporting behavior
+  depends_on:
+    - aqfmhgjwbd
+    - busxtrsfli
+  status: in_progress
+  acceptance:
+    - GIVEN periodic stats readers and supported telemetry writers WHEN the combined workload runs THEN no writer times out because later stats readers bypass it.
+    - GIVEN the same retained evidence and fixed window WHEN old and optimized aggregation results are compared THEN all public values agree.
+    - GIVEN concurrent accepted writes WHEN verification reconciles the database THEN source, artifact, disposition, session, and roll-up totals remain exact.
+    - GIVEN isolated focused checks and the repository-wide check WHEN they complete THEN tests, vetting, linting, and the local build pass without ambient database access.
+    - GIVEN ordinary and adverse combined cases WHEN tests run THEN each changed behavior has at least one success case and one bounded failure or exclusion case.
+  plan: gtrdptqccg

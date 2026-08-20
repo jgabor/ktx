@@ -5,12 +5,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -128,6 +130,16 @@ func TestSQLiteProcessHelper(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForFile(t, os.Getenv("KTX_SQLITE_RELEASE"), 10*time.Second)
+	case "stats-summary":
+		d, err := OpenReadOnly(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer d.Close()
+		from := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+		if _, err := d.StatsSummaryRows(from, from.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
 	default:
 		t.Fatalf("unknown helper role %q", os.Getenv("KTX_SQLITE_ROLE"))
 	}
@@ -1158,6 +1170,107 @@ func TestStatsSummaryRowsReleasesPhaseOneReadBeforePhaseTwo(t *testing.T) {
 	}
 	if len(result.rows) != 1 {
 		t.Fatalf("summary rows = %d, want 1", len(result.rows))
+	}
+}
+
+func TestPeriodicStatsReadersDoNotStarveEvidenceWriters(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stats-and-writers.db")
+	writerDB, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writerDB.Close()
+
+	from := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+	const writers = 8
+	firstReady, firstRelease := path+".first-ready", path+".first-release"
+	first, firstOutput := startDBHelper(t, path, "hold-reader", map[string]string{
+		"KTX_SQLITE_READY": firstReady, "KTX_SQLITE_RELEASE": firstRelease,
+	})
+	waitForFile(t, firstReady, 5*time.Second)
+
+	errs := make(chan error, 32)
+	writerQueued := make(chan struct{})
+	var queued sync.Once
+	writerDB.writer.gateAcquired = func() { queued.Do(func() { close(writerQueued) }) }
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+		for i := range writers {
+			sessionID := fmt.Sprintf("%016x", i+1)
+			sourceID := fmt.Sprintf("%016x", i+101)
+			artifactID := fmt.Sprintf("%016x", i+201)
+			timestamp := from.Add(time.Duration(i) * time.Second).Format(time.RFC3339Nano)
+			if err := writerDB.InsertSession(&Session{ID: sessionID, Agent: "test", StartedAt: timestamp, LastSeenAt: timestamp}); err != nil {
+				errs <- fmt.Errorf("writer %d session: %w", i, err)
+				return
+			}
+			if err := writerDB.PersistToolCall(&ToolCall{ID: sourceID, SessionID: sessionID, Tool: "read", Output: "retained evidence", Timestamp: timestamp}); err != nil {
+				errs <- fmt.Errorf("writer %d source: %w", i, err)
+				return
+			}
+			if err := writerDB.InsertCompressed(&Compressed{ID: artifactID, SourceID: sourceID, Output: "evidence", ContentHash: ContentHash("evidence"), Pipeline: "[]", Timestamp: timestamp}); err != nil {
+				errs <- fmt.Errorf("writer %d artifact: %w", i, err)
+				return
+			}
+			if err := writerDB.RecordCompressionDisposition(&CompressionDisposition{SourceID: sourceID, Disposition: CompressionDispositionArtifactPersisted, ArtifactID: artifactID, ObservedAt: timestamp}); err != nil {
+				errs <- fmt.Errorf("writer %d disposition: %w", i, err)
+				return
+			}
+		}
+	}()
+	select {
+	case <-writerQueued:
+	case <-time.After(time.Second):
+		t.Fatal("evidence writer did not queue")
+	}
+
+	const laterReaders = 6
+	readers := make([]*exec.Cmd, 0, laterReaders)
+	readerOutputs := make([]*bytes.Buffer, 0, laterReaders)
+	for range laterReaders {
+		reader, output := startDBHelper(t, path, "stats-summary", nil)
+		readers = append(readers, reader)
+		readerOutputs = append(readerOutputs, output)
+	}
+	if err := os.WriteFile(firstRelease, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Wait(); err != nil {
+		t.Fatalf("first stats reader: %v\n%s", err, firstOutput.String())
+	}
+	<-writeDone
+	for i, reader := range readers {
+		if err := reader.Wait(); err != nil {
+			t.Errorf("later stats reader %d: %v\n%s", i, err, readerOutputs[i].String())
+		}
+	}
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	if t.Failed() {
+		return
+	}
+
+	verified, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer verified.Close()
+	var sessions, sources, artifacts, dispositions, rollup int
+	if err := verified.db.QueryRow(`SELECT
+		(SELECT count(*) FROM sessions),
+		(SELECT count(*) FROM tool_calls),
+		(SELECT count(*) FROM compressed),
+		(SELECT count(*) FROM compression_dispositions),
+		(SELECT COALESCE(sum(tool_call_count), 0) FROM sessions)`).Scan(
+		&sessions, &sources, &artifacts, &dispositions, &rollup); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != writers || sources != writers || artifacts != writers || dispositions != writers || rollup != writers {
+		t.Fatalf("sessions=%d sources=%d artifacts=%d dispositions=%d rollup=%d, want %d each",
+			sessions, sources, artifacts, dispositions, rollup, writers)
 	}
 }
 

@@ -1,0 +1,16 @@
+id: dcttkyjzwx
+artifact: progress
+record:
+  timestamp: 2026-08-20 18:33
+  type: docs
+  phase: build
+  what: Corrected the database safety lock description after orchestration evaluation.
+  context:
+    intent: Apply only the confirmed lock-documentation correction and assess the TODO duplication finding against typed state authority.
+    constraints: Preserve unrelated backlog entries and typed IDs, do not modify decision satisfaction, and do not broaden scope.
+    unknowns: None after clean TODO reconciliation evidence.
+    scope: One documentation wording correction, failed evaluation state, and this progress evidence.
+  discovered: The TODO title repetitions are the intentional synchronized human summary and typed entity presentation, not backlog drift. Agentera reports identity owner managed_row, public fields owned by TODO.md, operational fields owned by canonical entity files, and reconciliation counts managed=27, drifted=0, conflicts=0; sampled duplicated title tafkrzkqbh is clean with drifted=false.
+  verified: "docs/database-safety.md now matches docs/critical-path-performance.md: Linux uses byte-range fcntl admission with flock ownership, BSD uses two independent fcntl byte ranges, and Windows uses separate byte ranges. mage lint passed with 0 issues. git diff --check passed. No database command ran; KTX_DB and ambient data were not accessed."
+  next: Leave hvsbajpzuo in_progress for re-evaluation.
+  publication_order: 137

@@ -12,3 +12,13 @@ record:
     - GIVEN the completed work WHEN project backlog and plan state are read THEN both implementation outcomes and their verification are current.
     - GIVEN final repository status WHEN completion is reported THEN only intended changes remain and all required evidence is identified.
   plan: gtrdptqccg
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Database safety documentation incorrectly groups Linux with BSD lock ranges. Audit also flagged duplicate TODO representations that require checking against the repository's canonical summary/entity layout before any correction.
+    provenance:
+      attempt_id: audit-ses-fdffe98d5ffe
+      source: audit task ses_fdffe98d5ffemFO5GamyUyJYPV
+      recorded_at: 2026-08-20 18:32
+      writer_command: agentera state plan record-evaluation

@@ -127,8 +127,9 @@ timestamp exclusion behavior.
 Supported ktx readers and writers coordinate on the physical database file with
 writer-preferred admission. Once a writer is waiting, later supported readers
 wait behind it while existing readers finish. Linux and BSD use separate
-admission and ownership ranges where their lock semantics require it; Windows
-also uses separate ranges. This coordination creates no sidecar or database
+locking mechanisms: Linux uses byte-range `fcntl` admission with `flock`
+ownership, while BSD uses two independent `fcntl` byte ranges. Windows also
+uses separate byte ranges. This coordination creates no sidecar or database
 state, and genuinely read-only commands remain read-only.
 
 `doctor` remains a read-only preflight. It reports an older schema as degraded

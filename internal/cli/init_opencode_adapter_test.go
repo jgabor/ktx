@@ -124,6 +124,14 @@ func TestInitAndTelemetryHelpDocumentOpenCodeIntegration(t *testing.T) {
 	}
 }
 
+func TestGeneratedOpenCodeAdapterDoesNotKillCallbacks(t *testing.T) {
+	for _, forbidden := range []string{"proc.kill()", "ktx command timed out", "Promise.race"} {
+		if strings.Contains(ktxOpencodePluginTemplate, forbidden) {
+			t.Errorf("generated adapter contains external callback timeout mechanism %q", forbidden)
+		}
+	}
+}
+
 func TestOpencodeGeneratedAdapterEventAndToolIntegration(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test fixture uses a POSIX shell executable")

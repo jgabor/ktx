@@ -93,6 +93,51 @@ func TestHookForeignLockBeforeSourceLeavesEventUnaccepted(t *testing.T) {
 	}
 }
 
+func TestHookPreflightLockIsAttributed(t *testing.T) {
+	d, path := hookForeignLockDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	lock, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock.SetMaxOpenConns(1)
+	if _, err := lock.Exec(`BEGIN EXCLUSIVE`); err != nil {
+		_ = lock.Close()
+		t.Fatal(err)
+	}
+	released := false
+	t.Cleanup(func() {
+		if !released {
+			_, _ = lock.Exec(`ROLLBACK`)
+			_ = lock.Close()
+		}
+	})
+
+	payload := openCodeHookPayload(t, "preflight-lock-session", "preflight-lock-call", "bash", `{"command":"true"}`, "original")
+	var stdout bytes.Buffer
+	_, err = hookLogic(strings.NewReader(payload), d, &stdout, io.Discard)
+	if err == nil {
+		t.Fatal("hook preflight succeeded while the foreign exclusive lock was held")
+	}
+	details, ok := dbpkg.DatabaseUnavailableDetails(err)
+	if !ok || details.Phase != dbpkg.OperationSource || details.Class != dbpkg.UnavailableClassSQLiteLock {
+		t.Fatalf("preflight error = %v, details = %+v", err, details)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("hook wrote an envelope before source acceptance: %q", stdout.String())
+	}
+	assertNoHookLockDriverWording(t, err.Error())
+
+	releaseHookForeignWriteLock(t, lock)
+	released = true
+	sourceID := mustOpenCodeID(t, "preflight-lock-session", "preflight-lock-call")
+	if _, err := d.GetToolCall(sourceID); !errors.Is(err, dbpkg.ErrNotFound) {
+		t.Fatalf("source after preflight failure = %v, want not found", err)
+	}
+}
+
 func TestHookForeignLockAfterSourceKeepsSourceAndRetryConverges(t *testing.T) {
 	d, path := hookForeignLockDB(t)
 	hookChdirTemp(t)

@@ -1,0 +1,12 @@
+id: bunedgrnjb
+artifact: progress
+record:
+  timestamp: 2026-08-23 19:42
+  type: fix
+  phase: build
+  what: Removed the 10-second callback timeout in internal/cli/init.go and coordinated hook retry preflight in internal/db/database.go.
+  context:
+    intent: Preserve runtime callback lifetime and coordinated database access.
+  verified: Focused go test callback, preflight lock-attribution, and writer-preference regressions passed. mage check passed with KTX_DB unset and fresh HOME and XDG roots.
+  next: Continue transparent schema-readiness work without changing safe auto-migration or --expect-runtime-sha256 proof.
+  publication_order: 153

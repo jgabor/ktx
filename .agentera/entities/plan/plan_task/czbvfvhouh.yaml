@@ -1,0 +1,13 @@
+id: czbvfvhouh
+artifact: plan
+record:
+  name: Preserve the runtime safety baseline
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN a generated callback invokes KTX WHEN the operation remains active beyond the adapter's former limit THEN KTX retains sole control of its lifetime and the adapter does not terminate it.
+    - GIVEN migration ownership is pending WHEN hook preflight attempts database access THEN preflight honors writer preference and cannot bypass coordinated access.
+    - GIVEN an external lock exhausts the allowed wait WHEN a hook fails THEN the caller receives one correctly attributed failure and no raw SQLite busy error.
+    - GIVEN the existing worktree fixes WHEN the focused regressions and isolated repository check run THEN they pass without accessing the ambient live database or changing migration behavior.
+  plan: wddjlywrzk

@@ -222,22 +222,13 @@ const ktxRequiredCommand = async (
     },
   })
   const proc = Bun.spawn([executablePath, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
-  })
-  try {
-    const [stdout, stderr, exitCode] = await Promise.race([
-      Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]),
-      timeout,
-    ])
-    if (exitCode !== 0) throw new Error("ktx command exited " + exitCode + ": " + stderr.trim())
-    const result = JSON.parse(stdout)
-    if (!result || typeof result !== "object") throw new Error("malformed ktx acknowledgement")
-    return result
-  } finally {
-    if (timer) clearTimeout(timer)
-  }
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited,
+  ])
+  if (exitCode !== 0) throw new Error("ktx command exited " + exitCode + ": " + stderr.trim())
+  const result = JSON.parse(stdout)
+  if (!result || typeof result !== "object") throw new Error("malformed ktx acknowledgement")
+  return result
 }
 
 const metadata = async (path: string, follow: boolean): Promise<Record<string, unknown>> => {
@@ -404,19 +395,10 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       })
     }
     const proc = Bun.spawn([ktxExecutable, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => { proc.kill(); reject(new Error("ktx command timed out")) }, 10000)
-    })
-    try {
-      const [stdout, stderr, exitCode] = await Promise.race([
-        Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]),
-        timeout,
-      ])
-      return { stdout, stderr, exitCode }
-    } finally {
-      if (timer) clearTimeout(timer)
-    }
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited,
+    ])
+    return { stdout, stderr, exitCode }
   }
 
   const databasePaths = new Map<string, string>()

@@ -25,6 +25,7 @@
 
 ### Fixed
 
+- Generated `ktx.ts` callbacks no longer kill KTX after 10 seconds; `ktx hook` retry preflight now uses writer-preferred coordination and stable `database-unavailable` attribution.
 - `ktx run` now rejects an explicit empty `--record-stream=` value while preserving supported boolean and numeric forms and child arguments.
 - Plugin commands now reject malformed configuration without mutation, and durable configuration, price-cache, report, experiment, preflight, and replay-fixture updates publish complete same-directory replacements without treating temporary files as authority.
 - Current-schema hooks now fast-open without exclusive coordination, fall back to coordinated creation or migration, then revalidate schema under writer ownership and keep ordered source, artifact, and disposition commits inside one exclusive coordination window. A concurrent upgrade fails closed before hook evidence writes, while complete exact retries and pre-source rejections remain read-only.

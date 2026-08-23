@@ -536,7 +536,13 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 
 	sourceID := tc.ID
 	trusted := isCodex || isOpenCode
-	preflight, err := preflightHookRetry(db, trusted, &tc)
+	var preflight hookRetryPreflight
+	preflightStarted := time.Now()
+	err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, preflightStarted, db.WithHookPreflight(func() error {
+		var err error
+		preflight, err = preflightHookRetry(db, trusted, &tc)
+		return err
+	}))
 	if err != nil {
 		return nil, hookSourceError(err, isOpenCode, sourceID)
 	}

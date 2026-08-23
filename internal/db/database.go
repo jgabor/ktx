@@ -510,6 +510,26 @@ type DB struct {
 // coordination again.
 type HookWriter struct{ db *DB }
 
+// WithHookPreflight runs the hook's read-only retry inspection under shared
+// coordination, so it cannot overlap a supported writer's SQLite commit.
+func (d *DB) WithHookPreflight(fn func() error) (err error) {
+	if d.writer == nil {
+		return fn()
+	}
+	ctx, cancel := writeContext()
+	defer cancel()
+	lease, err := d.writer.acquire(ctx, false, coordinationShared)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := lease.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("db: release hook preflight coordination: %w", closeErr)
+		}
+	}()
+	return fn()
+}
+
 // WithHookWriter validates the schema and runs fn while holding one exclusive
 // coordination lease. Transactions started by HookWriter methods remain
 // separate commits.

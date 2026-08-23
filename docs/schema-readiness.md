@@ -143,7 +143,9 @@ ms, and compares each measured metric with the approved limits retained below.
 `prepare` writes `prepared-fixtures.json` only after fixture integrity checks and
 hashes complete. `smoke` and `measure` reuse those fixtures. Each phase and
 sample reports progress to stderr, including the maximum individual exclusive
-lock interval observed for each sample.
+lock interval observed for each sample. Child output and syscall traces spool to
+temporary files while resource polling runs, so trace volume cannot block child
+completion.
 
 | Metric               |   Observed worst |                Derivation |    Release limit |
 | -------------------- | ---------------: | ------------------------: | ---------------: |

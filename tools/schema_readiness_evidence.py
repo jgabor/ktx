@@ -12,6 +12,7 @@ import sqlite3
 import string
 import subprocess
 import sys
+import tempfile
 import time
 
 
@@ -266,23 +267,29 @@ def exclusive_lock_observations(stderr, lock_kind):
 def measure(command, env, database, lock_kind):
     started_epoch = time.time()
     started_monotonic = time.perf_counter_ns()
-    process = subprocess.Popen(
-        ["taskset", "-c", CPU, "strace", "-f", "-ttt", "-e", "trace=fcntl,flock", *command],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    peak_rss = 0
-    peak_journal = 0
-    sidecars = [Path(str(database) + suffix) for suffix in ("-journal", "-wal", "-shm")]
-    while process.poll() is None:
-        peak_rss = max(peak_rss, rss_tree(process.pid))
-        peak_journal = max(
-            peak_journal, sum(path.stat().st_size for path in sidecars if path.exists())
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stdout_capture, tempfile.TemporaryFile(
+        mode="w+", encoding="utf-8"
+    ) as stderr_capture:
+        process = subprocess.Popen(
+            ["taskset", "-c", CPU, "strace", "-f", "-ttt", "-e", "trace=fcntl,flock", *command],
+            env=env,
+            stdout=stdout_capture,
+            stderr=stderr_capture,
         )
-        time.sleep(0.0005)
-    stdout, stderr = process.communicate()
+        peak_rss = 0
+        peak_journal = 0
+        sidecars = [Path(str(database) + suffix) for suffix in ("-journal", "-wal", "-shm")]
+        while process.poll() is None:
+            peak_rss = max(peak_rss, rss_tree(process.pid))
+            peak_journal = max(
+                peak_journal, sum(path.stat().st_size for path in sidecars if path.exists())
+            )
+            time.sleep(0.0005)
+        process.wait()
+        stdout_capture.seek(0)
+        stderr_capture.seek(0)
+        stdout = stdout_capture.read()
+        stderr = stderr_capture.read()
     completion = time.perf_counter_ns() - started_monotonic
     if process.returncode:
         raise RuntimeError(stderr)

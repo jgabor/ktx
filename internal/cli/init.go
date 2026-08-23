@@ -671,24 +671,10 @@ type initFlags struct {
 // directory. The body calls parseInitArgs,
 // then dispatches on the runtime name and action flags.
 func runInitWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	_, err := initLogic(args, opts.Format, stdout, stderr)
-	if err != nil {
-		printError(stderr, err, opts.Format)
-		return exitCodeOf(err)
-	}
-	return ExitOK
+	return runDispatchWithOptions("init", args, opts, stdout, stderr)
 }
 
-// initLogic installs, removes, or inspects a runtime adapter.
-// parseInitArgs handles
-// `ktx init opencode --show` correctly (the runtime name is
-// positional, so stdlib flag would stop at it). The walker is
-// shared with the dispatch argument parser.
-func initLogic(args []string, format string, stdout, stderr io.Writer) (any, error) {
-	f, runtime, err := parseInitArgs(args)
-	if err != nil {
-		return nil, usageError("ktx init: %v", err)
-	}
+func executeInit(f initFlags, runtime, format string, stdout, stderr io.Writer) (any, error) {
 	if f.showHelp {
 		printInitHelp(stdout)
 		return nil, nil
@@ -834,7 +820,6 @@ func initOpencodeShow(globalPath, projectPath, format string, stdout, stderr io.
 	hasProject := fileExists(projectPath)
 
 	if !hasGlobal && !hasProject {
-		printError(stderr, notFoundError("ktx init opencode: plugin not installed (checked global %q and project %q)", globalPath, projectPath), format)
 		return notFoundError("ktx init opencode: plugin not installed (checked global %q and project %q)", globalPath, projectPath)
 	}
 
@@ -956,33 +941,7 @@ func initCommandFunc(ctx *DispatchContext) (any, error) {
 	if !ok {
 		return nil, internalError("ktx init: command arguments were not parsed")
 	}
-	f := parsed.flags
-	runtime := parsed.runtime
-
-	if f.showHelp {
-		printInitHelp(ctx.Stdout)
-		return nil, nil
-	}
-
-	if runtime == "" {
-		return nil, usageError("ktx init: missing runtime name; usage: ktx init <runtime> [flags] (supported: opencode, codex)")
-	}
-
-	// At most one action flag is meaningful; mixing --uninstall/--show with
-	// --project is permitted (--project scopes the action), but stacking
-	// --uninstall + --show is not.
-	if f.uninstall && f.show {
-		return nil, usageError("ktx init: --uninstall and --show are mutually exclusive")
-	}
-
-	switch runtime {
-	case "opencode":
-		return nil, initOpencodeLogic(&f, ctx.Format, ctx.Stdout, ctx.Stderr)
-	case "codex":
-		return nil, initCodexLogic(&f, ctx.Format, ctx.Stdout, ctx.Stderr)
-	default:
-		return nil, usageError("ktx init: unknown runtime %q; supported: opencode, codex", runtime)
-	}
+	return executeInit(parsed.flags, parsed.runtime, ctx.Format, ctx.Stdout, ctx.Stderr)
 }
 
 // init registers `ktx init` with the dispatch module. After init runs,

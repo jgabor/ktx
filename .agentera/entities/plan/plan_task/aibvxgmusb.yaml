@@ -4,7 +4,7 @@ record:
   name: Restore public CLI and dispatch consistency
   depends_on:
     - yydowzkivo
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN supported help and passthrough invocations WHEN users place owned and wrapped-command flags in documented positions THEN the intended recipient receives them and help never succeeds silently with empty output.
     - GIVEN one command failure WHEN structured diagnostics are emitted THEN exactly one envelope and the correct exit status reach the caller.

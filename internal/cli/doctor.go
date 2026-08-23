@@ -120,8 +120,7 @@ type doctorReport struct {
 // report, renders it, and converts the top-level status into the
 // right exit code (4 for error, 0 for ok/degraded).
 func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	_, code := doctorLogic(args, opts.Format, stdout, stderr)
-	return code
+	return runDispatchWithOptions("doctor", args, opts, stdout, stderr)
 }
 
 // doctorLogic builds and renders the health report, returning its CLI status.
@@ -214,9 +213,9 @@ func doctorCommandFunc(ctx *DispatchContext) (any, error) {
 	case ExitOK:
 		return nil, nil
 	case ExitUsage:
-		return nil, usageError("ktx doctor: usage error")
+		return nil, exitWith(ExitUsage)
 	case ExitInternal:
-		return nil, internalError("ktx doctor: status is error")
+		return nil, exitWith(ExitInternal)
 	default:
 		return nil, internalError("ktx doctor: exit code %d", code)
 	}

@@ -38,7 +38,6 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 )
@@ -54,53 +53,7 @@ const benchEpsilon = 1.0e-9
 // top-level bench flag set and dispatches to runBenchReport or
 // runBenchRun, returning the sub-handler's exit code directly.
 func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	var showHelp bool
-	fs := flag.NewFlagSet("ktx bench", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	fs.BoolVar(&showHelp, "help", false, "show help")
-	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-
-	if err := fs.Parse(args); err != nil {
-		printError(stderr, usageError("ktx bench: %v", err), opts.Format)
-		return ExitUsage
-	}
-	if showHelp {
-		printBenchHelp(stdout)
-		return ExitOK
-	}
-
-	rest := fs.Args()
-	if len(rest) == 0 {
-		printBenchHelp(stdout)
-		return ExitOK
-	}
-
-	sub := rest[0]
-	rest = rest[1:]
-
-	switch sub {
-	case "run":
-		return runBenchRun(rest, opts, stdout, stderr)
-	case "report":
-		return runBenchReport(rest, opts, stdout, stderr)
-	case "export":
-		return runBenchExport(rest, opts, stdout, stderr)
-	case "compare":
-		return runBenchCompare(rest, opts, stdout, stderr)
-	case "rank":
-		return runBenchRank(rest, opts, stdout, stderr)
-	case "validate":
-		return runBenchValidate(rest, opts, stdout, stderr)
-	case "corpus":
-		return runBenchCorpus(rest, opts, stdout, stderr)
-	case "agent":
-		return runBenchAgent(rest, opts, stdout, stderr)
-	case "evidence":
-		return runBenchEvidence(rest, opts, stdout, stderr)
-	default:
-		printError(stderr, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub), opts.Format)
-		return ExitUsage
-	}
+	return runDispatchWithOptions("bench", args, opts, stdout, stderr)
 }
 
 // benchCommandFunc routes the bench namespace to its subcommands.

@@ -72,6 +72,61 @@ func TestDispatch_OkNoOutput(t *testing.T) {
 	}
 }
 
+func TestPublicDispatchContracts(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("KTX_DB", "")
+
+	t.Run("run post-agent help is rendered", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runDispatch("run", []string{"sh", "--help"}, false, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), "Usage: ktx run") {
+			t.Fatalf("help output = %q", stdout.String())
+		}
+	})
+
+	t.Run("doctor failure renders once", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runDispatch("doctor", []string{"unexpected"}, false, &stdout, &stderr); code != ExitUsage {
+			t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+		}
+		if lines := strings.Count(strings.TrimSpace(stderr.String()), "\n") + 1; lines != 1 {
+			t.Fatalf("diagnostic lines = %d, stderr = %q", lines, stderr.String())
+		}
+	})
+
+	t.Run("init failure renders once", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runDispatch("init", []string{"opencode", "--show"}, false, &stdout, &stderr); code != ExitNotFound {
+			t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+		}
+		if lines := strings.Count(strings.TrimSpace(stderr.String()), "\n") + 1; lines != 1 {
+			t.Fatalf("diagnostic lines = %d, stderr = %q", lines, stderr.String())
+		}
+	})
+
+	t.Run("plugin documented and unknown flags", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			args []string
+			want int
+		}{
+			{name: "json", args: []string{"list", "--json"}, want: ExitOK},
+			{name: "unknown", args: []string{"list", "--typo"}, want: ExitUsage},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				var stdout, stderr bytes.Buffer
+				if code := runDispatch("plugin", tc.args, false, &stdout, &stderr); code != tc.want {
+					t.Fatalf("exit = %d, want %d, stderr = %q", code, tc.want, stderr.String())
+				}
+			})
+		}
+	})
+}
+
 // TestDispatch_NotFoundEnvelope covers: a verb that returns
 // dbpkg.ErrNotFound produces exit 2 and a stderr envelope whose code is
 // "not-found". The error sentinel is the contract that ties the dispatch

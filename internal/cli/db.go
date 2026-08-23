@@ -36,59 +36,7 @@ import (
 // DB-free, report opens read-only, and unavailable prune returns a usage error
 // without opening a database.
 func runDBWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	_, err := dbLogic(args, opts.Format, stdout, stderr)
-	if err != nil {
-		printError(stderr, err, opts.Format)
-		return exitCodeOf(err)
-	}
-	return ExitOK
-}
-
-// dbLogic routes database namespace operations.
-//
-// The verb does NOT take --help/-h at the dispatch level (the
-// dispatcher handles --help globally); it parses only --path.
-// `ktx db` without a subcommand defaults to `ktx db path`.
-//
-// `format` controls error rendering.
-func dbLogic(args []string, format string, stdout, stderr io.Writer) (any, error) {
-	var pathOverride string
-	var showHelp bool
-	fs := flag.NewFlagSet("ktx db", flag.ContinueOnError)
-	fs.SetOutput(io.Discard) // we render our own errors and help
-	fs.StringVar(&pathOverride, "path", "", "per-invocation database path override")
-	fs.BoolVar(&showHelp, "help", false, "show help")
-	fs.BoolVar(&showHelp, "h", false, "show help (shorthand)")
-
-	if err := fs.Parse(args); err != nil {
-		return nil, usageError("ktx db: %v", err)
-	}
-	if showHelp {
-		printDBHelp(stdout)
-		return nil, nil
-	}
-
-	rest := fs.Args()
-	// `ktx db` without a subcommand defaults to `ktx db path`.
-	sub := "path"
-	if len(rest) > 0 {
-		sub = rest[0]
-		rest = rest[1:]
-	}
-
-	switch sub {
-	case "path":
-		return dbPathLogic(pathOverride, stdout)
-	case "report":
-		return dbReportLogic(pathOverride, rest, stdout)
-	case "migrate":
-		return dbMigrateLogic(pathOverride, rest, format, stdout)
-	case "prune":
-		// The namespace reserves prune but does not implement it.
-		return nil, usageError("ktx db prune: not implemented")
-	default:
-		return nil, usageError("ktx db: unknown subcommand %q; run 'ktx db --help'", sub)
-	}
+	return runDispatchWithOptions("db", args, opts, stdout, stderr)
 }
 
 type dbMigrateResult struct {
@@ -223,12 +171,23 @@ func dbCommandFunc(ctx *DispatchContext) (any, error) {
 	if !ok {
 		return nil, internalError("ktx db: command arguments were not parsed")
 	}
-	// Rebuild the args so dbLogic remains the single path-resolution module.
-	args := ctx.Args
-	if parsed.pathOverride != "" {
-		args = append([]string{"--path", parsed.pathOverride}, args...)
+	sub := "path"
+	rest := ctx.Args
+	if len(rest) > 0 {
+		sub, rest = rest[0], rest[1:]
 	}
-	return dbLogic(args, ctx.Format, ctx.Stdout, ctx.Stderr)
+	switch sub {
+	case "path":
+		return dbPathLogic(parsed.pathOverride, ctx.Stdout)
+	case "report":
+		return dbReportLogic(parsed.pathOverride, rest, ctx.Stdout)
+	case "migrate":
+		return dbMigrateLogic(parsed.pathOverride, rest, ctx.Format, ctx.Stdout)
+	case "prune":
+		return nil, usageError("ktx db prune: not implemented")
+	default:
+		return nil, usageError("ktx db: unknown subcommand %q; run 'ktx db --help'", sub)
+	}
 }
 
 // parseDBDispatchArgs extracts the per-invocation path override.

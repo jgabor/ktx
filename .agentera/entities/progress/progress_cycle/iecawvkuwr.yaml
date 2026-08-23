@@ -1,0 +1,14 @@
+id: iecawvkuwr
+artifact: progress
+record:
+  timestamp: 2026-08-23 13:45
+  type: fix
+  phase: build
+  what: Restored CLI help, diagnostic, flag ownership, and shared dispatch behavior for run, doctor, init, plugin, db, and bench.
+  context:
+    intent: Resolve only the CLI and dispatch findings assigned to aibvxgmusb.
+    unknowns: Decision detail remains degraded by bounded optional output. Profile-derived state remains stale and was not refreshed.
+  discovered: The existing production dispatcher already provided the common lifecycle; delegating test helpers to it removed duplicate routing without changing output schemas.
+  verified: "With KTX_DB unset and a new disposable HOME and XDG root per invocation: go test ./internal/cli passed; mage build passed; mage check passed with 0 lint issues and forbidden database operations=0. The local build rendered non-empty post-agent run help; doctor unexpected emitted one JSON diagnostic and exited 1; init opencode --show emitted one JSON diagnostic and exited 2; plugin list --json succeeded and --typo emitted one usage diagnostic and exited 1; db --path printed the explicit owned path; bench unknown emitted one usage diagnostic and exited 1."
+  next: Keep aibvxgmusb in_progress until the orchestrator records a passing evaluator verdict.
+  publication_order: 140

@@ -4,7 +4,7 @@ record:
   name: Establish finding ownership and regression baselines
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN every numbered finding and behavior note WHEN the baseline is complete THEN each has one owner, affected contract, current reproduction or verification result, severity, and intended disposition.
     - GIVEN a finding alleges public or persistence behavior WHEN its baseline is recorded THEN at least one normal case and one adverse or boundary case establish the current result where the behavior is testable.
@@ -12,12 +12,12 @@ record:
     - GIVEN unrelated user changes exist WHEN baselines are prepared THEN they remain unchanged and outside the finding matrix.
   plan: dpvawnikuq
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: REVIEW.md finding 1.8 has split ownership, and testable findings 1.2-1.5 and 1.7-1.10 lack recorded normal/adverse observations.
     provenance:
-      attempt_id: audit-yydowzkivo-1
+      attempt_id: audit-yydowzkivo-2
       source: audit ses_fd1a47bc0fferR3voRfctnPdJ0
-      recorded_at: 2026-08-23 13:24
+      recorded_at: 2026-08-23 13:31
       writer_command: agentera state plan record-evaluation

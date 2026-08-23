@@ -46,6 +46,9 @@ func pluginCommandFunc(ctx *DispatchContext) (any, error) {
 	case "add":
 		return pluginAdd(subArgs, ctx.Stdout)
 	case "list":
+		if len(subArgs) > 1 || (len(subArgs) == 1 && subArgs[0] != "--json") {
+			return nil, usageError("ktx plugin list: unknown argument %q", subArgs[0])
+		}
 		return pluginList(ctx.Stdout)
 	case "remove":
 		return pluginRemove(subArgs, ctx.Stdout)
@@ -63,6 +66,9 @@ func pluginAdd(args []string, stdout io.Writer) (any, error) {
 	description, rest := extractDescription(args)
 	if len(rest) < 2 {
 		return nil, usageError("ktx plugin add: missing required arguments: <name> <command>")
+	}
+	if len(rest) > 2 {
+		return nil, usageError("ktx plugin add: unexpected argument %q", rest[2])
 	}
 	name := rest[0]
 	command := rest[1]
@@ -167,6 +173,9 @@ func pluginList(stdout io.Writer) (any, error) {
 func pluginRemove(args []string, stdout io.Writer) (any, error) {
 	if len(args) < 1 {
 		return nil, usageError("ktx plugin remove: missing required argument: <name>")
+	}
+	if len(args) > 1 {
+		return nil, usageError("ktx plugin remove: unexpected argument %q", args[1])
 	}
 	name := args[0]
 

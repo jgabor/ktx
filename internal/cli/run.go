@@ -90,48 +90,7 @@ type runOptions struct {
 // touching os.Stdout/Stderr. The body parses the run flag set and
 // invokes executeRun, returning the child's exit code directly.
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	runOpts := runOptions{Format: opts.Format, Quiet: opts.Quiet}
-	var err error
-	args, runOpts.CollectionID, err = extractCollectionFlag(args)
-	if err != nil {
-		printError(stderr, usageError("ktx run: %v", err), opts.Format)
-		return ExitUsage
-	}
-	// Subcommand-local --quiet / --help / --record-stream. The dispatch
-	// module already extracts --help when invoked through dispatch; parse the
-	// flag set here for direct callers.
-	quiet, showHelp, preRecordStream, rest := parseRunArgs(args)
-	if showHelp {
-		printRunHelp(stdout)
-		return ExitOK
-	}
-	if quiet {
-		runOpts.Quiet = true
-	}
-	if preRecordStream {
-		runOpts.RecordStream = true
-	}
-
-	// The post-agent --quiet / --record-stream filter scans agent args
-	// for -q/--quiet/-h/--help/--record-stream.
-	postAgentQuiet, agentHelp, postAgentRecordStream, agentArgs := filterKtxFlags(rest)
-	if postAgentQuiet {
-		runOpts.Quiet = true
-	}
-	if postAgentRecordStream {
-		runOpts.RecordStream = true
-	}
-	if agentHelp {
-		printRunHelp(stdout)
-		return ExitOK
-	}
-	if len(rest) == 0 {
-		printError(stderr, usageError("ktx run: missing agent command; usage: ktx run [flags] <agent> [args...]"), opts.Format)
-		return ExitUsage
-	}
-	agent := rest[0]
-
-	return executeRun(agent, agentArgs, runOpts, stdout, stderr)
+	return runDispatchWithOptions("run", args, opts, stdout, stderr)
 }
 
 func extractCollectionFlag(args []string) ([]string, string, error) {
@@ -149,50 +108,6 @@ func extractCollectionFlag(args []string) ([]string, string, error) {
 		id = value
 	}
 	return rest, id, nil
-}
-
-// parseRunArgs walks args and extracts --help/-h, --quiet/-q, and
-// --record-stream. The remaining positional args (including the agent
-// binary) are returned. Both --flag value and --flag=value forms are
-// accepted so the parser matches the stdlib flag package's behaviour
-// for the global parser.
-//
-// The stdlib flag.FlagSet stops at the first non-flag argument, which
-// breaks `ktx run <agent> --quiet` (the agent name is positional but
-// the quiet flag follows it). Hand-rolling the parser keeps the flag
-// surface stable regardless of position.
-//
-// --record-stream is a boolean (no value); --record-stream=true /
-// --record-stream=false are also accepted so users can explicitly
-// disable recording after a shell alias that enables it.
-func parseRunArgs(args []string) (quiet, showHelp, recordStream bool, rest []string) {
-	for _, a := range args {
-		switch a {
-		case "--quiet", "-q":
-			quiet = true
-			continue
-		case "--help", "-h":
-			showHelp = true
-			continue
-		case "--record-stream":
-			recordStream = true
-			continue
-		}
-		if strings.HasPrefix(a, "--quiet=") || strings.HasPrefix(a, "-q=") {
-			quiet = true
-			continue
-		}
-		if strings.HasPrefix(a, "--help=") || strings.HasPrefix(a, "-h=") {
-			showHelp = true
-			continue
-		}
-		if val, ok := matchRecordStreamFlag(a); ok {
-			recordStream = val
-			continue
-		}
-		rest = append(rest, a)
-	}
-	return quiet, showHelp, recordStream, rest
 }
 
 // matchRecordStreamFlag parses the --record-stream[=value] form and
@@ -498,6 +413,7 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 	// those (they are in the agent's args, not the verb's).
 	postAgentQuiet, agentHelp, postAgentRecordStream, agentArgs := filterKtxFlags(ctx.Args)
 	if agentHelp {
+		printRunHelp(ctx.Stdout)
 		return nil, nil
 	}
 

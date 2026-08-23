@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/jgabor/ktx/internal/config"
+	"github.com/jgabor/ktx/internal/durablefile"
 	"github.com/jgabor/ktx/internal/pipeline/stages"
 )
 
@@ -74,7 +75,10 @@ func pluginAdd(args []string, stdout io.Writer) (any, error) {
 	command := rest[1]
 
 	// Check for duplicate name in existing plugins.
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, configPluginError("add", err)
+	}
 	if cfg != nil {
 		for _, p := range cfg.Plugins {
 			if p.Name == name {
@@ -107,7 +111,7 @@ func pluginAdd(args []string, stdout io.Writer) (any, error) {
 	block := buildPluginBlock(name, command, description)
 	content = appendPluginText(content, block)
 
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := durablefile.Write(path, []byte(content), 0o644); err != nil {
 		return nil, internalError("ktx plugin add: write ktx.toml: %v", err)
 	}
 
@@ -146,7 +150,10 @@ func pluginList(stdout io.Writer) (any, error) {
 	}
 
 	// User plugins from ktx.toml.
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, configPluginError("list", err)
+	}
 	if cfg != nil {
 		for _, p := range cfg.Plugins {
 			plugins = append(plugins, pluginEntry{
@@ -189,7 +196,10 @@ func pluginRemove(args []string, stdout io.Writer) (any, error) {
 	}
 
 	// Load config to find user plugins.
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, configPluginError("remove", err)
+	}
 
 	// Find the user plugin with matching name.
 	found := -1
@@ -245,7 +255,7 @@ func pluginRemove(args []string, stdout io.Writer) (any, error) {
 		return nil, notFoundError("ktx plugin remove: plugin %q not found in ktx.toml", name)
 	}
 
-	if err := os.WriteFile(path, []byte(newContent), 0o644); err != nil {
+	if err := durablefile.Write(path, []byte(newContent), 0o644); err != nil {
 		return nil, internalError("ktx plugin remove: write ktx.toml: %v", err)
 	}
 
@@ -258,6 +268,10 @@ func pluginRemove(args []string, stdout io.Writer) (any, error) {
 	}
 	_ = json.NewEncoder(stdout).Encode(envelope)
 	return nil, nil
+}
+
+func configPluginError(operation string, err error) error {
+	return usageError("ktx plugin %s: load configuration: %v", operation, err)
 }
 
 // extractDescription scans args for --description <value> or

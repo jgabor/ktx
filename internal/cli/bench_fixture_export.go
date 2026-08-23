@@ -8,10 +8,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/durablefile"
 	parserpkg "github.com/jgabor/ktx/internal/parser"
 	"github.com/jgabor/ktx/internal/pipeline"
 	"github.com/jgabor/ktx/internal/pipeline/stages"
@@ -316,30 +315,5 @@ func cloneFloat64(value *float64) *float64 {
 }
 
 func writeFileAtomically(path string, data []byte) error {
-	directory := filepath.Dir(path)
-	temporary, err := os.CreateTemp(directory, ".ktx-replay-fixture-*")
-	if err != nil {
-		return err
-	}
-	temporaryPath := temporary.Name()
-	defer func() { _ = os.Remove(temporaryPath) }()
-	if err := temporary.Chmod(0o644); err != nil {
-		temporary.Close()
-		return err
-	}
-	if _, err := temporary.Write(data); err != nil {
-		temporary.Close()
-		return err
-	}
-	if err := temporary.Sync(); err != nil {
-		temporary.Close()
-		return err
-	}
-	if err := temporary.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(temporaryPath, path); err != nil {
-		return err
-	}
-	return nil
+	return durablefile.Write(path, data, 0o644)
 }

@@ -1,0 +1,16 @@
+id: nxmnawfmjw
+artifact: progress
+record:
+  timestamp: 2026-08-23 14:14
+  type: fix
+  phase: build
+  what: Unified durable file replacement and made plugin configuration handling fail closed.
+  context:
+    intent: Make configuration and durable updates publish only complete valid artifacts.
+    constraints: Preserve unrelated content, permissions, same-directory replacement, and existing artifact destinations.
+    unknowns: Decision detail remains degraded and was not reconstructed.
+    scope: Plugin configuration, shared compatible durable writers, price-cache synchronization comments, REVIEW disposition, and changelog.
+  discovered: Compatible configuration, cache, report, experiment, preflight, and replay-fixture writers had divergent temporary-file and sync behavior.
+  verified: mage check passed with KTX_DB unset under a fresh HOME/XDG root; local build rejected malformed plugin TOML and preserved it byte-for-byte; focused durable-write, plugin, cache, report, and experiment tests passed.
+  next: Keep plan task ipughkhybu in progress for owner audit.
+  publication_order: 142

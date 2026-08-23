@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/jgabor/ktx/internal/durablefile"
 )
 
 // MarshalJSON emits stable, indented JSON with lexicographically sorted keys.
@@ -38,24 +40,7 @@ func WriteJSON(path string, value any) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create JSON directory: %w", err)
 	}
-	temporary, err := os.CreateTemp(dir, ".ktx-json-*")
-	if err != nil {
-		return fmt.Errorf("create temporary JSON file: %w", err)
-	}
-	temporaryPath := temporary.Name()
-	defer func() { _ = os.Remove(temporaryPath) }()
-	if _, err := temporary.Write(data); err != nil {
-		temporary.Close()
-		return fmt.Errorf("write temporary JSON file: %w", err)
-	}
-	if err := temporary.Chmod(0o644); err != nil {
-		temporary.Close()
-		return fmt.Errorf("set JSON permissions: %w", err)
-	}
-	if err := temporary.Close(); err != nil {
-		return fmt.Errorf("close temporary JSON file: %w", err)
-	}
-	if err := os.Rename(temporaryPath, path); err != nil {
+	if err := durablefile.Write(path, data, 0o644); err != nil {
 		return fmt.Errorf("replace JSON file: %w", err)
 	}
 	return nil

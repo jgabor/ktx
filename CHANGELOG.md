@@ -25,6 +25,7 @@
 
 ### Fixed
 
+- Plugin commands now reject malformed configuration without mutation, and durable configuration, price-cache, report, experiment, preflight, and replay-fixture updates publish complete same-directory replacements without treating temporary files as authority.
 - Current-schema hooks now fast-open without exclusive coordination, fall back to coordinated creation or migration, then revalidate schema under writer ownership and keep ordered source, artifact, and disposition commits inside one exclusive coordination window. A concurrent upgrade fails closed before hook evidence writes, while complete exact retries and pre-source rejections remain read-only.
 - Database-unavailable diagnostics now identify the callback surface, pinned executable, database target, stable failure class, operation phase, elapsed wait, and observed Linux coordination blockers without exposing driver text or persisted content.
 - Linux coordinator-timeout diagnostics now label verified supported blocker commands from a closed vocabulary and report all uncertain identities as `unknown`.

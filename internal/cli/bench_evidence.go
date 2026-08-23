@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/jgabor/ktx/internal/cache/reuse"
+	"github.com/jgabor/ktx/internal/durablefile"
 )
 
 func runBenchEvidence(args []string, opts Options, stdout, stderr io.Writer) int {
@@ -123,22 +124,5 @@ func writePreflightReport(path string, data []byte) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	temporary, err := os.CreateTemp(dir, ".preflight-*")
-	if err != nil {
-		return err
-	}
-	temporaryPath := temporary.Name()
-	defer func() { _ = os.Remove(temporaryPath) }()
-	if _, err := temporary.Write(data); err != nil {
-		_ = temporary.Close()
-		return err
-	}
-	if err := temporary.Chmod(0o644); err != nil {
-		_ = temporary.Close()
-		return err
-	}
-	if err := temporary.Close(); err != nil {
-		return err
-	}
-	return os.Rename(temporaryPath, path)
+	return durablefile.Write(path, data, 0o644)
 }

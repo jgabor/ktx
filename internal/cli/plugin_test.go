@@ -353,6 +353,53 @@ func TestPluginAdd_MissingArguments(t *testing.T) {
 	}
 }
 
+func TestPluginCommandsRejectMalformedConfigWithoutMutation(t *testing.T) {
+	for _, args := range [][]string{{"add", "mycat", "/bin/cat"}, {"list"}, {"remove", "mycat"}} {
+		t.Run(args[0], func(t *testing.T) {
+			pluginTestEnv(t)
+			path := userConfigPath(t)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			malformed := []byte("[[plugin]\nname = broken\n")
+			if err := os.WriteFile(path, malformed, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			code, _, stderr := runPluginDispatch(t, args)
+			if code == ExitOK || !strings.Contains(stderr, "load configuration") {
+				t.Fatalf("exit=%d stderr=%q", code, stderr)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(got, malformed) {
+				t.Fatalf("config changed to %q, err=%v", got, err)
+			}
+		})
+	}
+}
+
+func TestPluginAddPreservesConfigPermissions(t *testing.T) {
+	pluginTestEnv(t)
+	path := userConfigPath(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("# unrelated\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr := runPluginDispatch(t, []string{"add", "mycat", "/bin/cat"})
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode=%v err=%v", info.Mode().Perm(), err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(data), "# unrelated") {
+		t.Fatalf("content=%q err=%v", data, err)
+	}
+}
+
 func TestPluginHelp(t *testing.T) {
 	var stdout bytes.Buffer
 	code := renderHelp(printPluginHelp, &stdout)

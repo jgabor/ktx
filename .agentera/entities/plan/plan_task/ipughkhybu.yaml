@@ -4,7 +4,7 @@ record:
   name: Make configuration and durable file updates truthful
   depends_on:
     - yydowzkivo
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN valid configuration WHEN plugin state changes THEN the resulting file is complete, preserves unrelated content, and cannot expose a partial replacement after an interrupted write.
     - GIVEN malformed configuration WHEN plugin commands inspect or change it THEN they fail clearly before mutation rather than treating corruption as an empty configuration.

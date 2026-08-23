@@ -50,6 +50,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/jgabor/ktx/internal/durablefile"
 )
 
 // pricesFilePerm is the file mode for the price cache. World-readable
@@ -282,9 +284,8 @@ func (p Price) SelectRates(contextTokens int64) PriceRates {
 // two-level navigation.
 //
 // Concurrency: Prices is safe for concurrent use by multiple goroutines
-// within a single process. The mutex guards both the in-memory map and
-// the on-disk write so a Refresh + WriteToDisk pair from one goroutine
-// cannot interleave with a Lookup from another. Each ktx invocation is
+// within a single process. The mutex keeps the in-memory snapshot stable
+// while it is encoded and published. Each ktx invocation is
 // a single process, so the only realistic concurrency is from a
 // parallel caller (e.g. the wrapper teeAndParse loop is single-goroutine
 // by construction, but defensive locking keeps the type honest).
@@ -442,48 +443,22 @@ func (p *Prices) Size() (providers, models int) {
 // a human-readable file so the cache is debuggable without a JSON
 // pretty-printer.
 func (p *Prices) WriteToDisk() error {
-	p.mu.RLock()
-	data, err := json.MarshalIndent(p.raw, "", "  ")
-	p.mu.RUnlock()
-	if err != nil {
-		return fmt.Errorf("prices: marshal: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(p.path), pricesDirPerm); err != nil {
-		return fmt.Errorf("prices: create directory for %q: %w", p.path, err)
-	}
-
-	tmpPath := p.path + ".tmp"
-	// O_TRUNC ensures a smaller new payload does not leave trailing
-	// bytes from a larger previous payload. os.Rename is atomic on
-	// POSIX when source and destination are on the same filesystem
-	// (the tmp file is in the same directory as the destination).
-	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, pricesFilePerm)
-	if err != nil {
-		return fmt.Errorf("prices: open temp %q: %w", tmpPath, err)
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("prices: write temp %q: %w", tmpPath, err)
-	}
-	// fsync so the rename publishes a fully-committed file. Without
-	// fsync a crash between rename and the kernel's async write-back
-	// could leave a zero-length file at the destination path after
-	// recovery. fsync is the standard "crash-safe atomic rename"
-	// ingredient on Linux.
-	if err := f.Sync(); err != nil {
-		f.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("prices: sync temp %q: %w", tmpPath, err)
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("prices: close temp %q: %w", tmpPath, err)
-	}
-	if err := os.Rename(tmpPath, p.path); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("prices: rename %q -> %q: %w", tmpPath, p.path, err)
+	if err := func() error {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		data, err := json.MarshalIndent(p.raw, "", "  ")
+		if err != nil {
+			return fmt.Errorf("prices: marshal: %w", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(p.path), pricesDirPerm); err != nil {
+			return fmt.Errorf("prices: create directory for %q: %w", p.path, err)
+		}
+		if err := durablefile.Write(p.path, data, pricesFilePerm); err != nil {
+			return fmt.Errorf("prices: write %q: %w", p.path, err)
+		}
+		return nil
+	}(); err != nil {
+		return err
 	}
 
 	// Flip cold=false: the cache now has an on-disk representation.

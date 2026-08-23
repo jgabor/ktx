@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -416,4 +417,41 @@ func TestPrices_WriteToDisk(t *testing.T) {
 			t.Errorf("Lookup returned in=%v out=%v; want 1.5/2.5", in, out)
 		}
 	})
+}
+
+func TestPricesConcurrentWritesPublishValidCache(t *testing.T) {
+	testutil.WithTempXDG(t)
+	path, err := PricesPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := NewPrices(path)
+	p.raw = map[string]map[string]Price{"provider": {"model": {Input: 1, Output: 2}}}
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- p.WriteToDisk()
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded := NewPrices(path)
+	if err := loaded.Load(); err != nil {
+		t.Fatalf("published cache is invalid: %v", err)
+	}
+	if _, _, ok := loaded.Lookup("provider", "model"); !ok {
+		t.Fatal("published cache lost entry")
+	}
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".ktx-write-*"))
+	if err != nil || len(matches) != 0 {
+		t.Fatalf("temporary files=%v err=%v", matches, err)
+	}
 }

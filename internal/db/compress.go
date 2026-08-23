@@ -106,7 +106,7 @@ func QueryDeliveryObservations(database deliveryQueryer, sessionID string) ([]De
 		LEFT JOIN compressed c ON c.id = (
 			SELECT first.id FROM compressed first
 			WHERE first.source_id = t.id
-			ORDER BY first.timestamp ASC, first.id ASC
+			ORDER BY first.timestamp_unix_nano ASC, first.id ASC
 			LIMIT 1
 		)
 		WHERE t.session_id = ?
@@ -183,9 +183,9 @@ func (d *DB) insertCompressed(c *Compressed, write func(context.Context, func(*s
 		}
 
 		_, err = tx.ExecContext(ctx,
-			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, producer)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp, c.Producer,
+			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, timestamp_unix_nano, producer)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp, sortableTimestamp(c.Timestamp), c.Producer,
 		)
 		return err
 	})
@@ -239,7 +239,7 @@ func (d *DB) insertCompressedOnce(c *Compressed, write func(context.Context, fun
 			err := tx.QueryRowContext(ctx,
 				`SELECT id, source_id, output, content_hash, pipeline, timestamp, producer
 				 FROM compressed WHERE source_id = ?
-				 ORDER BY timestamp ASC, id ASC LIMIT 1`, c.SourceID,
+				 ORDER BY timestamp_unix_nano ASC, id ASC LIMIT 1`, c.SourceID,
 			).Scan(&existing.ID, &existing.SourceID, &existing.Output, &existing.ContentHash, &existing.Pipeline, &existing.Timestamp, &existing.Producer)
 			if err == sql.ErrNoRows {
 				return ErrSourceNotFound
@@ -302,7 +302,7 @@ func (d *DB) GetCompressedBySource(sourceID string) (*Compressed, error) {
 	err := d.db.QueryRow(
 		`SELECT id, source_id, output, content_hash, pipeline, timestamp, producer
 		 FROM compressed WHERE source_id = ?
-		 ORDER BY timestamp ASC, id ASC LIMIT 1`,
+		 ORDER BY timestamp_unix_nano ASC, id ASC LIMIT 1`,
 		sourceID,
 	).Scan(
 		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp, &c.Producer,

@@ -14,10 +14,11 @@ import (
 )
 
 const testSchema = `
-CREATE TABLE sessions (id TEXT PRIMARY KEY, agent TEXT, started_at TEXT, ended_at TEXT, last_seen_at TEXT, tool_call_count INTEGER DEFAULT 0);
-CREATE TABLE tool_calls (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), tool TEXT, input TEXT, output TEXT, content_hash TEXT, timestamp TEXT, event_type TEXT DEFAULT 'tool_call', tokens_in INTEGER, tokens_out INTEGER, cost REAL, latency_ms INTEGER, model TEXT, provider TEXT, exit_code INTEGER, is_error INTEGER);
-CREATE TABLE compressed (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES tool_calls(id), output TEXT, content_hash TEXT, pipeline TEXT, timestamp TEXT);
+CREATE TABLE sessions (id TEXT PRIMARY KEY, agent TEXT, agent_attribution_authority TEXT NOT NULL DEFAULT 'unknown', started_at TEXT, ended_at TEXT, last_seen_at TEXT, tool_call_count INTEGER DEFAULT 0);
+CREATE TABLE tool_calls (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), tool TEXT, input TEXT, output TEXT, content_hash TEXT, timestamp TEXT, timestamp_unix_nano INTEGER, event_type TEXT DEFAULT 'tool_call', tokens_in INTEGER, tokens_out INTEGER, cost REAL, latency_ms INTEGER, model TEXT, provider TEXT, exit_code INTEGER, is_error INTEGER, runtime TEXT, latency_state TEXT NOT NULL DEFAULT 'unknown', latency_unit TEXT NOT NULL DEFAULT 'milliseconds', latency_authority TEXT NOT NULL DEFAULT 'unknown', producer TEXT);
+CREATE TABLE compressed (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES tool_calls(id), output TEXT, content_hash TEXT, pipeline TEXT, timestamp TEXT, timestamp_unix_nano INTEGER);
 CREATE TABLE recorded_streams (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), bench_run_id TEXT, stream_text TEXT, content_hash TEXT, stream_format TEXT, captured_at TEXT);
+PRAGMA user_version = 16;
 `
 
 func TestEmptyReportGoldenAndReadOnly(t *testing.T) {
@@ -82,7 +83,7 @@ func TestReportAggregatesProductEvidence(t *testing.T) {
 	if _, err := database.Exec(testSchema); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(`INSERT INTO sessions VALUES
+	if _, err := database.Exec(`INSERT INTO sessions (id,agent,started_at,ended_at,last_seen_at,tool_call_count) VALUES
 ('s1','unknown','2026-07-01T00:00:00Z','2026-07-01T00:01:00Z','2026-07-01T00:01:00Z',2),
 ('s2','opencode','2026-07-02T00:00:00Z',NULL,'2026-07-02T00:00:01Z',1)`); err != nil {
 		t.Fatal(err)
@@ -96,7 +97,7 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?),(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?),(?,?,?,?,
 		"t3", "s2", "read", "z", "data", hash("data"), "2026-07-02T00:00:01Z", nil, nil, nil, nil, nil, "provider-b", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(`INSERT INTO compressed VALUES
+	if _, err := database.Exec(`INSERT INTO compressed (id,source_id,output,content_hash,pipeline,timestamp) VALUES
 ('c1','t1','hi',?,'["head:1"]','2026-07-01T00:00:03Z'),
 ('c2','t1','h',?,'["head:1"]','2026-07-01T00:00:04Z'),
 ('c3','t2','ERROR',?,'[]','2026-07-01T00:00:05Z')`, hash("hi"), hash("h"), hash("ERROR")); err != nil {
@@ -203,7 +204,7 @@ func TestReportOutcomeStorageClasses(t *testing.T) {
 	if _, err := database.Exec(strings.Replace(testSchema, "is_error INTEGER", "is_error", 1)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(`INSERT INTO sessions VALUES ('s1','unknown','2026-07-01T00:00:00Z',NULL,'2026-07-01T00:00:00Z',10)`); err != nil {
+	if _, err := database.Exec(`INSERT INTO sessions (id,agent,started_at,ended_at,last_seen_at,tool_call_count) VALUES ('s1','unknown','2026-07-01T00:00:00Z',NULL,'2026-07-01T00:00:00Z',10)`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := database.Exec(`INSERT INTO tool_calls (id,session_id,tool,input,output,content_hash,timestamp,is_error) VALUES
@@ -294,7 +295,7 @@ func createOutcomeFixture(t *testing.T, states []any) string {
 	if _, err := database.Exec(testSchema); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(`INSERT INTO sessions VALUES ('s1','unknown','2026-07-01T00:00:00Z',NULL,'2026-07-01T00:00:00Z',?)`, len(states)); err != nil {
+	if _, err := database.Exec(`INSERT INTO sessions (id,agent,started_at,ended_at,last_seen_at,tool_call_count) VALUES ('s1','unknown','2026-07-01T00:00:00Z',NULL,'2026-07-01T00:00:00Z',?)`, len(states)); err != nil {
 		t.Fatal(err)
 	}
 	for index, state := range states {

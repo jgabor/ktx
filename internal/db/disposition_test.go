@@ -119,8 +119,8 @@ func TestCompressionDispositionConcurrentPromotion(t *testing.T) {
 func TestCompressionDispositionRequiresFirstArtifact(t *testing.T) {
 	d := openMemoryDB(t)
 	sourceID := seedSessionAndCalls(t, d, []callFixture{{id: "firstartifactsrc", output: "long output"}})[0]
-	seedCompressedWithID(t, d, "firstartifactxxx", sourceID, "first", "2026-07-21T12:00:01Z")
-	seedCompressedWithID(t, d, "laterartifactxxx", sourceID, "later", "2026-07-21T12:00:02Z")
+	seedCompressedWithID(t, d, "firstartifactxxx", sourceID, "first", "2026-07-21T12:00:00.1Z")
+	seedCompressedWithID(t, d, "laterartifactxxx", sourceID, "later", "2026-07-21T12:00:00.12Z")
 
 	got, err := d.GetCompressedBySource(sourceID)
 	if err != nil || got.ID != "firstartifactxxx" {
@@ -143,5 +143,17 @@ func TestCompressionDispositionRequiresFirstArtifact(t *testing.T) {
 	retained, err := d.GetCompressionDisposition(sourceID)
 	if err != nil || retained.ArtifactID != first.ArtifactID || retained.Profile != "first" {
 		t.Fatalf("retained disposition = %+v, %v", retained, err)
+	}
+}
+
+func TestFirstArtifactEqualTimestampUsesID(t *testing.T) {
+	d := openMemoryDB(t)
+	sourceID := seedSessionAndCalls(t, d, []callFixture{{id: "equaltimestampsrc", output: "long output"}})[0]
+	seedCompressedWithID(t, d, "zzzzzzzzzzzzzzzz", sourceID, "later id", "2026-07-21T12:00:00.1Z")
+	seedCompressedWithID(t, d, "aaaaaaaaaaaaaaaa", sourceID, "first id", "2026-07-21T12:00:00.100Z")
+
+	got, err := d.GetCompressedBySource(sourceID)
+	if err != nil || got.ID != "aaaaaaaaaaaaaaaa" {
+		t.Fatalf("GetCompressedBySource = %+v, %v; want ID tie-break winner", got, err)
 	}
 }

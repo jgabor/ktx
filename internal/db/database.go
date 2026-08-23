@@ -354,6 +354,10 @@ func OpenQuery(path string) (*DB, error) {
 		database.Close()
 		return nil, newerSchemaError(version)
 	}
+	if err := checkRequiredColumns(database.db); err != nil {
+		database.Close()
+		return nil, fmt.Errorf("db: validate current query schema: %w", err)
+	}
 	return database, nil
 }
 

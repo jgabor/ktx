@@ -124,6 +124,12 @@ NULL, without changing the retained text or other evidence. Bounded `stats`,
 columns while preserving the existing inclusive time boundary and malformed
 timestamp exclusion behavior.
 
+Schema 16 adds a nullable nanosecond epoch form of each compressed-artifact
+timestamp. Migration derives it only from retained timestamp text. Artifact
+authority orders by sortable time and then artifact ID, so equivalent timestamp
+formats and equal instants have one deterministic order. Migration does not
+create or infer artifacts, dispositions, recovery evidence, or runtime evidence.
+
 Supported ktx readers and writers coordinate on the physical database file with
 writer-preferred admission. Once a writer is waiting, later supported readers
 wait behind it while existing readers finish. Linux and BSD use separate

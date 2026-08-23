@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 15
+const schemaVersion = 16
 
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
@@ -265,6 +265,7 @@ var schemaStatements = []string{
 		content_hash TEXT,
 		pipeline     TEXT,
 		timestamp    TEXT,
+		timestamp_unix_nano INTEGER,
 		producer     TEXT
 	)`,
 	// compressed_source_id_idx accelerates `ktx decompress <id>`'s
@@ -336,7 +337,7 @@ var schemaStatements = []string{
 // columns in the order they appear here). Types match the flat-JSON
 // payload so callers can persist numbers and strings without a SQLite
 // type-coercion surprise.
-type costColumn struct {
+type schemaColumn struct {
 	Name string
 	Type string
 }
@@ -348,7 +349,7 @@ type costColumn struct {
 // existence check is the only pure-Go mechanism. PRAGMA table_info runs
 // inside the migration transaction without issue; the query is read-only
 // and the connection's schema view is consistent within a transaction.
-var costColumns = []costColumn{
+var costColumns = []schemaColumn{
 	{Name: "tokens_in", Type: "INTEGER"},
 	{Name: "tokens_out", Type: "INTEGER"},
 	{Name: "cost", Type: "REAL"},
@@ -361,17 +362,17 @@ var costColumns = []costColumn{
 // tool_calls. exit_code is diagnostic; is_error is the
 // canonical gating signal stored as INTEGER 0/1/NULL and converted to
 // *bool in GetToolCall. Idempotency mirrors costColumns.
-var failureSignalColumns = []costColumn{
+var failureSignalColumns = []schemaColumn{
 	{Name: "exit_code", Type: "INTEGER"},
 	{Name: "is_error", Type: "INTEGER"},
 }
 
 // runtimeColumns are the nullable runtime fields on tool_calls.
-var runtimeColumns = []costColumn{
+var runtimeColumns = []schemaColumn{
 	{Name: "runtime", Type: "TEXT"},
 }
 
-var latencyEvidenceColumns = []costColumn{
+var latencyEvidenceColumns = []schemaColumn{
 	{Name: "latency_state", Type: "TEXT NOT NULL DEFAULT 'unknown'"},
 	{Name: "latency_unit", Type: "TEXT NOT NULL DEFAULT 'milliseconds'"},
 	{Name: "latency_authority", Type: "TEXT NOT NULL DEFAULT 'unknown'"},
@@ -379,7 +380,7 @@ var latencyEvidenceColumns = []costColumn{
 
 // producerColumns are nullable so migration leaves historical ownership
 // unknown.
-var producerColumns = []costColumn{
+var producerColumns = []schemaColumn{
 	{Name: "producer", Type: "TEXT"},
 }
 
@@ -398,11 +399,6 @@ var producerColumns = []costColumn{
 // degraded but functional. The realistic forward-fix case is "table
 // exists, some non-PK columns missing", where `id` is already present
 // and the ALTER loop skips it.
-type benchRunsColumn struct {
-	Name string
-	Type string
-}
-
 // benchRunsColumns are the bench_runs columns. The list covers all 14
 // columns per the reproducibility contract: `id` (nanoid), `agent`,
 // `model`, `task`, `score`, `tokens_in`, `tokens_out`, `cost`,
@@ -413,7 +409,7 @@ type benchRunsColumn struct {
 // to costColumns — PRAGMA table_info is consulted before ALTER TABLE ADD
 // COLUMN, so a re-open of a fully migrated database is a no-op and a partial
 // bench_runs schema is forward-fixed on the next open.
-var benchRunsColumns = []benchRunsColumn{
+var benchRunsColumns = []schemaColumn{
 	{Name: "id", Type: "TEXT"},
 	{Name: "agent", Type: "TEXT"},
 	{Name: "model", Type: "TEXT"},
@@ -445,11 +441,6 @@ var benchRunsColumns = []benchRunsColumn{
 // but functional. The realistic forward-fix case is "table exists,
 // some non-PK columns missing", where `id` is already present and the
 // ALTER loop skips it — same contract as benchRunsColumns.
-type compressedColumn struct {
-	Name string
-	Type string
-}
-
 // compressedColumns are the columns of the `compressed` table:
 // id (nanoid), source_id (FK → tool_calls.id),
 // output (the compressed bytes), content_hash (SHA-256 of compressed
@@ -458,13 +449,14 @@ type compressedColumn struct {
 // benchRunsColumns — PRAGMA table_info is consulted before ALTER TABLE
 // ADD COLUMN, so a re-open of a fully migrated database is a no-op
 // and a partial compressed schema is forward-fixed on the next open.
-var compressedColumns = []compressedColumn{
+var compressedColumns = []schemaColumn{
 	{Name: "id", Type: "TEXT"},
 	{Name: "source_id", Type: "TEXT"},
 	{Name: "output", Type: "TEXT"},
 	{Name: "content_hash", Type: "TEXT"},
 	{Name: "pipeline", Type: "TEXT"},
 	{Name: "timestamp", Type: "TEXT"},
+	{Name: "timestamp_unix_nano", Type: "INTEGER"},
 	{Name: "producer", Type: "TEXT"},
 }
 
@@ -506,6 +498,21 @@ func tableColumns(q queryer, table string) (map[string]struct{}, error) {
 	return cols, nil
 }
 
+func addMissingColumns(tx *sql.Tx, table string, have map[string]struct{}, groups ...[]schemaColumn) error {
+	for _, columns := range groups {
+		for _, column := range columns {
+			if _, ok := have[column.Name]; ok {
+				continue
+			}
+			if _, err := tx.Exec("ALTER TABLE " + table + " ADD COLUMN " + column.Name + " " + column.Type); err != nil {
+				return fmt.Errorf("db: add %s column %q: %w", table, column.Name, err)
+			}
+			have[column.Name] = struct{}{}
+		}
+	}
+	return nil
+}
+
 // migrate gates schema work with PRAGMA user_version. The first read is outside
 // a transaction so opening an already-current database never acquires a write
 // lock. A stale opener checks the version again after beginning its immediate
@@ -524,14 +531,7 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 		return fmt.Errorf("db: read schema version: %w", err)
 	}
 	if version == schemaVersion {
-		columns, err := tableColumns(db, "sessions")
-		if err != nil {
-			return fmt.Errorf("db: inspect current sessions schema: %w", err)
-		}
-		if _, ok := columns["agent_attribution_authority"]; !ok {
-			return fmt.Errorf("db: current sessions schema is missing agent attribution authority")
-		}
-		return nil
+		return checkRequiredColumns(db)
 	}
 	if version > schemaVersion {
 		return newerSchemaError(version)
@@ -608,54 +608,8 @@ func migrateTx(tx *sql.Tx) error {
 	if err != nil {
 		return fmt.Errorf("db: inspect tool_calls: %w", err)
 	}
-	for _, col := range costColumns {
-		if _, ok := have[col.Name]; ok {
-			continue
-		}
-		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
-		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("db: add cost column %q: %w", col.Name, err)
-		}
-	}
-
-	for _, col := range failureSignalColumns {
-		if _, ok := have[col.Name]; ok {
-			continue
-		}
-		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
-		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("db: add failure-signal column %q: %w", col.Name, err)
-		}
-	}
-
-	for _, col := range runtimeColumns {
-		if _, ok := have[col.Name]; ok {
-			continue
-		}
-		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
-		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("db: add runtime column %q: %w", col.Name, err)
-		}
-	}
-
-	for _, col := range latencyEvidenceColumns {
-		if _, ok := have[col.Name]; ok {
-			continue
-		}
-		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
-		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("db: add latency evidence column %q: %w", col.Name, err)
-		}
-	}
-
-	for _, col := range producerColumns {
-		if _, ok := have[col.Name]; ok {
-			continue
-		}
-		stmt := "ALTER TABLE tool_calls ADD COLUMN " + col.Name + " " + col.Type
-		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("db: add producer column %q: %w", col.Name, err)
-		}
+	if err := addMissingColumns(tx, "tool_calls", have, costColumns, failureSignalColumns, runtimeColumns, latencyEvidenceColumns, producerColumns); err != nil {
+		return err
 	}
 	if _, ok := have["timestamp_unix_nano"]; !ok {
 		if _, err := tx.Exec(`ALTER TABLE tool_calls ADD COLUMN timestamp_unix_nano INTEGER`); err != nil {
@@ -711,6 +665,9 @@ func migrateTx(tx *sql.Tx) error {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("db: add compressed column %q: %w", col.Name, err)
 		}
+	}
+	if err := backfillSortableTimestamps(tx, "compressed", "id", "timestamp", "timestamp_unix_nano"); err != nil {
+		return err
 	}
 
 	// recorded_streams bench_run_id NULL relaxation (post-recording-schema): the

@@ -127,7 +127,7 @@ func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, e
 	}
 	report, err := dbreport.Generate(path, includeIdentifiers, time.Now())
 	if err != nil {
-		return nil, databaseOpenError(path, "db report", err)
+		return nil, queryDatabaseOpenError(path, "db report", err)
 	}
 	if output != "-" {
 		if err := dbreport.WriteJSON(output, report); err != nil {

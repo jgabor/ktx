@@ -65,6 +65,7 @@ var expectedSchema = map[string][]string{
 	"sessions": {
 		"id",
 		"agent",
+		"agent_attribution_authority",
 		"started_at",
 		"ended_at",
 		"last_seen_at",
@@ -78,8 +79,22 @@ var expectedSchema = map[string][]string{
 		"output",
 		"content_hash",
 		"timestamp",
+		"timestamp_unix_nano",
 		"event_type",
 	},
+}
+
+func init() {
+	for _, columns := range [][]schemaColumn{costColumns, failureSignalColumns, runtimeColumns, latencyEvidenceColumns, producerColumns} {
+		for _, column := range columns {
+			expectedSchema["tool_calls"] = append(expectedSchema["tool_calls"], column.Name)
+		}
+	}
+}
+
+var readableCoreSchema = map[string][]string{
+	"sessions":   {"id", "agent", "started_at", "ended_at", "last_seen_at", "tool_call_count"},
+	"tool_calls": {"id", "session_id", "tool", "input", "output", "content_hash", "timestamp", "event_type"},
 }
 
 // costSchema is the cost-publication column set added to tool_calls by
@@ -141,14 +156,35 @@ var benchRunsSchema = []string{
 //     and comparing is O(n*m) at worst, but n and m are tiny and this
 //     runs only on doctor invocation.
 func (d *DB) CheckSchema() error {
+	return checkRequiredColumns(d.db)
+}
+
+func checkRequiredColumns(q queryer) error {
 	for table, wantCols := range expectedSchema {
-		have, err := tableColumns(d.db, table)
+		have, err := tableColumns(q, table)
 		if err != nil {
 			return fmt.Errorf("inspect table %q: %w", table, err)
 		}
 		for _, want := range wantCols {
 			if _, ok := have[want]; !ok {
 				return fmt.Errorf("table %q missing column %q (have %v)", table, want, sortedKeys(have))
+			}
+		}
+	}
+	return nil
+}
+
+// CheckReadableCoreSchema diagnoses damage independently of whether an older
+// supported schema still needs explicit migration.
+func (d *DB) CheckReadableCoreSchema() error {
+	for table, columns := range readableCoreSchema {
+		have, err := tableColumns(d.db, table)
+		if err != nil {
+			return err
+		}
+		for _, column := range columns {
+			if _, ok := have[column]; !ok {
+				return fmt.Errorf("table %q missing column %q (have %v)", table, column, sortedKeys(have))
 			}
 		}
 	}

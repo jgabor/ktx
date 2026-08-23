@@ -21,7 +21,7 @@ const SchemaVersion = 3
 var reportTables = []string{"sessions", "tool_calls", "compressed", "recorded_streams"}
 
 func Generate(path string, includeIdentifiers bool, now time.Time) (map[string]any, error) {
-	database, err := db.OpenReadOnly(path)
+	database, err := db.OpenQuery(path)
 	if err != nil {
 		return nil, err
 	}

@@ -39,11 +39,15 @@ func openQueryDatabase(path, command string) (*dbpkg.DB, error) {
 	if err == nil {
 		return database, nil
 	}
+	return nil, queryDatabaseOpenError(path, command, err)
+}
+
+func queryDatabaseOpenError(path, command string, err error) error {
 	var schemaErr *dbpkg.SchemaTooOldError
 	if errors.As(err, &schemaErr) {
 		canonicalDB, canonicalErr := dbpkg.CanonicalPath(path)
 		if canonicalErr != nil {
-			return nil, internalError("canonicalize migration-required database path: %v", canonicalErr)
+			return internalError("canonicalize migration-required database path: %v", canonicalErr)
 		}
 		correction := fmt.Sprintf("run `ktx db migrate` to upgrade database schema %d to %d, then retry", schemaErr.Actual, schemaErr.Required)
 		failure := newError(CodeSchemaMigration,
@@ -55,9 +59,9 @@ func openQueryDatabase(path, command string) (*dbpkg.DB, error) {
 			"database_path":   canonicalDB,
 			"correction":      correction,
 		}
-		return nil, failure
+		return failure
 	}
-	return nil, databaseOpenError(path, command, err)
+	return databaseOpenError(path, command, err)
 }
 
 func databaseOpenError(path, command string, err error) error {

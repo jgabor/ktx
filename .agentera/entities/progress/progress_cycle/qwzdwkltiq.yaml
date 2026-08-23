@@ -1,0 +1,12 @@
+id: qwzdwkltiq
+artifact: progress
+record:
+  timestamp: 2026-08-23 15:15
+  type: fix
+  phase: build
+  what: Unified compressed-artifact authority and current-schema diagnostics. Schema 16 adds sortable compressed timestamps; read-only reports now use the shared schema gate; mandatory fields fail closed; migration column metadata and loops are consolidated.
+  context:
+    intent: Implement only database authority and schema diagnostics.
+  verified: mage check passed with 0 issues under an isolated disposable application root. Local build behavior returned schema-migration-required (exit 5) for an explicitly seeded schema-15 report, migrated 15 to 16, then generated the report successfully without implicit read migration.
+  next: Leave task in progress for evaluator audit.
+  publication_order: 145

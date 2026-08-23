@@ -5,7 +5,7 @@ record:
   depends_on:
     - yydowzkivo
     - jqwhyyfrto
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN multiple compressed artifacts for one source WHEN delivery, recovery, disposition, or lookup selects authority THEN every surface chooses the same total first-artifact order for equal and differently formatted timestamps.
     - GIVEN an older, current, or newer database WHEN read-only inspection runs THEN each command applies the same schema gate, never migrates implicitly, and returns the documented correction on incompatibility.

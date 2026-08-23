@@ -26,7 +26,7 @@ import (
 // TABLE. Order matches the CREATE TABLE column order; doctor and the
 // partial-forward-fix path both rely on the order being deterministic.
 var expectedCompressedColumns = []string{
-	"id", "source_id", "output", "content_hash", "pipeline", "timestamp", "producer",
+	"id", "source_id", "output", "content_hash", "pipeline", "timestamp", "timestamp_unix_nano", "producer",
 }
 
 // TestCompressedMigration_FreshDB covers the "fresh database created by

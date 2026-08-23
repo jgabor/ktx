@@ -122,7 +122,7 @@ func requireCompressionDispositionReferences(ctx context.Context, tx *sql.Tx, di
 	var authoritativeArtifactID string
 	if err := tx.QueryRowContext(ctx, `
 		SELECT id FROM compressed WHERE source_id = ?
-		ORDER BY timestamp ASC, id ASC LIMIT 1`, disposition.SourceID).Scan(&authoritativeArtifactID); err != nil {
+		ORDER BY timestamp_unix_nano ASC, id ASC LIMIT 1`, disposition.SourceID).Scan(&authoritativeArtifactID); err != nil {
 		if err == sql.ErrNoRows {
 			return ErrNotFound
 		}

@@ -334,7 +334,7 @@ func buildDoctorReport() *doctorReport {
 			report.Checks = append(report.Checks, doctorCheck{
 				Name:   "schema_version",
 				Status: doctorStatusWarning,
-				Detail: fmt.Sprintf("database schema %d requires upgrade to %d; install and verify the compatible binary, then deliberately run an Open-backed command against this path", version, maximum),
+				Detail: fmt.Sprintf("database schema %d requires migration to %d; run `ktx db migrate`, then retry", version, maximum),
 			})
 			if report.Status != doctorStatusError {
 				report.Status = doctorStatusDegraded
@@ -352,6 +352,15 @@ func buildDoctorReport() *doctorReport {
 				Status: doctorStatusOK,
 				Detail: fmt.Sprintf("database uses supported schema %d", version),
 			})
+		}
+		if version != maximum {
+			if version < maximum {
+				if err := db.CheckReadableCoreSchema(); err != nil {
+					report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
+					report.Status = doctorStatusError
+				}
+			}
+			return report
 		}
 	}
 

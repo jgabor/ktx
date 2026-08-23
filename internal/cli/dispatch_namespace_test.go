@@ -296,6 +296,7 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		if _, err := raw.Exec(`CREATE TABLE sessions (
 			id              TEXT PRIMARY KEY,
 			agent           TEXT,
+			agent_attribution_authority TEXT NOT NULL DEFAULT 'unknown',
 			started_at      TEXT,
 			ended_at        TEXT,
 			last_seen_at    TEXT,
@@ -314,13 +315,21 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 			output       TEXT,
 			content_hash TEXT,
 			timestamp    TEXT,
+			timestamp_unix_nano INTEGER,
 			event_type   TEXT DEFAULT 'tool_call',
 			tokens_in    INTEGER,
 			tokens_out   INTEGER,
 			cost         REAL,
 			latency_ms   INTEGER,
 			model        TEXT,
-			provider     TEXT
+			provider     TEXT,
+			exit_code INTEGER,
+			is_error INTEGER,
+			runtime TEXT,
+			latency_state TEXT NOT NULL DEFAULT 'unknown',
+			latency_unit TEXT NOT NULL DEFAULT 'milliseconds',
+			latency_authority TEXT NOT NULL DEFAULT 'unknown',
+			producer TEXT
 		)`); err != nil {
 			t.Fatalf("create tool_calls: %v", err)
 		}

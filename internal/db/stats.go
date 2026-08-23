@@ -275,7 +275,7 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 		LEFT JOIN compressed c ON c.id = (
 			SELECT first.id FROM compressed first
 			WHERE first.source_id = tc.id
-			ORDER BY first.timestamp ASC, first.id ASC
+			ORDER BY first.timestamp_unix_nano ASC, first.id ASC
 			LIMIT 1
 		)
 		WHERE tc.id IN (`+placeholders+`)

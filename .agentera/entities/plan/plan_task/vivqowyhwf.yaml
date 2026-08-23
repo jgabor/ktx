@@ -4,7 +4,7 @@ record:
   name: Establish the transparent schema-readiness contract
   depends_on:
     - czbvfvhouh
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN the existing read-only and manual-migration policy conflicts with the approved requirement WHEN the authoritative decision is updated THEN every supported stale schema has automatic behavior and the superseded rule is unambiguous.
     - GIVEN a database is missing, current, supported but older, or newer than the binary WHEN each database-backed surface is classified THEN its creation, readiness, compatibility, or safe-failure behavior is explicit and consistent.
@@ -21,3 +21,6 @@ record:
       source: audit ses_fd003368cffehPlQdS9HqSetbj
       recorded_at: 2026-08-23 21:01
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - gigbqaqxke
+  superseded_reason: Completed replacement passed audit and satisfies the full schema-readiness contract.

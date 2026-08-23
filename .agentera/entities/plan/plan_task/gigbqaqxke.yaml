@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: wddjlywrzk
   name: Complete the transparent schema-readiness contract
-  status: in_progress
+  status: complete
   depends_on:
     - czbvfvhouh
   acceptance:
@@ -15,12 +15,12 @@ record:
     - The blocked predecessor established the authoritative readiness decision, timeout matrix, reproducible evidence harness, and empirical budgets.
     - Its retry audit isolated the remaining failure to unqualified read-only wording in safety and release guidance plus incomplete consistency coverage.
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Doctor and stats live-validation help still say they do not migrate without limiting that claim to post-readiness operation; the consistency test does not inspect those shipped help surfaces.
     provenance:
-      attempt_id: audit-gigbqaqxke-1
-      source: audit ses_fcfd7a414ffeT2dL619OfqZtit
-      recorded_at: 2026-08-23 21:49
+      attempt_id: audit-gigbqaqxke-2
+      source: audit ses_fcfcafb94ffeteHJBMK6I1RUxj
+      recorded_at: 2026-08-23 22:07
       writer_command: agentera state plan record-evaluation

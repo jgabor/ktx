@@ -1,9 +1,11 @@
 # Database safety contract
 
-ktx database access is forward-only. Query commands are genuinely read-only;
-commands that persist evidence may create a database and transactionally migrate
-an older supported schema. Development, tests, CI, and rehearsal must never
-access the ambient live database.
+ktx database access is forward-only. Normal database-backed operations must
+prepare every supported older schema automatically. Query and inspection
+operations remain read-only after readiness, but readiness itself may migrate
+an older database. Development, tests, CI, and rehearsal must never access the
+ambient live database. The authoritative state matrix, deadline ownership, and
+release budgets are in the [schema readiness contract](schema-readiness.md).
 
 Critical-path evidence classes, participant ownership, hook acceptance, and
 the database-unavailable result are defined in the
@@ -14,10 +16,10 @@ the database-unavailable result are defined in the
 | Class                                     | Surfaces                                                                                                                                                                  | Database behavior                                                                                                                                                                                                                                                                                                                              |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DB-free                                   | Help, version, init, config and plugin management, `binary-capabilities`, `db path`, prices, replay-file, comparison preflight, corpus generation, and evidence preflight | Does not create, inspect, open, or migrate an ambient database.                                                                                                                                                                                                                                                                                |
-| Genuinely read-only query                 | `get`, `read`, `list`, `stats`, `decompress`; `bench report`; `telemetry list`                                                                                            | Opens an existing current-schema database with SQLite `mode=ro` and `query_only`. It never creates or migrates persistent state. An absent database is represented by an ephemeral empty current schema so normal empty and not-found results do not create a file.                                                                            |
-| Existing-artifact inspection              | `doctor`; `db report`; `bench export` and `bench validate`                                                                                                                | Uses read-only access to an existing database or retained artifact and preserves its command-specific missing-input behavior.                                                                                                                                                                                                                  |
+| Query operation                           | `get`, `read`, `list`, `stats`, `decompress`; `bench report`; `telemetry list`                                                                                            | An absent database is represented by an ephemeral empty current schema. A supported older database is prepared automatically, then the requested operation opens with SQLite `mode=ro` and `query_only`.                                                                                                                                       |
+| Existing-artifact inspection              | `doctor`; `db report`; `bench export` and `bench validate`                                                                                                                | Preserves command-specific missing-input behavior. A supported older database is prepared automatically, then inspection is read-only.                                                                                                                                                                                                         |
 | Creation and migration capable            | `write`, `compress`, `hook`, `run`; telemetry record and collector commands; normal benchmark run and replay; collector-enabled benchmark agent                           | May create a missing database and transactionally migrate an older supported schema before writing. A current-schema hook first opens without creation, migration, or exclusive coordination, then rechecks the schema inside its evidence-writer window. Missing and older supported databases fall back to the normal coordinated Open path. |
-| Explicit migration                        | `ktx db migrate`                                                                                                                                                          | Upgrades an existing older database through the same transactional migration path. It does not create an absent database.                                                                                                                                                                                                                      |
+| Explicit migration                        | `ktx db migrate`                                                                                                                                                          | Retained for diagnosis and rehearsal, not as a prerequisite for normal use. It upgrades an existing older database and does not create an absent database.                                                                                                                                                                                     |
 | Isolated owner databases                  | Normal benchmark compare and rank                                                                                                                                         | Creates a fresh database for each attempt and rejects attempt-directory reuse.                                                                                                                                                                                                                                                                 |
 | Forbidden ambient-live development access | Any development, test, CI, or rehearsal command that could discover the normal user database                                                                              | Use a fresh disposable application root and, for migration rehearsal, an explicitly seeded temporary database.                                                                                                                                                                                                                                 |
 
@@ -27,19 +29,12 @@ path is disposable or safe.
 
 ## Query behavior
 
-Read-only query commands require the current schema because their typed queries
-are defined against that schema. They never migrate as a side effect. If the
-database is older, they exit `5` with code `schema-migration-required`, the
-actual and required versions, the canonical database path, and this correction:
-
-```sh
-ktx db migrate
-```
-
-Use `ktx db --path <file> migrate` for a per-invocation path or set `KTX_DB` for
-an explicitly selected database. The command reports `from_schema`, `to_schema`,
-and whether a migration ran. An absent database returns not-found and remains
-absent.
+Typed queries require the current schema. Readiness prepares a supported older
+database automatically before the query opens read-only. No supported stale
+schema returns `schema-migration-required`, and no normal workflow requires a
+manual migration command. This supersedes the previous read-only/manual-
+migration policy. An absent database remains absent and uses the existing
+logical-empty behavior.
 
 An absent database is logically empty for read-only commands. `list`, `stats`,
 and `bench report` return their empty results; record lookup, decompression, and
@@ -139,8 +134,9 @@ ownership, while BSD uses two independent `fcntl` byte ranges. Windows also
 uses separate byte ranges. This coordination creates no sidecar or database
 state, and genuinely read-only commands remain read-only.
 
-`doctor` remains a read-only preflight. It reports an older schema as degraded
-and never upgrades it.
+`doctor` remains read-only for a current schema. For a supported older schema,
+readiness prepares the database automatically before inspection. It no longer
+reports a manual migration prerequisite.
 
 ## Newer schemas
 

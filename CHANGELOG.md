@@ -4,6 +4,7 @@
 
 ### Added
 
+- The schema-readiness contract now requires automatic preparation for every supported stale database surface, single-owner timeout attribution, and reproducible controlled-host resource gates.
 - Schema 14 adds explicit OpenCode collection evidence for hook-owned delivery, wrapper-owned runtime timing and lifecycle, acknowledged recovery cues, linked byte-exact recovery attempts, and the read-only `ktx stats live-validation` fixed-window report. Ordinary `ktx run` behavior remains unchanged.
 - Schema 13 retains metadata-only `run` ingress collection scope and lifecycle closure evidence. Continuity qualification reports explicit gaps for missing closure, interruption, conflict, pre-deployment history, and unelapsed windows; read-only evaluation does not migrate or backfill evidence.
 - `ktx stats summary` schema 10 and `ktx stats breakdown` schema 4 report trusted-ingress agent-attribution coverage over the exact output-bearing call population; historical and unverified calls remain unknown, and empty coverage is null.

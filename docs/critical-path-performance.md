@@ -2,8 +2,10 @@
 
 This contract defines the engineering evidence used to change ktx's critical
 path. It does not add a public performance command, a daemon, or a new product
-benchmark. Timing stays descriptive until a controlled host, workload, sample
-policy, variance rule, and numeric budget are approved.
+benchmark. Timing outside an approved gate stays descriptive. Schema readiness
+now has an approved controlled-host workload, sample policy, derivation, and
+numeric release budget in the
+[schema readiness contract](schema-readiness.md).
 
 ## Evidence classes
 
@@ -46,6 +48,21 @@ product SQLite state.
 
 The current component report is schema 3, the load report is schema 3, and the
 blocked-decompression report is schema 2. The manifest remains schema 2.
+
+### Schema readiness gate
+
+Schema readiness uses a separate fixed release gate. It measures current-schema
+no-op readiness and the existing schema-15-to-16 path against a generated 3.2 GB
+fixture. One warmup and five measured samples run on the recorded controlled
+host. Readiness latency, exclusive lock hold, journal growth, peak resident
+memory, and total completion must each remain at or below the recorded worst
+case plus 25 percent. The exact host, fixtures, instrumentation, observations,
+and numeric limits are authoritative in the
+[schema readiness contract](schema-readiness.md#readiness-release-budget).
+
+This gate does not replace correctness, interruption recovery, evidence
+integrity, or newer-schema safe-failure checks. A release fails if any one gate
+fails.
 
 ### Hook-only contention workload
 

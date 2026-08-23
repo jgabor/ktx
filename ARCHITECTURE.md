@@ -228,6 +228,13 @@ Retains originals keyed for retrieval on demand. Lossy hook profiles may append 
 
 Writes session-scoped and call-scoped records to the database: inputs, outputs, metrics, and references into the reversibility layer. Exposed as mechanical I/O (`read` / `write`) and higher-level query (`get` / `list`).
 
+Database schema readiness is internal to every database-backed surface. Missing
+state keeps the surface-specific creation or logical-empty behavior, every
+supported older schema is prepared automatically, and a schema newer than the
+binary fails before writes. Query and inspection operations remain read-only
+after readiness. KTX alone owns startup, contention, operation, and migration
+deadlines; adapters do not add a competing callback timeout.
+
 ### Measurement
 
 Ingests telemetry only from the agent runtime without rewriting it. Provider and model identity may be emitted by the runtime or inferred from explicit runtime configuration, with provenance. Reported cost, including literal zero, remains runtime evidence. Provider documentation and pricing catalogs remain semantic/reference/estimate sources, not telemetry. A separate nullable API-equivalent estimate is reconstructed from cache-aware models.dev prices for uncached input, cache reads, cache writes, output, and reasoning. Benchmark experiments retain the exact resolved pricing record so estimates can be regenerated without consulting mutable live data. Historical direct-provider fixtures may remain for offline compatibility and provenance, clearly labeled unsupported for current collection. Aggregate runtime tokens, labels, configured identity, and historical fixtures never establish provider-internal cache hits, misses, fills, eviction, request boundaries, isolation, or prefix composition.

@@ -1,0 +1,15 @@
+id: gifjzccsbz
+artifact: progress
+record:
+  timestamp: 2026-08-23 20:38
+  type: docs
+  phase: build
+  what: Established the authoritative transparent schema-readiness contract and reproducible numeric release gates.
+  context:
+    intent: Complete plan task vivqowyhwf contract acceptance without implementing universal readiness or changing schema migration code.
+    constraints: Preserved per-invocation ambient digest proof, forward-only newer-schema failure, disposable database ownership, and task in_progress status.
+    unknowns: None. The user-approved worst-case-plus-25-percent policy resolved the budget unknown.
+  discovered: Decision yzacopwwpm supersedes only the stale-schema read-only/manual-migration portions of iklzthoapi. Controlled host allspark, CPU 2, one warmup plus five measured samples, and generated 3.2 GB current/schema-15 fixtures produced auditable limits in docs/schema-readiness.md.
+  verified: Both fixtures passed PRAGMA integrity_check; every measured schema-15 copy migrated to schema 16; limit arithmetic matched ceil(worst times 1.25); Agentera docs lint passed; focused database-safety contract test passed; isolated mage check passed with KTX_DB unset and fresh HOME/XDG roots.
+  next: Orchestrator audit may evaluate vivqowyhwf. Later tasks implement schema-15-to-16 resumability and universal readiness against decision yzacopwwpm.
+  publication_order: 155

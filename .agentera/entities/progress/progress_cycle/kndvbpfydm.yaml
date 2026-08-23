@@ -1,0 +1,14 @@
+id: kndvbpfydm
+artifact: progress
+record:
+  timestamp: 2026-08-23 13:57
+  type: fix
+  phase: build
+  what: Corrected the two failed CLI evaluation cases for OpenCode uninstall diagnostics and record-stream boolean parsing.
+  context:
+    intent: Address only the two blockers recorded by the first aibvxgmusb evaluation.
+    unknowns: Decision detail remains degraded by bounded optional output. Profile-derived state remains stale and was not refreshed.
+  discovered: "Both defects were local: uninstall rendered before returning, while record-stream parsing had an explicit invalid-value coercion branch."
+  verified: "With KTX_DB unset and fresh disposable HOME/XDG roots: go test ./internal/cli passed; mage build passed; mage check passed with 0 lint issues and forbidden database operations=0. The local binary's init opencode --uninstall emitted exactly one not-found JSON envelope and exited 2. The local binary's run sh --record-stream=garbage emitted exactly one usage JSON envelope and exited 1. Focused dispatch tests also accepted bare, true, false, 1, and 0 record-stream forms while retaining a wrapped --child-flag argument, and rejected garbage."
+  next: Keep aibvxgmusb in_progress until the orchestrator records a passing evaluator verdict.
+  publication_order: 141

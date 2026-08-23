@@ -108,6 +108,35 @@ func TestPublicDispatchContracts(t *testing.T) {
 		}
 	})
 
+	t.Run("init uninstall failure renders once", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := runDispatch("init", []string{"opencode", "--uninstall"}, false, &stdout, &stderr); code != ExitNotFound {
+			t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+		}
+		if lines := strings.Count(strings.TrimSpace(stderr.String()), "\n") + 1; lines != 1 {
+			t.Fatalf("diagnostic lines = %d, stderr = %q", lines, stderr.String())
+		}
+	})
+
+	t.Run("record stream values", func(t *testing.T) {
+		for _, arg := range []string{"--record-stream", "--record-stream=true", "--record-stream=false", "--record-stream=1", "--record-stream=0"} {
+			rest, _, err := parseRunDispatchArgs([]string{arg, "agent", "--child-flag"})
+			if err != nil {
+				t.Errorf("%s: %v", arg, err)
+			}
+			if strings.Join(rest, " ") != "agent --child-flag" {
+				t.Errorf("%s: passthrough args = %q", arg, rest)
+			}
+		}
+		var stdout, stderr bytes.Buffer
+		if code := runDispatch("run", []string{"agent", "--record-stream=garbage"}, false, &stdout, &stderr); code != ExitUsage {
+			t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "invalid value") {
+			t.Fatalf("stderr = %q", stderr.String())
+		}
+	})
+
 	t.Run("plugin documented and unknown flags", func(t *testing.T) {
 		for _, tc := range []struct {
 			name string

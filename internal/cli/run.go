@@ -111,29 +111,25 @@ func extractCollectionFlag(args []string) ([]string, string, error) {
 }
 
 // matchRecordStreamFlag parses the --record-stream[=value] form and
-// returns (value, true) when the flag matches. The bare form
+// returns matched=true when the flag matches and an error for an unsupported
+// value. The bare form
 // (--record-stream) is handled by the caller's switch; this helper
 // only covers the =value form so the caller can stay a simple switch
-// for the bare flags. Returns (false, false) when the arg is not a
+// for the bare flags. Returns matched=false when the arg is not a
 // --record-stream flag.
-func matchRecordStreamFlag(a string) (bool, bool) {
+func matchRecordStreamFlag(a string) (value, matched bool, err error) {
 	const prefix = "--record-stream="
 	if !strings.HasPrefix(a, prefix) {
-		return false, false
+		return false, false, nil
 	}
 	val := strings.TrimPrefix(a, prefix)
 	switch val {
 	case "true", "1", "":
-		return true, true
+		return true, true, nil
 	case "false", "0":
-		return false, true
+		return false, true, nil
 	default:
-		// An invalid value is treated as true so the flag is
-		// not silently passed through to the agent; the user
-		// clearly intended recording. A stricter contract would
-		// error, but ktx run is a passthrough and should not
-		// block the agent on a flag-value quibble.
-		return true, true
+		return false, true, fmt.Errorf("invalid value %q for --record-stream: want true, false, 1, or 0", val)
 	}
 }
 
@@ -149,9 +145,9 @@ func matchRecordStreamFlag(a string) (bool, bool) {
 // form is consumed by parseRunArgs; this helper is the post-agent
 // fallback for users who type `ktx run <agent> ... --quiet`.
 //
-// Returns (quiet, showHelp, recordStream, rest) so the caller can OR
-// the pre-agent and post-agent values together.
-func filterKtxFlags(args []string) (quiet, showHelp, recordStream bool, rest []string) {
+// Returns the owned values, passthrough arguments, and any malformed owned
+// flag error.
+func filterKtxFlags(args []string) (quiet, showHelp, recordStream bool, rest []string, err error) {
 	for _, a := range args {
 		name, _, _ := strings.Cut(a, "=")
 		switch name {
@@ -160,16 +156,20 @@ func filterKtxFlags(args []string) (quiet, showHelp, recordStream bool, rest []s
 		case "-h", "--help":
 			showHelp = true
 		case "--record-stream":
-			recordStream = true
-		default:
-			if val, ok := matchRecordStreamFlag(a); ok {
-				recordStream = val
+			if a == "--record-stream" {
+				recordStream = true
 				continue
 			}
+			value, _, parseErr := matchRecordStreamFlag(a)
+			if parseErr != nil {
+				return false, false, false, nil, parseErr
+			}
+			recordStream = value
+		default:
 			rest = append(rest, a)
 		}
 	}
-	return
+	return quiet, showHelp, recordStream, rest, nil
 }
 
 // executeRun is the runtime body of `ktx run`. It opens the session,
@@ -411,7 +411,10 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 	// post-agent --quiet (e.g. `ktx run <agent> ... --quiet`),
 	// --record-stream, and --help because the dispatcher does not see
 	// those (they are in the agent's args, not the verb's).
-	postAgentQuiet, agentHelp, postAgentRecordStream, agentArgs := filterKtxFlags(ctx.Args)
+	postAgentQuiet, agentHelp, postAgentRecordStream, agentArgs, err := filterKtxFlags(ctx.Args)
+	if err != nil {
+		return nil, usageError("ktx run: %v", err)
+	}
 	if agentHelp {
 		printRunHelp(ctx.Stdout)
 		return nil, nil
@@ -468,7 +471,9 @@ func parseRunDispatchArgs(args []string) ([]string, any, error) {
 			recordStream = true
 			continue
 		}
-		if val, ok := matchRecordStreamFlag(a); ok {
+		if val, ok, err := matchRecordStreamFlag(a); err != nil {
+			return nil, nil, err
+		} else if ok {
 			recordStream = val
 			continue
 		}

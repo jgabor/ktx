@@ -793,13 +793,11 @@ func initOpencodeUninstall(globalPath, projectPath, format string, stdout, stder
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
-			printError(stderr, internalError("ktx init opencode: remove %q: %v", p, err), format)
 			return internalError("ktx init opencode: remove %q: %v", p, err)
 		}
 		removed = append(removed, p)
 	}
 	if len(removed) == 0 {
-		printError(stderr, notFoundError("ktx init opencode: plugin not installed (checked global %q and project %q)", globalPath, projectPath), format)
 		return notFoundError("ktx init opencode: plugin not installed (checked global %q and project %q)", globalPath, projectPath)
 	}
 	writeUninstallReport(stdout, removed, format)

@@ -1,0 +1,25 @@
+id: psosnhyzlq
+artifact: todo
+record:
+  kind: bug
+  target_version: null
+  title: Qualify post-readiness read-only guarantees
+  requirements:
+    - Qualify the remaining database-safety and changelog statements so read-only behavior clearly applies after automatic readiness has prepared a supported stale schema.
+    - Extend the schema-readiness consistency regression to reject the contradictory unqualified wording.
+    - Preserve the approved automatic readiness decision, runtime digest proof, newer-schema failure, and retained empirical budgets.
+  acceptance:
+    - GIVEN a supported stale schema WHEN current safety and release guidance is read THEN no statement implies that schema readiness is skipped for a read-only surface.
+    - GIVEN the former contradictory wording WHEN the focused contract test runs THEN it fails until every current contract surface qualifies read-only behavior as post-readiness.
+    - GIVEN the corrected contract WHEN focused verification and the isolated repository check run THEN they pass without ambient live-database access.
+  release_blocker: true
+  severity: normal
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[bug] Qualify post-readiness read-only guarantees"
+      severity: normal
+      status: open
+      order: 17

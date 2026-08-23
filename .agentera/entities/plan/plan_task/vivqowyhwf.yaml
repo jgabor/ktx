@@ -4,7 +4,7 @@ record:
   name: Establish the transparent schema-readiness contract
   depends_on:
     - czbvfvhouh
-  status: in_progress
+  status: blocked
   acceptance:
     - GIVEN the existing read-only and manual-migration policy conflicts with the approved requirement WHEN the authoritative decision is updated THEN every supported stale schema has automatic behavior and the superseded rule is unambiguous.
     - GIVEN a database is missing, current, supported but older, or newer than the binary WHEN each database-backed surface is classified THEN its creation, readiness, compatibility, or safe-failure behavior is explicit and consistent.
@@ -12,12 +12,12 @@ record:
     - GIVEN current-schema and production-shaped baselines WHEN readiness budgets are approved THEN latency, lock hold, journal growth, and resource limits are measurable release criteria.
   plan: wddjlywrzk
   evaluation:
-    attempt_count: 1
-    failure_count: 1
+    attempt_count: 2
+    failure_count: 2
     last_verdict: fail
-    last_failure_evidence: Decision pkncauwnqe and current README, AGENTS, skill, and telemetry guidance still contradict automatic stale-schema readiness; retained measurement evidence lacks exact reproducible fixture and instrumentation commands.
+    last_failure_evidence: docs/database-safety.md still says read-only opens never migrate, and CHANGELOG.md says read-only evaluation does not migrate, without limiting those statements to post-readiness operation; the consistency test does not reject this contradiction.
     provenance:
-      attempt_id: audit-vivqowyhwf-1
-      source: audit ses_fd0134331ffesw2IYN6C5bIpGn
-      recorded_at: 2026-08-23 20:43
+      attempt_id: audit-vivqowyhwf-2
+      source: audit ses_fd003368cffehPlQdS9HqSetbj
+      recorded_at: 2026-08-23 21:01
       writer_command: agentera state plan record-evaluation

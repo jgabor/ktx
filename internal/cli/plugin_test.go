@@ -400,6 +400,68 @@ func TestPluginAddPreservesConfigPermissions(t *testing.T) {
 	}
 }
 
+func TestPluginAddPreservesConfigSymlink(t *testing.T) {
+	pluginTestEnv(t)
+	path := userConfigPath(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "shared.toml")
+	if err := os.WriteFile(target, []byte("# shared\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr := runPluginDispatch(t, []string{"add", "mycat", "/bin/cat"})
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr)
+	}
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("config symlink replaced: mode=%v err=%v", info.Mode(), err)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || !strings.Contains(string(data), "# shared") || !strings.Contains(string(data), `name = "mycat"`) {
+		t.Fatalf("target content=%q err=%v", data, err)
+	}
+	code, _, stderr = runPluginDispatch(t, []string{"remove", "mycat"})
+	if code != ExitOK {
+		t.Fatalf("remove exit=%d stderr=%q", code, stderr)
+	}
+	info, err = os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("config symlink replaced by remove: mode=%v err=%v", info.Mode(), err)
+	}
+	data, err = os.ReadFile(target)
+	if err != nil || !strings.Contains(string(data), "# shared") || strings.Contains(string(data), "[[plugin]]") {
+		t.Fatalf("target after remove=%q err=%v", data, err)
+	}
+}
+
+func TestPluginAddRejectsDanglingConfigSymlink(t *testing.T) {
+	pluginTestEnv(t)
+	path := userConfigPath(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "missing.toml")
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr := runPluginDispatch(t, []string{"add", "mycat", "/bin/cat"})
+	if code == ExitOK || !strings.Contains(stderr, "resolve config target") {
+		t.Fatalf("exit=%d stderr=%q", code, stderr)
+	}
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("config symlink changed: mode=%v err=%v", info.Mode(), err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("missing target changed: %v", err)
+	}
+}
+
 func TestPluginHelp(t *testing.T) {
 	var stdout bytes.Buffer
 	code := renderHelp(printPluginHelp, &stdout)

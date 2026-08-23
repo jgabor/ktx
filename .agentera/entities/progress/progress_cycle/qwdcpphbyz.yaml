@@ -1,0 +1,15 @@
+id: qwdcpphbyz
+artifact: progress
+record:
+  timestamp: 2026-08-23 14:24
+  type: fix
+  phase: build
+  what: Preserved plugin configuration symlinks and added caller-level rejected-destination coverage for durable writers.
+  context:
+    intent: Correct the failed durable-write audit findings only.
+    constraints: Follow only existing plugin configuration symlinks; do not broaden symlink behavior to other artifact classes.
+    unknowns: The recorded evaluation remains failed until re-audit.
+    scope: Plugin symlink compatibility and report, experiment, preflight, and replay-fixture adverse tests.
+  verified: Focused isolated tests passed plugin add/remove through an existing configuration symlink, dangling-symlink rejection without replacement, and rejected report, experiment, preflight, and replay-fixture destinations with their prior marker content intact. Isolated mage check passed with KTX_DB unset and reported forbidden=0.
+  next: Leave ipughkhybu in progress for re-audit.
+  publication_order: 143

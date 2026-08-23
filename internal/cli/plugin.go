@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jgabor/ktx/internal/config"
@@ -95,6 +96,10 @@ func pluginAdd(args []string, stdout io.Writer) (any, error) {
 		if err != nil {
 			return nil, internalError("ktx plugin add: resolve config path: %v", err)
 		}
+	}
+	path, err = resolveConfigWritePath(path)
+	if err != nil {
+		return nil, internalError("ktx plugin add: resolve config target: %v", err)
 	}
 
 	// Read existing content (empty when creating new file).
@@ -244,6 +249,10 @@ func pluginRemove(args []string, stdout io.Writer) (any, error) {
 	if !exists {
 		return nil, notFoundError("ktx plugin remove: ktx.toml not found")
 	}
+	path, err = resolveConfigWritePath(path)
+	if err != nil {
+		return nil, internalError("ktx plugin remove: resolve config target: %v", err)
+	}
 
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -272,6 +281,20 @@ func pluginRemove(args []string, stdout io.Writer) (any, error) {
 
 func configPluginError(operation string, err error) error {
 	return usageError("ktx plugin %s: load configuration: %v", operation, err)
+}
+
+func resolveConfigWritePath(path string) (string, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return path, nil
+		}
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return path, nil
+	}
+	return filepath.EvalSymlinks(path)
 }
 
 // extractDescription scans args for --description <value> or

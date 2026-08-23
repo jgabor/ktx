@@ -12,3 +12,13 @@ record:
     - GIVEN shared durable-write behavior is consolidated WHEN existing callers run THEN permissions, destination constraints, and failure semantics remain unchanged, with at least one success and one interrupted or rejected case per artifact class.
     - GIVEN comments claim synchronization or atomicity WHEN the task closes THEN each claim matches the actual protected operation.
   plan: dpvawnikuq
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Atomic replacement detaches existing configuration symlinks, and changed report, experiment, preflight, and replay-fixture writers lack required rejected-destination coverage.
+    provenance:
+      attempt_id: audit-ipughkhybu-1
+      source: audit ses_fd173f8c1ffeoqBoao2coj3wWm
+      recorded_at: 2026-08-23 14:19
+      writer_command: agentera state plan record-evaluation

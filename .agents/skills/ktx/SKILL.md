@@ -159,17 +159,18 @@ For in-context recovery from a hook footer, use the footer's
 
 ## Non-Negotiable Safety
 
-- Query commands are genuinely read-only and never migrate persistent state.
-- Write-capable commands can create or transactionally migrate their selected
-  database.
+- Every database-backed command automatically prepares a supported older schema.
+  Query and inspection operations are read-only after readiness.
+- Write-capable commands can create their selected database; readiness and
+  writes use transactional forward migration.
 - Development, tests, CI, migration rehearsal, and benchmark debugging must
   never access the ambient live database. Use a fresh disposable application
   root and unset incoming `KTX_DB`.
 - Query the ambient live database only for an explicit operator request, and
   use read-only ktx commands or `sqlite3 -readonly`.
 - `KTX_DB` selects a path; it does not prove that the path is disposable.
-- If a query reports an older schema, deliberately run `ktx db migrate` only
-  after confirming the selected path and backup/recovery expectations.
+- Keep `ktx db migrate` for explicit diagnosis and disposable rehearsal; it is
+  not a prerequisite for a supported older schema.
 - If the database is newer than the binary, install a newer compatible binary.
   Never lower SQLite `user_version`.
 - Replay fixtures and whole experiment directories are sensitive. Workspaces,

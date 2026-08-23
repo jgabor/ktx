@@ -1,0 +1,10 @@
+id: jlstdravdr
+artifact: decisions
+record:
+  decision: pkncauwnqe
+  date: 2026-08-23
+  provenance: historical_revision
+  base_sha256: 6b01bf2f560801d0b2d4e35547be03a0a34419b92775e72919ebf9d3ca69fa09
+  changes:
+    choice: Add one root --expect-runtime-sha256 flag carrying a lowercase executable SHA-256. For an Open-backed target resolved from the ambient default path, require the flag and compare it with the canonical running executable bytes before directory creation, inspection, SQLite open, or migration. The flag is presented on every ambient invocation and writes no trust state. Explicit operator-owned database targets remain usable without ambient proof. Generated OpenCode code passes the verified digest to its pinned absolute candidate on every Open-backed callback. Canonical path, build version, and maximum schema remain available through ktx.binary-capabilities/v1; the digest binds those executable bytes. Under the later schema-readiness contract yzacopwwpm, doctor is read-only after readiness but automatically prepares a supported older schema; this supersedes only the earlier statement that doctor remains an always-read-only preflight. A matching proof permits automatic readiness and the existing Open path; Y greater than maximum still fails before writes. Missing, malformed, or mismatched proof returns structured correction guidance without database access.
+    reasoning: The user selected per-invocation proof over durable authorization. It removes receipt lifecycle, revocation, crash-ordering, and stale-state risks, and makes every ambient open deliberate. Reusing the existing executable digest keeps the proof machine-readable and binds the exact bytes, while OpenCode can supply it automatically after its existing candidate verification. Restricting the guard to default ambient resolution preserves explicit disposable and benchmark owners. Automatic readiness can migrate doctor on a supported stale schema only after the same proof boundary; post-readiness inspection remains read-only. The existing forward-only check preserves Y greater than maximum recovery.

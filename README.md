@@ -134,13 +134,13 @@ guidance. Originals remain addressable through `ktx read` and `ktx
 decompress`. For the optional structured diagnostic file sink, see
 [`docs/logging.md`](docs/logging.md).
 
-Database access is forward-only. Query commands use enforced read-only SQLite
-access and never create or migrate persistent state. Write-capable commands
-may create a database and transactionally migrate an older supported schema.
-If a query reports `schema-migration-required`, run `ktx db migrate`. The
+Database access is forward-only. Every database-backed command automatically
+prepares a supported older schema before running. Query and inspection commands
+use enforced read-only SQLite access after readiness; an absent database keeps
+its logical-empty or missing-input behavior. A database newer than the binary
+fails before writes and recovers only by installing a compatible binary. The
 [database safety contract](docs/database-safety.md) defines command classes,
-hermetic development, seeded migration rehearsal, and recovery from a database
-newer than the binary.
+hermetic development, seeded migration rehearsal, and the readiness boundary.
 
 ## Benchmarking
 

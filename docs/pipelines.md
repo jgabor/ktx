@@ -335,7 +335,8 @@ contract reports each hard gate as `qualified` or `blocked`, uses only linked
 future evidence, and validates the checked-in controlled matrix and receipt.
 Installed operation may override those artifact paths with `--matrix` and
 `--receipt`. A blocked report exits with the conflict status after emitting the
-report; it never creates or migrates a database.
+report. Readiness can prepare a supported older schema; the report itself is
+read-only afterward.
 Summary schema 10 omits outcomes, delivery rates, cost views, and cache detail.
 Callers that need delivery groups should invoke the breakdown schema 4 command.
 
@@ -615,8 +616,8 @@ also has `null` coverage, while a non-empty all-unknown population has coverage
 diagnostic distribution only and does not change outcome classification.
 
 Report schema 3 supersedes report schema 2 without a compatibility bridge. The
-report is JSON-only, so it has no separate text schema. The command opens the
-selected existing database read-only and never creates or migrates it.
+report is JSON-only, so it has no separate text schema. Readiness can prepare a
+supported older schema; the report then opens the selected database read-only.
 
 ## Portable offline replay
 

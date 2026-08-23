@@ -70,7 +70,7 @@ Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go
 ## Database safety
 
 Follow [`docs/database-safety.md`](docs/database-safety.md) for the canonical
-DB-free, genuinely read-only, migration-capable, isolated-owner, and forbidden
+DB-free, readiness, post-readiness read-only, isolated-owner, and forbidden
 ambient-live command classes. During development, tests, CI reproduction, and
 migration rehearsal:
 
@@ -81,10 +81,10 @@ migration rehearsal:
 - rehearse migration only against an explicitly seeded temporary database.
 
 Build and verify `./build/ktx`, then rehearse migration against an explicitly
-seeded temporary database. Query commands use enforced read-only access and do
-not create or migrate persistent state; run `ktx db migrate` when an older
-schema must be upgraded explicitly. Write-capable commands retain transactional
-forward migration. `KTX_DB` selects an explicit path but does not prove
+seeded temporary database. Every database-backed surface automatically prepares
+a supported older schema; query and inspection operations are read-only after
+readiness. `ktx db migrate` remains a diagnostic and rehearsal command, not a
+normal prerequisite. `KTX_DB` selects an explicit path but does not prove
 disposability. A database newer than the binary is recovered by rolling the
 runtime forward, never by lowering `user_version`.
 

@@ -1,0 +1,15 @@
+id: rksosldxjw
+artifact: progress
+record:
+  timestamp: 2026-08-23 20:56
+  type: docs
+  phase: build
+  what: Corrected every finding from audit-vivqowyhwf-1 without implementing readiness behavior.
+  context:
+    intent: Make the schema-readiness decision, current guidance, retained evidence, and consistency checks agree.
+    constraints: Preserved per-invocation digest proof, newer-schema safe failure, disposable database roots, persisted failed evaluation, and in-progress task status.
+    unknowns: None. Exact retained reproduction replaced the prior unretained measurements and numeric limits under the approved derivation policy.
+  discovered: Typed decision revisions jlstdravdr and dvchfbccnh reconcile doctor readiness. The exact harness produced deterministic current and schema-15 fixture hashes on two independent runs; retained measurements derive limits of 35,322,974 ns readiness, 101,037,622 ns lock hold, 10,900 bytes journal growth, 26,557,440 bytes peak RSS, and 113,236,942 ns completion.
+  verified: The exact disposable-root harness completed, both fixture hashes matched a second independent generation, all integrity and final-schema checks passed, retained-limit arithmetic passed, the focused schema-readiness consistency tests passed, Agentera docs lint passed, and isolated mage check passed with KTX_DB unset and fresh HOME/XDG roots.
+  next: Retry audit may evaluate vivqowyhwf; leave the task in progress and preserve audit-vivqowyhwf-1 as the current persisted evaluation until the orchestrator records the next verdict.
+  publication_order: 156

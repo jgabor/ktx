@@ -76,6 +76,46 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 	}
 }
 
+func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
+	root := repositoryRoot(t)
+	canonical := strings.ToLower(readDocumentationFile(t, filepath.Join(root, "docs", "schema-readiness.md")))
+	for _, required := range []string{
+		"preparation is automatic for every supported older schema",
+		"former rule",
+		"schema-migration-required",
+		"notes/schema-readiness-baseline.json",
+		"tools/schema_readiness_evidence.py",
+	} {
+		if !strings.Contains(canonical, required) {
+			t.Errorf("schema readiness contract is missing %q", required)
+		}
+	}
+
+	surfaces := []string{
+		"README.md",
+		"AGENTS.md",
+		filepath.Join(".agents", "skills", "ktx", "SKILL.md"),
+		filepath.Join(".agents", "skills", "ktx", "references", "database-telemetry.md"),
+		filepath.Join(".agents", "skills", "ktx", "references", "cli.md"),
+		filepath.Join("docs", "opencode-telemetry.md"),
+		filepath.Join("docs", "critical-path-performance.md"),
+		filepath.Join("docs", "pipelines.md"),
+	}
+	for _, relative := range surfaces {
+		contents := strings.ToLower(readDocumentationFile(t, filepath.Join(root, relative)))
+		for _, obsolete := range []string{
+			"schema-migration-required",
+			"run `ktx db migrate` when an older",
+			"query commands are genuinely read-only and never migrate",
+			"doctor diagnoses but never creates, migrates",
+		} {
+			if strings.Contains(contents, obsolete) {
+				t.Errorf("%s retains stale readiness guidance %q", relative, obsolete)
+			}
+		}
+	}
+}
+
 func TestCriticalPathPerformanceContractDefinesDistinctBoundaries(t *testing.T) {
 	contents := strings.ToLower(strings.ReplaceAll(readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "critical-path-performance.md")), "\n", " "))
 	for _, required := range []string{

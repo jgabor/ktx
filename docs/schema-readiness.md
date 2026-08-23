@@ -62,15 +62,15 @@ The measured binary was `build/ktx`, SHA-256
 `755802504a70244d0826d6f0ac2f0be5836de0da9872970763aa9f5148a6e4e6`,
 build version `dev`, maximum schema 16.
 
-The minimal workload was a current-schema database with one session and one
-tool call. The production-shaped current database was 3,205,058,560 bytes with
+The minimal workload was a 180,224-byte current-schema database with one session
+and one tool call. The production-shaped current database was 3,205,054,464 bytes with
 3,201 tool calls, 3,200,000,004 payload bytes, and timestamps distributed from
 2024-01-01 through 2026-01-01. Its SHA-256 was
-`858fe02afbc2f633773d7e07e61be2c44ac797ce7adf2954719d3a4f88547a95`.
+`5a518c5da4d1dd4621e045b5d954485e8637455d619eb650a906afb18354922b`.
 The schema-15 migration fixture was 3,205,734,400 bytes with 3,200 compressed
 artifact timestamps distributed from 2024-01-01 through 2025-12-31; its
 SHA-256 was
-`dfdd559652a2bcd78bc57c0512687c2f6e0f2c95e3508d1d37ed6a360a3b9dcf`.
+`5015e3ed63a39dc22cf33f2c3cf4a9b1ee53fa38bc1f0103e9f8af8b3dacd120`.
 Both fixtures passed `PRAGMA integrity_check`.
 
 Fixture generation is deterministic. Initialize schema 16 with one `ktx write`,
@@ -90,29 +90,38 @@ readiness completion and command completion are the same boundary. For
 migration, readiness ends at writer-lock acquisition and completion ends at
 process exit.
 
-The measured samples below list readiness latency, lock hold, journal growth,
-peak RSS, and total completion in that order. Times are nanoseconds and sizes
-are bytes.
+[`notes/schema-readiness-baseline.json`](notes/schema-readiness-baseline.json)
+retains every warmup and measured sample, command stdout, fixture input and
+hash, boundary definition, observed worst value, and derived limit. Regenerate
+it from an isolated disposable root on the recorded host:
 
-| Workload               | Sample 1                                                    | Sample 2                                                  | Sample 3                                                    | Sample 4                                                  | Sample 5                                                  |
-| ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- |
-| Minimal current        | 13,697,760 / 2,239,943 / 0 / 17,010,688 / 13,697,760        | 24,319,919 / 2,457,857 / 0 / 16,859,136 / 24,319,919      | 49,336,542 / 2,279,043 / 0 / 16,945,152 / 49,336,542        | 22,889,939 / 5,064,011 / 0 / 17,149,952 / 22,889,939      | 8,495,093 / 2,036,095 / 0 / 17,018,880 / 8,495,093        |
-| 3.2 GB current         | 29,218,953 / 19,984,007 / 0 / 20,975,616 / 29,218,953       | 31,259,052 / 21,013,975 / 0 / 21,024,768 / 31,259,052     | 31,854,021 / 20,081,997 / 0 / 21,016,576 / 31,854,021       | 33,014,875 / 20,643,950 / 0 / 20,996,096 / 33,014,875     | 29,646,883 / 20,068,884 / 0 / 21,172,224 / 29,646,883     |
-| 3.2 GB schema 15 to 16 | 36,203,146 / 195,309,877 / 8,720 / 19,341,312 / 239,080,509 | 15,775,681 / 38,783,073 / 8,720 / 19,148,800 / 56,821,674 | 20,876,646 / 410,818,100 / 8,720 / 19,128,320 / 433,687,887 | 11,390,209 / 28,412,104 / 8,720 / 19,144,704 / 41,659,050 | 39,354,563 / 49,569,130 / 8,720 / 19,169,280 / 90,622,441 |
+```sh
+root=$(mktemp -d)
+mkdir -p "$root/home" "$root/data" "$root/config" "$root/cache" "$root/state" "$root/tmp"
+env -u KTX_DB \
+  HOME="$root/home" XDG_DATA_HOME="$root/data" \
+  XDG_CONFIG_HOME="$root/config" XDG_CACHE_HOME="$root/cache" \
+  XDG_STATE_HOME="$root/state" TMPDIR="$root/tmp" \
+  python3 tools/schema_readiness_evidence.py \
+    --binary ./build/ktx \
+    --work-root "$root/work" \
+    --output docs/notes/schema-readiness-baseline.json
+```
 
-Warmups were excluded from limit derivation. Their readiness/lock/RSS/total
-values were 14,851,320/2,265,930/17,137,664/14,851,320 for minimal current,
-30,834,899/20,131,111/21,037,056/30,834,899 for 3.2 GB current, and
-13,370,752/466,166,973/19,238,912/481,251,267 for migration. Warmup journal
-growth was zero, zero, and 8,720 bytes respectively.
+The harness requires Linux `/proc`, `taskset`, `strace`, Python SQLite, and a
+filesystem that supports `cp --reflink=always`. It creates a distinct HOME and
+all XDG roots for every KTX invocation, unsets inherited `KTX_DB`, generates
+only disposable databases beneath `--work-root`, parses timestamped `fcntl` and
+`flock` events, polls RSS and SQLite sidecars every 0.5 ms, and calculates each
+boundary and limit in the retained JSON.
 
-| Metric               |   Observed worst |                 Derivation |    Release limit |
-| -------------------- | ---------------: | -------------------------: | ---------------: |
-| Readiness latency    |    49,336,542 ns |  `ceil(49,336,542 × 1.25)` |    61,670,678 ns |
-| Exclusive lock hold  |   410,818,100 ns | `ceil(410,818,100 × 1.25)` |   513,522,625 ns |
-| Journal growth       |      8,720 bytes |       `ceil(8,720 × 1.25)` |     10,900 bytes |
-| Peak resident memory | 21,172,224 bytes |  `ceil(21,172,224 × 1.25)` | 26,465,280 bytes |
-| Total completion     |   433,687,887 ns | `ceil(433,687,887 × 1.25)` |   542,109,859 ns |
+| Metric               |   Observed worst |                Derivation |    Release limit |
+| -------------------- | ---------------: | ------------------------: | ---------------: |
+| Readiness latency    |    28,258,379 ns | `ceil(28,258,379 × 1.25)` |    35,322,974 ns |
+| Exclusive lock hold  |    80,830,097 ns | `ceil(80,830,097 × 1.25)` |   101,037,622 ns |
+| Journal growth       |      8,720 bytes |      `ceil(8,720 × 1.25)` |     10,900 bytes |
+| Peak resident memory | 21,245,952 bytes | `ceil(21,245,952 × 1.25)` | 26,557,440 bytes |
+| Total completion     |    90,589,553 ns | `ceil(90,589,553 × 1.25)` |   113,236,942 ns |
 
 A schema release must reproduce the host, fixture, sample count, instrumentation,
 and derivation above. Any measured value above its limit blocks release. A zero

@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "cpu": 2,
+    "gomaxprocs": 1,
+    "warmups_per_workload": 1,
+    "measured_samples_per_workload": 5,
+    "poll_interval_seconds": 0.0005,
+    "limit": "ceil(worst measured value across workloads * 1.25)",
+    "current_readiness_boundary": "process start through command completion",
+    "migration_readiness_boundary": "process start through first successful LOCK_EX",
+    "lock_hold_boundary": "first acquired measured lock through final unlock"
+  },
+  "host": {
+    "node": "allspark",
+    "platform": "Linux-7.2.0-1-cachyos-x86_64-with-glibc2.44",
+    "machine": "x86_64",
+    "processor": ""
+  },
+  "binary": {
+    "schema": "ktx.binary-capabilities/v1",
+    "executable_path": "~/git/ktx/build/ktx",
+    "executable_sha256": "755802504a70244d0826d6f0ac2f0be5836de0da9872970763aa9f5148a6e4e6",
+    "build_version": "dev",
+    "max_database_schema": 16
+  },
+  "fixture_inputs": {
+    "payload_count": 3200,
+    "payload_bytes_each": 1000000,
+    "timestamp_start_unix_nano": 1704067200000000000,
+    "timestamp_step_nanoseconds": 19719224757757
+  },
+  "fixtures": {
+    "minimal": {
+      "path_basename": "minimal.db",
+      "bytes": 180224,
+      "sha256": "c2ce625f801e55479c8cf621aaa7dffe3056951f66dae10c05eafc06a724a4aa",
+      "schema": 16,
+      "rows": 1,
+      "payload_bytes": 4,
+      "first_timestamp": "2026-01-01T00:00:00Z",
+      "last_timestamp": "2026-01-01T00:00:00Z",
+      "integrity_check": "ok"
+    },
+    "current": {
+      "path_basename": "current.db",
+      "bytes": 3205054464,
+      "sha256": "5a518c5da4d1dd4621e045b5d954485e8637455d619eb650a906afb18354922b",
+      "schema": 16,
+      "rows": 3201,
+      "payload_bytes": 3200000004,
+      "first_timestamp": "2024-01-01 00:00:00",
+      "last_timestamp": "2026-01-01T00:00:00Z",
+      "integrity_check": "ok"
+    },
+    "schema15": {
+      "path_basename": "schema15.db",
+      "bytes": 3205734400,
+      "sha256": "5015e3ed63a39dc22cf33f2c3cf4a9b1ee53fa38bc1f0103e9f8af8b3dacd120",
+      "schema": 15,
+      "rows": 3200,
+      "payload_bytes": 32000,
+      "first_timestamp": "2024-01-01 00:00:00",
+      "last_timestamp": "2025-12-31 02:43:20",
+      "integrity_check": "ok"
+    }
+  },
+  "workloads": {
+    "current-minimal": [
+      {
+        "readiness_latency_ns": 20378187,
+        "exclusive_lock_hold_ns": 2776861,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16924672,
+        "total_completion_ns": 20378187,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "warmup"
+      },
+      {
+        "readiness_latency_ns": 10807709,
+        "exclusive_lock_hold_ns": 2278090,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 17031168,
+        "total_completion_ns": 10807709,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 18035321,
+        "exclusive_lock_hold_ns": 1841068,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16936960,
+        "total_completion_ns": 18035321,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 23505206,
+        "exclusive_lock_hold_ns": 2165079,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16875520,
+        "total_completion_ns": 23505206,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 12205806,
+        "exclusive_lock_hold_ns": 2398014,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 17055744,
+        "total_completion_ns": 12205806,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 9617699,
+        "exclusive_lock_hold_ns": 2184153,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 17039360,
+        "total_completion_ns": 9617699,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      }
+    ],
+    "current-production": [
+      {
+        "readiness_latency_ns": 334857504,
+        "exclusive_lock_hold_ns": 326155901,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20992000,
+        "total_completion_ns": 334857504,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "warmup"
+      },
+      {
+        "readiness_latency_ns": 23165706,
+        "exclusive_lock_hold_ns": 16616821,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 21245952,
+        "total_completion_ns": 23165706,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 20950995,
+        "exclusive_lock_hold_ns": 15028000,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 21024768,
+        "total_completion_ns": 20950995,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 20251484,
+        "exclusive_lock_hold_ns": 14559031,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20942848,
+        "total_completion_ns": 20251484,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 28258379,
+        "exclusive_lock_hold_ns": 20141125,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 21086208,
+        "total_completion_ns": 28258379,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      },
+      {
+        "readiness_latency_ns": 18944813,
+        "exclusive_lock_hold_ns": 13435841,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 21069824,
+        "total_completion_ns": 18944813,
+        "stdout": "[{\"id\":\"ssssssssssssssss\",\"agent\":\"unknown\",\"started_at\":\"2026-01-01T00:00:00Z\",\"ended_at\":\"\",\"last_seen_at\":\"2026-01-01T00:00:00Z\",\"tool_call_count\":1}]",
+        "kind": "measured"
+      }
+    ],
+    "schema15-to-16-production": [
+      {
+        "readiness_latency_ns": 8966923,
+        "exclusive_lock_hold_ns": 77934980,
+        "journal_growth_bytes": 8720,
+        "peak_rss_bytes": 19255296,
+        "total_completion_ns": 88524648,
+        "stdout": "{\"database_path\":\"/tmp/ktx-readiness-repro-5/migration-0/schema15.db\",\"from_schema\":15,\"to_schema\":16,\"migrated\":true}",
+        "kind": "warmup",
+        "final_schema": 16
+      },
+      {
+        "readiness_latency_ns": 7828236,
+        "exclusive_lock_hold_ns": 61412811,
+        "journal_growth_bytes": 8720,
+        "peak_rss_bytes": 19181568,
+        "total_completion_ns": 71124395,
+        "stdout": "{\"database_path\":\"/tmp/ktx-readiness-repro-5/migration-1/schema15.db\",\"from_schema\":15,\"to_schema\":16,\"migrated\":true}",
+        "kind": "measured",
+        "final_schema": 16
+      },
+      {
+        "readiness_latency_ns": 8640766,
+        "exclusive_lock_hold_ns": 61717987,
+        "journal_growth_bytes": 8720,
+        "peak_rss_bytes": 19283968,
+        "total_completion_ns": 72128808,
+        "stdout": "{\"database_path\":\"/tmp/ktx-readiness-repro-5/migration-2/schema15.db\",\"from_schema\":15,\"to_schema\":16,\"migrated\":true}",
+        "kind": "measured",
+        "final_schema": 16
+      },
+      {
+        "readiness_latency_ns": 8235455,
+        "exclusive_lock_hold_ns": 80830097,
+        "journal_growth_bytes": 8720,
+        "peak_rss_bytes": 19255296,
+        "total_completion_ns": 90589553,
+        "stdout": "{\"database_path\":\"/tmp/ktx-readiness-repro-5/migration-3/schema15.db\",\"from_schema\":15,\"to_schema\":16,\"migrated\":true}",
+        "kind": "measured",
+        "final_schema": 16
+      },
+      {
+        "readiness_latency_ns": 8494616,
+        "exclusive_lock_hold_ns": 73114872,
+        "journal_growth_bytes": 8720,
+        "peak_rss_bytes": 19214336,
+        "total_completion_ns": 83169633,
+        "stdout": "{\"database_path\":\"/tmp/ktx-readiness-repro-5/migration-4/schema15.db\",\"from_schema\":15,\"to_schema\":16,\"migrated\":true}",
+        "kind": "measured",
+        "final_schema": 16
+      },
+      {
+        "readiness_latency_ns": 6125450,
+        "exclusive_lock_hold_ns": 74174166,
+        "journal_growth_bytes": 8720,
+        "peak_rss_bytes": 19271680,
+        "total_completion_ns": 82401692,
+        "stdout": "{\"database_path\":\"/tmp/ktx-readiness-repro-5/migration-5/schema15.db\",\"from_schema\":15,\"to_schema\":16,\"migrated\":true}",
+        "kind": "measured",
+        "final_schema": 16
+      }
+    ]
+  },
+  "observed_worst": {
+    "readiness_latency_ns": 28258379,
+    "exclusive_lock_hold_ns": 80830097,
+    "journal_growth_bytes": 8720,
+    "peak_rss_bytes": 21245952,
+    "total_completion_ns": 90589553
+  },
+  "release_limits": {
+    "readiness_latency_ns": 35322974,
+    "exclusive_lock_hold_ns": 101037622,
+    "journal_growth_bytes": 10900,
+    "peak_rss_bytes": 26557440,
+    "total_completion_ns": 113236942
+  }
+}

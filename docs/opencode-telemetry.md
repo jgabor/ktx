@@ -280,11 +280,11 @@ transaction rollback.
 
 ## Database migration and failure behavior
 
-Write-capable commands automatically migrate an older database to version 11.
-Read-only `telemetry list` instead reports `schema-migration-required`; run
-`ktx db migrate` explicitly before retrying the query. The migration
-preserves unrelated session, tool-call, benchmark, compressed, and recorded-
-stream evidence. Existing telemetry values become measured fields, retain their
+Every database-backed telemetry command automatically prepares a supported
+older schema before running. `telemetry list` opens read-only after readiness;
+no manual migration command is a prerequisite. The migration preserves
+unrelated session, tool-call, benchmark, compressed, and recorded-stream
+evidence. Existing telemetry values become measured fields, retain their
 runtime namespace and runtime-version provenance, and receive `legacy`
 collection provenance because their original ingress was not stored.
 Version-7 runtime event rows migrate as accepted model steps where applicable;

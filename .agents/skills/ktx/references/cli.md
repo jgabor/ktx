@@ -233,14 +233,15 @@ ktx prices update --format json
 ktx binary-capabilities --format json
 ```
 
-- `doctor` diagnoses but never creates, migrates, or repairs.
-- `db report` inspects an existing database read-only.
+- `doctor` and `db report` automatically prepare a supported older schema, then
+  inspect the database read-only.
 - `db report` emits JSON report schema 3 over all tool calls. Outcome
   classification and formulas match live stats; percentages use two-decimal
   rounding, malformed values are unknown, and exit codes remain diagnostic.
-- `db migrate` is explicit and forward-only. The example requires the operator
-  to preconfirm ownership of the selected target; never substitute the ambient
-  live database for development, test, CI, or rehearsal.
+- `db migrate` is a forward-only diagnostic and rehearsal surface, not a normal
+  prerequisite. The example requires the operator to preconfirm ownership of
+  the selected target; never substitute the ambient live database for
+  development, test, CI, or rehearsal.
 - `prices update` performs a network fetch and atomically rewrites the cache.
 - `binary-capabilities` reports canonical path, SHA-256, build version, and
   maximum supported schema without opening a database.

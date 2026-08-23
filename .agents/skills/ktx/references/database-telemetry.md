@@ -17,8 +17,9 @@ and evidence preflight do not open the ktx database.
 ### Genuinely read-only
 
 `get`, `read`, `list`, `stats`, `decompress`, `bench report`, and
-`telemetry list` open an existing current-schema database with SQLite `mode=ro`
-and `query_only`. They never create or migrate persistent state.
+`telemetry list` automatically prepare a supported older schema, then open with
+SQLite `mode=ro` and `query_only`. The requested operation is read-only after
+readiness.
 
 An absent database is logically empty for collection queries. Read-only commands
 do not create the database, parent directory, WAL, or SHM file.
@@ -26,13 +27,15 @@ do not create the database, parent directory, WAL, or SHM file.
 ### Existing-artifact inspection
 
 `doctor`, `db report`, `bench export`, `bench validate`, and retained-summary
-operations inspect existing evidence without migration.
+operations automatically prepare a supported older schema, then inspect
+existing evidence read-only.
 
 ### Write or migration capable
 
 `write`, `compress`, `hook`, `run`, `telemetry record`, normal benchmark run or
-replay, and collector commands can create a database and transactionally migrate
-an older supported schema. `db migrate` is the explicit upgrade command.
+replay, and collector commands can create a database. All database-backed
+surfaces transactionally prepare an older supported schema. `db migrate` is a
+diagnostic and rehearsal command, not a normal prerequisite.
 
 Normal benchmark `compare` and `rank` create fresh isolated owner databases per
 attempt and reject attempt-directory reuse.
@@ -68,18 +71,11 @@ original is always recoverable.
 
 ## Schema Compatibility
 
-Read-only queries require the current schema and never migrate. An older schema
-returns exit `5` with `schema-migration-required`. Confirm the path, then run:
-
-```bash
-: "${KTX_OWNED_DB:?set a preconfirmed operator-owned database path}"
-ktx db --path "$KTX_OWNED_DB" migrate
-```
-
-The explicit target guard is an operator-scope check, not a product policy
-change. Normal write-capable commands retain their safe transactional forward
-migration behavior. Never use an ambient live database for development, test,
-CI, or migration rehearsal.
+Every database-backed surface automatically prepares a supported older schema.
+Query and inspection operations then use current-schema read-only behavior.
+`ktx db migrate` remains available for explicit diagnosis and disposable
+rehearsal. Never use an ambient live database for development, test, CI, or
+migration rehearsal.
 
 A newer schema returns `schema-incompatible`. Install a binary supporting that
 schema or newer. Never lower `PRAGMA user_version`.
@@ -132,7 +128,8 @@ future-only explicit-collection evidence. It applies exact half-open UTC bounds
 in Go, uses wrapper-observed bytes only after byte-for-byte reconciliation with
 hook-owned source and artifact evidence, counts distinct followed cues, and
 requires closed run and continuity authority. Blocked evidence exits 3 after
-emitting the complete report; the query never creates or migrates a database.
+emitting the complete report. Readiness can prepare a supported older schema;
+the query itself is read-only afterward.
 
 Summary schema 10 is compact. The breakdown schema 4 includes aggregate `outcomes`.
 Both report trusted ingress attribution coverage over the same output-bearing

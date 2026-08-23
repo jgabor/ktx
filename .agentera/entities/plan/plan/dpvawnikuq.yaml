@@ -1,0 +1,36 @@
+id: dpvawnikuq
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-23
+    status: open
+    reviewed: 2026-08-23
+    critic_issues: 1 found, 1 addressed, 0 dismissed
+    title: "Plan: Resolve code review findings"
+  what: Resolve the actionable correctness, safety, consistency, and maintainability findings in REVIEW.md, and give every numbered finding and behavior note an evidence-backed final disposition.
+  why: The review identifies public behavior defects and duplicate authority that can mislead agents, corrupt configuration, reject valid evidence, or make routine changes unnecessarily risky. Addressing them in dependency order preserves the sound core while reducing drift around it.
+  constraints: Preserve the stable CLI surface, first-evidence authority, forward-only database safety, genuinely read-only query behavior, safe automatic migration, deterministic routing, recovery guarantees, benchmark evidence boundaries, user configuration, and unrelated work. Add no runtime dependency or speculative abstraction. The indexed stats and writer-preference work already verified in REVIEW.md is complete and outside this remediation scope.
+  overall_acceptance: GIVEN the reviewed repository contracts and every REVIEW.md finding WHEN the plan is complete THEN every actionable defect is corrected, every retained informational item has verified rationale, public documentation and tests agree with behavior, database and recovery guarantees remain intact, and the authoritative full repository check passes without ambient live-database access.
+  scope:
+    included:
+      - Every numbered finding in REVIEW.md sections 1 through 3
+      - Every behavior note in REVIEW.md section 4
+      - Public help, documentation, and tests affected by those findings
+      - Evidence-backed dispositions for findings that should remain unchanged
+      - Final backlog, review, and project-state synchronization
+    excluded:
+      - Findings listed only as verified clean areas
+      - The already completed indexed-stats and writer-preference changes
+      - Unresolved architectural discussions not required to resolve a reproduced review finding
+      - New product features, routing policies, compression algorithms, or benchmark methodologies
+  design: Establish a traceable baseline for every finding, correct public and persistence behavior before removing supporting duplication, consolidate only authority proven redundant by the corrected behavior, then run integrated verification and synchronize the review and project state. Each workstream preserves its existing public contract unless the review proves that contract internally contradictory.
+  unknowns:
+    - question: Which low-severity and informational findings require code removal, and which should close with corrected documentation or verified intentional rationale?
+      affects_task: 7
+      resolve_by: Use the finding matrix and current caller evidence from task 1 before beginning residual cleanup; retain behavior when removal has no demonstrated contract or maintenance benefit.
+    - question: Can authoritative compressed-artifact ordering be made total and stable without a new persistent schema field?
+      affects_task: 4
+      resolve_by: Characterize equal-time and non-canonical timestamp cases against first-evidence and migration contracts before selecting the database change; use a forward-only migration only if existing immutable evidence cannot provide the required order.
+  surprises:
+    []

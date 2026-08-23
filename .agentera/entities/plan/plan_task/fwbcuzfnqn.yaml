@@ -1,0 +1,18 @@
+id: fwbcuzfnqn
+artifact: plan
+record:
+  name: Remove verified residual duplication and dead surfaces
+  depends_on:
+    - aibvxgmusb
+    - jqwhyyfrto
+    - tpuxkautye
+    - ipughkhybu
+    - zycvfwkspu
+  status: pending
+  acceptance:
+    - GIVEN task 1 caller evidence and completed correctness work WHEN cleanup begins THEN removal is limited to duplication listed in REVIEW.md or surfaces made dead or proven redundant by tasks 2 through 6.
+    - GIVEN paired readers, token estimates, flag setup, pipeline recipes, aliases, wrappers, and comments identified by the review WHEN resolved THEN each has one maintained authority or a documented reason to remain distinct.
+    - GIVEN an exported or compatibility surface has no production consumer WHEN removal is considered THEN compatibility and migration obligations are checked before deletion, and supported callers remain unchanged.
+    - GIVEN retained informational findings WHEN this task closes THEN their rationale is concrete, current, and recorded in the review rather than silently ignored, and no unrelated cleanup is added.
+    - GIVEN cleanup changes behavior accidentally WHEN focused compatibility checks run THEN the regression is detected by at least one normal and one adverse case for each affected contract.
+  plan: dpvawnikuq

@@ -1,0 +1,13 @@
+id: zycvfwkspu
+artifact: plan
+record:
+  name: Reconcile benchmark, cache, and tooling validation
+  depends_on:
+    - yydowzkivo
+  status: pending
+  acceptance:
+    - GIVEN each supported cache-control proposal WHEN validated THEN common invariants are identical across providers while provider-specific constraints remain explicit and mixed inputs cannot select validation accidentally.
+    - GIVEN preflight and live probe modes WHEN they report environment capabilities THEN network and model-call claims describe the selected mode without implying that live work ran offline.
+    - GIVEN benchmark provider mapping and evidence recipes WHEN inspected THEN dead branches, stale guidance, and duplicated recommendations have one verified authority or an explicit historical status.
+    - GIVEN accepted and rejected validation inputs WHEN tested THEN each changed validator has at least one passing and one failing contract case without changing benchmark methodology or evidence authority.
+  plan: dpvawnikuq

@@ -1,0 +1,13 @@
+id: yydowzkivo
+artifact: plan
+record:
+  name: Establish finding ownership and regression baselines
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN every numbered finding and behavior note WHEN the baseline is complete THEN each has one owner, affected contract, current reproduction or verification result, severity, and intended disposition.
+    - GIVEN a finding alleges public or persistence behavior WHEN its baseline is recorded THEN at least one normal case and one adverse or boundary case establish the current result where the behavior is testable.
+    - GIVEN a finding is already fixed or intentionally retained WHEN classified THEN concrete current evidence supports that disposition and prevents duplicate implementation work.
+    - GIVEN unrelated user changes exist WHEN baselines are prepared THEN they remain unchanged and outside the finding matrix.
+  plan: dpvawnikuq

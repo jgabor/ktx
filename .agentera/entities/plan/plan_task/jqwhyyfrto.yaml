@@ -1,0 +1,14 @@
+id: jqwhyyfrto
+artifact: plan
+record:
+  name: Correct pipeline and artifact truth
+  depends_on:
+    - yydowzkivo
+  status: pending
+  acceptance:
+    - GIVEN empty or unchanged input WHEN configured stages run THEN no transform, compressed artifact, or fallback provenance is reported unless delivered bytes actually differ under the existing gate.
+    - GIVEN structured fallback is attempted but later rejected WHEN the result is returned THEN provenance describes the returned bytes rather than an abandoned candidate.
+    - GIVEN a recovery cue is considered WHEN hook output is finalized THEN one authoritative gate determines delivery and persistence, including equal-size and boundary cases.
+    - GIVEN equivalent JSON and NDJSON inputs WHEN compacted or guarded THEN both paths apply one consistent fidelity contract, including blank records and trailing newlines.
+    - GIVEN pipeline timeout or stage-buffer semantics remain intentionally unchanged WHEN this task closes THEN documentation states the observed contract accurately; otherwise changed behavior has one success and one failure regression case.
+  plan: dpvawnikuq

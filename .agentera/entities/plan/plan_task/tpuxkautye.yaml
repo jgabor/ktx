@@ -1,0 +1,15 @@
+id: tpuxkautye
+artifact: plan
+record:
+  name: Unify database authority and schema diagnostics
+  depends_on:
+    - yydowzkivo
+    - jqwhyyfrto
+  status: pending
+  acceptance:
+    - GIVEN multiple compressed artifacts for one source WHEN delivery, recovery, disposition, or lookup selects authority THEN every surface chooses the same total first-artifact order for equal and differently formatted timestamps.
+    - GIVEN an older, current, or newer database WHEN read-only inspection runs THEN each command applies the same schema gate, never migrates implicitly, and returns the documented correction on incompatibility.
+    - GIVEN a database missing any mandatory current-schema field WHEN diagnosis runs THEN it cannot be reported healthy.
+    - GIVEN supported production open paths guarantee the current schema WHEN routine call evidence is inserted or read THEN no legacy-only schema probe remains on that hot path unless task 1 proves a supported caller.
+    - GIVEN schema metadata and migrations evolve WHEN required columns are checked or added THEN one authoritative definition drives equivalent behavior, with ordinary and adverse migration coverage and no historical evidence inference.
+  plan: dpvawnikuq

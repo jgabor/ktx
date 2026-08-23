@@ -1,0 +1,13 @@
+id: ljimwrgyin
+artifact: progress
+record:
+  timestamp: 2026-08-23 13:18
+  type: docs
+  phase: build
+  what: REVIEW.md now maps findings 1.1 through 3.9 and behavior notes 4.1 through 4.4 to one owner, contract, current result, severity, and disposition.
+  context:
+    intent: Establish durable finding ownership and regression baselines without implementing remediation.
+  discovered: The documented config show --json path already works; plugin list still ignores unknown arguments. The focused CLI package run exposed an unrelated concurrent benchmark-hook SQLITE_BUSY failure.
+  verified: "With fresh disposable HOME and XDG roots and KTX_DB unset: mage build passed; local run-help, config, and plugin normal/adverse checks produced the byte and exit results recorded in REVIEW.md; go test ./internal/pipeline ./internal/db ./internal/dbreport ./internal/cli passed the first three packages and failed internal/cli only at TestConcurrentBenchmarkHooksUseOneExplicitOwnerWithoutProcessFiles with SQLITE_BUSY."
+  next: Use the REVIEW.md matrix as the baseline for the six remediation owners; do not duplicate items classified as already satisfied or intentionally retained.
+  publication_order: 138

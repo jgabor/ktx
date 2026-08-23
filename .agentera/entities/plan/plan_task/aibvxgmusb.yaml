@@ -1,0 +1,14 @@
+id: aibvxgmusb
+artifact: plan
+record:
+  name: Restore public CLI and dispatch consistency
+  depends_on:
+    - yydowzkivo
+  status: pending
+  acceptance:
+    - GIVEN supported help and passthrough invocations WHEN users place owned and wrapped-command flags in documented positions THEN the intended recipient receives them and help never succeeds silently with empty output.
+    - GIVEN one command failure WHEN structured diagnostics are emitted THEN exactly one envelope and the correct exit status reach the caller.
+    - GIVEN supported, unsupported, and malformed command flags WHEN parsed THEN documented flags work, unknown flags fail consistently, and no accepted argument is silently ignored.
+    - GIVEN production and test invocation paths WHEN the same command case runs THEN they exercise the same dispatch, database-access, and error-rendering contract with at least one success and one failure case per changed command family.
+    - GIVEN command routing and argument ownership are consolidated WHEN existing commands run THEN wrapped-agent passthrough and stable output schemas remain compatible.
+  plan: dpvawnikuq

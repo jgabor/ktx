@@ -1,0 +1,19 @@
+id: fazlfmpmgo
+artifact: plan
+record:
+  name: Verify integration and synchronize current state
+  depends_on:
+    - aibvxgmusb
+    - jqwhyyfrto
+    - tpuxkautye
+    - ipughkhybu
+    - zycvfwkspu
+    - fwbcuzfnqn
+  status: pending
+  acceptance:
+    - GIVEN all remediation tasks are complete WHEN focused checks and the authoritative full repository gate run against isolated application roots THEN they pass without accessing the ambient live database.
+    - GIVEN database or generated-adapter behavior changed WHEN the built local binary and disposable migration scenarios are exercised THEN forward migration, read-only inspection, recovery, and generated output remain correct.
+    - GIVEN REVIEW.md findings WHEN final reconciliation runs THEN every item records fixed, intentionally retained, deferred with an owner, or already satisfied, with no unsupported success claim.
+    - GIVEN public behavior or contracts changed WHEN documentation and help are compared with tests and code THEN all three agree.
+    - GIVEN final repository and project state WHEN the plan closes THEN backlog, review, progress, and plan status describe the same verified result and preserve unrelated work.
+  plan: dpvawnikuq

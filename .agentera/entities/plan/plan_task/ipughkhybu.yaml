@@ -1,0 +1,14 @@
+id: ipughkhybu
+artifact: plan
+record:
+  name: Make configuration and durable file updates truthful
+  depends_on:
+    - yydowzkivo
+  status: pending
+  acceptance:
+    - GIVEN valid configuration WHEN plugin state changes THEN the resulting file is complete, preserves unrelated content, and cannot expose a partial replacement after an interrupted write.
+    - GIVEN malformed configuration WHEN plugin commands inspect or change it THEN they fail clearly before mutation rather than treating corruption as an empty configuration.
+    - GIVEN concurrent or failed cache and configuration updates WHEN completion is observed THEN the last successful artifact remains valid and temporary state cannot be mistaken for authority.
+    - GIVEN shared durable-write behavior is consolidated WHEN existing callers run THEN permissions, destination constraints, and failure semantics remain unchanged, with at least one success and one interrupted or rejected case per artifact class.
+    - GIVEN comments claim synchronization or atomicity WHEN the task closes THEN each claim matches the actual protected operation.
+  plan: dpvawnikuq

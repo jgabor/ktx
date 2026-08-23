@@ -1,0 +1,17 @@
+id: wffnnyobft
+artifact: plan
+record:
+  plan: wddjlywrzk
+  name: Complete the resumable migration recovery contract
+  status: in_progress
+  depends_on:
+    - gigbqaqxke
+  acceptance:
+    - GIVEN an interrupted schema-15 migration WHEN current recovery guidance is read THEN it describes durable committed batches, automatic resume, and atomic final schema publication without claiming that all progress rolls back.
+    - GIVEN the superseded all-or-nothing wording WHEN migration-contract consistency verification runs THEN it rejects that wording and passes the corrected current contract surfaces.
+    - GIVEN partial schema-15 migration WHEN reads, writes, malformed timestamps, equivalent instants, interruption, and restart are verified THEN evidence remains exact, new writes use the current representation, and migration resumes without loss, duplication, or corruption.
+    - GIVEN the retained production-shaped evidence WHEN migration bounds are validated THEN all five approved limits pass and every measured migration reaches schema 16 without manual cleanup.
+    - GIVEN the replacement work is complete WHEN focused verification and the isolated repository check run THEN they pass without migration implementation changes or ambient live-database access.
+  evidence:
+    - The blocked predecessor's second audit passed implementation correctness, restart behavior, final publication, revised budgets, retained evidence, and scope.
+    - The only remaining failure was one current performance-contract sentence that still described all compatible migrations as a single rollback unit.

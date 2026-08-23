@@ -1,0 +1,17 @@
+id: uticbxlhwm
+artifact: progress
+record:
+  timestamp: 2026-08-24 00:43
+  type: docs
+  phase: build
+  what: Corrected the resumable migration recovery contract and added a consistency regression for the superseded rollback claim.
+  context:
+    intent: State the audited schema-15 recovery behavior exactly and preserve the verified migration implementation and retained evidence.
+    constraints: No migration implementation, limits, raw observations, evidence harness, decisions, predecessor status, or follow-up TODO lifecycle changed.
+    unknowns: The orchestrator still owns the final audit, predecessor supersession, and follow-up TODO resolution.
+    scope: Critical-path recovery guidance, its existing consistency test, plan task state, and durable verification evidence.
+  inspiration: The canonical database-safety contract already distinguishes durable schema-15 batches from atomic final schema-16 publication.
+  discovered: A narrow contract search found no other current conflicting recovery claim. Historical plan and TODO records retain the old wording as defect evidence.
+  verified: Focused contract tests passed; five schema-15 migration tests passed for exact evidence, partial reads and writes, malformed and equivalent timestamps, interruption, and restart; two evidence tests passed. The retained schema-2 report has 15 measured samples, five migrations ending at schema 16, all five approved limits passing, derived maxima matching observed_worst, and binary SHA-256 cf046b33ee1c6b8160b3b873a695b2b0bbc07ee18e5a204f309194ab88602ac. Isolated mage check passed with 0 issues, forbidden=0, and KTX_DB unset.
+  next: Leave task wffnnyobft in progress for orchestrator audit. Do not supersede pkasagxgjy or resolve ihxiqgoalr before persisted PASS.
+  publication_order: 161

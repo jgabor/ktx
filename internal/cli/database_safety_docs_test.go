@@ -124,6 +124,7 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 			"run `ktx db migrate` when an older",
 			"query commands are genuinely read-only and never migrate",
 			"doctor diagnoses but never creates, migrates",
+			"commits the complete migration or rolls back without changing schema version or evidence",
 		} {
 			if strings.Contains(contents, obsolete) {
 				t.Errorf("%s retains stale readiness guidance %q", relative, obsolete)

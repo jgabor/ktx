@@ -59,6 +59,10 @@ ktx db --path <file> ... > KTX_DB > $XDG_DATA_HOME/ktx/ktx.db
 The `--path` override belongs to the `db` namespace. Use `KTX_DB` to select a
 database for normal commands.
 
+Every database-backed command against the ambient default path also requires
+`--expect-runtime-sha256 <verified-digest>`. The command validates that proof
+before path inspection. Explicit `KTX_DB` and `db --path` targets are exempt.
+
 ## Adapter Workflows
 
 ### OpenCode
@@ -78,6 +82,10 @@ The generated plugin has two hooks:
 
 - `tool.execute.after` invokes `ktx hook` for persistence/compression.
 - `event` invokes `ktx telemetry record` for accepted model steps.
+
+Each database-backed callback passes the verified digest of the pinned binary
+through `--expect-runtime-sha256`. The callback waits for KTX and adds no outer
+timeout.
 
 Re-run the installer after replacing ktx, then restart OpenCode. The plugin pins
 one verified absolute binary path and digest for its lifetime. OpenCode telemetry
@@ -99,6 +107,9 @@ ktx init codex --uninstall
 Install merges one `PostToolUse` entry and preserves unrelated hooks. After
 install, run `/hooks` in Codex to trust the hook. Codex uninstall honors the
 selected scope: global by default or project with `--project`.
+The generated command pins the installing executable, embeds its digest as
+`--expect-runtime-sha256`, and omits Codex's optional timeout. Re-run the
+installer after replacing the binary.
 
 ## Wrapper Collection
 
@@ -254,7 +265,7 @@ ktx binary-capabilities --format json
 - `2`: not found where applicable.
 - `3`: conflict, including a binary digest mismatch where applicable.
 - `4`: internal, integrity, verification, or hard health failure.
-- `5`: schema migration required or schema incompatible on database access.
+- `5`: schema incompatible on database access.
 
 `ktx run` forwards the child process exit code, so it can return values outside
 this ktx error taxonomy. Command-specific help is authoritative for the outcomes

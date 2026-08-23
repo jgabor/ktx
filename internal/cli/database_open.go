@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -10,36 +11,48 @@ import (
 	"github.com/jgabor/ktx/internal/logging"
 )
 
-func openDatabase(path, command string) (*dbpkg.DB, error) {
-	database, err := dbpkg.Open(path)
+func openDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
+	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
+		return nil, err
+	}
+	database, err := dbpkg.Open(target.Path)
 	if err == nil {
 		return database, nil
 	}
-	return nil, databaseOpenError(path, command, err)
+	return nil, databaseOpenError(target.Path, command, err)
 }
 
-func openHookDatabase(path, command string) (*dbpkg.DB, error) {
-	database, err := dbpkg.OpenHook(path)
+func openHookDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
+	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
+		return nil, err
+	}
+	database, err := dbpkg.OpenHook(target.Path)
 	if err == nil {
 		return database, nil
 	}
-	return nil, databaseOpenError(path, command, err)
+	return nil, databaseOpenError(target.Path, command, err)
 }
 
-func openExistingDatabase(path, command string) (*dbpkg.DB, error) {
-	database, err := dbpkg.OpenExisting(path)
+func openExistingDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
+	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
+		return nil, err
+	}
+	database, err := dbpkg.OpenExisting(target.Path)
 	if err == nil {
 		return database, nil
 	}
-	return nil, databaseOpenError(path, command, err)
+	return nil, databaseOpenError(target.Path, command, err)
 }
 
-func openQueryDatabase(path, command string) (*dbpkg.DB, error) {
-	database, err := dbpkg.OpenQuery(path)
+func openQueryDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
+	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
+		return nil, err
+	}
+	database, err := dbpkg.OpenQuery(target.Path)
 	if err == nil {
 		return database, nil
 	}
-	return nil, queryDatabaseOpenError(path, command, err)
+	return nil, queryDatabaseOpenError(target.Path, command, err)
 }
 
 func queryDatabaseOpenError(path, command string, err error) error {
@@ -47,7 +60,7 @@ func queryDatabaseOpenError(path, command string, err error) error {
 }
 
 func databaseOpenError(path, command string, err error) error {
-	if classified := classifyDatabaseLockError(path, command, err, dbpkg.OperationOpen, time.Now()); classified != nil {
+	if classified := classifyDatabaseError(path, command, err, dbpkg.OperationOpen, time.Now()); classified != nil {
 		return classified
 	}
 	var schemaErr *dbpkg.SchemaTooNewError
@@ -77,6 +90,33 @@ func databaseOpenError(path, command string, err error) error {
 		"correction":        correction,
 	}
 	return failure
+}
+
+func classifyDatabaseError(path, command string, err error, fallbackPhase string, started time.Time) error {
+	if classified := classifyDatabaseLockError(path, command, err, fallbackPhase, started); classified != nil {
+		return classified
+	}
+	if path == "" {
+		return nil
+	}
+	details, ok := dbpkg.DeadlineDetails(err)
+	if !ok {
+		if !errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+		attribution := dbpkg.TimeoutOperation
+		switch fallbackPhase {
+		case dbpkg.OperationOpen:
+			attribution = dbpkg.TimeoutRuntimeStartup
+		case dbpkg.OperationMigration:
+			attribution = dbpkg.TimeoutMigration
+		}
+		details = &dbpkg.DeadlineExceeded{Attribution: attribution, Phase: fallbackPhase, Elapsed: time.Since(started)}
+	}
+	if details.Phase == "" {
+		details.Phase = fallbackPhase
+	}
+	return databaseDeadlineError(path, details)
 }
 
 func classifyDatabaseLockError(path, command string, err error, fallbackPhase string, started time.Time) error {
@@ -113,6 +153,29 @@ func databaseUnavailableError(path, command string, details *dbpkg.DatabaseUnava
 		"correction":               correction,
 	}
 	writeDatabaseUnavailableEvent(command, canonicalDB, identity.ExecutablePath, identity.ExecutableSHA256, details)
+	return failure
+}
+
+func databaseDeadlineError(path string, details *dbpkg.DeadlineExceeded) error {
+	canonicalDB, err := dbpkg.CanonicalPath(path)
+	if err != nil {
+		return internalError("canonicalize timed-out database path: %v", err)
+	}
+	identity, err := currentBinaryCapabilities()
+	if err != nil {
+		return internalError("runtime identity is unavailable after %s: %v", details.Attribution, err)
+	}
+	correction := "retry the command; if the deadline repeats, reduce competing database work or use a faster local database target"
+	failure := newError(ErrorCode(details.Attribution),
+		"database operation at %s exceeded the KTX-owned %s deadline; %s", canonicalDB, details.Phase, correction)
+	failure.Extra = map[string]any{
+		"database_path":            canonicalDB,
+		"executable_path":          identity.ExecutablePath,
+		"executable_sha256":        identity.ExecutableSHA256,
+		"operation_phase":          details.Phase,
+		"elapsed_wait_nanoseconds": details.Elapsed.Nanoseconds(),
+		"correction":               correction,
+	}
 	return failure
 }
 

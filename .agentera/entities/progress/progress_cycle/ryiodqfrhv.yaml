@@ -1,0 +1,15 @@
+id: ryiodqfrhv
+artifact: progress
+record:
+  timestamp: 2026-08-24 01:48
+  type: fix
+  phase: build
+  what: Restored per-invocation ambient runtime proof, centralized readiness failure classification, added KTX-owned startup/operation/migration deadline attribution, removed the generated Codex timeout, and pinned generated OpenCode and Codex database callbacks to the verified digest.
+  context:
+    intent: Resolve the bounded audit correction for automatic schema readiness without changing missing, current, older, newer, first-evidence, or bounded schema-15 contracts.
+    constraints: Explicit KTX_DB and db --path targets remain exempt; DB-free commands do not access the database; adapters add no competing timeout; task fzpxovjdhb remains in_progress for re-audit.
+    scope: Database target provenance, central CLI open/error helpers, migration contexts, doctor and benchmark-export inspection, generated adapters, focused tests, and current operator guidance.
+  discovered: The prior implementation treated the firm runtime-proof flag as obsolete, left doctor and export outside central classification, and reused startup coordination without implementing distinct migration or operation timeout attribution. Nested stats help also reached database readiness before rendering help.
+  verified: "PASS: go test ./internal/db -run 'TestMigrationDeadlineAttribution|TestOperationDeadlineAttribution|TestOpenQuery|TestConcurrentQueryReadiness|TestSchema15|TestMigration' -count=1 (9.301s). PASS after one test-only assertion correction: focused runtime-proof, deadline, doctor/export, and schema tests (4.093s). PASS: generated Codex/OpenCode tests (1.461s). PASS: go test ./internal/db ./internal/cli ./internal/experiment -count=1 (26.459s, 26.393s, 1.664s). PASS: isolated mage build. The first isolated mage check found one gofumpt and one staticcheck issue; both were corrected. PASS: isolated mage check with 0 issues and database audit attempts=6752, forbidden=0. PASS: built-binary smoke returned missing proof 3, matching proof 0, malformed proof 1, explicit target 0, and DB-free 0 without creating database files."
+  next: Re-audit task fzpxovjdhb while preserving audit-fzpxovjdhb-1 and leaving the task in_progress.
+  publication_order: 163

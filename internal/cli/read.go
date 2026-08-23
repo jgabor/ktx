@@ -28,12 +28,12 @@ import (
 // readLogic for the actual work, and translates the returned error
 // into an exit-code + stderr envelope.
 func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx read: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(path, "read")
+	db, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "read")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

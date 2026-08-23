@@ -23,12 +23,12 @@ import (
 // not-found (session-id has no recorded_streams row); 4 on internal
 // failure (FAIL consistency or database error).
 func runBenchReplay(sessionID string, opts Options, stdout, stderr io.Writer, format string) int {
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench run --replay: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openDatabase(path, "bench")
+	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256, "bench")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

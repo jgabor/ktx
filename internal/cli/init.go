@@ -162,6 +162,17 @@ interface KtxDatabaseUnavailable {
   correction: string
 }
 
+interface KtxDeadlineExceeded {
+  code: "runtime-startup-timeout" | "operation-timeout" | "migration-timeout"
+  database_path: string
+  executable_path: string
+  executable_sha256: string
+  operation_phase: "open" | "migration" | "source" | "artifact" | "disposition" | "query"
+  elapsed_wait_nanoseconds: number
+  message: string
+  correction: string
+}
+
 interface KtxCommandResult {
   stdout: string
   stderr: string
@@ -207,6 +218,24 @@ const parseDatabaseUnavailable = (
       elapsed_wait_nanoseconds: error.elapsed_wait_nanoseconds,
       message: error.message, correction: error.correction,
     } as KtxDatabaseUnavailable
+  } catch {
+    return null
+  }
+}
+
+const parseDeadlineExceeded = (
+  stderr: string, databasePath: string, executablePath: string, executableSHA256: string,
+): KtxDeadlineExceeded | null => {
+  try {
+    const value = JSON.parse(stderr) as { error?: Partial<KtxDeadlineExceeded> }
+    const error = value?.error
+    if (!error ||
+        (error.code !== "runtime-startup-timeout" && error.code !== "operation-timeout" && error.code !== "migration-timeout") ||
+        error.database_path !== databasePath || error.executable_path !== executablePath ||
+        error.executable_sha256 !== executableSHA256 || !nonblank(error.operation_phase) ||
+        !Number.isSafeInteger(error.elapsed_wait_nanoseconds) || (error.elapsed_wait_nanoseconds as number) < 0 ||
+        !nonblank(error.message) || !nonblank(error.correction)) return null
+    return error as KtxDeadlineExceeded
   } catch {
     return null
   }
@@ -384,6 +413,9 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     return {}
   }
 
+  const openBackedArgs = (args: string[]): string[] =>
+    ["--expect-runtime-sha256", ktxExecutableSHA256, ...args]
+
   const runOrdinaryProcess = async (args: string[], payload?: string): Promise<KtxCommandResult> => {
     let stream: ReadableStream<Uint8Array> | "ignore" = "ignore"
     if (payload !== undefined) {
@@ -446,7 +478,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       } catch {
         // Suppression requires a complete stable observation around the command.
       }
-      const commandResult = await runOrdinaryProcess(args, payload)
+		const commandResult = await runOrdinaryProcess(openBackedArgs(args), payload)
       let fingerprintAfter: string | null = null
       try {
         fingerprintAfter = await databaseFingerprint(databasePath)
@@ -458,6 +490,13 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       )
       if (unavailable) {
         console.error(JSON.stringify({ error: { ...unavailable, runtime_surface: runtimeSurface } }))
+        return
+      }
+      const deadline = parseDeadlineExceeded(
+        commandResult.stderr.trim(), databasePath, ktxExecutable, ktxExecutableSHA256,
+      )
+      if (deadline) {
+        console.error(commandResult.stderr.trim())
         return
       }
       if (commandResult.exitCode === 5) {
@@ -500,7 +539,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
   const epochID = crypto.randomUUID()
 	let globalOrdinal = 0
   if (required) {
-    const ack = await ktxRequiredCommand(ktxExecutable, ["telemetry", "collector-open"], JSON.stringify({ epoch_id: epochID }))
+	const ack = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["telemetry", "collector-open"]), JSON.stringify({ epoch_id: epochID }))
     globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: 0, kind: "collector_open", contract: requiredContract })
   }
 
@@ -570,7 +609,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		epochOrdinal++
 		const acceptedOrdinal = epochOrdinal
 		const next = eventQueue.then(async () => {
-		  const ack = await ktxRequiredCommand(ktxExecutable, ["telemetry", "event-record"], JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
+		  const ack = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["telemetry", "event-record"]), JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
 		  globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: acceptedOrdinal, kind: requiredEventKind(event), contract: requiredContract, afterOrdinal: globalOrdinal })
 		})
 		eventQueue = next.catch(() => undefined)
@@ -596,7 +635,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 	  let envelope: KtxEnvelope | null
 	  if (required || process.env.KTX_COLLECTION_ID) {
 		const next = eventQueue.then(async () => {
-		  const strict = await ktxRequiredCommand(ktxExecutable, ["hook"], JSON.stringify(record))
+		  const strict = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["hook"]), JSON.stringify(record))
 		  return requiredEnvelope(strict, input, required ? requiredSessionID : process.env.KTX_SESSION_ID || "")
 		})
 		eventQueue = next.then(() => undefined, () => undefined)
@@ -622,7 +661,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
           output.output = envelope.output
 		  if (process.env.KTX_COLLECTION_ID && envelope.recovery_cue) {
 			if (!envelope.compressed_id) throw new Error("ktx recovery cue lacks artifact identity")
-			const ack = await ktxRequiredCommand(ktxExecutable, ["telemetry", "cue-delivered"], JSON.stringify({source_id:envelope.source_id,artifact_id:envelope.compressed_id,session_id:envelope.ktx_session_id,runtime_session_id:envelope.runtime_session_id,call_id:envelope.call_id}))
+			const ack = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["telemetry", "cue-delivered"]), JSON.stringify({source_id:envelope.source_id,artifact_id:envelope.compressed_id,session_id:envelope.ktx_session_id,runtime_session_id:envelope.runtime_session_id,call_id:envelope.call_id}))
 			const value = ack as Record<string, unknown>
 			if (value?.ok !== true || value.collection_id !== process.env.KTX_COLLECTION_ID || value.session_id !== envelope.ktx_session_id || value.source_id !== envelope.source_id || value.artifact_id !== envelope.compressed_id) throw new Error("ktx recovery cue acknowledgement mismatch")
 		  }
@@ -1011,9 +1050,9 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintf(w, "Re-run `%s` to refresh the generated global plugin, or add --project\n", opencodeRefreshCommand)
 	fmt.Fprintf(w, "for the project plugin. Troubleshooting: %s\n", opencodeTroubleshooting)
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "The Codex hook entry is identified by command \"ktx hook\" inside the")
-	fmt.Fprintln(w, "PostToolUse array of hooks.json. Install is idempotent (no-op when the")
-	fmt.Fprintln(w, "entry is already present); uninstall removes only ktx's entry and")
+	fmt.Fprintln(w, "The Codex hook pins the installing executable and passes its digest on every")
+	fmt.Fprintln(w, "PostToolUse callback. It omits Codex's optional timeout so KTX owns deadline")
+	fmt.Fprintln(w, "attribution. Install is idempotent; uninstall removes only ktx's entry and")
 	fmt.Fprintln(w, "preserves other hooks (SessionStart, etc.). After install, run /hooks")
 	fmt.Fprintln(w, "in Codex to trust the ktx hook before it fires — untrusted hooks do not execute.")
 	fmt.Fprintln(w)

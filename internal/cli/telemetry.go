@@ -333,7 +333,7 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 		// Session telemetry is optional. Keep the failure visible to the operator,
 		// but do not turn this side channel into a failed agent operation.
 		path, pathErr := dbpkg.ResolvePath("")
-		if classified := classifyDatabaseLockError(path, "telemetry record", err, dbpkg.OperationSource, started); pathErr == nil && classified != nil {
+		if classified := classifyDatabaseError(path, "telemetry record", err, dbpkg.OperationSource, started); pathErr == nil && classified != nil {
 			printError(stderr, classified, FormatJSON)
 		} else {
 			fmt.Fprintf(stderr, "ktx: telemetry not recorded: %v\n", err)
@@ -462,15 +462,15 @@ func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
 	if len(ctx.Args) == 0 || (ctx.Args[0] != "record" && ctx.Args[0] != "list" && ctx.Args[0] != "collector-open" && ctx.Args[0] != "event-record" && ctx.Args[0] != "cue-delivered") {
 		return telemetryLogic(ctx.Args, ctx.Format, ctx.Stdin, nil, ctx.Stdout, ctx.Stderr)
 	}
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		return telemetryDatabaseFailure(ctx, fmt.Errorf("resolve database path: %w", err))
 	}
 	var db *dbpkg.DB
 	if ctx.Args[0] == "list" {
-		db, err = openQueryDatabase(path, "telemetry list")
+		db, err = openQueryDatabase(target, ctx.ExpectedRuntimeSHA256, "telemetry list")
 	} else {
-		db, err = openDatabase(path, "telemetry "+ctx.Args[0])
+		db, err = openDatabase(target, ctx.ExpectedRuntimeSHA256, "telemetry "+ctx.Args[0])
 	}
 	if err != nil {
 		if _, ok := err.(*Error); ok {
@@ -485,7 +485,7 @@ func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
 		if ctx.Args[0] == "list" {
 			phase = dbpkg.OperationQuery
 		}
-		if classified := classifyDatabaseLockError(path, "telemetry "+ctx.Args[0], err, phase, time.Now()); classified != nil {
+		if classified := classifyDatabaseError(target.Path, "telemetry "+ctx.Args[0], err, phase, time.Now()); classified != nil {
 			err = classified
 		}
 	}

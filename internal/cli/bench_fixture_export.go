@@ -72,24 +72,28 @@ func runBenchExport(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench export: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	aliasesSource, err := destinationAliasesSource(path, output)
+	if err := authorizeDatabaseTarget(target, opts.ExpectedRuntimeSHA256); err != nil {
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
+	}
+	aliasesSource, err := destinationAliasesSource(target.Path, output)
 	if err != nil {
 		printError(stderr, internalError("ktx bench export: compare output with source database: %v", err), opts.Format)
 		return ExitInternal
 	}
 	if aliasesSource {
-		printError(stderr, invalidReplayFixtureDestination(path), opts.Format)
+		printError(stderr, invalidReplayFixtureDestination(target.Path), opts.Format)
 		return ExitUsage
 	}
-	database, err := dbpkg.OpenQuery(path)
+	database, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "bench export")
 	if err != nil {
-		printError(stderr, internalError("ktx bench export: open source database read-only: %v", err), opts.Format)
-		return ExitInternal
+		printError(stderr, err, opts.Format)
+		return exitCodeOf(err)
 	}
 	defer database.Close()
 

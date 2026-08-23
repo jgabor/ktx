@@ -142,12 +142,12 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	// Open the database. The dbpkg.Open call applies the bench_runs
 	// migration if the database predates the bench_runs table (forward-fix).
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openDatabase(path, "bench")
+	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256, "bench")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

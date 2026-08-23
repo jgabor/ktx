@@ -102,6 +102,36 @@ func DefaultPath() (string, error) {
 	return filepath.Join(dataHome, "ktx", "ktx.db"), nil
 }
 
+// Target preserves whether a database path was selected explicitly. Only the
+// ambient default requires runtime proof at the CLI boundary.
+type Target struct {
+	Path     string
+	Explicit bool
+}
+
+func (t Target) RequiresRuntimeProof() bool { return !t.Explicit }
+
+// ResolveTarget applies path precedence without discarding ownership
+// provenance.
+func ResolveTarget(override string) (Target, error) {
+	target := Target{Path: override, Explicit: override != ""}
+	if target.Path == "" {
+		target.Path = os.Getenv("KTX_DB")
+		target.Explicit = target.Path != ""
+	}
+	if target.Path == "" {
+		var err error
+		target.Path, err = DefaultPath()
+		if err != nil {
+			return Target{}, err
+		}
+	}
+	if err := auditDatabaseAccess("resolve", target.Path); err != nil {
+		return Target{}, err
+	}
+	return target, nil
+}
+
 // ResolvePath applies the database path precedence:
 //
 //  1. override (the --path flag value, empty when absent)
@@ -110,21 +140,11 @@ func DefaultPath() (string, error) {
 //
 // The --path flag is per-invocation only; nothing is persisted.
 func ResolvePath(override string) (string, error) {
-	path := override
-	if path == "" {
-		path = os.Getenv("KTX_DB")
-	}
-	if path == "" {
-		var err error
-		path, err = DefaultPath()
-		if err != nil {
-			return "", err
-		}
-	}
-	if err := auditDatabaseAccess("resolve", path); err != nil {
+	target, err := ResolveTarget(override)
+	if err != nil {
 		return "", err
 	}
-	return path, nil
+	return target.Path, nil
 }
 
 // CanonicalPath returns the absolute, cleaned spelling of a database path.
@@ -173,9 +193,10 @@ func Open(path string) (*DB, error) {
 	}
 
 	var database *sql.DB
+	var migrationCtx context.Context
+	var migrationCancel context.CancelFunc
 	migrationDone := false
 	ctx, cancel := context.WithTimeout(context.Background(), startupRetryDeadline)
-	defer cancel()
 	err = writer.withLock(ctx, true, func() error {
 		// modernc.org/sqlite reads _pragma query params and applies them per
 		// connection. foreign_keys(1) enforces the tool_calls -> sessions FK on
@@ -184,17 +205,27 @@ func Open(path string) (*DB, error) {
 		var openErr error
 		openStarted := time.Now()
 		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
+		openErr = AttributeDeadline(TimeoutRuntimeStartup, OperationOpen, openStarted,
+			AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr))
 		if openErr != nil {
-			return AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr)
+			return openErr
 		}
+		migrationCtx, migrationCancel = writeContext()
 		migrationStarted := time.Now()
-		migrationDone, openErr = migrateStep(database, migrateTx)
-		return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, openErr)
+		migrationDone, openErr = migrateStep(migrationCtx, database, migrateTx)
+		return AttributeDeadline(TimeoutMigration, OperationMigration, migrationStarted,
+			AttributeDatabaseUnavailable(OperationMigration, migrationStarted, openErr))
 	})
+	cancel()
 	if err != nil {
+		if migrationCancel != nil {
+			migrationCancel()
+		}
 		return nil, fmt.Errorf("db: open %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
-	if err := migrateWithCoordinator(ctx, writer, database, migrationDone); err != nil {
+	err = migrateWithCoordinator(migrationCtx, writer, database, migrationDone)
+	migrationCancel()
+	if err != nil {
 		_ = database.Close()
 		return nil, fmt.Errorf("db: open %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
@@ -222,25 +253,36 @@ func OpenExisting(path string) (*DB, error) {
 		return nil, fmt.Errorf("db: open existing: coordinate %q: %w", path, err)
 	}
 	var database *sql.DB
+	var migrationCtx context.Context
+	var migrationCancel context.CancelFunc
 	migrationDone := false
 	ctx, cancel := context.WithTimeout(context.Background(), startupRetryDeadline)
-	defer cancel()
 	err = writer.withLock(ctx, false, func() error {
 		dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + fmt.Sprintf("?mode=rw&_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
 		var openErr error
 		openStarted := time.Now()
 		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
+		openErr = AttributeDeadline(TimeoutRuntimeStartup, OperationOpen, openStarted,
+			AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr))
 		if openErr != nil {
-			return AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr)
+			return openErr
 		}
+		migrationCtx, migrationCancel = writeContext()
 		migrationStarted := time.Now()
-		migrationDone, openErr = migrateStep(database, migrateTx)
-		return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, openErr)
+		migrationDone, openErr = migrateStep(migrationCtx, database, migrateTx)
+		return AttributeDeadline(TimeoutMigration, OperationMigration, migrationStarted,
+			AttributeDatabaseUnavailable(OperationMigration, migrationStarted, openErr))
 	})
+	cancel()
 	if err != nil {
+		if migrationCancel != nil {
+			migrationCancel()
+		}
 		return nil, fmt.Errorf("db: open existing %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
-	if err := migrateWithCoordinator(ctx, writer, database, migrationDone); err != nil {
+	err = migrateWithCoordinator(migrationCtx, writer, database, migrationDone)
+	migrationCancel()
+	if err != nil {
 		_ = database.Close()
 		return nil, fmt.Errorf("db: open existing %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
@@ -250,13 +292,22 @@ func OpenExisting(path string) (*DB, error) {
 func migrateWithCoordinator(ctx context.Context, writer *writerCoordinator, database *sql.DB, done bool) error {
 	migrationStarted := time.Now()
 	for !done {
-		err := writer.withLock(ctx, false, func() error {
+		if err := ctx.Err(); err != nil {
+			return AttributeDeadline(TimeoutMigration, OperationMigration, migrationStarted, err)
+		}
+		coordinationCtx, coordinationCancel := context.WithTimeout(ctx, startupRetryDeadline)
+		err := writer.withLock(coordinationCtx, false, func() error {
 			var err error
-			done, err = migrateStep(database, migrateTx)
+			done, err = migrateStep(ctx, database, migrateTx)
 			return err
 		})
+		coordinationCancel()
 		if err != nil {
-			return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, err)
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return AttributeDeadline(TimeoutMigration, OperationMigration, migrationStarted, ctxErr)
+			}
+			return AttributeDeadline(TimeoutMigration, OperationMigration, migrationStarted,
+				AttributeDatabaseUnavailable(OperationMigration, migrationStarted, err))
 		}
 	}
 	return nil
@@ -294,7 +345,9 @@ func OpenHook(path string) (*DB, error) {
 		if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
 			return Open(path)
 		}
-		return nil, fmt.Errorf("db: open hook %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
+		return nil, fmt.Errorf("db: open hook %q: %w", path,
+			AttributeDeadline(TimeoutRuntimeStartup, OperationOpen, started,
+				AttributeDatabaseUnavailable(OperationOpen, started, err)))
 	}
 	version, err := readSchemaVersionWithRetry(database, startupLockRetryPolicy())
 	if err != nil {
@@ -341,7 +394,8 @@ func OpenReadOnly(path string) (*DB, error) {
 	database, err := openSQLiteWithRetry(uri, 1, startupLockRetryPolicy())
 	if err != nil {
 		_ = lease.Close()
-		return nil, AttributeDatabaseUnavailable(OperationOpen, started, err)
+		return nil, AttributeDeadline(TimeoutRuntimeStartup, OperationOpen, started,
+			AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
 	if _, err := database.Exec("PRAGMA query_only = ON"); err != nil {
 		_ = database.Close()
@@ -585,7 +639,8 @@ func (d *DB) WithHookPreflight(fn func() error) (err error) {
 func (d *DB) WithHookWriter(fn func(*HookWriter) error) error {
 	ctx, cancel := writeContext()
 	defer cancel()
-	return d.writer.withLock(ctx, false, func() error {
+	started := time.Now()
+	err := d.writer.withLock(ctx, false, func() error {
 		version, err := d.SchemaVersion()
 		if err != nil {
 			return fmt.Errorf("db: recheck hook schema version: %w", err)
@@ -598,15 +653,18 @@ func (d *DB) WithHookWriter(fn func(*HookWriter) error) error {
 		}
 		return fn(&HookWriter{db: d})
 	})
+	return AttributeDeadline(TimeoutOperation, OperationSource, started, err)
 }
 
 // PrepareToolCall performs soft-fail cost derivation before hook coordination.
 func (d *DB) PrepareToolCall(tc *ToolCall) { d.deriveCost(tc) }
 
 func (d *DB) withWriteTx(ctx context.Context, fn func(*sql.Tx) error) error {
-	return d.writer.withLock(ctx, false, func() error {
+	started := time.Now()
+	err := d.writer.withLock(ctx, false, func() error {
 		return withWriteTx(ctx, d.db, fn)
 	})
+	return AttributeDeadline(TimeoutOperation, "", started, err)
 }
 
 // Close closes the database handle, releasing the underlying SQLite

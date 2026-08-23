@@ -27,6 +27,16 @@ Path precedence remains explicit flag, then `KTX_DB`, then the default
 `$XDG_DATA_HOME/ktx/ktx.db`. `KTX_DB` selects a path; it does not prove that the
 path is disposable or safe.
 
+The ambient default path requires `--expect-runtime-sha256` on every
+database-backed invocation. KTX validates the 64-character lowercase digest
+against the running executable before path inspection, directory creation,
+SQLite open, or readiness. Missing proof exits `3` with
+`failure_class=runtime-proof-required`; a mismatch exits `3` with
+`failure_class=runtime-proof-mismatch`; malformed proof exits `1`; and an
+unverifiable executable exits `4`. Explicit `KTX_DB` and `db --path` targets are
+operator-owned and exempt. Generated OpenCode and Codex callbacks pass the
+digest of their exact pinned executable.
+
 ## Query behavior
 
 Typed queries require the current schema. Readiness prepares a supported older

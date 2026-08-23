@@ -31,7 +31,11 @@ func TestHookDispatchProcessHelper(t *testing.T) {
 		return
 	}
 	var stdout, stderr bytes.Buffer
-	code := runWith([]string{"hook"}, &stdout, &stderr)
+	identity, err := currentBinaryCapabilities()
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := runWith([]string{"--expect-runtime-sha256", identity.ExecutableSHA256, "hook"}, &stdout, &stderr)
 	want, err := strconv.Atoi(os.Getenv("KTX_HOOK_DISPATCH_EXIT"))
 	if err != nil {
 		t.Fatal(err)

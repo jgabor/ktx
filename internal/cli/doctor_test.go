@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jgabor/ktx/internal/binarycap"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
@@ -179,6 +180,7 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 		checkName   string
 		checkStatus string
 		detail      string
+		errorCode   string
 	}{
 		{
 			name: "supported older schema is prepared",
@@ -193,7 +195,7 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			wantCode:    ExitOK,
 			checkName:   "schema_version",
 			checkStatus: doctorStatusOK,
-			detail:      "prepared to supported schema 16",
+			detail:      "supported schema 16",
 		},
 		{
 			name:        "current schema remains healthy",
@@ -215,7 +217,7 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			},
 			wantStatus:  doctorStatusError,
 			wantCode:    ExitInternal,
-			checkName:   "schema_valid",
+			checkName:   "database_openable",
 			checkStatus: doctorStatusError,
 			detail:      "timestamp_unix_nano",
 		},
@@ -228,11 +230,8 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 					}
 				})
 			},
-			wantStatus:  doctorStatusError,
-			wantCode:    ExitInternal,
-			checkName:   "schema_version",
-			checkStatus: doctorStatusError,
-			detail:      "do not lower user_version",
+			wantCode:  ExitSchemaIncompatible,
+			errorCode: "schema-incompatible",
 		},
 		{
 			name: "older malformed schema is not partially repaired",
@@ -245,7 +244,7 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			},
 			wantStatus:  doctorStatusError,
 			wantCode:    ExitInternal,
-			checkName:   "schema_valid",
+			checkName:   "database_openable",
 			checkStatus: doctorStatusError,
 			detail:      "tool",
 		},
@@ -286,6 +285,16 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			if code != tt.wantCode {
 				t.Fatalf("exit code = %d, want %d (stdout=%q stderr=%q)", code, tt.wantCode, stdout.String(), stderr.String())
 			}
+			if tt.errorCode != "" {
+				if stdout.Len() != 0 || !strings.Contains(stderr.String(), `"code":"`+tt.errorCode+`"`) {
+					t.Fatalf("classified doctor failure stdout=%q stderr=%q", stdout.String(), stderr.String())
+				}
+				after, err := os.ReadFile(path)
+				if err != nil || !bytes.Equal(before, after) {
+					t.Fatalf("classified doctor failure changed database: %v", err)
+				}
+				return
+			}
 			report := decodeDoctorReport(t, stdout.Bytes())
 			if report.Status != tt.wantStatus {
 				t.Errorf("report status = %q, want %q", report.Status, tt.wantStatus)
@@ -312,9 +321,14 @@ func TestDoctorMissingDisposableDefaultIsNotCreated(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
 	wantPath := filepath.Join(root, "data", "ktx", "ktx.db")
+	originalIdentity := currentBinaryCapabilities
+	currentBinaryCapabilities = func() (binarycap.Identity, error) {
+		return binarycap.Identity{ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest}, nil
+	}
+	t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
 
 	var stdout, stderr bytes.Buffer
-	code := runDoctorWith(nil, Options{Format: FormatJSON}, &stdout, &stderr)
+	code := runDoctorWith(nil, Options{Format: FormatJSON, ExpectedRuntimeSHA256: testBinaryDigest}, &stdout, &stderr)
 	if code != ExitInternal {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
 	}
@@ -336,12 +350,12 @@ func TestDoctorAuditsInspectionBeforeReadOnlyOpen(t *testing.T) {
 	t.Setenv("KTX_VERIFY_DB_AUDIT", audit)
 	t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", "[]")
 
-	report := buildDoctorReport()
+	report := buildDoctorReport("")
 	if report.Status != doctorStatusOK {
 		t.Fatalf("doctor status = %q", report.Status)
 	}
 	records := readDoctorAudit(t, audit)
-	if got := doctorAuditOperations(records); !reflect.DeepEqual(got, []string{"resolve", "inspect", "open_read_only"}) {
+	if got := doctorAuditOperations(records); !reflect.DeepEqual(got, []string{"resolve", "inspect", "inspect", "open_read_only"}) {
 		t.Fatalf("audit operations = %v", got)
 	}
 }
@@ -358,7 +372,7 @@ func TestDoctorAuditRejectsBeforeInspectionSideEffects(t *testing.T) {
 	t.Setenv("KTX_VERIFY_DB_AUDIT", audit)
 	t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", string(forbidden))
 
-	report := buildDoctorReport()
+	report := buildDoctorReport("")
 	if report.Status != doctorStatusError {
 		t.Fatalf("doctor status = %q, want error", report.Status)
 	}
@@ -386,7 +400,7 @@ func TestDoctorAuditFailuresAreFailClosed(t *testing.T) {
 			t.Setenv("KTX_DB", path)
 			t.Setenv("KTX_VERIFY_DB_AUDIT", test.auditPath(root))
 			t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", test.forbidden)
-			report := buildDoctorReport()
+			report := buildDoctorReport("")
 			if report.Status != doctorStatusError || len(report.Checks) != 1 || report.Checks[0].Name != "database_path" {
 				t.Fatalf("doctor report = %#v", report)
 			}

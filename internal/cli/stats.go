@@ -965,9 +965,18 @@ func formatStatsSummaryPromptCacheTokenHitRatePct(hitRate statsSummaryPromptCach
 
 // printStatsHelp writes the `ktx stats` help.
 func printStatsNestedHelp(args []string, w io.Writer) bool {
-	if len(args) == 1 && args[0] == "live-validation" {
-		printStatsLiveValidationHelp(w)
-		return true
+	if len(args) == 1 {
+		switch args[0] {
+		case "summary":
+			printStatsSummaryHelp(w)
+			return true
+		case "breakdown":
+			printStatsBreakdownHelp(w)
+			return true
+		case "live-validation":
+			printStatsLiveValidationHelp(w)
+			return true
+		}
 	}
 	return false
 }

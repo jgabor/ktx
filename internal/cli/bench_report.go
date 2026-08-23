@@ -69,12 +69,12 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 
 	// Open the database. The dbpkg.Open call applies the bench_runs
 	// migration if the database is old (idempotent path).
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench report: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(path, "bench")
+	db, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "bench")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

@@ -9,15 +9,12 @@
 // or PostToolUse entries the user depends on. Install therefore
 // parses the existing file, appends ktx's PostToolUse entry only
 // when it is not already present, and writes the merged document
-// back. Uninstall removes only entries whose command is "ktx hook"
+// back. Uninstall removes only generated ktx command entries
 // and leaves the rest of the file alone.
 //
-// Identification: the ktx PostToolUse entry carries the literal
-// command string "ktx hook" inside its inner hooks array. Any
-// PostToolUse entry whose inner hooks contain that command is
-// considered ktx's, so re-running install is a no-op (the file is
-// not rewritten) and uninstall is safe to run against files ktx
-// did not author.
+// Identification accepts the generated pinned command and the older literal
+// "ktx hook" form so reinstall replaces stale entries and uninstall remains
+// compatible with existing installations.
 //
 // Trust model: Codex does not execute a hook until the user has
 // reviewed and trusted it via the /hooks command inside the Codex
@@ -37,6 +34,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/jgabor/ktx/internal/binarycap"
 )
 
 // codexHooksFileName is the on-disk file Codex reads its hooks from.
@@ -44,11 +45,8 @@ import (
 // the hooks invisible to the runtime.
 const codexHooksFileName = "hooks.json"
 
-// ktxHookCommand is the value written into the inner hook's `command`
-// field. It is also the value used to detect ktx's PostToolUse entry
-// during install (idempotency) and uninstall (removal). The literal
-// is centralized here so the detection predicate and the writer stay
-// in sync.
+// ktxHookCommand is the older unpinned command and the stable logical command
+// shown in reports. New installations write a pinned absolute command.
 const ktxHookCommand = "ktx hook"
 
 // ktxHookStatusMessage is the inline status Codex surfaces while the
@@ -56,13 +54,6 @@ const ktxHookCommand = "ktx hook"
 // tool call) so users running Codex interactively can attribute the
 // brief execution delay.
 const ktxHookStatusMessage = "ktx: recording tool call"
-
-// ktxHookTimeoutSeconds is the per-invocation timeout Codex enforces
-// on the hook process. 10 seconds mirrors the example in Codex's own
-// hooks documentation and is generous for a local `ktx hook` write;
-// a tight timeout would risk dropping events when the host is under
-// load.
-const ktxHookTimeoutSeconds = 10
 
 // codexPostToolUseKey is the JSON object key under "hooks" where the
 // ktx PostToolUse entry is stored. Held as a constant because both
@@ -143,7 +134,7 @@ func codexProjectHooksPath() string {
 // initCodexInstall merges ktx's PostToolUse entry into the hooks.json
 // at target. When the file does not exist, a fresh document is
 // created. When the file exists and already contains an entry whose
-// inner hooks include command "ktx hook", the install is idempotent:
+// inner hooks include the exact current pinned command, install is idempotent:
 // the file is left untouched on disk and the report is marked
 // already-installed so the caller can distinguish a no-op from a
 // fresh write.
@@ -160,6 +151,10 @@ func codexProjectHooksPath() string {
 // step. The file is written with 0644 — readable by the agent
 // process, writable by the user.
 func initCodexInstall(target, format string, stdout io.Writer) error {
+	command, err := codexPinnedHookCommand()
+	if err != nil {
+		return err
+	}
 	doc, exists, err := loadCodexHooks(target)
 	if err != nil {
 		return internalError("ktx init codex: read %q: %v", target, err)
@@ -171,12 +166,13 @@ func initCodexInstall(target, format string, stdout io.Writer) error {
 	hooksMap := codexHooksObject(doc)
 	postToolUse := codexPostToolUseArray(hooksMap)
 
-	if codexArrayHasKtx(postToolUse) {
+	if codexArrayHasCommand(postToolUse, command) {
 		writeCodexInstallReport(stdout, target, format, true)
 		return nil
 	}
 
-	postToolUse = append(postToolUse, ktxCodexPostToolUseEntry())
+	postToolUse, _ = filterKtxEntries(postToolUse)
+	postToolUse = append(postToolUse, ktxCodexPostToolUseEntry(command))
 	hooksMap[codexPostToolUseKey] = postToolUse
 	doc["hooks"] = hooksMap
 
@@ -354,6 +350,23 @@ func codexArrayHasKtx(arr []any) bool {
 	return false
 }
 
+func codexArrayHasCommand(arr []any, command string) bool {
+	for _, entry := range arr {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		inner, _ := m["hooks"].([]any)
+		for _, hook := range inner {
+			hookMap, ok := hook.(map[string]any)
+			if ok && hookMap["command"] == command {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // codexEntryIsKtx reports whether a single PostToolUse entry is ktx's.
 // The entry is expected to be a map with a "hooks" array of inner
 // hook objects, but the function defensively handles non-map entries
@@ -373,11 +386,38 @@ func codexEntryIsKtx(entry any) bool {
 		if !ok {
 			continue
 		}
-		if cmd, _ := hm["command"].(string); cmd == ktxHookCommand {
+		if cmd, _ := hm["command"].(string); isKtxHookCommand(cmd) {
 			return true
 		}
 	}
 	return false
+}
+
+func isKtxHookCommand(command string) bool {
+	if command == ktxHookCommand {
+		return true
+	}
+	const marker = " --expect-runtime-sha256 "
+	index := strings.LastIndex(command, marker)
+	if index <= 0 {
+		return false
+	}
+	fields := strings.Fields(command[index+len(marker):])
+	return len(fields) == 2 && binarycap.ValidDigest(fields[0]) && fields[1] == "hook"
+}
+
+func codexPinnedHookCommand() (string, error) {
+	identity, err := currentBinaryCapabilities()
+	if err != nil {
+		return "", internalError("ktx init codex: resolve executable identity: %v", err)
+	}
+	path := identity.ExecutablePath
+	if runtime.GOOS == "windows" {
+		path = `"` + path + `"`
+	} else {
+		path = `'` + strings.ReplaceAll(path, `'`, `'"'"'`) + `'`
+	}
+	return path + " --expect-runtime-sha256 " + identity.ExecutableSHA256 + " hook", nil
 }
 
 // codexFileHasKtxHook reports whether the hooks.json at path exists
@@ -422,7 +462,7 @@ func filterKtxEntries(arr []any) ([]any, int) {
 //	{
 //	  "matcher": ".*",
 //	  "hooks": [
-//	    {"type":"command","command":"ktx hook","timeout":10,
+//	    {"type":"command","command":"<pinned ktx> --expect-runtime-sha256 <digest> hook",
 //	     "statusMessage":"ktx: recording tool call"}
 //	  ]
 //	}
@@ -431,14 +471,13 @@ func filterKtxEntries(arr []any) ([]any, int) {
 // inside `ktx hook` decides whether to persist. Returned as
 // map[string]any so json.MarshalIndent produces the same key order as
 // a hand-written entry would (alphabetical, since Go sorts map keys).
-func ktxCodexPostToolUseEntry() map[string]any {
+func ktxCodexPostToolUseEntry(command string) map[string]any {
 	return map[string]any{
 		"matcher": ".*",
 		"hooks": []any{
 			map[string]any{
 				"type":          "command",
-				"command":       ktxHookCommand,
-				"timeout":       ktxHookTimeoutSeconds,
+				"command":       command,
 				"statusMessage": ktxHookStatusMessage,
 			},
 		},

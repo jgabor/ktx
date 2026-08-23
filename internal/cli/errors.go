@@ -31,12 +31,15 @@ const (
 type ErrorCode string
 
 const (
-	CodeUsage               ErrorCode = "usage"
-	CodeNotFound            ErrorCode = "not-found"
-	CodeConflict            ErrorCode = "conflict"
-	CodeInternal            ErrorCode = "internal"
-	CodeDatabaseUnavailable ErrorCode = "database-unavailable"
-	CodeSchemaIncompatible  ErrorCode = "schema-incompatible"
+	CodeUsage                 ErrorCode = "usage"
+	CodeNotFound              ErrorCode = "not-found"
+	CodeConflict              ErrorCode = "conflict"
+	CodeInternal              ErrorCode = "internal"
+	CodeDatabaseUnavailable   ErrorCode = "database-unavailable"
+	CodeSchemaIncompatible    ErrorCode = "schema-incompatible"
+	CodeRuntimeStartupTimeout ErrorCode = "runtime-startup-timeout"
+	CodeOperationTimeout      ErrorCode = "operation-timeout"
+	CodeMigrationTimeout      ErrorCode = "migration-timeout"
 )
 
 // ExitCode returns the process exit code for the error class.
@@ -48,7 +51,7 @@ func (c ErrorCode) ExitCode() int {
 		return ExitNotFound
 	case CodeConflict:
 		return ExitConflict
-	case CodeInternal, CodeDatabaseUnavailable:
+	case CodeInternal, CodeDatabaseUnavailable, CodeRuntimeStartupTimeout, CodeOperationTimeout, CodeMigrationTimeout:
 		return ExitInternal
 	case CodeSchemaIncompatible:
 		return ExitSchemaIncompatible

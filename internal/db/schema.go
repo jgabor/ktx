@@ -512,28 +512,33 @@ func addMissingColumns(tx *sql.Tx, table string, have map[string]struct{}, group
 // lock. A stale opener checks the version again after beginning its immediate
 // transaction, allowing concurrent openers to observe the winner's migration.
 func migrate(db *sql.DB) error {
+	ctx, cancel := writeContext()
+	defer cancel()
+	return migrateWithContext(ctx, db, migrateTx)
+}
+
+func migrateWithContext(ctx context.Context, db *sql.DB, apply func(*sql.Tx) error) error {
+	started := time.Now()
 	for {
-		done, err := migrateStep(db, migrateTx)
+		done, err := migrateStep(ctx, db, apply)
 		if err != nil || done {
-			return err
+			return AttributeDeadline(TimeoutMigration, OperationMigration, started, err)
 		}
 	}
 }
 
-// migrateWith keeps lock acquisition attempt-bounded while allowing an
-// acquired migration transaction to finish independently of the shorter
-// deadline used for ordinary writes. apply is injected only to make that
-// distinction deterministic in tests.
+// migrateWith uses the existing write deadline as the migration deadline.
+// apply is injected only for migration tests.
 func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
-	for {
-		done, err := migrateStep(db, apply)
-		if err != nil || done {
-			return err
-		}
-	}
+	ctx, cancel := writeContext()
+	defer cancel()
+	return migrateWithContext(ctx, db, apply)
 }
 
-func migrateStep(db *sql.DB, apply func(*sql.Tx) error) (bool, error) {
+func migrateStep(ctx context.Context, db *sql.DB, apply func(*sql.Tx) error) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	version, err := readSchemaVersionWithRetry(db, startupLockRetryPolicy())
 	if err != nil {
 		return false, fmt.Errorf("db: read schema version: %w", err)
@@ -545,10 +550,9 @@ func migrateStep(db *sql.DB, apply func(*sql.Tx) error) (bool, error) {
 		return false, newerSchemaError(version)
 	}
 	if version == 15 {
-		return migrateCompressedTimestampStep(db)
+		return migrateCompressedTimestampStep(ctx, db)
 	}
 
-	ctx := context.Background()
 	err = withWriteTx(ctx, db, func(tx *sql.Tx) error {
 		if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 			return fmt.Errorf("db: recheck schema version: %w", err)
@@ -573,8 +577,8 @@ func migrateStep(db *sql.DB, apply func(*sql.Tx) error) (bool, error) {
 // migrateCompressedTimestampStep keeps schema 15 usable between bounded
 // commits. The migration cursor advances in the same transaction as each row
 // batch. Malformed timestamps remain NULL but still advance the cursor.
-func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
-	updated, err := migrateCompressedTimestampBatch(db)
+func migrateCompressedTimestampStep(ctx context.Context, db *sql.DB) (bool, error) {
+	updated, err := migrateCompressedTimestampBatchContext(ctx, db)
 	if err != nil {
 		return false, err
 	}
@@ -582,11 +586,10 @@ func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
 		return false, nil
 	}
 
-	ctx := context.Background()
 	remaining := false
 	err = withWriteTx(ctx, db, func(tx *sql.Tx) error {
 		var version int
-		if err := tx.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 			return fmt.Errorf("db: recheck schema version: %w", err)
 		}
 		if version > schemaVersion {
@@ -600,7 +603,7 @@ func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
 		}
 
 		var lastID sql.NullString
-		if err := tx.QueryRow(`SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
 			return fmt.Errorf("db: read compressed timestamp migration cursor: %w", err)
 		}
 		query := `SELECT 1 FROM compressed LIMIT 1`
@@ -610,13 +613,13 @@ func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
 			args = append(args, lastID.String)
 		}
 		var one int
-		if err := tx.QueryRow(query, args...).Scan(&one); err == nil {
+		if err := tx.QueryRowContext(ctx, query, args...).Scan(&one); err == nil {
 			remaining = true
 			return nil
 		} else if err != sql.ErrNoRows {
 			return fmt.Errorf("db: check compressed timestamp migration completion: %w", err)
 		}
-		if _, err := tx.Exec(`DROP TABLE compressed_timestamp_migration`); err != nil {
+		if _, err := tx.ExecContext(ctx, `DROP TABLE compressed_timestamp_migration`); err != nil {
 			return fmt.Errorf("db: remove compressed timestamp migration cursor: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -631,8 +634,13 @@ func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
 }
 
 func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {
+	ctx, cancel := writeContext()
+	defer cancel()
+	return migrateCompressedTimestampBatchContext(ctx, db)
+}
+
+func migrateCompressedTimestampBatchContext(ctx context.Context, db *sql.DB) (int64, error) {
 	var updated int64
-	ctx := context.Background()
 	err := withWriteTx(ctx, db, func(tx *sql.Tx) error {
 		var version int
 		if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
@@ -666,18 +674,18 @@ func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {
 		if err := addMissingColumns(tx, "compressed", columns, compressedColumns); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(createCompressionDispositionsTable); err != nil {
+		if _, err := tx.ExecContext(ctx, createCompressionDispositionsTable); err != nil {
 			return fmt.Errorf("db: create compression dispositions: %w", err)
 		}
-		if _, err := tx.Exec(createCompressedTimestampMigration); err != nil {
+		if _, err := tx.ExecContext(ctx, createCompressedTimestampMigration); err != nil {
 			return fmt.Errorf("db: create compressed timestamp migration cursor: %w", err)
 		}
-		if _, err := tx.Exec(`INSERT OR IGNORE INTO compressed_timestamp_migration (singleton, last_id) VALUES (1, NULL)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO compressed_timestamp_migration (singleton, last_id) VALUES (1, NULL)`); err != nil {
 			return fmt.Errorf("db: initialize compressed timestamp migration cursor: %w", err)
 		}
 
 		var lastID sql.NullString
-		if err := tx.QueryRow(`SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
 			return fmt.Errorf("db: read compressed timestamp migration cursor: %w", err)
 		}
 		query := `SELECT id FROM compressed ORDER BY id LIMIT ?`
@@ -686,7 +694,7 @@ func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {
 			query = `SELECT id FROM compressed WHERE id > ? ORDER BY id LIMIT ?`
 			args = []any{lastID.String, compressedTimestampMigrationBatch}
 		}
-		rows, err := tx.Query(query, args...)
+		rows, err := tx.QueryContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("db: select compressed timestamp migration batch: %w", err)
 		}
@@ -714,7 +722,7 @@ func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {
 			values[i] = ids[i]
 		}
 		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
-		result, err := tx.Exec(`UPDATE compressed
+		result, err := tx.ExecContext(ctx, `UPDATE compressed
 			SET timestamp_unix_nano = ktx_unix_nano(timestamp)
 			WHERE id IN (`+placeholders+`)`, values...)
 		if err != nil {
@@ -727,7 +735,7 @@ func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {
 		if updated != int64(len(ids)) {
 			return fmt.Errorf("db: backfilled %d compressed timestamps, want %d", updated, len(ids))
 		}
-		if _, err := tx.Exec(`UPDATE compressed_timestamp_migration SET last_id = ? WHERE singleton = 1`, ids[len(ids)-1]); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE compressed_timestamp_migration SET last_id = ? WHERE singleton = 1`, ids[len(ids)-1]); err != nil {
 			return fmt.Errorf("db: advance compressed timestamp migration cursor: %w", err)
 		}
 		return nil

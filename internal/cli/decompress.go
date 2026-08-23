@@ -43,12 +43,12 @@ import (
 // decompressLogic, and translates the returned error into an exit-code +
 // stderr envelope.
 func runDecompressWith(args []string, opts Options, stdout, stderr io.Writer) int {
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx decompress: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(path, "decompress")
+	db, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "decompress")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

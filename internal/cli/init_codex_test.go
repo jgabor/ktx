@@ -83,8 +83,12 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
 		if !ok {
 			t.Fatalf("inner hook[0] not an object: %v", inner[0])
 		}
-		if h["command"] != "ktx hook" {
-			t.Errorf("command = %v, want ktx hook", h["command"])
+		wantCommand, err := codexPinnedHookCommand()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if h["command"] != wantCommand {
+			t.Errorf("command = %v, want %q", h["command"], wantCommand)
 		}
 		if h["type"] != "command" {
 			t.Errorf("type = %v, want command", h["type"])
@@ -92,8 +96,8 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
 		if h["statusMessage"] != "ktx: recording tool call" {
 			t.Errorf("statusMessage = %v, want ktx: recording tool call", h["statusMessage"])
 		}
-		if h["timeout"] != float64(10) {
-			t.Errorf("timeout = %v, want 10", h["timeout"])
+		if _, exists := h["timeout"]; exists {
+			t.Errorf("generated hook retains an outer timeout: %v", h["timeout"])
 		}
 	})
 

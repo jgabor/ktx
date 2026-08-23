@@ -31,10 +31,11 @@ Mage, use `go build -o build/ktx ./cmd/ktx`.
 ### Wrap a process
 
 ```bash
-ktx run opencode run --format json "What is 2+2?"
-ktx list --format text
+: "${KTX_RUNTIME_SHA256:?set this to the verified binary-capabilities digest}"
+ktx --expect-runtime-sha256 "$KTX_RUNTIME_SHA256" run opencode run --format json "What is 2+2?"
+ktx --expect-runtime-sha256 "$KTX_RUNTIME_SHA256" list --format text
 : "${KTX_TARGET_SESSION_ID:?set this to a session ID returned by list}"
-ktx get "$KTX_TARGET_SESSION_ID" --format text
+ktx --expect-runtime-sha256 "$KTX_RUNTIME_SHA256" get "$KTX_TARGET_SESSION_ID" --format text
 ```
 
 `ktx run` prints the wrapped process output, then a one-line session summary.
@@ -141,6 +142,17 @@ its logical-empty or missing-input behavior. A database newer than the binary
 fails before writes and recovers only by installing a compatible binary. The
 [database safety contract](docs/database-safety.md) defines command classes,
 hermetic development, seeded migration rehearsal, and the readiness boundary.
+
+Access to the ambient default database also requires the verified executable
+digest on each invocation:
+
+```text
+ktx --expect-runtime-sha256 <digest-from-binary-capabilities> <database-command>
+```
+
+Explicit `KTX_DB` and `db --path` targets are exempt. Generated OpenCode and
+Codex callbacks pass the digest for their pinned binary automatically and add no
+outer timeout.
 
 ## Benchmarking
 

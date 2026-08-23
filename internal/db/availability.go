@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -16,7 +17,41 @@ const (
 	OperationArtifact    = "artifact"
 	OperationDisposition = "disposition"
 	OperationQuery       = "query"
+
+	TimeoutRuntimeStartup = "runtime-startup-timeout"
+	TimeoutOperation      = "operation-timeout"
+	TimeoutMigration      = "migration-timeout"
 )
+
+// DeadlineExceeded identifies the KTX-owned deadline that expired.
+type DeadlineExceeded struct {
+	Attribution string
+	Phase       string
+	Elapsed     time.Duration
+	err         error
+}
+
+func (e *DeadlineExceeded) Error() string { return e.Attribution }
+func (e *DeadlineExceeded) Unwrap() error { return e.err }
+
+// AttributeDeadline preserves database contention errors and attributes other
+// deadline exhaustion to one KTX-owned boundary.
+func AttributeDeadline(attribution, phase string, started time.Time, err error) error {
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) || IsDatabaseUnavailable(err) {
+		return err
+	}
+	var existing *DeadlineExceeded
+	if errors.As(err, &existing) {
+		return err
+	}
+	return &DeadlineExceeded{Attribution: attribution, Phase: phase, Elapsed: time.Since(started), err: err}
+}
+
+// DeadlineDetails returns KTX-owned deadline attribution when present.
+func DeadlineDetails(err error) (*DeadlineExceeded, bool) {
+	var details *DeadlineExceeded
+	return details, errors.As(err, &details)
+}
 
 // DatabaseUnavailable describes a bounded database availability failure.
 type DatabaseUnavailable struct {

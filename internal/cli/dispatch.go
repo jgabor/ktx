@@ -152,6 +152,10 @@ type DispatchContext struct {
 	// flag so ctx.Args never sees it; verbs that respect --quiet
 	// read this field rather than re-parsing ctx.Args.
 	Quiet bool
+
+	// ExpectedRuntimeSHA256 is the per-invocation proof for ambient database
+	// access. Explicit database targets do not use it.
+	ExpectedRuntimeSHA256 string
 }
 
 // registeredVerb pairs the per-verb options with the verb's logic.
@@ -294,6 +298,23 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		printError(stderr, usageError("%v", err), formatStr)
 		return ExitUsage
 	}
+	if reg.opts.HelpForArgs != nil {
+		nestedArgs := make([]string, 0, len(fs.Args()))
+		nestedHelp := false
+		for _, arg := range fs.Args() {
+			if arg == "--help" || arg == "-h" {
+				nestedHelp = true
+				continue
+			}
+			nestedArgs = append(nestedArgs, arg)
+		}
+		if nestedHelp {
+			if reg.opts.HelpForArgs(nestedArgs, stdout) {
+				return ExitOK
+			}
+			return renderHelp(reg.opts.Help, stdout)
+		}
+	}
 	if showHelp {
 		if reg.opts.HelpForArgs != nil && reg.opts.HelpForArgs(fs.Args(), stdout) {
 			return ExitOK
@@ -305,27 +326,27 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 	var databasePath string
 	if reg.opts.DatabaseAccess != DatabaseNone {
 		openStarted := time.Now()
-		path, err := dbpkg.ResolvePath("")
+		target, err := dbpkg.ResolveTarget("")
 		if err != nil {
 			printError(stderr, internalError("dispatch: resolve db path: %v", err), formatStr)
 			return ExitInternal
 		}
-		databasePath = path
+		databasePath = target.Path
 		var opened *dbpkg.DB
 		switch reg.opts.DatabaseAccess {
 		case DatabaseReadOnly:
-			opened, err = openQueryDatabase(path, verb)
+			opened, err = openQueryDatabase(target, global.ExpectedRuntimeSHA256, verb)
 		case DatabaseReadWrite:
 			if verb == "hook" {
-				opened, err = openHookDatabase(path, verb)
+				opened, err = openHookDatabase(target, global.ExpectedRuntimeSHA256, verb)
 			} else {
-				opened, err = openDatabase(path, verb)
+				opened, err = openDatabase(target, global.ExpectedRuntimeSHA256, verb)
 			}
 		default:
 			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
 		}
 		if err != nil {
-			if classified := classifyDatabaseLockError(databasePath, verb, err, dbpkg.OperationOpen, openStarted); classified != nil {
+			if classified := classifyDatabaseError(databasePath, verb, err, dbpkg.OperationOpen, openStarted); classified != nil {
 				err = classified
 			}
 			printError(stderr, err, formatStr)
@@ -342,15 +363,16 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 
 	// 6. Build the context and invoke the verb.
 	ctx := &DispatchContext{
-		Args:        fs.Args(),
-		ParsedArgs:  parsedArgs,
-		Format:      formatStr,
-		Stdin:       stdin,
-		Stdout:      stdout,
-		Stderr:      stderr,
-		DB:          db,
-		Passthrough: reg.opts.PassthroughStdout,
-		Quiet:       global.Quiet || subQuiet,
+		Args:                  fs.Args(),
+		ParsedArgs:            parsedArgs,
+		Format:                formatStr,
+		Stdin:                 stdin,
+		Stdout:                stdout,
+		Stderr:                stderr,
+		DB:                    db,
+		Passthrough:           reg.opts.PassthroughStdout,
+		Quiet:                 global.Quiet || subQuiet,
+		ExpectedRuntimeSHA256: global.ExpectedRuntimeSHA256,
 	}
 	defer func() {
 		if ctx.DB != nil {
@@ -371,7 +393,7 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		if reg.opts.DatabaseAccess == DatabaseReadOnly {
 			phase = dbpkg.OperationQuery
 		}
-		if classified := classifyDatabaseLockError(databasePath, verb, err, phase, operationStarted); classified != nil {
+		if classified := classifyDatabaseError(databasePath, verb, err, phase, operationStarted); classified != nil {
 			err = classified
 		}
 		printError(stderr, err, formatStr)

@@ -11,3 +11,13 @@ record:
     - GIVEN any readiness or operation deadline expires WHEN failure is reported THEN KTX emits one stable, correctly attributed result and no outer adapter applies a competing timeout.
     - GIVEN a missing, current, or newer database WHEN readiness runs THEN existing creation, fast-path, and newer-schema safety contracts remain intact.
   plan: wddjlywrzk
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Stale CLI guidance advertises schema migration required; doctor and benchmark export bypass stable lock classification; generated Codex retains a competing 10-second timeout and KTX deadline attributions are absent; ambient runtime digest proof is ignored and generated callbacks do not pass it.
+    provenance:
+      attempt_id: audit-fzpxovjdhb-1
+      source: audit ses_fcf211a2dffehQ2f8V1lisCU6d
+      recorded_at: 2026-08-24 01:08
+      writer_command: agentera state plan record-evaluation

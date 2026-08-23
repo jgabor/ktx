@@ -34,8 +34,9 @@ const (
 
 // Options carries the parsed global flags to subcommands.
 type Options struct {
-	Format string
-	Quiet  bool
+	Format                string
+	Quiet                 bool
+	ExpectedRuntimeSHA256 string
 }
 
 // Run is the ktx entrypoint. It parses global flags, dispatches to the
@@ -107,11 +108,8 @@ func parseGlobalFlags(args []string) (parsedFlags, []string, error) {
 	var p parsedFlags
 	fs := flag.NewFlagSet("ktx", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we render our own errors and help
-	// Previously generated OpenCode plugins pass this root flag. Keep consuming
-	// its value without advertising or assigning authorization semantics.
-	var ignoredRuntimeSHA256 string
 	fs.StringVar(&p.Format, "format", FormatJSON, "output format: text|json")
-	fs.StringVar(&ignoredRuntimeSHA256, "expect-runtime-sha256", "", "deprecated compatibility flag")
+	fs.StringVar(&p.ExpectedRuntimeSHA256, "expect-runtime-sha256", "", "prove the running executable before ambient database access")
 	fs.BoolVar(&p.Quiet, "quiet", false, "suppress run summary")
 	fs.BoolVar(&p.Quiet, "q", false, "suppress run summary (shorthand)")
 	fs.BoolVar(&p.showHelp, "help", false, "show help")
@@ -130,6 +128,9 @@ func parseGlobalFlags(args []string) (parsedFlags, []string, error) {
 
 	if p.Format != FormatJSON && p.Format != FormatText {
 		return p, nil, usageError("invalid --format %q: want %q or %q", p.Format, FormatJSON, FormatText)
+	}
+	if err := validateRuntimeDigest(p.ExpectedRuntimeSHA256); err != nil {
+		return p, nil, err
 	}
 	return p, fs.Args(), nil
 }
@@ -150,6 +151,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "Global flags:")
 	fmt.Fprintln(w, "  --format string   output format: text|json (default \"json\")")
 	fmt.Fprintln(w, "  --quiet, -q       suppress run summary")
+	fmt.Fprintln(w, "  --expect-runtime-sha256 string")
+	fmt.Fprintln(w, "                    prove the exact running executable before ambient database access")
 	fmt.Fprintln(w, "  --help, -h        show help")
 	fmt.Fprintln(w, "  --version, -v     show version")
 	fmt.Fprintln(w)

@@ -782,12 +782,12 @@ func TestRunWith_NamespaceRegistries(t *testing.T) {
 				t.Errorf("ktx prices path: exit %d, want 0 (stderr=%q)", code, stderr.String())
 			}
 		}
-		// doctor: missing DB → status=error, exit 4.
+		// doctor: ambient access without runtime proof exits 3 before inspection.
 		{
 			var stdout, stderr bytes.Buffer
 			code := runWith([]string{"doctor"}, &stdout, &stderr)
-			if code != ExitInternal {
-				t.Errorf("ktx doctor (no DB): exit %d, want %d", code, ExitInternal)
+			if code != ExitConflict {
+				t.Errorf("ktx doctor (no DB): exit %d, want %d", code, ExitConflict)
 			}
 		}
 		// init: --help exits 0 with help on stdout.

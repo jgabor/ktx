@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jgabor/ktx/internal/binarycap"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
@@ -33,28 +34,18 @@ func TestCommandDatabaseAccessDeclarations(t *testing.T) {
 	}
 }
 
-func TestLegacyRuntimeProofFlagIsIgnoredAndHidden(t *testing.T) {
-	for _, value := range []string{testBinaryDigest, "bad", strings.Repeat("A", 64)} {
-		parsed, rest, err := parseGlobalFlags([]string{"--expect-runtime-sha256", value, "--version"})
-		if err != nil {
-			t.Fatalf("value %q: %v", value, err)
+func TestRuntimeProofGlobalFlag(t *testing.T) {
+	parsed, rest, err := parseGlobalFlags([]string{"--expect-runtime-sha256", testBinaryDigest, "--version"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.ExpectedRuntimeSHA256 != testBinaryDigest || len(rest) != 0 || !parsed.showVersion {
+		t.Fatalf("parsed=%#v rest=%#v", parsed, rest)
+	}
+	for _, value := range []string{"bad", strings.Repeat("a", 63), strings.Repeat("A", 64)} {
+		if _, _, err := parseGlobalFlags([]string{"--expect-runtime-sha256", value, "list"}); err == nil {
+			t.Fatalf("accepted malformed digest %q", value)
 		}
-		if len(rest) != 0 || !parsed.showVersion {
-			t.Fatalf("value %q: parsed=%#v rest=%#v", value, parsed, rest)
-		}
-	}
-
-	var stdout, stderr bytes.Buffer
-	if code := runWith([]string{"--expect-runtime-sha256", "legacy-plugin-value", "--version"}, &stdout, &stderr); code != ExitOK {
-		t.Fatalf("exit = %d; stderr=%s", code, stderr.String())
-	}
-	stdout.Reset()
-	stderr.Reset()
-	if code := runWith([]string{"--help"}, &stdout, &stderr); code != ExitOK {
-		t.Fatalf("help exit = %d; stderr=%s", code, stderr.String())
-	}
-	if strings.Contains(stdout.String(), "expect-runtime-sha256") {
-		t.Fatalf("deprecated compatibility flag is public: %q", stdout.String())
 	}
 }
 
@@ -62,6 +53,11 @@ func TestAmbientQueryDoesNotCreateDatabase(t *testing.T) {
 	dataHome := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", dataHome)
 	t.Setenv("KTX_DB", "")
+	originalIdentity := currentBinaryCapabilities
+	currentBinaryCapabilities = func() (binarycap.Identity, error) {
+		return binarycap.Identity{ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest}, nil
+	}
+	t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
 
 	for _, args := range [][]string{
 		{"list"},
@@ -72,10 +68,9 @@ func TestAmbientQueryDoesNotCreateDatabase(t *testing.T) {
 		{"read", "aaaaaaaaaaaaaaaa"},
 		{"decompress", "aaaaaaaaaaaaaaaa"},
 		{"telemetry", "list", "--session", "aaaaaaaaaaaaaaaa"},
-		{"--expect-runtime-sha256", "legacy-plugin-value", "list"},
 	} {
 		var stdout, stderr bytes.Buffer
-		code := runWith(args, &stdout, &stderr)
+		code := runWith(append([]string{"--expect-runtime-sha256", testBinaryDigest}, args...), &stdout, &stderr)
 		if code != ExitOK && code != ExitNotFound {
 			t.Fatalf("%v exit = %d; stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
 		}

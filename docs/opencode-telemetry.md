@@ -327,6 +327,9 @@ Failure behavior depends on the command:
   instance. Refresh the generated plugin to pick up source changes and restart
   OpenCode after replacing the installed binary. A database schema increase by
   itself does not require adapter regeneration.
+- Every database-backed callback passes that digest as
+  `--expect-runtime-sha256` to the pinned executable. The plugin waits for the
+  KTX result and does not impose a competing callback timeout.
 - Ordinary `ktx run` intentionally disables the plugin hooks through
   `KTX_SESSION_ID`. The explicit `--collection=<id>` mode is the only wrapper
   path that keeps them active; it requires the generated pinned plugin and

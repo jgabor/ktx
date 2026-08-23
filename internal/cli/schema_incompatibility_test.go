@@ -97,7 +97,7 @@ func TestOpenBackedCommandsShareSchemaIncompatibilityContract(t *testing.T) {
 	}
 }
 
-func TestLegacyRuntimeProofFlagDoesNotChangeSchemaInspection(t *testing.T) {
+func TestAmbientRuntimeProofPrecedesNewerSchemaInspection(t *testing.T) {
 	dataHome := t.TempDir()
 	dbDir := filepath.Join(dataHome, "ktx")
 	if err := os.Mkdir(dbDir, 0o755); err != nil {
@@ -106,21 +106,31 @@ func TestLegacyRuntimeProofFlagDoesNotChangeSchemaInspection(t *testing.T) {
 	seedSchemaVersion(t, filepath.Join(dbDir, "ktx.db"), dbpkg.MaxSupportedSchema()+1)
 	t.Setenv("XDG_DATA_HOME", dataHome)
 	t.Setenv("KTX_DB", "")
+	originalIdentity := currentBinaryCapabilities
+	currentBinaryCapabilities = func() (binarycap.Identity, error) {
+		return binarycap.Identity{
+			ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest,
+			BuildVersion: "test", MaxDatabaseSchema: dbpkg.MaxSupportedSchema(),
+		}, nil
+	}
+	t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
 	before := directorySnapshot(t, dbDir)
 	for _, test := range []struct {
-		name string
-		args []string
+		name, errorCode string
+		code            int
+		args            []string
 	}{
-		{name: "absent compatibility flag", args: []string{"list"}},
-		{name: "digest-shaped compatibility value", args: []string{"--expect-runtime-sha256", otherRuntimeDigest, "list"}},
-		{name: "arbitrary compatibility value", args: []string{"--expect-runtime-sha256", "bad", "list"}},
+		{name: "missing proof", args: []string{"list"}, code: ExitConflict, errorCode: "conflict"},
+		{name: "mismatched proof", args: []string{"--expect-runtime-sha256", otherRuntimeDigest, "list"}, code: ExitConflict, errorCode: "conflict"},
+		{name: "malformed proof", args: []string{"--expect-runtime-sha256", "bad", "list"}, code: ExitUsage, errorCode: "usage"},
+		{name: "matching proof", args: []string{"--expect-runtime-sha256", testBinaryDigest, "list"}, code: ExitSchemaIncompatible, errorCode: "schema-incompatible"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			if code := runWith(test.args, &stdout, &stderr); code != ExitSchemaIncompatible {
-				t.Fatalf("exit = %d, want %d; stderr=%q", code, ExitSchemaIncompatible, stderr.String())
+			if code := runWith(test.args, &stdout, &stderr); code != test.code {
+				t.Fatalf("exit = %d, want %d; stderr=%q", code, test.code, stderr.String())
 			}
-			if stdout.Len() != 0 || !bytes.Contains(stderr.Bytes(), []byte(`"code":"schema-incompatible"`)) {
+			if stdout.Len() != 0 || !bytes.Contains(stderr.Bytes(), []byte(`"code":"`+test.errorCode+`"`)) {
 				t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 			}
 		})
@@ -154,6 +164,47 @@ func TestReadOnlyCommandAutomaticallyPreparesOlderSchema(t *testing.T) {
 	version, err := database.SchemaVersion()
 	if err != nil || version != dbpkg.MaxSupportedSchema() {
 		t.Fatalf("schema version = %d, %v; want %d", version, err, dbpkg.MaxSupportedSchema())
+	}
+}
+
+func TestAmbientMatchingRuntimeProofAllowsCurrentAndOlderQueries(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		version int
+	}{
+		{name: "current", version: dbpkg.MaxSupportedSchema()},
+		{name: "older", version: dbpkg.MaxSupportedSchema() - 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dataHome := t.TempDir()
+			path := filepath.Join(dataHome, "ktx", "ktx.db")
+			seedDoctorDatabase(t, path, func(database *dbpkg.DB) {
+				if _, err := database.DB().Exec(fmt.Sprintf("PRAGMA user_version = %d", test.version)); err != nil {
+					t.Fatal(err)
+				}
+			})
+			t.Setenv("XDG_DATA_HOME", dataHome)
+			t.Setenv("KTX_DB", "")
+			originalIdentity := currentBinaryCapabilities
+			currentBinaryCapabilities = func() (binarycap.Identity, error) {
+				return binarycap.Identity{ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest}, nil
+			}
+			t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
+
+			var stdout, stderr bytes.Buffer
+			if code := runWith([]string{"--expect-runtime-sha256", testBinaryDigest, "list"}, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			database, err := dbpkg.OpenReadOnly(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer database.Close()
+			version, err := database.SchemaVersion()
+			if err != nil || version != dbpkg.MaxSupportedSchema() {
+				t.Fatalf("schema version=%d err=%v", version, err)
+			}
+		})
 	}
 }
 

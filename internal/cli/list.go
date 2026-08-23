@@ -44,12 +44,12 @@ func runListWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		format = opts.Format
 	}
 
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx list: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(path, "list")
+	db, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "list")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

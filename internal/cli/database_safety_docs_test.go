@@ -45,17 +45,13 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 
 	for _, relative := range []string{
 		"README.md",
-		"AGENTS.md",
 		filepath.Join("docs", "database-safety.md"),
 		filepath.Join("docs", "binary-capabilities.md"),
 		filepath.Join("docs", "opencode-telemetry.md"),
-		filepath.Join("docs", "pipelines.md"),
 	} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
-		for _, obsolete := range []string{"--expect-runtime-sha256", "runtime-proof-required", "runtime-proof-mismatch"} {
-			if strings.Contains(contents, obsolete) {
-				t.Errorf("%s still publishes obsolete runtime proof %q", relative, obsolete)
-			}
+		if !strings.Contains(contents, "--expect-runtime-sha256") {
+			t.Errorf("%s does not document per-invocation ambient runtime proof", relative)
 		}
 	}
 	for _, relative := range []string{"README.md", "AGENTS.md", filepath.Join(".github", "workflows", "ci.yml")} {
@@ -87,6 +83,9 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 		"schema-migration-required",
 		"notes/schema-readiness-baseline.json",
 		"tools/schema_readiness_evidence.py",
+		"runtime-startup-timeout",
+		"operation-timeout",
+		"migration-timeout",
 	} {
 		if !strings.Contains(canonical, required) {
 			t.Errorf("schema readiness contract is missing %q", required)

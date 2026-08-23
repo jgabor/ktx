@@ -1274,7 +1274,7 @@ func TestPeriodicStatsReadersDoNotStarveEvidenceWriters(t *testing.T) {
 	}
 }
 
-func TestMigrationExecutionOutlivesOrdinaryWriteTimeout(t *testing.T) {
+func TestMigrationDeadlineAttribution(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "slow-migration.db")
 	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(" + strconv.Itoa(sqliteBusyTimeoutMS) + ")&_txlock=immediate"
 	raw, err := sql.Open(sqliteDriver, dsn)
@@ -1283,28 +1283,35 @@ func TestMigrationExecutionOutlivesOrdinaryWriteTimeout(t *testing.T) {
 	}
 	defer raw.Close()
 
-	started := time.Now()
-	err = migrateWith(raw, func(tx *sql.Tx) error {
-		ordinary, cancel := writeContext()
-		defer cancel()
-		<-ordinary.Done()
-		if ordinary.Err() != context.DeadlineExceeded {
-			return ordinary.Err()
-		}
-		return migrateTx(tx)
-	})
-	if err != nil {
-		t.Fatalf("migration after ordinary write deadline: %v", err)
-	}
-	if elapsed := time.Since(started); elapsed < writeTimeout {
-		t.Fatalf("migration elapsed %s, want at least ordinary timeout %s", elapsed, writeTimeout)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	err = migrateWithContext(ctx, raw, migrateTx)
+	details, ok := DeadlineDetails(err)
+	if !ok || details.Attribution != TimeoutMigration || details.Phase != OperationMigration || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("migration deadline error = %#v, %v", details, err)
 	}
 	var version int
 	if err := raw.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != schemaVersion {
-		t.Fatalf("user_version = %d, want %d", version, schemaVersion)
+	if version != 0 {
+		t.Fatalf("user_version = %d, want unchanged 0", version)
+	}
+}
+
+func TestOperationDeadlineAttribution(t *testing.T) {
+	database, err := OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	err = database.withWriteTx(ctx, func(*sql.Tx) error { return nil })
+	details, ok := DeadlineDetails(err)
+	if !ok || details.Attribution != TimeoutOperation || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("operation deadline error = %#v, %v", details, err)
 	}
 }
 

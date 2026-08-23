@@ -79,10 +79,11 @@ const maxAgentLine = 64 * 1024 * 1024
 var runCmd = exec.CommandContext
 
 type runOptions struct {
-	Format       string
-	Quiet        bool
-	RecordStream bool
-	CollectionID string
+	Format                string
+	Quiet                 bool
+	RecordStream          bool
+	CollectionID          string
+	ExpectedRuntimeSHA256 string
 }
 
 // runRunWith executes `ktx run` with injected output streams.
@@ -193,12 +194,12 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 
 	// Open session before spawning the child so any early child output
 	// can be associated with the right session_id.
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx run: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(path, "run")
+	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256, "run")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
@@ -288,7 +289,7 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), "KTX_SESSION_ID="+sessionID)
 	if opts.CollectionID != "" {
-		cmd.Env = append(cmd.Env, "KTX_COLLECTION_ID="+opts.CollectionID, "KTX_DB="+path)
+		cmd.Env = append(cmd.Env, "KTX_COLLECTION_ID="+opts.CollectionID, "KTX_DB="+target.Path)
 	}
 
 	stdoutR, err := cmd.StdoutPipe()
@@ -426,10 +427,11 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 	agent := ctx.Args[0]
 
 	opts := runOptions{
-		Format:       ctx.Format,
-		Quiet:        ctx.Quiet || postAgentQuiet,
-		RecordStream: parsed.recordStream || postAgentRecordStream,
-		CollectionID: parsed.collectionID,
+		Format:                ctx.Format,
+		Quiet:                 ctx.Quiet || postAgentQuiet,
+		RecordStream:          parsed.recordStream || postAgentRecordStream,
+		CollectionID:          parsed.collectionID,
+		ExpectedRuntimeSHA256: ctx.ExpectedRuntimeSHA256,
 	}
 
 	exitCode := executeRun(agent, agentArgs, opts, ctx.Stdout, ctx.Stderr)

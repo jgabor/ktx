@@ -130,6 +130,18 @@ func TestGeneratedOpenCodeAdapterDoesNotKillCallbacks(t *testing.T) {
 			t.Errorf("generated adapter contains external callback timeout mechanism %q", forbidden)
 		}
 	}
+	for _, required := range []string{
+		`["--expect-runtime-sha256", ktxExecutableSHA256, ...args]`,
+		`runOrdinaryProcess(openBackedArgs(args), payload)`,
+		`openBackedArgs(["hook"])`,
+		`openBackedArgs(["telemetry", "collector-open"])`,
+		`openBackedArgs(["telemetry", "event-record"])`,
+		`openBackedArgs(["telemetry", "cue-delivered"])`,
+	} {
+		if !strings.Contains(ktxOpencodePluginTemplate, required) {
+			t.Errorf("generated adapter is missing pinned runtime proof argument %q", required)
+		}
+	}
 }
 
 func TestOpencodeGeneratedAdapterEventAndToolIntegration(t *testing.T) {
@@ -168,6 +180,11 @@ if [ "$1" = "binary-capabilities" ]; then
   esac
   printf '{"schema":"%s","executable_path":"%s","executable_sha256":"%s","build_version":"%s","max_database_schema":%s}\n' "$contract" "$path" "$digest" "$version" "$max_schema"
   exit 0
+fi
+if [ "$1" = "--expect-runtime-sha256" ]; then
+  [ "${#2}" -eq 64 ] || { printf 'runtime proof malformed\n' >&2; exit 3; }
+  case "$2" in *[!0-9a-f]*) printf 'runtime proof malformed\n' >&2; exit 3 ;; esac
+  shift 2
 fi
 if [ "$1 $2" = "db path" ]; then
   [ -z "$KTX_TEST_PATH_LOG" ] || printf 'db-path\n' >> "$KTX_TEST_PATH_LOG"

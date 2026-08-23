@@ -46,7 +46,9 @@
 //
 //	0  status: ok or degraded (read-only diagnosis completed)
 //	1  usage error (invalid flag, unexpected argument)
-//	4  internal error (status == "error")
+//	3  ambient runtime proof is missing or mismatched
+//	4  internal, database-unavailable, or deadline failure
+//	5  database schema is newer than this binary
 //
 // Path resolution mirrors the other ktx commands: KTX_DB env > default
 // ($XDG_DATA_HOME/ktx/ktx.db). Per-invocation override lives on
@@ -58,6 +60,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -108,9 +111,10 @@ type doctorCheck struct {
 // breakdown + the resolved path so the user can audit which database
 // was actually inspected.
 type doctorReport struct {
-	Status string        `json:"status"`
-	Path   string        `json:"path"`
-	Checks []doctorCheck `json:"checks"`
+	Status  string        `json:"status"`
+	Path    string        `json:"path"`
+	Checks  []doctorCheck `json:"checks"`
+	failure error
 }
 
 // runDoctorWith executes `ktx doctor` with injected output streams.
@@ -130,7 +134,7 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // either flag position. The verb's body emits the JSON envelope
 // directly to stdout (PassthroughStdout=true on the dispatch
 // registry).
-func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, int) {
+func doctorLogic(args []string, format, expectedSHA256 string, stdout, stderr io.Writer) (any, int) {
 	// Subcommand-local --format. extractFormat accepts both --format
 	// value and --format=value forms; the subcommand's value takes
 	// precedence over the global one when both are set.
@@ -162,7 +166,11 @@ func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, i
 		return nil, ExitUsage
 	}
 
-	report := buildDoctorReport()
+	report := buildDoctorReport(expectedSHA256)
+	if report.failure != nil {
+		printError(stderr, report.failure, format)
+		return nil, exitCodeOf(report.failure)
+	}
 
 	switch format {
 	case FormatText:
@@ -207,14 +215,18 @@ func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, i
 // because doctor must inspect a database that may not yet exist
 // (the database_exists check is stat-only).
 func doctorCommandFunc(ctx *DispatchContext) (any, error) {
-	_, code := doctorLogic(ctx.Args, ctx.Format, ctx.Stdout, ctx.Stderr)
+	_, code := doctorLogic(ctx.Args, ctx.Format, ctx.ExpectedRuntimeSHA256, ctx.Stdout, ctx.Stderr)
 	switch code {
 	case ExitOK:
 		return nil, nil
 	case ExitUsage:
 		return nil, exitWith(ExitUsage)
+	case ExitConflict:
+		return nil, exitWith(ExitConflict)
 	case ExitInternal:
 		return nil, exitWith(ExitInternal)
+	case ExitSchemaIncompatible:
+		return nil, exitWith(ExitSchemaIncompatible)
 	default:
 		return nil, internalError("ktx doctor: exit code %d", code)
 	}
@@ -243,12 +255,12 @@ func init() {
 //  2. any check "warning"  → top-level "degraded" (exit ExitOK — action may be required)
 //  3. all checks "ok"      → top-level "ok"       (exit ExitOK)
 //
-// The "degraded" branch is the supported forward-upgrade surface. Doctor
-// reports the required action but never applies it.
-func buildDoctorReport() *doctorReport {
+// Classified readiness failures use the normal CLI error envelope. Other
+// health failures remain check details in this report.
+func buildDoctorReport(expectedSHA256 string) *doctorReport {
 	report := &doctorReport{}
 
-	path, err := dbpkg.ResolvePath("")
+	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		report.Status = doctorStatusError
 		report.Checks = append(report.Checks, doctorCheck{
@@ -258,33 +270,37 @@ func buildDoctorReport() *doctorReport {
 		})
 		return report
 	}
-	report.Path = path
+	report.Path = target.Path
+	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
+		report.failure = err
+		return report
+	}
 
 	// Check 1: file exists. Read-only (does not call dbpkg.Open which
 	// would create the file as a side effect). A missing file is a
 	// configuration signal — the user has not recorded anything yet,
 	// or KTX_DB points at a non-existent path.
-	if err := dbpkg.AuditPathInspection(path); err != nil {
+	if err := dbpkg.AuditPathInspection(target.Path); err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "database_exists",
 			Status: doctorStatusError,
-			Detail: fmt.Sprintf("audit database inspection %q: %v", path, err),
+			Detail: fmt.Sprintf("audit database inspection %q: %v", target.Path, err),
 		})
 		report.Status = doctorStatusError
 		return report
 	}
-	if _, statErr := os.Stat(path); statErr != nil {
+	if _, statErr := os.Stat(target.Path); statErr != nil {
 		if os.IsNotExist(statErr) {
 			report.Checks = append(report.Checks, doctorCheck{
 				Name:   "database_exists",
 				Status: doctorStatusError,
-				Detail: fmt.Sprintf("database file %q does not exist (run `ktx run` or `ktx write` to create it)", path),
+				Detail: fmt.Sprintf("database file %q does not exist (run `ktx run` or `ktx write` to create it)", target.Path),
 			})
 		} else {
 			report.Checks = append(report.Checks, doctorCheck{
 				Name:   "database_exists",
 				Status: doctorStatusError,
-				Detail: fmt.Sprintf("stat %q: %v", path, statErr),
+				Detail: fmt.Sprintf("stat %q: %v", target.Path, statErr),
 			})
 		}
 		report.Status = doctorStatusError
@@ -293,17 +309,21 @@ func buildDoctorReport() *doctorReport {
 	report.Checks = append(report.Checks, doctorCheck{
 		Name:   "database_exists",
 		Status: doctorStatusOK,
-		Detail: fmt.Sprintf("file present at %q", path),
+		Detail: fmt.Sprintf("file present at %q", target.Path),
 	})
 
-	// Check 2: open read-only so doctor can classify the existing schema before
-	// readiness changes it.
-	db, err := dbpkg.OpenReadOnly(path)
+	// Check 2: readiness prepares an older schema before the read-only diagnosis.
+	db, err := openQueryDatabase(target, expectedSHA256, "doctor")
 	if err != nil {
+		var classified *Error
+		if errors.As(err, &classified) {
+			report.failure = err
+			return report
+		}
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "database_openable",
 			Status: doctorStatusError,
-			Detail: fmt.Sprintf("open %q: %v", path, err),
+			Detail: fmt.Sprintf("open %q: %v", target.Path, err),
 		})
 		report.Status = doctorStatusError
 		return report
@@ -312,11 +332,10 @@ func buildDoctorReport() *doctorReport {
 	report.Checks = append(report.Checks, doctorCheck{
 		Name:   "database_openable",
 		Status: doctorStatusOK,
-		Detail: fmt.Sprintf("opened %q read-only", path),
+		Detail: fmt.Sprintf("opened %q read-only after readiness", target.Path),
 	})
 
-	// Check 3: prepare a supported older schema. Newer schemas require a newer
-	// runtime and fail before writes.
+	// Check 3: OpenQuery has already enforced current-schema readiness.
 	version, err := db.SchemaVersion()
 	if err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
@@ -326,61 +345,11 @@ func buildDoctorReport() *doctorReport {
 		})
 		report.Status = doctorStatusError
 	} else {
-		maximum := dbpkg.MaxSupportedSchema()
-		switch {
-		case version < maximum:
-			if err := db.CheckReadableCoreSchema(); err != nil {
-				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
-				report.Status = doctorStatusError
-				return report
-			}
-			if err := db.Close(); err != nil {
-				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
-				report.Status = doctorStatusError
-				return report
-			}
-			prepared, prepareErr := dbpkg.OpenExisting(path)
-			if prepareErr != nil {
-				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: prepareErr.Error()})
-				report.Status = doctorStatusError
-				return report
-			}
-			if err := prepared.Close(); err != nil {
-				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
-				report.Status = doctorStatusError
-				return report
-			}
-			db, err = dbpkg.OpenReadOnly(path)
-			if err != nil {
-				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
-				report.Status = doctorStatusError
-				return report
-			}
-			version = maximum
-			report.Checks = append(report.Checks, doctorCheck{Name: "schema_version", Status: doctorStatusOK, Detail: fmt.Sprintf("database prepared to supported schema %d", version)})
-		case version > maximum:
-			report.Checks = append(report.Checks, doctorCheck{
-				Name:   "schema_version",
-				Status: doctorStatusError,
-				Detail: fmt.Sprintf("database schema %d is newer than this binary's maximum supported schema %d; install and verify a binary supporting schema %d or newer; do not lower user_version", version, maximum, version),
-			})
-			report.Status = doctorStatusError
-		default:
-			report.Checks = append(report.Checks, doctorCheck{
-				Name:   "schema_version",
-				Status: doctorStatusOK,
-				Detail: fmt.Sprintf("database uses supported schema %d", version),
-			})
-		}
-		if version != maximum {
-			if version < maximum {
-				if err := db.CheckReadableCoreSchema(); err != nil {
-					report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
-					report.Status = doctorStatusError
-				}
-			}
-			return report
-		}
+		report.Checks = append(report.Checks, doctorCheck{
+			Name:   "schema_version",
+			Status: doctorStatusOK,
+			Detail: fmt.Sprintf("database uses supported schema %d", version),
+		})
 	}
 
 	// Check 4: schema. Expected base tables + columns match the expected shape.
@@ -662,7 +631,9 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "Exit codes:")
 	fmt.Fprintln(w, "  0  status: ok or degraded (post-readiness read-only diagnosis completed)")
 	fmt.Fprintln(w, "  1  usage error (invalid flag, unexpected argument)")
-	fmt.Fprintln(w, "  4  status: error (one or more hard checks failed)")
+	fmt.Fprintln(w, "  3  ambient runtime proof is missing or mismatched")
+	fmt.Fprintln(w, "  4  status: error, database unavailable, or KTX-owned deadline exhausted")
+	fmt.Fprintln(w, "  5  database schema is newer than this binary")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 	fmt.Fprintln(w)

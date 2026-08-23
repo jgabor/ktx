@@ -46,24 +46,27 @@ type dbMigrateResult struct {
 	Migrated     bool   `json:"migrated"`
 }
 
-func dbMigrateLogic(pathOverride string, args []string, format string, stdout io.Writer) (any, error) {
+func dbMigrateLogic(pathOverride, expectedSHA256 string, args []string, format string, stdout io.Writer) (any, error) {
 	if len(args) > 0 {
 		return nil, usageError("ktx db migrate: unexpected argument %q", args[0])
 	}
-	path, err := dbpkg.ResolvePath(pathOverride)
+	target, err := dbpkg.ResolveTarget(pathOverride)
 	if err != nil {
 		return nil, internalError("ktx db migrate: resolve database path: %v", err)
 	}
-	canonical, err := dbpkg.CanonicalPath(path)
+	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
+		return nil, err
+	}
+	canonical, err := dbpkg.CanonicalPath(target.Path)
 	if err != nil {
 		return nil, internalError("ktx db migrate: canonicalize database path: %v", err)
 	}
-	readOnly, err := dbpkg.OpenReadOnly(path)
+	readOnly, err := dbpkg.OpenReadOnly(target.Path)
 	if err != nil {
-		if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
+		if _, statErr := os.Stat(target.Path); errors.Is(statErr, os.ErrNotExist) {
 			return nil, notFoundError("ktx db migrate: database %q does not exist", canonical)
 		}
-		return nil, databaseOpenError(path, "db migrate", err)
+		return nil, databaseOpenError(target.Path, "db migrate", err)
 	}
 	var before int
 	readErr := readOnly.DB().QueryRow(`PRAGMA user_version`).Scan(&before)
@@ -72,12 +75,12 @@ func dbMigrateLogic(pathOverride string, args []string, format string, stdout io
 		return nil, internalError("ktx db migrate: read schema version: %v", err)
 	}
 	if before > dbpkg.MaxSupportedSchema() {
-		return nil, databaseOpenError(path, "db migrate", &dbpkg.SchemaTooNewError{Actual: before, Maximum: dbpkg.MaxSupportedSchema()})
+		return nil, databaseOpenError(target.Path, "db migrate", &dbpkg.SchemaTooNewError{Actual: before, Maximum: dbpkg.MaxSupportedSchema()})
 	}
 
 	after := before
 	if before < dbpkg.MaxSupportedSchema() {
-		database, err := openExistingDatabase(path, "db")
+		database, err := openExistingDatabase(target, expectedSHA256, "db migrate")
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +104,7 @@ func dbMigrateLogic(pathOverride string, args []string, format string, stdout io
 
 // dbReportLogic prepares an existing supported older database, then renders a
 // read-only evidence report.
-func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, error) {
+func dbReportLogic(pathOverride, expectedSHA256 string, args []string, stdout io.Writer) (any, error) {
 	fs := flag.NewFlagSet("ktx db report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var output string
@@ -114,20 +117,23 @@ func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, e
 	if len(fs.Args()) > 0 {
 		return nil, usageError("ktx db report: unexpected argument %q", fs.Arg(0))
 	}
-	path, err := dbpkg.ResolvePath(pathOverride)
+	target, err := dbpkg.ResolveTarget(pathOverride)
 	if err != nil {
 		return nil, internalError("ktx db report: resolve database path: %v", err)
 	}
-	aliasesSource, err := destinationAliasesSource(path, output)
+	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
+		return nil, err
+	}
+	aliasesSource, err := destinationAliasesSource(target.Path, output)
 	if err != nil {
 		return nil, internalError("ktx db report: compare output with source database: %v", err)
 	}
 	if aliasesSource {
-		return nil, sourceDatabaseDestinationError("ktx db report", "invalid-database-report-destination", path)
+		return nil, sourceDatabaseDestinationError("ktx db report", "invalid-database-report-destination", target.Path)
 	}
-	report, err := dbreport.Generate(path, includeIdentifiers, time.Now())
+	report, err := dbreport.Generate(target.Path, includeIdentifiers, time.Now())
 	if err != nil {
-		return nil, queryDatabaseOpenError(path, "db report", err)
+		return nil, queryDatabaseOpenError(target.Path, "db report", err)
 	}
 	if output != "-" {
 		if err := dbreport.WriteJSON(output, report); err != nil {
@@ -180,9 +186,9 @@ func dbCommandFunc(ctx *DispatchContext) (any, error) {
 	case "path":
 		return dbPathLogic(parsed.pathOverride, ctx.Stdout)
 	case "report":
-		return dbReportLogic(parsed.pathOverride, rest, ctx.Stdout)
+		return dbReportLogic(parsed.pathOverride, ctx.ExpectedRuntimeSHA256, rest, ctx.Stdout)
 	case "migrate":
-		return dbMigrateLogic(parsed.pathOverride, rest, ctx.Format, ctx.Stdout)
+		return dbMigrateLogic(parsed.pathOverride, ctx.ExpectedRuntimeSHA256, rest, ctx.Format, ctx.Stdout)
 	case "prune":
 		return nil, usageError("ktx db prune: not implemented")
 	default:

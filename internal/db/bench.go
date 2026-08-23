@@ -1,7 +1,7 @@
 // Persistence and query methods for `bench_runs`.
 //
 // bench_runs is the headline bench store — one row per `ktx bench run`
-// invocation. The schema lives in db.go (reproducibility contract):
+// invocation. The schema lives in schema.go (reproducibility contract):
 //
 //	id TEXT PRIMARY KEY          -- 16-char nanoid
 //	agent TEXT                   -- the agent binary / model spec
@@ -181,41 +181,9 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 
 	out := []BenchRun{}
 	for rows.Next() {
-		var (
-			b          BenchRun
-			cost       sql.NullFloat64
-			cacheRead  sql.NullInt64
-			cacheWrite sql.NullInt64
-			reasoning  sql.NullInt64
-			estimated  sql.NullFloat64
-		)
-		if err := rows.Scan(
-			&b.ID, &b.Agent, &b.Model, &b.Task, &b.Score,
-			&b.TokensIn, &b.TokensOut, &cost,
-			&b.MethodologyVersion, &b.Timestamp,
-			&cacheRead, &cacheWrite, &reasoning, &estimated,
-		); err != nil {
+		b, err := scanBenchRun(rows)
+		if err != nil {
 			return nil, fmt.Errorf("db: scan bench_run: %w", err)
-		}
-		if cost.Valid {
-			v := cost.Float64
-			b.Cost = &v
-		}
-		if cacheRead.Valid {
-			v := cacheRead.Int64
-			b.CacheRead = &v
-		}
-		if cacheWrite.Valid {
-			v := cacheWrite.Int64
-			b.CacheWrite = &v
-		}
-		if reasoning.Valid {
-			v := reasoning.Int64
-			b.Reasoning = &v
-		}
-		if estimated.Valid {
-			v := estimated.Float64
-			b.EstimatedAPICost = &v
 		}
 		out = append(out, b)
 	}
@@ -231,6 +199,28 @@ func (d *DB) QueryBenchRuns() ([]BenchRun, error) {
 // pointer-discipline rules apply as QueryBenchRuns (nil Cost and
 // nil cache telemetry when the columns are NULL).
 func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
+	b, err := scanBenchRun(d.db.QueryRow(
+		`SELECT id, agent, model, task, score,
+		        tokens_in, tokens_out, cost,
+		        methodology_version, timestamp,
+		        cache_read, cache_write, reasoning, estimated_api_cost
+		 FROM bench_runs WHERE id = ?`,
+		id,
+	))
+	if err == sql.ErrNoRows {
+		return BenchRun{}, ErrNotFound
+	}
+	if err != nil {
+		return BenchRun{}, fmt.Errorf("db: get bench_run %q: %w", id, err)
+	}
+	return b, nil
+}
+
+type rowScanner interface {
+	Scan(...any) error
+}
+
+func scanBenchRun(row rowScanner) (BenchRun, error) {
 	var (
 		b          BenchRun
 		cost       sql.NullFloat64
@@ -239,24 +229,14 @@ func (d *DB) QueryBenchRun(id string) (BenchRun, error) {
 		reasoning  sql.NullInt64
 		estimated  sql.NullFloat64
 	)
-	err := d.db.QueryRow(
-		`SELECT id, agent, model, task, score,
-		        tokens_in, tokens_out, cost,
-		        methodology_version, timestamp,
-		        cache_read, cache_write, reasoning, estimated_api_cost
-		 FROM bench_runs WHERE id = ?`,
-		id,
-	).Scan(
+	err := row.Scan(
 		&b.ID, &b.Agent, &b.Model, &b.Task, &b.Score,
 		&b.TokensIn, &b.TokensOut, &cost,
 		&b.MethodologyVersion, &b.Timestamp,
 		&cacheRead, &cacheWrite, &reasoning, &estimated,
 	)
-	if err == sql.ErrNoRows {
-		return BenchRun{}, ErrNotFound
-	}
 	if err != nil {
-		return BenchRun{}, fmt.Errorf("db: get bench_run %q: %w", id, err)
+		return BenchRun{}, err
 	}
 	if cost.Valid {
 		v := cost.Float64

@@ -248,18 +248,7 @@ func (r *Runner) warnf(format string, args ...any) {
 	fmt.Fprintf(w, format, args...)
 }
 
-// Result is the runner's output: the transformed bytes plus the list
-// of stage names that successfully ran. The Ran slice is what the
-// caller includes in the compressed row's `pipeline` JSON record.
-// Stages that errored, were
-// skipped (unknown name), or panicked are NOT in Ran — only stages
-// whose Apply returned a non-nil error are absent; stage names that
-// were skipped due to invariant (1) (empty-output guard) ARE in Ran
-// because the stage ran (it just produced empty output and the guard
-// discarded it; the stage did execute).
-//
-// The Ran slice's ordering matches the Pipeline's ordering (the
-// stages that ran appear in the order they ran).
+// Result is the runner's delivered output and its retained provenance.
 type Result struct {
 	Out []byte
 	// StructuredFallback reports that the final stage result was invalid for
@@ -268,14 +257,8 @@ type Result struct {
 	// AntiWorseningRejected reports that the final pipeline output was not
 	// smaller than a non-empty input and was therefore discarded.
 	AntiWorseningRejected bool
-	// Ran is the list of stage names that successfully applied. A
-	// stage that returned an error or panicked is absent from Ran
-	// (the runner passed its input through but the stage did not
-	// "run" successfully). A stage skipped because its name was not
-	// in the Registry is absent from Ran (the warn logged it, but
-	// nothing ran). A stage that hit invariant (1)'s empty-output
-	// guard IS in Ran — the stage ran, it just produced empty
-	// output and the guard discarded it.
+	// Ran lists successful stages in pipeline order. It is empty when the
+	// delivered output reverts to the input.
 	Ran []string
 }
 

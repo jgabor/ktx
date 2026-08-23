@@ -8,7 +8,7 @@ record:
     - tpuxkautye
     - ipughkhybu
     - zycvfwkspu
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN task 1 caller evidence and completed correctness work WHEN cleanup begins THEN removal is limited to duplication listed in REVIEW.md or surfaces made dead or proven redundant by tasks 2 through 6.
     - GIVEN paired readers, token estimates, flag setup, pipeline recipes, aliases, wrappers, and comments identified by the review WHEN resolved THEN each has one maintained authority or a documented reason to remain distinct.

@@ -217,9 +217,8 @@ func printGetText(w io.Writer, record any) {
 		fmt.Fprintf(w, "last_seen_at:    %s\n", r.LastSeenAt)
 		fmt.Fprintf(w, "tool_call_count: %d\n", r.ToolCallCount)
 	default:
-		// Defensive: GetRecord only returns *ToolCall or *Session. If a
-		// Unknown record variants fall back to JSON so
-		// the user gets something rather than silence.
+		// Defensive: unknown record variants fall back to JSON so the user
+		// gets something rather than silence.
 		_ = json.NewEncoder(w).Encode(record)
 	}
 }

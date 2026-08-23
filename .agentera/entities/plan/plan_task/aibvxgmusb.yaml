@@ -4,7 +4,7 @@ record:
   name: Restore public CLI and dispatch consistency
   depends_on:
     - yydowzkivo
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN supported help and passthrough invocations WHEN users place owned and wrapped-command flags in documented positions THEN the intended recipient receives them and help never succeeds silently with empty output.
     - GIVEN one command failure WHEN structured diagnostics are emitted THEN exactly one envelope and the correct exit status reach the caller.
@@ -22,3 +22,6 @@ record:
       source: audit ses_fd18d987cffeULmP823C2qSTDw
       recorded_at: 2026-08-23 14:01
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - kifnfrkngw
+  superseded_reason: Completed replacement rejects empty record-stream values while preserving accepted forms and passthrough.

@@ -179,25 +179,18 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 // to the empty string in Go rather than panicking on a NULL-to-string
 // scan error.
 func (d *DB) GetRecordedStreamBySession(sessionID string) (*RecordedStream, error) {
-	var (
-		rs         RecordedStream
-		benchRunID sql.NullString
-	)
-	err := d.db.QueryRow(
+	rs, err := scanRecordedStream(d.db.QueryRow(
 		`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at
 		 FROM recorded_streams WHERE session_id = ?`,
 		sessionID,
-	).Scan(
-		&rs.ID, &rs.SessionID, &benchRunID, &rs.StreamText, &rs.ContentHash, &rs.StreamFormat, &rs.CapturedAt,
-	)
+	))
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("db: get recorded_stream by session %q: %w", sessionID, err)
 	}
-	rs.BenchRunID = benchRunID.String
-	return &rs, nil
+	return rs, nil
 }
 
 // GetRecordedStreamByBenchRun fetches a `recorded_streams` row by
@@ -211,23 +204,28 @@ func (d *DB) GetRecordedStreamBySession(sessionID string) (*RecordedStream, erro
 // NullString is always Valid on the hit path, but the scan shape stays
 // uniform across both getters.
 func (d *DB) GetRecordedStreamByBenchRun(benchRunID string) (*RecordedStream, error) {
-	var (
-		rs   RecordedStream
-		brID sql.NullString
-	)
-	err := d.db.QueryRow(
+	rs, err := scanRecordedStream(d.db.QueryRow(
 		`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at
 		 FROM recorded_streams WHERE bench_run_id = ?`,
 		benchRunID,
-	).Scan(
-		&rs.ID, &rs.SessionID, &brID, &rs.StreamText, &rs.ContentHash, &rs.StreamFormat, &rs.CapturedAt,
-	)
+	))
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("db: get recorded_stream by bench_run %q: %w", benchRunID, err)
 	}
-	rs.BenchRunID = brID.String
+	return rs, nil
+}
+
+func scanRecordedStream(row rowScanner) (*RecordedStream, error) {
+	var (
+		rs         RecordedStream
+		benchRunID sql.NullString
+	)
+	if err := row.Scan(&rs.ID, &rs.SessionID, &benchRunID, &rs.StreamText, &rs.ContentHash, &rs.StreamFormat, &rs.CapturedAt); err != nil {
+		return nil, err
+	}
+	rs.BenchRunID = benchRunID.String
 	return &rs, nil
 }

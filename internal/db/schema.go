@@ -460,10 +460,6 @@ var compressedColumns = []schemaColumn{
 	{Name: "producer", Type: "TEXT"},
 }
 
-// DefaultPath resolves the default database path:
-// $XDG_DATA_HOME/ktx/ktx.db. When XDG_DATA_HOME is unset, it falls back to
-// ~/.local/share/ktx/ktx.db (XDG base directory specification).
-
 // tableColumns returns the set of column names for table. Empty when
 // the table does not exist (PRAGMA table_info returns zero rows for a
 // missing table). The error path is reserved for genuine query/scan

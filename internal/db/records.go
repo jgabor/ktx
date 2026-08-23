@@ -652,8 +652,7 @@ func isErrorSQL(b *bool) any {
 // An empty EndedAt in the output remains a meaningful signal that the
 // session is still open.
 func (d *DB) GetSession(id string) (*Session, error) {
-	var s Session
-	err := d.db.QueryRow(
+	s, err := scanSession(d.db.QueryRow(
 		`SELECT id,
 		        COALESCE(agent, ''),
 		        agent_attribution_authority,
@@ -663,16 +662,14 @@ func (d *DB) GetSession(id string) (*Session, error) {
 		        tool_call_count
 		 FROM sessions WHERE id = ?`,
 		id,
-	).Scan(
-		&s.ID, &s.Agent, &s.AgentAttributionAuthority, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
-	)
+	))
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("db: get session %q: %w", id, err)
 	}
-	return &s, nil
+	return s, nil
 }
 
 // GetRecord fetches a record by id from either the tool_calls or sessions
@@ -727,18 +724,24 @@ func (d *DB) ListSessions() ([]Session, error) {
 
 	sessions := []Session{}
 	for rows.Next() {
-		var s Session
-		if err := rows.Scan(
-			&s.ID, &s.Agent, &s.AgentAttributionAuthority, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount,
-		); err != nil {
+		s, err := scanSession(rows)
+		if err != nil {
 			return nil, fmt.Errorf("db: scan session: %w", err)
 		}
-		sessions = append(sessions, s)
+		sessions = append(sessions, *s)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("db: iterate sessions: %w", err)
 	}
 	return sessions, nil
+}
+
+func scanSession(row rowScanner) (*Session, error) {
+	var s Session
+	if err := row.Scan(&s.ID, &s.Agent, &s.AgentAttributionAuthority, &s.StartedAt, &s.EndedAt, &s.LastSeenAt, &s.ToolCallCount); err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 // deriveCost fills tc.Cost from cached provider and model prices when the

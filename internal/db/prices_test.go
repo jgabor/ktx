@@ -175,9 +175,15 @@ func TestPricesParsesCacheRatesContextTiersAndLegacyFiles(t *testing.T) {
 
 func TestPriceSelectRatesAtContextThreshold(t *testing.T) {
 	read, write := .25, 3.125
-	record := Price{Input: 2.5, Output: 15, CacheRead: &read, CacheWrite: &write, Tiers: []PriceTier{{Tier: PriceTierSelector{Type: "context", Size: 272000}, Input: 5, Output: 22.5}}}
-	if got := record.SelectRates(271999); got.Input != 2.5 {
-		t.Fatalf("below threshold input = %v", got.Input)
+	record := Price{Input: 2.5, Output: 15, CacheRead: &read, CacheWrite: &write, ContextOver200K: &PriceRates{Input: 4}, Tiers: []PriceTier{{Tier: PriceTierSelector{Type: "context", Size: 272000}, Input: 5, Output: 22.5}}}
+	if got := record.SelectRates(200000); got.Input != 2.5 {
+		t.Fatalf("at legacy threshold input = %v", got.Input)
+	}
+	if got := record.SelectRates(200001); got.Input != 4 {
+		t.Fatalf("above legacy threshold input = %v", got.Input)
+	}
+	if got := record.SelectRates(271999); got.Input != 4 {
+		t.Fatalf("below context tier input = %v", got.Input)
 	}
 	if got := record.SelectRates(272000); got.Input != 5 {
 		t.Fatalf("at threshold input = %v", got.Input)

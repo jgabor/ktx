@@ -238,19 +238,9 @@ func (t PriceTier) MarshalJSON() ([]byte, error) {
 	}{t.Tier, input, output, t.CacheRead, t.CacheWrite, t.Reasoning})
 }
 
-// PriceRateSelection records which retained price record applies to a token
-// count. The base, a supported context tier, and the legacy context-over-200K
-// record are distinct provenance cases.
-type PriceRateSelection struct {
-	Rates             PriceRates
-	Basis             string
-	ContextTierSize   *int64
-	ContextTokenCount int64
-}
-
-// SelectRatesWithProvenance applies the same supported tier selection as
-// SelectRates and retains the selected record's provenance.
-func (p Price) SelectRatesWithProvenance(contextTokens int64) PriceRateSelection {
+// SelectRates applies supported context tiers. A tier begins at its declared
+// context size; unsupported tier types are ignored.
+func (p Price) SelectRates(contextTokens int64) PriceRates {
 	rates := PriceRates{Input: p.Input, Output: p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, InputSet: p.InputSet, OutputSet: p.OutputSet}
 	selectedTier := false
 	var selectedSize int64
@@ -261,22 +251,13 @@ func (p Price) SelectRatesWithProvenance(contextTokens int64) PriceRateSelection
 			selectedSize = tier.Tier.Size
 		}
 	}
-	selection := PriceRateSelection{Rates: rates, Basis: "base", ContextTokenCount: contextTokens}
 	if selectedTier {
-		size := selectedSize
-		selection.Basis, selection.ContextTierSize = "context_tier", &size
-		return selection
+		return rates
 	}
-	if !selectedTier && contextTokens > 200000 && p.ContextOver200K != nil {
-		selection.Rates, selection.Basis = *p.ContextOver200K, "legacy_context_over_200k"
+	if contextTokens > 200000 && p.ContextOver200K != nil {
+		return *p.ContextOver200K
 	}
-	return selection
-}
-
-// SelectRates applies only models.dev context tiers. A tier begins at its
-// declared context size; unsupported tier types are ignored.
-func (p Price) SelectRates(contextTokens int64) PriceRates {
-	return p.SelectRatesWithProvenance(contextTokens).Rates
+	return rates
 }
 
 // Prices is the parsed price cache plus its on-disk path. The in-memory
@@ -613,19 +594,6 @@ func LoadPrices() (*Prices, error) {
 		pricesInstance = p
 	})
 	return pricesInstance, pricesLoadErr
-}
-
-// LookupPrice is a convenience wrapper that calls LoadPrices and
-// performs the (provider, model) lookup. Returns (0, 0, false) when
-// the cache is unavailable or the (provider, model) entry is missing.
-// This is the soft-fail surface used by PersistToolCall: callers do
-// not need to distinguish "cache unavailable" from "price unknown".
-func LookupPrice(provider, model string) (input, output float64, ok bool) {
-	p, err := LoadPrices()
-	if err != nil || p == nil || p.path == "" {
-		return 0, 0, false
-	}
-	return p.Lookup(provider, model)
 }
 
 // ResolvePrice returns the complete cached record, fetching only when the cache

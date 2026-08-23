@@ -24,10 +24,8 @@
 // The command does not verify content_hash; it is a retrieval primitive and
 // returns the stored original.
 //
-// Registration: needsDB=true (one read against the compressed table
-// + one read against tool_calls), passthroughStdout=true (raw bytes,
-// no JSON envelope — distinct from `ktx compress` which prints a
-// JSON-encoded id).
+// Registration uses read-only database access and passthrough stdout because
+// the command returns raw bytes rather than a JSON envelope.
 package cli
 
 import (

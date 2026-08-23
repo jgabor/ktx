@@ -276,21 +276,18 @@ func (w *HookWriter) GetCompressedBySource(sourceID string) (*Compressed, error)
 // missing compressed id to exit 2 (the `ktx decompress` not-found
 // path). The returned struct mirrors the persisted row's JSON shape.
 func (d *DB) GetCompressed(id string) (*Compressed, error) {
-	var c Compressed
-	err := d.db.QueryRow(
+	c, err := scanCompressed(d.db.QueryRow(
 		`SELECT id, source_id, output, content_hash, pipeline, timestamp, producer
 		 FROM compressed WHERE id = ?`,
 		id,
-	).Scan(
-		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp, &c.Producer,
-	)
+	))
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("db: get compressed %q: %w", id, err)
 	}
-	return &c, nil
+	return c, nil
 }
 
 // GetCompressedBySource fetches the first compressed artifact for a source
@@ -298,20 +295,25 @@ func (d *DB) GetCompressed(id string) (*Compressed, error) {
 // explicit recompression cannot replace delivery authority. Returns ErrNotFound
 // when no compressed artifact exists for the source.
 func (d *DB) GetCompressedBySource(sourceID string) (*Compressed, error) {
-	var c Compressed
-	err := d.db.QueryRow(
+	c, err := scanCompressed(d.db.QueryRow(
 		`SELECT id, source_id, output, content_hash, pipeline, timestamp, producer
 		 FROM compressed WHERE source_id = ?
 		 ORDER BY timestamp_unix_nano ASC, id ASC LIMIT 1`,
 		sourceID,
-	).Scan(
-		&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp, &c.Producer,
-	)
+	))
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("db: get compressed for source %q: %w", sourceID, err)
+	}
+	return c, nil
+}
+
+func scanCompressed(row rowScanner) (*Compressed, error) {
+	var c Compressed
+	if err := row.Scan(&c.ID, &c.SourceID, &c.Output, &c.ContentHash, &c.Pipeline, &c.Timestamp, &c.Producer); err != nil {
+		return nil, err
 	}
 	return &c, nil
 }

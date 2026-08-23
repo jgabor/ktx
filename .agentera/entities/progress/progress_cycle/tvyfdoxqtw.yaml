@@ -1,0 +1,16 @@
+id: tvyfdoxqtw
+artifact: progress
+record:
+  timestamp: 2026-08-23 16:34
+  type: refactor
+  phase: build
+  what: Consolidated duplicated database row scanners, removed unconsumed pricing surfaces, and recorded current dispositions for all residual review findings.
+  context:
+    intent: Remove only residual duplication and dead surfaces justified by the review caller matrix.
+    constraints: Preserve completed replacement task state, compatibility callers, database safety, benchmark methodology, and unrelated code.
+    unknowns: Decision detail remains degraded and was not reconstructed; profile state remains stale and was not refreshed.
+    scope: REVIEW.md items 3.3 through 3.9 only.
+  discovered: Flag setup, token estimates, parser facades, test wrappers, query interfaces, and historical evidence remain distinct because of current command, unit, package-boundary, compatibility, snapshot, or evidence contracts.
+  verified: "PASS: focused database normal/adverse contract checks for bench runs, compressed artifacts, recorded streams, sessions, and price-tier selection. PASS: internal/db full package tests. PASS: mage check across tests, vet, lint, and build; verification audit reported 0 forbidden database operations with KTX_DB unset and disposable HOME/XDG roots."
+  next: Leave plan task fwbcuzfnqn in progress for audit.
+  publication_order: 150

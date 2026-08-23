@@ -552,33 +552,10 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		// coordination.
 		execution, pipelineErr = compressPipelineWithConfig(&tc, cfg, nil, stderr, true)
 	}
+	execution = applyRecoveryCueGate(execution, sourceID, tc.Output)
 	compressedOutput := execution.output
 	pipeJSON := execution.artifactPipelineRecord()
 	transformed := execution.transformed
-
-	// Footer-aware second gate. Fires only when recover_footer is
-	// enabled, the pipeline transformed the output, and the structure guard did
-	// not repair it. Repaired structure stays undecorated and valid. The pipeline
-	// Runner's byte-gate already
-	// fired inside compressPipeline (it discards results not smaller
-	// than the input). This second gate accounts for the footer's own
-	// byte overhead: when len(compressed)+len(footer) >= len(original),
-	// the transform is suppressed — source returned unchanged, no
-	// footer, no compressed row. The footer lives only in the
-	// agent-visible envelope.Output; the persisted Compressed.Output
-	// stays content-only.
-	envelopeOutput := compressedOutput
-	if execution.recoverFooter && transformed && !execution.structuredFallback {
-		footer := buildRecoveryFooter(sourceID, len(tc.Output), len(compressedOutput))
-		if len(compressedOutput)+len(footer) >= len(tc.Output) {
-			transformed = false
-			execution.antiWorseningRejected = true
-			envelopeOutput = tc.Output
-			compressedOutput = tc.Output
-		} else {
-			envelopeOutput = compressedOutput + footer
-		}
-	}
 	if preflight.complete && (preflight.result.Transformed || !transformed) {
 		if configErr != nil && !preflight.result.Transformed {
 			return nil, usageError("%v", configErr)
@@ -666,7 +643,6 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		}
 		return nil, usageError("%v", configErr)
 	}
-	_ = envelopeOutput
 	if err := retainRecoveryAttempt(db, collectionID, isOpenCode && src.Eligible, &tc); err != nil {
 		return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 	}
@@ -824,10 +800,7 @@ func writeHookResult(stdout io.Writer, isCodex, trusted bool, result evidence.Re
 	structuredFallback, _ := pipeline.StructuredFallbackFromRecord(result.ArtifactPipeline)
 	output := result.Output
 	if result.Transformed && execution.recoverFooter && !structuredFallback {
-		footer := buildRecoveryFooter(result.SourceID, len(original), len(result.Output))
-		if len(result.Output)+len(footer) < len(original) {
-			output += footer
-		}
+		output, _ = recoveryCueOutput(result.SourceID, original, result.Output)
 	}
 	if trusted {
 		return writeTrustedHookOutput(stdout, isCodex, result, output, runtimeSessionID, runtimeCallID, result.Transformed && execution.recoverFooter && strings.Contains(output, "`ktx read "+result.SourceID+"`"))
@@ -842,6 +815,29 @@ func writeHookResult(stdout io.Writer, isCodex, trusted bool, result evidence.Re
 		return internalError("ktx hook: write envelope: %v", err)
 	}
 	return nil
+}
+
+func applyRecoveryCueGate(execution pipelineExecution, sourceID, original string) pipelineExecution {
+	if !execution.transformed || !execution.recoverFooter || execution.structuredFallback {
+		return execution
+	}
+	if _, ok := recoveryCueOutput(sourceID, original, execution.output); ok {
+		return execution
+	}
+	execution.output = original
+	execution.stages = nil
+	execution.transformed = false
+	execution.structuredFallback = false
+	execution.antiWorseningRejected = true
+	return execution
+}
+
+func recoveryCueOutput(sourceID, original, compressed string) (string, bool) {
+	footer := buildRecoveryFooter(sourceID, len(original), len(compressed))
+	if len(compressed)+len(footer) >= len(original) {
+		return original, false
+	}
+	return compressed + footer, true
 }
 
 // buildRecoveryFooter produces a single-line recovery footer appended to

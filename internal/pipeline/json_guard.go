@@ -26,10 +26,10 @@ func recognizeJSON(input []byte) (recognizedJSON, bool) {
 	if len(input) == 0 || !utf8.Valid(input) {
 		return recognizedJSON{}, false
 	}
-	if compact, ok := compactJSON(input); ok {
-		return recognizedJSON{shape: jsonSingle, faithful: compact}, true
-	}
-	if compact, records, ok := compactJSONLines(input); ok && records > 1 {
+	if compact, records, ok := CompactJSON(input); ok {
+		if records == 1 {
+			return recognizedJSON{shape: jsonSingle, faithful: compact}, true
+		}
 		return recognizedJSON{shape: jsonLines, faithful: compact}, true
 	}
 
@@ -120,6 +120,19 @@ func compactJSONLines(input []byte) ([]byte, int, bool) {
 		out.WriteByte('\n')
 	}
 	return out.Bytes(), len(lines), true
+}
+
+// CompactJSON compacts one complete JSON value or an NDJSON stream whose
+// physical lines are all non-blank complete JSON values. It preserves an
+// NDJSON stream's final newline and returns its record count.
+func CompactJSON(input []byte) ([]byte, int, bool) {
+	if len(input) == 0 || !utf8.Valid(input) {
+		return nil, 0, false
+	}
+	if compact, ok := compactJSON(input); ok {
+		return compact, 1, true
+	}
+	return compactJSONLines(input)
 }
 
 func trimJSONSpace(input []byte) []byte {

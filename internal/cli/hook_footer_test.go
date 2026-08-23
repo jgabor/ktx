@@ -38,6 +38,34 @@ func TestBuildRecoveryFooter_ContainsRecoveryCommand(t *testing.T) {
 	}
 }
 
+func TestRecoveryCueOutput_SizeBoundary(t *testing.T) {
+	compressed := "x"
+	original := ""
+	for n := 1; n < 1000; n++ {
+		candidate := strings.Repeat("o", n)
+		if len(compressed)+len(buildRecoveryFooter("boundary", n, len(compressed))) == n {
+			original = candidate
+			break
+		}
+	}
+	if original == "" {
+		t.Fatal("failed to construct equal-size boundary")
+	}
+	if output, ok := recoveryCueOutput("boundary", original, compressed); ok || output != original {
+		t.Fatalf("equal-size cue = (%q, %t), want original and rejected", output, ok)
+	}
+	for {
+		original += "o"
+		if len(compressed)+len(buildRecoveryFooter("boundary", len(original), len(compressed))) < len(original) {
+			break
+		}
+	}
+	footer := buildRecoveryFooter("boundary", len(original), len(compressed))
+	if output, ok := recoveryCueOutput("boundary", original, compressed); !ok || output != compressed+footer {
+		t.Fatalf("smaller cue = (%q, %t), want decorated output and accepted", output, ok)
+	}
+}
+
 func TestRecoveryFooter_ProductionBytes(t *testing.T) {
 	want := "\n[ktx] output compressed: 4759 bytes (7% reduction) • get full output with `ktx read comparemiddlexxx`\n"
 	if got := RecoveryFooter("comparemiddlexxx", 5120, 4759); got != want {
@@ -82,6 +110,32 @@ recover_footer = true
 	}
 	if strings.Contains(env.Output, "[ktx]") {
 		t.Errorf("output should NOT contain footer (suppressed): %q", env.Output)
+	}
+}
+
+func TestHook_ConfiguredEmptyInputCreatesNoArtifact(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["json-compact"]
+recover_footer = true
+`)
+	tc := dbpkg.ToolCall{ID: "emptygate1", Tool: "read", Output: "", Timestamp: "2026-08-23T12:00:00Z"}
+	payload, _ := json.Marshal(tc)
+	var stdout, stderr bytes.Buffer
+	if _, err := hookLogic(bytes.NewReader(payload), d, &stdout, &stderr); err != nil {
+		t.Fatalf("hookLogic: %v (stderr=%q)", err, stderr.String())
+	}
+	var env hookEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Output != "" || env.CompressedID != nil {
+		t.Fatalf("envelope = %+v, want empty passthrough without artifact", env)
+	}
+	if _, err := d.GetCompressedBySource(tc.ID); err == nil {
+		t.Fatal("compressed artifact exists for empty passthrough")
 	}
 }
 

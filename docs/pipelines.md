@@ -95,6 +95,13 @@ byte-identical and in order. The normal anti-worsening gate still applies: when
 the faithful rendering is not smaller than the original input, the original
 bytes pass through and no transformation is retained.
 
+Pipeline stages run sequentially in a goroutine. Each stage receives the byte
+slice returned by the previous stage; the runner does not copy stage buffers.
+Stages that need ownership must copy their input. On the configured timeout,
+the caller immediately returns the original bytes. The pipeline goroutine is
+not canceled and can continue until its current work finishes, but its result
+is ignored and is not persisted.
+
 When this guard repairs a result, hook delivery does not append a recovery
 footer because that decoration would invalidate complete JSON or add invalid
 physical NDJSON records. The compressed artifact records that recovery fact.

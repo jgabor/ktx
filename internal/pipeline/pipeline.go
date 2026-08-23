@@ -22,9 +22,9 @@
 //
 //  4. Anti-worsening gate: after all stages run, if the
 //     pipeline result is NOT smaller than the input (len(out) >=
-//     len(in)) AND the input was non-empty, the entire pipeline result
+//     len(in)), the entire pipeline result
 //     is discarded and the input is returned unchanged (with Ran
-//     cleared). A pipeline that grows output — or merely rewrites it
+//     cleared). A pipeline that grows output, preserves empty input, or merely rewrites it
 //     at equal length — did not reduce the agent's context cost, so it
 //     is treated as passthrough (no compressed row). This fires on the
 //     pipeline RESULT, not per-stage; invariants 1–3 still fire
@@ -284,11 +284,9 @@ type Result struct {
 // (empty-output guard, stage-error passthrough, unknown-stage skip)
 // at runtime; see the package doc for the full contract.
 //
-// The runner does NOT mutate the input slice; each stage receives a
-// copy of the previous stage's output. (In practice stages often
-// return slices that alias their input buffer; the runner does not
-// rely on aliasing either way — it passes whatever the previous stage
-// returned to the next stage.)
+// The runner does not mutate stage buffers itself. Each stage receives the
+// previous stage's returned slice, which may alias an earlier buffer. A stage
+// that needs ownership must copy its input.
 //
 // An empty Pipeline (zero stages) is passthrough: the input is returned
 // unchanged and Ran is empty (the no-ktx.toml default).
@@ -343,8 +341,7 @@ func (r *Runner) Run(input []byte) Result {
 
 	// Anti-worsening gate — the fourth conservative-on-failure
 	// invariant (fires on the pipeline RESULT, not
-	// per-stage). When the input was non-empty and the pipeline's
-	// net output is NOT smaller than the input (len(out) >=
+	// per-stage). When the pipeline's net output is NOT smaller than the input (len(out) >=
 	// len(in)), the pipeline did not help: a stage that grows output
 	// is worse than no stage. The gate discards the pipeline's work and
 	// returns the input unchanged. Equal length is treated as "not
@@ -362,10 +359,11 @@ func (r *Runner) Run(input []byte) Result {
 	// (empty-output guard, stage-error passthrough, unknown-stage
 	// skip) still fired during the loop above; the gate is a
 	// post-hoc result-level discard, not a replacement.
-	if len(input) > 0 && len(res.Out) >= len(input) {
+	if len(res.Out) >= len(input) {
 		res.Out = input
 		res.Ran = nil
 		res.AntiWorseningRejected = haveCandidate
+		res.StructuredFallback = false
 	}
 	return res
 }
@@ -432,7 +430,7 @@ func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output 
 		return input, true, false
 	}
 
-	return out, true, true
+	return out, true, !bytes.Equal(out, input)
 }
 
 // EncodePipelineJSON renders the stage-names slice as a JSON array

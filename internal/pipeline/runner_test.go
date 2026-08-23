@@ -52,19 +52,21 @@ func (p panickyStage) Apply([]byte) ([]byte, error) { panic(p.v) }
 
 func TestRun_ProtectsRecognizedJSON(t *testing.T) {
 	tests := []struct {
-		name       string
-		input      string
-		candidate  string
-		want       string
-		wantRan    bool
-		wantReject bool
+		name         string
+		input        string
+		candidate    string
+		want         string
+		wantRan      bool
+		wantReject   bool
+		wantFallback bool
 	}{
 		{
-			name:      "complete value uses faithful compact rendering",
-			input:     "{\n  \"items\": [1, 2, 3],\n  \"message\": \"long enough to shrink\"\n}",
-			candidate: "{\n",
-			want:      `{"items":[1,2,3],"message":"long enough to shrink"}`,
-			wantRan:   true,
+			name:         "complete value uses faithful compact rendering",
+			input:        "{\n  \"items\": [1, 2, 3],\n  \"message\": \"long enough to shrink\"\n}",
+			candidate:    "{\n",
+			want:         `{"items":[1,2,3],"message":"long enough to shrink"}`,
+			wantRan:      true,
+			wantFallback: true,
 		},
 		{
 			name:       "faithful value that is not smaller passes through",
@@ -74,25 +76,28 @@ func TestRun_ProtectsRecognizedJSON(t *testing.T) {
 			wantReject: true,
 		},
 		{
-			name:      "NDJSON preserves every record and final newline",
-			input:     "{ \"first\" : [1, 2, 3] }\n{ \"second\" : \"long value\" }\n",
-			candidate: "{\"first\":\n",
-			want:      "{\"first\":[1,2,3]}\n{\"second\":\"long value\"}\n",
-			wantRan:   true,
+			name:         "NDJSON preserves every record and final newline",
+			input:        "{ \"first\" : [1, 2, 3] }\n{ \"second\" : \"long value\" }\n",
+			candidate:    "{\"first\":\n",
+			want:         "{\"first\":[1,2,3]}\n{\"second\":\"long value\"}\n",
+			wantRan:      true,
+			wantFallback: true,
 		},
 		{
-			name:      "NDJSON preserves absent final newline",
-			input:     "{ \"first\" : [1, 2, 3] }\n{ \"second\" : \"long value\" }",
-			candidate: "{\"first\":\n",
-			want:      "{\"first\":[1,2,3]}\n{\"second\":\"long value\"}",
-			wantRan:   true,
+			name:         "NDJSON preserves absent final newline",
+			input:        "{ \"first\" : [1, 2, 3] }\n{ \"second\" : \"long value\" }",
+			candidate:    "{\"first\":\n",
+			want:         "{\"first\":[1,2,3]}\n{\"second\":\"long value\"}",
+			wantRan:      true,
+			wantFallback: true,
 		},
 		{
-			name:      "JSON prefix preserves trailer bytes",
-			input:     "{\n  \"items\": [1, 2, 3],\n  \"message\": \"long value\"\n}\ntrailer bytes stay here\n",
-			candidate: "{\ntrailer bytes stay here\n",
-			want:      "{\"items\":[1,2,3],\"message\":\"long value\"}\ntrailer bytes stay here\n",
-			wantRan:   true,
+			name:         "JSON prefix preserves trailer bytes",
+			input:        "{\n  \"items\": [1, 2, 3],\n  \"message\": \"long value\"\n}\ntrailer bytes stay here\n",
+			candidate:    "{\ntrailer bytes stay here\n",
+			want:         "{\"items\":[1,2,3],\"message\":\"long value\"}\ntrailer bytes stay here\n",
+			wantRan:      true,
+			wantFallback: true,
 		},
 		{
 			name:      "valid transformed JSON remains unchanged",
@@ -132,6 +137,9 @@ func TestRun_ProtectsRecognizedJSON(t *testing.T) {
 			if res.AntiWorseningRejected != tt.wantReject {
 				t.Errorf("AntiWorseningRejected = %t, want %t", res.AntiWorseningRejected, tt.wantReject)
 			}
+			if res.StructuredFallback != tt.wantFallback {
+				t.Errorf("StructuredFallback = %t, want %t", res.StructuredFallback, tt.wantFallback)
+			}
 			if strings.HasPrefix(tt.name, "complete value") && !json.Valid(res.Out) {
 				t.Errorf("output is malformed JSON: %q", res.Out)
 			}
@@ -167,11 +175,10 @@ func TestRun_LinearChaining(t *testing.T) {
 	reg.Register("c", c)
 
 	r := &Runner{Registry: reg, Pipeline: []string{"a", "b", "c"}}
-	res := r.Run([]byte(""))
+	res := r.Run([]byte("source"))
 
-	// Stage a saw the empty input.
-	if string(a.seen) != "" {
-		t.Errorf("stage a saw %q, want empty", a.seen)
+	if string(a.seen) != "source" {
+		t.Errorf("stage a saw %q, want source", a.seen)
 	}
 	// Stage b saw stage a's output "A".
 	if string(b.seen) != "A" {
@@ -243,8 +250,8 @@ func TestRun_Invariant1_EmptyOutputGuard(t *testing.T) {
 		r := &Runner{Registry: reg, Pipeline: []string{"emptier", "downstream"}}
 		res := r.Run([]byte(""))
 
-		if len(res.Ran) != 2 {
-			t.Errorf("Ran = %v, want [emptier downstream] (both ran)", res.Ran)
+		if len(res.Ran) != 0 {
+			t.Errorf("Ran = %v, want empty after anti-worsening rejection", res.Ran)
 		}
 		// Downstream received the empty output — this is the
 		// edge case the invariant explicitly carves out.
@@ -252,8 +259,8 @@ func TestRun_Invariant1_EmptyOutputGuard(t *testing.T) {
 			t.Errorf("downstream saw %q, want empty (the empty output was preserved)",
 				downstream.seen)
 		}
-		if string(res.Out) != "DOWN" {
-			t.Errorf("final output = %q, want DOWN", res.Out)
+		if len(res.Out) != 0 {
+			t.Errorf("final output = %q, want empty source", res.Out)
 		}
 	})
 }
@@ -328,7 +335,7 @@ func TestRun_Invariant2_StageErrorPassthrough(t *testing.T) {
 		reg.Register("last", last)
 
 		r := &Runner{Registry: reg, Pipeline: []string{"first", "mid", "last"}}
-		res := r.Run([]byte(""))
+		res := r.Run([]byte("source input"))
 
 		// Last stage saw "A" (first's output), not "X" (mid's
 		// discarded output).
@@ -497,14 +504,12 @@ func TestRun_AntiWorseningGate(t *testing.T) {
 		if len(res.Ran) != 0 {
 			t.Errorf("Ran = %v, want empty (equal length → gate discarded)", res.Ran)
 		}
-		if !res.AntiWorseningRejected {
-			t.Error("AntiWorseningRejected = false, want true")
+		if res.AntiWorseningRejected {
+			t.Error("AntiWorseningRejected = true, want false for byte-identical output")
 		}
 	})
 
-	t.Run("empty input → gate does NOT fire", func(t *testing.T) {
-		// Empty input → empty/larger output is a legitimate result;
-		// the gate's len(input) > 0 guard prevents firing.
+	t.Run("empty input cannot produce a larger retained result", func(t *testing.T) {
 		reg := NewRegistry()
 		reg.Register("grow", StageFunc(func(in []byte) ([]byte, error) {
 			return []byte("GROWN"), nil // 5 bytes > 0 (empty input)
@@ -512,14 +517,14 @@ func TestRun_AntiWorseningGate(t *testing.T) {
 		r := &Runner{Registry: reg, Pipeline: []string{"grow"}}
 		res := r.Run([]byte(""))
 
-		if string(res.Out) != "GROWN" {
-			t.Errorf("output = %q, want GROWN (gate must not fire on empty input)", res.Out)
+		if len(res.Out) != 0 {
+			t.Errorf("output = %q, want empty source", res.Out)
 		}
-		if len(res.Ran) != 1 || res.Ran[0] != "grow" {
-			t.Errorf("Ran = %v, want [grow] (empty input → no gate)", res.Ran)
+		if len(res.Ran) != 0 {
+			t.Errorf("Ran = %v, want empty", res.Ran)
 		}
-		if res.AntiWorseningRejected {
-			t.Error("AntiWorseningRejected = true, want false")
+		if !res.AntiWorseningRejected {
+			t.Error("AntiWorseningRejected = false, want true")
 		}
 	})
 

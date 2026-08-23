@@ -4,7 +4,7 @@ record:
   name: Correct pipeline and artifact truth
   depends_on:
     - yydowzkivo
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN empty or unchanged input WHEN configured stages run THEN no transform, compressed artifact, or fallback provenance is reported unless delivered bytes actually differ under the existing gate.
     - GIVEN structured fallback is attempted but later rejected WHEN the result is returned THEN provenance describes the returned bytes rather than an abandoned candidate.

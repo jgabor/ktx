@@ -1,0 +1,15 @@
+id: hscsyhmtly
+artifact: progress
+record:
+  timestamp: 2026-08-23 14:38
+  type: fix
+  phase: build
+  what: Corrected pipeline and artifact truth in internal/pipeline and internal/cli/hook.go.
+  context:
+    intent: Ensure delivered bytes, artifact persistence, and provenance report one truthful result.
+    constraints: Retain timeout and stage-buffer behavior; do not change database, benchmark, durable-write, or record-stream work.
+    unknowns: Task remains in progress for audit.
+    scope: Pipeline result gate, structured fallback, recovery cue, JSON fidelity, tests, REVIEW.md, and pipeline docs.
+  verified: Empty, unchanged, accepted and rejected structured fallback, JSON and NDJSON fidelity, and smaller/equal/larger recovery-cue cases passed. Isolated mage check passed with KTX_DB unset, fresh HOME/XDG roots, and forbidden=0.
+  next: Leave jqwhyyfrto in progress for audit.
+  publication_order: 144

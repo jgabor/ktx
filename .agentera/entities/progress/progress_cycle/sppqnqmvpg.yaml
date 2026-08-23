@@ -1,0 +1,13 @@
+id: sppqnqmvpg
+artifact: progress
+record:
+  timestamp: 2026-08-23 16:19
+  type: fix
+  phase: build
+  what: Rejected explicit empty record-stream values while preserving bare, boolean, numeric, and wrapped-command forms.
+  context:
+    intent: Resolve only replacement task kifnfrkngw without superseding its blocked predecessor.
+    constraints: No other CLI behavior, downstream task, profile state, or live database access changed.
+  verified: Focused TestPublicDispatchContracts and TestRunWith_RunDispatched passed. The local build returned exit 1 and exactly one usage JSON diagnostic for --record-stream=. Isolated mage check passed with 0 issues, KTX_DB unset, fresh HOME/XDG roots, and forbidden database accesses=0.
+  next: Leave kifnfrkngw in progress for evaluator audit.
+  publication_order: 149

@@ -1,0 +1,13 @@
+id: kifnfrkngw
+artifact: plan
+record:
+  plan: dpvawnikuq
+  name: Reject empty record-stream values
+  status: in_progress
+  depends_on:
+    - yydowzkivo
+  acceptance:
+    - GIVEN an explicit empty record-stream value WHEN ktx parses the run invocation THEN it rejects the malformed value with exactly one usage diagnostic and a nonzero exit status.
+    - GIVEN bare, true, false, 1, and 0 record-stream forms WHEN parsed THEN each documented form remains accepted with its existing meaning.
+    - GIVEN wrapped-command arguments after ktx-owned flags WHEN dispatched THEN they remain unchanged and reach the wrapped command.
+    - GIVEN focused CLI checks and the authoritative repository gate WHEN verification runs under isolated application roots THEN both pass without ambient live-database access.

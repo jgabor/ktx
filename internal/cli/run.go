@@ -124,7 +124,7 @@ func matchRecordStreamFlag(a string) (value, matched bool, err error) {
 	}
 	val := strings.TrimPrefix(a, prefix)
 	switch val {
-	case "true", "1", "":
+	case "true", "1":
 		return true, true, nil
 	case "false", "0":
 		return false, true, nil

@@ -119,20 +119,35 @@ func TestPublicDispatchContracts(t *testing.T) {
 	})
 
 	t.Run("record stream values", func(t *testing.T) {
-		for _, arg := range []string{"--record-stream", "--record-stream=true", "--record-stream=false", "--record-stream=1", "--record-stream=0"} {
-			rest, _, err := parseRunDispatchArgs([]string{arg, "agent", "--child-flag"})
+		for _, tc := range []struct {
+			arg  string
+			want bool
+		}{
+			{arg: "--record-stream", want: true},
+			{arg: "--record-stream=true", want: true},
+			{arg: "--record-stream=false", want: false},
+			{arg: "--record-stream=1", want: true},
+			{arg: "--record-stream=0", want: false},
+		} {
+			rest, parsed, err := parseRunDispatchArgs([]string{tc.arg, "agent", "--child-flag"})
 			if err != nil {
-				t.Errorf("%s: %v", arg, err)
+				t.Errorf("%s: %v", tc.arg, err)
 			}
 			if strings.Join(rest, " ") != "agent --child-flag" {
-				t.Errorf("%s: passthrough args = %q", arg, rest)
+				t.Errorf("%s: passthrough args = %q", tc.arg, rest)
+			}
+			if got := parsed.(runParsedArgs).recordStream; got != tc.want {
+				t.Errorf("%s: recordStream = %t, want %t", tc.arg, got, tc.want)
 			}
 		}
 		var stdout, stderr bytes.Buffer
-		if code := runDispatch("run", []string{"agent", "--record-stream=garbage"}, false, &stdout, &stderr); code != ExitUsage {
+		if code := runDispatch("run", []string{"agent", "--record-stream="}, false, &stdout, &stderr); code != ExitUsage {
 			t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
 		}
-		if !strings.Contains(stderr.String(), "invalid value") {
+		if lines := strings.Count(strings.TrimSpace(stderr.String()), "\n") + 1; lines != 1 {
+			t.Fatalf("diagnostic lines = %d, stderr = %q", lines, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), `invalid value \"\" for --record-stream`) {
 			t.Fatalf("stderr = %q", stderr.String())
 		}
 	})

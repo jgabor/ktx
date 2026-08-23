@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 
@@ -388,6 +389,29 @@ func TestRunWith_RunDispatched(t *testing.T) {
 		}
 		if strings.Contains(stderr.String(), `"code":"internal"`) {
 			t.Errorf("child status should not render an internal error: %q", stderr.String())
+		}
+	})
+
+	t.Run("record-stream leaves child arguments unchanged", func(t *testing.T) {
+		testutil.WithTempXDG(t)
+
+		origRunCmd := runCmd
+		t.Cleanup(func() { runCmd = origRunCmd })
+		var gotName string
+		var gotArgs []string
+		runCmd = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+			gotName = name
+			gotArgs = append([]string(nil), arg...)
+			return exec.CommandContext(ctx, "/bin/true")
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := runWith([]string{"run", "--quiet", "--record-stream=false", "fake-agent", "--child-flag", "value"}, &stdout, &stderr)
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+		}
+		if gotName != "fake-agent" || !slices.Equal(gotArgs, []string{"--child-flag", "value"}) {
+			t.Fatalf("child invocation = %q %q", gotName, gotArgs)
 		}
 	})
 

@@ -334,7 +334,7 @@ func buildDoctorReport() *doctorReport {
 			report.Checks = append(report.Checks, doctorCheck{
 				Name:   "schema_version",
 				Status: doctorStatusWarning,
-				Detail: fmt.Sprintf("database schema %d requires migration to %d; run `ktx db migrate`, then retry", version, maximum),
+				Detail: fmt.Sprintf("database schema %d requires automatic readiness to schema %d before post-readiness inspection", version, maximum),
 			})
 			if report.Status != doctorStatusError {
 				report.Status = doctorStatusDegraded
@@ -617,14 +617,14 @@ func printDoctorText(w io.Writer, report *doctorReport) {
 // printDoctorHelp writes the `ktx doctor --help` text. Mirrors the
 // help style of the other ktx commands.
 func printDoctorHelp(w io.Writer) {
-	fmt.Fprintln(w, "ktx doctor — check ktx health (read-only)")
+	fmt.Fprintln(w, "ktx doctor — check ktx health (read-only after readiness)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx doctor [--format text|json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Runs a read-only health check on the ktx installation. Verifies:")
+	fmt.Fprintln(w, "Automatically prepares a supported older schema, then runs a read-only health check. Verifies:")
 	fmt.Fprintln(w, "  - the database file exists at the resolved path")
 	fmt.Fprintln(w, "  - the database is openable")
-	fmt.Fprintln(w, "  - the schema version is current, requires upgrade, or is newer than this binary supports")
+	fmt.Fprintln(w, "  - readiness produced the current schema, or the schema is newer than this binary supports")
 	fmt.Fprintln(w, "  - the schema matches the expected shape (sessions + tool_calls tables, hard requirement)")
 	fmt.Fprintln(w, "  - the cost-publication columns are present on tool_calls (soft requirement: warning if missing)")
 	fmt.Fprintln(w, "  - the bench_runs table is present with all 14 columns (soft requirement: warning if missing or partial)")
@@ -636,20 +636,20 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Status values:")
 	fmt.Fprintln(w, "  ok        all checks passed")
-	fmt.Fprintln(w, "  degraded  one or more checks are warnings; diagnosis completed without")
-	fmt.Fprintln(w, "            changing the database, but an upgrade may be required")
+	fmt.Fprintln(w, "  degraded  one or more checks are warnings; post-readiness diagnosis completed")
+	fmt.Fprintln(w, "            without changing the database")
 	fmt.Fprintln(w, "  error     one or more checks failed; the system cannot continue")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
-	fmt.Fprintln(w, "  0  status: ok or degraded (read-only diagnosis completed)")
+	fmt.Fprintln(w, "  0  status: ok or degraded (post-readiness read-only diagnosis completed)")
 	fmt.Fprintln(w, "  1  usage error (invalid flag, unexpected argument)")
 	fmt.Fprintln(w, "  4  status: error (one or more hard checks failed)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Doctor is read-only. It does not create the database if it is missing,")
-	fmt.Fprintln(w, "does not migrate, and does not repair. For an older schema, first install")
-	fmt.Fprintln(w, "and verify a compatible binary, then deliberately use an Open-backed command.")
+	fmt.Fprintln(w, "Doctor automatically prepares a supported older schema. Inspection is")
+	fmt.Fprintln(w, "read-only after readiness; a missing database is not created, and Doctor")
+	fmt.Fprintln(w, "does not repair it.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
 }

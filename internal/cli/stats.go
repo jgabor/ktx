@@ -1029,7 +1029,7 @@ func printStatsLiveValidationHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Every hard gate must pass for qualified status. Otherwise the complete structured blocked report is emitted before exit 3.")
 	fmt.Fprintln(w, "Recovery reports identity coverage, distinct cue-follow, and authoritative byte-exact attempt rates separately.")
-	fmt.Fprintln(w, "The command is read-only and does not create, migrate, or update persistent state.")
+	fmt.Fprintln(w, "After automatic readiness, the command is read-only and does not create or update persistent state.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")
 	fmt.Fprintln(w, "  0  help shown or report qualified")

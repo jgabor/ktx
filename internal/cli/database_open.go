@@ -49,9 +49,9 @@ func queryDatabaseOpenError(path, command string, err error) error {
 		if canonicalErr != nil {
 			return internalError("canonicalize migration-required database path: %v", canonicalErr)
 		}
-		correction := fmt.Sprintf("run `ktx db migrate` to upgrade database schema %d to %d, then retry", schemaErr.Actual, schemaErr.Required)
+		correction := fmt.Sprintf("automatic readiness must upgrade database schema %d to %d before the operation can run", schemaErr.Actual, schemaErr.Required)
 		failure := newError(CodeSchemaMigration,
-			"database schema %d at %s requires migration to schema %d before this read-only query; %s",
+			"database schema %d at %s requires automatic readiness to schema %d before this post-readiness read-only query; %s",
 			schemaErr.Actual, canonicalDB, schemaErr.Required, correction)
 		failure.Extra = map[string]any{
 			"actual_schema":   schemaErr.Actual,

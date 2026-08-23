@@ -29,7 +29,7 @@ type SchemaTooOldError struct {
 }
 
 func (e *SchemaTooOldError) Error() string {
-	return fmt.Sprintf("db: schema version %d requires migration to version %d before read-only queries; run `ktx db migrate` and retry", e.Actual, e.Required)
+	return fmt.Sprintf("db: schema version %d requires automatic readiness to version %d before post-readiness read-only queries", e.Actual, e.Required)
 }
 
 func (e *SchemaTooNewError) Error() string {

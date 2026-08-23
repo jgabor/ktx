@@ -193,7 +193,7 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			wantCode:    ExitOK,
 			checkName:   "schema_version",
 			checkStatus: doctorStatusWarning,
-			detail:      "requires migration",
+			detail:      "requires automatic readiness",
 		},
 		{
 			name:        "current schema remains healthy",

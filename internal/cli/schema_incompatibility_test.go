@@ -150,7 +150,7 @@ func TestReadOnlyCommandRequiresExplicitMigrationForOlderSchema(t *testing.T) {
 	if envelope.Error["code"] != string(CodeSchemaMigration) ||
 		envelope.Error["actual_schema"] != float64(dbpkg.MaxSupportedSchema()-1) ||
 		envelope.Error["required_schema"] != float64(dbpkg.MaxSupportedSchema()) ||
-		!strings.Contains(envelope.Error["correction"].(string), "ktx db migrate") {
+		!strings.Contains(envelope.Error["correction"].(string), "automatic readiness") {
 		t.Fatalf("error = %#v", envelope.Error)
 	}
 	if after := directorySnapshot(t, dir); !reflect.DeepEqual(after, before) {

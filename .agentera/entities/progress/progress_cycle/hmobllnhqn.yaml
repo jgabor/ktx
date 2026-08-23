@@ -1,0 +1,14 @@
+id: hmobllnhqn
+artifact: progress
+record:
+  timestamp: 2026-08-23 21:58
+  type: docs
+  phase: build
+  what: Corrected the shipped help and user-facing readiness wording identified by audit-gigbqaqxke-1.
+  context:
+    intent: Make the one bounded help correction and prove the former strings are rejected.
+    constraints: Preserved decisions, runtime proof, newer-schema failure, timeout contract, empirical budgets, evidence harness, implementation control flow, opencode-ktx, task status, and open TODO psosnhyzlq.
+  discovered: The two audited help strings were in internal/cli/doctor.go and internal/cli/stats.go. Narrow shipped-string search also found manual-readiness wording in internal/cli/database_open.go and internal/db/schema.go; only those user-facing messages and the related hook wording were qualified.
+  verified: The focused CLI and DB help/consistency command passed. The first isolated mage check exposed two stale test expectations; after updating those expectations, focused tests and a second isolated mage check passed with KTX_DB unset, fresh HOME and all XDG roots, and forbidden=0.
+  next: Orchestrator audit may reevaluate gigbqaqxke. Leave the task in progress and preserve audit-gigbqaqxke-1 until a new persisted verdict.
+  publication_order: 158

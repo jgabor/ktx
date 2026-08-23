@@ -545,7 +545,7 @@ func (d *DB) WithHookWriter(fn func(*HookWriter) error) error {
 			return newerSchemaError(version)
 		}
 		if version < schemaVersion {
-			return fmt.Errorf("db: hook schema version %d requires migration to version %d", version, schemaVersion)
+			return fmt.Errorf("db: hook schema version %d requires automatic readiness to version %d", version, schemaVersion)
 		}
 		return fn(&HookWriter{db: d})
 	})

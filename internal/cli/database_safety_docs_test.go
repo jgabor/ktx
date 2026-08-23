@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,6 +127,40 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 		} {
 			if strings.Contains(contents, obsolete) {
 				t.Errorf("%s retains stale readiness guidance %q", relative, obsolete)
+			}
+		}
+	}
+
+	helpSurfaces := []struct {
+		name     string
+		render   func(io.Writer)
+		required []string
+		obsolete []string
+	}{
+		{
+			name:     "doctor",
+			render:   printDoctorHelp,
+			required: []string{"Automatically prepares a supported older schema", "read-only after readiness"},
+			obsolete: []string{"Doctor is read-only. It does not create", "does not migrate", "deliberately use an Open-backed command"},
+		},
+		{
+			name:     "stats live-validation",
+			render:   printStatsLiveValidationHelp,
+			required: []string{"After automatic readiness", "read-only"},
+			obsolete: []string{"read-only and does not create, migrate, or update persistent state"},
+		},
+	}
+	for _, surface := range helpSurfaces {
+		var output bytes.Buffer
+		surface.render(&output)
+		for _, required := range surface.required {
+			if !strings.Contains(output.String(), required) {
+				t.Errorf("%s help is missing %q", surface.name, required)
+			}
+		}
+		for _, obsolete := range surface.obsolete {
+			if strings.Contains(output.String(), obsolete) {
+				t.Errorf("%s help retains stale readiness guidance %q", surface.name, obsolete)
 			}
 		}
 	}

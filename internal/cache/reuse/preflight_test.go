@@ -193,6 +193,42 @@ func TestPreflightRejectsWrongPathOrRetentionPolicy(t *testing.T) {
 	}
 }
 
+func TestPreflightRejectsMixedProviderTransports(t *testing.T) {
+	proposal := validProposal()
+	proposal.Paths = append(proposal.Paths, validAnthropicProposal().Paths[0])
+	if _, err := Preflight(proposal, fakeEnvironment{}); err == nil || !strings.Contains(err.Error(), "mixes provider transports") {
+		t.Fatalf("Preflight() error = %v", err)
+	}
+}
+
+func TestCommonProposalValidationAppliesToAllProviders(t *testing.T) {
+	openAI := validProposal()
+	anthropic := validAnthropicProposal()
+	gemini, err := LoadGeminiProposal(filepath.Join("..", "..", "..", "tools", "bench", "evidence", "gemini-opencode-proposal.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateProposal(openAI); err != nil {
+		t.Fatalf("OpenAI accepted case: %v", err)
+	}
+	if err := validateAnthropicProposal(anthropic); err != nil {
+		t.Fatalf("Anthropic accepted case: %v", err)
+	}
+	if err := validateGeminiProposal(gemini); err != nil {
+		t.Fatalf("Gemini accepted case: %v", err)
+	}
+	openAI.Paths[0].References[0] = " "
+	anthropic.Paths[0].References[0] = " "
+	gemini.Paths[0].References[0] = " "
+	for name, err := range map[string]error{
+		"OpenAI": validateProposal(openAI), "Anthropic": validateAnthropicProposal(anthropic), "Gemini": validateGeminiProposal(gemini),
+	} {
+		if err == nil || !strings.Contains(err.Error(), "references must not be blank") {
+			t.Errorf("%s rejected case error = %v", name, err)
+		}
+	}
+}
+
 func TestLoadProposalRejectsUnknownFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "proposal.json")
 	if err := os.WriteFile(path, []byte(`{"schema_version":1,"unexpected":true}`), 0o600); err != nil {

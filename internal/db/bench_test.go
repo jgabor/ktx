@@ -193,6 +193,13 @@ func TestBenchRunReportedZeroKeepsSeparateNonzeroEstimate(t *testing.T) {
 	if missingReported.Cost != nil || missingReported.EstimatedAPICost == nil || *missingReported.EstimatedAPICost != 0.003606 {
 		t.Fatalf("missing reported cost run = %#v", missingReported)
 	}
+	unknownProvider := &BenchRun{ID: "unknown-provider", Agent: "opencode", Model: "gpt", TokensIn: 1000, TokensOut: 50}
+	if err := database.InsertBenchRun(unknownProvider); err != nil {
+		t.Fatal(err)
+	}
+	if unknownProvider.EstimatedAPICost != nil {
+		t.Fatalf("providerless agent derived estimate %v", *unknownProvider.EstimatedAPICost)
+	}
 }
 
 // TestQueryBenchRuns_OrderedByTimestamp covers the "rows array, oldest

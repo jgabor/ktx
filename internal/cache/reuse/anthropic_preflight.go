@@ -2,37 +2,14 @@ package reuse
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
 )
 
 func validateAnthropicProposal(p Proposal) error {
-	if p.SchemaVersion != SchemaVersion {
-		return fmt.Errorf("unsupported schema_version %d", p.SchemaVersion)
-	}
-	if len(p.Paths) != 2 {
-		return fmt.Errorf("anthropic proposal requires exactly one direct and one OpenCode path")
-	}
-	clean := filepath.Clean(p.ArtifactDestination)
-	if clean == "." || filepath.IsAbs(clean) || !strings.HasPrefix(filepath.ToSlash(clean), ".bench-data/cache-evidence/") {
-		return fmt.Errorf("artifact destination must be below .bench-data/cache-evidence")
-	}
-	if len(p.RedactionPolicy) == 0 {
-		return fmt.Errorf("redaction policy is required")
+	if err := validateCommonProposal(proposalCommon(p)); err != nil {
+		return err
 	}
 	seenDirect, seenRuntime := false, false
 	for _, path := range p.Paths {
-		if strings.TrimSpace(path.Source) == "" || strings.TrimSpace(path.Version) == "" || len(path.References) == 0 {
-			return fmt.Errorf("each path requires exact source, version, and references")
-		}
-		for _, reference := range path.References {
-			if strings.TrimSpace(reference) == "" {
-				return fmt.Errorf("evidence references must not be blank")
-			}
-		}
-		if strings.TrimSpace(path.CredentialSource) == "" || strings.TrimSpace(path.CredentialType) == "" {
-			return fmt.Errorf("each path requires credential source and type")
-		}
 		if path.Provider != "anthropic" || path.Model != "claude-sonnet-5" || path.Variant != "" {
 			return fmt.Errorf("anthropic evidence requires anthropic/claude-sonnet-5 without a variant")
 		}

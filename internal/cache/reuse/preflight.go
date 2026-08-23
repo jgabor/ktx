@@ -159,12 +159,9 @@ func LoadProposal(path string) (Proposal, error) {
 }
 
 func Preflight(proposal Proposal, env Environment) (Report, error) {
-	validate := validateProposal
-	for _, path := range proposal.Paths {
-		if path.Transport == "direct_anthropic" {
-			validate = validateAnthropicProposal
-			break
-		}
+	validate, err := proposalValidator(proposal)
+	if err != nil {
+		return Report{}, err
 	}
 	if err := validate(proposal); err != nil {
 		return Report{}, err
@@ -225,33 +222,89 @@ func Preflight(proposal Proposal, env Environment) (Report, error) {
 	return report, nil
 }
 
-func validateProposal(p Proposal) error {
-	if p.SchemaVersion != SchemaVersion {
-		return fmt.Errorf("unsupported schema_version %d", p.SchemaVersion)
+func proposalValidator(p Proposal) (func(Proposal) error, error) {
+	directProvider := ""
+	for _, path := range p.Paths {
+		switch path.Transport {
+		case "direct_openai":
+			if directProvider != "" && directProvider != "openai" {
+				return nil, fmt.Errorf("proposal mixes provider transports")
+			}
+			directProvider = "openai"
+		case "direct_anthropic":
+			if directProvider != "" && directProvider != "anthropic" {
+				return nil, fmt.Errorf("proposal mixes provider transports")
+			}
+			directProvider = "anthropic"
+		}
 	}
-	if len(p.Paths) != 2 {
-		return fmt.Errorf("proposal requires exactly the direct OpenAI and routine OpenCode paths")
+	switch directProvider {
+	case "openai":
+		return validateProposal, nil
+	case "anthropic":
+		return validateAnthropicProposal, nil
+	default:
+		return nil, fmt.Errorf("proposal requires one supported direct provider transport")
 	}
-	clean := filepath.Clean(p.ArtifactDestination)
+}
+
+type commonProposal struct {
+	schemaVersion       int
+	pathCount           int
+	artifactDestination string
+	redactionPolicy     []string
+	paths               []commonPath
+}
+
+type commonPath struct {
+	source, version, credentialSource, credentialType string
+	references                                        []string
+}
+
+func validateCommonProposal(p commonProposal) error {
+	if p.schemaVersion != SchemaVersion {
+		return fmt.Errorf("unsupported schema_version %d", p.schemaVersion)
+	}
+	if p.pathCount != 2 {
+		return fmt.Errorf("proposal requires exactly two paths")
+	}
+	clean := filepath.Clean(p.artifactDestination)
 	if clean == "." || filepath.IsAbs(clean) || !strings.HasPrefix(filepath.ToSlash(clean), ".bench-data/cache-evidence/") {
 		return fmt.Errorf("artifact destination must be below .bench-data/cache-evidence")
 	}
-	if len(p.RedactionPolicy) == 0 {
+	if len(p.redactionPolicy) == 0 {
 		return fmt.Errorf("redaction policy is required")
 	}
-	seen := map[string]bool{}
-	for _, path := range p.Paths {
-		if strings.TrimSpace(path.Source) == "" || strings.TrimSpace(path.Version) == "" || len(path.References) == 0 {
+	for _, path := range p.paths {
+		if strings.TrimSpace(path.source) == "" || strings.TrimSpace(path.version) == "" || len(path.references) == 0 {
 			return fmt.Errorf("each path requires exact source, version, and references")
 		}
-		for _, reference := range path.References {
+		for _, reference := range path.references {
 			if strings.TrimSpace(reference) == "" {
 				return fmt.Errorf("evidence references must not be blank")
 			}
 		}
-		if strings.TrimSpace(path.CredentialSource) == "" || strings.TrimSpace(path.CredentialType) == "" {
+		if strings.TrimSpace(path.credentialSource) == "" || strings.TrimSpace(path.credentialType) == "" {
 			return fmt.Errorf("each path requires credential source and type")
 		}
+	}
+	return nil
+}
+
+func proposalCommon(p Proposal) commonProposal {
+	common := commonProposal{p.SchemaVersion, len(p.Paths), p.ArtifactDestination, p.RedactionPolicy, make([]commonPath, len(p.Paths))}
+	for i, path := range p.Paths {
+		common.paths[i] = commonPath{path.Source, path.Version, path.CredentialSource, path.CredentialType, path.References}
+	}
+	return common
+}
+
+func validateProposal(p Proposal) error {
+	if err := validateCommonProposal(proposalCommon(p)); err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, path := range p.Paths {
 		key := path.Provider + "/" + path.Model + "/" + path.Variant
 		switch path.Transport {
 		case "direct_openai":
@@ -306,20 +359,7 @@ func unenforceableConditions(p Proposal) []string {
 	for _, value := range worstCaseSpend(p.Paths) {
 		spend += value
 	}
-	global := ""
-	switch {
-	case p.Limits.MaxNativeRequests <= 0 || requests > p.Limits.MaxNativeRequests:
-		global = fmt.Sprintf("declared native request ceiling %d cannot cover %d required requests", p.Limits.MaxNativeRequests, requests)
-	case p.Limits.MaxAttempts <= 0 || attempts > p.Limits.MaxAttempts:
-		global = fmt.Sprintf("declared attempt ceiling %d cannot cover %d required attempts", p.Limits.MaxAttempts, attempts)
-	case p.Limits.MaxSpendUSD < 0 || spend > p.Limits.MaxSpendUSD+1e-12:
-		global = fmt.Sprintf("declared spend ceiling %s is below worst-case spend %s", money(p.Limits.MaxSpendUSD), money(spend))
-	default:
-		duration, err := time.ParseDuration(p.Limits.MaxWallTime)
-		if err != nil || duration <= 0 {
-			global = fmt.Sprintf("declared maximum wall time %q is not a positive duration", p.Limits.MaxWallTime)
-		}
-	}
+	global := ceilingCondition(p.Limits, requests, attempts, spend)
 	if global != "" {
 		for i := range conditions {
 			if conditions[i] == "" {
@@ -328,6 +368,23 @@ func unenforceableConditions(p Proposal) []string {
 		}
 	}
 	return conditions
+}
+
+func ceilingCondition(limits Limits, requests, attempts int, spend float64) string {
+	switch {
+	case limits.MaxNativeRequests <= 0 || requests > limits.MaxNativeRequests:
+		return fmt.Sprintf("declared native request ceiling %d cannot cover %d required requests", limits.MaxNativeRequests, requests)
+	case limits.MaxAttempts <= 0 || attempts > limits.MaxAttempts:
+		return fmt.Sprintf("declared attempt ceiling %d cannot cover %d required attempts", limits.MaxAttempts, attempts)
+	case limits.MaxSpendUSD < 0 || spend > limits.MaxSpendUSD+1e-12 || math.IsNaN(spend) || math.IsInf(spend, 0):
+		return fmt.Sprintf("declared spend ceiling %s is below worst-case spend %s", money(limits.MaxSpendUSD), money(spend))
+	default:
+		duration, err := time.ParseDuration(limits.MaxWallTime)
+		if err != nil || duration <= 0 {
+			return fmt.Sprintf("declared maximum wall time %q is not a positive duration", limits.MaxWallTime)
+		}
+	}
+	return ""
 }
 
 func worstCaseSpend(paths []Path) []float64 {

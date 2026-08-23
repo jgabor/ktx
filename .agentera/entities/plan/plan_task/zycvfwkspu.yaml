@@ -4,7 +4,7 @@ record:
   name: Reconcile benchmark, cache, and tooling validation
   depends_on:
     - yydowzkivo
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN each supported cache-control proposal WHEN validated THEN common invariants are identical across providers while provider-specific constraints remain explicit and mixed inputs cannot select validation accidentally.
     - GIVEN preflight and live probe modes WHEN they report environment capabilities THEN network and model-call claims describe the selected mode without implying that live work ran offline.

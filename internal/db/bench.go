@@ -91,9 +91,9 @@ func (d *DB) deriveBenchEstimatedCost(b *BenchRun) {
 	if prices == nil {
 		return
 	}
-	provider := providerModel(b.Model)
-	if prefix, _, ok := strings.Cut(b.Agent, "/"); ok && prefix != "" {
-		provider = prefix
+	provider, _, ok := strings.Cut(b.Agent, "/")
+	if !ok || provider == "" {
+		return
 	}
 	price, ok := prices.LookupRecord(provider, b.Model)
 	if !ok && prices.Cold() {
@@ -105,17 +105,6 @@ func (d *DB) deriveBenchEstimatedCost(b *BenchRun) {
 		return
 	}
 	b.EstimatedAPICost = EstimateAPICost(EstimatedCostInputs{UncachedInput: b.TokensIn, Output: b.TokensOut, Reasoning: b.Reasoning, CacheRead: b.CacheRead, CacheWrite: b.CacheWrite}, price)
-}
-
-// providerModel returns the cache-key provider for a benchmark model.
-func providerModel(model string) string {
-	switch model {
-	case "claude-sonnet-4-20250514":
-		return "anthropic"
-	default:
-		// Benchmark methodologies currently use Anthropic models.
-		return "anthropic"
-	}
 }
 
 // InsertBenchRun persists a single bench_runs row.

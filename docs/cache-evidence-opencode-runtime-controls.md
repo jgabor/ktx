@@ -19,6 +19,13 @@ runtime invocations, two successful model steps, zero intentional retries, 120
 seconds, and zero dollars. Both preflights completed without network activity
 or a model call.
 
+The retained probe's `--preflight` capability line describes only that selected
+mode. It inspects local prerequisites with `network=none model_calls=0`; it does
+not claim that live evidence ran offline. The separate `--live-changed` mode is
+guarded by `KTX_CACHE_PROBE_LIVE=1`, requires bridge networking, and can make one
+model invocation. Its script and hashes are retained historical evidence, so
+this clarification does not rewrite them.
+
 ## Control interpretation
 
 The original ceiling produced one startup failure, two successful model steps

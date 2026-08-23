@@ -1,0 +1,13 @@
+id: psiuxiphau
+artifact: progress
+record:
+  timestamp: 2026-08-23 15:47
+  type: fix
+  phase: build
+  what: Unified cache proposal validation and global ceilings across OpenAI, Anthropic, and Gemini; rejected mixed provider transports; made benchmark cost provider authority explicit; and documented one recommendation authority plus retained probe mode boundaries.
+  context:
+    intent: Resolve only benchmark, cache-control, preflight/probe, provider mapping, and evidence-recipe review findings.
+    constraints: No paid models, network experiments, methodology/schema changes, retained-evidence rewrites, or provider-internal claims.
+  verified: Accepted and rejected common/provider validator cases, mixed-transport rejection, explicit and absent provider mapping, offline probe preflight, and guarded live rejection passed. Isolated mage check passed with 0 issues, KTX_DB unset, fresh HOME/XDG roots, and forbidden database accesses=0. Local ./build/ktx bench compare --preflight --format json returned eligible=true, model_attempts=0, artifact_creation=false.
+  next: Leave zycvfwkspu in progress for audit.
+  publication_order: 147

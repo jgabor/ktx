@@ -17,6 +17,10 @@ Methodology source notes (adapted, not copied):
 ## Named pipelines
 
 Configs live in `tools/bench/pipelines/`. Stage lists are the source of truth.
+This document is the authority for current recipe recommendations. The
+commented copies in `ktx.example.toml` are a retained configuration snapshot,
+not a second recommendation authority; archived benchmark material is also
+historical.
 
 | Pipeline ID              | File                          | Stages                                             | Intent                                                          |
 | ------------------------ | ----------------------------- | -------------------------------------------------- | --------------------------------------------------------------- |

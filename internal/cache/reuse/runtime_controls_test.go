@@ -8,11 +8,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 )
+
+func TestRuntimeControlProbeReportsOnlySelectedOfflineMode(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	probe := filepath.Join(root, "tools", "bench", "evidence", "opencode-runtime-cache-controls", "probe.sh")
+	bin := t.TempDir()
+	docker := filepath.Join(bin, "docker")
+	if err := os.WriteFile(docker, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("bash", probe, "--preflight")
+	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "OPENCODE_API_KEY=dummy")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("preflight: %v: %s", err, out)
+	}
+	if !bytes.Contains(out, []byte("network=none model_calls=0")) {
+		t.Fatalf("preflight report = %q", out)
+	}
+	cmd = exec.Command("bash", probe, "--live-changed")
+	cmd.Env = append(os.Environ(), "OPENCODE_API_KEY=dummy")
+	out, err = cmd.CombinedOutput()
+	if err == nil || len(out) != 0 {
+		t.Fatalf("unguarded live mode error = %v, output = %q", err, out)
+	}
+}
 
 type cacheInput struct {
 	CacheRead  *int64 `json:"cache_read"`

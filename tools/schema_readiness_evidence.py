@@ -26,10 +26,14 @@ PREPARED_MANIFEST = "prepared-fixtures.json"
 APPROVED_LIMITS = {
     "readiness_latency_ns": 35_322_974,
     "exclusive_lock_hold_ns": 101_037_622,
-    "journal_growth_bytes": 10_900,
+    "journal_growth_bytes": 50_000,
     "peak_rss_bytes": 26_557_440,
-    "total_completion_ns": 113_236_942,
+    "total_completion_ns": 400_000_000,
 }
+LIMIT_BASIS = (
+    "user-approved override dated 2026-08-24 after production-shaped bounded migration evidence; "
+    "readiness latency, maximum individual lock, and peak RSS limits are unchanged"
+)
 
 
 def progress(phase, message):
@@ -417,7 +421,8 @@ def measure_prepared(binary, parent, output):
             "warmups_per_workload": 1,
             "measured_samples_per_workload": SAMPLES,
             "poll_interval_seconds": 0.0005,
-            "limit": "approved fixed limits from the retained controlled-host baseline",
+            "limit": "approved fixed limits, including user-approved journal and completion overrides",
+            "limit_basis": LIMIT_BASIS,
             "current_readiness_boundary": "process start through command completion",
             "migration_readiness_boundary": "process start through first successful LOCK_EX",
             "lock_hold_boundary": "maximum individual successful exclusive-lock interval",

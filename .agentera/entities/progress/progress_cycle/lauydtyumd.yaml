@@ -1,0 +1,17 @@
+id: lauydtyumd
+artifact: progress
+record:
+  timestamp: 2026-08-24 00:25
+  type: fix
+  phase: build
+  what: Retained passing production-shaped evidence for the bounded schema-15 migration under the user-approved fixed budgets.
+  context:
+    intent: Synchronize revised numeric authority, executable limits, current documentation, and retained raw evidence without changing migration behavior or other readiness contracts.
+    constraints: Automatic readiness, runtime digest proof, forward-only newer-schema safety, timeout ownership, measurement method, three unchanged limits, and all correctness gates remain authoritative.
+    unknowns: Second-audit verdict remains pending.
+    scope: Decision revision, readiness evidence tool and test, schema-readiness contract, retained baseline report, and verification evidence only.
+  inspiration: The user approved 50,000 bytes for journal growth and 400,000,000 ns for total completion after valid bounded-migration evidence proved the prior two limits described the superseded one-transaction design.
+  discovered: Decision revision cikdaezhqx changes only the journal and completion limits. The retained five-sample maxima are 24,039,592 ns readiness, 41,398,048 ns maximum individual lock, 33,344 bytes journal growth, 21,581,824 bytes peak RSS, and 123,590,682 ns total completion. All migration samples reached schema 16; prepared fixture hashes matched the manifest.
+  verified: The evidence regression passed 2 tests in 0.054 s; focused migration and write tests passed; schema-readiness documentation tests passed; the retained report matched the validated temporary report byte for byte; isolated mage check passed with 0 issues and forbidden=0. All five fixed limits passed.
+  next: Keep plan task pkasagxgjy in progress with its prior failed evaluation until the requested second audit. Preserve the prepared fixture root for that audit.
+  publication_order: 160

@@ -58,14 +58,16 @@ only by the KTX-owned result.
 
 The approved policy uses one isolated controlled host, one warmup and five
 measured samples per workload, and the worst measured value across the
-current-schema and production-shaped workloads. Each release limit is
-`ceil(worst × 1.25)`.
+current-schema and production-shaped workloads. Readiness latency, maximum
+individual lock, and peak RSS retain their approved limits. The user-approved
+fixed journal limit is 50,000 bytes and the fixed total-completion limit is
+400,000,000 ns; these two values supersede only their prior numeric limits.
 
 The controlled host was `allspark`: Linux 7.2.0-1-cachyos, AMD Ryzen 7 9800X3D
 (8 cores, 16 logical CPUs), 32,671,715,328 bytes RAM, and the repository on a
 Btrfs NVMe volume. Samples were pinned to logical CPU 2 with `GOMAXPROCS=1`.
 The measured binary was `build/ktx`, SHA-256
-`755802504a70244d0826d6f0ac2f0be5836de0da9872970763aa9f5148a6e4e6`,
+`cf046b33ee1c6b8160b3b873a695b2b0bbc07ee18e5a204f309194ab88602ac0`,
 build version `dev`, maximum schema 16.
 
 The minimal workload was a 180,224-byte current-schema database with one session
@@ -100,7 +102,7 @@ ends at process exit.
 
 [`notes/schema-readiness-baseline.json`](notes/schema-readiness-baseline.json)
 retains every warmup and measured sample, command stdout, fixture input and
-hash, boundary definition, observed worst value, and derived limit. Regenerate
+hash, boundary definition, observed worst value, fixed limit, and limit basis. Regenerate
 it from an isolated disposable root on the recorded host:
 
 ```sh
@@ -147,16 +149,16 @@ lock interval observed for each sample. Child output and syscall traces spool to
 temporary files while resource polling runs, so trace volume cannot block child
 completion.
 
-| Metric               |   Observed worst |                Derivation |    Release limit |
-| -------------------- | ---------------: | ------------------------: | ---------------: |
-| Readiness latency    |    28,258,379 ns | `ceil(28,258,379 × 1.25)` |    35,322,974 ns |
-| Exclusive lock hold  |    80,830,097 ns | `ceil(80,830,097 × 1.25)` |   101,037,622 ns |
-| Journal growth       |      8,720 bytes |      `ceil(8,720 × 1.25)` |     10,900 bytes |
-| Peak resident memory | 21,245,952 bytes | `ceil(21,245,952 × 1.25)` | 26,557,440 bytes |
-| Total completion     |    90,589,553 ns | `ceil(90,589,553 × 1.25)` |   113,236,942 ns |
+| Metric               |   Observed worst | Limit authority          |    Release limit |
+| -------------------- | ---------------: | ------------------------ | ---------------: |
+| Readiness latency    |    24,039,592 ns | Unchanged approved limit |    35,322,974 ns |
+| Exclusive lock hold  |    41,398,048 ns | Unchanged approved limit |   101,037,622 ns |
+| Journal growth       |     33,344 bytes | User-approved override   |     50,000 bytes |
+| Peak resident memory | 21,581,824 bytes | Unchanged approved limit | 26,557,440 bytes |
+| Total completion     |   123,590,682 ns | User-approved override   |   400,000,000 ns |
 
 A schema release must reproduce the host, fixture, sample count, instrumentation,
-and derivation above. Any measured value above its limit blocks release. A zero
-journal baseline would produce a zero-byte limit; this baseline observed a
-nonzero migration journal. Correctness, interruption recovery, and evidence
-integrity remain independent mandatory gates.
+and fixed-limit comparison above. Any measured value above its limit blocks
+release. The journal and total-completion overrides do not reinterpret earlier
+raw observations. Correctness, interruption recovery, and evidence integrity
+remain independent mandatory gates.

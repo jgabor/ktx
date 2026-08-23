@@ -559,6 +559,21 @@ The verified clean-area list above remains outside the finding matrix. In partic
 indexed recent-window statistics and writer-preferred coordination are already complete
 and are not owned by a remediation task.
 
+### Final integration verification
+
+The finding matrix is fully classified: each item is resolved or retained with a
+current rationale and owner. Focused database, pipeline, configuration, cache, and CLI
+tests passed except for two README contract checks. The same two checks blocked
+`mage check`; its database-safety audit still reported `forbidden=0`. Both failures are
+caused by a concurrent, unrelated README edit that this task must preserve, so final
+integration remains in progress rather than claiming a repository-wide pass.
+
+The built local binary also verified, under disposable application roots, that a schema
+15 read-only query exits 5 without migration, explicit migration advances it to schema
+16 and adds the sortable compressed timestamp, a schema 17 inspection exits 5 without
+lowering the schema, explicit compression recovers the original bytes, and generated
+OpenCode adapter output is written only below the disposable configuration root.
+
 ---
 
 ## 6. Highest-leverage fixes, ranked

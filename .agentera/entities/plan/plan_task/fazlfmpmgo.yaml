@@ -9,7 +9,7 @@ record:
     - ipughkhybu
     - zycvfwkspu
     - fwbcuzfnqn
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN all remediation tasks are complete WHEN focused checks and the authoritative full repository gate run against isolated application roots THEN they pass without accessing the ambient live database.
     - GIVEN database or generated-adapter behavior changed WHEN the built local binary and disposable migration scenarios are exercised THEN forward migration, read-only inspection, recovery, and generated output remain correct.

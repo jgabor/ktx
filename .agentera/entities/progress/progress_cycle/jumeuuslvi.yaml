@@ -1,0 +1,16 @@
+id: jumeuuslvi
+artifact: progress
+record:
+  timestamp: 2026-08-23 16:47
+  type: chore
+  phase: build
+  what: Verified final integration and recorded the preserved README contract-check blocker.
+  context:
+    intent: Verify integration and synchronize truthful current state.
+    constraints: Preserve README.md unchanged; use isolated roots; do not access live configuration or database; do not close the plan.
+    unknowns: Retry state is not recorded. Decision detail remains degraded and profile state remains stale.
+    scope: REVIEW.md, typed plan and progress state, focused checks, full gate, migration, recovery, and generated adapter output.
+  discovered: The finding matrix is fully classified. A concurrent README edit removes two tested contract phrases and is outside this task.
+  verified: go test passed for internal/db, internal/dbreport, internal/pipeline, internal/config, and internal/cache; internal/cli failed only TestBenchPreflightContractSurfacesMatchBehavior/readme and TestEngineeringVerificationDocumentationSurfacesAgree. mage check reported the same failures and forbidden=0. The local binary proved schema 15 read-only rejection without migration, explicit 15 to 16 migration, schema 17 rejection without downgrade, byte-exact decompression, and disposable OpenCode adapter generation.
+  next: Keep fazlfmpmgo in progress for evaluator audit. Reconcile the README contract only with the concurrent edit owner.
+  publication_order: 151

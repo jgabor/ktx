@@ -46,9 +46,12 @@ directory, database, WAL, or SHM file is created.
 Normal write-capable commands and `ktx db migrate` use the same migration code.
 The implementation reads `PRAGMA user_version`, returns immediately for the
 current schema, and rejects a newer schema. An older supported schema is checked
-again under an immediate SQLite transaction, migrated, and assigned the current
-version atomically. A failed migration rolls back schema, rows, indexes,
-associations, and `user_version`.
+again under an immediate SQLite transaction. Most historical migrations publish
+their changes and the new version in one transaction. Schema 15 preparation is
+the exception: it commits resumable row batches while `user_version` remains 15.
+Each failed or interrupted transaction rolls back only its current unit; prior
+committed units remain valid and the next database-backed invocation resumes
+from the durable cursor. Final publication of schema 16 is atomic.
 
 A current-schema hook rechecks `user_version` after it acquires its one
 exclusive evidence-writer window and before it starts source acceptance. If a
@@ -126,6 +129,12 @@ leaves malformed values NULL without changing the text. Artifact
 authority orders by sortable time and then artifact ID, so equivalent timestamp
 formats and equal instants have one deterministic order. Migration does not
 create or infer artifacts, dispositions, recovery evidence, or runtime evidence.
+It scans the compressed primary key forward in fixed-size units and advances its
+migration-specific cursor in the same transaction as each update. New artifact
+writes populate the sortable value during partial progress. Once no key remains
+after the cursor, one final transaction removes the cursor and publishes schema 16. No compressed-timestamp index is created because current queries first
+select by source and the existing source index narrows candidates before
+timestamp and ID ordering.
 
 Supported ktx readers and writers coordinate on the physical database file with
 writer-preferred admission. Once a writer is waiting, later supported readers

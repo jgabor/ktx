@@ -219,11 +219,11 @@ func (d *DB) insertCompressedOnce(c *Compressed, write func(context.Context, fun
 	)
 	err := write(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
-			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, producer)
-			 SELECT ?, ?, ?, ?, ?, ?, ?
-		 WHERE EXISTS (SELECT 1 FROM tool_calls WHERE id = ?)
-		   AND NOT EXISTS (SELECT 1 FROM compressed WHERE source_id = ?)`,
-			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp, c.Producer,
+			`INSERT INTO compressed (id, source_id, output, content_hash, pipeline, timestamp, timestamp_unix_nano, producer)
+			 SELECT ?, ?, ?, ?, ?, ?, ?, ?
+			 WHERE EXISTS (SELECT 1 FROM tool_calls WHERE id = ?)
+			   AND NOT EXISTS (SELECT 1 FROM compressed WHERE source_id = ?)`,
+			c.ID, c.SourceID, c.Output, c.ContentHash, c.Pipeline, c.Timestamp, sortableTimestamp(c.Timestamp), c.Producer,
 			c.SourceID, c.SourceID,
 		)
 		if err != nil {

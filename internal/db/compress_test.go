@@ -13,6 +13,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -163,6 +164,45 @@ func TestInsertCompressed(t *testing.T) {
 			t.Fatal("InsertCompressed with empty source_id succeeded; want programmer error")
 		}
 	})
+}
+
+func TestCompressedWritePathsPersistSortableTimestamp(t *testing.T) {
+	writes := []struct {
+		name  string
+		write func(*DB, *Compressed) error
+	}{
+		{name: "insert", write: func(d *DB, c *Compressed) error { return d.InsertCompressed(c) }},
+		{name: "insert once", write: func(d *DB, c *Compressed) error {
+			_, _, err := d.InsertCompressedOnce(c)
+			return err
+		}},
+	}
+	for _, write := range writes {
+		for _, timestamp := range []string{"2026-06-24T02:00:02.000000123+02:00", "malformed"} {
+			t.Run(write.name+"/"+timestamp, func(t *testing.T) {
+				d := openMemoryDB(t)
+				sourceID := seedToolCallForCompress(t, d)
+				artifact := &Compressed{
+					ID: mustNewID(t), SourceID: sourceID, Output: "short",
+					ContentHash: ContentHash("short"), Pipeline: "[]", Timestamp: timestamp,
+				}
+				if err := write.write(d, artifact); err != nil {
+					t.Fatal(err)
+				}
+				var stored sql.NullInt64
+				if err := d.db.QueryRow(`SELECT timestamp_unix_nano FROM compressed WHERE id = ?`, artifact.ID).Scan(&stored); err != nil {
+					t.Fatal(err)
+				}
+				want := sortableTimestamp(timestamp)
+				if want == nil && stored.Valid {
+					t.Fatalf("sortable timestamp = %d, want NULL", stored.Int64)
+				}
+				if want != nil && (!stored.Valid || stored.Int64 != want.(int64)) {
+					t.Fatalf("sortable timestamp = %v, want %d", stored, want)
+				}
+			})
+		}
+	}
 }
 
 // TestGetCompressed covers the lookup leg of the acceptance contract.

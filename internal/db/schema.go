@@ -12,6 +12,11 @@ const schemaVersion = 16
 
 const compressedTimestampMigrationBatch = 128
 
+const createCompressedTimestampMigration = `CREATE TABLE IF NOT EXISTS compressed_timestamp_migration (
+		singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+		last_id   TEXT
+	)`
+
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
 func MaxSupportedSchema() int { return schemaVersion }
@@ -87,6 +92,16 @@ const createRuntimeEventIndexes = `CREATE INDEX IF NOT EXISTS runtime_events_int
 
 const createRuntimeEventMessageIndex = `CREATE INDEX IF NOT EXISTS runtime_events_interval_message_part_idx
 	ON runtime_events(interval_id, message_id, part_id, ordinal)`
+
+const createCompressionDispositionsTable = `CREATE TABLE IF NOT EXISTS compression_dispositions (
+		source_id    TEXT PRIMARY KEY REFERENCES tool_calls(id),
+		profile      TEXT,
+		route        TEXT CHECK (route IS NULL OR route IN ('matched','default_fallback')),
+		disposition  TEXT NOT NULL CHECK (disposition IN ('artifact_persisted','intentional_passthrough','anti_worsening_rejected')),
+		artifact_id  TEXT REFERENCES compressed(id),
+		observed_at  TEXT NOT NULL,
+		CHECK ((disposition = 'artifact_persisted') = (artifact_id IS NOT NULL))
+	)`
 
 const createSessionTelemetryTable = `CREATE TABLE IF NOT EXISTS session_telemetry (
 		session_id        TEXT NOT NULL REFERENCES sessions(id),
@@ -277,15 +292,7 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS compressed_source_id_idx ON compressed(source_id)`,
 	createRecoveryCueDeliveriesTable,
 	createRecoveryAttemptsTable,
-	`CREATE TABLE IF NOT EXISTS compression_dispositions (
-		source_id    TEXT PRIMARY KEY REFERENCES tool_calls(id),
-		profile      TEXT,
-		route        TEXT CHECK (route IS NULL OR route IN ('matched','default_fallback')),
-		disposition  TEXT NOT NULL CHECK (disposition IN ('artifact_persisted','intentional_passthrough','anti_worsening_rejected')),
-		artifact_id  TEXT REFERENCES compressed(id),
-		observed_at  TEXT NOT NULL,
-		CHECK ((disposition = 'artifact_persisted') = (artifact_id IS NOT NULL))
-	)`,
+	createCompressionDispositionsTable,
 	// recorded_streams: one row per captured
 	// `ktx bench run` invocation (or `ktx run --record-stream`, which
 	// opts in to the same recording without a bench_runs parent). Holds
@@ -574,36 +581,10 @@ func migrateStep(db *sql.DB, apply func(*sql.Tx) error) (bool, error) {
 	return err == nil, err
 }
 
-// migrateCompressedTimestamps keeps schema 15 usable between bounded commits.
-// Valid timestamps gain their sortable value in small transactions; malformed
-// timestamps remain NULL, as they do in a fully migrated database.
+// migrateCompressedTimestampStep keeps schema 15 usable between bounded
+// commits. The migration cursor advances in the same transaction as each row
+// batch. Malformed timestamps remain NULL but still advance the cursor.
 func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
-	ctx := context.Background()
-	added := false
-	if err := withWriteTx(ctx, db, func(tx *sql.Tx) error {
-		for _, statement := range schemaStatements {
-			if _, err := tx.Exec(statement); err != nil {
-				return fmt.Errorf("db: create schema: %w", err)
-			}
-		}
-		columns, err := tableColumns(tx, "compressed")
-		if err != nil {
-			return fmt.Errorf("db: inspect compressed: %w", err)
-		}
-		if _, ok := columns["timestamp_unix_nano"]; !ok {
-			if _, err := tx.Exec(`ALTER TABLE compressed ADD COLUMN timestamp_unix_nano INTEGER`); err != nil {
-				return fmt.Errorf("db: add compressed sortable timestamp: %w", err)
-			}
-			added = true
-		}
-		return nil
-	}); err != nil {
-		return false, err
-	}
-	if added {
-		return false, nil
-	}
-
 	updated, err := migrateCompressedTimestampBatch(db)
 	if err != nil {
 		return false, err
@@ -612,6 +593,8 @@ func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
 		return false, nil
 	}
 
+	ctx := context.Background()
+	remaining := false
 	err = withWriteTx(ctx, db, func(tx *sql.Tx) error {
 		var version int
 		if err := tx.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
@@ -626,32 +609,139 @@ func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
 		if version != 15 {
 			return fmt.Errorf("db: schema changed from 15 to %d during migration", version)
 		}
-		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS compressed_timestamp_unix_nano_idx ON compressed(timestamp_unix_nano)`); err != nil {
-			return fmt.Errorf("db: index compressed sortable timestamps: %w", err)
+
+		var lastID sql.NullString
+		if err := tx.QueryRow(`SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
+			return fmt.Errorf("db: read compressed timestamp migration cursor: %w", err)
+		}
+		query := `SELECT 1 FROM compressed LIMIT 1`
+		var args []any
+		if lastID.Valid {
+			query = `SELECT 1 FROM compressed WHERE id > ? LIMIT 1`
+			args = append(args, lastID.String)
+		}
+		var one int
+		if err := tx.QueryRow(query, args...).Scan(&one); err == nil {
+			remaining = true
+			return nil
+		} else if err != sql.ErrNoRows {
+			return fmt.Errorf("db: check compressed timestamp migration completion: %w", err)
+		}
+		if _, err := tx.Exec(`DROP TABLE compressed_timestamp_migration`); err != nil {
+			return fmt.Errorf("db: remove compressed timestamp migration cursor: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
 			return fmt.Errorf("db: set schema version: %w", err)
 		}
 		return nil
 	})
+	if remaining {
+		return false, err
+	}
 	return err == nil, err
 }
 
 func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {
 	var updated int64
-	err := withWriteTx(context.Background(), db, func(tx *sql.Tx) error {
+	ctx := context.Background()
+	err := withWriteTx(ctx, db, func(tx *sql.Tx) error {
+		var version int
+		if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+			return fmt.Errorf("db: recheck schema version: %w", err)
+		}
+		if version == schemaVersion {
+			return nil
+		}
+		if version > schemaVersion {
+			return newerSchemaError(version)
+		}
+		if version != 15 {
+			return fmt.Errorf("db: schema changed from 15 to %d during migration", version)
+		}
+		columns, err := tableColumns(tx, "compressed")
+		if err != nil {
+			return fmt.Errorf("db: inspect compressed: %w", err)
+		}
+		if len(columns) == 0 {
+			// A version-only fixture has no history, so the ordinary repair path
+			// is bounded. Real schema-15 databases skip it and only repair the
+			// compressed shape below.
+			if err := migrateTx(tx); err != nil {
+				return fmt.Errorf("db: repair empty schema 15: %w", err)
+			}
+			columns, err = tableColumns(tx, "compressed")
+			if err != nil {
+				return fmt.Errorf("db: inspect repaired compressed table: %w", err)
+			}
+		}
+		if err := addMissingColumns(tx, "compressed", columns, compressedColumns); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(createCompressionDispositionsTable); err != nil {
+			return fmt.Errorf("db: create compression dispositions: %w", err)
+		}
+		if _, err := tx.Exec(createCompressedTimestampMigration); err != nil {
+			return fmt.Errorf("db: create compressed timestamp migration cursor: %w", err)
+		}
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO compressed_timestamp_migration (singleton, last_id) VALUES (1, NULL)`); err != nil {
+			return fmt.Errorf("db: initialize compressed timestamp migration cursor: %w", err)
+		}
+
+		var lastID sql.NullString
+		if err := tx.QueryRow(`SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
+			return fmt.Errorf("db: read compressed timestamp migration cursor: %w", err)
+		}
+		query := `SELECT id FROM compressed ORDER BY id LIMIT ?`
+		args := []any{compressedTimestampMigrationBatch}
+		if lastID.Valid {
+			query = `SELECT id FROM compressed WHERE id > ? ORDER BY id LIMIT ?`
+			args = []any{lastID.String, compressedTimestampMigrationBatch}
+		}
+		rows, err := tx.Query(query, args...)
+		if err != nil {
+			return fmt.Errorf("db: select compressed timestamp migration batch: %w", err)
+		}
+		ids := make([]string, 0, compressedTimestampMigrationBatch)
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return fmt.Errorf("db: scan compressed timestamp migration batch: %w", err)
+			}
+			ids = append(ids, id)
+		}
+		if err := rows.Close(); err != nil {
+			return fmt.Errorf("db: close compressed timestamp migration batch: %w", err)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("db: select compressed timestamp migration batch: %w", err)
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+
+		values := make([]any, len(ids))
+		for i := range ids {
+			values[i] = ids[i]
+		}
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
 		result, err := tx.Exec(`UPDATE compressed
 			SET timestamp_unix_nano = ktx_unix_nano(timestamp)
-			WHERE id IN (
-				SELECT id FROM compressed
-				WHERE timestamp_unix_nano IS NULL AND ktx_unix_nano(timestamp) IS NOT NULL
-				ORDER BY id LIMIT ?
-			)`, compressedTimestampMigrationBatch)
+			WHERE id IN (`+placeholders+`)`, values...)
 		if err != nil {
 			return fmt.Errorf("db: backfill compressed sortable timestamps: %w", err)
 		}
 		updated, err = result.RowsAffected()
-		return err
+		if err != nil {
+			return fmt.Errorf("db: inspect compressed timestamp migration batch: %w", err)
+		}
+		if updated != int64(len(ids)) {
+			return fmt.Errorf("db: backfilled %d compressed timestamps, want %d", updated, len(ids))
+		}
+		if _, err := tx.Exec(`UPDATE compressed_timestamp_migration SET last_id = ? WHERE singleton = 1`, ids[len(ids)-1]); err != nil {
+			return fmt.Errorf("db: advance compressed timestamp migration cursor: %w", err)
+		}
+		return nil
 	})
 	return updated, err
 }

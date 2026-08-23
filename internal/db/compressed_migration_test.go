@@ -19,8 +19,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // expectedCompressedColumns mirrors compressedColumns in schema.go (by name)
@@ -103,6 +106,13 @@ func TestSchema15PartialStateReadsWritesAndResumes(t *testing.T) {
 	if updated != compressedTimestampMigrationBatch {
 		t.Fatalf("updated = %d, want %d", updated, compressedTimestampMigrationBatch)
 	}
+	var version int
+	if err := d.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 15 {
+		t.Fatalf("partial schema = %d, want 15", version)
+	}
 
 	first, err := d.GetCompressedBySource(sourceID)
 	if err != nil {
@@ -149,7 +159,7 @@ func TestSchema15PartialStateReadsWritesAndResumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	var version, missing int
+	var missing int
 	if err := d.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
@@ -159,6 +169,226 @@ func TestSchema15PartialStateReadsWritesAndResumes(t *testing.T) {
 	if version != schemaVersion || missing != 0 {
 		t.Fatalf("resumed state: version=%d missing=%d", version, missing)
 	}
+	var migrationTable, timestampIndex int
+	if err := d.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='compressed_timestamp_migration'`).Scan(&migrationTable); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='index' AND name='compressed_timestamp_unix_nano_idx'`).Scan(&timestampIndex); err != nil {
+		t.Fatal(err)
+	}
+	if migrationTable != 0 || timestampIndex != 0 {
+		t.Fatalf("final migration artifacts: table=%d index=%d, want neither", migrationTable, timestampIndex)
+	}
+}
+
+func TestSchema15PartialOrderingHandlesEquivalentInstantsAndMalformedTimestamps(t *testing.T) {
+	d := openMemoryDB(t)
+	sources := seedSessionAndCalls(t, d, []callFixture{
+		{id: "equivinstantsrcx", input: "equivalent", output: "original"},
+		{id: "malformedsrcxxx", input: "malformed", output: "original"},
+		{id: "fillersourcexxxx", input: "fillers", output: "original"},
+	})
+	seedCompressedWithID(t, d, "aaaaaaaaaaaaaaaa", sources[0], "id-winner", "2026-07-21T12:00:00.100000000Z")
+	for i := 0; i < compressedTimestampMigrationBatch-2; i++ {
+		seedCompressedWithID(t, d, fmt.Sprintf("b%015d", i), sources[2], "filler", "2026-07-21T13:00:00Z")
+	}
+	seedCompressedWithID(t, d, "wwwwwwwwwwwwwwww", sources[1], "malformed-winner", "malformed")
+	seedCompressedWithID(t, d, "xxxxxxxxxxxxxxxx", sources[1], "valid", "2026-07-21T11:00:00Z")
+	seedCompressedWithID(t, d, "yyyyyyyyyyyyyyyy", sources[1], "malformed-later", "also-malformed")
+	seedCompressedWithID(t, d, "zzzzzzzzzzzzzzzz", sources[0], "id-loser", "2026-07-21T14:00:00.1+02:00")
+	if _, err := d.db.Exec(`UPDATE compressed SET timestamp_unix_nano = NULL; PRAGMA user_version = 15`); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := migrateCompressedTimestampBatch(d.db)
+	if err != nil || updated != compressedTimestampMigrationBatch {
+		t.Fatalf("migrate batch = %d, %v", updated, err)
+	}
+
+	var migrated, unmigrated sql.NullInt64
+	if err := d.db.QueryRow(`SELECT
+		max(CASE WHEN id='aaaaaaaaaaaaaaaa' THEN timestamp_unix_nano END),
+		max(CASE WHEN id='zzzzzzzzzzzzzzzz' THEN timestamp_unix_nano END)
+		FROM compressed`).Scan(&migrated, &unmigrated); err != nil {
+		t.Fatal(err)
+	}
+	if !migrated.Valid || unmigrated.Valid {
+		t.Fatalf("partial equivalent instants: migrated=%v unmigrated=%v", migrated, unmigrated)
+	}
+	var cursor string
+	if err := d.db.QueryRow(`SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&cursor); err != nil {
+		t.Fatal(err)
+	}
+	if cursor != "wwwwwwwwwwwwwwww" {
+		t.Fatalf("cursor = %q, want malformed row at batch boundary", cursor)
+	}
+
+	for sourceID, wantID := range map[string]string{
+		sources[0]: "aaaaaaaaaaaaaaaa",
+		sources[1]: "wwwwwwwwwwwwwwww",
+	} {
+		got, err := d.GetCompressedBySource(sourceID)
+		if err != nil || got.ID != wantID {
+			t.Fatalf("first artifact for %s = %+v, %v; want %s", sourceID, got, err, wantID)
+		}
+	}
+
+	var sessionID string
+	if err := d.db.QueryRow(`SELECT session_id FROM tool_calls WHERE id = ?`, sources[0]).Scan(&sessionID); err != nil {
+		t.Fatal(err)
+	}
+	observations, err := d.QueryDeliveryObservations(sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delivered := make(map[string]int64, len(observations))
+	for _, observation := range observations {
+		delivered[observation.SourceID] = observation.DeliveredBytes
+	}
+	if delivered[sources[0]] != int64(len("id-winner")) || delivered[sources[1]] != int64(len("malformed-winner")) {
+		t.Fatalf("partial delivery ordering = %#v", delivered)
+	}
+	stats, err := d.StatsRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range stats {
+		switch row.Input {
+		case "equivalent":
+			if row.DeliveredBytes != len("id-winner") {
+				t.Fatalf("equivalent delivered bytes = %d", row.DeliveredBytes)
+			}
+		case "malformed":
+			if row.DeliveredBytes != len("malformed-winner") {
+				t.Fatalf("malformed delivered bytes = %d", row.DeliveredBytes)
+			}
+		}
+	}
+}
+
+func TestSchema15BatchDiscoveryUsesPrimaryKeyCursor(t *testing.T) {
+	d := openMemoryDB(t)
+	assertPlanUsesIndex(t, d.db,
+		`SELECT id FROM compressed WHERE id > ? ORDER BY id LIMIT ?`,
+		"sqlite_autoindex_compressed_1", "aaaaaaaaaaaaaaaa", compressedTimestampMigrationBatch)
+}
+
+func TestSchema15MigrationResumesAfterProcessTermination(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "schema15-killed.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID := seedSessionAndCalls(t, d, []callFixture{{id: "killedmigrations", output: "original"}})[0]
+	rowCount := compressedTimestampMigrationBatch*2 + 3
+	for i := 0; i < rowCount; i++ {
+		seedCompressedWithID(t, d, fmt.Sprintf("k%015d", i), sourceID, fmt.Sprintf("artifact-%d", i), fmt.Sprintf("2026-01-01T00:00:00.%09dZ", i+1))
+	}
+	if _, err := d.db.Exec(`UPDATE compressed SET timestamp_unix_nano = NULL; PRAGMA user_version = 15`); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	marker := filepath.Join(t.TempDir(), "batch-committed")
+	command := exec.Command(os.Args[0], "-test.run=^TestSchema15MigrationProcessHelper$")
+	env := make([]string, 0, len(os.Environ())+3)
+	for _, value := range os.Environ() {
+		if len(value) < len("KTX_DB=") || value[:len("KTX_DB=")] != "KTX_DB=" {
+			env = append(env, value)
+		}
+	}
+	command.Env = append(env,
+		"KTX_SCHEMA15_MIGRATION_HELPER=1",
+		"KTX_SCHEMA15_MIGRATION_PATH="+path,
+		"KTX_SCHEMA15_MIGRATION_MARKER="+marker,
+	)
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		if time.Now().After(deadline) {
+			_ = command.Process.Kill()
+			_ = command.Wait()
+			t.Fatal("migration helper did not commit a batch")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := command.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Wait(); err == nil {
+		t.Fatal("killed migration helper exited successfully")
+	}
+
+	raw, err := sql.Open(sqliteDriver, "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var version, populated int
+	var cursor string
+	if err := raw.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.QueryRow(`SELECT count(*) FROM compressed WHERE timestamp_unix_nano IS NOT NULL`).Scan(&populated); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.QueryRow(`SELECT last_id FROM compressed_timestamp_migration WHERE singleton=1`).Scan(&cursor); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if version != 15 || populated != compressedTimestampMigrationBatch || cursor == "" {
+		t.Fatalf("durable killed state: version=%d populated=%d cursor=%q", version, populated, cursor)
+	}
+
+	d, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	var count, distinct, missing, migrationTable int
+	var integrity string
+	if err := d.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.db.QueryRow(`SELECT count(*), count(DISTINCT id), count(*) FILTER (WHERE timestamp_unix_nano IS NULL) FROM compressed`).Scan(&count, &distinct, &missing); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.db.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='compressed_timestamp_migration'`).Scan(&migrationTable); err != nil {
+		t.Fatal(err)
+	}
+	if version != schemaVersion || count != rowCount || distinct != rowCount || missing != 0 || integrity != "ok" || migrationTable != 0 {
+		t.Fatalf("resumed state: version=%d count=%d distinct=%d missing=%d integrity=%q migration_table=%d", version, count, distinct, missing, integrity, migrationTable)
+	}
+}
+
+func TestSchema15MigrationProcessHelper(t *testing.T) {
+	if os.Getenv("KTX_SCHEMA15_MIGRATION_HELPER") != "1" {
+		return
+	}
+	database, err := sql.Open(sqliteDriver, "file:"+os.Getenv("KTX_SCHEMA15_MIGRATION_PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.SetMaxOpenConns(1)
+	if updated, err := migrateCompressedTimestampBatch(database); err != nil || updated != compressedTimestampMigrationBatch {
+		t.Fatalf("migration batch = %d, %v", updated, err)
+	}
+	if err := os.WriteFile(os.Getenv("KTX_SCHEMA15_MIGRATION_MARKER"), []byte("committed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {}
 }
 
 // TestCompressedMigration_FreshDB covers the "fresh database created by

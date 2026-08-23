@@ -23,6 +23,12 @@ read-only behavior. The former rule that queries and `doctor` report
 `ktx db migrate` can remain an explicit diagnostic or rehearsal surface, but it
 is never a prerequisite for normal use.
 
+Schema 15 preparation commits at most 128 compressed rows per unit and advances
+its primary-key cursor in the same transaction. Valid timestamps receive their
+sortable form, malformed timestamps remain null but still advance the cursor,
+and new artifacts populate both timestamp forms. One final transaction removes
+the cursor and publishes schema 16. It does not build a history-sized index.
+
 Ambient Open-backed access still requires the per-invocation runtime digest
 proof before path inspection, directory creation, SQLite open, or preparation.
 Explicit disposable or operator-owned paths retain their existing ownership
@@ -82,13 +88,15 @@ per generated source using the same timestamp, after which
 `compressed.timestamp_unix_nano` is dropped and `user_version` is set to 15.
 
 The current-schema probe ran `ktx list --format json`. The migration probe ran
-`ktx db --path <copy> migrate` against a fresh reflink copy for each sample and
-verified schema 16 afterward. `strace -ttt -e trace=fcntl,flock` measured lock
-ownership, a 0.5 ms poll measured peak RSS and journal/WAL/SHM growth, and a
+`ktx db --path <copy> migrate` against a fresh disposable copy for each sample
+and verified schema 16 afterward. `strace -ttt -e trace=fcntl,flock` measured
+each successful exclusive-lock interval; the sample records the maximum
+individual interval rather than the span from the first lock through the last
+unlock. A 0.5 ms poll measured peak RSS and journal/WAL/SHM growth, and a
 monotonic clock measured readiness and completion. For a current-schema no-op,
 readiness completion and command completion are the same boundary. For
-migration, readiness ends at writer-lock acquisition and completion ends at
-process exit.
+migration, readiness ends at the first writer-lock acquisition and completion
+ends at process exit.
 
 [`notes/schema-readiness-baseline.json`](notes/schema-readiness-baseline.json)
 retains every warmup and measured sample, command stdout, fixture input and
@@ -102,18 +110,40 @@ env -u KTX_DB \
   HOME="$root/home" XDG_DATA_HOME="$root/data" \
   XDG_CONFIG_HOME="$root/config" XDG_CACHE_HOME="$root/cache" \
   XDG_STATE_HOME="$root/state" TMPDIR="$root/tmp" \
-  python3 tools/schema_readiness_evidence.py \
+  python3 tools/schema_readiness_evidence.py prepare \
+    --binary ./build/ktx \
+    --work-root "$root/work"
+
+env -u KTX_DB \
+  HOME="$root/home" XDG_DATA_HOME="$root/data" \
+  XDG_CONFIG_HOME="$root/config" XDG_CACHE_HOME="$root/cache" \
+  XDG_STATE_HOME="$root/state" TMPDIR="$root/tmp" \
+  python3 tools/schema_readiness_evidence.py smoke \
+    --binary ./build/ktx \
+    --work-root "$root/work"
+
+env -u KTX_DB \
+  HOME="$root/home" XDG_DATA_HOME="$root/data" \
+  XDG_CONFIG_HOME="$root/config" XDG_CACHE_HOME="$root/cache" \
+  XDG_STATE_HOME="$root/state" TMPDIR="$root/tmp" \
+  python3 tools/schema_readiness_evidence.py measure \
     --binary ./build/ktx \
     --work-root "$root/work" \
     --output docs/notes/schema-readiness-baseline.json
 ```
 
-The harness requires Linux `/proc`, `taskset`, `strace`, Python SQLite, and a
-filesystem that supports `cp --reflink=always`. It creates a distinct HOME and
-all XDG roots for every KTX invocation, unsets inherited `KTX_DB`, generates
-only disposable databases beneath `--work-root`, parses timestamped `fcntl` and
-`flock` events, polls RSS and SQLite sidecars every 0.5 ms, and calculates each
-boundary and limit in the retained JSON.
+The harness requires Linux `/proc`, `taskset`, `strace`, Python SQLite, and GNU
+`cp`. Copies use `cp --reflink=auto --sparse=always`: they use copy-on-write on
+the controlled host when available and safely fall back to a sparse copy when
+the work root, including `/tmp`, does not support reflinks. The harness creates
+a distinct HOME and all XDG roots for every KTX invocation, unsets inherited
+`KTX_DB`, generates only disposable databases beneath `--work-root`, parses
+timestamped `fcntl` and `flock` events, polls RSS and SQLite sidecars every 0.5
+ms, and compares each measured metric with the approved limits retained below.
+`prepare` writes `prepared-fixtures.json` only after fixture integrity checks and
+hashes complete. `smoke` and `measure` reuse those fixtures. Each phase and
+sample reports progress to stderr, including the maximum individual exclusive
+lock interval observed for each sample.
 
 | Metric               |   Observed worst |                Derivation |    Release limit |
 | -------------------- | ---------------: | ------------------------: | ---------------: |

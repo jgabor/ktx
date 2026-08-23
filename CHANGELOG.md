@@ -26,7 +26,7 @@
 
 ### Fixed
 
-- Schema 15 preparation now backfills compressed timestamps in bounded durable batches, preserves timestamp ordering during partial progress, resumes automatically, and exposes schema 16 only after completion.
+- Schema 15 preparation now uses an atomic primary-key cursor for bounded compressed-timestamp batches, populates sortable timestamps on every artifact write path, resumes after process termination, and publishes schema 16 without a data-sized final index build.
 - Generated `ktx.ts` callbacks no longer kill KTX after 10 seconds; `ktx hook` retry preflight now uses writer-preferred coordination and stable `database-unavailable` attribution.
 - `ktx run` now rejects an explicit empty `--record-stream=` value while preserving supported boolean and numeric forms and child arguments.
 - Plugin commands now reject malformed configuration without mutation, and durable configuration, price-cache, report, experiment, preflight, and replay-fixture updates publish complete same-directory replacements without treating temporary files as authority.

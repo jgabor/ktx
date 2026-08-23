@@ -8,11 +8,10 @@ import os
 from pathlib import Path
 import platform
 import re
-import shutil
 import sqlite3
 import string
 import subprocess
-import threading
+import sys
 import time
 
 
@@ -22,6 +21,18 @@ TIMESTAMP_START_NS = 1_704_067_200_000_000_000
 TIMESTAMP_STEP_NS = 19_719_224_757_757
 SAMPLES = 5
 CPU = "2"
+PREPARED_MANIFEST = "prepared-fixtures.json"
+APPROVED_LIMITS = {
+    "readiness_latency_ns": 35_322_974,
+    "exclusive_lock_hold_ns": 101_037_622,
+    "journal_growth_bytes": 10_900,
+    "peak_rss_bytes": 26_557_440,
+    "total_completion_ns": 113_236_942,
+}
+
+
+def progress(phase, message):
+    print(f"[{phase}] {message}", file=sys.stderr, flush=True)
 
 
 def roots(parent, name):
@@ -50,11 +61,34 @@ def run(command, env, input_text=None):
     )
 
 
-def digest(path):
+def copy_fixture(source, destination, env, phase):
+    progress(phase, f"copying {source.name} to {destination}")
+    run(
+        [
+            "cp",
+            "--reflink=auto",
+            "--sparse=always",
+            "--",
+            str(source),
+            str(destination),
+        ],
+        env,
+    )
+    progress(phase, f"copied {source.name}")
+
+
+def digest(path, label):
     value = hashlib.sha256()
+    size = path.stat().st_size
+    processed = 0
+    next_progress = 256 * 1024 * 1024
     with path.open("rb") as source:
         while block := source.read(1024 * 1024):
             value.update(block)
+            processed += len(block)
+            if processed >= next_progress:
+                progress("prepare", f"{label} hash {processed}/{size} bytes")
+                next_progress += 256 * 1024 * 1024
     return value.hexdigest()
 
 
@@ -63,7 +97,8 @@ def alpha_id(index):
     return "p" + "".join(alphabet[(index // (26**power)) % 26] for power in range(14, -1, -1))
 
 
-def generate_fixtures(binary, parent):
+def generate_fixtures(binary, parent, payload_count, payload_bytes):
+    progress("prepare", "creating current-schema seed")
     current = parent / "current.db"
     env = roots(parent, "fixture-current")
     env["KTX_DB"] = str(current)
@@ -97,35 +132,41 @@ def generate_fixtures(binary, parent):
     minimal_database = sqlite3.connect(minimal)
     database.backup(minimal_database)
     minimal_database.close()
-    rows = (
-        (
-            alpha_id(index),
-            session,
-            "read",
-            f"fixture-{index}",
-            "0" * 64,
-            TIMESTAMP_START_NS + index * TIMESTAMP_STEP_NS,
-            TIMESTAMP_START_NS + index * TIMESTAMP_STEP_NS,
-        )
-        for index in range(PAYLOAD_COUNT)
-    )
     database.execute("BEGIN")
-    database.executemany(
-        """INSERT INTO tool_calls(
-            id,session_id,tool,input,output,content_hash,timestamp,
-            timestamp_unix_nano,event_type,latency_state,latency_unit,
-            latency_authority
-        ) VALUES(?,?,?,?,CAST(zeroblob(1000000) AS TEXT),?,
-            datetime(?/1000000000,'unixepoch'),?,'tool_call','unknown',
-            'milliseconds','unknown')""",
-        rows,
-    )
+    for start in range(0, payload_count, 32):
+        rows = []
+        for index in range(start, min(start + 32, payload_count)):
+            timestamp = TIMESTAMP_START_NS + index * TIMESTAMP_STEP_NS
+            rows.append(
+                (
+                    alpha_id(index),
+                    session,
+                    "read",
+                    f"fixture-{index}",
+                    payload_bytes,
+                    "0" * 64,
+                    timestamp,
+                    timestamp,
+                )
+            )
+        database.executemany(
+            """INSERT INTO tool_calls(
+                id,session_id,tool,input,output,content_hash,timestamp,
+                timestamp_unix_nano,event_type,latency_state,latency_unit,
+                latency_authority
+            ) VALUES(?,?,?,?,CAST(zeroblob(?) AS TEXT),?,
+                datetime(?/1000000000,'unixepoch'),?,'tool_call','unknown',
+                'milliseconds','unknown')""",
+            rows,
+        )
+        progress("prepare", f"inserted {min(start + 32, payload_count)}/{payload_count} payload rows")
     database.commit()
     database.execute("PRAGMA journal_mode=DELETE")
     database.close()
 
     schema15 = parent / "schema15.db"
-    run(["cp", "--reflink=always", str(current), str(schema15)], roots(parent, "fixture-schema15-copy"))
+    copy_fixture(current, schema15, roots(parent, "fixture-schema15-copy"), "prepare")
+    progress("prepare", "creating physical schema-15 fixture")
     database = sqlite3.connect(schema15)
     database.executescript(
         """BEGIN;
@@ -142,7 +183,26 @@ def generate_fixtures(binary, parent):
         COMMIT;"""
     )
     database.close()
-    return minimal, current, schema15
+    fixtures = {
+        "minimal": fixture_record(minimal, "tool_calls", "timestamp", "minimal"),
+        "current": fixture_record(current, "tool_calls", "timestamp", "current"),
+        "schema15": fixture_record(schema15, "compressed", "timestamp", "schema15"),
+    }
+    manifest = {
+        "schema_version": 1,
+        "fixture_inputs": {
+            "payload_count": payload_count,
+            "payload_bytes_each": payload_bytes,
+            "timestamp_start_unix_nano": TIMESTAMP_START_NS,
+            "timestamp_step_nanoseconds": TIMESTAMP_STEP_NS,
+        },
+        "fixtures": fixtures,
+    }
+    manifest_path = parent / PREPARED_MANIFEST
+    temporary = manifest_path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(manifest, indent=2) + "\n")
+    os.replace(temporary, manifest_path)
+    progress("prepare", f"prepared fixtures recorded in {manifest_path}")
 
 
 def rss_tree(pid):
@@ -164,6 +224,43 @@ def rss_tree(pid):
         except (FileNotFoundError, ProcessLookupError):
             pass
     return total
+
+
+def exclusive_lock_observations(stderr, lock_kind):
+    active = {}
+    starts = []
+    intervals = []
+    for line in stderr.splitlines():
+        timestamp = re.search(r"(?:\[pid +(\d+)\] )?(\d+\.\d+)", line)
+        if not timestamp:
+            continue
+        pid = timestamp.group(1) or "main"
+        stamp = float(timestamp.group(2))
+        if lock_kind == "flock":
+            lock = re.search(
+                r"flock\((\d+), (LOCK_EX|LOCK_SH|LOCK_UN)(?:\|LOCK_NB)?\)\s+= 0$",
+                line,
+            )
+            if not lock:
+                continue
+            key = (pid, lock.group(1))
+            exclusive = lock.group(2) == "LOCK_EX"
+        else:
+            lock = re.search(
+                r"fcntl\((\d+), F_SETLKW?, \{l_type=(F_WRLCK|F_RDLCK|F_UNLCK).*\}\)\s+= 0$",
+                line,
+            )
+            if not lock:
+                continue
+            key = (pid, lock.group(1))
+            exclusive = lock.group(2) == "F_WRLCK"
+        if exclusive:
+            if key not in active:
+                active[key] = stamp
+                starts.append(stamp)
+        elif key in active:
+            intervals.append(round((stamp - active.pop(key)) * 1e9))
+    return starts, intervals
 
 
 def measure(command, env, database, lock_kind):
@@ -190,26 +287,11 @@ def measure(command, env, database, lock_kind):
     if process.returncode:
         raise RuntimeError(stderr)
 
-    events = []
-    for line in stderr.splitlines():
-        timestamp = re.search(r"(?:\[pid +\d+\] )?(\d+\.\d+)", line)
-        if not timestamp:
-            continue
-        if lock_kind == "flock":
-            lock = re.search(r"flock\([^,]+, (LOCK_EX|LOCK_UN)", line)
-            if lock:
-                events.append((float(timestamp.group(1)), lock.group(1)))
-        else:
-            lock = re.search(r"fcntl\(.*F_SETLK(?:W)?, \{l_type=(F_[RW]DLCK|F_UNLCK)", line)
-            if lock:
-                events.append((float(timestamp.group(1)), lock.group(1)))
-
-    locked = [stamp for stamp, kind in events if kind != "LOCK_UN" and kind != "F_UNLCK"]
-    unlocked = [stamp for stamp, kind in events if kind == "LOCK_UN" or kind == "F_UNLCK"]
-    lock_hold = round((max(unlocked) - min(locked)) * 1e9) if locked and unlocked else 0
+    lock_starts, lock_intervals = exclusive_lock_observations(stderr, lock_kind)
+    lock_hold = max(lock_intervals, default=0)
     readiness = (
-        max(0, round((min(locked) - started_epoch) * 1e9))
-        if lock_kind == "flock" and locked
+        max(0, round((min(lock_starts) - started_epoch) * 1e9))
+        if lock_kind == "flock" and lock_starts
         else completion
     )
     return {
@@ -218,11 +300,13 @@ def measure(command, env, database, lock_kind):
         "journal_growth_bytes": peak_journal,
         "peak_rss_bytes": peak_rss,
         "total_completion_ns": completion,
+        "exclusive_lock_intervals_ns": lock_intervals,
         "stdout": stdout.strip(),
     }
 
 
-def fixture_record(path, table, timestamp_column):
+def fixture_record(path, table, timestamp_column, label):
+    progress("prepare", f"checking {label} fixture integrity")
     database = sqlite3.connect(path)
     integrity = database.execute("PRAGMA integrity_check").fetchone()[0]
     version = database.execute("PRAGMA user_version").fetchone()[0]
@@ -233,7 +317,7 @@ def fixture_record(path, table, timestamp_column):
     return {
         "path_basename": path.name,
         "bytes": path.stat().st_size,
-        "sha256": digest(path),
+        "sha256": digest(path, label),
         "schema": version,
         "rows": count,
         "payload_bytes": payload,
@@ -243,45 +327,62 @@ def fixture_record(path, table, timestamp_column):
     }
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--binary", required=True, type=Path)
-    parser.add_argument("--work-root", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
-    binary = args.binary.resolve()
-    parent = args.work_root.resolve()
-    parent.mkdir(parents=True, exist_ok=False)
-    minimal, current, schema15 = generate_fixtures(binary, parent)
+def load_prepared(parent):
+    manifest_path = parent / PREPARED_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    if manifest.get("schema_version") != 1:
+        raise SystemExit(f"unsupported prepared-fixture manifest: {manifest_path}")
+    paths = {
+        name: parent / record["path_basename"]
+        for name, record in manifest["fixtures"].items()
+    }
+    missing = [str(path) for path in paths.values() if not path.is_file()]
+    if missing:
+        raise SystemExit("prepared fixture missing: " + ", ".join(missing))
+    return manifest, paths
 
+
+def run_workloads(binary, parent, fixtures, phase, samples):
+    run_name = f"{phase}-{os.getpid()}-{time.time_ns()}"
     workloads = {}
     for name, database in (
-        ("current-minimal", minimal),
-        ("current-production", current),
+        ("current-minimal", fixtures["minimal"]),
+        ("current-production", fixtures["current"]),
     ):
-        samples = []
-        for index in range(SAMPLES + 1):
-            env = roots(parent, f"{name}-{index}")
+        observations = []
+        for index in range(samples):
+            progress(phase, f"{name} sample {index + 1}/{samples}")
+            env = roots(parent, f"{run_name}/{name}-{index}")
             env["KTX_DB"] = str(database)
             sample = measure([str(binary), "list", "--format", "json"], env, database, "fcntl")
-            sample["kind"] = "warmup" if index == 0 else "measured"
-            samples.append(sample)
-        workloads[name] = samples
+            sample["kind"] = "smoke" if phase == "smoke" else ("warmup" if index == 0 else "measured")
+            observations.append(sample)
+            progress(phase, f"{name} sample {index + 1} complete; max lock {sample['exclusive_lock_hold_ns']} ns")
+        workloads[name] = observations
 
     migration_samples = []
-    for index in range(SAMPLES + 1):
-        root = parent / f"migration-{index}"
-        env = roots(parent, f"migration-{index}-roots")
+    for index in range(samples):
+        progress(phase, f"schema15-to-16-production sample {index + 1}/{samples}")
+        root = parent / run_name / f"migration-{index}"
+        env = roots(parent, f"{run_name}/migration-{index}-roots")
         database = root / "schema15.db"
         root.mkdir(parents=True)
-        run(["cp", "--reflink=always", str(schema15), str(database)], env)
+        copy_fixture(fixtures["schema15"], database, env, phase)
         sample = measure(
             [str(binary), "db", "--path", str(database), "migrate"], env, database, "flock"
         )
-        sample["kind"] = "warmup" if index == 0 else "measured"
-        sample["final_schema"] = sqlite3.connect(database).execute("PRAGMA user_version").fetchone()[0]
+        sample["kind"] = "smoke" if phase == "smoke" else ("warmup" if index == 0 else "measured")
+        with sqlite3.connect(database) as migrated:
+            sample["final_schema"] = migrated.execute("PRAGMA user_version").fetchone()[0]
         migration_samples.append(sample)
+        progress(phase, f"schema15-to-16-production sample {index + 1} complete; max lock {sample['exclusive_lock_hold_ns']} ns")
     workloads["schema15-to-16-production"] = migration_samples
+    return workloads
+
+
+def measure_prepared(binary, parent, output):
+    manifest, fixtures = load_prepared(parent)
+    workloads = run_workloads(binary, parent, fixtures, "measure", SAMPLES + 1)
 
     metrics = (
         "readiness_latency_ns",
@@ -292,20 +393,28 @@ def main():
     )
     measured = [sample for samples in workloads.values() for sample in samples if sample["kind"] == "measured"]
     worst = {metric: max(sample[metric] for sample in measured) for metric in metrics}
-    limits = {metric: (value * 125 + 99) // 100 for metric, value in worst.items()}
-    capabilities = json.loads(run([str(binary), "binary-capabilities"], roots(parent, "capabilities")).stdout)
+    limit_checks = {
+        metric: {
+            "observed": worst[metric],
+            "limit": APPROVED_LIMITS[metric],
+            "passed": worst[metric] <= APPROVED_LIMITS[metric],
+        }
+        for metric in metrics
+    }
+    capabilities = json.loads(run([str(binary), "binary-capabilities"], roots(parent, "measure-capabilities")).stdout)
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "policy": {
             "cpu": int(CPU),
             "gomaxprocs": 1,
             "warmups_per_workload": 1,
             "measured_samples_per_workload": SAMPLES,
             "poll_interval_seconds": 0.0005,
-            "limit": "ceil(worst measured value across workloads * 1.25)",
+            "limit": "approved fixed limits from the retained controlled-host baseline",
             "current_readiness_boundary": "process start through command completion",
             "migration_readiness_boundary": "process start through first successful LOCK_EX",
-            "lock_hold_boundary": "first acquired measured lock through final unlock",
+            "lock_hold_boundary": "maximum individual successful exclusive-lock interval",
+            "copy_strategy": "cp --reflink=auto --sparse=always",
         },
         "host": {
             "node": platform.node(),
@@ -314,23 +423,59 @@ def main():
             "processor": platform.processor(),
         },
         "binary": capabilities,
-        "fixture_inputs": {
-            "payload_count": PAYLOAD_COUNT,
-            "payload_bytes_each": PAYLOAD_BYTES,
-            "timestamp_start_unix_nano": TIMESTAMP_START_NS,
-            "timestamp_step_nanoseconds": TIMESTAMP_STEP_NS,
-        },
-        "fixtures": {
-            "minimal": fixture_record(minimal, "tool_calls", "timestamp"),
-            "current": fixture_record(current, "tool_calls", "timestamp"),
-            "schema15": fixture_record(schema15, "compressed", "timestamp"),
-        },
+        "fixture_inputs": manifest["fixture_inputs"],
+        "fixtures": manifest["fixtures"],
         "workloads": workloads,
         "observed_worst": worst,
-        "release_limits": limits,
+        "release_limits": APPROVED_LIMITS,
+        "limit_checks": limit_checks,
+        "release_gate_passed": all(check["passed"] for check in limit_checks.values()),
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2) + "\n")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2) + "\n")
+    progress("measure", f"wrote {output}")
+    if not report["release_gate_passed"]:
+        failed = ", ".join(metric for metric, check in limit_checks.items() if not check["passed"])
+        raise SystemExit(f"schema readiness release limits exceeded: {failed}")
+
+
+def positive_int(value):
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    phases = parser.add_subparsers(dest="phase", required=True)
+    for name in ("prepare", "smoke", "measure"):
+        phase = phases.add_parser(name)
+        phase.add_argument("--binary", required=True, type=Path)
+        phase.add_argument("--work-root", required=True, type=Path)
+        if name == "prepare":
+            phase.add_argument("--payload-count", type=positive_int, default=PAYLOAD_COUNT)
+            phase.add_argument("--payload-bytes", type=positive_int, default=PAYLOAD_BYTES)
+        if name == "measure":
+            phase.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    binary = args.binary.resolve()
+    parent = args.work_root.resolve()
+
+    if args.phase == "prepare":
+        parent.mkdir(parents=True, exist_ok=False)
+        generate_fixtures(binary, parent, args.payload_count, args.payload_bytes)
+        return
+    if not parent.is_dir():
+        raise SystemExit(f"prepared work root does not exist: {parent}")
+    if args.phase == "smoke":
+        _, fixtures = load_prepared(parent)
+        workloads = run_workloads(binary, parent, fixtures, "smoke", 1)
+        if any(sample.get("final_schema") != 16 for sample in workloads["schema15-to-16-production"]):
+            raise SystemExit("schema readiness smoke migration did not publish schema 16")
+        print(json.dumps({"smoke": "passed", "workloads": workloads}, indent=2))
+        return
+    measure_prepared(binary, parent, args.output.resolve())
 
 
 if __name__ == "__main__":

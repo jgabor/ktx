@@ -1,0 +1,12 @@
+id: hrlbdhkmdk
+artifact: progress
+record:
+  timestamp: 2026-08-23 15:29
+  type: fix
+  phase: build
+  what: "Corrected the failed database-authority audit: StatsRows now uses sortable artifact time plus ID; compressed columns participate in shared current-schema diagnosis; schema-15 migration coverage preserves equivalent and malformed timestamp evidence; adverse fixtures now isolate one missing field."
+  context:
+    intent: Correct only the four findings from failed audit attempt audit-tpuxkautye-1.
+  verified: Focused database and doctor tests passed for differently formatted and equal artifact times, missing compressed.timestamp_unix_nano, valid equivalent migration backfill, malformed NULL backfill, and isolated missing-field diagnosis. Isolated mage check passed with 0 issues and forbidden database accesses=0.
+  next: Leave tpuxkautye in progress for re-audit.
+  publication_order: 146

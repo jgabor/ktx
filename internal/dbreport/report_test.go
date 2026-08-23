@@ -16,7 +16,7 @@ import (
 const testSchema = `
 CREATE TABLE sessions (id TEXT PRIMARY KEY, agent TEXT, agent_attribution_authority TEXT NOT NULL DEFAULT 'unknown', started_at TEXT, ended_at TEXT, last_seen_at TEXT, tool_call_count INTEGER DEFAULT 0);
 CREATE TABLE tool_calls (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), tool TEXT, input TEXT, output TEXT, content_hash TEXT, timestamp TEXT, timestamp_unix_nano INTEGER, event_type TEXT DEFAULT 'tool_call', tokens_in INTEGER, tokens_out INTEGER, cost REAL, latency_ms INTEGER, model TEXT, provider TEXT, exit_code INTEGER, is_error INTEGER, runtime TEXT, latency_state TEXT NOT NULL DEFAULT 'unknown', latency_unit TEXT NOT NULL DEFAULT 'milliseconds', latency_authority TEXT NOT NULL DEFAULT 'unknown', producer TEXT);
-CREATE TABLE compressed (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES tool_calls(id), output TEXT, content_hash TEXT, pipeline TEXT, timestamp TEXT, timestamp_unix_nano INTEGER);
+CREATE TABLE compressed (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES tool_calls(id), output TEXT, content_hash TEXT, pipeline TEXT, timestamp TEXT, timestamp_unix_nano INTEGER, producer TEXT);
 CREATE TABLE recorded_streams (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), bench_run_id TEXT, stream_text TEXT, content_hash TEXT, stream_format TEXT, captured_at TEXT);
 PRAGMA user_version = 16;
 `

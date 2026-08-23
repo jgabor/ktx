@@ -69,10 +69,9 @@ func TestStatsRows(t *testing.T) {
 			{id: "dddddddddddddddd", tool: "bash", input: `{"command": "cat file"}`, output: mustLongString(800)},
 		})[0]
 
-		firstTimestamp := "2026-07-12T00:00:01Z"
-		seedCompressedWithID(t, d, "bbbbbbbbbbbbbbbb", sourceID, "same-time larger ID\n", firstTimestamp)
-		seedCompressedWithID(t, d, "aaaaaaaaaaaaaaaa", sourceID, "first output\n", firstTimestamp)
-		seedCompressedWithID(t, d, "cccccccccccccccc", sourceID, "later\n", "2026-07-12T00:00:02Z")
+		seedCompressedWithID(t, d, "bbbbbbbbbbbbbbbb", sourceID, "same-time larger ID\n", "2026-07-12T00:00:00.1Z")
+		seedCompressedWithID(t, d, "aaaaaaaaaaaaaaaa", sourceID, "first output\n", "2026-07-12T00:00:00.100Z")
+		seedCompressedWithID(t, d, "cccccccccccccccc", sourceID, "later\n", "2026-07-12T00:00:00.12Z")
 
 		rows, err := d.StatsRows()
 		if err != nil {

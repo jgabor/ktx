@@ -90,6 +90,9 @@ func init() {
 			expectedSchema["tool_calls"] = append(expectedSchema["tool_calls"], column.Name)
 		}
 	}
+	for _, column := range compressedColumns {
+		expectedSchema["compressed"] = append(expectedSchema["compressed"], column.Name)
+	}
 }
 
 var readableCoreSchema = map[string][]string{

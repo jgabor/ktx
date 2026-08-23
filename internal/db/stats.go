@@ -45,7 +45,7 @@ func (d *DB) StatsRows() ([]StatsRow, error) {
 		       COALESCE(
 			(SELECT LENGTH(c.output) FROM compressed c
 			 WHERE c.source_id = tc.id
-			 ORDER BY c.timestamp ASC, c.id ASC LIMIT 1),
+			 ORDER BY c.timestamp_unix_nano ASC, c.id ASC LIMIT 1),
 			LENGTH(tc.output)
 		       )
 		FROM tool_calls tc

@@ -333,6 +333,18 @@ func TestRunWith_DoctorDispatched(t *testing.T) {
 		)`); err != nil {
 			t.Fatalf("create tool_calls: %v", err)
 		}
+		if _, err := raw.Exec(`CREATE TABLE compressed (
+			id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL REFERENCES tool_calls(id),
+			output TEXT,
+			content_hash TEXT,
+			pipeline TEXT,
+			timestamp TEXT,
+			timestamp_unix_nano INTEGER,
+			producer TEXT
+		)`); err != nil {
+			t.Fatalf("create compressed: %v", err)
+		}
 		// Intentionally do NOT create bench_runs. The doctor
 		// sees an absent bench_runs → warning.
 

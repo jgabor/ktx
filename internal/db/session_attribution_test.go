@@ -149,14 +149,14 @@ func TestSessionAttributionMigrationIsAtomicAndDoesNotTrustLabels(t *testing.T) 
 
 func TestCurrentSchemaMissingAttributionAuthorityFailsClosed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "invalid-current.db")
-	raw, err := sql.Open(sqliteDriver, "file:"+path)
+	database, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, agent TEXT); PRAGMA user_version = 16`); err != nil {
+	if _, err := database.DB().Exec(`ALTER TABLE sessions DROP COLUMN agent_attribution_authority`); err != nil {
 		t.Fatal(err)
 	}
-	if err := raw.Close(); err != nil {
+	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Open(path); err == nil || !strings.Contains(err.Error(), `missing column "agent_attribution_authority"`) {

@@ -125,7 +125,8 @@ columns while preserving the existing inclusive time boundary and malformed
 timestamp exclusion behavior.
 
 Schema 16 adds a nullable nanosecond epoch form of each compressed-artifact
-timestamp. Migration derives it only from retained timestamp text. Artifact
+timestamp. Migration derives valid values only from retained timestamp text and
+leaves malformed values NULL without changing the text. Artifact
 authority orders by sortable time and then artifact ID, so equivalent timestamp
 formats and equal instants have one deterministic order. Migration does not
 create or infer artifacts, dispositions, recovery evidence, or runtime evidence.

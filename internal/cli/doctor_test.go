@@ -205,6 +205,21 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			detail:      "supported schema 16",
 		},
 		{
+			name: "current schema missing compressed field fails closed",
+			seed: func(t *testing.T, path string) {
+				seedDoctorDatabase(t, path, func(d *dbpkg.DB) {
+					if _, err := d.DB().Exec(`ALTER TABLE compressed DROP COLUMN timestamp_unix_nano`); err != nil {
+						t.Fatalf("drop compressed timestamp: %v", err)
+					}
+				})
+			},
+			wantStatus:  doctorStatusError,
+			wantCode:    ExitInternal,
+			checkName:   "schema_valid",
+			checkStatus: doctorStatusError,
+			detail:      "timestamp_unix_nano",
+		},
+		{
 			name: "newer schema is incompatible",
 			seed: func(t *testing.T, path string) {
 				seedDoctorDatabase(t, path, func(d *dbpkg.DB) {

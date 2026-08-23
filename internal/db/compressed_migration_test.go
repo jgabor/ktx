@@ -18,6 +18,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"path/filepath"
 	"testing"
 )
 
@@ -27,6 +28,58 @@ import (
 // partial-forward-fix path both rely on the order being deterministic.
 var expectedCompressedColumns = []string{
 	"id", "source_id", "output", "content_hash", "pipeline", "timestamp", "timestamp_unix_nano", "producer",
+}
+
+func TestSchema15To16BackfillsCompressedTimestampsWithoutChangingEvidence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "schema15.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID := seedSessionAndCalls(t, d, []callFixture{{id: "migrationtimesrc", output: "original"}})[0]
+	seedCompressedWithID(t, d, "aaaaaaaaaaaaaaaa", sourceID, "a", "2026-07-21T12:00:00.1Z")
+	seedCompressedWithID(t, d, "bbbbbbbbbbbbbbbb", sourceID, "b", "2026-07-21T12:00:00.100Z")
+	seedCompressedWithID(t, d, "cccccccccccccccc", sourceID, "c", "malformed")
+	if _, err := d.DB().Exec(`ALTER TABLE compressed DROP COLUMN timestamp_unix_nano; PRAGMA user_version = 15`); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	rows, err := d.DB().Query(`SELECT timestamp, timestamp_unix_nano FROM compressed ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var timestamps []string
+	var sortable []sql.NullInt64
+	for rows.Next() {
+		var text string
+		var value sql.NullInt64
+		if err := rows.Scan(&text, &value); err != nil {
+			t.Fatal(err)
+		}
+		timestamps = append(timestamps, text)
+		sortable = append(sortable, value)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(sortable) != 3 || !sortable[0].Valid || !sortable[1].Valid || sortable[0].Int64 != sortable[1].Int64 || sortable[2].Valid {
+		t.Fatalf("sortable timestamps = %#v, want equal valid values then NULL", sortable)
+	}
+	wantText := []string{"2026-07-21T12:00:00.1Z", "2026-07-21T12:00:00.100Z", "malformed"}
+	for i := range wantText {
+		if timestamps[i] != wantText[i] {
+			t.Fatalf("timestamp[%d] = %q, want %q", i, timestamps[i], wantText[i])
+		}
+	}
 }
 
 // TestCompressedMigration_FreshDB covers the "fresh database created by

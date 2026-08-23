@@ -17,6 +17,7 @@
 package db
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -59,6 +60,25 @@ func TestCheckSchema(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "tool") {
 			t.Errorf("CheckSchema error %q does not name the dropped column 'tool'", err.Error())
+		}
+	})
+
+	t.Run("current schema missing compressed timestamp fails query gate", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing-compressed-field.db")
+		d, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.DB().Exec(`ALTER TABLE compressed DROP COLUMN timestamp_unix_nano`); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = OpenQuery(path)
+		if err == nil || !strings.Contains(err.Error(), `compressed`) || !strings.Contains(err.Error(), `timestamp_unix_nano`) {
+			t.Fatalf("OpenQuery error = %v, want missing compressed.timestamp_unix_nano", err)
 		}
 	})
 }

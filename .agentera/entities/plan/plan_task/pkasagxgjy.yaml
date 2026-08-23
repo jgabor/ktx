@@ -4,7 +4,7 @@ record:
   name: Make schema 15 to 16 compatible and resumable
   depends_on:
     - vivqowyhwf
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN a physical schema-15 database with migration incomplete WHEN queries and statistics run THEN timestamp and ordering behavior remains correct for migrated and unmigrated evidence.
     - GIVEN migration remains incomplete WHEN new evidence is written THEN it satisfies the current representation without making old evidence unreadable.
@@ -22,3 +22,6 @@ record:
       source: audit ses_fcf43613dffe1xnbYEVPBWanwa
       recorded_at: 2026-08-24 00:33
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - wffnnyobft
+  superseded_reason: Completed replacement passed audit and satisfies the full resumable migration contract.

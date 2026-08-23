@@ -105,7 +105,6 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [ ] [id:symvxmfbwz] **Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)
 - [ ] [id:tafkrzkqbh] **Unified hook processing flow** — Separate Codex, OpenCode, and flat payload extraction from the common session resolution, source persistence, compression, artifact persistence, recovery-cue, and envelope-rendering flow. Preserve trusted-ingress identity, first-evidence ownership, and first-compressed-artifact authority. → [Ingress](ARCHITECTURE.md#ingress)
 - [ ] [id:vzottkrauw] **Evidence maintenance boundary** — Run a structured discussion and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)
-- [ ] [id:ihxiqgoalr] [bug] Qualify resumable migration recovery guarantees
 
 ## ✓ Resolved
 
@@ -121,3 +120,4 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [x] [id:cfbgxtzxym] [experiment] **Targeted residual-delivery experiment** — Audited no-change/no-candidate outcome for `read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k`: supported metadata routed a generated case, but neither safe precise subgroup routing nor recurring safe transform reduction was established. No intervention or candidate was selected; no comparison, benchmark, metrics, prospective improvement, default change, provider-internal claim, or collection-continuity claim. Historical descriptive selection, this prospective no-change cycle, and future continuity-qualified default evidence remain separate claim classes. Retained evidence: `targeted-residual-final-outcome-20260819.md` (SHA-256 `06a22433f51069678f8a5a855f7bacbc2433370fd0b0b7800443ccccb24d89c9`).
 - [x] [id:edwzszsqjr] [experiment] Successor targeted residual-delivery outcome — validated candidate (experiment-only): keep-ends:73:1
 - [x] [id:psosnhyzlq] [bug] Qualify post-readiness read-only guarantees
+- [x] [id:ihxiqgoalr] [bug] Qualify resumable migration recovery guarantees

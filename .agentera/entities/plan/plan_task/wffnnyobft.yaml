@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: wddjlywrzk
   name: Complete the resumable migration recovery contract
-  status: in_progress
+  status: complete
   depends_on:
     - gigbqaqxke
   acceptance:
@@ -15,3 +15,13 @@ record:
   evidence:
     - The blocked predecessor's second audit passed implementation correctness, restart behavior, final publication, revised budgets, retained evidence, and scope.
     - The only remaining failure was one current performance-contract sentence that still described all compatible migrations as a single rollback unit.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-wffnnyobft-1
+      source: audit ses_fcf33f84affem6belpgfHzreQi
+      recorded_at: 2026-08-24 00:47
+      writer_command: agentera state plan record-evaluation

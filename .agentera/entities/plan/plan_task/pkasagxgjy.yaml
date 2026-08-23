@@ -1,0 +1,14 @@
+id: pkasagxgjy
+artifact: plan
+record:
+  name: Make schema 15 to 16 compatible and resumable
+  depends_on:
+    - vivqowyhwf
+  status: in_progress
+  acceptance:
+    - GIVEN a physical schema-15 database with migration incomplete WHEN queries and statistics run THEN timestamp and ordering behavior remains correct for migrated and unmigrated evidence.
+    - GIVEN migration remains incomplete WHEN new evidence is written THEN it satisfies the current representation without making old evidence unreadable.
+    - GIVEN migration starts on production-shaped history WHEN progress is measured THEN each durable unit has bounded lock, journal, memory, and runtime cost independent of total history size.
+    - GIVEN the process stops after any durable progress point WHEN a later invocation opens the database THEN migration resumes automatically without lost, duplicated, or corrupted evidence.
+    - GIVEN all required data satisfies the new invariant WHEN migration completes THEN the database exposes schema 16 and ordinary use requires no cleanup or manual command.
+  plan: wddjlywrzk

@@ -38,7 +38,7 @@ func (d *DB) AcknowledgeRecoveryCue(o RecoveryCueDelivery) error {
 			return ErrContinuityInvalid
 		}
 		var firstArtifact string
-		if err := tx.QueryRow(`SELECT id FROM compressed WHERE source_id=? ORDER BY timestamp_unix_nano,id LIMIT 1`, o.SourceID).Scan(&firstArtifact); err != nil || firstArtifact != o.ArtifactID {
+		if err := tx.QueryRow(`SELECT id FROM compressed WHERE source_id=? ORDER BY COALESCE(timestamp_unix_nano, ktx_unix_nano(timestamp)),id LIMIT 1`, o.SourceID).Scan(&firstArtifact); err != nil || firstArtifact != o.ArtifactID {
 			return ErrContinuityInvalid
 		}
 		var n int

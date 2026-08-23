@@ -10,6 +10,8 @@ import (
 
 const schemaVersion = 16
 
+const compressedTimestampMigrationBatch = 128
+
 // MaxSupportedSchema returns the newest database schema this binary can open.
 // It is DB-free and shares the migration code's single schema-version owner.
 func MaxSupportedSchema() int { return schemaVersion }
@@ -514,7 +516,12 @@ func addMissingColumns(tx *sql.Tx, table string, have map[string]struct{}, group
 // lock. A stale opener checks the version again after beginning its immediate
 // transaction, allowing concurrent openers to observe the winner's migration.
 func migrate(db *sql.DB) error {
-	return migrateWith(db, migrateTx)
+	for {
+		done, err := migrateStep(db, migrateTx)
+		if err != nil || done {
+			return err
+		}
+	}
 }
 
 // migrateWith keeps lock acquisition attempt-bounded while allowing an
@@ -522,19 +529,31 @@ func migrate(db *sql.DB) error {
 // deadline used for ordinary writes. apply is injected only to make that
 // distinction deterministic in tests.
 func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
+	for {
+		done, err := migrateStep(db, apply)
+		if err != nil || done {
+			return err
+		}
+	}
+}
+
+func migrateStep(db *sql.DB, apply func(*sql.Tx) error) (bool, error) {
 	version, err := readSchemaVersionWithRetry(db, startupLockRetryPolicy())
 	if err != nil {
-		return fmt.Errorf("db: read schema version: %w", err)
+		return false, fmt.Errorf("db: read schema version: %w", err)
 	}
 	if version == schemaVersion {
-		return checkRequiredColumns(db)
+		return true, checkRequiredColumns(db)
 	}
 	if version > schemaVersion {
-		return newerSchemaError(version)
+		return false, newerSchemaError(version)
+	}
+	if version == 15 {
+		return migrateCompressedTimestampStep(db)
 	}
 
 	ctx := context.Background()
-	return withWriteTx(ctx, db, func(tx *sql.Tx) error {
+	err = withWriteTx(ctx, db, func(tx *sql.Tx) error {
 		if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 			return fmt.Errorf("db: recheck schema version: %w", err)
 		}
@@ -552,6 +571,89 @@ func migrateWith(db *sql.DB, apply func(*sql.Tx) error) error {
 		}
 		return nil
 	})
+	return err == nil, err
+}
+
+// migrateCompressedTimestamps keeps schema 15 usable between bounded commits.
+// Valid timestamps gain their sortable value in small transactions; malformed
+// timestamps remain NULL, as they do in a fully migrated database.
+func migrateCompressedTimestampStep(db *sql.DB) (bool, error) {
+	ctx := context.Background()
+	added := false
+	if err := withWriteTx(ctx, db, func(tx *sql.Tx) error {
+		for _, statement := range schemaStatements {
+			if _, err := tx.Exec(statement); err != nil {
+				return fmt.Errorf("db: create schema: %w", err)
+			}
+		}
+		columns, err := tableColumns(tx, "compressed")
+		if err != nil {
+			return fmt.Errorf("db: inspect compressed: %w", err)
+		}
+		if _, ok := columns["timestamp_unix_nano"]; !ok {
+			if _, err := tx.Exec(`ALTER TABLE compressed ADD COLUMN timestamp_unix_nano INTEGER`); err != nil {
+				return fmt.Errorf("db: add compressed sortable timestamp: %w", err)
+			}
+			added = true
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+	if added {
+		return false, nil
+	}
+
+	updated, err := migrateCompressedTimestampBatch(db)
+	if err != nil {
+		return false, err
+	}
+	if updated != 0 {
+		return false, nil
+	}
+
+	err = withWriteTx(ctx, db, func(tx *sql.Tx) error {
+		var version int
+		if err := tx.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+			return fmt.Errorf("db: recheck schema version: %w", err)
+		}
+		if version > schemaVersion {
+			return newerSchemaError(version)
+		}
+		if version == schemaVersion {
+			return nil
+		}
+		if version != 15 {
+			return fmt.Errorf("db: schema changed from 15 to %d during migration", version)
+		}
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS compressed_timestamp_unix_nano_idx ON compressed(timestamp_unix_nano)`); err != nil {
+			return fmt.Errorf("db: index compressed sortable timestamps: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+			return fmt.Errorf("db: set schema version: %w", err)
+		}
+		return nil
+	})
+	return err == nil, err
+}
+
+func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {
+	var updated int64
+	err := withWriteTx(context.Background(), db, func(tx *sql.Tx) error {
+		result, err := tx.Exec(`UPDATE compressed
+			SET timestamp_unix_nano = ktx_unix_nano(timestamp)
+			WHERE id IN (
+				SELECT id FROM compressed
+				WHERE timestamp_unix_nano IS NULL AND ktx_unix_nano(timestamp) IS NOT NULL
+				ORDER BY id LIMIT ?
+			)`, compressedTimestampMigrationBatch)
+		if err != nil {
+			return fmt.Errorf("db: backfill compressed sortable timestamps: %w", err)
+		}
+		updated, err = result.RowsAffected()
+		return err
+	})
+	return updated, err
 }
 
 func newerSchemaError(actual int) error {

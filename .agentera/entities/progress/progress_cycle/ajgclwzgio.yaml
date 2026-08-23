@@ -1,0 +1,13 @@
+id: ajgclwzgio
+artifact: progress
+record:
+  timestamp: 2026-08-23 22:20
+  type: fix
+  phase: build
+  what: internal/db/schema.go now commits schema-15 compressed timestamp backfill in 128-row units. Partial reads use exact RFC3339Nano parsing, writes populate the sortable value, and schema 16 appears only after no valid timestamp remains.
+  context:
+    intent: Make schema-15 timestamp preparation compatible, bounded, and restartable.
+    unknowns: Exact production-shaped readiness, lock, journal, RSS, and completion measurements remain unavailable from this filesystem.
+  verified: go test ./internal/db and mage check passed in isolated roots. tools/schema_readiness_evidence.py stopped because cp --reflink=always is unsupported on /tmp.
+  next: Audit the implementation and rerun the retained production-shaped evidence harness on the documented reflink-capable host.
+  publication_order: 159

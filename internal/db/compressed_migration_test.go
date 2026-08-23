@@ -18,6 +18,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -79,6 +80,84 @@ func TestSchema15To16BackfillsCompressedTimestampsWithoutChangingEvidence(t *tes
 		if timestamps[i] != wantText[i] {
 			t.Fatalf("timestamp[%d] = %q, want %q", i, timestamps[i], wantText[i])
 		}
+	}
+}
+
+func TestSchema15PartialStateReadsWritesAndResumes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "schema15-partial.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID := seedSessionAndCalls(t, d, []callFixture{{id: "partialtimesrcxx", output: "original"}})[0]
+	for i := 0; i < compressedTimestampMigrationBatch+2; i++ {
+		seedCompressedWithID(t, d, mustNewID(t), sourceID, fmt.Sprintf("artifact-%d", i), fmt.Sprintf("2026-01-01T00:00:00.%09dZ", i+1))
+	}
+	if _, err := d.DB().Exec(`UPDATE compressed SET timestamp_unix_nano = NULL; PRAGMA user_version = 15`); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := migrateCompressedTimestampBatch(d.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated != compressedTimestampMigrationBatch {
+		t.Fatalf("updated = %d, want %d", updated, compressedTimestampMigrationBatch)
+	}
+
+	first, err := d.GetCompressedBySource(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Timestamp != "2026-01-01T00:00:00.000000001Z" {
+		t.Fatalf("first timestamp = %q, want earliest instant", first.Timestamp)
+	}
+	rows, err := d.StatsRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].DeliveredBytes != len("artifact-0") {
+		t.Fatalf("stats rows = %#v", rows)
+	}
+
+	newArtifact := &Compressed{
+		ID: "zzzzzzzzzzzzzzzz", SourceID: sourceID, Output: "new", ContentHash: ContentHash("new"),
+		Pipeline: `{}`, Timestamp: "2025-12-31T19:00:00-05:00",
+	}
+	if err := d.InsertCompressed(newArtifact); err != nil {
+		t.Fatal(err)
+	}
+	var sortable sql.NullInt64
+	if err := d.DB().QueryRow(`SELECT timestamp_unix_nano FROM compressed WHERE id=?`, newArtifact.ID).Scan(&sortable); err != nil {
+		t.Fatal(err)
+	}
+	if !sortable.Valid {
+		t.Fatal("new partial-state evidence has NULL sortable timestamp")
+	}
+	first, err = d.GetCompressedBySource(sourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != newArtifact.ID {
+		t.Fatalf("first artifact = %q, want offset-equivalent earlier artifact %q", first.ID, newArtifact.ID)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	var version, missing int
+	if err := d.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DB().QueryRow(`SELECT count(*) FROM compressed WHERE timestamp_unix_nano IS NULL AND ktx_unix_nano(timestamp) IS NOT NULL`).Scan(&missing); err != nil {
+		t.Fatal(err)
+	}
+	if version != schemaVersion || missing != 0 {
+		t.Fatalf("resumed state: version=%d missing=%d", version, missing)
 	}
 }
 

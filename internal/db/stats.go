@@ -45,7 +45,7 @@ func (d *DB) StatsRows() ([]StatsRow, error) {
 		       COALESCE(
 			(SELECT LENGTH(c.output) FROM compressed c
 			 WHERE c.source_id = tc.id
-			 ORDER BY c.timestamp_unix_nano ASC, c.id ASC LIMIT 1),
+			 ORDER BY COALESCE(c.timestamp_unix_nano, ktx_unix_nano(c.timestamp)) ASC, c.id ASC LIMIT 1),
 			LENGTH(tc.output)
 		       )
 		FROM tool_calls tc
@@ -275,7 +275,7 @@ func statsSummaryLengths(database *sql.DB, ids []string, selected map[string]*st
 		LEFT JOIN compressed c ON c.id = (
 			SELECT first.id FROM compressed first
 			WHERE first.source_id = tc.id
-			ORDER BY first.timestamp_unix_nano ASC, first.id ASC
+			ORDER BY COALESCE(first.timestamp_unix_nano, ktx_unix_nano(first.timestamp)) ASC, first.id ASC
 			LIMIT 1
 		)
 		WHERE tc.id IN (`+placeholders+`)

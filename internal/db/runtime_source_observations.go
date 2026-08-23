@@ -60,7 +60,7 @@ func (d *DB) RetainRuntimeSourceObservation(o RuntimeSourceObservation, delivere
 		var dispositionArtifact sql.NullString
 		dispositionErr := tx.QueryRow(`SELECT disposition,artifact_id FROM compression_dispositions WHERE source_id=?`, o.SourceID).Scan(&disposition, &dispositionArtifact)
 		var firstArtifactID, artifactOutput string
-		artifactErr := tx.QueryRow(`SELECT id,output FROM compressed WHERE source_id=? ORDER BY timestamp_unix_nano,id LIMIT 1`, o.SourceID).Scan(&firstArtifactID, &artifactOutput)
+		artifactErr := tx.QueryRow(`SELECT id,output FROM compressed WHERE source_id=? ORDER BY COALESCE(timestamp_unix_nano, ktx_unix_nano(timestamp)),id LIMIT 1`, o.SourceID).Scan(&firstArtifactID, &artifactOutput)
 		var cueArtifact string
 		cueErr := tx.QueryRow(`SELECT artifact_id FROM recovery_cue_deliveries WHERE collection_id=? AND source_id=?`, o.CollectionID, o.SourceID).Scan(&cueArtifact)
 		expected := original

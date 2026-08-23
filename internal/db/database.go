@@ -44,6 +44,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"net/url"
@@ -53,8 +54,20 @@ import (
 	"time"
 
 	// Register the pure-Go SQLite driver used by database/sql.
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 )
+
+func init() {
+	if err := sqlite.RegisterDeterministicScalarFunction("ktx_unix_nano", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		text, ok := args[0].(string)
+		if !ok {
+			return nil, nil
+		}
+		return sortableTimestamp(text), nil
+	}); err != nil {
+		panic(err)
+	}
+}
 
 // IDs use 16 lowercase letters, providing roughly 75 bits of entropy without
 // ambiguous numeric characters.
@@ -160,6 +173,7 @@ func Open(path string) (*DB, error) {
 	}
 
 	var database *sql.DB
+	migrationDone := false
 	ctx, cancel := context.WithTimeout(context.Background(), startupRetryDeadline)
 	defer cancel()
 	err = writer.withLock(ctx, true, func() error {
@@ -174,13 +188,14 @@ func Open(path string) (*DB, error) {
 			return AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr)
 		}
 		migrationStarted := time.Now()
-		if migrateErr := migrate(database); migrateErr != nil {
-			_ = database.Close()
-			return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, migrateErr)
-		}
-		return nil
+		migrationDone, openErr = migrateStep(database, migrateTx)
+		return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, openErr)
 	})
 	if err != nil {
+		return nil, fmt.Errorf("db: open %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
+	}
+	if err := migrateWithCoordinator(ctx, writer, database, migrationDone); err != nil {
+		_ = database.Close()
 		return nil, fmt.Errorf("db: open %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
 
@@ -207,6 +222,7 @@ func OpenExisting(path string) (*DB, error) {
 		return nil, fmt.Errorf("db: open existing: coordinate %q: %w", path, err)
 	}
 	var database *sql.DB
+	migrationDone := false
 	ctx, cancel := context.WithTimeout(context.Background(), startupRetryDeadline)
 	defer cancel()
 	err = writer.withLock(ctx, false, func() error {
@@ -218,16 +234,32 @@ func OpenExisting(path string) (*DB, error) {
 			return AttributeDatabaseUnavailable(OperationOpen, openStarted, openErr)
 		}
 		migrationStarted := time.Now()
-		if migrateErr := migrate(database); migrateErr != nil {
-			_ = database.Close()
-			return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, migrateErr)
-		}
-		return nil
+		migrationDone, openErr = migrateStep(database, migrateTx)
+		return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, openErr)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("db: open existing %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
+	if err := migrateWithCoordinator(ctx, writer, database, migrationDone); err != nil {
+		_ = database.Close()
+		return nil, fmt.Errorf("db: open existing %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
+	}
 	return &DB{db: database, writer: writer}, nil
+}
+
+func migrateWithCoordinator(ctx context.Context, writer *writerCoordinator, database *sql.DB, done bool) error {
+	migrationStarted := time.Now()
+	for !done {
+		err := writer.withLock(ctx, false, func() error {
+			var err error
+			done, err = migrateStep(database, migrateTx)
+			return err
+		})
+		if err != nil {
+			return AttributeDatabaseUnavailable(OperationMigration, migrationStarted, err)
+		}
+	}
+	return nil
 }
 
 // OpenHook opens a current-schema database without creation, migration, or

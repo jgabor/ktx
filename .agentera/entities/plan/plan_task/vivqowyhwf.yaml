@@ -1,0 +1,13 @@
+id: vivqowyhwf
+artifact: plan
+record:
+  name: Establish the transparent schema-readiness contract
+  depends_on:
+    - czbvfvhouh
+  status: in_progress
+  acceptance:
+    - GIVEN the existing read-only and manual-migration policy conflicts with the approved requirement WHEN the authoritative decision is updated THEN every supported stale schema has automatic behavior and the superseded rule is unambiguous.
+    - GIVEN a database is missing, current, supported but older, or newer than the binary WHEN each database-backed surface is classified THEN its creation, readiness, compatibility, or safe-failure behavior is explicit and consistent.
+    - GIVEN callback, startup, contention, operation, and migration waits WHEN timeout ownership is specified THEN KTX is the sole authority and each exhausted wait has one stable attribution.
+    - GIVEN current-schema and production-shaped baselines WHEN readiness budgets are approved THEN latency, lock hold, journal growth, and resource limits are measurable release criteria.
+  plan: wddjlywrzk

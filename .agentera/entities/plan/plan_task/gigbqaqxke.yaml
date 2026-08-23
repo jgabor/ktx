@@ -1,0 +1,16 @@
+id: gigbqaqxke
+artifact: plan
+record:
+  plan: wddjlywrzk
+  name: Complete the transparent schema-readiness contract
+  status: in_progress
+  depends_on:
+    - czbvfvhouh
+  acceptance:
+    - GIVEN a supported stale schema WHEN current decisions, safety guidance, release guidance, help, and agent-facing guidance are inspected THEN every surface requires automatic readiness and every read-only guarantee is explicitly limited to post-readiness operation.
+    - GIVEN the former contradictory read-only wording WHEN schema-readiness consistency verification runs THEN it rejects that wording and passes the corrected current contract surfaces.
+    - GIVEN the corrected contract WHEN its preserved boundaries are reviewed THEN per-invocation runtime proof, newer-schema safe failure, sole KTX timeout ownership, stable failure attribution, and the approved empirical budgets remain authoritative and consistent.
+    - GIVEN the replacement work is complete WHEN focused verification and the isolated repository check run THEN they pass without ambient live-database access or migration implementation changes.
+  evidence:
+    - The blocked predecessor established the authoritative readiness decision, timeout matrix, reproducible evidence harness, and empirical budgets.
+    - Its retry audit isolated the remaining failure to unqualified read-only wording in safety and release guidance plus incomplete consistency coverage.

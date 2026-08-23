@@ -90,6 +90,20 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 			t.Errorf("schema readiness contract is missing %q", required)
 		}
 	}
+	for _, relative := range []string{
+		filepath.Join("docs", "database-safety.md"),
+		"CHANGELOG.md",
+	} {
+		contents := strings.ToLower(readDocumentationFile(t, filepath.Join(root, relative)))
+		for _, obsolete := range []string{
+			"read-only opens never create, migrate",
+			"read-only evaluation does not migrate",
+		} {
+			if strings.Contains(contents, obsolete) {
+				t.Errorf("%s retains unqualified read-only guidance %q", relative, obsolete)
+			}
+		}
+	}
 
 	surfaces := []string{
 		"README.md",

@@ -90,8 +90,9 @@ authority. Migration creates both tables empty: it does not backfill lifecycle
 evidence or infer continuity from historical sessions, tool calls, or other
 activity. The wrapper records its owned `run` process boundary; hook and write
 activity is not promoted into continuity evidence. These tables are created
-only by the normal write-capable or explicit migration paths. Read-only opens
-never create, migrate, backfill, or update them.
+only by readiness, normal write-capable operations, or explicit migration.
+After readiness, an operation using a read-only open never creates, migrates,
+backfills, or updates them.
 Continuity requires authoritative stopped or interrupted closure evidence that
 spans the requested end. A start without that evidence reports a
 `missing_closure` gap clipped to the requested span.

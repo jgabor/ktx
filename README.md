@@ -3,7 +3,21 @@
 ktx is a runtime-agnostic CLI for measuring and reducing coding-agent context
 cost. It is one Go binary: no daemon and no library integration requirement.
 
+- **Wrap any agent** â `ktx run` records any CLI process as a session, no
+  agent changes needed.
+- **Compress in flight** â OpenCode and Codex adapters shrink tool output
+  before it reaches the model; originals stay recoverable.
+- **Measure before trusting** â per-tool-call token statistics, offline
+  replay, and cache-aware live comparisons show whether compression saves
+  context.
+
+Recorded content stays on your machine. Outbound requests happen only on a
+cold pricing-cache miss (a [models.dev](https://models.dev) catalog fetch) or
+when you explicitly run a live benchmark against a named provider.
+
 ## Install
+
+Building from source requires Go 1.26 or newer.
 
 ```bash
 go install github.com/jgabor/ktx/cmd/ktx@latest
@@ -23,6 +37,17 @@ ktx list --format text
 ktx get "$KTX_TARGET_SESSION_ID" --format text
 ```
 
+`ktx run` prints the wrapped process output, then a one-line session summary.
+`ktx list` shows recorded sessions:
+
+```text
+ID                AGENT    STARTED                         ENDED                TOOL_CALLS  TOKENS  COST  MODEL
+vhlttrsjwnahnrlm  /bin/sh  2026-08-23T14:32:19.140759196Z  2026-08-23T14:32:19  0           -       -     -
+```
+
+`ktx get` prints one session's details; `ktx stats` ranks tool calls by
+delivered tokens once adapters have recorded them.
+
 ### Compress tool output in flight
 
 Install the adapter for your runtime:
@@ -40,48 +65,62 @@ Copy [`ktx.example.toml`](ktx.example.toml) to
 ktx config show --json
 ```
 
-The adapter calls `ktx hook` after tool execution. ktx persists the original,
-runs the selected pipeline, and returns the smaller result to the agent. With no
-configuration file, the pipeline is passthrough.
-
-The generated OpenCode plugin also records optional runtime model-step token
-evidence. ktx collects telemetry only from the agent runtime. Provider and
-model identity may come from runtime events or explicit runtime configuration,
-with provenance; provider documentation and pricing catalogs are reference and
-estimate inputs, not telemetry. See the [OpenCode integration and telemetry
-runbook](docs/opencode-telemetry.md) for plugin locations, both hooks, wrapper
-coexistence, refresh, offline verification, claim boundaries, and
-troubleshooting.
+The adapter calls `ktx hook` after each tool execution: ktx persists the
+original, runs the selected pipeline, and returns the smaller result to the
+agent. With no configuration file, the pipeline is passthrough.
 
 Lossy profiles can opt into `recover_footer = true`. When compression succeeds
-and the result plus footer remains smaller than the original, the agent receives
-a compact `ktx read <source-id>` recovery cue. The original and compressed
-artifact remain stored separately; the footer is not part of the persisted
-compressed bytes.
+and the result plus footer remains smaller than the original, the agent
+receives a recovery cue such as:
 
-KTX assigns its own source IDs to persisted tool calls. Runtime session and
-tool-call identifiers are correlation inputs, not record IDs. Recognized
-OpenCode and Codex events with a complete, verified runtime/session/call tuple
-derive the same source ID on exact retry. An event selecting a recognized
-adapter path but missing a complete tuple receives a fresh NanoID; caller IDs
-are preserved only for legacy flat payloads without a recognized runtime-adapter
-discriminator. The first compressed artifact is authoritative once persisted.
-A racing retry may receive source output while no artifact exists yet, but later
-retries return the first artifact and cannot replace it. Use the source ID from
-inspection or a recovery cue with commands such as `ktx read` and `ktx compress`.
+```text
+[ktx] output compressed: 2815 bytes (56% reduction) â¢ get full output with `ktx read ugrpgrcvdrbhbaby`
+```
 
-Session agent attribution has a separate trust boundary from the readable agent
-label. A wrapper identifies the executable it launches. Complete, recognized
-OpenCode and Codex hook events can identify a session; generic or incomplete
-events remain unknown. Exact retries converge, and the first trusted identity
-wins when runtimes share a session while later source evidence remains stored.
-Historical labels migrate as unknown rather than being reconstructed.
+Originals and compressed artifacts remain stored separately; the footer is not
+part of the persisted compressed bytes. KTX assigns its own stable source IDs
+to persisted tool calls; runtime session and tool-call identifiers are
+correlation inputs, not record IDs. Exact retries converge on the first
+persisted artifact and cannot replace it. Use source IDs from inspection or a
+recovery cue with commands such as `ktx read` and `ktx compress`.
+
+The generated OpenCode plugin also records optional runtime model-step token
+evidence. ktx collects telemetry only from the agent runtime; provider and
+model identity come from runtime events or explicit runtime configuration,
+with provenance. See the [OpenCode integration and telemetry
+runbook](docs/opencode-telemetry.md) for plugin locations, both hooks,
+wrapper coexistence, refresh, offline verification, claim boundaries, and
+troubleshooting.
+
+## Commands
+
+| Command                   | Purpose                                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `run`                     | Wrap an invocation and record the session                                                                              |
+| `hook`                    | In-flight tool-output compression, called by runtime adapters                                                          |
+| `list` / `get`            | List sessions; query one by ID (formatted)                                                                             |
+| `stats`                   | Per-tool-call statistics ranked by delivered tokens                                                                    |
+| `read`                    | Fetch a persisted record by ID (raw JSON)                                                                              |
+| `compress` / `decompress` | Compress a record's output; reverse it verbatim                                                                        |
+| `init`                    | Install a runtime adapter                                                                                              |
+| `plugin`                  | Manage compression plugins                                                                                             |
+| `config`                  | Inspect active pipeline configuration                                                                                  |
+| `db`                      | Database path, reporting, and maintenance (`db migrate`)                                                               |
+| `telemetry`               | Record and inspect optional model-step token evidence                                                                  |
+| `prices`                  | Manage the local models.dev pricing cache                                                                              |
+| `write`                   | Persist a tool-call record from sidecar input                                                                          |
+| `doctor`                  | Check ktx health                                                                                                       |
+| `binary-capabilities`     | Print the installed build's path, SHA-256, version, and max supported database schema; used to pin a binary in scripts |
+| `bench`                   | Benchmark runs, experiments, and reports                                                                               |
+
+Run `ktx <command> --help` for details.
 
 ## Configuration and data
 
 The default database is `$XDG_DATA_HOME/ktx/ktx.db`; set `KTX_DB` to select a
 different database for normal commands. Within the `ktx db` namespace,
-`--path <file>` is a per-invocation override and takes precedence over `KTX_DB`.
+`--path <file>` is a per-invocation override and takes precedence over
+`KTX_DB`.
 
 Pipeline configuration lives at `$XDG_CONFIG_HOME/ktx/ktx.toml`. Configured
 pipelines are ordered deterministic stages. Built-ins include `unwrap-result`,
@@ -91,35 +130,32 @@ command prefix, subcommand, and exit status.
 
 See [`ktx.example.toml`](ktx.example.toml) for a working configuration and
 [`docs/pipelines.md`](docs/pipelines.md) for stage, routing, and benchmark
-guidance. Originals remain addressable through `ktx read` and `ktx decompress`.
-For the optional structured diagnostic file sink, see
+guidance. Originals remain addressable through `ktx read` and `ktx
+decompress`. For the optional structured diagnostic file sink, see
 [`docs/logging.md`](docs/logging.md).
 
 Database access is forward-only. Query commands use enforced read-only SQLite
-access and never create or migrate persistent state. Write-capable commands may
-create a database and transactionally migrate an older supported schema. If a
-query reports `schema-migration-required`, run `ktx db migrate`. See the
-[database safety contract](docs/database-safety.md) for command classes,
-hermetic development, and seeded migration rehearsal. Recover from a database
-newer than the binary by installing a binary that supports that schema or newer.
-Never lower `PRAGMA user_version`.
+access and never create or migrate persistent state. Write-capable commands
+may create a database and transactionally migrate an older supported schema.
+If a query reports `schema-migration-required`, run `ktx db migrate`. The
+[database safety contract](docs/database-safety.md) defines command classes,
+hermetic development, seeded migration rehearsal, and recovery from a database
+newer than the binary.
 
 ## Benchmarking
 
-`ktx bench` commands use Go implementations shipped in the binary. Named
+Benchmark stages, task loading, scoring, and summaries run as Go code inside
+the ktx binary; comparisons need no external scripts or separate evaluator
+runtime. Named
 pipelines, tasks, methodologies, and corpus fixtures live under
 [`tools/bench`](tools/bench).
 
-A cache-aware live comparison separates cold observation, warm-up, and measured
-attempts. The current opt-in path uses methodology v6, summary schema 5, and
+The current opt-in comparison uses methodology v6, summary schema 5, and
 `cache-reuse-v2` to report the token-weighted prompt-cache hit rate under the
 pinned contract. It does not authorize provider-request or provider-internal
-cache claims; methodology v5, schema 4, and `cache-reuse-v1` remain historical
-evidence.
+cache claims.
 
 ```bash
-./build/ktx bench compare --preflight --format json
-
 ./build/ktx bench compare --preflight --build --format json
 
 ./build/ktx bench compare \
@@ -133,23 +169,12 @@ evidence.
   --rounds 5
 ```
 
-The generic preflight returns before task loading. It makes no model call,
-requires no authentication, and creates no experiment artifact. It inspects the
-existing image; with `--build`, it first checks the local source and builds the
-image. Preflight then requires the image to attest the pinned
-OpenCode version, generated plugin digest, explicit attempt owner, serialized
-fail-closed callbacks, complete interval lifecycle, epochs, and normalized event
-kinds. It also requires strict acknowledgements, exact wrapper/event model-step
-identity, fail-closed interval validation, and capability attestation before auth
-readiness. Every normal comparison runs the same gate before its first attempt.
-
-The retained OpenCode 1.18.5 Luna/high comparison passed validation with five
-complete measured pairs and full quality on both sides. Its candidate mean
-OpenCode-reported cached-input share was higher than baseline under the retained
-protocol. This supports no significance, causal, generic cache-effectiveness,
-or provider-native cache claim. The
-[live validation report](docs/cache-reuse-live-validation.md) records the exact
-values, provenance, estimates, hashes, and earlier failed archives.
+Preflight runs before task loading. It makes no model call, requires no
+authentication, and creates no experiment artifact; with `--build` it first
+builds the image from local source. Every normal comparison runs the same
+gate before its first attempt, requiring attested image identity, plugin
+digest, attempt ownership, and callback and interval integrity before auth
+readiness. Live runs accept any provider except `github-copilot/*`.
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
 summaries. Validate retained evidence with:
@@ -158,9 +183,7 @@ summaries. Validate retained evidence with:
 ktx bench validate --experiment .bench-data/<experiment-id>
 ```
 
-The [retained runtime compression telemetry report](docs/runtime-compression-telemetry-evidence.md)
-shows one historical ten-attempt comparison, its field-by-field availability,
-and an offline deterministic validation.
+### Offline replay
 
 Replay a database capture by session ID without another agent call:
 
@@ -168,11 +191,6 @@ Replay a database capture by session ID without another agent call:
 : "${KTX_TARGET_SESSION_ID:?set this to the database session ID to replay}"
 ktx bench run --replay "$KTX_TARGET_SESSION_ID"
 ```
-
-This compatibility path preserves the existing database-backed envelope and
-exit behavior: `PASS` and informational cost/cache `DRIFT` exit 0, integrity or
-parser `FAIL` exits 4, and a missing session exits 2. A parentless recorded
-stream is supported, but has no original benchmark comparison.
 
 For strict, portable verification, export a benchmark-parented capture and
 replay the resulting file without the source database:
@@ -184,51 +202,37 @@ KTX_DB="$KTX_OWNED_DB" ktx bench export --output replay-v1.json "$KTX_TARGET_SES
 ktx bench run --replay-file replay-v1.json
 ```
 
-`KTX_OWNED_DB` declares which path the operator owns; it does not prove that the
-path is disposable or safe to modify.
+Exit classes: informational cost/cache drift exits 0; integrity or parser
+failure exits 4; a missing session exits 2. File replay uses only the fixture
+and a controlled built-in pipeline; any divergence is a strict failure.
+Fixture contents include raw recorded stream data, so review them for secrets
+and personal data before sharing. The fixture schema, refresh requirements,
+and threat boundary are in the [runbook](docs/pipelines.md).
 
-`ktx bench export <session-id>` writes the same canonical version 1 fixture to
-stdout by default; `--output -` makes stdout delivery explicit. File replay
-uses only the fixture and a controlled built-in pipeline. Any integrity,
-parser, usage, cost, cache, or compression divergence is a strict failure.
-Fixture contents include raw recorded stream data, so review them for secrets,
-personal data, machine-local identifiers, and repository content before
-sharing or committing them. Historical direct-provider fixtures may remain for
-offline compatibility and provenance, but are not a supported collection path.
-See the runbook for the fixture schema, source and
-refresh requirements, absent-versus-zero semantics, threat boundary, and exit
-classes.
+### Retained evidence
 
-Live runs accept any provider except `github-copilot/*`. The complete runbook is
-[`docs/pipelines.md`](docs/pipelines.md). The [Layer 1 cache and cost
-benchmark](benchs/layer-1-cache-cost.md) is a historical benchmark retained for
-provenance; current telemetry claims are runtime-observed only.
+Historical results are evidence, not supported workflows:
 
-The completed external campaign is retained as historical evidence, not as a
-supported workflow. The native KTX commands above are the current benchmark
-surface. The correction accepts one complete campaign with eight attempts and
-four pairs; the five-pair gate is incomplete and has no current decision. See
-the [historical campaign report](docs/skillsbench-campaign.md) for the result,
-limits, ownership, and evidence map.
+- A retained OpenCode 1.18.5 Luna/high comparison passed validation with five
+  complete measured pairs; candidate cached-input share was higher than
+  baseline under the retained protocol. This supports no significance, causal,
+  or provider-native cache claim. Values, provenance, and failed archives:
+  [live validation report](docs/cache-reuse-live-validation.md).
+- One historical ten-attempt runtime compression telemetry comparison:
+  [report](docs/runtime-compression-telemetry-evidence.md).
+- The completed external campaign (eight attempts, four pairs): historical
+  evidence with limits and ownership map:
+  [campaign report](docs/skillsbench-campaign.md).
+- The Layer 1 cache and cost benchmark, retained for provenance:
+  [benchmark](benchs/layer-1-cache-cost.md).
 
-The result covers one named task. It establishes neither official suite
-identity nor general agent skill, provider cost, unrun-task coverage, or
-permission to execute again. KTX owns its native task and scoring contracts,
-databases, summaries, comparison, validation, and ranking. The external
-evaluator owns agent execution, authentication, environment setup, and its
-dependency lifecycle.
-
-### Evidence from live use
-
-A rolling 24-hour snapshot on July 17, 2026 covered 8,321 tool calls. ktx reduced
-the delivered tool-output context from 47.8 million to 26.0 million characters,
-avoiding about 5.47 million tokens under its four-characters-per-token estimate.
+A rolling 24-hour live snapshot (July 17, 2026, 8,321 tool calls) reduced
+delivered tool-output context from 47.8 million to 26.0 million characters,
+about 5.47 million tokens avoided under a four-characters-per-token estimate.
 At the models.dev uncached-input price for `openai/gpt-5.6-sol`, that is about
-$27.33 of gross input cost avoided if each saved token would have been included
-once. This is a model-priced estimate rather than a billing claim: ordinary live
-calls did not retain enough cache telemetry to measure cache-adjusted savings.
-Aggregate runtime token counts cannot establish provider-internal cache hits,
-misses, fills, eviction, request boundaries, isolation, or prefix composition.
+$27.33 of gross input cost avoided. This is a model-priced estimate, not a
+billing claim, and aggregate runtime counts cannot establish provider-internal
+cache hits, misses, fills, eviction, or prefix composition.
 
 ## Development
 
@@ -248,10 +252,28 @@ For optional extended engineering evidence, run
 `KTX_ENGINEERING_EVIDENCE_DIR=<new-directory> mage engineeringVerify` with a
 new directory. It retains component, real-process load, and blocked-decompression
 reports in a hash manifest and requires correctness, exact reconciliation, and
-supported-lock checks; it does not add a timing gate or replace `mage check`.
+supported-lock checks.
 
-`mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`, and
-the portable replay gate. Tracked CI runs this same command on every push and
-pull request. Verification requires both `golangci-lint` and `govulncheck`.
-Architectural intent is documented in [`ARCHITECTURE.md`](ARCHITECTURE.md);
-repository working conventions are in [`AGENTS.md`](AGENTS.md).
+`mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`,
+and the portable replay gate. Tracked CI runs this same command on every push
+and pull request. Verification requires both `golangci-lint` and
+`govulncheck`.
+
+## Documentation
+
+| Document                                                                     | Covers                                                     |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [`docs/pipelines.md`](docs/pipelines.md)                                     | Stages, routing, benchmarks, replay fixture contract       |
+| [`docs/opencode-telemetry.md`](docs/opencode-telemetry.md)                   | Adapter install, hooks, telemetry runbook                  |
+| [`docs/database-safety.md`](docs/database-safety.md)                         | Command classes, hermetic development, migration rehearsal |
+| [`docs/logging.md`](docs/logging.md)                                         | Optional structured diagnostic file sink                   |
+| [`docs/binary-capabilities.md`](docs/binary-capabilities.md)                 | Binary identity and schema capability contract             |
+| [`docs/component-benchmarks.md`](docs/component-benchmarks.md)               | Component-level measurements                               |
+| [`docs/critical-path-performance.md`](docs/critical-path-performance.md)     | Critical-path performance contract                         |
+| [`docs/cache-reuse-metric-contract.md`](docs/cache-reuse-metric-contract.md) | Cache reuse metric definition                              |
+
+Additional engineering reports (load measurements, external validation,
+candidate qualification, cache-evidence studies) live under
+[`docs/`](docs/). Architectural intent is documented in
+[`ARCHITECTURE.md`](ARCHITECTURE.md); repository working conventions are in
+[`AGENTS.md`](AGENTS.md).

@@ -169,7 +169,7 @@ cache claims.
   --rounds 5
 ```
 
-Preflight runs before task loading. It makes no model call, requires no
+Preflight returns before task loading. It makes no model call, requires no
 authentication, and creates no experiment artifact; with `--build` it first
 builds the image from local source. Every normal comparison runs the same
 gate before its first attempt, requiring attested image identity, plugin
@@ -252,7 +252,7 @@ For optional extended engineering evidence, run
 `KTX_ENGINEERING_EVIDENCE_DIR=<new-directory> mage engineeringVerify` with a
 new directory. It retains component, real-process load, and blocked-decompression
 reports in a hash manifest and requires correctness, exact reconciliation, and
-supported-lock checks.
+supported-lock checks. It does not add a timing gate.
 
 `mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`,
 and the portable replay gate. Tracked CI runs this same command on every push

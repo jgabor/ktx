@@ -1,0 +1,16 @@
+id: wdkprhpjrs
+artifact: progress
+record:
+  timestamp: 2026-08-23 17:10
+  type: docs
+  phase: build
+  what: Corrected prior package-pattern evidence and verified the README contract reconciliation.
+  context:
+    intent: Restore the two maintained README contract phrases and correct immutable progress evidence by addition.
+    constraints: Preserve the README restructure, prior progress history, live application state, and task in-progress status.
+    unknowns: Retry state is owned by the recorded plan evaluation; no additional retry history is inferred.
+    scope: README.md, REVIEW.md, failed evaluation state, and one corrective progress record.
+  discovered: The first full-gate retry timed out; the second hit concurrent lock tests; the final fresh isolated run passed.
+  verified: "Correction to cycle jumeuuslvi: the focused cache command tested ./internal/cache/... rather than ./internal/cache. TestBenchPreflightContractSurfacesMatchBehavior passed; TestEngineeringVerificationDocumentationSurfacesAgree passed; go test ./internal/cli -count=1 passed; the final env -u KTX_DB mage check passed with 0 issues and forbidden=0."
+  next: Keep fazlfmpmgo in progress for re-audit.
+  publication_order: 152

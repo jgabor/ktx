@@ -562,11 +562,11 @@ and are not owned by a remediation task.
 ### Final integration verification
 
 The finding matrix is fully classified: each item is resolved or retained with a
-current rationale and owner. Focused database, pipeline, configuration, cache, and CLI
-tests passed except for two README contract checks. The same two checks blocked
-`mage check`; its database-safety audit still reported `forbidden=0`. Both failures are
-caused by a concurrent, unrelated README edit that this task must preserve, so final
-integration remains in progress rather than claiming a repository-wide pass.
+current rationale and owner. README again states the tested preflight and engineering
+verification contracts while preserving its reorganized structure. Both exact contract
+tests, the focused CLI package, and a final isolated `mage check` passed. The full-gate
+audit reported `forbidden=0`; an earlier gate retry hit the known concurrent lock tests
+before the clean final run.
 
 The built local binary also verified, under disposable application roots, that a schema
 15 read-only query exits 5 without migration, explicit migration advances it to schema

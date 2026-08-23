@@ -1,0 +1,25 @@
+id: ihxiqgoalr
+artifact: todo
+record:
+  kind: bug
+  target_version: null
+  title: Qualify resumable migration recovery guarantees
+  requirements:
+    - Update the critical-path migration guarantee so bounded schema-15 batches remain durable after interruption and only final schema-16 publication is atomic.
+    - Extend contract consistency verification to reject the superseded all-or-nothing wording.
+    - Preserve the audited migration implementation, retained production evidence, revised budgets, and all passing correctness criteria.
+  acceptance:
+    - GIVEN an interrupted schema-15 migration WHEN current recovery guidance is read THEN it describes durable committed batches, automatic resume, and atomic final publication without claiming that all progress rolls back.
+    - GIVEN the former all-or-nothing wording WHEN contract consistency verification runs THEN it rejects that wording and passes the corrected current guidance.
+    - GIVEN the correction is complete WHEN focused checks and the isolated repository check run THEN they pass without migration implementation changes or ambient live-database access.
+  release_blocker: true
+  severity: normal
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[bug] Qualify resumable migration recovery guarantees"
+      severity: normal
+      status: open
+      order: 17

@@ -11,3 +11,13 @@ record:
     - GIVEN an external lock exhausts the allowed wait WHEN a hook fails THEN the caller receives one correctly attributed failure and no raw SQLite busy error.
     - GIVEN the existing worktree fixes WHEN the focused regressions and isolated repository check run THEN they pass without accessing the ambient live database or changing migration behavior.
   plan: wddjlywrzk
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-czbvfvhouh-1
+      source: audit ses_fd046b45dffeAMhNccaftxroKF
+      recorded_at: 2026-08-23 19:52
+      writer_command: agentera state plan record-evaluation

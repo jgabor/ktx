@@ -138,7 +138,6 @@ func TestPreflightRetainsUnenforceableCeilings(t *testing.T) {
 		{"spend ceiling", func(p *Proposal) { p.Limits.MaxSpendUSD = 0.01 }, "below worst-case spend"},
 		{"request ceiling", func(p *Proposal) { p.Limits.MaxNativeRequests = 3 }, "cannot cover 4 required requests"},
 		{"attempt ceiling", func(p *Proposal) { p.Limits.MaxAttempts = 3 }, "cannot cover 4 required attempts"},
-		{"retry", func(p *Proposal) { p.Paths[0].RequiredAttempts = 3 }, "does not disable retries"},
 		{"non-positive input tokens", func(p *Proposal) { p.Paths[0].MaxInputTokens = 0 }, "token ceiling is not positive"},
 		{"non-positive output tokens", func(p *Proposal) { p.Paths[1].MaxOutputTokens = -1 }, "token ceiling is not positive"},
 		{"negative input price", func(p *Proposal) { p.Paths[0].InputUSDPerMillion = -1 }, "pricing bound is invalid"},
@@ -226,6 +225,47 @@ func TestCommonProposalValidationAppliesToAllProviders(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "references must not be blank") {
 			t.Errorf("%s rejected case error = %v", name, err)
 		}
+	}
+}
+
+func TestCommonRequestAttemptValidationAppliesToAllProviders(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "accepted"},
+		{name: "non-positive requests", want: "positive native request count"},
+		{name: "retry enabled", want: "disable retries"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			openAI := validProposal()
+			anthropic := validAnthropicProposal()
+			gemini, err := LoadGeminiProposal(filepath.Join("..", "..", "..", "tools", "bench", "evidence", "gemini-opencode-proposal.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch tt.name {
+			case "non-positive requests":
+				openAI.Paths[0].RequiredNativeRequests = 0
+				anthropic.Paths[0].RequiredNativeRequests = 0
+				gemini.Paths[0].RequiredNativeRequests = 0
+			case "retry enabled":
+				openAI.Paths[0].RequiredAttempts++
+				anthropic.Paths[0].RequiredAttempts++
+				gemini.Paths[0].RequiredAttempts++
+			}
+			_, openAIErr := Preflight(openAI, fakeEnvironment{})
+			_, anthropicErr := Preflight(anthropic, fakeEnvironment{})
+			_, geminiErr := GeminiPreflight(gemini, fakeEnvironment{})
+			for provider, err := range map[string]error{"OpenAI": openAIErr, "Anthropic": anthropicErr, "Gemini": geminiErr} {
+				if tt.want == "" && err != nil {
+					t.Errorf("%s accepted case: %v", provider, err)
+				} else if tt.want != "" && (err == nil || !strings.Contains(err.Error(), tt.want)) {
+					t.Errorf("%s rejected case error = %v, want %q", provider, err, tt.want)
+				}
+			}
+		})
 	}
 }
 

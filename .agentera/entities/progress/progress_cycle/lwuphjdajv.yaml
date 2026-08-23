@@ -1,0 +1,13 @@
+id: lwuphjdajv
+artifact: progress
+record:
+  timestamp: 2026-08-23 15:58
+  type: fix
+  phase: build
+  what: Moved positive native-request and one-attempt-per-request validation into validateCommonProposal so OpenAI, Anthropic, and Gemini reject equivalent invalid proposals with the same validation-error contract.
+  context:
+    intent: Correct only failed audit attempt audit-zycvfwkspu-1 while preserving provider-specific constraints and mixed-transport rejection.
+    constraints: No methodology, summary schema, retained evidence, provider claim, live model, or network change.
+  verified: Cross-provider tests pass accepted proposals and reject zero native requests and mismatched attempt counts through Preflight and GeminiPreflight. Isolated go test ./internal/cache/reuse and mage check passed with KTX_DB unset, fresh HOME/XDG roots, 0 lint issues, and forbidden database accesses=0.
+  next: Leave zycvfwkspu in progress for re-audit.
+  publication_order: 148

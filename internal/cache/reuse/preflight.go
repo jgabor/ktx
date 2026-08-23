@@ -259,6 +259,7 @@ type commonProposal struct {
 type commonPath struct {
 	source, version, credentialSource, credentialType string
 	references                                        []string
+	requiredNativeRequests, requiredAttempts          int
 }
 
 func validateCommonProposal(p commonProposal) error {
@@ -287,6 +288,12 @@ func validateCommonProposal(p commonProposal) error {
 		if strings.TrimSpace(path.credentialSource) == "" || strings.TrimSpace(path.credentialType) == "" {
 			return fmt.Errorf("each path requires credential source and type")
 		}
+		if path.requiredNativeRequests <= 0 {
+			return fmt.Errorf("each path requires a positive native request count")
+		}
+		if path.requiredAttempts != path.requiredNativeRequests {
+			return fmt.Errorf("each path must disable retries with one attempt per native request")
+		}
 	}
 	return nil
 }
@@ -294,7 +301,7 @@ func validateCommonProposal(p commonProposal) error {
 func proposalCommon(p Proposal) commonProposal {
 	common := commonProposal{p.SchemaVersion, len(p.Paths), p.ArtifactDestination, p.RedactionPolicy, make([]commonPath, len(p.Paths))}
 	for i, path := range p.Paths {
-		common.paths[i] = commonPath{path.Source, path.Version, path.CredentialSource, path.CredentialType, path.References}
+		common.paths[i] = commonPath{path.Source, path.Version, path.CredentialSource, path.CredentialType, path.References, path.RequiredNativeRequests, path.RequiredAttempts}
 	}
 	return common
 }
@@ -344,10 +351,6 @@ func unenforceableConditions(p Proposal) []string {
 	requests, attempts, spend := 0, 0, 0.0
 	for i, path := range p.Paths {
 		switch {
-		case path.RequiredNativeRequests <= 0:
-			conditions[i] = path.Name + " required native request count is not positive"
-		case path.RequiredAttempts != path.RequiredNativeRequests:
-			conditions[i] = path.Name + " does not disable retries with one attempt per native request"
 		case path.MaxInputTokens <= 0 || path.MaxOutputTokens <= 0:
 			conditions[i] = path.Name + " token ceiling is not positive"
 		case path.InputUSDPerMillion < 0 || path.CacheWriteMultiplier < 1 || path.OutputUSDPerMillion < 0:

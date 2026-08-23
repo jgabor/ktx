@@ -107,16 +107,13 @@ func GeminiPreflight(proposal GeminiProposal, env Environment) (Report, error) {
 func validateGeminiProposal(p GeminiProposal) error {
 	common := commonProposal{p.SchemaVersion, len(p.Paths), p.ArtifactDestination, p.RedactionPolicy, make([]commonPath, len(p.Paths))}
 	for i, path := range p.Paths {
-		common.paths[i] = commonPath{path.Source, path.Version, path.CredentialSource, path.CredentialType, path.References}
+		common.paths[i] = commonPath{path.Source, path.Version, path.CredentialSource, path.CredentialType, path.References, path.RequiredNativeRequests, path.RequiredAttempts}
 	}
 	if err := validateCommonProposal(common); err != nil {
 		return err
 	}
 	seen := map[string]bool{}
 	for _, path := range p.Paths {
-		if path.RequiredNativeRequests <= 0 || path.RequiredAttempts != path.RequiredNativeRequests {
-			return fmt.Errorf("%s must disable retries with one attempt per native request", path.Name)
-		}
 		if path.MaxInputTokens <= 0 || path.MaxOutputTokens <= 0 || path.InputUSDPerMillion < 0 || path.OutputUSDPerMillion < 0 || path.StorageUSDPerMillionTokenHour < 0 || path.MaxStorageHours < 0 {
 			return fmt.Errorf("%s has an invalid token or pricing bound", path.Name)
 		}

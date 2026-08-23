@@ -23,10 +23,9 @@
 //  7. The ID format is valid: sampled IDs from the database match the
 //     expected shape (16-char lowercase alpha).
 //
-// Doctor is read-only. It does not create the database if it is missing —
-// that is the user's signal to run `ktx run` / `ktx write` for the first
-// time, or to investigate a config issue. It does not migrate, prune, or
-// repair the database.
+// Doctor does not create a missing database. It prepares an existing supported
+// older schema, then performs read-only inspection. It does not prune or repair
+// malformed databases.
 //
 // Output contract:
 //
@@ -53,8 +52,8 @@
 // ($XDG_DATA_HOME/ktx/ktx.db). Per-invocation override lives on
 // `ktx db --path`; doctor does not accept its own --path.
 //
-// Doctor opens the database itself because it must inspect missing and
-// unmigrated files without changing them.
+// Doctor checks that the database exists, prepares a supported older schema,
+// then inspects it through read-only access.
 package cli
 
 import (
@@ -297,8 +296,8 @@ func buildDoctorReport() *doctorReport {
 		Detail: fmt.Sprintf("file present at %q", path),
 	})
 
-	// Check 2: openable through SQLite's enforced read-only mode without
-	// running migrations.
+	// Check 2: open read-only so doctor can classify the existing schema before
+	// readiness changes it.
 	db, err := dbpkg.OpenReadOnly(path)
 	if err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
@@ -309,16 +308,15 @@ func buildDoctorReport() *doctorReport {
 		report.Status = doctorStatusError
 		return report
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	report.Checks = append(report.Checks, doctorCheck{
 		Name:   "database_openable",
 		Status: doctorStatusOK,
 		Detail: fmt.Sprintf("opened %q read-only", path),
 	})
 
-	// Check 3: schema version. Older supported schemas require a deliberate
-	// Open-backed upgrade after installation; newer schemas require a newer
-	// runtime. Neither condition is changed by doctor.
+	// Check 3: prepare a supported older schema. Newer schemas require a newer
+	// runtime and fail before writes.
 	version, err := db.SchemaVersion()
 	if err != nil {
 		report.Checks = append(report.Checks, doctorCheck{
@@ -331,14 +329,35 @@ func buildDoctorReport() *doctorReport {
 		maximum := dbpkg.MaxSupportedSchema()
 		switch {
 		case version < maximum:
-			report.Checks = append(report.Checks, doctorCheck{
-				Name:   "schema_version",
-				Status: doctorStatusWarning,
-				Detail: fmt.Sprintf("database schema %d requires automatic readiness to schema %d before post-readiness inspection", version, maximum),
-			})
-			if report.Status != doctorStatusError {
-				report.Status = doctorStatusDegraded
+			if err := db.CheckReadableCoreSchema(); err != nil {
+				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
+				report.Status = doctorStatusError
+				return report
 			}
+			if err := db.Close(); err != nil {
+				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
+				report.Status = doctorStatusError
+				return report
+			}
+			prepared, prepareErr := dbpkg.OpenExisting(path)
+			if prepareErr != nil {
+				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: prepareErr.Error()})
+				report.Status = doctorStatusError
+				return report
+			}
+			if err := prepared.Close(); err != nil {
+				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
+				report.Status = doctorStatusError
+				return report
+			}
+			db, err = dbpkg.OpenReadOnly(path)
+			if err != nil {
+				report.Checks = append(report.Checks, doctorCheck{Name: "schema_valid", Status: doctorStatusError, Detail: err.Error()})
+				report.Status = doctorStatusError
+				return report
+			}
+			version = maximum
+			report.Checks = append(report.Checks, doctorCheck{Name: "schema_version", Status: doctorStatusOK, Detail: fmt.Sprintf("database prepared to supported schema %d", version)})
 		case version > maximum:
 			report.Checks = append(report.Checks, doctorCheck{
 				Name:   "schema_version",

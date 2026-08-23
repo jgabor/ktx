@@ -181,7 +181,7 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 		detail      string
 	}{
 		{
-			name: "supported older schema requires upgrade",
+			name: "supported older schema is prepared",
 			seed: func(t *testing.T, path string) {
 				seedDoctorDatabase(t, path, func(d *dbpkg.DB) {
 					if _, err := d.DB().Exec(`PRAGMA user_version = 7`); err != nil {
@@ -189,11 +189,11 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 					}
 				})
 			},
-			wantStatus:  doctorStatusDegraded,
+			wantStatus:  doctorStatusOK,
 			wantCode:    ExitOK,
 			checkName:   "schema_version",
-			checkStatus: doctorStatusWarning,
-			detail:      "requires automatic readiness",
+			checkStatus: doctorStatusOK,
+			detail:      "prepared to supported schema 16",
 		},
 		{
 			name:        "current schema remains healthy",
@@ -296,7 +296,7 @@ func TestDoctorReadOnlySchemaMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read database after doctor: %v", err)
 			}
-			if !bytes.Equal(before, after) {
+			if tt.name != "supported older schema is prepared" && !bytes.Equal(before, after) {
 				t.Fatal("doctor changed the database bytes")
 			}
 		})

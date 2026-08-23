@@ -37,7 +37,6 @@ const (
 	CodeInternal            ErrorCode = "internal"
 	CodeDatabaseUnavailable ErrorCode = "database-unavailable"
 	CodeSchemaIncompatible  ErrorCode = "schema-incompatible"
-	CodeSchemaMigration     ErrorCode = "schema-migration-required"
 )
 
 // ExitCode returns the process exit code for the error class.
@@ -51,7 +50,7 @@ func (c ErrorCode) ExitCode() int {
 		return ExitConflict
 	case CodeInternal, CodeDatabaseUnavailable:
 		return ExitInternal
-	case CodeSchemaIncompatible, CodeSchemaMigration:
+	case CodeSchemaIncompatible:
 		return ExitSchemaIncompatible
 	default:
 		return ExitInternal

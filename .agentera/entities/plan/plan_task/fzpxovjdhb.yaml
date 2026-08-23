@@ -1,0 +1,13 @@
+id: fzpxovjdhb
+artifact: plan
+record:
+  name: Apply automatic readiness to every database-backed surface
+  depends_on:
+    - pkasagxgjy
+  status: in_progress
+  acceptance:
+    - GIVEN any supported older schema WHEN a command, hook, telemetry path, query, recovery path, or generated callback uses the database THEN it provides its intended behavior without a migration instruction or schema-required error.
+    - GIVEN concurrent processes encounter pending migration WHEN they access the same database THEN one process advances migration while all others wait or use compatible behavior without lost evidence or raw lock errors.
+    - GIVEN any readiness or operation deadline expires WHEN failure is reported THEN KTX emits one stable, correctly attributed result and no outer adapter applies a competing timeout.
+    - GIVEN a missing, current, or newer database WHEN readiness runs THEN existing creation, fast-path, and newer-schema safety contracts remain intact.
+  plan: wddjlywrzk

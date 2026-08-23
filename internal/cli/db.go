@@ -99,8 +99,8 @@ func dbMigrateLogic(pathOverride string, args []string, format string, stdout io
 	return nil, nil
 }
 
-// dbReportLogic renders a read-only database evidence report. It uses a
-// read-only SQLite connection and never runs product migrations.
+// dbReportLogic prepares an existing supported older database, then renders a
+// read-only evidence report.
 func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, error) {
 	fs := flag.NewFlagSet("ktx db report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)

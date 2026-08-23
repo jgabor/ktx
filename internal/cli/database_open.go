@@ -43,24 +43,6 @@ func openQueryDatabase(path, command string) (*dbpkg.DB, error) {
 }
 
 func queryDatabaseOpenError(path, command string, err error) error {
-	var schemaErr *dbpkg.SchemaTooOldError
-	if errors.As(err, &schemaErr) {
-		canonicalDB, canonicalErr := dbpkg.CanonicalPath(path)
-		if canonicalErr != nil {
-			return internalError("canonicalize migration-required database path: %v", canonicalErr)
-		}
-		correction := fmt.Sprintf("automatic readiness must upgrade database schema %d to %d before the operation can run", schemaErr.Actual, schemaErr.Required)
-		failure := newError(CodeSchemaMigration,
-			"database schema %d at %s requires automatic readiness to schema %d before this post-readiness read-only query; %s",
-			schemaErr.Actual, canonicalDB, schemaErr.Required, correction)
-		failure.Extra = map[string]any{
-			"actual_schema":   schemaErr.Actual,
-			"required_schema": schemaErr.Required,
-			"database_path":   canonicalDB,
-			"correction":      correction,
-		}
-		return failure
-	}
 	return databaseOpenError(path, command, err)
 }
 

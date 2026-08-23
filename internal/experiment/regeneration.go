@@ -3,6 +3,7 @@ package experiment
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 
@@ -92,7 +93,14 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 		return attempt, nil
 	}
 
-	database, err := db.OpenReadOnly(filepath.Join(experimentDir, filepath.FromSlash(databaseRel)))
+	databasePath := filepath.Join(experimentDir, filepath.FromSlash(databaseRel))
+	if _, err := os.Stat(databasePath); err != nil {
+		if attempt.SchemaVersion >= 3 {
+			return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt database is unavailable"), nil
+		}
+		return Attempt{}, fmt.Errorf("attempt %q open database authority: %w", attempt.AttemptID, err)
+	}
+	database, err := db.OpenQuery(databasePath)
 	if err != nil {
 		if attempt.SchemaVersion >= 3 {
 			return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt database is unavailable"), nil

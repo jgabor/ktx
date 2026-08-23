@@ -86,7 +86,7 @@ func runBenchExport(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, invalidReplayFixtureDestination(path), opts.Format)
 		return ExitUsage
 	}
-	database, err := dbpkg.OpenReadOnly(path)
+	database, err := dbpkg.OpenQuery(path)
 	if err != nil {
 		printError(stderr, internalError("ktx bench export: open source database read-only: %v", err), opts.Format)
 		return ExitInternal

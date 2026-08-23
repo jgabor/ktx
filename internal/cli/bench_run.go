@@ -164,7 +164,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitInternal
 	}
 	if !hasTable {
-		printError(stderr, notFoundError("ktx bench run: bench_runs table is missing (old database; run any ktx command to apply the migration)"), format)
+		printError(stderr, notFoundError("ktx bench run: prepared database is missing bench_runs"), format)
 		return ExitNotFound
 	}
 

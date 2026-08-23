@@ -231,25 +231,34 @@ func TestRunReadWithReleasesDatabaseBeforeOutputFailure(t *testing.T) {
 	}
 }
 
-func TestRunWithReadPreservesOlderAndNewerSchemaFailures(t *testing.T) {
+func TestRunWithReadPreparesOlderAndRejectsNewerSchema(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		version     int
 		failureCode ErrorCode
+		wantExit    int
 	}{
-		{name: "older schema requires migration", version: dbpkg.MaxSupportedSchema() - 1, failureCode: CodeSchemaMigration},
-		{name: "newer schema requires a newer binary", version: dbpkg.MaxSupportedSchema() + 1, failureCode: CodeSchemaIncompatible},
+		{name: "older schema is prepared", version: dbpkg.MaxSupportedSchema() - 1, failureCode: CodeNotFound, wantExit: ExitNotFound},
+		{name: "newer schema requires a newer binary", version: dbpkg.MaxSupportedSchema() + 1, failureCode: CodeSchemaIncompatible, wantExit: ExitSchemaIncompatible},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			directory := t.TempDir()
 			path := filepath.Join(directory, "ktx.db")
-			seedSchemaVersion(t, path, test.version)
+			if test.version < dbpkg.MaxSupportedSchema() {
+				seedDoctorDatabase(t, path, func(database *dbpkg.DB) {
+					if _, err := database.DB().Exec(fmt.Sprintf("PRAGMA user_version = %d", test.version)); err != nil {
+						t.Fatal(err)
+					}
+				})
+			} else {
+				seedSchemaVersion(t, path, test.version)
+			}
 			t.Setenv("KTX_DB", path)
 			before := directorySnapshot(t, directory)
 
 			var stdout, stderr bytes.Buffer
-			if code := runWith([]string{"read", "abcdefghijklmnop"}, &stdout, &stderr); code != ExitSchemaIncompatible {
-				t.Fatalf("exit = %d, want %d; stdout=%q stderr=%q", code, ExitSchemaIncompatible, stdout.String(), stderr.String())
+			if code := runWith([]string{"read", "abcdefghijklmnop"}, &stdout, &stderr); code != test.wantExit {
+				t.Fatalf("exit = %d, want %d; stdout=%q stderr=%q", code, test.wantExit, stdout.String(), stderr.String())
 			}
 			if stdout.Len() != 0 {
 				t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -265,7 +274,7 @@ func TestRunWithReadPreservesOlderAndNewerSchemaFailures(t *testing.T) {
 			if envelope.Error.Code != test.failureCode {
 				t.Fatalf("error code = %q, want %q", envelope.Error.Code, test.failureCode)
 			}
-			if after := directorySnapshot(t, directory); !reflect.DeepEqual(after, before) {
+			if after := directorySnapshot(t, directory); test.version > dbpkg.MaxSupportedSchema() && !reflect.DeepEqual(after, before) {
 				t.Fatalf("read changed schema storage:\nbefore=%#v\nafter=%#v", before, after)
 			}
 		})

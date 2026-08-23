@@ -26,6 +26,7 @@
 
 ### Fixed
 
+- Query, doctor, telemetry, hook, recovery, and retained-artifact inspection paths now prepare existing supported older databases automatically, then use read-only access where required. Missing-database, current-schema, newer-schema, coordination, and timeout contracts remain unchanged.
 - Schema 15 preparation now uses an atomic primary-key cursor for bounded compressed-timestamp batches, populates sortable timestamps on every artifact write path, resumes after process termination, and publishes schema 16 without a data-sized final index build.
 - Generated `ktx.ts` callbacks no longer kill KTX after 10 seconds; `ktx hook` retry preflight now uses writer-preferred coordination and stable `database-unavailable` attribution.
 - `ktx run` now rejects an explicit empty `--record-stream=` value while preserving supported boolean and numeric forms and child arguments.

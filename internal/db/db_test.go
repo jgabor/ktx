@@ -203,10 +203,6 @@ func TestOpenQuery(t *testing.T) {
 		version int
 		check   func(error) bool
 	}{
-		{name: "older schema requires migration", version: MaxSupportedSchema() - 1, check: func(err error) bool {
-			var target *SchemaTooOldError
-			return errors.As(err, &target) && target.Actual == MaxSupportedSchema()-1 && target.Required == MaxSupportedSchema()
-		}},
 		{name: "newer schema requires newer binary", version: MaxSupportedSchema() + 1, check: func(err error) bool {
 			var target *SchemaTooNewError
 			return errors.As(err, &target) && target.Actual == MaxSupportedSchema()+1 && target.Maximum == MaxSupportedSchema()
@@ -237,6 +233,63 @@ func TestOpenQuery(t *testing.T) {
 				t.Fatalf("rejected query changed storage:\n before=%#v\n after=%#v", before, after)
 			}
 		})
+	}
+
+	t.Run("older schema is prepared before read-only use", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "older.db")
+		created, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := created.db.Exec(fmt.Sprintf("PRAGMA user_version = %d", MaxSupportedSchema()-1)); err != nil {
+			t.Fatal(err)
+		}
+		if err := created.Close(); err != nil {
+			t.Fatal(err)
+		}
+		database, err := OpenQuery(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer database.Close()
+		version, err := database.SchemaVersion()
+		if err != nil || version != MaxSupportedSchema() {
+			t.Fatalf("schema version = %d, %v; want %d", version, err, MaxSupportedSchema())
+		}
+		if _, err := database.db.Exec("CREATE TABLE forbidden (id INTEGER)"); err == nil {
+			t.Fatal("write through prepared query handle succeeded")
+		}
+	})
+}
+
+func TestConcurrentOpenQueryReadiness(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "older.db")
+	created, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := created.db.Exec(fmt.Sprintf("PRAGMA user_version = %d", MaxSupportedSchema()-1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := created.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			database, err := OpenQuery(path)
+			if err == nil {
+				_, err = database.ListSessions()
+				err = errors.Join(err, database.Close())
+			}
+			errs <- err
+		}()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent readiness: %v", err)
+		}
 	}
 }
 

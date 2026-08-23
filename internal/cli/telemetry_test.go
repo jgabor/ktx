@@ -363,7 +363,7 @@ func TestTelemetryCommandDatabaseFailuresFailOpenOnlyForRecord(t *testing.T) {
 			t.Setenv("KTX_DB", failure.prepare(t))
 			var stdout, stderr bytes.Buffer
 			wantCode := ExitInternal
-			if failure.schemaIncompatible || failure.queryMigrationRequired {
+			if failure.schemaIncompatible {
 				wantCode = ExitSchemaIncompatible
 			}
 			if code := runWith([]string{"telemetry", "list", "--session", "abcdefghijklmnop"}, &stdout, &stderr); code != wantCode {

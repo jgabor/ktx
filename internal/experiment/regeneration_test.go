@@ -125,7 +125,7 @@ func TestAuthoritativeRegenerationRejectsUnavailableContributingAuthority(t *tes
 				t.Fatal(err)
 			}
 			attempt.Artifacts["database"] = "malformed.db"
-		}, want: "read session authority"},
+		}, want: "open database authority"},
 		{name: "unknown session", mutate: func(_ string, attempt *Attempt) {
 			missing := "missing-session"
 			attempt.SessionID = &missing

@@ -1,0 +1,12 @@
+id: ujdpdqqrfj
+artifact: progress
+record:
+  timestamp: 2026-08-24 01:02
+  type: fix
+  phase: build
+  what: internal/db.OpenQuery now migrates an existing supported older database through OpenExisting before reopening it read-only. internal/cli/doctor.go applies the same readiness sequence.
+  context:
+    intent: Apply automatic readiness to every database-backed surface without changing missing, current, newer-schema, or timeout contracts.
+  verified: Focused database, CLI, and experiment tests passed, including concurrent query readiness and generated adapter timeout behavior. Isolated mage check passed with KTX_DB unset and disposable HOME and XDG roots.
+  next: Audit the automatic-readiness surface matrix and retained deadline attribution while task fzpxovjdhb remains in progress.
+  publication_order: 162

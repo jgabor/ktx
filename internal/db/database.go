@@ -379,8 +379,25 @@ func OpenQuery(path string) (*DB, error) {
 		return nil, fmt.Errorf("db: read query schema version %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
 	if version < schemaVersion {
-		database.Close()
-		return nil, &SchemaTooOldError{Actual: version, Required: schemaVersion}
+		if err := database.CheckReadableCoreSchema(); err != nil {
+			database.Close()
+			return nil, err
+		}
+		if err := database.Close(); err != nil {
+			return nil, fmt.Errorf("db: close query database before readiness %q: %w", path, err)
+		}
+		prepared, err := OpenExisting(path)
+		if err != nil {
+			return nil, fmt.Errorf("db: prepare query database %q: %w", path, err)
+		}
+		if err := prepared.Close(); err != nil {
+			return nil, fmt.Errorf("db: close prepared query database %q: %w", path, err)
+		}
+		database, err = OpenReadOnly(path)
+		if err != nil {
+			return nil, fmt.Errorf("db: reopen prepared query database %q: %w", path, err)
+		}
+		version = schemaVersion
 	}
 	if version > schemaVersion {
 		database.Close()
@@ -577,7 +594,7 @@ func (d *DB) WithHookWriter(fn func(*HookWriter) error) error {
 			return newerSchemaError(version)
 		}
 		if version < schemaVersion {
-			return fmt.Errorf("db: hook schema version %d requires automatic readiness to version %d", version, schemaVersion)
+			return fmt.Errorf("db: hook schema changed from prepared version %d to %d", schemaVersion, version)
 		}
 		return fn(&HookWriter{db: d})
 	})

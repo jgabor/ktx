@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/jgabor/ktx/internal/binarycap"
@@ -130,31 +130,30 @@ func TestLegacyRuntimeProofFlagDoesNotChangeSchemaInspection(t *testing.T) {
 	}
 }
 
-func TestReadOnlyCommandRequiresExplicitMigrationForOlderSchema(t *testing.T) {
+func TestReadOnlyCommandAutomaticallyPreparesOlderSchema(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "schema-7.db")
-	seedSchemaVersion(t, path, dbpkg.MaxSupportedSchema()-1)
+	seedDoctorDatabase(t, path, func(database *dbpkg.DB) {
+		if _, err := database.DB().Exec(fmt.Sprintf("PRAGMA user_version = %d", dbpkg.MaxSupportedSchema()-1)); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Setenv("KTX_DB", path)
-	before := directorySnapshot(t, dir)
-
 	var stdout, stderr bytes.Buffer
-	if code := runWith([]string{"list"}, &stdout, &stderr); code != ExitSchemaIncompatible {
-		t.Fatalf("exit = %d, want %d; stdout=%q stderr=%q", code, ExitSchemaIncompatible, stdout.String(), stderr.String())
+	if code := runWith([]string{"list"}, &stdout, &stderr); code != ExitOK {
+		t.Fatalf("exit = %d, want %d; stdout=%q stderr=%q", code, ExitOK, stdout.String(), stderr.String())
 	}
-	var envelope struct {
-		Error map[string]any `json:"error"`
+	if stdout.String() != "[]\n" || stderr.Len() != 0 {
+		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
-	if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+	database, err := dbpkg.OpenReadOnly(path)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if envelope.Error["code"] != string(CodeSchemaMigration) ||
-		envelope.Error["actual_schema"] != float64(dbpkg.MaxSupportedSchema()-1) ||
-		envelope.Error["required_schema"] != float64(dbpkg.MaxSupportedSchema()) ||
-		!strings.Contains(envelope.Error["correction"].(string), "automatic readiness") {
-		t.Fatalf("error = %#v", envelope.Error)
-	}
-	if after := directorySnapshot(t, dir); !reflect.DeepEqual(after, before) {
-		t.Fatalf("migration-required query changed storage:\nbefore=%#v\nafter=%#v", before, after)
+	defer database.Close()
+	version, err := database.SchemaVersion()
+	if err != nil || version != dbpkg.MaxSupportedSchema() {
+		t.Fatalf("schema version = %d, %v; want %d", version, err, dbpkg.MaxSupportedSchema())
 	}
 }
 

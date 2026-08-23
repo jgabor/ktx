@@ -51,7 +51,7 @@ func runBenchReplayImpl(db *dbpkg.DB, sessionID string, stdout, stderr io.Writer
 		return ExitInternal
 	}
 	if !hasTable {
-		printError(stderr, notFoundError("ktx bench run --replay: recorded_streams table is missing (old database; run any ktx command to apply the migration)"), format)
+		printError(stderr, notFoundError("ktx bench run --replay: prepared database is missing recorded_streams"), format)
 		return ExitNotFound
 	}
 

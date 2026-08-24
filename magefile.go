@@ -427,6 +427,21 @@ func GeneratedAdapterGate() error {
 	})
 }
 
+// SchemaReleaseGate verifies a prepared production-scale schema fixture.
+// Set KTX_SCHEMA_RELEASE_WORK_ROOT and KTX_SCHEMA_RELEASE_REPORT explicitly.
+func SchemaReleaseGate() error {
+	workRoot := strings.TrimSpace(os.Getenv("KTX_SCHEMA_RELEASE_WORK_ROOT"))
+	report := strings.TrimSpace(os.Getenv("KTX_SCHEMA_RELEASE_REPORT"))
+	if workRoot == "" || report == "" {
+		return errors.New("schema release gate requires KTX_SCHEMA_RELEASE_WORK_ROOT and KTX_SCHEMA_RELEASE_REPORT")
+	}
+	if err := Build(); err != nil {
+		return err
+	}
+	return run("python3", "tools/schema_readiness_evidence.py", "release",
+		"--binary", binaryPath(), "--work-root", workRoot, "--output", report, "--repository", ".")
+}
+
 func generatedAdapterGate() error {
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("generated-adapter gate requires Linux process and lock-owner evidence; got %s", runtime.GOOS)

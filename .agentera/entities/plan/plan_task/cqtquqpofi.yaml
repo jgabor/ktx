@@ -1,0 +1,13 @@
+id: cqtquqpofi
+artifact: plan
+record:
+  name: Enforce production-scale schema release gates
+  depends_on:
+    - kszxqpedjh
+  status: in_progress
+  acceptance:
+    - GIVEN a proposed schema release WHEN release verification runs THEN it rehearses the exact prior supported schema with representative history volume and timestamp distribution.
+    - GIVEN production-shaped migration and concurrent traffic WHEN measurements are collected THEN latency, lock hold, journal growth, memory, and completion satisfy the approved budgets.
+    - GIVEN forced interruption and restart during the scale rehearsal WHEN validation completes THEN all evidence remains recoverable and migration resumes without manual action.
+    - GIVEN a migration violates correctness or a resource budget WHEN release gating evaluates it THEN the release is blocked and retained evidence identifies the failed criterion.
+  plan: wddjlywrzk

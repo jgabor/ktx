@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 import sys
+import json
+import subprocess
 import tempfile
 import unittest
 
@@ -35,6 +37,42 @@ class MeasureTest(unittest.TestCase):
             )
 
         self.assertEqual(result["stdout"], "done")
+
+    def test_release_report_identifies_correctness_failure(self):
+        report = self.release_report()
+        item = next(item for item in report["criteria"] if item["criterion"] == "interruption_restart")
+        item["status"] = "FAIL"
+        report["release_gate"] = "FAIL"
+        result = self.validate_in_child(report)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("interruption_restart", result.stderr)
+
+    def test_release_report_identifies_budget_failure(self):
+        report = self.release_report()
+        item = next(item for item in report["criteria"] if item["criterion"] == "peak_rss_bytes")
+        item["status"] = "FAIL"
+        report["release_gate"] = "FAIL"
+        result = self.validate_in_child(report)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("peak_rss_bytes", result.stderr)
+
+    @staticmethod
+    def validate_in_child(report):
+        return subprocess.run(
+            [sys.executable, "-c", "import json,sys; from tools.schema_readiness_evidence import validate_release_report; validate_release_report(json.load(sys.stdin))"],
+            input=json.dumps(report), text=True, capture_output=True,
+        )
+
+    @staticmethod
+    def release_report():
+        names = [
+            "prior_schema_identity", "representative_scale", "concurrent_generated_traffic",
+            "interruption_restart", *schema_readiness_evidence.APPROVED_LIMITS,
+        ]
+        return {
+            "release_gate": "PASS",
+            "criteria": [schema_readiness_evidence.criterion(name, True, {}) for name in names],
+        }
 
 
 if __name__ == "__main__":

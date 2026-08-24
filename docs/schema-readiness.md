@@ -162,3 +162,21 @@ and fixed-limit comparison above. Any measured value above its limit blocks
 release. The journal and total-completion overrides do not reinterpret earlier
 raw observations. Correctness, interruption recovery, and evidence integrity
 remain independent mandatory gates.
+
+Prepare the disposable 3.2 GB fixture with the `prepare` command above. Then run
+the explicit release gate, which is intentionally not part of `mage check`:
+
+```bash
+env -u KTX_DB \
+  KTX_SCHEMA_RELEASE_WORK_ROOT="$root/work" \
+  KTX_SCHEMA_RELEASE_REPORT="docs/notes/schema-readiness-release.json" \
+  mage schemaReleaseGate
+```
+
+The target fails if either path or any prerequisite is missing. It builds KTX,
+verifies the schema-15 historical fixture revision and hash, verifies the exact
+3.2 GB row and timestamp policy, runs the generated OpenCode adapter overlap
+gate, kills a migration after a durable cursor advance and restarts it, and
+measures all five fixed limits. It publishes one compact JSON report atomically
+after validation. A failed run writes `<report>.failed.json` and does not replace
+the last passing report.

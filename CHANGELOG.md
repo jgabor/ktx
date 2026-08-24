@@ -4,6 +4,7 @@
 
 ### Added
 
+- `mage schemaReleaseGate` now blocks schema releases unless the exact prior physical schema passes the retained 3.2 GB scale, generated-adapter concurrency, interruption/restart, correctness, and fixed resource-budget checks.
 - The schema-readiness contract now requires automatic preparation for every supported stale database surface, single-owner timeout attribution, and reproducible controlled-host resource gates with a retained raw baseline and disposable fixture harness.
 - Schema 14 adds explicit OpenCode collection evidence for hook-owned delivery, wrapper-owned runtime timing and lifecycle, acknowledged recovery cues, linked byte-exact recovery attempts, and the read-only `ktx stats live-validation` fixed-window report. Ordinary `ktx run` behavior remains unchanged.
 - Schema 13 retains metadata-only `run` ingress collection scope and lifecycle closure evidence. Continuity qualification reports explicit gaps for missing closure, interruption, conflict, pre-deployment history, and unelapsed windows; after readiness, evaluation is read-only and does not migrate or backfill evidence.

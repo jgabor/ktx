@@ -3,11 +3,13 @@
 
 import argparse
 import hashlib
+import gzip
 import json
 import os
 from pathlib import Path
 import platform
 import re
+import signal
 import sqlite3
 import string
 import subprocess
@@ -23,6 +25,8 @@ TIMESTAMP_STEP_NS = 19_719_224_757_757
 SAMPLES = 5
 CPU = "2"
 PREPARED_MANIFEST = "prepared-fixtures.json"
+HISTORICAL_MANIFEST = Path("internal/db/testdata/historical/manifest.json")
+HISTORICAL_FIXTURE = Path("internal/db/testdata/historical/schema-15.db.gz")
 APPROVED_LIMITS = {
     "readiness_latency_ns": 35_322_974,
     "exclusive_lock_hold_ns": 101_037_622,
@@ -95,6 +99,10 @@ def digest(path, label):
                 progress("prepare", f"{label} hash {processed}/{size} bytes")
                 next_progress += 256 * 1024 * 1024
     return value.hexdigest()
+
+
+def bytes_digest(data):
+    return hashlib.sha256(data).hexdigest()
 
 
 def alpha_id(index):
@@ -170,23 +178,39 @@ def generate_fixtures(binary, parent, payload_count, payload_bytes):
     database.close()
 
     schema15 = parent / "schema15.db"
-    copy_fixture(current, schema15, roots(parent, "fixture-schema15-copy"), "prepare")
-    progress("prepare", "creating physical schema-15 fixture")
+    historical = Path(__file__).resolve().parent.parent / HISTORICAL_FIXTURE
+    progress("prepare", "expanding exact historical schema-15 fixture")
+    schema15.write_bytes(gzip.decompress(historical.read_bytes()))
     database = sqlite3.connect(schema15)
-    database.executescript(
-        """BEGIN;
-        INSERT INTO compressed(
-            id,source_id,output,content_hash,pipeline,timestamp,
-            timestamp_unix_nano,producer
-        )
-        SELECT substr(id,2,15)||char(97+(rowid%26)),id,
-            CAST(zeroblob(10) AS TEXT),printf('%064d',0),'{}',timestamp,
-            timestamp_unix_nano,'hook'
-        FROM tool_calls WHERE substr(id,1,1)='p';
-        ALTER TABLE compressed DROP COLUMN timestamp_unix_nano;
-        PRAGMA user_version=15;
-        COMMIT;"""
+    database.execute("PRAGMA journal_mode=OFF")
+    database.execute("PRAGMA synchronous=OFF")
+    for table in ("compression_dispositions", "compressed", "tool_calls", "sessions"):
+        database.execute(f"DELETE FROM {table}")
+    database.execute(
+        "INSERT INTO sessions(id,agent,started_at,last_seen_at,tool_call_count) VALUES(?,?,?,?,?)",
+        (session, "unknown", "2024-01-01T00:00:00Z", "2026-01-01T00:00:00Z", payload_count),
     )
+    for start in range(0, payload_count, 32):
+        rows = []
+        artifacts = []
+        for index in range(start, min(start + 32, payload_count)):
+            source_id = alpha_id(index)
+            timestamp = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime((TIMESTAMP_START_NS + index * TIMESTAMP_STEP_NS) // 1_000_000_000)
+            )
+            rows.append((source_id, session, "read", f"fixture-{index}", payload_bytes, "0" * 64, timestamp))
+            artifacts.append((source_id[1:] + chr(97 + (index % 26)), source_id, 10, "0" * 64, "{}", timestamp, "hook"))
+        database.executemany(
+            "INSERT INTO tool_calls(id,session_id,tool,input,output,content_hash,timestamp) VALUES(?,?,?,?,CAST(zeroblob(?) AS TEXT),?,?)",
+            rows,
+        )
+        database.executemany(
+            "INSERT INTO compressed(id,source_id,output,content_hash,pipeline,timestamp,producer) VALUES(?,?,CAST(zeroblob(?) AS TEXT),?,?,?,?)",
+            artifacts,
+        )
+        progress("prepare", f"inserted {min(start + 32, payload_count)}/{payload_count} exact schema-15 rows")
+    database.commit()
+    database.execute("PRAGMA journal_mode=DELETE")
     database.close()
     fixtures = {
         "minimal": fixture_record(minimal, "tool_calls", "timestamp", "minimal"),
@@ -305,7 +329,7 @@ def measure(command, env, database, lock_kind):
         if lock_kind == "flock" and lock_starts
         else completion
     )
-    return {
+    result = {
         "readiness_latency_ns": readiness,
         "exclusive_lock_hold_ns": lock_hold,
         "journal_growth_bytes": peak_journal,
@@ -314,6 +338,7 @@ def measure(command, env, database, lock_kind):
         "exclusive_lock_intervals_ns": lock_intervals,
         "stdout": stdout.strip(),
     }
+    return result
 
 
 def fixture_record(path, table, timestamp_column, label):
@@ -451,6 +476,234 @@ def measure_prepared(binary, parent, output):
         raise SystemExit(f"schema readiness release limits exceeded: {failed}")
 
 
+def criterion(name, passed, evidence):
+    return {"criterion": name, "status": "PASS" if passed else "FAIL", "evidence": evidence}
+
+
+def validate_release_report(report):
+    required = {
+        "prior_schema_identity",
+        "representative_scale",
+        "concurrent_generated_traffic",
+        "interruption_restart",
+        *APPROVED_LIMITS,
+    }
+    checks = {item.get("criterion"): item for item in report.get("criteria", [])}
+    missing = sorted(required - checks.keys())
+    if missing:
+        raise ValueError("missing release criteria: " + ", ".join(missing))
+    failed = sorted(name for name in required if checks[name].get("status") != "PASS")
+    if failed:
+        raise ValueError("failed release criteria: " + ", ".join(failed))
+    if report.get("release_gate") != "PASS":
+        raise ValueError("release_gate must be PASS")
+
+
+def physical_schema_digest(database):
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type,name"
+        ).fetchall()
+    return bytes_digest(json.dumps(rows, separators=(",", ":")).encode())
+
+
+def historical_identity(repository, parent):
+    manifest_path = repository / HISTORICAL_MANIFEST
+    fixture_path = repository / HISTORICAL_FIXTURE
+    manifest = json.loads(manifest_path.read_text())
+    record = next((item for item in manifest["fixtures"] if item["version"] == 15), None)
+    if record is None or record["file"] != fixture_path.name:
+        raise ValueError("historical schema-15 fixture manifest entry is missing")
+    data = gzip.decompress(fixture_path.read_bytes())
+    actual = bytes_digest(data)
+    if actual != record["database_sha256"]:
+        raise ValueError("historical schema-15 fixture hash does not match its revision manifest")
+    reference = parent / "historical-schema15-reference.db"
+    reference.write_bytes(data)
+    schema_digest = physical_schema_digest(reference)
+    reference.unlink()
+    return {
+        "schema": 15,
+        "source_revision": record["source_revision"],
+        "database_sha256": actual,
+        "metadata_sha256": record["metadata_sha256"],
+        "manifest_sha256": digest(manifest_path, "historical manifest"),
+        "physical_schema_sha256": schema_digest,
+    }
+
+
+def wait_for_durable_cursor(database, process, timeout=10):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError("migration completed before interruption observed a durable cursor")
+        try:
+            with sqlite3.connect(database, timeout=0.01) as connection:
+                row = connection.execute(
+                    "SELECT last_id FROM compressed_timestamp_migration WHERE singleton=1"
+                ).fetchone()
+            if row and row[0]:
+                os.kill(process.pid, signal.SIGSTOP)
+                if process.poll() is not None:
+                    raise RuntimeError("migration completed before it could be stopped")
+                return row[0]
+        except sqlite3.Error:
+            pass
+        time.sleep(0.001)
+    raise RuntimeError("timed out waiting for a durable migration cursor")
+
+
+def compressed_evidence_digest(database):
+    value = hashlib.sha256()
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            "SELECT id,source_id,output,content_hash,pipeline,timestamp,producer FROM compressed ORDER BY id"
+        )
+        for row in rows:
+            value.update(json.dumps(row, separators=(",", ":")).encode() + b"\n")
+    return value.hexdigest()
+
+
+def validate_migrated_copy(database, expected_rows, expected_evidence_digest):
+    with sqlite3.connect(database) as connection:
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+        rows, distinct_ids, missing = connection.execute(
+            "SELECT count(*),count(DISTINCT id),sum(timestamp_unix_nano IS NULL) FROM compressed"
+        ).fetchone()
+        cursor = connection.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='compressed_timestamp_migration'"
+        ).fetchone()[0]
+        hot_journal = Path(str(database) + "-journal").exists()
+    result = {
+        "schema": version,
+        "integrity_check": integrity,
+        "rows": rows,
+        "distinct_ids": distinct_ids,
+        "missing_sortable_timestamps": missing,
+        "cursor_tables": cursor,
+        "hot_journal": hot_journal,
+        "evidence_sha256": compressed_evidence_digest(database),
+        "passed": version == 16 and integrity == "ok" and rows == expected_rows
+        and distinct_ids == expected_rows and missing == 0 and cursor == 0
+        and not hot_journal,
+    }
+    result["passed"] = result["passed"] and result["evidence_sha256"] == expected_evidence_digest
+    return result
+
+
+def interruption_rehearsal(binary, parent, fixture, expected_rows):
+    root = parent / "release-interruption"
+    root.mkdir()
+    database = root / "schema15.db"
+    env = roots(parent, "release-interruption-roots")
+    copy_fixture(fixture, database, env, "release")
+    expected_evidence_digest = compressed_evidence_digest(database)
+    command = [str(binary), "db", "--path", str(database), "migrate"]
+    first = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    cursor = wait_for_durable_cursor(database, first)
+    query_env = env.copy()
+    query_env["KTX_DB"] = str(database)
+    query = subprocess.Popen(
+        [str(binary), "list", "--format", "json"], env=query_env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    first.kill()
+    first.communicate(timeout=10)
+    query_stdout, query_stderr = query.communicate(timeout=30)
+    with sqlite3.connect(database) as connection:
+        durable_rows = connection.execute(
+            "SELECT count(*) FROM compressed WHERE id <= ?", (cursor,)
+        ).fetchone()[0]
+    restarted = run(command, env)
+    result = validate_migrated_copy(database, expected_rows, expected_evidence_digest)
+    result.update({
+        "durable_cursor": cursor,
+        "durable_rows_before_restart": durable_rows,
+        "schema_before_restart": 15,
+        "first_exit": first.returncode,
+        "restart_exit": restarted.returncode,
+        "concurrent_query_exit": query.returncode,
+        "concurrent_query_output_sha256": bytes_digest(query_stdout.encode()),
+        "concurrent_query_raw_lock_error": "database is locked" in query_stderr.lower(),
+    })
+    result["passed"] = (result["passed"] and durable_rows > 0
+                        and query.returncode == 0 and "database is locked" not in query_stderr.lower())
+    return result
+
+
+def generated_adapter_gate(binary, repository, parent):
+    env = roots(parent, "release-generated-adapter")
+    env["KTX_TEST_REQUIRE_GENERATED_ADAPTER"] = "1"
+    env["KTX_TEST_BUILT_BINARY"] = str(binary)
+    started = time.monotonic_ns()
+    result = subprocess.run(
+        ["go", "test", "-race", "./internal/db", "-run", "^TestGeneratedOpenCodeAdapterReadinessOverlap$", "-count=1", "-timeout=30s"],
+        cwd=repository, env=env, text=True, capture_output=True,
+    )
+    return {
+        "passed": result.returncode == 0,
+        "exit_code": result.returncode,
+        "duration_ns": time.monotonic_ns() - started,
+        "command": "go test -race ./internal/db -run ^TestGeneratedOpenCodeAdapterReadinessOverlap$ -count=1 -timeout=30s",
+        "stderr": result.stderr.strip(),
+    }
+
+
+def release_prepared(binary, parent, output, repository):
+    manifest, fixtures = load_prepared(parent)
+    expected = {"payload_count": PAYLOAD_COUNT, "payload_bytes_each": PAYLOAD_BYTES,
+                "timestamp_start_unix_nano": TIMESTAMP_START_NS,
+                "timestamp_step_nanoseconds": TIMESTAMP_STEP_NS}
+    scale_ok = manifest["fixture_inputs"] == expected and manifest["fixtures"]["schema15"]["schema"] == 15
+    identity = historical_identity(repository, parent)
+    generated_schema_digest = physical_schema_digest(fixtures["schema15"])
+    identity["generated_physical_schema_sha256"] = generated_schema_digest
+    identity_ok = generated_schema_digest == identity["physical_schema_sha256"]
+    binary_hash = digest(binary, "release binary")
+    adapter = generated_adapter_gate(binary, repository, parent)
+    interruption = interruption_rehearsal(
+        binary, parent, fixtures["schema15"], manifest["fixtures"]["schema15"]["rows"]
+    )
+    raw_path = parent / "release-measurements.json"
+    try:
+        measure_prepared(binary, parent, raw_path)
+    except SystemExit:
+        pass
+    raw = json.loads(raw_path.read_text())
+    criteria = [
+        criterion("prior_schema_identity", identity_ok, identity),
+        criterion("representative_scale", scale_ok, {"fixture_inputs": manifest["fixture_inputs"], "fixture": manifest["fixtures"]["schema15"]}),
+        criterion("concurrent_generated_traffic", adapter["passed"], adapter),
+        criterion("interruption_restart", interruption["passed"], interruption),
+    ]
+    for name, check in raw["limit_checks"].items():
+        criteria.append(criterion(name, check["passed"], check))
+    capabilities = raw["binary"]
+    report = {
+        "schema_version": 1,
+        "release_gate": "PASS" if all(item["status"] == "PASS" for item in criteria) else "FAIL",
+        "binary": {"sha256": binary_hash, "capabilities": capabilities},
+        "policy": raw["policy"],
+        "host": raw["host"],
+        "criteria": criteria,
+        "raw_measurements_sha256": digest(raw_path, "raw release measurements"),
+    }
+    if report["release_gate"] == "PASS":
+        validate_release_report(report)
+        destination = output
+    else:
+        destination = output.with_name(output.name + ".failed.json")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.write_text(json.dumps(report, indent=2) + "\n")
+    os.replace(temporary, destination)
+    progress("release", f"wrote {destination}")
+    if report["release_gate"] != "PASS":
+        failed = ", ".join(item["criterion"] for item in criteria if item["status"] == "FAIL")
+        raise SystemExit("schema release gate failed: " + failed)
+
+
 def positive_int(value):
     parsed = int(value)
     if parsed <= 0:
@@ -461,15 +714,17 @@ def positive_int(value):
 def main():
     parser = argparse.ArgumentParser()
     phases = parser.add_subparsers(dest="phase", required=True)
-    for name in ("prepare", "smoke", "measure"):
+    for name in ("prepare", "smoke", "measure", "release"):
         phase = phases.add_parser(name)
         phase.add_argument("--binary", required=True, type=Path)
         phase.add_argument("--work-root", required=True, type=Path)
         if name == "prepare":
             phase.add_argument("--payload-count", type=positive_int, default=PAYLOAD_COUNT)
             phase.add_argument("--payload-bytes", type=positive_int, default=PAYLOAD_BYTES)
-        if name == "measure":
+        if name in ("measure", "release"):
             phase.add_argument("--output", required=True, type=Path)
+        if name == "release":
+            phase.add_argument("--repository", type=Path, default=Path.cwd())
     args = parser.parse_args()
     binary = args.binary.resolve()
     parent = args.work_root.resolve()
@@ -487,7 +742,10 @@ def main():
             raise SystemExit("schema readiness smoke migration did not publish schema 16")
         print(json.dumps({"smoke": "passed", "workloads": workloads}, indent=2))
         return
-    measure_prepared(binary, parent, args.output.resolve())
+    if args.phase == "measure":
+        measure_prepared(binary, parent, args.output.resolve())
+    else:
+        release_prepared(binary, parent, args.output.resolve(), args.repository.resolve())
 
 
 if __name__ == "__main__":

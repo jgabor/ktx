@@ -1,0 +1,15 @@
+id: fgjuuoafdx
+artifact: progress
+record:
+  timestamp: 2026-08-24 03:25
+  type: test
+  phase: build
+  what: Added an explicit production-scale schema release target and retained passing authority at docs/notes/schema-readiness-release.json.
+  context:
+    intent: Block schema releases on production-scale correctness and resource evidence.
+    constraints: Keep the 3.2 GB gate explicit and outside routine mage check; preserve approved budgets and migration behavior.
+    unknowns: None.
+  discovered: The scale fixture must expand the historical schema-15 fixture itself; recreating schema 15 from the current schema does not preserve the prior physical schema definition.
+  verified: "PASS: retained report SHA-256 3ca8f307c7c92971dbe5c2ff141a9810ed54ad8b40a82f579dbbe3e25729b98e. Exact historical revision and fixture hashes matched; 3,205,681,152-byte fixture had 3,200 rows across 2024-01-01 through 2025-12-31; generated adapter concurrency passed; forced kill after 384 durable rows resumed automatically with exact evidence hash, schema 16, integrity ok, no cursor or hot journal; worst readiness 22,045,332 ns, lock 43,051,958 ns, journal 41,552 bytes, RSS 21,344,256 bytes, completion 154,380,091 ns. Focused positive/negative tests and isolated mage check passed."
+  next: Audit the retained release authority and this in-progress plan task before completion.
+  publication_order: 167

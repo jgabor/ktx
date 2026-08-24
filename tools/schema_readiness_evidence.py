@@ -27,16 +27,22 @@ CPU = "2"
 PREPARED_MANIFEST = "prepared-fixtures.json"
 HISTORICAL_MANIFEST = Path("internal/db/testdata/historical/manifest.json")
 HISTORICAL_FIXTURE = Path("internal/db/testdata/historical/schema-15.db.gz")
+HISTORICAL_FAILURE_REPORT = Path(
+    "docs/notes/schema-readiness-release.json.failed.json"
+)
+HISTORICAL_FAILURE_SHA256 = (
+    "714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba"
+)
 APPROVED_LIMITS = {
     "readiness_latency_ns": 35_322_974,
-    "exclusive_lock_hold_ns": 101_037_622,
+    "exclusive_lock_hold_ns": 560_264_885,
     "journal_growth_bytes": 50_000,
-    "peak_rss_bytes": 26_557_440,
-    "total_completion_ns": 400_000_000,
+    "peak_rss_bytes": 59_130_880,
+    "total_completion_ns": 893_936_754,
 }
 LIMIT_BASIS = (
-    "user-approved override dated 2026-08-24 after production-shaped bounded migration evidence; "
-    "readiness latency, maximum individual lock, and peak RSS limits are unchanged"
+    "user-approved combined-workload revision dated 2026-08-24; readiness latency and "
+    "journal growth are unchanged, and memory is aggregate concurrent KTX RSS"
 )
 
 
@@ -274,7 +280,7 @@ def process_rss(pid):
 
 
 def binary_database_rss(binary, database):
-    resident = []
+    resident = {}
     target = ("KTX_DB=" + str(database)).encode()
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
@@ -283,10 +289,12 @@ def binary_database_rss(binary, database):
             if os.path.samefile(entry / "exe", binary):
                 environment = (entry / "environ").read_bytes().split(b"\0")
                 if target in environment:
-                    resident.append(process_rss(int(entry.name)))
+                    value = process_rss(int(entry.name))
+                    if value:
+                        resident[int(entry.name)] = value
         except (FileNotFoundError, ProcessLookupError, PermissionError):
             pass
-    return max(resident, default=0), sum(resident)
+    return resident
 
 
 def exclusive_lock_observations(stderr, lock_kind):
@@ -351,16 +359,14 @@ def measure(command, env, database, lock_kind, measured_binary=None, combined_ob
         observations = []
         sidecars = [Path(str(database) + suffix) for suffix in ("-journal", "-wal", "-shm")]
         while process.poll() is None:
-            individual_rss, aggregate_rss = (
-                binary_database_rss(measured_binary, database)
-                if measured_binary
-                else (rss_tree(process.pid), rss_tree(process.pid))
-            )
+            if measured_binary:
+                resident = binary_database_rss(measured_binary, database)
+            else:
+                resident = {process.pid: rss_tree(process.pid)}
             observations.append(
                 (
                     time.time(),
-                    individual_rss,
-                    aggregate_rss,
+                    resident,
                     sum(path.stat().st_size for path in sidecars if path.exists()),
                 )
             )
@@ -387,9 +393,15 @@ def measure(command, env, database, lock_kind, measured_binary=None, combined_ob
         else started_epoch
     )
     window_observations = [item for item in observations if item[0] >= window_start]
-    peak_rss = max((item[1] for item in window_observations), default=0)
-    aggregate_peak_rss = max((item[2] for item in window_observations), default=0)
-    peak_journal = max((item[3] for item in window_observations), default=0)
+    per_process_peaks = {}
+    for _, resident, _ in window_observations:
+        for pid, value in resident.items():
+            per_process_peaks[pid] = max(per_process_peaks.get(pid, 0), value)
+    individual_peak_rss = max(per_process_peaks.values(), default=0)
+    aggregate_peak_rss = max(
+        (sum(item[1].values()) for item in window_observations), default=0
+    )
+    peak_journal = max((item[2] for item in window_observations), default=0)
     if combined:
         completion = max(0, round((finished_epoch - window_start) * 1e9))
         query_locks = [
@@ -420,22 +432,30 @@ def measure(command, env, database, lock_kind, measured_binary=None, combined_ob
             else completion
         )
     lock_hold = max(lock_intervals, default=0)
+    criterion_peak_rss = aggregate_peak_rss
     result = {
         "readiness_latency_ns": readiness,
         "exclusive_lock_hold_ns": lock_hold,
         "journal_growth_bytes": peak_journal,
-        "peak_rss_bytes": peak_rss,
+        "peak_rss_bytes": criterion_peak_rss,
         "total_completion_ns": completion,
         "exclusive_lock_intervals_ns": lock_intervals,
         "stdout": stdout.strip(),
     }
     if combined:
         roles = {item["role"] for item in participants}
+        process_peaks = [
+            {"pid": pid, "peak_rss_bytes": value}
+            for pid, value in sorted(per_process_peaks.items())
+        ]
+        result["per_process_peak_rss_bytes"] = process_peaks
         result["combined_workload"] = {
             "attributed": {"query", "hook", "telemetry"}.issubset(roles),
             "participants": participants,
-            "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+            "rss_criterion": "aggregate concurrent KTX RSS",
             "aggregate_peak_rss_bytes": aggregate_peak_rss,
+            "maximum_individual_peak_rss_bytes": individual_peak_rss,
+            "per_process_peak_rss_bytes": process_peaks,
             "synchronization_release_epoch": synchronization_release,
             "window_started_epoch": window_start,
             "window_finished_epoch": finished_epoch,
@@ -683,14 +703,14 @@ def measure_prepared(binary, parent, output, adapter_driver=None):
     }
     capabilities = json.loads(run([str(binary), "binary-capabilities"], roots(parent, "measure-capabilities")).stdout)
     report = {
-        "schema_version": 2,
+        "schema_version": 3,
         "policy": {
             "cpu": int(CPU),
             "gomaxprocs": 1,
             "warmups_per_workload": 1,
             "measured_samples_per_workload": SAMPLES,
             "poll_interval_seconds": 0.0005,
-            "limit": "approved fixed limits, including user-approved journal and completion overrides",
+            "limit": "approved fixed combined-workload limits",
             "limit_basis": LIMIT_BASIS,
             "current_readiness_boundary": "process start through command completion",
             "migration_readiness_boundary": "process start through first successful LOCK_EX",
@@ -717,7 +737,7 @@ def measure_prepared(binary, parent, output, adapter_driver=None):
             {
                 "migration_readiness_boundary": "deterministic combined-workload release through the built KTX query's first successful exclusive migration lock",
                 "lock_hold_boundary": "maximum individual successful exclusive-lock interval across combined KTX traffic",
-                "rss_boundary": "maximum resident bytes of one actual built KTX participant during the combined window; aggregate peak retained separately",
+                "rss_boundary": "aggregate concurrent resident bytes of actual built KTX participants; per-process peaks retained separately",
                 "completion_boundary": "built KTX query process start through completion of generated hook, telemetry, and query traffic",
             }
         )
@@ -774,6 +794,17 @@ def validate_release_report(report):
         raise ValueError("failed release criteria: " + ", ".join(failed))
     if report.get("release_gate") != "PASS":
         raise ValueError("release_gate must be PASS")
+    if report.get("schema_version") != 3:
+        raise ValueError("release report schema_version must be 3")
+    if report.get("report_role") != "current_passing_authority":
+        raise ValueError("passing report role must be current_passing_authority")
+    historical = report.get("historical_failure_evidence", {})
+    if historical != {
+        "report_role": "historical_failure_evidence",
+        "path": str(HISTORICAL_FAILURE_REPORT),
+        "sha256": HISTORICAL_FAILURE_SHA256,
+    }:
+        raise ValueError("release report does not bind the historical failed authority")
     binary = report.get("binary", {})
     if binary.get("sha256") != binary.get("capabilities", {}).get("executable_sha256"):
         raise ValueError("release report does not bind the measured executable hash")
@@ -789,6 +820,20 @@ def validate_release_report(report):
         for sample in measured
     ):
         raise ValueError("raw production samples lack combined-workload attribution or exact evidence")
+    if not all(
+        sample.get("peak_rss_bytes")
+        == sample.get("combined_workload", {}).get("aggregate_peak_rss_bytes")
+        and sample.get("combined_workload", {}).get("rss_criterion")
+        == "aggregate concurrent KTX RSS"
+        and sample.get("per_process_peak_rss_bytes")
+        == sample.get("combined_workload", {}).get("per_process_peak_rss_bytes")
+        for sample in measured
+    ):
+        raise ValueError("raw production samples do not use aggregate concurrent KTX RSS")
+    for name, limit in APPROVED_LIMITS.items():
+        evidence = checks[name].get("evidence", {})
+        if evidence.get("limit") != limit or evidence.get("observed", limit + 1) > limit:
+            raise ValueError(f"release criterion {name} does not satisfy its approved limit")
 
 
 def physical_schema_digest(database):
@@ -1008,6 +1053,20 @@ def repository_identity(repository):
     return {"commit": commit, "worktree_dirty": dirty}
 
 
+def historical_failure_evidence(repository):
+    path = repository / HISTORICAL_FAILURE_REPORT
+    actual = bytes_digest(path.read_bytes())
+    if actual != HISTORICAL_FAILURE_SHA256:
+        raise ValueError(
+            "historical failed release report hash does not match its retained authority"
+        )
+    return {
+        "report_role": "historical_failure_evidence",
+        "path": str(HISTORICAL_FAILURE_REPORT),
+        "sha256": actual,
+    }
+
+
 def retained_workload_samples(raw):
     retained = {}
     for name, samples in raw["workloads"].items():
@@ -1020,12 +1079,25 @@ def retained_workload_samples(raw):
     return retained
 
 
-def release_report(binary_hash, capabilities, repository, policy, host, criteria, raw=None, raw_path=None):
+def release_report(
+    binary_hash,
+    capabilities,
+    repository,
+    historical_failure,
+    policy,
+    host,
+    criteria,
+    raw=None,
+    raw_path=None,
+):
+    passed = all(item["status"] == "PASS" for item in criteria)
     report = {
-        "schema_version": 2,
-        "release_gate": "PASS" if all(item["status"] == "PASS" for item in criteria) else "FAIL",
+        "schema_version": 3,
+        "report_role": "current_passing_authority" if passed else "failed_release_attempt",
+        "release_gate": "PASS" if passed else "FAIL",
         "binary": {"sha256": binary_hash, "capabilities": capabilities},
         "repository": repository,
+        "historical_failure_evidence": historical_failure,
         "policy": policy,
         "host": host,
         "criteria": criteria,
@@ -1039,11 +1111,18 @@ def release_report(binary_hash, capabilities, repository, policy, host, criteria
 
 
 def publish_release_report(report, output):
+    expected_role = (
+        "current_passing_authority"
+        if report["release_gate"] == "PASS"
+        else "failed_release_attempt"
+    )
+    if report.get("report_role") != expected_role:
+        raise ValueError(f"report_role must be {expected_role}")
     if report["release_gate"] == "PASS":
         validate_release_report(report)
         destination = output
     else:
-        destination = output.with_name(output.name + ".failed.json")
+        destination = output.with_name(output.name + ".attempt.failed.json")
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(destination.name + ".tmp")
     try:
@@ -1070,17 +1149,18 @@ def release_prepared(binary, parent, output, repository):
         run([str(binary), "binary-capabilities"], roots(parent, "release-capabilities")).stdout
     )
     repository_record = repository_identity(repository)
+    historical_failure = historical_failure_evidence(repository)
     policy = {
         "cpu": int(CPU),
         "gomaxprocs": 1,
         "warmups_per_workload": 1,
         "measured_samples_per_workload": SAMPLES,
         "poll_interval_seconds": 0.0005,
-        "limit": "approved fixed limits, including user-approved journal and completion overrides",
+        "limit": "approved fixed combined-workload limits",
         "limit_basis": LIMIT_BASIS,
         "migration_readiness_boundary": "deterministic combined-workload release through the built KTX query's first successful exclusive migration lock",
         "lock_hold_boundary": "maximum individual successful exclusive-lock interval across combined KTX traffic",
-        "rss_boundary": "maximum resident bytes of one actual built KTX participant during the combined window; aggregate peak retained separately",
+        "rss_boundary": "aggregate concurrent resident bytes of actual built KTX participants; per-process peaks retained separately",
         "completion_boundary": "built KTX query process start through completion of generated hook, telemetry, and query traffic",
         "copy_strategy": "cp --reflink=auto --sparse=always",
     }
@@ -1105,7 +1185,15 @@ def release_prepared(binary, parent, output, repository):
             *(criterion(metric, None, {}) for metric in APPROVED_LIMITS),
         ]
         publish_release_report(
-            release_report(binary_hash, capabilities, repository_record, policy, host, criteria),
+            release_report(
+                binary_hash,
+                capabilities,
+                repository_record,
+                historical_failure,
+                policy,
+                host,
+                criteria,
+            ),
             output,
         )
         return
@@ -1175,6 +1263,12 @@ def release_prepared(binary, parent, output, repository):
             evidence["combined_production_observed"] = raw[
                 "combined_production_limit_checks"
             ][name]["observed"]
+            if name == "peak_rss_bytes":
+                evidence["measurement_role"] = "aggregate concurrent KTX RSS"
+                evidence["maximum_individual_combined_observed"] = max(
+                    sample["combined_workload"]["maximum_individual_peak_rss_bytes"]
+                    for sample in production_samples
+                )
             criteria.append(criterion(name, check["passed"], evidence))
     else:
         criteria.append(
@@ -1191,6 +1285,7 @@ def release_prepared(binary, parent, output, repository):
         binary_hash,
         capabilities,
         repository_record,
+        historical_failure,
         policy,
         raw["host"] if raw else host,
         criteria,

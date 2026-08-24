@@ -1,0 +1,14 @@
+id: uxvqiluqnn
+artifact: progress
+record:
+  timestamp: 2026-08-24 10:09
+  type: test
+  phase: build
+  what: Applied the approved combined-workload limit revision and published the corrected schema-readiness passing authority.
+  context:
+    intent: Continue cqtquqpofi with typed limit authority, aggregate concurrent KTX RSS, preserved historical failure evidence, and a fresh full release rehearsal.
+    constraints: Keep readiness at 35,322,974 ns and journal growth at 50,000 bytes; preserve migration, deadline, runtime-proof, exact-history, and evidence contracts; keep the task in progress for second audit.
+  discovered: Aggregate concurrent KTX RSS peaked at 47,169,536 bytes while the maximum supporting one-process peak was 19,238,912 bytes. The historical pre-revision failed report remains unchanged at docs/notes/schema-readiness-release.json.failed.json.
+  verified: "PASS: typed decision revision tyapehkobt approved limits of 560,264,885 ns maximum individual exclusive lock, 59,130,880 bytes aggregate concurrent KTX RSS, and 893,936,754 ns completion. Current passing authority docs/notes/schema-readiness-release.json SHA-256 87d6205e0554b007d1052baa8a27f3ae053e7a28a98cbae64d4230c4fbafb61c binds binary aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825 and raw report 71b31ea69a7b780207cef3514901e6bf38997fdf8f69e21a62e321f7c1a0ce04. Five measured combined samples passed with worst readiness 3,652,334 ns, lock 233,541,012 ns, journal 41,552 bytes, aggregate RSS 47,169,536 bytes, and completion 490,036,964 ns. Each retained per-process RSS peaks, lock arrays, exact fixture/hash and historical-schema identity, schema 16, 3,200 unchanged artifacts, one generated source/disposition/telemetry row, no cursor/hot journal/raw lock/manual guidance, and exact evidence hash 98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8. Interruption killed schema 15 after 2,560 durable rows; normal list recovered with exit 0 and no later migrate. Historical failed authority SHA-256 714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba remained unchanged. Focused Python release-path tests passed 11/11; focused generated-adapter and all historical-schema tests passed. Full prepare took 9.795 s, release gate 60.403 s, and isolated mage check 117.167 s. The multi-GB root and caches were removed."
+  next: Keep cqtquqpofi in progress and submit the decision revision, gate, reports, and verification evidence for second audit.
+  publication_order: 169

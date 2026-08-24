@@ -58,10 +58,12 @@ only by the KTX-owned result.
 
 The approved policy uses one isolated controlled host, one warmup and five
 measured samples per workload, and the worst measured value across the
-current-schema and production-shaped workloads. Readiness latency, maximum
-individual lock, and peak RSS retain their approved limits. The user-approved
-fixed journal limit is 50,000 bytes and the fixed total-completion limit is
-400,000,000 ns; these two values supersede only their prior numeric limits.
+current-schema and combined production-shaped workloads. The fixed limits are
+35,322,974 ns readiness latency, 560,264,885 ns maximum individual exclusive
+lock hold, 50,000 bytes journal growth, 59,130,880 bytes aggregate concurrent
+KTX RSS, and 893,936,754 ns total completion. Readiness and journal limits are
+unchanged. Per-process RSS remains supporting evidence and does not replace the
+aggregate memory criterion.
 
 The controlled host was `allspark`: Linux 7.2.0-1-cachyos, AMD Ryzen 7 9800X3D
 (8 cores, 16 logical CPUs), 32,671,715,328 bytes RAM, and the repository on a
@@ -75,19 +77,19 @@ and one tool call. The production-shaped current database was 3,205,054,464 byte
 3,201 tool calls, 3,200,000,004 payload bytes, and timestamps distributed from
 2024-01-01 through 2026-01-01. Its SHA-256 was
 `5a518c5da4d1dd4621e045b5d954485e8637455d619eb650a906afb18354922b`.
-The schema-15 migration fixture was 3,205,734,400 bytes with 3,200 compressed
+The schema-15 migration fixture is 3,205,681,152 bytes with 3,200 compressed
 artifact timestamps distributed from 2024-01-01 through 2025-12-31; its
 SHA-256 was
-`5015e3ed63a39dc22cf33f2c3cf4a9b1ee53fa38bc1f0103e9f8af8b3dacd120`.
+`e23dce01cd965128796c879501a67da10285e5c742814ce9b4f88852491c69e6`.
 Both fixtures passed `PRAGMA integrity_check`.
 
 Fixture generation is deterministic. Initialize schema 16 with one `ktx write`,
 then insert 3,200 tool calls whose IDs are a `p` prefix plus a 15-character
 base-26 sequence, whose payload is `CAST(zeroblob(1000000) AS TEXT)`, and whose
 sortable timestamp is `1704067200000000000 + i × 19719224757757` for
-`i = 0..3199`. The schema-15 fixture is a reflink copy with one compressed row
-per generated source using the same timestamp, after which
-`compressed.timestamp_unix_nano` is dropped and `user_version` is set to 15.
+`i = 0..3199`. The schema-15 fixture expands the exact retained historical
+schema-15 database, clears its evidence tables, and inserts one source and one
+compressed row per generated timestamp without changing its physical schema.
 
 The current-schema probe ran `ktx list --format json`. The baseline migration
 probe ran `ktx db --path <copy> migrate` against a fresh disposable copy for
@@ -99,10 +101,11 @@ it observes their overlap. `strace -ttt -e trace=fcntl,flock` measures each
 successful exclusive-lock interval without tracing unrelated runtime process
 lifecycle. The sample records the maximum individual interval rather than the
 span from the first lock through the last unlock. A 0.5 ms poll measures
-journal/WAL/SHM growth, the maximum individual KTX RSS, and the aggregate KTX
-RSS retained as a separate observation. For release migration, readiness starts
-at the deterministic overlap release, and completion spans the normal query
-and generated callback workload.
+journal/WAL/SHM growth and every participating KTX process. Aggregate concurrent
+KTX RSS owns the memory criterion; each process peak and the maximum individual
+peak remain supporting observations. For release migration, readiness starts at
+the deterministic overlap release, and completion spans the normal query and
+generated callback workload.
 
 [`notes/schema-readiness-baseline.json`](notes/schema-readiness-baseline.json)
 retains every warmup and measured sample, command stdout, fixture input and
@@ -157,19 +160,19 @@ lock interval observed for each sample. Child output and syscall traces spool to
 temporary files while resource polling runs, so trace volume cannot block child
 completion.
 
-| Metric               |   Observed worst | Limit authority          |    Release limit |
-| -------------------- | ---------------: | ------------------------ | ---------------: |
-| Readiness latency    |    24,039,592 ns | Unchanged approved limit |    35,322,974 ns |
-| Exclusive lock hold  |    41,398,048 ns | Unchanged approved limit |   101,037,622 ns |
-| Journal growth       |     33,344 bytes | User-approved override   |     50,000 bytes |
-| Peak resident memory | 21,581,824 bytes | Unchanged approved limit | 26,557,440 bytes |
-| Total completion     |   123,590,682 ns | User-approved override   |   400,000,000 ns |
+| Metric                       | Historical combined worst | Limit authority                     |    Release limit |
+| ---------------------------- | ------------------------: | ----------------------------------- | ---------------: |
+| Readiness latency            |             28,244,495 ns | Unchanged approved limit            |    35,322,974 ns |
+| Maximum exclusive lock hold  |            448,211,908 ns | Approved combined-workload revision |   560,264,885 ns |
+| Journal growth               |              41,552 bytes | Unchanged approved limit            |     50,000 bytes |
+| Aggregate concurrent KTX RSS |          47,304,704 bytes | Approved combined-workload revision | 59,130,880 bytes |
+| Total completion             |            715,149,403 ns | Approved combined-workload revision |   893,936,754 ns |
 
 A schema release must reproduce the host, fixture, sample count, instrumentation,
 and fixed-limit comparison above. Any measured value above its limit blocks
-release. The journal and total-completion overrides do not reinterpret earlier
-raw observations. Correctness, interruption recovery, and evidence integrity
-remain independent mandatory gates.
+release. The revised limits do not reinterpret earlier raw observations.
+Correctness, interruption recovery, and evidence integrity remain independent
+mandatory gates.
 
 Prepare the disposable 3.2 GB fixture with the `prepare` command above. Then run
 the explicit release gate, which is intentionally not part of `mage check`:
@@ -189,15 +192,30 @@ also kills a migration after a durable cursor advance and validates recovery
 immediately after the waiting normal query completes. It does not run a repair
 migration. The compact report retains every raw sample and lock-interval array,
 plus exact correctness observations and a hash of the full raw report. A passing
-report is published atomically. A failed run writes `<report>.failed.json` and
+report is published atomically. A failed run writes `<report>.attempt.failed.json` and
 does not replace the last passing report.
 
-The corrected 2026-08-24 rehearsal failed closed. Five of five measured combined
-samples preserved exact evidence and the interruption query recovered
-automatically, but the worst exclusive lock hold was 448,211,908 ns and total
-completion was 715,149,403 ns, above the unchanged 101,037,622 ns and
-400,000,000 ns limits. The failed report is retained at
-`notes/schema-readiness-release.json.failed.json` (SHA-256
-`714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba`).
-The prior passing authority remains byte-for-byte unchanged and does not satisfy
-the corrected combined-workload gate.
+Report roles are path-specific:
+
+- `notes/schema-readiness-release.json` is the current passing authority and is
+  replaced atomically only by a complete passing gate.
+- `notes/schema-readiness-release.json.failed.json` is immutable
+  historical failure evidence from the corrected gate before the combined-limit
+  revision. Its SHA-256 is
+  `714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba`.
+- `notes/schema-readiness-release.json.attempt.failed.json`, when present, is the latest
+  failed attempt and is never passing authority.
+
+The historical failure preserved exact evidence in five of five measured
+combined samples and automatic query recovery. It failed only the former lock
+and completion limits. The approved revision does not relabel that report as a
+pass.
+
+The current passing authority used the revised limits. Its five measured
+combined samples had worst values of 3,652,334 ns readiness, 233,541,012 ns
+maximum individual exclusive lock hold, 41,552 bytes journal growth, 47,169,536
+bytes aggregate concurrent KTX RSS, and 490,036,964 ns total completion. The
+maximum supporting one-process RSS was 19,238,912 bytes. All samples retained
+exact generated-adapter and migration evidence, and normal-query interruption
+recovery passed without a repair migration. The report SHA-256 is
+`87d6205e0554b007d1052baa8a27f3ae053e7a28a98cbae64d4230c4fbafb61c`.

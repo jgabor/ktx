@@ -11,18 +11,26 @@ from tools import schema_readiness_evidence
 
 
 class MeasureTest(unittest.TestCase):
-    def test_approved_limits_preserve_unchanged_budgets(self):
+    def test_approved_combined_limits_preserve_readiness_and_journal(self):
         self.assertEqual(
             schema_readiness_evidence.APPROVED_LIMITS,
             {
                 "readiness_latency_ns": 35_322_974,
-                "exclusive_lock_hold_ns": 101_037_622,
+                "exclusive_lock_hold_ns": 560_264_885,
                 "journal_growth_bytes": 50_000,
-                "peak_rss_bytes": 26_557_440,
-                "total_completion_ns": 400_000_000,
+                "peak_rss_bytes": 59_130_880,
+                "total_completion_ns": 893_936_754,
             },
         )
-        self.assertIn("user-approved override", schema_readiness_evidence.LIMIT_BASIS)
+        self.assertIn("combined-workload revision", schema_readiness_evidence.LIMIT_BASIS)
+        self.assertIn("aggregate concurrent KTX RSS", schema_readiness_evidence.LIMIT_BASIS)
+
+    def test_historical_failed_report_remains_exact(self):
+        record = schema_readiness_evidence.historical_failure_evidence(Path.cwd())
+        self.assertEqual(record["report_role"], "historical_failure_evidence")
+        self.assertEqual(
+            record["sha256"], schema_readiness_evidence.HISTORICAL_FAILURE_SHA256
+        )
 
     def test_large_child_stderr_does_not_block_completion(self):
         with tempfile.TemporaryDirectory() as root:
@@ -59,12 +67,13 @@ class MeasureTest(unittest.TestCase):
         item = next(item for item in report["criteria"] if item["criterion"] == "interruption_restart")
         item["status"] = "FAIL"
         report["release_gate"] = "FAIL"
+        report["report_role"] = "failed_release_attempt"
         with tempfile.TemporaryDirectory() as root:
             output = Path(root) / "report.json"
             authority = b'{"release_gate":"PASS","authority":"unchanged"}\n'
             output.write_bytes(authority)
             result = self.publish_in_child(report, output)
-            failed = json.loads(Path(str(output) + ".failed.json").read_text())
+            failed = json.loads(Path(str(output) + ".attempt.failed.json").read_text())
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("interruption_restart", result.stderr)
             self.assertEqual(output.read_bytes(), authority)
@@ -72,7 +81,7 @@ class MeasureTest(unittest.TestCase):
                 [item["criterion"] for item in failed["criteria"] if item["status"] == "FAIL"],
                 ["interruption_restart"],
             )
-            self.assertFalse(Path(str(output) + ".failed.json.tmp").exists())
+            self.assertFalse(Path(str(output) + ".attempt.failed.json.tmp").exists())
 
     def test_release_publication_identifies_budget_failure_without_replacing_authority(self):
         report = self.release_report()
@@ -84,12 +93,13 @@ class MeasureTest(unittest.TestCase):
             "passed": False,
         }
         report["release_gate"] = "FAIL"
+        report["report_role"] = "failed_release_attempt"
         with tempfile.TemporaryDirectory() as root:
             output = Path(root) / "report.json"
             authority = b"passing authority\n"
             output.write_bytes(authority)
             result = self.publish_in_child(report, output)
-            failed = json.loads(Path(str(output) + ".failed.json").read_text())
+            failed = json.loads(Path(str(output) + ".attempt.failed.json").read_text())
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("peak_rss_bytes", result.stderr)
             self.assertEqual(output.read_bytes(), authority)
@@ -97,6 +107,7 @@ class MeasureTest(unittest.TestCase):
                 item for item in failed["criteria"] if item["criterion"] == "peak_rss_bytes"
             )
             self.assertEqual(failed_item["evidence"]["observed"], item["evidence"]["observed"])
+            self.assertEqual(failed["report_role"], "failed_release_attempt")
 
     def test_passing_publication_retains_raw_combined_samples(self):
         report = self.release_report()
@@ -119,10 +130,11 @@ class MeasureTest(unittest.TestCase):
             subprocess.TimeoutExpired("generated adapter", 30)
         )
         report["release_gate"] = "FAIL"
+        report["report_role"] = "failed_release_attempt"
         with tempfile.TemporaryDirectory() as root:
             output = Path(root) / "report.json"
             result = self.publish_in_child(report, output)
-            failed = json.loads(Path(str(output) + ".failed.json").read_text())
+            failed = json.loads(Path(str(output) + ".attempt.failed.json").read_text())
         self.assertNotEqual(result.returncode, 0)
         failed_items = [item for item in failed["criteria"] if item["status"] == "FAIL"]
         self.assertEqual(failed_items[0]["criterion"], "concurrent_generated_traffic")
@@ -135,6 +147,15 @@ class MeasureTest(unittest.TestCase):
             "attributed"
         ] = False
         with self.assertRaisesRegex(ValueError, "combined-workload attribution"):
+            schema_readiness_evidence.validate_release_report(report)
+
+    def test_combined_memory_criterion_rejects_one_process_value(self):
+        report = self.release_report()
+        sample = report["raw_samples"]["schema15_to_16_production"][1]
+        sample["peak_rss_bytes"] = sample["combined_workload"][
+            "maximum_individual_peak_rss_bytes"
+        ]
+        with self.assertRaisesRegex(ValueError, "aggregate concurrent KTX RSS"):
             schema_readiness_evidence.validate_release_report(report)
 
     def test_automatic_interruption_result_rejects_later_migrate(self):
@@ -174,24 +195,54 @@ class MeasureTest(unittest.TestCase):
             "readiness_latency_ns": 1,
             "exclusive_lock_hold_ns": 2,
             "journal_growth_bytes": 3,
-            "peak_rss_bytes": 4,
+            "peak_rss_bytes": 7,
             "total_completion_ns": 5,
             "exclusive_lock_intervals_ns": [2],
-            "combined_workload": {"attributed": True, "participants": [
-                {"role": "query"}, {"role": "hook"}, {"role": "telemetry"},
-            ]},
+            "per_process_peak_rss_bytes": [
+                {"pid": 1, "peak_rss_bytes": 4},
+                {"pid": 2, "peak_rss_bytes": 3},
+            ],
+            "combined_workload": {
+                "attributed": True,
+                "participants": [
+                    {"role": "query"}, {"role": "hook"}, {"role": "telemetry"},
+                ],
+                "rss_criterion": "aggregate concurrent KTX RSS",
+                "aggregate_peak_rss_bytes": 7,
+                "maximum_individual_peak_rss_bytes": 4,
+                "per_process_peak_rss_bytes": [
+                    {"pid": 1, "peak_rss_bytes": 4},
+                    {"pid": 2, "peak_rss_bytes": 3},
+                ],
+            },
             "combined_evidence": {"passed": True},
         }
         samples = [dict(sample, kind="warmup")] + [copy.deepcopy(sample) for _ in range(schema_readiness_evidence.SAMPLES)]
         digest = "a" * 64
+        criteria = []
+        for name in names:
+            evidence = {}
+            if name in schema_readiness_evidence.APPROVED_LIMITS:
+                evidence = {
+                    "observed": 0,
+                    "limit": schema_readiness_evidence.APPROVED_LIMITS[name],
+                    "passed": True,
+                }
+            criteria.append(schema_readiness_evidence.criterion(name, True, evidence))
         return {
-            "schema_version": 2,
+            "schema_version": 3,
+            "report_role": "current_passing_authority",
             "release_gate": "PASS",
             "binary": {"sha256": digest, "capabilities": {"executable_sha256": digest}},
             "repository": {"commit": "b" * 40, "worktree_dirty": True},
+            "historical_failure_evidence": {
+                "report_role": "historical_failure_evidence",
+                "path": str(schema_readiness_evidence.HISTORICAL_FAILURE_REPORT),
+                "sha256": schema_readiness_evidence.HISTORICAL_FAILURE_SHA256,
+            },
             "policy": {},
             "host": {},
-            "criteria": [schema_readiness_evidence.criterion(name, True, {}) for name in names],
+            "criteria": criteria,
             "raw_samples": {"schema15_to_16_production": samples},
         }
 

@@ -1,0 +1,13 @@
+id: kszxqpedjh
+artifact: plan
+record:
+  name: Verify migration lifecycle deterministically
+  depends_on:
+    - fzpxovjdhb
+  status: in_progress
+  acceptance:
+    - GIVEN each supported historical schema WHEN readiness tests begin THEN fixtures reproduce its exact physical shape rather than projecting it through the current schema.
+    - GIVEN the process is terminated at each meaningful migration boundary WHEN the next process starts THEN hot-journal recovery and durable progress produce correct evidence exactly once.
+    - GIVEN the generated adapter invokes the built KTX binary under staggered hook, query, and telemetry overlap WHEN migration ownership changes THEN all operations complete or fail according to the declared contract without leaked lock errors.
+    - GIVEN each changed testable behavior WHEN regressions run THEN at least one passing case and one failing or interrupted case verify the contract.
+  plan: wddjlywrzk

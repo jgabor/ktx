@@ -1,0 +1,13 @@
+id: wssvnmrzud
+artifact: progress
+record:
+  timestamp: 2026-08-24 02:08
+  type: test
+  phase: build
+  what: Added process-level hot-journal interruption coverage before durable cursor creation and before final schema publication. Each helper opens a real rollback-journal transaction, signals the parent after the journal exists, is killed, and the next process verifies rollback plus exact migration completion.
+  context:
+    intent: Verify migration interruption boundaries deterministically without changing production behavior.
+  discovered: Historical physical-shape coverage and built-adapter overlap remain incomplete, so the plan task stays in progress.
+  verified: "PASS: env -u KTX_DB with disposable workspace-local TMPDIR, HOME, and XDG roots go test ./internal/db -run TestSchema15MigrationRecoversHotJournalAtPublicationBoundaries|TestSchema15MigrationResumesAfterProcessTermination -count=1 (0.876s). gopls diagnostics: none."
+  next: Add exact schema 0 through 15 fixture-shape assertions from the historical migration sequence, then run the generated adapter against build/ktx under synchronized overlap.
+  publication_order: 164

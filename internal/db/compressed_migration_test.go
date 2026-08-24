@@ -373,6 +373,161 @@ func TestSchema15MigrationResumesAfterProcessTermination(t *testing.T) {
 	}
 }
 
+func TestSchema15MigrationRecoversHotJournalAtPublicationBoundaries(t *testing.T) {
+	for _, boundary := range []string{"before-progress", "before-publication"} {
+		t.Run(boundary, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "schema15.db")
+			d, err := Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sourceID := seedSessionAndCalls(t, d, []callFixture{{id: "journalmigrations", output: "original"}})[0]
+			for i := 0; i < compressedTimestampMigrationBatch+1; i++ {
+				seedCompressedWithID(t, d, fmt.Sprintf("j%015d", i), sourceID, fmt.Sprintf("artifact-%d", i), fmt.Sprintf("2026-01-01T00:00:00.%09dZ", i+1))
+			}
+			if _, err := d.db.Exec(`UPDATE compressed SET timestamp_unix_nano = NULL; PRAGMA user_version = 15`); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			marker := filepath.Join(t.TempDir(), "transaction-open")
+			command := exec.Command(os.Args[0], "-test.run=^TestSchema15HotJournalProcessHelper$")
+			command.Env = append(withoutEnv(os.Environ(), "KTX_DB"),
+				"KTX_SCHEMA15_JOURNAL_HELPER=1",
+				"KTX_SCHEMA15_JOURNAL_PATH="+path,
+				"KTX_SCHEMA15_JOURNAL_MARKER="+marker,
+				"KTX_SCHEMA15_JOURNAL_BOUNDARY="+boundary,
+			)
+			if err := command.Start(); err != nil {
+				t.Fatal(err)
+			}
+			waitForMigrationMarker(t, marker, command)
+			if _, err := os.Stat(path + "-journal"); err != nil {
+				_ = command.Process.Kill()
+				_ = command.Wait()
+				t.Fatalf("hot journal missing: %v", err)
+			}
+			if err := command.Process.Kill(); err != nil {
+				t.Fatal(err)
+			}
+			if err := command.Wait(); err == nil {
+				t.Fatal("killed helper exited successfully")
+			}
+
+			raw, err := sql.Open(sqliteDriver, "file:"+path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var version, populated, cursorRows int
+			if err := raw.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+				t.Fatal(err)
+			}
+			if err := raw.QueryRow(`SELECT count(*) FROM compressed WHERE timestamp_unix_nano IS NOT NULL`).Scan(&populated); err != nil {
+				t.Fatal(err)
+			}
+			if err := raw.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='compressed_timestamp_migration'`).Scan(&cursorRows); err != nil {
+				t.Fatal(err)
+			}
+			if err := raw.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if version != 15 || populated != 0 || cursorRows != 0 {
+				t.Fatalf("recovered interrupted transaction: version=%d populated=%d cursor_table=%d", version, populated, cursorRows)
+			}
+
+			d, err = Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer d.Close()
+			assertCompletedTimestampMigration(t, d.db, compressedTimestampMigrationBatch+1)
+		})
+	}
+}
+
+func TestSchema15HotJournalProcessHelper(t *testing.T) {
+	if os.Getenv("KTX_SCHEMA15_JOURNAL_HELPER") != "1" {
+		return
+	}
+	database, err := sql.Open(sqliteDriver, "file:"+os.Getenv("KTX_SCHEMA15_JOURNAL_PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.SetMaxOpenConns(1)
+	tx, err := database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.Getenv("KTX_SCHEMA15_JOURNAL_BOUNDARY") == "before-progress" {
+		if _, err := tx.Exec(`CREATE TABLE compressed_timestamp_migration (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), last_id TEXT)`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(`INSERT INTO compressed_timestamp_migration VALUES (1, NULL)`); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		if _, err := tx.Exec(`PRAGMA user_version = 16`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(os.Getenv("KTX_SCHEMA15_JOURNAL_MARKER"), []byte("open"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {}
+}
+
+func withoutEnv(env []string, name string) []string {
+	prefix := name + "="
+	result := make([]string, 0, len(env))
+	for _, value := range env {
+		if len(value) < len(prefix) || value[:len(prefix)] != prefix {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+func waitForMigrationMarker(t *testing.T, path string, command *exec.Cmd) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		if time.Now().After(deadline) {
+			_ = command.Process.Kill()
+			_ = command.Wait()
+			t.Fatal("helper did not reach boundary")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func assertCompletedTimestampMigration(t *testing.T, database *sql.DB, wantRows int) {
+	t.Helper()
+	var version, count, distinct, missing, cursorTable int
+	var integrity string
+	if err := database.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT count(*), count(DISTINCT id), count(*) FILTER (WHERE timestamp_unix_nano IS NULL) FROM compressed`).Scan(&count, &distinct, &missing); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='compressed_timestamp_migration'`).Scan(&cursorTable); err != nil {
+		t.Fatal(err)
+	}
+	if version != schemaVersion || count != wantRows || distinct != wantRows || missing != 0 || cursorTable != 0 || integrity != "ok" {
+		t.Fatalf("completed state: version=%d count=%d distinct=%d missing=%d cursor_table=%d integrity=%q", version, count, distinct, missing, cursorTable, integrity)
+	}
+}
+
 func TestSchema15MigrationProcessHelper(t *testing.T) {
 	if os.Getenv("KTX_SCHEMA15_MIGRATION_HELPER") != "1" {
 		return

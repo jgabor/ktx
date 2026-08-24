@@ -1,0 +1,13 @@
+id: bvmpemedwy
+artifact: progress
+record:
+  timestamp: 2026-08-24 10:39
+  type: docs
+  phase: build
+  what: Synchronized current user and agent guidance for automatic readiness, post-readiness read-only behavior, newer-schema failure, isolated verification, and the separate production-scale release gate. Added a contract test that keeps the release command, fixture prerequisite, and report roles discoverable.
+  context:
+    intent: Synchronize schema-readiness documentation and project state with verified final behavior.
+  discovered: The current readiness, recovery, timeout, generated-adapter, release-limit, report-role, and binary identity guidance already matched verified behavior. README, AGENTS.md, and the KTX development reference did not all expose the explicit production-scale gate and report-role boundary.
+  verified: "PASS: focused database-safety, readiness, release-discoverability, and skill contract Go tests; Python schema-readiness evidence tests 13/13; mage build; isolated mage check with KTX_DB unset and forbidden=0; build/ktx SHA-256 aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825 matches current passing authority; passing report SHA-256 87d6205e0554b007d1052baa8a27f3ae053e7a28a98cbae64d4230c4fbafb61c."
+  next: Leave plan task cafbbhhcrq in progress for final audit. Preserve provisional and review-needed decision caveats; do not mark decision satisfaction or user confirmation.
+  publication_order: 171

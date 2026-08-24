@@ -172,6 +172,21 @@ new directory. It retains reports plus a hash manifest and requires load
 correctness, exact reconciliation, and supported-lock checks while keeping
 timing descriptive; it does not replace `mage check`.
 
+Schema releases require a separate production-scale gate. Prepare the
+disposable 3.2 GB fixture with `tools/schema_readiness_evidence.py prepare` as
+documented in `docs/schema-readiness.md`, then run:
+
+```bash
+env -u KTX_DB \
+  KTX_SCHEMA_RELEASE_WORK_ROOT="$root/work" \
+  KTX_SCHEMA_RELEASE_REPORT="docs/notes/schema-readiness-release.json" \
+  mage schemaReleaseGate
+```
+
+This is intentionally outside `mage check`. The named report becomes current
+passing authority only on a complete pass. Its `.attempt.failed.json` sibling
+is the latest failed attempt and never passing authority.
+
 ## Focused Manual Verification
 
 If bypassing Mage, allocate a unique disposable application root for each outer

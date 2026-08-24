@@ -88,6 +88,20 @@ normal prerequisite. `KTX_DB` selects an explicit path but does not prove
 disposability. A database newer than the binary is recovered by rolling the
 runtime forward, never by lowering `user_version`.
 
+Schema releases also require the production-scale gate outside routine
+`mage check`. Prepare the disposable 3.2 GB fixture as documented in
+`docs/schema-readiness.md`, then run:
+
+```bash
+env -u KTX_DB \
+  KTX_SCHEMA_RELEASE_WORK_ROOT="$root/work" \
+  KTX_SCHEMA_RELEASE_REPORT="docs/notes/schema-readiness-release.json" \
+  mage schemaReleaseGate
+```
+
+That path is passing authority only after a complete pass;
+the `.attempt.failed.json` sibling is the latest failed attempt, not authority.
+
 ## Testing
 
 ### Live comparison

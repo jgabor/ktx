@@ -266,6 +266,23 @@ new directory. It retains component, real-process load, and blocked-decompressio
 reports in a hash manifest and requires correctness, exact reconciliation, and
 supported-lock checks. It does not add a timing gate.
 
+Schema releases have a separate production-scale gate. First prepare the
+disposable 3.2 GB fixture as documented in
+[`docs/schema-readiness.md`](docs/schema-readiness.md#readiness-release-budget),
+then run:
+
+```bash
+env -u KTX_DB \
+  KTX_SCHEMA_RELEASE_WORK_ROOT="$root/work" \
+  KTX_SCHEMA_RELEASE_REPORT="docs/notes/schema-readiness-release.json" \
+  mage schemaReleaseGate
+```
+
+This gate is not part of `mage check`. The named report is current passing
+authority only after a complete pass; the latest failed attempt uses
+`docs/notes/schema-readiness-release.json.attempt.failed.json` and never replaces
+passing authority.
+
 `mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`,
 and the portable replay gate. Tracked CI runs this same command on every push
 and pull request. Verification requires both `golangci-lint` and

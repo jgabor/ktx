@@ -1,0 +1,18 @@
+id: cafbbhhcrq
+artifact: plan
+record:
+  name: Synchronize documentation and current state
+  depends_on:
+    - czbvfvhouh
+    - vivqowyhwf
+    - pkasagxgjy
+    - fzpxovjdhb
+    - kszxqpedjh
+    - cqtquqpofi
+  status: in_progress
+  acceptance:
+    - GIVEN supported stale schemas WHEN users read help and database guidance THEN no normal workflow instructs them to run a migration command or handle a migration-required error.
+    - GIVEN schema readiness may perform internal writes WHEN database safety guidance is reviewed THEN it accurately distinguishes user-visible query behavior, internal migration work, newer-schema failure, and isolated verification requirements.
+    - GIVEN all implementation and verification tasks are complete WHEN the full isolated repository check runs THEN it passes without ambient live-database access.
+    - GIVEN verified final behavior WHEN project records are synchronized THEN decisions, backlog, progress, and plan state agree with the code, tests, and public documentation.
+  plan: wddjlywrzk

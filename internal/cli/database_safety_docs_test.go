@@ -256,6 +256,29 @@ func TestEngineeringVerificationDocumentationSurfacesAgree(t *testing.T) {
 	}
 }
 
+func TestSchemaReleaseGateIsDiscoverable(t *testing.T) {
+	root := repositoryRoot(t)
+	for _, relative := range []string{
+		"README.md",
+		"AGENTS.md",
+		filepath.Join("docs", "schema-readiness.md"),
+		filepath.Join(".agents", "skills", "ktx", "references", "benchmarks-development.md"),
+	} {
+		contents := readDocumentationFile(t, filepath.Join(root, relative))
+		for _, required := range []string{
+			"KTX_SCHEMA_RELEASE_WORK_ROOT",
+			"KTX_SCHEMA_RELEASE_REPORT",
+			"mage schemaReleaseGate",
+			"3.2 GB",
+			"attempt.failed.json",
+		} {
+			if !strings.Contains(contents, required) {
+				t.Errorf("%s is missing schema release guidance %q", relative, required)
+			}
+		}
+	}
+}
+
 func TestBinaryCapabilitiesDocumentedAsDiagnosticOnly(t *testing.T) {
 	contents := readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "binary-capabilities.md"))
 	for _, required := range []string{"diagnostic", "does not authorize database access"} {

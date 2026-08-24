@@ -1,0 +1,14 @@
+id: qflayskxdi
+artifact: progress
+record:
+  timestamp: 2026-08-24 02:33
+  type: test
+  phase: build
+  what: Supersedes the partial migration-lifecycle progress report with complete deterministic coverage. Historical fixtures now apply the recorded schema changes in order and stop at every version from 0 through 15. A production-generated OpenCode adapter now runs the built KTX binary while one query owner, one tool hook, and one telemetry callback overlap readiness.
+  context:
+    intent: Complete deterministic migration lifecycle acceptance without changing production behavior.
+    scope: Historical physical schemas, interruption recovery, generated-adapter overlap, and isolated repository verification.
+  discovered: No production defect required a fix. The added coverage uses explicit file and lock markers, operating-system lock-owner proof, built-binary digest validation, and bounded process waits rather than timing-only coordination.
+  verified: "PASS: TestHistoricalSchemaPhysicalShapeMatrix covered 16/16 historical versions and forward migration. PASS: hot-journal before-progress and before-publication interruption plus post-batch kill/resume. PASS: generated OpenCode adapter readiness overlap, coordinator-timeout attribution, unchanged callback output on failure, and retry recovery with exact source and telemetry evidence. PASS: isolated mage build. PASS: isolated mage check, including race tests, vet, lint with 0 issues, build, and 7,119 audited database-path operations with 0 forbidden accesses."
+  next: Keep plan task kszxqpedjh in progress for audit; audit can evaluate the complete acceptance evidence before changing task status.
+  publication_order: 165

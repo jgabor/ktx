@@ -1,0 +1,13 @@
+id: tabpcvbztc
+artifact: progress
+record:
+  timestamp: 2026-08-24 10:25
+  type: fix
+  phase: build
+  what: Synchronized current schema-readiness guidance with the retained passing authority and added focused identity consistency coverage.
+  context:
+    intent: Complete schema release evidence identity without changing migration behavior or retained release authority.
+  discovered: The retained passing report, historical failed report, approved limits, raw samples, four release criteria, and automatic interruption recovery remain unchanged. The built binary still hashes to aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825.
+  verified: "PASS: focused Python evidence tests 13/13; focused schema-readiness documentation, generated-adapter, and historical-schema Go tests; mage build; isolated mage check with KTX_DB unset and forbidden=0. No 3.2 GB rehearsal ran."
+  next: Leave tpwkrywzdk in progress and acjasbllhj open for audit; do not unblock or supersede cqtquqpofi.
+  publication_order: 170

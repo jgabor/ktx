@@ -1,0 +1,16 @@
+id: tpwkrywzdk
+artifact: plan
+record:
+  plan: wddjlywrzk
+  name: Complete schema release evidence identity
+  status: in_progress
+  depends_on:
+    - kszxqpedjh
+  acceptance:
+    - GIVEN the current passing production-scale release authority WHEN schema-readiness guidance is inspected THEN both identify the same measured binary SHA-256 and report role.
+    - GIVEN a stale measured-binary hash WHEN evidence consistency verification runs THEN it fails without changing passing authority or historical failure evidence.
+    - GIVEN the retained release gate WHEN exact schema, combined traffic, approved budgets, and automatic interruption recovery are validated THEN all four original release criteria remain satisfied.
+    - GIVEN the replacement work is complete WHEN focused verification and the isolated repository check run THEN they pass without rerunning the 3.2 GB rehearsal or changing migration behavior.
+  evidence:
+    - The blocked predecessor's second audit passed all release-gate behavior, actual fixture validation, combined measurements, interruption recovery, and negative publication checks.
+    - Its only remaining failure was a stale measured-binary hash in current schema-readiness guidance.

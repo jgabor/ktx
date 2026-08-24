@@ -68,9 +68,10 @@ aggregate memory criterion.
 The controlled host was `allspark`: Linux 7.2.0-1-cachyos, AMD Ryzen 7 9800X3D
 (8 cores, 16 logical CPUs), 32,671,715,328 bytes RAM, and the repository on a
 Btrfs NVMe volume. Samples were pinned to logical CPU 2 with `GOMAXPROCS=1`.
-The measured binary was `build/ktx`, SHA-256
-`cf046b33ee1c6b8160b3b873a695b2b0bbc07ee18e5a204f309194ab88602ac0`,
-build version `dev`, maximum schema 16.
+The current passing authority measured `build/ktx`, SHA-256
+`aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825`,
+build version `dev`, maximum schema 16. Its report role is
+`current_passing_authority`.
 
 The minimal workload was a 180,224-byte current-schema database with one session
 and one tool call. The production-shaped current database was 3,205,054,464 bytes with

@@ -6,11 +6,61 @@ import subprocess
 import tempfile
 import unittest
 import copy
+import hashlib
+import re
 
 from tools import schema_readiness_evidence
 
 
 class MeasureTest(unittest.TestCase):
+    def test_current_guidance_matches_passing_report_and_built_binary(self):
+        repository = Path.cwd()
+        guidance = (repository / "docs/schema-readiness.md").read_text()
+        report_path = repository / "docs/notes/schema-readiness-release.json"
+        report = json.loads(report_path.read_text())
+
+        match = re.search(
+            r"current passing authority measured `build/ktx`, SHA-256\s+"
+            r"`([0-9a-f]{64})`.*?report role is\s+`([^`]+)`",
+            guidance,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match, "current guidance lacks a full measured binary identity")
+        self.assertEqual(match.groups(), (report["binary"]["sha256"], report["report_role"]))
+        self.assertEqual(
+            hashlib.sha256((repository / "build/ktx").read_bytes()).hexdigest(),
+            report["binary"]["sha256"],
+        )
+        schema_readiness_evidence.validate_release_report(report)
+
+        historical = repository / report["historical_failure_evidence"]["path"]
+        self.assertEqual(
+            hashlib.sha256(historical.read_bytes()).hexdigest(),
+            report["historical_failure_evidence"]["sha256"],
+        )
+        self.assertRegex(report["raw_measurements_sha256"], r"^[0-9a-f]{64}$")
+
+    def test_current_guidance_identity_rejects_stale_malformed_and_missing_values(self):
+        report = {"binary": {"sha256": "a" * 64}, "report_role": "current_passing_authority"}
+
+        def verify(guidance):
+            match = re.search(
+                r"current passing authority measured `build/ktx`, SHA-256\s+"
+                r"`([0-9a-f]{64})`.*?report role is\s+`([^`]+)`",
+                guidance,
+                re.DOTALL,
+            )
+            if match is None or match.groups() != (report["binary"]["sha256"], report["report_role"]):
+                raise ValueError("guidance and passing report binary identity differ")
+
+        for guidance in (
+            f"current passing authority measured `build/ktx`, SHA-256\n`{'b' * 64}`; report role is `current_passing_authority`",
+            "current passing authority measured `build/ktx`, SHA-256 `bad`; report role is `current_passing_authority`",
+            "current passing authority has no identity",
+        ):
+            with self.subTest(guidance=guidance), self.assertRaises(ValueError):
+                verify(guidance)
+
     def test_approved_combined_limits_preserve_readiness_and_journal(self):
         self.assertEqual(
             schema_readiness_evidence.APPROVED_LIMITS,

@@ -1,0 +1,14 @@
+id: nbmslvgudu
+artifact: progress
+record:
+  timestamp: 2026-08-24 02:56
+  type: fix
+  phase: build
+  what: Supersedes the prior migration-lifecycle progress claim with the audited correction. Historical schemas now come from one embedded fixture sequence bound to the production schema-version revisions and complete physical metadata fingerprints. The hot-journal test executes production finalization from a completed durable cursor. Mage check now builds first and requires the generated-adapter overlap gate.
+  context:
+    intent: Correct only the accepted migration-lifecycle audit findings without changing runtime behavior beyond extracting production finalization.
+    scope: Historical fixture authority and adverse shape detection, final-publication rollback, generated-adapter semantics and digest identity, and the authoritative gate.
+  discovered: The prior tests duplicated historical DDL, interrupted only a user_version statement at final publication, and allowed the generated-adapter case to skip. The correction removes the duplicate DDL model, reuses production finalization, and makes absent Bun or build output a gate failure.
+  verified: "PASS: focused historical matrix and physical-mutation rejection; focused before-progress, actual before-publication, and committed-batch kill/resume; generated-adapter missing-Bun/missing-binary adverse cases; required generatedAdapterGate; authoritative mage check in an isolated root, including the observed required adapter gate, race tests, vet, lint with 0 issues, build, and 0 forbidden database accesses. Retained evidence: docs/notes/schema-migration-lifecycle-gate.json."
+  next: Keep plan task kszxqpedjh in progress for re-audit. Preserve audit-kszxqpedjh-1 as the failed evaluation.
+  publication_order: 166

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,35 @@ func TestHermeticVerificationEnvironment(t *testing.T) {
 func TestHermeticTargetsUseSingleBoundary(t *testing.T) {
 	if got := os.Getenv(hermeticBoundaryIDEnv); got == "" {
 		t.Fatal("hermetic boundary has no invocation identifier")
+	}
+}
+
+func TestGeneratedAdapterGateRequiresBinaryAndBun(t *testing.T) {
+	directory := t.TempDir()
+	binary := filepath.Join(directory, "ktx")
+	if err := os.WriteFile(binary, []byte("binary"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", t.TempDir())
+	if _, err := generatedAdapterGateRequirements(binary); err == nil || !strings.Contains(err.Error(), "bun not found") {
+		t.Fatalf("missing Bun result = %v", err)
+	}
+
+	bin := t.TempDir()
+	bun := "bun"
+	if runtime.GOOS == "windows" {
+		bun += ".exe"
+	}
+	if err := os.WriteFile(filepath.Join(bin, bun), []byte("bun"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	missingBinary := filepath.Join(directory, "missing-ktx")
+	if _, err := generatedAdapterGateRequirements(missingBinary); err == nil || !strings.Contains(err.Error(), "built KTX binary is required") {
+		t.Fatalf("missing binary result = %v", err)
+	}
+	if got, err := generatedAdapterGateRequirements(binary); err != nil || got != binary {
+		t.Fatalf("valid requirements = %q, %v; want %q", got, err, binary)
 	}
 }
 

@@ -11,3 +11,13 @@ record:
     - GIVEN the generated adapter invokes the built KTX binary under staggered hook, query, and telemetry overlap WHEN migration ownership changes THEN all operations complete or fail according to the declared contract without leaked lock errors.
     - GIVEN each changed testable behavior WHEN regressions run THEN at least one passing case and one failing or interrupted case verify the contract.
   plan: wddjlywrzk
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Historical fixtures duplicate DDL and assert incomplete shapes; final-publication interruption does not execute production finalization; generated-adapter coverage can skip and under-validates overlap output/digest; adverse and retained gate evidence are incomplete.
+    provenance:
+      attempt_id: audit-kszxqpedjh-1
+      source: audit ses_fcece5aacffewK602Rz2UXzdtQ
+      recorded_at: 2026-08-24 02:39
+      writer_command: agentera state plan record-evaluation

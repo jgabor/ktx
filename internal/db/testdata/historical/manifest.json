@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "version": 0,
+      "file": "schema-00.db.gz",
+      "source_revision": "ff39f1372346516f46b88374941f305d6d278261",
+      "database_sha256": "6ce428c611a5a713b0f0107cea046d0a2691429caaf2e85b2c7e8b071f8a93f9",
+      "metadata_sha256": "5ef12d02d0cc28b9b1e723761d0fde365b1befa4bc1debde1c3617edc2a81561"
+    },
+    {
+      "version": 1,
+      "file": "schema-01.db.gz",
+      "source_revision": "ff39f1372346516f46b88374941f305d6d278261",
+      "database_sha256": "f24938f388099f695df8834d5e9683c196b2eab60a684e34ce7ad8b1fa7be830",
+      "metadata_sha256": "cb462890926ef68db06cdc5695bd30cecccf8b920ad02d0e0ff2937d48da1196"
+    },
+    {
+      "version": 2,
+      "file": "schema-02.db.gz",
+      "source_revision": "795664f8d1e7d1cb062f7994b42881272afd3eb6",
+      "database_sha256": "4e37613ab3cc69b8c41bdd644eaed48925bec6d050c5c85a5e8ec0e8e931df2c",
+      "metadata_sha256": "8fffdee0baeb5c4d0ab0fe212278c9c4338c350133685363936cbdca89cdd4b5"
+    },
+    {
+      "version": 3,
+      "file": "schema-03.db.gz",
+      "source_revision": "8a8ca9e7a26d335a7e090814198b801394dc27f6",
+      "database_sha256": "e2bfe01599ca4f8cecf4e051f76fa2da0c1504b32fd687d7494f9c719785b2db",
+      "metadata_sha256": "b7e78e58adeb581680d5da2a8d331166a6c26de84cecba76dc0053e13561fd3e"
+    },
+    {
+      "version": 4,
+      "file": "schema-04.db.gz",
+      "source_revision": "9829f6a990141f58345dff83f8b1b57e4b64814b",
+      "database_sha256": "e10e2f56ec045f476a87c6e85cf0d5a6c5e83f4720cc9fa1afb8b2f416c13f16",
+      "metadata_sha256": "f6477b1951e6b349820a217a731f29b2d31c2128017e9dbe3159c0fac47f7b40"
+    },
+    {
+      "version": 5,
+      "file": "schema-05.db.gz",
+      "source_revision": "fb24107718b40c2b38ec1f62a81c3c4216398627",
+      "database_sha256": "d7e706cafc1104b3ba6064819a5ce672b6e970c4e4fd15f869fb3d56998c2cb7",
+      "metadata_sha256": "908a248faae2d3c69d2963a5dafd211d690a03d81aaa13f6e5952fbe812e80fe"
+    },
+    {
+      "version": 6,
+      "file": "schema-06.db.gz",
+      "source_revision": "e58a5a024b18d91f98fdab98486b977874428cf5",
+      "database_sha256": "88704ba386d2b51e0f757b5186b52d19da6a60477a367384debf249be4ba6f05",
+      "metadata_sha256": "b8d432a32c3c70fa7e9988c859cb6f4c499167f7a00676179e48b929bc18ad41"
+    },
+    {
+      "version": 7,
+      "file": "schema-07.db.gz",
+      "source_revision": "3883ab4c5a958ac2af139edec48fa0c040209544",
+      "database_sha256": "613633921232a6ffac35a2658b597e92f13abeb85a8fd48addb2a4768f9cb917",
+      "metadata_sha256": "a29c6ee0e253f910366203150f9051b9c389967a974a81317726f0ae2985054a"
+    },
+    {
+      "version": 8,
+      "file": "schema-08.db.gz",
+      "source_revision": "6eeac386213e0d01848bff09b264ca16320f41fc",
+      "database_sha256": "2e7e0fb518fcf423823a3090b15876d4b36cd1f719b1c157e8bb89b12bbfb777",
+      "metadata_sha256": "b471ceb21abb3c356f1f4337fa48adf9fae19e7422297f528e2027ebf641e4b5"
+    },
+    {
+      "version": 9,
+      "file": "schema-09.db.gz",
+      "source_revision": "c6eb8f72a05bf3affadb459c0779408495e03055",
+      "database_sha256": "0837dc3c304c1bc14c5778ed45fe1acb933e0c518d6c308291a5a5c87224df5b",
+      "metadata_sha256": "5219ff0926fe69fb70e96224cd5c298a68a201e140bc25bdc05a95b264c90405"
+    },
+    {
+      "version": 10,
+      "file": "schema-10.db.gz",
+      "source_revision": "988ed4ffe80cb4711749e2f23e17ea714a38ef23",
+      "database_sha256": "24260d68ceea51f7ec3bfb2e053f4294fd475ba2a3e3c1dc4944b782b97860ce",
+      "metadata_sha256": "549339e6a71e35238bd08ba420087f8c0e3d2fb44351b4c0a99013bf7ef3b85c"
+    },
+    {
+      "version": 11,
+      "file": "schema-11.db.gz",
+      "source_revision": "f4ee8a73a751548e251be4a27fafaf53046a84a4",
+      "database_sha256": "a9a0e80411fbb1f0c3c125af9e1c14165d9ac6d6d419aa59b4afd4a5b624fa7d",
+      "metadata_sha256": "6506064976d91c90554b19012630b691a10ee861925229c47f61952397c2f9bf"
+    },
+    {
+      "version": 12,
+      "file": "schema-12.db.gz",
+      "source_revision": "03db4e1f41b878dbed6b85fbb61c03643ab653b7",
+      "database_sha256": "dee456d833df1803f64a8e363656fe3dd19e18a633608e6e7e8ab6192fdeed54",
+      "metadata_sha256": "d5d64c052a50d69f75c7bae0f16c1fca9faa6a716d7846daa230b6df7c392d8d"
+    },
+    {
+      "version": 13,
+      "file": "schema-13.db.gz",
+      "source_revision": "27008c4c19daa17279643de198e624b7ff5e1e72",
+      "database_sha256": "c3ab7c9f34a96fbb2d1b096e2e5f147e39b23e458641e05ab5badbf84e7144dc",
+      "metadata_sha256": "6f310fa1d86bae306cfedd43b0fdfd3b6905158aae6a7674baaa3b00fc5cc09e"
+    },
+    {
+      "version": 14,
+      "file": "schema-14.db.gz",
+      "source_revision": "4e50d74ed9e0a76e5ea2cbb614a8a4ad0d5209f5",
+      "database_sha256": "2aeb58b131b7750ab956624f6b42c0d909be2ebdf4eb262b396d17eb810d6671",
+      "metadata_sha256": "0ee1d8096650a6696614bbf4884c07a8237145d49cf4ea8d1f7e473fdab055d1"
+    },
+    {
+      "version": 15,
+      "file": "schema-15.db.gz",
+      "source_revision": "63db47220eb6f6b0af99e234bc31da217f98ed5b",
+      "database_sha256": "a38807d092bdca091764ee75a32c9b61425f258fce3f8d304ce222b8aec816c5",
+      "metadata_sha256": "88120b4f55c85e6335fc76dd87b715ba6c83b26119f4c5e04425cbd2d6e8df2a"
+    }
+  ]
+}

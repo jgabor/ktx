@@ -586,51 +586,53 @@ func migrateCompressedTimestampStep(ctx context.Context, db *sql.DB) (bool, erro
 		return false, nil
 	}
 
-	remaining := false
+	complete := false
 	err = withWriteTx(ctx, db, func(tx *sql.Tx) error {
-		var version int
-		if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
-			return fmt.Errorf("db: recheck schema version: %w", err)
-		}
-		if version > schemaVersion {
-			return newerSchemaError(version)
-		}
-		if version == schemaVersion {
-			return nil
-		}
-		if version != 15 {
-			return fmt.Errorf("db: schema changed from 15 to %d during migration", version)
-		}
-
-		var lastID sql.NullString
-		if err := tx.QueryRowContext(ctx, `SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
-			return fmt.Errorf("db: read compressed timestamp migration cursor: %w", err)
-		}
-		query := `SELECT 1 FROM compressed LIMIT 1`
-		var args []any
-		if lastID.Valid {
-			query = `SELECT 1 FROM compressed WHERE id > ? LIMIT 1`
-			args = append(args, lastID.String)
-		}
-		var one int
-		if err := tx.QueryRowContext(ctx, query, args...).Scan(&one); err == nil {
-			remaining = true
-			return nil
-		} else if err != sql.ErrNoRows {
-			return fmt.Errorf("db: check compressed timestamp migration completion: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `DROP TABLE compressed_timestamp_migration`); err != nil {
-			return fmt.Errorf("db: remove compressed timestamp migration cursor: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
-			return fmt.Errorf("db: set schema version: %w", err)
-		}
-		return nil
+		var finalizeErr error
+		complete, finalizeErr = finalizeCompressedTimestampMigration(ctx, tx)
+		return finalizeErr
 	})
-	if remaining {
-		return false, err
+	return complete && err == nil, err
+}
+
+func finalizeCompressedTimestampMigration(ctx context.Context, tx *sql.Tx) (bool, error) {
+	var version int
+	if err := tx.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		return false, fmt.Errorf("db: recheck schema version: %w", err)
 	}
-	return err == nil, err
+	if version > schemaVersion {
+		return false, newerSchemaError(version)
+	}
+	if version == schemaVersion {
+		return true, nil
+	}
+	if version != 15 {
+		return false, fmt.Errorf("db: schema changed from 15 to %d during migration", version)
+	}
+
+	var lastID sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT last_id FROM compressed_timestamp_migration WHERE singleton = 1`).Scan(&lastID); err != nil {
+		return false, fmt.Errorf("db: read compressed timestamp migration cursor: %w", err)
+	}
+	query := `SELECT 1 FROM compressed LIMIT 1`
+	var args []any
+	if lastID.Valid {
+		query = `SELECT 1 FROM compressed WHERE id > ? LIMIT 1`
+		args = append(args, lastID.String)
+	}
+	var one int
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&one); err == nil {
+		return false, nil
+	} else if err != sql.ErrNoRows {
+		return false, fmt.Errorf("db: check compressed timestamp migration completion: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DROP TABLE compressed_timestamp_migration`); err != nil {
+		return false, fmt.Errorf("db: remove compressed timestamp migration cursor: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+		return false, fmt.Errorf("db: set schema version: %w", err)
+	}
+	return true, nil
 }
 
 func migrateCompressedTimestampBatch(db *sql.DB) (int64, error) {

@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "scope": "schema migration lifecycle gate",
+  "historical_schema": {
+    "versions": 16,
+    "fixture_manifest": "internal/db/testdata/historical/manifest.json",
+    "metadata": [
+      "normalized sqlite_schema SQL",
+      "table_info type, nullability, default, and primary-key position",
+      "foreign keys",
+      "index uniqueness, origin, partial state, columns, collation, and sort direction"
+    ],
+    "adverse_case": "dropping tool_calls_timestamp_unix_nano_idx rejects the schema-15 fingerprint"
+  },
+  "publication_recovery": {
+    "boundaries": [
+      "before progress publication",
+      "after durable cursor completion and production cursor removal, before final commit",
+      "after a committed batch"
+    ],
+    "interrupted_final_state": "schema 15 with all 129 rows populated and the final durable cursor restored",
+    "retry_state": "schema 16 with 129 distinct rows, no missing sortable timestamps, no cursor table, integrity_check ok",
+    "idempotence": "a current-schema reopen leaves the schema cookie unchanged"
+  },
+  "generated_adapter": {
+    "required_gate": true,
+    "gate_order": ["build", "test", "generated-adapter", "vet", "lint"],
+    "missing_requirement_cases": ["built binary", "Bun"],
+    "success": {
+      "overlapped_query_snapshot": {"historicalsessxx": 1, "adapterownersess_allowed": [0, 1]},
+      "query_sessions_after_callbacks": {"historicalsessxx": 1, "adapterownersess": 1},
+      "source_rows": 1,
+      "telemetry_rows": 1,
+      "disposition_rows": 1,
+      "compressed_rows": 129
+    },
+    "deadline_case": {
+      "query_exit": 4,
+      "adapter_exit": 0,
+      "query_stdout": "empty",
+      "source_rows": 0,
+      "telemetry_rows": 0,
+      "retry": "pass"
+    },
+    "runtime_digest": "each reported executable_sha256 equals the SHA-256 of the built binary bytes"
+  },
+  "verification": [
+    {
+      "command": "go test ./internal/db -run '^TestHistoricalSchema(PhysicalShapeMatrix|FingerprintRejectsPhysicalMutation)$' -count=1",
+      "result": "pass"
+    },
+    {
+      "command": "go test ./internal/db -run '^TestSchema15(MigrationRecoversHotJournalAtPublicationBoundaries|MigrationResumesAfterProcessTermination|HotJournalProcessHelper|MigrationProcessHelper)$' -count=1",
+      "result": "pass"
+    },
+    {
+      "command": "go test -tags=mage . -run '^TestGeneratedAdapterGateRequiresBinaryAndBun$' -count=1",
+      "result": "pass"
+    },
+    {
+      "command": "mage generatedAdapterGate",
+      "result": "pass"
+    },
+    {
+      "command": "mage check",
+      "result": "pass",
+      "generated_adapter_gate_observed": true,
+      "lint_issues": 0,
+      "forbidden_database_accesses": 0
+    }
+  ]
+}

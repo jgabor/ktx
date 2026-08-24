@@ -401,10 +401,11 @@ func check() error {
 		name string
 		run  func() error
 	}{
+		{name: "build", run: Build},
 		{name: "test", run: test},
+		{name: "generated-adapter", run: generatedAdapterGate},
 		{name: "vet", run: Vet},
 		{name: "lint", run: Lint},
-		{name: "build", run: Build},
 	}
 
 	for _, step := range steps {
@@ -413,6 +414,55 @@ func check() error {
 		}
 	}
 	return nil
+}
+
+// GeneratedAdapterGate builds KTX and runs the required generated-adapter
+// readiness check used by the authoritative repository gate.
+func GeneratedAdapterGate() error {
+	return hermeticTarget("generatedAdapterGate", func() error {
+		if err := Build(); err != nil {
+			return err
+		}
+		return generatedAdapterGate()
+	})
+}
+
+func generatedAdapterGate() error {
+	if runtime.GOOS != "linux" {
+		return fmt.Errorf("generated-adapter gate requires Linux process and lock-owner evidence; got %s", runtime.GOOS)
+	}
+	binary, err := generatedAdapterGateRequirements(binaryPath())
+	if err != nil {
+		return err
+	}
+	command := exec.Command("go", "test", "-race", "./internal/db", "-run", "^TestGeneratedOpenCodeAdapterReadinessOverlap$", "-count=1", "-timeout=30s")
+	command.Env = append(os.Environ(), "KTX_TEST_REQUIRE_GENERATED_ADAPTER=1", "KTX_TEST_BUILT_BINARY="+binary)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	command.Stdin = nil
+	if err := command.Run(); err != nil {
+		return err
+	}
+	fmt.Fprintln(os.Stderr, "ktx generated-adapter gate: required overlap check passed")
+	return nil
+}
+
+func generatedAdapterGateRequirements(binary string) (string, error) {
+	absolute, err := filepath.Abs(binary)
+	if err != nil {
+		return "", fmt.Errorf("resolve built KTX binary: %w", err)
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return "", fmt.Errorf("built KTX binary is required at %s: %w", absolute, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("built KTX binary is not a regular file: %s", absolute)
+	}
+	if _, err := exec.LookPath("bun"); err != nil {
+		return "", errors.New("bun not found; it is required for the generated-adapter gate")
+	}
+	return absolute, nil
 }
 
 // Verify runs the complete repository verification used locally and in CI.

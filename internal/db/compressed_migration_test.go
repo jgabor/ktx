@@ -16,6 +16,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -388,6 +389,17 @@ func TestSchema15MigrationRecoversHotJournalAtPublicationBoundaries(t *testing.T
 			if _, err := d.db.Exec(`UPDATE compressed SET timestamp_unix_nano = NULL; PRAGMA user_version = 15`); err != nil {
 				t.Fatal(err)
 			}
+			wantPopulated, wantCursorRows, wantCursor := 0, 0, ""
+			if boundary == "before-publication" {
+				for _, want := range []int64{compressedTimestampMigrationBatch, 1} {
+					if updated, err := migrateCompressedTimestampBatch(d.db); err != nil || updated != want {
+						t.Fatalf("durable migration batch = %d, %v; want %d", updated, err, want)
+					}
+				}
+				wantPopulated = compressedTimestampMigrationBatch + 1
+				wantCursorRows = 1
+				wantCursor = fmt.Sprintf("j%015d", compressedTimestampMigrationBatch)
+			}
 			if err := d.Close(); err != nil {
 				t.Fatal(err)
 			}
@@ -421,6 +433,7 @@ func TestSchema15MigrationRecoversHotJournalAtPublicationBoundaries(t *testing.T
 				t.Fatal(err)
 			}
 			var version, populated, cursorRows int
+			var cursor string
 			if err := raw.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 				t.Fatal(err)
 			}
@@ -430,18 +443,42 @@ func TestSchema15MigrationRecoversHotJournalAtPublicationBoundaries(t *testing.T
 			if err := raw.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='compressed_timestamp_migration'`).Scan(&cursorRows); err != nil {
 				t.Fatal(err)
 			}
+			if cursorRows != 0 {
+				if err := raw.QueryRow(`SELECT last_id FROM compressed_timestamp_migration WHERE singleton=1`).Scan(&cursor); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if err := raw.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if version != 15 || populated != 0 || cursorRows != 0 {
-				t.Fatalf("recovered interrupted transaction: version=%d populated=%d cursor_table=%d", version, populated, cursorRows)
+			if version != 15 || populated != wantPopulated || cursorRows != wantCursorRows || cursor != wantCursor {
+				t.Fatalf("recovered interrupted transaction: version=%d populated=%d cursor_table=%d cursor=%q; want version=15 populated=%d cursor_table=%d cursor=%q", version, populated, cursorRows, cursor, wantPopulated, wantCursorRows, wantCursor)
 			}
 
 			d, err = Open(path)
 			if err != nil {
 				t.Fatal(err)
 			}
+			assertCompletedTimestampMigration(t, d.db, compressedTimestampMigrationBatch+1)
+			var publishedSchemaCookie int
+			if err := d.db.QueryRow(`PRAGMA schema_version`).Scan(&publishedSchemaCookie); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.Close(); err != nil {
+				t.Fatal(err)
+			}
+			d, err = Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer d.Close()
+			var reopenedSchemaCookie int
+			if err := d.db.QueryRow(`PRAGMA schema_version`).Scan(&reopenedSchemaCookie); err != nil {
+				t.Fatal(err)
+			}
+			if reopenedSchemaCookie != publishedSchemaCookie {
+				t.Fatalf("current-schema reopen changed schema cookie from %d to %d", publishedSchemaCookie, reopenedSchemaCookie)
+			}
 			assertCompletedTimestampMigration(t, d.db, compressedTimestampMigrationBatch+1)
 		})
 	}
@@ -461,15 +498,19 @@ func TestSchema15HotJournalProcessHelper(t *testing.T) {
 		t.Fatal(err)
 	}
 	if os.Getenv("KTX_SCHEMA15_JOURNAL_BOUNDARY") == "before-progress" {
-		if _, err := tx.Exec(`CREATE TABLE compressed_timestamp_migration (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), last_id TEXT)`); err != nil {
+		if _, err := tx.Exec(createCompressedTimestampMigration); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tx.Exec(`INSERT INTO compressed_timestamp_migration VALUES (1, NULL)`); err != nil {
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO compressed_timestamp_migration (singleton, last_id) VALUES (1, NULL)`); err != nil {
 			t.Fatal(err)
 		}
 	} else {
-		if _, err := tx.Exec(`PRAGMA user_version = 16`); err != nil {
+		complete, err := finalizeCompressedTimestampMigration(context.Background(), tx)
+		if err != nil {
 			t.Fatal(err)
+		}
+		if !complete {
+			t.Fatal("production finalization found remaining migration work")
 		}
 	}
 	if err := os.WriteFile(os.Getenv("KTX_SCHEMA15_JOURNAL_MARKER"), []byte("open"), 0o600); err != nil {

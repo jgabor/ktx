@@ -4,6 +4,7 @@ package db
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -40,6 +41,7 @@ type generatedAdapterFixture struct {
 	ready     string
 	start     string
 	callbacks string
+	digest    string
 	env       []string
 }
 
@@ -47,6 +49,9 @@ func TestGeneratedOpenCodeAdapterReadinessOverlap(t *testing.T) {
 	binary := builtKTXBinary(t)
 	bun, err := exec.LookPath("bun")
 	if err != nil {
+		if os.Getenv("KTX_TEST_REQUIRE_GENERATED_ADAPTER") == "1" {
+			t.Fatal("bun is required to execute the generated OpenCode adapter")
+		}
 		t.Skip("bun is required to execute the generated OpenCode adapter")
 	}
 
@@ -67,6 +72,9 @@ func TestGeneratedOpenCodeAdapterReadinessOverlap(t *testing.T) {
 		adapter, query := runGeneratedAdapterOverlap(t, fixture, false)
 		if query.command.ProcessState.ExitCode() != 4 || adapter.command.ProcessState.ExitCode() != 0 {
 			t.Fatalf("failure exits: query=%d adapter=%d", query.command.ProcessState.ExitCode(), adapter.command.ProcessState.ExitCode())
+		}
+		if len(bytes.TrimSpace(query.stdout.Bytes())) != 0 {
+			t.Fatalf("failed overlap query wrote stdout: %s", query.stdout.Bytes())
 		}
 		assertDatabaseUnavailableEnvelope(t, query.stderr.String(), fixture, "")
 		assertDatabaseUnavailableEnvelope(t, adapter.stderr.String(), fixture, "opencode-hook", "opencode-telemetry")
@@ -96,6 +104,9 @@ func builtKTXBinary(t *testing.T) string {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(absolute); errors.Is(err, os.ErrNotExist) {
+		if os.Getenv("KTX_TEST_REQUIRE_GENERATED_ADAPTER") == "1" {
+			t.Fatalf("built KTX binary is required at %s", absolute)
+		}
 		t.Skip("build/ktx is required; run mage build before this test")
 	} else if err != nil {
 		t.Fatal(err)
@@ -142,6 +153,11 @@ func newGeneratedAdapterFixture(t *testing.T, binary, bun string) generatedAdapt
 	if _, err := os.Stat(plugin); err != nil {
 		t.Fatalf("generated adapter: %v", err)
 	}
+	binaryBytes, err := os.ReadFile(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(binaryBytes))
 
 	ready := filepath.Join(root, "adapter-ready")
 	start := filepath.Join(root, "adapter-start")
@@ -168,7 +184,7 @@ console.log(JSON.stringify(output))
 		t.Fatal(err)
 	}
 	env = append(env, "KTX_TEST_ADAPTER_READY="+ready, "KTX_TEST_ADAPTER_START="+start, "KTX_TEST_CALLBACKS_STARTED="+callbacks)
-	return generatedAdapterFixture{root: root, database: database, binary: binary, bun: bun, driver: driver, ready: ready, start: start, callbacks: callbacks, env: env}
+	return generatedAdapterFixture{root: root, database: database, binary: binary, bun: bun, driver: driver, ready: ready, start: start, callbacks: callbacks, digest: digest, env: env}
 }
 
 func seedGeneratedAdapterSchema15(t *testing.T, raw *sql.DB) {
@@ -418,15 +434,52 @@ func assertAdapterOutput(t *testing.T, output []byte) {
 
 func assertStableQueryOutput(t *testing.T, fixture generatedAdapterFixture, overlap []byte) {
 	t.Helper()
-	var decoded any
-	if err := json.Unmarshal(overlap, &decoded); err != nil {
-		t.Fatalf("overlap query output: %v\n%s", err, overlap)
+	overlappedCounts := querySessionCounts(t, overlap)
+	if overlappedCounts["historicalsessxx"] != 1 || (overlappedCounts["adapterownersess"] != 0 && overlappedCounts["adapterownersess"] != 1) {
+		t.Fatalf("overlapped query counts = %v, want historical=1 and adapter=0 or 1", overlappedCounts)
 	}
 	first := runKTXQuery(t, fixture)
 	second := runKTXQuery(t, fixture)
 	if !bytes.Equal(first, second) {
 		t.Fatalf("query output changed between current-schema reads:\nfirst=%s\nsecond=%s", first, second)
 	}
+	assertQuerySessionCounts(t, first, map[string]int64{"historicalsessxx": 1, "adapterownersess": 1})
+}
+
+func assertQuerySessionCounts(t *testing.T, output []byte, want map[string]int64) {
+	t.Helper()
+	got := querySessionCounts(t, output)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("query session counts = %v, want %v", got, want)
+	}
+}
+
+func querySessionCounts(t *testing.T, output []byte) map[string]int64 {
+	t.Helper()
+	var sessions []struct {
+		ID            string `json:"id"`
+		Agent         string `json:"agent"`
+		ToolCallCount int64  `json:"tool_call_count"`
+	}
+	if err := json.Unmarshal(output, &sessions); err != nil {
+		t.Fatalf("query output: %v\n%s", err, output)
+	}
+	if len(sessions) != 2 {
+		t.Fatalf("query sessions = %d, want 2: %s", len(sessions), output)
+	}
+	counts := make(map[string]int64, len(sessions))
+	agents := map[string]string{"historicalsessxx": "fixture", "adapterownersess": "opencode"}
+	for _, session := range sessions {
+		agent, ok := agents[session.ID]
+		if !ok || session.Agent != agent {
+			t.Fatalf("query session = %+v, want agents %v", session, agents)
+		}
+		counts[session.ID] = session.ToolCallCount
+	}
+	if len(counts) != len(agents) {
+		t.Fatalf("query session identities = %v, want %v", counts, agents)
+	}
+	return counts
 }
 
 func runKTXQuery(t *testing.T, fixture generatedAdapterFixture) []byte {
@@ -473,7 +526,7 @@ func assertDatabaseUnavailableEnvelope(t *testing.T, stderr string, fixture gene
 		}
 		errorValue := envelope.Error
 		if errorValue.Code != "database-unavailable" || errorValue.DatabasePath != canonical ||
-			errorValue.ExecutablePath != fixture.binary || len(errorValue.ExecutableSHA256) != 64 ||
+			errorValue.ExecutablePath != fixture.binary || errorValue.ExecutableSHA256 != fixture.digest ||
 			errorValue.FailureClass != UnavailableClassCoordinatorTimeout || errorValue.OperationPhase != OperationOpen ||
 			errorValue.ElapsedWaitNanoseconds <= 0 || errorValue.Correction == "" {
 			t.Errorf("database-unavailable envelope = %+v", errorValue)

@@ -105,6 +105,7 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [ ] [id:symvxmfbwz] **Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)
 - [ ] [id:tafkrzkqbh] **Unified hook processing flow** — Separate Codex, OpenCode, and flat payload extraction from the common session resolution, source persistence, compression, artifact persistence, recovery-cue, and envelope-rendering flow. Preserve trusted-ingress identity, first-evidence ownership, and first-compressed-artifact authority. → [Ingress](ARCHITECTURE.md#ingress)
 - [ ] [id:vzottkrauw] **Evidence maintenance boundary** — Run a structured discussion and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)
+- [ ] [id:acjasbllhj] [bug] Synchronize schema release binary identity
 
 ## ✓ Resolved
 

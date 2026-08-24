@@ -4,7 +4,7 @@ record:
   name: Enforce production-scale schema release gates
   depends_on:
     - kszxqpedjh
-  status: in_progress
+  status: blocked
   acceptance:
     - GIVEN a proposed schema release WHEN release verification runs THEN it rehearses the exact prior supported schema with representative history volume and timestamp distribution.
     - GIVEN production-shaped migration and concurrent traffic WHEN measurements are collected THEN latency, lock hold, journal growth, memory, and completion satisfy the approved budgets.
@@ -12,12 +12,12 @@ record:
     - GIVEN a migration violates correctness or a resource budget WHEN release gating evaluates it THEN the release is blocked and retained evidence identifies the failed criterion.
   plan: wddjlywrzk
   evaluation:
-    attempt_count: 1
-    failure_count: 1
+    attempt_count: 2
+    failure_count: 2
     last_verdict: fail
-    last_failure_evidence: Release gate trusts stale manifest scale values; metrics are measured outside concurrent production-scale traffic; interruption recovery runs explicit db migrate before validation; negative tests bypass real failed-report publication and raw samples are not retained.
+    last_failure_evidence: docs/schema-readiness.md names stale measured binary cf046b33..., while the current passing release authority and build identify aa9bfbff...; behavioral release-gate criteria otherwise pass.
     provenance:
-      attempt_id: audit-cqtquqpofi-1
-      source: audit ses_fce9f8c49ffela2DfB6juv87kt
-      recorded_at: 2026-08-24 03:29
+      attempt_id: audit-cqtquqpofi-2
+      source: audit ses_fcd2c0bcbffeAWLewv3sjdB00j
+      recorded_at: 2026-08-24 10:18
       writer_command: agentera state plan record-evaluation

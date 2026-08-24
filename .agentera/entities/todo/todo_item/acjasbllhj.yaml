@@ -1,0 +1,25 @@
+id: acjasbllhj
+artifact: todo
+record:
+  kind: bug
+  target_version: null
+  title: Synchronize schema release binary identity
+  requirements:
+    - Update current schema-readiness guidance to identify the exact binary measured by the passing production-scale release report.
+    - Add consistency verification that rejects disagreement between guidance, retained passing authority, and the built binary identity.
+    - Preserve the audited release-gate behavior, raw evidence, approved limits, and historical failed report.
+  acceptance:
+    - GIVEN the current passing release authority WHEN schema-readiness guidance is inspected THEN both identify the same measured binary SHA-256.
+    - GIVEN a stale measured-binary hash WHEN consistency verification runs THEN it fails without changing passing or historical evidence.
+    - GIVEN the correction is complete WHEN focused checks and the isolated repository check run THEN they pass without rerunning or altering migration behavior.
+  release_blocker: true
+  severity: normal
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[bug] Synchronize schema release binary identity"
+      severity: normal
+      status: open
+      order: 17

@@ -4,7 +4,7 @@ record:
   name: Apply automatic readiness to every database-backed surface
   depends_on:
     - pkasagxgjy
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN any supported older schema WHEN a command, hook, telemetry path, query, recovery path, or generated callback uses the database THEN it provides its intended behavior without a migration instruction or schema-required error.
     - GIVEN concurrent processes encounter pending migration WHEN they access the same database THEN one process advances migration while all others wait or use compatible behavior without lost evidence or raw lock errors.
@@ -12,12 +12,12 @@ record:
     - GIVEN a missing, current, or newer database WHEN readiness runs THEN existing creation, fast-path, and newer-schema safety contracts remain intact.
   plan: wddjlywrzk
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Stale CLI guidance advertises schema migration required; doctor and benchmark export bypass stable lock classification; generated Codex retains a competing 10-second timeout and KTX deadline attributions are absent; ambient runtime digest proof is ignored and generated callbacks do not pass it.
     provenance:
-      attempt_id: audit-fzpxovjdhb-1
-      source: audit ses_fcf211a2dffehQ2f8V1lisCU6d
-      recorded_at: 2026-08-24 01:08
+      attempt_id: audit-fzpxovjdhb-2
+      source: audit ses_fcef19f05ffe6Xky373JCzAxsx
+      recorded_at: 2026-08-24 02:04
       writer_command: agentera state plan record-evaluation

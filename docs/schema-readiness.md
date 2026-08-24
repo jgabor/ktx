@@ -89,16 +89,20 @@ sortable timestamp is `1704067200000000000 + i × 19719224757757` for
 per generated source using the same timestamp, after which
 `compressed.timestamp_unix_nano` is dropped and `user_version` is set to 15.
 
-The current-schema probe ran `ktx list --format json`. The migration probe ran
-`ktx db --path <copy> migrate` against a fresh disposable copy for each sample
-and verified schema 16 afterward. `strace -ttt -e trace=fcntl,flock` measured
-each successful exclusive-lock interval; the sample records the maximum
-individual interval rather than the span from the first lock through the last
-unlock. A 0.5 ms poll measured peak RSS and journal/WAL/SHM growth, and a
-monotonic clock measured readiness and completion. For a current-schema no-op,
-readiness completion and command completion are the same boundary. For
-migration, readiness ends at the first writer-lock acquisition and completion
-ends at process exit.
+The current-schema probe ran `ktx list --format json`. The baseline migration
+probe ran `ktx db --path <copy> migrate` against a fresh disposable copy for
+each sample and verified schema 16 afterward. The release probe instead uses a
+normal `ktx list` readiness operation while a production-generated OpenCode
+hook and telemetry callback wait on the same schema-15 copy. The existing
+generated-adapter lifecycle helper releases all three participants only after
+it observes their overlap. `strace -ttt -e trace=fcntl,flock` measures each
+successful exclusive-lock interval without tracing unrelated runtime process
+lifecycle. The sample records the maximum individual interval rather than the
+span from the first lock through the last unlock. A 0.5 ms poll measures
+journal/WAL/SHM growth, the maximum individual KTX RSS, and the aggregate KTX
+RSS retained as a separate observation. For release migration, readiness starts
+at the deterministic overlap release, and completion spans the normal query
+and generated callback workload.
 
 [`notes/schema-readiness-baseline.json`](notes/schema-readiness-baseline.json)
 retains every warmup and measured sample, command stdout, fixture input and
@@ -142,8 +146,12 @@ a distinct HOME and all XDG roots for every KTX invocation, unsets inherited
 `KTX_DB`, generates only disposable databases beneath `--work-root`, parses
 timestamped `fcntl` and `flock` events, polls RSS and SQLite sidecars every 0.5
 ms, and compares each measured metric with the approved limits retained below.
-`prepare` writes `prepared-fixtures.json` only after fixture integrity checks and
-hashes complete. `smoke` and `measure` reuse those fixtures. Each phase and
+`prepare` writes `prepared-fixtures.json` only after fixture integrity checks,
+hashes, physical-schema fingerprints, source and artifact payload counts, and
+the complete timestamp-distribution check finish. Before any release workload,
+the gate recomputes that record from the consumed database and file, compares it
+with the prepared manifest, and binds its physical schema to the exact retained
+schema-15 authority. `smoke` and `measure` reuse the fixtures. Each phase and
 sample reports progress to stderr, including the maximum individual exclusive
 lock interval observed for each sample. Child output and syscall traces spool to
 temporary files while resource polling runs, so trace volume cannot block child
@@ -174,9 +182,22 @@ env -u KTX_DB \
 ```
 
 The target fails if either path or any prerequisite is missing. It builds KTX,
-verifies the schema-15 historical fixture revision and hash, verifies the exact
-3.2 GB row and timestamp policy, runs the generated OpenCode adapter overlap
-gate, kills a migration after a durable cursor advance and restarts it, and
-measures all five fixed limits. It publishes one compact JSON report atomically
-after validation. A failed run writes `<report>.failed.json` and does not replace
-the last passing report.
+recomputes and verifies the exact 3.2 GB schema-15 fixture before workload,
+measures five production-scale copies under concurrent generated hook,
+telemetry, and query traffic, and checks exact evidence after every sample. It
+also kills a migration after a durable cursor advance and validates recovery
+immediately after the waiting normal query completes. It does not run a repair
+migration. The compact report retains every raw sample and lock-interval array,
+plus exact correctness observations and a hash of the full raw report. A passing
+report is published atomically. A failed run writes `<report>.failed.json` and
+does not replace the last passing report.
+
+The corrected 2026-08-24 rehearsal failed closed. Five of five measured combined
+samples preserved exact evidence and the interruption query recovered
+automatically, but the worst exclusive lock hold was 448,211,908 ns and total
+completion was 715,149,403 ns, above the unchanged 101,037,622 ns and
+400,000,000 ns limits. The failed report is retained at
+`notes/schema-readiness-release.json.failed.json` (SHA-256
+`714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba`).
+The prior passing authority remains byte-for-byte unchanged and does not satisfy
+the corrected combined-workload gate.

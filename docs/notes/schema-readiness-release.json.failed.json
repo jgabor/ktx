@@ -1,0 +1,750 @@
+{
+  "schema_version": 2,
+  "release_gate": "FAIL",
+  "binary": {
+    "sha256": "aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825",
+    "capabilities": {
+      "schema": "ktx.binary-capabilities/v1",
+      "executable_path": "~/git/ktx/build/ktx",
+      "executable_sha256": "aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825",
+      "build_version": "dev",
+      "max_database_schema": 16
+    }
+  },
+  "repository": {
+    "commit": "4f86bb4fe6626e2495b5eab483271ca5418be6f5",
+    "worktree_dirty": true
+  },
+  "policy": {
+    "cpu": 2,
+    "gomaxprocs": 1,
+    "warmups_per_workload": 1,
+    "measured_samples_per_workload": 5,
+    "poll_interval_seconds": 0.0005,
+    "limit": "approved fixed limits, including user-approved journal and completion overrides",
+    "limit_basis": "user-approved override dated 2026-08-24 after production-shaped bounded migration evidence; readiness latency, maximum individual lock, and peak RSS limits are unchanged",
+    "migration_readiness_boundary": "deterministic combined-workload release through the built KTX query's first successful exclusive migration lock",
+    "lock_hold_boundary": "maximum individual successful exclusive-lock interval across combined KTX traffic",
+    "rss_boundary": "maximum resident bytes of one actual built KTX participant during the combined window; aggregate peak retained separately",
+    "completion_boundary": "built KTX query process start through completion of generated hook, telemetry, and query traffic",
+    "copy_strategy": "cp --reflink=auto --sparse=always"
+  },
+  "host": {
+    "node": "allspark",
+    "platform": "Linux-7.2.0-1-cachyos-x86_64-with-glibc2.44",
+    "machine": "x86_64",
+    "processor": ""
+  },
+  "criteria": [
+    {
+      "criterion": "prior_schema_identity",
+      "status": "PASS",
+      "evidence": {
+        "schema": 15,
+        "source_revision": "63db47220eb6f6b0af99e234bc31da217f98ed5b",
+        "database_sha256": "a38807d092bdca091764ee75a32c9b61425f258fce3f8d304ce222b8aec816c5",
+        "metadata_sha256": "88120b4f55c85e6335fc76dd87b715ba6c83b26119f4c5e04425cbd2d6e8df2a",
+        "manifest_sha256": "ea12a3d7ee46eeee87727448aa823f330bca2db46f7ed222beb29cdd80700d6f",
+        "physical_schema_sha256": "be9558e6da7ebb6083809cfa43f388a8a9495ffd115c771275347c0b101ccf85",
+        "consumed_physical_schema_sha256": "be9558e6da7ebb6083809cfa43f388a8a9495ffd115c771275347c0b101ccf85"
+      }
+    },
+    {
+      "criterion": "representative_scale",
+      "status": "PASS",
+      "evidence": {
+        "fixture_inputs": {
+          "payload_count": 3200,
+          "payload_bytes_each": 1000000,
+          "timestamp_start_unix_nano": 1704067200000000000,
+          "timestamp_step_nanoseconds": 19719224757757
+        },
+        "fixture": {
+          "path_basename": "schema15.db",
+          "bytes": 3205681152,
+          "sha256": "e23dce01cd965128796c879501a67da10285e5c742814ce9b4f88852491c69e6",
+          "schema": 15,
+          "rows": 3200,
+          "payload_bytes": 32000,
+          "first_timestamp": "2024-01-01T00:00:00Z",
+          "last_timestamp": "2025-12-31T02:43:20Z",
+          "integrity_check": "ok",
+          "physical_schema_sha256": "be9558e6da7ebb6083809cfa43f388a8a9495ffd115c771275347c0b101ccf85",
+          "source_rows": 3200,
+          "source_payload_bytes": 3200000000,
+          "timestamp_distribution": {
+            "timestamp_start_unix_nano": 1704067200000000000,
+            "timestamp_step_nanoseconds": 19719224757757,
+            "distinct_timestamps": 3200,
+            "sequence_sha256": "c3bb34c8b975b6755011b9008fe13b7a4393f45e46680f56106569bb205771ac",
+            "matches_inputs": true
+          }
+        }
+      }
+    },
+    {
+      "criterion": "concurrent_generated_traffic",
+      "status": "PASS",
+      "evidence": {
+        "measured_samples": 5,
+        "all_samples_attributed": true,
+        "all_samples_exact": true
+      }
+    },
+    {
+      "criterion": "interruption_restart",
+      "status": "PASS",
+      "evidence": {
+        "schema": 16,
+        "integrity_check": "ok",
+        "rows": 3200,
+        "distinct_ids": 3200,
+        "missing_sortable_timestamps": 0,
+        "cursor_tables": 0,
+        "hot_journal": false,
+        "evidence_sha256": "98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8",
+        "passed": true,
+        "durable_cursor": "aaaaaaaaaaaaaexx",
+        "durable_rows_before_restart": 128,
+        "schema_before_restart": 15,
+        "first_exit": -9,
+        "concurrent_query_exit": 0,
+        "concurrent_query_output_sha256": "19f6ec73cb8c1c30236d99a01d7f5001699c2b563d3da36067c3667276b3780c",
+        "concurrent_query_raw_lock_error": false,
+        "automatic_recovery_command": "ktx list --format json",
+        "post_recovery_migrate_invoked": false
+      }
+    },
+    {
+      "criterion": "readiness_latency_ns",
+      "status": "PASS",
+      "evidence": {
+        "observed": 28244495,
+        "limit": 35322974,
+        "passed": true,
+        "combined_production_observed": 28244495
+      }
+    },
+    {
+      "criterion": "exclusive_lock_hold_ns",
+      "status": "FAIL",
+      "evidence": {
+        "observed": 448211908,
+        "limit": 101037622,
+        "passed": false,
+        "combined_production_observed": 448211908
+      }
+    },
+    {
+      "criterion": "journal_growth_bytes",
+      "status": "PASS",
+      "evidence": {
+        "observed": 41552,
+        "limit": 50000,
+        "passed": true,
+        "combined_production_observed": 41552
+      }
+    },
+    {
+      "criterion": "peak_rss_bytes",
+      "status": "PASS",
+      "evidence": {
+        "observed": 20959232,
+        "limit": 26557440,
+        "passed": true,
+        "combined_production_observed": 19329024
+      }
+    },
+    {
+      "criterion": "total_completion_ns",
+      "status": "FAIL",
+      "evidence": {
+        "observed": 715149403,
+        "limit": 400000000,
+        "passed": false,
+        "combined_production_observed": 715149403
+      }
+    }
+  ],
+  "raw_samples": {
+    "current_minimal": [
+      {
+        "readiness_latency_ns": 14885313,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16818176,
+        "total_completion_ns": 14885313,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "warmup",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 6306582,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16896000,
+        "total_completion_ns": 6306582,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 10945772,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16834560,
+        "total_completion_ns": 10945772,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 8471987,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16850944,
+        "total_completion_ns": 8471987,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 7725158,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16781312,
+        "total_completion_ns": 7725158,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 9541144,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 16904192,
+        "total_completion_ns": 9541144,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      }
+    ],
+    "current_production": [
+      {
+        "readiness_latency_ns": 278001029,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20967424,
+        "total_completion_ns": 278001029,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "warmup",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 22416579,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20885504,
+        "total_completion_ns": 22416579,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 21275465,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20959232,
+        "total_completion_ns": 21275465,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 21795951,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20832256,
+        "total_completion_ns": 21795951,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 22809250,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20783104,
+        "total_completion_ns": 22809250,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      },
+      {
+        "readiness_latency_ns": 21813775,
+        "exclusive_lock_hold_ns": 0,
+        "journal_growth_bytes": 0,
+        "peak_rss_bytes": 20897792,
+        "total_completion_ns": 21813775,
+        "exclusive_lock_intervals_ns": [],
+        "kind": "measured",
+        "stdout_sha256": "a989762599265358869b0fc13eac4588de2471b3c42b20806d9ec8d4ef05f367"
+      }
+    ],
+    "schema15_to_16_production": [
+      {
+        "readiness_latency_ns": 3357172,
+        "exclusive_lock_hold_ns": 243598223,
+        "journal_growth_bytes": 41552,
+        "peak_rss_bytes": 19255296,
+        "total_completion_ns": 662547827,
+        "exclusive_lock_intervals_ns": [
+          8489847,
+          64765930,
+          41841984,
+          5289078,
+          5298138,
+          25418997,
+          5886793,
+          104066849,
+          8675098,
+          25629997,
+          4878044,
+          5955935,
+          1356840,
+          243598223,
+          5666971
+        ],
+        "combined_workload": {
+          "attributed": true,
+          "participants": [
+            {
+              "role": "query"
+            },
+            {
+              "role": "hook"
+            },
+            {
+              "role": "telemetry"
+            }
+          ],
+          "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+          "aggregate_peak_rss_bytes": 46997504,
+          "synchronization_release_epoch": 1787536947.0684109,
+          "window_started_epoch": 1787536946.9163098,
+          "window_finished_epoch": 1787536947.5788577
+        },
+        "combined_evidence": {
+          "schema": 16,
+          "integrity_check": "ok",
+          "rows": 3200,
+          "distinct_ids": 3200,
+          "missing_sortable_timestamps": 0,
+          "cursor_tables": 0,
+          "hot_journal": false,
+          "evidence_sha256": "98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8",
+          "passed": true,
+          "sessions": 2,
+          "tool_calls": 3201,
+          "generated_source_id": "sbnwllcqckomarem",
+          "generated_source_exact": true,
+          "generated_dispositions": 1,
+          "generated_telemetry_rows": 1,
+          "participant_roles": [
+            "query",
+            "hook",
+            "telemetry"
+          ],
+          "manual_migration_command": false,
+          "raw_lock_or_manual_guidance": false
+        },
+        "kind": "warmup",
+        "final_schema": 16,
+        "stdout_sha256": "2f9acb02faa121bb2a3621951f57b4c690655337edee2e5ac350be2b3be88ea8"
+      },
+      {
+        "readiness_latency_ns": 2912760,
+        "exclusive_lock_hold_ns": 84932089,
+        "journal_growth_bytes": 41552,
+        "peak_rss_bytes": 19238912,
+        "total_completion_ns": 634161234,
+        "exclusive_lock_intervals_ns": [
+          41749001,
+          4959822,
+          36064148,
+          6559849,
+          4545212,
+          10334015,
+          4311085,
+          4620790,
+          4523039,
+          4628897,
+          4271984,
+          6933928,
+          6618977,
+          84932089,
+          21687984,
+          52058935,
+          5964994,
+          4832029,
+          2031088,
+          7366896
+        ],
+        "combined_workload": {
+          "attributed": true,
+          "participants": [
+            {
+              "role": "query"
+            },
+            {
+              "role": "hook"
+            },
+            {
+              "role": "telemetry"
+            }
+          ],
+          "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+          "aggregate_peak_rss_bytes": 46485504,
+          "synchronization_release_epoch": 1787536949.1509333,
+          "window_started_epoch": 1787536949.0073042,
+          "window_finished_epoch": 1787536949.6414654
+        },
+        "combined_evidence": {
+          "schema": 16,
+          "integrity_check": "ok",
+          "rows": 3200,
+          "distinct_ids": 3200,
+          "missing_sortable_timestamps": 0,
+          "cursor_tables": 0,
+          "hot_journal": false,
+          "evidence_sha256": "98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8",
+          "passed": true,
+          "sessions": 2,
+          "tool_calls": 3201,
+          "generated_source_id": "sbnwllcqckomarem",
+          "generated_source_exact": true,
+          "generated_dispositions": 1,
+          "generated_telemetry_rows": 1,
+          "participant_roles": [
+            "query",
+            "hook",
+            "telemetry"
+          ],
+          "manual_migration_command": false,
+          "raw_lock_or_manual_guidance": false
+        },
+        "kind": "measured",
+        "final_schema": 16,
+        "stdout_sha256": "2f9acb02faa121bb2a3621951f57b4c690655337edee2e5ac350be2b3be88ea8"
+      },
+      {
+        "readiness_latency_ns": 809908,
+        "exclusive_lock_hold_ns": 296046019,
+        "journal_growth_bytes": 41552,
+        "peak_rss_bytes": 19120128,
+        "total_completion_ns": 657906771,
+        "exclusive_lock_intervals_ns": [
+          5271912,
+          9670973,
+          8982897,
+          54548979,
+          4430056,
+          5333900,
+          5281925,
+          8492947,
+          4979134,
+          3848076,
+          5017996,
+          5475044,
+          4285097,
+          7148981,
+          103193045,
+          8265018,
+          5887985,
+          47992945,
+          9667158,
+          3144979,
+          10052204,
+          296046019
+        ],
+        "combined_workload": {
+          "attributed": true,
+          "participants": [
+            {
+              "role": "query"
+            },
+            {
+              "role": "hook"
+            },
+            {
+              "role": "telemetry"
+            }
+          ],
+          "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+          "aggregate_peak_rss_bytes": 46710784,
+          "synchronization_release_epoch": 1787536951.306071,
+          "window_started_epoch": 1787536951.1527374,
+          "window_finished_epoch": 1787536951.8106441
+        },
+        "combined_evidence": {
+          "schema": 16,
+          "integrity_check": "ok",
+          "rows": 3200,
+          "distinct_ids": 3200,
+          "missing_sortable_timestamps": 0,
+          "cursor_tables": 0,
+          "hot_journal": false,
+          "evidence_sha256": "98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8",
+          "passed": true,
+          "sessions": 2,
+          "tool_calls": 3201,
+          "generated_source_id": "sbnwllcqckomarem",
+          "generated_source_exact": true,
+          "generated_dispositions": 1,
+          "generated_telemetry_rows": 1,
+          "participant_roles": [
+            "query",
+            "hook",
+            "telemetry"
+          ],
+          "manual_migration_command": false,
+          "raw_lock_or_manual_guidance": false
+        },
+        "kind": "measured",
+        "final_schema": 16,
+        "stdout_sha256": "2f9acb02faa121bb2a3621951f57b4c690655337edee2e5ac350be2b3be88ea8"
+      },
+      {
+        "readiness_latency_ns": 5107641,
+        "exclusive_lock_hold_ns": 443428993,
+        "journal_growth_bytes": 41552,
+        "peak_rss_bytes": 19329024,
+        "total_completion_ns": 654694080,
+        "exclusive_lock_intervals_ns": [
+          7914066,
+          10431051,
+          4441023,
+          4316092,
+          8319855,
+          4805088,
+          9057045,
+          4475117,
+          5347967,
+          3870010,
+          93430042,
+          6795168,
+          6449938,
+          8681059,
+          6913900,
+          32262087,
+          4483938,
+          63137770,
+          110207796,
+          979900,
+          443428993,
+          3284931,
+          7970095
+        ],
+        "combined_workload": {
+          "attributed": true,
+          "participants": [
+            {
+              "role": "query"
+            },
+            {
+              "role": "hook"
+            },
+            {
+              "role": "telemetry"
+            }
+          ],
+          "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+          "aggregate_peak_rss_bytes": 47304704,
+          "synchronization_release_epoch": 1787536953.5197923,
+          "window_started_epoch": 1787536953.3831198,
+          "window_finished_epoch": 1787536954.037814
+        },
+        "combined_evidence": {
+          "schema": 16,
+          "integrity_check": "ok",
+          "rows": 3200,
+          "distinct_ids": 3200,
+          "missing_sortable_timestamps": 0,
+          "cursor_tables": 0,
+          "hot_journal": false,
+          "evidence_sha256": "98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8",
+          "passed": true,
+          "sessions": 2,
+          "tool_calls": 3201,
+          "generated_source_id": "sbnwllcqckomarem",
+          "generated_source_exact": true,
+          "generated_dispositions": 1,
+          "generated_telemetry_rows": 1,
+          "participant_roles": [
+            "query",
+            "hook",
+            "telemetry"
+          ],
+          "manual_migration_command": false,
+          "raw_lock_or_manual_guidance": false
+        },
+        "kind": "measured",
+        "final_schema": 16,
+        "stdout_sha256": "2f9acb02faa121bb2a3621951f57b4c690655337edee2e5ac350be2b3be88ea8"
+      },
+      {
+        "readiness_latency_ns": 99897,
+        "exclusive_lock_hold_ns": 132965088,
+        "journal_growth_bytes": 41552,
+        "peak_rss_bytes": 19218432,
+        "total_completion_ns": 705429554,
+        "exclusive_lock_intervals_ns": [
+          5636930,
+          56622982,
+          4890919,
+          9612083,
+          10740042,
+          8807182,
+          6874800,
+          106888056,
+          13902187,
+          118570089,
+          118091106,
+          132965088,
+          20112991,
+          55858135,
+          9941101,
+          74193001,
+          1283884,
+          1127005,
+          6932020,
+          6200075
+        ],
+        "combined_workload": {
+          "attributed": true,
+          "participants": [
+            {
+              "role": "query"
+            },
+            {
+              "role": "hook"
+            },
+            {
+              "role": "telemetry"
+            }
+          ],
+          "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+          "aggregate_peak_rss_bytes": 46780416,
+          "synchronization_release_epoch": 1787536955.829694,
+          "window_started_epoch": 1787536955.66606,
+          "window_finished_epoch": 1787536956.3714895
+        },
+        "combined_evidence": {
+          "schema": 16,
+          "integrity_check": "ok",
+          "rows": 3200,
+          "distinct_ids": 3200,
+          "missing_sortable_timestamps": 0,
+          "cursor_tables": 0,
+          "hot_journal": false,
+          "evidence_sha256": "98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8",
+          "passed": true,
+          "sessions": 2,
+          "tool_calls": 3201,
+          "generated_source_id": "sbnwllcqckomarem",
+          "generated_source_exact": true,
+          "generated_dispositions": 1,
+          "generated_telemetry_rows": 1,
+          "participant_roles": [
+            "query",
+            "hook",
+            "telemetry"
+          ],
+          "manual_migration_command": false,
+          "raw_lock_or_manual_guidance": false
+        },
+        "kind": "measured",
+        "final_schema": 16,
+        "stdout_sha256": "2f9acb02faa121bb2a3621951f57b4c690655337edee2e5ac350be2b3be88ea8"
+      },
+      {
+        "readiness_latency_ns": 28244495,
+        "exclusive_lock_hold_ns": 448211908,
+        "journal_growth_bytes": 41552,
+        "peak_rss_bytes": 19226624,
+        "total_completion_ns": 715149403,
+        "exclusive_lock_intervals_ns": [
+          4321098,
+          5548954,
+          55474997,
+          5642891,
+          7627010,
+          4884005,
+          6900072,
+          4299879,
+          121966839,
+          94485044,
+          7247925,
+          61746836,
+          53603888,
+          5846024,
+          43347836,
+          4343033,
+          6263018,
+          51004887,
+          1698017,
+          6685972,
+          448211908,
+          403116941
+        ],
+        "combined_workload": {
+          "attributed": true,
+          "participants": [
+            {
+              "role": "query"
+            },
+            {
+              "role": "hook"
+            },
+            {
+              "role": "telemetry"
+            }
+          ],
+          "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+          "aggregate_peak_rss_bytes": 42971136,
+          "synchronization_release_epoch": 1787536958.1291096,
+          "window_started_epoch": 1787536957.9662833,
+          "window_finished_epoch": 1787536958.6814327
+        },
+        "combined_evidence": {
+          "schema": 16,
+          "integrity_check": "ok",
+          "rows": 3200,
+          "distinct_ids": 3200,
+          "missing_sortable_timestamps": 0,
+          "cursor_tables": 0,
+          "hot_journal": false,
+          "evidence_sha256": "98ac3c3090e4f15f53de5f3769382276c9736128865e26d56917a1ea7d013fb8",
+          "passed": true,
+          "sessions": 2,
+          "tool_calls": 3201,
+          "generated_source_id": "sbnwllcqckomarem",
+          "generated_source_exact": true,
+          "generated_dispositions": 1,
+          "generated_telemetry_rows": 1,
+          "participant_roles": [
+            "query",
+            "hook",
+            "telemetry"
+          ],
+          "manual_migration_command": false,
+          "raw_lock_or_manual_guidance": false
+        },
+        "kind": "measured",
+        "final_schema": 16,
+        "stdout_sha256": "2f9acb02faa121bb2a3621951f57b4c690655337edee2e5ac350be2b3be88ea8"
+      }
+    ]
+  },
+  "raw_measurements_sha256": "a12db4635b63f3beffb37129511c30d58b3e6b204fa9967afdbd7a416a3a89f7"
+}

@@ -33,16 +33,17 @@ type capturedProcess struct {
 }
 
 type generatedAdapterFixture struct {
-	root      string
-	database  string
-	binary    string
-	bun       string
-	driver    string
-	ready     string
-	start     string
-	callbacks string
-	digest    string
-	env       []string
+	root        string
+	database    string
+	binary      string
+	bun         string
+	driver      string
+	ready       string
+	start       string
+	callbacks   string
+	digest      string
+	observation string
+	env         []string
 }
 
 func TestGeneratedOpenCodeAdapterReadinessOverlap(t *testing.T) {
@@ -91,6 +92,51 @@ func TestGeneratedOpenCodeAdapterReadinessOverlap(t *testing.T) {
 		assertStableQueryOutput(t, fixture, query.stdout.Bytes())
 		assertGeneratedAdapterEvidence(t, fixture.database)
 	})
+}
+
+func TestGeneratedOpenCodeAdapterProductionReadiness(t *testing.T) {
+	database := os.Getenv("KTX_TEST_SCHEMA15_DATABASE")
+	if database == "" {
+		t.Skip("KTX_TEST_SCHEMA15_DATABASE is required for the production-scale release rehearsal")
+	}
+	expectedRows, err := strconv.ParseInt(os.Getenv("KTX_TEST_SCHEMA15_EXPECTED_ROWS"), 10, 64)
+	if err != nil || expectedRows <= 0 {
+		t.Fatal("KTX_TEST_SCHEMA15_EXPECTED_ROWS must be a positive integer")
+	}
+	binary := builtKTXBinary(t)
+	bun, err := exec.LookPath("bun")
+	if err != nil {
+		t.Fatal("bun is required to execute the generated OpenCode adapter")
+	}
+
+	fixture := newGeneratedAdapterFixture(t, binary, bun)
+	fixture.database = database
+	fixture.observation = os.Getenv("KTX_TEST_COMBINED_OBSERVATION")
+	fixture.env = replaceEnvironment(fixture.env, "KTX_DB", database)
+	fixture.env = replaceEnvironment(fixture.env, "KTX_VERIFY_ROOT", filepath.Dir(database))
+	raw, err := sql.Open(sqliteDriver, "file:"+database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO sessions (id,agent,started_at,last_seen_at,tool_call_count,agent_attribution_authority)
+		VALUES ('adapterownersess','opencode','2026-08-24T00:00:00Z','2026-08-24T00:00:00Z',0,'identified')`); err != nil {
+		_ = raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter, query := runGeneratedAdapterOverlap(t, fixture, true)
+	if query.command.ProcessState.ExitCode() != 0 || adapter.command.ProcessState.ExitCode() != 0 {
+		t.Fatalf("production exits: query=%d adapter=%d\nquery stderr=%s\nadapter stderr=%s", query.command.ProcessState.ExitCode(), adapter.command.ProcessState.ExitCode(), query.stderr.String(), adapter.stderr.String())
+	}
+	assertNoReadinessLeak(t, query.stderr.String()+adapter.stderr.String())
+	assertAdapterOutput(t, adapter.stdout.Bytes())
+	counts := querySessionCountsAny(t, query.stdout.Bytes())
+	if counts["ssssssssssssssss"] != expectedRows || (counts["adapterownersess"] != 0 && counts["adapterownersess"] != 1) {
+		t.Fatalf("production overlap query counts = %v", counts)
+	}
 }
 
 func builtKTXBinary(t *testing.T) string {
@@ -238,6 +284,7 @@ func runGeneratedAdapterOverlap(t *testing.T, fixture generatedAdapterFixture, r
 	waitForPath(t, fixture.ready, 5*time.Second)
 	seedAdapterSessionOwner(t, fixture, adapter.command.Process.Pid)
 	query := startCapturedProcess(t, fixture.binary, []string{"list", "--format", "json"}, fixture.root, fixture.env, nil)
+	queryStarted := time.Now().UnixNano()
 	waitForGateOwner(t, lockFile, query.command.Process.Pid, 5*time.Second)
 	if err := os.WriteFile(fixture.start, []byte("start"), 0o600); err != nil {
 		t.Fatal(err)
@@ -246,10 +293,25 @@ func runGeneratedAdapterOverlap(t *testing.T, fixture generatedAdapterFixture, r
 	waitForAdapterCommands(t, adapter.command.Process.Pid, fixture.binary, 5*time.Second)
 
 	if release {
+		releasedAt := time.Now().UnixNano()
 		if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN); err != nil {
 			t.Fatal(err)
 		}
 		locked = false
+		if fixture.observation != "" {
+			observation := struct {
+				QueryStartedAtUnixNano int64    `json:"query_started_at_unix_nano"`
+				ReleasedAtUnixNano     int64    `json:"released_at_unix_nano"`
+				Roles                  []string `json:"roles"`
+			}{queryStarted, releasedAt, []string{"query", "hook", "telemetry"}}
+			data, err := json.Marshal(observation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(fixture.observation, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	waitCapturedProcess(t, query, 10*time.Second)
 	waitCapturedProcess(t, adapter, 10*time.Second)
@@ -482,6 +544,22 @@ func querySessionCounts(t *testing.T, output []byte) map[string]int64 {
 	return counts
 }
 
+func querySessionCountsAny(t *testing.T, output []byte) map[string]int64 {
+	t.Helper()
+	var sessions []struct {
+		ID            string `json:"id"`
+		ToolCallCount int64  `json:"tool_call_count"`
+	}
+	if err := json.Unmarshal(output, &sessions); err != nil {
+		t.Fatalf("query output: %v\n%s", err, output)
+	}
+	counts := make(map[string]int64, len(sessions))
+	for _, session := range sessions {
+		counts[session.ID] = session.ToolCallCount
+	}
+	return counts
+}
+
 func runKTXQuery(t *testing.T, fixture generatedAdapterFixture) []byte {
 	t.Helper()
 	command := exec.Command(fixture.binary, "list", "--format", "json")
@@ -630,4 +708,8 @@ func withoutEnvironment(environment []string, names ...string) []string {
 		}
 	}
 	return result
+}
+
+func replaceEnvironment(environment []string, name, value string) []string {
+	return append(withoutEnvironment(environment, name), name+"="+value)
 }

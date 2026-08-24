@@ -11,3 +11,13 @@ record:
     - GIVEN forced interruption and restart during the scale rehearsal WHEN validation completes THEN all evidence remains recoverable and migration resumes without manual action.
     - GIVEN a migration violates correctness or a resource budget WHEN release gating evaluates it THEN the release is blocked and retained evidence identifies the failed criterion.
   plan: wddjlywrzk
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Release gate trusts stale manifest scale values; metrics are measured outside concurrent production-scale traffic; interruption recovery runs explicit db migrate before validation; negative tests bypass real failed-report publication and raw samples are not retained.
+    provenance:
+      attempt_id: audit-cqtquqpofi-1
+      source: audit ses_fce9f8c49ffela2DfB6juv87kt
+      recorded_at: 2026-08-24 03:29
+      writer_command: agentera state plan record-evaluation

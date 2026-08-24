@@ -86,7 +86,7 @@ def copy_fixture(source, destination, env, phase):
     progress(phase, f"copied {source.name}")
 
 
-def digest(path, label):
+def digest(path, label, phase="prepare"):
     value = hashlib.sha256()
     size = path.stat().st_size
     processed = 0
@@ -96,7 +96,7 @@ def digest(path, label):
             value.update(block)
             processed += len(block)
             if processed >= next_progress:
-                progress("prepare", f"{label} hash {processed}/{size} bytes")
+                progress(phase, f"{label} hash {processed}/{size} bytes")
                 next_progress += 256 * 1024 * 1024
     return value.hexdigest()
 
@@ -215,10 +215,20 @@ def generate_fixtures(binary, parent, payload_count, payload_bytes):
     fixtures = {
         "minimal": fixture_record(minimal, "tool_calls", "timestamp", "minimal"),
         "current": fixture_record(current, "tool_calls", "timestamp", "current"),
-        "schema15": fixture_record(schema15, "compressed", "timestamp", "schema15"),
+        "schema15": fixture_record(
+            schema15,
+            "compressed",
+            "timestamp",
+            "schema15",
+            timestamp_inputs={
+                "timestamp_start_unix_nano": TIMESTAMP_START_NS,
+                "timestamp_step_nanoseconds": TIMESTAMP_STEP_NS,
+            },
+            source_table="tool_calls",
+        ),
     }
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "fixture_inputs": {
             "payload_count": payload_count,
             "payload_bytes_each": payload_bytes,
@@ -235,30 +245,56 @@ def generate_fixtures(binary, parent, payload_count, payload_bytes):
 
 
 def rss_tree(pid):
+    return sum(process_rss(current) for current in process_tree(pid))
+
+
+def process_tree(pid):
     pending = [pid]
     seen = set()
-    total = 0
     while pending:
         current = pending.pop()
         if current in seen:
             continue
         seen.add(current)
         try:
-            status = Path(f"/proc/{current}/status").read_text()
-            match = re.search(r"^VmRSS:\s+(\d+) kB$", status, re.MULTILINE)
-            if match:
-                total += int(match.group(1)) * 1024
             children = Path(f"/proc/{current}/task/{current}/children").read_text()
             pending.extend(int(child) for child in children.split())
         except (FileNotFoundError, ProcessLookupError):
             pass
-    return total
+    return seen
+
+
+def process_rss(pid):
+    try:
+        status = Path(f"/proc/{pid}/status").read_text()
+    except (FileNotFoundError, ProcessLookupError):
+        return 0
+    match = re.search(r"^VmRSS:\s+(\d+) kB$", status, re.MULTILINE)
+    return int(match.group(1)) * 1024 if match else 0
+
+
+def binary_database_rss(binary, database):
+    resident = []
+    target = ("KTX_DB=" + str(database)).encode()
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            if os.path.samefile(entry / "exe", binary):
+                environment = (entry / "environ").read_bytes().split(b"\0")
+                if target in environment:
+                    resident.append(process_rss(int(entry.name)))
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            pass
+    return max(resident, default=0), sum(resident)
 
 
 def exclusive_lock_observations(stderr, lock_kind):
     active = {}
     starts = []
     intervals = []
+    observations = []
+    unlocks = []
     for line in stderr.splitlines():
         timestamp = re.search(r"(?:\[pid +(\d+)\] )?(\d+\.\d+)", line)
         if not timestamp:
@@ -287,12 +323,20 @@ def exclusive_lock_observations(stderr, lock_kind):
             if key not in active:
                 active[key] = stamp
                 starts.append(stamp)
-        elif key in active:
-            intervals.append(round((stamp - active.pop(key)) * 1e9))
-    return starts, intervals
+        else:
+            if (lock_kind == "flock" and "LOCK_UN" in line) or (
+                lock_kind == "fcntl" and "F_UNLCK" in line
+            ):
+                unlocks.append(stamp)
+            if key in active:
+                started = active.pop(key)
+                duration = round((stamp - started) * 1e9)
+                intervals.append(duration)
+                observations.append({"pid": pid, "started_epoch": started, "duration_ns": duration})
+    return starts, intervals, observations, unlocks
 
 
-def measure(command, env, database, lock_kind):
+def measure(command, env, database, lock_kind, measured_binary=None, combined_observation=None):
     started_epoch = time.time()
     started_monotonic = time.perf_counter_ns()
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stdout_capture, tempfile.TemporaryFile(
@@ -304,16 +348,25 @@ def measure(command, env, database, lock_kind):
             stdout=stdout_capture,
             stderr=stderr_capture,
         )
-        peak_rss = 0
-        peak_journal = 0
+        observations = []
         sidecars = [Path(str(database) + suffix) for suffix in ("-journal", "-wal", "-shm")]
         while process.poll() is None:
-            peak_rss = max(peak_rss, rss_tree(process.pid))
-            peak_journal = max(
-                peak_journal, sum(path.stat().st_size for path in sidecars if path.exists())
+            individual_rss, aggregate_rss = (
+                binary_database_rss(measured_binary, database)
+                if measured_binary
+                else (rss_tree(process.pid), rss_tree(process.pid))
+            )
+            observations.append(
+                (
+                    time.time(),
+                    individual_rss,
+                    aggregate_rss,
+                    sum(path.stat().st_size for path in sidecars if path.exists()),
+                )
             )
             time.sleep(0.0005)
         process.wait()
+        finished_epoch = time.time()
         stdout_capture.seek(0)
         stderr_capture.seek(0)
         stdout = stdout_capture.read()
@@ -322,13 +375,51 @@ def measure(command, env, database, lock_kind):
     if process.returncode:
         raise RuntimeError(stderr)
 
-    lock_starts, lock_intervals = exclusive_lock_observations(stderr, lock_kind)
-    lock_hold = max(lock_intervals, default=0)
-    readiness = (
-        max(0, round((min(lock_starts) - started_epoch) * 1e9))
-        if lock_kind == "flock" and lock_starts
-        else completion
+    lock_starts, lock_intervals, lock_observations, unlocks = exclusive_lock_observations(stderr, lock_kind)
+    combined = combined_observation is not None
+    lifecycle = json.loads(combined_observation.read_text()) if combined else None
+    participants = (
+        [{"role": role} for role in lifecycle["roles"]] if lifecycle else []
     )
+    window_start = (
+        lifecycle["query_started_at_unix_nano"] / 1_000_000_000
+        if lifecycle
+        else started_epoch
+    )
+    window_observations = [item for item in observations if item[0] >= window_start]
+    peak_rss = max((item[1] for item in window_observations), default=0)
+    aggregate_peak_rss = max((item[2] for item in window_observations), default=0)
+    peak_journal = max((item[3] for item in window_observations), default=0)
+    if combined:
+        completion = max(0, round((finished_epoch - window_start) * 1e9))
+        query_locks = [
+            item for item in lock_observations if item["started_epoch"] >= window_start
+        ]
+        synchronization_release = lifecycle["released_at_unix_nano"] / 1_000_000_000
+        locks_after_release = [
+            item for item in query_locks if item["started_epoch"] >= synchronization_release
+        ]
+        readiness = (
+            max(
+                0,
+                round(
+                    (
+                        min(item["started_epoch"] for item in locks_after_release)
+                        - synchronization_release
+                    )
+                    * 1e9
+                ),
+            )
+            if locks_after_release
+            else completion
+        )
+    else:
+        readiness = (
+            max(0, round((min(lock_starts) - started_epoch) * 1e9))
+            if lock_kind == "flock" and lock_starts
+            else completion
+        )
+    lock_hold = max(lock_intervals, default=0)
     result = {
         "readiness_latency_ns": readiness,
         "exclusive_lock_hold_ns": lock_hold,
@@ -338,35 +429,90 @@ def measure(command, env, database, lock_kind):
         "exclusive_lock_intervals_ns": lock_intervals,
         "stdout": stdout.strip(),
     }
+    if combined:
+        roles = {item["role"] for item in participants}
+        result["combined_workload"] = {
+            "attributed": {"query", "hook", "telemetry"}.issubset(roles),
+            "participants": participants,
+            "rss_boundary": "maximum resident bytes of one actual built KTX participant",
+            "aggregate_peak_rss_bytes": aggregate_peak_rss,
+            "synchronization_release_epoch": synchronization_release,
+            "window_started_epoch": window_start,
+            "window_finished_epoch": finished_epoch,
+        }
     return result
 
 
-def fixture_record(path, table, timestamp_column, label):
-    progress("prepare", f"checking {label} fixture integrity")
+def fixture_record(
+    path,
+    table,
+    timestamp_column,
+    label,
+    timestamp_inputs=None,
+    source_table=None,
+    phase="prepare",
+):
+    progress(phase, f"checking {label} fixture integrity")
     database = sqlite3.connect(path)
     integrity = database.execute("PRAGMA integrity_check").fetchone()[0]
     version = database.execute("PRAGMA user_version").fetchone()[0]
     count, payload, first, last = database.execute(
         f"SELECT count(*),sum(length(CAST(output AS BLOB))),min({timestamp_column}),max({timestamp_column}) FROM {table}"
     ).fetchone()
-    database.close()
-    return {
+    record = {
         "path_basename": path.name,
         "bytes": path.stat().st_size,
-        "sha256": digest(path, label),
+        "sha256": digest(path, label, phase),
         "schema": version,
         "rows": count,
         "payload_bytes": payload,
         "first_timestamp": first,
         "last_timestamp": last,
         "integrity_check": integrity,
+        "physical_schema_sha256": physical_schema_digest(path),
     }
+    if source_table:
+        source_rows, source_payload = database.execute(
+            f"SELECT count(*),sum(length(CAST(output AS BLOB))) FROM {source_table}"
+        ).fetchone()
+        record["source_rows"] = source_rows
+        record["source_payload_bytes"] = source_payload
+    if timestamp_inputs:
+        timestamps = [
+            row[0]
+            for row in database.execute(
+                f"SELECT {timestamp_column} FROM {table} ORDER BY source_id"
+            )
+        ]
+        sequence = hashlib.sha256()
+        policy_matches = len(timestamps) == count
+        for index, timestamp in enumerate(timestamps):
+            sequence.update(timestamp.encode() + b"\n")
+            expected = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ",
+                time.gmtime(
+                    (
+                        timestamp_inputs["timestamp_start_unix_nano"]
+                        + index * timestamp_inputs["timestamp_step_nanoseconds"]
+                    )
+                    // 1_000_000_000
+                ),
+            )
+            policy_matches = policy_matches and timestamp == expected
+        record["timestamp_distribution"] = {
+            **timestamp_inputs,
+            "distinct_timestamps": len(set(timestamps)),
+            "sequence_sha256": sequence.hexdigest(),
+            "matches_inputs": policy_matches,
+        }
+    database.close()
+    return record
 
 
 def load_prepared(parent):
     manifest_path = parent / PREPARED_MANIFEST
     manifest = json.loads(manifest_path.read_text())
-    if manifest.get("schema_version") != 1:
+    if manifest.get("schema_version") != 2:
         raise SystemExit(f"unsupported prepared-fixture manifest: {manifest_path}")
     paths = {
         name: parent / record["path_basename"]
@@ -378,7 +524,75 @@ def load_prepared(parent):
     return manifest, paths
 
 
-def run_workloads(binary, parent, fixtures, phase, samples):
+def compile_generated_adapter_driver(repository, parent):
+    driver = parent / "generated-adapter-readiness.test"
+    env = roots(parent, "release-driver-build")
+    progress("release", "building generated-adapter lifecycle driver")
+    subprocess.run(
+        ["go", "test", "-c", "-o", str(driver), "./internal/db"],
+        cwd=repository,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return driver
+
+
+def combined_copy_evidence(database, expected_rows, expected_evidence_digest, sample):
+    result = validate_migrated_copy(database, expected_rows, expected_evidence_digest)
+    with sqlite3.connect(database) as connection:
+        sessions = connection.execute("SELECT count(*) FROM sessions").fetchone()[0]
+        sources = connection.execute("SELECT count(*) FROM tool_calls").fetchone()[0]
+        generated = connection.execute(
+            "SELECT id,tool,input,output,producer FROM tool_calls WHERE session_id='adapterownersess'"
+        ).fetchall()
+        telemetry = connection.execute(
+            """SELECT count(*) FROM session_telemetry
+            WHERE source_session_id='session-overlap' AND message_id='message-overlap'
+            AND part_id='part-overlap' AND ordinal=1 AND cost=1.25
+            AND tokens_input=11 AND tokens_output=7 AND tokens_reasoning=3
+            AND cache_read=5 AND cache_write=2"""
+        ).fetchone()[0]
+        dispositions = (
+            connection.execute(
+                "SELECT count(*) FROM compression_dispositions WHERE source_id=?",
+                (generated[0][0],),
+            ).fetchone()[0]
+            if len(generated) == 1
+            else 0
+        )
+    roles = [item["role"] for item in sample.get("combined_workload", {}).get("participants", [])]
+    exact_generated = (
+        len(generated) == 1
+        and generated[0][1:] == ("bash", '{"command":"true"}', "adapter overlap output", "hook")
+    )
+    result.update(
+        {
+            "sessions": sessions,
+            "tool_calls": sources,
+            "generated_source_id": generated[0][0] if len(generated) == 1 else None,
+            "generated_source_exact": exact_generated,
+            "generated_dispositions": dispositions,
+            "generated_telemetry_rows": telemetry,
+            "participant_roles": roles,
+            "manual_migration_command": False,
+            "raw_lock_or_manual_guidance": False,
+        }
+    )
+    result["passed"] = (
+        result["passed"]
+        and sessions == 2
+        and sources == expected_rows + 1
+        and exact_generated
+        and dispositions == 1
+        and telemetry == 1
+        and {"query", "hook", "telemetry"}.issubset(roles)
+    )
+    return result
+
+
+def run_workloads(binary, parent, fixtures, phase, samples, adapter_driver=None):
     run_name = f"{phase}-{os.getpid()}-{time.time_ns()}"
     workloads = {}
     for name, database in (
@@ -404,9 +618,39 @@ def run_workloads(binary, parent, fixtures, phase, samples):
         database = root / "schema15.db"
         root.mkdir(parents=True)
         copy_fixture(fixtures["schema15"], database, env, phase)
-        sample = measure(
-            [str(binary), "db", "--path", str(database), "migrate"], env, database, "flock"
-        )
+        if adapter_driver:
+            with sqlite3.connect(database) as connection:
+                expected_rows = connection.execute("SELECT count(*) FROM compressed").fetchone()[0]
+            observation = root / "combined-observation.json"
+            env["KTX_TEST_BUILT_BINARY"] = str(binary)
+            env["KTX_TEST_SCHEMA15_DATABASE"] = str(database)
+            env["KTX_TEST_SCHEMA15_EXPECTED_ROWS"] = str(expected_rows)
+            env["KTX_TEST_COMBINED_OBSERVATION"] = str(observation)
+            baseline_digest = compressed_evidence_digest(database)
+            sample = measure(
+                [
+                    str(adapter_driver),
+                    "-test.run",
+                    "^TestGeneratedOpenCodeAdapterProductionReadiness$",
+                    "-test.count=1",
+                    "-test.timeout=30s",
+                ],
+                env,
+                database,
+                "flock",
+                measured_binary=binary,
+                combined_observation=observation,
+            )
+            sample["combined_evidence"] = combined_copy_evidence(
+                database,
+                expected_rows,
+                baseline_digest,
+                sample,
+            )
+        else:
+            sample = measure(
+                [str(binary), "db", "--path", str(database), "migrate"], env, database, "flock"
+            )
         sample["kind"] = "smoke" if phase == "smoke" else ("warmup" if index == 0 else "measured")
         with sqlite3.connect(database) as migrated:
             sample["final_schema"] = migrated.execute("PRAGMA user_version").fetchone()[0]
@@ -416,9 +660,9 @@ def run_workloads(binary, parent, fixtures, phase, samples):
     return workloads
 
 
-def measure_prepared(binary, parent, output):
+def measure_prepared(binary, parent, output, adapter_driver=None):
     manifest, fixtures = load_prepared(parent)
-    workloads = run_workloads(binary, parent, fixtures, "measure", SAMPLES + 1)
+    workloads = run_workloads(binary, parent, fixtures, "measure", SAMPLES + 1, adapter_driver)
 
     metrics = (
         "readiness_latency_ns",
@@ -468,6 +712,38 @@ def measure_prepared(binary, parent, output):
         "limit_checks": limit_checks,
         "release_gate_passed": all(check["passed"] for check in limit_checks.values()),
     }
+    if adapter_driver:
+        report["policy"].update(
+            {
+                "migration_readiness_boundary": "deterministic combined-workload release through the built KTX query's first successful exclusive migration lock",
+                "lock_hold_boundary": "maximum individual successful exclusive-lock interval across combined KTX traffic",
+                "rss_boundary": "maximum resident bytes of one actual built KTX participant during the combined window; aggregate peak retained separately",
+                "completion_boundary": "built KTX query process start through completion of generated hook, telemetry, and query traffic",
+            }
+        )
+        production_samples = [
+            sample
+            for sample in workloads["schema15-to-16-production"]
+            if sample["kind"] == "measured"
+        ]
+        report["combined_production_samples_passed"] = all(
+            sample.get("combined_evidence", {}).get("passed")
+            and sample.get("combined_workload", {}).get("attributed")
+            for sample in production_samples
+        )
+        report["combined_production_observed_worst"] = {
+            metric: max(sample[metric] for sample in production_samples)
+            for metric in metrics
+        }
+        report["combined_production_limit_checks"] = {
+            metric: {
+                "observed": report["combined_production_observed_worst"][metric],
+                "limit": APPROVED_LIMITS[metric],
+                "passed": report["combined_production_observed_worst"][metric]
+                <= APPROVED_LIMITS[metric],
+            }
+            for metric in metrics
+        }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n")
     progress("measure", f"wrote {output}")
@@ -477,7 +753,8 @@ def measure_prepared(binary, parent, output):
 
 
 def criterion(name, passed, evidence):
-    return {"criterion": name, "status": "PASS" if passed else "FAIL", "evidence": evidence}
+    status = "NOT_RUN" if passed is None else ("PASS" if passed else "FAIL")
+    return {"criterion": name, "status": status, "evidence": evidence}
 
 
 def validate_release_report(report):
@@ -497,6 +774,21 @@ def validate_release_report(report):
         raise ValueError("failed release criteria: " + ", ".join(failed))
     if report.get("release_gate") != "PASS":
         raise ValueError("release_gate must be PASS")
+    binary = report.get("binary", {})
+    if binary.get("sha256") != binary.get("capabilities", {}).get("executable_sha256"):
+        raise ValueError("release report does not bind the measured executable hash")
+    if not re.fullmatch(r"[0-9a-f]{40}", report.get("repository", {}).get("commit", "")):
+        raise ValueError("release report does not retain the repository commit identity")
+    samples = report.get("raw_samples", {}).get("schema15_to_16_production", [])
+    measured = [sample for sample in samples if sample.get("kind") == "measured"]
+    if len(measured) != SAMPLES:
+        raise ValueError(f"raw production samples = {len(measured)}, want {SAMPLES}")
+    if not all(
+        sample.get("combined_workload", {}).get("attributed")
+        and sample.get("combined_evidence", {}).get("passed")
+        for sample in measured
+    ):
+        raise ValueError("raw production samples lack combined-workload attribution or exact evidence")
 
 
 def physical_schema_digest(database):
@@ -520,16 +812,72 @@ def historical_identity(repository, parent):
         raise ValueError("historical schema-15 fixture hash does not match its revision manifest")
     reference = parent / "historical-schema15-reference.db"
     reference.write_bytes(data)
-    schema_digest = physical_schema_digest(reference)
-    reference.unlink()
+    try:
+        schema_digest = physical_schema_digest(reference)
+    finally:
+        reference.unlink()
     return {
         "schema": 15,
         "source_revision": record["source_revision"],
         "database_sha256": actual,
         "metadata_sha256": record["metadata_sha256"],
-        "manifest_sha256": digest(manifest_path, "historical manifest"),
+        "manifest_sha256": digest(manifest_path, "historical manifest", "release"),
         "physical_schema_sha256": schema_digest,
     }
+
+
+def validate_release_fixture(repository, parent):
+    manifest, fixtures = load_prepared(parent)
+    expected_inputs = {
+        "payload_count": PAYLOAD_COUNT,
+        "payload_bytes_each": PAYLOAD_BYTES,
+        "timestamp_start_unix_nano": TIMESTAMP_START_NS,
+        "timestamp_step_nanoseconds": TIMESTAMP_STEP_NS,
+    }
+    actual = fixture_record(
+        fixtures["schema15"],
+        "compressed",
+        "timestamp",
+        "consumed schema15",
+        timestamp_inputs={
+            "timestamp_start_unix_nano": TIMESTAMP_START_NS,
+            "timestamp_step_nanoseconds": TIMESTAMP_STEP_NS,
+        },
+        source_table="tool_calls",
+        phase="release",
+    )
+    prepared = manifest.get("fixtures", {}).get("schema15")
+    if manifest.get("fixture_inputs") != expected_inputs:
+        raise ValueError("prepared fixture inputs do not match the approved production-scale policy")
+    compare_consumed_fixture(actual, prepared)
+    identity = historical_identity(repository, parent)
+    if actual["physical_schema_sha256"] != identity["physical_schema_sha256"]:
+        raise ValueError("consumed schema15 physical schema differs from exact historical authority")
+    scale_ok = (
+        actual["schema"] == 15
+        and actual["rows"] == PAYLOAD_COUNT
+        and actual["payload_bytes"] == PAYLOAD_COUNT * 10
+        and actual["source_rows"] == PAYLOAD_COUNT
+        and actual["source_payload_bytes"] == PAYLOAD_COUNT * PAYLOAD_BYTES
+        and actual["bytes"] >= PAYLOAD_COUNT * PAYLOAD_BYTES
+        and actual["integrity_check"] == "ok"
+        and actual["timestamp_distribution"]["matches_inputs"]
+    )
+    if not scale_ok:
+        raise ValueError("consumed schema15 fixture does not satisfy the approved scale and timestamp policy")
+    identity["consumed_physical_schema_sha256"] = actual["physical_schema_sha256"]
+    return manifest, fixtures, actual, identity
+
+
+def compare_consumed_fixture(actual, prepared):
+    if actual == prepared:
+        return
+    fields = sorted(
+        key
+        for key in set(actual) | set(prepared or {})
+        if actual.get(key) != (prepared or {}).get(key)
+    )
+    raise ValueError("consumed schema15 fixture differs from prepared manifest: " + ", ".join(fields))
 
 
 def wait_for_durable_cursor(database, process, timeout=10):
@@ -542,11 +890,12 @@ def wait_for_durable_cursor(database, process, timeout=10):
                 row = connection.execute(
                     "SELECT last_id FROM compressed_timestamp_migration WHERE singleton=1"
                 ).fetchone()
-            if row and row[0]:
-                os.kill(process.pid, signal.SIGSTOP)
-                if process.poll() is not None:
-                    raise RuntimeError("migration completed before it could be stopped")
-                return row[0]
+                version = connection.execute("PRAGMA user_version").fetchone()[0]
+                if row and row[0]:
+                    os.kill(process.pid, signal.SIGSTOP)
+                    if process.poll() is not None:
+                        raise RuntimeError("migration completed before it could be stopped")
+                    return row[0], version
         except sqlite3.Error:
             pass
         time.sleep(0.001)
@@ -601,7 +950,7 @@ def interruption_rehearsal(binary, parent, fixture, expected_rows):
     expected_evidence_digest = compressed_evidence_digest(database)
     command = [str(binary), "db", "--path", str(database), "migrate"]
     first = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    cursor = wait_for_durable_cursor(database, first)
+    cursor, schema_before_recovery = wait_for_durable_cursor(database, first)
     query_env = env.copy()
     query_env["KTX_DB"] = str(database)
     query = subprocess.Popen(
@@ -611,84 +960,85 @@ def interruption_rehearsal(binary, parent, fixture, expected_rows):
     first.kill()
     first.communicate(timeout=10)
     query_stdout, query_stderr = query.communicate(timeout=30)
+    result = validate_migrated_copy(database, expected_rows, expected_evidence_digest)
     with sqlite3.connect(database) as connection:
         durable_rows = connection.execute(
             "SELECT count(*) FROM compressed WHERE id <= ?", (cursor,)
         ).fetchone()[0]
-    restarted = run(command, env)
-    result = validate_migrated_copy(database, expected_rows, expected_evidence_digest)
+    migrated_copy_passed = result["passed"]
     result.update({
         "durable_cursor": cursor,
         "durable_rows_before_restart": durable_rows,
-        "schema_before_restart": 15,
+        "schema_before_restart": schema_before_recovery,
         "first_exit": first.returncode,
-        "restart_exit": restarted.returncode,
         "concurrent_query_exit": query.returncode,
         "concurrent_query_output_sha256": bytes_digest(query_stdout.encode()),
         "concurrent_query_raw_lock_error": "database is locked" in query_stderr.lower(),
+        "automatic_recovery_command": "ktx list --format json",
+        "post_recovery_migrate_invoked": False,
     })
-    result["passed"] = (result["passed"] and durable_rows > 0
-                        and query.returncode == 0 and "database is locked" not in query_stderr.lower())
+    result["passed"] = automatic_interruption_passed(result, migrated_copy_passed)
     return result
 
 
-def generated_adapter_gate(binary, repository, parent):
-    env = roots(parent, "release-generated-adapter")
-    env["KTX_TEST_REQUIRE_GENERATED_ADAPTER"] = "1"
-    env["KTX_TEST_BUILT_BINARY"] = str(binary)
-    started = time.monotonic_ns()
-    result = subprocess.run(
-        ["go", "test", "-race", "./internal/db", "-run", "^TestGeneratedOpenCodeAdapterReadinessOverlap$", "-count=1", "-timeout=30s"],
-        cwd=repository, env=env, text=True, capture_output=True,
+def automatic_interruption_passed(result, migrated_copy_passed=True):
+    return (
+        migrated_copy_passed
+        and result.get("durable_rows_before_restart", 0) > 0
+        and result.get("schema_before_restart") == 15
+        and result.get("concurrent_query_exit") == 0
+        and not result.get("concurrent_query_raw_lock_error", True)
+        and result.get("post_recovery_migrate_invoked") is False
     )
-    return {
-        "passed": result.returncode == 0,
-        "exit_code": result.returncode,
-        "duration_ns": time.monotonic_ns() - started,
-        "command": "go test -race ./internal/db -run ^TestGeneratedOpenCodeAdapterReadinessOverlap$ -count=1 -timeout=30s",
-        "stderr": result.stderr.strip(),
-    }
 
 
-def release_prepared(binary, parent, output, repository):
-    manifest, fixtures = load_prepared(parent)
-    expected = {"payload_count": PAYLOAD_COUNT, "payload_bytes_each": PAYLOAD_BYTES,
-                "timestamp_start_unix_nano": TIMESTAMP_START_NS,
-                "timestamp_step_nanoseconds": TIMESTAMP_STEP_NS}
-    scale_ok = manifest["fixture_inputs"] == expected and manifest["fixtures"]["schema15"]["schema"] == 15
-    identity = historical_identity(repository, parent)
-    generated_schema_digest = physical_schema_digest(fixtures["schema15"])
-    identity["generated_physical_schema_sha256"] = generated_schema_digest
-    identity_ok = generated_schema_digest == identity["physical_schema_sha256"]
-    binary_hash = digest(binary, "release binary")
-    adapter = generated_adapter_gate(binary, repository, parent)
-    interruption = interruption_rehearsal(
-        binary, parent, fixtures["schema15"], manifest["fixtures"]["schema15"]["rows"]
+def repository_identity(repository):
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repository, text=True, capture_output=True, check=True
+    ).stdout.strip()
+    dirty = bool(
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repository,
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout
     )
-    raw_path = parent / "release-measurements.json"
-    try:
-        measure_prepared(binary, parent, raw_path)
-    except SystemExit:
-        pass
-    raw = json.loads(raw_path.read_text())
-    criteria = [
-        criterion("prior_schema_identity", identity_ok, identity),
-        criterion("representative_scale", scale_ok, {"fixture_inputs": manifest["fixture_inputs"], "fixture": manifest["fixtures"]["schema15"]}),
-        criterion("concurrent_generated_traffic", adapter["passed"], adapter),
-        criterion("interruption_restart", interruption["passed"], interruption),
-    ]
-    for name, check in raw["limit_checks"].items():
-        criteria.append(criterion(name, check["passed"], check))
-    capabilities = raw["binary"]
+    return {"commit": commit, "worktree_dirty": dirty}
+
+
+def retained_workload_samples(raw):
+    retained = {}
+    for name, samples in raw["workloads"].items():
+        retained[name.replace("-", "_")] = []
+        for sample in samples:
+            item = dict(sample)
+            stdout = item.pop("stdout", "")
+            item["stdout_sha256"] = bytes_digest(stdout.encode())
+            retained[name.replace("-", "_")].append(item)
+    return retained
+
+
+def release_report(binary_hash, capabilities, repository, policy, host, criteria, raw=None, raw_path=None):
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "release_gate": "PASS" if all(item["status"] == "PASS" for item in criteria) else "FAIL",
         "binary": {"sha256": binary_hash, "capabilities": capabilities},
-        "policy": raw["policy"],
-        "host": raw["host"],
+        "repository": repository,
+        "policy": policy,
+        "host": host,
         "criteria": criteria,
-        "raw_measurements_sha256": digest(raw_path, "raw release measurements"),
+        "raw_samples": retained_workload_samples(raw) if raw else {},
     }
+    if raw_path and raw_path.is_file():
+        report["raw_measurements_sha256"] = digest(
+            raw_path, "raw release measurements", "release"
+        )
+    return report
+
+
+def publish_release_report(report, output):
     if report["release_gate"] == "PASS":
         validate_release_report(report)
         destination = output
@@ -696,12 +1046,158 @@ def release_prepared(binary, parent, output, repository):
         destination = output.with_name(output.name + ".failed.json")
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(destination.name + ".tmp")
-    temporary.write_text(json.dumps(report, indent=2) + "\n")
-    os.replace(temporary, destination)
+    try:
+        temporary.write_text(json.dumps(report, indent=2) + "\n")
+        os.replace(temporary, destination)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
     progress("release", f"wrote {destination}")
     if report["release_gate"] != "PASS":
-        failed = ", ".join(item["criterion"] for item in criteria if item["status"] == "FAIL")
+        failed = ", ".join(
+            item["criterion"] for item in report["criteria"] if item["status"] == "FAIL"
+        )
         raise SystemExit("schema release gate failed: " + failed)
+
+
+def stage_failure(error):
+    return {"error_type": type(error).__name__, "error": str(error)}
+
+
+def release_prepared(binary, parent, output, repository):
+    binary_hash = digest(binary, "release binary", "release")
+    capabilities = json.loads(
+        run([str(binary), "binary-capabilities"], roots(parent, "release-capabilities")).stdout
+    )
+    repository_record = repository_identity(repository)
+    policy = {
+        "cpu": int(CPU),
+        "gomaxprocs": 1,
+        "warmups_per_workload": 1,
+        "measured_samples_per_workload": SAMPLES,
+        "poll_interval_seconds": 0.0005,
+        "limit": "approved fixed limits, including user-approved journal and completion overrides",
+        "limit_basis": LIMIT_BASIS,
+        "migration_readiness_boundary": "deterministic combined-workload release through the built KTX query's first successful exclusive migration lock",
+        "lock_hold_boundary": "maximum individual successful exclusive-lock interval across combined KTX traffic",
+        "rss_boundary": "maximum resident bytes of one actual built KTX participant during the combined window; aggregate peak retained separately",
+        "completion_boundary": "built KTX query process start through completion of generated hook, telemetry, and query traffic",
+        "copy_strategy": "cp --reflink=auto --sparse=always",
+    }
+    host = {
+        "node": platform.node(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+    }
+    criteria = []
+    try:
+        manifest, fixtures, actual_fixture, identity = validate_release_fixture(repository, parent)
+    except Exception as error:
+        name = "prior_schema_identity" if "historical" in str(error) else "representative_scale"
+        criteria = [
+            criterion("prior_schema_identity", False if name == "prior_schema_identity" else None,
+                      stage_failure(error) if name == "prior_schema_identity" else {}),
+            criterion("representative_scale", False if name == "representative_scale" else None,
+                      stage_failure(error) if name == "representative_scale" else {}),
+            criterion("concurrent_generated_traffic", None, {}),
+            criterion("interruption_restart", None, {}),
+            *(criterion(metric, None, {}) for metric in APPROVED_LIMITS),
+        ]
+        publish_release_report(
+            release_report(binary_hash, capabilities, repository_record, policy, host, criteria),
+            output,
+        )
+        return
+
+    criteria.extend(
+        [
+            criterion("prior_schema_identity", True, identity),
+            criterion(
+                "representative_scale",
+                True,
+                {"fixture_inputs": manifest["fixture_inputs"], "fixture": actual_fixture},
+            ),
+        ]
+    )
+
+    try:
+        interruption = interruption_rehearsal(
+            binary, parent, fixtures["schema15"], actual_fixture["rows"]
+        )
+        interruption_item = criterion(
+            "interruption_restart", interruption["passed"], interruption
+        )
+    except Exception as error:
+        interruption_item = criterion("interruption_restart", False, stage_failure(error))
+
+    raw_path = parent / "release-measurements.json"
+    raw = None
+    measurement_error = None
+    try:
+        driver = compile_generated_adapter_driver(repository, parent)
+        try:
+            measure_prepared(binary, parent, raw_path, driver)
+        except SystemExit as error:
+            measurement_error = error
+        if raw_path.is_file():
+            raw = json.loads(raw_path.read_text())
+    except Exception as error:
+        measurement_error = error
+
+    if raw:
+        production_samples = [
+            sample
+            for sample in raw["workloads"]["schema15-to-16-production"]
+            if sample["kind"] == "measured"
+        ]
+        combined_ok = (
+            len(production_samples) == SAMPLES
+            and raw.get("combined_production_samples_passed") is True
+        )
+        combined_evidence = {
+            "measured_samples": len(production_samples),
+            "all_samples_attributed": all(
+                sample.get("combined_workload", {}).get("attributed")
+                for sample in production_samples
+            ),
+            "all_samples_exact": all(
+                sample.get("combined_evidence", {}).get("passed")
+                for sample in production_samples
+            ),
+        }
+        if measurement_error and not combined_ok:
+            combined_evidence.update(stage_failure(measurement_error))
+        criteria.append(criterion("concurrent_generated_traffic", combined_ok, combined_evidence))
+        criteria.append(interruption_item)
+        for name, check in raw["limit_checks"].items():
+            evidence = dict(check)
+            evidence["combined_production_observed"] = raw[
+                "combined_production_limit_checks"
+            ][name]["observed"]
+            criteria.append(criterion(name, check["passed"], evidence))
+    else:
+        criteria.append(
+            criterion(
+                "concurrent_generated_traffic",
+                False,
+                stage_failure(measurement_error or RuntimeError("combined workload produced no report")),
+            )
+        )
+        criteria.append(interruption_item)
+        criteria.extend(criterion(metric, None, {}) for metric in APPROVED_LIMITS)
+
+    report = release_report(
+        binary_hash,
+        capabilities,
+        repository_record,
+        policy,
+        raw["host"] if raw else host,
+        criteria,
+        raw,
+        raw_path,
+    )
+    publish_release_report(report, output)
 
 
 def positive_int(value):

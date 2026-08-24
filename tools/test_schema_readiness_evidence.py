@@ -5,6 +5,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+import copy
 
 from tools import schema_readiness_evidence
 
@@ -38,28 +39,127 @@ class MeasureTest(unittest.TestCase):
 
         self.assertEqual(result["stdout"], "done")
 
-    def test_release_report_identifies_correctness_failure(self):
+    def test_consumed_fixture_must_match_recomputed_manifest_record(self):
+        actual = {
+            "bytes": 3205681152,
+            "sha256": "a" * 64,
+            "rows": 3200,
+            "payload_bytes": 32000,
+            "source_payload_bytes": 3200000000,
+            "physical_schema_sha256": "b" * 64,
+        }
+        schema_readiness_evidence.compare_consumed_fixture(actual, copy.deepcopy(actual))
+        prepared = copy.deepcopy(actual)
+        prepared["sha256"] = "c" * 64
+        with self.assertRaisesRegex(ValueError, "sha256"):
+            schema_readiness_evidence.compare_consumed_fixture(actual, prepared)
+
+    def test_release_publication_identifies_correctness_failure_without_replacing_authority(self):
         report = self.release_report()
         item = next(item for item in report["criteria"] if item["criterion"] == "interruption_restart")
         item["status"] = "FAIL"
         report["release_gate"] = "FAIL"
-        result = self.validate_in_child(report)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("interruption_restart", result.stderr)
+        with tempfile.TemporaryDirectory() as root:
+            output = Path(root) / "report.json"
+            authority = b'{"release_gate":"PASS","authority":"unchanged"}\n'
+            output.write_bytes(authority)
+            result = self.publish_in_child(report, output)
+            failed = json.loads(Path(str(output) + ".failed.json").read_text())
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("interruption_restart", result.stderr)
+            self.assertEqual(output.read_bytes(), authority)
+            self.assertEqual(
+                [item["criterion"] for item in failed["criteria"] if item["status"] == "FAIL"],
+                ["interruption_restart"],
+            )
+            self.assertFalse(Path(str(output) + ".failed.json.tmp").exists())
 
-    def test_release_report_identifies_budget_failure(self):
+    def test_release_publication_identifies_budget_failure_without_replacing_authority(self):
         report = self.release_report()
         item = next(item for item in report["criteria"] if item["criterion"] == "peak_rss_bytes")
         item["status"] = "FAIL"
+        item["evidence"] = {
+            "observed": schema_readiness_evidence.APPROVED_LIMITS["peak_rss_bytes"] + 1,
+            "limit": schema_readiness_evidence.APPROVED_LIMITS["peak_rss_bytes"],
+            "passed": False,
+        }
         report["release_gate"] = "FAIL"
-        result = self.validate_in_child(report)
+        with tempfile.TemporaryDirectory() as root:
+            output = Path(root) / "report.json"
+            authority = b"passing authority\n"
+            output.write_bytes(authority)
+            result = self.publish_in_child(report, output)
+            failed = json.loads(Path(str(output) + ".failed.json").read_text())
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("peak_rss_bytes", result.stderr)
+            self.assertEqual(output.read_bytes(), authority)
+            failed_item = next(
+                item for item in failed["criteria"] if item["criterion"] == "peak_rss_bytes"
+            )
+            self.assertEqual(failed_item["evidence"]["observed"], item["evidence"]["observed"])
+
+    def test_passing_publication_retains_raw_combined_samples(self):
+        report = self.release_report()
+        with tempfile.TemporaryDirectory() as root:
+            output = Path(root) / "report.json"
+            schema_readiness_evidence.publish_release_report(report, output)
+            retained = json.loads(output.read_text())
+        samples = retained["raw_samples"]["schema15_to_16_production"]
+        self.assertEqual(len(samples), schema_readiness_evidence.SAMPLES + 1)
+        self.assertTrue(all("exclusive_lock_intervals_ns" in sample for sample in samples))
+        self.assertTrue(all(sample["combined_workload"]["attributed"] for sample in samples))
+
+    def test_rehearsal_exception_is_published_as_exact_criterion(self):
+        report = self.release_report()
+        item = next(
+            item for item in report["criteria"] if item["criterion"] == "concurrent_generated_traffic"
+        )
+        item["status"] = "FAIL"
+        item["evidence"] = schema_readiness_evidence.stage_failure(
+            subprocess.TimeoutExpired("generated adapter", 30)
+        )
+        report["release_gate"] = "FAIL"
+        with tempfile.TemporaryDirectory() as root:
+            output = Path(root) / "report.json"
+            result = self.publish_in_child(report, output)
+            failed = json.loads(Path(str(output) + ".failed.json").read_text())
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("peak_rss_bytes", result.stderr)
+        failed_items = [item for item in failed["criteria"] if item["status"] == "FAIL"]
+        self.assertEqual(failed_items[0]["criterion"], "concurrent_generated_traffic")
+        self.assertEqual(failed_items[0]["evidence"]["error_type"], "TimeoutExpired")
+
+    def test_combined_sample_requires_query_hook_telemetry_and_exact_evidence(self):
+        report = self.release_report()
+        schema_readiness_evidence.validate_release_report(report)
+        report["raw_samples"]["schema15_to_16_production"][1]["combined_workload"][
+            "attributed"
+        ] = False
+        with self.assertRaisesRegex(ValueError, "combined-workload attribution"):
+            schema_readiness_evidence.validate_release_report(report)
+
+    def test_automatic_interruption_result_rejects_later_migrate(self):
+        result = {
+            "durable_rows_before_restart": 128,
+            "schema_before_restart": 15,
+            "concurrent_query_exit": 0,
+            "concurrent_query_raw_lock_error": False,
+            "post_recovery_migrate_invoked": False,
+        }
+        self.assertTrue(schema_readiness_evidence.automatic_interruption_passed(result))
+        result["post_recovery_migrate_invoked"] = True
+        self.assertFalse(schema_readiness_evidence.automatic_interruption_passed(result))
 
     @staticmethod
-    def validate_in_child(report):
+    def publish_in_child(report, output):
         return subprocess.run(
-            [sys.executable, "-c", "import json,sys; from tools.schema_readiness_evidence import validate_release_report; validate_release_report(json.load(sys.stdin))"],
+            [
+                sys.executable,
+                "-c",
+                "import json,sys; from pathlib import Path; "
+                "from tools.schema_readiness_evidence import publish_release_report; "
+                "publish_release_report(json.load(sys.stdin), Path(sys.argv[1]))",
+                str(output),
+            ],
             input=json.dumps(report), text=True, capture_output=True,
         )
 
@@ -69,9 +169,30 @@ class MeasureTest(unittest.TestCase):
             "prior_schema_identity", "representative_scale", "concurrent_generated_traffic",
             "interruption_restart", *schema_readiness_evidence.APPROVED_LIMITS,
         ]
+        sample = {
+            "kind": "measured",
+            "readiness_latency_ns": 1,
+            "exclusive_lock_hold_ns": 2,
+            "journal_growth_bytes": 3,
+            "peak_rss_bytes": 4,
+            "total_completion_ns": 5,
+            "exclusive_lock_intervals_ns": [2],
+            "combined_workload": {"attributed": True, "participants": [
+                {"role": "query"}, {"role": "hook"}, {"role": "telemetry"},
+            ]},
+            "combined_evidence": {"passed": True},
+        }
+        samples = [dict(sample, kind="warmup")] + [copy.deepcopy(sample) for _ in range(schema_readiness_evidence.SAMPLES)]
+        digest = "a" * 64
         return {
+            "schema_version": 2,
             "release_gate": "PASS",
+            "binary": {"sha256": digest, "capabilities": {"executable_sha256": digest}},
+            "repository": {"commit": "b" * 40, "worktree_dirty": True},
+            "policy": {},
+            "host": {},
             "criteria": [schema_readiness_evidence.criterion(name, True, {}) for name in names],
+            "raw_samples": {"schema15_to_16_production": samples},
         }
 
 

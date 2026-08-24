@@ -4,7 +4,7 @@ record:
   name: Enforce production-scale schema release gates
   depends_on:
     - kszxqpedjh
-  status: blocked
+  status: superseded
   acceptance:
     - GIVEN a proposed schema release WHEN release verification runs THEN it rehearses the exact prior supported schema with representative history volume and timestamp distribution.
     - GIVEN production-shaped migration and concurrent traffic WHEN measurements are collected THEN latency, lock hold, journal growth, memory, and completion satisfy the approved budgets.
@@ -21,3 +21,6 @@ record:
       source: audit ses_fcd2c0bcbffeAWLewv3sjdB00j
       recorded_at: 2026-08-24 10:18
       writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - tpwkrywzdk
+  superseded_reason: Completed replacement passed audit and satisfies the full production-scale release gate.

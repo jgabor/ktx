@@ -3,7 +3,7 @@ artifact: plan
 record:
   plan: wddjlywrzk
   name: Complete schema release evidence identity
-  status: in_progress
+  status: complete
   depends_on:
     - kszxqpedjh
   acceptance:
@@ -14,3 +14,13 @@ record:
   evidence:
     - The blocked predecessor's second audit passed all release-gate behavior, actual fixture validation, combined measurements, interruption recovery, and negative publication checks.
     - Its only remaining failure was a stale measured-binary hash in current schema-readiness guidance.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-tpwkrywzdk-1
+      source: audit ses_fcd1f062dffeI8CIyLJFL2bLiW
+      recorded_at: 2026-08-24 10:30
+      writer_command: agentera state plan record-evaluation

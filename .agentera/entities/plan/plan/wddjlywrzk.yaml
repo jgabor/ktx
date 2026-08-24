@@ -1,0 +1,40 @@
+id: wddjlywrzk
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-23
+    status: open
+    reviewed: 2026-08-23
+    critic_issues: 2 found, 2 addressed, 0 dismissed
+    title: "Plan: Make schema migration transparent"
+  what: Make every database-backed KTX surface automatically prepare and use any supported older schema without requiring migration commands or exposing migration-required failures.
+  why: Schema evolution is a runtime responsibility. Transparent, bounded, recoverable migration keeps hooks, queries, telemetry, and agent integrations available while preserving evidence and removing operational work from users.
+  constraints: Preserve forward-only database safety, recovery, evidence integrity, current-schema performance, the stable CLI surface, and the existing uncommitted runtime safety fixes. Databases newer than the binary must still fail safely. KTX owns all relevant deadlines. Do not modify the separate opencode-ktx repository, add speculative migration machinery, or access the ambient live database during verification.
+  overall_acceptance: GIVEN a database at any supported historical schema WHEN any database-backed command or generated callback uses it, including during concurrent or interrupted migration, THEN KTX automatically provides correct command behavior, makes bounded recoverable progress, never requires manual schema action, preserves all evidence, and satisfies the approved current-schema and production-scale resource budgets.
+  scope:
+    included:
+      - Existing callback lifetime and hook preflight safety fixes
+      - The authoritative automatic schema-readiness contract
+      - Compatible and resumable migration from schema 15 to schema 16
+      - Automatic readiness for commands, hooks, telemetry, queries, and recovery
+      - Deterministic historical-schema, interruption, recovery, and concurrency verification
+      - Production-scale schema release gates
+      - User documentation and project-state synchronization
+    excluded:
+      - Downgrading a database newer than the running binary
+      - Changes to the separate opencode-ktx repository
+      - Unrelated database redesign, compression changes, or provider benchmarks
+      - Manual migration as a normal prerequisite for supported schemas
+    deferred:
+      - Online conversion of historical migrations that do not perform data-sized work
+  design: First preserve the verified runtime safety baseline and record one authoritative automatic-readiness contract. Then make the current data-sized migration compatible during partial progress and safely resumable. Apply that readiness behavior to every database-backed surface under one runtime deadline policy. Finally, prove lifecycle correctness with deterministic historical-schema tests and production-scale release evidence before synchronizing public and project documentation.
+  unknowns:
+    - question: What measured latency and lock-hold limits qualify as invisible migration behavior on supported workloads?
+      affects_task: 2
+      resolve_by: Use current-schema and production-shaped baselines during task 2 to approve explicit budgets before task 6 begins; revisit the plan if those budgets change downstream acceptance.
+    - question: Can partially migrated schema-15 data preserve exact timestamp and ordering behavior without an unbounded read?
+      affects_task: 3
+      resolve_by: Characterize the historical physical schema and production-shaped query behavior before changing migration behavior; revisit downstream acceptance if exact compatibility requires a different migration boundary.
+  surprises:
+    []

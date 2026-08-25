@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,7 +81,177 @@ func Build() error {
 }
 
 func Install() error {
-	return run("go", "install", "-buildvcs=false", "-trimpath", "-ldflags", ldflags(), "./cmd/ktx")
+	if err := Build(); err != nil {
+		return err
+	}
+	scopes, err := discoverInstalledAdapters(binaryPath(), installExec)
+	if err != nil {
+		return err
+	}
+	installedBinary, err := goInstalledBinary(installExec)
+	if err != nil {
+		return err
+	}
+	if _, stderr, err := installExec("go", "install", "-buildvcs=false", "-trimpath", "-ldflags", ldflags(), "./cmd/ktx"); err != nil {
+		return fmt.Errorf("install development binary: %w: %s", err, strings.TrimSpace(stderr))
+	}
+	return refreshInstalledAdapters(installedBinary, scopes, installExec, os.Stdout)
+}
+
+type adapterScopes struct {
+	opencodeGlobal, opencodeProject bool
+	codexGlobal, codexProject       bool
+}
+
+type installRunner func(string, ...string) (string, string, error)
+
+func discoverInstalledAdapters(binary string, runner installRunner) (adapterScopes, error) {
+	var scopes adapterScopes
+	for _, runtimeName := range []string{"opencode", "codex"} {
+		stdout, stderr, err := runner(binary, "--format", "json", "init", runtimeName, "--show")
+		if err != nil {
+			var exitErr interface{ ExitCode() int }
+			if errors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
+				continue
+			}
+			return scopes, fmt.Errorf("inspect existing %s adapters before install: %w: %s", runtimeName, err, strings.TrimSpace(stderr))
+		}
+		var report struct {
+			Path               string            `json:"path"`
+			Also               []string          `json:"also"`
+			CandidateLocations map[string]string `json:"candidate_locations"`
+			Scopes             []string          `json:"scopes"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+			return scopes, fmt.Errorf("inspect existing %s adapters before install: decode status: %w", runtimeName, err)
+		}
+		if runtimeName == "opencode" {
+			paths := append([]string{report.Path}, report.Also...)
+			for _, path := range paths {
+				scopes.opencodeGlobal = scopes.opencodeGlobal || path == report.CandidateLocations["global"]
+				scopes.opencodeProject = scopes.opencodeProject || path == report.CandidateLocations["project"]
+			}
+		} else {
+			for _, scope := range report.Scopes {
+				scopes.codexGlobal = scopes.codexGlobal || scope == "global"
+				scopes.codexProject = scopes.codexProject || scope == "project"
+			}
+		}
+	}
+	return scopes, nil
+}
+
+func goInstalledBinary(runner installRunner) (string, error) {
+	gobin, _, err := runner("go", "env", "GOBIN")
+	if err != nil {
+		return "", fmt.Errorf("resolve GOBIN: %w", err)
+	}
+	directory := strings.TrimSpace(gobin)
+	if directory == "" {
+		gopath, _, err := runner("go", "env", "GOPATH")
+		if err != nil {
+			return "", fmt.Errorf("resolve GOPATH: %w", err)
+		}
+		directory = filepath.Join(strings.Split(strings.TrimSpace(gopath), string(os.PathListSeparator))[0], "bin")
+	}
+	name := "ktx"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(directory, name), nil
+}
+
+func refreshInstalledAdapters(binary string, scopes adapterScopes, runner installRunner, stdout io.Writer) error {
+	type refresh struct {
+		runtime string
+		project bool
+	}
+	refreshes := []refresh{}
+	failures := []string{}
+	for _, item := range []struct {
+		enabled bool
+		value   refresh
+	}{
+		{scopes.opencodeGlobal, refresh{"opencode", false}}, {scopes.opencodeProject, refresh{"opencode", true}},
+		{scopes.codexGlobal, refresh{"codex", false}}, {scopes.codexProject, refresh{"codex", true}},
+	} {
+		if item.enabled {
+			refreshes = append(refreshes, item.value)
+		}
+	}
+	for _, item := range refreshes {
+		args := []string{"init", item.runtime}
+		if item.project {
+			args = append(args, "--project")
+		}
+		_, stderr, err := runner(binary, args...)
+		if err != nil {
+			scope := "global"
+			if item.project {
+				scope = "project"
+			}
+			detail := fmt.Sprintf("- %s %s: %v", item.runtime, scope, err)
+			if text := strings.TrimSpace(stderr); text != "" {
+				detail += ": " + text
+			}
+			failures = append(failures, detail+"\n  Recovery: run `"+recoveryCommand(binary, args...)+"`")
+		}
+	}
+	if len(failures) > 0 {
+		return errors.New("refresh enabled adapters:\n" + strings.Join(failures, "\n"))
+	}
+	if len(refreshes) == 0 {
+		fmt.Fprintln(stdout, "ktx installed; no managed adapters were enabled")
+		return nil
+	}
+	fmt.Fprintln(stdout, "ktx installed and enabled adapters refreshed")
+	if scopes.opencodeGlobal || scopes.opencodeProject {
+		fmt.Fprintln(stdout, "Restart OpenCode to load the refreshed plugin.")
+	}
+	if scopes.codexGlobal || scopes.codexProject {
+		fmt.Fprintln(stdout, "Restart Codex, then run /hooks and trust the refreshed ktx hook.")
+	}
+	return nil
+}
+
+func recoveryCommand(name string, args ...string) string {
+	parts := append([]string{name}, args...)
+	for index, part := range parts {
+		parts[index] = shellArgument(part)
+	}
+	return strings.Join(parts, " ")
+}
+
+func shellArgument(argument string) string {
+	if runtime.GOOS == "windows" {
+		if argument != "" && !strings.ContainsAny(argument, " \t\"") {
+			return argument
+		}
+		return `"` + strings.ReplaceAll(argument, `"`, `\"`) + `"`
+	}
+	if argument != "" {
+		safe := true
+		for _, character := range argument {
+			if !strings.ContainsRune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-", character) {
+				safe = false
+				break
+			}
+		}
+		if safe {
+			return argument
+		}
+	}
+	return `'` + strings.ReplaceAll(argument, `'`, `'"'"'`) + `'`
+}
+
+func installExec(name string, args ...string) (string, string, error) {
+	command := exec.Command(name, args...)
+	var stdout, stderr strings.Builder
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	command.Stdin = os.Stdin
+	err := command.Run()
+	return stdout.String(), stderr.String(), err
 }
 
 func ldflags() string {

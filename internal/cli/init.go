@@ -835,8 +835,14 @@ func initOpencodeUninstall(globalPath, projectPath, format string, stdout, stder
 // has it. The 2 exit code is the standard "not-found" class so
 // scripts can branch on it.
 func initOpencodeShow(globalPath, projectPath, format string, stdout, stderr io.Writer) error {
-	hasGlobal := fileExists(globalPath)
-	hasProject := fileExists(projectPath)
+	hasGlobal, err := fileExists(globalPath)
+	if err != nil {
+		return internalError("ktx init opencode: inspect plugin %q: %v", globalPath, err)
+	}
+	hasProject, err := fileExists(projectPath)
+	if err != nil {
+		return internalError("ktx init opencode: inspect plugin %q: %v", projectPath, err)
+	}
 
 	if !hasGlobal && !hasProject {
 		return notFoundError("ktx init opencode: plugin not installed (checked global %q and project %q)", globalPath, projectPath)
@@ -850,20 +856,25 @@ func initOpencodeShow(globalPath, projectPath, format string, stdout, stderr io.
 	if hasGlobal && hasProject {
 		also = append(also, projectPath)
 	}
-	writeShowReport(stdout, primary, also, format)
+	writeShowReport(stdout, primary, also, globalPath, projectPath, format)
 	return nil
 }
 
 // fileExists reports whether path is a regular file (or symlink to a
-// regular file). It does not follow symlinks for the existence check —
-// os.Stat follows them, which is what we want: a broken symlink reports
-// as not-existing.
-func fileExists(path string) bool {
+// regular file). Missing paths are absent; other inspection failures
+// are returned so callers do not mistake unreadable state for absence.
+func fileExists(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return false
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
 	}
-	return !info.IsDir()
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("not a regular file")
+	}
+	return true, nil
 }
 
 // writeInstallReport emits the installed file, both candidate locations, the
@@ -923,7 +934,7 @@ func writeUninstallReport(w io.Writer, removed []string, format string) {
 // first one matched (global first, then project); the also list names
 // any other locations where the plugin is also installed, so the user
 // can decide whether to clean up.
-func writeShowReport(w io.Writer, primary string, also []string, format string) {
+func writeShowReport(w io.Writer, primary string, also []string, globalPath, projectPath, format string) {
 	if format == FormatText {
 		fmt.Fprintf(w, "ktx opencode plugin installed at %s\n", primary)
 		for _, p := range also {
@@ -932,8 +943,9 @@ func writeShowReport(w io.Writer, primary string, also []string, format string) 
 		return
 	}
 	payload := map[string]any{
-		"installed": true,
-		"path":      primary,
+		"installed":           true,
+		"path":                primary,
+		"candidate_locations": map[string]string{"global": globalPath, "project": projectPath},
 	}
 	if len(also) > 0 {
 		payload["also"] = also
@@ -1038,6 +1050,7 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  0  action succeeded (install, uninstall of at least one file, show found)")
 	fmt.Fprintln(w, "  1  usage error (unknown runtime, conflicting flags)")
 	fmt.Fprintln(w, "  2  not found (--show found nothing, --uninstall found nothing)")
+	fmt.Fprintln(w, "  4  internal error (adapter state could not be inspected or changed)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The OpenCode plugin subscribes to event for optional model-step telemetry and")
 	fmt.Fprintln(w, "tool.execute.after for tool-result compression. It delegates to `ktx telemetry")

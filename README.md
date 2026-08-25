@@ -258,7 +258,16 @@ and keep reusable language and tool caches separate. The
 mage replayFixture # bounded offline gate for the retained portable fixture
 mage verify        # authoritative local and CI verification
 mage build         # build build/ktx
+mage install       # install the development binary and refresh enabled adapters
 ```
+
+`mage install` records the managed OpenCode and Codex adapters already present
+in global and current-project scopes, installs the development binary, and
+refreshes only those adapters. It does not enable absent integrations. A refresh
+failure fails the target and prints an exact `ktx init` recovery command for
+each failed scope. After a successful OpenCode refresh, restart OpenCode. After
+a successful Codex refresh, restart Codex, then run `/hooks` and trust the
+refreshed hook.
 
 For optional extended engineering evidence, run
 `KTX_ENGINEERING_EVIDENCE_DIR=<new-directory> mage engineeringVerify` with a

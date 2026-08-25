@@ -27,6 +27,7 @@
 
 ### Fixed
 
+- `mage install` now refreshes already-enabled global and current-project OpenCode and Codex adapters after installing the development binary, preserves unrelated Codex hooks, and fails with an exact recovery command for every scope that does not refresh.
 - Current user and agent guidance now consistently describes automatic stale-schema readiness, post-readiness read-only queries, forward-only newer-schema failure, isolated verification, and the separate production-scale schema release gate.
 - Query, doctor, telemetry, hook, recovery, and retained-artifact inspection paths now prepare existing supported older databases automatically, then use read-only access where required. Missing-database, current-schema, newer-schema, coordination, and timeout contracts remain unchanged.
 - Schema 15 preparation now uses an atomic primary-key cursor for bounded compressed-timestamp batches, populates sortable timestamps on every artifact write path, resumes after process termination, and publishes schema 16 without a data-sized final index build.

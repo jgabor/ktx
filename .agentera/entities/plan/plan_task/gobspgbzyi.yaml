@@ -1,0 +1,14 @@
+id: gobspgbzyi
+artifact: plan
+record:
+  name: Deliver unified development installation
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN no managed adapter exists WHEN installation completes THEN no adapter is created.
+    - GIVEN managed adapters exist in supported global or project scopes WHEN installation completes THEN each adapter is refreshed in place for the installed binary.
+    - GIVEN Codex contains unrelated hooks WHEN its ktx entry is refreshed THEN unrelated configuration remains unchanged.
+    - GIVEN any adapter refresh fails WHEN installation exits THEN it reports failure and an exact recovery action without claiming success.
+    - GIVEN every adapter refresh succeeds WHEN installation reports completion THEN it names each required runtime restart.
+  plan: gnijiwdvab

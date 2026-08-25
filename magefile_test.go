@@ -4,13 +4,135 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
+
+type testExitError int
+
+func (e testExitError) Error() string { return fmt.Sprintf("exit %d", e) }
+func (e testExitError) ExitCode() int { return int(e) }
+
+func TestDiscoverInstalledAdapters(t *testing.T) {
+	runner := func(_ string, args ...string) (string, string, error) {
+		runtimeName := args[3]
+		if runtimeName == "opencode" {
+			return `{"installed":true,"path":"/project/ktx.ts","candidate_locations":{"global":"/global/ktx.ts","project":"/project/ktx.ts"}}`, "", nil
+		}
+		return `{"installed":true,"scopes":["global","project"]}`, "", nil
+	}
+	got, err := discoverInstalledAdapters("./build/ktx", runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != (adapterScopes{opencodeProject: true, codexGlobal: true, codexProject: true}) {
+		t.Fatalf("scopes = %+v", got)
+	}
+
+	_, err = discoverInstalledAdapters("./build/ktx", func(_ string, _ ...string) (string, string, error) {
+		return "", "broken status", errors.New("failed")
+	})
+	if err == nil || !strings.Contains(err.Error(), "before install") {
+		t.Fatalf("discovery failure = %v", err)
+	}
+}
+
+func TestDiscoverInstalledAdaptersTreatsNotFoundAsAbsent(t *testing.T) {
+	got, err := discoverInstalledAdapters("./build/ktx", func(_ string, _ ...string) (string, string, error) {
+		return "", "not installed", testExitError(2)
+	})
+	if err != nil || got != (adapterScopes{}) {
+		t.Fatalf("scopes = %+v, error = %v", got, err)
+	}
+}
+
+func TestRefreshInstalledAdapters(t *testing.T) {
+	var calls []string
+	runner := func(name string, args ...string) (string, string, error) {
+		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		return "", "", nil
+	}
+	var output strings.Builder
+	err := refreshInstalledAdapters("/bin/ktx", adapterScopes{opencodeGlobal: true, codexProject: true}, runner, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(calls, "\n"), "/bin/ktx init opencode\n/bin/ktx init codex --project"; got != want {
+		t.Fatalf("calls = %q, want %q", got, want)
+	}
+	for _, required := range []string{"Restart OpenCode", "Restart Codex", "/hooks"} {
+		if !strings.Contains(output.String(), required) {
+			t.Errorf("success output lacks %q: %s", required, output.String())
+		}
+	}
+}
+
+func TestRefreshInstalledAdaptersAttemptsAllFailuresWithSafeRecovery(t *testing.T) {
+	var calls []string
+	var output strings.Builder
+	binary := filepath.Join(t.TempDir(), "bin with spaces", "ktx")
+	err := refreshInstalledAdapters(binary, adapterScopes{opencodeGlobal: true, opencodeProject: true, codexGlobal: true, codexProject: true}, func(_ string, args ...string) (string, string, error) {
+		call := strings.Join(args, " ")
+		calls = append(calls, call)
+		if call == "init opencode" || call == "init codex --project" {
+			return "", "permission denied", errors.New("exit 1")
+		}
+		return "", "", nil
+	}, &output)
+	if err == nil {
+		t.Fatal("refresh succeeded")
+	}
+	if got, want := strings.Join(calls, "\n"), "init opencode\ninit opencode --project\ninit codex\ninit codex --project"; got != want {
+		t.Fatalf("calls = %q, want %q", got, want)
+	}
+	quotedBinary := shellArgument(binary)
+	for _, required := range []string{
+		"opencode global", "codex project",
+		"Recovery: run `" + quotedBinary + " init opencode`",
+		"Recovery: run `" + quotedBinary + " init codex --project`",
+	} {
+		if !strings.Contains(err.Error(), required) {
+			t.Errorf("failure lacks %q: %v", required, err)
+		}
+	}
+	if output.Len() != 0 || strings.Contains(err.Error(), "installed and enabled adapters refreshed") {
+		t.Fatalf("failure claimed success: stdout=%q error=%v", output.String(), err)
+	}
+
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(binary), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := recoveryCommand(binary, "argument with spaces")
+	got, runErr := exec.Command("sh", "-c", command).Output()
+	if runErr != nil || string(got) != "argument with spaces\n" {
+		t.Fatalf("recovery command %q is not shell-safe: output=%q error=%v", command, got, runErr)
+	}
+}
+
+func TestRefreshInstalledAdaptersCreatesNoneWhenAbsent(t *testing.T) {
+	called := false
+	var output strings.Builder
+	err := refreshInstalledAdapters("/bin/ktx", adapterScopes{}, func(_ string, _ ...string) (string, string, error) {
+		called = true
+		return "", "", nil
+	}, &output)
+	if err != nil || called || !strings.Contains(output.String(), "no managed adapters") {
+		t.Fatalf("err=%v called=%t output=%q", err, called, output.String())
+	}
+}
 
 func TestHermeticVerificationEnvironment(t *testing.T) {
 	if os.Getenv(hermeticMarkerEnv) != "1" {

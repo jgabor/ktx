@@ -126,6 +126,28 @@ func TestRunInitWith_OpencodeInstall(t *testing.T) {
 		}
 	})
 
+	t.Run("--show propagates plugin inspection failure", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		configHome := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", configHome)
+		projectRoot := t.TempDir()
+		restoreCwd := chdir(t, projectRoot)
+		defer restoreCwd()
+
+		if err := os.WriteFile(filepath.Join(configHome, "opencode"), []byte("not a directory"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var stdout, stderr bytes.Buffer
+		code := runInitWith([]string{"opencode", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != ExitInternal {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), `"code":"internal"`) || strings.Contains(stderr.String(), `"code":"not-found"`) {
+			t.Fatalf("inspection failure contract = %q", stderr.String())
+		}
+	})
+
 	t.Run("--uninstall removes the plugin file", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)

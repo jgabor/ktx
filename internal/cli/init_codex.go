@@ -192,10 +192,10 @@ func initCodexInstall(target, format string, stdout io.Writer) error {
 	return nil
 }
 
-// initCodexUninstall removes ktx's PostToolUse entry from the
-// hooks.json at target. An entry is "ktx's" when any of its inner
-// hooks has command "ktx hook" — the same predicate the installer
-// uses for idempotency, so install and uninstall agree on identity.
+// initCodexUninstall removes ktx's inner PostToolUse hooks from the
+// hooks.json at target. Install and uninstall use the same command
+// predicate, so they agree on identity without removing sibling hooks
+// that share the same matcher entry.
 //
 // When removing ktx entries empties the PostToolUse array, the
 // PostToolUse key is dropped from the hooks object so the file does
@@ -267,11 +267,16 @@ func initCodexUninstall(target, format string, stdout, stderr io.Writer) error {
 // so scripts can branch on it. A scope whose file exists but lacks
 // ktx's entry counts as not-found for that scope.
 func initCodexShow(globalPath, projectPath, format string, stdout, stderr io.Writer) error {
-	hasGlobal := codexFileHasKtxHook(globalPath)
-	hasProject := codexFileHasKtxHook(projectPath)
+	hasGlobal, err := codexFileHasKtxHook(globalPath)
+	if err != nil {
+		return internalError("ktx init codex: inspect %q: %v", globalPath, err)
+	}
+	hasProject, err := codexFileHasKtxHook(projectPath)
+	if err != nil {
+		return internalError("ktx init codex: inspect %q: %v", projectPath, err)
+	}
 
 	if !hasGlobal && !hasProject {
-		printError(stderr, notFoundError("ktx init codex: ktx hook not installed (checked global %q and project %q)", globalPath, projectPath), format)
 		return notFoundError("ktx init codex: ktx hook not installed (checked global %q and project %q)", globalPath, projectPath)
 	}
 
@@ -421,24 +426,24 @@ func codexPinnedHookCommand() (string, error) {
 }
 
 // codexFileHasKtxHook reports whether the hooks.json at path exists
-// and contains ktx's PostToolUse entry. Read or parse errors are
-// treated as "not installed": the show command's contract is
-// presence-checking, not file-health diagnostics, so a corrupt
-// hooks.json surfaces as "not installed" rather than an internal
-// error.
-func codexFileHasKtxHook(path string) bool {
+// and contains ktx's PostToolUse entry. Missing files are absent; read
+// and parse failures are returned so callers do not replace the binary
+// after an incomplete inspection.
+func codexFileHasKtxHook(path string) (bool, error) {
 	doc, exists, err := loadCodexHooks(path)
-	if err != nil || !exists {
-		return false
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
 	}
 	hooksMap := codexHooksObject(doc)
-	return codexArrayHasKtx(codexPostToolUseArray(hooksMap))
+	return codexArrayHasKtx(codexPostToolUseArray(hooksMap)), nil
 }
 
-// filterKtxEntries returns a copy of arr with ktx's entries removed,
-// along with the count of removed entries. Non-ktx entries are
-// preserved in their original order so the remaining PostToolUse
-// array reads naturally to a human inspecting the file.
+// filterKtxEntries returns a copy of arr with ktx's inner hook objects
+// removed, along with the count removed. An outer matcher entry is kept
+// when it still contains another hook and removed only when no hooks remain.
 func filterKtxEntries(arr []any) ([]any, int) {
 	if len(arr) == 0 {
 		return nil, 0
@@ -446,11 +451,41 @@ func filterKtxEntries(arr []any) ([]any, int) {
 	out := make([]any, 0, len(arr))
 	removed := 0
 	for _, entry := range arr {
-		if codexEntryIsKtx(entry) {
-			removed++
+		entryMap, ok := entry.(map[string]any)
+		if !ok {
+			out = append(out, entry)
 			continue
 		}
-		out = append(out, entry)
+		inner, ok := entryMap["hooks"].([]any)
+		if !ok {
+			out = append(out, entry)
+			continue
+		}
+		filtered := make([]any, 0, len(inner))
+		removedFromEntry := 0
+		for _, hook := range inner {
+			hookMap, ok := hook.(map[string]any)
+			command, _ := hookMap["command"].(string)
+			if ok && isKtxHookCommand(command) {
+				removed++
+				removedFromEntry++
+				continue
+			}
+			filtered = append(filtered, hook)
+		}
+		if removedFromEntry == 0 {
+			out = append(out, entry)
+			continue
+		}
+		if len(filtered) == 0 {
+			continue
+		}
+		updated := make(map[string]any, len(entryMap))
+		for key, value := range entryMap {
+			updated[key] = value
+		}
+		updated["hooks"] = filtered
+		out = append(out, updated)
 	}
 	return out, removed
 }

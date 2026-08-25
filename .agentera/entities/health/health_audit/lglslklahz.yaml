@@ -1,0 +1,42 @@
+id: lglslklahz
+artifact: health
+record:
+  date: 2026-08-25
+  dimensions:
+    - architecture_alignment
+    - coupling_health
+    - complexity_hotspots
+  findings_summary:
+    critical: 0
+    warning: 1
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "degrading: the installed binary is healthy, but its adapter stopped recording after replacement."
+  grades:
+    architecture_alignment: B
+    coupling_health: C
+    complexity_hotspots: C
+  findings:
+    - heading: Binary replacement disables installed adapters
+      location: magefile.go:82; internal/cli/init.go:416; ~/.config/opencode/plugins/ktx.ts:270
+      evidence: The database ends at 08:18:56Z; mage install replaced ktx at 08:22:30Z. The older installed adapter omits runtime proof, while the new binary requires it. Unproved doctor exits 3; proved doctor passes. The diagnostic log already contains 3,322 lock failures.
+      impact: Hooks and telemetry fail closed until adapter refresh and runtime restart; ktx.log records no proof failures.
+      suggested_action: Make binary upgrade detect or refresh incompatible adapters and give one verified restart instruction.
+      severity: warning
+      confidence: 99
+  dimension_details:
+    - name: architecture_alignment
+      grade: B
+      summary: magefile.go:82 installs only the binary although generated adapters are version-coupled.
+    - name: coupling_health
+      grade: C
+      summary: internal/cli/init.go:416 requires digest synchronization across binary, adapter file, and runtime lifetime.
+    - name: complexity_hotspots
+      grade: C
+      summary: ~/.local/state/ktx/ktx.log contains 3,322 coordination failures in seven days.
+  trends:
+    comparison_target: Audit 28 on 2026-08-24.
+    degraded: Live recording stopped after binary installation; current contention behavior remains unverified.
+  patterns:
+    - Safety layers fail closed but depend on manual multi-step synchronization.
+  appended_at: 2026-08-25T08:34:14.732Z

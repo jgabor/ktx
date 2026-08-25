@@ -156,6 +156,68 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
 		}
 	})
 
+	t.Run("refresh preserves unrelated hook sharing stale ktx matcher entry", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		hooksPath := filepath.Join(home, ".codex", "hooks.json")
+		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		existing := []byte(`{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "source": "unrelated",
+        "hooks": [
+          {"type": "command", "command": "ktx hook"},
+          {"type": "command", "command": "echo keep", "timeout": 7}
+        ]
+      }
+    ]
+  }
+}
+`)
+		if err := os.WriteFile(hooksPath, existing, 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		var stdout, stderr bytes.Buffer
+		if code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("refresh exit = %d, stderr=%q", code, stderr.String())
+		}
+		data, err := os.ReadFile(hooksPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(data, &doc); err != nil {
+			t.Fatal(err)
+		}
+		postToolUse := codexPostToolUseArray(codexHooksObject(doc))
+		if len(postToolUse) != 2 {
+			t.Fatalf("PostToolUse entries = %d, want preserved matcher plus refreshed ktx entry: %s", len(postToolUse), data)
+		}
+		shared, ok := postToolUse[0].(map[string]any)
+		if !ok || shared["matcher"] != "Bash" || shared["source"] != "unrelated" {
+			t.Fatalf("shared matcher metadata changed: %v", postToolUse[0])
+		}
+		inner, ok := shared["hooks"].([]any)
+		if !ok || len(inner) != 1 {
+			t.Fatalf("shared matcher hooks = %v, want one unrelated hook", shared["hooks"])
+		}
+		hook, ok := inner[0].(map[string]any)
+		if !ok || hook["command"] != "echo keep" || hook["timeout"] != float64(7) {
+			t.Fatalf("unrelated shared hook changed: %v", inner[0])
+		}
+		if codexEntryIsKtx(shared) {
+			t.Fatalf("stale ktx hook remains in shared matcher: %v", shared)
+		}
+		if !codexEntryIsKtx(postToolUse[1]) {
+			t.Fatalf("refreshed ktx hook missing: %v", postToolUse[1])
+		}
+	})
+
 	t.Run("idempotent install: file content unchanged on re-install", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
@@ -326,6 +388,50 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
 		code := runInitWith([]string{"codex", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
 		if code != ExitNotFound {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitNotFound, stderr.String())
+		}
+	})
+
+	t.Run("--show propagates malformed hooks file", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		projectRoot := t.TempDir()
+		restoreCwd := chdir(t, projectRoot)
+		defer restoreCwd()
+		hooksPath := filepath.Join(home, ".codex", "hooks.json")
+		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(hooksPath, []byte(`{"hooks":`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := runInitWith([]string{"codex", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != ExitInternal {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), `"code":"internal"`) || !strings.Contains(stderr.String(), "parse hooks.json") {
+			t.Fatalf("parse failure contract = %q", stderr.String())
+		}
+	})
+
+	t.Run("--show propagates hooks file inspection failure", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		projectRoot := t.TempDir()
+		restoreCwd := chdir(t, projectRoot)
+		defer restoreCwd()
+		if err := os.WriteFile(filepath.Join(home, ".codex"), []byte("not a directory"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := runInitWith([]string{"codex", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		if code != ExitInternal {
+			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), `"code":"internal"`) || strings.Contains(stderr.String(), `"code":"not-found"`) {
+			t.Fatalf("inspection failure contract = %q", stderr.String())
 		}
 	})
 

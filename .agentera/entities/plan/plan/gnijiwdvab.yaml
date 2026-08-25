@@ -1,0 +1,26 @@
+id: gnijiwdvab
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-08-25
+    status: archived
+    title: "Plan: Unified development installation lifecycle"
+  what: Make mage install keep every existing ktx-managed runtime adapter compatible with the newly installed development binary.
+  why: Binary replacement currently leaves adapters stale and silently stops recording.
+  constraints: Refresh only enabled adapters, preserve scope and unrelated configuration, and avoid ambient database access. Do not add public self-upgrade, hot reload, versioned binaries, or ordinary-command repair.
+  overall_acceptance: GIVEN any supported combination of enabled adapters WHEN mage install runs in isolated application roots THEN the binary and those adapters finish compatible or installation fails visibly.
+  scope:
+    included:
+      - development binary installation
+      - existing OpenCode and Codex adapter reconciliation
+      - failure and restart reporting
+      - isolated verification
+      - installation documentation
+    excluded:
+      - go install post-install behavior
+      - binary downloads or public self-upgrade
+      - versioned binary retention
+      - live runtime reload
+  surprises:
+    []

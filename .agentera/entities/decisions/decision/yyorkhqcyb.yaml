@@ -1,0 +1,21 @@
+id: yyorkhqcyb
+artifact: decisions
+record:
+  date: 2026-08-25
+  question: How should development binary installation keep runtime adapters compatible?
+  context: magefile.go:82 runs go install only. Generated OpenCode and Codex adapters depend on binary identity and can stop recording after replacement until ktx init refreshes them.
+  alternatives:
+    - name: Make mage install the unified development upgrade boundary.
+      status: chosen
+    - name: Keep binary installation and adapter refresh as separate manual operations.
+      status: rejected
+    - name: Repair stale adapters during the first ordinary ktx command.
+      status: rejected
+    - name: Build public binary download and self-upgrade now.
+      status: rejected
+    - name: Refresh only the OpenCode adapter.
+      status: rejected
+  choice: mage install installs the binary and refreshes every already-installed ktx-managed adapter in its existing global or project scope. It creates no new integration, fails visibly if any enabled adapter cannot be refreshed, and reports required runtime restarts.
+  reasoning: Binary and adapter compatibility form one operational contract. This keeps explicit opt-in, avoids hidden mutation during ordinary commands, fixes every enabled runtime consistently, and does not add release download or self-replacement machinery. Running OpenCode still requires restart; uninterrupted binary replacement is separate work.
+  confidence: firm
+  feeds_into: plan

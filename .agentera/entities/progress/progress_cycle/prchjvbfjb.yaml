@@ -1,0 +1,16 @@
+id: prchjvbfjb
+artifact: progress
+record:
+  timestamp: 2026-08-25 16:21
+  type: fix
+  phase: build
+  what: magefile.go:83 now gives mage install one lifecycle for the development binary and existing managed OpenCode and Codex adapters.
+  context:
+    intent: Make development binary installation keep enabled adapters compatible.
+    constraints: No public self-upgrade, hot reload, versioned binary retention, ordinary-command mutation, live adapter refresh, or ambient database access.
+    unknowns: None remaining for the approved scope.
+    scope: Development mage install lifecycle, existing OpenCode and Codex adapters, tests, changelog, README, and agent guidance.
+  discovered: Audit corrections preserve unrelated Codex hooks in shared matcher entries, aggregate exact recovery commands across failed refreshes, safely quote paths, and reject unreadable or malformed adapter state before binary replacement.
+  verified: "PASS: focused race tests; mage build; full isolated mage check with forbidden database operations equal to zero; enabled-adapter disposable install; no-adapter disposable install; git diff --check."
+  next: No implementation work remains in this plan. OpenCode and Codex still require the documented runtime restart after their adapters refresh.
+  publication_order: 172

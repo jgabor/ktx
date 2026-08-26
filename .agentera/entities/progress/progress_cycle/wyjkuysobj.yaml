@@ -1,0 +1,12 @@
+id: wyjkuysobj
+artifact: progress
+record:
+  timestamp: 2026-08-26 23:24
+  type: fix
+  phase: build
+  what: internal/cli/bench_screen.go now passes each population call's input JSON, capped at 65,536 bytes, into db.ToolCall.Input so command-prefix and subcommand routes match production behavior.
+  context:
+    intent: Correct the accepted routing audit finding without changing the public screening command or report.
+  verified: go test ./internal/cli -run 'TestBenchScreenFrozenMatrix|TestScreenRoutesWithCallInput' passed and proves both route forms transform matched calls while raw input remains absent from output. mage check and an isolated ./build/ktx bench screen smoke run passed with KTX_DB unset and fresh HOME/XDG/TMP roots; no database was created.
+  next: Keep plan task ohmlwkkxtu in progress for orchestrator audit evaluation.
+  publication_order: 180

@@ -4,6 +4,7 @@
     {
       "tool": "read",
       "outcome": "success",
+      "input": { "filePath": "/opaque/source" },
       "generator": {
         "algorithm": "fixed_lines_v1",
         "bytes": 16384,
@@ -31,6 +32,7 @@
     {
       "tool": "bash",
       "outcome": "success",
+      "input": { "command": "cat opaque-source" },
       "generator": {
         "algorithm": "fixed_lines_v1",
         "bytes": 4096,
@@ -52,6 +54,7 @@
     {
       "tool": "read",
       "outcome": "failure",
+      "input": { "filePath": "/opaque/denied" },
       "generator": {
         "algorithm": "fixed_lines_v1",
         "bytes": 4096,
@@ -73,6 +76,7 @@
     {
       "tool": "read",
       "outcome": "unknown",
+      "input": { "filePath": "/opaque/unknown" },
       "generator": {
         "algorithm": "fixed_lines_v1",
         "bytes": 4096,

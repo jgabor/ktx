@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	screenMaxBytes = 64 << 20
-	screenSourceID = "screeningcallxxx"
+	screenMaxBytes      = 64 << 20
+	screenInputMaxBytes = 64 << 10
+	screenSourceID      = "screeningcallxxx"
 )
 
 type stringList []string
@@ -37,8 +38,9 @@ type screenPopulation struct {
 	Cases  []screenCase `json:"cases"`
 }
 type screenCase struct {
-	Tool      string `json:"tool"`
-	Outcome   string `json:"outcome"`
+	Tool      string          `json:"tool"`
+	Outcome   string          `json:"outcome"`
+	Input     json.RawMessage `json:"input"`
 	Generator struct {
 		Algorithm    string `json:"algorithm"`
 		Bytes        int    `json:"bytes"`
@@ -129,6 +131,10 @@ func runBenchScreen(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	outputs := make([][]byte, len(population.Cases))
 	for i := range population.Cases {
+		if len(population.Cases[i].Input) > screenInputMaxBytes {
+			printError(stderr, usageError("ktx bench screen: case %d input exceeds %d bytes", i, screenInputMaxBytes), opts.Format)
+			return ExitUsage
+		}
 		outputs[i], err = generateScreenOutput(population.Cases[i])
 		if err != nil {
 			printError(stderr, usageError("ktx bench screen: case %d: %v", i, err), opts.Format)
@@ -228,7 +234,7 @@ func evaluateScreenConfiguration(id string, cases []screenCase, outputs [][]byte
 	r := screenResult{ConfigID: id, Calls: len(cases), Dispositions: map[string]int{"transformed": 0, "anti_worsening_rejected": 0, "intentional_passthrough": 0}, ControlledFactsPass: true}
 	for i, c := range cases {
 		isError := c.Expected.Errors.IsError
-		tc := &dbpkg.ToolCall{Tool: c.Tool, Output: string(outputs[i]), IsError: isError}
+		tc := &dbpkg.ToolCall{Tool: c.Tool, Input: string(c.Input), Output: string(outputs[i]), IsError: isError}
 		execution, _ := compressPipelineWithConfig(tc, cfg, nil, io.Discard, false)
 		execution = applyRecoveryCueGate(execution, screenSourceID, tc.Output)
 		delivered := execution.output

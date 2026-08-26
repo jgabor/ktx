@@ -876,6 +876,10 @@ model. Output omits source content, paths, call identifiers, and configuration
 names. External plugins are rejected because their process boundary could
 expose source content; built-in stage order, routing, failure, anti-worsening,
 JSON structure, and recovery-footer gates use the production runner.
+Each population call may include up to 64 KiB of optional `input` JSON metadata;
+it is supplied to routing for command-prefix and subcommand matching but is
+never copied into the report. Omitting `input` preserves the original empty-input
+behavior of existing populations.
 
 ### Per-pipeline aggregates (evaluated attempts)
 

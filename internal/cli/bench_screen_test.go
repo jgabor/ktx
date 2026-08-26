@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/jgabor/ktx/internal/config"
 )
 
 func TestBenchScreenFrozenMatrix(t *testing.T) {
@@ -25,7 +27,7 @@ func TestBenchScreenFrozenMatrix(t *testing.T) {
 	if code := runBenchScreen(args, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitOK {
 		t.Fatalf("runBenchScreen code=%d stderr=%s", code, stderr.String())
 	}
-	for _, forbidden := range []string{"HEAD_REQUIRED", "TAIL_REQUIRED", "ERROR_REQUIRED", "configuration-screen-population-v1.json", "screen-keep-ends"} {
+	for _, forbidden := range []string{"HEAD_REQUIRED", "TAIL_REQUIRED", "ERROR_REQUIRED", "cat opaque-source", "/opaque/source", "configuration-screen-population-v1.json", "screen-keep-ends"} {
 		if strings.Contains(stdout.String(), forbidden) {
 			t.Fatalf("output exposed %q", forbidden)
 		}
@@ -50,5 +52,37 @@ func TestBenchScreenFrozenMatrix(t *testing.T) {
 	}
 	if wantAdvanced := []string{"bbf0c6277e3360df", "8bf31632404adcd2", "2ac5f3fafdfcf732"}; !reflect.DeepEqual(got.Advanced, wantAdvanced) {
 		t.Fatalf("advanced=%v want=%v", got.Advanced, wantAdvanced)
+	}
+}
+
+func TestScreenRoutesWithCallInput(t *testing.T) {
+	success := false
+	output := bytes.Repeat([]byte("line\n"), 200)
+	for _, tt := range []struct {
+		name  string
+		input string
+		route config.RouteRule
+	}{
+		{name: "command prefix", input: `{"command":"cat file"}`, route: config.RouteRule{CommandPrefix: "cat ", ExitStatus: "success", Profile: "matched"}},
+		{name: "subcommand", input: `{"command":"git --no-pager status"}`, route: config.RouteRule{Subcommand: "status", ExitStatus: "success", Profile: "matched"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var c screenCase
+			if err := json.Unmarshal([]byte(`{"tool":"bash","input":`+tt.input+`}`), &c); err != nil {
+				t.Fatal(err)
+			}
+			c.Expected.Errors.IsError = &success
+			cfg := &config.Config{
+				Profiles: map[string]config.Profile{
+					"default": {},
+					"matched": {Stages: []string{"keep-ends:1:1"}},
+				},
+				Routes: []config.RouteRule{tt.route},
+			}
+			got := evaluateScreenConfiguration("opaque", []screenCase{c}, [][]byte{output}, cfg)
+			if got.Dispositions["transformed"] != 1 || got.NetBytesSaved <= 0 {
+				t.Fatalf("route did not match production input: %#v", got)
+			}
+		})
 	}
 }

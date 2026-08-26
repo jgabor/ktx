@@ -324,7 +324,7 @@ func exclusionReasons(attempt Attempt, minimumToolCalls int) []string {
 	return reasons
 }
 
-func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
+func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	minimum := manifest.Task.MinimumToolCalls
 	methodologyVersion := manifest.Methodology.Version
 	if methodologyVersion == "" {
@@ -562,7 +562,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) map[string]any {
 		result["accepted"] = guard["accepted"]
 		result["acceptance_reasons"] = guard["reasons"]
 	}
-	return result
+	return Summary(result)
 }
 
 func phaseDistributions(attempts []Attempt, minimum int) map[string]any {
@@ -695,7 +695,7 @@ func summaryValue(value any) *float64 {
 }
 
 type SummaryRegeneration struct {
-	Summary               map[string]any
+	Summary               Summary
 	ProjectionDivergences []ProjectionDivergence
 }
 
@@ -742,16 +742,15 @@ func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {
 	}
 }
 
-func WriteSummary(experimentDir string) (map[string]any, error) {
+func WriteSummary(experimentDir string) (Summary, error) {
 	regeneration, err := RegenerateSummary(experimentDir)
 	return regeneration.Summary, err
 }
 
-func RenderSummary(summary map[string]any) string {
+func RenderSummary(summary Summary) string {
 	lines := []string{"side       full  eval  attempts  avg tokens in  avg cost    fact score  $/correct", "---------  ----  ----  --------  -------------  ----------  ----------  ---------"}
-	pipelines, _ := summary["pipelines"].(map[string]any)
 	for _, side := range Sides {
-		details, _ := pipelines[side].(map[string]any)
+		details, _ := summary.Pipeline(side)
 		lines = append(lines, fmt.Sprintf("%-9s  %4v  %4v  %8v  %13s  %10s  %10s  %9s",
 			side, details["valid_count"], details["evaluated_count"], details["attempt_count"],
 			formatValue(summaryValue(details["tokens_in"])), formatValue(summaryValue(details["cost"])),

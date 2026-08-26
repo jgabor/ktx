@@ -1,0 +1,12 @@
+id: wjikyhyahm
+artifact: progress
+record:
+  timestamp: 2026-08-26 23:38
+  type: refactor
+  phase: build
+  what: Added internal/experiment.Summary across summary generation, validation, ranking, and CLI rendering. summary_contract.go rejects malformed core shape and conflicting pass-rate evidence without changing serialized fields.
+  context:
+    intent: Complete plan task zmnzkzunwu and TODO dnxoqropkm without adding recovery-aware fields or changing ranking semantics.
+  verified: go test ./internal/experiment ./internal/cli passed; mage check passed with KTX_DB unset and disposable HOME/XDG/TMP roots; regeneration tests preserve fixture bytes.
+  next: Extend this contract in recovery-aware summary work while retained lower-level artifacts remain authoritative.
+  publication_order: 181

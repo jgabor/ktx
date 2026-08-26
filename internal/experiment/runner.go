@@ -79,7 +79,7 @@ func NewRunner() *Runner {
 	return &Runner{Executor: OSExecutor{}, Diagnostics: os.Stderr, Now: time.Now, PID: os.Getpid(), ResolvePrice: db.ResolvePrice}
 }
 
-func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (string, map[string]any, int, error) {
+func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (string, Summary, int, error) {
 	if err := runner.prepareStructuralOptions(&options); err != nil {
 		return "", nil, 2, err
 	}

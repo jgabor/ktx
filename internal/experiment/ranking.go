@@ -9,13 +9,13 @@ import (
 )
 
 type PairResult struct {
-	CandidatePipeline string         `json:"candidate_pipeline"`
-	ExperimentID      string         `json:"experiment_id"`
-	ExperimentDir     string         `json:"experiment_dir"`
-	ExitCode          int            `json:"exit_code"`
-	LogPath           string         `json:"log_path"`
-	StderrTail        string         `json:"stderr_tail"`
-	Summary           map[string]any `json:"summary"`
+	CandidatePipeline string  `json:"candidate_pipeline"`
+	ExperimentID      string  `json:"experiment_id"`
+	ExperimentDir     string  `json:"experiment_dir"`
+	ExitCode          int     `json:"exit_code"`
+	LogPath           string  `json:"log_path"`
+	StderrTail        string  `json:"stderr_tail"`
+	Summary           Summary `json:"summary"`
 }
 
 type RankingOptions struct {
@@ -27,7 +27,7 @@ type RankingOptions struct {
 	Candidates       []string
 }
 
-func sideMetrics(summary map[string]any, side string) map[string]any {
+func sideMetrics(summary Summary, side string) map[string]any {
 	result := map[string]any{
 		"valid_count": 0, "evaluated_count": 0, "mean_tokens_in": nil,
 		"mean_cost": nil, "mean_fact_score": nil, "full_pass_rate": nil,
@@ -36,8 +36,7 @@ func sideMetrics(summary map[string]any, side string) map[string]any {
 	if summary == nil {
 		return result
 	}
-	pipelines, _ := summary["pipelines"].(map[string]any)
-	details, _ := pipelines[side].(map[string]any)
+	details, _ := summary.Pipeline(side)
 	if details == nil {
 		return result
 	}
@@ -49,7 +48,7 @@ func sideMetrics(summary map[string]any, side string) map[string]any {
 	result["full_pass_rate"] = summaryValue(details["full_pass_rate"])
 	result["expected_cost_per_correct"] = summaryValue(details["expected_cost_per_correct"])
 	result["mean_tool_calls"] = summaryValue(details["tool_call_count"])
-	if schemaVersion, _ := summary["schema_version"].(int); schemaVersion >= 3 {
+	if summary.SchemaVersion() >= 3 {
 		result["sample_classification"] = details["sample_classification"]
 		result["mean_estimated_api_cost"] = summaryValue(details["estimated_api_cost"])
 		result["mean_cache_read"] = summaryValue(details["cache_read"])
@@ -58,7 +57,7 @@ func sideMetrics(summary map[string]any, side string) map[string]any {
 	return result
 }
 
-func pairedMetric(summary map[string]any, field string) *float64 {
+func pairedMetric(summary Summary, field string) *float64 {
 	paired, _ := summary["paired_baseline_minus_candidate"].(map[string]any)
 	metrics, _ := paired["metrics"].(map[string]any)
 	metric, _ := metrics[field].(map[string]any)

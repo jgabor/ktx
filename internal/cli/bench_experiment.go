@@ -524,7 +524,7 @@ func pipelineConfigPath(id string) string {
 	return filepath.Join("tools", "bench", "pipelines", id+".toml")
 }
 
-func renderExperimentValue(stdout io.Writer, value map[string]any, format string, textRenderer func(map[string]any) string) int {
+func renderExperimentValue[T any](stdout io.Writer, value T, format string, textRenderer func(T) string) int {
 	if format == FormatText {
 		fmt.Fprintln(stdout, textRenderer(value))
 		return ExitOK

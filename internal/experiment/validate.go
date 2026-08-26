@@ -28,6 +28,9 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err := DecodeSummary(actualSummary); err != nil {
+		return nil, err
+	}
 	preserveHistoricalSummarySchema(&manifest, actualSummary)
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, actualSummary)
 	if err != nil {
@@ -135,13 +138,13 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 
 func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *pricingSnapshot, summaryData []byte, counts map[string]int) []string {
 	reasons := []string{}
+	summary, err := DecodeSummary(summaryData)
+	if err != nil {
+		return append(reasons, err.Error())
+	}
 	methodologyLabel := manifest.Methodology.Version
 	if methodologyLabel == "v5-cache-aware" {
 		methodologyLabel = "v5"
-	}
-	var summary map[string]any
-	if err := json.Unmarshal(summaryData, &summary); err != nil {
-		return append(reasons, "summary is not valid JSON")
 	}
 	expectedSchema := float64(3)
 	if supportsDirectCachedInputShare(manifest) {
@@ -150,7 +153,7 @@ func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *
 	if supportsPromptCacheTokenHitRate(manifest) {
 		expectedSchema = 5
 	}
-	if schema, ok := summary["schema_version"].(float64); !ok || schema != expectedSchema {
+	if schema := float64(summary.SchemaVersion()); schema != expectedSchema {
 		reasons = append(reasons, fmt.Sprintf("%s summary schema_version must be %.0f", methodologyLabel, expectedSchema))
 	}
 	if manifest.Pricing == nil || pricing == nil {
@@ -284,9 +287,9 @@ func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *
 			reasons = append(reasons, "isolated namespace hashes must differ across sides")
 		}
 	}
-	if pipelines, ok := summary["pipelines"].(map[string]any); ok {
+	if summary != nil {
 		for _, side := range Sides {
-			pipeline, _ := pipelines[side].(map[string]any)
+			pipeline, _ := summary.Pipeline(side)
 			if value, ok := pipeline["valid_count"].(float64); !ok || int(value) != counts[side] {
 				reasons = append(reasons, fmt.Sprintf("%s summary valid_count does not match measured target predicate", side))
 			}

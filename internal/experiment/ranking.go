@@ -169,8 +169,16 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 		}
 		return fmt.Sprint(left["pipeline"]) < fmt.Sprint(right["pipeline"])
 	})
+	nextRank := 1
 	for index := range rows {
-		rows[index]["rank"] = index + 1
+		if _, modern := rows[index]["runtime_total_tokens_per_correct_task"]; modern {
+			if eligible, _ := rows[index]["recommendation_eligible"].(bool); !eligible {
+				rows[index]["rank"] = nil
+				continue
+			}
+		}
+		rows[index]["rank"] = nextRank
+		nextRank++
 	}
 	pairRefs := make([]any, 0, len(pairs))
 	for _, pair := range pairs {
@@ -297,10 +305,18 @@ func RenderRanking(ranking map[string]any) string {
 	}
 	for _, row := range rows {
 		lines = append(lines, fmt.Sprintf("%4v  %-24v  %6s  %6s  %10s  %10s  %10s  %6s  %6s",
-			row["rank"], row["pipeline"], formatSignificant(row["full_pass_rate"], 3), formatSignificant(row["mean_fact_score"], 3),
+			formatRank(row["rank"]), row["pipeline"], formatSignificant(row["full_pass_rate"], 3), formatSignificant(row["mean_fact_score"], 3),
 			formatSignificant(row["mean_tokens_in"], 6), formatSignificant(row["mean_cost"], 4),
 			formatSignificant(row["expected_cost_per_correct"], 4), formatSignificant(row["mean_tool_calls"], 3),
 			formatSignificant(row["tool_call_inflation_vs_baseline"], 3)))
+	}
+	for _, row := range rows {
+		primary, ok := row["runtime_total_tokens_per_correct_task"].(map[string]any)
+		if !ok {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("primary pipeline=%v rank=%v recommendation_eligible=%v state=%v value=%s reason=%v",
+			row["pipeline"], formatRank(row["rank"]), row["recommendation_eligible"], primary["state"], compactJSON(primary["value"]), primary["reason"]))
 	}
 	for _, row := range rows {
 		if _, guarded := row["accepted"]; guarded {
@@ -320,6 +336,13 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["paired_mean_estimated_api_cost_saved_vs_baseline"], 6)))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatRank(rank any) any {
+	if rank == nil {
+		return "-"
+	}
+	return rank
 }
 
 func formatSignificant(value any, digits int) string {

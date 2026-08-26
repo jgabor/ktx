@@ -153,6 +153,9 @@ func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *
 	if supportsPromptCacheTokenHitRate(manifest) {
 		expectedSchema = 5
 	}
+	if supportsRecoveryAwareComparison(manifest) {
+		expectedSchema = 6
+	}
 	if schema := float64(summary.SchemaVersion()); schema != expectedSchema {
 		reasons = append(reasons, fmt.Sprintf("%s summary schema_version must be %.0f", methodologyLabel, expectedSchema))
 	}

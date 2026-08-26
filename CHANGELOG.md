@@ -31,6 +31,7 @@
 
 ### Fixed
 
+- Recovery-aware comparison now leaves unavailable outcomes unranked, renders their state and reason, and validates generated schema-6 archives against methodology v7.
 - `mage install` now refreshes already-enabled global and current-project OpenCode and Codex adapters after installing the development binary, preserves unrelated Codex hooks, and fails with an exact recovery command for every scope that does not refresh.
 - Current user and agent guidance now consistently describes automatic stale-schema readiness, post-readiness read-only queries, forward-only newer-schema failure, isolated verification, and the separate production-scale schema release gate.
 - Query, doctor, telemetry, hook, recovery, and retained-artifact inspection paths now prepare existing supported older databases automatically, then use read-only access where required. Missing-database, current-schema, newer-schema, coordination, and timeout contracts remain unchanged.

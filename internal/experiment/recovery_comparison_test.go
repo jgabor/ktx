@@ -1,9 +1,14 @@
 package experiment
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jgabor/ktx/internal/db"
 )
 
 func TestRecoveryAwareComparisonPrimaryAndDiagnostics(t *testing.T) {
@@ -72,13 +77,130 @@ func TestRecoveryAwareComparisonUnavailableAndRankingExclusion(t *testing.T) {
 			if row["recommendation_eligible"] != false {
 				t.Fatalf("incomplete row remained eligible: %#v", row)
 			}
+			if row["rank"] != nil {
+				t.Fatalf("incomplete row remained ranked: %#v", row)
+			}
 		}
 		if row["pipeline"] == "wrong" {
 			primary := row["runtime_total_tokens_per_correct_task"].(map[string]any)
 			if primary["reason"] != "quality_gate_failed" {
 				t.Fatalf("quality primary = %#v", primary)
 			}
+			if row["rank"] != nil {
+				t.Fatalf("quality-failed row remained ranked: %#v", row)
+			}
 		}
+	}
+	text := RenderRanking(ranking)
+	for _, want := range []string{"primary pipeline=incomplete rank=-", "state=unavailable", "reason=incomplete_runtime_token_totals"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("ranking text omitted %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestRecoveryAwareArchiveValidatesAndRegeneratesByteExact(t *testing.T) {
+	dir := writeRecoveryArchive(t)
+	report, err := ValidateExperiment(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report["valid"] != true || report["summary_byte_match"] != true {
+		t.Fatalf("validation report = %#v", report)
+	}
+	before, err := os.ReadFile(filepath.Join(dir, "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RegenerateSummary(dir); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(filepath.Join(dir, "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("schema 6 summary did not regenerate byte-exact")
+	}
+}
+
+func writeRecoveryArchive(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	manifest := recoveryManifest(1)
+	manifest.ExperimentID = "recovery-archive"
+	manifest.Model = "openai/test"
+	manifest.Task.ExpectedFacts = []string{"FACT=ok"}
+	manifest.Pipelines = map[string]PipelineMetadata{Baseline: {PipelineID: "baseline", SHA256: "b"}, Candidate: {PipelineID: "candidate", SHA256: "c"}}
+	manifest.CacheControl = &CacheControlManifest{Mode: "observed", Source: "unavailable", WarmupCount: 1, Model: manifest.Model, Provider: "openai", RuntimeVersion: "1.17.20"}
+	manifest.Identities = map[string]string{"opencode": "1.17.20"}
+	rate := .5
+	pricing, err := writePricingSnapshot(dir, "openai", "test", db.Price{Input: 1, Output: 2, CacheRead: &rate, CacheWrite: &rate, InputSet: true, OutputSet: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Pricing = pricing
+	attempts := []Attempt{
+		phaseAttempt("b-cold", Baseline, ColdObservation, 0, 1), phaseAttempt("c-cold", Candidate, ColdObservation, 0, 1),
+		phaseAttempt("b-warm", Baseline, Warmup, 0, 1), phaseAttempt("c-warm", Candidate, Warmup, 0, 1),
+		phaseAttempt("b-measured", Baseline, MeasuredWarm, 1, 1), phaseAttempt("c-measured", Candidate, MeasuredWarm, 1, 1),
+	}
+	for index := range attempts {
+		prepareRecoveryArchiveAttempt(t, dir, manifest, &attempts[index], index+1)
+	}
+	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
+		t.Fatal(err)
+	}
+	for _, attempt := range attempts {
+		if err := AppendAttempt(dir, attempt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := WriteSummary(dir); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func prepareRecoveryArchiveAttempt(t *testing.T, root string, manifest Manifest, attempt *Attempt, order int) {
+	t.Helper()
+	attempt.SchemaVersion = 2
+	attempt.ExperimentID = manifest.ExperimentID
+	attempt.PipelineID = manifest.Pipelines[attempt.Side].PipelineID
+	attempt.ConfigSHA256 = manifest.Pipelines[attempt.Side].SHA256
+	attempt.CacheControl.ExecutionOrder = order
+	attempt.CacheControl.Model = manifest.CacheControl.Model
+	attempt.CacheControl.Provider = manifest.CacheControl.Provider
+	attempt.CacheControl.RuntimeVersion = manifest.CacheControl.RuntimeVersion
+	session := "session-owner-" + attempt.AttemptID
+	attempt.SessionID = &session
+	attemptDir := filepath.Join(root, "attempts", attempt.AttemptID)
+	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	database, err := db.Open(filepath.Join(attemptDir, "ktx.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InsertSession(&db.Session{ID: session, Agent: "opencode"}); err != nil {
+		t.Fatal(err)
+	}
+	call := &db.ToolCall{ID: "tool-call-" + attempt.AttemptID, SessionID: session, Tool: "read", Input: `{}`, Output: "ok", ContentHash: db.ContentHash("ok")}
+	if _, err := database.PersistToolCallOnce(call); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	stream := "{\"type\":\"tool_use\"}\n" +
+		"{\"type\":\"step_finish\",\"part\":{\"reason\":\"stop\",\"tokens\":{\"input\":10,\"output\":2,\"reasoning\":1,\"cache\":{\"read\":0,\"write\":0}},\"cost\":0}}\n" +
+		"{\"type\":\"text\",\"part\":{\"text\":\"FACT=ok\"}}\n"
+	if err := os.WriteFile(filepath.Join(attemptDir, "stream.jsonl"), []byte(stream), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	attempt.Artifacts = map[string]string{
+		"database": filepath.ToSlash(filepath.Join("attempts", attempt.AttemptID, "ktx.db")),
+		"stream":   filepath.ToSlash(filepath.Join("attempts", attempt.AttemptID, "stream.jsonl")),
 	}
 }
 

@@ -1,0 +1,12 @@
+id: rbjrelwfjj
+artifact: progress
+record:
+  timestamp: 2026-08-27 00:24
+  type: fix
+  phase: build
+  what: Corrected internal/experiment ranking so schema-6 outcomes with unavailable primary metrics have rank null and text includes state and reason. ValidateExperiment now expects schema 6 for methodology v7. TestRecoveryAwareArchiveValidatesAndRegeneratesByteExact builds retained streams and databases, validates the generated archive, and proves byte-exact regeneration.
+  context:
+    intent: Remove the two accepted recovery-aware comparison audit blockers without changing ranking policy or historical summary semantics.
+  verified: go test ./internal/experiment -run TestRecoveryAware, go test ./internal/experiment, and mage check passed with KTX_DB unset and fresh HOME/XDG/TMP roots.
+  next: Audit plan task ysciuimqsr again; it remains in_progress.
+  publication_order: 185

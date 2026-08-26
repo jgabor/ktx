@@ -69,6 +69,26 @@ func (summary Summary) Validate() error {
 			return fmt.Errorf("conflicting summary %s pass rates", side)
 		}
 	}
+	if summary.SchemaVersion() == 6 {
+		comparison, ok := summary["recovery_aware_comparison"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("summary schema 6 is missing recovery_aware_comparison")
+		}
+		arms, ok := comparison["arms"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("invalid recovery-aware arms")
+		}
+		for _, side := range Sides {
+			arm, ok := arms[side].(map[string]any)
+			if !ok {
+				return fmt.Errorf("invalid recovery-aware arm %q", side)
+			}
+			primary, ok := arm["runtime_total_tokens_per_correct_task"].(map[string]any)
+			if !ok || (primary["state"] != "available" && primary["state"] != "unavailable") {
+				return fmt.Errorf("invalid recovery-aware primary outcome %q", side)
+			}
+		}
+	}
 	return nil
 }
 

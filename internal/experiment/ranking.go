@@ -54,6 +54,14 @@ func sideMetrics(summary Summary, side string) map[string]any {
 		result["mean_cache_read"] = summaryValue(details["cache_read"])
 		result["mean_cache_write"] = summaryValue(details["cache_write"])
 	}
+	if comparison, ok := summary["recovery_aware_comparison"].(map[string]any); ok {
+		arms, _ := comparison["arms"].(map[string]any)
+		arm, _ := arms[side].(map[string]any)
+		result["quality_gate"] = arm["quality_gate"]
+		result["runtime_total_tokens_per_correct_task"] = arm["runtime_total_tokens_per_correct_task"]
+		result["recovery"] = arm["recovery"]
+		result["tool_calls"] = arm["tool_calls"]
+	}
 	return result
 }
 
@@ -79,6 +87,7 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 			"tool_call_inflation_vs_baseline": 1.0, "tokens_saved_vs_baseline": 0.0, "cost_saved_vs_baseline": 0.0,
 		}
 		copyMap(row, baseline)
+		applyRecoveryAwareEligibility(row)
 		if _, ok := baseline["sample_classification"]; ok {
 			row["paired_mean_tokens_saved_vs_baseline"] = 0.0
 			row["paired_mean_cache_read_saved_vs_baseline"] = 0.0
@@ -98,6 +107,7 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 			"tool_call_inflation_vs_baseline": nil, "tokens_saved_vs_baseline": nil, "cost_saved_vs_baseline": nil, "pair_tool_call_inflation": nil,
 		}
 		copyMap(row, candidate)
+		applyRecoveryAwareEligibility(row)
 		if baseline != nil {
 			baseTools, candidateTools := summaryValue(baseline["mean_tool_calls"]), summaryValue(candidate["mean_tool_calls"])
 			if baseTools != nil && *baseTools != 0 && candidateTools != nil {
@@ -136,6 +146,16 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 		if leftRejected != rightRejected {
 			return !leftRejected
 		}
+		if _, modern := left["runtime_total_tokens_per_correct_task"]; modern {
+			la, lv := primaryRankingValue(left)
+			ra, rv := primaryRankingValue(right)
+			if la != ra {
+				return la
+			}
+			if compareNullable(lv, rv) != 0 {
+				return compareNullable(lv, rv) < 0
+			}
+		}
 		lp, rp := summaryValue(left["full_pass_rate"]), summaryValue(right["full_pass_rate"])
 		lclass, rclass := passClass(lp), passClass(rp)
 		if lclass != rclass {
@@ -168,16 +188,36 @@ func BuildRanking(options RankingOptions, pairs []PairResult, now time.Time) map
 	return result
 }
 
+func primaryRankingValue(row map[string]any) (bool, *float64) {
+	quality, _ := row["quality_gate"].(map[string]any)
+	primary, _ := row["runtime_total_tokens_per_correct_task"].(map[string]any)
+	qualified, _ := quality["qualified"].(bool)
+	available := primary["state"] == "available"
+	return qualified && available, summaryValue(primary["value"])
+}
+
+func applyRecoveryAwareEligibility(row map[string]any) {
+	if _, ok := row["runtime_total_tokens_per_correct_task"]; !ok {
+		return
+	}
+	eligible, _ := primaryRankingValue(row)
+	row["recommendation_eligible"] = eligible
+	if !eligible {
+		primary, _ := row["runtime_total_tokens_per_correct_task"].(map[string]any)
+		row["recommendation_reason"] = primary["reason"]
+	}
+}
+
 func pipelineCostGuardAcceptance(summary map[string]any) (bool, []string, bool) {
 	guard, guarded := summary[pipelineCostGuardField].(map[string]any)
 	if !guarded {
 		switch schema := summary["schema_version"].(type) {
 		case int:
-			if schema >= 5 {
+			if schema == 5 {
 				return false, []string{"pipeline_cost_guard_unavailable"}, true
 			}
 		case float64:
-			if schema >= 5 {
+			if schema == 5 {
 				return false, []string{"pipeline_cost_guard_unavailable"}, true
 			}
 		}

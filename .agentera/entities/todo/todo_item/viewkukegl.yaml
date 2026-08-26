@@ -35,12 +35,16 @@ record:
       recovery: Pass offline screening and focused retained-artifact validation before authorizing model calls.
     queue_rank: 2
     order_reason: Behavioral spending follows mechanical screening and typed summary infrastructure.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[task] **Recovery-aware pipeline outcome comparison** — Extend `ktx bench compare` and ranking regeneration for arbitrary full baseline and candidate configurations. Make runtime-emitted total tokens per correct task the primary outcome and report exact cue-linked `ktx read` recovery, repeated recovery, total tool calls, and exact repeated normalized tool calls as diagnostics. Prove the contract first with passthrough and keep-ends parameter configurations. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      status: resolved
+      order: 18
       severity: normal
-      status: open
-      order: 16
+  lifecycle:
+    operation: resolve
+    reason: Implemented methodology v7 and summary schema 6 with focused ranking, availability, attribution, regeneration, and archive-compatibility coverage.
+    date: 2026-08-27

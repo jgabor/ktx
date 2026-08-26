@@ -6,6 +6,7 @@
 
 - Experiment summary generation, validation, ranking, and rendering now share a structured Go contract while preserving historical serialized schemas.
 - Current benchmark summaries retain cue-linked recovery outcomes and exact normalized tool-call repeat counts from isolated attempt databases without exposing call material.
+- Recovery-aware comparisons use methodology v7 and summary schema 6 to rank quality-qualified configurations by complete runtime total tokens per correct task while retaining separate recovery, repeat, delivery, cost, and quality authorities.
 - `ktx bench screen` now evaluates explicit complete pipeline configurations over one frozen generated population without model or database access, emitting bounded aggregate reconciliation and a controlled-fact-gated shortlist.
 - `mage schemaReleaseGate` now blocks schema releases unless the exact prior physical schema passes the retained 3.2 GB scale, generated-adapter concurrency, interruption/restart, correctness, and approved combined-workload limits. Memory is aggregate concurrent KTX RSS, with per-process peaks retained separately.
 - The schema-readiness contract now requires automatic preparation for every supported stale database surface, single-owner timeout attribution, and reproducible controlled-host resource gates with a retained raw baseline and disposable fixture harness.

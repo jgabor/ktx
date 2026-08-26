@@ -332,6 +332,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	}
 	cacheAware := cacheAwareMethodology(methodologyVersion)
 	promptCacheTokenHitRate := supportsPromptCacheTokenHitRate(manifest)
+	recoveryAware := supportsRecoveryAwareComparison(manifest)
 	if promptCacheTokenHitRate {
 		attempts = normalizePipelineCostEstimates(attempts)
 	}
@@ -368,7 +369,10 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	if promptCacheTokenHitRate {
 		schemaVersion = 5
 	}
-	hasOutcomes := promptCacheTokenHitRate && manifest.historicalSummarySchema == 0
+	if recoveryAware {
+		schemaVersion = 6
+	}
+	hasOutcomes := (promptCacheTokenHitRate || recoveryAware) && manifest.historicalSummarySchema == 0
 	for _, attempt := range attempts {
 		hasOutcomes = hasOutcomes && attempt.outcomes != nil
 	}
@@ -529,6 +533,9 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 			rows = append(rows, map[string]any{"attempt_id": attempt.AttemptID, "recovery": attempt.outcomes.Recovery, "exact_repeats": attempt.outcomes.Repeats})
 		}
 		result["attempt_outcomes"] = rows
+		if recoveryAware {
+			result["recovery_aware_comparison"] = buildRecoveryAwareComparison(manifest, attempts)
+		}
 	}
 	if v3Required {
 		result["paired_baseline_minus_candidate"] = pairedSummary(allEvaluated, hasEstimatedCost)
@@ -754,7 +761,7 @@ func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {
 		SchemaVersion   int             `json:"schema_version"`
 		AttemptOutcomes json.RawMessage `json:"attempt_outcomes"`
 	}
-	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 5 && len(existing.AttemptOutcomes) == 0 {
+	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 6 && len(existing.AttemptOutcomes) == 0 {
 		manifest.historicalSummarySchema = existing.SchemaVersion
 	}
 }
@@ -890,6 +897,18 @@ func RenderSummary(summary Summary) string {
 		lines = append(lines, fmt.Sprintf("pipeline_cost_guard accepted=%v reasons=%s complete_pairs=%v/%v baseline_estimated_api_cost_per_correct=%v candidate_estimated_api_cost_per_correct=%v comparison=%v rounding_decimals=%v",
 			guard["accepted"], compactJSON(guard["reasons"]), guard["complete_pair_count"], guard["required_complete_pair_count"],
 			cost[Baseline], cost[Candidate], cost["comparison"], guard["rounding_decimals"]))
+	}
+	if comparison, ok := summary["recovery_aware_comparison"].(map[string]any); ok {
+		arms := comparison["arms"].(map[string]any)
+		for _, side := range Sides {
+			arm := arms[side].(map[string]any)
+			quality := arm["quality_gate"].(map[string]any)
+			primary := arm["runtime_total_tokens_per_correct_task"].(map[string]any)
+			recovery := arm["recovery"].(map[string]any)
+			calls := arm["tool_calls"].(map[string]any)
+			lines = append(lines, fmt.Sprintf("recovery_aware side=%s quality_qualified=%v correct=%v/%v runtime_total_tokens_per_correct_task=%s state=%v reason=%v recovery_attempts=%v repeated_recovery=%v tool_calls=%v exact_repeats=%v",
+				side, quality["qualified"], quality["correct_task_count"], quality["required_correct_tasks"], compactJSON(primary["value"]), primary["state"], primary["reason"], recovery["attempt_count"], recovery["repeated_attempt_count"], calls["total_call_count"], calls["exact_repeated_call_count"]))
+		}
 	}
 	if authorization, ok := summary[promptCacheTokenHitRateStatementAuthorizationField].(map[string]any); ok {
 		identity := anyMap(authorization["identity_provenance"])

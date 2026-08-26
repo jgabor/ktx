@@ -1,0 +1,12 @@
+id: wbexxwmvft
+artifact: progress
+record:
+  timestamp: 2026-08-27 00:15
+  type: feat
+  phase: build
+  what: Added tools/bench/methodology-v7-recovery-aware-comparison.yaml and summary schema 6 in internal/experiment. Quality-qualified arms rank by complete runtime-emitted total tokens per correct task; incomplete totals and failed quality gates are unavailable and recommendation-ineligible. Recovery and repeat diagnostics retain separate authorities.
+  context:
+    intent: Expose generic recovery-aware comparison while retaining the plan task in progress for audit.
+  verified: go test ./internal/experiment and mage check passed with KTX_DB unset and fresh HOME/XDG/TMP roots. ./build/ktx bench compare --preflight --build --methodology tools/bench/methodology-v7-recovery-aware-comparison.yaml --format json passed with model_attempts=0.
+  next: Audit retained archives before completing plan task ysciuimqsr; no paid matrix was run.
+  publication_order: 184

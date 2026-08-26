@@ -1,0 +1,26 @@
+methodology_version: "v7-recovery-aware-comparison"
+date: "2026-08-27"
+
+scope: |
+  Compare arbitrary complete baseline and candidate configurations. Correctness
+  is an explicit gate. For qualified arms, complete runtime-emitted input,
+  output, and reasoning tokens are summed per correct task as the primary
+  outcome. Missing or malformed runtime fields make that outcome unavailable.
+
+comparison: |
+  Pair measured attempts by cycle for descriptive reporting only. Keep quality,
+  runtime tokens, tool delivery, runtime-reported cost, cue-linked recovery,
+  total tool calls, and exact normalized repeats under separate authorities.
+  Recovery and exact repeats are diagnostics and do not alter the primary rank.
+
+claims:
+  provider_internal: unsupported
+  causal: unsupported
+  significance: unsupported
+
+output:
+  summary_schema: 6
+  validation: |
+    Regenerate byte-identically from retained manifest, attempts, runtime
+    streams, and attempt databases. Summary schemas 1 through 5 retain their
+    historical bytes and semantics.

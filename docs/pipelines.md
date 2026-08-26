@@ -857,9 +857,12 @@ The first acceptance matrix uses passthrough plus `keep-ends:50:10`,
 contract remains stage-agnostic so the same comparison can evaluate complete
 configurations containing `json-compact`, `strip-ansi`, or other stages.
 
-Current retained summary schemas do not emit this recovery-aware block. Until a
-new schema version and validator implement it, existing summaries support only
-their documented quality, token, cost, delivery, and tool-call claims.
+Methodology v7 emits summary schema 6. Its `recovery_aware_comparison` block
+keeps field authority explicit, reports each arm and descriptive cycle pairs,
+and ranks only quality-qualified arms with complete runtime-emitted input,
+output, and reasoning totals. Missing or malformed runtime totals make the
+primary outcome unavailable with a reason and exclude the arm from
+recommendation. Schemas 1 through 5 retain their historical bytes and claims.
 
 Run the mechanical gate with `ktx bench screen --population <json>`, repeated
 `--config <ktx.toml>`, and one `--anchor-config <ktx.toml>`. The anchor is the

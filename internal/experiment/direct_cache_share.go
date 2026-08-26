@@ -6,12 +6,13 @@ const (
 	directCacheContractVersion                = "cache-reuse-v1"
 	promptCacheTokenHitRateContractVersion    = "cache-reuse-v2"
 	promptCacheTokenHitRateMethodologyVersion = "v6-prompt-cache-token-hit-rate"
+	recoveryAwareMethodologyVersion           = "v7-recovery-aware-comparison"
 	directCacheRuntime                        = "opencode"
 	directCacheRuntimeVersion                 = "1.18.5"
 )
 
 func cacheAwareMethodology(version string) bool {
-	return version == "v5-cache-aware" || version == promptCacheTokenHitRateMethodologyVersion
+	return version == "v5-cache-aware" || version == promptCacheTokenHitRateMethodologyVersion || version == recoveryAwareMethodologyVersion
 }
 
 func supportsDirectCachedInputShare(manifest Manifest) bool {
@@ -28,6 +29,11 @@ func supportsPromptCacheTokenHitRate(manifest Manifest) bool {
 		manifest.CacheControl != nil &&
 		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
 		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
+}
+
+func supportsRecoveryAwareComparison(manifest Manifest) bool {
+	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 6) &&
+		manifest.Methodology.Version == recoveryAwareMethodologyVersion
 }
 
 func supportsCacheTokenMetric(manifest Manifest) bool {

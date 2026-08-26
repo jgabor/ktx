@@ -150,6 +150,7 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 		return Attempt{}, fmt.Errorf("attempt %q read delivery authority: %w", attempt.AttemptID, err)
 	}
 	attempt.delivery = newDeliveryEvidence(databaseRel, deliveryRows)
+	attempt.outcomes = materializeAttemptOutcomes(database.DB(), *attempt.SessionID)
 	return attempt, nil
 }
 

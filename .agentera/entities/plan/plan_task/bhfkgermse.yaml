@@ -4,7 +4,7 @@ record:
   name: Retain recovery and exact-repeat outcomes
   depends_on:
     - zmnzkzunwu
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN a delivered cue and later same-attempt matching recovery command WHEN evidence regenerates THEN one linked recovery is retained.
     - GIVEN pre-cue, cross-attempt, mismatched, or conflicting calls WHEN validated THEN they cannot become recovery evidence.

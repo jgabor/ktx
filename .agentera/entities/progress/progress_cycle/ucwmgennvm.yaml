@@ -1,0 +1,14 @@
+id: ucwmgennvm
+artifact: progress
+record:
+  timestamp: 2026-08-27 00:01
+  type: feat
+  phase: build
+  what: internal/experiment/outcomes.go now derives per-attempt recovery outcomes and exact normalized tool-call repeat counts from isolated benchmark databases. Recovery requires same-session cue ownership, matching artifact linkage, and later authoritative attempts; invalid evidence remains unavailable. Summary schemas 1-5 remain byte-exact.
+  context:
+    intent: Retain recovery and exact-repeat outcomes for later benchmark comparison without changing ranking.
+    unknowns: Decision listing detail was degraded during this cycle; no decision state was inferred or changed.
+  discovered: The retained per-attempt schema-14 database contains sufficient cue, recovery-attempt, session, artifact, timing, outcome, byte-exact, tool, and input authority. Missing or contradictory authority is preserved as unavailable.
+  verified: go test ./internal/experiment ./internal/db and mage check passed with KTX_DB unset and fresh disposable HOME/XDG/TMP roots. ./build/ktx bench compare --preflight --build --format json passed with zero model attempts and no experiment artifacts.
+  next: Audit retained outcome fields before implementing later comparison or ranking semantics.
+  publication_order: 183

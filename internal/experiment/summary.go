@@ -368,6 +368,10 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	if promptCacheTokenHitRate {
 		schemaVersion = 5
 	}
+	hasOutcomes := promptCacheTokenHitRate && manifest.historicalSummarySchema == 0
+	for _, attempt := range attempts {
+		hasOutcomes = hasOutcomes && attempt.outcomes != nil
+	}
 	pipelines := map[string]any{}
 	exclusions := []any{}
 	allEvaluated := []Attempt{}
@@ -518,6 +522,13 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 		"experiment_id": manifest.ExperimentID, "target_valid_per_pipeline": manifest.TargetValidPerPipeline,
 		"minimum_tool_calls": minimum, "pipelines": pipelines,
 		"baseline_minus_candidate": deltas, "tool_call_inflation": inflation, "exclusions": exclusions,
+	}
+	if hasOutcomes && len(attempts) > 0 {
+		rows := make([]any, 0, len(attempts))
+		for _, attempt := range attempts {
+			rows = append(rows, map[string]any{"attempt_id": attempt.AttemptID, "recovery": attempt.outcomes.Recovery, "exact_repeats": attempt.outcomes.Repeats})
+		}
+		result["attempt_outcomes"] = rows
 	}
 	if v3Required {
 		result["paired_baseline_minus_candidate"] = pairedSummary(allEvaluated, hasEstimatedCost)
@@ -740,9 +751,10 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 
 func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {
 	var existing struct {
-		SchemaVersion int `json:"schema_version"`
+		SchemaVersion   int             `json:"schema_version"`
+		AttemptOutcomes json.RawMessage `json:"attempt_outcomes"`
 	}
-	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 4 {
+	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 5 && len(existing.AttemptOutcomes) == 0 {
 		manifest.historicalSummarySchema = existing.SchemaVersion
 	}
 }

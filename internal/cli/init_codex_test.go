@@ -19,6 +19,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,28 +157,32 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
 		}
 	})
 
-	t.Run("refresh preserves unrelated hook sharing stale ktx matcher entry", func(t *testing.T) {
+	t.Run("existing pinned hook preserves unrelated sibling", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
 		hooksPath := filepath.Join(home, ".codex", "hooks.json")
 		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		existing := []byte(`{
+		pinned, err := codexPinnedHookCommand()
+		if err != nil {
+			t.Fatal(err)
+		}
+		existing := []byte(fmt.Sprintf(`{
   "hooks": {
     "PostToolUse": [
       {
         "matcher": "Bash",
         "source": "unrelated",
         "hooks": [
-          {"type": "command", "command": "ktx hook"},
+          {"type": "command", "command": %q},
           {"type": "command", "command": "echo keep", "timeout": 7}
         ]
       }
     ]
   }
 }
-`)
+`, pinned))
 		if err := os.WriteFile(hooksPath, existing, 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -195,26 +200,23 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
 			t.Fatal(err)
 		}
 		postToolUse := codexPostToolUseArray(codexHooksObject(doc))
-		if len(postToolUse) != 2 {
-			t.Fatalf("PostToolUse entries = %d, want preserved matcher plus refreshed ktx entry: %s", len(postToolUse), data)
+		if len(postToolUse) != 1 {
+			t.Fatalf("PostToolUse entries = %d, want existing matcher: %s", len(postToolUse), data)
 		}
 		shared, ok := postToolUse[0].(map[string]any)
 		if !ok || shared["matcher"] != "Bash" || shared["source"] != "unrelated" {
 			t.Fatalf("shared matcher metadata changed: %v", postToolUse[0])
 		}
 		inner, ok := shared["hooks"].([]any)
-		if !ok || len(inner) != 1 {
-			t.Fatalf("shared matcher hooks = %v, want one unrelated hook", shared["hooks"])
+		if !ok || len(inner) != 2 {
+			t.Fatalf("shared matcher hooks = %v, want pinned and unrelated hooks", shared["hooks"])
 		}
-		hook, ok := inner[0].(map[string]any)
+		hook, ok := inner[1].(map[string]any)
 		if !ok || hook["command"] != "echo keep" || hook["timeout"] != float64(7) {
-			t.Fatalf("unrelated shared hook changed: %v", inner[0])
+			t.Fatalf("unrelated shared hook changed: %v", inner[1])
 		}
-		if codexEntryIsKtx(shared) {
-			t.Fatalf("stale ktx hook remains in shared matcher: %v", shared)
-		}
-		if !codexEntryIsKtx(postToolUse[1]) {
-			t.Fatalf("refreshed ktx hook missing: %v", postToolUse[1])
+		if !codexEntryIsKtx(shared) {
+			t.Fatalf("pinned ktx hook missing: %v", shared)
 		}
 	})
 
@@ -265,7 +267,11 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
 		}
 		// File with both a SessionStart hook and ktx's PostToolUse
 		// entry. Uninstall must remove only the PostToolUse ktx entry.
-		existing := []byte(`{
+		pinned, err := codexPinnedHookCommand()
+		if err != nil {
+			t.Fatal(err)
+		}
+		existing := []byte(fmt.Sprintf(`{
   "hooks": {
     "SessionStart": [
       {
@@ -278,13 +284,13 @@ func TestRunInitWith_CodexInstall(t *testing.T) {
       {
         "matcher": ".*",
         "hooks": [
-          {"type": "command", "command": "ktx hook", "timeout": 10, "statusMessage": "ktx: recording tool call"}
+          {"type": "command", "command": %q, "timeout": 10, "statusMessage": "ktx: recording tool call"}
         ]
       }
     ]
   }
 }
-`)
+`, pinned))
 		if err := os.WriteFile(hooksPath, existing, 0o644); err != nil {
 			t.Fatalf("write pre-existing hooks.json: %v", err)
 		}

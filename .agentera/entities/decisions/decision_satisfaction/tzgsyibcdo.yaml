@@ -1,0 +1,6 @@
+id: tzgsyibcdo
+artifact: decisions
+record:
+  decision: algmjykxaq
+  state: provisionally_satisfied
+  evidence: Implementation removed the capability command, both digest flags and compatibility parsing, startup self-report verification, digest-based adapter validation, per-invocation digest proof, and digest-driven refresh while retaining canonical absolute-path pinning and database safety. Real generated-adapter verification consumed schema 17 without build_version, deduplicated identical callbacks once, and reported schema 18 separately; focused tests and isolated mage check passed, and current documentation searches found no obsolete ceremony. User confirmation remains pending.

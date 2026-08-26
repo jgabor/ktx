@@ -591,7 +591,6 @@ func assertDatabaseUnavailableEnvelope(t *testing.T, stderr string, fixture gene
 				Code                   string `json:"code"`
 				DatabasePath           string `json:"database_path"`
 				ExecutablePath         string `json:"executable_path"`
-				ExecutableSHA256       string `json:"executable_sha256"`
 				FailureClass           string `json:"failure_class"`
 				OperationPhase         string `json:"operation_phase"`
 				ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
@@ -604,7 +603,7 @@ func assertDatabaseUnavailableEnvelope(t *testing.T, stderr string, fixture gene
 		}
 		errorValue := envelope.Error
 		if errorValue.Code != "database-unavailable" || errorValue.DatabasePath != canonical ||
-			errorValue.ExecutablePath != fixture.binary || errorValue.ExecutableSHA256 != fixture.digest ||
+			errorValue.ExecutablePath != fixture.binary ||
 			errorValue.FailureClass != UnavailableClassCoordinatorTimeout || errorValue.OperationPhase != OperationOpen ||
 			errorValue.ElapsedWaitNanoseconds <= 0 || errorValue.Correction == "" {
 			t.Errorf("database-unavailable envelope = %+v", errorValue)

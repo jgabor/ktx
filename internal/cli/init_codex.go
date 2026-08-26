@@ -34,10 +34,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-
-	"github.com/jgabor/ktx/internal/binarycap"
 )
 
 // codexHooksFileName is the on-disk file Codex reads its hooks from.
@@ -399,30 +396,24 @@ func codexEntryIsKtx(entry any) bool {
 }
 
 func isKtxHookCommand(command string) bool {
-	if command == ktxHookCommand {
-		return true
-	}
-	const marker = " --expect-runtime-sha256 "
-	index := strings.LastIndex(command, marker)
-	if index <= 0 {
-		return false
-	}
-	fields := strings.Fields(command[index+len(marker):])
-	return len(fields) == 2 && binarycap.ValidDigest(fields[0]) && fields[1] == "hook"
+	expected, err := codexPinnedHookCommand()
+	return err == nil && command == expected
 }
 
 func codexPinnedHookCommand() (string, error) {
-	identity, err := currentBinaryCapabilities()
+	path, err := os.Executable()
 	if err != nil {
-		return "", internalError("ktx init codex: resolve executable identity: %v", err)
+		return "", internalError("ktx init codex: resolve executable path: %v", err)
 	}
-	path := identity.ExecutablePath
-	if runtime.GOOS == "windows" {
-		path = `"` + path + `"`
-	} else {
-		path = `'` + strings.ReplaceAll(path, `'`, `'"'"'`) + `'`
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", internalError("ktx init codex: canonicalize executable path: %v", err)
 	}
-	return path + " --expect-runtime-sha256 " + identity.ExecutableSHA256 + " hook", nil
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return "", internalError("ktx init codex: make executable path absolute: %v", err)
+	}
+	return `'` + strings.ReplaceAll(filepath.Clean(path), `'`, `'"'"'`) + `' hook`, nil
 }
 
 // codexFileHasKtxHook reports whether the hooks.json at path exists
@@ -497,7 +488,7 @@ func filterKtxEntries(arr []any) ([]any, int) {
 //	{
 //	  "matcher": ".*",
 //	  "hooks": [
-//	    {"type":"command","command":"<pinned ktx> --expect-runtime-sha256 <digest> hook",
+//	    {"type":"command","command":"'<canonical ktx path>' hook",
 //	     "statusMessage":"ktx: recording tool call"}
 //	  ]
 //	}

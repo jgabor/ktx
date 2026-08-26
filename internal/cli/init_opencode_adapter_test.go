@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/telemetry"
 	telemetryopencode "github.com/jgabor/ktx/internal/telemetry/opencode"
 )
@@ -131,7 +132,7 @@ func TestGeneratedOpenCodeAdapterDoesNotKillCallbacks(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		`["--expect-runtime-sha256", ktxExecutableSHA256, ...args]`,
+		`const openBackedArgs = (args: string[]): string[] => args`,
 		`runOrdinaryProcess(openBackedArgs(args), payload)`,
 		`openBackedArgs(["hook"])`,
 		`openBackedArgs(["telemetry", "collector-open"])`,
@@ -139,7 +140,12 @@ func TestGeneratedOpenCodeAdapterDoesNotKillCallbacks(t *testing.T) {
 		`openBackedArgs(["telemetry", "cue-delivered"])`,
 	} {
 		if !strings.Contains(ktxOpencodePluginTemplate, required) {
-			t.Errorf("generated adapter is missing pinned runtime proof argument %q", required)
+			t.Errorf("generated adapter is missing pinned invocation %q", required)
+		}
+	}
+	for _, forbidden := range []string{"binary-capabilities", "createHash", "readFile(canonical)", "--expect-runtime-sha256"} {
+		if strings.Contains(ktxOpencodePluginTemplate, forbidden) {
+			t.Errorf("generated adapter performs removed identity work %q", forbidden)
 		}
 	}
 }
@@ -163,40 +169,17 @@ func TestOpencodeGeneratedAdapterEventAndToolIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	fakeKtx := `#!/bin/sh
-if [ "$1" = "binary-capabilities" ]; then
-  path=$(readlink -f "$0")
-  digest=$(sha256sum "$path" | cut -d' ' -f1)
-  contract=ktx.binary-capabilities/v1
-  version=fixture
-  max_schema=9
-  case "$KTX_TEST_BAD_RESPONSE" in
-    identity-malformed) printf '[]\n'; exit 0 ;;
-    identity-contract) contract=ktx.binary-capabilities/v0 ;;
-    identity-path) path=/wrong/ktx ;;
-    identity-digest) digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
-    identity-version) version=' ' ;;
-    identity-max-schema) max_schema=-1 ;;
-    identity-different-max-schema) max_schema=7 ;;
-  esac
-  printf '{"schema":"%s","executable_path":"%s","executable_sha256":"%s","build_version":"%s","max_database_schema":%s}\n' "$contract" "$path" "$digest" "$version" "$max_schema"
-  exit 0
-fi
-if [ "$1" = "--expect-runtime-sha256" ]; then
-  [ "${#2}" -eq 64 ] || { printf 'runtime proof malformed\n' >&2; exit 3; }
-  case "$2" in *[!0-9a-f]*) printf 'runtime proof malformed\n' >&2; exit 3 ;; esac
-  shift 2
-fi
 if [ "$1 $2" = "db path" ]; then
   [ -z "$KTX_TEST_PATH_LOG" ] || printf 'db-path\n' >> "$KTX_TEST_PATH_LOG"
   printf '%s\n' "${KTX_TEST_DB_PATH:-$PWD/ktx.db}"
   exit 0
 fi
-payload=$(cat)
+IFS= read -r payload || :
 printf '%s\t%s\n' "$*" "$payload" >> "$KTX_TEST_LOG"
 if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
   case "$KTX_TEST_SCHEMA_MODE" in
     valid)
-      path=$(readlink -f "$0"); digest=$(sha256sum "$path" | cut -d' ' -f1)
+      path=$0
       schema_actual=${KTX_TEST_SCHEMA_ACTUAL:-10}
       case "$KTX_TEST_FINGERPRINT_CASE" in
         observed-race)
@@ -216,12 +199,12 @@ if [ "$1" = "hook" ] || [ "$1 $2" = "telemetry record" ]; then
           printf x >> "$KTX_TEST_DB_PATH" ;;
       esac
       schema_max=${KTX_TEST_SCHEMA_MAX:-9}
-      printf '{"error":{"code":"schema-incompatible","message":"schema too new","actual_schema":%s,"maximum_schema":%s,"database_path":"%s","executable_path":"%s","executable_sha256":"%s","build_version":"fixture","correction":"install a newer binary"}}\n' "$schema_actual" "$schema_max" "$KTX_TEST_DB_PATH" "$path" "$digest" >&2
+      printf '{"error":{"code":"schema-incompatible","message":"schema too new","actual_schema":%s,"maximum_schema":%s,"database_path":"%s","executable_path":"%s","correction":"install a newer binary"}}\n' "$schema_actual" "$schema_max" "$KTX_TEST_DB_PATH" "$path" >&2
       exit 5 ;;
     malformed) printf '{"error":{"code":"schema-incompatible"}}\n' >&2; exit 5 ;;
     unavailable)
-      path=$(readlink -f "$0"); digest=$(sha256sum "$path" | cut -d' ' -f1)
-      printf '{"error":{"code":"database-unavailable","message":"database unavailable","database_path":"%s","executable_path":"%s","executable_sha256":"%s","failure_class":"sqlite-lock-exhaustion","operation_phase":"source","elapsed_wait_nanoseconds":123,"correction":"retry","payload":"secret payload","sql":"SELECT secret","driver_text":"database is locked"}}\n' "$KTX_TEST_DB_PATH" "$path" "$digest" >&2
+      path=$0
+      printf '{"error":{"code":"database-unavailable","message":"database unavailable","database_path":"%s","executable_path":"%s","failure_class":"sqlite-lock-exhaustion","operation_phase":"source","elapsed_wait_nanoseconds":123,"correction":"retry","payload":"secret payload","sql":"SELECT secret","driver_text":"database is locked"}}\n' "$KTX_TEST_DB_PATH" "$path" >&2
       exit 4 ;;
     other) printf 'ordinary failure\n' >&2; exit 7 ;;
   esac
@@ -658,7 +641,7 @@ console.log(JSON.stringify(results))
 					t.Errorf("diagnostics = %d, want %d; stdout=%q stderr=%q", got, test.wantDiagnostics, stdout.String(), stderr.String())
 				}
 				if test.mode == "unavailable" {
-					for _, required := range []string{`"executable_path":"`, `"executable_sha256":"`, `"database_path":"`, `"failure_class":"sqlite-lock-exhaustion"`, `"operation_phase":"source"`, `"elapsed_wait_nanoseconds":123`, `"correction":"retry"`} {
+					for _, required := range []string{`"executable_path":"`, `"database_path":"`, `"failure_class":"sqlite-lock-exhaustion"`, `"operation_phase":"source"`, `"elapsed_wait_nanoseconds":123`, `"correction":"retry"`} {
 						if !strings.Contains(stderr.String(), required) {
 							t.Errorf("database-unavailable diagnostic missing %s: %q", required, stderr.String())
 						}
@@ -687,6 +670,100 @@ console.log(JSON.stringify(results))
 					t.Errorf("same-path diagnostics did not expose both exact keys: %q", stderr.String())
 				}
 			})
+		}
+	})
+
+	t.Run("actual schema incompatibility envelope is suppressed by state", func(t *testing.T) {
+		root := t.TempDir()
+		actualBinDir := filepath.Join(root, "bin")
+		if err := os.Mkdir(actualBinDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		actualKtx := filepath.Join(actualBinDir, "ktx")
+		build := exec.Command("go", "build", "-o", actualKtx, "./cmd/ktx")
+		build.Dir = filepath.Clean(filepath.Join("..", ".."))
+		if output, err := build.CombinedOutput(); err != nil {
+			t.Fatalf("build current ktx: %v\n%s", err, output)
+		}
+
+		firstData := filepath.Join(root, "first-data")
+		secondData := filepath.Join(root, "second-data")
+		for _, data := range []string{firstData, secondData} {
+			if err := os.MkdirAll(filepath.Join(data, "ktx"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		firstDB := filepath.Join(firstData, "ktx", "ktx.db")
+		secondDB := filepath.Join(secondData, "ktx", "ktx.db")
+		seedSchemaVersion(t, firstDB, dbpkg.MaxSupportedSchema()+1)
+		seedSchemaVersion(t, secondDB, dbpkg.MaxSupportedSchema()+2)
+
+		driverPath := filepath.Join(root, "actual-envelope-driver.ts")
+		driver := `import plugin from ` + strconv.Quote(pluginPath) + `
+const hooks: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
+const input = {tool:"bash",sessionID:"ses_1",callID:"call_1",args:{}}
+const invoke = async () => {
+  const output: any = {title:"tool",output:"original tool output",metadata:{kept:true}}
+  await hooks["tool.execute.after"](input, output)
+  return output.output
+}
+const results = [await invoke(), await invoke()]
+process.env.XDG_DATA_HOME = process.env.KTX_TEST_SECOND_DATA_HOME
+results.push(await invoke())
+console.log(JSON.stringify(results))
+`
+		if err := os.WriteFile(driverPath, []byte(driver), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, dir := range []string{"home", "config", "cache", "state", "tmp"} {
+			if err := os.Mkdir(filepath.Join(root, dir), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		cmd := exec.Command(bun, driverPath)
+		cmd.Env = []string{
+			"PATH=" + actualBinDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+			"HOME=" + filepath.Join(root, "home"),
+			"XDG_DATA_HOME=" + firstData,
+			"XDG_CONFIG_HOME=" + filepath.Join(root, "config"),
+			"XDG_CACHE_HOME=" + filepath.Join(root, "cache"),
+			"XDG_STATE_HOME=" + filepath.Join(root, "state"),
+			"TMPDIR=" + filepath.Join(root, "tmp"),
+			"KTX_TEST_SECOND_DATA_HOME=" + secondData,
+		}
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("actual envelope driver: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+		}
+		var results []string
+		if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &results); err != nil {
+			t.Fatalf("decode results: %v: %q", err, stdout.String())
+		}
+		if !reflect.DeepEqual(results, []string{"original tool output", "original tool output", "original tool output"}) {
+			t.Fatalf("schema rejection changed outputs: %#v", results)
+		}
+
+		lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("diagnostics=%q, want one for repeated state and one for distinct state", lines)
+		}
+		for index, line := range lines {
+			var envelope struct {
+				Error map[string]any `json:"error"`
+			}
+			if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+				t.Fatalf("decode diagnostic %d: %v: %q", index+1, err, line)
+			}
+			if envelope.Error["code"] != "schema-incompatible" ||
+				envelope.Error["actual_schema"] != float64(dbpkg.MaxSupportedSchema()+index+1) ||
+				envelope.Error["maximum_schema"] != float64(dbpkg.MaxSupportedSchema()) {
+				t.Errorf("diagnostic %d=%#v", index+1, envelope.Error)
+			}
+			if _, exists := envelope.Error["build_version"]; exists {
+				t.Errorf("diagnostic %d retained build_version: %#v", index+1, envelope.Error)
+			}
 		}
 	})
 
@@ -759,36 +836,8 @@ console.log("ok")
 		}
 	})
 
-	t.Run("database maximum does not version the generated adapter", func(t *testing.T) {
-		output, calls, stderr := run(t, "KTX_TEST_BAD_RESPONSE=identity-different-max-schema")
-		if output["output"] != "compressed tool output" || len(calls) != 7 || strings.Contains(stderr, "plugin disabled") {
-			t.Fatalf("output=%#v calls=%q stderr=%q", output, calls, stderr)
-		}
-	})
-
-	for _, test := range []struct {
-		response string
-		want     string
-	}{
-		{response: "identity-malformed", want: "response must be a JSON object"},
-		{response: "identity-contract", want: "response schema mismatch"},
-		{response: "identity-path", want: "executable path mismatch"},
-		{response: "identity-digest", want: "executable digest mismatch"},
-		{response: "identity-version", want: "build version is blank"},
-		{response: "identity-max-schema", want: "maximum database schema is invalid"},
-	} {
-		t.Run("ordinary mode disables invalid candidate "+test.response, func(t *testing.T) {
-			output, calls, stderr := run(t, "KTX_TEST_BAD_RESPONSE="+test.response)
-			if output["output"] != "original tool output" || len(calls) != 0 ||
-				!strings.Contains(stderr, "plugin disabled") || !strings.Contains(stderr, test.want) {
-				t.Fatalf("output=%#v calls=%q stderr=%q", output, calls, stderr)
-			}
-		})
-	}
-
 	t.Run("required benchmark mode retains and serializes every callback", func(t *testing.T) {
 		output, calls, _ := run(t,
-			"KTX_TEST_BAD_RESPONSE=identity-different-max-schema",
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa",
 			"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2",
@@ -913,7 +962,6 @@ console.log("ok")
 	})
 
 	for _, bad := range []string{
-		"identity-malformed", "identity-contract", "identity-path", "identity-digest", "identity-version", "identity-max-schema",
 		"collector-session", "collector-interval", "collector-epoch", "collector-kind", "collector-ordinal", "collector-type", "collector-contract", "collector-malformed", "collector-missing",
 		"event-session", "event-interval", "event-epoch", "event-kind", "event-contract", "event-missing", "hook-envelope",
 	} {

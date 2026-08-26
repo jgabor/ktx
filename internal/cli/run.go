@@ -79,11 +79,10 @@ const maxAgentLine = 64 * 1024 * 1024
 var runCmd = exec.CommandContext
 
 type runOptions struct {
-	Format                string
-	Quiet                 bool
-	RecordStream          bool
-	CollectionID          string
-	ExpectedRuntimeSHA256 string
+	Format       string
+	Quiet        bool
+	RecordStream bool
+	CollectionID string
 }
 
 // runRunWith executes `ktx run` with injected output streams.
@@ -199,7 +198,7 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 		printError(stderr, internalError("ktx run: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256, "run")
+	db, err := openDatabase(target, "run")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)
@@ -427,11 +426,10 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 	agent := ctx.Args[0]
 
 	opts := runOptions{
-		Format:                ctx.Format,
-		Quiet:                 ctx.Quiet || postAgentQuiet,
-		RecordStream:          parsed.recordStream || postAgentRecordStream,
-		CollectionID:          parsed.collectionID,
-		ExpectedRuntimeSHA256: ctx.ExpectedRuntimeSHA256,
+		Format:       ctx.Format,
+		Quiet:        ctx.Quiet || postAgentQuiet,
+		RecordStream: parsed.recordStream || postAgentRecordStream,
+		CollectionID: parsed.collectionID,
 	}
 
 	exitCode := executeRun(agent, agentArgs, opts, ctx.Stdout, ctx.Stderr)

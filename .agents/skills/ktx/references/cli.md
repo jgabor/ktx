@@ -13,26 +13,25 @@ clear.
 ktx [--format text|json] [--quiet|-q] <command> [args]
 ```
 
-| Command               | Purpose                                                            | Database behavior          |
-| --------------------- | ------------------------------------------------------------------ | -------------------------- |
-| `run`                 | Wrap an agent process and record events                            | Write-capable              |
-| `init`                | Install or remove OpenCode/Codex adapters                          | DB-free                    |
-| `hook`                | Adapter ingress: persist and compress a tool result                | Write-capable              |
-| `write`               | Persist a flat sidecar tool-call record                            | Write-capable              |
-| `list`                | List sessions                                                      | Read-only                  |
-| `get`                 | Formatted lookup of tool call or session                           | Read-only                  |
-| `read`                | Raw JSON lookup of tool call or session                            | Read-only                  |
-| `compress`            | Explicitly compress one persisted tool call                        | Write-capable              |
-| `decompress`          | Return original bytes referenced by compressed ID                  | Read-only                  |
-| `config`              | Inspect active profiles and routes                                 | DB-free                    |
-| `plugin`              | Manage external compression stages                                 | DB-free                    |
-| `stats`               | Rank residual context or emit window summary and breakdown reports | Read-only                  |
-| `telemetry`           | Record or inspect optional model-step observations                 | Mixed                      |
-| `doctor`              | Diagnose an existing database and installation                     | Read-only inspection       |
-| `db`                  | Path, read-only report, and explicit migration                     | Mixed                      |
-| `prices`              | Inspect or update the models.dev price cache                       | DB-free, network on update |
-| `binary-capabilities` | Report executable identity and max schema                          | DB-free                    |
-| `bench`               | Run, compare, validate, replay, and report benchmarks              | Mixed                      |
+| Command      | Purpose                                                            | Database behavior          |
+| ------------ | ------------------------------------------------------------------ | -------------------------- |
+| `run`        | Wrap an agent process and record events                            | Write-capable              |
+| `init`       | Install or remove OpenCode/Codex adapters                          | DB-free                    |
+| `hook`       | Adapter ingress: persist and compress a tool result                | Write-capable              |
+| `write`      | Persist a flat sidecar tool-call record                            | Write-capable              |
+| `list`       | List sessions                                                      | Read-only                  |
+| `get`        | Formatted lookup of tool call or session                           | Read-only                  |
+| `read`       | Raw JSON lookup of tool call or session                            | Read-only                  |
+| `compress`   | Explicitly compress one persisted tool call                        | Write-capable              |
+| `decompress` | Return original bytes referenced by compressed ID                  | Read-only                  |
+| `config`     | Inspect active profiles and routes                                 | DB-free                    |
+| `plugin`     | Manage external compression stages                                 | DB-free                    |
+| `stats`      | Rank residual context or emit window summary and breakdown reports | Read-only                  |
+| `telemetry`  | Record or inspect optional model-step observations                 | Mixed                      |
+| `doctor`     | Diagnose an existing database and installation                     | Read-only inspection       |
+| `db`         | Path, read-only report, and explicit migration                     | Mixed                      |
+| `prices`     | Inspect or update the models.dev price cache                       | DB-free, network on update |
+| `bench`      | Run, compare, validate, replay, and report benchmarks              | Mixed                      |
 
 Use `ktx <command> --help` for the syntax and outcomes it documents. Not every
 help surface lists all nested flags or exit codes; project docs and this skill
@@ -59,10 +58,6 @@ ktx db --path <file> ... > KTX_DB > $XDG_DATA_HOME/ktx/ktx.db
 The `--path` override belongs to the `db` namespace. Use `KTX_DB` to select a
 database for normal commands.
 
-Every database-backed command against the ambient default path also requires
-`--expect-runtime-sha256 <verified-digest>`. The command validates that proof
-before path inspection. Explicit `KTX_DB` and `db --path` targets are exempt.
-
 ## Adapter Workflows
 
 ### OpenCode
@@ -83,12 +78,11 @@ The generated plugin has two hooks:
 - `tool.execute.after` invokes `ktx hook` for persistence/compression.
 - `event` invokes `ktx telemetry record` for accepted model steps.
 
-Each database-backed callback passes the verified digest of the pinned binary
-through `--expect-runtime-sha256`. The callback waits for KTX and adds no outer
-timeout.
+Each callback invokes the pinned binary and adds no outer timeout.
 
-Re-run the installer after replacing ktx, then restart OpenCode. The plugin pins
-one verified absolute binary path and digest for its lifetime. OpenCode telemetry
+Restart OpenCode after installation. Regenerate the plugin and restart OpenCode
+only to pick up generated source changes. The plugin pins one canonical absolute
+binary path for its lifetime. OpenCode telemetry
 is currently contracted against OpenCode 1.18.5; later event contracts require
 review before making equivalent claims.
 
@@ -107,9 +101,9 @@ ktx init codex --uninstall
 Install merges one `PostToolUse` entry and preserves unrelated hooks. After
 install, run `/hooks` in Codex to trust the hook. Codex uninstall honors the
 selected scope: global by default or project with `--project`.
-The generated command pins the installing executable, embeds its digest as
-`--expect-runtime-sha256`, and omits Codex's optional timeout. Re-run the
-installer after replacing the binary.
+The generated command pins the installing executable's canonical absolute path
+and omits Codex's optional timeout. Regenerate it only to pick up generated
+source changes.
 
 ## Wrapper Collection
 
@@ -241,7 +235,6 @@ ktx db report --output -
 ktx db --path "$KTX_OWNED_DB" migrate
 ktx prices path
 ktx prices update --format json
-ktx binary-capabilities --format json
 ```
 
 - `doctor` and `db report` automatically prepare a supported older schema, then
@@ -254,8 +247,6 @@ ktx binary-capabilities --format json
   the selected target; never substitute the ambient live database for
   development, test, CI, or rehearsal.
 - `prices update` performs a network fetch and atomically rewrites the cache.
-- `binary-capabilities` reports canonical path, SHA-256, build version, and
-  maximum supported schema without opening a database.
 
 ## Output and Exit Conventions
 
@@ -263,7 +254,7 @@ ktx binary-capabilities --format json
   read-only diagnosis; inspect structured status.
 - `1`: usage or input contract error.
 - `2`: not found where applicable.
-- `3`: conflict, including a binary digest mismatch where applicable.
+- `3`: conflict.
 - `4`: internal, integrity, verification, or hard health failure.
 - `5`: schema incompatible on database access.
 

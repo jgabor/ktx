@@ -1,0 +1,13 @@
+id: zgvgzytlhu
+artifact: plan
+record:
+  name: Supersede the executable identity policy
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the unreleased product boundary WHEN executable identity policy is read THEN prior requirements for the capability command, both digest flags, compatibility parsing, startup self-report verification, and digest-based adapter validation are explicitly superseded.
+    - GIVEN adapters select KTX WHEN the revised contract is read THEN canonical absolute-path pinning remains the selection safeguard.
+    - GIVEN database-backed execution WHEN the revised contract is read THEN database safety, not executable hashing, owns data protection.
+    - GIVEN artifact verification is discussed WHEN the revised contract is read THEN it belongs only at a download or installation boundary.
+  plan: crmpbcogem

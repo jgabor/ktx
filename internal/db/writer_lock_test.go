@@ -9,7 +9,6 @@ func TestBlockerCommandLabelUsesClosedVocabulary(t *testing.T) {
 	}{
 		{[]string{"ktx", "hook", "--payload", "secret"}, "hook"},
 		{[]string{"ktx", "--format", "json", "get", "secret-id"}, "get"},
-		{[]string{"ktx", "--expect-runtime-sha256=secret", "telemetry", "record", "secret"}, "telemetry record"},
 		{[]string{"ktx", "db", "report", "/secret/path"}, "db report"},
 		{[]string{"ktx", "db", "--path", "/secret/path", "migrate"}, "db migrate"},
 		{[]string{"ktx", "telemetry", "unsupported"}, "unknown"},

@@ -46,16 +46,13 @@ type dbMigrateResult struct {
 	Migrated     bool   `json:"migrated"`
 }
 
-func dbMigrateLogic(pathOverride, expectedSHA256 string, args []string, format string, stdout io.Writer) (any, error) {
+func dbMigrateLogic(pathOverride string, args []string, format string, stdout io.Writer) (any, error) {
 	if len(args) > 0 {
 		return nil, usageError("ktx db migrate: unexpected argument %q", args[0])
 	}
 	target, err := dbpkg.ResolveTarget(pathOverride)
 	if err != nil {
 		return nil, internalError("ktx db migrate: resolve database path: %v", err)
-	}
-	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
-		return nil, err
 	}
 	canonical, err := dbpkg.CanonicalPath(target.Path)
 	if err != nil {
@@ -80,7 +77,7 @@ func dbMigrateLogic(pathOverride, expectedSHA256 string, args []string, format s
 
 	after := before
 	if before < dbpkg.MaxSupportedSchema() {
-		database, err := openExistingDatabase(target, expectedSHA256, "db migrate")
+		database, err := openExistingDatabase(target, "db migrate")
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +101,7 @@ func dbMigrateLogic(pathOverride, expectedSHA256 string, args []string, format s
 
 // dbReportLogic prepares an existing supported older database, then renders a
 // read-only evidence report.
-func dbReportLogic(pathOverride, expectedSHA256 string, args []string, stdout io.Writer) (any, error) {
+func dbReportLogic(pathOverride string, args []string, stdout io.Writer) (any, error) {
 	fs := flag.NewFlagSet("ktx db report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var output string
@@ -120,9 +117,6 @@ func dbReportLogic(pathOverride, expectedSHA256 string, args []string, stdout io
 	target, err := dbpkg.ResolveTarget(pathOverride)
 	if err != nil {
 		return nil, internalError("ktx db report: resolve database path: %v", err)
-	}
-	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
-		return nil, err
 	}
 	aliasesSource, err := destinationAliasesSource(target.Path, output)
 	if err != nil {
@@ -186,9 +180,9 @@ func dbCommandFunc(ctx *DispatchContext) (any, error) {
 	case "path":
 		return dbPathLogic(parsed.pathOverride, ctx.Stdout)
 	case "report":
-		return dbReportLogic(parsed.pathOverride, ctx.ExpectedRuntimeSHA256, rest, ctx.Stdout)
+		return dbReportLogic(parsed.pathOverride, rest, ctx.Stdout)
 	case "migrate":
-		return dbMigrateLogic(parsed.pathOverride, ctx.ExpectedRuntimeSHA256, rest, ctx.Format, ctx.Stdout)
+		return dbMigrateLogic(parsed.pathOverride, rest, ctx.Format, ctx.Stdout)
 	case "prune":
 		return nil, usageError("ktx db prune: not implemented")
 	default:

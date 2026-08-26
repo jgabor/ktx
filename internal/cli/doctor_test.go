@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jgabor/ktx/internal/binarycap"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
@@ -321,14 +320,8 @@ func TestDoctorMissingDisposableDefaultIsNotCreated(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
 	wantPath := filepath.Join(root, "data", "ktx", "ktx.db")
-	originalIdentity := currentBinaryCapabilities
-	currentBinaryCapabilities = func() (binarycap.Identity, error) {
-		return binarycap.Identity{ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest}, nil
-	}
-	t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
-
 	var stdout, stderr bytes.Buffer
-	code := runDoctorWith(nil, Options{Format: FormatJSON, ExpectedRuntimeSHA256: testBinaryDigest}, &stdout, &stderr)
+	code := runDoctorWith(nil, Options{Format: FormatJSON}, &stdout, &stderr)
 	if code != ExitInternal {
 		t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
 	}
@@ -350,7 +343,7 @@ func TestDoctorAuditsInspectionBeforeReadOnlyOpen(t *testing.T) {
 	t.Setenv("KTX_VERIFY_DB_AUDIT", audit)
 	t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", "[]")
 
-	report := buildDoctorReport("")
+	report := buildDoctorReport()
 	if report.Status != doctorStatusOK {
 		t.Fatalf("doctor status = %q", report.Status)
 	}
@@ -372,7 +365,7 @@ func TestDoctorAuditRejectsBeforeInspectionSideEffects(t *testing.T) {
 	t.Setenv("KTX_VERIFY_DB_AUDIT", audit)
 	t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", string(forbidden))
 
-	report := buildDoctorReport("")
+	report := buildDoctorReport()
 	if report.Status != doctorStatusError {
 		t.Fatalf("doctor status = %q, want error", report.Status)
 	}
@@ -400,7 +393,7 @@ func TestDoctorAuditFailuresAreFailClosed(t *testing.T) {
 			t.Setenv("KTX_DB", path)
 			t.Setenv("KTX_VERIFY_DB_AUDIT", test.auditPath(root))
 			t.Setenv("KTX_VERIFY_FORBIDDEN_DB_PATHS", test.forbidden)
-			report := buildDoctorReport("")
+			report := buildDoctorReport()
 			if report.Status != doctorStatusError || len(report.Checks) != 1 || report.Checks[0].Name != "database_path" {
 				t.Fatalf("doctor report = %#v", report)
 			}

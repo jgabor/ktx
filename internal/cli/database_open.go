@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jgabor/ktx/internal/config"
@@ -11,10 +13,7 @@ import (
 	"github.com/jgabor/ktx/internal/logging"
 )
 
-func openDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
-	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
-		return nil, err
-	}
+func openDatabase(target dbpkg.Target, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.Open(target.Path)
 	if err == nil {
 		return database, nil
@@ -22,10 +21,7 @@ func openDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.D
 	return nil, databaseOpenError(target.Path, command, err)
 }
 
-func openHookDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
-	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
-		return nil, err
-	}
+func openHookDatabase(target dbpkg.Target, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.OpenHook(target.Path)
 	if err == nil {
 		return database, nil
@@ -33,10 +29,7 @@ func openHookDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbp
 	return nil, databaseOpenError(target.Path, command, err)
 }
 
-func openExistingDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
-	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
-		return nil, err
-	}
+func openExistingDatabase(target dbpkg.Target, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.OpenExisting(target.Path)
 	if err == nil {
 		return database, nil
@@ -44,10 +37,7 @@ func openExistingDatabase(target dbpkg.Target, expectedSHA256, command string) (
 	return nil, databaseOpenError(target.Path, command, err)
 }
 
-func openQueryDatabase(target dbpkg.Target, expectedSHA256, command string) (*dbpkg.DB, error) {
-	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
-		return nil, err
-	}
+func openQueryDatabase(target dbpkg.Target, command string) (*dbpkg.DB, error) {
 	database, err := dbpkg.OpenQuery(target.Path)
 	if err == nil {
 		return database, nil
@@ -59,6 +49,18 @@ func queryDatabaseOpenError(path, command string, err error) error {
 	return databaseOpenError(path, command, err)
 }
 
+func currentExecutablePath() (string, error) {
+	path, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Abs(path)
+}
+
 func databaseOpenError(path, command string, err error) error {
 	if classified := classifyDatabaseError(path, command, err, dbpkg.OperationOpen, time.Now()); classified != nil {
 		return classified
@@ -67,27 +69,24 @@ func databaseOpenError(path, command string, err error) error {
 	if !errors.As(err, &schemaErr) {
 		return err
 	}
-	identity, identityErr := currentBinaryCapabilities()
-	if identityErr != nil {
-		return internalError("runtime identity is unavailable after detecting an incompatible database schema: %v", identityErr)
-	}
 	canonicalDB, canonicalErr := dbpkg.CanonicalPath(path)
 	if canonicalErr != nil {
 		return internalError("canonicalize incompatible database path: %v", canonicalErr)
 	}
+	executablePath, err := currentExecutablePath()
+	if err != nil {
+		return internalError("resolve running executable path: %v", err)
+	}
 	correction := fmt.Sprintf("install and verify a ktx binary supporting database schema %d or newer, then retry; do not lower PRAGMA user_version", schemaErr.Actual)
 	failure := newError(CodeSchemaIncompatible,
-		"database schema %d at %s is newer than maximum schema %d supported by %s (%s, %s); %s",
-		schemaErr.Actual, canonicalDB, schemaErr.Maximum, identity.ExecutablePath,
-		identity.ExecutableSHA256, identity.BuildVersion, correction)
+		"database schema %d at %s is newer than maximum schema %d supported by %s; %s",
+		schemaErr.Actual, canonicalDB, schemaErr.Maximum, executablePath, correction)
 	failure.Extra = map[string]any{
-		"actual_schema":     schemaErr.Actual,
-		"maximum_schema":    schemaErr.Maximum,
-		"database_path":     canonicalDB,
-		"executable_path":   identity.ExecutablePath,
-		"executable_sha256": identity.ExecutableSHA256,
-		"build_version":     identity.BuildVersion,
-		"correction":        correction,
+		"actual_schema":   schemaErr.Actual,
+		"maximum_schema":  schemaErr.Maximum,
+		"database_path":   canonicalDB,
+		"executable_path": executablePath,
+		"correction":      correction,
 	}
 	return failure
 }
@@ -136,23 +135,22 @@ func databaseUnavailableError(path, command string, details *dbpkg.DatabaseUnava
 	if err != nil {
 		return internalError("canonicalize unavailable database path: %v", err)
 	}
-	identity, err := currentBinaryCapabilities()
+	executablePath, err := currentExecutablePath()
 	if err != nil {
-		return internalError("runtime identity is unavailable after detecting database unavailability: %v", err)
+		return internalError("resolve running executable path: %v", err)
 	}
 	correction := "wait for the other database client to finish, then retry"
 	failure := newError(CodeDatabaseUnavailable,
 		"database at %s is unavailable; %s", canonicalDB, correction)
 	failure.Extra = map[string]any{
 		"database_path":            canonicalDB,
-		"executable_path":          identity.ExecutablePath,
-		"executable_sha256":        identity.ExecutableSHA256,
+		"executable_path":          executablePath,
 		"failure_class":            details.Class,
 		"operation_phase":          details.Phase,
 		"elapsed_wait_nanoseconds": details.ElapsedWait.Nanoseconds(),
 		"correction":               correction,
 	}
-	writeDatabaseUnavailableEvent(command, canonicalDB, identity.ExecutablePath, identity.ExecutableSHA256, details)
+	writeDatabaseUnavailableEvent(command, canonicalDB, executablePath, details)
 	return failure
 }
 
@@ -161,17 +159,16 @@ func databaseDeadlineError(path string, details *dbpkg.DeadlineExceeded) error {
 	if err != nil {
 		return internalError("canonicalize timed-out database path: %v", err)
 	}
-	identity, err := currentBinaryCapabilities()
+	executablePath, err := currentExecutablePath()
 	if err != nil {
-		return internalError("runtime identity is unavailable after %s: %v", details.Attribution, err)
+		return internalError("resolve running executable path: %v", err)
 	}
 	correction := "retry the command; if the deadline repeats, reduce competing database work or use a faster local database target"
 	failure := newError(ErrorCode(details.Attribution),
 		"database operation at %s exceeded the KTX-owned %s deadline; %s", canonicalDB, details.Phase, correction)
 	failure.Extra = map[string]any{
 		"database_path":            canonicalDB,
-		"executable_path":          identity.ExecutablePath,
-		"executable_sha256":        identity.ExecutableSHA256,
+		"executable_path":          executablePath,
 		"operation_phase":          details.Phase,
 		"elapsed_wait_nanoseconds": details.Elapsed.Nanoseconds(),
 		"correction":               correction,
@@ -179,7 +176,7 @@ func databaseDeadlineError(path string, details *dbpkg.DeadlineExceeded) error {
 	return failure
 }
 
-func writeDatabaseUnavailableEvent(command, databasePath, executablePath, executableSHA256 string, details *dbpkg.DatabaseUnavailable) {
+func writeDatabaseUnavailableEvent(command, databasePath, executablePath string, details *dbpkg.DatabaseUnavailable) {
 	cfg, err := config.LoadLogs()
 	if err != nil || cfg == nil {
 		return
@@ -202,7 +199,6 @@ func writeDatabaseUnavailableEvent(command, databasePath, executablePath, execut
 	logging.AppendDatabaseUnavailable(logging.Config{Level: level, Path: path}, databasePath, logging.DatabaseUnavailable{
 		Command:                      command,
 		ExecutablePath:               executablePath,
-		ExecutableSHA256:             executableSHA256,
 		DatabasePath:                 databasePath,
 		FailureClass:                 details.Class,
 		OperationPhase:               details.Phase,

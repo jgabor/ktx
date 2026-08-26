@@ -29,8 +29,6 @@ sortable form, malformed timestamps remain null but still advance the cursor,
 and new artifacts populate both timestamp forms. One final transaction removes
 the cursor and publishes schema 16. It does not build a history-sized index.
 
-Ambient Open-backed access still requires the per-invocation runtime digest
-proof before path inspection, directory creation, SQLite open, or preparation.
 Explicit disposable or operator-owned paths retain their existing ownership
 rules. A schema newer than the binary always fails before writes. Recovery is
 forward-only: install a binary that supports the schema, and never lower

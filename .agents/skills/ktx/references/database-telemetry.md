@@ -10,7 +10,7 @@ live telemetry can support.
 
 ### DB-free
 
-Help, version, adapter/config/plugin management, `binary-capabilities`, `db
+Help, version, adapter/config/plugin management, `db
 path`, prices path/update, replay-file, comparison preflight, corpus generation,
 and evidence preflight do not open the ktx database.
 
@@ -83,7 +83,7 @@ schema or newer. Never lower `PRAGMA user_version`.
 Use DB-free identity diagnostics when binary/schema provenance matters:
 
 ```bash
-ktx binary-capabilities --format json
+
 ```
 
 ## Stats Semantics

@@ -1,0 +1,16 @@
+id: hzkwnclehu
+artifact: progress
+record:
+  timestamp: 2026-08-26 17:41
+  type: docs
+  phase: build
+  what: Recorded the unreleased-product policy that removes executable digest ceremony while retaining canonical absolute-path adapter pinning and the existing database safety boundary.
+  context:
+    intent: Supersede executable identity policy before implementation changes.
+    constraints: Policy and project state only; breaking removal with no compatibility aliases or ignored flags.
+    unknowns: None for this policy task.
+    scope: Agentera decision, progress, and plan task state for zgvgzytlhu.
+  discovered: The superseded surface includes `ktx binary-capabilities`, `--expect-sha256`, root `--expect-runtime-sha256`, compatibility parsing, startup self-report verification, digest-based adapter validation, per-invocation proof, and digest-driven adapter refresh.
+  verified: Agentera decision algmjykxaq explicitly supersedes the executable-identity portions of iklzthoapi, pkncauwnqe, and yyorkhqcyb; its effective choice names both flags, preserves canonical absolute-path pinning, assigns data protection to database safety, and limits artifact digest verification to download or installation boundaries. Decision lint passed after amendment. No implementation files changed.
+  next: Implement the simplified executable and adapter contract in the dependent plan tasks.
+  publication_order: 173

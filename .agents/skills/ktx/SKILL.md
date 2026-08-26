@@ -25,8 +25,7 @@ and reports live or benchmark measurements.
    - Repository development or verification.
 2. Resolve the executable and data scope:
    - In this checkout, build with `mage build` and invoke `./build/ktx`.
-   - For installed operator use, invoke `ktx` and confirm with
-     `ktx binary-capabilities --format json` when binary identity matters.
+   - For installed operator use, invoke `ktx`.
    - Print the currently resolved database path with `ktx db path`; it honors
      `KTX_DB`.
    - Set `KTX_DB="$KTX_OWNED_DB"` only after preconfirming the target for
@@ -83,8 +82,8 @@ ktx init codex --show
 
 Use `--project` to scope installation. OpenCode uninstall checks both global and
 project candidate files; Codex uninstall honors the selected global or project
-scope. Both remove only ktx's adapter entries. After installing or refreshing
-the OpenCode plugin, restart OpenCode. After installing the Codex hook, run
+scope. Both remove only ktx's adapter entries. After installing the OpenCode
+plugin, restart OpenCode. After installing the Codex hook, run
 `/hooks` in Codex to trust it.
 
 ### Wrap an agent and inspect the session
@@ -124,8 +123,8 @@ runtime contract by token volume rather than averaging their percentages.
 OpenCode collection and half-open UTC window. It validates the pinned controlled
 candidate artifacts and fails closed on missing delivery, disposition, recovery,
 run closure, latency, or continuity authority. A blocked report is still emitted
-and exits 3. Do not run the explicit collection, migrate an operator database, or
-refresh an installed adapter without separate authorization.
+and exits 3. Do not run the explicit collection or migrate an operator database
+without separate authorization.
 
 ### Inspect records and model telemetry
 
@@ -235,7 +234,6 @@ investigate and correct the summary rather than treating it as canonical.
 - `docs/pipelines.md`: pipeline, stats, replay, and benchmark contracts.
 - `docs/database-safety.md`: authoritative database command classes.
 - `docs/opencode-telemetry.md`: OpenCode plugin and model-step contract.
-- `docs/binary-capabilities.md`: executable identity and schema compatibility.
 
 ## Common Mistakes
 

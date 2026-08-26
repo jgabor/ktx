@@ -41,11 +41,10 @@ type Config struct {
 }
 
 // DatabaseUnavailable is the closed database-unavailable event schema.
-// Paths and the executable hash are sensitive retained identifiers.
+// Database paths are sensitive retained identifiers.
 type DatabaseUnavailable struct {
 	Command                      string
 	ExecutablePath               string
-	ExecutableSHA256             string
 	DatabasePath                 string
 	FailureClass                 string
 	OperationPhase               string
@@ -68,7 +67,6 @@ type databaseUnavailableRecord struct {
 	Event                        string        `json:"event"`
 	Command                      string        `json:"ktx_command"`
 	ExecutablePath               string        `json:"executable_path"`
-	ExecutableSHA256             string        `json:"executable_sha256"`
 	DatabasePath                 string        `json:"database_path"`
 	FailureClass                 string        `json:"failure_class"`
 	OperationPhase               string        `json:"operation_phase"`
@@ -89,7 +87,6 @@ func AppendDatabaseUnavailable(cfg Config, databasePath string, event DatabaseUn
 		Event:                        "database-unavailable",
 		Command:                      event.Command,
 		ExecutablePath:               event.ExecutablePath,
-		ExecutableSHA256:             event.ExecutableSHA256,
 		DatabasePath:                 event.DatabasePath,
 		FailureClass:                 event.FailureClass,
 		OperationPhase:               event.OperationPhase,

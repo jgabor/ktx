@@ -1,0 +1,16 @@
+id: ymxrxyecnc
+artifact: progress
+record:
+  timestamp: 2026-08-26 18:15
+  type: fix
+  phase: build
+  what: Deleted executable digest ceremony from the CLI, database access, adapters, diagnostics, and active documentation while retaining canonical executable-path pinning.
+  context:
+    intent: Execute only plan task dfswxmvkjt.
+    constraints: Preserved path-only OpenCode and Codex adapters, automatic schema readiness, post-readiness read-only queries, and forward-only newer-schema rejection.
+    unknowns: None. The retained historical external campaign identity checker is evidence-specific and does not expose or authorize ordinary KTX execution.
+    scope: CLI registration and parsing, database open plumbing, generated-adapter-facing diagnostics, logging schema, tests, README, database and telemetry docs, example config, and KTX skill references.
+  discovered: Canonical executable path remains actionable in generated-adapter failure containment; only executable hashing and digest authorization were removed.
+  verified: mage build passed. Focused cli/db/logging tests passed. mage check passed, including generated-adapter overlap and a database-safety audit with KTX_DB unset and forbidden=0. Local ./build/ktx list succeeded without a digest; binary-capabilities, --expect-runtime-sha256, and --expect-sha256 each exited 1 and left the disposable ambient database absent.
+  next: Run the plan's separate simplified-product verification task, then synchronize final project state.
+  publication_order: 175

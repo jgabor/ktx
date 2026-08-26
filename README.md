@@ -31,11 +31,10 @@ Mage, use `go build -o build/ktx ./cmd/ktx`.
 ### Wrap a process
 
 ```bash
-: "${KTX_RUNTIME_SHA256:?set this to the verified binary-capabilities digest}"
-ktx --expect-runtime-sha256 "$KTX_RUNTIME_SHA256" run opencode run --format json "What is 2+2?"
-ktx --expect-runtime-sha256 "$KTX_RUNTIME_SHA256" list --format text
+ktx run opencode run --format json "What is 2+2?"
+ktx list --format text
 : "${KTX_TARGET_SESSION_ID:?set this to a session ID returned by list}"
-ktx --expect-runtime-sha256 "$KTX_RUNTIME_SHA256" get "$KTX_TARGET_SESSION_ID" --format text
+ktx get "$KTX_TARGET_SESSION_ID" --format text
 ```
 
 `ktx run` prints the wrapped process output, then a one-line session summary.
@@ -95,24 +94,23 @@ troubleshooting.
 
 ## Commands
 
-| Command                   | Purpose                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `run`                     | Wrap an invocation and record the session                                                                              |
-| `hook`                    | In-flight tool-output compression, called by runtime adapters                                                          |
-| `list` / `get`            | List sessions; query one by ID (formatted)                                                                             |
-| `stats`                   | Per-tool-call statistics ranked by delivered tokens                                                                    |
-| `read`                    | Fetch a persisted record by ID (raw JSON)                                                                              |
-| `compress` / `decompress` | Compress a record's output; reverse it verbatim                                                                        |
-| `init`                    | Install a runtime adapter                                                                                              |
-| `plugin`                  | Manage compression plugins                                                                                             |
-| `config`                  | Inspect active pipeline configuration                                                                                  |
-| `db`                      | Database path, reporting, and maintenance (`db migrate`)                                                               |
-| `telemetry`               | Record and inspect optional model-step token evidence                                                                  |
-| `prices`                  | Manage the local models.dev pricing cache                                                                              |
-| `write`                   | Persist a tool-call record from sidecar input                                                                          |
-| `doctor`                  | Check ktx health                                                                                                       |
-| `binary-capabilities`     | Print the installed build's path, SHA-256, version, and max supported database schema; used to pin a binary in scripts |
-| `bench`                   | Benchmark runs, experiments, and reports                                                                               |
+| Command                   | Purpose                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `run`                     | Wrap an invocation and record the session                     |
+| `hook`                    | In-flight tool-output compression, called by runtime adapters |
+| `list` / `get`            | List sessions; query one by ID (formatted)                    |
+| `stats`                   | Per-tool-call statistics ranked by delivered tokens           |
+| `read`                    | Fetch a persisted record by ID (raw JSON)                     |
+| `compress` / `decompress` | Compress a record's output; reverse it verbatim               |
+| `init`                    | Install a runtime adapter                                     |
+| `plugin`                  | Manage compression plugins                                    |
+| `config`                  | Inspect active pipeline configuration                         |
+| `db`                      | Database path, reporting, and maintenance (`db migrate`)      |
+| `telemetry`               | Record and inspect optional model-step token evidence         |
+| `prices`                  | Manage the local models.dev pricing cache                     |
+| `write`                   | Persist a tool-call record from sidecar input                 |
+| `doctor`                  | Check ktx health                                              |
+| `bench`                   | Benchmark runs, experiments, and reports                      |
 
 Run `ktx <command> --help` for details.
 
@@ -142,17 +140,6 @@ its logical-empty or missing-input behavior. A database newer than the binary
 fails before writes and recovers only by installing a compatible binary. The
 [database safety contract](docs/database-safety.md) defines command classes,
 hermetic development, seeded migration rehearsal, and the readiness boundary.
-
-Access to the ambient default database also requires the verified executable
-digest on each invocation:
-
-```text
-ktx --expect-runtime-sha256 <digest-from-binary-capabilities> <database-command>
-```
-
-Explicit `KTX_DB` and `db --path` targets are exempt. Generated OpenCode and
-Codex callbacks pass the digest for their pinned binary automatically and add no
-outer timeout.
 
 ## Benchmarking
 
@@ -258,16 +245,7 @@ and keep reusable language and tool caches separate. The
 mage replayFixture # bounded offline gate for the retained portable fixture
 mage verify        # authoritative local and CI verification
 mage build         # build build/ktx
-mage install       # install the development binary and refresh enabled adapters
 ```
-
-`mage install` records the managed OpenCode and Codex adapters already present
-in global and current-project scopes, installs the development binary, and
-refreshes only those adapters. It does not enable absent integrations. A refresh
-failure fails the target and prints an exact `ktx init` recovery command for
-each failed scope. After a successful OpenCode refresh, restart OpenCode. After
-a successful Codex refresh, restart Codex, then run `/hooks` and trust the
-refreshed hook.
 
 For optional extended engineering evidence, run
 `KTX_ENGINEERING_EVIDENCE_DIR=<new-directory> mage engineeringVerify` with a
@@ -305,7 +283,6 @@ and pull request. Verification requires both `golangci-lint` and
 | [`docs/opencode-telemetry.md`](docs/opencode-telemetry.md)                   | Adapter install, hooks, telemetry runbook                  |
 | [`docs/database-safety.md`](docs/database-safety.md)                         | Command classes, hermetic development, migration rehearsal |
 | [`docs/logging.md`](docs/logging.md)                                         | Optional structured diagnostic file sink                   |
-| [`docs/binary-capabilities.md`](docs/binary-capabilities.md)                 | Binary identity and schema capability contract             |
 | [`docs/component-benchmarks.md`](docs/component-benchmarks.md)               | Component-level measurements                               |
 | [`docs/critical-path-performance.md`](docs/critical-path-performance.md)     | Critical-path performance contract                         |
 | [`docs/cache-reuse-metric-contract.md`](docs/cache-reuse-metric-contract.md) | Cache reuse metric definition                              |

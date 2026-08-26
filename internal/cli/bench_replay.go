@@ -28,7 +28,7 @@ func runBenchReplay(sessionID string, opts Options, stdout, stderr io.Writer, fo
 		printError(stderr, internalError("ktx bench run --replay: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openDatabase(target, opts.ExpectedRuntimeSHA256, "bench")
+	db, err := openDatabase(target, "bench")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

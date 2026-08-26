@@ -134,7 +134,7 @@ func runDoctorWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // either flag position. The verb's body emits the JSON envelope
 // directly to stdout (PassthroughStdout=true on the dispatch
 // registry).
-func doctorLogic(args []string, format, expectedSHA256 string, stdout, stderr io.Writer) (any, int) {
+func doctorLogic(args []string, format string, stdout, stderr io.Writer) (any, int) {
 	// Subcommand-local --format. extractFormat accepts both --format
 	// value and --format=value forms; the subcommand's value takes
 	// precedence over the global one when both are set.
@@ -166,7 +166,7 @@ func doctorLogic(args []string, format, expectedSHA256 string, stdout, stderr io
 		return nil, ExitUsage
 	}
 
-	report := buildDoctorReport(expectedSHA256)
+	report := buildDoctorReport()
 	if report.failure != nil {
 		printError(stderr, report.failure, format)
 		return nil, exitCodeOf(report.failure)
@@ -215,7 +215,7 @@ func doctorLogic(args []string, format, expectedSHA256 string, stdout, stderr io
 // because doctor must inspect a database that may not yet exist
 // (the database_exists check is stat-only).
 func doctorCommandFunc(ctx *DispatchContext) (any, error) {
-	_, code := doctorLogic(ctx.Args, ctx.Format, ctx.ExpectedRuntimeSHA256, ctx.Stdout, ctx.Stderr)
+	_, code := doctorLogic(ctx.Args, ctx.Format, ctx.Stdout, ctx.Stderr)
 	switch code {
 	case ExitOK:
 		return nil, nil
@@ -257,7 +257,7 @@ func init() {
 //
 // Classified readiness failures use the normal CLI error envelope. Other
 // health failures remain check details in this report.
-func buildDoctorReport(expectedSHA256 string) *doctorReport {
+func buildDoctorReport() *doctorReport {
 	report := &doctorReport{}
 
 	target, err := dbpkg.ResolveTarget("")
@@ -271,10 +271,6 @@ func buildDoctorReport(expectedSHA256 string) *doctorReport {
 		return report
 	}
 	report.Path = target.Path
-	if err := authorizeDatabaseTarget(target, expectedSHA256); err != nil {
-		report.failure = err
-		return report
-	}
 
 	// Check 1: file exists. Read-only (does not call dbpkg.Open which
 	// would create the file as a side effect). A missing file is a
@@ -313,7 +309,7 @@ func buildDoctorReport(expectedSHA256 string) *doctorReport {
 	})
 
 	// Check 2: readiness prepares an older schema before the read-only diagnosis.
-	db, err := openQueryDatabase(target, expectedSHA256, "doctor")
+	db, err := openQueryDatabase(target, "doctor")
 	if err != nil {
 		var classified *Error
 		if errors.As(err, &classified) {

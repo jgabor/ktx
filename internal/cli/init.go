@@ -111,13 +111,11 @@ type initParsedArgs struct {
 //   - Noops when KTX_SESSION_ID is present for an ordinary wrapper run. An
 //     explicit collection keeps the hook active under wrapper-owned lifecycle.
 //
-// Candidate check: the plugin factory resolves one ktx from PATH, verifies its
-// canonical path, digest, version, and capability response, then invokes that
-// pinned path. If verification fails, no hooks are registered and a one-line
-// warning makes the disabled state and correction visible.
+// Candidate check: the plugin factory resolves one ktx from PATH, canonicalizes
+// its path, and invokes that pinned path. If resolution fails, no hooks are
+// registered and a one-line warning makes the disabled state and correction visible.
 const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
-import { createHash } from "node:crypto"
-import { lstat, readFile, realpath, stat } from "node:fs/promises"
+import { lstat, realpath, stat } from "node:fs/promises"
 import { resolve } from "node:path"
 
 interface KtxEnvelope {
@@ -130,22 +128,12 @@ interface KtxEnvelope {
 	recovery_cue?: boolean
 }
 
-interface KtxBinaryCapabilities {
-  schema: "ktx.binary-capabilities/v1"
-  executable_path: string
-  executable_sha256: string
-  build_version: string
-  max_database_schema: number
-}
-
 interface KtxSchemaIncompatibility {
   code: "schema-incompatible"
   actual_schema: number
   maximum_schema: number
   database_path: string
   executable_path: string
-  executable_sha256: string
-  build_version: string
   message: string
   correction: string
 }
@@ -154,7 +142,6 @@ interface KtxDatabaseUnavailable {
   code: "database-unavailable"
   database_path: string
   executable_path: string
-  executable_sha256: string
   failure_class: "coordinator-timeout" | "sqlite-lock-exhaustion"
   operation_phase: "open" | "migration" | "source" | "artifact" | "disposition" | "query"
   elapsed_wait_nanoseconds: number
@@ -166,7 +153,6 @@ interface KtxDeadlineExceeded {
   code: "runtime-startup-timeout" | "operation-timeout" | "migration-timeout"
   database_path: string
   executable_path: string
-  executable_sha256: string
   operation_phase: "open" | "migration" | "source" | "artifact" | "disposition" | "query"
   elapsed_wait_nanoseconds: number
   message: string
@@ -180,7 +166,7 @@ interface KtxCommandResult {
 }
 
 const parseSchemaIncompatibility = (
-  stderr: string, databasePath: string, executablePath: string, executableSHA256: string,
+  stderr: string, databasePath: string, executablePath: string,
 ): KtxSchemaIncompatibility | null => {
   try {
     const value = JSON.parse(stderr) as { error?: Partial<KtxSchemaIncompatibility> }
@@ -190,7 +176,6 @@ const parseSchemaIncompatibility = (
         (error.actual_schema as number) < 0 || (error.maximum_schema as number) < 0 ||
         (error.actual_schema as number) <= (error.maximum_schema as number) ||
         error.database_path !== databasePath || error.executable_path !== executablePath ||
-        error.executable_sha256 !== executableSHA256 || !nonblank(error.build_version) ||
         !nonblank(error.message) || !nonblank(error.correction)) return null
     return error as KtxSchemaIncompatibility
   } catch {
@@ -199,21 +184,20 @@ const parseSchemaIncompatibility = (
 }
 
 const parseDatabaseUnavailable = (
-  stderr: string, databasePath: string, executablePath: string, executableSHA256: string,
+  stderr: string, databasePath: string, executablePath: string,
 ): KtxDatabaseUnavailable | null => {
   try {
     const value = JSON.parse(stderr) as { error?: Partial<KtxDatabaseUnavailable> }
     const error = value?.error
     if (!error || error.code !== "database-unavailable" ||
         error.database_path !== databasePath || error.executable_path !== executablePath ||
-        error.executable_sha256 !== executableSHA256 ||
         (error.failure_class !== "coordinator-timeout" && error.failure_class !== "sqlite-lock-exhaustion") ||
         !["open", "migration", "source", "artifact", "disposition", "query"].includes(error.operation_phase || "") ||
         !Number.isSafeInteger(error.elapsed_wait_nanoseconds) || (error.elapsed_wait_nanoseconds as number) < 0 ||
         !nonblank(error.message) || !nonblank(error.correction)) return null
     return {
       code: "database-unavailable", database_path: error.database_path,
-      executable_path: error.executable_path, executable_sha256: error.executable_sha256,
+      executable_path: error.executable_path,
       failure_class: error.failure_class, operation_phase: error.operation_phase,
       elapsed_wait_nanoseconds: error.elapsed_wait_nanoseconds,
       message: error.message, correction: error.correction,
@@ -224,7 +208,7 @@ const parseDatabaseUnavailable = (
 }
 
 const parseDeadlineExceeded = (
-  stderr: string, databasePath: string, executablePath: string, executableSHA256: string,
+  stderr: string, databasePath: string, executablePath: string,
 ): KtxDeadlineExceeded | null => {
   try {
     const value = JSON.parse(stderr) as { error?: Partial<KtxDeadlineExceeded> }
@@ -232,7 +216,7 @@ const parseDeadlineExceeded = (
     if (!error ||
         (error.code !== "runtime-startup-timeout" && error.code !== "operation-timeout" && error.code !== "migration-timeout") ||
         error.database_path !== databasePath || error.executable_path !== executablePath ||
-        error.executable_sha256 !== executableSHA256 || !nonblank(error.operation_phase) ||
+        !nonblank(error.operation_phase) ||
         !Number.isSafeInteger(error.elapsed_wait_nanoseconds) || (error.elapsed_wait_nanoseconds as number) < 0 ||
         !nonblank(error.message) || !nonblank(error.correction)) return null
     return error as KtxDeadlineExceeded
@@ -376,36 +360,11 @@ const costMeasurement = (value: unknown): Measurement => {
 const KtxPlugin: Plugin = async ({ $ }) => {
   const required = process.env.KTX_BENCH_COLLECTOR_MODE === "required"
   let ktxExecutable = ""
-  let ktxExecutableSHA256 = ""
-  // Resolve one candidate, verify its self-report against independently read
-  // executable bytes, and pin its canonical path for this plugin instance.
+  // Resolve one candidate and pin its canonical path for this plugin instance.
   try {
     const candidate = Bun.which("ktx", { PATH: process.env.PATH })
     if (!candidate) throw new Error("ktx binary not found in PATH")
-    const canonical = await realpath(candidate)
-    const digest = createHash("sha256").update(await readFile(canonical)).digest("hex")
-    const proc = Bun.spawn([canonical, "binary-capabilities"], { stdout: "pipe", stderr: "pipe" })
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ])
-    if (exitCode !== 0) throw new Error("binary-capabilities exited " + exitCode + ": " + stderr.trim())
-    const value = JSON.parse(stdout) as Partial<KtxBinaryCapabilities>
-    if (!value || typeof value !== "object" || Array.isArray(value))
-      throw new Error("binary-capabilities response must be a JSON object")
-    if (value.schema !== "ktx.binary-capabilities/v1")
-      throw new Error("binary-capabilities response schema mismatch: expected ktx.binary-capabilities/v1, got " + JSON.stringify(value.schema))
-    if (value.executable_path !== canonical)
-      throw new Error("binary-capabilities executable path mismatch: expected " + canonical + ", got " + JSON.stringify(value.executable_path))
-    if (value.executable_sha256 !== digest)
-      throw new Error("binary-capabilities executable digest mismatch: expected " + digest + ", got " + JSON.stringify(value.executable_sha256))
-    if (!nonblank(value.build_version))
-      throw new Error("binary-capabilities build version is blank")
-    if (!Number.isSafeInteger(value.max_database_schema) || (value.max_database_schema as number) < 0)
-      throw new Error("binary-capabilities maximum database schema is invalid: got " + JSON.stringify(value.max_database_schema))
-    ktxExecutable = canonical
-    ktxExecutableSHA256 = digest
+    ktxExecutable = await realpath(candidate)
   } catch (e) {
     const correction = "reinstall ktx at a readable stable path, run ktx init opencode, and restart OpenCode"
     if (required) throw new Error("ktx candidate verification failed: " + String(e) + "; " + correction)
@@ -413,8 +372,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     return {}
   }
 
-  const openBackedArgs = (args: string[]): string[] =>
-    ["--expect-runtime-sha256", ktxExecutableSHA256, ...args]
+  const openBackedArgs = (args: string[]): string[] => args
 
   const runOrdinaryProcess = async (args: string[], payload?: string): Promise<KtxCommandResult> => {
     let stream: ReadableStream<Uint8Array> | "ignore" = "ignore"
@@ -459,7 +417,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
     let result: KtxCommandResult | null = null
     const next = ordinaryQueue.then(async () => {
       const databasePath = await currentDatabasePath()
-      const target = JSON.stringify([ktxExecutableSHA256, databasePath])
+      const target = databasePath
       const cached = schemaByTarget.get(target)
       if (cached) {
         try {
@@ -486,14 +444,14 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         // Command diagnostics remain authoritative when metadata cannot be observed.
       }
       const unavailable = parseDatabaseUnavailable(
-        commandResult.stderr.trim(), databasePath, ktxExecutable, ktxExecutableSHA256,
+        commandResult.stderr.trim(), databasePath, ktxExecutable,
       )
       if (unavailable) {
         console.error(JSON.stringify({ error: { ...unavailable, runtime_surface: runtimeSurface } }))
         return
       }
       const deadline = parseDeadlineExceeded(
-        commandResult.stderr.trim(), databasePath, ktxExecutable, ktxExecutableSHA256,
+        commandResult.stderr.trim(), databasePath, ktxExecutable,
       )
       if (deadline) {
         console.error(commandResult.stderr.trim())
@@ -501,11 +459,11 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       }
       if (commandResult.exitCode === 5) {
         const incompatibility = parseSchemaIncompatibility(
-          commandResult.stderr.trim(), databasePath, ktxExecutable, ktxExecutableSHA256,
+          commandResult.stderr.trim(), databasePath, ktxExecutable,
         )
         if (incompatibility) {
           const key = JSON.stringify([
-            incompatibility.code, incompatibility.executable_sha256,
+            incompatibility.code, incompatibility.executable_path,
             incompatibility.database_path, incompatibility.actual_schema,
             incompatibility.maximum_schema,
           ])
@@ -1063,7 +1021,7 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintf(w, "Re-run `%s` to refresh the generated global plugin, or add --project\n", opencodeRefreshCommand)
 	fmt.Fprintf(w, "for the project plugin. Troubleshooting: %s\n", opencodeTroubleshooting)
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "The Codex hook pins the installing executable and passes its digest on every")
+	fmt.Fprintln(w, "The Codex hook pins the installing executable's canonical path on every")
 	fmt.Fprintln(w, "PostToolUse callback. It omits Codex's optional timeout so KTX owns deadline")
 	fmt.Fprintln(w, "attribution. Install is idempotent; uninstall removes only ktx's entry and")
 	fmt.Fprintln(w, "preserves other hooks (SessionStart, etc.). After install, run /hooks")

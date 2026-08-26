@@ -152,10 +152,6 @@ type DispatchContext struct {
 	// flag so ctx.Args never sees it; verbs that respect --quiet
 	// read this field rather than re-parsing ctx.Args.
 	Quiet bool
-
-	// ExpectedRuntimeSHA256 is the per-invocation proof for ambient database
-	// access. Explicit database targets do not use it.
-	ExpectedRuntimeSHA256 string
 }
 
 // registeredVerb pairs the per-verb options with the verb's logic.
@@ -335,12 +331,12 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		var opened *dbpkg.DB
 		switch reg.opts.DatabaseAccess {
 		case DatabaseReadOnly:
-			opened, err = openQueryDatabase(target, global.ExpectedRuntimeSHA256, verb)
+			opened, err = openQueryDatabase(target, verb)
 		case DatabaseReadWrite:
 			if verb == "hook" {
-				opened, err = openHookDatabase(target, global.ExpectedRuntimeSHA256, verb)
+				opened, err = openHookDatabase(target, verb)
 			} else {
-				opened, err = openDatabase(target, global.ExpectedRuntimeSHA256, verb)
+				opened, err = openDatabase(target, verb)
 			}
 		default:
 			err = internalError("dispatch: unsupported database access mode %d", reg.opts.DatabaseAccess)
@@ -363,16 +359,15 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 
 	// 6. Build the context and invoke the verb.
 	ctx := &DispatchContext{
-		Args:                  fs.Args(),
-		ParsedArgs:            parsedArgs,
-		Format:                formatStr,
-		Stdin:                 stdin,
-		Stdout:                stdout,
-		Stderr:                stderr,
-		DB:                    db,
-		Passthrough:           reg.opts.PassthroughStdout,
-		Quiet:                 global.Quiet || subQuiet,
-		ExpectedRuntimeSHA256: global.ExpectedRuntimeSHA256,
+		Args:        fs.Args(),
+		ParsedArgs:  parsedArgs,
+		Format:      formatStr,
+		Stdin:       stdin,
+		Stdout:      stdout,
+		Stderr:      stderr,
+		DB:          db,
+		Passthrough: reg.opts.PassthroughStdout,
+		Quiet:       global.Quiet || subQuiet,
 	}
 	defer func() {
 		if ctx.DB != nil {

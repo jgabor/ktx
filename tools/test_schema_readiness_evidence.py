@@ -13,7 +13,7 @@ from tools import schema_readiness_evidence
 
 
 class MeasureTest(unittest.TestCase):
-    def test_current_guidance_matches_passing_report_and_built_binary(self):
+    def test_current_guidance_matches_passing_report(self):
         repository = Path.cwd()
         guidance = (repository / "docs/schema-readiness.md").read_text()
         report_path = repository / "docs/notes/schema-readiness-release.json"
@@ -27,10 +27,6 @@ class MeasureTest(unittest.TestCase):
         )
         self.assertIsNotNone(match, "current guidance lacks a full measured binary identity")
         self.assertEqual(match.groups(), (report["binary"]["sha256"], report["report_role"]))
-        self.assertEqual(
-            hashlib.sha256((repository / "build/ktx").read_bytes()).hexdigest(),
-            report["binary"]["sha256"],
-        )
         schema_readiness_evidence.validate_release_report(report)
 
         historical = repository / report["historical_failure_evidence"]["path"]
@@ -208,6 +204,24 @@ class MeasureTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "aggregate concurrent KTX RSS"):
             schema_readiness_evidence.validate_release_report(report)
 
+    def test_release_identity_comes_from_artifact_bytes_and_readiness_samples(self):
+        with tempfile.TemporaryDirectory() as root:
+            artifact = Path(root) / "ktx"
+            artifact.write_bytes(b"built artifact")
+            self.assertEqual(
+                schema_readiness_evidence.digest(artifact, "test artifact"),
+                hashlib.sha256(b"built artifact").hexdigest(),
+            )
+        workloads = {"migration": [{"final_schema": 16}]}
+        self.assertEqual(
+            schema_readiness_evidence.supported_schema_evidence(workloads),
+            {"maximum": 16, "evidence": "measured workload final_schema"},
+        )
+        with self.assertRaisesRegex(ValueError, "supported database schema"):
+            schema_readiness_evidence.supported_schema_evidence(
+                {"migration": [{"final_schema": 15}, {"final_schema": 16}]}
+            )
+
     def test_automatic_interruption_result_rejects_later_migrate(self):
         result = {
             "durable_rows_before_restart": 128,
@@ -280,10 +294,11 @@ class MeasureTest(unittest.TestCase):
                 }
             criteria.append(schema_readiness_evidence.criterion(name, True, evidence))
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "report_role": "current_passing_authority",
             "release_gate": "PASS",
-            "binary": {"sha256": digest, "capabilities": {"executable_sha256": digest}},
+            "binary": {"sha256": digest},
+            "supported_database_schema": {"maximum": 16, "evidence": "measured workload final_schema"},
             "repository": {"commit": "b" * 40, "worktree_dirty": True},
             "historical_failure_evidence": {
                 "report_role": "historical_failure_evidence",

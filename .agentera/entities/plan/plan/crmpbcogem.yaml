@@ -1,0 +1,34 @@
+id: crmpbcogem
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-26
+    status: complete
+    reviewed: 2026-08-26
+    critic_issues: 6 found, 6 addressed, 0 dismissed
+    title: "Plan: Remove executable identity ceremony"
+  what: Remove the public executable-capability command, checksum-comparison option, and per-invocation runtime digest requirement while retaining canonical executable-path pinning, database safety, independently reproducible release evidence, and useful failure diagnostics.
+  why: The current identity protocol creates user-visible upgrade friction and broad maintenance burden without providing artifact provenance or proportional protection.
+  constraints: Breaking removal is preferred because KTX is unreleased. Preserve forward-only database compatibility, transactional readiness, read-only query behavior after readiness, hermetic verification, and deterministic adapter operation. Do not add compatibility aliases or transfer digest authorization into doctor.
+  overall_acceptance: GIVEN the simplification is complete WHEN users install adapters and run database-backed commands THEN KTX operates without executable-digest ceremony while retaining database safety and independently reproducible release evidence.
+  scope:
+    included:
+      - Supersede recorded executable-identity and adapter-installation policy with the new unreleased-product choice.
+      - Replace retained adapter, diagnostic, and release-evidence consumers before deleting their old source.
+      - Remove public capability and runtime-proof surfaces and simplify generated adapters.
+      - Reconcile tests, documentation, and project state with the simplified contract.
+    excluded:
+      - A public self-upgrade or download system.
+      - A broad redesign of doctor.
+      - Changes to schema migration policy or database ownership rules.
+      - Backward compatibility for unshipped command and flag contracts.
+    deferred:
+      - Optional independent checksums if a future installer downloads release artifacts.
+  design: Authority adopts the simplified contract before consumers change. Consumer replacement precedes deletion. Verification and state synchronization follow deletion.
+  unknowns:
+    - question: Does ordinary adapter suppression of repeated schema incompatibility still provide user value after digest identity is removed?
+      affects_task: 2
+      resolve_by: Review its observable behavior and focused evidence before changing it; retain only a plugin-instance and database/schema-fact key if repeated errors remain a demonstrated problem, otherwise delete the suppression.
+  surprises:
+    []

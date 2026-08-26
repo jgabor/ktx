@@ -43,17 +43,6 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 		}
 	}
 
-	for _, relative := range []string{
-		"README.md",
-		filepath.Join("docs", "database-safety.md"),
-		filepath.Join("docs", "binary-capabilities.md"),
-		filepath.Join("docs", "opencode-telemetry.md"),
-	} {
-		contents := readDocumentationFile(t, filepath.Join(root, relative))
-		if !strings.Contains(contents, "--expect-runtime-sha256") {
-			t.Errorf("%s does not document per-invocation ambient runtime proof", relative)
-		}
-	}
 	for _, relative := range []string{"README.md", "AGENTS.md", filepath.Join(".github", "workflows", "ci.yml")} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
 		if !strings.Contains(contents, "docs/database-safety.md") {
@@ -198,7 +187,6 @@ func TestCriticalPathPerformanceContractDefinesDistinctBoundaries(t *testing.T) 
 		"process exit `4`",
 		"database_path",
 		"executable_path",
-		"executable_sha256",
 		"failure_class",
 		"coordinator-timeout",
 		"sqlite-lock-exhaustion",
@@ -275,15 +263,6 @@ func TestSchemaReleaseGateIsDiscoverable(t *testing.T) {
 			if !strings.Contains(contents, required) {
 				t.Errorf("%s is missing schema release guidance %q", relative, required)
 			}
-		}
-	}
-}
-
-func TestBinaryCapabilitiesDocumentedAsDiagnosticOnly(t *testing.T) {
-	contents := readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "binary-capabilities.md"))
-	for _, required := range []string{"diagnostic", "does not authorize database access"} {
-		if !strings.Contains(contents, required) {
-			t.Errorf("binary capability documentation is missing %q", required)
 		}
 	}
 }

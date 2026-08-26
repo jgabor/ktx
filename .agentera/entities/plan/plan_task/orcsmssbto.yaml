@@ -1,0 +1,15 @@
+id: orcsmssbto
+artifact: plan
+record:
+  name: Verify the simplified product
+  depends_on:
+    - dfswxmvkjt
+  status: complete
+  acceptance:
+    - GIVEN the changed source WHEN the local binary is built and invoked THEN root and nested help, adapter generation, and database-backed workflows match the simplified contract.
+    - GIVEN generated OpenCode and Codex integrations WHEN exercised from clean disposable environments THEN they handle a database-backed hook without executable digest state.
+    - GIVEN supported older and newer database fixtures WHEN exercised with ambient discovery isolated THEN readiness succeeds for supported older state and newer state remains byte-for-byte unchanged after rejection.
+    - GIVEN focused CLI, adapter, and release-evidence checks plus the full repository gate WHEN each runs with the ambient database unset and fresh application roots THEN all pass.
+    - GIVEN shipped and project documentation WHEN consistency is checked THEN the deleted command, flags, digest-bearing adapters, and adapter-refresh ceremony have no stale authoritative references.
+  plan: crmpbcogem
+  evidence: "Built and invoked ./build/ktx from isolated roots: root/nested help, adapter generation, deleted-surface rejection, hook persistence, and readback passed. Generated OpenCode gate and generated Codex hook passed without executable digest state. Schema 15 migrated to 16 with integrity ok; schema 17 rejection exited 5 and preserved the exact database hash with no sidecars. Focused CLI/db/docs and 14 release-report tests passed. Final env -u KTX_DB mage check passed with generated-adapter readiness, lint, and database audit forbidden=0. Current authoritative docs contain no deleted identity or refresh-ceremony references; historical project memory was retained."

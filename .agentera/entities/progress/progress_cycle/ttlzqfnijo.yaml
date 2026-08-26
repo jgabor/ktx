@@ -1,0 +1,16 @@
+id: ttlzqfnijo
+artifact: progress
+record:
+  timestamp: 2026-08-26 18:44
+  type: fix
+  phase: audit
+  what: Corrected schema-incompatibility suppression in internal/cli/init.go and removed stale instructions from docs/schema-readiness.md and the KTX CLI reference.
+  context:
+    intent: Apply only the two accepted blockers for plan crmpbcogem.
+    constraints: Preserve path pinning, forward-only schema rejection, generated-source regeneration guidance, existing task state, user confirmation, and decision satisfaction.
+    unknowns: None.
+    scope: Generated OpenCode schema parsing and regression coverage plus the two named current documentation surfaces.
+  discovered: internal/cli/init.go required build_version after the CLI stopped emitting it, while internal/cli/init_opencode_adapter_test.go fabricated that field and masked the mismatch.
+  verified: Focused generated-adapter and schema-contract tests passed. A locally built generated plugin received the real schema-17 envelope without build_version, left all three callback outputs unchanged, emitted one diagnostic for two identical callbacks, and emitted a second diagnostic after the database changed to schema 18. Isolated mage check passed with forbidden=0, and documentation searches found no removed ceremony while retaining generated-source regeneration guidance.
+  next: Both accepted audit blockers are resolved; no broader product or Agentera decision state changed.
+  publication_order: 177

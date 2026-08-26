@@ -1,0 +1,16 @@
+id: ebpgipxyya
+artifact: progress
+record:
+  timestamp: 2026-08-26 18:26
+  type: fix
+  phase: audit
+  what: Verified the simplified CLI, generated adapters, and forward-only database readiness contract, and removed remaining current documentation ceremony around adapter refresh.
+  context:
+    intent: Execute only plan task orcsmssbto.
+    constraints: Used the local build, unset KTX_DB, fresh disposable HOME/XDG roots, and no ambient database access.
+    unknowns: The production-scale 3.2 GB schema gate was not run because this work does not release a new schema; schema maximum remains 16.
+    scope: CLI/help and deleted-surface checks, generated OpenCode and Codex execution, supported older/newer fixtures, release-report validation, authoritative documentation, and the full repository gate.
+  discovered: Current OpenCode troubleshooting and development guidance still described binary-replacement adapter refresh ceremony; those authoritative references were removed while source-change regeneration guidance remains.
+  verified: mage build passed. Local root/nested help, adapter generation, hook persistence, and readback passed; deleted command and flags rejected. Generated OpenCode gate and generated Codex hook passed without executable digest state. Schema 15 migrated to 16 with integrity ok; schema 17 rejection exited 5 and preserved SHA-256 91b98ee0e50fc998ec48a091334c26297e248636d6b7626cd3ee91d377615fdd with no WAL/SHM. Focused CLI/db/docs checks and all 14 release-report tests passed. Final env -u KTX_DB mage check passed with forbidden=0.
+  next: Synchronize final project state in the remaining plan task.
+  publication_order: 176

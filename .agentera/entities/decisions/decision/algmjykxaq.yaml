@@ -1,0 +1,17 @@
+id: algmjykxaq
+artifact: decisions
+record:
+  date: 2026-08-26
+  question: What executable identity policy should govern KTX before its first release?
+  context: KTX is unreleased. The capability response, executable digest checks, generated-adapter digest validation, and adapter refresh ceremony add compatibility and operational burden without establishing artifact provenance or protecting database contents. Breaking removal is preferred, with no aliases or ignored legacy flags.
+  alternatives:
+    - name: Remove executable hashing from runtime identity and retain only canonical absolute-path adapter pinning.
+      status: chosen
+    - name: Preserve the existing capability response, digest flags, compatibility parsing, startup verification, and digest-bound adapters.
+      status: rejected
+    - name: Keep removed flags as aliases or accept and ignore them during a transition.
+      status: rejected
+  choice: The executable-identity portions of decisions iklzthoapi, pkncauwnqe, and yyorkhqcyb are superseded. Remove the binary-capability command, both executable-digest flags, compatibility parsing for those flags, startup self-report verification, digest-based adapter validation, per-invocation runtime digest proof, and digest-driven adapter refresh requirements. Do not retain aliases or ignored flags. Generated adapters still select one KTX executable and pin its canonical absolute path for deterministic invocation. Database safety owns protection for database-backed execution through isolated ownership, transactional readiness, read-only behavior after readiness, and forward-only rejection of newer schemas; executable hashing is not a database safety boundary. Artifact digest verification belongs only where an installer or downloader acquires an artifact, not in ordinary startup, adapter callbacks, or database access. No download or installation verification mechanism is introduced by this policy-only decision.
+  reasoning: Canonical path pinning prevents PATH drift without making a hash an authorization token. Executable hashing does not prevent an actor able to replace the selected binary from invoking database operations another way, while the database safety contract directly controls creation, migration, isolation, and incompatible-schema behavior. Artifact integrity has a meaningful trust boundary only when bytes are downloaded or installed. Because no public release contract exists, direct removal is simpler and avoids preserving unshipped behavior.
+  confidence: firm
+  feeds_into: Plan crmpbcogem implementation, verification, documentation, and project-state synchronization.

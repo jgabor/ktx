@@ -1,0 +1,15 @@
+id: ktxuxbwltx
+artifact: plan
+record:
+  name: Replace retained identity consumers
+  depends_on:
+    - zgvgzytlhu
+  status: complete
+  acceptance:
+    - GIVEN OpenCode starts WHEN it selects KTX THEN it resolves once, canonicalizes and pins that path, performs no hash or capability subprocess, and later PATH changes do not alter the selected executable.
+    - GIVEN a Codex adapter is generated WHEN its command is inspected THEN it contains only the quoted canonical executable path and the hook operation, with no digest.
+    - GIVEN schema or database failures WHEN adapters report or suppress them THEN actionable database and schema facts remain available without digest expectations, and suppression exists only if the plan unknown resolves to demonstrated user value.
+    - GIVEN release-readiness evidence WHEN it is generated and validated THEN the built artifact digest is derived directly from artifact bytes and supported-schema facts come from readiness evidence rather than a public runtime protocol.
+    - GIVEN testable replacement behavior WHEN focused coverage is reviewed THEN each affected unit has proportional success and failure evidence.
+  plan: crmpbcogem
+  evidence: OpenCode now resolves and realpaths KTX once, invokes only that path, and focused Bun integration proves later PATH changes do not alter an existing factory. Generated Codex commands are exactly a shell-quoted canonical path plus hook. Adapter diagnostics validate database path, executable path, schema values, failure class, phase, wait, message, and correction without digest fields. Repeated unchanged schema failures remain suppressed because focused integration proves one diagnostic across repeated callbacks while database mutation and a new factory each re-emit. Schema-readiness report schema 4 hashes artifact bytes directly and derives maximum schema 16 from measured final_schema samples. Focused Go, Python, generated-adapter overlap, and repository mage check passed with KTX_DB unset and disposable roots.

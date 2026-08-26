@@ -1,0 +1,18 @@
+id: dfswxmvkjt
+artifact: plan
+record:
+  name: Delete executable digest ceremony
+  depends_on:
+    - ktxuxbwltx
+  status: complete
+  acceptance:
+    - GIVEN the current CLI WHEN users inspect or invoke it THEN no binary-capability command or executable-digest flag is exposed or required.
+    - GIVEN an ambient database-backed command WHEN it runs without a digest THEN supported older schemas are prepared transactionally and subsequent query behavior remains read-only.
+    - GIVEN a newer database schema WHEN an older binary opens it THEN schema incompatibility reports actual schema, maximum schema, database path, and forward-only correction before writes.
+    - GIVEN a removed command or flag WHEN a user invokes it THEN it fails as a usage error before database access rather than using a compatibility shim.
+    - GIVEN obsolete identity code, documentation, and tests WHEN removal is complete THEN no tests remain whose only purpose is preserving the deleted contract.
+  plan: crmpbcogem
+  evidence:
+    - Removed the public capability command, both digest flags, runtime proof plumbing, executable hashing package, obsolete documentation, and contract-only tests.
+    - Regression coverage proves removed command and flags return usage before database access, ambient current and older-schema queries need no digest, older schemas prepare automatically, and newer schemas retain forward-only diagnostics before writes.
+    - mage build and mage check passed with KTX_DB unset and fresh HOME/XDG roots; the database-safety audit reported forbidden=0. Local build smoke checks confirmed list succeeds without a digest and removed surfaces exit 1 without creating a database.

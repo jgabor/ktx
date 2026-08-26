@@ -259,7 +259,7 @@ uses this stable surface:
 
 - error code `database-unavailable`;
 - process exit `4`;
-- canonical `database_path`, `executable_path`, and `executable_sha256`;
+- canonical `database_path` and `executable_path`;
 - `failure_class` set to `coordinator-timeout` or
   `sqlite-lock-exhaustion`;
 - `operation_phase` set to `open`, `migration`, `source`, `artifact`,

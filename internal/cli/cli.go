@@ -34,9 +34,8 @@ const (
 
 // Options carries the parsed global flags to subcommands.
 type Options struct {
-	Format                string
-	Quiet                 bool
-	ExpectedRuntimeSHA256 string
+	Format string
+	Quiet  bool
 }
 
 // Run is the ktx entrypoint. It parses global flags, dispatches to the
@@ -109,7 +108,6 @@ func parseGlobalFlags(args []string) (parsedFlags, []string, error) {
 	fs := flag.NewFlagSet("ktx", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we render our own errors and help
 	fs.StringVar(&p.Format, "format", FormatJSON, "output format: text|json")
-	fs.StringVar(&p.ExpectedRuntimeSHA256, "expect-runtime-sha256", "", "prove the running executable before ambient database access")
 	fs.BoolVar(&p.Quiet, "quiet", false, "suppress run summary")
 	fs.BoolVar(&p.Quiet, "q", false, "suppress run summary (shorthand)")
 	fs.BoolVar(&p.showHelp, "help", false, "show help")
@@ -128,9 +126,6 @@ func parseGlobalFlags(args []string) (parsedFlags, []string, error) {
 
 	if p.Format != FormatJSON && p.Format != FormatText {
 		return p, nil, usageError("invalid --format %q: want %q or %q", p.Format, FormatJSON, FormatText)
-	}
-	if err := validateRuntimeDigest(p.ExpectedRuntimeSHA256); err != nil {
-		return p, nil, err
 	}
 	return p, fs.Args(), nil
 }
@@ -151,8 +146,6 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "Global flags:")
 	fmt.Fprintln(w, "  --format string   output format: text|json (default \"json\")")
 	fmt.Fprintln(w, "  --quiet, -q       suppress run summary")
-	fmt.Fprintln(w, "  --expect-runtime-sha256 string")
-	fmt.Fprintln(w, "                    prove the exact running executable before ambient database access")
 	fmt.Fprintln(w, "  --help, -h        show help")
 	fmt.Fprintln(w, "  --version, -v     show version")
 	fmt.Fprintln(w)
@@ -171,7 +164,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "Logging:")
 	fmt.Fprintln(w, "  Optional [logs] requires level debug, info, warn, error, or off. An optional")
 	fmt.Fprintln(w, "  absolute path overrides the XDG state default. Database-unavailable records")
-	fmt.Fprintln(w, "  use ten typed fields and one best-effort append with no retry. Paths and hashes")
+	fmt.Fprintln(w, "  use nine typed fields and one best-effort append with no retry. Paths")
 	fmt.Fprintln(w, "  are sensitive. Unsafe targets are rejected. File logging is independent of stderr.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx <command> --help' for command-specific help.")

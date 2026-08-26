@@ -468,9 +468,9 @@ func telemetryCommandFunc(ctx *DispatchContext) (any, error) {
 	}
 	var db *dbpkg.DB
 	if ctx.Args[0] == "list" {
-		db, err = openQueryDatabase(target, ctx.ExpectedRuntimeSHA256, "telemetry list")
+		db, err = openQueryDatabase(target, "telemetry list")
 	} else {
-		db, err = openDatabase(target, ctx.ExpectedRuntimeSHA256, "telemetry "+ctx.Args[0])
+		db, err = openDatabase(target, "telemetry "+ctx.Args[0])
 	}
 	if err != nil {
 		if _, ok := err.(*Error); ok {

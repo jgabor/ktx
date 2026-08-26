@@ -1,0 +1,9 @@
+id: rkfyrsbmxl
+artifact: decisions
+record:
+  decision: algmjykxaq
+  date: 2026-08-26
+  provenance: historical_revision
+  base_sha256: 4447c947a47cefc19527f51993f9bd3d5401afdc21dac830142fb3ed836e2ee6
+  changes:
+    choice: The executable-identity portions of decisions iklzthoapi, pkncauwnqe, and yyorkhqcyb are superseded. Remove `ktx binary-capabilities`, its `--expect-sha256` flag, the root `--expect-runtime-sha256` flag, compatibility parsing for either flag, startup self-report verification, digest-based adapter validation, per-invocation runtime digest proof, and digest-driven adapter refresh requirements. Do not retain aliases or ignored flags. Generated adapters still select one KTX executable and pin its canonical absolute path for deterministic invocation. Database safety owns protection for database-backed execution through isolated ownership, transactional readiness, read-only behavior after readiness, and forward-only rejection of newer schemas; executable hashing is not a database safety boundary. Artifact digest verification belongs only where an installer or downloader acquires an artifact, not in ordinary startup, adapter callbacks, or database access. No download or installation verification mechanism is introduced by this policy-only decision.

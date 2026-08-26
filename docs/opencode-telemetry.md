@@ -8,7 +8,7 @@ events. Provider/model identity may be runtime-emitted or inferred from explicit
 runtime configuration with provenance. Provider documentation, pricing data,
 and historical provider fixtures are context rather than telemetry.
 
-## Install and refresh
+## Install
 
 `ktx init opencode` is the generator and installer for the standalone `ktx.ts`
 plugin. It writes the generated source to one of OpenCode's candidate plugin
@@ -25,14 +25,9 @@ generated `ktx.ts` file. A database schema increase alone does not invalidate an
 installed plugin. `ktx init opencode --show` reports candidate files found on
 disk; it does not claim that OpenCode loaded or activated either file.
 
-At startup, the generated plugin resolves and canonicalizes one `ktx` candidate,
-verifies its DB-free `binary-capabilities` response against the candidate's
-actual path and SHA-256, validates the remaining response fields without treating
-maximum database schema as an adapter version, and pins that absolute path for
-every later callback. This prevents a later `PATH` change from selecting a
-different binary. Callback commands need no caller-supplied executable proof. See
-[Binary compatibility identity](binary-capabilities.md) for the response,
-comparison, correction, and exit contracts.
+At startup, the generated plugin resolves and canonicalizes one `ktx` candidate
+and pins that absolute path for every later callback. This prevents a later
+`PATH` change from selecting a different binary.
 
 The generated plugin declares two OpenCode hooks:
 
@@ -315,21 +310,19 @@ Failure behavior depends on the command:
 
 - Run `ktx init opencode --show` to inspect both candidate plugin locations. A
   file report is not proof of runtime activation.
-- Re-run `ktx init opencode` or `ktx init opencode --project` to refresh the
-  generated file in the intended scope. If both scopes contain `ktx.ts`, remove
+- Re-run `ktx init opencode` or `ktx init opencode --project` to regenerate the
+  file in the intended scope. If both scopes contain `ktx.ts`, remove
   the unintended copy with `ktx init opencode --uninstall`, then reinstall the
   intended scope.
-- Ensure a readable `ktx` is on OpenCode's startup `PATH`. If it is absent or
-  its capability response does not match the observed candidate, the plugin
-  names the failed field, reports that it is disabled, and registers neither
-  hook. Reinstall ktx at a readable stable path and restart OpenCode.
-- The plugin pins one path and records its startup digest for one factory
-  instance. Refresh the generated plugin to pick up source changes and restart
-  OpenCode after replacing the installed binary. A database schema increase by
-  itself does not require adapter regeneration.
-- Every database-backed callback passes that digest as
-  `--expect-runtime-sha256` to the pinned executable. The plugin waits for the
-  KTX result and does not impose a competing callback timeout.
+- Ensure a readable `ktx` is on OpenCode's startup `PATH`. If it is absent, the
+  plugin reports that it is disabled and registers neither hook. Reinstall ktx
+  at a readable stable path and restart OpenCode.
+- The plugin pins one canonical absolute path for one factory instance.
+  Regenerate the plugin to pick up generated source changes. Replacing the
+  executable or increasing the database schema does not require adapter
+  regeneration.
+- Every callback invokes the pinned executable. The plugin waits for the KTX
+  result and does not impose a competing callback timeout.
 - Ordinary `ktx run` intentionally disables the plugin hooks through
   `KTX_SESSION_ID`. The explicit `--collection=<id>` mode is the only wrapper
   path that keeps them active; it requires the generated pinned plugin and
@@ -337,8 +330,8 @@ Failure behavior depends on the command:
 - Telemetry and tool-hook failures are written to stderr and fail open. Tool
   output remains unchanged; optional telemetry persistence does not fail the
   OpenCode operation. A `database-unavailable` failure emits one bounded
-  diagnostic with the callback surface, pinned executable path and SHA-256,
-  canonical database path, stable failure class, operation phase, elapsed wait,
+  diagnostic with the callback surface, canonical database path, stable failure
+  class, operation phase, elapsed wait,
   and correction. Other failures keep their existing diagnostics.
 - If an event shape is rejected after an OpenCode upgrade, compare it with the
   pinned version above before changing the contract. Do not infer missing token

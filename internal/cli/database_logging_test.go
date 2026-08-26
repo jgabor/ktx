@@ -21,7 +21,6 @@ type databaseUnavailableLogRecord struct {
 	Event                        string                `json:"event"`
 	Command                      string                `json:"ktx_command"`
 	ExecutablePath               string                `json:"executable_path"`
-	ExecutableSHA256             string                `json:"executable_sha256"`
 	DatabasePath                 string                `json:"database_path"`
 	FailureClass                 string                `json:"failure_class"`
 	OperationPhase               string                `json:"operation_phase"`
@@ -49,7 +48,7 @@ func TestDatabaseUnavailableLoggingExactlyOnce(t *testing.T) {
 	}
 	record := readDatabaseUnavailableLog(t, logPath)
 	if record.Timestamp == "" || record.Level != "error" || record.Event != "database-unavailable" || record.Command != "get" ||
-		record.ExecutablePath == "" || len(record.ExecutableSHA256) != 64 || record.DatabasePath != databasePath ||
+		record.ExecutablePath == "" || record.DatabasePath != databasePath ||
 		record.FailureClass != dbpkg.UnavailableClassCoordinatorTimeout || record.OperationPhase != dbpkg.OperationQuery ||
 		record.ElapsedWaitNanoseconds != details.ElapsedWait.Nanoseconds() || record.CoordinatorRequestedMode != "exclusive" ||
 		record.CoordinatorSnapshotAvailable == nil || *record.CoordinatorSnapshotAvailable {

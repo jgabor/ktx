@@ -1,16 +1,13 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "report_role": "current_passing_authority",
   "release_gate": "PASS",
   "binary": {
-    "sha256": "aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825",
-    "capabilities": {
-      "schema": "ktx.binary-capabilities/v1",
-      "executable_path": "~/git/ktx/build/ktx",
-      "executable_sha256": "aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825",
-      "build_version": "dev",
-      "max_database_schema": 16
-    }
+    "sha256": "aa9bfbff7142a73e52b9a46ae4f6df9e9f14833c453c8bab44740db878c56825"
+  },
+  "supported_database_schema": {
+    "maximum": 16,
+    "evidence": "measured workload final_schema"
   },
   "repository": {
     "commit": "5a9159969572ebedfc841b3f41d66de799d13f30",

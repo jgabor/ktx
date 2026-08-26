@@ -96,14 +96,13 @@ func TestLoggingContractSurfacesMatchBehavior(t *testing.T) {
 			}, []string{"rotation", "16 KiB", "5 MiB", "25 ms", "50 ms", "adapter", "runtime_surface", "config show"})
 		})
 	}
-	assertContractText(t, helpText, []string{"XDG state", "ten typed fields", "no retry", "Unsafe targets"}, nil)
+	assertContractText(t, helpText, []string{"XDG state", "nine typed fields", "no retry", "Unsafe targets"}, nil)
 	assertContractText(t, example,
 		[]string{"XDG_STATE_HOME", "timestamp", "elapsed_wait_nanoseconds", "no retry", "unsafe targets"}, nil)
 
 	runbook := readDocumentationFile(t, filepath.Join(root, "docs", "logging.md"))
 	for _, field := range []string{
-		"`timestamp`", "`level`", "`event`", "`ktx_command`", "`executable_path`",
-		"`executable_sha256`", "`database_path`", "`failure_class`", "`operation_phase`",
+		"`timestamp`", "`level`", "`event`", "`ktx_command`", "`executable_path`", "`database_path`", "`failure_class`", "`operation_phase`",
 		"`elapsed_wait_nanoseconds`",
 	} {
 		if !strings.Contains(runbook, field) {

@@ -701,9 +701,10 @@ def measure_prepared(binary, parent, output, adapter_driver=None):
         }
         for metric in metrics
     }
-    capabilities = json.loads(run([str(binary), "binary-capabilities"], roots(parent, "measure-capabilities")).stdout)
+    binary_hash = digest(binary, "measured binary", "measure")
+    supported_schema = supported_schema_evidence(workloads)
     report = {
-        "schema_version": 3,
+        "schema_version": 4,
         "policy": {
             "cpu": int(CPU),
             "gomaxprocs": 1,
@@ -723,7 +724,8 @@ def measure_prepared(binary, parent, output, adapter_driver=None):
             "machine": platform.machine(),
             "processor": platform.processor(),
         },
-        "binary": capabilities,
+        "binary": {"sha256": binary_hash},
+        "supported_database_schema": supported_schema,
         "fixture_inputs": manifest["fixture_inputs"],
         "fixtures": manifest["fixtures"],
         "workloads": workloads,
@@ -794,8 +796,8 @@ def validate_release_report(report):
         raise ValueError("failed release criteria: " + ", ".join(failed))
     if report.get("release_gate") != "PASS":
         raise ValueError("release_gate must be PASS")
-    if report.get("schema_version") != 3:
-        raise ValueError("release report schema_version must be 3")
+    if report.get("schema_version") != 4:
+        raise ValueError("release report schema_version must be 4")
     if report.get("report_role") != "current_passing_authority":
         raise ValueError("passing report role must be current_passing_authority")
     historical = report.get("historical_failure_evidence", {})
@@ -805,9 +807,11 @@ def validate_release_report(report):
         "sha256": HISTORICAL_FAILURE_SHA256,
     }:
         raise ValueError("release report does not bind the historical failed authority")
-    binary = report.get("binary", {})
-    if binary.get("sha256") != binary.get("capabilities", {}).get("executable_sha256"):
-        raise ValueError("release report does not bind the measured executable hash")
+    if not re.fullmatch(r"[0-9a-f]{64}", report.get("binary", {}).get("sha256", "")):
+        raise ValueError("release report lacks the artifact-bytes SHA-256")
+    supported = report.get("supported_database_schema", {})
+    if supported.get("maximum") != 16 or supported.get("evidence") != "measured workload final_schema":
+        raise ValueError("release report lacks readiness-derived supported schema evidence")
     if not re.fullmatch(r"[0-9a-f]{40}", report.get("repository", {}).get("commit", "")):
         raise ValueError("release report does not retain the repository commit identity")
     samples = report.get("raw_samples", {}).get("schema15_to_16_production", [])
@@ -1079,9 +1083,21 @@ def retained_workload_samples(raw):
     return retained
 
 
+def supported_schema_evidence(workloads):
+    final_schemas = {
+        sample.get("final_schema")
+        for samples in workloads.values()
+        for sample in samples
+        if sample.get("final_schema") is not None
+    }
+    if final_schemas != {16}:
+        raise ValueError("readiness workloads do not establish one supported database schema")
+    return {"maximum": 16, "evidence": "measured workload final_schema"}
+
+
 def release_report(
     binary_hash,
-    capabilities,
+    supported_schema,
     repository,
     historical_failure,
     policy,
@@ -1092,10 +1108,11 @@ def release_report(
 ):
     passed = all(item["status"] == "PASS" for item in criteria)
     report = {
-        "schema_version": 3,
+        "schema_version": 4,
         "report_role": "current_passing_authority" if passed else "failed_release_attempt",
         "release_gate": "PASS" if passed else "FAIL",
-        "binary": {"sha256": binary_hash, "capabilities": capabilities},
+        "binary": {"sha256": binary_hash},
+        "supported_database_schema": supported_schema,
         "repository": repository,
         "historical_failure_evidence": historical_failure,
         "policy": policy,
@@ -1145,9 +1162,6 @@ def stage_failure(error):
 
 def release_prepared(binary, parent, output, repository):
     binary_hash = digest(binary, "release binary", "release")
-    capabilities = json.loads(
-        run([str(binary), "binary-capabilities"], roots(parent, "release-capabilities")).stdout
-    )
     repository_record = repository_identity(repository)
     historical_failure = historical_failure_evidence(repository)
     policy = {
@@ -1187,7 +1201,7 @@ def release_prepared(binary, parent, output, repository):
         publish_release_report(
             release_report(
                 binary_hash,
-                capabilities,
+                None,
                 repository_record,
                 historical_failure,
                 policy,
@@ -1234,6 +1248,7 @@ def release_prepared(binary, parent, output, repository):
         measurement_error = error
 
     if raw:
+        supported_schema = supported_schema_evidence(raw["workloads"])
         production_samples = [
             sample
             for sample in raw["workloads"]["schema15-to-16-production"]
@@ -1283,7 +1298,7 @@ def release_prepared(binary, parent, output, repository):
 
     report = release_report(
         binary_hash,
-        capabilities,
+        supported_schema if raw else None,
         repository_record,
         historical_failure,
         policy,

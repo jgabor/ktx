@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
 func testEvent(databasePath string) DatabaseUnavailable {
 	return DatabaseUnavailable{
-		Command: "hook", ExecutablePath: "/tmp/ktx", ExecutableSHA256: strings.Repeat("a", 64),
+		Command: "hook", ExecutablePath: "/tmp/ktx",
 		DatabasePath: databasePath, FailureClass: "sqlite-lock", OperationPhase: "open",
 		ElapsedWaitNanoseconds: 12,
 	}
@@ -50,7 +49,7 @@ func TestAppendDatabaseUnavailable(t *testing.T) {
 	if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"timestamp", "level", "event", "ktx_command", "executable_path", "executable_sha256", "database_path", "failure_class", "operation_phase", "elapsed_wait_nanoseconds"}
+	want := []string{"timestamp", "level", "event", "ktx_command", "executable_path", "database_path", "failure_class", "operation_phase", "elapsed_wait_nanoseconds"}
 	if len(record) != len(want) || scanner.Scan() {
 		t.Fatalf("record fields=%v or multiple records", record)
 	}

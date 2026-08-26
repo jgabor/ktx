@@ -74,7 +74,7 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx bench report: resolve database path: %v", err), format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "bench")
+	db, err := openQueryDatabase(target, "bench")
 	if err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

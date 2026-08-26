@@ -28,7 +28,6 @@ The `database-unavailable` record contains only:
 - `event`
 - `ktx_command`
 - `executable_path`
-- `executable_sha256`
 - `database_path`
 - `failure_class`
 - `operation_phase`
@@ -43,8 +42,8 @@ same process lifetime, uses the current executable, and names a supported
 command. It never stores inspected arguments or command lines. An available
 snapshot with no matching holder has no blockers; an unavailable snapshot reports
 `coordinator_snapshot_available` as false. Other failure classes keep the
-ten-field record above.
+nine-field record above.
 
 Records do not include tool payloads, database content, SQL, raw driver errors,
-credentials, secrets, or arbitrary fields. Paths and hashes are sensitive
+credentials, secrets, or arbitrary fields. Database paths are sensitive
 retained identifiers.

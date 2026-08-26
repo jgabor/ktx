@@ -31,7 +31,7 @@
 # ~/.local/state/ktx/ktx.log. A configured path must be absolute.
 #
 # A database-unavailable event contains timestamp, level, event, ktx_command,
-# executable_path, executable_sha256, database_path, failure_class,
+# executable_path, database_path, failure_class,
 # operation_phase, and elapsed_wait_nanoseconds. Paths and hashes are sensitive.
 # Ktx makes one best-effort append attempt with no retry, rejects unsafe targets,
 # and keeps file logging independent of stderr diagnostics.

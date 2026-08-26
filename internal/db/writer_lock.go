@@ -50,13 +50,13 @@ func BlockerCommandLabel(argv []string) string {
 		switch args[0] {
 		case "--quiet", "-q":
 			args = args[1:]
-		case "--format", "--expect-runtime-sha256":
+		case "--format":
 			if len(args) < 2 {
 				return "unknown"
 			}
 			args = args[2:]
 		default:
-			if strings.HasPrefix(args[0], "--format=") || strings.HasPrefix(args[0], "--expect-runtime-sha256=") ||
+			if strings.HasPrefix(args[0], "--format=") ||
 				strings.HasPrefix(args[0], "--quiet=") || strings.HasPrefix(args[0], "-q=") {
 				args = args[1:]
 				continue

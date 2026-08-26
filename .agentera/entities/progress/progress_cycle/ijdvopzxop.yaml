@@ -1,0 +1,16 @@
+id: ijdvopzxop
+artifact: progress
+record:
+  timestamp: 2026-08-26 17:58
+  type: fix
+  phase: build
+  what: Replaced retained executable-digest consumers with canonical path pinning and readiness-owned schema evidence.
+  context:
+    intent: Execute only plan task ktxuxbwltx.
+    constraints: Kept the public command and flags for their separately owned deletion task; preserved database readiness and read-only safety.
+    unknowns: "Resolved repeated schema-incompatibility suppression in favor of retention: focused adapter evidence demonstrates one diagnostic for repeated unchanged callbacks, with re-emission after database mutation and for a separately resolved executable. No digest participates in suppression."
+    scope: OpenCode and Codex generated adapters, schema-readiness report generation and validation, and focused tests.
+  discovered: The generated-adapter readiness overlap test also consumed digest-bearing diagnostics; it now checks the actionable database, executable path, failure class, phase, wait, and correction facts instead.
+  verified: Focused OpenCode/Codex tests passed; 14 schema-readiness Python tests passed; generated-adapter overlap passed; mage check passed with 0 issues and a clean database-safety audit (KTX_DB unset, forbidden=0). The local build generated a Codex adapter successfully from ./build/ktx.
+  next: Delete the still-public capability command and digest flags only in task dfswxmvkjt, then perform the plan's final verification and state synchronization tasks.
+  publication_order: 174

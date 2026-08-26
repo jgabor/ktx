@@ -48,7 +48,7 @@ func runDecompressWith(args []string, opts Options, stdout, stderr io.Writer) in
 		printError(stderr, internalError("ktx decompress: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "decompress")
+	db, err := openQueryDatabase(target, "decompress")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

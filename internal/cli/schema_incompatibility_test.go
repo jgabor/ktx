@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/jgabor/ktx/internal/binarycap"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	_ "modernc.org/sqlite"
 )
@@ -30,17 +29,6 @@ func TestOpenBackedCommandsShareSchemaIncompatibilityContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	identity := binarycap.Identity{
-		Schema:            binarycap.Schema,
-		ExecutablePath:    "/tmp/ktx-schema-test",
-		ExecutableSHA256:  testBinaryDigest,
-		BuildVersion:      "schema-test",
-		MaxDatabaseSchema: dbpkg.MaxSupportedSchema(),
-	}
-	originalIdentity := currentBinaryCapabilities
-	currentBinaryCapabilities = func() (binarycap.Identity, error) { return identity, nil }
-	t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
-
 	before := directorySnapshot(t, dir)
 	for _, test := range []struct {
 		name string
@@ -67,13 +55,10 @@ func TestOpenBackedCommandsShareSchemaIncompatibilityContract(t *testing.T) {
 				t.Fatalf("decode error: %v\n%s", err, stderr.String())
 			}
 			want := map[string]any{
-				"code":              "schema-incompatible",
-				"actual_schema":     float64(dbpkg.MaxSupportedSchema() + 1),
-				"maximum_schema":    float64(dbpkg.MaxSupportedSchema()),
-				"database_path":     canonicalDB,
-				"executable_path":   identity.ExecutablePath,
-				"executable_sha256": identity.ExecutableSHA256,
-				"build_version":     identity.BuildVersion,
+				"code":           "schema-incompatible",
+				"actual_schema":  float64(dbpkg.MaxSupportedSchema() + 1),
+				"maximum_schema": float64(dbpkg.MaxSupportedSchema()),
+				"database_path":  canonicalDB,
 			}
 			for key, value := range want {
 				if !reflect.DeepEqual(envelope.Error[key], value) {
@@ -97,7 +82,7 @@ func TestOpenBackedCommandsShareSchemaIncompatibilityContract(t *testing.T) {
 	}
 }
 
-func TestAmbientRuntimeProofPrecedesNewerSchemaInspection(t *testing.T) {
+func TestRemovedDigestSurfacesFailBeforeDatabaseAccess(t *testing.T) {
 	dataHome := t.TempDir()
 	dbDir := filepath.Join(dataHome, "ktx")
 	if err := os.Mkdir(dbDir, 0o755); err != nil {
@@ -106,31 +91,21 @@ func TestAmbientRuntimeProofPrecedesNewerSchemaInspection(t *testing.T) {
 	seedSchemaVersion(t, filepath.Join(dbDir, "ktx.db"), dbpkg.MaxSupportedSchema()+1)
 	t.Setenv("XDG_DATA_HOME", dataHome)
 	t.Setenv("KTX_DB", "")
-	originalIdentity := currentBinaryCapabilities
-	currentBinaryCapabilities = func() (binarycap.Identity, error) {
-		return binarycap.Identity{
-			ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest,
-			BuildVersion: "test", MaxDatabaseSchema: dbpkg.MaxSupportedSchema(),
-		}, nil
-	}
-	t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
 	before := directorySnapshot(t, dbDir)
 	for _, test := range []struct {
-		name, errorCode string
-		code            int
-		args            []string
+		name string
+		args []string
 	}{
-		{name: "missing proof", args: []string{"list"}, code: ExitConflict, errorCode: "conflict"},
-		{name: "mismatched proof", args: []string{"--expect-runtime-sha256", otherRuntimeDigest, "list"}, code: ExitConflict, errorCode: "conflict"},
-		{name: "malformed proof", args: []string{"--expect-runtime-sha256", "bad", "list"}, code: ExitUsage, errorCode: "usage"},
-		{name: "matching proof", args: []string{"--expect-runtime-sha256", testBinaryDigest, "list"}, code: ExitSchemaIncompatible, errorCode: "schema-incompatible"},
+		{name: "command", args: []string{"binary-capabilities"}},
+		{name: "root flag", args: []string{"--expect-runtime-sha256", "digest", "list"}},
+		{name: "command flag", args: []string{"list", "--expect-sha256", "digest"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			if code := runWith(test.args, &stdout, &stderr); code != test.code {
-				t.Fatalf("exit = %d, want %d; stderr=%q", code, test.code, stderr.String())
+			if code := runWith(test.args, &stdout, &stderr); code != ExitUsage {
+				t.Fatalf("exit = %d, want %d; stderr=%q", code, ExitUsage, stderr.String())
 			}
-			if stdout.Len() != 0 || !bytes.Contains(stderr.Bytes(), []byte(`"code":"`+test.errorCode+`"`)) {
+			if stdout.Len() != 0 || !bytes.Contains(stderr.Bytes(), []byte(`"code":"usage"`)) {
 				t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 			}
 		})
@@ -167,7 +142,7 @@ func TestReadOnlyCommandAutomaticallyPreparesOlderSchema(t *testing.T) {
 	}
 }
 
-func TestAmbientMatchingRuntimeProofAllowsCurrentAndOlderQueries(t *testing.T) {
+func TestAmbientCurrentAndOlderQueriesNeedNoDigest(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		version int
@@ -185,14 +160,8 @@ func TestAmbientMatchingRuntimeProofAllowsCurrentAndOlderQueries(t *testing.T) {
 			})
 			t.Setenv("XDG_DATA_HOME", dataHome)
 			t.Setenv("KTX_DB", "")
-			originalIdentity := currentBinaryCapabilities
-			currentBinaryCapabilities = func() (binarycap.Identity, error) {
-				return binarycap.Identity{ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest}, nil
-			}
-			t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
-
 			var stdout, stderr bytes.Buffer
-			if code := runWith([]string{"--expect-runtime-sha256", testBinaryDigest, "list"}, &stdout, &stderr); code != ExitOK {
+			if code := runWith([]string{"list"}, &stdout, &stderr); code != ExitOK {
 				t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}
 			database, err := dbpkg.OpenReadOnly(path)

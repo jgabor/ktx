@@ -1,0 +1,16 @@
+id: iasdokoglw
+artifact: plan
+record:
+  name: Synchronize current project state
+  depends_on:
+    - zgvgzytlhu
+    - ktxuxbwltx
+    - dfswxmvkjt
+    - orcsmssbto
+  status: complete
+  acceptance:
+    - GIVEN implementation and verification evidence WHEN project state is synchronized THEN relevant decisions, task status, and progress describe the simplified behavior.
+    - GIVEN prior identity requirements WHEN current-state artifacts are reviewed THEN none remains authoritative by accident.
+    - GIVEN the plan is evaluated WHEN all acceptance evidence is present THEN its tasks and intended outcome can be closed without unresolved drift.
+  plan: crmpbcogem
+  evidence: Superseding decision algmjykxaq provisionally records the complete simplified behavior and final correction evidence while leaving user confirmation pending. Historical decisions iklzthoapi, pkncauwnqe, and yyorkhqcyb remain preserved, and algmjykxaq explicitly supersedes their executable-identity portions. Progress ttlzqfnijo records the bounded correction verification; synchronization progress plyvjjonrs records that current TODO and architecture require no related edit and that all prerequisite tasks are complete. Real generated-adapter evidence shows schema 17 reported once for duplicate callbacks and schema 18 separately, with no build_version; focused tests and isolated mage check passed, and obsolete current-documentation searches are clean.

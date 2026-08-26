@@ -13,29 +13,19 @@ the database-unavailable result are defined in the
 
 ## Command classes
 
-| Class                                     | Surfaces                                                                                                                                                                  | Database behavior                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DB-free                                   | Help, version, init, config and plugin management, `binary-capabilities`, `db path`, prices, replay-file, comparison preflight, corpus generation, and evidence preflight | Does not create, inspect, open, or migrate an ambient database.                                                                                                                                                                                                                                                                                |
-| Query operation                           | `get`, `read`, `list`, `stats`, `decompress`; `bench report`; `telemetry list`                                                                                            | An absent database is represented by an ephemeral empty current schema. A supported older database is prepared automatically, then the requested operation opens with SQLite `mode=ro` and `query_only`.                                                                                                                                       |
-| Existing-artifact inspection              | `doctor`; `db report`; `bench export` and `bench validate`                                                                                                                | Preserves command-specific missing-input behavior. A supported older database is prepared automatically, then inspection is read-only.                                                                                                                                                                                                         |
-| Creation and migration capable            | `write`, `compress`, `hook`, `run`; telemetry record and collector commands; normal benchmark run and replay; collector-enabled benchmark agent                           | May create a missing database and transactionally migrate an older supported schema before writing. A current-schema hook first opens without creation, migration, or exclusive coordination, then rechecks the schema inside its evidence-writer window. Missing and older supported databases fall back to the normal coordinated Open path. |
-| Explicit migration                        | `ktx db migrate`                                                                                                                                                          | Retained for diagnosis and rehearsal, not as a prerequisite for normal use. It upgrades an existing older database and does not create an absent database.                                                                                                                                                                                     |
-| Isolated owner databases                  | Normal benchmark compare and rank                                                                                                                                         | Creates a fresh database for each attempt and rejects attempt-directory reuse.                                                                                                                                                                                                                                                                 |
-| Forbidden ambient-live development access | Any development, test, CI, or rehearsal command that could discover the normal user database                                                                              | Use a fresh disposable application root and, for migration rehearsal, an explicitly seeded temporary database.                                                                                                                                                                                                                                 |
+| Class                                     | Surfaces                                                                                                                                           | Database behavior                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DB-free                                   | Help, version, init, config and plugin management, `db path`, prices, replay-file, comparison preflight, corpus generation, and evidence preflight | Does not create, inspect, open, or migrate an ambient database.                                                                                                                                                                                                                                                                                |
+| Query operation                           | `get`, `read`, `list`, `stats`, `decompress`; `bench report`; `telemetry list`                                                                     | An absent database is represented by an ephemeral empty current schema. A supported older database is prepared automatically, then the requested operation opens with SQLite `mode=ro` and `query_only`.                                                                                                                                       |
+| Existing-artifact inspection              | `doctor`; `db report`; `bench export` and `bench validate`                                                                                         | Preserves command-specific missing-input behavior. A supported older database is prepared automatically, then inspection is read-only.                                                                                                                                                                                                         |
+| Creation and migration capable            | `write`, `compress`, `hook`, `run`; telemetry record and collector commands; normal benchmark run and replay; collector-enabled benchmark agent    | May create a missing database and transactionally migrate an older supported schema before writing. A current-schema hook first opens without creation, migration, or exclusive coordination, then rechecks the schema inside its evidence-writer window. Missing and older supported databases fall back to the normal coordinated Open path. |
+| Explicit migration                        | `ktx db migrate`                                                                                                                                   | Retained for diagnosis and rehearsal, not as a prerequisite for normal use. It upgrades an existing older database and does not create an absent database.                                                                                                                                                                                     |
+| Isolated owner databases                  | Normal benchmark compare and rank                                                                                                                  | Creates a fresh database for each attempt and rejects attempt-directory reuse.                                                                                                                                                                                                                                                                 |
+| Forbidden ambient-live development access | Any development, test, CI, or rehearsal command that could discover the normal user database                                                       | Use a fresh disposable application root and, for migration rehearsal, an explicitly seeded temporary database.                                                                                                                                                                                                                                 |
 
 Path precedence remains explicit flag, then `KTX_DB`, then the default
 `$XDG_DATA_HOME/ktx/ktx.db`. `KTX_DB` selects a path; it does not prove that the
 path is disposable or safe.
-
-The ambient default path requires `--expect-runtime-sha256` on every
-database-backed invocation. KTX validates the 64-character lowercase digest
-against the running executable before path inspection, directory creation,
-SQLite open, or readiness. Missing proof exits `3` with
-`failure_class=runtime-proof-required`; a mismatch exits `3` with
-`failure_class=runtime-proof-mismatch`; malformed proof exits `1`; and an
-unverifiable executable exits `4`. Explicit `KTX_DB` and `db --path` targets are
-operator-owned and exempt. Generated OpenCode and Codex callbacks pass the
-digest of their exact pinned executable.
 
 ## Query behavior
 
@@ -171,8 +161,6 @@ with code `schema-incompatible` before writes. The diagnostic includes:
     "maximum_schema": 12,
     "database_path": "/canonical/path/to/ktx.db",
     "executable_path": "/canonical/path/to/ktx",
-    "executable_sha256": "<64 lowercase hexadecimal characters>",
-    "build_version": "<version>",
     "correction": "..."
   }
 }
@@ -183,7 +171,7 @@ Recover by installing a binary that supports schema `Y` or newer. Never lower
 
 The generated OpenCode plugin emits the first matching schema-incompatible
 diagnostic in one loaded plugin instance. It suppresses repeated ordinary
-callbacks only while the executable identity and a bounded metadata fingerprint
+callbacks only while the pinned executable path and a bounded metadata fingerprint
 of the database, WAL, and SHM files remain unchanged. Required benchmark
 collection remains fail-closed and does not suppress failures.
 
@@ -247,6 +235,3 @@ env -u KTX_DB HOME="$root/home" XDG_DATA_HOME="$root/data" \
 
 Inspect the temporary database after migration. Do not copy, stat, open, or
 relabel the ambient live database as a rehearsal target.
-
-For executable identity fields used in diagnostics, see
-[Binary compatibility identity](binary-capabilities.md).

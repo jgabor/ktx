@@ -33,7 +33,7 @@ func runReadWith(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx read: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	db, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "read")
+	db, err := openQueryDatabase(target, "read")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

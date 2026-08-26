@@ -77,10 +77,6 @@ func runBenchExport(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx bench export: resolve database path: %v", err), opts.Format)
 		return ExitInternal
 	}
-	if err := authorizeDatabaseTarget(target, opts.ExpectedRuntimeSHA256); err != nil {
-		printError(stderr, err, opts.Format)
-		return exitCodeOf(err)
-	}
 	aliasesSource, err := destinationAliasesSource(target.Path, output)
 	if err != nil {
 		printError(stderr, internalError("ktx bench export: compare output with source database: %v", err), opts.Format)
@@ -90,7 +86,7 @@ func runBenchExport(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, invalidReplayFixtureDestination(target.Path), opts.Format)
 		return ExitUsage
 	}
-	database, err := openQueryDatabase(target, opts.ExpectedRuntimeSHA256, "bench export")
+	database, err := openQueryDatabase(target, "bench export")
 	if err != nil {
 		printError(stderr, err, opts.Format)
 		return exitCodeOf(err)

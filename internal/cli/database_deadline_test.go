@@ -9,17 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jgabor/ktx/internal/binarycap"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 func TestDatabaseDeadlinesEmitOneStableAttribution(t *testing.T) {
-	originalIdentity := currentBinaryCapabilities
-	currentBinaryCapabilities = func() (binarycap.Identity, error) {
-		return binarycap.Identity{ExecutablePath: "/verified/ktx", ExecutableSHA256: testBinaryDigest}, nil
-	}
-	t.Cleanup(func() { currentBinaryCapabilities = originalIdentity })
-
 	path := filepath.Join(t.TempDir(), "ktx.db")
 	started := time.Now().Add(-time.Second)
 	for _, test := range []struct {

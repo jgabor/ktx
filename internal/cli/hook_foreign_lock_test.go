@@ -460,7 +460,6 @@ func assertHookForeignLockRendered(t *testing.T, path, operationPhase string, er
 				Code                   string `json:"code"`
 				DatabasePath           string `json:"database_path"`
 				ExecutablePath         string `json:"executable_path"`
-				ExecutableSHA256       string `json:"executable_sha256"`
 				FailureClass           string `json:"failure_class"`
 				OperationPhase         string `json:"operation_phase"`
 				ElapsedWaitNanoseconds int64  `json:"elapsed_wait_nanoseconds"`
@@ -471,7 +470,7 @@ func assertHookForeignLockRendered(t *testing.T, path, operationPhase string, er
 			t.Fatalf("decode database-unavailable result: %v\n%s", decodeErr, rendered.String())
 		}
 		if envelope.Error.Code != string(CodeDatabaseUnavailable) || envelope.Error.DatabasePath != canonicalPath ||
-			envelope.Error.ExecutablePath == "" || len(envelope.Error.ExecutableSHA256) != 64 ||
+			envelope.Error.ExecutablePath == "" ||
 			envelope.Error.FailureClass != dbpkg.UnavailableClassSQLiteLock || envelope.Error.OperationPhase != operationPhase ||
 			envelope.Error.ElapsedWaitNanoseconds <= 0 || envelope.Error.Correction == "" {
 			t.Errorf("database-unavailable result = %+v", envelope.Error)

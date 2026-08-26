@@ -28,8 +28,13 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := DecodeSummary(actualSummary); err != nil {
+	decodedSummary, err := DecodeSummary(actualSummary)
+	if err != nil {
 		return nil, err
+	}
+	if isLegacyRecoverySummary(decodedSummary) {
+		manifest.legacyRecoverySemantics = true
+		applyLegacyRecoverySemantics(attempts)
 	}
 	preserveHistoricalSummarySchema(&manifest, actualSummary)
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, actualSummary)

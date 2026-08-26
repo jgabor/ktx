@@ -37,20 +37,21 @@
     }
   },
   "campaign": {
-    "attempts": 108,
+    "attempts": 110,
     "attempt_ceiling": 120,
-    "elapsed_seconds": 1021,
+    "elapsed_seconds": 1644,
     "elapsed_ceiling_seconds": 21600,
     "runtime_reported_cost_usd": 0,
-    "estimated_spend_usd": 7.438216,
+    "estimated_spend_usd": 7.455092,
     "estimated_spend_ceiling_usd": 25,
     "baseline_sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1",
     "attempt_statuses": {
       "completed": 108,
-      "invalid": 0,
+      "invalid": 1,
       "failed": 0,
       "timeout": 0,
-      "unlinked": 0
+      "unlinked": 0,
+      "lifecycle_failure_before_attempt_record": 1
     }
   },
   "accepted_experiments": [
@@ -72,7 +73,11 @@
       },
       "tool_calls": { "baseline": 49, "candidate": 46 },
       "exact_repeats": { "baseline": 0, "candidate": 0 },
-      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline": "unavailable",
+        "candidate": "unavailable",
+        "reason": "cue_delivery_authority_unavailable"
+      },
       "runtime_cost_usd": 0,
       "estimated_spend_usd": 1.730277,
       "validation": { "valid": true, "summary_byte_match": true }
@@ -95,7 +100,11 @@
       },
       "tool_calls": { "baseline": 46, "candidate": 50 },
       "exact_repeats": { "baseline": 0, "candidate": 0 },
-      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline": "unavailable",
+        "candidate": "unavailable",
+        "reason": "cue_delivery_authority_unavailable"
+      },
       "runtime_cost_usd": 0,
       "estimated_spend_usd": 1.525623,
       "validation": { "valid": true, "summary_byte_match": true }
@@ -118,7 +127,11 @@
       },
       "tool_calls": { "baseline": 48, "candidate": 46 },
       "exact_repeats": { "baseline": 0, "candidate": 0 },
-      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline": "unavailable",
+        "candidate": "unavailable",
+        "reason": "cue_delivery_authority_unavailable"
+      },
       "runtime_cost_usd": 0,
       "estimated_spend_usd": 1.674126,
       "validation": { "valid": true, "summary_byte_match": true }
@@ -138,7 +151,11 @@
       },
       "tool_calls": { "baseline": 15, "candidate": 61 },
       "exact_repeats": { "baseline": 0, "candidate": 0 },
-      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline": "unavailable",
+        "candidate": "unavailable",
+        "reason": "cue_delivery_authority_unavailable"
+      },
       "runtime_cost_usd": 0,
       "estimated_spend_usd": 0.863057,
       "validation": { "valid": true, "summary_byte_match": true }
@@ -191,8 +208,32 @@
     "error": "summary schema 6 is missing recovery_aware_comparison",
     "note": "The attempt ceiling prevented replacement comparisons. Partial archives are retained and are not accepted evidence."
   },
+  "audit_correction": {
+    "event_contract": "opencode-event-v3",
+    "generated_plugin_sha256": "a2eb6388e6e74543d902d2db56e055227dd0e36781aa5e6db7993e56b0f62959",
+    "preflight": "passed",
+    "qualification": {
+      "id": "v7-crossfile-73-1-cuefix-20260827",
+      "task": "crossfile-nav-v1",
+      "config": "keep-ends:73:1",
+      "requested_attempt_limit": 12,
+      "actual_provider_attempts": 2,
+      "recorded_attempts": 1,
+      "recorded_statuses": { "invalid": 1 },
+      "lifecycle_failure_before_attempt_record": 1,
+      "complete_pairs": 0,
+      "cue_exposure": "unavailable",
+      "cue_follow": "unavailable",
+      "linked_recovery": "unavailable",
+      "runtime_reported_cost_usd": 0,
+      "estimated_spend_usd": 0.016876,
+      "elapsed_seconds": 623,
+      "validation": { "valid": false, "reason": "summary_not_created" },
+      "stop_reason": "A mounted-path ownership check rejected required hooks. After its bounded correction, the remaining 10-attempt allowance could not satisfy the 12-attempt minimum for five pairs."
+    }
+  },
   "recommendation": {
     "action": "no_change",
-    "reason": "Only four of nine comparisons reached five complete pairs and validated. Complete matrix quality and runtime totals are unavailable; defaults and configuration remain unchanged."
+    "reason": "Prior recovery evidence is unavailable and the bounded correction run did not qualify. Complete recovery-aware quality and runtime totals remain unavailable; defaults and configuration remain unchanged."
   }
 }

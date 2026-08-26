@@ -93,10 +93,12 @@ func acknowledgeRecoveryCue(args []string, stdin io.Reader, db *dbpkg.DB, stdout
 	if len(args) != 0 {
 		return usageError("ktx telemetry cue-delivered: unexpected arguments")
 	}
-	collectionID := strings.TrimSpace(os.Getenv("KTX_COLLECTION_ID"))
-	sessionID := strings.TrimSpace(os.Getenv("KTX_SESSION_ID"))
-	if !dbpkg.IDPattern.MatchString(collectionID) || !dbpkg.IDPattern.MatchString(sessionID) {
-		return usageError("ktx telemetry cue-delivered: explicit collection ownership is absent")
+	collectionID, sessionID, present, err := recoveryEvidenceOwner(db)
+	if err != nil {
+		return usageError("ktx telemetry cue-delivered: ownership mismatch: %v", err)
+	}
+	if !present {
+		return usageError("ktx telemetry cue-delivered: collection ownership is absent")
 	}
 	var in recoveryCueAckInput
 	if err := json.NewDecoder(stdin).Decode(&in); err != nil {
@@ -114,6 +116,39 @@ func acknowledgeRecoveryCue(args []string, stdin io.Reader, db *dbpkg.DB, stdout
 		return conflictError("ktx telemetry cue-delivered: acknowledgement conflict: %v", err)
 	}
 	return json.NewEncoder(stdout).Encode(map[string]any{"ok": true, "collection_id": collectionID, "session_id": sessionID, "source_id": in.SourceID, "artifact_id": in.ArtifactID})
+}
+
+func recoveryEvidenceOwner(database *dbpkg.DB) (collectionID, sessionID string, present bool, err error) {
+	benchmark, benchmarkPresent, benchmarkErr := benchcontract.ReadEnvironment()
+	if benchmarkPresent {
+		if benchmarkErr != nil {
+			return "", "", true, benchmarkErr
+		}
+		if os.Getenv("KTX_COLLECTION_ID") != "" || os.Getenv("KTX_SESSION_ID") != "" {
+			return "", "", true, errors.New("benchmark and explicit collection ownership conflict")
+		}
+		interval, loadErr := database.LoadRuntimeEventInterval(benchmark.IntervalID)
+		if loadErr != nil || interval.SessionID != benchmark.SessionID || interval.Runtime != benchcontract.Runtime || interval.RuntimeVersion != benchcontract.RuntimeVersion || interval.Source != dbpkg.RuntimeEventSource || interval.ContractVersion != benchcontract.ContractVersion || interval.CloseState != dbpkg.RuntimeOpen || interval.CollectorEpochCount == 0 {
+			return "", "", true, errors.New("benchmark interval owner is unavailable")
+		}
+		var collectionCount int
+		if queryErr := database.DB().QueryRow(`SELECT count(*) FROM collection_intervals WHERE id=? AND supported_ingresses='["run"]'`, interval.ID).Scan(&collectionCount); queryErr != nil || collectionCount != 1 {
+			return "", "", true, errors.New("benchmark collection owner is unavailable")
+		}
+		return interval.ID, interval.SessionID, true, nil
+	}
+	collectionID = strings.TrimSpace(os.Getenv("KTX_COLLECTION_ID"))
+	sessionID = strings.TrimSpace(os.Getenv("KTX_SESSION_ID"))
+	if collectionID == "" && sessionID == "" {
+		return "", "", false, nil
+	}
+	if !dbpkg.IDPattern.MatchString(collectionID) || !dbpkg.IDPattern.MatchString(sessionID) {
+		return "", "", true, errors.New("invalid explicit collection ownership")
+	}
+	if validateErr := database.ValidateCollectionInterval(collectionID, []string{"run"}); validateErr != nil {
+		return "", "", true, validateErr
+	}
+	return collectionID, sessionID, true, nil
 }
 
 type collectorOpenInput struct {

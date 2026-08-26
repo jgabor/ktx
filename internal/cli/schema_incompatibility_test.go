@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	_ "modernc.org/sqlite"
 )
@@ -22,7 +23,7 @@ func TestOpenBackedCommandsShareSchemaIncompatibilityContract(t *testing.T) {
 	t.Setenv("KTX_DB", path)
 	t.Setenv("KTX_BENCH_SESSION_ID", "aaaaaaaaaaaaaaaa")
 	t.Setenv("KTX_BENCH_EVENT_INTERVAL_ID", "bbbbbbbbbbbbbbbb")
-	t.Setenv("KTX_BENCH_EVENT_CONTRACT", "opencode-event-v2")
+	t.Setenv("KTX_BENCH_EVENT_CONTRACT", benchcontract.ContractVersion)
 	t.Setenv("KTX_BENCH_COLLECTOR_MODE", "required")
 
 	canonicalDB, err := dbpkg.CanonicalPath(path)

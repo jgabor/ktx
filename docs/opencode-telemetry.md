@@ -105,6 +105,13 @@ epoch is an explicit restart boundary; callbacks from an older epoch after that
 boundary make the interval incomplete. Go normalizes callback kinds; raw
 callback and error bodies are not retained.
 
+Required event contract `opencode-event-v3` also owns recovery evidence. After
+the adapter applies a recovery cue, it acknowledges the delivery against the
+same precreated interval and session; a later exact recovery command is linked
+only under that owner. Older required-event contracts do not establish missing
+cue rows as measured zero, so their recovery outcome is unavailable. Explicit
+collection ownership keeps its existing database-target and ingress checks.
+
 ## Accepted events
 
 A model-step observation comes from one `message.part.updated` event with this

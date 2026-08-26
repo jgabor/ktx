@@ -226,4 +226,5 @@ type Manifest struct {
 	Pricing                 *PricingSnapshotMetadata    `json:"pricing,omitempty"`
 	CacheControl            *CacheControlManifest       `json:"cache_control,omitempty"`
 	historicalSummarySchema int
+	legacyRecoverySemantics bool
 }

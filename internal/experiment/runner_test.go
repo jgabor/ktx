@@ -623,7 +623,7 @@ func TestValidateLocalCollectorSourceAcceptsCurrentSource(t *testing.T) {
 
 func TestBenchcontractDeclarationsIgnoreAlignmentAndNeighbors(t *testing.T) {
 	source := []byte(`const (
-	ContractVersion = "opencode-event-v2"
+	ContractVersion = "opencode-event-v3"
 	LegacyContractVersion     = "opencode-event-v1"
 	CollectorRequired	=     "required" // benchmark mode
 )

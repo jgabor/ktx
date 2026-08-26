@@ -154,8 +154,9 @@ func TestSchema3RetainedContractVersionControlsLedgerInterpretation(t *testing.T
 	}{
 		{name: "unmigrated schema 7 v1", contract: benchcontract.LegacyContractVersion},
 		{name: "schema 8 migrated v1", contract: benchcontract.LegacyContractVersion, classified: true},
-		{name: "unknown contract", contract: "opencode-event-v3", classified: true, wantReason: "schema 3 runtime event interval provenance does not match the required contract"},
-		{name: "v2 without classifications", contract: benchcontract.ContractVersion, wantReason: "schema 3 v2 runtime events are missing duplicate classifications"},
+		{name: "unknown contract", contract: "opencode-event-v4", classified: true, wantReason: "schema 3 runtime event interval provenance does not match the required contract"},
+		{name: "v2 without classifications", contract: benchcontract.PriorContractVersion, wantReason: "schema 3 v2 runtime events are missing duplicate classifications"},
+		{name: "v3 without classifications", contract: benchcontract.ContractVersion, wantReason: "schema 3 v2 runtime events are missing duplicate classifications"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

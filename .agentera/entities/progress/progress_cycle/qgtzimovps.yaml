@@ -1,0 +1,16 @@
+id: qgtzimovps
+artifact: progress
+record:
+  timestamp: 2026-08-27 01:39
+  type: fix
+  phase: build
+  what: Bound required benchmark recovery evidence to the precreated attempt interval, made missing cue authority unavailable, preserved legacy schema-6 bytes, and updated the retained campaign report. No defaults changed.
+  context:
+    intent: Correct the required-mode cue authority seam and truthfully update campaign evidence within the original ceilings.
+    constraints: Use the existing schemas, preserve historical bytes and explicit collection behavior, stop before exceeding 120 attempts, six hours, or USD 25, and leave the plan task in progress.
+    unknowns: Live cue exposure and follow behavior remain unavailable because the bounded correction archive did not complete a pair.
+    scope: Required benchmark ownership, recovery outcome projection, focused tests, one bounded qualification attempt, and retained reports.
+  discovered: The bounded qualification attempted two provider runs. Required hooks first exposed an over-strict host/container database-target check; after correction only 10 of the original 120-attempt ceiling remained, below the 12-attempt minimum for five pairs, so qualification stopped unavailable.
+  verified: Focused required-mode process and integration tests pass for cue delivery, linked byte-exact recovery, owner mismatch, mounted paths, and old-archive unavailability. mage check, rebuilt offline preflight, and four accepted historical v7 archive validations with byte-exact summaries pass. Cumulative accounting is 110 attempts, 1,644 seconds, USD 0 runtime cost, and USD 7.455092 estimated spend.
+  next: Re-audit the correction and retained report. A qualified live recovery result requires a separately approved attempt budget.
+  publication_order: 187

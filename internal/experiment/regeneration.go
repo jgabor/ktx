@@ -203,7 +203,7 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	acceptedPredicate := "kind = 'model_step'"
 	switch contract {
 	case benchcontract.LegacyContractVersion:
-	case benchcontract.ContractVersion:
+	case benchcontract.PriorContractVersion, benchcontract.ContractVersion:
 		if !classifiedEvents {
 			return nil, "schema 3 v2 runtime events are missing duplicate classifications"
 		}

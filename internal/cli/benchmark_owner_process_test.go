@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
 	dbpkg "github.com/jgabor/ktx/internal/db"
@@ -36,8 +37,19 @@ func TestConcurrentBenchmarkHooksUseOneExplicitOwnerWithoutProcessFiles(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, "open")
+	openedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, openedAt)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.EnsureCollectionInterval(interval.ID, []string{"run"}, openedAt); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(benchcontract.SessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.IntervalEnv, interval.ID)
+	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
+	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
+	if _, err := telemetryLogic([]string{"collector-open"}, FormatJSON, bytes.NewBufferString(`{"epoch_id":"epoch"}`), database, io.Discard, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if err := database.Close(); err != nil {

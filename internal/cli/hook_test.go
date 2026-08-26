@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/identity"
@@ -347,6 +349,67 @@ recover_footer = true
 	}
 	if attempts != 2 || failed != 1 {
 		t.Fatalf("attempts=%d failed=%d, want exact success plus authoritative failure only", attempts, failed)
+	}
+}
+
+func TestRequiredBenchmarkRetainsDeliveredCueAndLinkedRecovery(t *testing.T) {
+	d := hookTestDB(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	hookWriteUserConfig(t, `[pipeline.default]
+stages = ["keep-ends:2:1"]
+recover_footer = true
+`)
+	interval, err := d.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, time.Now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.EnsureCollectionInterval(interval.ID, []string{"run"}, interval.OpenedAt); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(benchcontract.SessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.IntervalEnv, interval.ID)
+	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
+	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
+	if _, err := telemetryLogic([]string{"collector-open"}, FormatJSON, strings.NewReader(`{"epoch_id":"epoch"}`), d, io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+
+	original := strings.Repeat("first\nmiddle\nlast\n", 20)
+	initial, _ := json.Marshal(map[string]any{"runtime": "opencode", "input": map[string]any{"tool": "bash", "sessionID": "ses_original", "callID": "call_original", "args": map[string]any{"command": "fixture"}}, "output": map[string]any{"output": original, "metadata": map[string]any{"exit": 0}}})
+	var hookOut, hookErr bytes.Buffer
+	if _, err := hookLogic(bytes.NewReader(initial), d, &hookOut, &hookErr); err != nil {
+		t.Fatal(err)
+	}
+	var envelope hookEnvelope
+	if err := json.Unmarshal(hookOut.Bytes(), &envelope); err != nil || !envelope.RecoveryCue || envelope.CompressedID == nil {
+		t.Fatalf("envelope=%+v err=%v", envelope, err)
+	}
+	ackInput, _ := json.Marshal(map[string]any{"source_id": envelope.SourceID, "artifact_id": *envelope.CompressedID, "session_id": envelope.KTXSessionID, "runtime_session_id": envelope.RuntimeSessionID, "call_id": envelope.CallID})
+	var ack bytes.Buffer
+	if err := acknowledgeRecoveryCue(nil, bytes.NewReader(ackInput), d, &ack); err != nil {
+		t.Fatal(err)
+	}
+	var ackValue map[string]any
+	if json.Unmarshal(ack.Bytes(), &ackValue) != nil || ackValue["collection_id"] != interval.ID {
+		t.Fatalf("ack=%s", ack.String())
+	}
+	source, err := d.GetToolCall(envelope.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovered, _ := json.Marshal(source)
+	recovery, _ := json.Marshal(map[string]any{"runtime": "opencode", "input": map[string]any{"tool": "bash", "sessionID": "ses_recovery", "callID": "call_recovery", "args": map[string]any{"command": "ktx read " + envelope.SourceID}}, "output": map[string]any{"output": string(recovered), "metadata": map[string]any{"exit": 0}}})
+	hookOut.Reset()
+	if _, err := hookLogic(bytes.NewReader(recovery), d, &hookOut, &hookErr); err != nil {
+		t.Fatal(err)
+	}
+	var owner, cue, state string
+	var exact bool
+	if err := d.DB().QueryRow(`SELECT collection_id,cue_source_id,result_state,byte_exact FROM recovery_attempts`).Scan(&owner, &cue, &state, &exact); err != nil {
+		t.Fatal(err)
+	}
+	if owner != interval.ID || cue != envelope.SourceID || state != "succeeded" || !exact {
+		t.Fatalf("owner=%q cue=%q state=%q exact=%v", owner, cue, state, exact)
 	}
 }
 

@@ -738,9 +738,15 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	if readSummaryErr != nil && !os.IsNotExist(readSummaryErr) {
 		return SummaryRegeneration{}, readSummaryErr
 	}
+	var retainedSummary Summary
+	preserveLegacyBytes := false
 	if readSummaryErr == nil {
-		if _, err := DecodeSummary(existingSummary); err != nil {
+		retainedSummary, err = DecodeSummary(existingSummary)
+		if err != nil {
 			return SummaryRegeneration{}, err
+		}
+		if isLegacyRecoverySummary(retainedSummary) {
+			preserveLegacyBytes = true
 		}
 	}
 	preserveHistoricalSummarySchema(&manifest, existingSummary)
@@ -750,10 +756,50 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	}
 	attempts = estimateAttempts(attempts, pricing)
 	summary := BuildSummary(manifest, attempts)
-	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
-		return SummaryRegeneration{}, err
+	if !preserveLegacyBytes {
+		if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
+			return SummaryRegeneration{}, err
+		}
 	}
 	return SummaryRegeneration{Summary: summary, ProjectionDivergences: divergences}, nil
+}
+
+func isLegacyRecoverySummary(summary Summary) bool {
+	if summary.SchemaVersion() != 6 {
+		return false
+	}
+	comparison, _ := summary["recovery_aware_comparison"].(map[string]any)
+	arms, _ := comparison["arms"].(map[string]any)
+	for _, side := range Sides {
+		arm, _ := arms[side].(map[string]any)
+		recovery, _ := arm["recovery"].(map[string]any)
+		if recovery == nil {
+			return false
+		}
+		if _, current := recovery["state"]; current {
+			return false
+		}
+	}
+	return true
+}
+
+func applyLegacyRecoverySemantics(attempts []Attempt) {
+	for index := range attempts {
+		if attempts[index].outcomes == nil {
+			continue
+		}
+		recovery := attempts[index].outcomes.Recovery
+		if recovery["state"] == "unavailable" {
+			attempts[index].outcomes.Recovery = map[string]any{
+				"state": "measured", "cue_count": 0, "followed_cue_count": 0,
+				"attempt_count": 0, "repeated_attempt_count": 0,
+				"outcomes":           map[string]any{"succeeded": 0, "failed": 0},
+				"successful_results": map[string]any{"byte_exact": 0, "not_byte_exact": 0},
+			}
+		} else {
+			delete(recovery, "reason")
+		}
+	}
 }
 
 func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {

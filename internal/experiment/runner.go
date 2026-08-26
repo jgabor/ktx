@@ -654,6 +654,9 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		return Attempt{}, fmt.Errorf("initialize attempt database: %w", err)
 	}
 	interval, err := attemptDB.CreateBenchmarkEventInterval(attemptID, benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, startedAt)
+	if err == nil {
+		_, err = attemptDB.EnsureCollectionInterval(interval.ID, []string{"run"}, startedAt)
+	}
 	closeErr := attemptDB.Close()
 	if err != nil {
 		return Attempt{}, err

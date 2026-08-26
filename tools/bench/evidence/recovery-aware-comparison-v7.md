@@ -6,8 +6,9 @@ No change. The campaign stayed within all ceilings, but only four of nine
 comparisons reached five complete pairs and validated byte-exactly. The
 remaining five archives are retained as partial evidence; their schema-6
 summaries omit `recovery_aware_comparison`, so the validator rejects them.
-Complete matrix quality and runtime totals are therefore unavailable. No
-default or configuration changed.
+The audit correction run did not reach a complete pair. Complete matrix and
+recovery evidence are therefore unavailable. No default or configuration
+changed.
 
 The machine-readable authority for the campaign projection is
 [`recovery-aware-comparison-v7.json`](recovery-aware-comparison-v7.json).
@@ -41,17 +42,48 @@ Each has 12 actual attempts (one cold observation and five measured attempts
 per arm), 5/5 valid measured attempts per arm, five complete pairs, and a
 validator result of `valid=true, summary_byte_match=true`.
 
-| Task / candidate     | Correct B/C | Runtime tokens per correct B/C | Delivered bytes B/C | Calls B/C | Linked recovery B/C | Exact repeats B/C | Estimated USD |
-| -------------------- | ----------: | -----------------------------: | ------------------: | --------: | ------------------: | ----------------: | ------------: |
-| crossfile / `100:50` |         5/5 |           115,306.4 / 21,815.4 | 1,406,771 / 222,594 |     49/46 |                 0/0 |               0/0 |      1.730277 |
-| crossfile / `73:1`   |         5/5 |           114,334.8 / 12,941.0 | 1,406,819 / 108,065 |     46/50 |                 0/0 |               0/0 |      1.525623 |
-| crossfile / `100:10` |         5/5 |           114,465.8 / 15,298.2 | 1,406,667 / 161,054 |     48/46 |                 0/0 |               0/0 |      1.674126 |
-| midfile / `100:50`   |         5/5 |            56,879.0 / 44,984.8 |   652,625 / 482,571 |     15/61 |                 0/0 |               0/0 |      0.863057 |
+| Task / candidate     | Correct B/C | Runtime tokens per correct B/C | Delivered bytes B/C | Calls B/C | Recovery B/C | Exact repeats B/C | Estimated USD |
+| -------------------- | ----------: | -----------------------------: | ------------------: | --------: | -----------: | ----------------: | ------------: |
+| crossfile / `100:50` |         5/5 |           115,306.4 / 21,815.4 | 1,406,771 / 222,594 |     49/46 |  unavailable |               0/0 |      1.730277 |
+| crossfile / `73:1`   |         5/5 |           114,334.8 / 12,941.0 | 1,406,819 / 108,065 |     46/50 |  unavailable |               0/0 |      1.525623 |
+| crossfile / `100:10` |         5/5 |           114,465.8 / 15,298.2 | 1,406,667 / 161,054 |     48/46 |  unavailable |               0/0 |      1.674126 |
+| midfile / `100:50`   |         5/5 |            56,879.0 / 44,984.8 |   652,625 / 482,571 |     15/61 |  unavailable |               0/0 |      0.863057 |
 
 Candidate original-byte totals were respectively 1,406,819; 1,406,875;
-1,406,819; and 1,026,460. Recovery cue-follow rate is unavailable when no cue
-was delivered; it is not zero. Runtime-reported cost was USD 0 for every
-attempt. Estimated spend uses the retained pricing snapshot and is not a bill.
+1,406,819; and 1,026,460. These archives used the prior required-event
+contract, which did not acknowledge benchmark-owned cue delivery. Their zero
+cue rows are not recovery measurements; cue exposure, follow, and linked
+recovery are unavailable. Runtime-reported cost was USD 0 for every attempt.
+Estimated spend uses the retained pricing snapshot and is not a bill.
+
+## Audit correction and bounded qualification
+
+Required benchmark mode now binds recovery evidence to the precreated attempt
+and event interval. The generated adapter acknowledges an applied cue in both
+explicit-collection and required benchmark modes. Hook handling and later exact
+`ktx read <id>` linkage resolve that same owner and fail on mismatch. Required
+event contract `opencode-event-v3` marks zero-cue observations as measured;
+older archives without that authority materialize recovery as unavailable.
+Legacy schema-6 bytes remain byte-exact under validation.
+
+Focused tests cover the generated-adapter process, required-mode delivery and
+linked byte-exact recovery, interval-owner mismatch, mounted database paths,
+and unavailable old-archive evidence. Repository verification and the rebuilt
+offline preflight passed. The rebuilt plugin SHA-256 is
+`a2eb6388e6e74543d902d2db56e055227dd0e36781aa5e6db7993e56b0f62959`.
+
+The bounded qualification archive is
+`v7-crossfile-73-1-cuefix-20260827`. It attempted two provider runs. The first
+is retained as invalid; the second reached the provider but failed required
+hook ownership before an attempt record or summary could be finalized. The
+failure exposed an over-strict database-target check across the host/container
+mount seam; the interval identity and retained owner already provide the
+required isolation. That check was corrected and regression-tested. Cue
+exposure, follow, recovery, quality, and runtime totals for this archive are
+unavailable; it has zero complete pairs and cannot validate without a summary.
+
+Those two attempts consumed the remaining budget down to 10 attempts. A fresh
+five-pair comparison requires at least 12, so no second paid run was started.
 
 ## Partial comparisons and ceilings
 
@@ -69,17 +101,18 @@ lacked accepted measured evidence. The retained summaries do not provide a
 reason, so this report does not infer one. Their quality-qualified runtime,
 delivery, recovery, call, and repeat totals are unavailable.
 
-The campaign ran from 22:29:09Z to 22:46:10Z (1,021 seconds), used 108/120
-attempts, reported USD 0 runtime cost, and estimated USD 7.438216 against the
-USD 25 ceiling. Starting replacement comparisons would have required at least
-12 attempts each, so no further paid run could begin without risking the
-120-attempt ceiling. Elapsed time remained below six hours.
+The cumulative campaign used 110/120 provider attempts and 1,644 seconds,
+reported USD 0 runtime cost, and estimated USD 7.455092 against the USD 25
+ceiling. The correction run contributed 623 seconds and USD 0.016876 estimated
+spend, including a price-derived USD 0.007942 estimate reconstructed from the
+complete runtime fields of the lifecycle-failed run. Elapsed time remained
+below six hours.
 
 ## Recommendation
 
-Keep current defaults. A separate follow-up may address partial schema-6
-validation and rerun only under a newly approved attempt budget. The accepted
-rows show qualified savings, but they do not cover every predeclared task and
-configuration, so they are insufficient for a configuration recommendation.
+Keep current defaults. A separate follow-up may rerun qualification only under
+a newly approved attempt budget. Prior recovery evidence is unavailable and
+the correction run did not qualify, so no recovery-aware configuration
+recommendation is supported.
 No p-values, outlier removal, provider-causal claim, or provider-internal claim
 is made.

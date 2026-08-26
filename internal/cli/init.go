@@ -617,11 +617,12 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         // The agent sees the compressed output instead of the original.
         if (output && typeof output === "object" && "output" in output) {
           output.output = envelope.output
-		  if (process.env.KTX_COLLECTION_ID && envelope.recovery_cue) {
+		  if ((required || process.env.KTX_COLLECTION_ID) && envelope.recovery_cue) {
 			if (!envelope.compressed_id) throw new Error("ktx recovery cue lacks artifact identity")
 			const ack = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["telemetry", "cue-delivered"]), JSON.stringify({source_id:envelope.source_id,artifact_id:envelope.compressed_id,session_id:envelope.ktx_session_id,runtime_session_id:envelope.runtime_session_id,call_id:envelope.call_id}))
 			const value = ack as Record<string, unknown>
-			if (value?.ok !== true || value.collection_id !== process.env.KTX_COLLECTION_ID || value.session_id !== envelope.ktx_session_id || value.source_id !== envelope.source_id || value.artifact_id !== envelope.compressed_id) throw new Error("ktx recovery cue acknowledgement mismatch")
+			const ownerID = required ? requiredIntervalID : process.env.KTX_COLLECTION_ID
+			if (value?.ok !== true || value.collection_id !== ownerID || value.session_id !== envelope.ktx_session_id || value.source_id !== envelope.source_id || value.artifact_id !== envelope.compressed_id) throw new Error("ktx recovery cue acknowledgement mismatch")
 		  }
         }
       }

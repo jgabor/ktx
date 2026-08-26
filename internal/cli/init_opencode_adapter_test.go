@@ -227,7 +227,7 @@ if [ "$1 $2" = "telemetry collector-open" ]; then
   kind=collector_open; [ "$KTX_TEST_BAD_RESPONSE" = collector-kind ] && kind=other
   ordinal=$allocated; [ "$KTX_TEST_BAD_RESPONSE" = collector-ordinal ] && ordinal=0
 	[ "$KTX_TEST_BAD_RESPONSE" = collector-type ] && ordinal='"1"'
-	contract=opencode-event-v2; [ "$KTX_TEST_BAD_RESPONSE" = collector-contract ] && contract=wrong-contract
+	contract=opencode-event-v3; [ "$KTX_TEST_BAD_RESPONSE" = collector-contract ] && contract=wrong-contract
   if [ "$KTX_TEST_BAD_RESPONSE" = collector-malformed ]; then printf '[]\n'
   elif [ "$KTX_TEST_BAD_RESPONSE" = collector-missing ]; then printf '{"ok":true}\n'
 	else printf '{"ok":true,"session_id":"%s","interval_id":"%s","epoch_id":"%s","epoch_ordinal":0,"ordinal":%s,"kind":"%s","contract":"%s"}\n' "$session" "$interval" "$epoch" "$ordinal" "$kind" "$contract"
@@ -266,14 +266,14 @@ if [ "$1 $2" = "telemetry event-record" ]; then
 	  event-null) ordinal=null ;;
 	  event-nonfinite) ordinal=1e999 ;;
 	esac
-	contract=opencode-event-v2; [ "$KTX_TEST_BAD_RESPONSE" = event-contract ] && contract=wrong-contract
+	contract=opencode-event-v3; [ "$KTX_TEST_BAD_RESPONSE" = event-contract ] && contract=wrong-contract
   if [ "$KTX_TEST_BAD_RESPONSE" = event-missing ]; then printf '{"ok":true}\n'
 	else printf '{"ok":true,"session_id":"%s","interval_id":"%s","epoch_id":"%s","epoch_ordinal":%s,"ordinal":%s,"kind":"%s","contract":"%s"}\n' "$session" "$interval" "$epoch" "$epoch_ordinal" "$ordinal" "$kind" "$contract"
   fi
 fi
 if [ "$1 $2" = "telemetry cue-delivered" ]; then
   if [ "$KTX_TEST_BAD_RESPONSE" = cue-ack ]; then printf '{"ok":false}\n'
-  else printf '{"ok":true,"collection_id":"collectionabcdef","session_id":"aaaaaaaaaaaaaaaa","source_id":"sourceabcdefghij","artifact_id":"artifactabcdefgh"}\n'
+  else printf '{"ok":true,"collection_id":"%s","session_id":"aaaaaaaaaaaaaaaa","source_id":"sourceabcdefghij","artifact_id":"artifactabcdefgh"}\n' "${KTX_BENCH_EVENT_INTERVAL_ID:-collectionabcdef}"
   fi
 fi
 if [ "$1" = "hook" ]; then
@@ -592,7 +592,7 @@ console.log(JSON.stringify(results))
 					cmd.Env = append(cmd.Env,
 						"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa",
 						"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-						"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2",
+						"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3",
 						"KTX_BENCH_COLLECTOR_MODE=required",
 					)
 				}
@@ -840,7 +840,7 @@ console.log("ok")
 		output, calls, _ := run(t,
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa",
 			"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2",
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3",
 			"KTX_BENCH_COLLECTOR_MODE=required",
 		)
 		if output["output"] != "compressed tool output" || len(calls) != 11 {
@@ -853,6 +853,19 @@ console.log("ok")
 			if !strings.HasPrefix(call, "telemetry event-record\t") || !strings.Contains(call, fmt.Sprintf(`"epoch_ordinal":%d`, index+1)) {
 				t.Fatalf("required call %d=%q", index+1, call)
 			}
+		}
+	})
+
+	t.Run("required benchmark mode acknowledges applied recovery cue", func(t *testing.T) {
+		output, calls, _ := run(t,
+			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa",
+			"KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3",
+			"KTX_BENCH_COLLECTOR_MODE=required",
+			"KTX_TEST_RECOVERY_CUE=1",
+		)
+		if output["output"] != "compressed tool output with cue" || len(calls) != 12 || !strings.HasPrefix(calls[10], "hook\t") || !strings.HasPrefix(calls[11], "telemetry cue-delivered\t") {
+			t.Fatalf("output=%#v calls=%q", output, calls)
 		}
 	})
 
@@ -876,7 +889,7 @@ console.log("ok")
 		cmd := exec.Command(bun, queueDriverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EVENT_FAIL_ORDINAL=3")
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EVENT_FAIL_ORDINAL=3")
 		output, err := cmd.CombinedOutput()
 		if err != nil || strings.TrimSpace(string(output)) != "ok" {
 			t.Fatalf("queue driver: %v\n%s", err, output)
@@ -917,7 +930,7 @@ console.log("ok")
 		cmd := exec.Command(bun, epochDriverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EPOCH_SCENARIO="+scenario)
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EPOCH_SCENARIO="+scenario)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("epoch driver: %v\n%s", err, output)
@@ -955,7 +968,7 @@ console.log("ok")
 		cmd := exec.Command(bun, driverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_TELEMETRY_FAIL=1")
+			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_TELEMETRY_FAIL=1")
 		if err := cmd.Run(); err == nil {
 			t.Fatal("required collector failure did not reject plugin startup")
 		}
@@ -970,7 +983,7 @@ console.log("ok")
 			cmd := exec.Command(bun, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 				"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+bad)
+				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+bad)
 			if err := cmd.Run(); err == nil {
 				t.Fatalf("required mode accepted %s", bad)
 			}
@@ -995,7 +1008,7 @@ console.log("ok")
 			cmd := exec.Command(bun, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 				"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
-				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v2", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+test.response)
+				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+test.response)
 			if err := cmd.Run(); err == nil {
 				t.Fatalf("required mode accepted %s", test.name)
 			}

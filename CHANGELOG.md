@@ -31,6 +31,7 @@
 
 ### Fixed
 
+- Required benchmark collection now retains delivered recovery cues and exact linked recovery attempts under the precreated interval owner; older archives without cue authority report recovery as unavailable.
 - Recovery-aware comparison now leaves unavailable outcomes unranked, renders their state and reason, and validates generated schema-6 archives against methodology v7.
 - `mage install` now refreshes already-enabled global and current-project OpenCode and Codex adapters after installing the development binary, preserves unrelated Codex hooks, and fails with an exact recovery command for every scope that does not refresh.
 - Current user and agent guidance now consistently describes automatic stale-schema readiness, post-readiness read-only queries, forward-only newer-schema failure, isolated verification, and the separate production-scale schema release gate.

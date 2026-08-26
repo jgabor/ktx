@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
 	dbpkg "github.com/jgabor/ktx/internal/db"
@@ -43,12 +45,13 @@ func TestNormalizeRuntimeEventKindsAndIdentityPrecedence(t *testing.T) {
 }
 
 func TestRequiredCollectorCommandsUseExactPrecreatedOwner(t *testing.T) {
-	database, err := dbpkg.OpenMemory()
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "attempt.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, "open")
+	openedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, openedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +90,65 @@ func TestRequiredCollectorCommandsUseExactPrecreatedOwner(t *testing.T) {
 	entries, err := filepath.Glob(filepath.Join(runtimeDir, "ktx", "sessions", "*.json"))
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("parent session files=%v err=%v", entries, err)
+	}
+}
+
+func TestRequiredCueDeliveryRejectsIntervalOwnershipMismatch(t *testing.T) {
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "attempt.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	openedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, openedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.EnsureCollectionInterval(interval.ID, []string{"run"}, openedAt); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(benchcontract.SessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.IntervalEnv, interval.ID)
+	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
+	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
+	if _, err := telemetryLogic([]string{"collector-open"}, FormatJSON, strings.NewReader(`{"epoch_id":"epoch"}`), database, io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(benchcontract.SessionEnv, "wrongwrongwrongw")
+	var stdout bytes.Buffer
+	err = acknowledgeRecoveryCue(nil, strings.NewReader(`{}`), database, &stdout)
+	if err == nil || !strings.Contains(err.Error(), "benchmark interval owner is unavailable") || stdout.Len() != 0 {
+		t.Fatalf("err=%v stdout=%q", err, stdout.String())
+	}
+}
+
+func TestRequiredRecoveryOwnerUsesIntervalAcrossMountedDatabasePath(t *testing.T) {
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "attempt.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	openedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	interval, err := database.CreateBenchmarkEventInterval("attempt", benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, openedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.EnsureCollectionInterval(interval.ID, []string{"run"}, openedAt); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.DB().Exec(`UPDATE collection_intervals SET database_target='/host/owner/attempt.db' WHERE id=?`, interval.ID); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(benchcontract.SessionEnv, interval.SessionID)
+	t.Setenv(benchcontract.IntervalEnv, interval.ID)
+	t.Setenv(benchcontract.ContractEnv, benchcontract.ContractVersion)
+	t.Setenv(benchcontract.CollectorModeEnv, benchcontract.CollectorRequired)
+	if _, err := telemetryLogic([]string{"collector-open"}, FormatJSON, strings.NewReader(`{"epoch_id":"epoch"}`), database, io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	collection, session, present, err := recoveryEvidenceOwner(database)
+	if err != nil || !present || collection != interval.ID || session != interval.SessionID {
+		t.Fatalf("collection=%q session=%q present=%v err=%v", collection, session, present, err)
 	}
 }
 

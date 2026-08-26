@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/canon"
 )
 
@@ -27,7 +28,9 @@ func materializeAttemptOutcomes(database *sql.DB, sessionID string) *attemptOutc
 }
 
 func recoveryOutcome(database *sql.DB, sessionID string) (map[string]any, bool) {
-	rows, err := database.Query(`SELECT d.source_id,d.session_id,d.delivered_at,d.authority,
+	var intervalID string
+	requiredAuthority := database.QueryRow(`SELECT id FROM runtime_event_intervals WHERE session_id=? AND contract_version=?`, sessionID, benchcontract.ContractVersion).Scan(&intervalID) == nil
+	rows, err := database.Query(`SELECT d.collection_id,d.source_id,d.session_id,d.delivered_at,d.authority,
 		COALESCE(a.attempt_source_id,''),COALESCE(a.attempted_at,''),COALESCE(a.result_state,''),a.byte_exact,COALESCE(a.authority,''),
 		COALESCE(tc.session_id,''),COALESCE(c.source_id,'')
 		FROM recovery_cue_deliveries d
@@ -42,10 +45,10 @@ func recoveryOutcome(database *sql.DB, sessionID string) (map[string]any, bool) 
 	cues := map[string]int{}
 	attempts, succeeded, failed, exact, inexact := 0, 0, 0, 0, 0
 	for rows.Next() {
-		var cue, owner, delivered, deliveryAuthority, attemptID, attempted, state, attemptAuthority, attemptOwner, artifactSource string
+		var collection, cue, owner, delivered, deliveryAuthority, attemptID, attempted, state, attemptAuthority, attemptOwner, artifactSource string
 		var byteExact sql.NullBool
-		if rows.Scan(&cue, &owner, &delivered, &deliveryAuthority, &attemptID, &attempted, &state, &byteExact, &attemptAuthority, &attemptOwner, &artifactSource) != nil ||
-			owner != sessionID || deliveryAuthority != "opencode_adapter" || artifactSource != cue {
+		if rows.Scan(&collection, &cue, &owner, &delivered, &deliveryAuthority, &attemptID, &attempted, &state, &byteExact, &attemptAuthority, &attemptOwner, &artifactSource) != nil ||
+			owner != sessionID || deliveryAuthority != "opencode_adapter" || artifactSource != cue || requiredAuthority && collection != intervalID {
 			return nil, false
 		}
 		deliveredAt, err := time.Parse(time.RFC3339Nano, delivered)
@@ -87,6 +90,13 @@ func recoveryOutcome(database *sql.DB, sessionID string) (map[string]any, bool) 
 	if rows.Err() != nil {
 		return nil, false
 	}
+	if len(cues) == 0 && !requiredAuthority {
+		return map[string]any{
+			"state": "unavailable", "reason": "cue_delivery_authority_unavailable",
+			"cue_count": nil, "followed_cue_count": nil, "attempt_count": nil, "repeated_attempt_count": nil,
+			"outcomes": nil, "successful_results": nil,
+		}, true
+	}
 	followed, repeated := 0, 0
 	for _, count := range cues {
 		if count > 0 {
@@ -95,7 +105,7 @@ func recoveryOutcome(database *sql.DB, sessionID string) (map[string]any, bool) 
 		}
 	}
 	return map[string]any{
-		"state": "measured", "cue_count": len(cues), "followed_cue_count": followed,
+		"state": "measured", "reason": nil, "cue_count": len(cues), "followed_cue_count": followed,
 		"attempt_count": attempts, "repeated_attempt_count": repeated,
 		"outcomes":           map[string]any{"succeeded": succeeded, "failed": failed},
 		"successful_results": map[string]any{"byte_exact": exact, "not_byte_exact": inexact},

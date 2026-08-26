@@ -213,7 +213,7 @@ func recoveryAttempt(id, side string, cycle int, pass bool, in, out, reasoning *
 	return Attempt{
 		SchemaVersion: 3, AttemptID: id, Side: side, Role: MeasuredWarm, Cycle: cycle, Status: "completed", SessionID: &session,
 		Metrics:  Metrics{StreamComplete: true, Score: Score{Score: map[bool]float64{true: 1}[pass], FullPass: pass}, ToolCallCount: calls, TokensIn: in, TokensOut: out, Reasoning: reasoning},
-		outcomes: &attemptOutcomes{Recovery: map[string]any{"cue_count": 1, "followed_cue_count": map[bool]int{true: 1}[recoveries > 0], "attempt_count": recoveries, "repeated_attempt_count": repeatedRecovery}, Repeats: map[string]any{"call_count": calls, "repeated_call_count": repeats}},
+		outcomes: &attemptOutcomes{Recovery: map[string]any{"state": "measured", "cue_count": 1, "followed_cue_count": map[bool]int{true: 1}[recoveries > 0], "attempt_count": recoveries, "repeated_attempt_count": repeatedRecovery}, Repeats: map[string]any{"call_count": calls, "repeated_call_count": repeats}},
 	}
 }
 

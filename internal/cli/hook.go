@@ -350,17 +350,17 @@ func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, er
 // hookLogicObserved exposes successful hook write phases to package tests.
 // It does not emit production output or change phase ownership.
 func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, observe hookPhaseObserver) (any, error) {
-	collectionID := os.Getenv("KTX_COLLECTION_ID")
-	if os.Getenv("KTX_SESSION_ID") != "" && collectionID == "" {
+	explicitCollectionID := os.Getenv("KTX_COLLECTION_ID")
+	benchmarkEnv, benchmarkPresent, benchmarkErr := benchcontract.ReadEnvironment()
+	if os.Getenv("KTX_SESSION_ID") != "" && explicitCollectionID == "" && !benchmarkPresent {
 		return nil, nil
 	}
-	if collectionID != "" {
-		if !dbpkg.IDPattern.MatchString(collectionID) || os.Getenv("KTX_SESSION_ID") == "" {
-			return nil, usageError("ktx hook: invalid explicit collection ownership")
-		}
-		if err := db.ValidateCollectionInterval(collectionID, []string{"run"}); err != nil {
-			return nil, usageError("ktx hook: collection ownership mismatch: %v", err)
-		}
+	if benchmarkErr != nil {
+		return nil, usageError("ktx hook: %v", benchmarkErr)
+	}
+	collectionID, ownerSessionID, ownerPresent, ownerErr := recoveryEvidenceOwner(db)
+	if ownerErr != nil {
+		return nil, usageError("ktx hook: collection ownership mismatch: %v", ownerErr)
 	}
 
 	body, err := io.ReadAll(stdin)
@@ -517,13 +517,10 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	tc.Producer = &producer
 
 	sessionHint := tc.SessionID
-	if collectionID != "" {
-		sessionHint = os.Getenv("KTX_SESSION_ID")
+	if ownerPresent {
+		sessionHint = ownerSessionID
 	}
-	if benchmarkEnv, present, envErr := benchcontract.ReadEnvironment(); present {
-		if envErr != nil {
-			return nil, usageError("ktx hook: %v", envErr)
-		}
+	if benchmarkPresent {
 		if sessionHint != "" && sessionHint != benchmarkEnv.SessionID {
 			return nil, usageError("ktx hook: payload session conflicts with benchmark attempt owner")
 		}

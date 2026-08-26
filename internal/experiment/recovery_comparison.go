@@ -17,7 +17,7 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 				correct = append(correct, attempt)
 			}
 		}
-		arms[side] = recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct)
+		arms[side] = recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct, manifest.legacyRecoverySemantics)
 	}
 	return map[string]any{
 		"primary_outcome": "runtime_total_tokens_per_correct_task",
@@ -30,7 +30,7 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 	}
 }
 
-func recoveryAwareArm(target int, evaluated, correct []Attempt) map[string]any {
+func recoveryAwareArm(target int, evaluated, correct []Attempt, legacy bool) map[string]any {
 	qualityQualified := len(correct) >= target && target > 0
 	primary := map[string]any{"state": "unavailable", "value": nil, "reason": "quality_gate_failed"}
 	if qualityQualified {
@@ -50,9 +50,13 @@ func recoveryAwareArm(target int, evaluated, correct []Attempt) map[string]any {
 		}
 	}
 	recoveryAttempts, repeatedRecovery, cues, followed, totalCalls, repeatedCalls, attemptsWithRecovery := 0, 0, 0, 0, 0, 0, 0
+	recoveryAvailable := len(evaluated) > 0
 	for _, attempt := range evaluated {
 		r := attempt.outcomes.Recovery
 		x := attempt.outcomes.Repeats
+		if r["state"] != "measured" {
+			recoveryAvailable = false
+		}
 		ra := intValue(r["attempt_count"])
 		recoveryAttempts += ra
 		if ra > 0 {
@@ -65,13 +69,20 @@ func recoveryAwareArm(target int, evaluated, correct []Attempt) map[string]any {
 		repeatedCalls += intValue(x["repeated_call_count"])
 	}
 	var followRate any
-	if cues > 0 {
+	if recoveryAvailable && cues > 0 {
 		followRate = float64(followed) / float64(cues)
+	}
+	recovery := map[string]any{"state": "measured", "reason": nil, "attempts_with_recovery": attemptsWithRecovery, "cue_count": cues, "followed_cue_count": followed, "cue_follow_rate": followRate, "attempt_count": recoveryAttempts, "repeated_attempt_count": repeatedRecovery}
+	if !recoveryAvailable {
+		recovery = map[string]any{"state": "unavailable", "reason": "cue_delivery_authority_unavailable", "attempts_with_recovery": nil, "cue_count": nil, "followed_cue_count": nil, "cue_follow_rate": nil, "attempt_count": nil, "repeated_attempt_count": nil}
+	} else if legacy {
+		delete(recovery, "state")
+		delete(recovery, "reason")
 	}
 	return map[string]any{
 		"quality_gate":                          map[string]any{"qualified": qualityQualified, "required_correct_tasks": target, "correct_task_count": len(correct), "evaluated_task_count": len(evaluated)},
 		"runtime_total_tokens_per_correct_task": primary,
-		"recovery":                              map[string]any{"attempts_with_recovery": attemptsWithRecovery, "cue_count": cues, "followed_cue_count": followed, "cue_follow_rate": followRate, "attempt_count": recoveryAttempts, "repeated_attempt_count": repeatedRecovery},
+		"recovery":                              recovery,
 		"tool_calls":                            map[string]any{"total_call_count": totalCalls, "exact_repeated_call_count": repeatedCalls},
 	}
 }
@@ -107,9 +118,13 @@ func recoveryAwareAttempt(attempt Attempt) map[string]any {
 	if attempt.TokensIn != nil && attempt.TokensOut != nil && attempt.Reasoning != nil {
 		total = *attempt.TokensIn + *attempt.TokensOut + *attempt.Reasoning
 	}
+	var recoveryAttempts any
+	if attempt.outcomes.Recovery["state"] == "measured" {
+		recoveryAttempts = intValue(attempt.outcomes.Recovery["attempt_count"])
+	}
 	return map[string]any{
 		"attempt_id": attempt.AttemptID, "correct": attempt.FullPass, "runtime_total_tokens": total,
-		"recovery_attempt_count": intValue(attempt.outcomes.Recovery["attempt_count"]), "total_tool_calls": intValue(attempt.outcomes.Repeats["call_count"]), "exact_repeated_tool_calls": intValue(attempt.outcomes.Repeats["repeated_call_count"]),
+		"recovery_attempt_count": recoveryAttempts, "total_tool_calls": intValue(attempt.outcomes.Repeats["call_count"]), "exact_repeated_tool_calls": intValue(attempt.outcomes.Repeats["repeated_call_count"]),
 	}
 }
 

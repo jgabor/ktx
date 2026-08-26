@@ -135,3 +135,28 @@ func TestAttemptOutcomesRejectMismatchedCueArtifact(t *testing.T) {
 		t.Fatalf("mismatched evidence materialized: %#v", got)
 	}
 }
+
+func TestAttemptOutcomesMarkOldArchiveCueAuthorityUnavailable(t *testing.T) {
+	database, err := db.Open(filepath.Join(t.TempDir(), "attempt.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	owner, producer, runtime := "abcdefghijklmnop", db.ProducerHook, "opencode"
+	if err := database.InsertSession(&db.Session{ID: owner, Agent: "opencode"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.PersistToolCall(&db.ToolCall{ID: "sourceabcdefghij", SessionID: owner, Tool: "read", Input: `{}`, Output: "original", Timestamp: "2026-08-26T00:00:00Z", Runtime: &runtime, Producer: &producer}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InsertCompressed(&db.Compressed{ID: "artifactabcdefgh", SourceID: "sourceabcdefghij", Output: "short", Pipeline: `{}`, Timestamp: "2026-08-26T00:00:00Z", Producer: &producer}); err != nil {
+		t.Fatal(err)
+	}
+	got := materializeAttemptOutcomes(database.DB(), owner)
+	if got == nil || got.Recovery["state"] != "unavailable" || got.Recovery["reason"] != "cue_delivery_authority_unavailable" || got.Recovery["cue_count"] != nil {
+		t.Fatalf("recovery outcome=%#v", got)
+	}
+	if got.Repeats["state"] != "measured" {
+		t.Fatalf("repeat outcome=%#v", got.Repeats)
+	}
+}

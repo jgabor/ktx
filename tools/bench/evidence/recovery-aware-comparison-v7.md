@@ -95,13 +95,15 @@ five-pair comparison requires at least 12, so no second paid run was started.
 | `v7-ephemeral-73-1-20260827`   |                2/4 |       12 |      0.161736 | partial, validator rejects |
 | `v7-ephemeral-100-10-20260827` |                4/4 |       12 |      0.193388 | partial, validator rejects |
 
-All 108 provider attempts completed at the process level; none was recorded as
-invalid, failed, timed out, or unlinked. Some completed attempts nevertheless
+All 108 provider attempts in the initial matrix completed at the process level;
+none was recorded as invalid, failed, timed out, or unlinked. Some completed attempts nevertheless
 lacked accepted measured evidence. The retained summaries do not provide a
 reason, so this report does not infer one. Their quality-qualified runtime,
 delivery, recovery, call, and repeat totals are unavailable.
 
-The cumulative campaign used 110/120 provider attempts and 1,644 seconds,
+Including correction qualification, the cumulative campaign used 110/120
+provider attempts: 108 completed, one invalid, and one lifecycle failure before
+an attempt record. It used 1,644 seconds,
 reported USD 0 runtime cost, and estimated USD 7.455092 against the USD 25
 ceiling. The correction run contributed 623 seconds and USD 0.016876 estimated
 spend, including a price-derived USD 0.007942 estimate reconstructed from the

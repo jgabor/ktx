@@ -6,10 +6,20 @@ record:
     - zmnzkzunwu
     - ohmlwkkxtu
     - bhfkgermse
-  status: pending
+  status: complete
   acceptance:
     - GIVEN arbitrary baseline and candidate configurations WHEN compared THEN quality, runtime tokens, tool delivery, cost, recovery, total calls, and exact repeats remain separately attributed.
     - GIVEN a quality-qualified arm with complete runtime totals WHEN ranked THEN lower total tokens per correct task is the primary outcome.
     - GIVEN incomplete runtime totals WHEN summarized THEN the primary outcome is unavailable with a reason and cannot drive ranking or recommendation.
     - GIVEN old and new retained archives WHEN validated THEN each schema regenerates byte-exact and preserves its documented claims.
   plan: vnunyqogux
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Criteria 3-4 failed: schema-6 rows with unavailable primary outcomes still receive numeric ranks and text omits the reason; ValidateExperiment expects schema 3 for v7 and rejects valid schema-6 archives. Unrank ineligible rows, render reason, and validate v7 as schema 6 with end-to-end tests."
+    provenance:
+      attempt_id: comparison-audit-2
+      source: audit task ses_fc011df02ffeKR3zZA2U1UDkHf correction recheck
+      recorded_at: 2026-08-27 00:26
+      writer_command: agentera state plan record-evaluation

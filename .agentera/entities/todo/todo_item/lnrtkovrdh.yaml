@@ -3,7 +3,7 @@ artifact: todo
 record:
   kind: task
   target_version: null
-  title: "**Offline pipeline-configuration screening** — Add a no-model benchmark path that applies arbitrary full pipeline configurations to one frozen retained-output population through the production runner. Report paired raw and delivered estimates, anti-worsening dispositions, recovery-cue exposure and footer cost, and per-call/config distributions without persisting new content-derived features. Use this screen to shortlist configurations before paid agent comparison. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  title: "**Offline pipeline-configuration screening** — Added a database-free full-configuration screen with exact aggregate reconciliation and controlled-fact shortlist gates. Evidence: progress `ntwktvgxrg` and `wyjkuysobj`; retained shortlist in [`recovery-aware-comparison-v7.json`](tools/bench/evidence/recovery-aware-comparison-v7.json). → [Benchmark](ARCHITECTURE.md#benchmark)"
   requirements:
     - Accept explicit full pipeline configuration files and one explicit retained source population; do not hardcode keep-ends semantics.
     - Apply every configuration to the same source calls through the production pipeline runner, including routing, stage order, anti-worsening, and recovery-footer size gates.
@@ -30,9 +30,9 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[task] **Offline pipeline-configuration screening** — Add a no-model benchmark path that applies arbitrary full pipeline configurations to one frozen retained-output population through the production runner. Report paired raw and delivered estimates, anti-worsening dispositions, recovery-cue exposure and footer cost, and per-call/config distributions without persisting new content-derived features. Use this screen to shortlist configurations before paid agent comparison. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[task] **Offline pipeline-configuration screening** — Added a database-free full-configuration screen with exact aggregate reconciliation and controlled-fact shortlist gates. Evidence: progress `ntwktvgxrg` and `wyjkuysobj`; retained shortlist in [`recovery-aware-comparison-v7.json`](tools/bench/evidence/recovery-aware-comparison-v7.json). → [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
-      order: 16
+      order: 17
       severity: normal
   lifecycle:
     operation: resolve

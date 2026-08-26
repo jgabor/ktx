@@ -21,7 +21,7 @@ record:
       present: true
       description: "[bug] Synchronize schema release binary identity"
       status: resolved
-      order: 14
+      order: 15
       severity: normal
   lifecycle:
     operation: resolve

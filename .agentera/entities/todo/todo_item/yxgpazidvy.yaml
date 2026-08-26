@@ -18,7 +18,7 @@ record:
       present: true
       description: "[task] Live latency coverage"
       status: resolved
-      order: 4
+      order: 5
       severity: normal
   kind: task
   target_version: null

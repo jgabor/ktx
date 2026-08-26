@@ -4,10 +4,20 @@ record:
   name: Execute keep-ends matrix and report actual outcomes
   depends_on:
     - ysciuimqsr
-  status: pending
+  status: complete
   acceptance:
     - GIVEN offline screening and benchmark preflight pass WHEN paid work starts THEN only allowed openai/gpt-5.6-luna high runs use explicit read-only authentication and remain within 120 attempts, six hours, and USD 25 estimated spend.
     - GIVEN passthrough and the shortlisted keep-ends configs WHEN run on crossfile-nav-v1, fact-midfile-v1, and ephemeral-midfact-v1 THEN each comparison targets five complete paired rounds and retains invalid retries separately.
     - GIVEN each experiment completes WHEN evidence is accepted THEN its archive validates, summary bytes match, and complete-pair, config, methodology, attempt, time, and cost evidence are reported.
     - GIVEN all valid results WHEN recommendations are produced THEN a predeclared decision table reports actual quality, tokens, delivery, recovery, and repeats and recommends no change or separate follow-up without changing defaults.
   plan: vnunyqogux
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Criterion 4 failed: benchmark-required mode does not acknowledge delivered recovery cues because the adapter only records them under KTX_COLLECTION_ID. Accepted candidate attempts had compressed artifacts but zero cue-delivery authority, so reports mislabeled unavailable recovery as measured zero. Add benchmark-owned cue/recovery collection, preserve unavailable states, and rerun within the remaining 12-attempt ceiling."
+    provenance:
+      attempt_id: campaign-audit-2
+      source: audit task ses_fc011df02ffeKR3zZA2U1UDkHf correction recheck
+      recorded_at: 2026-08-27 01:51
+      writer_command: agentera state plan record-evaluation

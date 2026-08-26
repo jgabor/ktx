@@ -30,7 +30,7 @@ record:
       present: true
       description: "[experiment] Successor targeted residual-delivery outcome — validated candidate (experiment-only): keep-ends:73:1"
       status: resolved
-      order: 11
+      order: 12
       severity: normal
   lifecycle:
     operation: resolve

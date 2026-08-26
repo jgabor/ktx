@@ -21,7 +21,7 @@ record:
       present: true
       description: "**JSON structure guard** — Detect valid JSON that an earlier stage made structurally invalid and render a smaller faithful representation from the parsed value when possible. Cover single values, NDJSON, and JSON followed by a text trailer; preserve the current pipeline gate and conservative failure behavior. Complete this before broadening routes over structured output. → [Pipeline](ARCHITECTURE.md#pipeline)"
       status: resolved
-      order: 1
+      order: 2
       severity: normal
   lifecycle:
     operation: resolve

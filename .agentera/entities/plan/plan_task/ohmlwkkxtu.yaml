@@ -4,7 +4,7 @@ record:
   name: Deliver offline configuration screening
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN one frozen source population and explicit full configurations WHEN screened THEN every configuration processes the same calls with routing, stage order, anti-worsening, and footer gates intact.
     - GIVEN passthrough and frozen 50:10, 73:1, 100:10, and 100:50 configurations WHEN screened THEN calls, bytes, token estimates, dispositions, cues, and footer cost reconcile exactly.
@@ -12,12 +12,12 @@ record:
     - GIVEN the frozen decision rule WHEN screening completes THEN 100:50 and at most two highest-saving alternatives advance only after positive net savings and controlled-fact gates pass.
   plan: vnunyqogux
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: "Criterion 1 failed: screen population omitted tool input, so command_prefix and subcommand routes could not match production routing and fell back incorrectly. Add input metadata, feed ToolCall.Input, and cover command/subcommand routes."
     provenance:
-      attempt_id: offline-screen-audit-1
-      source: audit task ses_fc011df02ffeKR3zZA2U1UDkHf
-      recorded_at: 2026-08-26 23:20
+      attempt_id: offline-screen-audit-2
+      source: audit task ses_fc011df02ffeKR3zZA2U1UDkHf correction recheck
+      recorded_at: 2026-08-26 23:27
       writer_command: agentera state plan record-evaluation

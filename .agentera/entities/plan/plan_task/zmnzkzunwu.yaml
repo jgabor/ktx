@@ -4,9 +4,19 @@ record:
   name: Establish structured experiment summary contract
   depends_on:
     []
-  status: pending
+  status: complete
   acceptance:
     - GIVEN every retained legacy and current fixture WHEN regenerated THEN serialized summary bytes remain unchanged.
     - GIVEN existing compare, rank, validate, and report inputs WHEN exercised THEN their outputs and exit behavior remain compatible.
     - GIVEN malformed or conflicting summary evidence WHEN consumed THEN every surface rejects it consistently.
   plan: vnunyqogux
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Criterion 3 failed: existing conflicting summary evidence is rejected by validate but compare --summarize regenerates and overwrites it. RegenerateSummary must decode and validate an existing summary before use or replacement."
+    provenance:
+      attempt_id: summary-audit-2
+      source: audit task ses_fc011df02ffeKR3zZA2U1UDkHf correction recheck
+      recorded_at: 2026-08-26 23:50
+      writer_command: agentera state plan record-evaluation

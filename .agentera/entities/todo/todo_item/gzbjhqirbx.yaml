@@ -19,7 +19,7 @@ record:
       present: true
       description: "[fix] Align agent-facing prompt-cache benchmark guidance"
       status: resolved
-      order: 3
+      order: 4
       severity: degraded
   lifecycle:
     operation: resolve

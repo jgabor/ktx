@@ -1,0 +1,16 @@
+id: dixgafnkys
+artifact: progress
+record:
+  timestamp: 2026-08-27 02:30
+  type: docs
+  phase: build
+  what: Synchronized final project state and linked completed backlog rows to implementation, progress, and retained campaign evidence. Four accepted archives validate byte-exactly; excluded evidence remains explicitly unavailable. No defaults changed.
+  context:
+    intent: Close final documentation and project-memory drift without changing retained attempt evidence.
+    constraints: Use isolated roots, no ambient database or model calls, preserve user-owned decision satisfaction, and leave the final plan task in progress for audit.
+    unknowns: Recovery behavior remains unavailable because the correction qualification produced no complete pair.
+    scope: Repository verification, retained archive validation, documentation, backlog reconciliation, and final campaign accounting.
+  discovered: The initial mage check attempts hit the disposable filesystem quota; after removing stale disposable work, the isolated check passed. Five partial archives still reject because summary schema 6 lacks recovery_aware_comparison, and v7-crossfile-73-1-cuefix-20260827 rejects because summary.json is absent.
+  verified: mage check passed with KTX_DB unset and fresh HOME/XDG roots. The four accepted archives returned valid=true, target_met=true, summary_byte_match=true, and 5/5 valid counts per arm. tools/bench/evidence/recovery-aware-comparison-v7.json accounts for 110/120 attempts, 1,644/21,600 seconds, USD 0 runtime-reported cost, and USD 7.455092 estimated spend.
+  next: Keep defaults unchanged. A future post-correction measured recovery run requires a separately approved budget of at least 12 attempts; none was added to TODO. Decision xaojahwvyp satisfaction remains unconfirmed and user-owned.
+  publication_order: 188

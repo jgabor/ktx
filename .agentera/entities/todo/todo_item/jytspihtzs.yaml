@@ -20,4 +20,4 @@ record:
       description: "**Consolidated CLI argument handling** — Give run, init, db, stats, bench, plugin, and shared format handling one consistent interpretation of owned flags, consumed values, and passthrough arguments. Cover flags before and after a wrapped executable. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)"
       severity: normal
       status: open
-      order: 5
+      order: 4

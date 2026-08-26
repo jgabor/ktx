@@ -29,7 +29,7 @@ record:
       present: true
       description: "[task] Retain multidimensional residual-ranking rows"
       status: resolved
-      order: 8
+      order: 9
       severity: degraded
   lifecycle:
     operation: resolve

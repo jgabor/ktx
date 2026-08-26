@@ -19,7 +19,7 @@ record:
       present: true
       description: "**Trusted session agent attribution** — Populate session agent identity for new evidence only from recognized trusted ingress, preserve `unknown` for historical or unverified sources, and expose identified-versus-unknown coverage in live statistics. Cover wrapper, hook, retry, and mixed-runtime ownership without reconstructing identity. → [Ingress](ARCHITECTURE.md#ingress)"
       status: resolved
-      order: 6
+      order: 7
       severity: normal
   lifecycle:
     operation: resolve

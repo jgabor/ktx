@@ -21,7 +21,7 @@ record:
       present: true
       description: "[bug] Qualify post-readiness read-only guarantees"
       status: resolved
-      order: 12
+      order: 13
       severity: normal
   lifecycle:
     operation: resolve

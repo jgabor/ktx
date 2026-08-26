@@ -19,7 +19,7 @@ record:
       present: true
       description: "[bug] Fail closed when continuity closure evidence is missing"
       status: resolved
-      order: 7
+      order: 8
       severity: degraded
   readiness:
     capability: build

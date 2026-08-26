@@ -43,5 +43,4 @@ record:
   rejected:
     - issue: Require a second user approval checkpoint before paid runs.
       rationale: The user explicitly preapproved autonomous paid runs. Preflight, allowed-model policy, explicit authentication, and ceilings of 120 attempts, six hours, and USD 25 estimated spend still fail closed.
-  surprises:
-    []
+  surprises: Disposable filesystem quota blocked two initial mage check attempts. Five partial archives still reject for missing recovery_aware_comparison, and the correction qualification rejects because summary.json is absent; these are expected exclusions, not accepted evidence.

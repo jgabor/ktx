@@ -8,10 +8,14 @@ record:
     - bhfkgermse
     - ysciuimqsr
     - hghhpecuay
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN implementation and experiments complete WHEN repository verification runs THEN mage check and every retained archive validation pass under isolated roots.
     - GIVEN current behavior and evidence WHEN documentation is reviewed THEN CLI guidance, benchmark contracts, limitations, and actual results agree.
     - GIVEN related backlog items WHEN closure is considered THEN each closes only with linked implementation or experiment evidence.
     - GIVEN final reporting WHEN handed off THEN actual results, invalid or unavailable fields, surprises, recommended follow-up, and user-owned decision satisfaction are explicit.
   plan: vnunyqogux
+  evidence:
+    - mage check passed with KTX_DB unset and fresh isolated application roots.
+    - Four accepted v7 archives validate with valid=true, target_met=true, summary_byte_match=true, and 5/5 valid attempts per arm.
+    - TODO.md links completed rows to progress and tools/bench/evidence/recovery-aware-comparison-v7.md; progress dixgafnkys records final accounting, unavailable fields, recommendation, and user-owned satisfaction.

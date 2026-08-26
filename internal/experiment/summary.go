@@ -720,6 +720,11 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	if readSummaryErr != nil && !os.IsNotExist(readSummaryErr) {
 		return SummaryRegeneration{}, readSummaryErr
 	}
+	if readSummaryErr == nil {
+		if _, err := DecodeSummary(existingSummary); err != nil {
+			return SummaryRegeneration{}, err
+		}
+	}
 	preserveHistoricalSummarySchema(&manifest, existingSummary)
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, existingSummary)
 	if err != nil {

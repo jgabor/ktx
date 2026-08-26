@@ -1,0 +1,12 @@
+id: pplxzhhbnc
+artifact: progress
+record:
+  timestamp: 2026-08-26 23:48
+  type: fix
+  phase: build
+  what: internal/experiment/summary.go now calls DecodeSummary before using or replacing an existing summary.json. internal/cli/bench_experiment_test.go proves bench validate and bench compare --summarize reject conflicting pass-rate evidence without overwriting it.
+  context:
+    intent: Apply the bounded audit correction for consistent malformed summary rejection.
+  verified: Focused public-surface and regeneration tests passed; mage check passed with KTX_DB unset and disposable HOME/XDG/TMP roots.
+  next: Orchestrator reevaluates plan task zmnzkzunwu.
+  publication_order: 182

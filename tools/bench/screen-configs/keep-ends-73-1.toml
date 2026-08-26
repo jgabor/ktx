@@ -1,0 +1,8 @@
+[pipeline.default]
+stages = ["keep-ends:73:1"]
+recover_footer = true
+
+[[route]]
+tool = "read"
+exit_status = "success"
+profile = "default"

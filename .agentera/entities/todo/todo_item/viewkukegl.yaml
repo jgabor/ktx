@@ -1,0 +1,46 @@
+id: viewkukegl
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: "**Recovery-aware pipeline outcome comparison** — Extend `ktx bench compare` and ranking regeneration for arbitrary full baseline and candidate configurations. Make runtime-emitted total tokens per correct task the primary outcome and report exact cue-linked `ktx read` recovery, repeated recovery, total tool calls, and exact repeated normalized tool calls as diagnostics. Prove the contract first with passthrough and keep-ends parameter configurations. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  requirements:
+    - Preserve existing baseline-config and candidate-config surfaces, isolated attempt ownership, task scoring, cycle pairing, retained field authorities, and byte-for-byte summary regeneration.
+    - Count a recovery only when a supported `ktx read <source-id>` call follows and exactly matches a recovery cue delivered earlier in the same attempt; preserve unique cues, repeated attempts, authoritative outcome, and byte-exact recovery separately.
+    - "Report per arm and paired cycle: correct-task count, runtime-emitted token fields, tool-delivery estimates, attempts with any recovery, cue exposure and follow rate, recovery attempts, repeated recovery attempts, total tool calls, and exact repeated normalized tool-plus-argument calls."
+    - Use total runtime tokens per correct task as the primary comparison without summing field-scoped deltas or treating missing telemetry as zero. Keep tool delivery, runtime usage, cost, quality, and recovery evidence separately attributed.
+    - Version the summary contract intentionally and preserve retained historical schemas and regeneration.
+    - Do not infer semantic duplicate reads, provider behavior, causal attribution, or statistical significance.
+  acceptance:
+    - A retained paired comparison distinguishes passthrough, keep-ends:50:10, keep-ends:73:1, keep-ends:100:10, and keep-ends:100:50 through arbitrary configuration files rather than stage-specific command flags.
+    - For every evaluated attempt, cue deliveries and linked recovery attempts regenerate from retained authoritative artifacts and reconcile with total and exact-repeat tool-call counts.
+    - Ranking prefers lower runtime-emitted total tokens only among correct attempts and exposes whether savings coincide with more recovery or repeated calls.
+    - Validation rejects missing, conflicting, cross-attempt, pre-cue, or duplicate recovery attribution and preserves unavailable runtime fields.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: The behavioral comparison contract is selected but depends on offline screening and the typed experiment summary model.
+    dependencies:
+      - artifact: todo
+        id: lnrtkovrdh
+      - artifact: todo
+        id: dnxoqropkm
+    blocked:
+      reason: Offline candidate screening and typed summary representation are not complete.
+      recovery: Complete lnrtkovrdh and dnxoqropkm, then implement the recovery-aware summary and validation as one generic config comparison.
+    gate:
+      state: pending
+      reason: No paid parameter matrix should run until offline screening shortlists configurations and retained recovery regeneration passes.
+      recovery: Pass offline screening and focused retained-artifact validation before authorizing model calls.
+    queue_rank: 2
+    order_reason: Behavioral spending follows mechanical screening and typed summary infrastructure.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] **Recovery-aware pipeline outcome comparison** — Extend `ktx bench compare` and ranking regeneration for arbitrary full baseline and candidate configurations. Make runtime-emitted total tokens per correct task the primary outcome and report exact cue-linked `ktx read` recovery, repeated recovery, total tool calls, and exact repeated normalized tool calls as diagnostics. Prove the contract first with passthrough and keep-ends parameter configurations. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      severity: normal
+      status: open
+      order: 16

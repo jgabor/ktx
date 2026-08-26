@@ -1,0 +1,15 @@
+id: ysciuimqsr
+artifact: plan
+record:
+  name: Expose generic recovery-aware comparison
+  depends_on:
+    - zmnzkzunwu
+    - ohmlwkkxtu
+    - bhfkgermse
+  status: pending
+  acceptance:
+    - GIVEN arbitrary baseline and candidate configurations WHEN compared THEN quality, runtime tokens, tool delivery, cost, recovery, total calls, and exact repeats remain separately attributed.
+    - GIVEN a quality-qualified arm with complete runtime totals WHEN ranked THEN lower total tokens per correct task is the primary outcome.
+    - GIVEN incomplete runtime totals WHEN summarized THEN the primary outcome is unavailable with a reason and cannot drive ranking or recommendation.
+    - GIVEN old and new retained archives WHEN validated THEN each schema regenerates byte-exact and preserves its documented claims.
+  plan: vnunyqogux

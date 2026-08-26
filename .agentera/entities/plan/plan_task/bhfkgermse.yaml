@@ -1,0 +1,13 @@
+id: bhfkgermse
+artifact: plan
+record:
+  name: Retain recovery and exact-repeat outcomes
+  depends_on:
+    - zmnzkzunwu
+  status: pending
+  acceptance:
+    - GIVEN a delivered cue and later same-attempt matching recovery command WHEN evidence regenerates THEN one linked recovery is retained.
+    - GIVEN pre-cue, cross-attempt, mismatched, or conflicting calls WHEN validated THEN they cannot become recovery evidence.
+    - GIVEN repeated recovery of one cue WHEN summarized THEN unique cues, attempts, outcomes, and byte-exact results remain distinct.
+    - GIVEN exact repeated normalized tool calls WHEN reported THEN only opaque equality and counts are exposed.
+  plan: vnunyqogux

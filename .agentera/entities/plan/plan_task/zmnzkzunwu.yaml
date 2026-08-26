@@ -1,0 +1,12 @@
+id: zmnzkzunwu
+artifact: plan
+record:
+  name: Establish structured experiment summary contract
+  depends_on:
+    []
+  status: pending
+  acceptance:
+    - GIVEN every retained legacy and current fixture WHEN regenerated THEN serialized summary bytes remain unchanged.
+    - GIVEN existing compare, rank, validate, and report inputs WHEN exercised THEN their outputs and exit behavior remain compatible.
+    - GIVEN malformed or conflicting summary evidence WHEN consumed THEN every surface rejects it consistently.
+  plan: vnunyqogux

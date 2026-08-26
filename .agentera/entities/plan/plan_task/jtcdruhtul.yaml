@@ -1,0 +1,17 @@
+id: jtcdruhtul
+artifact: plan
+record:
+  name: Synchronize final project state
+  depends_on:
+    - zmnzkzunwu
+    - ohmlwkkxtu
+    - bhfkgermse
+    - ysciuimqsr
+    - hghhpecuay
+  status: pending
+  acceptance:
+    - GIVEN implementation and experiments complete WHEN repository verification runs THEN mage check and every retained archive validation pass under isolated roots.
+    - GIVEN current behavior and evidence WHEN documentation is reviewed THEN CLI guidance, benchmark contracts, limitations, and actual results agree.
+    - GIVEN related backlog items WHEN closure is considered THEN each closes only with linked implementation or experiment evidence.
+    - GIVEN final reporting WHEN handed off THEN actual results, invalid or unavailable fields, surprises, recommended follow-up, and user-owned decision satisfaction are explicit.
+  plan: vnunyqogux

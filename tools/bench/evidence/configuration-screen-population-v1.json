@@ -1,0 +1,95 @@
+{
+  "schema": "ktx.bench.configuration-screen-population.v1",
+  "cases": [
+    {
+      "tool": "read",
+      "outcome": "success",
+      "generator": {
+        "algorithm": "fixed_lines_v1",
+        "bytes": 16384,
+        "fill_byte": ".",
+        "newline_every": 64,
+        "placements": [
+          { "fact": "HEAD_REQUIRED", "offsets": [64] },
+          { "fact": "TAIL_REQUIRED", "offsets": [16320] }
+        ]
+      },
+      "expected": {
+        "required_facts": [
+          { "fact": "HEAD_REQUIRED", "exact_occurrences": 1 },
+          { "fact": "TAIL_REQUIRED", "exact_occurrences": 1 }
+        ],
+        "errors": {
+          "is_error": false,
+          "required_text": null,
+          "exact_occurrences": 0
+        },
+        "eligible": true,
+        "passthrough": false
+      }
+    },
+    {
+      "tool": "bash",
+      "outcome": "success",
+      "generator": {
+        "algorithm": "fixed_lines_v1",
+        "bytes": 4096,
+        "fill_byte": ".",
+        "newline_every": 64,
+        "placements": []
+      },
+      "expected": {
+        "required_facts": [],
+        "errors": {
+          "is_error": false,
+          "required_text": null,
+          "exact_occurrences": 0
+        },
+        "eligible": false,
+        "passthrough": true
+      }
+    },
+    {
+      "tool": "read",
+      "outcome": "failure",
+      "generator": {
+        "algorithm": "fixed_lines_v1",
+        "bytes": 4096,
+        "fill_byte": ".",
+        "newline_every": 64,
+        "placements": [{ "fact": "ERROR_REQUIRED", "offsets": [2048] }]
+      },
+      "expected": {
+        "required_facts": [],
+        "errors": {
+          "is_error": true,
+          "required_text": "ERROR_REQUIRED",
+          "exact_occurrences": 1
+        },
+        "eligible": false,
+        "passthrough": true
+      }
+    },
+    {
+      "tool": "read",
+      "outcome": "unknown",
+      "generator": {
+        "algorithm": "fixed_lines_v1",
+        "bytes": 4096,
+        "fill_byte": ".",
+        "newline_every": 64,
+        "placements": []
+      },
+      "expected": {
+        "required_facts": [],
+        "errors": {
+          "is_error": null,
+          "required_text": null,
+          "exact_occurrences": 0
+        },
+        "eligible": false,
+        "passthrough": true
+      }
+    }
+  ]
+}

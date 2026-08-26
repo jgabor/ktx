@@ -1,0 +1,12 @@
+id: ntwktvgxrg
+artifact: progress
+record:
+  timestamp: 2026-08-26 23:14
+  type: feat
+  phase: build
+  what: Added ./build/ktx bench screen using tools/bench/evidence/configuration-screen-population-v1.json and explicit TOML configurations. The frozen four-call matrix reconciles 28,672 raw bytes per configuration; the 100:50 anchor saves 6,653 delivered bytes and advances with two higher-saving fact-safe alternatives.
+  context:
+    intent: Deliver bounded offline full-configuration screening before any paid comparison.
+  verified: go test ./internal/cli ./internal/config ./internal/router passed; an isolated local-binary smoke run emitted schema ktx.bench.configuration-screen.v1 and created no disposable database; mage check passed with KTX_DB unset and fresh HOME/XDG/TMP roots.
+  next: Use only the advanced opaque configuration identities as input to later behavioral comparison work.
+  publication_order: 179

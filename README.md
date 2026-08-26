@@ -149,6 +149,21 @@ runtime. Named
 pipelines, tasks, methodologies, and corpus fixtures live under
 [`tools/bench`](tools/bench).
 
+Screen complete configurations without a database, credentials, or model calls:
+
+```bash
+./build/ktx bench screen \
+  --population tools/bench/evidence/configuration-screen-population-v1.json \
+  --config tools/bench/pipelines/passthrough.toml \
+  --config tools/bench/screen-configs/keep-ends-73-1.toml \
+  --anchor-config tools/bench/screen-configs/keep-ends-100-50.toml \
+  --format json
+```
+
+Repeat `--config` for each complete configuration. The JSON contains only
+aggregate measurements, hashes, and opaque configuration identities. External
+plugins are rejected so screening cannot send source content to another process.
+
 The current opt-in comparison uses methodology v6, summary schema 5, and
 `cache-reuse-v2` to report the token-weighted prompt-cache hit rate under the
 pinned contract. It does not authorize provider-request or provider-internal

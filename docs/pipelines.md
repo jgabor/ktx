@@ -821,6 +821,62 @@ All metrics are derived from retained experiment evidence
 | `role`                                   | v5 trial role: `cold_observation`, `warmup`, or `measured_warm`                          |
 | `cache_control`                          | v5 mode/source, namespace hash, phase/order/gap, model/provider/variant/runtime metadata |
 
+### Recovery-aware configuration comparison
+
+`ktx bench compare` keeps arbitrary baseline and candidate configuration files
+as the comparison boundary. Recovery-aware evaluation uses two gates:
+
+1. **Offline screening** runs each configuration over one frozen retained-output
+   population through the production pipeline runner. It reports paired
+   delivery, anti-worsening, recovery-cue exposure, and footer-cost results
+   without model calls. This mechanical evidence cannot establish agent
+   recovery decisions or task quality.
+2. **Behavioral comparison** runs only shortlisted configurations through the
+   existing paired task protocol. Correctness is a gate. Among configurations
+   that meet it, the primary outcome is complete runtime-emitted total tokens
+   per correct task.
+
+Tool delivery, runtime token fields, cost, quality, recovery, and tool calls
+retain separate field authorities. A recovery requires a delivered cue and a
+later exact `ktx read <source-id>` match in the same attempt. Per-arm and paired
+results report:
+
+- attempts with any linked recovery;
+- delivered cues, distinct cues followed, and cue-follow coverage;
+- recovery attempts, repeated attempts for one cue, and byte-exact outcomes;
+- total tool calls; and
+- exact repeated normalized tool calls within an attempt.
+
+An arm with no delivered cues has an unavailable cue-follow rate, not zero.
+Exact-repeat summaries expose counts and opaque equality only, never tool
+arguments or semantic-overlap claims. Pair cycles descriptively; do not claim
+significance, provider behavior, or causal decomposition.
+
+The first acceptance matrix uses passthrough plus `keep-ends:50:10`,
+`keep-ends:73:1`, `keep-ends:100:10`, and `keep-ends:100:50`. The summary
+contract remains stage-agnostic so the same comparison can evaluate complete
+configurations containing `json-compact`, `strip-ansi`, or other stages.
+
+Current retained summary schemas do not emit this recovery-aware block. Until a
+new schema version and validator implement it, existing summaries support only
+their documented quality, token, cost, delivery, and tool-call claims.
+
+Run the mechanical gate with `ktx bench screen --population <json>`, repeated
+`--config <ktx.toml>`, and one `--anchor-config <ktx.toml>`. The anchor is the
+`100:50` acceptance candidate; it advances first only when net delivered-byte
+savings are positive and every controlled fact passes. At most two other
+qualified configurations follow in descending net savings order. Every
+configuration receives the same calls. Raw and delivered bytes and per-call
+token estimates, disposition counts, cue counts, and footer bytes reconcile in
+schema `ktx.bench.configuration-screen.v1`.
+
+The command reads only the named population and configuration files. It does
+not open a database, persist derived features, use credentials, or contact a
+model. Output omits source content, paths, call identifiers, and configuration
+names. External plugins are rejected because their process boundary could
+expose source content; built-in stage order, routing, failure, anti-worsening,
+JSON structure, and recovery-footer gates use the production runner.
+
 ### Per-pipeline aggregates (evaluated attempts)
 
 An attempt is **evaluated** when:

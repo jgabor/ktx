@@ -2,40 +2,45 @@ id: oeukssciul
 artifact: todo
 record:
   severity: normal
-  status: open
+  status: resolved
   readiness:
     capability: optimize
-    reason: The installed operator binary now supports schema 14; ambient database migration, adapter refresh, runtime restart, collection start, and live requalification remain pending.
+    reason: A live qualification on OpenCode 1.18.23 proved explicit collection start/stop closure, delivered-byte evidence, and runtime-authoritative latency, but the read outcome remained unknown. The live report requires is_error=false, so no read can enter the baseline population under the current hook contract.
     dependencies:
       - artifact: todo
         id: edwzszsqjr
     blocked:
-      reason: The ambient live database remains on schema 11, the generated OpenCode adapter has not been refreshed, and no backup, migration, configuration, restart, collection, baseline, or rollout is authorized.
-      recovery: Obtain explicit operator authorization, quiesce writers and retain a database-plus-sidecar backup, migrate the live database forward with the installed schema-14 binary, refresh the generated OpenCode adapter, restart under one explicit collection identity, then requalify the frozen report before scheduling either window.
+      reason: OpenCode tool.execute.after does not provide authoritative terminal state for read, the hook correctly persists unknown outcome, and the live-validation query admits only explicit successes. A success-only keep-ends:73:1 route therefore cannot be applied or evaluated safely.
+      recovery: "Choose and validate a new authority path before collection: either obtain authoritative pre-transform read outcome from a supported runtime contract, or run a separately controlled evaluation that authorizes candidate routing when outcome is unknown. Do not start the baseline or candidate rollout meanwhile."
     gate:
       state: pending
-      reason: No database migration, adapter refresh, runtime restart, collection, or exact window is authorized until the remaining live effects are approved and requalification passes.
-      recovery: Complete the authorized migration and adapter sequence, run the corrected preflight, and retain a qualified report before deriving fixed UTC bounds.
+      reason: The bounded qualification produced one closed run and one measured delivery/latency observation but zero known read outcomes; the baseline population would be empty.
+      recovery: Resolve the outcome-authority and routing mismatch, rebuild and refresh the adapter if needed, then repeat the bounded qualification before freezing either two-hour window.
     queue_rank: 8
-    order_reason: The schema-14 binary is installed, but migration, adapter refresh, and requalification still block every live-validation task.
+    order_reason: Instrumentation is partially qualified, but missing authoritative read outcomes make the current experiment definition unexecutable.
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[experiment] Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 a9fdd4c8d2b29422683db2d8f82fbf23fcc53aba465e5480af196a0bcafef82b). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[experiment] **Retired post-change live validation** — OpenCode’s pre-delivery hook provides no authoritative outcome for `read`, so the success-only `keep-ends:73:1` candidate cannot be routed or evaluated without treating unknown as success. Retain the controlled and mechanical evidence only. No rollout or default change occurred. Reconsider only if a supported runtime exposes explicit pre-delivery success and failure authority. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
+      status: resolved
+      order: 15
       severity: normal
-      status: open
-      order: 12
   kind: experiment
   requirements:
-    - Candidate scope is only keep-ends:73:1; no alternative candidate, profile, route, transform, configuration, or default change is authorized.
-    - Before rollout, predeclare and retain fixed pre-change and post-change windows, authoritative collection-continuity evidence, and authoritative closure for both windows.
-    - Measure delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior including byte-exact recovery, tool-call inflation, and latency; absolute daily totals alone are insufficient.
-    - Rollout must be reversible and must revert keep-ends:73:1 if required facts, recovery, or operational behavior regress.
+    - Candidate scope is only keep-ends:73:1; no alternative candidate, transform, or shipped-default change is authorized.
+    - Before collection, predeclare one fixed two-hour baseline window and one fixed two-hour post-change window under one explicit collection identity. An undersized or interrupted window is invalid and must be rescheduled before inspecting comparative results.
+    - Each window retains the existing minimum populations and coverage gates for delivery ratio, estimated tokens per call, disposition, known outcomes, recovery, tool-call inflation, latency, and complete continuity and closure.
+    - Historical originals may be used for aggregate mechanical simulation only; they do not supply missing outcome, latency, recovery, collection, or continuity authority.
+    - Rollout is reversible and must revert keep-ends:73:1 if required facts, byte-exact recovery, or operational behavior regress.
   acceptance:
-    - Only keep-ends:73:1 is rolled out after continuity and fixed-window gates are satisfied.
-    - Pre/post evidence contains every required metric and authoritative continuity and closure evidence.
-    - Any regression triggers revert; absent regression, live evidence remains distinct from controlled experiment evidence and does not itself establish provider-internal behavior or a shipped-default change.
+    - Only keep-ends:73:1 is rolled out after current adapter instrumentation and a fixed two-hour baseline qualify.
+    - Both windows meet every predeclared count, coverage, continuity, closure, and recovery gate without post-hoc extension.
+    - Any regression triggers revert; a pass is narrow live-validation evidence and does not itself authorize a universal or shipped-default change.
   release_blocker: false
-  title: "Post-change live validation — Validate only keep-ends:73:1 through a reversible rollout after retaining fixed pre-change and post-change windows and proving authoritative collection continuity and window closure. Compare delivered-to-raw ratio, estimated tokens per call, disposition mix, known-denominator outcome rate and coverage, recovery behavior, tool-call inflation, and latency; do not use absolute daily totals alone. Revert on regression in required facts, byte-exact recovery, or operational behavior. Controlled prerequisite evidence: successor outcome edwzszsqjr and targeted-residual-successor-outcome-20260819.md (SHA-256 a9fdd4c8d2b29422683db2d8f82fbf23fcc53aba465e5480af196a0bcafef82b). No rollout has occurred and shipped defaults remain unchanged. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
+  title: "**Retired post-change live validation** — OpenCode’s pre-delivery hook provides no authoritative outcome for `read`, so the success-only `keep-ends:73:1` candidate cannot be routed or evaluated without treating unknown as success. Retain the controlled and mechanical evidence only. No rollout or default change occurred. Reconsider only if a supported runtime exposes explicit pre-delivery success and failure authority. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
   target_version: null
+  lifecycle:
+    operation: resolve
+    reason: "Retired as infeasible under the current OpenCode plugin contract: no authoritative pre-delivery read outcome exists, so success-only routing and the required live population cannot be established without weakening unknown-outcome safety. Retain the controlled and mechanical evidence; no rollout or default change occurred."
+    date: 2026-08-26

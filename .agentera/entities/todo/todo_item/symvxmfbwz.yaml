@@ -20,4 +20,4 @@ record:
       description: "**Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)"
       severity: normal
       status: open
-      order: 14
+      order: 13

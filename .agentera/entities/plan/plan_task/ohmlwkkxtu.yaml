@@ -1,0 +1,13 @@
+id: ohmlwkkxtu
+artifact: plan
+record:
+  name: Deliver offline configuration screening
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN one frozen source population and explicit full configurations WHEN screened THEN every configuration processes the same calls with routing, stage order, anti-worsening, and footer gates intact.
+    - GIVEN passthrough and frozen 50:10, 73:1, 100:10, and 100:50 configurations WHEN screened THEN calls, bytes, token estimates, dispositions, cues, and footer cost reconcile exactly.
+    - GIVEN a screening run WHEN completed THEN it performs no model calls, exposes no raw content or identifiers, and leaves the ambient database untouched.
+    - GIVEN the frozen decision rule WHEN screening completes THEN 100:50 and at most two highest-saving alternatives advance only after positive net savings and controlled-fact gates pass.
+  plan: vnunyqogux

@@ -1,0 +1,47 @@
+id: vnunyqogux
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-26
+    status: open
+    reviewed: 2026-08-26
+    critic_issues: 9 found, 8 addressed, 1 dismissed
+    title: "Plan: Complete Priority 3 Pipeline Outcome Benchmark"
+  what: Deliver a validated generic configuration benchmark that screens pipelines offline, measures recovery-aware agent outcomes, executes a bounded keep-ends comparison, and reports actual evidence and recommended changes.
+  why: Determine whether compression lowers total runtime tokens per correct task after recovery and repeated work, while reusing retained data to avoid redundant paid attempts.
+  constraints: Preserve field authority, legacy schemas, and byte-exact regeneration. Use disposable application roots and isolated owner databases; never access the ambient live database. Paid runs are preapproved without another prompt but still require preflight, explicit read-only authentication, allowed providers, and hard attempt, time, and estimated-spend ceilings. Do not infer semantic duplicates, statistical significance, provider causality, or apply a default change.
+  overall_acceptance: GIVEN all plan tasks and paid comparisons complete WHEN retained evidence is regenerated and validated THEN Priority 3 reports which quality-qualified configurations minimize complete runtime tokens, how linked recovery and exact repeated work changed, and what changes are recommended without modifying shipped defaults.
+  scope:
+    included:
+      - structured benchmark summary prerequisite
+      - offline arbitrary-configuration screening
+      - attempt-local recovery and exact-repeat evidence
+      - generic comparison, ranking, validation, and reporting
+      - bounded keep-ends matrix with actual paid outcomes
+      - documentation and project-state synchronization
+    excluded:
+      - ambient live rollout
+      - automatic configuration or default changes
+      - semantic-overlap detection
+      - provider-internal or causal claims
+      - inferential significance claims
+    deferred:
+      - paid evaluation of non-keep-ends stages
+      - implementation of any recommended product adoption
+  design: Establish a compatible summary representation while screening complete configurations mechanically. Retain exact attempt-local recovery and repeat evidence, then expose a stage-agnostic paired outcome contract. Execute only the predeclared shortlist under bounded paid collection, validate every archive, report actual outcomes, and synchronize project authority.
+  unknowns:
+    - question: Can current isolated attempt artifacts regenerate delivered cues and recovery attempts completely?
+      affects_task: 3
+      resolve_by: Use one focused retained attempt before changing summary behavior; preserve unavailable evidence if authority is incomplete.
+    - question: Are runtime total-token fields complete for every evaluated model step?
+      affects_task: 4
+      resolve_by: Validate retained streams; incomplete arms keep diagnostics but cannot be token-ranked or receive an outcome recommendation.
+    - question: Which keep-ends configurations pass the frozen mechanical and controlled-fact gates?
+      affects_task: 5
+      resolve_by: Screen all four before provider calls; retain 100:50 plus at most two highest-saving passing alternatives.
+  rejected:
+    - issue: Require a second user approval checkpoint before paid runs.
+      rationale: The user explicitly preapproved autonomous paid runs. Preflight, allowed-model policy, explicit authentication, and ceilings of 120 attempts, six hours, and USD 25 estimated spend still fail closed.
+  surprises:
+    []

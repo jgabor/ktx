@@ -1,0 +1,21 @@
+id: xaojahwvyp
+artifact: decisions
+record:
+  date: 2026-08-26
+  question: How should KTX compare pipeline configurations when compression may trigger recovery and repeated tool work?
+  context: ktx bench compare already accepts arbitrary baseline and candidate configuration files and retains task quality, runtime token, tool-delivery, cost, and tool-call evidence. It does not yet summarize exact cue-following recovery, repeated recovery, or exact repeated tool calls. Historical originals can screen mechanical effects but cannot replay an agent decision to recover.
+  alternatives:
+    - name: Use a generic two-config outcome benchmark with offline screening and paid behavioral comparison, proven first with keep-ends parameters.
+      status: chosen
+    - name: Build a keep-ends-specific benchmark that cannot compare arbitrary configurations.
+      status: rejected
+    - name: Run paid agent comparisons for every parameter combination without offline screening.
+      status: rejected
+    - name: Use compression ratio or recovery rate alone as the optimization target.
+      status: rejected
+    - name: Detect semantic redundancy beyond exact repeated normalized tool calls before the trust and redaction boundary is resolved.
+      status: rejected
+  choice: Extend `./build/ktx bench compare --baseline-config A --candidate-config B` with a generic recovery-aware outcome contract documented in `docs/pipelines.md`. First screen full configurations offline by replaying retained outputs through the production pipeline runner, then run paid paired agent attempts only for shortlisted configurations. Use runtime-emitted total tokens per correct task as the primary outcome. Report exact delivered-cue exposure, attempts with linked `ktx read <id>` recovery, unique and repeated recovery attempts, total tool calls, and exact repeated normalized tool calls as diagnostics. Preserve separate field authorities for tool delivery, runtime tokens, cost, quality, and recovery. Validate the contract first with keep-ends parameter configurations, without hardcoding stage-specific semantics into the benchmark.
+  reasoning: The primary metric naturally includes compression savings and any token cost caused by recovery or repeated work, while the correctness gate prevents cheap wrong answers from winning. Exact cue-to-source-ID linkage distinguishes ktx-caused recovery from ordinary tool use. Offline screening reuses existing data and avoids redundant model calls. A generic configuration boundary matches the existing compare and rank surfaces and can later evaluate lossless or lossy stages without redesigning the command. Restricting redundancy to exact repeats respects current evidence and trust boundaries. This remains KTX-native pipeline evaluation rather than a general-purpose agent-evaluation harness.
+  confidence: firm
+  feeds_into: TODO offline configuration screening and recovery-aware behavioral comparison; docs/pipelines.md benchmark metrics contract

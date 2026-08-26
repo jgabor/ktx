@@ -1,0 +1,40 @@
+id: lnrtkovrdh
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: "**Offline pipeline-configuration screening** — Add a no-model benchmark path that applies arbitrary full pipeline configurations to one frozen retained-output population through the production runner. Report paired raw and delivered estimates, anti-worsening dispositions, recovery-cue exposure and footer cost, and per-call/config distributions without persisting new content-derived features. Use this screen to shortlist configurations before paid agent comparison. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  requirements:
+    - Accept explicit full pipeline configuration files and one explicit retained source population; do not hardcode keep-ends semantics.
+    - Apply every configuration to the same source calls through the production pipeline runner, including routing, stage order, anti-worsening, and recovery-footer size gates.
+    - Emit bounded structured aggregates for raw and delivered bytes and estimated tokens, changed and unchanged calls, disposition mix, cue exposure, footer cost, and paired per-config deltas without model calls.
+    - Keep raw outputs, prompts, session identifiers, and new content-derived features out of the report; retained source evidence remains authoritative and immutable.
+    - Never discover, migrate, or write the ambient live database during development or verification.
+  acceptance:
+    - One frozen fixture or explicitly owned database population can compare passthrough and multiple arbitrary configurations reproducibly with byte-stable regenerated output.
+    - A keep-ends screening fixture covers 50:10, 73:1, 100:10, and 100:50 and reconciles every source call and aggregate exactly.
+    - The command performs zero agent/model calls and documents that mechanical screening cannot establish recovery decisions, task quality, or provider token behavior.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: The generic two-tier benchmark decision is recorded; offline screening is the first executable slice.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 1
+    order_reason: Screening must exist before paid behavioral comparisons can avoid redundant configurations and model calls.
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] **Offline pipeline-configuration screening** — Add a no-model benchmark path that applies arbitrary full pipeline configurations to one frozen retained-output population through the production runner. Report paired raw and delivered estimates, anti-worsening dispositions, recovery-cue exposure and footer cost, and per-call/config distributions without persisting new content-derived features. Use this screen to shortlist configurations before paid agent comparison. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      status: resolved
+      order: 16
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: Implemented database-free full-configuration screening with exact aggregate reconciliation and controlled-fact shortlist gates.
+    date: 2026-08-26

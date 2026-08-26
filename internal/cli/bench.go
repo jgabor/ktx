@@ -86,6 +86,8 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 		return benchSubToExit(runBenchExport(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "compare":
 		return benchSubToExit(runBenchCompare(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "screen":
+		return benchSubToExit(runBenchScreen(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "rank":
 		return benchSubToExit(runBenchRank(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "validate":
@@ -191,6 +193,8 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      with --cache-control auto|isolated|observed, --warmup N (default 1), --rounds N (default 5).")
 	fmt.Fprintln(w, "      This current path emits summary schema 5 under cache-reuse-v2.")
 	fmt.Fprintln(w, "      Claims about provider-internal behavior remain forbidden.")
+	fmt.Fprintln(w, "  screen --population <path> --config <ktx.toml>... --anchor-config <ktx.toml>")
+	fmt.Fprintln(w, "      Screen full configurations offline and emit bounded aggregate JSON.")
 	fmt.Fprintln(w, "  rank --model <model> [--variant <name>] --task-file <path>")
 	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
 	fmt.Fprintln(w, "  validate --experiment <directory>")

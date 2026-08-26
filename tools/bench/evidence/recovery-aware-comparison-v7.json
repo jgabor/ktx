@@ -1,0 +1,198 @@
+{
+  "schema": "ktx.bench.recovery-aware-campaign-report.v1",
+  "date": "2026-08-27",
+  "model": "openai/gpt-5.6-luna",
+  "variant": "high",
+  "methodology": {
+    "version": "v7-recovery-aware-comparison",
+    "sha256": "d099eb84c59cb76e45caf83d1d7e0d394cfa924afcdf98ab2342c53bf0d5b6e8"
+  },
+  "screen": {
+    "schema": "ktx.bench.configuration-screen.v1",
+    "population_sha256": "986b7a14a0ce5768ea0fe496dfce9e4c03a200c7f68d2460308fb3baa18ae9fd",
+    "shortlist": [
+      {
+        "config": "keep-ends:100:50",
+        "sha256": "bbf0c6277e3360df864daa27383ce913eb03c147dee141a29ec26bc834f69248",
+        "net_bytes_saved": 6653,
+        "controlled_facts_pass": true
+      },
+      {
+        "config": "keep-ends:73:1",
+        "sha256": "8bf31632404adcd20809f7a934732f36f770a1d7affc31a165c68f19b5bd2ab0",
+        "net_bytes_saved": 11517,
+        "controlled_facts_pass": true
+      },
+      {
+        "config": "keep-ends:100:10",
+        "sha256": "2ac5f3fafdfcf73240f1eca068ec6ecfc793acd62cceee9690cfada099a44843",
+        "net_bytes_saved": 9213,
+        "controlled_facts_pass": true
+      }
+    ],
+    "rejected": {
+      "config": "keep-ends:50:10",
+      "net_bytes_saved": 12669,
+      "controlled_facts_pass": false
+    }
+  },
+  "campaign": {
+    "attempts": 108,
+    "attempt_ceiling": 120,
+    "elapsed_seconds": 1021,
+    "elapsed_ceiling_seconds": 21600,
+    "runtime_reported_cost_usd": 0,
+    "estimated_spend_usd": 7.438216,
+    "estimated_spend_ceiling_usd": 25,
+    "baseline_sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1",
+    "attempt_statuses": {
+      "completed": 108,
+      "invalid": 0,
+      "failed": 0,
+      "timeout": 0,
+      "unlinked": 0
+    }
+  },
+  "accepted_experiments": [
+    {
+      "id": "v7-crossfile-anchor-20260827",
+      "task": "crossfile-nav-v1",
+      "config": "keep-ends:100:50",
+      "valid_counts": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "correct": { "baseline": 5, "candidate": 5 },
+      "runtime_tokens_per_correct": {
+        "baseline": 115306.4,
+        "candidate": 21815.4
+      },
+      "tool_delivery_bytes": {
+        "baseline": 1406771,
+        "candidate_original": 1406819,
+        "candidate_delivered": 222594
+      },
+      "tool_calls": { "baseline": 49, "candidate": 46 },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "runtime_cost_usd": 0,
+      "estimated_spend_usd": 1.730277,
+      "validation": { "valid": true, "summary_byte_match": true }
+    },
+    {
+      "id": "v7-crossfile-73-1-20260827",
+      "task": "crossfile-nav-v1",
+      "config": "keep-ends:73:1",
+      "valid_counts": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "correct": { "baseline": 5, "candidate": 5 },
+      "runtime_tokens_per_correct": {
+        "baseline": 114334.8,
+        "candidate": 12941
+      },
+      "tool_delivery_bytes": {
+        "baseline": 1406819,
+        "candidate_original": 1406875,
+        "candidate_delivered": 108065
+      },
+      "tool_calls": { "baseline": 46, "candidate": 50 },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "runtime_cost_usd": 0,
+      "estimated_spend_usd": 1.525623,
+      "validation": { "valid": true, "summary_byte_match": true }
+    },
+    {
+      "id": "v7-crossfile-100-10-20260827",
+      "task": "crossfile-nav-v1",
+      "config": "keep-ends:100:10",
+      "valid_counts": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "correct": { "baseline": 5, "candidate": 5 },
+      "runtime_tokens_per_correct": {
+        "baseline": 114465.8,
+        "candidate": 15298.2
+      },
+      "tool_delivery_bytes": {
+        "baseline": 1406667,
+        "candidate_original": 1406819,
+        "candidate_delivered": 161054
+      },
+      "tool_calls": { "baseline": 48, "candidate": 46 },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "runtime_cost_usd": 0,
+      "estimated_spend_usd": 1.674126,
+      "validation": { "valid": true, "summary_byte_match": true }
+    },
+    {
+      "id": "v7-midfile-anchor-20260827",
+      "task": "fact-midfile-v1",
+      "config": "keep-ends:100:50",
+      "valid_counts": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "correct": { "baseline": 5, "candidate": 5 },
+      "runtime_tokens_per_correct": { "baseline": 56879, "candidate": 44984.8 },
+      "tool_delivery_bytes": {
+        "baseline": 652625,
+        "candidate_original": 1026460,
+        "candidate_delivered": 482571
+      },
+      "tool_calls": { "baseline": 15, "candidate": 61 },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "linked_recovery": { "baseline": 0, "candidate": 0 },
+      "runtime_cost_usd": 0,
+      "estimated_spend_usd": 0.863057,
+      "validation": { "valid": true, "summary_byte_match": true }
+    }
+  ],
+  "partial_experiments": [
+    {
+      "id": "v7-midfile-73-1-20260827",
+      "task": "fact-midfile-v1",
+      "config": "keep-ends:73:1",
+      "valid_counts": { "baseline": 4, "candidate": 3 },
+      "attempts": 12,
+      "estimated_spend_usd": 0.70332
+    },
+    {
+      "id": "v7-midfile-100-10-20260827",
+      "task": "fact-midfile-v1",
+      "config": "keep-ends:100:10",
+      "valid_counts": { "baseline": 4, "candidate": 4 },
+      "attempts": 12,
+      "estimated_spend_usd": 0.42261
+    },
+    {
+      "id": "v7-ephemeral-anchor-20260827",
+      "task": "ephemeral-midfact-v1",
+      "config": "keep-ends:100:50",
+      "valid_counts": { "baseline": 5, "candidate": 4 },
+      "attempts": 12,
+      "estimated_spend_usd": 0.164079
+    },
+    {
+      "id": "v7-ephemeral-73-1-20260827",
+      "task": "ephemeral-midfact-v1",
+      "config": "keep-ends:73:1",
+      "valid_counts": { "baseline": 2, "candidate": 4 },
+      "attempts": 12,
+      "estimated_spend_usd": 0.161736
+    },
+    {
+      "id": "v7-ephemeral-100-10-20260827",
+      "task": "ephemeral-midfact-v1",
+      "config": "keep-ends:100:10",
+      "valid_counts": { "baseline": 4, "candidate": 4 },
+      "attempts": 12,
+      "estimated_spend_usd": 0.193388
+    }
+  ],
+  "partial_archive_validation": {
+    "valid": false,
+    "error": "summary schema 6 is missing recovery_aware_comparison",
+    "note": "The attempt ceiling prevented replacement comparisons. Partial archives are retained and are not accepted evidence."
+  },
+  "recommendation": {
+    "action": "no_change",
+    "reason": "Only four of nine comparisons reached five complete pairs and validated. Complete matrix quality and runtime totals are unavailable; defaults and configuration remain unchanged."
+  }
+}

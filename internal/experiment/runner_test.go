@@ -1,6 +1,7 @@
 package experiment
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -505,6 +506,67 @@ func TestRunnerAlternatesAndCleansContainers(t *testing.T) {
 	})
 	if err == nil || code != 2 || timeoutFake.attemptRuns != 1 {
 		t.Fatalf("unsealed timeout code=%d err=%v attempts=%d", code, err, timeoutFake.attemptRuns)
+	}
+}
+
+func TestRunnerPinnedPricingIsExactAndMismatchRunsNoCommands(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, value string) string {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(value), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	write("README.md", "fixture\n")
+	write("Dockerfile.benchmark", "FROM scratch\n")
+	methodology := write("methodology.yaml", "methodology_version: v4-eval-matrix\n")
+	baseline := write("baseline.toml", "[pipeline.default]\nstages = []\n")
+	candidate := write("candidate.toml", "[pipeline.default]\nstages = []\n")
+	task := write("task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
+	auth := write("auth.json", "{}\n")
+	pricingData := []byte("{\n  \"provider\": \"neuralwatt\",\n  \"model\": \"test\",\n  \"price\": {\"input\": 1, \"output\": 2}\n}\n")
+	pricing := write("pinned-pricing.json", string(pricingData))
+	hash := sha256Bytes(pricingData)
+
+	noCalls := &fakeExecutor{sessions: map[string]string{}}
+	report, err := (&Runner{Executor: noCalls}).Preflight(context.Background(), CompareOptions{
+		Model: "neuralwatt/test", TaskFile: task, TargetValid: 1, MaxAttempts: 2, RepoRoot: root,
+		MethodologyPath: methodology, BaselineConfig: baseline, CandidateConfig: candidate,
+		KTXBin: "ktx", DockerBin: "docker", PricingSnapshot: pricing, PricingSHA256: strings.Repeat("0", 64),
+	})
+	if err != nil || report.Eligible || !containsString(report.Reasons, "pricing_snapshot_mismatch") || noCalls.attemptRuns != 0 {
+		t.Fatalf("mismatch report=%#v err=%v command calls=%d", report, err, noCalls.attemptRuns)
+	}
+
+	fake := &fakeExecutor{sessions: map[string]string{}}
+	runner := &Runner{
+		Executor: fake, Now: func() time.Time { return time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC) }, PID: 11,
+		ResolvePrice: func(string, string) (db.Price, error) {
+			t.Fatal("mutable price resolver called")
+			return db.Price{}, nil
+		},
+	}
+	directory, _, code, err := runner.Compare(context.Background(), CompareOptions{
+		Model: "neuralwatt/test", TaskFile: task, TargetValid: 1, MaxAttempts: 2, AttemptTimeout: time.Minute,
+		TerminationGrace: time.Second, ExperimentID: "pinned", DataDir: filepath.Join(root, "data"), Image: "image",
+		AuthPath: auth, RepoRoot: root, MethodologyPath: methodology, BaselineConfig: baseline, CandidateConfig: candidate,
+		KTXBin: "ktx", DockerBin: "docker", PricingSnapshot: pricing, PricingSHA256: hash,
+	})
+	if err != nil || code != 0 {
+		t.Fatalf("Compare code=%d err=%v", code, err)
+	}
+	retained, err := os.ReadFile(filepath.Join(directory, "pricing.json"))
+	if err != nil || !bytes.Equal(retained, pricingData) {
+		t.Fatalf("retained pricing exact=%t err=%v", bytes.Equal(retained, pricingData), err)
+	}
+	var manifest Manifest
+	manifestData, err := os.ReadFile(filepath.Join(directory, "manifest.json"))
+	if err != nil || json.Unmarshal(manifestData, &manifest) != nil || manifest.Pricing == nil || manifest.Pricing.SHA256 != hash {
+		t.Fatalf("manifest pricing=%#v err=%v", manifest.Pricing, err)
 	}
 }
 

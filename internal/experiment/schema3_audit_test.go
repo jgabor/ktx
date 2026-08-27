@@ -145,6 +145,23 @@ func TestSchema3IncompleteIntervalsCannotRegenerateIntoValidEvidence(t *testing.
 	}
 }
 
+func TestRecoveryComparisonAllowsOnlyAuxiliaryCountDivergence(t *testing.T) {
+	manifest := Manifest{Methodology: MethodologyMetadata{Version: "v7-recovery-aware-comparison"}}
+	countMismatch := "schema 3 wrapper and event-hook model-step counts do not match"
+	if !auxiliaryOutcomeIncomplete(manifest, Attempt{Role: ColdObservation, validationReasons: []string{countMismatch}}) {
+		t.Fatal("auxiliary count divergence was not recognized")
+	}
+	for _, attempt := range []Attempt{
+		{Role: MeasuredWarm, validationReasons: []string{countMismatch}},
+		{Role: ColdObservation, validationReasons: []string{"schema 3 runtime event interval is not complete"}},
+		{Role: ColdObservation, validationReasons: []string{countMismatch, "other"}},
+	} {
+		if auxiliaryOutcomeIncomplete(manifest, attempt) {
+			t.Fatalf("contradictory attempt accepted: %#v", attempt)
+		}
+	}
+}
+
 func TestSchema3RetainedContractVersionControlsLedgerInterpretation(t *testing.T) {
 	tests := []struct {
 		name       string

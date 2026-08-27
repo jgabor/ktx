@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- Recovery-aware validation now accepts target-met archives with unavailable auxiliary outcomes, and live comparisons can pin exact retained pricing bytes before any model attempt.
 - Recovery-aware benchmark summaries now pair stream-derived source identities with persisted rows inside each attempt and expose separate counts, coverage, duplicate/retry observations, and bounded discrepancy reasons; unavailable authority remains null, stream-only failures are not converted into persisted outcomes, and complete schema-6 archives remain byte-exact.
 - Incomplete recovery-aware experiments now retain a structurally valid unavailable comparison and unmet-target reason; validation keeps historical partial summaries immutable and labels derived inspection separately.
 - Required benchmark collection now retains delivered recovery cues and exact linked recovery attempts under the precreated interval owner; older archives without cue authority report recovery as unavailable.

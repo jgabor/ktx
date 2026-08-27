@@ -4,7 +4,7 @@ record:
   name: Execute qualification and report outcomes
   depends_on:
     - uadsezxqst
-  status: blocked
+  status: in_progress
   acceptance:
     - GIVEN each comparison WHEN accepted THEN both arms have five valid measured attempts, five complete same-cycle quality-qualified pairs, and complete runtime-token authority.
     - GIVEN delivered cues WHEN followed by exact same-attempt recovery THEN cue exposure, follow, outcome, and byte-exactness reconcile; zero cues report no opportunity rather than zero recovery cost.

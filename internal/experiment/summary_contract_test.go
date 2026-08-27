@@ -29,3 +29,25 @@ func TestDecodeSummaryRejectsMalformedAndConflictingCore(t *testing.T) {
 		})
 	}
 }
+
+func TestRecoveryAwareUnavailableTargetCompletion(t *testing.T) {
+	base := `"pipelines":{"baseline":{"attempt_count":5,"evaluated_count":5,"valid_count":5},"candidate":{"attempt_count":5,"evaluated_count":5,"valid_count":5}},"recovery_aware_comparison":{"arms":{"baseline":{"runtime_total_tokens_per_correct_task":{"state":"available"}},"candidate":{"runtime_total_tokens_per_correct_task":{"state":"available"}}},`
+	tests := []struct {
+		name, suffix string
+		valid        bool
+	}{
+		{"incomplete outcomes with implicit target met", `"state":"unavailable","reason":"incomplete_attempt_outcomes"}`, true},
+		{"incomplete outcomes with explicit target met", `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":true}}`, true},
+		{"target unmet", `"state":"unavailable","reason":"target_valid_per_pipeline_unmet","target_completion":{"met":false,"reason":"target_valid_per_pipeline_unmet"}}`, true},
+		{"target unmet marked met", `"state":"unavailable","reason":"target_valid_per_pipeline_unmet","target_completion":{"met":true}}`, false},
+		{"incomplete outcomes marked unmet", `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":false,"reason":"target_valid_per_pipeline_unmet"}}`, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := DecodeSummary([]byte(`{"schema_version":7,` + base + test.suffix + `}`))
+			if (err == nil) != test.valid {
+				t.Fatalf("valid=%t error=%v", test.valid, err)
+			}
+		})
+	}
+}

@@ -17,19 +17,18 @@ record:
   severity: normal
   readiness:
     capability: build
-    reason: Current compare resolves mutable pricing after preflight, so the completed paid runs violated their frozen pricing identity.
+    reason: "Implementation is complete: explicit pricing bytes and optional SHA-256 are validated before auth or attempts and retained unchanged."
     dependencies:
-      - artifact: todo
-        id: pxteoquhxr
+      []
     blocked:
-      reason: Summary validation must be corrected and a new paid-run budget has not been authorized.
-      recovery: Complete pxteoquhxr, add fail-closed pricing pinning, then obtain explicit authorization for at least 36 attempts before rerunning the three comparisons.
+      reason: The authorized campaign rerun has not executed.
+      recovery: Run the frozen three-comparison matrix with the explicit pricing pin, then validate every archive and campaign result.
     gate:
       state: pending
-      reason: No provider call may start until pricing identity is pinned and a new aggregate attempt/time/spend budget is approved.
-      recovery: Pass zero-model identity preflight and record the new budget before execution.
-    queue_rank: 2
-    order_reason: Pricing authority repair and rerun follow the summary-contract fix.
+      reason: Implementation-complete; rerun-pending.
+      recovery: Pass full zero-model identity preflight immediately before the authorized rerun.
+    queue_rank: 1
+    order_reason: Pricing authority is implemented; campaign execution and validation remain.
   status: open
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
@@ -38,4 +37,4 @@ record:
       description: "[task] **Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. → [Benchmark](ARCHITECTURE.md#benchmark)"
       severity: normal
       status: open
-      order: 16
+      order: 15

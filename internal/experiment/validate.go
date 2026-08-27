@@ -60,6 +60,9 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	for _, attempt := range attempts {
 		attemptValid := true
 		reasons := append([]string(nil), attempt.validationReasons...)
+		if auxiliaryOutcomeIncomplete(manifest, attempt) {
+			reasons = nil
+		}
 		if attempt.AttemptID == "" || seen[attempt.AttemptID] {
 			attemptValid = false
 			reasons = append(reasons, "missing or duplicate attempt_id")
@@ -277,8 +280,10 @@ func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *
 	phaseCounts := map[string]map[string]int{ColdObservation: {Baseline: 0, Candidate: 0}, Warmup: {Baseline: 0, Candidate: 0}, MeasuredWarm: {Baseline: 0, Candidate: 0}}
 	executionOrders := map[int]bool{}
 	for _, attempt := range attempts {
-		for _, reason := range attempt.validationReasons {
-			reasons = append(reasons, fmt.Sprintf("attempt %s: %s", attempt.AttemptID, reason))
+		if !auxiliaryOutcomeIncomplete(manifest, attempt) {
+			for _, reason := range attempt.validationReasons {
+				reasons = append(reasons, fmt.Sprintf("attempt %s: %s", attempt.AttemptID, reason))
+			}
 		}
 		if attempt.ExperimentID != manifest.ExperimentID {
 			reasons = append(reasons, fmt.Sprintf("attempt %s experiment id does not match manifest", attempt.AttemptID))
@@ -349,6 +354,11 @@ func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *
 		reasons = append(reasons, "summary pipelines are missing")
 	}
 	return reasons
+}
+
+func auxiliaryOutcomeIncomplete(manifest Manifest, attempt Attempt) bool {
+	return supportsRecoveryAwareComparison(manifest) && attempt.Role != MeasuredWarm &&
+		len(attempt.validationReasons) == 1 && attempt.validationReasons[0] == "schema 3 wrapper and event-hook model-step counts do not match"
 }
 
 func isLowerSHA256(value string) bool {

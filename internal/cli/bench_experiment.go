@@ -249,6 +249,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs.SetOutput(io.Discard)
 	var model, variant, taskFile, taskID, prompt, expectedOutput, expectedFactsRaw, workspaceMode string
 	var baseline, candidate, dataDir, auth, image, experimentID, format, summarize, repoRoot, methodology string
+	var pricingSnapshot, pricingSHA256 string
 	var cacheControl string
 	var target, maxAttempts, minimumToolCalls, warmup int
 	var timeout, grace time.Duration
@@ -274,6 +275,8 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs.StringVar(&summarize, "summarize", "", "regenerate an experiment summary")
 	fs.StringVar(&repoRoot, "repo-root", "", "repository root")
 	fs.StringVar(&methodology, "methodology", "", "methodology YAML")
+	fs.StringVar(&pricingSnapshot, "pricing-snapshot", "", "retained pricing.json to pin before model calls")
+	fs.StringVar(&pricingSHA256, "pricing-sha256", "", "required SHA-256 identity for --pricing-snapshot")
 	fs.StringVar(&cacheControl, "cache-control", "", "cache control: auto, isolated, or observed (cache-aware methodologies v5 and v6)")
 	fs.IntVar(&warmup, "warmup", 0, "warm-up attempts per side (cache-aware methodologies v5 and v6 default 1)")
 	fs.IntVar(&target, "target-valid", 0, "valid measured attempts required per side")
@@ -305,9 +308,19 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		return renderExperimentValue(stdout, regeneration.Summary, format, experiment.RenderSummary)
 	}
 	if preflight {
+		if pricingSHA256 != "" && pricingSnapshot == "" {
+			printError(stderr, usageError("ktx bench compare: --pricing-sha256 requires --pricing-snapshot"), opts.Format)
+			return ExitUsage
+		}
 		runner := experiment.NewRunner()
 		runner.Diagnostics = stderr
-		report, err := runner.Preflight(context.Background(), experiment.CompareOptions{Image: image, RepoRoot: repoRoot, BuildImage: build})
+		report, err := runner.Preflight(context.Background(), experiment.CompareOptions{
+			Model: model, Variant: variant, TaskFile: taskFile, TargetValid: target, MaxAttempts: maxAttempts,
+			AttemptTimeout: timeout, TerminationGrace: grace, DataDir: dataDir, Image: image, AuthPath: auth,
+			BaselineConfig: baseline, CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: methodology,
+			CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet, PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
+			DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
+		})
 		if err != nil {
 			printError(stderr, internalError("ktx bench compare preflight: %v", err), opts.Format)
 			return ExitInternal
@@ -324,6 +337,10 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	}
 	if model == "" || (taskFile == "" && (taskID == "" || prompt == "")) {
 		printError(stderr, usageError("ktx bench compare: --model and either --task-file or --task-id/--prompt are required"), opts.Format)
+		return ExitUsage
+	}
+	if pricingSHA256 != "" && pricingSnapshot == "" {
+		printError(stderr, usageError("ktx bench compare: --pricing-sha256 requires --pricing-snapshot"), opts.Format)
 		return ExitUsage
 	}
 	var task experiment.Task
@@ -354,6 +371,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		DataDir: dataDir, Image: image, AuthPath: auth, BaselineConfig: baseline,
 		CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: methodology,
 		CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet,
+		PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
 		DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
 	})
 	if err != nil {

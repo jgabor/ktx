@@ -1,0 +1,15 @@
+id: oekxptnfub
+artifact: progress
+record:
+  timestamp: 2026-08-27 20:25
+  type: fix
+  phase: build
+  what: Implemented target-met unavailable recovery validation and explicit pricing pinning. The retained 100:50 archive now validates byte-exactly at 5/5 with five complete pairs.
+  context:
+    intent: Clear both qualification blockers without model calls or rewriting retained paid outcomes.
+    constraints: Preserve schemas 1-7, retained archive bytes, private read-only auth, existing unpinned comparisons, and unchanged defaults.
+    unknowns: The authorized three-comparison campaign has not rerun.
+  discovered: Explicit pricing bytes can be validated during full preflight and carried in memory through archive creation, avoiding mutable catalog resolution after preflight.
+  verified: Focused experiment and CLI tests passed; mage check passed with zero forbidden database accesses. Local build validation reports valid=true, target_met=true, 5/5, summary_byte_match=true for postv3-midfile-100-50-20260827. Pricing mismatch preflight reports model_attempts=0 and artifact_creation=false.
+  next: Run the authorized campaign only after full identity preflight with the retained pricing path and SHA-256, then validate every archive and update the campaign result.
+  publication_order: 195

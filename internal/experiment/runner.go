@@ -44,6 +44,8 @@ type CompareOptions struct {
 	DockerBin          string
 	BuildImage         bool
 	CacheControl       string
+	PricingSnapshot    string
+	PricingSHA256      string
 	Warmup             int
 	WarmupSet          bool
 	methodologyVersion string
@@ -66,10 +68,13 @@ type PreflightReport struct {
 	ModelAttempts          int      `json:"model_attempts"`
 	ArtifactCreation       bool     `json:"artifact_creation"`
 	Image                  string   `json:"image"`
+	Model                  string   `json:"model,omitempty"`
+	Variant                string   `json:"variant,omitempty"`
 	KTXVersion             string   `json:"ktx_version,omitempty"`
 	OpenCodeVersion        string   `json:"opencode_version,omitempty"`
 	PluginSHA256           string   `json:"generated_plugin_sha256,omitempty"`
 	EventCollectorContract string   `json:"event_collector_contract,omitempty"`
+	PricingSHA256          string   `json:"pricing_sha256,omitempty"`
 	Reasons                []string `json:"reasons"`
 }
 
@@ -116,9 +121,12 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if resolvePrice == nil {
 		resolvePrice = db.ResolvePrice
 	}
-	price, err := resolvePrice(provider, model)
-	if err != nil {
-		return "", nil, 2, err
+	var price db.Price
+	if runtime.Pricing == nil {
+		price, err = resolvePrice(provider, model)
+		if err != nil {
+			return "", nil, 2, err
+		}
 	}
 	experimentDir := filepath.Join(options.DataDir, experimentID)
 	if err := os.Mkdir(experimentDir, 0o755); err != nil {
@@ -130,7 +138,12 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err := os.Mkdir(filepath.Join(experimentDir, "attempts"), 0o755); err != nil {
 		return "", nil, 2, err
 	}
-	pricing, err := writePricingSnapshot(experimentDir, provider, model, price)
+	var pricing *PricingSnapshotMetadata
+	if runtime.Pricing != nil {
+		pricing, err = writePinnedPricingSnapshot(experimentDir, runtime.Pricing)
+	} else {
+		pricing, err = writePricingSnapshot(experimentDir, provider, model, price)
+	}
 	if err != nil {
 		return "", nil, 2, err
 	}
@@ -367,6 +380,11 @@ func (runner *Runner) prepareOptions(options *CompareOptions) error {
 }
 
 func (runner *Runner) Preflight(ctx context.Context, options CompareOptions) (PreflightReport, error) {
+	if options.PricingSnapshot != "" {
+		if err := runner.prepareStructuralOptions(&options); err != nil {
+			return PreflightReport{}, err
+		}
+	}
 	if options.RepoRoot == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -393,7 +411,24 @@ func (runner *Runner) Preflight(ctx context.Context, options CompareOptions) (Pr
 }
 
 func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOptions) (PreflightReport, benchmarkRuntime, error) {
-	report := PreflightReport{Image: options.Image, ModelAttempts: 0, ArtifactCreation: false, Reasons: []string{}}
+	report := PreflightReport{Image: options.Image, Model: options.Model, Variant: options.Variant, ModelAttempts: 0, ArtifactCreation: false, Reasons: []string{}}
+	var pinned *pinnedPricingSnapshot
+	if options.PricingSnapshot != "" {
+		for _, path := range []string{options.BaselineConfig, options.CandidateConfig} {
+			var config map[string]any
+			if _, err := toml.DecodeFile(path, &config); err != nil {
+				report.Reasons = append(report.Reasons, "pipeline_config_invalid")
+				return report, benchmarkRuntime{}, nil
+			}
+		}
+		var err error
+		pinned, err = loadPinnedPricingSnapshot(options.PricingSnapshot, options.PricingSHA256, options.Model)
+		if err != nil {
+			report.Reasons = append(report.Reasons, "pricing_snapshot_mismatch")
+			return report, benchmarkRuntime{}, nil
+		}
+		report.PricingSHA256 = pinned.SHA256
+	}
 	if options.BuildImage {
 		if err := validateLocalCollectorSource(options.RepoRoot); err != nil {
 			reason := "local_source_unavailable"
@@ -422,6 +457,7 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 		report.Reasons = append(report.Reasons, reason)
 		return report, runtime, nil
 	}
+	runtime.Pricing = pinned
 	report.Eligible, report.DirectEvidence, report.ControlledComparison, report.SecondaryEvidence = true, true, true, true
 	return report, runtime, nil
 }
@@ -503,6 +539,7 @@ func snapshotConfigs(experimentDir, baseline, candidate string) (map[string]Pipe
 type benchmarkRuntime struct {
 	ImageID    string
 	Identities map[string]string
+	Pricing    *pinnedPricingSnapshot
 }
 
 type benchmarkCapabilities struct {

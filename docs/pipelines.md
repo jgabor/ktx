@@ -1116,6 +1116,15 @@ continuation, exact model-step identity, fail-closed interval validation, and
 this ordering are rejected even if they advertise the older base collector
 fields.
 
+Paid comparisons can freeze cost authority with `--pricing-snapshot <pricing.json>`.
+The command validates the retained provider/model before auth or attempts, skips
+mutable catalog resolution, and copies the exact input bytes into the archive.
+Add `--pricing-sha256 <hex>` to require a previously recorded identity. Supplying
+the same full comparison arguments with `--preflight` validates the task,
+methodology, configurations, image contract, model, variant, and pricing pin
+without reading auth, creating an experiment, or starting an attempt. Omitting
+the pin preserves the existing catalog-backed workflow.
+
 Each fresh attempt database starts with exactly one `agent=opencode` owner and
 one open event interval. The container receives that owner, interval, contract,
 and required-collector mode explicitly. The generated plugin opens a random

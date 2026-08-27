@@ -17,6 +17,48 @@ type pricingSnapshot struct {
 	Price    db.Price `json:"price"`
 }
 
+type pinnedPricingSnapshot struct {
+	Data     []byte
+	SHA256   string
+	Snapshot pricingSnapshot
+}
+
+func loadPinnedPricingSnapshot(path, expectedSHA256, manifestModel string) (*pinnedPricingSnapshot, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	hash := sha256Bytes(data)
+	if expectedSHA256 != "" && hash != expectedSHA256 {
+		return nil, fmt.Errorf("pricing snapshot hash mismatch")
+	}
+	var snapshot pricingSnapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return nil, err
+	}
+	provider, model, err := splitModel(manifestModel)
+	if err != nil || snapshot.Provider != provider || snapshot.Model != model {
+		return nil, fmt.Errorf("pricing snapshot provider/model does not match %q", manifestModel)
+	}
+	return &pinnedPricingSnapshot{Data: data, SHA256: hash, Snapshot: snapshot}, nil
+}
+
+func writePinnedPricingSnapshot(experimentDir string, pinned *pinnedPricingSnapshot) (*PricingSnapshotMetadata, error) {
+	if err := os.WriteFile(filepath.Join(experimentDir, "pricing.json"), pinned.Data, 0o644); err != nil {
+		return nil, err
+	}
+	price := pinned.Snapshot.Price
+	var retrievedAt *string
+	if price.RetrievedAt != "" {
+		retrievedAt = &price.RetrievedAt
+	}
+	sourceURL := price.SourceURL
+	if sourceURL == "" {
+		sourceURL = db.ModelsDevURL
+	}
+	return &PricingSnapshotMetadata{Path: "pricing.json", SHA256: pinned.SHA256, SourceURL: sourceURL, RetrievedAt: retrievedAt, Provider: pinned.Snapshot.Provider, Model: pinned.Snapshot.Model}, nil
+}
+
 func splitModel(value string) (string, string, error) {
 	provider, model, ok := strings.Cut(value, "/")
 	if !ok || provider == "" || model == "" {

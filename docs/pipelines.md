@@ -862,7 +862,12 @@ keeps field authority explicit, reports each arm and descriptive cycle pairs,
 and ranks only quality-qualified arms with complete runtime-emitted input,
 output, and reasoning totals. Missing or malformed runtime totals make the
 primary outcome unavailable with a reason and exclude the arm from
-recommendation. Schemas 1 through 5 retain their historical bytes and claims.
+recommendation. Current incomplete summaries retain the same block with an
+unavailable state and explicit unmet-target reason. Validation reports
+structural validity separately from target completion. Inspection of an older
+incomplete schema-6 summary does not rewrite it; any regenerated comparison is
+reported as a source-bound derived projection. Schemas 1 through 5 and complete
+schema-6 summaries retain their historical bytes and claims.
 
 Run the mechanical gate with `ktx bench screen --population <json>`, repeated
 `--config <ktx.toml>`, and one `--anchor-config <ktx.toml>`. The anchor is the

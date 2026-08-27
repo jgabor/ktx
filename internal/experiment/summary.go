@@ -533,9 +533,9 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 			rows = append(rows, map[string]any{"attempt_id": attempt.AttemptID, "recovery": attempt.outcomes.Recovery, "exact_repeats": attempt.outcomes.Repeats})
 		}
 		result["attempt_outcomes"] = rows
-		if recoveryAware {
-			result["recovery_aware_comparison"] = buildRecoveryAwareComparison(manifest, attempts)
-		}
+	}
+	if recoveryAware && manifest.historicalSummarySchema == 0 {
+		result["recovery_aware_comparison"] = buildRecoveryAwareComparison(manifest, attempts)
 	}
 	if v3Required {
 		result["paired_baseline_minus_candidate"] = pairedSummary(allEvaluated, hasEstimatedCost)

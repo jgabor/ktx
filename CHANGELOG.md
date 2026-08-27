@@ -31,6 +31,7 @@
 
 ### Fixed
 
+- Incomplete recovery-aware experiments now retain a structurally valid unavailable comparison and unmet-target reason; validation keeps historical partial summaries immutable and labels derived inspection separately.
 - Required benchmark collection now retains delivered recovery cues and exact linked recovery attempts under the precreated interval owner; older archives without cue authority report recovery as unavailable.
 - Recovery-aware comparison now leaves unavailable outcomes unranked, renders their state and reason, and validates generated schema-6 archives against methodology v7.
 - `mage install` now refreshes already-enabled global and current-project OpenCode and Codex adapters after installing the development binary, preserves unrelated Codex hooks, and fails with an exact recovery command for every scope that does not refresh.

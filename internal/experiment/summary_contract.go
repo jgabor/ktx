@@ -88,6 +88,18 @@ func (summary Summary) Validate() error {
 				return fmt.Errorf("invalid recovery-aware primary outcome %q", side)
 			}
 		}
+		if comparison["state"] == "unavailable" {
+			if reason, ok := comparison["reason"].(string); !ok || reason == "" {
+				return fmt.Errorf("invalid recovery-aware unavailable reason")
+			}
+			completion, ok := comparison["target_completion"].(map[string]any)
+			if !ok || completion["met"] != false {
+				return fmt.Errorf("invalid recovery-aware target completion")
+			}
+			if reason, ok := completion["reason"].(string); !ok || reason == "" {
+				return fmt.Errorf("invalid recovery-aware target completion reason")
+			}
+		}
 	}
 	return nil
 }

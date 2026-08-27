@@ -1,0 +1,17 @@
+id: yyfugmlnoq
+artifact: plan
+record:
+  name: Synchronize final evidence and state
+  depends_on:
+    - omqsbevhoj
+    - qujzxbpnod
+    - iwrvlwcqmk
+    - uadsezxqst
+    - mezgphvqww
+  status: pending
+  acceptance:
+    - GIVEN completed implementation and experiments WHEN repository checks run THEN mage check and accepted archive validations pass under isolated roots.
+    - GIVEN current behavior and evidence WHEN documentation is reviewed THEN CLI guidance, benchmark contracts, recipe scope, and result limits agree.
+    - GIVEN related backlog items WHEN closure is considered THEN each closes only with linked evidence and historical failures remain visible.
+    - GIVEN final handoff WHEN published THEN actual outcomes, surprises, unavailable evidence, recommended follow-up, unchanged defaults, and user-owned decision satisfaction are explicit.
+  plan: cvzztlzsyu

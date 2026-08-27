@@ -1,0 +1,15 @@
+id: uadsezxqst
+artifact: plan
+record:
+  name: Freeze and preflight post-v3 qualification
+  depends_on:
+    - omqsbevhoj
+    - qujzxbpnod
+    - iwrvlwcqmk
+  status: pending
+  acceptance:
+    - GIVEN the qualification matrix WHEN frozen THEN task, methodology, full configs, binary, image, plugin, event contract, pricing, model, and variant identities are retained before provider calls.
+    - GIVEN passthrough versus 100:50, 73:1, and 100:10 on fact-midfile-v1 WHEN authorized THEN aggregate ceilings are 48 attempts, three hours, and USD 10 estimated spend.
+    - GIVEN recovery and call-authority preflight WHEN any gate fails THEN no provider call starts.
+    - GIVEN preflight success WHEN execution begins THEN authentication is explicit and read-only and the provider policy is satisfied.
+  plan: cvzztlzsyu

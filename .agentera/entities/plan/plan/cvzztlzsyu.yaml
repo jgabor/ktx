@@ -1,0 +1,43 @@
+id: cvzztlzsyu
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-27
+    status: open
+    reviewed: 2026-08-27
+    critic_issues: 6 found, 6 addressed, 0 dismissed
+    title: "Plan: Qualify Recovery and Incomplete Benchmark Evidence"
+  what: Reconcile raw and persisted tool-call evidence, make incomplete recovery-aware summaries structurally valid, execute a bounded post-v3 midfile qualification, and report actual recovery and navigation outcomes.
+  why: Determine whether keep-ends savings survive recovery and additional navigation without misleading call denominators or discarding incomplete experiment evidence.
+  constraints: "Preserve historical archive bytes and separate evidence authorities. Missing remains unavailable. Use isolated owners and never the ambient live database. Report exact repeats only; make no semantic-duplicate, significance, provider-causal, or billing claims. Paid execution is authorized for at most 48 attempts, three hours, and USD 10 estimated spend after fail-closed preflight. Use proportional tests: one pass and one fail per testable boundary unless additional authority cases are required. Apply no default change."
+  overall_acceptance: GIVEN implementation and the approved post-v3 qualification complete WHEN evidence is regenerated and validated THEN reports reconcile raw and persisted calls, retain incomplete experiments structurally, measure cue opportunity and linked recovery when available, compare total tokens per correct task, and recommend only scoped follow-up without changing defaults.
+  scope:
+    included:
+      - raw-stream and persisted-call reconciliation
+      - failed-read disposition and coverage
+      - structurally valid incomplete recovery-aware summaries
+      - post-v3 fact-midfile qualification for passthrough, 100:50, 73:1, and 100:10
+      - validated outcome report and project-state synchronization
+    excluded:
+      - other benchmark tasks or stages
+      - ambient live rollout
+      - semantic navigation or duplicate inference
+      - automatic recipe or default adoption
+      - provider-internal and inferential claims
+    deferred:
+      - implementation of any configuration recommendation
+      - broader cross-task recovery campaign
+  design: First establish why call authorities diverged and make discrepancies explicit. In parallel, retain incomplete current experiments as valid unavailable evidence without rewriting history. Freeze every qualification identity and gate before paid execution. Run the same-task configuration matrix, validate each archive, report actual cue opportunity, recovery, navigation, tokens, and cost, then synchronize project authority.
+  unknowns:
+    - question: Why did four baseline read error events appear in raw streams without persisted rows?
+      affects_task: 1
+      resolve_by: Reproduce the failure boundary in isolation and classify each retained event as persisted, explicitly rejected, or unavailable without inferring missing callbacks.
+    - question: Can historical partial archives be analyzed without replacing their original invalid summaries?
+      affects_task: 3
+      resolve_by: Use disposable copies or separately named derived projections bound to source hashes; leave retained originals unchanged.
+    - question: Will each post-v3 candidate deliver recovery cues on the midfile task?
+      affects_task: 5
+      resolve_by: "Use event-v3 authority: measured zero means no recovery opportunity; only delivered cues can support cue-follow and linked-recovery claims."
+  surprises:
+    []

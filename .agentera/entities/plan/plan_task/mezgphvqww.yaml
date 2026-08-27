@@ -1,0 +1,13 @@
+id: mezgphvqww
+artifact: plan
+record:
+  name: Execute qualification and report outcomes
+  depends_on:
+    - uadsezxqst
+  status: pending
+  acceptance:
+    - GIVEN each comparison WHEN accepted THEN both arms have five valid measured attempts, five complete same-cycle quality-qualified pairs, and complete runtime-token authority.
+    - GIVEN delivered cues WHEN followed by exact same-attempt recovery THEN cue exposure, follow, outcome, and byte-exactness reconcile; zero cues report no opportunity rather than zero recovery cost.
+    - GIVEN each archive WHEN retained THEN attempts, invalid retries, hashes, tokens, delivery, raw and persisted calls, coverage, exact repeats, costs, and unavailable fields validate.
+    - GIVEN incomplete primary evidence WHEN recommendations are generated THEN the result is no change; otherwise recommendations remain task-scoped and defaults unchanged.
+  plan: cvzztlzsyu

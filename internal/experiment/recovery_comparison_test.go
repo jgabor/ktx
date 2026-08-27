@@ -2,6 +2,7 @@ package experiment
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,6 +122,90 @@ func TestRecoveryAwareArchiveValidatesAndRegeneratesByteExact(t *testing.T) {
 	}
 	if !bytes.Equal(before, after) {
 		t.Fatal("schema 6 summary did not regenerate byte-exact")
+	}
+}
+
+func TestIncompleteRecoveryAwareArchiveIsStructuralButTargetUnmet(t *testing.T) {
+	dir := writeRecoveryArchive(t)
+	manifestData, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest.TargetValidPerPipeline = 2
+	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteSummary(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	summaryData, err := os.ReadFile(filepath.Join(dir, "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary, err := DecodeSummary(summaryData)
+	if err != nil {
+		t.Fatalf("structural validation failed: %v", err)
+	}
+	comparison := summary["recovery_aware_comparison"].(map[string]any)
+	if comparison["state"] != "unavailable" || comparison["reason"] != "target_valid_per_pipeline_unmet" {
+		t.Fatalf("comparison = %#v", comparison)
+	}
+	if _, exists := summary["rank"]; exists {
+		t.Fatal("incomplete summary contains rank")
+	}
+	if _, exists := summary["recommendation"]; exists {
+		t.Fatal("incomplete summary contains recommendation")
+	}
+	report, err := ValidateExperiment(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report["summary_byte_match"] != true || report["target_met"] != false || report["target_reason"] != "target_valid_per_pipeline_unmet" || report["valid"] != false {
+		t.Fatalf("validation report = %#v", report)
+	}
+}
+
+func TestIncompleteHistoricalRecoverySummaryIsNotRewritten(t *testing.T) {
+	dir := writeRecoveryArchive(t)
+	path := filepath.Join(dir, "summary.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary map[string]any
+	if err := json.Unmarshal(data, &summary); err != nil {
+		t.Fatal(err)
+	}
+	delete(summary, "recovery_aware_comparison")
+	before, err := MarshalJSON(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, before, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := ValidateExperiment(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projection, ok := report["derived_projection"].(map[string]any)
+	if !ok || projection["kind"] != "recovery_aware_comparison" || projection["source"] != "retained_authoritative_artifacts" || projection["experiment_id"] != "recovery-archive" {
+		t.Fatalf("derived projection = %#v", report["derived_projection"])
+	}
+	if _, err := RegenerateSummary(dir); err == nil || !strings.Contains(err.Error(), "missing recovery_aware_comparison") {
+		t.Fatalf("regeneration error = %v", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("historical incomplete summary was rewritten")
 	}
 }
 

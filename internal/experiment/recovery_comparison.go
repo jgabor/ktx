@@ -3,6 +3,12 @@ package experiment
 import "sort"
 
 func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[string]any {
+	completeOutcomes := true
+	for _, attempt := range attempts {
+		if attempt.outcomes == nil {
+			completeOutcomes = false
+		}
+	}
 	arms := map[string]any{}
 	for _, side := range Sides {
 		var evaluated, correct []Attempt
@@ -19,7 +25,7 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 		}
 		arms[side] = recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct, manifest.legacyRecoverySemantics)
 	}
-	return map[string]any{
+	result := map[string]any{
 		"primary_outcome": "runtime_total_tokens_per_correct_task",
 		"field_authority": map[string]any{
 			"quality": "retained_runtime_stream_answer_scoring", "runtime_tokens": "retained_runtime_stream_model_steps",
@@ -28,6 +34,19 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 		},
 		"arms": arms, "paired_cycles": recoveryAwareCycles(attempts, manifest),
 	}
+	counts := CountValidForMethodology(attempts, manifest.Task.MinimumToolCalls, manifest.Methodology.Version)
+	targetMet := counts[Baseline] >= manifest.TargetValidPerPipeline && counts[Candidate] >= manifest.TargetValidPerPipeline
+	if !completeOutcomes {
+		result["state"] = "unavailable"
+		result["reason"] = "incomplete_attempt_outcomes"
+	} else if !targetMet {
+		result["state"] = "unavailable"
+		result["reason"] = "target_valid_per_pipeline_unmet"
+	}
+	if !targetMet {
+		result["target_completion"] = map[string]any{"met": false, "reason": "target_valid_per_pipeline_unmet"}
+	}
+	return result
 }
 
 func recoveryAwareArm(target int, evaluated, correct []Attempt, legacy bool) map[string]any {
@@ -52,6 +71,10 @@ func recoveryAwareArm(target int, evaluated, correct []Attempt, legacy bool) map
 	recoveryAttempts, repeatedRecovery, cues, followed, totalCalls, repeatedCalls, attemptsWithRecovery := 0, 0, 0, 0, 0, 0, 0
 	recoveryAvailable := len(evaluated) > 0
 	for _, attempt := range evaluated {
+		if attempt.outcomes == nil {
+			recoveryAvailable = false
+			continue
+		}
 		r := attempt.outcomes.Recovery
 		x := attempt.outcomes.Repeats
 		if r["state"] != "measured" {
@@ -90,7 +113,7 @@ func recoveryAwareArm(target int, evaluated, correct []Attempt, legacy bool) map
 func recoveryAwareCycles(attempts []Attempt, manifest Manifest) []any {
 	byCycle := map[int]map[string]Attempt{}
 	for _, attempt := range attempts {
-		if attempt.Role != MeasuredWarm || !AttemptIsEvaluated(attempt, manifest.Task.MinimumToolCalls) {
+		if attempt.Role != MeasuredWarm || attempt.outcomes == nil || !AttemptIsEvaluated(attempt, manifest.Task.MinimumToolCalls) {
 			continue
 		}
 		if byCycle[attempt.Cycle] == nil {

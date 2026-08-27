@@ -1,0 +1,15 @@
+id: mbubsdmkqw
+artifact: progress
+record:
+  timestamp: 2026-08-27 17:29
+  type: fix
+  phase: build
+  what: Retained incomplete recovery-aware summary outcomes without changing complete or legacy serialization.
+  context:
+    intent: Retain structurally valid unavailable outcomes for incomplete schema-6 experiments.
+    constraints: No provider calls, ranking/default changes, ambient database access, or retained historical rewrites.
+    scope: internal/experiment summary generation and validation, focused tests, and benchmark contract documentation.
+  discovered: Historical schema-6 summaries missing the comparison can be inspected read-only as an explicitly source-bound derived projection.
+  verified: go test ./internal/experiment and mage check passed with KTX_DB unset and fresh disposable HOME/XDG roots. The local build/ktx validation of v7-midfile-73-1 returned target_met=false with target_reason, identified the derived projection as retained_authoritative_artifacts, and preserved summary SHA-256 f8a62f276f4e14fd1ba87e22107a4b15b1ebff87a6c447ab5004135301bc823a.
+  next: Coordinator evaluates plan task iwrvlwcqmk; it remains in_progress.
+  publication_order: 189

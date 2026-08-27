@@ -1,0 +1,13 @@
+id: qujzxbpnod
+artifact: plan
+record:
+  name: Reconcile benchmark call accounting
+  depends_on:
+    - omqsbevhoj
+  status: pending
+  acceptance:
+    - GIVEN benchmark attempts WHEN summarized THEN raw event calls and persisted calls remain separate and expose coverage plus bounded discrepancy reasons.
+    - GIVEN authoritative failed reads WHEN collected THEN they cannot disappear silently from call accounting.
+    - GIVEN unavailable stream or persistence authority WHEN reported THEN no count is reconstructed or treated as zero.
+    - GIVEN historical summaries WHEN regenerated THEN their bytes and existing claims remain unchanged.
+  plan: cvzztlzsyu

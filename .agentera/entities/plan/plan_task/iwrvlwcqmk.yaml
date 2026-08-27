@@ -1,0 +1,13 @@
+id: iwrvlwcqmk
+artifact: plan
+record:
+  name: Retain incomplete schema-6 outcomes
+  depends_on:
+    []
+  status: in_progress
+  acceptance:
+    - GIVEN an incomplete current experiment WHEN summarized THEN it contains a structurally valid recovery-aware unavailable block, target unmet state, and no rank or recommendation.
+    - GIVEN validation of that summary WHEN evidence is internally consistent THEN structure passes while target completion remains false with a reason.
+    - GIVEN historical failed archives WHEN investigated THEN originals remain unchanged and any derived projection is separately identified and source-bound.
+    - GIVEN complete and legacy archives WHEN regenerated THEN their serialized bytes remain unchanged.
+  plan: cvzztlzsyu

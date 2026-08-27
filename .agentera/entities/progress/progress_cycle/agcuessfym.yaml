@@ -1,0 +1,15 @@
+id: agcuessfym
+artifact: progress
+record:
+  timestamp: 2026-08-27 18:18
+  type: docs
+  phase: build
+  what: Froze the post-v3 fact-midfile qualification matrix and zero-call preflight evidence before paid execution.
+  context:
+    intent: Retain one reproducible zero-call qualification authority for the approved matrix.
+    constraints: No provider attempts, no ambient database, no auth material or private auth path retained, and task remains in progress for coordinator conclusion.
+    unknowns: Estimated spend is a post-runtime estimate, so the execution coordinator must stop before launching any comparison that could exceed the aggregate ceiling.
+    scope: fact-midfile-v1 passthrough versus three frozen keep-ends configurations.
+  verified: Local binary and benchmark image built. Generic image preflight passed eligible with model_attempts=0 and artifact_creation=false; focused recovery, required-mode, and call-accounting tests passed. Frozen record JSON validates and git diff check passes.
+  next: Coordinator may conclude this task, then the paid execution task must recheck the frozen identities, aggregate ceilings, explicit read-only authentication, and provider policy before each comparison.
+  publication_order: 193

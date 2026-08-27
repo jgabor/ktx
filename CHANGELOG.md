@@ -4,6 +4,7 @@
 
 ### Added
 
+- A zero-call qualification freeze binds the recovery-aware midfile matrix, aggregate paid ceilings, runtime identities, pricing, and fail-closed preflight evidence before execution.
 - Experiment summary generation, validation, ranking, and rendering now share a structured Go contract while preserving historical serialized schemas.
 - Current benchmark summaries retain cue-linked recovery outcomes and exact normalized tool-call repeat counts from isolated attempt databases without exposing call material.
 - Recovery-aware comparisons use methodology v7 and summary schema 7 to rank quality-qualified configurations by complete runtime total tokens per correct task while retaining separate recovery, repeat, delivery, cost, quality, stream-call, and persisted-call authorities.

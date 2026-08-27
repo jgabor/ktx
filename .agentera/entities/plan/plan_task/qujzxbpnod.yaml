@@ -4,7 +4,7 @@ record:
   name: Reconcile benchmark call accounting
   depends_on:
     - omqsbevhoj
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN benchmark attempts WHEN summarized THEN raw event calls and persisted calls remain separate and expose coverage plus bounded discrepancy reasons.
     - GIVEN authoritative failed reads WHEN collected THEN they cannot disappear silently from call accounting.
@@ -12,12 +12,12 @@ record:
     - GIVEN historical summaries WHEN regenerated THEN their bytes and existing claims remain unchanged.
   plan: cvzztlzsyu
   evaluation:
-    attempt_count: 1
+    attempt_count: 2
     failure_count: 1
-    last_verdict: fail
+    last_verdict: pass
     last_failure_evidence: Real archive calls pair on source identity, but implementation compared native runtime session IDs with KTX owner session IDs, yielding false zero coverage and symmetric missing/unpaired counts. Complete schema-6 compatibility also regressed.
     provenance:
-      attempt_id: tranche-audit-1
-      source: audit task ses_fbc1196daffed3PY0k8EoZnCad
-      recorded_at: 2026-08-27 18:00
+      attempt_id: tranche-correction-2
+      source: bounded correction ses_fbc1f2e9cffeTC1lfRB4y7pBuE; progress nhrfzqtfdg
+      recorded_at: 2026-08-27 18:12
       writer_command: agentera state plan record-evaluation

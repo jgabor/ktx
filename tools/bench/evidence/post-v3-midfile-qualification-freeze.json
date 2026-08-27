@@ -1,0 +1,167 @@
+{
+  "schema": "ktx.bench.campaign-freeze.v1",
+  "frozen_at": "2026-08-27T18:18:00Z",
+  "execution_state": "authorized_but_not_started",
+  "task": {
+    "path": "tools/bench/tasks/fact-midfile-v1.toml",
+    "sha256": "9b86d8d39aa4006db38a0c121c83220a4c8c6ca1064c6dac442bbfcce1b9d26b",
+    "id": "fact-midfile-v1",
+    "skill": "read",
+    "workspace_mode": "corpus",
+    "token_band": [30000, 60000],
+    "minimum_tool_calls": 1,
+    "corpus_files": ["src_alpha.txt"],
+    "quality_risks": ["head_truncation", "mid_loss"],
+    "prompt": "Read the file tools/bench/corpus/src_alpha.txt using the read tool.\nExtract every planted FACT_* value from that file (they look like FACT_NAME=value).\nReply with only those FACT_* lines, one per line, no other prose.",
+    "scoring": {
+      "kind": "multi_fact_fractional",
+      "facts": [
+        "FACT_ALPHA_HEAD=alpha-head-7f3a91c2",
+        "FACT_ALPHA_MID=alpha-mid-4b18e0d7",
+        "FACT_ALPHA_TAIL=alpha-tail-c91f2a64"
+      ]
+    }
+  },
+  "methodology": {
+    "path": "tools/bench/methodology-v7-recovery-aware-comparison.yaml",
+    "sha256": "d099eb84c59cb76e45caf83d1d7e0d394cfa924afcdf98ab2342c53bf0d5b6e8",
+    "version": "v7-recovery-aware-comparison",
+    "emitted_summary_schema": 7,
+    "claims": {
+      "provider_internal": "unsupported",
+      "causal": "unsupported",
+      "significance": "unsupported"
+    }
+  },
+  "matrix": {
+    "baseline": "passthrough",
+    "candidates": ["keep-ends:100:50", "keep-ends:73:1", "keep-ends:100:10"],
+    "comparisons": 4,
+    "rounds_per_side": 5,
+    "warmup": 0,
+    "cache_control": "observed",
+    "max_attempts_per_comparison": 12,
+    "aggregate_ceilings": {
+      "attempts": 48,
+      "elapsed_seconds": 10800,
+      "estimated_spend_usd": 10
+    }
+  },
+  "configs": [
+    {
+      "id": "passthrough",
+      "path": "tools/bench/pipelines/passthrough.toml",
+      "sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1",
+      "content": "# Evaluation pipeline: passthrough\n# No compression. Baseline for live A/B and offline replay ranking.\n\n[pipeline.default]\nstages = []\n"
+    },
+    {
+      "id": "keep-ends:100:50",
+      "path": "tools/bench/screen-configs/keep-ends-100-50.toml",
+      "sha256": "bbf0c6277e3360df864daa27383ce913eb03c147dee141a29ec26bc834f69248",
+      "content": "[pipeline.default]\nstages = [\"keep-ends:100:50\"]\nrecover_footer = true\n\n[[route]]\ntool = \"read\"\nexit_status = \"success\"\nprofile = \"default\"\n"
+    },
+    {
+      "id": "keep-ends:73:1",
+      "path": "tools/bench/screen-configs/keep-ends-73-1.toml",
+      "sha256": "8bf31632404adcd20809f7a934732f36f770a1d7affc31a165c68f19b5bd2ab0",
+      "content": "[pipeline.default]\nstages = [\"keep-ends:73:1\"]\nrecover_footer = true\n\n[[route]]\ntool = \"read\"\nexit_status = \"success\"\nprofile = \"default\"\n"
+    },
+    {
+      "id": "keep-ends:100:10",
+      "path": "tools/bench/screen-configs/keep-ends-100-10.toml",
+      "sha256": "2ac5f3fafdfcf73240f1eca068ec6ecfc793acd62cceee9690cfada099a44843",
+      "content": "[pipeline.default]\nstages = [\"keep-ends:100:10\"]\nrecover_footer = true\n\n[[route]]\ntool = \"read\"\nexit_status = \"success\"\nprofile = \"default\"\n"
+    }
+  ],
+  "runtime": {
+    "model": "openai/gpt-5.6-luna",
+    "variant": "high",
+    "provider_policy": {
+      "allowed": ["openai"],
+      "forbidden_model_prefixes": ["github-copilot/"],
+      "required_result": "allowed"
+    },
+    "auth": {
+      "required": true,
+      "source": "explicit --auth argument supplied at execution time",
+      "container_mount": "read_only",
+      "retained_path": false,
+      "retained_credentials": false
+    },
+    "binary": {
+      "path": "build/ktx",
+      "version": "dev",
+      "sha256": "9bfc41b7080e7b2eeb12c3828bfb011c5c14961aecb03aa5747864715b37db8c"
+    },
+    "image": {
+      "name": "ktx-bench",
+      "id": "sha256:95975c58ac456da29159f7674b01be8f840d9444bbf957e58711921accd409f7",
+      "dockerfile": "Dockerfile.benchmark",
+      "dockerfile_sha256": "0029723c0d446e9c5f3a269a3d841b2496665b70cfa4a13a05b2ec769e2fcbbf",
+      "ktx_version": "0.1.0-dev",
+      "opencode_version": "1.18.5"
+    },
+    "plugin": {
+      "generated_sha256": "a2eb6388e6e74543d902d2db56e055227dd0e36781aa5e6db7993e56b0f62959",
+      "matches_binary": true
+    },
+    "event_contract": "opencode-event-v3"
+  },
+  "pricing": {
+    "sha256": "a65bf830edb66cce0b66bff57c9139e8a0fe43a364707d8a4fcfd1f8fbac9c7c",
+    "provider": "openai",
+    "model": "gpt-5.6-luna",
+    "retrieved_at": "2026-07-15T14:21:53Z",
+    "source_url": "https://models.dev/api.json",
+    "price": {
+      "input": 1,
+      "output": 6,
+      "cache_read": 0.1,
+      "cache_write": 1.25,
+      "context_over_200k": {
+        "input": 2,
+        "output": 9,
+        "cache_read": 0.2,
+        "cache_write": 2.5
+      },
+      "tiers": [
+        {
+          "tier": { "type": "context", "size": 272000 },
+          "input": 2,
+          "output": 9,
+          "cache_read": 0.2,
+          "cache_write": 2.5
+        }
+      ]
+    }
+  },
+  "execution_contract": {
+    "provider_calls_performed_by_this_freeze": 0,
+    "before_each_comparison": [
+      "verify every retained identity against this record",
+      "rerun generic, recovery, and call-authority preflight",
+      "require explicit read-only auth and allowed provider-policy result",
+      "stop if launching could exceed any aggregate ceiling"
+    ],
+    "on_any_gate_failure": "stop before provider call",
+    "argv_template": "./build/ktx bench compare --methodology tools/bench/methodology-v7-recovery-aware-comparison.yaml --model openai/gpt-5.6-luna --variant high --task-file tools/bench/tasks/fact-midfile-v1.toml --baseline-config tools/bench/pipelines/passthrough.toml --candidate-config <frozen-candidate-path> --rounds 5 --max-attempts 12 --attempt-timeout 15m --termination-grace 30s --cache-control observed --warmup 0 --image ktx-bench --auth ${KTX_READ_ONLY_AUTH_JSON} --format json"
+  },
+  "preflight": {
+    "generic": {
+      "command": "./build/ktx bench compare --preflight --build --methodology tools/bench/methodology-v7-recovery-aware-comparison.yaml --format json",
+      "eligible": true,
+      "direct_evidence": true,
+      "controlled_comparison": true,
+      "secondary_evidence": true,
+      "model_attempts": 0,
+      "artifact_creation": false,
+      "reasons": []
+    },
+    "recovery_and_call_authority": {
+      "command": "go test ./internal/experiment -run 'Test(CallAccounting|StreamCallAuthority|.*Recovery.*|.*Required.*|Preflight)'",
+      "result": "pass"
+    },
+    "database_scope": "KTX_DB unset with disposable HOME and XDG roots",
+    "experiment_artifacts_created": false
+  }
+}

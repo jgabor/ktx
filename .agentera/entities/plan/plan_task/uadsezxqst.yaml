@@ -6,7 +6,7 @@ record:
     - omqsbevhoj
     - qujzxbpnod
     - iwrvlwcqmk
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN the qualification matrix WHEN frozen THEN task, methodology, full configs, binary, image, plugin, event contract, pricing, model, and variant identities are retained before provider calls.
     - GIVEN passthrough versus 100:50, 73:1, and 100:10 on fact-midfile-v1 WHEN authorized THEN aggregate ceilings are 48 attempts, three hours, and USD 10 estimated spend.

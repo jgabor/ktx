@@ -20,21 +20,16 @@ record:
   severity: normal
   readiness:
     capability: build
-    reason: The behavioral comparison contract is selected but depends on offline screening and the typed experiment summary model.
+    reason: Recovery-aware comparison capability is complete; the retained campaign validated four accepted archives, excluded unavailable partial and qualification evidence, and recommended no default change.
     dependencies:
       - artifact: todo
         id: lnrtkovrdh
       - artifact: todo
         id: dnxoqropkm
-    blocked:
-      reason: Offline candidate screening and typed summary representation are not complete.
-      recovery: Complete lnrtkovrdh and dnxoqropkm, then implement the recovery-aware summary and validation as one generic config comparison.
-    gate:
-      state: pending
-      reason: No paid parameter matrix should run until offline screening shortlists configurations and retained recovery regeneration passes.
-      recovery: Pass offline screening and focused retained-artifact validation before authorizing model calls.
+    blocked: null
+    gate: null
     queue_rank: 2
-    order_reason: Behavioral spending follows mechanical screening and typed summary infrastructure.
+    order_reason: Completed after typed summaries and offline screening; retained campaign evidence supports no change while measured recovery remains unavailable.
   status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1

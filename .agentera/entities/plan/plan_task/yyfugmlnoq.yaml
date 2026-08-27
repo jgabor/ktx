@@ -8,7 +8,7 @@ record:
     - iwrvlwcqmk
     - uadsezxqst
     - mezgphvqww
-  status: pending
+  status: blocked
   acceptance:
     - GIVEN completed implementation and experiments WHEN repository checks run THEN mage check and accepted archive validations pass under isolated roots.
     - GIVEN current behavior and evidence WHEN documentation is reviewed THEN CLI guidance, benchmark contracts, recipe scope, and result limits agree.

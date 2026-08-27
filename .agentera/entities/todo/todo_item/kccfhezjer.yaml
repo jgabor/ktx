@@ -1,0 +1,41 @@
+id: kccfhezjer
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: "**Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  requirements:
+    - The comparison freezes one pricing snapshot identity and uses those exact bytes for every arm and archive.
+    - Binary, image, plugin, event contract, task, methodology, configs, model, variant, and pricing identities are verified before the first provider call.
+    - A pricing mismatch fails before model execution and creates no paid experiment attempt.
+    - The rerun preserves isolated ownership and reports runtime tokens, delivery, call coverage, cue opportunity, recovery, quality, and archive-specific cost separately.
+  acceptance:
+    - A zero-model preflight proves the frozen pricing snapshot will be retained unchanged in every archive.
+    - The three fact-midfile comparisons each reach five valid complete pairs or remain target-unmet without recommendation.
+    - Every accepted archive validates byte-exactly and one campaign report reconciles attempts, elapsed time, estimated spend, authority hashes, and scoped recommendation.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Current compare resolves mutable pricing after preflight, so the completed paid runs violated their frozen pricing identity.
+    dependencies:
+      - artifact: todo
+        id: pxteoquhxr
+    blocked:
+      reason: Summary validation must be corrected and a new paid-run budget has not been authorized.
+      recovery: Complete pxteoquhxr, add fail-closed pricing pinning, then obtain explicit authorization for at least 36 attempts before rerunning the three comparisons.
+    gate:
+      state: pending
+      reason: No provider call may start until pricing identity is pinned and a new aggregate attempt/time/spend budget is approved.
+      recovery: Pass zero-model identity preflight and record the new budget before execution.
+    queue_rank: 2
+    order_reason: Pricing authority repair and rerun follow the summary-contract fix.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] **Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      severity: normal
+      status: open
+      order: 16

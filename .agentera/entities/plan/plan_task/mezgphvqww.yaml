@@ -4,10 +4,20 @@ record:
   name: Execute qualification and report outcomes
   depends_on:
     - uadsezxqst
-  status: in_progress
+  status: blocked
   acceptance:
     - GIVEN each comparison WHEN accepted THEN both arms have five valid measured attempts, five complete same-cycle quality-qualified pairs, and complete runtime-token authority.
     - GIVEN delivered cues WHEN followed by exact same-attempt recovery THEN cue exposure, follow, outcome, and byte-exactness reconcile; zero cues report no opportunity rather than zero recovery cost.
     - GIVEN each archive WHEN retained THEN attempts, invalid retries, hashes, tokens, delivery, raw and persisted calls, coverage, exact repeats, costs, and unavailable fields validate.
     - GIVEN incomplete primary evidence WHEN recommendations are generated THEN the result is no change; otherwise recommendations remain task-scoped and defaults unchanged.
   plan: cvzztlzsyu
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: "Acceptance failed: 100:50 archive is rejected because summary contract disallows target-met plus unavailable auxiliary attempt outcomes; all three runs materially drifted from the frozen pricing snapshot because current compare cannot pin/verify pricing before provider calls. Two archives support scoped descriptive claims only; no campaign recommendation is authorized."
+    provenance:
+      attempt_id: qualification-analysis-1
+      source: analysis task ses_fbbe1d699ffeXJIJolWVneg4rz; progress edwlteejmk
+      recorded_at: 2026-08-27 18:53
+      writer_command: agentera state plan record-evaluation

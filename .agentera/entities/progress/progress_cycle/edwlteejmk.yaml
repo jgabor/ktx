@@ -1,0 +1,15 @@
+id: edwlteejmk
+artifact: progress
+record:
+  timestamp: 2026-08-27 18:44
+  type: docs
+  phase: build
+  what: Retained 36 attempts across three fact-midfile archives and tools/bench/evidence/post-v3-midfile-qualification-result.json. Two archives validate with five complete pairs; 100:50 is structurally rejected. Pricing hashes differ from the frozen authority, so the recommendation is no change and defaults remain unchanged.
+  context:
+    intent: Execute the approved post-v3 fact-midfile qualification without changing defaults.
+    constraints: 48 attempts, three hours, USD 10 estimated spend; explicit read-only auth; no ambient database.
+    unknowns: No same-attempt recovery was attempted, so recovery outcome and byte-exactness remain unavailable.
+  discovered: The required rebuild changed only the Docker image identity and was corrected before spending. The live runner then fetched pricing that did not match the frozen pricing hash; this was detected after all 36 calls.
+  verified: The local binary, task, methodology, configs, Dockerfile, plugin, and event contract matched retained authority. Preflight and focused recovery/call-authority tests passed. Archive validation passed for 73:1 and 100:10 with summary byte matches and failed for 100:50 with invalid recovery-aware target completion.
+  next: Coordinator conclusion should preserve no-change, evaluate the pricing-gate and 100:50 validation failures, and keep defaults unchanged.
+  publication_order: 194

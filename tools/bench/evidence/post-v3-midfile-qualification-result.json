@@ -1,0 +1,205 @@
+{
+  "schema": "ktx.bench.post-v3-midfile-qualification-result.v1",
+  "date": "2026-08-27",
+  "scope": "fact-midfile-v1",
+  "authority": {
+    "original_freeze_sha256": "59f67838af0461b58e6572199de5ef1986376b710dbcff2b14c70ee2b15465ea",
+    "corrected_freeze_sha256": "b0ff433720196d9374224385d1f3befaddff3cfea00a671ebc67c3fe2f76f01d",
+    "correction_sha256": "09459ff13841200ddec4d300a8aa02f49b232fc5ad340608c2e3d4af9c2af3b6",
+    "task_sha256": "9b86d8d39aa4006db38a0c121c83220a4c8c6ca1064c6dac442bbfcce1b9d26b",
+    "methodology_sha256": "d099eb84c59cb76e45caf83d1d7e0d394cfa924afcdf98ab2342c53bf0d5b6e8",
+    "baseline_config_sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1",
+    "candidate_config_sha256": {
+      "keep-ends:100:50": "bbf0c6277e3360df864daa27383ce913eb03c147dee141a29ec26bc834f69248",
+      "keep-ends:73:1": "8bf31632404adcd20809f7a934732f36f770a1d7affc31a165c68f19b5bd2ab0",
+      "keep-ends:100:10": "2ac5f3fafdfcf73240f1eca068ec6ecfc793acd62cceee9690cfada099a44843"
+    },
+    "binary_sha256": "9bfc41b7080e7b2eeb12c3828bfb011c5c14961aecb03aa5747864715b37db8c",
+    "image_id": "sha256:f7ac9ef7eec50216e890dc1c939d4425b92eac268fe1ae2613726b582bcfd231",
+    "dockerfile_sha256": "0029723c0d446e9c5f3a269a3d841b2496665b70cfa4a13a05b2ec769e2fcbbf",
+    "plugin_sha256": "a2eb6388e6e74543d902d2db56e055227dd0e36781aa5e6db7993e56b0f62959",
+    "event_contract": "opencode-event-v3",
+    "model": "openai/gpt-5.6-luna",
+    "variant": "high",
+    "frozen_pricing_sha256": "a65bf830edb66cce0b66bff57c9139e8a0fe43a364707d8a4fcfd1f8fbac9c7c"
+  },
+  "campaign": {
+    "attempts": 36,
+    "attempt_ceiling": 48,
+    "statuses": {
+      "completed": 36,
+      "invalid": 0,
+      "failed": 0,
+      "timeout": 0,
+      "unlinked": 0
+    },
+    "elapsed_attempt_span_seconds": 890,
+    "wall_span_seconds": 962,
+    "elapsed_ceiling_seconds": 10800,
+    "runtime_reported_cost_usd": 0,
+    "actual_price_derived_estimated_spend_usd": 0.358616,
+    "estimated_spend_ceiling_usd": 10,
+    "retries": 0
+  },
+  "archives": [
+    {
+      "id": "postv3-midfile-100-50-20260827",
+      "candidate": "keep-ends:100:50",
+      "attempts": 12,
+      "valid_measured": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "quality_correct": { "baseline": 5, "candidate": 5 },
+      "runtime_tokens_per_correct": {
+        "baseline": 46219.4,
+        "candidate": 49833.8
+      },
+      "delivery_bytes": {
+        "baseline": 502772,
+        "candidate_original": 823675,
+        "candidate_delivered": 480091
+      },
+      "calls": {
+        "baseline_raw": 17,
+        "baseline_persisted": 14,
+        "candidate_raw": 67,
+        "candidate_persisted": 67
+      },
+      "persistence_coverage": {
+        "baseline": 0.8235294117647058,
+        "candidate": 1
+      },
+      "raw_without_persisted": { "baseline": 3, "candidate": 0 },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline_cues": 0,
+        "candidate_cues": 14,
+        "followed": 0,
+        "linked_recoveries": 0,
+        "byte_exact_recoveries": 0,
+        "baseline_interpretation": "no_opportunity",
+        "candidate_interpretation": "opportunity_not_followed"
+      },
+      "runtime_cost_usd": 0,
+      "estimated_spend_usd": 0.134096,
+      "pricing_sha256": "7cc6620f86973a2100991baa8a0008fa4072228a6c820f458274455a77524c07",
+      "validation": {
+        "valid": false,
+        "attempt_checks_valid": 12,
+        "reason": "invalid recovery-aware target completion"
+      },
+      "comparison_state": "unavailable",
+      "unavailable_fields": [
+        "accepted_comparison",
+        "recommendation_eligibility",
+        "same-attempt_recovery_outcome",
+        "recovery_byte_exactness"
+      ]
+    },
+    {
+      "id": "postv3-midfile-73-1-20260827",
+      "candidate": "keep-ends:73:1",
+      "attempts": 12,
+      "valid_measured": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "quality_correct": { "baseline": 5, "candidate": 5 },
+      "runtime_tokens_per_correct": { "baseline": 52334.2, "candidate": 23675 },
+      "delivery_bytes": {
+        "baseline": 577612,
+        "candidate_original": 538199,
+        "candidate_delivered": 224250
+      },
+      "calls": {
+        "baseline_raw": 20,
+        "baseline_persisted": 14,
+        "candidate_raw": 80,
+        "candidate_persisted": 80
+      },
+      "persistence_coverage": { "baseline": 0.7, "candidate": 1 },
+      "raw_without_persisted": { "baseline": 6, "candidate": 0 },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline_cues": 0,
+        "candidate_cues": 22,
+        "followed": 0,
+        "linked_recoveries": 0,
+        "byte_exact_recoveries": 0,
+        "baseline_interpretation": "no_opportunity",
+        "candidate_interpretation": "opportunity_not_followed"
+      },
+      "runtime_cost_usd": 0,
+      "estimated_spend_usd": 0.110624,
+      "pricing_sha256": "585b11de38f7fa5a7797f003f6b54ba7ced2c5292d7c8a0fcd6bedda7538df13",
+      "validation": {
+        "valid": true,
+        "summary_byte_match": true,
+        "valid_counts": { "baseline": 5, "candidate": 5 }
+      },
+      "comparison_state": "complete",
+      "unavailable_fields": [
+        "same-attempt_recovery_outcome",
+        "recovery_byte_exactness"
+      ]
+    },
+    {
+      "id": "postv3-midfile-100-10-20260827",
+      "candidate": "keep-ends:100:10",
+      "attempts": 12,
+      "valid_measured": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "quality_correct": { "baseline": 5, "candidate": 5 },
+      "runtime_tokens_per_correct": {
+        "baseline": 51477.6,
+        "candidate": 28347.6
+      },
+      "delivery_bytes": {
+        "baseline": 581079,
+        "candidate_original": 862305,
+        "candidate_delivered": 292853
+      },
+      "calls": {
+        "baseline_raw": 18,
+        "baseline_persisted": 16,
+        "candidate_raw": 46,
+        "candidate_persisted": 46
+      },
+      "persistence_coverage": {
+        "baseline": 0.8888888888888888,
+        "candidate": 1
+      },
+      "raw_without_persisted": { "baseline": 2, "candidate": 0 },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline_cues": 0,
+        "candidate_cues": 33,
+        "followed": 0,
+        "linked_recoveries": 0,
+        "byte_exact_recoveries": 0,
+        "baseline_interpretation": "no_opportunity",
+        "candidate_interpretation": "opportunity_not_followed"
+      },
+      "runtime_cost_usd": 0,
+      "estimated_spend_usd": 0.113896,
+      "pricing_sha256": "a7e489a367b37f65f532bb5f57a1d899b4ac8a890125b682b75cb515697728db",
+      "validation": {
+        "valid": true,
+        "summary_byte_match": true,
+        "valid_counts": { "baseline": 5, "candidate": 5 }
+      },
+      "comparison_state": "complete",
+      "unavailable_fields": [
+        "same-attempt_recovery_outcome",
+        "recovery_byte_exactness"
+      ]
+    }
+  ],
+  "authority_failure": {
+    "field": "pricing_sha256",
+    "reason": "Each run retained a current pricing snapshot rather than the frozen pricing identity. This drift was detected after provider calls, so none of the rows can support the frozen campaign recommendation.",
+    "provider_attempts_before_detection": 36
+  },
+  "recommendation": {
+    "action": "no_change",
+    "scope": "fact-midfile-v1",
+    "reason": "Frozen pricing authority did not reconcile and one archive failed structural validation. Defaults and configuration remain unchanged."
+  }
+}

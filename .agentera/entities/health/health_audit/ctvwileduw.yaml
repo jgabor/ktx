@@ -1,0 +1,27 @@
+id: ctvwileduw
+artifact: health
+record:
+  date: 2026-08-27
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "improving: Priority 3 implementation, retained evidence, documentation, backlog state, and task evaluations are synchronized for terminal closure."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Plan vnunyqogux has 6/6 complete tasks with latest PASS evaluations; delegated surfaces were updated through commits 5550300 and 1a721b8 after plan creation, and four accepted v7 archives validate byte-exactly.
+  trends:
+    comparison_target: Plan vnunyqogux created on 2026-08-26.
+    improved: Priority 3 code, methodology v7, summary schema 6, campaign reports, docs, and TODO state now agree.
+    carried_forward: Post-v3 measured recovery remains unavailable; five partial archives and the incomplete cuefix archive remain excluded. Decision satisfaction remains user-owned.
+  patterns:
+    - Current plan authority and validated retained evidence agree for this terminal-task scope.
+  appended_at: 2026-08-27T00:09:00.809Z

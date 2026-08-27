@@ -8,7 +8,7 @@ record:
     - bhfkgermse
     - ysciuimqsr
     - hghhpecuay
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN implementation and experiments complete WHEN repository verification runs THEN mage check and every retained archive validation pass under isolated roots.
     - GIVEN current behavior and evidence WHEN documentation is reviewed THEN CLI guidance, benchmark contracts, limitations, and actual results agree.
@@ -19,3 +19,13 @@ record:
     - mage check passed with KTX_DB unset and fresh isolated application roots.
     - Four accepted v7 archives validate with valid=true, target_met=true, summary_byte_match=true, and 5/5 valid attempts per arm.
     - TODO.md links completed rows to progress and tools/bench/evidence/recovery-aware-comparison-v7.md; progress dixgafnkys records final accounting, unavailable fields, recommendation, and user-owned satisfaction.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Criterion 3 failed: resolved TODO viewkukegl still has blocked readiness and pending gate even though dependencies, screening, comparisons, and retained evidence are complete. Clear blocked/gate and update readiness reason while preserving dependencies and resolved evidence."
+    provenance:
+      attempt_id: final-sync-audit-2
+      source: audit task ses_fc011df02ffeKR3zZA2U1UDkHf correction recheck
+      recorded_at: 2026-08-27 02:06
+      writer_command: agentera state plan record-evaluation

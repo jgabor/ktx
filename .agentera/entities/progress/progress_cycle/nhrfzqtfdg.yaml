@@ -1,0 +1,14 @@
+id: nhrfzqtfdg
+artifact: progress
+record:
+  timestamp: 2026-08-27 18:10
+  type: fix
+  phase: build
+  what: Corrected internal/experiment source-identity pairing, complete schema-6 preservation, and incomplete projection source binding.
+  context:
+    intent: Apply only the consolidated audit correction for benchmark call accounting and historical compatibility.
+    unknowns: Callback absence versus pre-persistence rejection and retry provenance outside observed stream events remain unavailable.
+  discovered: The retained midfile archive materializes baseline 19 stream calls and 15 persisted rows with four missing and zero unpaired at 15/19 coverage; candidate materializes 61/61 with no discrepancy.
+  verified: Focused internal/experiment tests passed; the retained midfile bench validation reports valid=true, summary_byte_match=true, target_met=true, and unchanged retained hashes; mage check passed with KTX_DB unset and zero forbidden database accesses.
+  next: Coordinator conclusion for the two audited plan tasks.
+  publication_order: 192

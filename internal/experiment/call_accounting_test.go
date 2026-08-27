@@ -1,9 +1,14 @@
 package experiment
 
-import "testing"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestCallAccountingKeepsAuthoritiesSeparate(t *testing.T) {
-	key1, key2 := "session\x00one", "session\x00two"
+	key1, key2 := "one", "two"
 	tests := []struct {
 		name              string
 		calls             *callAccounting
@@ -81,6 +86,9 @@ func TestCallAccountingKeepsAuthoritiesSeparate(t *testing.T) {
 			if test.streamState == "available" && stream["duplicate_event_count"] != test.calls.Stream.Duplicates {
 				t.Fatalf("stream duplicates = %v", stream["duplicate_event_count"])
 			}
+			if test.persistenceState == "unavailable" && persistence["reason"] != test.calls.Persistence.Reason {
+				t.Fatalf("persistence reason = %v", persistence["reason"])
+			}
 			if test.streamState == "available" && test.persistenceState == "available" {
 				counts := got["discrepancies"].(map[string]any)["counts"].(map[string]any)
 				if counts["stream_call_without_persisted_row"] != test.missing || counts["persisted_row_without_stream_call"] != test.unpaired {
@@ -91,8 +99,39 @@ func TestCallAccountingKeepsAuthoritiesSeparate(t *testing.T) {
 	}
 }
 
+func TestCallAccountingRetainedMidfileShape(t *testing.T) {
+	stream, persisted := map[string]bool{}, map[string]bool{}
+	for index := 0; index < 19; index++ {
+		key := fmt.Sprintf("source-%02d", index)
+		stream[key] = index >= 15
+		if index < 15 {
+			persisted[key] = false
+		}
+	}
+	got := callAccountingSummary([]Attempt{{calls: &callAccounting{Stream: availableCalls(stream, 0), Persistence: availableCalls(persisted, 0)}}})
+	streamSummary := got["stream"].(map[string]any)
+	persistedSummary := got["persistence"].(map[string]any)
+	discrepancies := got["discrepancies"].(map[string]any)["counts"].(map[string]any)
+	if streamSummary["call_count"] != 19 || streamSummary["error_call_count"] != 4 || persistedSummary["call_count"] != 15 || discrepancies["stream_call_without_persisted_row"] != 4 || discrepancies["persisted_row_without_stream_call"] != 0 || got["persistence_coverage"].(map[string]any)["value"] != 15.0/19.0 {
+		t.Fatalf("accounting = %#v", got)
+	}
+}
+
+func TestStreamCallAuthoritySeparatesDuplicateAndRetryEvents(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stream.jsonl")
+	failed := `{"type":"tool_use","sessionID":"native","part":{"callID":"call","state":{"status":"error"}}}`
+	succeeded := `{"type":"tool_use","sessionID":"native","part":{"callID":"call","state":{"status":"completed"}}}`
+	if err := os.WriteFile(path, []byte(failed+"\n"+failed+"\n"+succeeded+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := streamCallAuthority(path)
+	if got.State != "available" || got.CallCount != 1 || got.ErrorCount != 1 || got.Duplicates != 1 || got.Retries != 1 {
+		t.Fatalf("stream authority = %#v", got)
+	}
+}
+
 func availableCalls(calls map[string]bool, duplicates int) callAuthority {
-	return callAuthority{State: "available", Reason: nil, CallCount: len(calls), ErrorCount: countErrors(calls), Unknown: 0, Duplicates: duplicates, Calls: calls}
+	return callAuthority{State: "available", Reason: nil, CallCount: len(calls), ErrorCount: countErrors(calls), Unknown: 0, Duplicates: duplicates, Retries: 0, Calls: calls}
 }
 
 func countErrors(calls map[string]bool) int {

@@ -11,3 +11,13 @@ record:
     - GIVEN unavailable stream or persistence authority WHEN reported THEN no count is reconstructed or treated as zero.
     - GIVEN historical summaries WHEN regenerated THEN their bytes and existing claims remain unchanged.
   plan: cvzztlzsyu
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Real archive calls pair on source identity, but implementation compared native runtime session IDs with KTX owner session IDs, yielding false zero coverage and symmetric missing/unpaired counts. Complete schema-6 compatibility also regressed.
+    provenance:
+      attempt_id: tranche-audit-1
+      source: audit task ses_fbc1196daffed3PY0k8EoZnCad
+      recorded_at: 2026-08-27 18:00
+      writer_command: agentera state plan record-evaluation

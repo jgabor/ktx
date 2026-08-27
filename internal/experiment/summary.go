@@ -371,8 +371,11 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	}
 	if recoveryAware {
 		schemaVersion = 7
+		if manifest.historicalSummarySchema == 6 {
+			schemaVersion = 6
+		}
 	}
-	hasOutcomes := (promptCacheTokenHitRate || recoveryAware) && manifest.historicalSummarySchema == 0
+	hasOutcomes := (promptCacheTokenHitRate || recoveryAware) && (manifest.historicalSummarySchema == 0 || manifest.historicalHasOutcomes)
 	for _, attempt := range attempts {
 		hasOutcomes = hasOutcomes && attempt.outcomes != nil
 	}
@@ -534,7 +537,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 		}
 		result["attempt_outcomes"] = rows
 	}
-	if recoveryAware && manifest.historicalSummarySchema == 0 {
+	if recoveryAware && (manifest.historicalSummarySchema == 0 || manifest.historicalHasComparison) {
 		result["recovery_aware_comparison"] = buildRecoveryAwareComparison(manifest, attempts)
 	}
 	if v3Required {
@@ -750,6 +753,9 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 		}
 	}
 	preserveHistoricalSummarySchema(&manifest, existingSummary)
+	if manifest.historicalSummarySchema != 0 {
+		preserveLegacyBytes = true
+	}
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, existingSummary)
 	if err != nil {
 		return SummaryRegeneration{}, err
@@ -806,9 +812,12 @@ func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {
 	var existing struct {
 		SchemaVersion   int             `json:"schema_version"`
 		AttemptOutcomes json.RawMessage `json:"attempt_outcomes"`
+		Comparison      json.RawMessage `json:"recovery_aware_comparison"`
 	}
-	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 6 && len(existing.AttemptOutcomes) == 0 {
+	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 6 && (existing.SchemaVersion == 6 || len(existing.AttemptOutcomes) == 0) {
 		manifest.historicalSummarySchema = existing.SchemaVersion
+		manifest.historicalHasOutcomes = len(existing.AttemptOutcomes) > 0
+		manifest.historicalHasComparison = len(existing.Comparison) > 0
 	}
 }
 

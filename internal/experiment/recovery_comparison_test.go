@@ -181,6 +181,48 @@ func TestIncompleteRecoveryAwareArchiveIsStructuralButTargetUnmet(t *testing.T) 
 	}
 }
 
+func TestCompleteHistoricalRecoverySummaryValidatesAndRemainsByteExact(t *testing.T) {
+	dir := writeRecoveryArchive(t)
+	path := filepath.Join(dir, "summary.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary map[string]any
+	if err := json.Unmarshal(data, &summary); err != nil {
+		t.Fatal(err)
+	}
+	summary["schema_version"] = 6
+	arms := summary["recovery_aware_comparison"].(map[string]any)["arms"].(map[string]any)
+	for _, side := range Sides {
+		delete(arms[side].(map[string]any), "call_accounting")
+	}
+	before, err := MarshalJSON(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, before, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := ValidateExperiment(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report["valid"] != true || report["summary_byte_match"] != true {
+		t.Fatalf("validation report = %#v", report)
+	}
+	if _, err := RegenerateSummary(dir); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("complete schema-6 summary was rewritten")
+	}
+}
+
 func TestIncompleteHistoricalRecoverySummaryIsNotRewritten(t *testing.T) {
 	dir := writeRecoveryArchive(t)
 	path := filepath.Join(dir, "summary.json")
@@ -201,6 +243,9 @@ func TestIncompleteHistoricalRecoverySummaryIsNotRewritten(t *testing.T) {
 	if err := os.WriteFile(path, before, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	wantManifestHash, _ := fileSHA256(filepath.Join(dir, "manifest.json"))
+	wantAttemptsHash, _ := fileSHA256(filepath.Join(dir, "attempts.jsonl"))
+	wantSummaryHash, _ := fileSHA256(path)
 	report, err := ValidateExperiment(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -208,6 +253,10 @@ func TestIncompleteHistoricalRecoverySummaryIsNotRewritten(t *testing.T) {
 	projection, ok := report["derived_projection"].(map[string]any)
 	if !ok || projection["kind"] != "recovery_aware_comparison" || projection["source"] != "retained_authoritative_artifacts" || projection["experiment_id"] != "recovery-archive" {
 		t.Fatalf("derived projection = %#v", report["derived_projection"])
+	}
+	hashes, ok := projection["source_hashes"].(map[string]any)
+	if !ok || hashes["manifest_sha256"] != wantManifestHash || hashes["attempts_sha256"] != wantAttemptsHash || hashes["summary_sha256"] != wantSummaryHash {
+		t.Fatalf("source hashes = %#v", projection["source_hashes"])
 	}
 	if _, err := RegenerateSummary(dir); err == nil || !strings.Contains(err.Error(), "missing recovery_aware_comparison") {
 		t.Fatalf("regeneration error = %v", err)
@@ -282,8 +331,9 @@ func prepareRecoveryArchiveAttempt(t *testing.T, root string, manifest Manifest,
 	if err := database.InsertSession(&db.Session{ID: session, Agent: "opencode"}); err != nil {
 		t.Fatal(err)
 	}
+	runtimeSessionID := "native-" + attempt.AttemptID
 	runtimeCallID := "call-" + attempt.AttemptID
-	persistedID, err := identity.Derive("opencode", session, runtimeCallID)
+	persistedID, err := identity.Derive("opencode", runtimeSessionID, runtimeCallID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +344,7 @@ func prepareRecoveryArchiveAttempt(t *testing.T, root string, manifest Manifest,
 	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
-	stream := "{\"type\":\"tool_use\",\"sessionID\":\"" + session + "\",\"part\":{\"callID\":\"" + runtimeCallID + "\",\"state\":{\"status\":\"completed\"}}}\n" +
+	stream := "{\"type\":\"tool_use\",\"sessionID\":\"" + runtimeSessionID + "\",\"part\":{\"callID\":\"" + runtimeCallID + "\",\"state\":{\"status\":\"completed\"}}}\n" +
 		"{\"type\":\"step_finish\",\"part\":{\"reason\":\"stop\",\"tokens\":{\"input\":10,\"output\":2,\"reasoning\":1,\"cache\":{\"read\":0,\"write\":0}},\"cost\":0}}\n" +
 		"{\"type\":\"text\",\"part\":{\"text\":\"FACT=ok\"}}\n"
 	if err := os.WriteFile(filepath.Join(attemptDir, "stream.jsonl"), []byte(stream), 0o644); err != nil {

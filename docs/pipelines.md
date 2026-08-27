@@ -874,12 +874,20 @@ retain separate authoritative call and error counts. `persistence_coverage` is
 the fraction of distinct stream calls with paired persisted rows, and
 `discrepancies.counts` is limited to `stream_call_without_persisted_row` and
 `persisted_row_without_stream_call`. Exact duplicate stream events are reported
-separately and do not increase the distinct call count. If either artifact is
-unavailable or conflicting, its counts and cross-authority coverage are null;
+separately from non-identical retry events; neither increases the distinct call
+count. Pairing uses the stream-derived persisted source identity within each
+attempt, not the different runtime and KTX owner session identities. If either
+artifact is unavailable or conflicting, its counts and cross-authority coverage
+are null;
 the summary does not reconstruct them from the other artifact. Stream-observed
 errors remain stream evidence and do not become persisted outcomes without a
 paired row. Persisted rows with no authoritative error state are counted under
 `unknown_error_state_count`, not as successes.
+
+Complete retained schema-6 summaries continue to validate and regenerate with
+their original bytes and claims. A derived projection for an incomplete
+historical summary identifies the SHA-256 hashes of its retained manifest,
+attempt records, and original summary; validation does not rewrite the archive.
 
 Run the mechanical gate with `ktx bench screen --population <json>`, repeated
 `--config <ktx.toml>`, and one `--anchor-config <ktx.toml>`. The anchor is the

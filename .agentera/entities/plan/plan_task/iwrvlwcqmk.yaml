@@ -4,10 +4,20 @@ record:
   name: Retain incomplete schema-6 outcomes
   depends_on:
     []
-  status: complete
+  status: in_progress
   acceptance:
     - GIVEN an incomplete current experiment WHEN summarized THEN it contains a structurally valid recovery-aware unavailable block, target unmet state, and no rank or recommendation.
     - GIVEN validation of that summary WHEN evidence is internally consistent THEN structure passes while target completion remains false with a reason.
     - GIVEN historical failed archives WHEN investigated THEN originals remain unchanged and any derived projection is separately identified and source-bound.
     - GIVEN complete and legacy archives WHEN regenerated THEN their serialized bytes remain unchanged.
   plan: cvzztlzsyu
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Derived incomplete projections are not bound to retained source hashes, and complete schema-6 archives with attempt outcomes fail byte-exact validation after the schema-7 bump.
+    provenance:
+      attempt_id: tranche-audit-1
+      source: audit task ses_fbc1196daffed3PY0k8EoZnCad
+      recorded_at: 2026-08-27 18:00
+      writer_command: agentera state plan record-evaluation

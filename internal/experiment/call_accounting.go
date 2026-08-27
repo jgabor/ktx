@@ -2,11 +2,13 @@ package experiment
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"os"
 
 	"github.com/jgabor/ktx/internal/identity"
+	"github.com/jgabor/ktx/internal/usage"
 )
 
 type callAuthority struct {
@@ -16,6 +18,7 @@ type callAuthority struct {
 	ErrorCount any
 	Unknown    any
 	Duplicates any
+	Retries    any
 	Calls      map[string]bool
 }
 
@@ -35,8 +38,10 @@ func streamCallAuthority(path string) callAuthority {
 	}
 	defer file.Close()
 	calls := map[string]bool{}
-	errors, duplicates := 0, 0
+	errors, duplicates, retries := 0, 0, 0
+	observations := map[string]map[[32]byte]bool{}
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(nil, usage.MaxRecordSize)
 	for scanner.Scan() {
 		var event struct {
 			Type      string `json:"type"`
@@ -58,20 +63,28 @@ func streamCallAuthority(path string) callAuthority {
 		if err != nil {
 			return unavailableCallAuthority("stream_call_identity_unavailable")
 		}
-		key := event.SessionID + "\x00" + id
-		if _, exists := calls[key]; exists {
-			duplicates++
-			continue
+		key := id
+		fingerprint := sha256.Sum256(scanner.Bytes())
+		if seen := observations[key]; seen != nil {
+			if seen[fingerprint] {
+				duplicates++
+			} else {
+				retries++
+				seen[fingerprint] = true
+			}
+		} else {
+			observations[key] = map[[32]byte]bool{fingerprint: true}
 		}
-		calls[key] = event.Part.State.Status == "error"
-		if calls[key] {
+		failed := event.Part.State.Status == "error"
+		if failed && !calls[key] {
 			errors++
 		}
+		calls[key] = calls[key] || failed
 	}
 	if scanner.Err() != nil {
 		return unavailableCallAuthority("stream_authority_unavailable")
 	}
-	return callAuthority{State: "available", Reason: nil, CallCount: len(calls), ErrorCount: errors, Duplicates: duplicates, Calls: calls}
+	return callAuthority{State: "available", Reason: nil, CallCount: len(calls), ErrorCount: errors, Duplicates: duplicates, Retries: retries, Calls: calls}
 }
 
 func persistedCallAuthority(database *sql.DB, sessionID string) callAuthority {
@@ -88,7 +101,7 @@ func persistedCallAuthority(database *sql.DB, sessionID string) callAuthority {
 		if rows.Scan(&id, &isError) != nil || id == "" {
 			return unavailableCallAuthority("persistence_authority_conflict")
 		}
-		key := sessionID + "\x00" + id
+		key := id
 		if _, exists := calls[key]; exists {
 			return unavailableCallAuthority("persistence_authority_conflict")
 		}
@@ -106,7 +119,7 @@ func persistedCallAuthority(database *sql.DB, sessionID string) callAuthority {
 }
 
 func callAccountingSummary(attempts []Attempt) map[string]any {
-	streamCount, streamErrors, streamDuplicates := 0, 0, 0
+	streamCount, streamErrors, streamDuplicates, streamRetries := 0, 0, 0, 0
 	persistedCount, persistedErrors, persistedUnknown := 0, 0, 0
 	missingRows, unpairedRows := 0, 0
 	streamState, persistenceState := "available", "available"
@@ -123,6 +136,7 @@ func callAccountingSummary(attempts []Attempt) map[string]any {
 			streamCount += attempt.calls.Stream.CallCount.(int)
 			streamErrors += attempt.calls.Stream.ErrorCount.(int)
 			streamDuplicates += attempt.calls.Stream.Duplicates.(int)
+			streamRetries += attempt.calls.Stream.Retries.(int)
 		}
 		if attempt.calls == nil || attempt.calls.Persistence.State != "available" {
 			persistenceState = "unavailable"
@@ -146,12 +160,12 @@ func callAccountingSummary(attempts []Attempt) map[string]any {
 			}
 		}
 	}
-	stream := map[string]any{"state": streamState, "reason": streamReason, "call_count": nil, "error_call_count": nil, "duplicate_event_count": nil}
+	stream := map[string]any{"state": streamState, "reason": streamReason, "call_count": nil, "error_call_count": nil, "duplicate_event_count": nil, "retry_event_count": nil}
 	persistence := map[string]any{"state": persistenceState, "reason": persistenceReason, "call_count": nil, "error_call_count": nil, "unknown_error_state_count": nil}
 	coverage := map[string]any{"state": "unavailable", "value": nil, "reason": "authority_unavailable"}
 	discrepancies := map[string]any{"state": "unavailable", "reason": "authority_unavailable", "counts": nil}
 	if streamState == "available" {
-		stream["call_count"], stream["error_call_count"], stream["duplicate_event_count"] = streamCount, streamErrors, streamDuplicates
+		stream["call_count"], stream["error_call_count"], stream["duplicate_event_count"], stream["retry_event_count"] = streamCount, streamErrors, streamDuplicates, streamRetries
 	}
 	if persistenceState == "available" {
 		persistence["call_count"], persistence["error_call_count"], persistence["unknown_error_state_count"] = persistedCount, persistedErrors, persistedUnknown

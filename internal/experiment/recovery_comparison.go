@@ -25,7 +25,9 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 			}
 		}
 		arm := recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct, manifest.legacyRecoverySemantics)
-		arm["call_accounting"] = callAccountingSummary(selected)
+		if manifest.historicalSummarySchema != 6 {
+			arm["call_accounting"] = callAccountingSummary(selected)
+		}
 		arms[side] = arm
 	}
 	result := map[string]any{

@@ -1,0 +1,14 @@
+id: txorulynoc
+artifact: progress
+record:
+  timestamp: 2026-08-27 17:53
+  type: fix
+  phase: build
+  what: Added summary schema 7 in internal/experiment with separate stream and persisted call accounting, null unavailable counts, native tuple pairing, and bounded discrepancy counters.
+  context:
+    intent: Reconcile recovery-aware benchmark call evidence without synthesizing persisted rows or changing historical summary bytes.
+    unknowns: Callback delivery versus pre-persistence rejection and retry provenance remain unavailable in retained archives.
+  discovered: Stream-authoritative failed calls can exceed hook-persisted rows; exact stream duplicates are counted separately and do not inflate distinct calls.
+  verified: go test ./internal/experiment passed; mage check passed with KTX_DB unset in a fresh Mage-owned disposable root; ./build/ktx bench compare --help succeeded.
+  next: Run the consolidated recovery qualification audit while retaining schemas 1-6 unchanged.
+  publication_order: 191

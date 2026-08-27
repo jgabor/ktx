@@ -11,11 +11,12 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 	}
 	arms := map[string]any{}
 	for _, side := range Sides {
-		var evaluated, correct []Attempt
+		var selected, evaluated, correct []Attempt
 		for _, attempt := range attempts {
 			if attempt.Side != side || (cacheAwareMethodology(manifest.Methodology.Version) && attempt.Role != MeasuredWarm) {
 				continue
 			}
+			selected = append(selected, attempt)
 			if AttemptIsEvaluated(attempt, manifest.Task.MinimumToolCalls) {
 				evaluated = append(evaluated, attempt)
 			}
@@ -23,7 +24,9 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 				correct = append(correct, attempt)
 			}
 		}
-		arms[side] = recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct, manifest.legacyRecoverySemantics)
+		arm := recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct, manifest.legacyRecoverySemantics)
+		arm["call_accounting"] = callAccountingSummary(selected)
+		arms[side] = arm
 	}
 	result := map[string]any{
 		"primary_outcome": "runtime_total_tokens_per_correct_task",

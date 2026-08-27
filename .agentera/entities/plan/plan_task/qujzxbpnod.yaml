@@ -4,7 +4,7 @@ record:
   name: Reconcile benchmark call accounting
   depends_on:
     - omqsbevhoj
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN benchmark attempts WHEN summarized THEN raw event calls and persisted calls remain separate and expose coverage plus bounded discrepancy reasons.
     - GIVEN authoritative failed reads WHEN collected THEN they cannot disappear silently from call accounting.

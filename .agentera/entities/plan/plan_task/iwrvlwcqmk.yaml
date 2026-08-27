@@ -4,7 +4,7 @@ record:
   name: Retain incomplete schema-6 outcomes
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN an incomplete current experiment WHEN summarized THEN it contains a structurally valid recovery-aware unavailable block, target unmet state, and no rank or recommendation.
     - GIVEN validation of that summary WHEN evidence is internally consistent THEN structure passes while target completion remains false with a reason.

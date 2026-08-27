@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/identity"
 )
 
 func TestRecoveryAwareComparisonPrimaryAndDiagnostics(t *testing.T) {
@@ -17,8 +18,8 @@ func TestRecoveryAwareComparisonPrimaryAndDiagnostics(t *testing.T) {
 	baseline := recoveryAttempt("base", Baseline, 1, true, number(100), number(20), number(5), 2, 1, 6, 2)
 	candidate := recoveryAttempt("candidate", Candidate, 1, true, number(70), number(20), number(5), 1, 0, 5, 1)
 	summary := BuildSummary(manifest, []Attempt{baseline, candidate})
-	if summary.SchemaVersion() != 6 {
-		t.Fatalf("schema = %d, want 6", summary.SchemaVersion())
+	if summary.SchemaVersion() != 7 {
+		t.Fatalf("schema = %d, want 7", summary.SchemaVersion())
 	}
 	comparison := summary["recovery_aware_comparison"].(map[string]any)
 	arms := comparison["arms"].(map[string]any)
@@ -44,7 +45,7 @@ func TestRecoveryAwareComparisonPrimaryAndDiagnostics(t *testing.T) {
 	}
 	regenerated, err := MarshalJSON(decoded)
 	if err != nil || string(regenerated) != string(encoded) {
-		t.Fatalf("schema 6 did not regenerate byte-exact: %v", err)
+		t.Fatalf("schema 7 did not regenerate byte-exact: %v", err)
 	}
 }
 
@@ -113,6 +114,16 @@ func TestRecoveryAwareArchiveValidatesAndRegeneratesByteExact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	summary, err := DecodeSummary(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accounting := summary["recovery_aware_comparison"].(map[string]any)["arms"].(map[string]any)[Baseline].(map[string]any)["call_accounting"].(map[string]any)
+	streamCalls, _ := numberAsInt(accounting["stream"].(map[string]any)["call_count"])
+	persistedCalls, _ := numberAsInt(accounting["persistence"].(map[string]any)["call_count"])
+	if streamCalls != 1 || persistedCalls != 1 || accounting["persistence_coverage"].(map[string]any)["value"] != 1.0 {
+		t.Fatalf("call accounting = %#v", accounting)
+	}
 	if _, err := RegenerateSummary(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +132,7 @@ func TestRecoveryAwareArchiveValidatesAndRegeneratesByteExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(before, after) {
-		t.Fatal("schema 6 summary did not regenerate byte-exact")
+		t.Fatal("schema 7 summary did not regenerate byte-exact")
 	}
 }
 
@@ -181,6 +192,7 @@ func TestIncompleteHistoricalRecoverySummaryIsNotRewritten(t *testing.T) {
 	if err := json.Unmarshal(data, &summary); err != nil {
 		t.Fatal(err)
 	}
+	summary["schema_version"] = 6
 	delete(summary, "recovery_aware_comparison")
 	before, err := MarshalJSON(summary)
 	if err != nil {
@@ -270,14 +282,19 @@ func prepareRecoveryArchiveAttempt(t *testing.T, root string, manifest Manifest,
 	if err := database.InsertSession(&db.Session{ID: session, Agent: "opencode"}); err != nil {
 		t.Fatal(err)
 	}
-	call := &db.ToolCall{ID: "tool-call-" + attempt.AttemptID, SessionID: session, Tool: "read", Input: `{}`, Output: "ok", ContentHash: db.ContentHash("ok")}
+	runtimeCallID := "call-" + attempt.AttemptID
+	persistedID, err := identity.Derive("opencode", session, runtimeCallID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := &db.ToolCall{ID: persistedID, SessionID: session, Tool: "read", Input: `{}`, Output: "ok", ContentHash: db.ContentHash("ok")}
 	if _, err := database.PersistToolCallOnce(call); err != nil {
 		t.Fatal(err)
 	}
 	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
-	stream := "{\"type\":\"tool_use\"}\n" +
+	stream := "{\"type\":\"tool_use\",\"sessionID\":\"" + session + "\",\"part\":{\"callID\":\"" + runtimeCallID + "\",\"state\":{\"status\":\"completed\"}}}\n" +
 		"{\"type\":\"step_finish\",\"part\":{\"reason\":\"stop\",\"tokens\":{\"input\":10,\"output\":2,\"reasoning\":1,\"cache\":{\"read\":0,\"write\":0}},\"cost\":0}}\n" +
 		"{\"type\":\"text\",\"part\":{\"text\":\"FACT=ok\"}}\n"
 	if err := os.WriteFile(filepath.Join(attemptDir, "stream.jsonl"), []byte(stream), 0o644); err != nil {

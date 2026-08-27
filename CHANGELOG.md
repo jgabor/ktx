@@ -6,7 +6,7 @@
 
 - Experiment summary generation, validation, ranking, and rendering now share a structured Go contract while preserving historical serialized schemas.
 - Current benchmark summaries retain cue-linked recovery outcomes and exact normalized tool-call repeat counts from isolated attempt databases without exposing call material.
-- Recovery-aware comparisons use methodology v7 and summary schema 6 to rank quality-qualified configurations by complete runtime total tokens per correct task while retaining separate recovery, repeat, delivery, cost, and quality authorities.
+- Recovery-aware comparisons use methodology v7 and summary schema 7 to rank quality-qualified configurations by complete runtime total tokens per correct task while retaining separate recovery, repeat, delivery, cost, quality, stream-call, and persisted-call authorities.
 - `ktx bench screen` now evaluates explicit complete pipeline configurations over one frozen generated population without model or database access, emitting bounded aggregate reconciliation and a controlled-fact-gated shortlist.
 - `mage schemaReleaseGate` now blocks schema releases unless the exact prior physical schema passes the retained 3.2 GB scale, generated-adapter concurrency, interruption/restart, correctness, and approved combined-workload limits. Memory is aggregate concurrent KTX RSS, with per-process peaks retained separately.
 - The schema-readiness contract now requires automatic preparation for every supported stale database surface, single-owner timeout attribution, and reproducible controlled-host resource gates with a retained raw baseline and disposable fixture harness.
@@ -31,9 +31,10 @@
 
 ### Fixed
 
+- Recovery-aware benchmark summaries now expose stream and persisted call counts separately with coverage and bounded discrepancy reasons; unavailable authority remains null and stream-only failures are not converted into persisted outcomes.
 - Incomplete recovery-aware experiments now retain a structurally valid unavailable comparison and unmet-target reason; validation keeps historical partial summaries immutable and labels derived inspection separately.
 - Required benchmark collection now retains delivered recovery cues and exact linked recovery attempts under the precreated interval owner; older archives without cue authority report recovery as unavailable.
-- Recovery-aware comparison now leaves unavailable outcomes unranked, renders their state and reason, and validates generated schema-6 archives against methodology v7.
+- Recovery-aware comparison now leaves unavailable outcomes unranked, renders their state and reason, and validates generated schema-7 archives against methodology v7.
 - `mage install` now refreshes already-enabled global and current-project OpenCode and Codex adapters after installing the development binary, preserves unrelated Codex hooks, and fails with an exact recovery command for every scope that does not refresh.
 - Current user and agent guidance now consistently describes automatic stale-schema readiness, post-readiness read-only queries, forward-only newer-schema failure, isolated verification, and the separate production-scale schema release gate.
 - Query, doctor, telemetry, hook, recovery, and retained-artifact inspection paths now prepare existing supported older databases automatically, then use read-only access where required. Missing-database, current-schema, newer-schema, coordination, and timeout contracts remain unchanged.

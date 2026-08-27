@@ -69,10 +69,10 @@ func (summary Summary) Validate() error {
 			return fmt.Errorf("conflicting summary %s pass rates", side)
 		}
 	}
-	if summary.SchemaVersion() == 6 {
+	if summary.SchemaVersion() == 6 || summary.SchemaVersion() == 7 {
 		comparison, ok := summary["recovery_aware_comparison"].(map[string]any)
 		if !ok {
-			return fmt.Errorf("summary schema 6 is missing recovery_aware_comparison")
+			return fmt.Errorf("summary schema %d is missing recovery_aware_comparison", summary.SchemaVersion())
 		}
 		arms, ok := comparison["arms"].(map[string]any)
 		if !ok {

@@ -370,7 +370,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 		schemaVersion = 5
 	}
 	if recoveryAware {
-		schemaVersion = 6
+		schemaVersion = 7
 	}
 	hasOutcomes := (promptCacheTokenHitRate || recoveryAware) && manifest.historicalSummarySchema == 0
 	for _, attempt := range attempts {

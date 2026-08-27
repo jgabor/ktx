@@ -106,6 +106,7 @@ type Attempt struct {
 	ContentHashes     map[string]string `json:"content_hashes"`
 	delivery          *deliveryEvidence
 	outcomes          *attemptOutcomes
+	calls             *callAccounting
 	validationReasons []string
 }
 

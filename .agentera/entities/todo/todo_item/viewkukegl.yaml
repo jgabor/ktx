@@ -3,7 +3,7 @@ artifact: todo
 record:
   kind: task
   target_version: null
-  title: "**Recovery-aware pipeline outcome comparison** — Added methodology v7 and summary schema 6 with recovery, repeat, delivery, quality, runtime-token, and availability authorities. Evidence: progress `wbexxwmvft`, `rbjrelwfjj`, and `qgtzimovps`; [retained campaign report](tools/bench/evidence/recovery-aware-comparison-v7.md). Four accepted archives validate byte-exactly; five partial archives and the incomplete correction run remain excluded. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  title: "**Recovery-aware pipeline outcome comparison** — Added methodology v7 and summary schema 6 with recovery, repeat, delivery, quality, runtime-token, and availability authorities. Evidence: progress `wbexxwmvft`, `rbjrelwfjj`, and `qgtzimovps`; [retained campaign report](tools/bench/evidence/recovery-aware-comparison-v7.md). Four accepted archives validate byte-exactly; incomplete current outcomes remain target-unmet and unranked, while retained historical partial bytes stay unchanged. → [Benchmark](ARCHITECTURE.md#benchmark)"
   requirements:
     - Preserve existing baseline-config and candidate-config surfaces, isolated attempt ownership, task scoring, cycle pairing, retained field authorities, and byte-for-byte summary regeneration.
     - Count a recovery only when a supported `ktx read <source-id>` call follows and exactly matches a recovery cue delivered earlier in the same attempt; preserve unique cues, repeated attempts, authoritative outcome, and byte-exact recovery separately.
@@ -35,7 +35,7 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[task] **Recovery-aware pipeline outcome comparison** — Added methodology v7 and summary schema 6 with recovery, repeat, delivery, quality, runtime-token, and availability authorities. Evidence: progress `wbexxwmvft`, `rbjrelwfjj`, and `qgtzimovps`; [retained campaign report](tools/bench/evidence/recovery-aware-comparison-v7.md). Four accepted archives validate byte-exactly; five partial archives and the incomplete correction run remain excluded. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[task] **Recovery-aware pipeline outcome comparison** — Added methodology v7 and summary schema 6 with recovery, repeat, delivery, quality, runtime-token, and availability authorities. Evidence: progress `wbexxwmvft`, `rbjrelwfjj`, and `qgtzimovps`; [retained campaign report](tools/bench/evidence/recovery-aware-comparison-v7.md). Four accepted archives validate byte-exactly; incomplete current outcomes remain target-unmet and unranked, while retained historical partial bytes stay unchanged. → [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
       order: 18
       severity: normal

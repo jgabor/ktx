@@ -69,11 +69,13 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 	streamPath := filepath.Join(experimentDir, filepath.FromSlash(streamRel))
 	if _, err := fileSHA256(streamPath); err != nil {
 		if attempt.SchemaVersion >= 3 {
+			attempt.calls = &callAccounting{Stream: unavailableCallAuthority("stream_authority_unavailable"), Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
 			return invalidSchema3Attempt(attempt, Metrics{}, "schema 3 attempt stream artifact is unavailable"), nil
 		}
 		return Attempt{}, fmt.Errorf("attempt %q read stream authority: %w", attempt.AttemptID, err)
 	}
 	metrics := ParseStream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
+	attempt.calls = &callAccounting{Stream: streamCallAuthority(streamPath), Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
 	if attempt.SchemaVersion >= 3 {
 		metrics = parseSchema3Stream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
 	}
@@ -122,6 +124,7 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 			return invalidSchema3Attempt(attempt, metrics, "schema 3 explicit session owner is not closed"), nil
 		}
 	}
+	attempt.calls.Persistence = persistedCallAuthority(database.DB(), *attempt.SessionID)
 	var sessions int
 	if err := database.DB().QueryRow("SELECT count(*) FROM sessions WHERE id = ?", *attempt.SessionID).Scan(&sessions); err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q read session authority: %w", attempt.AttemptID, err)

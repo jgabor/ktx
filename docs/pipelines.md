@@ -857,7 +857,7 @@ The first acceptance matrix uses passthrough plus `keep-ends:50:10`,
 contract remains stage-agnostic so the same comparison can evaluate complete
 configurations containing `json-compact`, `strip-ansi`, or other stages.
 
-Methodology v7 emits summary schema 6. Its `recovery_aware_comparison` block
+Methodology v7 emits summary schema 7. Its `recovery_aware_comparison` block
 keeps field authority explicit, reports each arm and descriptive cycle pairs,
 and ranks only quality-qualified arms with complete runtime-emitted input,
 output, and reasoning totals. Missing or malformed runtime totals make the
@@ -866,8 +866,20 @@ recommendation. Current incomplete summaries retain the same block with an
 unavailable state and explicit unmet-target reason. Validation reports
 structural validity separately from target completion. Inspection of an older
 incomplete schema-6 summary does not rewrite it; any regenerated comparison is
-reported as a source-bound derived projection. Schemas 1 through 5 and complete
-schema-6 summaries retain their historical bytes and claims.
+reported as a source-bound derived projection. Schemas 1 through 6 retain their
+historical bytes and claims.
+
+Each schema-7 arm also reports `call_accounting`. `stream` and `persistence`
+retain separate authoritative call and error counts. `persistence_coverage` is
+the fraction of distinct stream calls with paired persisted rows, and
+`discrepancies.counts` is limited to `stream_call_without_persisted_row` and
+`persisted_row_without_stream_call`. Exact duplicate stream events are reported
+separately and do not increase the distinct call count. If either artifact is
+unavailable or conflicting, its counts and cross-authority coverage are null;
+the summary does not reconstruct them from the other artifact. Stream-observed
+errors remain stream evidence and do not become persisted outcomes without a
+paired row. Persisted rows with no authoritative error state are counted under
+`unknown_error_state_count`, not as successes.
 
 Run the mechanical gate with `ktx bench screen --population <json>`, repeated
 `--config <ktx.toml>`, and one `--anchor-config <ktx.toml>`. The anchor is the

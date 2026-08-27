@@ -95,7 +95,7 @@
     },
     "image": {
       "name": "ktx-bench",
-      "id": "sha256:95975c58ac456da29159f7674b01be8f840d9444bbf957e58711921accd409f7",
+      "id": "sha256:f7ac9ef7eec50216e890dc1c939d4425b92eac268fe1ae2613726b582bcfd231",
       "dockerfile": "Dockerfile.benchmark",
       "dockerfile_sha256": "0029723c0d446e9c5f3a269a3d841b2496665b70cfa4a13a05b2ec769e2fcbbf",
       "ktx_version": "0.1.0-dev",
@@ -136,6 +136,7 @@
     }
   },
   "execution_contract": {
+    "authority_correction": "tools/bench/evidence/post-v3-midfile-qualification-freeze-correction.json",
     "provider_calls_performed_by_this_freeze": 0,
     "before_each_comparison": [
       "verify every retained identity against this record",

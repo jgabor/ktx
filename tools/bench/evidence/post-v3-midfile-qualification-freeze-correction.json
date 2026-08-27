@@ -1,0 +1,22 @@
+{
+  "schema": "ktx.bench.campaign-freeze-correction.v1",
+  "corrected_at": "2026-08-27T18:28:00Z",
+  "prior_freeze_sha256": "59f67838af0461b58e6572199de5ef1986376b710dbcff2b14c70ee2b15465ea",
+  "provider_calls_before_correction": 0,
+  "field": "runtime.image.id",
+  "prior_value": "sha256:95975c58ac456da29159f7674b01be8f840d9444bbf957e58711921accd409f7",
+  "corrected_value": "sha256:f7ac9ef7eec50216e890dc1c939d4425b92eac268fe1ae2613726b582bcfd231",
+  "reason": "The required pre-call rebuild reproduced the frozen binary and generated plugin hashes but produced a new Docker image identity. The rebuilt image passed the zero-call preflight with the frozen OpenCode version and event contract. No provider call used the prior image identity.",
+  "unchanged_authority": [
+    "task",
+    "methodology",
+    "configs",
+    "binary",
+    "plugin",
+    "event_contract",
+    "pricing",
+    "model",
+    "variant",
+    "ceilings"
+  ]
+}

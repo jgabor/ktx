@@ -4,7 +4,7 @@ record:
   name: Diagnose call-evidence divergence
   depends_on:
     []
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN the retained midfile archive WHEN raw events and persisted rows are paired THEN every observed discrepancy has an authority-backed classification or remains unavailable.
     - GIVEN successful, failed, missing-callback, and duplicate cases WHEN reproduced in isolation THEN the observed persistence boundary is documented without inferring unsupported outcomes.

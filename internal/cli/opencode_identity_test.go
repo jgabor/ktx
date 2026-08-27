@@ -250,6 +250,47 @@ func TestOpenCode_HookExactDuplicateConverges(t *testing.T) {
 	}
 }
 
+func TestOpenCode_HookPersistenceRequiresCallback(t *testing.T) {
+	d := hookTestDB(t)
+	hookChdirTemp(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	deliver := func(payload string) {
+		t.Helper()
+		if _, err := hookLogic(strings.NewReader(payload), d, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	deliver(openCodeHookOutcomePayload(t, "ses-boundary", "success", "bash", "ok", 0, true))
+	deliver(openCodeHookOutcomePayload(t, "ses-boundary", "failure", "bash", "failed", 1, true))
+	// A stream event without a tool.execute.after callback never enters hookLogic.
+	deliver(openCodeHookOutcomePayload(t, "ses-boundary", "duplicate", "bash", "ok", 0, true))
+	deliver(openCodeHookOutcomePayload(t, "ses-boundary", "duplicate", "bash", "ok", 0, true))
+
+	for _, test := range []struct {
+		callID  string
+		rows    int
+		isError *bool
+	}{
+		{callID: "success", rows: 1, isError: boolPointer(false)},
+		{callID: "failure", rows: 1, isError: boolPointer(true)},
+		{callID: "missing", rows: 0},
+		{callID: "duplicate", rows: 1, isError: boolPointer(false)},
+	} {
+		var rows int
+		var isError *bool
+		err := d.DB().QueryRow(`SELECT count(*), max(is_error) FROM tool_calls WHERE id=?`, mustOpenCodeID(t, "ses-boundary", test.callID)).Scan(&rows, &isError)
+		if err != nil || rows != test.rows || !equalBoolPointers(isError, test.isError) {
+			t.Errorf("%s: rows=%d is_error=%v err=%v, want rows=%d is_error=%v", test.callID, rows, isError, err, test.rows, test.isError)
+		}
+	}
+}
+
+func equalBoolPointers(left, right *bool) bool {
+	return left == nil && right == nil || left != nil && right != nil && *left == *right
+}
+
 // TestOpenCode_WrapperReplayConverges proves that replaying the same wrapper
 // stream event line through teeAndParse produces one source row (the wrapper
 // uses the evidence layer for eligible retries).

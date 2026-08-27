@@ -1,0 +1,14 @@
+id: eydcttqkdi
+artifact: progress
+record:
+  timestamp: 2026-08-27 17:38
+  type: fix
+  phase: build
+  what: Paired retained measured raw events and immutable rows by native tuple; documented the authority classification and correction boundary in tools/bench/evidence/call-evidence-divergence-v7.md.
+  context:
+    intent: Diagnose retained call-evidence divergence without changing summary accounting.
+    unknowns: Whether each retained missing row reflects callback absence or pre-persistence rejection remains unavailable because the archive has no callback-delivery log.
+  discovered: Baseline measured pairing is 19 raw to 15 persisted, with four stream-authoritative read errors lacking rows; candidate pairing is 61/61. Retained evidence cannot distinguish callback absence from pre-persistence rejection.
+  verified: go test ./internal/cli -run ^TestOpenCode_HookPersistenceRequiresCallback$ and mage check passed with KTX_DB unset and fresh HOME/XDG roots; mage check used a checkout-local temporary build directory after /tmp quota failures.
+  next: Use tuple pairing and explicit unavailable callback provenance in the dependent accounting task; do not synthesize rows or infer outcomes.
+  publication_order: 190

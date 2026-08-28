@@ -80,6 +80,17 @@ func TestBenchComparisonHelpListsActiveRegistryIDs(t *testing.T) {
 	}
 }
 
+func TestBenchNamespaceHelpRequiresExplicitRunSpec(t *testing.T) {
+	var help bytes.Buffer
+	printBenchHelp(&help)
+	if !strings.Contains(help.String(), "run <agent> <model> <task> --spec <id>") {
+		t.Fatalf("namespace help does not require an explicit run spec:\n%s", help.String())
+	}
+	if strings.Contains(help.String(), "run <agent> <model> <task> [--spec <id>]") {
+		t.Fatalf("namespace help still presents run spec as optional:\n%s", help.String())
+	}
+}
+
 // benchTestDB returns an in-memory *dbpkg.DB with the full schema
 // migrated. The bench impl does not touch the filesystem; an
 // in-memory database is the cleanest fixture.

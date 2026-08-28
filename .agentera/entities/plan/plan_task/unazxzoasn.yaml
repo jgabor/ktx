@@ -11,3 +11,13 @@ record:
     - GIVEN help describes selection WHEN inspected THEN it requires explicit specs and never suggests paths, versions, aliases, removed commands, or hidden defaults.
     - GIVEN changed help behavior is tested WHEN contract checks run THEN each changed testable surface has one supported case and one rejected obsolete case.
   plan: qbtiqutvao
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Namespace help still shows run --spec as optional at internal/cli/bench.go:140, and progress toafrvdaiq records only disk-quota-stopped test/build attempts rather than the later passing evidence.
+    provenance:
+      attempt_id: focused-help-1
+      source: audit ses_fb62c76f0ffeyP3Mf1azUjdaV2
+      recorded_at: 2026-08-28 21:24
+      writer_command: agentera state plan record-evaluation

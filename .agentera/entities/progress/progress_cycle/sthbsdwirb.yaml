@@ -1,0 +1,15 @@
+id: sthbsdwirb
+artifact: progress
+record:
+  timestamp: 2026-08-28 21:26
+  type: fix
+  phase: build
+  what: Corrected benchmark namespace help to require an explicit run spec and added its contract check.
+  context:
+    intent: Resolve the focused benchmark help audit failure with the smallest correction.
+    constraints: Preserve runtime-derived ID inventory and current plan state; use no provider calls or ambient database.
+    scope: Namespace help syntax, one regression check, and passing verification evidence.
+  discovered: The audit finding was limited to one optional-spec token in namespace help; focused help and runtime-derived ID inventory needed no design change.
+  verified: With KTX_DB unset and fresh disposable HOME/XDG roots, mage build passed. Focused tests TestBenchSubcommandHelpIsFocusedAndRejectsObsoleteHelpSyntax, TestBenchComparisonHelpListsActiveRegistryIDs, and TestBenchNamespaceHelpRequiresExplicitRunSpec passed in github.com/jgabor/ktx/internal/cli (0.005s). The locally built binary showed required run --spec syntax in namespace help, command-specific Usage and Next text for 12/12 benchmark subcommands, rejected positional help for 12/12 subcommands, and included every active registry ID in both compare and rank help. An earlier focused-test link attempt failed with disk quota exceeded before the passing retry.
+  next: Keep plan task unazxzoasn in_progress for audit.
+  publication_order: 211

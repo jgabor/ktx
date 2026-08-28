@@ -137,7 +137,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage: ktx bench <subcommand> [args]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Subcommands:")
-	fmt.Fprintln(w, "  run <agent> <model> <task> [--spec <id>]")
+	fmt.Fprintln(w, "  run <agent> <model> <task> --spec <id>")
 	fmt.Fprintln(w, "      Execute the spec-pinned (agent, model, task) triple,")
 	fmt.Fprintln(w, "      persist a bench_runs row with the headline number, and print")
 	fmt.Fprintln(w, "      the headline to stdout (JSON default) plus a one-line")

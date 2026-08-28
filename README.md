@@ -168,6 +168,8 @@ The [canonical benchmark workflow](docs/pipelines.md#canonical-benchmark-workflo
 covers semantic-ID discovery, offline preflight, compare or rank, and the full
 experiment lifecycle. Compare and rank require an explicit registered `--spec`;
 focused command help lists all current spec, task, baseline, and candidate IDs.
+Current prompt-cache comparisons use methodology v6, summary schema 5, and
+`cache-reuse-v2`.
 
 ```bash
 ./build/ktx bench compare --preflight --build --spec prompt-cache-token-hit-rate --task crossfile-nav --format json

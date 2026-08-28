@@ -1,0 +1,16 @@
+id: utwocybfym
+artifact: progress
+record:
+  timestamp: 2026-08-28 22:45
+  type: docs
+  phase: build
+  what: Corrected the README benchmark workflow to state the current prompt-cache summary schema and contract ID after the focused contract audit failed.
+  context:
+    intent: Resolve only the README contract omission found by audit.
+    constraints: Preserve the failed evaluation, keep the task in progress, and do not alter retained historical evidence.
+    unknowns: None for this focused contract correction.
+    scope: README contract wording, focused contract tests, active-guidance synchronization, and historical-boundary check.
+  discovered: The README workflow had the current methodology but omitted summary schema 5 and cache-reuse-v2.
+  verified: "`env -u KTX_DB HOME=$root/home XDG_DATA_HOME=$root/data XDG_CONFIG_HOME=$root/config XDG_CACHE_HOME=$root/cache XDG_STATE_HOME=$root/state GOCACHE=$root/gocache go test ./internal/cli -run '^(TestBenchPreflightContractSurfacesMatchBehavior|TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp)$' -count=1` passed: `ok github.com/jgabor/ktx/internal/cli 0.002s`. Each HOME/XDG/GOCACHE directory was newly allocated under `/tmp`. A bounded check of README.md, AGENTS.md, docs/pipelines.md, and `.agents/skills/ktx/references/benchmarks-development.md` found all six required tokens (`--spec prompt-cache-token-hit-rate`, `crossfile-nav`, `summary schema 5`, `cache-reuse-v2`, `summarize`, `validate`) on all four active surfaces. `git diff --check` passed. The changed-path boundary found zero modified labeled validation reports or files under tools/bench/evidence and tools/bench/archive."
+  next: Leave task zyieubcfwi in progress and preserve its orchestrator-owned failed evaluation for audit retry.
+  publication_order: 214

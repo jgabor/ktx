@@ -5,10 +5,20 @@ record:
   depends_on:
     - hzuuiqtkvp
     - cruknldtsy
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN a new benchmark run WHEN artifacts are created THEN they exist only under `.ktx/experiments/<id>` and `.ktx` is ignored and snapshot-excluded.
     - GIVEN list, show, validate, or summarize WHEN called THEN experiment IDs resolve from the fixed root and unknown, malformed, traversal, or duplicate IDs fail safely.
     - GIVEN malformed experiment manifests WHEN listed THEN bounded status is shown without blocking other entries.
     - GIVEN the authorized cleanup WHEN the exact ignored repository-root `.bench-data` is inventoried THEN its bounded count and size are reported before only that root is deleted.
   plan: bptycpojpd
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: storage-cutover-1
+      source: progress xyidtkohht; commit 842e682
+      recorded_at: 2026-08-28 17:37
+      writer_command: agentera state plan record-evaluation

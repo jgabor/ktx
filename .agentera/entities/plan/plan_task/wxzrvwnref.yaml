@@ -4,9 +4,19 @@ record:
   name: Preserve active cache-runtime contracts
   depends_on:
     - hzuuiqtkvp
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN cache-reuse dependencies WHEN classified THEN active runtime sequence, stats, regeneration, and comparison behavior are distinguished from direct-provider probes.
     - GIVEN active contracts are retained or rehomed WHEN focused tests run THEN current prompt-cache specs, stats, and recovery comparisons remain unchanged.
     - GIVEN probe-only code is identified WHEN deletion begins THEN no active import or current semantic spec depends on it.
   plan: bptycpojpd
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: cache-boundary-1
+      source: progress pyfwehjpep; commit d7ef354
+      recorded_at: 2026-08-28 18:47
+      writer_command: agentera state plan record-evaluation

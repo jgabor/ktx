@@ -7,6 +7,7 @@ record:
     - cruknldtsy
     - htcshphawt
     - wxzrvwnref
+    - iahahowxig
   status: pending
   acceptance:
     - GIVEN the current schema validates independently WHEN cleanup runs THEN legacy manifest and summary readers, old active inputs, path aliases, and compatibility tests are removed.

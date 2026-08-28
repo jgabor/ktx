@@ -1,0 +1,14 @@
+id: iahahowxig
+artifact: plan
+record:
+  plan: bptycpojpd
+  name: Start an independent snapshot-safe cutover session
+  status: blocked
+  depends_on:
+    - wxzrvwnref
+  acceptance:
+    - GIVEN the remaining cutover WHEN execution resumes THEN it runs in a new independent OpenCode session, not a resume or fork of the affected parent or storage children.
+    - GIVEN the new session starts WHEN workspace safety is checked THEN `.bench-data` is absent, `.ktx` remains ignored, and current memory plus swap baseline are recorded before delegation.
+    - GIVEN legacy-removal paths are inventoried before mutation WHEN the change exceeds 1,000 paths or 100 MB THEN snapshots are disabled in project configuration and OpenCode is restarted before deletion.
+    - GIVEN the inventory stays below both thresholds WHEN work proceeds THEN the bounded counts are retained and any sudden thousand-path patch stops the session.
+  blocked_reason: Requires the user to start an independent OpenCode session. Do not resume or fork the current affected lineage.

@@ -17,24 +17,26 @@ record:
   severity: normal
   readiness:
     capability: build
-    reason: Pricing pinning and byte-exact retention passed for all three rerun archives.
+    reason: Pinned pricing and rerun acceptance passed; the target-unmet 73:1 archive is retained and recommendation-ineligible as allowed.
     dependencies:
       []
-    blocked:
-      reason: "The authorized rerun did not fully qualify: keep-ends:73:1 retained only four valid baseline attempts and four complete pairs because one model-step authority check failed."
-      recovery: Preserve the target-unmet archive and require separate authorization before any further provider attempts.
+    blocked: null
     gate:
-      state: pending
-      reason: Rerun executed with pinned pricing, but all-rerun acceptance did not pass.
-      recovery: Coordinator must decide whether partial qualification is sufficient or authorize a separately frozen follow-up.
+      state: satisfied
+      reason: Three zero-model preflights and byte-exact pricing retention passed; every accepted archive validates.
+      recovery: No recovery required.
     queue_rank: 1
-    order_reason: Pricing authority passed; one comparison remains target-unmet.
-  status: open
+    order_reason: Ready to resolve.
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[task] **Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      status: resolved
+      order: 20
       severity: normal
-      status: open
-      order: 15
+  lifecycle:
+    operation: resolve
+    reason: Pinned pricing passed; two accepted archives validate byte-exactly, and the retained 73:1 archive is target-unmet and recommendation-ineligible as allowed.
+    date: 2026-08-28

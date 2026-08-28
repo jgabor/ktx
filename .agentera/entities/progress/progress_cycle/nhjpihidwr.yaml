@@ -1,0 +1,14 @@
+id: nhjpihidwr
+artifact: progress
+record:
+  timestamp: 2026-08-28 12:57
+  type: docs
+  phase: build
+  what: "Correction to progress huklpgxysl: the 73:1 target-unmet outcome satisfies the TODO acceptance branch because it is retained and recommendation-ineligible. Pricing and accepted-archive gates passed, so kccfhezjer is resolved; mezgphvqww remains in progress."
+  context:
+    intent: Correct the TODO acceptance interpretation.
+    constraints: No further provider attempts and no default change.
+    unknowns: The 73:1 model-step divergence remains retained evidence but is not a blocker to the pricing TODO acceptance branch.
+  verified: The TODO writer recorded kccfhezjer resolved with a satisfied gate and no blocker. The rerun report excludes 73:1 from ranking and recommends 100:10 only from accepted rows.
+  next: Coordinator conclusion remains responsible for mezgphvqww.
+  publication_order: 198

@@ -3,7 +3,6 @@ artifact: todo
 record:
   severity: normal
   status: open
-  description: "**Recorded-decision satisfaction review** — Review recorded choices that lack current satisfaction evidence against shipped behavior, tests, documentation, and retained benchmark evidence; record the review in the decision history without rewriting prior choices."
   readiness:
     capability: audit
     reason: Establish current satisfaction evidence for recorded choices without rewriting them.
@@ -17,7 +16,18 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Recorded-decision satisfaction review** — Review recorded choices that lack current satisfaction evidence against shipped behavior, tests, documentation, and retained benchmark evidence; record the review in the decision history without rewriting prior choices."
+      description: "[task] Recorded-decision satisfaction review"
       severity: normal
       status: open
       order: 5
+  kind: task
+  target_version: null
+  requirements:
+    - Review recorded choices that lack current satisfaction evidence against shipped behavior, tests, documentation, and retained benchmark evidence; record the review in decision history without rewriting prior choices.
+    - Treat the clean cutover deletion as 11,927,921,108 logical bytes and 12,439,597,056 allocated bytes removed from the ignored local archive root.
+    - Preserve tracked static history unchanged and accept that retained historical archives are intentionally not guaranteed to validate with the current runtime.
+    - Leave decision satisfaction user-owned; do not reconstruct it from stale profile-derived state.
+  acceptance:
+    []
+  release_blocker: false
+  title: Recorded-decision satisfaction review

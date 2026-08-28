@@ -237,7 +237,7 @@ investigate and correct the summary rather than treating it as canonical.
 
 ## Common Mistakes
 
-- Do not analyze `.bench-data` when the user asks for live `ktx stats` or the
+- Do not analyze retained benchmark experiments when the user asks for live `ktx stats` or the
   operator database. Benchmarks and product telemetry are different sources.
 - Do not run tests or development commands against the ambient live database.
 - Do not treat `prompt_cache_token_hit_rate_pct` as a provider request hit,

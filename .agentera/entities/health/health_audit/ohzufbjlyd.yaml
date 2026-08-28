@@ -1,0 +1,27 @@
+id: ohzufbjlyd
+artifact: health
+record:
+  date: 2026-08-28
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "improving: clean cutover verification, active references, offline lifecycle evidence, TODO state, and retained-history boundaries are synchronized."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Current verification and offline fixtures pass; active references are clean; one source-independent semantic-ID experiment completed its lifecycle.
+  trends:
+    comparison_target: Clean benchmark cutover before final verification.
+    improved: Removed stale active references and synchronized exact local deletion measurements with current verification evidence.
+    carried_forward: Tracked static history remains byte-unchanged and intentionally lacks current-runtime validation guarantees. Decision satisfaction remains user-owned; stale profile-derived state was not refreshed.
+  patterns:
+    - Current product, documentation, skill, TODO, and progress boundaries agree for this pre-closure task.
+  appended_at: 2026-08-28T17:57:35.171Z

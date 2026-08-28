@@ -5,8 +5,7 @@ package db
 import "math"
 
 // CostRoundDecimals is the precision for cost derivation. The
-// methodology-v1 headline number is six decimals
-// (`tools/bench/methodology-v1.yaml`'s `cost_per_correct = cost /
+// benchmark headline number is six decimals (`cost_per_correct = cost /
 // max(score, 1e-9)` plus the reproducibility `six decimal places` rule); the
 // persisted cost uses the same precision as the benchmark headline.
 //

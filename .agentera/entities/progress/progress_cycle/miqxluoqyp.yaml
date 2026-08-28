@@ -1,0 +1,16 @@
+id: miqxluoqyp
+artifact: progress
+record:
+  timestamp: 2026-08-28 20:15
+  type: docs
+  phase: build
+  what: Verified the clean benchmark cutover, removed the last active legacy-location and methodology-filename references, exercised a source-independent semantic-ID archive, and synchronized pre-closure project state.
+  context:
+    intent: Prove the clean cutover is complete without provider calls, ambient database access, historical rewrites, profile refresh, decision satisfaction, or terminal plan closure.
+    constraints: Every verification invocation unset KTX_DB and used fresh HOME and XDG roots. Tracked static history was preserved. Task completion remains orchestrator-owned.
+    unknowns: Retained historical archives are intentionally not guaranteed to validate with the current runtime.
+    scope: Authoritative verification, offline preflight and fixtures, active-reference search, one disposable experiment lifecycle, retained-size evidence, TODO and health synchronization.
+  discovered: "The disposable experiment retained expected per-attempt workspaces only: baseline-001 and candidate-001 each contained 6 files and 24,576 allocated bytes, matching the 6-file repository snapshot. No unexpected duplication follow-up was filed."
+  verified: "Final isolated mage verify passed all tests, race checks, generated-adapter gate, vet, golangci-lint with zero issues, build, govulncheck with no vulnerabilities, replay fixture, and the database audit with 7,541 attempts and zero forbidden access. Isolated ./build/ktx bench compare --preflight --build --format json returned eligible=true, model_attempts=0, artifact_creation=false. Isolated mage replayFixture and mage opencodeTelemetryFixture passed. The active-surface ripgrep search returned no .bench-data, methodology filename, versioned active input, removed bench evidence command, or retired provider preflight command; retained historical reports and tools/bench evidence/archive were excluded. Disposable experiment semantic-cutover-offline listed status ok, showed semantic IDs exact-match, passthrough, conservative-a, and crossfile-nav, summarized successfully, and validated valid=true, target_met=true, summary_byte_match=true after its source directory was deleted. It retained 37 files and 495,616 allocated bytes: attempts 22/434,176; attempts.jsonl 1/4,096; configs 2/8,192; inputs 3/12,288; manifest.json 1/4,096; pricing.json 1/4,096; repository 6/24,576; summary.json 1/4,096. The ignored local archive deletion remains measured at 11,927,921,108 logical bytes and 12,439,597,056 allocated bytes. git diff --exit-code and scoped status showed no tools/bench/evidence or tools/bench/archive change; their recorded aggregate SHA-256 remains 1b49f186c69a3c09e24ba9827257f47e914ac6a51ae6f51e3c80e2ac627d3a1d. Agentera state validation passed 961 entities with zero issues."
+  next: Leave task nfssacqghu in progress for orchestrator audit and resolution. Do not publish terminal closure health or mark decision satisfaction; only the user can confirm satisfaction.
+  publication_order: 206

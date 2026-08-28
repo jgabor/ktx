@@ -11,8 +11,7 @@
 //	tokens_in INTEGER            -- SUM of underlying tool_calls
 //	tokens_out INTEGER           -- SUM of underlying tool_calls
 //	cost REAL                    -- runtime-reported cost
-//	methodology_version TEXT     -- references
-//	                               tools/bench/methodology-v1.yaml
+//	methodology_version TEXT     -- benchmark contract version
 //	timestamp INTEGER            -- Unix epoch seconds
 //
 // EstimatedAPICost is derived separately from the cache-aware model price;

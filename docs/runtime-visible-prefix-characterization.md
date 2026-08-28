@@ -30,5 +30,5 @@ and submitted-prompt hashes do not upgrade any of these labels.
 The evidence retains only existing sanitized counts, measurements, SHA-256
 values, and tracked source references. It contains no prompt content,
 credentials, raw session or cache namespaces, message or part identifiers, or
-additional source excerpts. Verification requires neither `.bench-data` nor
+additional source excerpts. Verification requires neither retained experiments nor
 provider credentials and performs no model or provider call.

@@ -8,7 +8,7 @@ record:
     - htcshphawt
     - wxzrvwnref
     - xidffdcgth
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN the final repository WHEN verification runs THEN mage verify and current offline preflight and fixture workflows pass with isolated application roots.
     - GIVEN active code, help, tests, docs, and skills WHEN searched THEN no `.bench-data`, methodology filename, versioned active input, or removed command reference remains; static-history boundaries are excluded.

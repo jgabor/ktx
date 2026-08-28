@@ -664,7 +664,7 @@ func extractModelProvider(line []byte, sm *streamMetrics) {
 //	cost_per_correct = cost_USD / max(score, 1e-9)
 //
 // The epsilon prevents division by zero when score=0. The 1e-9
-// guard is documented in methodology-v1.yaml.
+// guard is part of the benchmark contract.
 // Returns 0 when cost is nil (the bench row's NULL cost path — the
 // headline reflects partial data, soft-fail).
 func computeHeadline(cost *float64, score float64) float64 {

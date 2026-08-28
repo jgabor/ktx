@@ -1,0 +1,93 @@
+{
+  "schema": "ktx.bench.campaign-freeze.v1",
+  "id": "post-v3-midfile-rerun-20260828",
+  "frozen_at": "2026-08-28T10:35:00Z",
+  "history": {
+    "prior_freeze_sha256": "b0ff433720196d9374224385d1f3befaddff3cfea00a671ebc67c3fe2f76f01d",
+    "prior_result_sha256": "ce1401e81cf76ff511c7c89dfce38723883d8a861803e6af81139de2a0452a5b",
+    "prior_campaign_preserved": true
+  },
+  "repository_commit": "06eb7f94b5a7f9b00c0348a71c45e0dec36c8ad8",
+  "task": {
+    "id": "fact-midfile-v1",
+    "path": "tools/bench/tasks/fact-midfile-v1.toml",
+    "sha256": "9b86d8d39aa4006db38a0c121c83220a4c8c6ca1064c6dac442bbfcce1b9d26b"
+  },
+  "methodology": {
+    "version": "v7-recovery-aware-comparison",
+    "path": "tools/bench/methodology-v7-recovery-aware-comparison.yaml",
+    "sha256": "d099eb84c59cb76e45caf83d1d7e0d394cfa924afcdf98ab2342c53bf0d5b6e8",
+    "summary_schema": 7
+  },
+  "configs": {
+    "baseline": {
+      "id": "passthrough",
+      "path": "tools/bench/pipelines/passthrough.toml",
+      "sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1"
+    },
+    "candidates": [
+      {
+        "id": "keep-ends:100:50",
+        "path": "tools/bench/screen-configs/keep-ends-100-50.toml",
+        "sha256": "bbf0c6277e3360df864daa27383ce913eb03c147dee141a29ec26bc834f69248"
+      },
+      {
+        "id": "keep-ends:73:1",
+        "path": "tools/bench/screen-configs/keep-ends-73-1.toml",
+        "sha256": "8bf31632404adcd20809f7a934732f36f770a1d7affc31a165c68f19b5bd2ab0"
+      },
+      {
+        "id": "keep-ends:100:10",
+        "path": "tools/bench/screen-configs/keep-ends-100-10.toml",
+        "sha256": "2ac5f3fafdfcf73240f1eca068ec6ecfc793acd62cceee9690cfada099a44843"
+      }
+    ]
+  },
+  "runtime": {
+    "model": "openai/gpt-5.6-luna",
+    "variant": "high",
+    "binary_sha256": "3a367364545c312d2962007278af35258e7eb04ed7bedc9d56d6175659b17136",
+    "image": {
+      "name": "ktx-bench",
+      "id": "sha256:a09050e3e379348063d365b5d2910c2ada801993195bc3046bb432e6af4be39f"
+    },
+    "dockerfile_sha256": "0029723c0d446e9c5f3a269a3d841b2496665b70cfa4a13a05b2ec769e2fcbbf",
+    "opencode_version": "1.18.5",
+    "plugin_sha256": "a2eb6388e6e74543d902d2db56e055227dd0e36781aa5e6db7993e56b0f62959",
+    "event_contract": "opencode-event-v3",
+    "provider_policy": {
+      "allowed": ["openai"],
+      "forbidden_model_prefixes": ["github-copilot/"]
+    }
+  },
+  "pricing": {
+    "path": "tools/bench/evidence/post-v3-midfile-rerun-pricing.json",
+    "sha256": "585b11de38f7fa5a7797f003f6b54ba7ced2c5292d7c8a0fcd6bedda7538df13",
+    "retention": "exact_bytes_per_archive"
+  },
+  "matrix": {
+    "comparisons": 3,
+    "rounds_per_arm": 5,
+    "cold_attempts_per_arm": 1,
+    "attempts_per_comparison": 12,
+    "aggregate_ceilings": {
+      "attempts": 36,
+      "elapsed_seconds": 10800,
+      "estimated_spend_usd": 10
+    }
+  },
+  "preflight": {
+    "comparisons_passed": 3,
+    "model_attempts": 0,
+    "artifact_creation": false,
+    "pricing_sha256": "585b11de38f7fa5a7797f003f6b54ba7ced2c5292d7c8a0fcd6bedda7538df13",
+    "old_100_50_archive_validation": "valid_byte_exact",
+    "focused_tests": "pass"
+  },
+  "execution": {
+    "auth": "explicit_read_only_not_retained",
+    "ambient_database": "forbidden",
+    "on_identity_drift": "stop_before_provider_call",
+    "additional_attempts_beyond_36": "forbidden"
+  }
+}

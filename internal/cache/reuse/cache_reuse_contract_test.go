@@ -283,7 +283,7 @@ func TestCacheAwareBenchmarkVehicleMatchesMetricContract(t *testing.T) {
 		}
 	}
 
-	methodologyText := readText(t, filepath.Join(root, "tools", "bench", "methodology-v5-cache-aware.yaml"))
+	methodologyText := readText(t, filepath.Join(root, "tools", "bench", "specs", "cache-aware.yaml"))
 	methodology, err := decodeBenchmarkMethodology(strings.NewReader(methodologyText))
 	if err != nil {
 		t.Fatal(err)
@@ -301,7 +301,7 @@ func TestCacheAwareBenchmarkVehicleMatchesMetricContract(t *testing.T) {
 }
 
 func TestBenchmarkMethodologyRejectsDuplicateKeysAndExtraDocuments(t *testing.T) {
-	valid := readText(t, filepath.Join("..", "..", "..", "tools", "bench", "methodology-v5-cache-aware.yaml"))
+	valid := readText(t, filepath.Join("..", "..", "..", "tools", "bench", "specs", "cache-aware.yaml"))
 	duplicate := strings.Replace(valid, `    version: "1.18.5"`, "    version: \"1.18.5\"\n    version: \"1.18.5\"", 1)
 	if _, err := decodeBenchmarkMethodology(strings.NewReader(duplicate)); err == nil || !strings.Contains(err.Error(), "already defined") {
 		t.Fatalf("duplicate-key decode error = %v", err)

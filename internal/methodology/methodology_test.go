@@ -21,6 +21,12 @@ func TestLoadIsIndependentOfWorkingDirectory(t *testing.T) {
 			t.Fatalf("Load(%q): %v", version, err)
 		}
 		wantSource := "tools/bench/methodology-" + version + ".yaml"
+		switch version {
+		case "v5-cache-aware":
+			wantSource = "tools/bench/specs/cache-aware.yaml"
+		case "v6-prompt-cache-token-hit-rate":
+			wantSource = "tools/bench/specs/prompt-cache-token-hit-rate.yaml"
+		}
 		if spec.Version != version || source != wantSource {
 			t.Fatalf("got version=%q source=%q", spec.Version, source)
 		}

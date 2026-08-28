@@ -264,7 +264,7 @@ func TestCommittedRiskTasksLoadAndScore(t *testing.T) {
 		promptFragments []string
 	}{
 		{
-			id: "structured-diff-v1",
+			id: "structured-diff",
 			promptFragments: []string{
 				"Array.from({length:1800}",
 				"events.splice(900",
@@ -273,7 +273,7 @@ func TestCommittedRiskTasksLoadAndScore(t *testing.T) {
 			},
 		},
 		{
-			id:              "failure-passthrough-v1",
+			id:              "failure-passthrough",
 			promptFragments: []string{"FACT_FAIL_STDERR=fail-stderr-1a2b3c4d", "1>&2; exit 2"},
 		},
 	} {

@@ -1,4 +1,4 @@
-id = "fact-midfile-v1"
+id = "fact-midfile"
 skill = "read"
 workspace_mode = "corpus"
 token_band = [30000, 60000]

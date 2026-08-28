@@ -772,28 +772,28 @@ Corpus tasks set `workspace_mode = "corpus"`. Each comparison attempt mounts
 Repo-inspection tasks may set `workspace_mode = "repo"` (full snapshot with the
 same answer-key exclusions).
 
-| Task ID                  | Skill     | Token band   | Stresses                                                                           | Scoring               |
-| ------------------------ | --------- | ------------ | ---------------------------------------------------------------------------------- | --------------------- |
-| `fact-midfile-v1`        | read      | 30–60k       | mid-file loss under `head:N`                                                       | multi-fact fractional |
-| `log-tail-error-v1`      | bash      | 40–80k       | tail errors under pure head                                                        | multi-fact fractional |
-| `crossfile-nav-v1`       | navigate  | **100–200k** | incomplete coverage + mid/tail                                                     | multi-fact fractional |
-| `ephemeral-midfact-v1`   | bash      | 20–80k       | mid-loss when facts live only in tool stdout (no on-disk re-grep); recovery footer | multi-fact fractional |
-| `structured-diff-v1`     | bash      | 30–80k       | JSON structure plus mid-body code-diff semantics and a tail result                 | multi-fact fractional |
-| `grep-noise-v1`          | find      | 40–80k       | needle lost in noise                                                               | multi-fact fractional |
-| `failure-passthrough-v1` | bash fail | small        | failure signal stripped                                                            | multi-fact fractional |
+| Task ID               | Skill     | Token band   | Stresses                                                                           | Scoring               |
+| --------------------- | --------- | ------------ | ---------------------------------------------------------------------------------- | --------------------- |
+| `fact-midfile`        | read      | 30–60k       | mid-file loss under `head:N`                                                       | multi-fact fractional |
+| `log-tail-error`      | bash      | 40–80k       | tail errors under pure head                                                        | multi-fact fractional |
+| `crossfile-nav`       | navigate  | **100–200k** | incomplete coverage + mid/tail                                                     | multi-fact fractional |
+| `ephemeral-midfact`   | bash      | 20–80k       | mid-loss when facts live only in tool stdout (no on-disk re-grep); recovery footer | multi-fact fractional |
+| `structured-diff`     | bash      | 30–80k       | JSON structure plus mid-body code-diff semantics and a tail result                 | multi-fact fractional |
+| `grep-noise`          | find      | 40–80k       | needle lost in noise                                                               | multi-fact fractional |
+| `failure-passthrough` | bash fail | small        | failure signal stripped                                                            | multi-fact fractional |
 
-`crossfile-nav-v1` is the headline heavy task. Smaller tasks diagnose _why_ a
+`crossfile-nav` is the headline heavy task. Smaller tasks diagnose _why_ a
 pipeline wins or loses (head vs keep-ends vs budget).
 
-The native risk map is explicit: `log-tail-error-v1` and
-`ephemeral-midfact-v1` cover large-log loss; `crossfile-nav-v1` covers
-cross-file navigation; `structured-diff-v1` covers structured JSON and code or
-diff comprehension; and `failure-passthrough-v1` covers stderr from a non-zero
+The native risk map is explicit: `log-tail-error` and
+`ephemeral-midfact` cover large-log loss; `crossfile-nav` covers
+cross-file navigation; `structured-diff` covers structured JSON and code or
+diff comprehension; and `failure-passthrough` covers stderr from a non-zero
 command.
 These are named task contracts, not evidence of general agent skill or complete
 benchmark-suite coverage. A measured result supports context or cost and
 deterministic-result claims only for the task and protocol that produced it.
-`structured-diff-v1` currently has deterministic contract, generation, and
+`structured-diff` currently has deterministic contract, generation, and
 scorer coverage but no model-backed result.
 
 Scoring expectations live in each task file. Corpus-backed planted facts also
@@ -1077,7 +1077,7 @@ more are `descriptive`. The label does not block smoke runs.
 | Tool-call inflation > 1       | Agent bounced / re-fetched under compression   |
 | Mid-fact miss + head-fact hit | `head:N` / narrow window damage                |
 | Tail-fact miss                | Missing keep-ends / tail window too small      |
-| `failure-passthrough-v1` miss | Failure path incorrectly compressed or dropped |
+| `failure-passthrough` miss    | Failure path incorrectly compressed or dropped |
 
 ## How to run
 
@@ -1095,10 +1095,10 @@ provider-request and provider-internal cache claims remain forbidden.
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml \
+  --methodology tools/bench/specs/prompt-cache-token-hit-rate.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --task-file tools/bench/tasks/crossfile-nav.toml \
   --cache-control observed \
   --warmup 1 \
   --rounds 5
@@ -1229,14 +1229,14 @@ paired interval is descriptive and supports no significance or causal claim.
 ktx bench compare \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --task-file tools/bench/tasks/crossfile-nav.toml \
   --rounds 3
 
 # Compare a different candidate
 ktx bench compare \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --task-file tools/bench/tasks/crossfile-nav.toml \
   --baseline-config tools/bench/pipelines/passthrough.toml \
   --candidate-config tools/bench/pipelines/aggressive-head.toml \
   --rounds 3
@@ -1248,11 +1248,11 @@ Run the full matrix in-process:
 ktx bench rank \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --task-file tools/bench/tasks/crossfile-nav.toml \
   --pipelines sanitize,keep-ends-mid,conservative-a,aggressive-head
 ```
 
-Prefer `crossfile-nav-v1` for headline evidence; use the smaller tasks to
+Prefer `crossfile-nav` for headline evidence; use the smaller tasks to
 attribute quality failures.
 
 ### Regenerate corpus

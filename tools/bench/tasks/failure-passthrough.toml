@@ -1,4 +1,4 @@
-id = "failure-passthrough-v1"
+id = "failure-passthrough"
 skill = "bash"
 workspace_mode = "corpus"
 token_band = [1000, 10000]

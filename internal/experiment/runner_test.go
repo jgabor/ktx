@@ -197,7 +197,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	writeFixture("README.md", "fixture\n")
 	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-	methodology := writeFixture("tools/bench/methodology-v5-cache-aware.yaml", "methodology_version: v5-cache-aware\n")
+	methodology := writeFixture("tools/bench/specs/cache-aware.yaml", "methodology_version: v5-cache-aware\n")
 	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -391,7 +391,7 @@ func TestRunnerCompareKeepsValidRejectedCostGuardAsSuccess(t *testing.T) {
 	}
 	writeFixture("README.md", "fixture\n")
 	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-	methodology := writeFixture("tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml", "methodology_version: v6-prompt-cache-token-hit-rate\n")
+	methodology := writeFixture("tools/bench/specs/prompt-cache-token-hit-rate.yaml", "methodology_version: v6-prompt-cache-token-hit-rate\n")
 	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -430,7 +430,7 @@ func TestRunnerAlternatesAndCleansContainers(t *testing.T) {
 	}
 	writeFixture("README.md", "fixture\n")
 	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-	writeFixture("tools/bench/methodology-v4-eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
+	writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
 	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -441,7 +441,7 @@ func TestRunnerAlternatesAndCleansContainers(t *testing.T) {
 		Model: "neuralwatt/test", TaskFile: task, TargetValid: 2, MaxAttempts: 4,
 		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "experiment",
 		DataDir: filepath.Join(root, "data"), Image: "image", AuthPath: auth, RepoRoot: root,
-		MethodologyPath: filepath.Join(root, "tools/bench/methodology-v4-eval-matrix.yaml"),
+		MethodologyPath: filepath.Join(root, "tools/bench/specs/eval-matrix.yaml"),
 		BaselineConfig:  baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
 	})
 	if err != nil || code != 0 {
@@ -501,7 +501,7 @@ func TestRunnerAlternatesAndCleansContainers(t *testing.T) {
 		Model: "neuralwatt/test", TaskFile: task, TargetValid: 1, MaxAttempts: 3,
 		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "timeout-retry",
 		DataDir: filepath.Join(root, "timeout-data"), Image: "image", AuthPath: auth, RepoRoot: root,
-		MethodologyPath: filepath.Join(root, "tools/bench/methodology-v4-eval-matrix.yaml"),
+		MethodologyPath: filepath.Join(root, "tools/bench/specs/eval-matrix.yaml"),
 		BaselineConfig:  baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
 	})
 	if err == nil || code != 2 || timeoutFake.attemptRuns != 1 {
@@ -607,7 +607,7 @@ func TestRunnerAcceptsNonNeuralwattProviders(t *testing.T) {
 	}
 	writeFixture("README.md", "fixture\n")
 	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-	writeFixture("tools/bench/methodology-v4-eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
+	writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
 	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -618,7 +618,7 @@ func TestRunnerAcceptsNonNeuralwattProviders(t *testing.T) {
 		Model: "openai/gpt-5.6-luna", TaskFile: task, TargetValid: 2, MaxAttempts: 4,
 		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "openai-accept",
 		DataDir: filepath.Join(root, "data"), Image: "image", AuthPath: auth, RepoRoot: root,
-		MethodologyPath: filepath.Join(root, "tools/bench/methodology-v4-eval-matrix.yaml"),
+		MethodologyPath: filepath.Join(root, "tools/bench/specs/eval-matrix.yaml"),
 		BaselineConfig:  baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
 	})
 	if err != nil || code != 0 {
@@ -638,7 +638,7 @@ func TestCompareAttestsCapabilitiesBeforeAuthAndArtifacts(t *testing.T) {
 		}
 		return path
 	}
-	methodology := write("tools/bench/methodology-v5-cache-aware.yaml", "methodology_version: v5-cache-aware\n")
+	methodology := write("tools/bench/specs/cache-aware.yaml", "methodology_version: v5-cache-aware\n")
 	task := write("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"prompt\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
 	baseline := write("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := write("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = []\n")
@@ -781,7 +781,7 @@ func TestRunnerVariantPropagation(t *testing.T) {
 			}
 			writeFixture("README.md", "fixture\n")
 			writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-			writeFixture("tools/bench/methodology-v4-eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
+			writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
 			baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 			candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 			task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -792,7 +792,7 @@ func TestRunnerVariantPropagation(t *testing.T) {
 				Model: "openai/gpt-5.6-luna", Variant: tc.variant, TaskFile: task, TargetValid: 2, MaxAttempts: 4,
 				AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "variant-" + tc.name,
 				DataDir: filepath.Join(root, "data"), Image: "image", AuthPath: auth, RepoRoot: root,
-				MethodologyPath: filepath.Join(root, "tools/bench/methodology-v4-eval-matrix.yaml"),
+				MethodologyPath: filepath.Join(root, "tools/bench/specs/eval-matrix.yaml"),
 				BaselineConfig:  baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",
 			})
 			if err != nil || code != 0 {

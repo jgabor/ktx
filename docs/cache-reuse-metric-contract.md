@@ -3,8 +3,8 @@
 ## Current contract
 
 The current machine-readable authority for new cache-aware benchmark work is
-`tools/bench/cache-reuse-contract-v2.json`. It is activated explicitly by
-`tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml`.
+`tools/bench/contracts/cache-reuse.json`. It is activated explicitly by
+`tools/bench/specs/prompt-cache-token-hit-rate.yaml`.
 It emits summary schema 5. The token-weighted `prompt_cache_token_hit_rate` is
 reported under the pinned accounting contract. Provider-request and
 provider-internal claims remain forbidden.

@@ -173,7 +173,6 @@ type CacheControlManifest struct {
 
 type PipelineMetadata struct {
 	Path       string   `json:"path"`
-	SourcePath string   `json:"source_path"`
 	PipelineID string   `json:"pipeline_id"`
 	SHA256     string   `json:"sha256"`
 	Stages     []string `json:"stages"`
@@ -181,8 +180,17 @@ type PipelineMetadata struct {
 
 type MethodologyMetadata struct {
 	Version string `json:"version"`
+	ID      string `json:"id,omitempty"`
 	Path    string `json:"path"`
 	SHA256  string `json:"sha256"`
+}
+
+type InputMetadata struct {
+	ID     string `json:"id"`
+	Kind   string `json:"kind"`
+	Format string `json:"format"`
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
 }
 
 type PricingSnapshotMetadata struct {
@@ -224,6 +232,7 @@ type Manifest struct {
 	Identities              map[string]string           `json:"identities"`
 	Pipelines               map[string]PipelineMetadata `json:"pipelines"`
 	Methodology             MethodologyMetadata         `json:"methodology"`
+	Inputs                  []InputMetadata             `json:"inputs,omitempty"`
 	Pricing                 *PricingSnapshotMetadata    `json:"pricing,omitempty"`
 	CacheControl            *CacheControlManifest       `json:"cache_control,omitempty"`
 	historicalSummarySchema int

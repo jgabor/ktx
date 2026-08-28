@@ -22,11 +22,11 @@ inputs:
     - aggressive-head
     - aggressive-keep-ends
   tasks:
-    - fact-midfile-v1
-    - log-tail-error-v1
-    - crossfile-nav-v1
-    - grep-noise-v1
-    - failure-passthrough-v1
+    - fact-midfile
+    - log-tail-error
+    - crossfile-nav
+    - grep-noise
+    - failure-passthrough
   corpus:
     path: tools/bench/corpus/
     generator: ktx bench corpus generate

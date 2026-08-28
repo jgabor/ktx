@@ -19,9 +19,9 @@ inputs:
     provider: "openai"
     variant: "high"
   task:
-    identifier: "crossfile-nav-v1"
+    identifier: "crossfile-nav"
     prompt: "Use the task file supplied to ktx bench compare."
-    expected_output: "See tools/bench/tasks/crossfile-nav-v1.toml."
+    expected_output: "See tools/bench/tasks/crossfile-nav.toml."
   scoring:
     function: multi_fact_fractional
 

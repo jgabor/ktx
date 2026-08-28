@@ -1,0 +1,13 @@
+id: hzuuiqtkvp
+artifact: plan
+record:
+  name: Establish semantic registries and current archive schema
+  depends_on:
+    []
+  status: in_progress
+  acceptance:
+    - GIVEN active specs, tasks, pipelines, and contracts WHEN listed THEN each has one versionless semantic ID and unknown, duplicate, or path-like IDs are rejected.
+    - GIVEN a new experiment WHEN retained THEN archive-relative snapshots contain each input ID, format, exact bytes, and SHA-256 without host source paths.
+    - GIVEN working-tree inputs are changed or removed WHEN the archive validates THEN current regeneration still succeeds from retained bytes.
+    - GIVEN SkillsBench history WHEN active specs are listed THEN it is absent from the active registry.
+  plan: bptycpojpd

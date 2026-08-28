@@ -729,6 +729,9 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return SummaryRegeneration{}, fmt.Errorf("decode manifest: %w", err)
 	}
+	if err := validateInputs(experimentDir, manifest.Inputs); err != nil {
+		return SummaryRegeneration{}, err
+	}
 	attempts, err := LoadAttempts(experimentDir)
 	if err != nil {
 		return SummaryRegeneration{}, err

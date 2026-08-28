@@ -1,0 +1,12 @@
+id: wxzrvwnref
+artifact: plan
+record:
+  name: Preserve active cache-runtime contracts
+  depends_on:
+    - hzuuiqtkvp
+  status: pending
+  acceptance:
+    - GIVEN cache-reuse dependencies WHEN classified THEN active runtime sequence, stats, regeneration, and comparison behavior are distinguished from direct-provider probes.
+    - GIVEN active contracts are retained or rehomed WHEN focused tests run THEN current prompt-cache specs, stats, and recovery comparisons remain unchanged.
+    - GIVEN probe-only code is identified WHEN deletion begins THEN no active import or current semantic spec depends on it.
+  plan: bptycpojpd

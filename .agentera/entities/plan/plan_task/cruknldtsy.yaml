@@ -1,0 +1,13 @@
+id: cruknldtsy
+artifact: plan
+record:
+  name: Cut over benchmark command vocabulary
+  depends_on:
+    - hzuuiqtkvp
+  status: pending
+  acceptance:
+    - GIVEN run, report, compare, and rank commands WHEN invoked THEN they use semantic spec, task, baseline, and candidate IDs only.
+    - GIVEN embedded lookup WHEN resolving an ID THEN it uses one explicit registry and never derives filenames from IDs.
+    - GIVEN old methodology, task-file, config-path, or data-dir flags WHEN supplied THEN they fail as unknown rather than aliasing.
+    - GIVEN help and structured errors WHEN inspected THEN they show only current semantic vocabulary and corrections.
+  plan: bptycpojpd

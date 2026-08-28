@@ -26,7 +26,7 @@ func buildValidSchema3Experiment(t *testing.T) string {
 		return path
 	}
 	write("README.md", "fixture\n")
-	methodology := write("tools/bench/methodology-v5-cache-aware.yaml", "methodology_version: v5-cache-aware\n")
+	methodology := write("tools/bench/specs/cache-aware.yaml", "methodology_version: v5-cache-aware\n")
 	task := write("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"prompt\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
 	baseline := write("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := write("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = []\n")

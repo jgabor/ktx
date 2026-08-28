@@ -1,0 +1,44 @@
+id: bptycpojpd
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-28
+    status: open
+    reviewed: 2026-08-28
+    critic_issues: 5 found, 5 addressed, 0 dismissed
+    title: "Plan: Cut Over Benchmark Specs and Experiment Storage"
+  what: Replace versioned benchmark filenames and path-oriented commands with semantic IDs, make current experiment archives self-contained under one project-local root, and remove legacy compatibility plus inactive probe surfaces.
+  why: Make benchmark execution and experiment discovery understandable from intent rather than filenames, version suffixes, paths, aliases, or multiple generated-data roots.
+  constraints: Use one clean cutover with no public compatibility aliases or legacy archive readers. Retain machine format and result schema versions internally, and snapshot exact active input bytes plus SHA-256 in each new archive. Preserve tracked static history unchanged but unsupported. Delete only the inventoried repository-root `.bench-data`, as explicitly authorized. Keep active prompt-cache and runtime telemetry behavior. Run no provider calls and never access the ambient live database. Use proportional pass/fail tests.
+  overall_acceptance: GIVEN the cutover is complete WHEN a user runs current benchmark workflows THEN every input and experiment is selected by semantic ID, generated state lives only under `.ktx/experiments`, current archives validate independently of working-tree inputs, inactive probes and public legacy vocabulary are absent, and static tracked history remains unchanged.
+  scope:
+    included:
+      - semantic active spec, task, pipeline, and contract registries
+      - self-contained current experiment manifest and snapshots
+      - ID-only benchmark execution and lifecycle commands
+      - project-local experiment storage and derived listing
+      - active cache-runtime dependency extraction
+      - inactive probe and legacy-reader removal
+      - authorized local archive deletion
+      - documentation, skills, tests, and project-state synchronization
+    excluded:
+      - changing benchmark metrics, scoring, or pipeline algorithms
+      - rerunning paid experiments
+      - rewriting tracked historical reports or Agentera records
+      - supporting legacy paths, aliases, readers, or migrations
+    deferred:
+      []
+  design: Define current semantic identities and self-contained retained inputs first. Cut every active command to that registry, then establish one experiment root and ID-based lifecycle. Separate active runtime cache contracts from obsolete probe code before deletion. Remove all legacy readers and inactive probes only after current-schema validation is independent. Finish with destructive local cleanup, repository verification, and synchronized documentation.
+  unknowns:
+    - question: Which legacy decode branches are still used by the current archive schema?
+      affects_task: 1
+      resolve_by: Trace current generation and validation before defining the new self-contained schema; remove readers only after current fixtures pass without them.
+    - question: Which cache-reuse components support active stats and comparisons rather than retired direct-provider probes?
+      affects_task: 4
+      resolve_by: Classify import edges and prove active runtime sequence and telemetry behavior before removing probe-specific code.
+    - question: What exactly exists under the ignored repository-root `.bench-data` before deletion?
+      affects_task: 3
+      resolve_by: Inventory the exact root, report bounded counts and size, verify it is ignored and untracked, then delete only that root.
+  surprises:
+    []

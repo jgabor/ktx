@@ -1,0 +1,17 @@
+id: nfssacqghu
+artifact: plan
+record:
+  name: Verify and synchronize the clean cutover
+  depends_on:
+    - hzuuiqtkvp
+    - cruknldtsy
+    - htcshphawt
+    - wxzrvwnref
+    - xidffdcgth
+  status: pending
+  acceptance:
+    - GIVEN the final repository WHEN verification runs THEN mage verify and current offline preflight and fixture workflows pass with isolated application roots.
+    - GIVEN active code, help, tests, docs, and skills WHEN searched THEN no `.bench-data`, methodology filename, versioned active input, or removed command reference remains; static-history boundaries are excluded.
+    - GIVEN current workflows WHEN exercised THEN one semantic-ID experiment can be listed, shown, summarized, and validated without source inputs.
+    - GIVEN project state WHEN synchronized THEN TODO, progress, health, and final reporting record deleted local bytes, intentional historical validation loss, unchanged tracked history, and user-owned decision satisfaction.
+  plan: bptycpojpd

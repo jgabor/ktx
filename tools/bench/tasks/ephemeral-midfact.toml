@@ -1,4 +1,4 @@
-id = "ephemeral-midfact-v1"
+id = "ephemeral-midfact"
 skill = "bash"
 workspace_mode = "corpus"
 token_band = [20000, 80000]

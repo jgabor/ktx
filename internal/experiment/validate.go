@@ -16,6 +16,9 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		return nil, err
 	}
+	if err := validateInputs(experimentDir, manifest.Inputs); err != nil {
+		return nil, err
+	}
 	attempts, err := LoadAttempts(experimentDir)
 	if err != nil {
 		return nil, err
@@ -170,6 +173,25 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		report["acceptance_reasons"] = expectedSummaryValue["acceptance_reasons"]
 	}
 	return report, nil
+}
+
+func validateInputs(experimentDir string, inputs []InputMetadata) error {
+	seen := make(map[string]bool)
+	for _, input := range inputs {
+		key := input.Kind + "\x00" + input.ID
+		if input.ID == "" || input.Format == "" || input.Path == "" || seen[key] {
+			return fmt.Errorf("invalid or duplicate retained input %q", input.ID)
+		}
+		seen[key] = true
+		if filepath.IsAbs(input.Path) || filepath.Clean(input.Path) == ".." || len(input.Path) >= 3 && filepath.Clean(input.Path)[:3] == ".."+string(filepath.Separator) {
+			return fmt.Errorf("retained input path must be archive-relative: %q", input.Path)
+		}
+		hash, err := fileSHA256(filepath.Join(experimentDir, filepath.FromSlash(input.Path)))
+		if err != nil || hash != input.SHA256 {
+			return fmt.Errorf("retained input hash mismatch %s %q", input.Kind, input.ID)
+		}
+	}
+	return nil
 }
 
 func retainedProjectionSourceHashes(experimentDir string) (map[string]any, error) {

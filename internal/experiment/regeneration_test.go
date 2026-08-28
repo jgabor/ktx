@@ -54,6 +54,47 @@ func TestAuthoritativeRegenerationIgnoresProjectionDriftAndDuplicates(t *testing
 	}
 }
 
+func TestRegenerationUsesRetainedInputsAfterSourceDisappears(t *testing.T) {
+	dir, manifest, attempt := writeAuthorityFixture(t)
+	source := filepath.Join(t.TempDir(), "crossfile-nav.toml")
+	content := []byte("id = \"crossfile-nav\"\n")
+	if err := os.WriteFile(source, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	retained := filepath.Join(dir, "inputs", "task", "crossfile-nav.toml")
+	if err := os.MkdirAll(filepath.Dir(retained), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(retained, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest.Inputs = []InputMetadata{{ID: "crossfile-nav", Kind: "task", Format: "toml", Path: "inputs/task/crossfile-nav.toml", SHA256: sha256Bytes(content)}}
+	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
+		t.Fatal(err)
+	}
+	writeAttemptRecords(t, dir, attempt)
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RegenerateSummary(dir); err != nil {
+		t.Fatal(err)
+	}
+	report, err := ValidateExperiment(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if valid, _ := report["valid"].(bool); !valid {
+		t.Fatalf("validation report = %#v", report)
+	}
+	manifestBytes, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(manifestBytes, []byte(source)) {
+		t.Fatal("manifest retained a host source path")
+	}
+}
+
 func TestAuthoritativeRegenerationRejectsConflictingDuplicate(t *testing.T) {
 	dir, manifest, attempt := writeAuthorityFixture(t)
 	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {

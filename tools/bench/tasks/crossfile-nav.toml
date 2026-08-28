@@ -1,4 +1,4 @@
-id = "crossfile-nav-v1"
+id = "crossfile-nav"
 skill = "navigate"
 workspace_mode = "corpus"
 token_band = [100000, 200000]

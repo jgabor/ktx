@@ -191,7 +191,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      The generic preflight returns before task loading; --build adds image creation.")
 	fmt.Fprintln(w, "      --pricing-snapshot <pricing.json> pins those exact bytes; --pricing-sha256")
 	fmt.Fprintln(w, "      optionally requires their identity. Preflight validates the pin and model.")
-	fmt.Fprintln(w, "      Cache-aware opt-in: --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml")
+	fmt.Fprintln(w, "      Cache-aware opt-in: --methodology tools/bench/specs/prompt-cache-token-hit-rate.yaml")
 	fmt.Fprintln(w, "      with --cache-control auto|isolated|observed, --warmup N (default 1), --rounds N (default 5).")
 	fmt.Fprintln(w, "      This current path emits summary schema 5 under cache-reuse-v2.")
 	fmt.Fprintln(w, "      Claims about provider-internal behavior remain forbidden.")

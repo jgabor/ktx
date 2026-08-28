@@ -1,4 +1,4 @@
-id = "log-tail-error-v1"
+id = "log-tail-error"
 skill = "bash"
 workspace_mode = "corpus"
 token_band = [40000, 80000]

@@ -1,0 +1,14 @@
+id: htcshphawt
+artifact: plan
+record:
+  name: Establish ID-based experiment lifecycle and storage
+  depends_on:
+    - hzuuiqtkvp
+    - cruknldtsy
+  status: pending
+  acceptance:
+    - GIVEN a new benchmark run WHEN artifacts are created THEN they exist only under `.ktx/experiments/<id>` and `.ktx` is ignored and snapshot-excluded.
+    - GIVEN list, show, validate, or summarize WHEN called THEN experiment IDs resolve from the fixed root and unknown, malformed, traversal, or duplicate IDs fail safely.
+    - GIVEN malformed experiment manifests WHEN listed THEN bounded status is shown without blocking other entries.
+    - GIVEN the authorized cleanup WHEN the exact ignored repository-root `.bench-data` is inventoried THEN its bounded count and size are reported before only that root is deleted.
+  plan: bptycpojpd

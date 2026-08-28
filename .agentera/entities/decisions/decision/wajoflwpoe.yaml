@@ -1,0 +1,23 @@
+id: wajoflwpoe
+artifact: decisions
+record:
+  date: 2026-08-28
+  question: How should KTX simplify benchmark definition names, selectors, generated storage, and historical compatibility?
+  context: Active benchmark definitions use version-heavy methodology filenames and path-oriented flags, while generated archives default to .bench-data. KTX has no external users or remote compatibility surface. Exact experiment reproducibility already depends on retained snapshots and hashes. The inactive cache-evidence surface stores campaign-specific evidence, not reusable cache state.
+  alternatives:
+    - name: Use semantic IDs and one clean project-local experiment root with no public or historical compatibility layer.
+      status: chosen
+    - name: Keep version numbers in active filenames.
+      status: rejected
+    - name: Add semantic aliases while retaining old flags, paths, and readers.
+      status: rejected
+    - name: Maintain a generated Markdown experiment index.
+      status: rejected
+    - name: Relocate the inactive cache-evidence surface instead of removing it.
+      status: rejected
+    - name: Preserve legacy archive readers after the cutover.
+      status: rejected
+  choice: Active benchmark definitions move to versionless semantic names under `tools/bench/specs`, `tools/bench/tasks`, `tools/bench/pipelines`, and `tools/bench/contracts`. CLI inputs use semantic IDs through `--spec`, `--task`, `--baseline`, and `--candidate`; behavior never dispatches from filename suffixes. Machine format and result schema versions remain internal metadata. Each experiment retains exact input bytes and SHA-256 values as revision identity. Generated archives live only under `.ktx/experiments/<id>` and are discovered through `ktx bench list`; `show`, `validate`, and `summarize` accept experiment IDs only. Remove `.bench-data`, path-oriented input and lifecycle flags, public aliases, legacy readers, and the inactive cache-evidence command, implementation, documentation, and generated-path contract. Delete ignored local legacy archives. Keep tracked reports and decision records as static history without validation guarantees. SkillsBench remains historical external evidence under its campaign archive and is not an active spec.
+  reasoning: Semantic IDs communicate intent directly and remove duplicated filename/version vocabulary. Retained bytes and hashes provide exact revision identity more reliably than filename suffixes. A fixed `.ktx/experiments` root enables simple ID-based lifecycle commands and derived listing without a stale index. With no external consumers, compatibility aliases and dual storage roots add cost without value. Historical reports still explain past work, while removing legacy readers explicitly ends byte-regeneration guarantees for old archives. Retiring cache-evidence removes an inactive historical probe surface whose artifacts were never reusable cache state.
+  confidence: firm
+  feeds_into: One clean-cutover implementation plan covering benchmark specs, IDs, storage, lifecycle commands, historical cleanup, and documentation.

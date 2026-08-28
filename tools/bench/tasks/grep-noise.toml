@@ -1,4 +1,4 @@
-id = "grep-noise-v1"
+id = "grep-noise"
 skill = "find"
 workspace_mode = "corpus"
 token_band = [40000, 80000]

@@ -20,6 +20,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/jgabor/ktx/internal/benchcontract"
+	"github.com/jgabor/ktx/internal/benchregistry"
 	"github.com/jgabor/ktx/internal/db"
 )
 
@@ -48,6 +49,13 @@ type CompareOptions struct {
 	PricingSHA256      string
 	Warmup             int
 	WarmupSet          bool
+	RegisteredInputs   bool
+	SpecID             string
+	TaskID             string
+	BaselineID         string
+	CandidateID        string
+	ContractID         string
+	ContractPath       string
 	methodologyVersion string
 }
 
@@ -165,11 +173,16 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err != nil {
 		return "", nil, 2, err
 	}
+	inputs, err := snapshotInputs(experimentDir, options)
+	if err != nil {
+		return "", nil, 2, err
+	}
 	manifest, err := runner.createManifest(ctx, options, experimentID, configs, SnapshotMetadata{Path: "repository", SHA256: repositoryHash, FileCount: repositoryFiles}, runtime)
 	if err != nil {
 		return "", nil, 2, err
 	}
 	manifest.Pricing = pricing
+	manifest.Inputs = inputs
 	if cacheAwareMethodology(options.methodologyVersion) {
 		manifest.CacheControl = &CacheControlManifest{Mode: cacheControl.mode, Source: cacheControl.source, NamespaceSHA256: cacheControl.hashes, WarmupCount: options.Warmup, IdleGapMS: 0, Model: options.Model, Provider: provider, Variant: options.Variant, RuntimeVersion: manifest.Identities["opencode"], TTFTAvailable: false, TTFTUnavailableReason: "retained OpenCode stream timestamps do not provide a reliable request start"}
 	}
@@ -292,13 +305,43 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 		options.Image = "ktx-bench"
 	}
 	if options.MethodologyPath == "" {
-		options.MethodologyPath = filepath.Join(options.RepoRoot, "tools", "bench", "methodology-v4-eval-matrix.yaml")
+		options.MethodologyPath = filepath.Join(options.RepoRoot, "tools", "bench", "specs", "eval-matrix.yaml")
 	}
 	if options.BaselineConfig == "" {
 		options.BaselineConfig = filepath.Join(options.RepoRoot, "tools", "bench", "pipelines", "passthrough.toml")
 	}
 	if options.CandidateConfig == "" {
 		options.CandidateConfig = filepath.Join(options.RepoRoot, "tools", "bench", "pipelines", "conservative-a.toml")
+	}
+	if options.RegisteredInputs {
+		registry := benchregistry.Active()
+		lookups := []struct {
+			kind benchregistry.Kind
+			path string
+			id   *string
+		}{{benchregistry.Spec, options.MethodologyPath, &options.SpecID}, {benchregistry.Pipeline, options.BaselineConfig, &options.BaselineID}, {benchregistry.Pipeline, options.CandidateConfig, &options.CandidateID}}
+		if options.TaskFile != "" {
+			lookups = append(lookups, struct {
+				kind benchregistry.Kind
+				path string
+				id   *string
+			}{benchregistry.Task, options.TaskFile, &options.TaskID})
+		}
+		for _, lookup := range lookups {
+			entry, err := registry.LookupPath(options.RepoRoot, lookup.kind, lookup.path)
+			if err != nil {
+				return err
+			}
+			*lookup.id = entry.ID
+		}
+		if options.SpecID == "prompt-cache-token-hit-rate" {
+			contract, err := registry.Lookup(benchregistry.Contract, "cache-reuse")
+			if err != nil {
+				return err
+			}
+			options.ContractID = contract.ID
+			options.ContractPath = filepath.Join(options.RepoRoot, filepath.FromSlash(contract.Path))
+		}
 	}
 	if options.AuthPath == "" {
 		home, err := os.UserHomeDir()
@@ -531,9 +574,43 @@ func snapshotConfigs(experimentDir, baseline, candidate string) (map[string]Pipe
 		if filepath.Base(filepath.Dir(absolute)) == "pipelines" {
 			pipelineID = strings.TrimSuffix(filepath.Base(absolute), filepath.Ext(absolute))
 		}
-		configs[side] = PipelineMetadata{Path: destination, SourcePath: absolute, PipelineID: pipelineID, SHA256: hash, Stages: decoded.Pipeline["default"].Stages}
+		configs[side] = PipelineMetadata{Path: filepath.ToSlash(filepath.Join("configs", "ktx.toml."+side)), PipelineID: pipelineID, SHA256: hash, Stages: decoded.Pipeline["default"].Stages}
 	}
 	return configs, nil
+}
+
+func snapshotInputs(experimentDir string, options CompareOptions) ([]InputMetadata, error) {
+	if !options.RegisteredInputs {
+		return nil, nil
+	}
+	type source struct{ kind, id, format, path string }
+	sources := []source{{"spec", options.SpecID, "yaml", options.MethodologyPath}, {"pipeline", options.BaselineID, "toml", options.BaselineConfig}, {"pipeline", options.CandidateID, "toml", options.CandidateConfig}}
+	if options.TaskFile != "" {
+		sources = append(sources, source{"task", options.TaskID, "toml", options.TaskFile})
+	}
+	if options.ContractPath != "" {
+		sources = append(sources, source{"contract", options.ContractID, "json", options.ContractPath})
+	}
+	result := make([]InputMetadata, 0, len(sources))
+	seen := make(map[string]bool)
+	for _, input := range sources {
+		key := input.kind + "\x00" + input.id
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		relative := filepath.ToSlash(filepath.Join("inputs", input.kind, input.id+"."+input.format))
+		destination := filepath.Join(experimentDir, filepath.FromSlash(relative))
+		if err := copyTreeFile(input.path, destination); err != nil {
+			return nil, err
+		}
+		hash, err := fileSHA256(destination)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, InputMetadata{ID: input.id, Kind: input.kind, Format: input.format, Path: relative, SHA256: hash})
+	}
+	return result, nil
 }
 
 type benchmarkRuntime struct {
@@ -602,6 +679,16 @@ func (runner *Runner) createManifest(ctx context.Context, options CompareOptions
 	methodology, err := methodologyMetadata(options.MethodologyPath)
 	if err != nil {
 		return Manifest{}, err
+	}
+	if options.RegisteredInputs {
+		methodology.ID = options.SpecID
+		methodology.Path = filepath.ToSlash(filepath.Join("inputs", "spec", options.SpecID+".yaml"))
+		options.Task.TaskFile = ""
+		for side, id := range map[string]string{Baseline: options.BaselineID, Candidate: options.CandidateID} {
+			pipeline := configs[side]
+			pipeline.PipelineID = id
+			configs[side] = pipeline
+		}
 	}
 	repository := runner.repositoryMetadata(ctx, options.RepoRoot)
 	repository.Snapshot = snapshot
@@ -748,7 +835,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	}
 	command = append(command,
 		"-v", options.AuthPath+":/home/node/.local/share/opencode/auth.json:ro",
-		"-v", manifest.Pipelines[side].Path+":/home/node/.config/ktx/ktx.toml:ro",
+		"-v", archivePath(experimentDir, manifest.Pipelines[side].Path)+":/home/node/.config/ktx/ktx.toml:ro",
 		"-v", database+":/home/node/.local/share/ktx/ktx.db:rw",
 		"-v", workspace+":/work:rw", options.Image, "-m", options.Model,
 	)
@@ -977,6 +1064,13 @@ func relativePath(root, path string) string {
 		return path
 	}
 	return filepath.ToSlash(relative)
+}
+
+func archivePath(root, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(root, filepath.FromSlash(path))
 }
 
 func (runner *Runner) output(ctx context.Context, command Command) (string, error) {

@@ -1,4 +1,4 @@
-id = "structured-diff-v1"
+id = "structured-diff"
 skill = "bash"
 workspace_mode = "corpus"
 token_band = [30000, 80000]

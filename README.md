@@ -174,10 +174,10 @@ cache claims.
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/methodology-v6-prompt-cache-token-hit-rate.yaml \
+  --methodology tools/bench/specs/prompt-cache-token-hit-rate.yaml \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav-v1.toml \
+  --task-file tools/bench/tasks/crossfile-nav.toml \
   --cache-control observed \
   --warmup 1 \
   --rounds 5

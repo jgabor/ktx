@@ -134,7 +134,7 @@ func TestPromptCacheTokenHitRateKeepsSchemaFourBoundary(t *testing.T) {
 }
 
 func TestPromptCacheTokenHitRateContract(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "tools", "bench", "cache-reuse-contract-v2.json"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "tools", "bench", "contracts", "cache-reuse.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,16 @@
+id: xidffdcgth
+artifact: plan
+record:
+  name: Remove legacy readers and inactive probes
+  depends_on:
+    - hzuuiqtkvp
+    - cruknldtsy
+    - htcshphawt
+    - wxzrvwnref
+  status: pending
+  acceptance:
+    - GIVEN the current schema validates independently WHEN cleanup runs THEN legacy manifest and summary readers, old active inputs, path aliases, and compatibility tests are removed.
+    - GIVEN the inactive cache-evidence surface WHEN removed THEN its commands, probe-specific implementation, tests, fixtures, docs, proposals, and generated-path checks are absent.
+    - GIVEN tracked static history under `tools/bench/evidence`, `tools/bench/archive`, named historical reports, and Agentera records WHEN cleanup completes THEN its bytes remain unchanged and no validation guarantee is claimed.
+    - GIVEN active stats and benchmarks WHEN tested THEN they remain functional.
+  plan: bptycpojpd

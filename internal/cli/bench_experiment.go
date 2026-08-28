@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
+	"github.com/jgabor/ktx/internal/benchregistry"
 	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/experiment"
@@ -320,6 +321,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 			BaselineConfig: baseline, CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: methodology,
 			CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet, PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
 			DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
+			RegisteredInputs: true,
 		})
 		if err != nil {
 			printError(stderr, internalError("ktx bench compare preflight: %v", err), opts.Format)
@@ -373,6 +375,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet,
 		PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
 		DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
+		RegisteredInputs: true,
 	})
 	if err != nil {
 		printError(stderr, usageError("ktx bench compare: %v", err), opts.Format)
@@ -480,6 +483,13 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, usageError("ktx bench rank: no candidate pipelines specified"), opts.Format)
 		return ExitUsage
 	}
+	registry := benchregistry.Active()
+	for _, id := range append([]string{baselineID}, candidates...) {
+		if _, err := registry.Lookup(benchregistry.Pipeline, id); err != nil {
+			printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
+			return ExitUsage
+		}
+	}
 	if campaignID == "" {
 		campaignID = "rank-" + time.Now().UTC().Format("20060102T150405Z")
 	}
@@ -508,6 +518,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 			DataDir: dataDir, Image: image, AuthPath: auth,
 			BaselineConfig: pipelineConfigPath(baselineID), CandidateConfig: pipelineConfigPath(candidateID),
 			DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
+			RegisteredInputs: true,
 		})
 		if err != nil {
 			printError(stderr, internalError("ktx bench rank: %s: %v", candidateID, err), opts.Format)
@@ -539,7 +550,8 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 }
 
 func pipelineConfigPath(id string) string {
-	return filepath.Join("tools", "bench", "pipelines", id+".toml")
+	entry, _ := benchregistry.Active().Lookup(benchregistry.Pipeline, id)
+	return entry.Path
 }
 
 func renderExperimentValue[T any](stdout io.Writer, value T, format string, textRenderer func(T) string) int {

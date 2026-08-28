@@ -1,0 +1,15 @@
+id: wlsygddodp
+artifact: progress
+record:
+  timestamp: 2026-08-28 14:55
+  type: feat
+  phase: build
+  what: Added internal/benchregistry and archive-relative manifest inputs under inputs/<kind>/<id>.<format> for active specs, tasks, pipelines, and contracts.
+  context:
+    intent: Establish semantic active input identity and a self-contained current archive contract.
+    constraints: No provider calls or ambient database access. Tracked benchmark evidence, archive, and historical report bytes remained unchanged.
+    unknowns: No production-scale provider experiment was run; source independence is proved by deterministic retained-archive tests.
+  discovered: Current archive regeneration can depend only on retained input bytes; no host source path is needed in the manifest.
+  verified: TestRegenerationUsesRetainedInputsAfterSourceDisappears passed after deleting its source input. Focused registry, experiment, CLI, cache-contract, and methodology tests passed. mage check passed with KTX_DB unset and disposable HOME/XDG roots.
+  next: Coordinator should evaluate hzuuiqtkvp while it remains in_progress, then downstream tasks can cut over CLI vocabulary and lifecycle storage.
+  publication_order: 199

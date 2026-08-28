@@ -2,7 +2,6 @@ package experiment
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -105,34 +104,6 @@ func TestPromptCacheTokenHitRateUsesExplicitFutureSchema(t *testing.T) {
 	}
 }
 
-func TestPromptCacheTokenHitRateKeepsSchemaFourBoundary(t *testing.T) {
-	manifest := comparisonManifest()
-	attempts := comparisonPairs(5, 20, 30)
-	before, err := MarshalJSON(BuildSummary(manifest, attempts))
-	if err != nil {
-		t.Fatal(err)
-	}
-	preserveHistoricalSummarySchema(&manifest, before)
-	after, err := MarshalJSON(BuildSummary(manifest, attempts))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Fatal("schema 4 summary bytes changed")
-	}
-	beforeHash, afterHash := sha256.Sum256(before), sha256.Sum256(after)
-	if beforeHash != afterHash {
-		t.Fatal("schema 4 summary hash changed")
-	}
-	t.Logf("schema 4 summary bytes=%d sha256=%x", len(after), afterHash)
-
-	future := promptCacheTokenHitRateManifest()
-	preserveHistoricalSummarySchema(&future, before)
-	if future.historicalSummarySchema != 4 || supportsPromptCacheTokenHitRate(future) {
-		t.Fatalf("schema 4 was eligible for schema 5 rewrite: %#v", future)
-	}
-}
-
 func TestPromptCacheTokenHitRateContract(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "tools", "bench", "contracts", "cache-reuse.json"))
 	if err != nil {
@@ -164,26 +135,6 @@ func TestPromptCacheTokenHitRateContract(t *testing.T) {
 	for index, want := range pipelineCostGuardReasonPrecedence {
 		if reasons[index] != want {
 			t.Fatalf("contract guard precedence = %#v, want %v", reasons, pipelineCostGuardReasonPrecedence)
-		}
-	}
-}
-
-func TestPromptCacheTokenHitRatePreservesV5ValidationWording(t *testing.T) {
-	manifest := comparisonManifest()
-	manifest.TargetValidPerPipeline = 0
-	reasons := validateCacheAwareEvidence(manifest, nil, nil, []byte(`{"schema_version":0}`), map[string]int{Baseline: 0, Candidate: 0})
-	for _, expected := range []string{
-		"v5 summary schema_version must be 4",
-		"v5 pricing snapshot is required",
-		"v5 target valid per pipeline must be positive",
-	} {
-		if !containsString(reasons, expected) {
-			t.Fatalf("validation reasons %v do not contain historical wording %q", reasons, expected)
-		}
-	}
-	for _, reason := range reasons {
-		if strings.Contains(reason, "v5-cache-aware") {
-			t.Fatalf("historical validation wording changed: %q", reason)
 		}
 	}
 }

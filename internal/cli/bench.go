@@ -102,8 +102,6 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 		return benchSubToExit(runBenchCorpus(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "agent":
 		return benchSubToExit(runBenchAgent(tail, opts, ctx.Stdout, ctx.Stderr))
-	case "evidence":
-		return benchSubToExit(runBenchEvidence(tail, opts, ctx.Stdout, ctx.Stderr))
 	default:
 		return nil, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub)
 	}
@@ -215,10 +213,6 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Regenerate an experiment summary by ID.")
 	fmt.Fprintln(w, "  agent --capabilities")
 	fmt.Fprintln(w, "      Emit the offline image collector contract as structured JSON.")
-	fmt.Fprintln(w, "  evidence preflight --spec <path> [--output <path>]")
-	fmt.Fprintln(w, "      Run the no-network gate for bounded OpenAI/OpenCode cache evidence.")
-	fmt.Fprintln(w, "  evidence gemini-preflight --spec <path> [--output <path>]")
-	fmt.Fprintln(w, "      Run the no-network gate for bounded Gemini/OpenCode cache evidence.")
 	fmt.Fprintln(w, "  corpus generate [--output <directory>]")
 	fmt.Fprintln(w, "      Regenerate the deterministic planted-fact corpus.")
 	fmt.Fprintln(w)

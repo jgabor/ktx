@@ -1,0 +1,16 @@
+id: tfwcpjrrmo
+artifact: progress
+record:
+  timestamp: 2026-08-28 19:36
+  type: feat
+  phase: build
+  what: Removed legacy benchmark readers, path aliases, retired active inputs, and the inactive cache-evidence probe surface while retaining current cache sequence contracts and static history.
+  context:
+    intent: Complete the clean benchmark cutover without changing retained historical artifacts.
+    constraints: No provider calls, ambient database access, historical artifact mutation, task completion, or profile-state refresh.
+    unknowns: Retained historical archives were preserved as static bytes and were not validated with the current runtime.
+    scope: Current experiment regeneration and validation, semantic registry, benchmark CLI, inactive probe implementation and documentation, focused contracts, and repository verification.
+  discovered: The bounded patch touched fewer than 1,000 paths. Current recovery summaries now use schema 7 directly; schema 6 compatibility projection and byte-preservation readers are absent.
+  verified: Focused go tests passed for internal/benchregistry, internal/cache/reuse/sequence, internal/cli, internal/experiment, internal/methodology, and tools/bench. mage build passed. The local ./build/ktx rejected bench evidence with exit 1 and a structured unknown-subcommand error; bench help omitted retired preflight commands. Isolated ./build/ktx stats summary returned schema 10 empty-state JSON and bench list returned an empty JSON array. mage check passed all tests, race checks, vet, generated-adapter gate, golangci-lint with zero issues, build, and the database-access audit with KTX_DB unset and a fresh disposable HOME/XDG root. The tracked tools/bench/evidence plus tools/bench/archive aggregate SHA-256 was 1b49f186c69a3c09e24ba9827257f47e914ac6a51ae6f51e3c80e2ac627d3a1d before and after cleanup.
+  next: Leave plan task xidffdcgth in progress for orchestrator evaluation; do not validate retained historical archives with the current runtime.
+  publication_order: 204

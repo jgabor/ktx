@@ -31,25 +31,10 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	decodedSummary, err := DecodeSummary(actualSummary)
-	structuralReason := ""
+	_, err = DecodeSummary(actualSummary)
 	if err != nil {
-		var retainedValue map[string]any
-		if json.Unmarshal(actualSummary, &retainedValue) != nil {
-			return nil, err
-		}
-		retained := Summary(retainedValue)
-		if retained.SchemaVersion() != 6 || !supportsRecoveryAwareComparison(manifest) || retained["recovery_aware_comparison"] != nil {
-			return nil, err
-		}
-		decodedSummary = retained
-		structuralReason = err.Error()
+		return nil, err
 	}
-	if isLegacyRecoverySummary(decodedSummary) {
-		manifest.legacyRecoverySemantics = true
-		applyLegacyRecoverySemantics(attempts)
-	}
-	preserveHistoricalSummarySchema(&manifest, actualSummary)
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, actualSummary)
 	if err != nil {
 		return nil, err
@@ -59,7 +44,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	cacheAware := cacheAwareMethodology(methodologyVersion)
 	seen := map[string]bool{}
 	checks := []map[string]any{}
-	valid := structuralReason == ""
+	valid := true
 	for _, attempt := range attempts {
 		attemptValid := true
 		reasons := append([]string(nil), attempt.validationReasons...)
@@ -133,24 +118,10 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	}
 	report := map[string]any{
 		"schema_version": 1, "experiment_id": manifest.ExperimentID, "valid": valid,
-		"summary_structural_valid": structuralReason == "", "summary_structural_reason": nil,
+		"summary_structural_valid": true, "summary_structural_reason": nil,
 		"summary_byte_match": summaryMatches, "target_met": targetMet,
 		"valid_counts": counts, "attempt_checks": checks,
 		"projection_divergences": divergences,
-	}
-	if structuralReason != "" {
-		sourceHashes, err := retainedProjectionSourceHashes(experimentDir)
-		if err != nil {
-			return nil, err
-		}
-		report["summary_structural_reason"] = structuralReason
-		projectionManifest := manifest
-		projectionManifest.historicalSummarySchema = 0
-		projection := BuildSummary(projectionManifest, attempts)
-		report["derived_projection"] = map[string]any{
-			"kind": "recovery_aware_comparison", "source": "retained_authoritative_artifacts",
-			"experiment_id": manifest.ExperimentID, "source_hashes": sourceHashes, "value": projection["recovery_aware_comparison"],
-		}
 	}
 	if !targetMet {
 		report["target_reason"] = "target_valid_per_pipeline_unmet"
@@ -194,18 +165,6 @@ func validateInputs(experimentDir string, inputs []InputMetadata) error {
 	return nil
 }
 
-func retainedProjectionSourceHashes(experimentDir string) (map[string]any, error) {
-	hashes := map[string]any{}
-	for name, file := range map[string]string{"manifest": "manifest.json", "attempts": "attempts.jsonl", "summary": "summary.json"} {
-		hash, err := fileSHA256(filepath.Join(experimentDir, file))
-		if err != nil {
-			return nil, err
-		}
-		hashes[name+"_sha256"] = hash
-	}
-	return hashes, nil
-}
-
 func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *pricingSnapshot, summaryData []byte, counts map[string]int) []string {
 	reasons := []string{}
 	summary, err := DecodeSummary(summaryData)
@@ -225,9 +184,6 @@ func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *
 	}
 	if supportsRecoveryAwareComparison(manifest) {
 		expectedSchema = 7
-		if manifest.historicalSummarySchema != 0 {
-			expectedSchema = float64(manifest.historicalSummarySchema)
-		}
 	}
 	if schema := float64(summary.SchemaVersion()); schema != expectedSchema {
 		reasons = append(reasons, fmt.Sprintf("%s summary schema_version must be %.0f", methodologyLabel, expectedSchema))

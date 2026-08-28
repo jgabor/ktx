@@ -12,70 +12,7 @@ import (
 
 	"github.com/jgabor/ktx/internal/benchcontract"
 	"github.com/jgabor/ktx/internal/config"
-	"github.com/jgabor/ktx/internal/experiment"
 )
-
-func TestBenchSummaryConsumersRejectConflictWithoutOverwrite(t *testing.T) {
-	root := t.TempDir()
-	t.Chdir(root)
-	dir := filepath.Join(root, ".ktx", "experiments", "conflict")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	manifest := experiment.Manifest{ExperimentID: "conflict", Methodology: experiment.MethodologyMetadata{Version: "v4"}, Task: experiment.Task{MinimumToolCalls: 1}}
-	if err := experiment.WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
-		t.Fatal(err)
-	}
-	for _, attempt := range []experiment.Attempt{
-		{SchemaVersion: 1, ExperimentID: "conflict", AttemptID: "baseline-001", Side: experiment.Baseline, Status: "timeout"},
-		{SchemaVersion: 1, ExperimentID: "conflict", AttemptID: "candidate-001", Side: experiment.Candidate, Status: "timeout"},
-	} {
-		if err := experiment.AppendAttempt(dir, attempt); err != nil {
-			t.Fatal(err)
-		}
-	}
-	summary := experiment.BuildSummary(manifest, nil)
-	baseline, _ := summary.Pipeline(experiment.Baseline)
-	baseline["pass_rate"] = 1.0
-	baseline["full_pass_rate"] = 0.0
-	summaryPath := filepath.Join(dir, "summary.json")
-	if err := experiment.WriteJSON(summaryPath, summary); err != nil {
-		t.Fatal(err)
-	}
-	before, err := os.ReadFile(summaryPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, test := range []struct {
-		name string
-		run  func(*bytes.Buffer, *bytes.Buffer) int
-	}{
-		{name: "validate", run: func(stdout, stderr *bytes.Buffer) int {
-			return runBenchValidate([]string{"conflict"}, Options{Format: FormatJSON}, stdout, stderr)
-		}},
-		{name: "summarize", run: func(stdout, stderr *bytes.Buffer) int {
-			return runBenchSummarize([]string{"conflict"}, Options{Format: FormatJSON}, stdout, stderr)
-		}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-			if code := test.run(&stdout, &stderr); code != ExitInternal {
-				t.Fatalf("exit code = %d, want %d; stdout=%s stderr=%s", code, ExitInternal, stdout.String(), stderr.String())
-			}
-			if !strings.Contains(stderr.String(), "conflicting summary baseline pass rates") {
-				t.Fatalf("stderr = %q", stderr.String())
-			}
-			after, err := os.ReadFile(summaryPath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(after, before) {
-				t.Fatal("rejected summary was overwritten")
-			}
-		})
-	}
-}
 
 func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))

@@ -24,10 +24,8 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 				correct = append(correct, attempt)
 			}
 		}
-		arm := recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct, manifest.legacyRecoverySemantics)
-		if manifest.historicalSummarySchema != 6 {
-			arm["call_accounting"] = callAccountingSummary(selected)
-		}
+		arm := recoveryAwareArm(manifest.TargetValidPerPipeline, evaluated, correct)
+		arm["call_accounting"] = callAccountingSummary(selected)
 		arms[side] = arm
 	}
 	result := map[string]any{
@@ -54,7 +52,7 @@ func buildRecoveryAwareComparison(manifest Manifest, attempts []Attempt) map[str
 	return result
 }
 
-func recoveryAwareArm(target int, evaluated, correct []Attempt, legacy bool) map[string]any {
+func recoveryAwareArm(target int, evaluated, correct []Attempt) map[string]any {
 	qualityQualified := len(correct) >= target && target > 0
 	primary := map[string]any{"state": "unavailable", "value": nil, "reason": "quality_gate_failed"}
 	if qualityQualified {
@@ -103,9 +101,6 @@ func recoveryAwareArm(target int, evaluated, correct []Attempt, legacy bool) map
 	recovery := map[string]any{"state": "measured", "reason": nil, "attempts_with_recovery": attemptsWithRecovery, "cue_count": cues, "followed_cue_count": followed, "cue_follow_rate": followRate, "attempt_count": recoveryAttempts, "repeated_attempt_count": repeatedRecovery}
 	if !recoveryAvailable {
 		recovery = map[string]any{"state": "unavailable", "reason": "cue_delivery_authority_unavailable", "attempts_with_recovery": nil, "cue_count": nil, "followed_cue_count": nil, "cue_follow_rate": nil, "attempt_count": nil, "repeated_attempt_count": nil}
-	} else if legacy {
-		delete(recovery, "state")
-		delete(recovery, "reason")
 	}
 	return map[string]any{
 		"quality_gate":                          map[string]any{"qualified": qualityQualified, "required_correct_tasks": target, "correct_task_count": len(correct), "evaluated_task_count": len(evaluated)},

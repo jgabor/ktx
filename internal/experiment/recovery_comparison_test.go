@@ -202,7 +202,7 @@ func TestIncompleteRecoveryAwareArchiveIsStructuralButTargetUnmet(t *testing.T) 
 	}
 }
 
-func TestCompleteHistoricalRecoverySummaryValidatesAndRemainsByteExact(t *testing.T) {
+func TestSchemaSixRecoverySummaryIsRejected(t *testing.T) {
 	dir := writeRecoveryArchive(t)
 	path := filepath.Join(dir, "summary.json")
 	data, err := os.ReadFile(path)
@@ -229,22 +229,12 @@ func TestCompleteHistoricalRecoverySummaryValidatesAndRemainsByteExact(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report["valid"] != true || report["summary_byte_match"] != true {
+	if report["valid"] != false || report["summary_byte_match"] != false {
 		t.Fatalf("validation report = %#v", report)
-	}
-	if _, err := RegenerateSummary(dir); err != nil {
-		t.Fatal(err)
-	}
-	after, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Fatal("complete schema-6 summary was rewritten")
 	}
 }
 
-func TestIncompleteHistoricalRecoverySummaryIsNotRewritten(t *testing.T) {
+func TestIncompleteSchemaSixRecoverySummaryIsRejected(t *testing.T) {
 	dir := writeRecoveryArchive(t)
 	path := filepath.Join(dir, "summary.json")
 	data, err := os.ReadFile(path)
@@ -264,30 +254,8 @@ func TestIncompleteHistoricalRecoverySummaryIsNotRewritten(t *testing.T) {
 	if err := os.WriteFile(path, before, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	wantManifestHash, _ := fileSHA256(filepath.Join(dir, "manifest.json"))
-	wantAttemptsHash, _ := fileSHA256(filepath.Join(dir, "attempts.jsonl"))
-	wantSummaryHash, _ := fileSHA256(path)
-	report, err := ValidateExperiment(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	projection, ok := report["derived_projection"].(map[string]any)
-	if !ok || projection["kind"] != "recovery_aware_comparison" || projection["source"] != "retained_authoritative_artifacts" || projection["experiment_id"] != "recovery-archive" {
-		t.Fatalf("derived projection = %#v", report["derived_projection"])
-	}
-	hashes, ok := projection["source_hashes"].(map[string]any)
-	if !ok || hashes["manifest_sha256"] != wantManifestHash || hashes["attempts_sha256"] != wantAttemptsHash || hashes["summary_sha256"] != wantSummaryHash {
-		t.Fatalf("source hashes = %#v", projection["source_hashes"])
-	}
-	if _, err := RegenerateSummary(dir); err == nil || !strings.Contains(err.Error(), "missing recovery_aware_comparison") {
-		t.Fatalf("regeneration error = %v", err)
-	}
-	after, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Fatal("historical incomplete summary was rewritten")
+	if _, err := ValidateExperiment(dir); err == nil || !strings.Contains(err.Error(), "missing recovery_aware_comparison") {
+		t.Fatalf("validation error = %v", err)
 	}
 }
 

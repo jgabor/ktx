@@ -1,0 +1,16 @@
+id: gohkhgalwc
+artifact: progress
+record:
+  timestamp: 2026-08-28 19:13
+  type: docs
+  phase: build
+  what: Recorded snapshot-safe cutover readiness and bounded legacy-removal inventory for the independent session.
+  context:
+    intent: Provide durable readiness evidence for the remaining benchmark-spec and experiment-storage cutover.
+    constraints: No provider calls, ambient database access, implementation mutation, deletion, commit, or task completion.
+    unknowns: None for the measured readiness gate.
+    scope: Session independence, repository-local storage checks, host memory trend, and pre-mutation legacy-removal inventory.
+  inspiration: Use measured bounds before the destructive cutover step.
+  verified: Independent OpenCode session confirmed. Repository-root .bench-data was absent and .ktx was ignored by .gitignore:3. MemAvailable was 15,870,140,416 bytes at 2026-08-28T19:03:30+02:00 and 16,147,673,088 bytes at 2026-08-28T19:05:23+02:00, above 10 GiB in both samples. Swap use decreased from 6,794,309,632 bytes to 6,621,171,712 bytes across the 113-second interval. The pre-mutation inventory contained 17 paths totaling 177,645 bytes, below 1,000 paths and 100 MB; internal/cache/reuse/sequence paths were excluded and retained. No implementation mutation occurred.
+  next: Proceed to the separately assigned deletion task; stop if its patch unexpectedly reaches 1,000 paths.
+  publication_order: 203

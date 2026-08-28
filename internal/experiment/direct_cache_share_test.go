@@ -10,8 +10,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/jgabor/ktx/internal/db"
 )
 
 func directShareManifest() Manifest {
@@ -261,59 +259,5 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	outcomes := authorization["outcomes"].(map[string]any)
 	if authorization["contract_version"] != directCacheContractVersion || outcomes["direct_available"].(map[string]any)["authorized"] != true {
 		t.Fatalf("validated statement authorization = %#v", authorization)
-	}
-}
-
-func TestDirectCachedInputSharePreservesHistoricalSchemaThreeBytes(t *testing.T) {
-	dir := t.TempDir()
-	manifest := directShareManifest()
-	manifest.CacheControl.RuntimeVersion = "1.18.4"
-	manifest.Identities["opencode"] = "1.18.4"
-	manifest.ExperimentID = "historical-schema-three"
-	rate := .5
-	pricing, err := writePricingSnapshot(dir, "openai", "test", db.Price{Input: 1, Output: 2, CacheRead: &rate, CacheWrite: &rate, InputSet: true, OutputSet: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest.Pricing = pricing
-	attempt := directShareAttempt("historical", directStep(1, MeasuredInteger(10), MeasuredInteger(5), MeasuredInteger(0)))
-	attempt.CacheControl.RuntimeVersion = "1.18.4"
-	attempt.ExperimentID = manifest.ExperimentID
-	manifest.historicalSummarySchema = 3
-	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
-		t.Fatal(err)
-	}
-	if err := AppendAttempt(dir, attempt); err != nil {
-		t.Fatal(err)
-	}
-	before, err := MarshalJSON(BuildSummary(manifest, []Attempt{attempt}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "summary.json"), before, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := RegenerateSummary(dir); err != nil {
-		t.Fatal(err)
-	}
-	after, err := os.ReadFile(filepath.Join(dir, "summary.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(after, before) {
-		t.Fatal("historical schema 3 bytes changed")
-	}
-	var summary map[string]any
-	if err := json.Unmarshal(after, &summary); err != nil {
-		t.Fatal(err)
-	}
-	if summary["schema_version"] != float64(3) {
-		t.Fatalf("historical schema = %v", summary["schema_version"])
-	}
-	if _, ok := summary["direct_cached_input_share"]; ok {
-		t.Fatalf("historical schema gained direct output: %#v", summary)
-	}
-	if _, ok := summary["statement_authorization"]; ok {
-		t.Fatalf("historical schema gained statement authorization: %#v", summary)
 	}
 }

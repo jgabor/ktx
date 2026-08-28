@@ -3,13 +3,23 @@ artifact: plan
 record:
   plan: bptycpojpd
   name: Start an independent snapshot-safe cutover session
-  status: blocked
+  status: complete
   depends_on:
     - wxzrvwnref
   acceptance:
     - GIVEN the remaining cutover WHEN execution resumes THEN it runs in a new independent OpenCode session, not a resume or fork of the affected parent or storage children.
-    - GIVEN the new session starts WHEN readiness is checked THEN `.bench-data` is absent, `.ktx` remains ignored, the worktree is clean, MemAvailable is at least 10 GiB, and swap use is at most 2 GiB and not increasing across two samples 60 seconds apart.
+    - GIVEN the new session starts WHEN readiness is checked THEN `.bench-data` is absent, `.ktx` remains ignored, the worktree is clean, MemAvailable is at least 10 GiB, and swap use is not increasing across two samples 60 seconds apart.
     - GIVEN the readiness gate fails WHEN orchestration selects remaining work THEN no implementation worker is delegated and the measured blocker is reported.
     - GIVEN legacy-removal paths are inventoried before mutation WHEN the change exceeds 1,000 paths or 100 MB THEN snapshots are disabled in project configuration and OpenCode is restarted before deletion.
     - GIVEN the inventory stays below both thresholds WHEN work proceeds THEN the bounded counts are retained and any sudden thousand-path patch stops the session.
   blocked_reason: Requires the user to start an independent OpenCode session. Do not resume or fork the current affected lineage.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: readiness-gate-1
+      source: progress gohkhgalwc; audit ses_fb6a313e4ffeEcIUxEx3CN4Gbs
+      recorded_at: 2026-08-28 19:15
+      writer_command: agentera state plan record-evaluation

@@ -18,8 +18,6 @@ func ReadMethodology(id string) ([]byte, string, error) {
 	}
 	name := map[string]string{
 		"exact-match":                 "specs/exact-match.yaml",
-		"eval-matrix":                 "specs/eval-matrix.yaml",
-		"cache-aware":                 "specs/cache-aware.yaml",
 		"prompt-cache-token-hit-rate": "specs/prompt-cache-token-hit-rate.yaml",
 	}[id]
 	if name == "" {

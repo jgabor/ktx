@@ -16,24 +16,21 @@ func cacheAwareMethodology(version string) bool {
 }
 
 func supportsDirectCachedInputShare(manifest Manifest) bool {
-	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 4) &&
-		manifest.Methodology.Version == "v5-cache-aware" &&
+	return manifest.Methodology.Version == "v5-cache-aware" &&
 		manifest.CacheControl != nil &&
 		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
 		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
 }
 
 func supportsPromptCacheTokenHitRate(manifest Manifest) bool {
-	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 5) &&
-		manifest.Methodology.Version == promptCacheTokenHitRateMethodologyVersion &&
+	return manifest.Methodology.Version == promptCacheTokenHitRateMethodologyVersion &&
 		manifest.CacheControl != nil &&
 		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
 		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
 }
 
 func supportsRecoveryAwareComparison(manifest Manifest) bool {
-	return (manifest.historicalSummarySchema == 0 || manifest.historicalSummarySchema >= 6) &&
-		manifest.Methodology.Version == recoveryAwareMethodologyVersion
+	return manifest.Methodology.Version == recoveryAwareMethodologyVersion
 }
 
 func supportsCacheTokenMetric(manifest Manifest) bool {

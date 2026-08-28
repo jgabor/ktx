@@ -6,10 +6,6 @@ import (
 	"testing"
 )
 
-func TestPreflightReportRejectedDestinationRemainsIntact(t *testing.T) {
-	assertRejectedDurableDestination(t, writePreflightReport, "preflight")
-}
-
 func TestReplayFixtureRejectedDestinationRemainsIntact(t *testing.T) {
 	assertRejectedDurableDestination(t, writeFileAtomically, "replay fixture")
 }

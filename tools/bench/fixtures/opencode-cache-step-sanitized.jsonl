@@ -1,1 +1,0 @@
-{"type":"step_finish","sessionID":"ses_synthetic_1","part":{"id":"prt_synthetic_1","sessionID":"ses_synthetic_1","messageID":"msg_synthetic_1","type":"step-finish","reason":"stop","provider":"opencode","model":"big-pickle","cost":0,"tokens":{"input":1100,"output":12,"reasoning":4,"cache":{"read":1024,"write":0}}}}

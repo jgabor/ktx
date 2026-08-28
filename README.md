@@ -303,7 +303,7 @@ and pull request. Verification requires both `golangci-lint` and
 | [`docs/cache-reuse-metric-contract.md`](docs/cache-reuse-metric-contract.md) | Cache reuse metric definition                              |
 
 Additional engineering reports (load measurements, external validation,
-candidate qualification, cache-evidence studies) live under
+candidate qualification) live under
 [`docs/`](docs/). Architectural intent is documented in
 [`ARCHITECTURE.md`](ARCHITECTURE.md); repository working conventions are in
 [`AGENTS.md`](AGENTS.md).

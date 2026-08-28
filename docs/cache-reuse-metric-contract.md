@@ -45,10 +45,9 @@ An otherwise valid comparison with `accepted:false` is successful evidence.
 Rank output retains that candidate, marks it ineligible for recommendation, and
 orders it below the baseline and accepted candidates so it cannot take rank one.
 
-## Historical v1 contract
+## Earlier metric context
 
-The remainder of this document records `tools/bench/cache-reuse-contract-v1.json`
-as historical evidence. That contract defines two non-ranking views of retained
+The remainder of this document records two non-ranking views of retained
 OpenCode model-step evidence: a direct cached-input share and a consecutive-step
 estimate adapted from Pi's cache-waste calculation. Both describe
 runtime-reported token fields; neither describes provider requests, cache hits

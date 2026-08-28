@@ -8,7 +8,7 @@ record:
     - htcshphawt
     - wxzrvwnref
     - iahahowxig
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN the current schema validates independently WHEN cleanup runs THEN legacy manifest and summary readers, old active inputs, path aliases, and compatibility tests are removed.
     - GIVEN the inactive cache-evidence surface WHEN removed THEN its commands, probe-specific implementation, tests, fixtures, docs, proposals, and generated-path checks are absent.

@@ -12,7 +12,7 @@ live telemetry can support.
 
 Help, version, adapter/config/plugin management, `db
 path`, prices path/update, replay-file, comparison preflight, corpus generation,
-and evidence preflight do not open the ktx database.
+do not open the ktx database.
 
 ### Genuinely read-only
 

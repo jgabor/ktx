@@ -371,11 +371,8 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	}
 	if recoveryAware {
 		schemaVersion = 7
-		if manifest.historicalSummarySchema == 6 {
-			schemaVersion = 6
-		}
 	}
-	hasOutcomes := (promptCacheTokenHitRate || recoveryAware) && (manifest.historicalSummarySchema == 0 || manifest.historicalHasOutcomes)
+	hasOutcomes := promptCacheTokenHitRate || recoveryAware
 	for _, attempt := range attempts {
 		hasOutcomes = hasOutcomes && attempt.outcomes != nil
 	}
@@ -537,7 +534,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 		}
 		result["attempt_outcomes"] = rows
 	}
-	if recoveryAware && (manifest.historicalSummarySchema == 0 || manifest.historicalHasComparison) {
+	if recoveryAware {
 		result["recovery_aware_comparison"] = buildRecoveryAwareComparison(manifest, attempts)
 	}
 	if v3Required {
@@ -740,24 +737,9 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	if err != nil {
 		return SummaryRegeneration{}, err
 	}
-	existingSummary, readSummaryErr := os.ReadFile(filepath.Join(experimentDir, "summary.json"))
-	if readSummaryErr != nil && !os.IsNotExist(readSummaryErr) {
-		return SummaryRegeneration{}, readSummaryErr
-	}
-	var retainedSummary Summary
-	preserveLegacyBytes := false
-	if readSummaryErr == nil {
-		retainedSummary, err = DecodeSummary(existingSummary)
-		if err != nil {
-			return SummaryRegeneration{}, err
-		}
-		if isLegacyRecoverySummary(retainedSummary) {
-			preserveLegacyBytes = true
-		}
-	}
-	preserveHistoricalSummarySchema(&manifest, existingSummary)
-	if manifest.historicalSummarySchema != 0 {
-		preserveLegacyBytes = true
+	existingSummary, err := os.ReadFile(filepath.Join(experimentDir, "summary.json"))
+	if err != nil && !os.IsNotExist(err) {
+		return SummaryRegeneration{}, err
 	}
 	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, existingSummary)
 	if err != nil {
@@ -765,63 +747,10 @@ func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
 	}
 	attempts = estimateAttempts(attempts, pricing)
 	summary := BuildSummary(manifest, attempts)
-	if !preserveLegacyBytes {
-		if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
-			return SummaryRegeneration{}, err
-		}
+	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
+		return SummaryRegeneration{}, err
 	}
 	return SummaryRegeneration{Summary: summary, ProjectionDivergences: divergences}, nil
-}
-
-func isLegacyRecoverySummary(summary Summary) bool {
-	if summary.SchemaVersion() != 6 {
-		return false
-	}
-	comparison, _ := summary["recovery_aware_comparison"].(map[string]any)
-	arms, _ := comparison["arms"].(map[string]any)
-	for _, side := range Sides {
-		arm, _ := arms[side].(map[string]any)
-		recovery, _ := arm["recovery"].(map[string]any)
-		if recovery == nil {
-			return false
-		}
-		if _, current := recovery["state"]; current {
-			return false
-		}
-	}
-	return true
-}
-
-func applyLegacyRecoverySemantics(attempts []Attempt) {
-	for index := range attempts {
-		if attempts[index].outcomes == nil {
-			continue
-		}
-		recovery := attempts[index].outcomes.Recovery
-		if recovery["state"] == "unavailable" {
-			attempts[index].outcomes.Recovery = map[string]any{
-				"state": "measured", "cue_count": 0, "followed_cue_count": 0,
-				"attempt_count": 0, "repeated_attempt_count": 0,
-				"outcomes":           map[string]any{"succeeded": 0, "failed": 0},
-				"successful_results": map[string]any{"byte_exact": 0, "not_byte_exact": 0},
-			}
-		} else {
-			delete(recovery, "reason")
-		}
-	}
-}
-
-func preserveHistoricalSummarySchema(manifest *Manifest, summary []byte) {
-	var existing struct {
-		SchemaVersion   int             `json:"schema_version"`
-		AttemptOutcomes json.RawMessage `json:"attempt_outcomes"`
-		Comparison      json.RawMessage `json:"recovery_aware_comparison"`
-	}
-	if json.Unmarshal(summary, &existing) == nil && existing.SchemaVersion > 0 && existing.SchemaVersion <= 6 && (existing.SchemaVersion == 6 || len(existing.AttemptOutcomes) == 0) {
-		manifest.historicalSummarySchema = existing.SchemaVersion
-		manifest.historicalHasOutcomes = len(existing.AttemptOutcomes) > 0
-		manifest.historicalHasComparison = len(existing.Comparison) > 0
-	}
 }
 
 func WriteSummary(experimentDir string) (Summary, error) {

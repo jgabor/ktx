@@ -6,7 +6,7 @@
 
 - Active benchmark inputs now use one explicit semantic registry, and new experiment manifests retain archive-relative byte snapshots and SHA-256 identities for source-independent validation and regeneration.
 - A zero-call qualification freeze binds the recovery-aware midfile matrix, aggregate paid ceilings, runtime identities, pricing, and fail-closed preflight evidence before execution.
-- Experiment summary generation, validation, ranking, and rendering now share a structured Go contract while preserving historical serialized schemas.
+- Experiment summary generation, validation, ranking, and rendering share a structured Go contract for current archives.
 - Current benchmark summaries retain cue-linked recovery outcomes and exact normalized tool-call repeat counts from isolated attempt databases without exposing call material.
 - Recovery-aware comparisons use methodology v7 and summary schema 7 to rank quality-qualified configurations by complete runtime total tokens per correct task while retaining separate recovery, repeat, delivery, cost, quality, stream-call, and persisted-call authorities.
 - `ktx bench screen` now evaluates explicit complete pipeline configurations over one frozen generated population without model or database access, emitting bounded aggregate reconciliation and a controlled-fact-gated shortlist.

@@ -140,7 +140,7 @@ func TestSchema3IncompleteIntervalsCannotRegenerateIntoValidEvidence(t *testing.
 		t.Fatal("incomplete schema 3 intervals satisfied the completed experiment target")
 	}
 	methodologyReasons := report["methodology_reasons"].([]string)
-	if len(methodologyReasons) != len(attempts)+2 {
+	if len(methodologyReasons) != len(attempts) {
 		t.Fatalf("methodology reasons=%v", methodologyReasons)
 	}
 }

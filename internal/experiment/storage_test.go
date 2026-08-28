@@ -27,7 +27,7 @@ func TestRunnerUsesFixedRootAndRejectsCollision(t *testing.T) {
 		RepoRoot:        root,
 		ExperimentID:    "collision",
 		Task:            Task{ID: "task", Prompt: "work", ExpectedFacts: []string{"done"}},
-		MethodologyPath: filepath.Join(checkout, "tools", "bench", "specs", "eval-matrix.yaml"),
+		MethodologyPath: filepath.Join(checkout, "tools", "bench", "specs", "exact-match.yaml"),
 		DockerBin:       "docker",
 	})
 	if code != 2 || err == nil || !strings.Contains(err.Error(), "already exists") {

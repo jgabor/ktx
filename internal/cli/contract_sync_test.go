@@ -210,7 +210,7 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 
 	contract := readDocumentationFile(t, filepath.Join(root, "docs", "cache-reuse-metric-contract.md"))
 	assertContractText(t, contract,
-		[]string{"current machine-readable authority", "contracts/cache-reuse.json", "summary schema 5", "provider-internal claims", "cache-reuse-contract-v1.json", "historical evidence"},
+		[]string{"current machine-readable authority", "contracts/cache-reuse.json", "summary schema 5", "provider-internal claims"},
 		[]string{"Future collection, derivation, and\nrendering work must implement that versioned contract"})
 }
 

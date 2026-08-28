@@ -2,7 +2,6 @@ package benchregistry
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 )
 
@@ -29,8 +28,6 @@ var (
 
 var entries = []Entry{
 	{Spec, "exact-match", "yaml", "tools/bench/specs/exact-match.yaml"},
-	{Spec, "eval-matrix", "yaml", "tools/bench/specs/eval-matrix.yaml"},
-	{Spec, "cache-aware", "yaml", "tools/bench/specs/cache-aware.yaml"},
 	{Spec, "prompt-cache-token-hit-rate", "yaml", "tools/bench/specs/prompt-cache-token-hit-rate.yaml"},
 	{Spec, "recovery-aware-comparison", "yaml", "tools/bench/specs/recovery-aware-comparison.yaml"},
 	{Task, "crossfile-nav", "toml", "tools/bench/tasks/crossfile-nav.toml"},
@@ -52,7 +49,6 @@ var entries = []Entry{
 
 type Registry struct {
 	byKey   map[string]Entry
-	byPath  map[string]Entry
 	entries []Entry
 }
 
@@ -65,7 +61,7 @@ func Active() Registry {
 }
 
 func New(source []Entry) (Registry, error) {
-	r := Registry{byKey: make(map[string]Entry), byPath: make(map[string]Entry), entries: append([]Entry(nil), source...)}
+	r := Registry{byKey: make(map[string]Entry), entries: append([]Entry(nil), source...)}
 	for _, entry := range source {
 		if !semanticID.MatchString(entry.ID) || versionSuffix.MatchString(entry.ID) {
 			return Registry{}, fmt.Errorf("invalid %s ID %q: use a versionless semantic ID", entry.Kind, entry.ID)
@@ -74,11 +70,7 @@ func New(source []Entry) (Registry, error) {
 		if _, exists := r.byKey[key]; exists {
 			return Registry{}, fmt.Errorf("duplicate %s ID %q", entry.Kind, entry.ID)
 		}
-		clean := filepath.Clean(filepath.FromSlash(entry.Path))
-		if _, exists := r.byPath[clean]; exists {
-			return Registry{}, fmt.Errorf("duplicate registry path %q", entry.Path)
-		}
-		r.byKey[key], r.byPath[clean] = entry, entry
+		r.byKey[key] = entry
 	}
 	return r, nil
 }
@@ -90,26 +82,6 @@ func (r Registry) Lookup(kind Kind, id string) (Entry, error) {
 	entry, ok := r.byKey[string(kind)+"\x00"+id]
 	if !ok {
 		return Entry{}, fmt.Errorf("unknown %s ID %q", kind, id)
-	}
-	return entry, nil
-}
-
-func (r Registry) LookupPath(root string, kind Kind, path string) (Entry, error) {
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return Entry{}, err
-	}
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return Entry{}, err
-	}
-	relative, err := filepath.Rel(root, absolute)
-	if err != nil {
-		return Entry{}, err
-	}
-	entry, ok := r.byPath[filepath.Clean(relative)]
-	if !ok || entry.Kind != kind {
-		return Entry{}, fmt.Errorf("unregistered %s input %q", kind, path)
 	}
 	return entry, nil
 }

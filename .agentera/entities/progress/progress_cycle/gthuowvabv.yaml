@@ -1,0 +1,39 @@
+id: gthuowvabv
+artifact: progress
+record:
+  timestamp: 2026-08-28 20:30
+  type: docs
+  phase: build
+  what: Superseded the prior cutover reproduction sequence with a self-contained sequence that builds the local CLI before creating and inspecting the disposable archive.
+  context:
+    intent: Remove the remaining assumption that build/ktx already exists.
+    constraints: Test-only evidence correction; no product behavior, provider calls, ambient database, static history, decision satisfaction, task completion, or terminal health mutation.
+    unknowns: None for current offline reproduction.
+    scope: Local build plus the exact fixture, source deletion, lifecycle, measurement, and cleanup sequence.
+  discovered: Progress hlndfljgbz contained the same fixture and lifecycle sequence but assumed an existing local build; this record supersedes that command sequence.
+  verified: |-
+    Exact runnable sequence from the repository root:
+    repo=$PWD
+    work=$(mktemp -d /tmp/ktx-cutover-fixture.XXXXXX)
+    app=$(mktemp -d /tmp/ktx-cutover-app.XXXXXX)
+    mkdir "$app/home" "$app/data" "$app/config" "$app/cache" "$app/state"
+    export HOME="$app/home" XDG_DATA_HOME="$app/data" XDG_CONFIG_HOME="$app/config" XDG_CACHE_HOME="$app/cache" XDG_STATE_HOME="$app/state" KTX_OFFLINE_FIXTURE_ROOT="$work"
+    unset KTX_DB
+    mage build
+    go test ./internal/experiment -run '^TestSemanticIDOfflineExperimentFixture$' -count=1
+    rm -rf "$work/source"
+    test ! -e "$work/source"
+    (cd "$work" && "$repo/build/ktx" bench list > list.json && "$repo/build/ktx" bench show semantic-cutover-offline > show.json && "$repo/build/ktx" bench summarize semantic-cutover-offline > summarize.json && "$repo/build/ktx" bench validate semantic-cutover-offline > validate.json)
+    python3 - "$work" <<'PYMETRICS'
+    import json, sys
+    from pathlib import Path
+    work = Path(sys.argv[1]); root = work / '.ktx/experiments/semantic-cutover-offline'
+    def measure(path):
+        files = [p for p in path.rglob('*') if p.is_file()] if path.is_dir() else [path]
+        return {'files': len(files), 'allocated_bytes': sum(p.stat().st_blocks * 512 for p in files)}
+    print(json.dumps({'source_exists': (work/'source').exists(), 'total': measure(root), 'top_level': {p.name: measure(p) for p in sorted(root.iterdir())}, 'workspaces': {p.parent.name: measure(p) for p in sorted(root.glob('attempts/*/workspace'))}, 'list': json.loads((work/'list.json').read_text()), 'validate': json.loads((work/'validate.json').read_text())}, sort_keys=True))
+    PYMETRICS
+    rm -rf "$work" "$app"
+    Observed: mage build and the fixture test passed. Source deletion was confirmed before list/show/summarize/validate. List returned status ok; show and summarize exited 0; validate returned valid=true, target_met=true, summary_byte_match=true, with two valid attempts. source_exists=false. Total: 37 files, 495,616 allocated bytes. Top level: attempts 22/434,176; attempts.jsonl 1/4,096; configs 2/8,192; inputs 3/12,288; manifest.json 1/4,096; pricing.json 1/4,096; repository 6/24,576; summary.json 1/4,096. baseline-001 and candidate-001 workspaces each measured 6/24,576. Final cleanup removed both disposable roots. Static history was untouched.
+  next: Use this self-contained sequence for audit. Leave nfssacqghu in progress and decision satisfaction user-owned.
+  publication_order: 208

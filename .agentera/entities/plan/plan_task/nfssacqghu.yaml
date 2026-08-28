@@ -15,3 +15,13 @@ record:
     - GIVEN one current semantic-ID offline experiment WHEN exercised THEN it can be listed, shown, summarized, and validated without source inputs, and its total files, allocated bytes, and top-level size breakdown are retained; unexpected per-attempt workspace duplication is filed as follow-up.
     - GIVEN project state WHEN synchronized THEN TODO, progress, health, and final reporting record deleted local bytes, intentional historical validation loss, unchanged tracked history, and user-owned decision satisfaction.
   plan: bptycpojpd
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: Progress miqxluoqyp records the offline experiment result but not exact setup and lifecycle commands, so its 37-file layout and source-independent lifecycle cannot be independently reproduced.
+    provenance:
+      attempt_id: clean-cutover-1
+      source: audit ses_fb674230cffe0f0rBZvkttCQeq
+      recorded_at: 2026-08-28 20:06
+      writer_command: agentera state plan record-evaluation

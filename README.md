@@ -170,7 +170,7 @@ experiment lifecycle. Compare and rank require an explicit registered `--spec`;
 focused command help lists all current spec, task, baseline, and candidate IDs.
 
 ```bash
-./build/ktx bench compare --preflight --build --format json
+./build/ktx bench compare --preflight --build --spec prompt-cache-token-hit-rate --task crossfile-nav --format json
 
 ./build/ktx bench compare \
   --spec prompt-cache-token-hit-rate \

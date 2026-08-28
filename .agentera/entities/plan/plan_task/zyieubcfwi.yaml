@@ -6,7 +6,7 @@ record:
     - akedhpgjmg
     - unazxzoasn
     - shiqjpswnp
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN implementation and guidance are complete WHEN cross-surface verification runs THEN public docs, CLI help, agent guidance, and the active registry agree on selectors, IDs, lifecycle, and side effects.
     - GIVEN an isolated offline environment WHEN the canonical walkthrough runs without building a benchmark image THEN preflight and a disposable experiment lifecycle complete without provider calls or ambient database access.

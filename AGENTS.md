@@ -123,7 +123,7 @@ Methodology v5, summary schemas 1–4, `cache-reuse-v1`, and the retained v3 res
 remain historical evidence.
 
 ```bash
-./build/ktx bench compare --preflight --build --format json
+./build/ktx bench compare --preflight --build --spec prompt-cache-token-hit-rate --task crossfile-nav --format json
 
 ./build/ktx bench compare \
   --spec prompt-cache-token-hit-rate \

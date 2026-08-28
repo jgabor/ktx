@@ -1095,7 +1095,7 @@ the current inventory of registered IDs:
 Run the offline gate, then create an experiment with either compare or rank:
 
 ```bash
-./build/ktx bench compare --preflight --format json
+./build/ktx bench compare --preflight --spec prompt-cache-token-hit-rate --task crossfile-nav --format json
 
 ./build/ktx bench compare \
   --spec prompt-cache-token-hit-rate \
@@ -1153,9 +1153,9 @@ It reports the token-weighted prompt-cache hit rate under the pinned contract;
 provider-request and provider-internal cache claims remain forbidden.
 
 ```bash
-./build/ktx bench compare --preflight --format json
+./build/ktx bench compare --preflight --spec prompt-cache-token-hit-rate --task crossfile-nav --format json
 
-./build/ktx bench compare --preflight --build --format json
+./build/ktx bench compare --preflight --build --spec prompt-cache-token-hit-rate --task crossfile-nav --format json
 
 ./build/ktx bench compare \
   --build \

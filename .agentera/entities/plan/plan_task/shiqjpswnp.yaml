@@ -5,10 +5,20 @@ record:
   depends_on:
     - akedhpgjmg
     - unazxzoasn
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN a human or coding agent starts from supported guidance WHEN they follow the benchmark workflow THEN it covers offline preflight, compare or rank, list, show, summarize, and validate using semantic and experiment IDs.
     - GIVEN lifecycle commands have different effects WHEN guidance describes them THEN read-only inspection and validation are distinguished from summary regeneration and experiment creation.
     - GIVEN guidance discusses execution WHEN read THEN filesystem, database, network, provider-cost, archive-sensitivity, and historical-validation boundaries are explicit.
     - GIVEN active guidance is checked WHEN compared across public and agent-facing surfaces THEN it uses one consistent vocabulary and contains no path-oriented selection wording, while labeled historical material remains unchanged.
   plan: qbtiqutvao
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: benchmark-guidance-1
+      source: progress gceklvlkxt; audit ses_fb62304d9ffeJWCNHpz5IwUbkf
+      recorded_at: 2026-08-28 21:35
+      writer_command: agentera state plan record-evaluation

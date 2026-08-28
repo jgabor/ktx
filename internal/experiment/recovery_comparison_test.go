@@ -101,6 +101,27 @@ func TestRecoveryAwareComparisonUnavailableAndRankingExclusion(t *testing.T) {
 	}
 }
 
+func TestRecoveryAwareComparisonIncompleteOutcomesWithTargetUnmet(t *testing.T) {
+	manifest := recoveryManifest(2)
+	summary := BuildSummary(manifest, []Attempt{
+		recoveryAttempt("base", Baseline, 1, true, number(100), number(10), number(5), 0, 0, 1, 0),
+		recoveryAttempt("candidate", Candidate, 1, true, number(50), number(10), number(5), 0, 0, 1, 0),
+		{AttemptID: "auxiliary", Side: Baseline, Role: ColdObservation},
+	})
+	comparison := summary["recovery_aware_comparison"].(map[string]any)
+	completion := comparison["target_completion"].(map[string]any)
+	if comparison["reason"] != "incomplete_attempt_outcomes" || completion["met"] != false {
+		t.Fatalf("comparison = %#v", comparison)
+	}
+	data, err := MarshalJSON(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodeSummary(data); err != nil {
+		t.Fatalf("generated summary rejected: %v", err)
+	}
+}
+
 func TestRecoveryAwareArchiveValidatesAndRegeneratesByteExact(t *testing.T) {
 	dir := writeRecoveryArchive(t)
 	report, err := ValidateExperiment(dir)

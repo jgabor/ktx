@@ -70,6 +70,15 @@ func (summary Summary) Validate() error {
 		}
 	}
 	if summary.SchemaVersion() == 6 || summary.SchemaVersion() == 7 {
+		target, ok := numberAsInt(summary["target_valid_per_pipeline"])
+		if !ok || target <= 0 {
+			return fmt.Errorf("invalid recovery-aware target_valid_per_pipeline")
+		}
+		targetMet := true
+		for _, side := range Sides {
+			valid, _ := numberAsInt(pipelines[side].(map[string]any)["valid_count"])
+			targetMet = targetMet && valid >= target
+		}
 		comparison, ok := summary["recovery_aware_comparison"].(map[string]any)
 		if !ok {
 			return fmt.Errorf("summary schema %d is missing recovery_aware_comparison", summary.SchemaVersion())
@@ -88,20 +97,38 @@ func (summary Summary) Validate() error {
 				return fmt.Errorf("invalid recovery-aware primary outcome %q", side)
 			}
 		}
-		if comparison["state"] == "unavailable" {
-			if reason, ok := comparison["reason"].(string); !ok || reason == "" {
+		state, hasState := comparison["state"]
+		if !hasState {
+			if !targetMet || comparison["reason"] != nil || comparison["target_completion"] != nil {
+				return fmt.Errorf("invalid recovery-aware available comparison")
+			}
+		} else {
+			if state != "unavailable" {
+				return fmt.Errorf("invalid recovery-aware comparison state")
+			}
+			reason, ok := comparison["reason"].(string)
+			if !ok || (reason != "incomplete_attempt_outcomes" && reason != "target_valid_per_pipeline_unmet") {
 				return fmt.Errorf("invalid recovery-aware unavailable reason")
 			}
-			completion, hasCompletion := comparison["target_completion"].(map[string]any)
-			if comparison["reason"] == "target_valid_per_pipeline_unmet" {
-				if !hasCompletion || completion["met"] != false {
+			if reason == "target_valid_per_pipeline_unmet" && targetMet {
+				return fmt.Errorf("invalid recovery-aware unavailable reason")
+			}
+			rawCompletion, completionExists := comparison["target_completion"]
+			completion, hasCompletion := rawCompletion.(map[string]any)
+			if !hasCompletion && (completionExists || !targetMet) {
+				return fmt.Errorf("invalid recovery-aware target completion")
+			}
+			if hasCompletion {
+				if completion["met"] != targetMet {
 					return fmt.Errorf("invalid recovery-aware target completion")
 				}
-				if reason, ok := completion["reason"].(string); !ok || reason == "" {
+				if !targetMet {
+					if completion["reason"] != "target_valid_per_pipeline_unmet" {
+						return fmt.Errorf("invalid recovery-aware target completion reason")
+					}
+				} else if completion["reason"] != nil {
 					return fmt.Errorf("invalid recovery-aware target completion reason")
 				}
-			} else if hasCompletion && completion["met"] != true {
-				return fmt.Errorf("invalid recovery-aware target completion")
 			}
 		}
 	}

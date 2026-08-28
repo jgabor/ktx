@@ -1,0 +1,15 @@
+id: ztxptzavja
+artifact: progress
+record:
+  timestamp: 2026-08-28 12:30
+  type: fix
+  phase: build
+  what: Corrected internal/experiment/summary_contract.go to derive target completion from target_valid_per_pipeline and both pipeline valid_count values.
+  context:
+    intent: Apply the bounded audit correction without changing pricing, reports, defaults, or campaign state.
+    constraints: No provider calls or ambient database access; preserve retained and historical summary bytes.
+    unknowns: The authorized qualification rerun remains pending.
+  discovered: "Comparison availability and measured target completion are independent: incomplete auxiliary outcomes can coexist with either target result."
+  verified: The combined target-unmet plus incomplete-outcome regression passes; inconsistent completion, unknown reason, and explicit available-state cases fail. Focused tests and go test ./internal/experiment passed. mage check passed with zero forbidden database accesses. postv3-midfile-100-50-20260827 remains valid=true, target_met=true, valid_counts=5/5, and summary_byte_match=true with unchanged retained summary bytes.
+  next: Keep the qualification task in progress and run the authorized campaign only after full pricing-pinned preflight.
+  publication_order: 196

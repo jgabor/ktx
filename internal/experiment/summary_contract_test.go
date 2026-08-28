@@ -2,6 +2,7 @@ package experiment
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -31,20 +32,31 @@ func TestDecodeSummaryRejectsMalformedAndConflictingCore(t *testing.T) {
 }
 
 func TestRecoveryAwareUnavailableTargetCompletion(t *testing.T) {
-	base := `"pipelines":{"baseline":{"attempt_count":5,"evaluated_count":5,"valid_count":5},"candidate":{"attempt_count":5,"evaluated_count":5,"valid_count":5}},"recovery_aware_comparison":{"arms":{"baseline":{"runtime_total_tokens_per_correct_task":{"state":"available"}},"candidate":{"runtime_total_tokens_per_correct_task":{"state":"available"}}},`
 	tests := []struct {
-		name, suffix string
-		valid        bool
+		name                string
+		baseline, candidate int
+		comparison          string
+		valid               bool
 	}{
-		{"incomplete outcomes with implicit target met", `"state":"unavailable","reason":"incomplete_attempt_outcomes"}`, true},
-		{"incomplete outcomes with explicit target met", `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":true}}`, true},
-		{"target unmet", `"state":"unavailable","reason":"target_valid_per_pipeline_unmet","target_completion":{"met":false,"reason":"target_valid_per_pipeline_unmet"}}`, true},
-		{"target unmet marked met", `"state":"unavailable","reason":"target_valid_per_pipeline_unmet","target_completion":{"met":true}}`, false},
-		{"incomplete outcomes marked unmet", `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":false,"reason":"target_valid_per_pipeline_unmet"}}`, false},
+		{"complete target met", 5, 5, ``, true},
+		{"incomplete outcomes with implicit target met", 5, 5, `"state":"unavailable","reason":"incomplete_attempt_outcomes"`, true},
+		{"incomplete outcomes with explicit target met", 5, 5, `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":true}`, true},
+		{"target unmet complete outcomes", 4, 5, `"state":"unavailable","reason":"target_valid_per_pipeline_unmet","target_completion":{"met":false,"reason":"target_valid_per_pipeline_unmet"}`, true},
+		{"target unmet incomplete outcomes", 4, 5, `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":false,"reason":"target_valid_per_pipeline_unmet"}`, true},
+		{"target unmet marked met", 4, 5, `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":true}`, false},
+		{"target met marked unmet", 5, 5, `"state":"unavailable","reason":"incomplete_attempt_outcomes","target_completion":{"met":false,"reason":"target_valid_per_pipeline_unmet"}`, false},
+		{"unknown unavailable reason", 5, 5, `"state":"unavailable","reason":"unknown"`, false},
+		{"complete state while target unmet", 4, 5, ``, false},
+		{"explicit available state", 5, 5, `"state":"available"`, false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := DecodeSummary([]byte(`{"schema_version":7,` + base + test.suffix + `}`))
+			comparison := test.comparison
+			if comparison != "" {
+				comparison = "," + comparison
+			}
+			data := fmt.Sprintf(`{"schema_version":7,"target_valid_per_pipeline":5,"pipelines":{"baseline":{"attempt_count":5,"evaluated_count":5,"valid_count":%d},"candidate":{"attempt_count":5,"evaluated_count":5,"valid_count":%d}},"recovery_aware_comparison":{"arms":{"baseline":{"runtime_total_tokens_per_correct_task":{"state":"available"}},"candidate":{"runtime_total_tokens_per_correct_task":{"state":"available"}}}%s}}`, test.baseline, test.candidate, comparison)
+			_, err := DecodeSummary([]byte(data))
 			if (err == nil) != test.valid {
 				t.Fatalf("valid=%t error=%v", test.valid, err)
 			}

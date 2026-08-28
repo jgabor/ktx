@@ -1,0 +1,27 @@
+id: hwnvfibsyb
+artifact: health
+record:
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "improving: semantic benchmark behavior, help, documentation, agent guidance, and verification evidence are synchronized."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited terminal-plan closure found selector behavior, focused help, public documentation, agent guidance, tests, progress, and plan state updated since plan creation; the scoped closure audit returned PASS. This is not a codebase-wide audit.
+  trends:
+    comparison_target: Artifact state at semantic benchmark clarity plan creation.
+    improved: Explicit semantic selection, focused registry-backed help, canonical workflow guidance, and reproducible offline lifecycle evidence now agree across active surfaces.
+    carried_forward: Broad checks encountered disk quota, while focused contract, behavior, fixture, build-retry, and commit-hook evidence passed. Historical evidence remains byte-unchanged and intentionally unsupported for guaranteed current-runtime validation. Decision satisfaction remains user-owned; deferred decisions, vision, and stale profile detail were not refreshed.
+  patterns:
+    - Scoped closure evidence is coherent and no stale delegated artifact was found.
+  date: 2026-08-28
+  appended_at: 2026-08-28T19:49:32.030Z

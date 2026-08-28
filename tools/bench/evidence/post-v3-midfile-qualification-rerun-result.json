@@ -1,0 +1,242 @@
+{
+  "schema": "ktx.bench.post-v3-midfile-qualification-rerun-result.v1",
+  "date": "2026-08-28",
+  "scope": "fact-midfile-v1",
+  "history": {
+    "prior_campaign_result": "post-v3-midfile-qualification-result.json",
+    "prior_campaign_result_sha256": "ce1401e81cf76ff511c7c89dfce38723883d8a861803e6af81139de2a0452a5b",
+    "prior_failed_campaign_preserved": true
+  },
+  "authority": {
+    "freeze_id": "post-v3-midfile-rerun-20260828",
+    "freeze_sha256": "b00dd191fcc380430756521a19d34e96178441b134127d97df0746815cbf3ac4",
+    "pricing_sha256": "585b11de38f7fa5a7797f003f6b54ba7ced2c5292d7c8a0fcd6bedda7538df13",
+    "task_sha256": "9b86d8d39aa4006db38a0c121c83220a4c8c6ca1064c6dac442bbfcce1b9d26b",
+    "methodology_sha256": "d099eb84c59cb76e45caf83d1d7e0d394cfa924afcdf98ab2342c53bf0d5b6e8",
+    "baseline_config_sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1",
+    "candidate_config_sha256": {
+      "keep-ends:100:50": "bbf0c6277e3360df864daa27383ce913eb03c147dee141a29ec26bc834f69248",
+      "keep-ends:73:1": "8bf31632404adcd20809f7a934732f36f770a1d7affc31a165c68f19b5bd2ab0",
+      "keep-ends:100:10": "2ac5f3fafdfcf73240f1eca068ec6ecfc793acd62cceee9690cfada099a44843"
+    },
+    "binary_sha256": "3a367364545c312d2962007278af35258e7eb04ed7bedc9d56d6175659b17136",
+    "image_id": "sha256:a09050e3e379348063d365b5d2910c2ada801993195bc3046bb432e6af4be39f",
+    "dockerfile_sha256": "0029723c0d446e9c5f3a269a3d841b2496665b70cfa4a13a05b2ec769e2fcbbf",
+    "plugin_sha256": "a2eb6388e6e74543d902d2db56e055227dd0e36781aa5e6db7993e56b0f62959",
+    "event_contract": "opencode-event-v3",
+    "model": "openai/gpt-5.6-luna",
+    "variant": "high"
+  },
+  "campaign": {
+    "attempts": 36,
+    "attempt_ceiling": 36,
+    "statuses": { "completed": 36, "failed": 0, "timeout": 0, "unlinked": 0 },
+    "invalid_evidence_attempts": 1,
+    "retries": 0,
+    "elapsed_attempt_span_seconds": 814,
+    "wall_span_seconds": 859,
+    "elapsed_ceiling_seconds": 10800,
+    "runtime_reported_cost_usd": 0,
+    "pinned_price_derived_estimated_spend_usd": 0.321562,
+    "estimated_spend_ceiling_usd": 10,
+    "pricing_identity_reconciled_archives": 3
+  },
+  "archives": [
+    {
+      "id": "postv3-midfile-rerun-100-50-20260828",
+      "candidate": "keep-ends:100:50",
+      "attempts": 12,
+      "valid_measured": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "quality": {
+        "baseline_correct": 5,
+        "candidate_correct": 5,
+        "baseline_qualified": true,
+        "candidate_qualified": true
+      },
+      "runtime_tokens_per_correct": {
+        "baseline": 53902.6,
+        "candidate": 36594.4
+      },
+      "delivery_bytes": {
+        "baseline_original": 502551,
+        "baseline_delivered": 502551,
+        "candidate_original": 732327,
+        "candidate_delivered": 379117
+      },
+      "calls": {
+        "baseline_raw": 14,
+        "baseline_persisted": 13,
+        "candidate_raw": 53,
+        "candidate_persisted": 53
+      },
+      "persistence_coverage": {
+        "baseline": 0.9285714285714286,
+        "candidate": 1
+      },
+      "discrepancies": {
+        "baseline_raw_without_persisted": 1,
+        "baseline_persisted_without_raw": 0,
+        "candidate_raw_without_persisted": 0,
+        "candidate_persisted_without_raw": 0
+      },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline_cues": 0,
+        "candidate_cues": 12,
+        "followed_cues": 0,
+        "linked_recoveries": 0,
+        "byte_exact_recoveries": 0,
+        "baseline_interpretation": "no_opportunity",
+        "candidate_interpretation": "measured_zero_follows_recovery_outcome_unavailable"
+      },
+      "runtime_cost_usd": { "baseline": 0, "candidate": 0 },
+      "pinned_estimated_cost_usd": {
+        "baseline_measured": 0.060168,
+        "candidate_measured": 0.044879,
+        "archive_all_attempts": 0.12483
+      },
+      "pricing_sha256": "585b11de38f7fa5a7797f003f6b54ba7ced2c5292d7c8a0fcd6bedda7538df13",
+      "validation": {
+        "valid": true,
+        "target_met": true,
+        "summary_byte_match": true,
+        "attempt_checks_valid": 12
+      }
+    },
+    {
+      "id": "postv3-midfile-rerun-73-1-20260828",
+      "candidate": "keep-ends:73:1",
+      "attempts": 12,
+      "valid_measured": { "baseline": 4, "candidate": 5 },
+      "complete_pairs": 4,
+      "quality": {
+        "baseline_correct": 4,
+        "candidate_correct": 5,
+        "baseline_qualified": false,
+        "candidate_qualified": true
+      },
+      "runtime_tokens_per_correct": {
+        "baseline": null,
+        "candidate": 14976.6,
+        "baseline_unavailable_reason": "quality_gate_not_met"
+      },
+      "delivery_bytes": {
+        "baseline_original": 503119,
+        "baseline_delivered": 503119,
+        "candidate_original": 500677,
+        "candidate_delivered": 128265
+      },
+      "calls": {
+        "baseline_raw": 18,
+        "baseline_persisted": 15,
+        "candidate_raw": 34,
+        "candidate_persisted": 34
+      },
+      "persistence_coverage": {
+        "baseline": 0.8333333333333334,
+        "candidate": 1
+      },
+      "discrepancies": {
+        "baseline_raw_without_persisted": 3,
+        "baseline_persisted_without_raw": 0,
+        "candidate_raw_without_persisted": 0,
+        "candidate_persisted_without_raw": 0
+      },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline_cues": 0,
+        "candidate_cues": 26,
+        "followed_cues": 0,
+        "linked_recoveries": 0,
+        "byte_exact_recoveries": 0,
+        "baseline_interpretation": "no_opportunity",
+        "candidate_interpretation": "measured_zero_follows_recovery_outcome_unavailable"
+      },
+      "runtime_cost_usd": { "baseline": 0, "candidate": 0 },
+      "pinned_estimated_cost_usd": {
+        "baseline_measured": 0.051529,
+        "candidate_measured": 0.024062,
+        "archive_all_attempts": 0.100756
+      },
+      "pricing_sha256": "585b11de38f7fa5a7797f003f6b54ba7ced2c5292d7c8a0fcd6bedda7538df13",
+      "validation": {
+        "valid": false,
+        "target_met": false,
+        "target_reason": "target_valid_per_pipeline_unmet",
+        "summary_structural_valid": true,
+        "summary_byte_match": true,
+        "attempt_checks_valid": 11,
+        "invalid_attempt": {
+          "side": "baseline",
+          "cycle": 4,
+          "reason": "wrapper and event-hook model-step counts do not match"
+        }
+      },
+      "recommendation_eligibility": "unavailable"
+    },
+    {
+      "id": "postv3-midfile-rerun-100-10-20260828",
+      "candidate": "keep-ends:100:10",
+      "attempts": 12,
+      "valid_measured": { "baseline": 5, "candidate": 5 },
+      "complete_pairs": 5,
+      "quality": {
+        "baseline_correct": 5,
+        "candidate_correct": 5,
+        "baseline_qualified": true,
+        "candidate_qualified": true
+      },
+      "runtime_tokens_per_correct": { "baseline": 49921.4, "candidate": 15510 },
+      "delivery_bytes": {
+        "baseline_original": 566195,
+        "baseline_delivered": 566195,
+        "candidate_original": 719167,
+        "candidate_delivered": 158996
+      },
+      "calls": {
+        "baseline_raw": 20,
+        "baseline_persisted": 15,
+        "candidate_raw": 26,
+        "candidate_persisted": 26
+      },
+      "persistence_coverage": { "baseline": 0.75, "candidate": 1 },
+      "discrepancies": {
+        "baseline_raw_without_persisted": 5,
+        "baseline_persisted_without_raw": 0,
+        "candidate_raw_without_persisted": 0,
+        "candidate_persisted_without_raw": 0
+      },
+      "exact_repeats": { "baseline": 0, "candidate": 0 },
+      "recovery": {
+        "baseline_cues": 0,
+        "candidate_cues": 21,
+        "followed_cues": 0,
+        "linked_recoveries": 0,
+        "byte_exact_recoveries": 0,
+        "baseline_interpretation": "no_opportunity",
+        "candidate_interpretation": "measured_zero_follows_recovery_outcome_unavailable"
+      },
+      "runtime_cost_usd": { "baseline": 0, "candidate": 0 },
+      "pinned_estimated_cost_usd": {
+        "baseline_measured": 0.057418,
+        "candidate_measured": 0.021504,
+        "archive_all_attempts": 0.095976
+      },
+      "pricing_sha256": "585b11de38f7fa5a7797f003f6b54ba7ced2c5292d7c8a0fcd6bedda7538df13",
+      "validation": {
+        "valid": true,
+        "target_met": true,
+        "summary_byte_match": true,
+        "attempt_checks_valid": 12
+      }
+    }
+  ],
+  "recommendation": {
+    "action": "prefer_keep_ends_100_10_for_fact_midfile_v1",
+    "scope": "fact-midfile-v1_only",
+    "basis": "Among accepted rows, 100:10 used 15510 runtime tokens per correct task versus 36594.4 for 100:50 while both arms passed quality and byte-exact archive validation.",
+    "excluded": "73:1 had lower candidate runtime tokens but only four valid baseline attempts and four complete pairs, so it cannot rank or support a recommendation.",
+    "defaults_changed": false
+  }
+}

@@ -17,18 +17,18 @@ record:
   severity: normal
   readiness:
     capability: build
-    reason: "Implementation is complete: explicit pricing bytes and optional SHA-256 are validated before auth or attempts and retained unchanged."
+    reason: Pricing pinning and byte-exact retention passed for all three rerun archives.
     dependencies:
       []
     blocked:
-      reason: The authorized campaign rerun has not executed.
-      recovery: Run the frozen three-comparison matrix with the explicit pricing pin, then validate every archive and campaign result.
+      reason: "The authorized rerun did not fully qualify: keep-ends:73:1 retained only four valid baseline attempts and four complete pairs because one model-step authority check failed."
+      recovery: Preserve the target-unmet archive and require separate authorization before any further provider attempts.
     gate:
       state: pending
-      reason: Implementation-complete; rerun-pending.
-      recovery: Pass full zero-model identity preflight immediately before the authorized rerun.
+      reason: Rerun executed with pinned pricing, but all-rerun acceptance did not pass.
+      recovery: Coordinator must decide whether partial qualification is sufficient or authorize a separately frozen follow-up.
     queue_rank: 1
-    order_reason: Pricing authority is implemented; campaign execution and validation remain.
+    order_reason: Pricing authority passed; one comparison remains target-unmet.
   status: open
   reconciliation:
     schema_version: agentera.todoReconciliation.v1

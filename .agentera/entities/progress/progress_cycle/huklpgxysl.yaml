@@ -1,0 +1,15 @@
+id: huklpgxysl
+artifact: progress
+record:
+  timestamp: 2026-08-28 12:53
+  type: docs
+  phase: build
+  what: Pinned pricing SHA-256 585b11de across 36 retained attempts. The 100:50 and 100:10 archives passed five-pair validation; 73:1 retained four baseline pairs after one model-step authority mismatch. The task-scoped report prefers 100:10 and leaves defaults unchanged.
+  context:
+    intent: Execute the separately authorized 36-attempt pinned-pricing fact-midfile rerun.
+    constraints: Exactly 36 attempts; under three hours and USD 10; explicit read-only auth; no ambient database; no default change.
+    unknowns: No candidate cue was followed, so linked recovery outcome and byte-exactness remain unavailable.
+  discovered: The 73:1 baseline cycle 4 wrapper and event-hook model-step counts diverged. The archive remains structurally valid and byte-exact but target-unmet, so it cannot rank.
+  verified: Three zero-model preflights emitted the pinned pricing identity. Every archive retained byte-identical pricing. Local validation passed fully for 100:50 and 100:10; 73:1 reported 4/5 baseline, 5/5 candidate, four pairs, and one explicit invalid attempt.
+  next: Coordinator conclusion should keep mezgphvqww in progress, preserve the 73:1 target-unmet blocker, and use the accepted task-scoped 100:10 recommendation without changing defaults.
+  publication_order: 197

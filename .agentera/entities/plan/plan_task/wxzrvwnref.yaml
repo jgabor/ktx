@@ -4,7 +4,7 @@ record:
   name: Preserve active cache-runtime contracts
   depends_on:
     - hzuuiqtkvp
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN cache-reuse dependencies WHEN classified THEN active runtime sequence, stats, regeneration, and comparison behavior are distinguished from direct-provider probes.
     - GIVEN active contracts are retained or rehomed WHEN focused tests run THEN current prompt-cache specs, stats, and recovery comparisons remain unchanged.

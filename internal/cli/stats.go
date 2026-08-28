@@ -28,7 +28,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/jgabor/ktx/internal/cache/reuse"
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/router"
 )
@@ -337,7 +337,7 @@ func statsSummaryLogic(args []string, format string, window time.Duration, now t
 	if err != nil {
 		return nil, internalError("ktx stats summary: %v", err)
 	}
-	cacheRows, err := db.StatsSummaryCacheRows(from, now, reuse.RequiredRuntime, reuse.RequiredRuntimeVersion)
+	cacheRows, err := db.StatsSummaryCacheRows(from, now, sequence.RequiredRuntime, sequence.RequiredRuntimeVersion)
 	if err != nil {
 		return nil, internalError("ktx stats summary: %v", err)
 	}

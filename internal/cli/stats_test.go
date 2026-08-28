@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jgabor/ktx/internal/cache/reuse"
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/telemetry"
 )
@@ -765,8 +765,8 @@ func TestStatsWindowLogic(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				db := openMemoryDB(t)
 				sid := seedSession(t, db)
-				seedStatsTelemetryWithContract(t, db, sid, 1, now.Add(-2*time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
-				seedStatsTelemetryWithContract(t, db, sid, 2, now.Add(-time.Minute).Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, test.second.provider, test.second.model, measuredStatsToken(90), measuredStatsToken(10), measuredStatsToken(0))
+				seedStatsTelemetryWithContract(t, db, sid, 1, now.Add(-2*time.Minute).Format(time.RFC3339Nano), sequence.RequiredRuntime, sequence.RequiredRuntimeVersion, &provider, &model, measuredStatsToken(10), measuredStatsToken(30), measuredStatsToken(0))
+				seedStatsTelemetryWithContract(t, db, sid, 2, now.Add(-time.Minute).Format(time.RFC3339Nano), sequence.RequiredRuntime, sequence.RequiredRuntimeVersion, test.second.provider, test.second.model, measuredStatsToken(90), measuredStatsToken(10), measuredStatsToken(0))
 
 				var buf bytes.Buffer
 				if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -806,7 +806,7 @@ func TestStatsWindowLogic(t *testing.T) {
 			VALUES (?, 'legacy-session', 'legacy-message', 'legacy-part', 1, 'stop',
 				10, 30, 0, 'openai', 'gpt-5.6-luna', ?, ?, 'legacy', ?,
 				'unknown', 'measured', 'unknown', 'unknown', 'measured', 'measured')`,
-			sid, reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, now.Add(-time.Minute).Format(time.RFC3339Nano)); err != nil {
+			sid, sequence.RequiredRuntime, sequence.RequiredRuntimeVersion, now.Add(-time.Minute).Format(time.RFC3339Nano)); err != nil {
 			t.Fatal(err)
 		}
 
@@ -833,11 +833,11 @@ func TestStatsWindowLogic(t *testing.T) {
 		}
 		capture := now.Add(-time.Minute)
 		seedStatsTelemetry(t, db, acceptedSessionID, 1, capture, measuredStatsToken(10), measuredStatsToken(20), measuredStatsToken(0))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 2, "not-a-timestamp", reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 2, "not-a-timestamp", sequence.RequiredRuntime, sequence.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 		seedStatsTelemetry(t, db, excludedSessionID, 3, now.Add(-31*time.Minute), measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 		seedStatsTelemetry(t, db, excludedSessionID, 4, now.Add(time.Nanosecond), measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 5, capture.Format(time.RFC3339Nano), "other-runtime", reuse.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
-		seedStatsTelemetryWithContract(t, db, excludedSessionID, 6, capture.Format(time.RFC3339Nano), reuse.RequiredRuntime, "1.18.4", nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 5, capture.Format(time.RFC3339Nano), "other-runtime", sequence.RequiredRuntimeVersion, nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
+		seedStatsTelemetryWithContract(t, db, excludedSessionID, 6, capture.Format(time.RFC3339Nano), sequence.RequiredRuntime, "1.18.4", nil, nil, measuredStatsToken(100), measuredStatsToken(100), measuredStatsToken(100))
 
 		var buf bytes.Buffer
 		if _, err := statsSummaryLogic(nil, FormatJSON, 30*time.Minute, now, db, &buf); err != nil {
@@ -1285,7 +1285,7 @@ func seedCompressedRow(t *testing.T, db *dbpkg.DB, sourceID, output, timestamp s
 func seedStatsTelemetry(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt time.Time, input, read, write telemetry.IntegerMeasurement) {
 	t.Helper()
 	provider, model := "openai", "gpt-5.6-luna"
-	seedStatsTelemetryWithContract(t, db, sessionID, ordinal, capturedAt.Format(time.RFC3339Nano), reuse.RequiredRuntime, reuse.RequiredRuntimeVersion, &provider, &model, input, read, write)
+	seedStatsTelemetryWithContract(t, db, sessionID, ordinal, capturedAt.Format(time.RFC3339Nano), sequence.RequiredRuntime, sequence.RequiredRuntimeVersion, &provider, &model, input, read, write)
 }
 
 func seedStatsTelemetryWithContract(t *testing.T, db *dbpkg.DB, sessionID string, ordinal uint64, capturedAt, runtime, runtimeVersion string, provider, model *string, input, read, write telemetry.IntegerMeasurement) {

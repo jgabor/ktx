@@ -1,0 +1,16 @@
+id: pyfwehjpep
+artifact: progress
+record:
+  timestamp: 2026-08-28 17:53
+  type: refactor
+  phase: build
+  what: Moved active sequence and estimate tests to internal/cache/reuse/sequence, changed stats to import that package directly, and recorded a bounded retain/delete inventory.
+  context:
+    intent: Separate active runtime cache accounting from retired direct-provider probes without changing current prompt-cache, stats, regeneration, or comparison behavior.
+    constraints: No provider calls, ambient database access, schema changes, probe deletion, retained history edits, or task completion.
+    unknowns: The downstream removal task must confirm whether each provider-format fixture has any retained historical owner before deletion.
+    scope: internal/cache/reuse boundaries, stats imports and tests, deletion inventory, changelog, and current plan state.
+  inspiration: The current semantic registry and self-contained experiment schema make active runtime dependencies explicit.
+  verified: "With KTX_DB unset, fresh HOME and XDG roots, and sequential package execution: focused Go tests passed for cache sequence and estimation, experiment prompt-cache/comparison/regeneration behavior, and stats window behavior. GOMAXPROCS=2 GOFLAGS=-p=1 mage check passed all tests, vet, lint, generated-adapter checks, and build with forbidden database accesses=0. Static import checks found the probe root imported only by the retired bench evidence preflight command."
+  next: Delete the isolated probe package root, retired preflight command surface, and confirmed probe-only artifacts while retaining internal/cache/reuse/sequence and current semantic contract paths.
+  publication_order: 202

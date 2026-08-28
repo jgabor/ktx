@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jgabor/ktx/internal/cache/reuse/sequence"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -459,8 +461,8 @@ func validateSecondaryRules(t *testing.T, rules []struct {
 ) {
 	t.Helper()
 	wantNames := secondaryReasonNames()
-	if !reflect.DeepEqual(IneligibilityReasons, wantNames) {
-		t.Fatalf("implemented ineligibility reasons = %v, contract = %v", IneligibilityReasons, wantNames)
+	if !reflect.DeepEqual(sequence.IneligibilityReasons, wantNames) {
+		t.Fatalf("implemented ineligibility reasons = %v, contract = %v", sequence.IneligibilityReasons, wantNames)
 	}
 	if len(rules) != len(wantNames) {
 		t.Fatalf("ineligibility rules=%d, want %d", len(rules), len(wantNames))

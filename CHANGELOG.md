@@ -33,6 +33,7 @@
 
 ### Fixed
 
+- Active cache sequence, estimation, statistics, regeneration, and comparison code now has a separate package boundary from retired direct-provider probes.
 - Recovery-aware validation now accepts target-met archives with unavailable auxiliary outcomes, and live comparisons can pin exact retained pricing bytes before any model attempt.
 - Recovery-aware benchmark summaries now pair stream-derived source identities with persisted rows inside each attempt and expose separate counts, coverage, duplicate/retry observations, and bounded discrepancy reasons; unavailable authority remains null, stream-only failures are not converted into persisted outcomes, and complete schema-6 archives remain byte-exact.
 - Incomplete recovery-aware experiments now retain a structurally valid unavailable comparison and unmet-target reason; validation keeps historical partial summaries immutable and labels derived inspection separately.

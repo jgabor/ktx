@@ -8,10 +8,25 @@ record:
     - iwrvlwcqmk
     - uadsezxqst
     - mezgphvqww
-  status: blocked
+  status: complete
   acceptance:
     - GIVEN completed implementation and experiments WHEN repository checks run THEN mage check and accepted archive validations pass under isolated roots.
     - GIVEN current behavior and evidence WHEN documentation is reviewed THEN CLI guidance, benchmark contracts, recipe scope, and result limits agree.
     - GIVEN related backlog items WHEN closure is considered THEN each closes only with linked evidence and historical failures remain visible.
     - GIVEN final handoff WHEN published THEN actual outcomes, surprises, unavailable evidence, recommended follow-up, unchanged defaults, and user-owned decision satisfaction are explicit.
   plan: cvzztlzsyu
+  evidence:
+    - mage check passed after blocker corrections and the pinned-pricing rerun; no forbidden ambient database access was recorded.
+    - The 100:50 and 100:10 rerun archives validate byte-exactly with five complete pairs; 73:1 is structurally valid, target-unmet, and recommendation-ineligible.
+    - Progress huklpgxysl and nhjpihidwr plus the pinned rerun report record 36 attempts, cue opportunity, call coverage, pinned costs, unchanged defaults, and task-scoped 100:10 recommendation.
+    - TODO pxteoquhxr and kccfhezjer are resolved with clean reconciliation; decision satisfaction remains user-owned.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: final-sync-1
+      source: progress huklpgxysl and nhjpihidwr; resolved TODOs pxteoquhxr and kccfhezjer
+      recorded_at: 2026-08-28 13:42
+      writer_command: agentera state plan record-evaluation

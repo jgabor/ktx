@@ -72,7 +72,8 @@ collection is fail-closed: one explicit attempt owner, complete interval,
 contiguous acknowledged callback order, stable identity, and consistent wrapper
 and event-hook projections are validation gates.
 
-Recovery-aware comparisons use methodology v7 and summary schema 6. Recovery
+Recovery-aware comparisons use methodology v7 and current summary schema 7;
+complete schema-6 archives remain historical byte-exact evidence. Recovery
 requires a delivered cue and later exact `ktx read <source-id>` linkage under
 the same attempt owner. Older required-event contracts do not establish cue
 absence as measured zero; those recovery fields are unavailable and unranked.

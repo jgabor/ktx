@@ -3,7 +3,7 @@ artifact: todo
 record:
   kind: bug
   target_version: null
-  title: "**Allow target-met recovery summaries with unavailable auxiliary outcomes** — Treat measured target completion independently from auxiliary attempt-outcome completeness so a five-pair quality-qualified archive can remain target-met while its recovery comparison is unavailable. Preserve retained summary bytes and reject only contradictory states. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  title: "**Allow target-met recovery summaries with unavailable auxiliary outcomes** — Treat measured target completion independently from auxiliary attempt-outcome completeness so a five-pair quality-qualified archive can remain target-met while its recovery comparison is unavailable. Preserve retained summary bytes and reject only contradictory states. Evidence: progress `huklpgxysl`; the retained `100:50` rerun archive validates byte-exactly. → [Benchmark](ARCHITECTURE.md#benchmark)"
   requirements:
     - A recovery-aware summary may be target-met while its comparison outcome is unavailable because non-measured or auxiliary attempt outcomes are incomplete.
     - Validation must accept that internally consistent state without rewriting authoritative retained summary bytes.
@@ -29,7 +29,7 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[bug] **Allow target-met recovery summaries with unavailable auxiliary outcomes** — Treat measured target completion independently from auxiliary attempt-outcome completeness so a five-pair quality-qualified archive can remain target-met while its recovery comparison is unavailable. Preserve retained summary bytes and reject only contradictory states. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[bug] **Allow target-met recovery summaries with unavailable auxiliary outcomes** — Treat measured target completion independently from auxiliary attempt-outcome completeness so a five-pair quality-qualified archive can remain target-met while its recovery comparison is unavailable. Preserve retained summary bytes and reject only contradictory states. Evidence: progress `huklpgxysl`; the retained `100:50` rerun archive validates byte-exactly. → [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
       order: 19
       severity: normal

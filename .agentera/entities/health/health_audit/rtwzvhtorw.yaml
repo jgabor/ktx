@@ -1,0 +1,27 @@
+id: rtwzvhtorw
+artifact: health
+record:
+  date: 2026-08-28
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "improving: post-v3 recovery qualification code, retained archives, reports, skill guidance, TODO state, and plan evaluations are synchronized."
+  grades:
+    artifact_freshness: A
+  findings:
+    []
+  dimension_details:
+    - name: artifact_freshness
+      grade: A
+      summary: Plan cvzztlzsyu has 6/6 complete tasks; product and evidence surfaces were updated through commit 5405a77 after plan creation, and final state reconciles to progress huklpgxysl and nhjpihidwr.
+  trends:
+    comparison_target: Plan cvzztlzsyu created on 2026-08-27.
+    improved: Incomplete evidence, call accounting, recovery target validation, pricing pinning, and the pinned three-arm rerun now have aligned contracts and retained results.
+    carried_forward: The 73:1 arm remains target-unmet from one model-step authority mismatch. Recovery cues were measured but not followed. Two final-sync workers were OOM-terminated; retained state was recovered without changing evidence. Decision satisfaction remains user-owned.
+  patterns:
+    - Current plan authority and validated retained evidence agree for this terminal-task scope.
+  appended_at: 2026-08-28T11:43:28.489Z

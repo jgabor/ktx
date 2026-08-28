@@ -3,7 +3,7 @@ artifact: todo
 record:
   kind: task
   target_version: null
-  title: "**Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. → [Benchmark](ARCHITECTURE.md#benchmark)"
+  title: "**Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. Evidence: progress `nhjpihidwr`; [pinned rerun report](tools/bench/evidence/post-v3-midfile-qualification-rerun-result.md). → [Benchmark](ARCHITECTURE.md#benchmark)"
   requirements:
     - The comparison freezes one pricing snapshot identity and uses those exact bytes for every arm and archive.
     - Binary, image, plugin, event contract, task, methodology, configs, model, variant, and pricing identities are verified before the first provider call.
@@ -32,7 +32,7 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[task] **Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      description: "[task] **Pin pricing authority before paid comparisons** — Let recovery-aware comparisons use and verify one explicit retained pricing snapshot before provider calls, then rerun the post-v3 fact-midfile matrix only under a newly approved budget. A mismatch must fail before spending. Evidence: progress `nhjpihidwr`; [pinned rerun report](tools/bench/evidence/post-v3-midfile-qualification-rerun-result.md). → [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
       order: 20
       severity: normal

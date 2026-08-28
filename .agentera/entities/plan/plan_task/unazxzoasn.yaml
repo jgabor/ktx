@@ -1,0 +1,13 @@
+id: unazxzoasn
+artifact: plan
+record:
+  name: Restore focused benchmark help and ID discovery
+  depends_on:
+    - akedhpgjmg
+  status: pending
+  acceptance:
+    - GIVEN a user requests help for a benchmark subcommand WHEN help is rendered THEN it presents command-specific syntax, effects, and next actions rather than only namespace-wide output.
+    - GIVEN a user needs a spec, task, baseline, or candidate ID WHEN they consult the supported discovery surface THEN current active semantic IDs are available from one authoritative inventory.
+    - GIVEN help describes selection WHEN inspected THEN it requires explicit specs and never suggests paths, versions, aliases, removed commands, or hidden defaults.
+    - GIVEN changed help behavior is tested WHEN contract checks run THEN each changed testable surface has one supported case and one rejected obsolete case.
+  plan: qbtiqutvao

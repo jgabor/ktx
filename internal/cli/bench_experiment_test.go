@@ -43,7 +43,7 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 		databasePath := filepath.Join(t.TempDir(), "ktx.db")
 		t.Setenv("KTX_DB", databasePath)
 		var stdout, stderr bytes.Buffer
-		code := runBenchCompare([]string{"--preflight", "--build", "--repo-root", root, "--task", "crossfile-nav", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		code := runBenchCompare([]string{"--preflight", "--build", "--repo-root", root, "--spec", "exact-match", "--task", "crossfile-nav", "--baseline", "passthrough", "--candidate", "conservative-a", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
 		if code != ExitOK {
 			t.Fatalf("code = %d, stderr = %s", code, stderr.String())
 		}
@@ -68,7 +68,7 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 		databasePath := filepath.Join(t.TempDir(), "ktx.db")
 		t.Setenv("KTX_DB", databasePath)
 		var stdout, stderr bytes.Buffer
-		code := runBenchCompare([]string{"--preflight", "--task", "crossfile-nav", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		code := runBenchCompare([]string{"--preflight", "--repo-root", root, "--spec", "exact-match", "--task", "crossfile-nav", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
 		if code != 1 {
 			t.Fatalf("code = %d, want 1; stderr = %s", code, stderr.String())
 		}
@@ -88,6 +88,51 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 		}
 		assertDatabaseUntouched(t, databasePath)
 	})
+}
+
+func TestBenchComparePreflightRejectsUnregisteredSelectorsBeforeEffects(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"missing spec", []string{"--task", "crossfile-nav"}},
+		{"versioned spec", []string{"--spec", "exact-match-v1", "--task", "crossfile-nav"}},
+		{"path task", []string{"--spec", "exact-match", "--task", "tools/bench/tasks/crossfile-nav.toml"}},
+		{"unknown baseline", []string{"--spec", "exact-match", "--task", "crossfile-nav", "--baseline", "missing"}},
+		{"path candidate", []string{"--spec", "exact-match", "--task", "crossfile-nav", "--candidate", "tools/bench/pipelines/conservative-a.toml"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			databasePath := filepath.Join(root, "ktx.db")
+			t.Setenv("KTX_DB", databasePath)
+			var stdout, stderr bytes.Buffer
+			args := append([]string{"--preflight", "--repo-root", root}, test.args...)
+			code := runBenchCompare(args, Options{Format: FormatJSON}, &stdout, &stderr)
+			if code != ExitUsage {
+				t.Fatalf("code = %d, stderr = %s", code, stderr.String())
+			}
+			if _, err := os.Stat(databasePath); !os.IsNotExist(err) {
+				t.Fatalf("database touched: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(root, ".ktx", "experiments")); err == nil {
+				t.Fatal("experiment root created")
+			}
+		})
+	}
+}
+
+func TestBenchRankRequiresSpecBeforeCreatingCampaign(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	var stdout, stderr bytes.Buffer
+	code := runBenchRank([]string{"--model", "provider/model", "--task", "crossfile-nav"}, Options{Format: FormatJSON}, &stdout, &stderr)
+	if code != ExitUsage || !strings.Contains(stderr.String(), "--spec") {
+		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, ".ktx", "experiments")); !os.IsNotExist(err) {
+		t.Fatalf("experiment root touched: %v", err)
+	}
 }
 
 func TestBenchCommandsRejectRemovedSelectorFlags(t *testing.T) {

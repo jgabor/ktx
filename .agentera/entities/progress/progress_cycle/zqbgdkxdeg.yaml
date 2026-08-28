@@ -1,0 +1,12 @@
+id: zqbgdkxdeg
+artifact: progress
+record:
+  timestamp: 2026-08-28 21:11
+  type: fix
+  phase: build
+  what: Fail closed on semantic benchmark selection for compare and rank.
+  context:
+    intent: Require explicit registered semantic benchmark selectors before authentication, provider, database, build, or experiment effects.
+    constraints: No provider calls or ambient database access; keep the active plan task in progress.
+  verified: "Focused selector contract tests passed: go test ./internal/cli ./internal/experiment ./internal/benchregistry. mage build passed. mage check reached the full suite but failed from disk quota errors; its verification audit reported forbidden=0."
+  publication_order: 209

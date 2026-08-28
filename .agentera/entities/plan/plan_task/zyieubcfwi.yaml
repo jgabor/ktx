@@ -1,0 +1,15 @@
+id: zyieubcfwi
+artifact: plan
+record:
+  name: Verify and synchronize the clarity contract
+  depends_on:
+    - akedhpgjmg
+    - unazxzoasn
+    - shiqjpswnp
+  status: pending
+  acceptance:
+    - GIVEN implementation and guidance are complete WHEN cross-surface verification runs THEN public docs, CLI help, agent guidance, and the active registry agree on selectors, IDs, lifecycle, and side effects.
+    - GIVEN an isolated offline environment WHEN the canonical walkthrough runs without building a benchmark image THEN preflight and a disposable experiment lifecycle complete without provider calls or ambient database access.
+    - GIVEN summary regeneration is exercised WHEN verification runs THEN it operates only on disposable current evidence, while retained historical evidence remains byte-unchanged.
+    - GIVEN the plan reaches final verification WHEN project state is synchronized THEN changed surfaces, observed results, historical boundaries, and any deferred follow-up are recorded with substantive verification evidence.
+  plan: qbtiqutvao

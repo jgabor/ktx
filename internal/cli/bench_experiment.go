@@ -304,8 +304,8 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 			RegisteredInputs: true,
 		})
 		if err != nil {
-			printError(stderr, internalError("ktx bench compare preflight: %v", err), opts.Format)
-			return ExitInternal
+			printError(stderr, usageError("ktx bench compare preflight: %v", err), opts.Format)
+			return ExitUsage
 		}
 		if format == FormatText {
 			fmt.Fprintf(stdout, "eligible=%t direct=%t controlled=%t secondary=%t model_attempts=%d artifact_creation=%t reasons=%s\n", report.Eligible, report.DirectEvidence, report.ControlledComparison, report.SecondaryEvidence, report.ModelAttempts, report.ArtifactCreation, strings.Join(report.Reasons, ","))
@@ -317,8 +317,8 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		}
 		return ExitOK
 	}
-	if model == "" || taskID == "" {
-		printError(stderr, usageError("ktx bench compare: --model and --task are required; use registered IDs with --spec, --task, --baseline, and --candidate"), opts.Format)
+	if specID == "" || model == "" || taskID == "" {
+		printError(stderr, usageError("ktx bench compare: --spec, --model, and --task are required; use registered IDs with --spec, --task, --baseline, and --candidate"), opts.Format)
 		return ExitUsage
 	}
 	if pricingSHA256 != "" && pricingSnapshot == "" {
@@ -411,12 +411,13 @@ func runBenchValidate(args []string, opts Options, stdout, stderr io.Writer) int
 func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench rank", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var model, variant, taskID, candidatesRaw, baselineID, auth, image, campaignID, format string
+	var model, variant, specID, taskID, candidatesRaw, baselineID, auth, image, campaignID, format string
 	var rounds, maxAttempts int
 	var timeout, grace time.Duration
 	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. openai/gpt-5.6-luna with --variant high)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
+	fs.StringVar(&specID, "spec", "", "registered benchmark spec ID")
 	fs.StringVar(&taskID, "task", "", "registered task ID")
 	fs.StringVar(&candidatesRaw, "candidate", "sanitize,keep-ends-mid,conservative-a,conservative-a-recover,aggressive-head", "comma-separated candidate pipeline IDs")
 	fs.StringVar(&baselineID, "baseline", "passthrough", "registered baseline pipeline ID")
@@ -428,9 +429,9 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs.IntVar(&maxAttempts, "max-attempts", 24, "attempt budget per comparison")
 	fs.DurationVar(&timeout, "attempt-timeout", 15*time.Minute, "per-attempt timeout")
 	fs.DurationVar(&grace, "termination-grace", 30*time.Second, "termination grace period")
-	if err := fs.Parse(args); err != nil || model == "" || taskID == "" || len(fs.Args()) > 0 {
+	if err := fs.Parse(args); err != nil || specID == "" || model == "" || taskID == "" || len(fs.Args()) > 0 {
 		if err == nil {
-			err = fmt.Errorf("--model and --task are required; --baseline and --candidate accept registered pipeline IDs")
+			err = fmt.Errorf("--spec, --model, and --task are required; selectors accept registered IDs")
 		}
 		printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
 		return ExitUsage
@@ -446,6 +447,15 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	registry := benchregistry.Active()
+	for _, selector := range []struct {
+		kind benchregistry.Kind
+		id   string
+	}{{benchregistry.Spec, specID}, {benchregistry.Task, taskID}} {
+		if _, err := registry.Lookup(selector.kind, selector.id); err != nil {
+			printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
+			return ExitUsage
+		}
+	}
 	for _, id := range append([]string{baselineID}, candidates...) {
 		if _, err := registry.Lookup(benchregistry.Pipeline, id); err != nil {
 			printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
@@ -488,7 +498,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 			Model: model, Variant: variant, TaskFile: taskID, TargetValid: rounds, MaxAttempts: maxAttempts,
 			AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 			DataDir: dataDir, Image: image, AuthPath: auth,
-			BaselineConfig: baselineID, CandidateConfig: candidateID,
+			MethodologyPath: specID, BaselineConfig: baselineID, CandidateConfig: candidateID,
 			DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
 			RegisteredInputs: true,
 		})

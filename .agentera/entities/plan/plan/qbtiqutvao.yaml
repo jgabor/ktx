@@ -1,0 +1,37 @@
+id: qbtiqutvao
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-08-28
+    status: open
+    reviewed: 2026-08-28
+    critic_issues: 6 found, 6 addressed, 0 dismissed
+    title: "Plan: Clarify semantic benchmark workflows"
+  what: Make the supported benchmark workflow consistent and discoverable across CLI behavior, help, public documentation, and agent guidance.
+  why: The semantic-ID cutover is implemented, but users can still encounter broad help, incomplete lifecycle guidance, path-oriented wording, and broken implicit spec selection.
+  constraints: Require an explicit semantic spec ID for compare and rank. Preserve versionless semantic IDs, the fixed experiment root, metrics, scoring, storage semantics, provider policy, and static historical evidence. Add no aliases, path selectors, legacy readers, or hidden defaults. Use only offline, database-safe verification with no provider calls.
+  overall_acceptance: GIVEN a new operator or coding agent consults public docs, CLI help, or agent guidance WHEN they use benchmarking THEN they can discover valid semantic IDs, execute the supported flow, inspect experiments by ID, understand side effects and historical limits, and encounter no removed or path-oriented workflow guidance.
+  scope:
+    included:
+      - semantic selector validation
+      - focused benchmark help and active-ID discovery
+      - public benchmark documentation
+      - ktx agent guidance
+      - cross-surface contract checks
+      - project-state synchronization
+    excluded:
+      - benchmark algorithms, metrics, scoring, or storage changes
+      - paid or provider-backed experiments
+      - compatibility aliases or legacy readers
+      - rewriting static historical evidence
+      - unrelated documentation
+    deferred:
+      []
+  design: First make benchmark selection deterministic and fail closed. Then expose focused, discoverable help from that contract. Publish one canonical workflow across human and agent guidance only after behavior is stable. Finish with isolated offline verification and synchronized project state.
+  unknowns:
+    - question: Can existing focused help expose the active semantic registry clearly without adding another public command?
+      affects_task: 2
+      resolve_by: Compare current help conventions and contract behavior, then use the smallest discoverable surface that exposes the active IDs without adding an unnecessary command.
+  surprises:
+    []

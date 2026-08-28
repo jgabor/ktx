@@ -88,7 +88,8 @@ func TestBenchRankRejectsTraversalBeforeCreatingArtifacts(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runBenchRank([]string{
 		"--model", "openai/test",
-		"--task", "task",
+		"--spec", "exact-match",
+		"--task", "crossfile-nav",
 		"--candidate", "conservative-a",
 		"--campaign-id", "../outside",
 	}, Options{Format: FormatJSON}, &stdout, &stderr)

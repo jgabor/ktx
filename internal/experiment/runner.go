@@ -278,18 +278,6 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 	if err != nil {
 		return err
 	}
-	if options.TaskFile != "" {
-		options.Task, err = LoadTask(options.TaskFile)
-		if err != nil {
-			return err
-		}
-	}
-	if options.Task.ID == "" || options.Task.Prompt == "" {
-		return errors.New("task id and prompt are required")
-	}
-	if options.Task.ExpectedOutput == nil && options.Task.ExpectedFacts == nil {
-		return errors.New("task expected output or facts are required")
-	}
 	if strings.HasPrefix(options.Model, "github-copilot/") {
 		return errors.New("github-copilot/* models are not permitted for this repo; use --model openai/gpt-5.6-luna --variant high")
 	}
@@ -315,7 +303,7 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 	if options.RegisteredInputs {
 		registry := benchregistry.Active()
 		if options.MethodologyPath == "" {
-			options.MethodologyPath = "eval-matrix"
+			return errors.New("--spec is required; use a registered benchmark spec ID")
 		}
 		if options.BaselineConfig == "" {
 			options.BaselineConfig = "passthrough"
@@ -363,6 +351,18 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 		if options.CandidateConfig == "" {
 			options.CandidateConfig = filepath.Join(options.RepoRoot, "tools", "bench", "pipelines", "conservative-a.toml")
 		}
+	}
+	if options.TaskFile != "" {
+		options.Task, err = LoadTask(options.TaskFile)
+		if err != nil {
+			return err
+		}
+	}
+	if options.Task.ID == "" || options.Task.Prompt == "" {
+		return errors.New("task id and prompt are required")
+	}
+	if options.Task.ExpectedOutput == nil && options.Task.ExpectedFacts == nil {
+		return errors.New("task expected output or facts are required")
 	}
 	if options.AuthPath == "" {
 		home, err := os.UserHomeDir()
@@ -444,26 +444,10 @@ func (runner *Runner) prepareOptions(options *CompareOptions) error {
 }
 
 func (runner *Runner) Preflight(ctx context.Context, options CompareOptions) (PreflightReport, error) {
-	if options.PricingSnapshot != "" {
-		if err := runner.prepareStructuralOptions(&options); err != nil {
-			return PreflightReport{}, err
-		}
-	}
-	if options.RepoRoot == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return PreflightReport{}, err
-		}
-		options.RepoRoot = cwd
-	}
-	var err error
-	options.RepoRoot, err = filepath.Abs(options.RepoRoot)
-	if err != nil {
+	if err := runner.prepareStructuralOptions(&options); err != nil {
 		return PreflightReport{}, err
 	}
-	if options.Image == "" {
-		options.Image = "ktx-bench"
-	}
+	var err error
 	if options.DockerBin == "" {
 		options.DockerBin, err = exec.LookPath("docker")
 		if err != nil {

@@ -1,4 +1,4 @@
 build/
 docs/notes/
-.bench-data/
+.ktx/
 .playwright-cli/

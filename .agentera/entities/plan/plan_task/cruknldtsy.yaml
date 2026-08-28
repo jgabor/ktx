@@ -4,10 +4,20 @@ record:
   name: Cut over benchmark command vocabulary
   depends_on:
     - hzuuiqtkvp
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN run, report, compare, and rank commands WHEN invoked THEN they use semantic spec, task, baseline, and candidate IDs only.
     - GIVEN embedded lookup WHEN resolving an ID THEN it uses one explicit registry and never derives filenames from IDs.
     - GIVEN old methodology, task-file, config-path, or data-dir flags WHEN supplied THEN they fail as unknown rather than aliasing.
     - GIVEN help and structured errors WHEN inspected THEN they show only current semantic vocabulary and corrections.
   plan: bptycpojpd
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: selector-cutover-1
+      source: progress yzhzaijmjx; commit f6289f1
+      recorded_at: 2026-08-28 15:10
+      writer_command: agentera state plan record-evaluation

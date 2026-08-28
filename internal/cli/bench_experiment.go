@@ -249,7 +249,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs := flag.NewFlagSet("ktx bench compare", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var model, variant, taskID string
-	var baseline, candidate, auth, image, experimentID, format, summarize, repoRoot, specID string
+	var baseline, candidate, auth, image, experimentID, format, repoRoot, specID string
 	var pricingSnapshot, pricingSHA256 string
 	var cacheControl string
 	var target, maxAttempts, warmup int
@@ -265,7 +265,6 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs.StringVar(&image, "image", "ktx-bench", "Docker image")
 	fs.StringVar(&experimentID, "experiment-id", "", "experiment id")
 	fs.StringVar(&format, "format", opts.Format, "json or text")
-	fs.StringVar(&summarize, "summarize", "", "regenerate an experiment summary")
 	fs.StringVar(&repoRoot, "repo-root", "", "repository root")
 	fs.StringVar(&specID, "spec", "", "registered benchmark spec ID")
 	fs.StringVar(&pricingSnapshot, "pricing-snapshot", "", "retained pricing.json to pin before model calls")
@@ -289,17 +288,6 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 			warmupSet = true
 		}
 	})
-	if summarize != "" {
-		regeneration, err := experiment.RegenerateSummary(summarize)
-		if err != nil {
-			printError(stderr, internalError("ktx bench compare: %v", err), opts.Format)
-			return ExitInternal
-		}
-		if len(regeneration.ProjectionDivergences) > 0 {
-			fmt.Fprintf(stderr, "ktx bench compare: %d copied measurement projection divergences ignored\n", len(regeneration.ProjectionDivergences))
-		}
-		return renderExperimentValue(stdout, regeneration.Summary, format, experiment.RenderSummary)
-	}
 	if preflight {
 		if pricingSHA256 != "" && pricingSnapshot == "" {
 			printError(stderr, usageError("ktx bench compare: --pricing-sha256 requires --pricing-snapshot"), opts.Format)
@@ -390,13 +378,17 @@ func runBenchCorpus(args []string, opts Options, stdout, stderr io.Writer) int {
 func runBenchValidate(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench validate", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var directory, format string
-	fs.StringVar(&directory, "experiment", "", "experiment directory")
+	var format string
 	fs.StringVar(&format, "format", opts.Format, "json or text")
-	if err := fs.Parse(args); err != nil || directory == "" || len(fs.Args()) > 0 {
+	if err := fs.Parse(args); err != nil || len(fs.Args()) != 1 {
 		if err == nil {
-			err = fmt.Errorf("--experiment is required")
+			err = fmt.Errorf("usage: ktx bench validate <id>")
 		}
+		printError(stderr, usageError("ktx bench validate: %v", err), opts.Format)
+		return ExitUsage
+	}
+	directory, err := resolveExperiment(fs.Arg(0))
+	if err != nil {
 		printError(stderr, usageError("ktx bench validate: %v", err), opts.Format)
 		return ExitUsage
 	}
@@ -463,7 +455,17 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	if campaignID == "" {
 		campaignID = "rank-" + time.Now().UTC().Format("20060102T150405Z")
 	}
-	dataDir, err := filepath.Abs(".bench-data")
+	if err := experiment.ValidateExperimentID(campaignID); err != nil {
+		printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
+		return ExitUsage
+	}
+	for _, candidateID := range candidates {
+		if err := experiment.ValidateExperimentID(campaignID + "-" + candidateID); err != nil {
+			printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
+			return ExitUsage
+		}
+	}
+	dataDir, err := experimentRoot()
 	if err != nil {
 		printError(stderr, internalError("ktx bench rank: %v", err), opts.Format)
 		return ExitInternal

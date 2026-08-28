@@ -90,6 +90,12 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 		return benchSubToExit(runBenchScreen(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "rank":
 		return benchSubToExit(runBenchRank(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "list":
+		return benchSubToExit(runBenchList(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "show":
+		return benchSubToExit(runBenchShow(tail, opts, ctx.Stdout, ctx.Stderr))
+	case "summarize":
+		return benchSubToExit(runBenchSummarize(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "validate":
 		return benchSubToExit(runBenchValidate(tail, opts, ctx.Stdout, ctx.Stderr))
 	case "corpus":
@@ -199,8 +205,14 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Screen full configurations offline and emit bounded aggregate JSON.")
 	fmt.Fprintln(w, "  rank --model <model> [--variant <name>] --task <id> [--baseline <id>] [--candidate <id>,...]")
 	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
-	fmt.Fprintln(w, "  validate --experiment <directory>")
+	fmt.Fprintln(w, "  list")
+	fmt.Fprintln(w, "      List experiments found under .ktx/experiments.")
+	fmt.Fprintln(w, "  show <id>")
+	fmt.Fprintln(w, "      Show an experiment manifest by ID.")
+	fmt.Fprintln(w, "  validate <id>")
 	fmt.Fprintln(w, "      Verify retained artifacts, hashes, links, and summary bytes.")
+	fmt.Fprintln(w, "  summarize <id>")
+	fmt.Fprintln(w, "      Regenerate an experiment summary by ID.")
 	fmt.Fprintln(w, "  agent --capabilities")
 	fmt.Fprintln(w, "      Emit the offline image collector contract as structured JSON.")
 	fmt.Fprintln(w, "  evidence preflight --spec <path> [--output <path>]")

@@ -191,10 +191,10 @@ digest, attempt ownership, and callback and interval integrity before auth
 readiness. Live runs accept any provider except `github-copilot/*`.
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
-summaries. Validate retained evidence with:
+summaries under `.ktx/experiments/<id>`. Validate retained evidence by ID:
 
 ```bash
-ktx bench validate --experiment .bench-data/<experiment-id>
+ktx bench validate <experiment-id>
 ```
 
 ### Offline replay

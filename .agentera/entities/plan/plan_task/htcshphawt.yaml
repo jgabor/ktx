@@ -5,7 +5,7 @@ record:
   depends_on:
     - hzuuiqtkvp
     - cruknldtsy
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN a new benchmark run WHEN artifacts are created THEN they exist only under `.ktx/experiments/<id>` and `.ktx` is ignored and snapshot-excluded.
     - GIVEN list, show, validate, or summarize WHEN called THEN experiment IDs resolve from the fixed root and unknown, malformed, traversal, or duplicate IDs fail safely.

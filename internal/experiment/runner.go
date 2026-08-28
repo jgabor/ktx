@@ -96,6 +96,19 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err := runner.prepareStructuralOptions(&options); err != nil {
 		return "", nil, 2, err
 	}
+	experimentID := options.ExperimentID
+	if experimentID == "" {
+		experimentID = runner.experimentID(ctx, options)
+	}
+	if err := ValidateExperimentID(experimentID); err != nil {
+		return "", nil, 2, err
+	}
+	experimentDir := filepath.Join(options.DataDir, experimentID)
+	if _, err := os.Lstat(experimentDir); err == nil {
+		return "", nil, 2, fmt.Errorf("experiment id already exists: %s", experimentID)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", nil, 2, err
+	}
 	provider, model, err := splitModel(options.Model)
 	if err != nil {
 		return "", nil, 2, err
@@ -112,10 +125,6 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	}
 	if err := os.MkdirAll(options.DataDir, 0o755); err != nil {
 		return "", nil, 2, err
-	}
-	experimentID := options.ExperimentID
-	if experimentID == "" {
-		experimentID = runner.experimentID(ctx, options)
 	}
 	cacheControl := resolvedCacheControl{}
 	if cacheAwareMethodology(options.methodologyVersion) {
@@ -136,7 +145,6 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 			return "", nil, 2, err
 		}
 	}
-	experimentDir := filepath.Join(options.DataDir, experimentID)
 	if err := os.Mkdir(experimentDir, 0o755); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return "", nil, 2, fmt.Errorf("experiment directory already exists: %s", experimentDir)
@@ -161,7 +169,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err := copyTree(options.RepoRoot, repositoryDir, func(relative string, entry os.DirEntry) bool {
 		base := filepath.Base(relative)
 		insideDataDir := dataRelative != "." && dataRelative != "" && dataRelative != ".." && !strings.HasPrefix(dataRelative, "../") && (relative == dataRelative || strings.HasPrefix(relative, dataRelative+"/"))
-		return base == ".git" || base == ".bench-data" || base == "__pycache__" || insideDataDir
+		return base == ".git" || base == ".ktx" || base == "__pycache__" || insideDataDir
 	}); err != nil {
 		return "", nil, 2, fmt.Errorf("snapshot repository: %w", err)
 	}
@@ -292,7 +300,7 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 		options.TerminationGrace = 30 * time.Second
 	}
 	if options.DataDir == "" {
-		options.DataDir = filepath.Join(options.RepoRoot, ".bench-data")
+		options.DataDir = filepath.Join(options.RepoRoot, ".ktx", "experiments")
 	}
 	options.DataDir, err = filepath.Abs(options.DataDir)
 	if err != nil {

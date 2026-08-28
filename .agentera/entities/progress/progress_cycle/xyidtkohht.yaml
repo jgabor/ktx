@@ -1,0 +1,16 @@
+id: xyidtkohht
+artifact: progress
+record:
+  timestamp: 2026-08-28 17:32
+  type: feat
+  phase: build
+  what: Established fixed-root, ID-only benchmark experiment lifecycle commands, collision-safe creation, bounded malformed-manifest listing, and repository snapshot exclusion, then removed the authorized legacy archive root.
+  context:
+    intent: Complete the interrupted experiment storage and lifecycle task without discarding partial work.
+    constraints: Preserve tracked static historical reports and user files; use only the fixed project-local root for current experiment artifacts; keep lifecycle targets ID-only; do not call providers or use the ambient database.
+    unknowns: None in the implemented task boundary.
+    scope: Fixed storage root, ID validation and collision handling, lifecycle discovery and malformed listing, snapshot exclusion, authorized repository-root cleanup, focused documentation, tests, and verification.
+  discovered: Before deletion, cwd and git root were both ~/git/ktx and the exact target resolved to ~/git/ktx/.bench-data. HEAD .gitignore contained .bench-data/; git ls-files -- .bench-data returned no tracked paths; git status --short --untracked-files=normal -- .bench-data returned only ?? .bench-data/. A metadata-only inventory counted 13,800 directories including the root, 173,225 files, 11,927,921,108 logical file bytes, 12,439,597,056 allocated bytes including directories, 112 symlinks, and zero other non-directory entries. The guarded rm -rf -- "$PWD/.bench-data" deleted exactly that root; a subsequent absence test and scoped git status produced no output.
+  verified: "env -u KTX_DB with fresh HOME and XDG roots: GOMAXPROCS=2 go test -p 1 ./internal/cli ./internal/experiment passed; GOMAXPROCS=2 GOFLAGS=-p=1 mage check passed all tests, vet, lint, generated-adapter gate, audit, and build. The rebuilt ./build/ktx bench list returned []; git check-ignore -v -- .ktx/experiments/example matched .gitignore:3:.ktx/; .ktx remained absent. No provider call or ambient database access occurred."
+  next: Leave plan task htcshphawt in progress for coordinator evaluation.
+  publication_order: 201

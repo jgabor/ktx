@@ -20,12 +20,14 @@ engineering work.
 | `ktx bench compare --model <model> [--variant <name>] --task <id> ...`           | Creates retained experiment files and fresh isolated owner databases; uses network/model calls and can incur provider charges.                                                             |
 | `ktx bench screen --population <path> --config <path>... --anchor-config <path>` | DB-free mechanical configuration screening; reads named files and makes no model calls. External plugins are rejected.                                                                     |
 | `ktx bench rank --model <model> [--variant <name>] --task <id> ...`              | Creates retained experiment files and fresh isolated owner databases; uses network/model calls and can incur provider charges.                                                             |
-| `ktx bench validate --experiment <directory>`                                    | Read-only retained-artifact validation; does not rewrite the archive.                                                                                                                      |
+| `ktx bench list`                                                                 | Lists experiments from the fixed `.ktx/experiments` root.                                                                                                                                  |
+| `ktx bench show <id>`                                                            | Reads one experiment manifest by ID from the fixed root.                                                                                                                                   |
+| `ktx bench validate <id>`                                                        | Read-only retained-artifact validation by ID; does not rewrite the archive.                                                                                                                |
 | `ktx bench agent --capabilities`                                                 | DB-free offline capability report; no model calls.                                                                                                                                         |
 | `ktx bench evidence preflight --spec <path> [--output <path>]`                   | DB-free, no-network preflight; an output path writes a report file.                                                                                                                        |
 | `ktx bench evidence gemini-preflight --spec <path> [--output <path>]`            | DB-free, no-network preflight; an output path writes a report file.                                                                                                                        |
 | `ktx bench corpus generate [--output <directory>]`                               | DB-free but writes generated corpus files.                                                                                                                                                 |
-| `ktx bench compare --summarize <experiment-directory>`                           | Does not run model calls or write the ktx database, but rewrites derived `summary.json` evidence in the retained experiment.                                                               |
+| `ktx bench summarize <id>`                                                       | Does not run model calls or write the ktx database, but rewrites derived `summary.json` evidence in the retained experiment.                                                               |
 
 DB-free means only that the command does not open the ktx database. It does not
 mean filesystem-safe, network-free, side-effect-free, or free of provider cost.
@@ -97,7 +99,7 @@ Experiments normally retain:
 Validate without rewriting the archive:
 
 ```bash
-ktx bench validate --experiment .bench-data/<experiment-id>
+ktx bench validate <experiment-id>
 ```
 
 Treat `valid`, `summary_byte_match`, target counts, attempt checks, complete pair

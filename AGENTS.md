@@ -137,7 +137,7 @@ remain historical evidence.
 ### Evidence validation
 
 ```bash
-./build/ktx bench validate --experiment .bench-data/<experiment-id>
+./build/ktx bench validate <experiment-id>
 ```
 
 The validator checks retained artifacts and hashes, session-linked attempts,

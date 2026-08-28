@@ -337,7 +337,7 @@ func validateDocumentedCLIExamples(files map[string]string) []string {
 	var issues []string
 	issues = append(issues, contractTextIssues(benchDoc, []string{
 		"ktx bench run <agent> <model> <task>",
-		"ktx bench validate --experiment <directory>",
+		"ktx bench validate <id>",
 		"ktx bench evidence preflight --spec <path> [--output <path>]",
 		"ktx bench corpus generate [--output <directory>]",
 	}, nil)...)
@@ -356,7 +356,7 @@ func validateDocumentedCLIExamples(files map[string]string) []string {
 	}{
 		{name: "bench", args: []string{"bench", "--help"}, required: []string{
 			"run <agent> <model> <task>",
-			"validate --experiment <directory>",
+			"validate <id>",
 			"evidence preflight --spec <path> [--output <path>]",
 			"corpus generate [--output <directory>]",
 			"0 success", "1 usage/contract error", "2 not found", "4 internal/verification failure",

@@ -16,7 +16,12 @@ import (
 )
 
 func TestBenchSummaryConsumersRejectConflictWithoutOverwrite(t *testing.T) {
-	dir := t.TempDir()
+	root := t.TempDir()
+	t.Chdir(root)
+	dir := filepath.Join(root, ".ktx", "experiments", "conflict")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	manifest := experiment.Manifest{ExperimentID: "conflict", Methodology: experiment.MethodologyMetadata{Version: "v4"}, Task: experiment.Task{MinimumToolCalls: 1}}
 	if err := experiment.WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
 		t.Fatal(err)
@@ -47,10 +52,10 @@ func TestBenchSummaryConsumersRejectConflictWithoutOverwrite(t *testing.T) {
 		run  func(*bytes.Buffer, *bytes.Buffer) int
 	}{
 		{name: "validate", run: func(stdout, stderr *bytes.Buffer) int {
-			return runBenchValidate([]string{"--experiment", dir, "--format", "json"}, Options{Format: FormatJSON}, stdout, stderr)
+			return runBenchValidate([]string{"conflict"}, Options{Format: FormatJSON}, stdout, stderr)
 		}},
-		{name: "compare summarize", run: func(stdout, stderr *bytes.Buffer) int {
-			return runBenchCompare([]string{"--summarize", dir, "--format", "json"}, Options{Format: FormatJSON}, stdout, stderr)
+		{name: "summarize", run: func(stdout, stderr *bytes.Buffer) int {
+			return runBenchSummarize([]string{"conflict"}, Options{Format: FormatJSON}, stdout, stderr)
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

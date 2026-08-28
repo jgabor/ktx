@@ -790,7 +790,7 @@ func TestRunnerVariantPropagation(t *testing.T) {
 			runner := &Runner{Executor: fake, Now: func() time.Time { return time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC) }, PID: 11, ResolvePrice: testPriceResolver}
 			directory, _, code, err := runner.Compare(context.Background(), CompareOptions{
 				Model: "openai/gpt-5.6-luna", Variant: tc.variant, TaskFile: task, TargetValid: 2, MaxAttempts: 4,
-				AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "variant-" + tc.name,
+				AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "variant-" + strings.ReplaceAll(tc.name, "_", "-"),
 				DataDir: filepath.Join(root, "data"), Image: "image", AuthPath: auth, RepoRoot: root,
 				MethodologyPath: filepath.Join(root, "tools/bench/specs/eval-matrix.yaml"),
 				BaselineConfig:  baseline, CandidateConfig: candidate, KTXBin: "ktx", DockerBin: "docker",

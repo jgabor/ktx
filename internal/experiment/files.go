@@ -163,7 +163,7 @@ func prepareWorkspace(repositoryRoot, workspace, mode string, corpusFiles []stri
 	case "repo":
 		skip := func(relative string, entry fs.DirEntry) bool {
 			base := filepath.Base(relative)
-			if base == ".git" || base == ".bench-data" || base == "__pycache__" {
+			if base == ".git" || base == ".ktx" || base == "__pycache__" {
 				return true
 			}
 			answerKeys := []string{

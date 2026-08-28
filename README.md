@@ -164,38 +164,50 @@ Repeat `--config` for each complete configuration. The JSON contains only
 aggregate measurements, hashes, and opaque configuration identities. External
 plugins are rejected so screening cannot send source content to another process.
 
-The current opt-in comparison uses methodology v6, summary schema 5, and
-`cache-reuse-v2` to report the token-weighted prompt-cache hit rate under the
-pinned contract. It does not authorize provider-request or provider-internal
-cache claims.
+The [canonical benchmark workflow](docs/pipelines.md#canonical-benchmark-workflow)
+covers semantic-ID discovery, offline preflight, compare or rank, and the full
+experiment lifecycle. Compare and rank require an explicit registered `--spec`;
+focused command help lists all current spec, task, baseline, and candidate IDs.
 
 ```bash
 ./build/ktx bench compare --preflight --build --format json
 
 ./build/ktx bench compare \
-  --build \
   --spec prompt-cache-token-hit-rate \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task crossfile-nav \
+  --baseline passthrough \
+  --candidate conservative-a \
   --cache-control observed \
   --warmup 1 \
   --rounds 5
 ```
 
 Preflight returns before task loading. It makes no model call, requires no
-authentication, and creates no experiment artifact; with `--build` it first
-builds the image from local source. Every normal comparison runs the same
-gate before its first attempt, requiring attested image identity, plugin
-digest, attempt ownership, and callback and interval integrity before auth
-readiness. Live runs accept any provider except `github-copilot/*`.
+authentication, opens no ktx database, and creates no experiment artifact.
+With `--build`, it can use the network and changes Docker image and build-cache
+state. Compare and rank create archives, use fresh isolated owner databases,
+make network and provider calls, and can incur charges. Live runs accept any
+provider except `github-copilot/*`.
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
-summaries under `.ktx/experiments/<id>`. Validate retained evidence by ID:
+summaries under `.ktx/experiments/<id>`. Use only the experiment ID:
 
 ```bash
+ktx bench list
+ktx bench show <experiment-id>
+ktx bench validate <experiment-id>
+ktx bench summarize <experiment-id>
 ktx bench validate <experiment-id>
 ```
+
+List, show, and validate are read-only archive inspection and do not open the
+ktx database. Summarize rewrites derived `summary.json` but makes no provider
+call and does not open the ktx database. Archives can contain repository
+snapshots, prompts, outputs, streams, stderr, identifiers, databases, and
+secrets. Review a derivative before sharing. Labeled historical reports remain
+static evidence and have no current-validation guarantee.
 
 ### Offline replay
 

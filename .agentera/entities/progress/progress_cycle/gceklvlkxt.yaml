@@ -1,0 +1,14 @@
+id: gceklvlkxt
+artifact: progress
+record:
+  timestamp: 2026-08-28 21:32
+  type: docs
+  phase: build
+  what: Published one canonical semantic-ID benchmark workflow and synchronized public, repository-agent, and ktx-skill guidance without changing benchmark behavior or historical evidence.
+  context:
+    intent: Give humans and coding agents one concise end-to-end benchmark workflow with explicit lifecycle and trust boundaries.
+    constraints: Documentation and contract-test scope only; no provider calls, ambient database access, benchmark behavior changes, profile refresh, decision-satisfaction changes, historical evidence rewrites, or task completion transition.
+  discovered: Focused compare and rank help are the runtime registry inventory. Generic preflight is database-free and creates no archive or provider call; --build can use the network and mutate Docker cache. Compare and rank create sensitive archives and isolated owner databases and can incur provider cost. List, show, and validate are read-only archive operations; summarize rewrites derived summary.json.
+  verified: The local build's bench namespace and focused list, show, summarize, and rank help matched the documented semantic-ID and experiment-ID interfaces under fresh disposable HOME/XDG roots with KTX_DB unset. git diff --check passed. Searches found no path-oriented --spec, --task, --baseline, --candidate, show, summarize, or validate selectors across README.md, AGENTS.md, docs/pipelines.md, and the ktx benchmark skill reference. git diff --exit-code HEAD over docs/cache-reuse-live-validation.md, docs/runtime-compression-telemetry-evidence.md, docs/skillsbench-campaign.md, benchs, and tools/bench/evidence passed with no output, proving labeled historical material is unchanged. The focused Go skill contract test was attempted twice under fresh disposable HOME/XDG roots with KTX_DB unset, but compilation and linking stopped with disk quota exceeded; no test result was produced.
+  next: Keep plan task shiqjpswnp in_progress for audit; the plan's final clarity-contract verification task remains pending.
+  publication_order: 212

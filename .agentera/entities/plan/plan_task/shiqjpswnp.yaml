@@ -5,7 +5,7 @@ record:
   depends_on:
     - akedhpgjmg
     - unazxzoasn
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN a human or coding agent starts from supported guidance WHEN they follow the benchmark workflow THEN it covers offline preflight, compare or rank, list, show, summarize, and validate using semantic and experiment IDs.
     - GIVEN lifecycle commands have different effects WHEN guidance describes them THEN read-only inspection and validation are distinguished from summary regeneration and experiment creation.

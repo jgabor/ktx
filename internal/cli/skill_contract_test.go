@@ -337,9 +337,18 @@ func validateDocumentedCLIExamples(files map[string]string) []string {
 	var issues []string
 	issues = append(issues, contractTextIssues(benchDoc, []string{
 		"ktx bench run <agent> <model> <task>",
+		"ktx bench compare --spec <id>",
+		"ktx bench rank --spec <id>",
+		"ktx bench list",
+		"ktx bench show <id>",
+		"ktx bench summarize <id>",
 		"ktx bench validate <id>",
+		"focused compare and rank help list the current registry",
+		"does not open the ktx database",
+		"rewrites derived `summary.json`",
+		"static history",
 		"ktx bench corpus generate [--output <directory>]",
-	}, nil)...)
+	}, []string{"pipelines/passthrough.toml"})...)
 	issues = append(issues, contractTextIssues(cliDoc, []string{
 		"ktx stats summary --window 30m --format json",
 		"- `0`: success.",

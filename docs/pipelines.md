@@ -32,9 +32,9 @@ historical.
 | `aggressive-head`        | `aggressive-head.toml`        | sanitize + `head:30`                               | Max savings; high mid/tail fact risk                            |
 | `aggressive-keep-ends`   | `aggressive-keep-ends.toml`   | sanitize + `keep-ends:30:10`                       | Aggressive but keeps head+tail                                  |
 
-The live A/B defaults are `pipelines/passthrough.toml` and
-`conservative-a`. Override them with registered pipeline IDs through `--baseline`
-or `--candidate`.
+The live A/B defaults are the registered pipeline IDs `passthrough` and
+`conservative-a`. Select another registered ID through `--baseline` or
+`--candidate`.
 
 Live A/B vocabulary: each run compares a **baseline** pipeline to a **candidate**
 pipeline (summary keys `pipelines.baseline` / `pipelines.candidate`).
@@ -823,8 +823,8 @@ All metrics are derived from retained experiment evidence
 
 ### Recovery-aware configuration comparison
 
-`ktx bench compare` keeps arbitrary baseline and candidate configuration files
-as the comparison boundary. Recovery-aware evaluation uses two gates:
+`ktx bench compare` uses registered baseline and candidate pipeline IDs as the
+comparison boundary. Recovery-aware evaluation uses two gates:
 
 1. **Offline screening** runs each configuration over one frozen retained-output
    population through the production pipeline runner. It reports paired
@@ -1081,10 +1081,74 @@ more are `descriptive`. The label does not block smoke runs.
 
 ## How to run
 
+### Canonical benchmark workflow
+
+Use versionless semantic IDs for specs, tasks, baselines, and candidates. Use
+experiment IDs for every retained-experiment lifecycle command. Focused help is
+the current inventory of registered IDs:
+
+```bash
+./build/ktx bench compare --help
+./build/ktx bench rank --help
+```
+
+Run the offline gate, then create an experiment with either compare or rank:
+
+```bash
+./build/ktx bench compare --preflight --format json
+
+./build/ktx bench compare \
+  --spec prompt-cache-token-hit-rate \
+  --model openai/gpt-5.6-luna \
+  --variant high \
+  --task crossfile-nav \
+  --baseline passthrough \
+  --candidate conservative-a \
+  --cache-control observed \
+  --warmup 1 \
+  --rounds 5
+
+# Or rank registered candidates with the same semantic selectors:
+./build/ktx bench rank \
+  --spec recovery-aware-comparison \
+  --model <model> \
+  --task <task-id> \
+  --baseline passthrough \
+  --candidate conservative-a,keep-ends-mid
+```
+
+The generic preflight does not open the ktx database, use authentication, call
+a model, or create an experiment archive. Adding `--build` can use the network
+and changes local Docker image and build-cache state. Compare and rank create an
+archive under `.ktx/experiments/<id>`, use fresh isolated owner databases, use
+the network, call the selected provider, and can incur provider charges.
+
+Inspect and maintain the resulting experiment by ID:
+
+```bash
+./build/ktx bench list
+./build/ktx bench show <experiment-id>
+./build/ktx bench validate <experiment-id>
+./build/ktx bench summarize <experiment-id>
+./build/ktx bench validate <experiment-id>
+```
+
+List, show, and validate read retained archives without rewriting them and do
+not open the ktx database. Summarize does not call a provider or open the ktx
+database, but it rewrites the archive's derived `summary.json`; validate again
+after regeneration. Treat the whole experiment archive as sensitive. It can
+contain repository snapshots, prompts, outputs, streams, stderr, identifiers,
+databases, and secrets. Review a derivative before sharing it.
+
+Tracked reports and other labeled historical evidence are static history, not
+active workflow inputs. The current validator does not guarantee support for
+historical archive formats. Do not rewrite historical evidence to make it pass
+current validation.
+
 ### Cache-aware comparison
 
-Methodology v4 remains the default for compatibility. The current explicit
-cache-aware path is methodology v6, summary schema 5, and `cache-reuse-v2`.
+There is no implicit benchmark spec. The current explicit cache-aware spec uses
+methodology v6, summary schema 5, and `cache-reuse-v2`.
 It reports the token-weighted prompt-cache hit rate under the pinned contract;
 provider-request and provider-internal cache claims remain forbidden.
 

@@ -6,29 +6,42 @@ public docs/help must remain synchronized contract surfaces. Use this reference
 for retained experiments, replay, build/test commands, and repository-safe
 engineering work.
 
-## Common Benchmark Workflows
+## Canonical Benchmark Workflow
 
-| Minimal interface                                                                | Database and other effects                                                                                                                                                                 |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ktx bench run <agent> <model> <task>`                                           | Write-capable; runs an agent and can use network/model calls and incur provider charges.                                                                                                   |
-| `ktx bench run --replay <session-id>`                                            | Write-capable creation/migration open; no agent/model calls.                                                                                                                               |
-| `ktx bench run --replay-file <path>`                                             | DB-free, offline retained-file verification; no model calls.                                                                                                                               |
-| `ktx bench report [<id>] [--spec <id>]`                                          | Genuinely read-only database query.                                                                                                                                                        |
-| `ktx bench export [--output <path\|->] <session-id>`                             | Read-only source database; writes a file when `--output` names a path, otherwise writes fixture bytes to stdout.                                                                           |
-| `ktx bench compare --preflight --format json`                                    | DB-free; returns before task loading, makes no model/provider calls, and creates no experiment artifact. It inspects the existing benchmark image.                                         |
-| `ktx bench compare --preflight --build --format json`                            | DB-free and makes no model/provider calls or experiment artifacts, but `--build` mutates Docker image/build-cache state and may use the network to fetch base-image and dependency inputs. |
-| `ktx bench compare --model <model> [--variant <name>] --task <id> ...`           | Creates retained experiment files and fresh isolated owner databases; uses network/model calls and can incur provider charges.                                                             |
-| `ktx bench screen --population <path> --config <path>... --anchor-config <path>` | DB-free mechanical configuration screening; reads named files and makes no model calls. External plugins are rejected.                                                                     |
-| `ktx bench rank --model <model> [--variant <name>] --task <id> ...`              | Creates retained experiment files and fresh isolated owner databases; uses network/model calls and can incur provider charges.                                                             |
-| `ktx bench list`                                                                 | Lists experiments from the fixed `.ktx/experiments` root.                                                                                                                                  |
-| `ktx bench show <id>`                                                            | Reads one experiment manifest by ID from the fixed root.                                                                                                                                   |
-| `ktx bench validate <id>`                                                        | Read-only retained-artifact validation by ID; does not rewrite the archive.                                                                                                                |
-| `ktx bench agent --capabilities`                                                 | DB-free offline capability report; no model calls.                                                                                                                                         |
-| `ktx bench corpus generate [--output <directory>]`                               | DB-free but writes generated corpus files.                                                                                                                                                 |
-| `ktx bench summarize <id>`                                                       | Does not run model calls or write the ktx database, but rewrites derived `summary.json` evidence in the retained experiment.                                                               |
+The public canonical workflow is
+[`docs/pipelines.md#canonical-benchmark-workflow`](../../../../docs/pipelines.md#canonical-benchmark-workflow).
+Use versionless semantic IDs for `--spec`, `--task`, `--baseline`, and
+`--candidate`; focused compare and rank help list the current registry. Use an
+experiment ID, never an archive path, with list, show, summarize, and validate.
+
+| Minimal interface                                                                  | Database and other effects                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ktx bench run <agent> <model> <task>`                                             | Write-capable; runs an agent and can use network/model calls and incur provider charges.                                                                                                   |
+| `ktx bench run --replay <session-id>`                                              | Write-capable creation/migration open; no agent/model calls.                                                                                                                               |
+| `ktx bench run --replay-file <path>`                                               | DB-free, offline retained-file verification; no model calls.                                                                                                                               |
+| `ktx bench report [<id>] [--spec <id>]`                                            | Genuinely read-only database query.                                                                                                                                                        |
+| `ktx bench export [--output <path\|->] <session-id>`                               | Read-only source database; writes a file when `--output` names a path, otherwise writes fixture bytes to stdout.                                                                           |
+| `ktx bench compare --preflight --format json`                                      | DB-free; returns before task loading, makes no model/provider calls, and creates no experiment artifact. It inspects the existing benchmark image.                                         |
+| `ktx bench compare --preflight --build --format json`                              | DB-free and makes no model/provider calls or experiment artifacts, but `--build` mutates Docker image/build-cache state and may use the network to fetch base-image and dependency inputs. |
+| `ktx bench compare --spec <id> --model <model> [--variant <name>] --task <id> ...` | Creates a sensitive retained experiment and fresh isolated owner databases; uses network/model calls and can incur provider charges.                                                       |
+| `ktx bench screen --population <path> --config <path>... --anchor-config <path>`   | DB-free mechanical configuration screening; reads named files and makes no model calls. External plugins are rejected.                                                                     |
+| `ktx bench rank --spec <id> --model <model> [--variant <name>] --task <id> ...`    | Creates a sensitive retained experiment and fresh isolated owner databases; uses network/model calls and can incur provider charges.                                                       |
+| `ktx bench list`                                                                   | Read-only archive inspection; lists experiment IDs and does not open the ktx database.                                                                                                     |
+| `ktx bench show <id>`                                                              | Read-only archive inspection by experiment ID; does not open the ktx database.                                                                                                             |
+| `ktx bench validate <id>`                                                          | Read-only retained-artifact validation by experiment ID; does not rewrite the archive or open the ktx database.                                                                            |
+| `ktx bench agent --capabilities`                                                   | DB-free offline capability report; no model calls.                                                                                                                                         |
+| `ktx bench corpus generate [--output <directory>]`                                 | DB-free but writes generated corpus files.                                                                                                                                                 |
+| `ktx bench summarize <id>`                                                         | Makes no model call and does not open the ktx database, but rewrites derived `summary.json` in the retained experiment.                                                                    |
 
 DB-free means only that the command does not open the ktx database. It does not
 mean filesystem-safe, network-free, side-effect-free, or free of provider cost.
+
+For the shortest complete sequence: run generic preflight; run compare or rank
+with registered semantic IDs; list experiments; show the selected experiment;
+validate it; summarize it only when regeneration is intended; then validate it
+again. Compare and rank create archives and can incur provider charges. Generic
+preflight creates no archive or model call; `--build` may use the network and
+mutates Docker image and build-cache state.
 
 Named methodologies, tasks, pipelines, and corpus fixtures live under
 `tools/bench/`.
@@ -109,6 +122,10 @@ contain a full repository snapshot; databases, streams, stderr, and session
 snapshots can contain prompts, outputs, identifiers, or secrets. Create and
 review a derivative for sharing rather than modifying authoritative retained
 evidence.
+
+Tracked reports and labeled historical evidence are static history. Current
+validation is not guaranteed to support their archive formats; do not rewrite
+historical evidence to make it pass.
 
 ## Replay
 

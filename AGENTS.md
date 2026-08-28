@@ -105,6 +105,10 @@ the `.attempt.failed.json` sibling is the latest failed attempt, not authority.
 
 ### Live comparison
 
+Follow the [canonical benchmark workflow](docs/pipelines.md#canonical-benchmark-workflow).
+Use focused compare or rank help to discover registered semantic IDs. Use only
+experiment IDs with list, show, summarize, and validate.
+
 The explicit per-attempt owner and fail-closed event collector pass offline
 preflight. The retained OpenCode 1.18.5 Luna/high v3 experiment also passes
 retained-artifact validation with 14/14 valid attempt checks, five complete
@@ -122,11 +126,12 @@ remain historical evidence.
 ./build/ktx bench compare --preflight --build --format json
 
 ./build/ktx bench compare \
-  --build \
   --spec prompt-cache-token-hit-rate \
   --model openai/gpt-5.6-luna \
   --variant high \
   --task crossfile-nav \
+  --baseline passthrough \
+  --candidate conservative-a \
   --cache-control observed \
   --warmup 1 \
   --rounds 5
@@ -137,8 +142,18 @@ remain historical evidence.
 ### Evidence validation
 
 ```bash
+./build/ktx bench list
+./build/ktx bench show <experiment-id>
+./build/ktx bench validate <experiment-id>
+./build/ktx bench summarize <experiment-id>
 ./build/ktx bench validate <experiment-id>
 ```
 
-The validator checks retained artifacts and hashes, session-linked attempts,
-target completion counts, and byte-for-byte summary regeneration.
+List, show, and validate are read-only archive operations and do not open the
+ktx database. Summarize rewrites derived `summary.json`; it does not open the
+ktx database or call a provider. Compare and rank create sensitive archives and
+isolated owner databases, use the network, call providers, and can incur cost.
+Generic preflight creates no archive, opens no ktx database, and makes no model
+call; `--build` can use the network and mutate Docker cache. Treat archives as
+sensitive, and treat labeled historical evidence as static material without a
+current-validation guarantee.

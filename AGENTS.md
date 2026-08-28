@@ -123,10 +123,10 @@ remain historical evidence.
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/specs/prompt-cache-token-hit-rate.yaml \
+  --spec prompt-cache-token-hit-rate \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav.toml \
+  --task crossfile-nav \
   --cache-control observed \
   --warmup 1 \
   --rounds 5

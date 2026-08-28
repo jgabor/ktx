@@ -189,7 +189,7 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertContractText(t, contents,
-				[]string{"specs/prompt-cache-token-hit-rate.yaml"},
+				[]string{"--spec prompt-cache-token-hit-rate"},
 				[]string{"methodology-v5-cache-aware.yaml"})
 		})
 	}

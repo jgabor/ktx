@@ -4,10 +4,20 @@ record:
   name: Establish semantic registries and current archive schema
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN active specs, tasks, pipelines, and contracts WHEN listed THEN each has one versionless semantic ID and unknown, duplicate, or path-like IDs are rejected.
     - GIVEN a new experiment WHEN retained THEN archive-relative snapshots contain each input ID, format, exact bytes, and SHA-256 without host source paths.
     - GIVEN working-tree inputs are changed or removed WHEN the archive validates THEN current regeneration still succeeds from retained bytes.
     - GIVEN SkillsBench history WHEN active specs are listed THEN it is absent from the active registry.
   plan: bptycpojpd
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: registry-build-1
+      source: progress wlsygddodp; commit fae6996
+      recorded_at: 2026-08-28 14:58
+      writer_command: agentera state plan record-evaluation

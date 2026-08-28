@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -96,12 +97,11 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 		}
 	}
 
-	t.Run("eligible build ignores an unavailable task file", func(t *testing.T) {
+	t.Run("eligible build accepts a registered task", func(t *testing.T) {
 		databasePath := filepath.Join(t.TempDir(), "ktx.db")
 		t.Setenv("KTX_DB", databasePath)
-		missingTask := filepath.Join(t.TempDir(), "missing-task.toml")
 		var stdout, stderr bytes.Buffer
-		code := runBenchCompare([]string{"--preflight", "--build", "--repo-root", root, "--task-file", missingTask, "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		code := runBenchCompare([]string{"--preflight", "--build", "--repo-root", root, "--task", "crossfile-nav", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
 		if code != ExitOK {
 			t.Fatalf("code = %d, stderr = %s", code, stderr.String())
 		}
@@ -121,12 +121,12 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 		assertDatabaseUntouched(t, databasePath)
 	})
 
-	t.Run("ineligible image ignores direct task input", func(t *testing.T) {
+	t.Run("ineligible image accepts a registered task", func(t *testing.T) {
 		t.Setenv("KTX_TEST_IMAGE_INSPECT_FAIL", "1")
 		databasePath := filepath.Join(t.TempDir(), "ktx.db")
 		t.Setenv("KTX_DB", databasePath)
 		var stdout, stderr bytes.Buffer
-		code := runBenchCompare([]string{"--preflight", "--task-id", "ignored", "--prompt", "ignored", "--expected-facts", "not-json", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
+		code := runBenchCompare([]string{"--preflight", "--task", "crossfile-nav", "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
 		if code != 1 {
 			t.Fatalf("code = %d, want 1; stderr = %s", code, stderr.String())
 		}
@@ -146,6 +146,34 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 		}
 		assertDatabaseUntouched(t, databasePath)
 	})
+}
+
+func TestBenchCommandsRejectRemovedSelectorFlags(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func([]string, Options, io.Writer, io.Writer) int
+		flag string
+	}{
+		{"run methodology", runBenchRun, "--methodology"},
+		{"report methodology", runBenchReport, "--methodology"},
+		{"compare task file", runBenchCompare, "--task-file"},
+		{"compare baseline config", runBenchCompare, "--baseline-config"},
+		{"compare candidate config", runBenchCompare, "--candidate-config"},
+		{"compare data dir", runBenchCompare, "--data-dir"},
+		{"rank task file", runBenchRank, "--task-file"},
+		{"rank data dir", runBenchRank, "--data-dir"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if code := tt.run([]string{tt.flag, "legacy"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitUsage {
+				t.Fatalf("code = %d, stderr = %s", code, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "flag provided but not defined") {
+				t.Fatalf("stderr = %q", stderr.String())
+			}
+		})
+	}
 }
 
 func TestBenchAgentRejectsStageMismatchBeforeAgentRun(t *testing.T) {

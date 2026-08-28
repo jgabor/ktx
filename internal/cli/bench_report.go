@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	methodologypkg "github.com/jgabor/ktx/internal/methodology"
 )
 
 // runBenchReport renders persisted benchmark results. Three invocation
@@ -60,8 +61,8 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	// by flag.Parse as a usage error.
 	fs := flag.NewFlagSet("ktx bench report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we render our own errors and help
-	var methodologyFilter string
-	fs.StringVar(&methodologyFilter, "methodology", "", "filter rows by methodology_version (e.g., 'v1')")
+	var specFilter string
+	fs.StringVar(&specFilter, "spec", "", "filter rows by registered benchmark spec ID")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench report: %v", err), format)
 		return ExitUsage
@@ -81,6 +82,15 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	defer db.Close()
 
+	methodologyFilter := ""
+	if specFilter != "" {
+		spec, _, err := methodologypkg.Load(specFilter)
+		if err != nil {
+			printError(stderr, usageError("ktx bench report: unknown spec ID %q; use a registered ID such as exact-match", specFilter), format)
+			return ExitUsage
+		}
+		methodologyFilter = spec.Version
+	}
 	if err := runBenchReportImpl(stdout, stderr, db, fs.Args(), format, methodologyFilter); err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

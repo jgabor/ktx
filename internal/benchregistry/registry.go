@@ -28,6 +28,7 @@ var (
 )
 
 var entries = []Entry{
+	{Spec, "exact-match", "yaml", "tools/bench/specs/exact-match.yaml"},
 	{Spec, "eval-matrix", "yaml", "tools/bench/specs/eval-matrix.yaml"},
 	{Spec, "cache-aware", "yaml", "tools/bench/specs/cache-aware.yaml"},
 	{Spec, "prompt-cache-token-hit-rate", "yaml", "tools/bench/specs/prompt-cache-token-hit-rate.yaml"},

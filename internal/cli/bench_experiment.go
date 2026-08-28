@@ -248,34 +248,26 @@ func validateCompleteCollectorInterval(interval *dbpkg.RuntimeEventInterval, env
 func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench compare", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var model, variant, taskFile, taskID, prompt, expectedOutput, expectedFactsRaw, workspaceMode string
-	var baseline, candidate, dataDir, auth, image, experimentID, format, summarize, repoRoot, methodology string
+	var model, variant, taskID string
+	var baseline, candidate, auth, image, experimentID, format, summarize, repoRoot, specID string
 	var pricingSnapshot, pricingSHA256 string
 	var cacheControl string
-	var target, maxAttempts, minimumToolCalls, warmup int
+	var target, maxAttempts, warmup int
 	var timeout, grace time.Duration
 	var build, preflight bool
 	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. openai/gpt-5.6-luna with --variant high)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
-	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")
-	fs.StringVar(&taskID, "task-id", "", "task id when not using --task-file")
-	fs.StringVar(&prompt, "prompt", "", "task prompt when not using --task-file")
-	fs.StringVar(&prompt, "p", "", "task prompt when not using --task-file")
-	fs.StringVar(&expectedOutput, "expected-output", "", "exact expected answer")
-	fs.StringVar(&expectedFactsRaw, "expected-facts", "", "JSON array of required facts")
-	fs.IntVar(&minimumToolCalls, "min-tool-calls", 1, "minimum tool calls for evaluation")
-	fs.StringVar(&workspaceMode, "workspace-mode", "repo", "repo or corpus")
-	fs.StringVar(&baseline, "baseline-config", "", "baseline ktx.toml")
-	fs.StringVar(&candidate, "candidate-config", "", "candidate ktx.toml")
-	fs.StringVar(&dataDir, "data-dir", "", "experiment data directory")
+	fs.StringVar(&taskID, "task", "", "registered task ID")
+	fs.StringVar(&baseline, "baseline", "", "registered baseline pipeline ID")
+	fs.StringVar(&candidate, "candidate", "", "registered candidate pipeline ID")
 	fs.StringVar(&auth, "auth", "", "OpenCode auth.json")
 	fs.StringVar(&image, "image", "ktx-bench", "Docker image")
 	fs.StringVar(&experimentID, "experiment-id", "", "experiment id")
 	fs.StringVar(&format, "format", opts.Format, "json or text")
 	fs.StringVar(&summarize, "summarize", "", "regenerate an experiment summary")
 	fs.StringVar(&repoRoot, "repo-root", "", "repository root")
-	fs.StringVar(&methodology, "methodology", "", "methodology YAML")
+	fs.StringVar(&specID, "spec", "", "registered benchmark spec ID")
 	fs.StringVar(&pricingSnapshot, "pricing-snapshot", "", "retained pricing.json to pin before model calls")
 	fs.StringVar(&pricingSHA256, "pricing-sha256", "", "required SHA-256 identity for --pricing-snapshot")
 	fs.StringVar(&cacheControl, "cache-control", "", "cache control: auto, isolated, or observed (cache-aware methodologies v5 and v6)")
@@ -316,9 +308,9 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		runner := experiment.NewRunner()
 		runner.Diagnostics = stderr
 		report, err := runner.Preflight(context.Background(), experiment.CompareOptions{
-			Model: model, Variant: variant, TaskFile: taskFile, TargetValid: target, MaxAttempts: maxAttempts,
-			AttemptTimeout: timeout, TerminationGrace: grace, DataDir: dataDir, Image: image, AuthPath: auth,
-			BaselineConfig: baseline, CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: methodology,
+			Model: model, Variant: variant, TaskFile: taskID, TargetValid: target, MaxAttempts: maxAttempts,
+			AttemptTimeout: timeout, TerminationGrace: grace, Image: image, AuthPath: auth,
+			BaselineConfig: baseline, CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: specID,
 			CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet, PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
 			DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
 			RegisteredInputs: true,
@@ -337,41 +329,20 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		}
 		return ExitOK
 	}
-	if model == "" || (taskFile == "" && (taskID == "" || prompt == "")) {
-		printError(stderr, usageError("ktx bench compare: --model and either --task-file or --task-id/--prompt are required"), opts.Format)
+	if model == "" || taskID == "" {
+		printError(stderr, usageError("ktx bench compare: --model and --task are required; use registered IDs with --spec, --task, --baseline, and --candidate"), opts.Format)
 		return ExitUsage
 	}
 	if pricingSHA256 != "" && pricingSnapshot == "" {
 		printError(stderr, usageError("ktx bench compare: --pricing-sha256 requires --pricing-snapshot"), opts.Format)
 		return ExitUsage
 	}
-	var task experiment.Task
-	if taskFile == "" {
-		task = experiment.Task{ID: taskID, Prompt: prompt, MinimumToolCalls: minimumToolCalls, WorkspaceMode: workspaceMode}
-		switch {
-		case expectedFactsRaw != "" && expectedOutput != "":
-			printError(stderr, usageError("ktx bench compare: use either --expected-output or --expected-facts"), opts.Format)
-			return ExitUsage
-		case expectedFactsRaw != "":
-			if err := json.Unmarshal([]byte(expectedFactsRaw), &task.ExpectedFacts); err != nil || len(task.ExpectedFacts) == 0 {
-				printError(stderr, usageError("ktx bench compare: --expected-facts must be a non-empty JSON string array"), opts.Format)
-				return ExitUsage
-			}
-			task.ScoringKind = "multi_fact_fractional"
-		case expectedOutput != "":
-			task.ExpectedOutput = &expectedOutput
-			task.ScoringKind = "exact_match"
-		default:
-			printError(stderr, usageError("ktx bench compare: expected output or facts are required"), opts.Format)
-			return ExitUsage
-		}
-	}
 	runner := experiment.NewRunner()
 	_, summary, code, err := runner.Compare(context.Background(), experiment.CompareOptions{
-		Model: model, Variant: variant, TaskFile: taskFile, Task: task, TargetValid: target, MaxAttempts: maxAttempts,
+		Model: model, Variant: variant, TaskFile: taskID, TargetValid: target, MaxAttempts: maxAttempts,
 		AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
-		DataDir: dataDir, Image: image, AuthPath: auth, BaselineConfig: baseline,
-		CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: methodology,
+		Image: image, AuthPath: auth, BaselineConfig: baseline,
+		CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: specID,
 		CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet,
 		PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
 		DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
@@ -448,16 +419,15 @@ func runBenchValidate(args []string, opts Options, stdout, stderr io.Writer) int
 func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ktx bench rank", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var model, variant, taskFile, pipelinesRaw, baselineID, dataDir, auth, image, campaignID, format string
+	var model, variant, taskID, candidatesRaw, baselineID, auth, image, campaignID, format string
 	var rounds, maxAttempts int
 	var timeout, grace time.Duration
 	fs.StringVar(&model, "model", "", "model id (provider/name, e.g. openai/gpt-5.6-luna with --variant high)")
 	fs.StringVar(&model, "m", "", "model id (provider/name)")
 	fs.StringVar(&variant, "variant", "", "model variant (e.g. high)")
-	fs.StringVar(&taskFile, "task-file", "", "benchmark task TOML")
-	fs.StringVar(&pipelinesRaw, "pipelines", "sanitize,keep-ends-mid,conservative-a,conservative-a-recover,aggressive-head", "comma-separated pipeline ids")
-	fs.StringVar(&baselineID, "baseline-pipeline", "passthrough", "baseline pipeline id")
-	fs.StringVar(&dataDir, "data-dir", ".bench-data", "experiment data directory")
+	fs.StringVar(&taskID, "task", "", "registered task ID")
+	fs.StringVar(&candidatesRaw, "candidate", "sanitize,keep-ends-mid,conservative-a,conservative-a-recover,aggressive-head", "comma-separated candidate pipeline IDs")
+	fs.StringVar(&baselineID, "baseline", "passthrough", "registered baseline pipeline ID")
 	fs.StringVar(&auth, "auth", "", "OpenCode auth.json")
 	fs.StringVar(&image, "image", "ktx-bench", "Docker image")
 	fs.StringVar(&campaignID, "campaign-id", "", "campaign id")
@@ -466,15 +436,15 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs.IntVar(&maxAttempts, "max-attempts", 24, "attempt budget per comparison")
 	fs.DurationVar(&timeout, "attempt-timeout", 15*time.Minute, "per-attempt timeout")
 	fs.DurationVar(&grace, "termination-grace", 30*time.Second, "termination grace period")
-	if err := fs.Parse(args); err != nil || model == "" || taskFile == "" || len(fs.Args()) > 0 {
+	if err := fs.Parse(args); err != nil || model == "" || taskID == "" || len(fs.Args()) > 0 {
 		if err == nil {
-			err = fmt.Errorf("--model and --task-file are required")
+			err = fmt.Errorf("--model and --task are required; --baseline and --candidate accept registered pipeline IDs")
 		}
 		printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
 		return ExitUsage
 	}
 	var candidates []string
-	for _, item := range strings.Split(pipelinesRaw, ",") {
+	for _, item := range strings.Split(candidatesRaw, ",") {
 		if item = strings.TrimSpace(item); item != "" {
 			candidates = append(candidates, item)
 		}
@@ -493,7 +463,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	if campaignID == "" {
 		campaignID = "rank-" + time.Now().UTC().Format("20060102T150405Z")
 	}
-	dataDir, err := filepath.Abs(dataDir)
+	dataDir, err := filepath.Abs(".bench-data")
 	if err != nil {
 		printError(stderr, internalError("ktx bench rank: %v", err), opts.Format)
 		return ExitInternal
@@ -513,10 +483,10 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	for _, candidateID := range candidates {
 		experimentID := campaignID + "-" + candidateID
 		_, summary, code, err := runner.Compare(context.Background(), experiment.CompareOptions{
-			Model: model, Variant: variant, TaskFile: taskFile, TargetValid: rounds, MaxAttempts: maxAttempts,
+			Model: model, Variant: variant, TaskFile: taskID, TargetValid: rounds, MaxAttempts: maxAttempts,
 			AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 			DataDir: dataDir, Image: image, AuthPath: auth,
-			BaselineConfig: pipelineConfigPath(baselineID), CandidateConfig: pipelineConfigPath(candidateID),
+			BaselineConfig: baselineID, CandidateConfig: candidateID,
 			DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
 			RegisteredInputs: true,
 		})
@@ -531,7 +501,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 		pairs = append(pairs, pair)
 		_ = experiment.WriteJSON(filepath.Join(campaignDir, "pair-"+candidateID+".json"), pair)
 	}
-	ranking := experiment.BuildRanking(experiment.RankingOptions{TaskFile: taskFile, Model: model, Variant: variant, Rounds: rounds, BaselinePipeline: baselineID, Candidates: candidates}, pairs, time.Now())
+	ranking := experiment.BuildRanking(experiment.RankingOptions{TaskFile: taskID, Model: model, Variant: variant, Rounds: rounds, BaselinePipeline: baselineID, Candidates: candidates}, pairs, time.Now())
 	if err := experiment.WriteJSON(filepath.Join(campaignDir, "ranking.json"), ranking); err != nil {
 		printError(stderr, internalError("ktx bench rank: %v", err), opts.Format)
 		return ExitInternal
@@ -547,11 +517,6 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 		return code
 	}
 	return exitCode
-}
-
-func pipelineConfigPath(id string) string {
-	entry, _ := benchregistry.Active().Lookup(benchregistry.Pipeline, id)
-	return entry.Path
 }
 
 func renderExperimentValue[T any](stdout io.Writer, value T, format string, textRenderer func(T) string) int {

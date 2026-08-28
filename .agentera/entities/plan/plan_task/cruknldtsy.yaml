@@ -4,7 +4,7 @@ record:
   name: Cut over benchmark command vocabulary
   depends_on:
     - hzuuiqtkvp
-  status: pending
+  status: in_progress
   acceptance:
     - GIVEN run, report, compare, and rank commands WHEN invoked THEN they use semantic spec, task, baseline, and candidate IDs only.
     - GIVEN embedded lookup WHEN resolving an ID THEN it uses one explicit registry and never derives filenames from IDs.

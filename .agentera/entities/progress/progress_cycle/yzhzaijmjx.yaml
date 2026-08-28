@@ -1,0 +1,16 @@
+id: yzhzaijmjx
+artifact: progress
+record:
+  timestamp: 2026-08-28 15:09
+  type: feat
+  phase: build
+  what: Updated benchmark run, report, compare, and rank selectors to registered semantic IDs and removed public path/version selector flags.
+  context:
+    intent: Execute plan task cruknldtsy clean CLI cutover.
+    constraints: No provider calls, no storage-root changes, and no historical archive edits.
+    unknowns: None.
+    scope: Benchmark selector CLI, registry lookup, active docs, and regression tests.
+  discovered: The database report schema still stores methodology_version as internal retained identity; --spec resolves its internal version before filtering.
+  verified: go test ./internal/cli ./internal/experiment ./internal/benchregistry ./internal/methodology passed. mage check passed with KTX_DB unset and disposable HOME and XDG directories. The locally built build/ktx returned a structured unknown-flag error for bench compare --task-file.
+  next: Keep plan task cruknldtsy in progress for review, then continue downstream lifecycle and storage work separately.
+  publication_order: 200

@@ -1,0 +1,13 @@
+methodology_version: "v1"
+inputs:
+  agent:
+    binary: opencode
+  model:
+    id: "glm-5.2-short-fast-flex"
+    provider: "neuralwatt"
+  task:
+    identifier: "addition_v1"
+    prompt: "What is 2+2?"
+    expected_output: "4"
+  scoring:
+    function: exact_match

@@ -5,30 +5,25 @@ package benchdata
 import (
 	"embed"
 	"errors"
-	"fmt"
 	"io/fs"
-	"path"
 )
 
-//go:embed methodology-v1.yaml methodology-v2-tooluse.yaml methodology-v3.yaml specs/eval-matrix.yaml specs/cache-aware.yaml specs/prompt-cache-token-hit-rate.yaml
+//go:embed specs/*.yaml
 var methodologies embed.FS
 
-// ReadMethodology returns a published methodology and its repository-relative
-// source path. An empty version selects v1.
-func ReadMethodology(version string) ([]byte, string, error) {
-	if version == "" {
-		version = "v1"
-	}
-	if path.Base(version) != version || version == "." {
-		return nil, "", fmt.Errorf("invalid methodology version %q", version)
+// ReadMethodology returns a registered benchmark spec and its repository-relative path.
+func ReadMethodology(id string) ([]byte, string, error) {
+	if id == "" {
+		id = "exact-match"
 	}
 	name := map[string]string{
-		"v4-eval-matrix":                 "specs/eval-matrix.yaml",
-		"v5-cache-aware":                 "specs/cache-aware.yaml",
-		"v6-prompt-cache-token-hit-rate": "specs/prompt-cache-token-hit-rate.yaml",
-	}[version]
+		"exact-match":                 "specs/exact-match.yaml",
+		"eval-matrix":                 "specs/eval-matrix.yaml",
+		"cache-aware":                 "specs/cache-aware.yaml",
+		"prompt-cache-token-hit-rate": "specs/prompt-cache-token-hit-rate.yaml",
+	}[id]
 	if name == "" {
-		name = "methodology-" + version + ".yaml"
+		return nil, "", fs.ErrNotExist
 	}
 	data, err := methodologies.ReadFile(name)
 	if err != nil {

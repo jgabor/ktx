@@ -33,8 +33,8 @@ historical.
 | `aggressive-keep-ends`   | `aggressive-keep-ends.toml`   | sanitize + `keep-ends:30:10`                       | Aggressive but keeps head+tail                                  |
 
 The live A/B defaults are `pipelines/passthrough.toml` and
-`pipelines/conservative-a.toml`. Override them with `--baseline-config` or
-`--candidate-config` pointing at any named pipeline file.
+`conservative-a`. Override them with registered pipeline IDs through `--baseline`
+or `--candidate`.
 
 Live A/B vocabulary: each run compares a **baseline** pipeline to a **candidate**
 pipeline (summary keys `pipelines.baseline` / `pipelines.candidate`).
@@ -1095,10 +1095,10 @@ provider-request and provider-internal cache claims remain forbidden.
 
 ./build/ktx bench compare \
   --build \
-  --methodology tools/bench/specs/prompt-cache-token-hit-rate.yaml \
+  --spec prompt-cache-token-hit-rate \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav.toml \
+  --task crossfile-nav \
   --cache-control observed \
   --warmup 1 \
   --rounds 5
@@ -1229,16 +1229,16 @@ paired interval is descriptive and supports no significance or causal claim.
 ktx bench compare \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav.toml \
+  --task crossfile-nav \
   --rounds 3
 
 # Compare a different candidate
 ktx bench compare \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav.toml \
-  --baseline-config tools/bench/pipelines/passthrough.toml \
-  --candidate-config tools/bench/pipelines/aggressive-head.toml \
+  --task crossfile-nav \
+  --baseline passthrough \
+  --candidate aggressive-head \
   --rounds 3
 ```
 
@@ -1248,8 +1248,8 @@ Run the full matrix in-process:
 ktx bench rank \
   --model openai/gpt-5.6-luna \
   --variant high \
-  --task-file tools/bench/tasks/crossfile-nav.toml \
-  --pipelines sanitize,keep-ends-mid,conservative-a,aggressive-head
+  --task crossfile-nav \
+  --candidate sanitize,keep-ends-mid,conservative-a,aggressive-head
 ```
 
 Prefer `crossfile-nav` for headline evidence; use the smaller tasks to

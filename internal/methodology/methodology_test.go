@@ -15,21 +15,12 @@ func TestLoadIsIndependentOfWorkingDirectory(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(previous) })
 
-	for _, version := range []string{"v1", "v2-tooluse", "v3", "v5-cache-aware", "v6-prompt-cache-token-hit-rate"} {
-		spec, source, err := Load(version)
-		if err != nil {
-			t.Fatalf("Load(%q): %v", version, err)
-		}
-		wantSource := "tools/bench/methodology-" + version + ".yaml"
-		switch version {
-		case "v5-cache-aware":
-			wantSource = "tools/bench/specs/cache-aware.yaml"
-		case "v6-prompt-cache-token-hit-rate":
-			wantSource = "tools/bench/specs/prompt-cache-token-hit-rate.yaml"
-		}
-		if spec.Version != version || source != wantSource {
-			t.Fatalf("got version=%q source=%q", spec.Version, source)
-		}
+	spec, source, err := Load("exact-match")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Version != "v1" || source != "tools/bench/specs/exact-match.yaml" {
+		t.Fatalf("got version=%q source=%q", spec.Version, source)
 	}
 }
 

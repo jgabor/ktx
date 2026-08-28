@@ -80,10 +80,10 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard)
 	var replaySessionID string
 	var replayFile string
-	var methodologyVersion string
+	var specID string
 	fs.StringVar(&replaySessionID, "replay", "", "replay a recorded session by session-id; makes (agent, model, task) optional")
 	fs.StringVar(&replayFile, "replay-file", "", "evaluate a portable replay fixture offline by explicit file path")
-	fs.StringVar(&methodologyVersion, "methodology", "", "methodology version (e.g., 'v1', 'v2-tooluse'); defaults to v1")
+	fs.StringVar(&specID, "spec", "exact-match", "registered benchmark spec ID")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench run: %v", err), format)
 		return ExitUsage
@@ -119,7 +119,7 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	agentArg, modelArg, taskArg := rest[0], rest[1], rest[2]
 
-	_, m, exitCode := loadMethodologyOrFail(format, methodologyVersion, stderr)
+	_, m, exitCode := loadMethodologyOrFail(format, specID, stderr)
 	if exitCode != ExitOK {
 		return exitCode
 	}

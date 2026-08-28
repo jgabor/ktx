@@ -304,35 +304,38 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 	if options.Image == "" {
 		options.Image = "ktx-bench"
 	}
-	if options.MethodologyPath == "" {
-		options.MethodologyPath = filepath.Join(options.RepoRoot, "tools", "bench", "specs", "eval-matrix.yaml")
-	}
-	if options.BaselineConfig == "" {
-		options.BaselineConfig = filepath.Join(options.RepoRoot, "tools", "bench", "pipelines", "passthrough.toml")
-	}
-	if options.CandidateConfig == "" {
-		options.CandidateConfig = filepath.Join(options.RepoRoot, "tools", "bench", "pipelines", "conservative-a.toml")
-	}
 	if options.RegisteredInputs {
 		registry := benchregistry.Active()
+		if options.MethodologyPath == "" {
+			options.MethodologyPath = "eval-matrix"
+		}
+		if options.BaselineConfig == "" {
+			options.BaselineConfig = "passthrough"
+		}
+		if options.CandidateConfig == "" {
+			options.CandidateConfig = "conservative-a"
+		}
 		lookups := []struct {
-			kind benchregistry.Kind
-			path string
-			id   *string
-		}{{benchregistry.Spec, options.MethodologyPath, &options.SpecID}, {benchregistry.Pipeline, options.BaselineConfig, &options.BaselineID}, {benchregistry.Pipeline, options.CandidateConfig, &options.CandidateID}}
+			kind       benchregistry.Kind
+			selector   string
+			path       *string
+			resolvedID *string
+		}{{benchregistry.Spec, options.MethodologyPath, &options.MethodologyPath, &options.SpecID}, {benchregistry.Pipeline, options.BaselineConfig, &options.BaselineConfig, &options.BaselineID}, {benchregistry.Pipeline, options.CandidateConfig, &options.CandidateConfig, &options.CandidateID}}
 		if options.TaskFile != "" {
 			lookups = append(lookups, struct {
-				kind benchregistry.Kind
-				path string
-				id   *string
-			}{benchregistry.Task, options.TaskFile, &options.TaskID})
+				kind       benchregistry.Kind
+				selector   string
+				path       *string
+				resolvedID *string
+			}{benchregistry.Task, options.TaskFile, &options.TaskFile, &options.TaskID})
 		}
 		for _, lookup := range lookups {
-			entry, err := registry.LookupPath(options.RepoRoot, lookup.kind, lookup.path)
+			entry, err := registry.Lookup(lookup.kind, lookup.selector)
 			if err != nil {
 				return err
 			}
-			*lookup.id = entry.ID
+			*lookup.resolvedID = entry.ID
+			*lookup.path = filepath.Join(options.RepoRoot, filepath.FromSlash(entry.Path))
 		}
 		if options.SpecID == "prompt-cache-token-hit-rate" {
 			contract, err := registry.Lookup(benchregistry.Contract, "cache-reuse")
@@ -341,6 +344,16 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 			}
 			options.ContractID = contract.ID
 			options.ContractPath = filepath.Join(options.RepoRoot, filepath.FromSlash(contract.Path))
+		}
+	} else {
+		if options.MethodologyPath == "" {
+			options.MethodologyPath = filepath.Join(options.RepoRoot, "tools", "bench", "specs", "eval-matrix.yaml")
+		}
+		if options.BaselineConfig == "" {
+			options.BaselineConfig = filepath.Join(options.RepoRoot, "tools", "bench", "pipelines", "passthrough.toml")
+		}
+		if options.CandidateConfig == "" {
+			options.CandidateConfig = filepath.Join(options.RepoRoot, "tools", "bench", "pipelines", "conservative-a.toml")
 		}
 	}
 	if options.AuthPath == "" {

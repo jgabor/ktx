@@ -15,3 +15,13 @@ record:
     - GIVEN tracked static history under `tools/bench/evidence`, `tools/bench/archive`, named historical reports, and Agentera records WHEN cleanup completes THEN its bytes remain unchanged and no validation guarantee is claimed.
     - GIVEN active stats and benchmarks WHEN tested THEN they remain functional.
   plan: bptycpojpd
+  evaluation:
+    attempt_count: 1
+    failure_count: 1
+    last_verdict: fail
+    last_failure_evidence: internal/cli/bench.go:4-6 still lists the removed evidence command; remove that current product comment reference.
+    provenance:
+      attempt_id: legacy-removal-1
+      source: audit ses_fb68cd457ffeWdAHWOsnro8x4L
+      recorded_at: 2026-08-28 19:40
+      writer_command: agentera state plan record-evaluation

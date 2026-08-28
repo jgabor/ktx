@@ -2,7 +2,7 @@
 //
 // bench owns the headline number that proves or disputes the cost
 // contract. The public surface includes run, report, export, compare, rank,
-// validate, agent, evidence, and corpus command families. The original
+// validate, agent, and corpus command families. The original
 // database-backed commands are:
 //
 //	ktx bench run <agent> <model> <task>

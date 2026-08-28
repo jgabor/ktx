@@ -1,0 +1,15 @@
+id: ajccgntiwx
+artifact: progress
+record:
+  timestamp: 2026-08-28 19:41
+  type: fix
+  phase: build
+  what: Removed the final stale inactive benchmark evidence command reference from the current benchmark command-family comment and synchronized its focused contract test.
+  context:
+    intent: Resolve the audit finding without changing runtime behavior or retained history.
+    constraints: Preserve orchestrator-owned evaluation state, static history, named historical reports, and task in-progress status.
+    unknowns: None.
+    scope: Current benchmark namespace comment and its focused contract assertion only.
+  verified: grep searches found no removed bench evidence, evidence preflight, or gemini-preflight command references under internal Go source, current docs, or the ktx skill docs. Under KTX_DB unset with a fresh disposable HOME and XDG root, go test ./internal/cli -run ^TestBenchmarkNamespaceCommentListsPublicFamilies$ -count=1 passed. The tracked tools/bench/evidence plus tools/bench/archive aggregate SHA-256 remained 1b49f186c69a3c09e24ba9827257f47e914ac6a51ae6f51e3c80e2ac627d3a1d.
+  next: Leave plan task xidffdcgth in progress for orchestrator reevaluation.
+  publication_order: 205

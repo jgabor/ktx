@@ -152,7 +152,7 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 func TestBenchmarkNamespaceCommentListsPublicFamilies(t *testing.T) {
 	contents := readDocumentationFile(t, filepath.Join(repositoryRoot(t), "internal", "cli", "bench.go"))
 	assertContractText(t, contents,
-		[]string{"run, report, export, compare, rank", "validate, agent, evidence, and corpus"},
+		[]string{"run, report, export, compare, rank", "validate, agent, and corpus"},
 		[]string{"surface ships two subcommands"},
 	)
 }

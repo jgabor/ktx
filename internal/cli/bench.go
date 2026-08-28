@@ -40,6 +40,9 @@ package cli
 import (
 	"fmt"
 	"io"
+	"strings"
+
+	"github.com/jgabor/ktx/internal/benchregistry"
 )
 
 // benchEpsilon is the division-by-zero guard from the methodology
@@ -60,21 +63,22 @@ func runBenchWith(args []string, opts Options, stdout, stderr io.Writer) int {
 // Subcommands render their own diagnostics and return their status through
 // benchSubToExit.
 func benchCommandFunc(ctx *DispatchContext) (any, error) {
-	// Bench subcommands accept help after the namespace token, so scan the
-	// remaining arguments before routing.
-	showHelp, rest := scanBenchHelp(ctx.Args)
-	if showHelp {
+	if len(ctx.Args) == 1 && (ctx.Args[0] == "--help" || ctx.Args[0] == "-h") {
+		printBenchHelp(ctx.Stdout)
+		return nil, nil
+	}
+	if len(ctx.Args) == 0 {
 		printBenchHelp(ctx.Stdout)
 		return nil, nil
 	}
 
-	if len(rest) == 0 {
-		printBenchHelp(ctx.Stdout)
-		return nil, nil
+	sub := ctx.Args[0]
+	tail := ctx.Args[1:]
+	if len(tail) == 1 && (tail[0] == "--help" || tail[0] == "-h") {
+		if printBenchSubcommandHelp(ctx.Stdout, sub) {
+			return nil, nil
+		}
 	}
-
-	sub := rest[0]
-	tail := rest[1:]
 	opts := Options{Format: ctx.Format}
 
 	switch sub {
@@ -105,22 +109,6 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 	default:
 		return nil, usageError("ktx bench: unknown subcommand %q; run 'ktx bench --help'", sub)
 	}
-}
-
-// scanBenchHelp strips --help/-h from args. The scan
-// matches the stdlib flag package's stop-at-first-non-flag behavior
-// for the top-level bench dispatch (so `ktx bench report --help`
-// routes --help to bench report, not to the bench namespace).
-func scanBenchHelp(args []string) (showHelp bool, rest []string) {
-	for _, a := range args {
-		switch a {
-		case "--help", "-h":
-			showHelp = true
-			continue
-		}
-		rest = append(rest, a)
-	}
-	return showHelp, rest
 }
 
 // benchSubToExit forwards a subcommand status without rendering a second error
@@ -188,7 +176,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      failure_class=invalid-replay-fixture-source; missing sessions exit 2.")
 	fmt.Fprintln(w, "      Export validates consistency, not privacy or redaction; review raw stream")
 	fmt.Fprintln(w, "      content before sharing. See docs/pipelines.md for the refresh procedure.")
-	fmt.Fprintln(w, "  compare --model <model> [--variant <name>] --task <id> [--spec <id>] [--baseline <id>] [--candidate <id>]")
+	fmt.Fprintln(w, "  compare --spec <id> --model <model> [--variant <name>] --task <id> [--baseline <id>] [--candidate <id>]")
 	fmt.Fprintln(w, "      Run a retained live baseline/candidate experiment.")
 	fmt.Fprintln(w, "      --preflight attests source/image collection capability without auth,")
 	fmt.Fprintln(w, "      model calls, or experiment artifacts; normal comparisons run it too.")
@@ -201,7 +189,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Claims about provider-internal behavior remain forbidden.")
 	fmt.Fprintln(w, "  screen --population <path> --config <ktx.toml>... --anchor-config <ktx.toml>")
 	fmt.Fprintln(w, "      Screen full configurations offline and emit bounded aggregate JSON.")
-	fmt.Fprintln(w, "  rank --model <model> [--variant <name>] --task <id> [--baseline <id>] [--candidate <id>,...]")
+	fmt.Fprintln(w, "  rank --spec <id> --model <model> [--variant <name>] --task <id> [--baseline <id>] [--candidate <id>,...]")
 	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
 	fmt.Fprintln(w, "  list")
 	fmt.Fprintln(w, "      List experiments found under .ktx/experiments.")
@@ -236,4 +224,45 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
+}
+
+func printBenchSubcommandHelp(w io.Writer, sub string) bool {
+	type help struct{ usage, effect, next string }
+	helpBySubcommand := map[string]help{
+		"run":       {"ktx bench run <agent> <model> <task> --spec <id> | ktx bench run --replay <session-id> | ktx bench run --replay-file <path>", "Runs and persists a benchmark, replays a recorded session, or verifies a portable fixture.", "Next: ktx bench report --spec <id> for a new run."},
+		"report":    {"ktx bench report [<id>] [--spec <id>] [--format text|json]", "Reads persisted benchmark rows and reports their headline.", "Next: use a row ID with ktx bench report <id>."},
+		"export":    {"ktx bench export [--output <path|->] <session-id>", "Exports one recorded benchmark session as a portable fixture.", "Next: ktx bench run --replay-file <path>"},
+		"compare":   {"ktx bench compare --spec <id> --model <model> --task <id> [--baseline <id>] [--candidate <id>]", "Runs a retained live baseline/candidate experiment. --preflight makes no model calls or experiment artifacts.", "Next: run --preflight first, then ktx bench validate <experiment-id>."},
+		"screen":    {"ktx bench screen --population <path> --config <path>... --anchor-config <path>", "Screens complete pipeline configurations offline.", "Next: inspect the emitted shortlist and evidence."},
+		"rank":      {"ktx bench rank --spec <id> --model <model> --task <id> [--baseline <id>] [--candidate <id>,...]", "Runs retained comparisons and ranks candidate pipelines.", "Next: ktx bench validate <experiment-id> for each result."},
+		"list":      {"ktx bench list", "Lists experiment IDs from the fixed .ktx/experiments root.", "Next: ktx bench show <id>"},
+		"show":      {"ktx bench show <id>", "Reads one experiment manifest by semantic experiment ID.", "Next: ktx bench validate <id>"},
+		"summarize": {"ktx bench summarize <id>", "Regenerates the derived summary for one experiment ID.", "Next: ktx bench validate <id>"},
+		"validate":  {"ktx bench validate <id> [--format text|json]", "Verifies retained artifacts, hashes, links, and summary bytes.", "Next: fix reported evidence failures or retain the validated result."},
+		"corpus":    {"ktx bench corpus generate [--output <directory>]", "Regenerates the deterministic benchmark corpus.", "Next: inspect the generated manifest."},
+		"agent":     {"ktx bench agent --capabilities", "Reports offline benchmark collector capabilities.", "Next: use the report to verify benchmark-image eligibility."},
+	}
+	h, ok := helpBySubcommand[sub]
+	if !ok {
+		return false
+	}
+	fmt.Fprintf(w, "Usage: %s\n\n%s\n\n%s\n", h.usage, h.effect, h.next)
+	if sub == "compare" || sub == "rank" {
+		registry := benchregistry.Active()
+		fmt.Fprintln(w, "\nActive semantic IDs:")
+		printBenchRegistryIDs(w, "spec", registry.Entries(benchregistry.Spec))
+		printBenchRegistryIDs(w, "task", registry.Entries(benchregistry.Task))
+		printBenchRegistryIDs(w, "baseline", registry.Entries(benchregistry.Pipeline))
+		printBenchRegistryIDs(w, "candidate", registry.Entries(benchregistry.Pipeline))
+		fmt.Fprintln(w, "\n--spec is required. Selectors accept only these versionless semantic IDs.")
+	}
+	return true
+}
+
+func printBenchRegistryIDs(w io.Writer, label string, entries []benchregistry.Entry) {
+	ids := make([]string, len(entries))
+	for i, entry := range entries {
+		ids[i] = entry.ID
+	}
+	fmt.Fprintf(w, "  %s: %s\n", label, strings.Join(ids, ", "))
 }

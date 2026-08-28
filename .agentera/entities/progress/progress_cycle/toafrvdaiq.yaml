@@ -1,0 +1,16 @@
+id: toafrvdaiq
+artifact: progress
+record:
+  timestamp: 2026-08-28 21:20
+  type: fix
+  phase: build
+  what: Restored focused benchmark subcommand help and registry-backed semantic ID discovery.
+  context:
+    intent: Provide command-specific benchmark help and one authoritative supported surface for active semantic IDs.
+    constraints: Preserve orchestration-owned plan changes, require explicit specs, derive IDs from the runtime registry, add no command or compatibility alias, and avoid provider and ambient database access.
+    unknowns: "Resolved: existing compare and rank help can expose the active registry without a new command."
+    scope: CLI benchmark help and focused contract tests only.
+  discovered: "Existing focused help is sufficient: compare and rank help can enumerate the active benchmark registry directly, so no new public command is needed."
+  verified: gopls diagnostics reported no diagnostics for internal/cli/bench.go and internal/cli/bench_test.go, and git diff --check passed. Focused go test and mage build were attempted with KTX_DB unset and fresh disposable HOME/XDG roots, but both stopped during Go build output with disk quota exceeded; no provider calls or ambient database access occurred.
+  next: Keep plan task unazxzoasn in_progress for audit; the next owner can rerun focused tests and mage check after quota is available.
+  publication_order: 210

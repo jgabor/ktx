@@ -24,9 +24,61 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jgabor/ktx/internal/benchregistry"
 	"github.com/jgabor/ktx/internal/config"
 	dbpkg "github.com/jgabor/ktx/internal/db"
 )
+
+func TestBenchSubcommandHelpIsFocusedAndRejectsObsoleteHelpSyntax(t *testing.T) {
+	t.Setenv("KTX_DB", filepath.Join(t.TempDir(), "ktx.db"))
+	t.Setenv("HOME", t.TempDir())
+	for _, sub := range []string{"run", "report", "export", "compare", "screen", "rank", "list", "show", "summarize", "validate", "corpus", "agent"} {
+		t.Run(sub, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if code := runWith([]string{"bench", sub, "--help"}, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("focused help exit = %d, stderr = %s", code, stderr.String())
+			}
+			if !strings.Contains(stdout.String(), "Usage: ktx bench "+sub) || !strings.Contains(stdout.String(), "Next:") {
+				t.Fatalf("help is not focused or actionable:\n%s", stdout.String())
+			}
+			if strings.Contains(stdout.String(), "benchmark namespace") {
+				t.Fatalf("help fell back to namespace output:\n%s", stdout.String())
+			}
+
+			stdout.Reset()
+			stderr.Reset()
+			if code := runWith([]string{"bench", sub, "help"}, &stdout, &stderr); code == ExitOK {
+				t.Fatalf("obsolete positional help syntax unexpectedly succeeded: %s", stdout.String())
+			}
+		})
+	}
+}
+
+func TestBenchComparisonHelpListsActiveRegistryIDs(t *testing.T) {
+	registry := benchregistry.Active()
+	for _, sub := range []string{"compare", "rank"} {
+		var stdout, stderr bytes.Buffer
+		if code := runWith([]string{"bench", sub, "--help"}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("%s help exit = %d, stderr = %s", sub, code, stderr.String())
+		}
+		help := stdout.String()
+		if !strings.Contains(help, "--spec <id>") || !strings.Contains(help, "--spec is required") {
+			t.Fatalf("%s help does not require an explicit spec:\n%s", sub, help)
+		}
+		for _, kind := range []benchregistry.Kind{benchregistry.Spec, benchregistry.Task, benchregistry.Pipeline} {
+			for _, entry := range registry.Entries(kind) {
+				if !strings.Contains(help, entry.ID) {
+					t.Errorf("%s help omits active %s ID %q", sub, kind, entry.ID)
+				}
+			}
+		}
+		for _, obsolete := range []string{"tools/bench/", "-v1", "--methodology", "compare-v2"} {
+			if strings.Contains(help, obsolete) {
+				t.Errorf("%s help contains obsolete selector %q", sub, obsolete)
+			}
+		}
+	}
+}
 
 // benchTestDB returns an in-memory *dbpkg.DB with the full schema
 // migrated. The bench impl does not touch the filesystem; an

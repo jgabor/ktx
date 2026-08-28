@@ -4,10 +4,20 @@ record:
   name: Fail closed on semantic benchmark selection
   depends_on:
     []
-  status: in_progress
+  status: complete
   acceptance:
     - GIVEN compare or rank is invoked WHEN no spec ID is supplied THEN the command fails before authentication, provider work, database use, or experiment creation with an actionable requirement for an explicit semantic spec ID.
     - GIVEN a spec, task, baseline, or candidate selector is supplied WHEN it is path-like, versioned, unknown, or otherwise unregistered THEN offline preflight rejects it before side effects.
     - GIVEN registered semantic selectors are supplied WHEN offline preflight runs THEN selection succeeds without provider calls or experiment creation.
     - GIVEN selector behavior is tested WHEN the contract suite runs THEN each changed selector has at least one passing supported case and one failing legacy or invalid case.
   plan: qbtiqutvao
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: selector-gate-1
+      source: progress zqbgdkxdeg; audit ses_fb63568ceffeKEeTA9H66ESeRs
+      recorded_at: 2026-08-28 21:15
+      writer_command: agentera state plan record-evaluation

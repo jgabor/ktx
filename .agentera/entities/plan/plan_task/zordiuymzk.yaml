@@ -1,0 +1,24 @@
+id: zordiuymzk
+artifact: plan
+record:
+  name: Deliver and qualify read-only pipeline diagnostics
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN absent, valid, invalid, or inaccessible configuration WHEN doctor inspects it THEN it accurately reports supported passthrough, valid configuration, or an actionable configuration error without creating directories or creating or rewriting configuration.
+    - GIVEN ordered routes and named profiles WHEN JSON or text output is requested THEN the report exposes every supported route predicate, each target profile's ordered stages, and fallback behavior without changing routing or claiming observed route usage.
+    - GIVEN unknown stages, safely detectable invalid built-in arguments, or colliding plugin names WHEN doctor runs THEN it reports the problem and effective precedence with the specified error or warning severity, without rejecting supported overrides or executing configured stages or plugin commands.
+    - GIVEN a seeded database state WHEN doctor runs THEN current-schema inspection remains read-only, missing databases remain missing, supported older schemas retain automatic readiness, and newer or corrupt databases retain existing fail-closed behavior. Independent configuration findings remain visible with ordinary database findings; classified readiness and security failures retain their existing envelope.
+    - GIVEN repeated non-interactive invocations WHEN results and inspected state are compared THEN ordering, severity, exit status, and single-envelope behavior remain consistent, sentinel plugins prove no configured command ran, and isolated Linux tests, local-binary smoke checks, mage check, documentation, and the bounded post-implementation audit are complete before evidence and TODO completion are recorded.
+  plan: znipvgptpr
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: pipeline-diagnostics-audit-1
+      source: .agentera/verification/read-only-pipeline-diagnostics.md; read-only audit ses_f6e9c6bf4ffetoLafTbKOadLA4 found no blockers; coordinator inspected mage check and local-binary smoke evidence
+      recorded_at: 2026-09-11 19:00
+      writer_command: agentera state plan record-evaluation

@@ -115,6 +115,8 @@ type doctorReport struct {
 	Path    string        `json:"path"`
 	Checks  []doctorCheck `json:"checks"`
 	failure error
+	// Path resolution and access-audit failures stop further inspection.
+	inspectionBlocked bool
 }
 
 // runDoctorWith executes `ktx doctor` with injected output streams.
@@ -258,10 +260,28 @@ func init() {
 // Classified readiness failures use the normal CLI error envelope. Other
 // health failures remain check details in this report.
 func buildDoctorReport() *doctorReport {
+	report := buildDatabaseDoctorReport()
+	// Classified security/readiness failures retain their single error envelope.
+	if report.failure != nil || report.inspectionBlocked {
+		return report
+	}
+	report.Checks = append(report.Checks, doctorPipelineChecks()...)
+	for _, check := range report.Checks {
+		if check.Status == doctorStatusError {
+			report.Status = doctorStatusError
+		} else if check.Status == doctorStatusWarning && report.Status != doctorStatusError {
+			report.Status = doctorStatusDegraded
+		}
+	}
+	return report
+}
+
+func buildDatabaseDoctorReport() *doctorReport {
 	report := &doctorReport{}
 
 	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
+		report.inspectionBlocked = true
 		report.Status = doctorStatusError
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "database_path",
@@ -277,6 +297,7 @@ func buildDoctorReport() *doctorReport {
 	// configuration signal — the user has not recorded anything yet,
 	// or KTX_DB points at a non-existent path.
 	if err := dbpkg.AuditPathInspection(target.Path); err != nil {
+		report.inspectionBlocked = true
 		report.Checks = append(report.Checks, doctorCheck{
 			Name:   "database_exists",
 			Status: doctorStatusError,
@@ -613,6 +634,11 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "  - the cost-publication columns are present on tool_calls (soft requirement: warning if missing)")
 	fmt.Fprintln(w, "  - the bench_runs table is present with all 14 columns (soft requirement: warning if missing or partial)")
 	fmt.Fprintln(w, "  - sampled IDs match the expected format (16-char lowercase alpha)")
+	fmt.Fprintln(w, "  - active config path and absent, valid, invalid, or inaccessible pipeline configuration")
+	fmt.Fprintln(w, "  - configured routes in first-match order, all predicates, target stages, and default fallback")
+	fmt.Fprintln(w, "  - static stage resolution, invalid built-in arguments, and plugin overrides (warnings)")
+	fmt.Fprintln(w, "Absent config and empty pipelines are valid passthrough. No stages or plugin probes run;")
+	fmt.Fprintln(w, "these checks do not measure route usage or establish plugin operational viability.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Output format:")
 	fmt.Fprintln(w, "  json (default)  structured report on stdout with status + per-check detail")
@@ -636,6 +662,7 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "Doctor automatically prepares a supported older schema. Inspection is")
 	fmt.Fprintln(w, "read-only after readiness; a missing database is not created, and Doctor")
 	fmt.Fprintln(w, "does not repair it.")
+	fmt.Fprintln(w, "Configuration inspection never writes config files or creates config directories.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
 }

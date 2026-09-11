@@ -2,8 +2,8 @@ id: lghvhvsvyb
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. Include route validation, route-to-profile visibility, and stage or plugin collisions without executing configured stages. → [Pipeline](ARCHITECTURE.md#pipeline)"
+  status: resolved
+  description: "**Read-only pipeline diagnostics** — Doctor now reports configuration validity, ordered routes and target stages, static stage warnings, and effective plugin overrides without executing stages or changing configuration. Existing database-readiness and failure contracts are preserved. Focused tests, native Linux checks, local-binary smoke, and the implementation audit passed. → [Verification](.agentera/verification/read-only-pipeline-diagnostics.md) · [Pipeline](ARCHITECTURE.md#pipeline)"
   readiness:
     capability: build
     reason: Expose pipeline configuration problems without executing stages or mutating state.
@@ -17,7 +17,11 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Read-only pipeline diagnostics** — Extend `ktx doctor` with pipeline and configuration sanity checks while preserving its read-only contract. Include route validation, route-to-profile visibility, and stage or plugin collisions without executing configured stages. → [Pipeline](ARCHITECTURE.md#pipeline)"
+      description: "**Read-only pipeline diagnostics** — Doctor now reports configuration validity, ordered routes and target stages, static stage warnings, and effective plugin overrides without executing stages or changing configuration. Existing database-readiness and failure contracts are preserved. Focused tests, native Linux checks, local-binary smoke, and the implementation audit passed. → [Verification](.agentera/verification/read-only-pipeline-diagnostics.md) · [Pipeline](ARCHITECTURE.md#pipeline)"
+      status: resolved
+      order: 24
       severity: normal
-      status: open
-      order: 5
+  lifecycle:
+    operation: resolve
+    reason: "Implemented static pipeline diagnostics; isolated Linux checks, local-binary JSON/text smoke, and implementation audit passed. Evidence: .agentera/verification/read-only-pipeline-diagnostics.md"
+    date: 2026-09-11

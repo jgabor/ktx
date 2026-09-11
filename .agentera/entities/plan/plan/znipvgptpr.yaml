@@ -1,0 +1,30 @@
+id: znipvgptpr
+artifact: plan
+record:
+  header:
+    level: light
+    created: 2026-09-11
+    status: archived
+    title: "Plan: Read-only pipeline diagnostics"
+  what: Extend ktx doctor with static pipeline and configuration diagnostics for TODO lghvhvsvyb. Report configuration validity, ordered route-to-profile relationships, stage references, and stage or plugin collisions without executing configured transformations. Deliver the feature, regression tests, documentation, and verification in one coherent implementation cycle.
+  why: Operators need to understand configuration failures and unexpected pipeline selection without running untrusted commands or changing evidence. Existing route validation and supported plugin precedence provide the behavior to explain; this work adds diagnosis rather than a new routing or stage contract.
+  constraints: Preserve configuration grammar, first-match metadata routing, default fallback, plugin last-writer-wins precedence, and conservative runtime handling. Do not execute stages or plugin probes, create configuration directories, rewrite configuration, or access the ambient live database during verification. Current-schema inspection remains read-only; supported older schemas retain automatic readiness. Preserve missing, corrupt, newer-schema, runtime-proof, and classified-failure contracts. Retain doctor's JSON envelope, text output, status aggregation, exit conventions, and single-error-envelope behavior. Keep project-memory identifiers out of shipped artifacts.
+  overall_acceptance: GIVEN a supported installation with absent, valid, or faulty pipeline configuration WHEN ktx doctor runs non-interactively THEN JSON and text diagnostics explain configuration validity, ordered route targets, fallback, and stage or plugin conflicts without executing configured commands or changing configuration, while preserving existing database-readiness and failure behavior and passing the documented isolated Linux checks.
+  scope:
+    included:
+      - Identify the active configuration location and distinguish absent, readable, invalid, and inaccessible configuration. Reuse existing validation rules for settings, required fields, timeouts, route target profiles, and exit-status values. Absent configuration and empty pipelines remain supported passthrough behavior.
+      - Show routes in evaluation order with tool, command prefix, subcommand, and exit-status predicates, each target profile's ordered stages, and default fallback. Describe configured selection without claiming which routes real traffic uses.
+      - Report unknown stage references and invalid built-in stage arguments where safely detectable without stage execution. Warn about plugins shadowing built-ins and duplicate plugin names, identifying the effective winner without changing supported precedence or rejecting overrides.
+      - Invalid configuration produces an error finding. Supported overrides and runtime-skipped stages produce warnings. Return independent configuration findings alongside ordinary database findings, including missing-database findings. Preserve existing classified readiness and security failure envelopes and their precedence. Use deterministic report ordering and avoid unnecessarily exposing plugin command contents.
+      - Add focused pass and fail coverage for each new testable behavior, using table-driven cases for route predicates, collisions, and database states. Verify both JSON and text output, severity, exit status, repeated non-interactive invocation, and single-envelope behavior. Retain existing missing, current, supported older, newer, and corrupt database coverage.
+      - Check configuration and database bytes and filesystem entries before and after inspection. Cover absent directories and sentinel plugins that would expose accidental command execution. Current-schema inspection must not mutate inspected state; supported older-schema readiness is the existing, separately tested exception.
+      - Run focused tests, mage build, and mage check natively on Linux, and smoke-test ./build/ktx in JSON and text modes. Unset ambient KTX_DB and allocate fresh disposable HOME, XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, and XDG_STATE_HOME for each verification invocation. Seed only disposable databases, including any older-schema rehearsal.
+      - Update doctor help and relevant pipeline and database-safety documentation. Run one post-implementation audit and address accepted findings in one bounded correction. Inspect final verification, record evidence, and complete TODO lghvhvsvyb only after the feature passes. Decision satisfaction remains outside this implementation cycle.
+    excluded:
+      - Automatic fixes, configuration rewrites, and evidence maintenance.
+      - New flags, diagnostic subcommands, or database schema changes.
+      - Route reachability analysis, routing changes, and compression benchmarks.
+      - External executable qualification, plugin version or help probes, and claims that configured commands work.
+      - Stage-semantics redesign, preprocessing or filter-pack composition, and unresolved maintenance or trust-policy choices.
+  surprises:
+    []

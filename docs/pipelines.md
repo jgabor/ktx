@@ -79,6 +79,56 @@ user-defined, and stage names are still resolved by the runner rather than the
 config loader. The optional `[logs]` section is validated separately: invalid
 logging settings disable logging without invalidating the pipeline.
 
+### Read-only pipeline diagnostics
+
+Run `ktx doctor --format json` (or `--format text`) to inspect pipeline
+configuration alongside database health. Doctor reports the active
+`$XDG_CONFIG_HOME/ktx/ktx.toml` path (falling back to
+`~/.config/ktx/ktx.toml`) and distinguishes absent, readable/valid, invalid, and
+inaccessible configuration. An absent config uses the built-in `view_image`
+passthrough route and an empty default fallback; an empty file or empty profile
+is also valid passthrough. Parsing uses the same grammar and validation as
+runtime loading; the independently owned `[logs]` settings are not a pipeline
+health check.
+
+The existing `checks` array includes `pipeline_config`, `pipeline_route`,
+`pipeline_fallback`, `pipeline_plugin`, `pipeline_profile`, and
+`pipeline_stage` findings as applicable, each with `name`, `status`, and
+`detail`. Routes appear in configuration order, with every predicate (`tool`,
+`command_prefix`, `subcommand`, `exit_status`), the target profile, and its
+ordered stage tokens. Empty string predicates are unrestricted; an omitted
+`exit_status` is shown as `any`. The first matching route wins, with the
+`default` profile as fallback when none matches. Profiles are listed by name
+in sorted order; their stages retain execution order. This is a static routing
+description, not observed traffic or route-use statistics. Explicit failed
+tool calls still bypass compression before routing.
+
+Unknown stages and built-in arguments rejected by the runtime registry are
+warnings: those stages are skipped at runtime, not configuration parse errors.
+Simple built-ins that ignore arguments continue to accept them. Plugins are
+registered after built-ins in configuration order. Built-in shadowing and
+duplicate plugin names are supported overrides, reported as warnings with the
+effective last-writer-wins plugin index. An overriding plugin owns argument
+handling, so `head:abc` is not checked as built-in `head` if a plugin named
+`head` wins.
+
+Doctor never applies a stage, executes a configured command, probes plugin
+`--help`/`--version`, repairs configuration, or creates config directories.
+Plugin command contents are omitted from the plugin findings. Valid
+configuration does **not** establish that a plugin exists, can execute, or
+will compress safely. The report's `path` remains the database path; the config
+path is in `pipeline_config.detail`.
+
+Warnings yield `degraded` and exit 0 unless an error finding also exists.
+Invalid or inaccessible configuration yields an error finding and exit 4,
+not a usage error. Independent configuration findings remain visible with
+ordinary database findings, including a missing database. Classified
+security/readiness failures retain the existing single CLI error envelope and
+take precedence over the health report. Doctor does not create a missing
+database; current databases are inspected read-only, while supported older
+schemas are still prepared automatically. See the
+[database safety contract](database-safety.md) before development verification.
+
 ### JSON compaction
 
 `json-compact` removes only insignificant whitespace using Go's standard

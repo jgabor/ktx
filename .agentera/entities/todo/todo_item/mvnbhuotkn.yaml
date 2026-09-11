@@ -20,4 +20,4 @@ record:
       description: "**Pipeline stage semantics** — Run a structured discussion and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)"
       severity: normal
       status: open
-      order: 6
+      order: 5

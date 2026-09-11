@@ -4,6 +4,7 @@
 
 ### Added
 
+- `ktx doctor` now reports static pipeline configuration validity, ordered route-to-profile mappings, stage warnings, and effective plugin overrides without executing stages or changing configuration; existing database-readiness behavior is preserved.
 - Active benchmark inputs now use one explicit semantic registry, and new experiment manifests retain archive-relative byte snapshots and SHA-256 identities for source-independent validation and regeneration.
 - A zero-call qualification freeze binds the recovery-aware midfile matrix, aggregate paid ceilings, runtime identities, pricing, and fail-closed preflight evidence before execution.
 - Experiment summary generation, validation, ranking, and rendering share a structured Go contract for current archives.

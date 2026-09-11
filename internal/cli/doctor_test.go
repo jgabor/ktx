@@ -47,6 +47,7 @@ func doctorTestDB(t *testing.T) *dbpkg.DB {
 // status=ok JSON envelope on stdout and exits 0; a missing database
 // file produces a status=error envelope and exits 4 (internal error).
 func TestRunDoctorWith_HealthCheck(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Run("healthy DB → status=ok, exit 0", func(t *testing.T) {
 		t.Setenv("KTX_DB", t.TempDir()+"/ktx.db")
 		doctorTestDB(t) // Open creates the file with full schema
@@ -335,6 +336,7 @@ func TestDoctorMissingDisposableDefaultIsNotCreated(t *testing.T) {
 }
 
 func TestDoctorAuditsInspectionBeforeReadOnlyOpen(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	root := t.TempDir()
 	path := filepath.Join(root, "seeded.db")
 	seedDoctorDatabase(t, path, nil)
@@ -354,6 +356,7 @@ func TestDoctorAuditsInspectionBeforeReadOnlyOpen(t *testing.T) {
 }
 
 func TestDoctorAuditRejectsBeforeInspectionSideEffects(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	root := t.TempDir()
 	path := filepath.Join(root, "inert", "ktx.db")
 	audit := filepath.Join(root, "audit.jsonl")
@@ -379,6 +382,7 @@ func TestDoctorAuditRejectsBeforeInspectionSideEffects(t *testing.T) {
 }
 
 func TestDoctorAuditFailuresAreFailClosed(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	for _, test := range []struct {
 		name      string
 		auditPath func(string) string
@@ -435,6 +439,7 @@ func doctorAuditOperations(records []doctorAuditRecord) []string {
 }
 
 func TestRunWithDoctorAcceptsSubcommandFormat(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	root := t.TempDir()
 	path := filepath.Join(root, "seeded.db")
 	t.Setenv("KTX_DB", path)

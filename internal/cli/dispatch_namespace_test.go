@@ -277,6 +277,7 @@ func TestRunWith_PricesDispatched(t *testing.T) {
 // filesystem path resolution. End-to-end doctor tests separately cover the
 // production OpenReadOnly path and immutable database bytes.
 func TestRunWith_DoctorDispatched(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Run("database without bench_runs → bench_runs warning, top-level degraded, exit 0", func(t *testing.T) {
 		// Construct a database without bench_runs: base + cost columns but no
 		// bench_runs table. The migration is skipped (we

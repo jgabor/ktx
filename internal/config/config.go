@@ -29,6 +29,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -223,6 +224,41 @@ func Load() (*Config, error) {
 	return defaultConfig(), nil
 }
 
+// Inspect loads configuration without creating directories or hiding discovery
+// and read failures. It returns the active path even when the file is absent;
+// an absent file returns the normal passthrough defaults and exists=false.
+// ParseError distinguishes invalid contents from filesystem access failures.
+func Inspect() (path string, cfg *Config, exists bool, err error) {
+	path, err = userConfigFile()
+	if err != nil {
+		return path, nil, false, err
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return path, nil, false, err
+	}
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return path, defaultConfig(), false, nil
+	}
+	if err != nil {
+		return path, nil, false, err
+	}
+	if !info.Mode().IsRegular() {
+		return path, nil, true, fmt.Errorf("config is not a regular file")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return path, nil, true, err
+	}
+	cfg, err = parse(data)
+	var pe *ParseError
+	if errors.As(err, &pe) {
+		pe.Path = path
+	}
+	return path, cfg, true, err
+}
+
 // defaultConfig is the no-file / load-error-safe baseline. view_image has an
 // explicit empty passthrough profile; all other tools use the empty default
 // fallback. Both paths preserve output byte-for-byte.
@@ -398,7 +434,15 @@ func parse(data []byte) (*Config, error) {
 	// fall back to the default profile (then the const defaults) when a
 	// profile omits a field.
 	profiles := make(map[string]Profile, len(decoded.Pipeline))
-	for name, p := range decoded.Pipeline {
+	// Stable validation order makes the first error deterministic when multiple
+	// profiles have invalid values.
+	names := make([]string, 0, len(decoded.Pipeline))
+	for name := range decoded.Pipeline {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		p := decoded.Pipeline[name]
 		// Defensive copy so the caller cannot mutate the parsed
 		// slice via a shared backing array.
 		stages := make([]string, len(p.Stages))

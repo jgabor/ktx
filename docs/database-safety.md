@@ -158,6 +158,18 @@ state, and genuinely read-only commands remain read-only.
 readiness prepares the database automatically before inspection. It no longer
 reports a manual migration prerequisite.
 
+Doctor also performs static pipeline configuration diagnostics without writing
+configuration or creating config directories. It reports the active config
+path, ordered routes and stages, and warnings for runtime-skipped stages or
+supported plugin overrides; it never applies stages or executes/probes plugin
+commands. Absent config and empty pipelines are valid passthrough. Invalid or
+inaccessible config is an error finding, visible alongside ordinary database
+findings even when the database is missing (which doctor does not create).
+Classified security/readiness failures keep their existing single error
+envelope and precedence. These diagnostics do not repair data, maintain
+evidence, or establish plugin viability or observed route usage. See
+[pipeline diagnostics](pipelines.md#read-only-pipeline-diagnostics).
+
 ## Newer schemas
 
 A binary that finds database schema `Y` above its maximum schema `X` exits `5`

@@ -20,6 +20,23 @@ rather than showing a partial projection. Inspect the selected `ktx.toml`
 directly for those safety-relevant fields and treat `config show` as partial, not
 proof of the complete resolved configuration.
 
+Use `ktx doctor --format json` or `--format text` for static pipeline diagnostics
+alongside database health. It shows the active config path and distinguishes
+absent, valid, invalid, and inaccessible configuration; routes include all four
+predicates in first-match order, target stages, and default fallback. Empty
+pipelines and absent config are valid passthrough. Unknown stages, invalid
+built-in arguments, built-in shadowing, and duplicate plugin names are warnings;
+plugin findings identify the effective last-writer-wins registration without
+showing command contents. Overrides own argument handling. No stage or plugin
+probe executes, no config directories are created, and valid config is not
+proof of plugin viability or observed traffic. Invalid/inaccessible config is
+an error finding (exit 4); warnings alone yield degraded (exit 0). Ordinary
+missing-database findings do not hide config findings, but classified
+security/readiness errors retain their single error envelope and precedence.
+Doctor is read-only for current schemas, prepares supported older schemas, and
+never creates a missing database. Use disposable app state for development;
+see [database safety](../../../../docs/database-safety.md).
+
 ## Shipped Broad Opt-In Example
 
 The shipped configured example includes this broad, lossy recipe:

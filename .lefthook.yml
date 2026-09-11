@@ -44,13 +44,10 @@ pre-push:
   parallel: true
   commands:
     lint:
-      run: golangci-lint run --fix ./...
-      stage_fixed: true
+      run: golangci-lint run ./...
       glob: "*.go"
     test:
-      run: go test ./...
-      glob: "*.go"
+      run: mage test
     vuln:
       run: govulncheck ./...
-      stage_fixed: true
       glob: "*.go"

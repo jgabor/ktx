@@ -1,0 +1,19 @@
+id: yohiahsqjv
+artifact: decisions
+record:
+  date: 2026-09-05
+  question: What standing authority should workers have to avoid repeated approval pauses during the review-remediation plan?
+  context: During orchestration of plan hljjrlykxb, the user requested foreseeable questions up front. The user explicitly approved measured internal budgets, completion-only replay, safe temporary storage, preserving accepted sizes, bounded architectural cleanup or no-change, and continuing independent tasks around blockers. The separately approved 64 KiB image/capability-response boundary remains unchanged.
+  alternatives:
+    - name: Delegate bounded contract-preserving decisions and isolate blocked branches.
+      status: chosen
+    - name: Require individual approval for every internal resource budget and cleanup proposal.
+      status: rejected
+    - name: Permit new accepted-size caps or authoritative partial replay without further approval.
+      status: rejected
+    - name: Pause all work whenever any independent branch is blocked.
+      status: rejected
+  choice: "Workers may choose internal memory, buffer, chunk, timeout, and temporary-working-storage budgets from measurements without another approval when accepted inputs, persisted evidence, recovery semantics, and public behavior stay unchanged. Recordings remain completion-only: preserve committed evidence, never present partial bytes as a completed replay, and report unavailable or incomplete recordings truthfully. Bounded streaming and temporary disk materialization are authorized. Remove owned temporary data only when cleanup cannot destroy the last recoverable evidence copy; never automatically prune durable evidence. Preserve existing accepted input sizes beyond explicitly approved limits. If this proves infeasible, escalate with measured evidence and a concrete proposed restriction before implementing it. After demonstrating remaining coupling, workers may record either evidence-backed no-change or the smallest targeted cleanup without repeated approval; preserve behavior, schema, compatibility, and dependency policy and do not introduce a broad rewrite. Persist blocked branches and continue independent ready tasks, batching foreseeable questions at checkpoints. Existing no-ambient-database, no-provider/paid-run, no-schema-change, no-commit, no-push, and no-release boundaries remain. New acceptance restrictions, deletion of durable evidence, schema changes, or materially broader architecture still require explicit authority. This decision authorizes the stated workflow, not implementation completion or decision satisfaction."
+  reasoning: The user explicitly selected these policies to reduce avoidable interruptions while retaining evidence and safety contracts. Measured implementation choices do not need repeated consent; actual contract changes do. Isolating a blocked branch avoids stopping independent work without disguising unresolved acceptance risks.
+  confidence: firm
+  feeds_into: Plan hljjrlykxb orchestration; recording tasks jfgymxttel and mljcarlewi; archive task czzdcnqozn; boundary tasks iefdatbpxu and wxwwonhjgy. Their existing evidence and dependency requirements remain.

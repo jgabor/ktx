@@ -372,7 +372,8 @@ type tomlRoute struct {
 // return *ParseError.
 func parse(data []byte) (*Config, error) {
 	var decoded tomlConfig
-	if _, err := toml.Decode(string(data), &decoded); err != nil {
+	metadata, err := toml.Decode(string(data), &decoded)
+	if err != nil {
 		var pe toml.ParseError
 		if errors.As(err, &pe) {
 			return nil, &ParseError{
@@ -381,6 +382,14 @@ func parse(data []byte) (*Config, error) {
 			}
 		}
 		return nil, &ParseError{Line: 0, Msg: err.Error()}
+	}
+	for _, key := range metadata.Undecoded() {
+		// Logging is independently validated by LoadLogs; invalid logging
+		// disables logging without invalidating the pipeline configuration.
+		if len(key) > 0 && key[0] == "logs" {
+			continue
+		}
+		return nil, &ParseError{Msg: fmt.Sprintf("unknown setting %q", key.String())}
 	}
 
 	// Build the Profiles map from all discovered pipeline tables. Each

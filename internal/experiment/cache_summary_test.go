@@ -4,7 +4,7 @@ import "testing"
 
 func cacheAwareManifest() Manifest {
 	m := v3Manifest()
-	m.Methodology.Version = "v5-cache-aware"
+	m.Methodology.Version = promptCacheTokenHitRateMethodologyVersion
 	m.TargetValidPerPipeline = 2
 	m.CacheControl = &CacheControlManifest{Mode: "observed", Source: "unavailable", WarmupCount: 1, TTFTAvailable: false, TTFTUnavailableReason: "runtime timestamps unavailable"}
 	return m

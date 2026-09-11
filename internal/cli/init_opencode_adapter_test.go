@@ -213,6 +213,10 @@ if [ "$1" = "telemetry" ] && [ "$KTX_TEST_TELEMETRY_FAIL" = "1" ]; then
   printf 'telemetry unavailable\n' >&2
   exit 8
 fi
+if [ "$1 $2" = "telemetry record" ]; then
+  printf '%s' "$payload" | ` + strconv.Quote(bun) + ` -e 'const o=JSON.parse(await Bun.stdin.text()); o.provider ??= null; o.model ??= null; o.runtime="opencode"; o.runtime_version="1.18.5"; o.source="event_hook"; console.log(JSON.stringify({schema:"ktx.telemetry-ack.v1",ok:true,durable:true,observation:o}))'
+  exit $?
+fi
 if [ "$1 $2" = "telemetry collector-open" ]; then
   epoch=$(printf '%s' "$payload" | sed -n 's/.*"epoch_id":"\([^"]*\)".*/\1/p')
   state="$KTX_TEST_LOG.ordinal"
@@ -277,13 +281,14 @@ if [ "$1 $2" = "telemetry cue-delivered" ]; then
   fi
 fi
 if [ "$1" = "hook" ]; then
+  if [ -n "$KTX_TEST_ENVELOPE" ]; then printf '%s\n' "$KTX_TEST_ENVELOPE"; exit 0; fi
   if [ "$KTX_TEST_HOOK_FAIL" = "1" ]; then
     printf 'hook unavailable\n' >&2
     exit 7
   fi
   if [ "$KTX_TEST_BAD_RESPONSE" = hook-envelope ]; then printf '{"output":7,"compressed_id":false,"source_id":""}\n'
   elif [ "$KTX_TEST_RECOVERY_CUE" = 1 ]; then printf '{"output":"compressed tool output with cue","compressed_id":"artifactabcdefgh","source_id":"sourceabcdefghij","ktx_session_id":"aaaaaaaaaaaaaaaa","runtime_session_id":"ses_1","call_id":"call_1","recovery_cue":true}\n'
-  else printf '{"output":"compressed tool output","compressed_id":"compressedid","source_id":"sourceid","ktx_session_id":"aaaaaaaaaaaaaaaa","runtime_session_id":"ses_1","call_id":"call_1"}\n'
+  else printf '{"output":"compressed tool output","compressed_id":"artifactabcdefgh","source_id":"sourceabcdefghij","ktx_session_id":"aaaaaaaaaaaaaaaa","runtime_session_id":"ses_1","call_id":"call_1"}\n'
   fi
 fi
 `
@@ -295,6 +300,14 @@ fi
 	driver := `import plugin from ` + strconv.Quote(pluginPath) + `
 const hooks: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
 if (process.env.KTX_TEST_PATH_AFTER_LOAD) process.env.PATH = process.env.KTX_TEST_PATH_AFTER_LOAD
+if (process.env.KTX_TEST_ENVELOPE) {
+  const output = {title:"tool",output:"original tool output",metadata:{kept:true}}
+  let rejected = false
+  try { await hooks["tool.execute.after"]({tool:"bash",sessionID:"ses_1",callID:"call_1",args:{}}, output) }
+  catch (e) { rejected = true; console.error(String(e)) }
+  console.log(JSON.stringify({...output, rejected}))
+  process.exit(0)
+}
 if (!hooks.event) {
   console.log(JSON.stringify({title:"tool",output:"original tool output",metadata:{kept:true}}))
   process.exit(0)
@@ -355,6 +368,101 @@ console.log(JSON.stringify(output))
 		return output, calls, stderr.String()
 	}
 
+	t.Run("response envelopes", func(t *testing.T) {
+		environment := func(t *testing.T, required bool, response string) []string {
+			t.Helper()
+			root := t.TempDir()
+			env := []string{"KTX_TEST_ENVELOPE=" + response, "KTX_SESSION_ID=", "KTX_COLLECTION_ID=", "KTX_BENCH_COLLECTOR_MODE="}
+			for _, key := range []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "TMPDIR"} {
+				path := filepath.Join(root, key)
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				env = append(env, key+"="+path)
+			}
+			if required {
+				env = append(env, "KTX_BENCH_COLLECTOR_MODE=required", "KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb", "KTX_BENCH_EVENT_CONTRACT=opencode-event-v3")
+			}
+			return env
+		}
+		valid := map[string]any{"output": "replacement", "source_id": "sourceabcdefghij", "compressed_id": "artifactabcdefgh", "ktx_session_id": "aaaaaaaaaaaaaaaa", "runtime_session_id": "ses_1", "call_id": "call_1"}
+		cases := map[string]string{"invalid-json": "{", "null": "null", "array": "[]", "object": "{}", "scalar": "true"}
+		for _, field := range []string{"output", "source_id", "compressed_id", "ktx_session_id", "runtime_session_id", "call_id", "recovery_cue"} {
+			for _, value := range []any{nil, false, 7, []any{}, map[string]any{}} {
+				if field == "compressed_id" && value == nil || field == "recovery_cue" && value == false {
+					continue
+				}
+				candidate := make(map[string]any)
+				for k, v := range valid {
+					candidate[k] = v
+				}
+				candidate[field] = value
+				data, _ := json.Marshal(candidate)
+				cases[fmt.Sprintf("%s-%T", field, value)] = string(data)
+			}
+		}
+		for _, field := range []string{"output", "source_id", "compressed_id"} {
+			candidate := make(map[string]any)
+			for k, v := range valid {
+				if k != field {
+					candidate[k] = v
+				}
+			}
+			data, _ := json.Marshal(candidate)
+			cases["missing-"+field] = string(data)
+		}
+		for _, field := range []string{"source_id", "compressed_id", "ktx_session_id"} {
+			for _, id := range []string{"", "short", "AAAAAAAAAAAAAAAA", "aaaaaaaaaaaaaaa1", "aaaaaaaaaaaaaaaa\n"} {
+				candidate := make(map[string]any)
+				for k, v := range valid {
+					candidate[k] = v
+				}
+				candidate[field] = id
+				data, _ := json.Marshal(candidate)
+				cases[field+"-"+strconv.Quote(id)] = string(data)
+			}
+		}
+		cases["cue-without-artifact"] = `{"output":"replacement","source_id":"sourceabcdefghij","compressed_id":null,"ktx_session_id":"aaaaaaaaaaaaaaaa","runtime_session_id":"ses_1","call_id":"call_1","recovery_cue":true}`
+		for _, required := range []bool{false, true} {
+			for name, response := range cases {
+				t.Run(fmt.Sprintf("required=%t/%s", required, name), func(t *testing.T) {
+					env := environment(t, required, response)
+					output, calls, stderr := run(t, env...)
+					if output["output"] != "original tool output" || output["title"] != "tool" || !reflect.DeepEqual(output["metadata"], map[string]any{"kept": true}) || output["rejected"] != required || stderr == "" {
+						t.Fatalf("output=%#v stderr=%q", output, stderr)
+					}
+					for _, call := range calls {
+						if strings.HasPrefix(call, "telemetry cue-delivered") {
+							t.Fatal("malformed envelope acknowledged a cue")
+						}
+					}
+				})
+			}
+			for _, replacement := range []string{"", "replacement"} {
+				for _, compressed := range []any{nil, "artifactabcdefgh"} {
+					t.Run(fmt.Sprintf("valid/required=%t/output=%q/compressed=%v", required, replacement, compressed), func(t *testing.T) {
+						candidate := make(map[string]any)
+						for k, v := range valid {
+							candidate[k] = v
+						}
+						candidate["output"], candidate["compressed_id"], candidate["future_field"] = replacement, compressed, map[string]any{"ignored": true}
+						if !required {
+							delete(candidate, "ktx_session_id")
+							delete(candidate, "runtime_session_id")
+							delete(candidate, "call_id")
+						}
+						data, _ := json.Marshal(candidate)
+						env := environment(t, required, string(data))
+						output, _, stderr := run(t, env...)
+						if output["output"] != replacement || output["rejected"] != false || output["title"] != "tool" || !reflect.DeepEqual(output["metadata"], map[string]any{"kept": true}) || stderr != "" {
+							t.Fatalf("output=%#v stderr=%q", output, stderr)
+						}
+					})
+				}
+			}
+		}
+	})
+
 	t.Run("unwrapped session records accepted events and preserves hook behavior", func(t *testing.T) {
 		output, calls, _ := run(t)
 		if output["output"] != "compressed tool output" {
@@ -366,7 +474,7 @@ console.log(JSON.stringify(output))
 		var observations []map[string]any
 		for ordinal, call := range calls[:6] {
 			fields := strings.SplitN(call, "\t", 2)
-			if len(fields) != 2 || fields[0] != "telemetry record" {
+			if len(fields) != 2 || fields[0] != "telemetry record --ack" {
 				t.Fatalf("telemetry call = %q", call)
 			}
 			var observation map[string]any
@@ -415,7 +523,7 @@ console.log(JSON.stringify(output))
 		if output["output"] != "compressed tool output" {
 			t.Fatalf("tool output = %#v", output)
 		}
-		if len(calls) != 2 || !strings.HasPrefix(calls[0], "telemetry record\t") || !strings.HasPrefix(calls[1], "hook\t") {
+		if len(calls) != 2 || !strings.HasPrefix(calls[0], "telemetry record --ack\t") || !strings.HasPrefix(calls[1], "hook\t") {
 			t.Fatalf("calls = %q, want telemetry then hook", calls)
 		}
 	})
@@ -1020,7 +1128,7 @@ console.log("ok")
 		if output["output"] != "original tool output" {
 			t.Fatalf("tool output changed on failure: %#v", output)
 		}
-		if len(calls) != 7 || !strings.Contains(stderr, "telemetry unavailable") || !strings.Contains(stderr, "hook failed") {
+		if len(calls) != 8 || !strings.Contains(stderr, "telemetry unavailable") || !strings.Contains(stderr, "hook failed") {
 			t.Fatalf("calls=%q stderr=%q", calls, stderr)
 		}
 	})

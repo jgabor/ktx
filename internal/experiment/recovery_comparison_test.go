@@ -225,12 +225,8 @@ func TestSchemaSixRecoverySummaryIsRejected(t *testing.T) {
 	if err := os.WriteFile(path, before, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	report, err := ValidateExperiment(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if report["valid"] != false || report["summary_byte_match"] != false {
-		t.Fatalf("validation report = %#v", report)
+	if _, err := ValidateExperiment(dir); err == nil || !strings.Contains(err.Error(), "unsupported summary schema_version 6") {
+		t.Fatalf("validation error = %v", err)
 	}
 }
 
@@ -254,95 +250,51 @@ func TestIncompleteSchemaSixRecoverySummaryIsRejected(t *testing.T) {
 	if err := os.WriteFile(path, before, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ValidateExperiment(dir); err == nil || !strings.Contains(err.Error(), "missing recovery_aware_comparison") {
+	if _, err := ValidateExperiment(dir); err == nil || !strings.Contains(err.Error(), "unsupported summary schema_version 6") {
 		t.Fatalf("validation error = %v", err)
 	}
 }
 
 func writeRecoveryArchive(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
-	manifest := recoveryManifest(1)
-	manifest.ExperimentID = "recovery-archive"
-	manifest.Model = "openai/test"
-	manifest.Task.ExpectedFacts = []string{"FACT=ok"}
-	manifest.Pipelines = map[string]PipelineMetadata{Baseline: {PipelineID: "baseline", SHA256: "b"}, Candidate: {PipelineID: "candidate", SHA256: "c"}}
-	manifest.CacheControl = &CacheControlManifest{Mode: "observed", Source: "unavailable", WarmupCount: 1, Model: manifest.Model, Provider: "openai", RuntimeVersion: "1.17.20"}
-	manifest.Identities = map[string]string{"opencode": "1.17.20"}
-	rate := .5
-	pricing, err := writePricingSnapshot(dir, "openai", "test", db.Price{Input: 1, Output: 2, CacheRead: &rate, CacheWrite: &rate, InputSet: true, OutputSet: true})
+	dir := produceEntryArchive(t, "recovery-aware-comparison", true, true)
+	attempts, err := LoadAttempts(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest.Pricing = pricing
-	attempts := []Attempt{
-		phaseAttempt("b-cold", Baseline, ColdObservation, 0, 1), phaseAttempt("c-cold", Candidate, ColdObservation, 0, 1),
-		phaseAttempt("b-warm", Baseline, Warmup, 0, 1), phaseAttempt("c-warm", Candidate, Warmup, 0, 1),
-		phaseAttempt("b-measured", Baseline, MeasuredWarm, 1, 1), phaseAttempt("c-measured", Candidate, MeasuredWarm, 1, 1),
-	}
 	for index := range attempts {
-		prepareRecoveryArchiveAttempt(t, dir, manifest, &attempts[index], index+1)
-	}
-	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
-		t.Fatal(err)
-	}
-	for _, attempt := range attempts {
-		if err := AppendAttempt(dir, attempt); err != nil {
+		attempt := &attempts[index]
+		runtimeSession, callID := "runtime-"+attempt.Side, "call-"+attempt.AttemptID
+		persistedID, err := identity.Derive("opencode", runtimeSession, callID)
+		if err != nil {
 			t.Fatal(err)
 		}
+		database, err := db.Open(filepath.Join(dir, attempt.Artifacts["database"]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, updateErr := database.DB().Exec("UPDATE tool_calls SET id = ? WHERE session_id = ?", persistedID, *attempt.SessionID)
+		closeErr := database.Close()
+		if updateErr != nil || closeErr != nil {
+			t.Fatalf("call identity: %v %v", updateErr, closeErr)
+		}
+		path := filepath.Join(dir, attempt.Artifacts["stream"])
+		stream, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		call := []byte(`{"type":"tool_use","sessionID":"` + runtimeSession + `","part":{"callID":"` + callID + `","state":{"status":"completed"}}}`)
+		stream = bytes.Replace(stream, []byte(`{"type":"tool_use","part":{}}`), call, 1)
+		if err := os.WriteFile(path, stream, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		attempt.ContentHashes["stream"] = sha256Bytes(stream)
 	}
+	writeAttemptRecords(t, dir, attempts...)
 	if _, err := WriteSummary(dir); err != nil {
 		t.Fatal(err)
 	}
 	return dir
-}
-
-func prepareRecoveryArchiveAttempt(t *testing.T, root string, manifest Manifest, attempt *Attempt, order int) {
-	t.Helper()
-	attempt.SchemaVersion = 2
-	attempt.ExperimentID = manifest.ExperimentID
-	attempt.PipelineID = manifest.Pipelines[attempt.Side].PipelineID
-	attempt.ConfigSHA256 = manifest.Pipelines[attempt.Side].SHA256
-	attempt.CacheControl.ExecutionOrder = order
-	attempt.CacheControl.Model = manifest.CacheControl.Model
-	attempt.CacheControl.Provider = manifest.CacheControl.Provider
-	attempt.CacheControl.RuntimeVersion = manifest.CacheControl.RuntimeVersion
-	session := "session-owner-" + attempt.AttemptID
-	attempt.SessionID = &session
-	attemptDir := filepath.Join(root, "attempts", attempt.AttemptID)
-	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	database, err := db.Open(filepath.Join(attemptDir, "ktx.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := database.InsertSession(&db.Session{ID: session, Agent: "opencode"}); err != nil {
-		t.Fatal(err)
-	}
-	runtimeSessionID := "native-" + attempt.AttemptID
-	runtimeCallID := "call-" + attempt.AttemptID
-	persistedID, err := identity.Derive("opencode", runtimeSessionID, runtimeCallID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	call := &db.ToolCall{ID: persistedID, SessionID: session, Tool: "read", Input: `{}`, Output: "ok", ContentHash: db.ContentHash("ok")}
-	if _, err := database.PersistToolCallOnce(call); err != nil {
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
-		t.Fatal(err)
-	}
-	stream := "{\"type\":\"tool_use\",\"sessionID\":\"" + runtimeSessionID + "\",\"part\":{\"callID\":\"" + runtimeCallID + "\",\"state\":{\"status\":\"completed\"}}}\n" +
-		"{\"type\":\"step_finish\",\"part\":{\"reason\":\"stop\",\"tokens\":{\"input\":10,\"output\":2,\"reasoning\":1,\"cache\":{\"read\":0,\"write\":0}},\"cost\":0}}\n" +
-		"{\"type\":\"text\",\"part\":{\"text\":\"FACT=ok\"}}\n"
-	if err := os.WriteFile(filepath.Join(attemptDir, "stream.jsonl"), []byte(stream), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	attempt.Artifacts = map[string]string{
-		"database": filepath.ToSlash(filepath.Join("attempts", attempt.AttemptID, "ktx.db")),
-		"stream":   filepath.ToSlash(filepath.Join("attempts", attempt.AttemptID, "stream.jsonl")),
-	}
 }
 
 func recoveryManifest(target int) Manifest {

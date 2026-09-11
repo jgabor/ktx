@@ -76,32 +76,39 @@ func keepEndsApply(input []byte, n, m int) []byte {
 	}
 
 	hadTrailingNewline := input[len(input)-1] == '\n'
-	lines := bytes.Split(input, []byte("\n"))
-	if hadTrailingNewline && len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
-		lines = lines[:len(lines)-1]
+	count := bytes.Count(input, []byte{'\n'})
+	end := len(input)
+	if hadTrailingNewline {
+		end--
+	} else {
+		count++
 	}
 
 	// No truncation needed: input has n+m or fewer lines.
-	if len(lines) <= n+m {
+	if n >= count || m >= count-n {
 		out := make([]byte, len(input))
 		copy(out, input)
 		return out
 	}
 
-	head := lines[:n]
-	tail := lines[len(lines)-m:]
-	omitted := len(lines) - n - m
+	headEnd := 0
+	for range n {
+		headEnd += bytes.IndexByte(input[headEnd:], '\n') + 1
+	}
+	tailStart := end
+	for range m {
+		tailStart = bytes.LastIndexByte(input[:tailStart], '\n')
+	}
+	tailStart++
+	omitted := count - n - m
 	marker := fmt.Sprintf("[ktx: %d lines omitted]", omitted)
 
 	// Join head + marker + tail with newlines so the marker occupies its
 	// own line.
-	parts := make([][]byte, 0, len(head)+1+len(tail))
-	parts = append(parts, head...)
-	parts = append(parts, []byte(marker))
-	parts = append(parts, tail...)
-	joined := bytes.Join(parts, []byte("\n"))
-	if hadTrailingNewline {
-		joined = append(joined, '\n')
-	}
+	joined := make([]byte, 0, headEnd+len(marker)+1+len(input)-tailStart)
+	joined = append(joined, input[:headEnd]...)
+	joined = append(joined, marker...)
+	joined = append(joined, '\n')
+	joined = append(joined, input[tailStart:]...)
 	return joined
 }

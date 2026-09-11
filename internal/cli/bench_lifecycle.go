@@ -28,12 +28,12 @@ func experimentRoot() (string, error) {
 }
 
 func readManifest(path string) (experiment.Manifest, error) {
-	file, err := os.Open(path)
+	file, err := experiment.OpenArchiveFile(filepath.Dir(path), filepath.Base(path))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return experiment.Manifest{}, errors.New("manifest missing")
 		}
-		return experiment.Manifest{}, errors.New("manifest unreadable")
+		return experiment.Manifest{}, fmt.Errorf("manifest unreadable: %w", err)
 	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, maxManifestBytes+1))

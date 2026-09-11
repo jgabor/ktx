@@ -2,8 +2,8 @@
 //
 // The cache lives at $XDG_DATA_HOME/ktx/prices.json and is the local source
 // of truth for per-token pricing across runs. ktx fetches from
-// https://models.dev/api.json on cache miss and caches the parsed result
-// in memory; the on-disk file is the long-lived source of truth between
+// https://models.dev/api.json on cold-cache miss and atomically persists
+// the parsed result; the on-disk file is the long-lived source of truth between
 // fetches. Fetch failures are soft: the write path surfaces stored cost
 // when the cache cannot supply a price, with no error returned (the
 // soft-fail contract).

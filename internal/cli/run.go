@@ -6,7 +6,7 @@
 //
 // The wrapper is a transparent proxy:
 //
-//   - agent stdout passes through to ktx's stdout untouched
+//   - agent stdout preserves ScanLines normalization (CRLF to LF, final LF added)
 //   - agent stderr inherits the wrapper's stderr
 //   - one-line run summary to stderr; --quiet suppresses it
 //   - exit code matches the child's exit code
@@ -42,7 +42,6 @@ package cli
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -52,6 +51,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -60,12 +60,12 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/evidence"
 	"github.com/jgabor/ktx/internal/parser"
+	"github.com/jgabor/ktx/internal/telemetry"
 	telemetryopencode "github.com/jgabor/ktx/internal/telemetry/opencode"
 )
 
-// maxAgentLine caps a single emitted JSON line. Agent tool outputs (e.g.,
-// file listings) can be tens of MB; the limit leaves headroom without
-// reserving memory we don't need. Larger lines are skipped (passthrough).
+// maxAgentLine bounds event parsing, not forwarding. Larger lines are
+// forwarded completely without parsing, with a diagnostic.
 const maxAgentLine = 64 * 1024 * 1024
 
 // runCmd is the subprocess constructor used by executeRun to spawn the
@@ -79,10 +79,25 @@ const maxAgentLine = 64 * 1024 * 1024
 var runCmd = exec.CommandContext
 
 type runOptions struct {
-	Format       string
-	Quiet        bool
-	RecordStream bool
-	CollectionID string
+	Format            string
+	Quiet             bool
+	RecordStream      bool
+	CollectionID      string
+	completionReceipt io.Writer
+}
+
+// runReceiptEnv selects the private descriptor supplied by bench, not a
+// caller-selected session. The wrapper remains the session identity owner.
+const runReceiptEnv = "KTX_INTERNAL_RUN_RECEIPT"
+
+func withoutRunReceipt(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, runReceiptEnv+"=") {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // runRunWith executes `ktx run` with injected output streams.
@@ -91,23 +106,6 @@ type runOptions struct {
 // invokes executeRun, returning the child's exit code directly.
 func runRunWith(args []string, opts Options, stdout, stderr io.Writer) int {
 	return runDispatchWithOptions("run", args, opts, stdout, stderr)
-}
-
-func extractCollectionFlag(args []string) ([]string, string, error) {
-	rest := make([]string, 0, len(args))
-	var id string
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "--collection=") {
-			rest = append(rest, arg)
-			continue
-		}
-		value := strings.TrimPrefix(arg, "--collection=")
-		if id != "" || !dbpkg.IDPattern.MatchString(value) {
-			return nil, "", fmt.Errorf("--collection requires one 16-letter lowercase ID")
-		}
-		id = value
-	}
-	return rest, id, nil
 }
 
 // matchRecordStreamFlag parses the --record-stream[=value] form and
@@ -133,45 +131,6 @@ func matchRecordStreamFlag(a string) (value, matched bool, err error) {
 	}
 }
 
-// filterKtxFlags removes ktx-recognised flags from args. The recognised set
-// is small and stable: --quiet/-q, --help/-h, and --record-stream. Other
-// flags and all positional arguments pass through to the agent. We
-// intentionally do NOT recognise --format here — --format is a global
-// flag and the wrapper always emits the run summary as JSON regardless
-// of format.
-//
-// Both bare and --flag=value forms are accepted so the post-agent scan
-// behaves like the global parser (stdlib flag.BoolVar). The pre-agent
-// form is consumed by parseRunArgs; this helper is the post-agent
-// fallback for users who type `ktx run <agent> ... --quiet`.
-//
-// Returns the owned values, passthrough arguments, and any malformed owned
-// flag error.
-func filterKtxFlags(args []string) (quiet, showHelp, recordStream bool, rest []string, err error) {
-	for _, a := range args {
-		name, _, _ := strings.Cut(a, "=")
-		switch name {
-		case "-q", "--quiet":
-			quiet = true
-		case "-h", "--help":
-			showHelp = true
-		case "--record-stream":
-			if a == "--record-stream" {
-				recordStream = true
-				continue
-			}
-			value, _, parseErr := matchRecordStreamFlag(a)
-			if parseErr != nil {
-				return false, false, false, nil, parseErr
-			}
-			recordStream = value
-		default:
-			rest = append(rest, a)
-		}
-	}
-	return quiet, showHelp, recordStream, rest, nil
-}
-
 // executeRun is the runtime body of `ktx run`. It opens the session,
 // spawns the agent, parses tool events, persists them, closes the
 // session, and emits the run summary. It returns the exit code that ktx
@@ -179,7 +138,7 @@ func filterKtxFlags(args []string) (quiet, showHelp, recordStream bool, rest []s
 // code if session open fails).
 //
 // When opts.RecordStream is set (the --record-stream opt-in), the
-// wrapper captures the agent's stdout into a bytes.Buffer alongside the
+// wrapper captures the agent's stdout into a private spool alongside the
 // transparent passthrough (io.MultiWriter), and persists the captured
 // JSONL into the recorded_streams table after the session closes —
 // with an empty (NULL) bench_run_id, since ktx run has no bench_runs
@@ -262,14 +221,19 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	// Spawn the child with KTX_SESSION_ID exported. The child
 	// inherits the wrapper's stdin and stderr (the agent can read input
 	// and write diagnostics directly); only stdout is intercepted for
-	// tee + parse. Signal forwarding: SIGINT/SIGTERM received by the
-	// wrapper are propagated to the child via context cancellation.
+	// tee + parse. On Linux, either SIGINT or SIGTERM starts a TERM grace
+	// period for the owned child/group, followed by KILL and pipe settlement.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	// Let stdout return EPIPE instead of terminating the wrapper before
+	// it can report delivery failure and reap its child. No signal loop is
+	// needed: the write error is the authority, not the notification.
+	brokenPipe := make(chan os.Signal, 1)
+	signal.Notify(brokenPipe, syscall.SIGPIPE)
+	defer signal.Stop(brokenPipe)
 
 	// runCommandFunc / runRunWith pass agentArgs that still includes the
-	// agent binary name at position 0 (filterKtxFlags returns ctx.Args
-	// unchanged when no quiet/help flags are present). exec.CommandContext
+	// agent binary name at position 0. exec.CommandContext
 	// already uses `agent` as argv[0]; if we also pass agentArgs[0] ==
 	// agent as the first variadic arg, Go's exec appends it as argv[1]
 	// and the child process receives a doubled agent name at the front
@@ -284,9 +248,22 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 		agentArgsTail = agentArgsTail[1:]
 	}
 	cmd := runCmd(ctx, agent, agentArgsTail...)
+	if err := configureRunProcess(cmd); err != nil {
+		fmt.Fprintf(stderr, "ktx: warning: retaining inherited process group: %v\n", err)
+	}
+	restoreProcess, err := prepareRunSubreaper(cmd)
+	if err != nil {
+		printError(stderr, internalError("ktx run: prepare descendant ownership: %v", err), opts.Format)
+		return ExitInternal
+	}
+	defer func() {
+		if err := restoreProcess(); err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: restore process state: %v\n", err)
+		}
+	}()
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), "KTX_SESSION_ID="+sessionID)
+	cmd.Env = append(withoutRunReceipt(os.Environ()), "KTX_SESSION_ID="+sessionID)
 	if opts.CollectionID != "" {
 		cmd.Env = append(cmd.Env, "KTX_COLLECTION_ID="+opts.CollectionID, "KTX_DB="+target.Path)
 	}
@@ -304,21 +281,28 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 		printError(stderr, usageError("ktx run: spawn %q: %v", agent, err), opts.Format)
 		return ExitUsage
 	}
+	settleProcess := superviseRunProcess(ctx, cmd, stdoutR)
 
 	// Tee stdout: read line by line, write to caller's stdout
 	// (passthrough), parse each line for tool events. Persistence is
 	// inline so each tool_call is committed before the next line is
 	// parsed — partial runs are crash-safe.
 	//
-	// When --record-stream is set, the tee also writes to a
-	// bytes.Buffer (via io.MultiWriter) so the full JSONL stream is
-	// captured for the recorded_streams persist after session close.
-	var streamBuf bytes.Buffer
+	// Optional recording failure must not stop ordinary stdout forwarding.
+	var stream *recordingSpool
 	teeOut := stdout
 	if opts.RecordStream {
-		teeOut = io.MultiWriter(stdout, &streamBuf)
+		stream, err = newRecordingSpool()
+		if err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: record stream unavailable: %v\n", err)
+		} else {
+			defer stream.close()
+			teeOut = io.MultiWriter(stdout, stream)
+		}
 	}
 	toolCalls, collectionErr := teeAndParseRuntimeCollection(stdoutR, teeOut, db, sessionID, stderr, filepath.Base(agent), opts.CollectionID)
+	shutdown := settleProcess(collectionErr)
+	collectionErr = errors.Join(collectionErr, shutdown.err)
 
 	waitErr := cmd.Wait()
 
@@ -328,7 +312,7 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	// and the user gets its exit code.
 	continuityEnded := time.Now().UTC()
 	continuityState := "stopped"
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || shutdown.interrupted || collectionErr != nil {
 		continuityState = "interrupted"
 	}
 	finishContinuity(continuityState, continuityEnded)
@@ -344,10 +328,21 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 	// (captureStreamForBenchRun) is the only caller that supplies a
 	// non-empty bench_run_id. Soft-fail: a persist error is logged as a
 	// warning and the run still exits with the child's exit code.
-	if opts.RecordStream {
-		if err := captureStreamForRun(db, sessionID, streamBuf.Bytes()); err != nil {
-			fmt.Fprintf(stderr, "ktx: warning: record stream: %v\n", err)
+	var recordingChildExit *exec.ExitError
+	if stream != nil {
+		err := stream.finish()
+		if err == nil && collectionErr == nil && continuityState == "stopped" && (waitErr == nil || errors.As(waitErr, &recordingChildExit)) {
+			err = stream.complete(sessionID)
+			if err == nil {
+				err = stream.publish(db, "")
+			}
 		}
+		if err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: record stream: %v; private owner location %s\n", err, stream.path)
+		}
+	}
+	if continuityState == "interrupted" {
+		fmt.Fprintln(stderr, "ktx: run interrupted; committed evidence retained, complete stream recording unavailable")
 	}
 
 	exitCode := 0
@@ -368,6 +363,12 @@ func executeRun(agent string, agentArgs []string, opts runOptions, stdout, stder
 
 	if !opts.Quiet {
 		writeRunSummary(stderr, toolCalls, time.Since(start), exitCode)
+	}
+	var childExit *exec.ExitError
+	if opts.completionReceipt != nil && continuityState == "stopped" && (waitErr == nil || errors.As(waitErr, &childExit)) {
+		if _, err := io.WriteString(opts.completionReceipt, sessionID); err != nil {
+			fmt.Fprintf(stderr, "ktx: warning: write completed session receipt: %v\n", err)
+		}
 	}
 
 	return exitCode
@@ -406,20 +407,6 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 	if !ok {
 		return nil, internalError("ktx run: command arguments were not parsed")
 	}
-	// The dispatcher already consumed --help and --quiet; ctx.Args
-	// contains only positional args. We still need to scan for
-	// post-agent --quiet (e.g. `ktx run <agent> ... --quiet`),
-	// --record-stream, and --help because the dispatcher does not see
-	// those (they are in the agent's args, not the verb's).
-	postAgentQuiet, agentHelp, postAgentRecordStream, agentArgs, err := filterKtxFlags(ctx.Args)
-	if err != nil {
-		return nil, usageError("ktx run: %v", err)
-	}
-	if agentHelp {
-		printRunHelp(ctx.Stdout)
-		return nil, nil
-	}
-
 	if len(ctx.Args) == 0 {
 		return nil, usageError("ktx run: missing agent command; usage: ktx run [flags] <agent> [args...]")
 	}
@@ -427,12 +414,20 @@ func runCommandFunc(ctx *DispatchContext) (any, error) {
 
 	opts := runOptions{
 		Format:       ctx.Format,
-		Quiet:        ctx.Quiet || postAgentQuiet,
-		RecordStream: parsed.recordStream || postAgentRecordStream,
+		Quiet:        ctx.Quiet,
+		RecordStream: parsed.recordStream,
 		CollectionID: parsed.collectionID,
 	}
+	if parsed.quietSet {
+		opts.Quiet = parsed.quiet
+	}
+	if os.Getenv(runReceiptEnv) == "1" {
+		receipt := os.NewFile(3, "run-completion-receipt")
+		defer receipt.Close()
+		opts.completionReceipt = receipt
+	}
 
-	exitCode := executeRun(agent, agentArgs, opts, ctx.Stdout, ctx.Stderr)
+	exitCode := executeRun(agent, ctx.Args, opts, ctx.Stdout, ctx.Stderr)
 	if exitCode == ExitOK {
 		return nil, nil
 	}
@@ -454,39 +449,83 @@ func init() {
 type runParsedArgs struct {
 	recordStream bool
 	collectionID string
+	quiet        bool
+	quietSet     bool
+	showHelp     bool
 }
 
-// parseRunDispatchArgs extracts ktx flags placed before the agent command.
+// parseRunDispatchArgs owns wrapper flags on both sides of the executable.
+// The first -- ends wrapper parsing and is removed; every later token is
+// literal child argv. Boolean values must be attached, and collection accepts
+// only =id. No child option's value arity is inferred.
 func parseRunDispatchArgs(args []string) ([]string, any, error) {
-	var collectionID string
-	var err error
-	args, collectionID, err = extractCollectionFlag(args)
-	if err != nil {
-		return nil, nil, err
-	}
-	var recordStream bool
+	var parsed runParsedArgs
 	rest := make([]string, 0, len(args))
-	for _, a := range args {
-		if a == "--record-stream" {
-			recordStream = true
-			continue
+	for i, arg := range args {
+		if arg == "--" {
+			rest = append(rest, args[i+1:]...)
+			break
 		}
-		if val, ok, err := matchRecordStreamFlag(a); err != nil {
-			return nil, nil, err
-		} else if ok {
-			recordStream = val
-			continue
+		name, value, explicit := strings.Cut(arg, "=")
+		// Keep the shared flag parser's existing single-dash long names and
+		// double-dash short names before the executable, without adding new
+		// post-executable aliases.
+		if len(rest) == 0 {
+			switch name {
+			case "-quiet", "--q":
+				name = "--quiet"
+			case "-help", "--h":
+				name = "--help"
+			}
 		}
-		rest = append(rest, a)
+		switch name {
+		case "--quiet", "-q", "--help", "-h":
+			b := true
+			if explicit {
+				var err error
+				b, err = strconv.ParseBool(value)
+				if err != nil {
+					return nil, nil, fmt.Errorf("invalid value %q for %s: want a boolean", value, name)
+				}
+			}
+			if name == "--quiet" || name == "-q" {
+				parsed.quiet, parsed.quietSet = b, true
+			} else {
+				parsed.showHelp = b
+			}
+			continue
+		case "--record-stream":
+			parsed.recordStream = true
+			if explicit {
+				b, _, err := matchRecordStreamFlag(arg)
+				if err != nil {
+					return nil, nil, err
+				}
+				parsed.recordStream = b
+			}
+			continue
+		case "--collection":
+			if explicit {
+				if parsed.collectionID != "" || !dbpkg.IDPattern.MatchString(value) {
+					return nil, nil, fmt.Errorf("--collection requires one 16-letter lowercase ID")
+				}
+				parsed.collectionID = value
+				continue
+			}
+		}
+		if len(rest) == 0 && strings.HasPrefix(arg, "-") && arg != "-" {
+			return nil, nil, fmt.Errorf("flag provided but not defined: %s", name)
+		}
+		rest = append(rest, arg)
 	}
-	return rest, runParsedArgs{recordStream: recordStream, collectionID: collectionID}, nil
+	return rest, parsed, nil
 }
 
 // teeAndParse reads from r, writes each line to stdout (transparent
 // passthrough), and persists any tool-shaped event to db. Returns the
-// number of tool_calls persisted. teeAndParse never returns an error:
-// line read errors are logged but do not abort the tee; persist errors
-// are logged per-call but do not abort the tee.
+// number of tool_calls persisted. The count-only helpers log forwarding
+// failures; the subprocess owner uses the error-returning collection helper.
+// Persist errors are logged per-call but do not abort the tee.
 //
 // The JSON -> tool_call translation lives in internal/parser
 // (parser.ParseEvent). The wrapper adds sessionID after parsing and
@@ -503,38 +542,44 @@ func teeAndParse(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, 
 }
 
 func teeAndParseRuntime(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, stderr io.Writer, runtimeName string) int {
-	count, _ := teeAndParseRuntimeCollection(r, stdout, db, sessionID, stderr, runtimeName, "")
+	count, err := teeAndParseRuntimeCollection(r, stdout, db, sessionID, stderr, runtimeName, "")
+	if err != nil {
+		fmt.Fprintf(stderr, "ktx: warning: %v\n", err)
+	}
 	return count
 }
 
 func teeAndParseRuntimeCollection(r io.Reader, stdout io.Writer, db *dbpkg.DB, sessionID string, stderr io.Writer, runtimeName, collectionID string) (int, error) {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 64*1024), maxAgentLine)
+	reader := bufio.NewReaderSize(r, 64*1024)
 	var persisted int
 	var telemetryCollector *telemetryopencode.Collector
 	if runtimeName == telemetryopencode.Runtime {
 		telemetryCollector = telemetryopencode.NewCollector()
 	}
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		// Passthrough: write the line as-is, then a newline so the
-		// caller's stdout stays in sync with what the agent emitted
-		// (scanner.Bytes() strips the trailing newline).
-		_, _ = stdout.Write(line)
-		_, _ = stdout.Write([]byte{'\n'})
+	for {
+		line, oversized, err := forwardAgentLine(reader, stdout)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return persisted, err
+		}
+		if oversized {
+			fmt.Fprintf(stderr, "ktx: warning: agent stdout event parsing skipped: line exceeds %d bytes; output forwarded\n", maxAgentLine)
+			continue
+		}
 
 		if telemetryCollector != nil {
-			observation, err := telemetryCollector.AddStream(line)
+			err := telemetryCollector.CollectStream(line, func(observation *telemetry.Observation, capturedAt string) error {
+				_, persistErr := db.PersistSessionTelemetry(sessionID, capturedAt, observation)
+				return persistErr
+			})
 			switch {
 			case err == nil:
-				capturedAt := time.Now().UTC().Format(time.RFC3339Nano)
-				if _, persistErr := db.PersistSessionTelemetry(sessionID, capturedAt, observation); persistErr != nil {
-					fmt.Fprintf(stderr, "ktx: warning: persist session telemetry: %v\n", persistErr)
-				}
 			case errors.Is(err, telemetryopencode.ErrDuplicate), errors.Is(err, telemetryopencode.ErrUnsupported), errors.Is(err, telemetryopencode.ErrInvalid):
 				// Rejected and duplicate model-step records do not affect tool evidence.
 			default:
-				fmt.Fprintf(stderr, "ktx: warning: normalize session telemetry: %v\n", err)
+				fmt.Fprintf(stderr, "ktx: warning: persist session telemetry: %v\n", err)
 			}
 		}
 
@@ -605,10 +650,80 @@ func teeAndParseRuntimeCollection(r io.Reader, stdout io.Writer, db *dbpkg.DB, s
 		}
 		persisted++
 	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(stderr, "ktx: warning: read agent stdout: %v\n", err)
-	}
 	return persisted, nil
+}
+
+// forwardAgentLine streams a ScanLines-normalized line using fixed-size reads.
+// Only the bounded event candidate is retained; oversized output keeps flowing.
+// A trailing CR is held across fragments so CRLF and final-CR behavior does
+// not depend on read boundaries. EOF means no line, not an unterminated line.
+func forwardAgentLine(r *bufio.Reader, out io.Writer) ([]byte, bool, error) {
+	var event []byte
+	var oversized, seen, pendingCR bool
+	write := func(p []byte) error {
+		if len(p) == 0 {
+			return nil
+		}
+		n, err := out.Write(p)
+		if err == nil && n != len(p) {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
+			return fmt.Errorf("write agent stdout: %w", err)
+		}
+		if !oversized {
+			if len(p) > maxAgentLine-len(event) {
+				oversized, event = true, nil
+			} else {
+				if len(event)+len(p) > cap(event) {
+					buf := make([]byte, len(event), min(maxAgentLine, max(2*cap(event), len(event)+len(p))))
+					copy(buf, event)
+					event = buf
+				}
+				event = append(event, p...)
+			}
+		}
+		return nil
+	}
+	for {
+		part, readErr := r.ReadSlice('\n')
+		if len(part) == 0 && !seen && errors.Is(readErr, io.EOF) {
+			return nil, false, io.EOF
+		}
+		seen = seen || len(part) > 0
+		final := !errors.Is(readErr, bufio.ErrBufferFull)
+		readFailed := final && readErr != nil && !errors.Is(readErr, io.EOF)
+		if readErr == nil {
+			part = part[:len(part)-1]
+		}
+		if pendingCR && (len(part) > 0 || !final || readFailed) {
+			if err := write([]byte{'\r'}); err != nil {
+				return nil, oversized, err
+			}
+		}
+		pendingCR = !readFailed && len(part) > 0 && part[len(part)-1] == '\r'
+		if pendingCR {
+			part = part[:len(part)-1]
+		}
+		if err := write(part); err != nil {
+			return nil, oversized, err
+		}
+		if !final {
+			continue
+		}
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return nil, oversized, fmt.Errorf("read agent stdout: %w", readErr)
+		}
+		// The terminator is forwarded but is not part of the event candidate.
+		n, err := out.Write([]byte{'\n'})
+		if err == nil && n != 1 {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
+			return nil, oversized, fmt.Errorf("write agent stdout: %w", err)
+		}
+		return event, oversized, nil
+	}
 }
 
 // writeRunSummary emits the one-line run summary to w. The summary uses
@@ -637,12 +752,15 @@ func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Spawns <agent> as a child process with KTX_SESSION_ID exported into")
 	fmt.Fprintln(w, "the environment. The agent's stdout passes through to ktx's stdout")
-	fmt.Fprintln(w, "untouched. Each newline-delimited JSON event is parsed; tool events")
+	fmt.Fprintln(w, "with CRLF normalized to LF and a final newline added when absent.")
+	fmt.Fprintln(w, "Newline-delimited JSON events are parsed; tool events")
 	fmt.Fprintln(w, "are persisted as tool_calls and identifiable OpenCode model steps as")
 	fmt.Fprintln(w, "separate session telemetry.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "When the child exits, the session is closed immediately (ended_at set).")
-	fmt.Fprintln(w, "ktx run's exit code matches the child's exit code.")
+	fmt.Fprintln(w, "ktx run's exit code matches the child's unless forwarding or collection fails.")
+	fmt.Fprintln(w, "Forwarding failure stops the direct child, returns exit 4, and does not")
+	fmt.Fprintln(w, "publish an incomplete stream recording. Already persisted evidence remains.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  -q, --quiet    suppress the one-line run summary on stderr")
@@ -654,9 +772,15 @@ func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w, "                         transformed source evidence while this wrapper")
 	fmt.Fprintln(w, "                         owns lifecycle and runtime timing")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Note: --quiet/-q, --record-stream, and --collection=<id> may also appear after the agent")
-	fmt.Fprintln(w, "command; the wrapper recognises them anywhere on its command line.")
-	fmt.Fprintln(w, "Other flags pass through to the agent.")
+	fmt.Fprintln(w, "Wrapper flags above work before or after the agent, until the first --.")
+	fmt.Fprintln(w, "That -- is removed; all remaining tokens are literal child arguments.")
+	fmt.Fprintln(w, "Use a second -- if the child itself needs that token.")
+	fmt.Fprintln(w, "Booleans are bare (true) or use =value; they never consume the next token.")
+	fmt.Fprintln(w, "--quiet/--help accept Go boolean forms; --record-stream accepts true, false, 1, 0.")
+	fmt.Fprintln(w, "The last boolean wins, including false; --collection requires exactly one =id.")
+	fmt.Fprintln(w, "Other options after the agent pass through; their value arity is not inferred.")
+	fmt.Fprintln(w, "For a child value such as --quiet, use: ktx run <agent> -- --prompt --quiet")
+	fmt.Fprintln(w, "--format belongs to ktx only before run; after the agent it belongs to the child.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Example:")
 	fmt.Fprintln(w, "  KTX_DB=\"$PWD/.ktx-example.db\" ktx run opencode run --format json \"explain closures in JavaScript\"")
@@ -668,7 +792,8 @@ func printRunHelp(w io.Writer) {
 	fmt.Fprintln(w, "  maps to tool_calls rows. A flat fallback (id/tool/input/output at")
 	fmt.Fprintln(w, "  the top level, with aliases like name/args/result/time) supports")
 	fmt.Fprintln(w, "  other runtimes. Non-tool events and non-JSON lines pass through")
-	fmt.Fprintln(w, "  unchanged.")
+	fmt.Fprintln(w, "  with the same newline normalization. Lines above 64 MiB are forwarded")
+	fmt.Fprintln(w, "  completely, but event parsing is skipped with a stderr warning.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Database path: KTX_DB env or $XDG_DATA_HOME/ktx/ktx.db (see 'ktx db --path').")
 	fmt.Fprintln(w)

@@ -1,0 +1,17 @@
+id: bjqvkvgenm
+artifact: decisions
+record:
+  date: 2026-09-05
+  question: May image-ID inspection and benchmark capability JSON responses each have a 64 KiB maximum before parsing?
+  context: "Continuation of plan hljjrlykxb task otiqrxtwkw and partial progress shnqqxdudb. User was asked: 'Approve a 64 KiB maximum for each image-ID inspection and benchmark capability JSON response? ... Larger responses explicit sizeerror beforeparsing. NOT tooloutput recordings sessionlists buildlogs.' The recorded answer supplied by the user is 'Approve 64 KiB (Recommended)'. This is approval of the bounded choice, not confirmation of implementation satisfaction."
+  alternatives:
+    - name: Approve 64 KiB per image-ID inspection and benchmark capability JSON response
+      status: chosen
+    - name: Use 1 MiB per response
+      status: rejected
+    - name: Defer a response-size restriction
+      status: rejected
+  choice: Reject either machine-protocol stdout response above 65,536 bytes before trimming or JSON decoding. Accept the exact boundary; retain at most 65,537 bytes including the sentinel and cancel excess writers through existing settled process/container cleanup. No cap on generic runner.output, Git status, session lists, tool output or recordings. Build diagnostics retain their separate 64 KiB truncation-and-drain policy, not rejection.
+  reasoning: The supplied inspected fixtures are 685 bytes for capabilities and 13 bytes for image inspection; 64 KiB gives about 95x headroom over the capability fixture. A normal sha256 image ID plus newline is inferred to be about 72 bytes, not a measured fixture. Both responses contain small fixed protocol fields. The approved limit bounds memory and stops infinite stdout producers without a general redaction/limits policy. 1 MiB adds retained bytes without a demonstrated protocol need; deferral leaves the known parsed-stdout allocation gap open.
+  confidence: firm
+  feeds_into: Only hljjrlykxb/otiqrxtwkw preflight response boundedness; archive materialization stays open. Satisfaction is user-owned.

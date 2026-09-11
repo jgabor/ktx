@@ -44,7 +44,7 @@ func directStep(ordinal uint64, uncached, read, write IntegerMeasurement) Source
 }
 
 func directAttempts(summary map[string]any) []any {
-	return summary["direct_cached_input_share"].(map[string]any)["attempts"].([]any)
+	return summary["attempts"].([]any)
 }
 
 func TestDirectCachedInputShareUsesRetainedStepSums(t *testing.T) {
@@ -55,10 +55,7 @@ func TestDirectCachedInputShareUsesRetainedStepSums(t *testing.T) {
 	)
 	// Attempt projections are not the authority for this derivation.
 	attempt.TokensIn, attempt.CacheRead, attempt.CacheWrite = floatPointer(999), floatPointer(999), floatPointer(999)
-	summary := BuildSummary(directShareManifest(), []Attempt{attempt})
-	if summary["schema_version"] != 4 {
-		t.Fatalf("schema_version = %v, want 4", summary["schema_version"])
-	}
+	summary := buildDirectCachedInputShare(directShareManifest(), []Attempt{attempt})
 	view := directAttempts(summary)[0].(map[string]any)
 	if view["attempt_id"] != attempt.AttemptID || view["side"] != attempt.Side || view["phase"] != attempt.Role || view["cycle"] != attempt.Cycle {
 		t.Fatalf("attempt coordinates = %#v", view)
@@ -101,7 +98,7 @@ func TestDirectCachedInputShareUsesRetainedStepSums(t *testing.T) {
 func TestDirectCachedInputSharePreservesZeroAndNotApplicable(t *testing.T) {
 	positive := directShareAttempt("zero-share", directStep(1, MeasuredInteger(9), MeasuredInteger(0), MeasuredInteger(1)))
 	zero := directShareAttempt("zero-input", directStep(1, MeasuredInteger(0), MeasuredInteger(0), MeasuredInteger(0)))
-	views := directAttempts(BuildSummary(directShareManifest(), []Attempt{positive, zero}))
+	views := directAttempts(buildDirectCachedInputShare(directShareManifest(), []Attempt{positive, zero}))
 	share := views[0].(map[string]any)["share"].(map[string]any)
 	if share["state"] != "measured" || share["value"] != float64(0) {
 		t.Fatalf("measured zero share = %#v", share)
@@ -124,7 +121,7 @@ func TestDirectCachedInputShareKeepsLogicalInputBeyondInt64Exact(t *testing.T) {
 			MeasuredInteger(largestExactFloatInteger),
 		)
 	}
-	summary := BuildSummary(directShareManifest(), []Attempt{directShareAttempt("beyond-int64", events...)})
+	summary := buildDirectCachedInputShare(directShareManifest(), []Attempt{directShareAttempt("beyond-int64", events...)})
 	view := directAttempts(summary)[0].(map[string]any)
 	expectedBucket := new(big.Int).Mul(big.NewInt(steps), big.NewInt(largestExactFloatInteger))
 	expectedLogical := new(big.Int).Mul(big.NewInt(3), expectedBucket)
@@ -158,7 +155,7 @@ func TestDirectCachedInputShareKeepsLogicalInputBeyondInt64Exact(t *testing.T) {
 	if err := decoder.Decode(&serialized); err != nil {
 		t.Fatal(err)
 	}
-	rows := serialized["direct_cached_input_share"].(map[string]any)["attempts"].([]any)
+	rows := serialized["attempts"].([]any)
 	got := rows[0].(map[string]any)["logical_input"].(map[string]any)["value"].(json.Number)
 	if got.String() != expectedLogical.String() {
 		t.Fatalf("serialized logical input = %s, want %s", got, expectedLogical)
@@ -171,7 +168,7 @@ func TestDirectCachedInputShareReportsExactMissingAndMalformedGaps(t *testing.T)
 		directStep(1, MeasuredInteger(10), MeasuredInteger(2), MeasuredInteger(0)),
 		directStep(2, UnknownInteger(), MalformedInteger(), MeasuredInteger(0)),
 	)
-	view := directAttempts(BuildSummary(directShareManifest(), []Attempt{attempt}))[0].(map[string]any)
+	view := directAttempts(buildDirectCachedInputShare(directShareManifest(), []Attempt{attempt}))[0].(map[string]any)
 	share := view["share"].(map[string]any)
 	want := []any{
 		map[string]any{"field": "uncached_input", "source_event_ordinal": uint64(2), "state": "missing"},
@@ -191,8 +188,8 @@ func TestDirectCachedInputShareIsVersionGatedAndRendered(t *testing.T) {
 	summary := BuildSummary(manifest, []Attempt{attempt})
 	text := RenderSummary(summary)
 	for _, fragment := range []string{
-		"direct_cached_input_share attempt=rendered", "cache_read=5", "logical_input=15",
-		"formula=cache_read / logical_input", "unit=token_fraction", "source=artifacts/rendered/stream.jsonl",
+		"prompt_cache_token_hit_rate attempt=rendered", "cache_read=5", "logical_input=15",
+		"formula=cache_read / (uncached_input + cache_read + cache_write)", "kind=token_weighted", "source=artifacts/rendered/stream.jsonl",
 		"runtime=opencode/1.18.5", "configured_identity=openai/test variant=high", "source_event_identities=",
 	} {
 		if !strings.Contains(text, fragment) {
@@ -202,25 +199,14 @@ func TestDirectCachedInputShareIsVersionGatedAndRendered(t *testing.T) {
 
 	manifest.CacheControl.RuntimeVersion = "1.18.4"
 	manifest.Identities["opencode"] = "1.18.4"
-	legacy := BuildSummary(manifest, []Attempt{attempt})
-	if legacy["schema_version"] != 3 {
-		t.Fatalf("unsupported runtime schema = %v, want historical schema 3", legacy["schema_version"])
-	}
-	if _, ok := legacy["direct_cached_input_share"]; ok {
-		t.Fatalf("unsupported runtime gained direct view: %#v", legacy)
+	unsupported := BuildSummary(manifest, []Attempt{attempt})
+	if _, ok := unsupported[promptCacheTokenHitRateField]; ok {
+		t.Fatalf("unsupported runtime gained direct view: %#v", unsupported)
 	}
 }
 
 func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
-	dir := writeV5ValidationFixture(t, func(manifest *Manifest, attempts *[]Attempt) {
-		manifest.CacheControl.RuntimeVersion = "1.18.5"
-		manifest.Identities["opencode"] = "1.18.5"
-		for i := range *attempts {
-			attempt := &(*attempts)[i]
-			attempt.CacheControl.RuntimeVersion = "1.18.5"
-			attempt.ModelSteps = []SourceEvent{directStep(1, MeasuredInteger(10), MeasuredInteger(5), MeasuredInteger(0))}
-		}
-	}, true)
+	dir := produceEntryArchive(t, "prompt-cache-token-hit-rate", true, true)
 	summaryPath := filepath.Join(dir, "summary.json")
 	before, err := os.ReadFile(summaryPath)
 	if err != nil {
@@ -243,21 +229,17 @@ func TestDirectCachedInputShareRegeneratesAndValidates(t *testing.T) {
 	if report["valid"] != true || report["summary_byte_match"] != true {
 		t.Fatalf("validation report = %#v", report)
 	}
-	direct := report["direct_cached_input_share"].(map[string]any)
+	direct := report[promptCacheTokenHitRateField].(map[string]any)
 	if len(direct["attempts"].([]any)) != 6 {
 		t.Fatalf("validated direct attempts = %#v", direct)
 	}
-	estimate := report["estimated_consecutive_step_reuse"].(map[string]any)
-	if estimate["label"] != "estimated" || estimate["ranking_effect"] != "none" {
-		t.Fatalf("validated secondary estimate = %#v", estimate)
-	}
-	comparison := report["cached_input_share_comparison"].(map[string]any)
+	comparison := report[promptCacheTokenHitRateComparisonField].(map[string]any)
 	if comparison["purpose"] != "controlled_descriptive_non_ranking" {
 		t.Fatalf("validated comparison = %#v", comparison)
 	}
-	authorization := report["statement_authorization"].(map[string]any)
+	authorization := report[promptCacheTokenHitRateStatementAuthorizationField].(map[string]any)
 	outcomes := authorization["outcomes"].(map[string]any)
-	if authorization["contract_version"] != directCacheContractVersion || outcomes["direct_available"].(map[string]any)["authorized"] != true {
+	if authorization["contract_version"] != promptCacheTokenHitRateContractVersion || outcomes["direct_available"].(map[string]any)["authorized"] != true {
 		t.Fatalf("validated statement authorization = %#v", authorization)
 	}
 }

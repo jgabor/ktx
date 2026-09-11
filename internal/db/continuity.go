@@ -213,7 +213,7 @@ func (d *DB) ingressGaps(intervalID, ingress string, from, to time.Time) ([]Cont
 	if !from.Before(to) {
 		return nil, nil
 	}
-	rows, err := d.db.Query(`SELECT instance_id,state,observed_at FROM ingress_continuity WHERE interval_id=? AND ingress=? ORDER BY observed_at,rowid`, intervalID, ingress)
+	rows, err := d.db.Query(`SELECT instance_id,state,observed_at FROM ingress_continuity WHERE interval_id=? AND ingress=? ORDER BY rowid`, intervalID, ingress)
 	if err != nil {
 		return nil, err
 	}
@@ -238,6 +238,9 @@ func (d *DB) ingressGaps(intervalID, ingress string, from, to time.Time) ([]Cont
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	// Compare instants, retaining append order when timestamp spellings differ
+	// but denote the same instant. Stored timestamp evidence stays unchanged.
+	sort.SliceStable(events, func(i, j int) bool { return events[i].at.Before(events[j].at) })
 	active := ""
 	var activeAt time.Time
 	covered := from

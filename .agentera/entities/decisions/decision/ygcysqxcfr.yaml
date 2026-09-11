@@ -1,0 +1,17 @@
+id: ygcysqxcfr
+artifact: decisions
+record:
+  date: 2026-09-05
+  question: Which supported platform scope should the review-remediation plan require?
+  context: Existing documentation describes Linux, BSD, and Windows coordination, while native evidence is incomplete outside Linux. In the upfront approval batch, the user explicitly chose "Narrow support to Linux" rather than keeping all native gates open or providing additional runners. Plan hljjrlykxb task zcvdpwllcs must reflect that scope change.
+  alternatives:
+    - name: Narrow supported product scope and completion gates to Linux.
+      status: chosen
+    - name: Preserve all existing platform promises and keep unavailable native gates open.
+      status: rejected
+    - name: Preserve platform promises and provide additional native runners.
+      status: rejected
+  choice: Linux is the supported platform scope for this remediation plan and its resulting current support documentation. Revise task zcvdpwllcs to synchronize public support promises and verify Linux-native database coordination and process lifecycle. Non-Linux execution is unsupported or unverified; it must not be represented as validated portability. This explicitly supersedes broader platform support promises only, not the historical facts about prior BSD/Windows implementations, tests, or cross-compilation. Preserve tracked historical evidence unchanged. Do not delete non-Linux implementation merely to narrow the support promise; any removal requires a separate demonstrated requirement. Linux gates must still pass before final completion. The scope decision is not evidence that those gates or documentation changes are complete.
+  reasoning: The user explicitly selected Linux-only support to remove unavailable non-Linux runners as completion blockers. Honest current support promises are preferable to treating compilation or prior semantics tests as native verification.
+  confidence: firm
+  feeds_into: Plan hljjrlykxb task zcvdpwllcs and final synchronization task bqnxtbzjou; current platform documentation and Linux verification gates.

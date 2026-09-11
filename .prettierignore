@@ -1,0 +1,3 @@
+# Preserve retained verification evidence and the byte-pinned active matrix.
+/.agentera/verification/
+/tools/bench/evidence/targeted-residual-evidence-matrix.json

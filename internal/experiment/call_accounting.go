@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"os"
 
 	"github.com/jgabor/ktx/internal/identity"
@@ -37,6 +38,10 @@ func streamCallAuthority(path string) callAuthority {
 		return unavailableCallAuthority("stream_authority_unavailable")
 	}
 	defer file.Close()
+	return readStreamCallAuthority(file)
+}
+
+func readStreamCallAuthority(file io.Reader) callAuthority {
 	calls := map[string]bool{}
 	errors, duplicates, retries := 0, 0, 0
 	observations := map[string]map[[32]byte]bool{}

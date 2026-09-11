@@ -3,6 +3,7 @@ package experiment
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -93,6 +94,9 @@ func NewRunner() *Runner {
 }
 
 func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (string, Summary, int, error) {
+	if err := ctx.Err(); err != nil {
+		return "", nil, 2, err
+	}
 	if err := runner.prepareStructuralOptions(&options); err != nil {
 		return "", nil, 2, err
 	}
@@ -249,7 +253,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err != nil {
 		return experimentDir, nil, 2, err
 	}
-	pricingEvidence, err := preparePricingEvidence(experimentDir, manifest, materialized, nil)
+	pricingEvidence, err := preparePricingEvidence(experimentDir, manifest)
 	if err != nil {
 		return experimentDir, nil, 2, err
 	}
@@ -383,6 +387,9 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 		return err
 	}
 	options.methodologyVersion = methodology.Version
+	if err := validateMethodologyVersion(methodology.Version); err != nil {
+		return err
+	}
 	cacheAware := cacheAwareMethodology(methodology.Version)
 	if !cacheAware && (options.CacheControl != "" || options.WarmupSet || options.Warmup != 0) {
 		return errors.New("--cache-control and --warmup require a cache-aware methodology")
@@ -486,8 +493,8 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 			report.Reasons = append(report.Reasons, reason)
 			return report, benchmarkRuntime{}, nil
 		}
-		diagnostics := runner.diagnosticWriter()
-		result, err := runner.Executor.Run(ctx, Command{Args: []string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark"), "-t", options.Image, options.RepoRoot}, Stdout: diagnostics, Stderr: diagnostics})
+		diagnostics := newDiagnosticLimit(runner.diagnosticWriter())
+		result, err := runner.Executor.Run(ctx, Command{Args: []string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark"), "-t", options.Image, options.RepoRoot}, Stdout: diagnostics, Stderr: diagnostics, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
 		if err != nil {
 			return report, benchmarkRuntime{}, fmt.Errorf("build benchmark image: %w", err)
 		}
@@ -497,6 +504,9 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 	}
 	runtime, capabilities, err := runner.inspectBenchmarkRuntime(ctx, options)
 	if err != nil {
+		if ctx.Err() != nil || errors.Is(err, errContainerCleanup) || errors.Is(err, errInspectionResponseSize) {
+			return report, benchmarkRuntime{}, err
+		}
 		report.Reasons = append(report.Reasons, "image_capability_unavailable")
 		return report, benchmarkRuntime{}, nil
 	}
@@ -554,13 +564,31 @@ func snapshotConfigs(experimentDir, baseline, candidate string) (map[string]Pipe
 		return nil, err
 	}
 	configs := map[string]PipelineMetadata{}
+	type capture struct {
+		data []byte
+		mode os.FileMode
+	}
+	captured := map[string]capture{}
 	for side, source := range map[string]string{Baseline: baseline, Candidate: candidate} {
 		absolute, err := filepath.Abs(source)
 		if err != nil {
 			return nil, err
 		}
 		destination := filepath.Join(directory, "ktx.toml."+side)
-		if err := copyTreeFile(absolute, destination); err != nil {
+		config, ok := captured[absolute]
+		if !ok {
+			info, err := os.Stat(absolute)
+			if err != nil {
+				return nil, fmt.Errorf("pipeline config for %s: %w", side, err)
+			}
+			config.mode = info.Mode().Perm()
+			config.data, err = os.ReadFile(absolute)
+			if err != nil {
+				return nil, fmt.Errorf("pipeline config for %s: %w", side, err)
+			}
+			captured[absolute] = config
+		}
+		if err := os.WriteFile(destination, config.data, config.mode); err != nil {
 			return nil, fmt.Errorf("pipeline config for %s: %w", side, err)
 		}
 		var decoded struct {
@@ -568,13 +596,11 @@ func snapshotConfigs(experimentDir, baseline, candidate string) (map[string]Pipe
 				Stages []string `toml:"stages"`
 			} `toml:"pipeline"`
 		}
-		if _, err := toml.DecodeFile(destination, &decoded); err != nil {
+		if _, err := toml.Decode(string(config.data), &decoded); err != nil {
 			return nil, err
 		}
-		hash, err := fileSHA256(destination)
-		if err != nil {
-			return nil, err
-		}
+		digest := sha256.Sum256(config.data)
+		hash := hex.EncodeToString(digest[:])
 		pipelineID := side
 		if filepath.Base(filepath.Dir(absolute)) == "pipelines" {
 			pipelineID = strings.TrimSuffix(filepath.Base(absolute), filepath.Ext(absolute))
@@ -589,7 +615,9 @@ func snapshotInputs(experimentDir string, options CompareOptions) ([]InputMetada
 		return nil, nil
 	}
 	type source struct{ kind, id, format, path string }
-	sources := []source{{"spec", options.SpecID, "yaml", options.MethodologyPath}, {"pipeline", options.BaselineID, "toml", options.BaselineConfig}, {"pipeline", options.CandidateID, "toml", options.CandidateConfig}}
+	// Pipeline inputs are copies of the execution capture, never a second
+	// snapshot of the mutable source configuration.
+	sources := []source{{"spec", options.SpecID, "yaml", options.MethodologyPath}, {"pipeline", options.BaselineID, "toml", filepath.Join(experimentDir, "configs", "ktx.toml."+Baseline)}, {"pipeline", options.CandidateID, "toml", filepath.Join(experimentDir, "configs", "ktx.toml."+Candidate)}}
 	if options.TaskFile != "" {
 		sources = append(sources, source{"task", options.TaskID, "toml", options.TaskFile})
 	}
@@ -645,20 +673,42 @@ type benchmarkCapabilities struct {
 }
 
 func (runner *Runner) inspectBenchmarkRuntime(ctx context.Context, options CompareOptions) (benchmarkRuntime, benchmarkCapabilities, error) {
-	imageID, err := runner.output(ctx, Command{Args: []string{options.DockerBin, "image", "inspect", options.Image, "--format", "{{.Id}}"}})
+	imageCommand := Command{Args: []string{options.DockerBin, "image", "inspect", options.Image, "--format", "{{.Id}}"}, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace}
+	if imageCommand.Timeout <= 0 {
+		imageCommand.Timeout = 10 * time.Minute
+	}
+	if imageCommand.Grace <= 0 {
+		imageCommand.Grace = 30 * time.Second
+	}
+	var imageStderr bytes.Buffer
+	imageCommand.Stderr = newDiagnosticLimit(&imageStderr)
+	imageID, result, err := inspectResponse(ctx, imageCommand, runner.Executor.Run)
 	if err != nil {
 		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("inspect benchmark image: %w", err)
 	}
-	capabilityOutput, err := runner.output(ctx, Command{Args: []string{options.DockerBin, "run", "--rm", options.Image, "--capabilities"}})
+	if result.ExitCode != 0 {
+		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("inspect benchmark image: command failed (%d): %s: %s", result.ExitCode, strings.Join(imageCommand.Args, " "), strings.TrimSpace(imageStderr.String()))
+	}
+	identity := strings.TrimSpace(string(imageID))
+	if !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(identity) {
+		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("inspect benchmark image: missing or invalid full immutable image identity")
+	}
+	var capabilityStderr bytes.Buffer
+	capabilityOutput, result, err := inspectResponse(ctx, Command{Args: []string{options.DockerBin, "run", identity, "--capabilities"}, Stderr: newDiagnosticLimit(&capabilityStderr), Timeout: options.AttemptTimeout, Grace: options.TerminationGrace}, func(ctx context.Context, command Command) (CommandResult, error) {
+		return runner.runContainer(ctx, "ktx-capabilities", command)
+	})
 	if err != nil {
 		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("inspect benchmark capabilities: %w", err)
 	}
+	if result.ExitCode != 0 {
+		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("inspect benchmark capabilities: exit %d: %s", result.ExitCode, strings.TrimSpace(capabilityStderr.String()))
+	}
 	var capabilities benchmarkCapabilities
-	if err := json.Unmarshal([]byte(capabilityOutput), &capabilities); err != nil {
+	if err := json.Unmarshal(capabilityOutput, &capabilities); err != nil {
 		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("decode benchmark capabilities: %w", err)
 	}
 	identities := normalizeRuntimeIdentities(map[string]string{"ktx": capabilities.KTXVersion, "opencode": capabilities.OpenCodeVersion})
-	return benchmarkRuntime{ImageID: strings.TrimSpace(imageID), Identities: identities}, capabilities, nil
+	return benchmarkRuntime{ImageID: identity, Identities: identities}, capabilities, nil
 }
 
 func validateBenchmarkCapabilities(capabilities benchmarkCapabilities) string {
@@ -766,6 +816,9 @@ func (runner *Runner) experimentID(ctx context.Context, options CompareOptions) 
 }
 
 func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, manifest Manifest, experimentDir, side, role string, cycle, ordinal, executionOrder int, cacheControl resolvedCacheControl) (Attempt, error) {
+	if err := ctx.Err(); err != nil {
+		return Attempt{}, err
+	}
 	attemptID := fmt.Sprintf("%s-%03d", side, ordinal)
 	attemptDir := filepath.Join(experimentDir, "attempts", attemptID)
 	if err := os.Mkdir(attemptDir, 0o755); err != nil {
@@ -818,9 +871,8 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		return Attempt{}, err
 	}
 	stages, _ := json.Marshal(manifest.Pipelines[side].Stages)
-	containerName := sanitizeContainerName("ktx-" + manifest.ExperimentID + "-" + attemptID)
 	command := []string{
-		options.DockerBin, "run", "--rm", "--name", containerName,
+		options.DockerBin, "run",
 		"-e", "KTX_EXPECTED_STAGES_JSON=" + string(stages),
 		"-e", benchcontract.SessionEnv + "=" + interval.SessionID,
 		"-e", benchcontract.IntervalEnv + "=" + interval.ID,
@@ -842,17 +894,17 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		"-v", options.AuthPath+":/home/node/.local/share/opencode/auth.json:ro",
 		"-v", archivePath(experimentDir, manifest.Pipelines[side].Path)+":/home/node/.config/ktx/ktx.toml:ro",
 		"-v", database+":/home/node/.local/share/ktx/ktx.db:rw",
-		"-v", workspace+":/work:rw", options.Image, "-m", options.Model,
+		"-v", workspace+":/work:rw", manifest.Image["id"], "-m", options.Model,
 	)
 	if options.Variant != "" {
 		command = append(command, "--variant", options.Variant)
 	}
 	command = append(command, manifest.Task.Prompt)
-	result, runErr := runner.Executor.Run(ctx, Command{Args: command, Stdout: stream, Stderr: stderr, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
+	result, runErr := runner.runContainer(ctx, "ktx-"+manifest.ExperimentID+"-"+attemptID, Command{Args: command, Stdout: stream, Stderr: stderr, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
 	streamErr, stderrErr := stream.Close(), stderr.Close()
-	// A killed Docker client can leave the container alive. Cleanup is
-	// idempotent and runs after every attempt.
-	_, _ = runner.Executor.Run(context.Background(), Command{Args: []string{options.DockerBin, "rm", "-f", containerName}, Stdout: io.Discard, Stderr: io.Discard, Timeout: 30 * time.Second, Grace: time.Second})
+	if err := ctx.Err(); err != nil {
+		return Attempt{}, errors.Join(runErr, err)
+	}
 	if runErr != nil {
 		return Attempt{}, runErr
 	}
@@ -874,18 +926,10 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		return Attempt{}, err
 	}
 	newIDs := []string{interval.SessionID}
-	metrics := ParseStream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
-	if cacheAwareMethodology(options.methodologyVersion) {
-		metrics = parseSchema3Stream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
-	}
+	metrics := parseSchema3Stream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
 	metrics.ToolCallCount, err = attemptToolCallCount(database, interval.SessionID)
 	if err != nil {
 		return Attempt{}, err
-	}
-	// Ordered model-step evidence is an additive cache-aware attempt contract.
-	// Keep cache-less attempts on their existing serialized schema.
-	if !cacheAwareMethodology(options.methodologyVersion) {
-		metrics.ModelSteps = nil
 	}
 	pricing, err := loadPricingSnapshot(experimentDir, manifest.Pricing)
 	if err != nil {
@@ -921,12 +965,8 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		"stderr": relativePath(experimentDir, stderrPath), "workspace": relativePath(experimentDir, workspace),
 		"sessions_before": relativePath(experimentDir, beforePath), "sessions_after": relativePath(experimentDir, afterPath),
 	}
-	schemaVersion := 1
-	if cacheAwareMethodology(options.methodologyVersion) {
-		schemaVersion = 3
-	}
 	attempt := Attempt{
-		SchemaVersion: schemaVersion, ExperimentID: manifest.ExperimentID, AttemptID: attemptID, Side: side,
+		SchemaVersion: 3, ExperimentID: manifest.ExperimentID, AttemptID: attemptID, Side: side,
 		Role:       role,
 		PipelineID: manifest.Pipelines[side].PipelineID, Cycle: cycle, Ordinal: ordinal,
 		StartedAt: startedAt, EndedAt: endedAt, Status: status, ProcessExitCode: result.ExitCode,
@@ -1058,9 +1098,35 @@ func sanitizeContainerName(value string) string {
 		}
 	}
 	if builder.Len() > 120 {
-		return builder.String()[:120]
+		digest := sha256.Sum256([]byte(value))
+		return builder.String()[:55] + "-" + hex.EncodeToString(digest[:])
 	}
 	return builder.String()
+}
+
+var errContainerCleanup = errors.New("container cleanup failed")
+
+// runContainer owns one Docker run and its cleanup, including capability probes.
+// It deliberately omits --rm so successful auto-removal cannot be confused with
+// a failed cleanup request. Cleanup never inherits the canceled run context.
+func (runner *Runner) runContainer(ctx context.Context, identity string, command Command) (CommandResult, error) {
+	if err := ctx.Err(); err != nil {
+		return CommandResult{}, err
+	}
+	// Separate concurrent executions even when archive roots reuse an identity.
+	name := sanitizeContainerName(identity + "-" + rand.Text())
+	args := []string{command.Args[0], "run", "--name", name}
+	command.Args = append(args, command.Args[2:]...)
+	result, runErr := runner.Executor.Run(ctx, command)
+	var stderr bytes.Buffer
+	cleanup, cleanupErr := runner.Executor.Run(context.Background(), Command{
+		Args: []string{command.Args[0], "rm", "-f", name}, Stderr: newDiagnosticLimit(&stderr), Stdout: io.Discard,
+		Timeout: 30 * time.Second, Grace: time.Second,
+	})
+	if cleanupErr != nil || cleanup.ExitCode != 0 || cleanup.TimedOut {
+		return result, errors.Join(runErr, cleanupErr, fmt.Errorf("%w for %q (exit %d, timed_out=%t): %s", errContainerCleanup, name, cleanup.ExitCode, cleanup.TimedOut, strings.TrimSpace(stderr.String())))
+	}
+	return result, errors.Join(runErr, ctx.Err())
 }
 
 func relativePath(root, path string) string {
@@ -1080,7 +1146,13 @@ func archivePath(root, path string) string {
 
 func (runner *Runner) output(ctx context.Context, command Command) (string, error) {
 	var stdout, stderr bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, &stderr
+	command.Stdout, command.Stderr = &stdout, newDiagnosticLimit(&stderr)
+	if command.Timeout <= 0 {
+		command.Timeout = 10 * time.Minute
+	}
+	if command.Grace <= 0 {
+		command.Grace = 30 * time.Second
+	}
 	result, err := runner.Executor.Run(ctx, command)
 	if err != nil {
 		return "", err

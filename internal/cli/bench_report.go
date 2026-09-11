@@ -68,8 +68,22 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
-	// Open the database. The dbpkg.Open call applies the bench_runs
-	// migration if the database is old (idempotent path).
+	if fs.NArg() > 1 {
+		printError(stderr, usageError("ktx bench report: unexpected argument %q; report takes a single optional <id>", fs.Arg(1)), format)
+		return ExitUsage
+	}
+	methodologyFilter := ""
+	if specFilter != "" {
+		spec, _, err := methodologypkg.Load(specFilter)
+		if err != nil {
+			printError(stderr, usageError("ktx bench report: unknown spec ID %q; use a registered ID such as exact-match", specFilter), format)
+			return ExitUsage
+		}
+		methodologyFilter = spec.Version
+	}
+
+	// Prepare the selected database only after validating the request, then
+	// open a read-only query handle.
 	target, err := dbpkg.ResolveTarget("")
 	if err != nil {
 		printError(stderr, internalError("ktx bench report: resolve database path: %v", err), format)
@@ -82,15 +96,6 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	defer db.Close()
 
-	methodologyFilter := ""
-	if specFilter != "" {
-		spec, _, err := methodologypkg.Load(specFilter)
-		if err != nil {
-			printError(stderr, usageError("ktx bench report: unknown spec ID %q; use a registered ID such as exact-match", specFilter), format)
-			return ExitUsage
-		}
-		methodologyFilter = spec.Version
-	}
 	if err := runBenchReportImpl(stdout, stderr, db, fs.Args(), format, methodologyFilter); err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)

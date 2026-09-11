@@ -11,15 +11,19 @@ import (
 
 func writePricingValidationFixture(t *testing.T, manifest Manifest, attempts []Attempt) string {
 	t.Helper()
-	dir := t.TempDir()
+	dir := produceEntryArchive(t, "exact-match", false, true)
+	produced, err := LoadAttempts(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range produced {
+		produced[i].EstimatedAPICost = attempts[i].EstimatedAPICost
+	}
+	retainFixtureConfigs(t, dir, &manifest)
 	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
 		t.Fatal(err)
 	}
-	for _, attempt := range attempts {
-		if err := AppendAttempt(dir, attempt); err != nil {
-			t.Fatal(err)
-		}
-	}
+	writeAttemptRecords(t, dir, produced...)
 	return dir
 }
 
@@ -33,7 +37,7 @@ func pricingValidationManifest() Manifest {
 
 func pricingValidationAttempts() []Attempt {
 	makeAttempt := func(id, side string) Attempt {
-		return Attempt{AttemptID: id, ExperimentID: "pricing-validation", Side: side, Status: "completed", SessionID: stringPointer("session-" + id), Metrics: Metrics{
+		return Attempt{SchemaVersion: 1, AttemptID: id, ExperimentID: "pricing-validation", Side: side, Status: "completed", SessionID: stringPointer("session-" + id), Metrics: Metrics{
 			StreamComplete: true, Score: Score{Score: 1, FullPass: true, AnswerMatchesExpected: true}, ToolCallCount: 1,
 			TokensIn: floatPointer(100), TokensOut: floatPointer(10), Reasoning: floatPointer(5), CacheRead: floatPointer(0), CacheWrite: floatPointer(0),
 		}}
@@ -56,41 +60,37 @@ func TestV4PricingValidationWrongEmbeddedModel(t *testing.T) {
 	if _, err := WriteSummary(dir); err == nil || !strings.Contains(err.Error(), "embedded provider/model") {
 		t.Fatalf("WriteSummary error = %v, want embedded identity mismatch", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "summary.json"), []byte(`{}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := ValidateExperiment(dir); err == nil || !strings.Contains(err.Error(), "embedded provider/model") {
 		t.Fatalf("ValidateExperiment error = %v, want embedded identity mismatch", err)
 	}
 }
 
-func TestV4EstimatedEvidenceWithoutSnapshotRejected(t *testing.T) {
+func TestCopiedEstimatedEvidenceWithoutSnapshotIsNotAuthority(t *testing.T) {
 	manifest := pricingValidationManifest()
 	attempts := pricingValidationAttempts()
 	attempts[0].EstimatedAPICost = floatPointer(.01)
 	dir := writePricingValidationFixture(t, manifest, attempts)
-	if _, err := WriteSummary(dir); err == nil || !strings.Contains(err.Error(), "estimated_api_cost") {
-		t.Fatalf("WriteSummary error = %v, want missing snapshot rejection", err)
+	summary, err := WriteSummary(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := summary["estimated_api_cost_basis"]; exists {
+		t.Fatal("copied attempt estimate acquired pricing authority")
 	}
 
 	// Summary-only derived evidence is also untrusted.
-	attempts[0].EstimatedAPICost = nil
-	if err := os.WriteFile(filepath.Join(dir, "attempts.jsonl"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, attempt := range attempts {
-		if err := AppendAttempt(dir, attempt); err != nil {
-			t.Fatal(err)
-		}
-	}
 	if err := os.WriteFile(filepath.Join(dir, "summary.json"), []byte(`{"estimated_api_cost":0.01}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := WriteSummary(dir); err == nil || !strings.Contains(err.Error(), "estimated_api_cost") {
-		t.Fatalf("WriteSummary summary-only error = %v, want missing snapshot rejection", err)
+	summary, err = WriteSummary(dir)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := ValidateExperiment(dir); err == nil || !strings.Contains(err.Error(), "estimated_api_cost") {
-		t.Fatalf("ValidateExperiment error = %v, want summary evidence rejection", err)
+	if _, exists := summary["estimated_api_cost_basis"]; exists {
+		t.Fatal("copied summary estimate acquired pricing authority")
+	}
+	if report, err := ValidateExperiment(dir); err != nil || report["valid"] != true {
+		t.Fatalf("regenerated retained evidence = %v %v", report, err)
 	}
 }
 

@@ -26,7 +26,7 @@ func buildValidSchema3Experiment(t *testing.T) string {
 		return path
 	}
 	write("README.md", "fixture\n")
-	methodology := write("tools/bench/specs/cache-aware.yaml", "methodology_version: v5-cache-aware\n")
+	methodology := write("tools/bench/specs/cache-aware.yaml", "methodology_version: v6-prompt-cache-token-hit-rate\n")
 	task := write("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"prompt\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
 	baseline := write("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := write("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = []\n")
@@ -169,11 +169,11 @@ func TestSchema3RetainedContractVersionControlsLedgerInterpretation(t *testing.T
 		classified bool
 		wantReason string
 	}{
-		{name: "unmigrated schema 7 v1", contract: benchcontract.LegacyContractVersion},
-		{name: "schema 8 migrated v1", contract: benchcontract.LegacyContractVersion, classified: true},
-		{name: "unknown contract", contract: "opencode-event-v4", classified: true, wantReason: "schema 3 runtime event interval provenance does not match the required contract"},
-		{name: "v2 without classifications", contract: benchcontract.PriorContractVersion, wantReason: "schema 3 v2 runtime events are missing duplicate classifications"},
-		{name: "v3 without classifications", contract: benchcontract.ContractVersion, wantReason: "schema 3 v2 runtime events are missing duplicate classifications"},
+		{name: "unmigrated schema 7 v1", contract: benchcontract.LegacyContractVersion, wantReason: "schema 3 runtime event interval is unreadable"},
+		{name: "schema 8 migrated v1", contract: benchcontract.LegacyContractVersion, classified: true, wantReason: "schema 3 runtime event interval has unsupported contract version"},
+		{name: "unknown contract", contract: "opencode-event-v4", classified: true, wantReason: "schema 3 runtime event interval has unsupported contract version"},
+		{name: "v2 without classifications", contract: benchcontract.PriorContractVersion, wantReason: "schema 3 runtime event interval is unreadable"},
+		{name: "v3 without classifications", contract: benchcontract.ContractVersion, wantReason: "schema 3 runtime event interval is unreadable"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -196,8 +196,8 @@ func TestSchema3RetainedContractVersionControlsLedgerInterpretation(t *testing.T
 			if reason != test.wantReason {
 				t.Fatalf("reason=%q want=%q sequence=%#v", reason, test.wantReason, sequence)
 			}
-			if test.wantReason == "" && (sequence == nil || len(sequence.Facts) != 2 || len(sequence.Events) != 3 || len(sequence.Coverage) != 6) {
-				t.Fatalf("valid retained v1 sequence=%#v", sequence)
+			if sequence != nil {
+				t.Fatalf("retired ledger acquired sequence authority: %#v", sequence)
 			}
 		})
 	}
@@ -288,7 +288,7 @@ func TestSchema3LegacyLedgerWithMissingDuplicateOccurrenceRemainsInvalid(t *test
 		{SessionID: "runtime", MessageID: "message-w3", PartID: "w3"},
 	}}
 	_, reason := materializeEventHookSequence(database.DB(), attempt, metrics)
-	if reason != "schema 3 wrapper and event-hook model-step counts do not match" {
+	if reason != "schema 3 runtime event interval is unreadable" {
 		t.Fatalf("legacy failed archive reason=%q", reason)
 	}
 }

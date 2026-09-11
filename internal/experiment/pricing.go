@@ -89,10 +89,19 @@ func writePricingSnapshot(experimentDir, provider, model string, price db.Price)
 }
 
 func loadPricingSnapshot(experimentDir string, metadata *PricingSnapshotMetadata) (*pricingSnapshot, error) {
+	a, err := openArchive(experimentDir)
+	if err != nil {
+		return nil, err
+	}
+	defer a.Close()
+	return a.loadPricingSnapshot(metadata)
+}
+
+func (a *archive) loadPricingSnapshot(metadata *PricingSnapshotMetadata) (*pricingSnapshot, error) {
 	if metadata == nil {
 		return nil, nil
 	}
-	data, err := os.ReadFile(filepath.Join(experimentDir, filepath.FromSlash(metadata.Path)))
+	data, err := a.readFile(metadata.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -106,19 +115,17 @@ func loadPricingSnapshot(experimentDir string, metadata *PricingSnapshotMetadata
 	return &snapshot, nil
 }
 
-func preparePricingEvidence(experimentDir string, manifest Manifest, attempts []Attempt, summaryData []byte) (*pricingSnapshot, error) {
-	hasAttemptEstimate := false
-	for _, attempt := range attempts {
-		if attempt.EstimatedAPICost != nil {
-			hasAttemptEstimate = true
-			break
-		}
+func preparePricingEvidence(experimentDir string, manifest Manifest) (*pricingSnapshot, error) {
+	a, err := openArchive(experimentDir)
+	if err != nil {
+		return nil, err
 	}
-	hasSummaryEstimate := summaryHasEstimatedEvidence(summaryData)
+	defer a.Close()
+	return a.preparePricingEvidence(manifest)
+}
+
+func (a *archive) preparePricingEvidence(manifest Manifest) (*pricingSnapshot, error) {
 	if manifest.Pricing == nil {
-		if hasAttemptEstimate || hasSummaryEstimate {
-			return nil, fmt.Errorf("estimated_api_cost evidence requires a retained pricing snapshot")
-		}
 		return nil, nil
 	}
 	provider, model, err := splitModel(manifest.Model)
@@ -128,7 +135,7 @@ func preparePricingEvidence(experimentDir string, manifest Manifest, attempts []
 	if manifest.Pricing.Provider != provider || manifest.Pricing.Model != model {
 		return nil, fmt.Errorf("pricing metadata provider/model does not match manifest model %q", manifest.Model)
 	}
-	snapshot, err := loadPricingSnapshot(experimentDir, manifest.Pricing)
+	snapshot, err := a.loadPricingSnapshot(manifest.Pricing)
 	if err != nil {
 		return nil, err
 	}
@@ -136,38 +143,6 @@ func preparePricingEvidence(experimentDir string, manifest Manifest, attempts []
 		return nil, fmt.Errorf("pricing snapshot embedded provider/model does not match manifest model %q", manifest.Model)
 	}
 	return snapshot, nil
-}
-
-func summaryHasEstimatedEvidence(data []byte) bool {
-	if len(data) == 0 {
-		return false
-	}
-	var value any
-	if json.Unmarshal(data, &value) != nil {
-		return false
-	}
-	var visit func(any) bool
-	visit = func(current any) bool {
-		switch typed := current.(type) {
-		case map[string]any:
-			for key, child := range typed {
-				if strings.Contains(key, "estimated_api_cost") && child != nil {
-					return true
-				}
-				if visit(child) {
-					return true
-				}
-			}
-		case []any:
-			for _, child := range typed {
-				if visit(child) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	return visit(value)
 }
 
 func estimateAttemptAPICost(attempt Attempt, snapshot *pricingSnapshot) db.EstimatedCostResult {

@@ -93,17 +93,15 @@ func compactJSON(input []byte) ([]byte, bool) {
 }
 
 func compactJSONLines(input []byte) ([]byte, int, bool) {
-	lines := bytes.Split(input, []byte{'\n'})
-	finalNewline := len(lines) > 1 && len(lines[len(lines)-1]) == 0
-	if finalNewline {
-		lines = lines[:len(lines)-1]
-	}
-	if len(lines) == 0 {
+	if len(input) == 0 {
 		return nil, 0, false
 	}
-
+	finalNewline := input[len(input)-1] == '\n'
+	records := 0
 	var out bytes.Buffer
-	for i, line := range lines {
+	for len(input) > 0 {
+		line, rest, _ := bytes.Cut(input, []byte{'\n'})
+		input = rest
 		if len(line) == 0 {
 			return nil, 0, false
 		}
@@ -111,15 +109,16 @@ func compactJSONLines(input []byte) ([]byte, int, bool) {
 		if !ok {
 			return nil, 0, false
 		}
-		if i > 0 {
+		if records > 0 {
 			out.WriteByte('\n')
 		}
 		out.Write(compact)
+		records++
 	}
 	if finalNewline {
 		out.WriteByte('\n')
 	}
-	return out.Bytes(), len(lines), true
+	return out.Bytes(), records, true
 }
 
 // CompactJSON compacts one complete JSON value or an NDJSON stream whose

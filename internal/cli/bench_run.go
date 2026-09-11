@@ -54,9 +54,8 @@ func loadMethodology(version string) (*methodology, string, error) {
 //  6. Score the agent's output (last text event's content, falling
 //     back to the last non-empty line of stdout) against
 //     task.expected_output.
-//  7. Find the wrapper's session in the database (most recent session
-//     whose agent matches and is not older than the wrapper's start
-//     time), aggregate tokens/cost/model from tool_calls.
+//  7. Read the completed wrapper's private session receipt and aggregate
+//     tokens/cost/model from that session's tool_calls.
 //  8. Derivation fills bench_runs.cost when the tool_calls'
 //     SUM(cost) is NULL but tokens + model are present and the cache
 //     has the price.
@@ -176,7 +175,6 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// user explicitly asked for the headline (not the agent's
 	// response). The agent's response is queryable via `ktx get` on
 	// the underlying tool_calls.
-	wrapperStart := time.Now().UTC()
 	exe, err := os.Executable()
 	if err != nil {
 		printError(stderr, internalError("ktx bench run: resolve ktx binary: %v", err), format)
@@ -185,39 +183,62 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	modelSpec := m.ModelProvider + "/" + m.ModelID
 	commandArgs := []string{"run", agentArg, "run", "--format", "json", "-m", modelSpec, m.TaskPrompt}
 	cmd := exec.Command(exe, commandArgs...)
-	var agentStdout, agentStderr bytes.Buffer
-	cmd.Stdout = &agentStdout
-	cmd.Stderr = &agentStderr
-	cmd.Env = os.Environ() // KTX_SESSION_ID is exported by the wrapper itself.
-	if err := cmd.Run(); err != nil {
-		// A non-zero exit from the wrapper is informational, not a
-		// bench run failure — the agent may have failed to run but
-		// the bench infrastructure still persists a row with score=0
-		// and the partial aggregation. The headline is meaningful
-		// either way. Surface the wrapper's stderr in the bench
-		// run's stderr so the user can diagnose.
-		fmt.Fprintf(stderr, "ktx: warning: wrapper exited with error: %v\n", err)
-		if agentStderr.Len() > 0 {
-			fmt.Fprintf(stderr, "--- wrapper stderr ---\n%s--- end wrapper stderr ---\n", agentStderr.String())
-		}
-	}
-
-	// Find the wrapper's session. The wrapper creates a session for
-	// the agent invocation; we find it by listing sessions and
-	// matching the most-recent session whose started_at is after our
-	// wrapperStart. This assumes bench run is the only concurrent writer to
-	// the benchmark database.
-	sessionID, agentName, err := findWrapperSession(db, agentArg, wrapperStart)
+	agentStdout, err := newRecordingSpool()
 	if err != nil {
-		printError(stderr, internalError("ktx bench run: find wrapper session: %v", err), format)
+		printError(stderr, internalError("ktx bench run: stdout capture unavailable: %v", err), format)
 		return ExitInternal
 	}
-	if sessionID == "" {
-		// Wrapper did not create a session — most likely the wrapper
-		// failed before reaching OpenNamedSession (e.g. spawn error
-		// for a non-existent agent). Surface a clear error so the
-		// user can fix the agent path.
-		printError(stderr, internalError("ktx bench run: wrapper did not create a session; check that agent %q is on PATH", agentArg), format)
+	defer agentStdout.close()
+	cmd.Stdout = agentStdout
+	agentStderr, diagnosticErr := newRecordingSpool()
+	cmd.Stderr = io.Discard
+	if diagnosticErr == nil {
+		defer agentStderr.close()
+		cmd.Stderr = agentStderr
+	}
+	// A private inherited descriptor binds this execution to the session the
+	// wrapper actually opened. It carries only the completed session ID, never
+	// agent output, and is not forwarded to the agent.
+	receiptR, receiptW, err := os.Pipe()
+	if err != nil {
+		printError(stderr, internalError("ktx bench run: create ownership receipt: %v", err), format)
+		return ExitInternal
+	}
+	defer receiptR.Close()
+	defer receiptW.Close()
+	cmd.ExtraFiles = []*os.File{receiptW}
+	cmd.Env = append(withoutRunReceipt(os.Environ()), runReceiptEnv+"=1")
+	wrapperErr := cmd.Run()
+	if agentStderr != nil {
+		diagnosticErr = agentStderr.finish()
+	}
+	if err := wrapperErr; err != nil {
+		// A completed agent may exit nonzero and still supply evidence.
+		// Startup or collection failure supplies no completion receipt.
+		fmt.Fprintf(stderr, "ktx: warning: wrapper exited with error: %v\n", err)
+		if agentStderr != nil && agentStderr.size > 0 {
+			_, openErr := fmt.Fprint(stderr, "--- wrapper stderr ---\n")
+			copyErr := agentStderr.copyDiagnostics(stderr)
+			_, closeErr := fmt.Fprint(stderr, "--- end wrapper stderr ---\n")
+			diagnosticErr = errors.Join(diagnosticErr, openErr, copyErr, closeErr)
+		}
+	}
+	if diagnosticErr == nil && agentStderr != nil {
+		diagnosticErr = agentStderr.remove()
+	}
+	if diagnosticErr != nil {
+		fmt.Fprintf(stderr, "ktx: warning: wrapper diagnostics incomplete: %v\n", diagnosticErr)
+	}
+
+	_ = receiptW.Close()
+	var receipt [16]byte // the existing session NanoID format
+	if _, err := io.ReadFull(receiptR, receipt[:]); err != nil {
+		printError(stderr, internalError("ktx bench run: completed owned session unavailable; wrapper startup or collection failed: %v", err), format)
+		return ExitInternal
+	}
+	sessionID := string(receipt[:])
+	if err := agentStdout.complete(sessionID); err != nil {
+		printError(stderr, internalError("ktx bench run: stdout capture incomplete; private copy retained at %s: %v", agentStdout.path, err), format)
 		return ExitInternal
 	}
 
@@ -227,14 +248,11 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx bench run: aggregate tool_calls: %v", err), format)
 		return ExitInternal
 	}
-	// Snapshot the agent's stdout BEFORE any scanner reads it.
-	// extractAgentOutput and extractStreamMetrics both consume the
-	// bytes via bufio.Scanner; a *bytes.Buffer's read offset advances
-	// to EOF on the first scan, so the second scanner would see
-	// no bytes. Snapshotting once keeps both extractions faithful to
-	// the captured stream.
-	agentStdoutBytes := agentStdout.Bytes()
-	streamMetrics := extractStreamMetrics(agentStdoutBytes)
+	streamMetrics, actualOutput, err := interpretRecording(agentStdout)
+	if err != nil {
+		printError(stderr, internalError("ktx bench run: stdout interpretation failed; private copy retained at %s: %v", agentStdout.path, err), format)
+		return ExitInternal
+	}
 	// OpenCode 1.17.8 step_finish carries tokens/cost on the
 	// stream's step-aggregate event, NOT on the tool_call rows the
 	// wrapper persists from tool_use events. SummarizeBenchToolCalls
@@ -275,10 +293,8 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 			aggProvider = m.ModelProvider
 		}
 	}
-	_ = agentName // agentName is the wrapper's session.agent; not needed for the bench row.
 
 	// Score the agent's output. v1 = exact_match against expected.
-	actualOutput := extractAgentOutput(agentStdoutBytes)
 	score := scoreExactMatch(actualOutput, m.TaskExpectedOutput)
 
 	// Build the BenchRun. The Cost pointer is populated from the
@@ -351,10 +367,9 @@ func runBenchRun(args []string, opts Options, stdout, stderr io.Writer) int {
 	// fails (e.g. FK rejection, disk full), a stderr warning is
 	// emitted and the bench run still exits 0 with the headline —
 	// --replay simply won't be available for this session.
-	// agentStdoutBytes was snapshotted at line 1049 before any
-	// scanner consumed the buffer; sessionID is from findWrapperSession.
-	if err := captureStreamForBenchRun(db, sessionID, persisted.ID, agentStdoutBytes); err != nil {
-		fmt.Fprintf(stderr, "ktx: warning: failed to record stream for --replay: %v\n", err)
+	// The stream and completion receipt come from the same wrapper execution.
+	if err := agentStdout.publish(db, persisted.ID); err != nil {
+		fmt.Fprintf(stderr, "ktx: warning: record stream for --replay: %v; private owner location %s\n", err, agentStdout.path)
 	}
 
 	// Compute the headline. cost_per_correct = cost_USD /
@@ -428,46 +443,6 @@ func loadMethodologyOrFail(format, version string, stderr io.Writer) (string, *m
 	return path, m, ExitOK
 }
 
-// findWrapperSession locates the wrapper's session in the database.
-// The wrapper creates a session for each invocation; bench run finds
-// it by listing sessions and matching the most recent whose agent
-// matches agentArg and whose started_at is on or after wrapperStart.
-//
-// The match assumes the wrapper is the only writer to the benchmark database.
-func findWrapperSession(db *dbpkg.DB, agentArg string, wrapperStart time.Time) (sessionID, agentName string, err error) {
-	sessions, err := db.ListSessions()
-	if err != nil {
-		return "", "", err
-	}
-	// Pick the most recent session whose started_at is >= wrapperStart
-	// (or close enough) and whose agent matches the binary name. The
-	// started_at field is an RFC3339Nano string; we compare by string
-	// ordering (RFC3339Nano is lexicographically sortable).
-	startStr := wrapperStart.Format("2006-01-02T15:04:05.000000000Z07:00")
-	for i := len(sessions) - 1; i >= 0; i-- {
-		s := sessions[i]
-		if s.StartedAt < startStr {
-			continue
-		}
-		// The wrapper stores the binary name as the agent field;
-		// match it to the CLI-supplied agentArg.
-		if s.Agent != agentArg {
-			continue
-		}
-		return s.ID, s.Agent, nil
-	}
-	// Fallback: most-recent session regardless of started_at (handles
-	// clock skew where the wrapper started before bench run's
-	// wrapperStart observation).
-	for i := len(sessions) - 1; i >= 0; i-- {
-		s := sessions[i]
-		if s.Agent == agentArg {
-			return s.ID, s.Agent, nil
-		}
-	}
-	return "", "", nil
-}
-
 // extractAgentOutput returns the agent's final response from the
 // captured stdout. The wrapper's stdout is the agent's verbatim
 // output (transparent proxy); bench run captures it for scoring.
@@ -494,7 +469,11 @@ func findWrapperSession(db *dbpkg.DB, agentArg string, wrapperStart time.Time) (
 // and passes the snapshot to both extractAgentOutput and
 // extractStreamMetrics so neither call invalidates the other.
 func extractAgentOutput(stdout []byte) string {
-	scanner := bufio.NewScanner(bytes.NewReader(stdout))
+	return extractAgentOutputReader(bytes.NewReader(stdout))
+}
+
+func extractAgentOutputReader(r io.Reader) string {
+	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	var lastText string
 	var lastNonEmpty string
@@ -605,9 +584,12 @@ func (sm streamMetrics) completeReportedCost() bool {
 // buffer (see extractAgentOutput's doc for why — once a bufio.
 // Scanner consumes a *bytes.Buffer, the read offset is at EOF).
 func extractStreamMetrics(stdout []byte) streamMetrics {
+	return extractStreamMetricsReader(bytes.NewReader(stdout), &usage.Aggregator{})
+}
+
+func extractStreamMetricsReader(r io.Reader, agg *usage.Aggregator) streamMetrics {
 	var sm streamMetrics
-	agg := &usage.Aggregator{}
-	usage.ReadDelimitedLines(bytes.NewReader(stdout), usage.MaxRecordSize, func(line []byte) bool {
+	usage.ReadDelimitedLines(r, usage.MaxRecordSize, func(line []byte) bool {
 		agg.AddLine(line)
 		// model / provider are CLI-local metadata; extract them
 		// from the same scan so the stream is read exactly once.

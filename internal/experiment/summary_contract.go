@@ -42,10 +42,9 @@ func (summary *Summary) UnmarshalJSON(data []byte) error {
 }
 
 func (summary Summary) Validate() error {
-	if raw, exists := summary["schema_version"]; exists {
-		if _, ok := numberAsInt(raw); !ok {
-			return fmt.Errorf("invalid summary schema_version")
-		}
+	version, ok := numberAsInt(summary["schema_version"])
+	if !ok || (version != 5 && version != 7 && version != 8) {
+		return fmt.Errorf("missing or unsupported summary schema_version %v", summary["schema_version"])
 	}
 	rawPipelines, exists := summary["pipelines"]
 	if !exists {
@@ -69,7 +68,7 @@ func (summary Summary) Validate() error {
 			return fmt.Errorf("conflicting summary %s pass rates", side)
 		}
 	}
-	if summary.SchemaVersion() == 6 || summary.SchemaVersion() == 7 {
+	if summary.SchemaVersion() == 7 {
 		target, ok := numberAsInt(summary["target_valid_per_pipeline"])
 		if !ok || target <= 0 {
 			return fmt.Errorf("invalid recovery-aware target_valid_per_pipeline")

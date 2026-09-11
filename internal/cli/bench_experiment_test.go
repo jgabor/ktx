@@ -24,8 +24,9 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 	capabilities := `{"ktx_version":"test","opencode_version":"` + benchcontract.RuntimeVersion + `","generated_plugin_sha256":"` + strings.Repeat("a", 64) + `","generated_plugin_matches_binary":true,"event_collector_contract":"` + benchcontract.ContractVersion + `","explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"retained_duplicate_callbacks":true,"accepted_model_step_projection":true,"callback_queue_continuation":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`
 	script := "#!/bin/sh\nset -eu\ncase \"$1\" in\n" +
 		"build) printf '%s\\n' '#0 building image'; printf '%s\\n' '#21 DONE 0.0s' >&2 ;;\n" +
-		"image) if [ \"${KTX_TEST_IMAGE_INSPECT_FAIL:-}\" = 1 ]; then printf '%s\\n' 'image unavailable' >&2; exit 1; fi; printf '%s\\n' 'sha256:image' ;;\n" +
+		"image) if [ \"${KTX_TEST_IMAGE_INSPECT_FAIL:-}\" = 1 ]; then printf '%s\\n' 'image unavailable' >&2; exit 1; fi; printf '%s\\n' 'sha256:" + strings.Repeat("a", 64) + "' ;;\n" +
 		"run) printf '%s\\n' '" + capabilities + "' ;;\n" +
+		"rm) exit 0 ;;\n" +
 		"*) exit 64 ;;\nesac\n"
 	if err := os.WriteFile(docker, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

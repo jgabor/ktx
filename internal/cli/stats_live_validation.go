@@ -18,7 +18,7 @@ import (
 
 const (
 	liveValidationSchema        = "ktx.stats.live-validation/v1"
-	liveValidationMatrixSHA256  = "b13a859487c0fbd329174fdda3e67c212761aa61152bf278208f5d1a8257a2d9"
+	liveValidationMatrixSHA256  = "e55c0e979239c4dd80c33f504ef80d40b4d2499bcbd44153d96b45f89af438b6"
 	liveValidationReceiptSHA256 = "5bf1e31399276e4368a5dd5674bd5535a076eec1a3eaff9c156dcd6d9f3c21e3"
 )
 
@@ -143,7 +143,13 @@ type liveReceipt struct {
 	Disposition string `json:"disposition"`
 }
 
-func statsLiveValidationLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) error {
+type statsLiveArgs struct {
+	from, to                                                time.Time
+	collection, ingress, candidate, matrixPath, receiptPath string
+}
+
+func parseStatsLiveArgs(args []string) (statsLiveArgs, error) {
+	var parsed statsLiveArgs
 	fs := flag.NewFlagSet("stats live-validation", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var fromText, toText, collection, ingress, candidate, matrixPath, receiptPath string
@@ -155,22 +161,33 @@ func statsLiveValidationLogic(args []string, format string, db *dbpkg.DB, stdout
 	fs.StringVar(&matrixPath, "matrix", "tools/bench/evidence/targeted-residual-evidence-matrix.json", "matrix path")
 	fs.StringVar(&receiptPath, "receipt", "tools/bench/evidence/targeted-residual-controlled-comparison.json", "receipt path")
 	if err := fs.Parse(args); err != nil {
-		return usageError("ktx stats live-validation: %v", err)
+		return parsed, usageError("ktx stats live-validation: %v", err)
 	}
 	if fs.NArg() != 0 {
-		return usageError("ktx stats live-validation: unexpected argument %q", fs.Arg(0))
+		return parsed, usageError("ktx stats live-validation: unexpected argument %q", fs.Arg(0))
 	}
 	from, err := time.Parse(time.RFC3339, fromText)
 	if err != nil || from.Location() != time.UTC {
-		return usageError("ktx stats live-validation: --from must be RFC3339 UTC")
+		return parsed, usageError("ktx stats live-validation: --from must be RFC3339 UTC")
 	}
 	to, err := time.Parse(time.RFC3339, toText)
 	if err != nil || to.Location() != time.UTC || !from.Before(to) {
-		return usageError("ktx stats live-validation: --to must be later RFC3339 UTC")
+		return parsed, usageError("ktx stats live-validation: --to must be later RFC3339 UTC")
 	}
 	if !dbpkg.IDPattern.MatchString(collection) || ingress != "run" || candidate != "keep-ends:73:1" {
-		return usageError("ktx stats live-validation: require a valid collection, --ingress=run, and --candidate=keep-ends:73:1")
+		return parsed, usageError("ktx stats live-validation: require a valid collection, --ingress=run, and --candidate=keep-ends:73:1")
 	}
+	return statsLiveArgs{from, to, collection, ingress, candidate, matrixPath, receiptPath}, nil
+}
+
+func statsLiveValidationLogic(args []string, format string, db *dbpkg.DB, stdout io.Writer) error {
+	parsed, err := parseStatsLiveArgs(args)
+	if err != nil {
+		return err
+	}
+	from, to := parsed.from, parsed.to
+	collection, ingress, candidate := parsed.collection, parsed.ingress, parsed.candidate
+	matrixPath, receiptPath := parsed.matrixPath, parsed.receiptPath
 	matrix, matrixArtifact, err := loadLiveMatrix(matrixPath)
 	if err != nil {
 		return usageError("ktx stats live-validation: matrix: %v", err)

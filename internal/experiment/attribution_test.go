@@ -11,7 +11,7 @@ import (
 
 func TestCompressionAttributionKeepsEvidenceClassesParallel(t *testing.T) {
 	price := PricingSnapshotMetadata{Path: "pricing.json"}
-	manifest := Manifest{Methodology: MethodologyMetadata{Version: "v5-cache-aware"}, Pricing: &price}
+	manifest := Manifest{Methodology: MethodologyMetadata{Version: promptCacheTokenHitRateMethodologyVersion}, Pricing: &price}
 	baseline := attributionAttempt("baseline-003", Baseline, 21386, 11264, 0, 0, 0.026682)
 	baseline.delivery = &deliveryEvidence{DatabasePath: "attempts/baseline-003/ktx.db", OriginalBytes: 50118, DeliveredBytes: 50118, Sources: []any{map[string]any{"source_row_id": "sgveusltqzacpqyj"}}}
 	candidate := attributionAttempt("candidate-003", Candidate, 1898, 11264, 0, 0, 0.005316)
@@ -48,7 +48,7 @@ func TestCompressionAttributionKeepsEvidenceClassesParallel(t *testing.T) {
 }
 
 func TestCompressionAttributionLabelsUnavailableEvidence(t *testing.T) {
-	manifest := Manifest{Methodology: MethodologyMetadata{Version: "v5-cache-aware"}}
+	manifest := Manifest{Methodology: MethodologyMetadata{Version: promptCacheTokenHitRateMethodologyVersion}}
 	attempts := []Attempt{
 		{AttemptID: "unsupported-cold", Side: Baseline, Role: ColdObservation, Status: "failed", Artifacts: map[string]string{}},
 		{AttemptID: "unsupported-warm", Side: Candidate, Role: Warmup, Status: "failed", Artifacts: map[string]string{}},
@@ -82,7 +82,7 @@ func TestCompressionAttributionReportsExactModelStepGaps(t *testing.T) {
 				AttemptID: "affected", Side: Baseline, Role: MeasuredWarm,
 				Metrics: metrics, Artifacts: map[string]string{"stream": "attempts/affected/stream.jsonl"},
 			}
-			manifest := Manifest{Methodology: MethodologyMetadata{Version: "v5-cache-aware"}}
+			manifest := Manifest{Methodology: MethodologyMetadata{Version: promptCacheTokenHitRateMethodologyVersion}}
 			classes := BuildSummary(manifest, []Attempt{attempt})["compression_attribution"].(map[string]any)["evidence_classes"].(map[string]any)
 			observation := classes["runtime_usage"].(map[string]any)["observations"].([]any)[0].(map[string]any)
 			value := observation["value"].(map[string]any)["uncached_input"].(map[string]any)
@@ -114,9 +114,13 @@ func TestDeliveryAuthorityUsesFirstCompressedArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var sourceID string
+	if err := database.DB().QueryRow("SELECT id FROM tool_calls WHERE session_id = ?", *attempt.SessionID).Scan(&sourceID); err != nil {
+		t.Fatal(err)
+	}
 	for _, artifact := range []dbpkg.Compressed{
-		{ID: "aaaaaaaaaaaaaaaa", SourceID: "qrstuvwxyzabcdef", Output: "one", ContentHash: dbpkg.ContentHash("one"), Pipeline: "[]", Timestamp: "2026-01-01T00:00:00Z"},
-		{ID: "bbbbbbbbbbbbbbbb", SourceID: "qrstuvwxyzabcdef", Output: "x", ContentHash: dbpkg.ContentHash("x"), Pipeline: "[]", Timestamp: "2026-01-02T00:00:00Z"},
+		{ID: "aaaaaaaaaaaaaaaa", SourceID: sourceID, Output: "one", ContentHash: dbpkg.ContentHash("one"), Pipeline: "[]", Timestamp: "2026-01-01T00:00:00Z"},
+		{ID: "bbbbbbbbbbbbbbbb", SourceID: sourceID, Output: "x", ContentHash: dbpkg.ContentHash("x"), Pipeline: "[]", Timestamp: "2026-01-02T00:00:00Z"},
 	} {
 		if err := database.InsertCompressed(&artifact); err != nil {
 			t.Fatal(err)

@@ -44,9 +44,14 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // RecordedStream is one row of the `recorded_streams` table (the
@@ -68,9 +73,9 @@ import (
 // InsertRecordedStream enforces the session_id FK (foreign_keys=1) and
 // only pre-checks the bench_run when BenchRunID is non-empty.
 // StreamText is the verbatim JSONL stream exactly as the agent emitted
-// it (the wrapper pipes every line to stdout via teeAndParse, and both
-// runBenchRun and executeRun-with---record-stream capture that stdout
-// into a bytes.Buffer). ContentHash is the SHA-256 hex digest of
+// it after the wrapper's newline normalization. Both normal benchmark and
+// opt-in wrapper recording capture that stdout in a private spool.
+// ContentHash is the SHA-256 hex digest of
 // StreamText (recomputed per the integrity rule). StreamFormat is
 // metadata recording what was captured (e.g. 'opencode-jsonl-1') so readers
 // can choose the correct parser. CapturedAt is RFC3339Nano, supplied by the
@@ -115,6 +120,51 @@ var ErrRecordedStreamSourceNotFound = fmt.Errorf("db: recorded_stream source not
 // ErrRecordedStreamSourceNotFound. The NULL path skips the bench_run
 // pre-check entirely — there is nothing to validate.
 func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
+	return d.insertRecordedStream(rs, d.withWriteTx)
+}
+
+// PublishRecordedStream loads a completed recording only if its byte count fits
+// the existing length limit on the connection that will perform the INSERT.
+// Publication uses ordinary whole-value TEXT storage and existing writer retries.
+func (d *DB) PublishRecordedStream(rs *RecordedStream, size int64, load func() (string, error)) error {
+	return d.insertRecordedStream(rs, func(ctx context.Context, insert func(*sql.Tx) error) error {
+		started := time.Now()
+		err := d.writer.withLock(ctx, false, func() error {
+			conn, err := d.db.Conn(ctx)
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
+			return withWriteTx(ctx, conn, func(tx *sql.Tx) error {
+				if d.writer != nil {
+					if _, err := readCompatibleSchemaVersion(ctx, tx); err != nil {
+						return err
+					}
+				}
+				limit, err := sqlite.Limit(conn, sqlite3.SQLITE_LIMIT_LENGTH, -1)
+				if err != nil {
+					return err
+				}
+				if size < 0 || size > int64(limit) {
+					return fmt.Errorf("recording size %d exceeds SQLite length limit %d", size, limit)
+				}
+				text, err := load()
+				if err != nil {
+					return err
+				}
+				if int64(len(text)) != size || ContentHash(text) != rs.ContentHash {
+					return errors.New("recording size or hash changed before publication")
+				}
+				rs.StreamText = text
+				defer func() { rs.StreamText = "" }()
+				return insert(tx)
+			})
+		})
+		return AttributeDeadline(TimeoutOperation, "", started, err)
+	})
+}
+
+func (d *DB) insertRecordedStream(rs *RecordedStream, write func(context.Context, func(*sql.Tx) error) error) error {
 	if rs == nil {
 		return errors.New("db: insert recorded_stream: nil recorded_stream")
 	}
@@ -136,7 +186,7 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 
 	ctx, cancel := writeContext()
 	defer cancel()
-	err := d.withWriteTx(ctx, func(tx *sql.Tx) error {
+	err := write(ctx, func(tx *sql.Tx) error {
 		var one int
 		err := tx.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ? LIMIT 1`, rs.SessionID).Scan(&one)
 		if err == sql.ErrNoRows {
@@ -166,6 +216,16 @@ func (d *DB) InsertRecordedStream(rs *RecordedStream) error {
 		return fmt.Errorf("db: insert recorded_stream %q: %w", rs.ID, err)
 	}
 	return nil
+}
+
+// GetRecordedStreamByID retrieves the exact publication identity, including for
+// reconciliation after an uncertain commit. Session lookup is not that proof.
+func (d *DB) GetRecordedStreamByID(id string) (*RecordedStream, error) {
+	rs, err := scanRecordedStream(d.db.QueryRow(`SELECT id, session_id, bench_run_id, stream_text, content_hash, stream_format, captured_at FROM recorded_streams WHERE id = ?`, id))
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	return rs, err
 }
 
 // GetRecordedStreamBySession fetches a `recorded_streams` row by

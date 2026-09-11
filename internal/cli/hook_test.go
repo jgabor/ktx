@@ -2377,6 +2377,31 @@ profile = "short"
 	}
 }
 
+func TestHook_Codex_UnknownConfigKeysPreventTransform(t *testing.T) {
+	for _, setting := range []string{"exit_staus = \"success\"", "command_prefx = \"git\"", "[pipeline.trim]\nstages = [\"head:1\"]\nrecover_foooter = true"} {
+		t.Run(setting, func(t *testing.T) {
+			d := hookTestDB(t)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			hookWriteUserConfig(t, "[pipeline.default]\nstages = [\"head:1\"]\n[[route]]\nprofile = \"default\"\n"+setting+"\n")
+			payload := codexPayload(t, "unknown-config-key", "Bash", strings.Repeat("important output\n", 100))
+			var stdout, stderr bytes.Buffer
+			if _, err := hookLogic(strings.NewReader(payload), d, &stdout, &stderr); err == nil || !strings.Contains(err.Error(), "unknown setting") {
+				t.Fatalf("err=%v, want unknown setting error", err)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("invalid config emitted replacement output: %q", stdout.String())
+			}
+			disposition, err := d.GetCompressionDisposition(mustCodexID(t, "codex-test-session", "unknown-config-key"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if disposition.Disposition != dbpkg.CompressionDispositionIntentionalPassthrough || disposition.Profile != "" || disposition.Route != "" || disposition.ArtifactID != "" {
+				t.Fatalf("invalid config selected a transform: %+v", disposition)
+			}
+		})
+	}
+}
+
 func TestHook_Codex_MalformedConfigRecordsConservativePassthrough(t *testing.T) {
 	d := hookTestDB(t)
 	hookChdirTemp(t)

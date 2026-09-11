@@ -182,10 +182,17 @@ COUNT(DISTINCT session_id) AS sessions_with_recorded_streams FROM recorded_strea
 	return sessions, nil
 }
 
+// Only runtime-authoritative, nonnegative integer milliseconds are measured.
+// Historical numeric values remain stored evidence, not measurements.
+const measuredLatencySQL = `CASE WHEN latency_state = '` + db.LatencyStateMeasured + `'
+AND latency_unit = '` + db.LatencyUnitMilliseconds + `'
+AND latency_authority = '` + db.LatencyAuthorityRuntime + `'
+AND typeof(latency_ms) = 'integer' AND latency_ms >= 0 THEN latency_ms END`
+
 func extractMeasurementCoverage(tx *sql.Tx) (any, error) {
 	metrics, err := queryOne(tx, `SELECT COUNT(*) AS total_tool_calls,
 COUNT(tokens_in) AS calls_with_tokens_in, COUNT(tokens_out) AS calls_with_tokens_out,
-COUNT(cost) AS calls_with_cost, COUNT(latency_ms) AS calls_with_latency,
+COUNT(cost) AS calls_with_cost, COUNT(`+measuredLatencySQL+`) AS calls_with_latency,
 COUNT(model) AS calls_with_model, COUNT(provider) AS calls_with_provider,
 COUNT(exit_code) AS calls_with_exit_code,
 COALESCE(SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error IN (0, 1) THEN 1 ELSE 0 END), 0) AS calls_with_error_status,
@@ -202,7 +209,7 @@ SUM(tokens_in) AS total_tokens_in, SUM(tokens_out) AS total_tokens_out, SUM(cost
 		delete(metrics, key)
 		coverage[name] = map[string]any{"measured_calls": count, "coverage_pct": percentage(float64(count), float64(total))}
 	}
-	latencyRows, err := queryRows(tx, "SELECT latency_ms FROM tool_calls WHERE latency_ms IS NOT NULL")
+	latencyRows, err := queryRows(tx, "SELECT latency_ms FROM tool_calls WHERE ("+measuredLatencySQL+") IS NOT NULL")
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +261,7 @@ const toolMetricsSQL = `SELECT tool, COUNT(*) AS call_count, COUNT(DISTINCT sess
 COALESCE(SUM(length(CAST(input AS BLOB))), 0) AS input_bytes,
 COALESCE(SUM(length(CAST(output AS BLOB))), 0) AS output_bytes,
 SUM(tokens_in) AS tokens_in, SUM(tokens_out) AS tokens_out, SUM(cost) AS cost,
-ROUND(AVG(latency_ms), 2) AS average_latency_ms,
+ROUND(AVG(` + measuredLatencySQL + `), 2) AS average_latency_ms,
 SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error = 1 THEN 1 ELSE 0 END) AS error_calls,
 SUM(CASE WHEN typeof(is_error) = 'integer' AND is_error IN (0, 1) THEN 0 ELSE 1 END) AS unknown_status_calls
 FROM tool_calls GROUP BY tool ORDER BY call_count DESC, tool`
@@ -264,7 +271,7 @@ SELECT agent, COUNT(*) AS session_count FROM sessions GROUP BY agent), call_coun
 SELECT s.agent, COUNT(tc.id) AS tool_call_count,
 COALESCE(SUM(length(CAST(tc.output AS BLOB))), 0) AS output_bytes,
 SUM(tc.tokens_in) AS tokens_in, SUM(tc.tokens_out) AS tokens_out, SUM(tc.cost) AS cost,
-ROUND(AVG(tc.latency_ms), 2) AS average_latency_ms,
+ROUND(AVG(` + measuredLatencySQL + `), 2) AS average_latency_ms,
 SUM(CASE WHEN typeof(tc.is_error) = 'integer' AND tc.is_error = 1 THEN 1 ELSE 0 END) AS error_calls
 FROM sessions s LEFT JOIN tool_calls tc ON tc.session_id = s.id GROUP BY s.agent)
 SELECT sc.agent, sc.session_count, cc.tool_call_count, cc.output_bytes,
@@ -590,6 +597,10 @@ func extractIntegrity(tx *sql.Tx) (any, error) {
 			} else {
 				counts["mismatch_count"]++
 			}
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
 		}
 		if err := rows.Close(); err != nil {
 			return nil, err

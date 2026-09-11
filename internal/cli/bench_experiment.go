@@ -10,9 +10,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
@@ -246,6 +248,8 @@ func validateCompleteCollectorInterval(interval *dbpkg.RuntimeEventInterval, env
 }
 
 func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	fs := flag.NewFlagSet("ktx bench compare", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var model, variant, taskID string
@@ -295,7 +299,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		}
 		runner := experiment.NewRunner()
 		runner.Diagnostics = stderr
-		report, err := runner.Preflight(context.Background(), experiment.CompareOptions{
+		report, err := runner.Preflight(ctx, experiment.CompareOptions{
 			Model: model, Variant: variant, TaskFile: taskID, TargetValid: target, MaxAttempts: maxAttempts,
 			AttemptTimeout: timeout, TerminationGrace: grace, Image: image, AuthPath: auth,
 			BaselineConfig: baseline, CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: specID,
@@ -326,7 +330,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		return ExitUsage
 	}
 	runner := experiment.NewRunner()
-	_, summary, code, err := runner.Compare(context.Background(), experiment.CompareOptions{
+	_, summary, code, err := runner.Compare(ctx, experiment.CompareOptions{
 		Model: model, Variant: variant, TaskFile: taskID, TargetValid: target, MaxAttempts: maxAttempts,
 		AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 		Image: image, AuthPath: auth, BaselineConfig: baseline,
@@ -409,6 +413,8 @@ func runBenchValidate(args []string, opts Options, stdout, stderr io.Writer) int
 }
 
 func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	fs := flag.NewFlagSet("ktx bench rank", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var model, variant, specID, taskID, candidatesRaw, baselineID, auth, image, campaignID, format string
@@ -494,7 +500,7 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	exitCode := ExitOK
 	for _, candidateID := range candidates {
 		experimentID := campaignID + "-" + candidateID
-		_, summary, code, err := runner.Compare(context.Background(), experiment.CompareOptions{
+		_, summary, code, err := runner.Compare(ctx, experiment.CompareOptions{
 			Model: model, Variant: variant, TaskFile: taskID, TargetValid: rounds, MaxAttempts: maxAttempts,
 			AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 			DataDir: dataDir, Image: image, AuthPath: auth,

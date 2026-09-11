@@ -60,10 +60,36 @@ type PairCoverage struct {
 	Provenance         map[string]SequenceProvenance
 }
 
+// EventIndex owns an immutable ordering of one operation's sequence events.
+// Its assessments may run concurrently; they never mutate the input events.
+type EventIndex struct {
+	events []SequenceFact
+}
+
+// NewEventIndex copies and orders events once for repeated interval assessments.
+func NewEventIndex(events []SequenceFact) EventIndex {
+	sorted := append([]SequenceFact(nil), events...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Ordinal != sorted[j].Ordinal {
+			return sorted[i].Ordinal < sorted[j].Ordinal
+		}
+		if sorted[i].Boundary != sorted[j].Boundary {
+			return sorted[i].Boundary < sorted[j].Boundary
+		}
+		return sorted[i].SessionID < sorted[j].SessionID
+	})
+	return EventIndex{events: sorted}
+}
+
 // AssessPair derives only sequence eligibility inputs. A clean interval is
 // available only when the collector explicitly declares complete coverage for
 // that boundary class over the exact pair window.
 func AssessPair(prior, current SequenceFact, events []SequenceFact, coverage []CoverageFact) (PairCoverage, error) {
+	return NewEventIndex(events).AssessPair(prior, current, coverage)
+}
+
+// AssessPair derives pair eligibility using the operation's retained ordering.
+func (index EventIndex) AssessPair(prior, current SequenceFact, coverage []CoverageFact) (PairCoverage, error) {
 	if prior.Ordinal == 0 || current.Ordinal <= prior.Ordinal || prior.ModelStepOrdinal == 0 || current.ModelStepOrdinal == 0 {
 		return PairCoverage{}, fmt.Errorf("invalid model-step pair")
 	}
@@ -108,7 +134,7 @@ func AssessPair(prior, current SequenceFact, events []SequenceFact, coverage []C
 	result.Adjacent = result.OrderCoverage == CoverageCovered && current.ModelStepOrdinal == prior.ModelStepOrdinal+1
 	result.SameSession = result.IdentityCoverage == CoverageCovered && prior.SessionID != "" && prior.SessionID == current.SessionID
 
-	assessBoundaryEvents(&result, prior.Ordinal, current.Ordinal, false, prior.SessionID, events)
+	index.assessBoundaryEvents(&result, prior.Ordinal, current.Ordinal, false, prior.SessionID)
 	return result, nil
 }
 
@@ -117,6 +143,11 @@ func AssessPair(prior, current SequenceFact, events []SequenceFact, coverage []C
 // last accepted model step. All four coverage declarations must identify the
 // same retained interval and collection authority.
 func AssessAttemptBoundaries(first, last SequenceFact, events []SequenceFact, coverage []CoverageFact) (PairCoverage, error) {
+	return NewEventIndex(events).AssessAttemptBoundaries(first, last, coverage)
+}
+
+// AssessAttemptBoundaries uses the same retained ordering for the attempt prefix.
+func (index EventIndex) AssessAttemptBoundaries(first, last SequenceFact, coverage []CoverageFact) (PairCoverage, error) {
 	if first.Ordinal == 0 || last.Ordinal < first.Ordinal || first.ModelStepOrdinal == 0 || last.ModelStepOrdinal == 0 {
 		return PairCoverage{}, fmt.Errorf("invalid model-step interval")
 	}
@@ -169,25 +200,18 @@ func AssessAttemptBoundaries(first, last SequenceFact, events []SequenceFact, co
 	}
 	if interval != nil && result.RetryCoverage == "covered_no_boundary" && result.ResetCoverage == "covered_no_boundary" &&
 		result.SegmentCoverage == CoverageCovered && result.ConcurrentCoverage == CoverageCovered {
-		assessBoundaryEvents(&result, interval.StartOrdinal, last.Ordinal, true, first.SessionID, events)
+		index.assessBoundaryEvents(&result, interval.StartOrdinal, last.Ordinal, true, first.SessionID)
 	}
 	return result, nil
 }
 
-func assessBoundaryEvents(result *PairCoverage, start, end uint64, includeStart bool, sessionID string, events []SequenceFact) {
-	sorted := append([]SequenceFact(nil), events...)
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].Ordinal != sorted[j].Ordinal {
-			return sorted[i].Ordinal < sorted[j].Ordinal
-		}
-		if sorted[i].Boundary != sorted[j].Boundary {
-			return sorted[i].Boundary < sorted[j].Boundary
-		}
-		return sorted[i].SessionID < sorted[j].SessionID
+func (index EventIndex) assessBoundaryEvents(result *PairCoverage, start, end uint64, includeStart bool, sessionID string) {
+	first := sort.Search(len(index.events), func(i int) bool {
+		return index.events[i].Ordinal > start || (includeStart && index.events[i].Ordinal == start)
 	})
-	for _, event := range sorted {
-		if event.Ordinal >= end || event.Ordinal < start || (!includeStart && event.Ordinal == start) {
-			continue
+	for _, event := range index.events[first:] {
+		if event.Ordinal >= end {
+			break
 		}
 		concurrent := event.SessionID != "" && event.SessionID != sessionID
 		if !usableEventProvenance(event) {

@@ -17,14 +17,6 @@ func promptCacheTokenHitRateManifest() Manifest {
 
 func TestPromptCacheTokenHitRateUsesExplicitFutureSchema(t *testing.T) {
 	attempts := comparisonPairs(5, 20, 30)
-	legacy := BuildSummary(comparisonManifest(), attempts)
-	if legacy["schema_version"] != 4 {
-		t.Fatalf("legacy schema_version = %v, want 4", legacy["schema_version"])
-	}
-	if _, ok := legacy[promptCacheTokenHitRateField]; ok {
-		t.Fatalf("legacy summary gained prompt-cache token hit rate: %#v", legacy)
-	}
-
 	summary := BuildSummary(promptCacheTokenHitRateManifest(), attempts)
 	if summary["schema_version"] != 5 {
 		t.Fatalf("schema_version = %v, want 5", summary["schema_version"])

@@ -73,6 +73,12 @@ Product defaults when fields are omitted: pipeline timeout **2s** and
 footer. Do not promote bare lossy budgets without recovery as a general
 default: live ranking showed partial fact loss when the footer was off.
 
+Unknown configuration keys are rejected before route selection or transformation,
+including misspelled selectors and `recover_footer`. Profile names remain
+user-defined, and stage names are still resolved by the runner rather than the
+config loader. The optional `[logs]` section is validated separately: invalid
+logging settings disable logging without invalidating the pipeline.
+
 ### JSON compaction
 
 `json-compact` removes only insignificant whitespace using Go's standard
@@ -807,19 +813,19 @@ All metrics are derived from retained experiment evidence
 
 ### Per-attempt
 
-| Field                                    | Meaning                                                                                  |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `score`                                  | For multi-fact: `matched_facts / total_facts` in `[0, 1]`. For exact-match: `0` or `1`.  |
-| `full_pass`                              | `score == 1.0`                                                                           |
-| `facts_matched` / `facts_missed`         | Multi-fact detail                                                                        |
-| `tokens_in` / `tokens_out` / `reasoning` | SUM from stream `step_finish` model-step usage when present on every model step          |
-| `cost`                                   | Runtime-reported cost retained verbatim, including literal zero                          |
-| `estimated_api_cost`                     | Nullable cache-aware estimate from the experiment's retained models.dev pricing snapshot |
-| `cache_read` / `cache_write`             | SUM of `part.tokens.cache.{read,write}` across `step_finish` model steps                 |
-| `tool_call_count`                        | Count of `tool_use` events                                                               |
-| `session_id`                             | Linked only when exactly one new session appears                                         |
-| `role`                                   | v5 trial role: `cold_observation`, `warmup`, or `measured_warm`                          |
-| `cache_control`                          | v5 mode/source, namespace hash, phase/order/gap, model/provider/variant/runtime metadata |
+| Field                                    | Meaning                                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `score`                                  | For multi-fact: `matched_facts / total_facts` in `[0, 1]`. For exact-match: `0` or `1`.           |
+| `full_pass`                              | `score == 1.0`                                                                                    |
+| `facts_matched` / `facts_missed`         | Multi-fact detail                                                                                 |
+| `tokens_in` / `tokens_out` / `reasoning` | SUM from stream `step_finish` model-step usage when present on every model step                   |
+| `cost`                                   | Runtime-reported cost retained verbatim, including literal zero                                   |
+| `estimated_api_cost`                     | Nullable cache-aware estimate from the experiment's retained models.dev pricing snapshot          |
+| `cache_read` / `cache_write`             | SUM of `part.tokens.cache.{read,write}` across `step_finish` model steps                          |
+| `tool_call_count`                        | Count of retained tool-call rows for the explicit attempt owner                                   |
+| `session_id`                             | Precreated singleton owner, verified closed after execution                                       |
+| `role`                                   | Cache-aware trial role: `cold_observation`, `warmup`, or `measured_warm`                          |
+| `cache_control`                          | Cache-aware mode/source, namespace hash, phase/order/gap, model/provider/variant/runtime metadata |
 
 ### Recovery-aware configuration comparison
 
@@ -864,10 +870,8 @@ output, and reasoning totals. Missing or malformed runtime totals make the
 primary outcome unavailable with a reason and exclude the arm from
 recommendation. Current incomplete summaries retain the same block with an
 unavailable state and explicit unmet-target reason. Validation reports
-structural validity separately from target completion. Inspection of an older
-incomplete schema-6 summary does not rewrite it; any regenerated comparison is
-reported as a source-bound derived projection. Schemas 1 through 6 retain their
-historical bytes and claims.
+structural validity separately from target completion. Retired schema-6
+summaries are static history, not supported validation or regeneration inputs.
 
 Each schema-7 arm also reports `call_accounting`. `stream` and `persistence`
 retain separate authoritative call and error counts. `persistence_coverage` is
@@ -884,10 +888,8 @@ errors remain stream evidence and do not become persisted outcomes without a
 paired row. Persisted rows with no authoritative error state are counted under
 `unknown_error_state_count`, not as successes.
 
-Complete retained schema-6 summaries continue to validate and regenerate with
-their original bytes and claims. A derived projection for an incomplete
-historical summary identifies the SHA-256 hashes of its retained manifest,
-attempt records, and original summary; validation does not rewrite the archive.
+Validation never rewrites an archive. Unsupported entry versions fail explicitly;
+tracked historical reports are preserved without current-validation guarantees.
 
 Run the mechanical gate with `ktx bench screen --population <json>`, repeated
 `--config <ktx.toml>`, and one `--anchor-config <ktx.toml>`. The anchor is the
@@ -916,8 +918,8 @@ An attempt is **evaluated** when:
 `tool_call_count >= minimum_tool_calls`.
 
 Summary regeneration does not add the copied measurements in
-`attempts.jsonl` to retained evidence. For cache-aware attempts that retain the
-standard `database` and `stream` artifacts, tool-call rows own the call count
+`attempts.jsonl` to retained evidence. All current attempts require the
+standard `database` and `stream` authorities: tool-call rows own the call count
 and the raw runtime stream owns completion, answer scoring, token, cache,
 reasoning, and runtime-reported cost measurements. The manifest owns cohort,
 pipeline, methodology, identity, and pricing-snapshot inputs. The first attempt
@@ -928,8 +930,8 @@ A repeated attempt record with the same identity and orchestration facts is
 idempotent. Differences confined to copied measurements are reported as
 projection divergence and do not change the regenerated summary. A repeated
 identity with different orchestration facts is an error; the first record is
-not replaced. Legacy attempts without the cache-aware retained-artifact
-contract continue to regenerate from their historical serialized shape.
+not replaced. Attempt schemas 1 and 2 are unsupported; copied measurements and
+session counters never substitute for missing retained authorities.
 For a timeout, failure, invalid result, or unlinked attempt with no session
 identity, regeneration still materializes stream-owned fields and assigns no
 tool-call evidence; the copied call count is ignored. A completed attempt must
@@ -937,7 +939,7 @@ have a retained session and readable database authority.
 
 Partial fact scores are kept; they are not discarded.
 
-For schema-v3 and schema-v4 summaries, every applicable metric is a deterministic
+For current summaries, every applicable metric is a deterministic
 distribution with `count`, sorted `values`, `min`, `p25`, `median`, `mean`,
 `p75`, `max`, and `population_standard_deviation`. Quantiles use linear
 interpolation at rank `q*(n-1)` in the sorted values. Population standard
@@ -967,7 +969,7 @@ step, not a provider request. For every reported model step, tokens.total
 tokens.cache.write, confirming cache values are event-local deltas (not
 cumulative). The summary includes them only
 when an attempt contains cache evidence (a runtime that does not emit cache
-fields leaves them NULL and the summary stays on its legacy shape). The
+fields leaves them NULL without changing the summary schema). The
 per-side distribution mirrors tokens/cost; `baseline_minus_candidate.cache_read`
 and `baseline_minus_candidate.cache_write` give the absolute baseline-minus-candidate
 delta so cache effects between strategies are observable alongside token and
@@ -987,16 +989,18 @@ If the warm local cache lacks the model or cache rates, run `ktx prices update`.
 The retained pricing snapshot alone does not enable estimated-cost summary
 fields: those appear only when at least one attempt has a non-NULL estimate.
 Current cache-aware methodology v6 runs under the pinned OpenCode 1.18.5 contract
-and uses summary schema v5 even when all estimates are NULL. Retained schema-v3
-experiments keep their historical schema and bytes.
+and uses summary schema 5 even when all estimates are NULL. Exact-match uses
+methodology `v8-exact-match` and summary schema 8 regardless of cache or pricing
+availability; recovery-aware comparison uses methodology v7 and summary schema 7.
 
 Reported cost and estimated API cost have independent completeness gates.
 Estimation requires complete input, output, reasoning, cache-read, and
 cache-write token evidence; missing reported cost remains NULL but does not
 block an estimate. For every methodology, validation checks the snapshot hash
 and requires its embedded provider/model and pricing metadata to match the
-manifest model. Estimated evidence without that retained pricing basis is
-rejected rather than trusted.
+manifest model. Copied estimates without that retained pricing basis are never
+trusted. Regeneration ignores prior summary contents and re-derives estimates
+from retained usage and pricing; cache-aware validation requires pricing.
 
 When a model-step numeric field is missing or malformed, the affected
 attribution aggregate remains null and carries `state: missing` or
@@ -1056,7 +1060,7 @@ Only the first two are current collection inputs. None proves provider-internal
 hits, misses, fills, eviction, request boundaries, isolation, or prefix
 composition.
 
-Schema-v3 and schema-v4 summaries annotate Tukey outliers using `1.5 * IQR` fences. With
+Current summaries annotate Tukey outliers using `1.5 * IQR` fences. With
 fewer than four observations, detection is marked `insufficient_sample` and no
 point is flagged. Every flagged point remains in `values`, means, standard
 deviations, paired deltas, and all other aggregates. Outlier reporting is not an
@@ -1123,6 +1127,14 @@ and changes local Docker image and build-cache state. Compare and rank create an
 archive under `.ktx/experiments/<id>`, use fresh isolated owner databases, use
 the network, call the selected provider, and can incur provider charges.
 
+On SIGINT or SIGTERM, compare and rank stop scheduling and clean up their owned
+process groups and containers, including capability probes. Cleanup has its own
+deadline and runs even after cancellation. A cleanup error stops the comparison
+or campaign and reports the container name; inspect that container before
+starting another run. Per-attempt timeouts still retain the failed attempt and
+may retry within `--max-attempts` after successful cleanup. Interrupted archives
+can be incomplete; retained files are not a completed comparison result.
+
 Inspect and maintain the resulting experiment by ID:
 
 ```bash
@@ -1140,10 +1152,43 @@ after regeneration. Treat the whole experiment archive as sensitive. It can
 contain repository snapshots, prompts, outputs, streams, stderr, identifiers,
 databases, and secrets. Review a derivative before sharing it.
 
+Archive references must be relative and remain inside the selected archive,
+including when symlinks change during inspection. Relative in-archive symlinks
+are supported; workspace tree hashes retain link text without reading targets.
+Special file types such as FIFOs, sockets, and devices are rejected explicitly.
+Database inspection uses disposable copies of confined database and committed
+WAL bytes; schema readiness and SQLite sidecar operations affect only those
+copies. Empty or zero-header rollback journals are accepted, but a nonzero
+rollback-journal header is rejected rather than allowing recovery to follow an
+embedded super-journal pathname. Use a completed owner snapshot for inspection.
+
+Pipeline configuration is captured once for execution. Retained pipeline-input
+copies come from that capture, not a second read of the source files. Validation
+and regeneration hash the actual retained configuration mounted by Docker and
+require it to match both the manifest identity and any retained input copy.
+Missing or changed execution configurations fail validation even when the input
+copy is intact. Separate copies in an otherwise supported current archive must
+agree; no historical-format fallback is provided.
+
 Tracked reports and other labeled historical evidence are static history, not
 active workflow inputs. The current validator does not guarantee support for
 historical archive formats. Do not rewrite historical evidence to make it pass
-current validation.
+current validation. The supported experiment contracts are:
+
+| Registered spec               | Methodology                      | Manifest | Attempt | Summary |
+| ----------------------------- | -------------------------------- | -------- | ------- | ------- |
+| `exact-match`                 | `v8-exact-match`                 | 1        | 3       | 8       |
+| `prompt-cache-token-hit-rate` | `v6-prompt-cache-token-hit-rate` | 1        | 3       | 5       |
+| `recovery-aware-comparison`   | `v7-recovery-aware-comparison`   | 1        | 3       | 7       |
+
+Compare, rank's pair producer, and inline-task runner use the same retained-source
+contract. Registered input snapshots and execution configuration/image identities
+remain required; inline task scoring is embedded without a task-file snapshot.
+Methodologies v1/v4/v5, attempt schemas 1–2, summary schemas 1–4 and 6, and older
+collector contracts are no longer interpreted. List/show may inspect their
+metadata, but inspection does not confer validation authority. The inactive
+cache probe is removed; historical reports and user-owned archives are not
+rewritten or deleted.
 
 ### Cache-aware comparison
 
@@ -1179,6 +1224,24 @@ retained duplicate callbacks, accepted-model-step projection, callback-queue
 continuation, exact model-step identity, fail-closed interval validation, and
 this ordering are rejected even if they advertise the older base collector
 fields.
+
+Each comparison resolves the selected image once to its full `sha256:` image ID.
+The capability probe and all attempts on both sides use that ID, so later tag
+changes do not change the selected image. The original tag remains a manifest
+label only. A missing or invalid immutable image identity fails preflight before
+auth or attempts; this is benchmark image identity, not KTX executable hashing.
+
+Preflight image builds and probes use `--attempt-timeout` and
+`--termination-grace` for each command, not as an overall preflight deadline.
+Build diagnostics share a 64 KiB budget; probe and cleanup stderr each retain
+at most 64 KiB, followed by a truncation notice. Excess diagnostics are drained
+without failing an otherwise successful command. Image-ID inspection and
+benchmark capability JSON stdout each accept at most 65,536 bytes, including
+whitespace. Larger responses stop the producer and return an explicit size
+error before trimming or decoding; no truncated response is parsed. This limit
+does not apply to tool output, recordings, session lists, Git status, or build
+logs. Container cleanup keeps its independent 30-second timeout and one-second
+grace even after a probe times out or exceeds its response limit.
 
 Paid comparisons can freeze cost authority with `--pricing-snapshot <pricing.json>`.
 The command validates the retained provider/model before auth or attempts, skips
@@ -1241,16 +1304,16 @@ separation or provider-internal isolation. OpenCode 1.18.5 source shows that
 session id and that per-model options can override that value, but source-level
 configurability alone does not prove effective separation. `auto` therefore
 records OpenCode runs as observed-only, and explicit isolation fails before an
-agent attempt. Historical retained artifacts with isolated metadata remain
-validatable evidence; their labels do not enable isolation for a new run.
+agent attempt. Isolated metadata is checked only in supported current-format
+evidence; its labels do not enable isolation for a new run.
 
-Retained methodology-v5 schema-4 summaries expose distributions for each phase
+Current cache-aware summaries expose distributions for each phase
 while keeping `measured_warm` as the headline, a cold-to-warm estimated-cost rebuild
 penalty, and the first cumulative measured turn where candidate estimated API
 cost is below baseline after setup cost. Unavailable estimates produce null
-values with reasons. They also expose the OpenCode-reported direct cached-input
-share, the separately labeled estimated Pi consecutive-step method, controlled
-measured-cycle pairs, and deterministic claim limits. TTFT is null:
+values with reasons. Prompt-cache summaries also expose token-weighted hit rate,
+controlled measured-cycle pairs, and deterministic claim limits. Consecutive-step
+reuse remains separately labeled estimated evidence, not direct cache authority. TTFT is null:
 the OpenCode 1.18.5 JSONL format does not provide a reliable request-start
 timestamp.
 
@@ -1272,14 +1335,13 @@ Validation is methodology-aware. For a new OpenCode 1.18.5 v6 run it requires
 summary schema 5, retained pricing metadata and its hash-bound snapshot, exactly
 one cold observation and the configured warm-up count per side, explicit roles,
 cache metadata consistent with the manifest, and measured-warm-only target
-counts. Historical isolated evidence must use one stable namespace hash per side
+counts. Supported isolated evidence must use one stable namespace hash per side
 and different hashes across sides. Observed evidence must not retain a namespace
-hash. Historical isolated manifest and attempt hashes must be exactly 64
+hash. Isolated manifest and attempt hashes must be exactly 64
 lowercase hexadecimal characters, agree for every attempt within a side, and
 differ across sides. This format check ensures only the SHA-256 digest—not the
-raw namespace—can occupy retained namespace metadata. Methodologies v1-v5,
-`cache-reuse-v1`, and retained summary schemas 1–4 preserve their historical
-validation, meaning, and bytes.
+raw namespace—can occupy retained namespace metadata. Retired methodologies and
+summary formats remain static historical evidence without validation guarantees.
 
 All cache-reuse views are derived from runtime-reported model-step fields.
 Cold, warm-up, and measured phase labels do not prove provider cache hits,

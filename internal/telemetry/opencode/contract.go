@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/jgabor/ktx/internal/telemetry"
 )
@@ -35,73 +37,114 @@ type Identity struct {
 	Model    string
 }
 
-// Collector correlates message identity, deduplicates model steps, and assigns
-// contiguous ordinals. Callers must serialize concurrent calls to Add.
+// Collector retains first observations until persistence acknowledges them.
+// Calls, including persistence, are serialized; retries require redelivery.
 type Collector struct {
+	mu         sync.Mutex
 	identities map[messageKey]Identity
-	seen       map[telemetry.Key]struct{}
+	observed   map[telemetry.Key]*delivery
 	next       uint64
+}
+
+type delivery struct {
+	evidence   string
+	payload    []byte
+	capturedAt string
+	accepted   bool
 }
 
 func NewCollector() *Collector {
 	return &Collector{
 		identities: make(map[messageKey]Identity),
-		seen:       make(map[telemetry.Key]struct{}),
+		observed:   make(map[telemetry.Key]*delivery),
 	}
 }
 
-// Add accepts an assistant identity event or returns one model-step
-// observation. A nil observation means an identity event was accepted.
-func (c *Collector) Add(data []byte) (*telemetry.Observation, error) {
+// Collect correlates an identity or persists one model step. A nil persistence
+// error acknowledges durable acceptance, including an exact database duplicate.
+// Failed or uncertain writes retain the first payload and observation time.
+// The callback must not reenter the collector.
+func (c *Collector) Collect(data []byte, persist func(*telemetry.Observation, string) error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	eventType, err := envelopeType(data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	switch eventType {
 	case "message.updated":
 		key, identity, err := DecodeMessageIdentity(data)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if prior, ok := c.identities[key]; ok && prior != identity {
-			return nil, fmt.Errorf("%w: conflicting assistant identity", ErrInvalid)
+			return fmt.Errorf("%w: conflicting assistant identity", ErrInvalid)
 		}
 		c.identities[key] = identity
-		return nil, nil
+		return nil
 	case "message.part.updated":
 		observation, err := DecodeModelStep(data)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		observation.Source = telemetry.SourceEventHook
-		if identity, ok := c.identities[messageKey{SessionID: observation.SessionID, MessageID: observation.MessageID}]; ok {
-			observation.Provider = stringPtr(identity.Provider)
-			observation.Model = stringPtr(identity.Model)
-		}
-		return c.accept(observation)
+		return c.accept(observation, persist)
 	default:
-		return nil, fmt.Errorf("%w: type %q", ErrUnsupported, eventType)
+		return fmt.Errorf("%w: type %q", ErrUnsupported, eventType)
 	}
 }
 
-// AddStream accepts one OpenCode JSONL step_finish record from the wrapper.
-func (c *Collector) AddStream(data []byte) (*telemetry.Observation, error) {
+// CollectStream persists one OpenCode JSONL step_finish record from the wrapper.
+func (c *Collector) CollectStream(data []byte, persist func(*telemetry.Observation, string) error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	observation, err := DecodeStreamModelStep(data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	observation.Source = telemetry.SourceWrapperStream
-	return c.accept(observation)
+	return c.accept(observation, persist)
 }
 
-func (c *Collector) accept(observation telemetry.Observation) (*telemetry.Observation, error) {
-	if _, exists := c.seen[observation.Key]; exists {
-		return nil, ErrDuplicate
+func (c *Collector) accept(observation telemetry.Observation, persist func(*telemetry.Observation, string) error) error {
+	evidence, err := json.Marshal(observation)
+	if err != nil {
+		return err
 	}
-	c.seen[observation.Key] = struct{}{}
-	c.next++
-	observation.Ordinal = c.next
-	return &observation, nil
+	prior := c.observed[observation.Key]
+	if prior != nil {
+		if prior.evidence != string(evidence) {
+			return invalid("conflicting model-step redelivery")
+		}
+		if prior.accepted {
+			return ErrDuplicate
+		}
+	} else {
+		if observation.Source == telemetry.SourceEventHook {
+			if identity, ok := c.identities[messageKey{SessionID: observation.SessionID, MessageID: observation.MessageID}]; ok {
+				observation.Provider = stringPtr(identity.Provider)
+				observation.Model = stringPtr(identity.Model)
+			}
+		}
+		c.next++
+		observation.Ordinal = c.next
+		payload, err := json.Marshal(observation)
+		if err != nil {
+			return err
+		}
+		prior = &delivery{evidence: string(evidence), payload: payload, capturedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+		c.observed[observation.Key] = prior
+	}
+	// Decode a fresh copy so a failed callback cannot mutate retained evidence.
+	var retained telemetry.Observation
+	if err := json.Unmarshal(prior.payload, &retained); err != nil {
+		return err
+	}
+	if err := persist(&retained, prior.capturedAt); err != nil {
+		return err
+	}
+	prior.accepted = true
+	return nil
 }
 
 // DecodeMessageIdentity validates the assistant message shape used only for

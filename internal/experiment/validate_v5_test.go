@@ -6,55 +6,33 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/jgabor/ktx/internal/db"
 )
 
 func writeV5ValidationFixture(t *testing.T, mutate func(*Manifest, *[]Attempt), withPricing bool) string {
 	t.Helper()
-	dir := t.TempDir()
-	manifest := cacheAwareManifest()
-	manifest.ExperimentID = "v5-validation"
-	manifest.TargetValidPerPipeline = 1
-	manifest.Model = "openai/test"
-	manifest.Pipelines = map[string]PipelineMetadata{Baseline: {PipelineID: "baseline", SHA256: "b"}, Candidate: {PipelineID: "candidate", SHA256: "c"}}
-	manifest.CacheControl = &CacheControlManifest{Mode: "observed", Source: "unavailable", WarmupCount: 1, Model: "openai/test", Provider: "openai", RuntimeVersion: "1.17.20"}
-	manifest.Identities = map[string]string{"opencode": "1.17.20"}
-	attempts := []Attempt{
-		phaseAttempt("b-cold", Baseline, ColdObservation, 0, 1), phaseAttempt("c-cold", Candidate, ColdObservation, 0, 1),
-		phaseAttempt("b-warm", Baseline, Warmup, 0, 1), phaseAttempt("c-warm", Candidate, Warmup, 0, 1),
-		phaseAttempt("b-measured", Baseline, MeasuredWarm, 1, 1), phaseAttempt("c-measured", Candidate, MeasuredWarm, 1, 1),
+	dir := produceEntryArchive(t, "prompt-cache-token-hit-rate", true, true)
+	data, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for i := range attempts {
-		attempts[i].ExperimentID = manifest.ExperimentID
-		attempts[i].PipelineID = manifest.Pipelines[attempts[i].Side].PipelineID
-		attempts[i].ConfigSHA256 = manifest.Pipelines[attempts[i].Side].SHA256
-		attempts[i].CacheControl.ExecutionOrder = i + 1
-		attempts[i].CacheControl.Model = manifest.CacheControl.Model
-		attempts[i].CacheControl.Provider = manifest.CacheControl.Provider
-		attempts[i].CacheControl.RuntimeVersion = manifest.CacheControl.RuntimeVersion
+	var manifest Manifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	attempts, err := LoadAttempts(dir)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if mutate != nil {
 		mutate(&manifest, &attempts)
 	}
-	if withPricing {
-		rate := .5
-		pricing, err := writePricingSnapshot(dir, "openai", "test", db.Price{Input: 1, Output: 2, CacheRead: &rate, CacheWrite: &rate, InputSet: true, OutputSet: true})
-		if err != nil {
-			t.Fatal(err)
-		}
-		manifest.Pricing = pricing
-	} else {
+	if !withPricing {
 		manifest.Pricing = nil
 	}
 	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
 		t.Fatal(err)
 	}
-	for _, attempt := range attempts {
-		if err := AppendAttempt(dir, attempt); err != nil {
-			t.Fatal(err)
-		}
-	}
+	writeAttemptRecords(t, dir, attempts...)
 	if !withPricing {
 		if err := WriteJSON(filepath.Join(dir, "summary.json"), BuildSummary(manifest, attempts)); err != nil {
 			t.Fatal(err)
@@ -80,15 +58,12 @@ func assertV5Validation(t *testing.T, dir string, want bool) map[string]any {
 }
 
 func isolateV5Fixture(manifest *Manifest, attempts *[]Attempt, baselineHash, candidateHash string) {
-	manifest.CacheControl.Mode, manifest.CacheControl.Source = "isolated", "runtime_adapter"
-	manifest.CacheControl.RuntimeVersion = "1.18.0"
-	manifest.Identities["opencode"] = "1.18.0"
+	manifest.CacheControl.Mode, manifest.CacheControl.Source = "isolated", "provider_adapter"
 	manifest.CacheControl.NamespaceSHA256 = map[string]string{Baseline: baselineHash, Candidate: candidateHash}
 	for i := range *attempts {
 		metadata := (*attempts)[i].CacheControl
 		metadata.Mode = "isolated"
-		metadata.Source = "runtime_adapter"
-		metadata.RuntimeVersion = "1.18.0"
+		metadata.Source = "provider_adapter"
 		metadata.NamespaceSHA256 = manifest.CacheControl.NamespaceSHA256[(*attempts)[i].Side]
 	}
 }
@@ -129,7 +104,7 @@ func TestValidateV5ObservedAndMalformedEvidence(t *testing.T) {
 		assertV5Validation(t, writeV5ValidationFixture(t, func(_ *Manifest, attempts *[]Attempt) {
 			filtered := (*attempts)[:0]
 			for _, a := range *attempts {
-				if a.AttemptID != "c-warm" {
+				if a.Side != Candidate || a.Role != Warmup {
 					filtered = append(filtered, a)
 				}
 			}
@@ -148,7 +123,9 @@ func TestValidateV5ObservedAndMalformedEvidence(t *testing.T) {
 		if err := WriteJSON(path, summary); err != nil {
 			t.Fatal(err)
 		}
-		assertV5Validation(t, dir, false)
+		if _, err := ValidateExperiment(dir); err == nil || !strings.Contains(err.Error(), "unsupported summary schema_version 2") {
+			t.Fatalf("validation error = %v", err)
+		}
 	})
 	t.Run("namespace reuse", func(t *testing.T) {
 		assertV5Validation(t, writeV5ValidationFixture(t, func(manifest *Manifest, attempts *[]Attempt) {
@@ -160,7 +137,7 @@ func TestValidateV5ObservedAndMalformedEvidence(t *testing.T) {
 		assertV5Validation(t, writeV5ValidationFixture(t, func(manifest *Manifest, attempts *[]Attempt) {
 			isolateV5Fixture(manifest, attempts, strings.Repeat("d", 64), strings.Repeat("e", 64))
 			for i := range *attempts {
-				if (*attempts)[i].AttemptID == "b-measured" {
+				if (*attempts)[i].Side == Baseline && (*attempts)[i].Role == MeasuredWarm {
 					(*attempts)[i].CacheControl.NamespaceSHA256 = strings.Repeat("f", 64)
 				}
 			}
@@ -191,8 +168,9 @@ func TestValidateV5ObservedAndMalformedEvidence(t *testing.T) {
 		}, true), false)
 	})
 	t.Run("missing pricing rejects derived evidence", func(t *testing.T) {
-		if _, err := ValidateExperiment(writeV5ValidationFixture(t, nil, false)); err == nil {
-			t.Fatal("ValidateExperiment returned nil error without pricing snapshot")
+		report := assertV5Validation(t, writeV5ValidationFixture(t, nil, false), false)
+		if !containsString(report["methodology_reasons"].([]string), promptCacheTokenHitRateMethodologyVersion+" pricing snapshot is required") {
+			t.Fatalf("missing pricing reason: %v", report)
 		}
 	})
 }

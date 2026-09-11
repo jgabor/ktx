@@ -17,6 +17,12 @@ when you explicitly run a live benchmark against a named provider.
 
 ## Install
 
+Linux is the supported operating system. Non-Linux execution is unsupported or
+unverified; retained platform-specific source and past cross-compilation are not
+native qualification. See the [native Linux qualification](docs/native-linux-qualification.md)
+for the tested host and evidence limits. The terminal-only capability requirement
+is described below.
+
 Building from source requires Go 1.26 or newer.
 
 ```bash
@@ -47,6 +53,16 @@ vhlttrsjwnahnrlm  /bin/sh  2026-08-23T14:32:19.140759196Z  2026-08-23T14:32:19  
 
 `ktx get` prints one session's details; `ktx stats` ranks tool calls by
 delivered tokens once adapters have recorded them.
+
+Terminal-mode `ktx run` is supported on Linux and requires readable procfs,
+subreaper support, `pidfd_open`, and `waitid(P_PIDFD)` for safe descendant
+cleanup. These capabilities are normally available on Linux 5.4 or newer,
+subject to backports and syscall policy; the kernel version alone is not a
+guarantee. If required preparation is unavailable, ktx returns an explicit
+error before starting the wrapped child. This includes a controlling terminal
+with redirected stdin. The requirement does not extend to non-terminal runs
+or unrelated commands. See the [wrapper guide](.agents/skills/ktx/references/cli.md#terminal-cancellation)
+for cancellation, terminal preservation, and evidence behavior.
 
 ### Compress tool output in flight
 

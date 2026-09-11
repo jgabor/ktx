@@ -1,25 +1,110 @@
-// Subcommand-level flag helpers for query commands.
-//
-// The global --format flag is parsed by the dispatcher (cli.go) from the
-// front of args, before the subcommand verb. The stdlib flag.Parse stops
-// at the first non-flag argument, so a subcommand flag appearing AFTER a
-// positional (e.g. `ktx get <id> --format text`) is not seen by the
-// subcommand's flag.NewFlagSet either.
-//
-// To accept --format in either position we pre-scan args for it and pull
-// the value out, then hand the remaining args to the stdlib flag set for
-// --help. The subcommand's --format value (when set) takes precedence
-// over the global opts.Format; the subcommand's default is seeded from
-// opts.Format, so a subcommand flag overrides the global one when both
-// are set.
-//
-// This helper is intentionally narrow. It only handles --format, not
-// arbitrary flags, because the subcommand's positional contract is
-// different per command and a generic flag-filter would invite silent
-// bugs (passing agent flags through `ktx get`).
+// Known-value binding protects command operands from common format/help scans.
+// Namespace ordering permits owned options around subcommands without guessing
+// child option arity. The run wrapper owns its separate passthrough boundary.
 package cli
 
-import "strings"
+import (
+	"fmt"
+	"io"
+	"slices"
+	"strings"
+)
+
+func printOwnedArgumentHelp(w io.Writer) {
+	fmt.Fprintln(w, "Owned flags may appear before or after the subcommand or runtime.")
+	fmt.Fprintln(w, "Value flags consume the next token even when it starts with --; -- ends option handling.")
+	fmt.Fprintln(w, "Use --help=false to disable help. Remaining operands must match the command's syntax.")
+	fmt.Fprintln(w, "Local --format overrides global --format; the last local value wins (json or text).")
+	fmt.Fprintln(w)
+}
+
+// joinOwnedValues binds only known value-taking flags before independent
+// command/common scans. A flag-looking value is still a value; -- ends ownership.
+func joinOwnedValues(args []string, names string) ([]string, error) {
+	known := strings.Fields(names)
+	result := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			return append(result, args[i:]...), nil
+		}
+		if slices.Contains(known, a) {
+			if i+1 == len(args) {
+				return nil, fmt.Errorf("%s requires a value", a)
+			}
+			i++
+			a += "=" + args[i]
+		}
+		result = append(result, a)
+	}
+	return result, nil
+}
+
+// normalizeCommandValues covers the remaining command-owned value contracts.
+// It never runs for run: child option arity is not ours to infer.
+func normalizeCommandValues(verb string, args []string) ([]string, error) {
+	var names string
+	switch verb {
+	case "init":
+	case "db":
+		names = "--path --output -output"
+	case "stats":
+		names = "--limit --window --from --to --collection --ingress --candidate --matrix --receipt -from -to -collection -ingress -candidate -matrix -receipt"
+	case "plugin":
+		names = "--description"
+	case "bench":
+		names = "--spec --replay --replay-file --output --population --config --anchor-config --model --variant --task --baseline --candidate --auth --image --experiment-id --campaign-id --repo-root --pricing-snapshot --pricing-sha256 --cache-control --warmup --target-valid --rounds --max-attempts --attempt-timeout --termination-grace -m --m -format"
+		// Benchmark FlagSets also accept the stdlib single-dash spelling.
+		for _, name := range strings.Fields(names) {
+			if strings.HasPrefix(name, "--") {
+				names += " " + name[1:]
+			}
+		}
+	default:
+		return args, nil
+	}
+	return joinOwnedValues(args, names+" --format")
+}
+
+// namespaceArgs keeps the subcommand first, followed by options and operands.
+// Values must already be bound. The first -- and everything after it stay put.
+func namespaceArgs(args []string) []string {
+	var options, operands []string
+	for i, arg := range args {
+		if arg == "--" {
+			operands = append(operands, args[i:]...)
+			break
+		}
+		if strings.HasPrefix(arg, "-") && arg != "-" {
+			options = append(options, arg)
+		} else {
+			operands = append(operands, arg)
+		}
+	}
+	if len(operands) == 0 || operands[0] == "--" {
+		return append(options, operands...)
+	}
+	return append(append([]string{operands[0]}, options...), operands[1:]...)
+}
+
+func extractFormatChecked(args []string) (string, []string, error) {
+	bound, err := joinOwnedValues(args, "--format")
+	if err != nil {
+		return "", nil, err
+	}
+	set := false
+	for _, arg := range bound {
+		if arg == "--" {
+			break
+		}
+		set = set || strings.HasPrefix(arg, "--format=")
+	}
+	format, rest := extractFormat(bound)
+	if set && format == "" {
+		return "", nil, fmt.Errorf("invalid --format %q: want %q or %q", "", FormatJSON, FormatText)
+	}
+	return format, rest, nil
+}
 
 // extractFormat scans args for --format <value> or --format=<value> and
 // returns the value plus the args with --format removed. Returns "" when
@@ -34,6 +119,10 @@ func extractFormat(args []string) (string, []string) {
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+		if a == "--" {
+			rest = append(rest, args[i:]...)
+			break
+		}
 		if a == "--format" && i+1 < len(args) {
 			format = args[i+1]
 			i++ // skip the value

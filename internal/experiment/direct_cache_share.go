@@ -3,6 +3,7 @@ package experiment
 import "math/big"
 
 const (
+	exactMatchMethodologyVersion              = "v8-exact-match"
 	directCacheContractVersion                = "cache-reuse-v1"
 	promptCacheTokenHitRateContractVersion    = "cache-reuse-v2"
 	promptCacheTokenHitRateMethodologyVersion = "v6-prompt-cache-token-hit-rate"
@@ -12,14 +13,7 @@ const (
 )
 
 func cacheAwareMethodology(version string) bool {
-	return version == "v5-cache-aware" || version == promptCacheTokenHitRateMethodologyVersion || version == recoveryAwareMethodologyVersion
-}
-
-func supportsDirectCachedInputShare(manifest Manifest) bool {
-	return manifest.Methodology.Version == "v5-cache-aware" &&
-		manifest.CacheControl != nil &&
-		manifest.CacheControl.RuntimeVersion == directCacheRuntimeVersion &&
-		manifest.Identities[directCacheRuntime] == directCacheRuntimeVersion
+	return version == promptCacheTokenHitRateMethodologyVersion || version == recoveryAwareMethodologyVersion
 }
 
 func supportsPromptCacheTokenHitRate(manifest Manifest) bool {
@@ -34,7 +28,7 @@ func supportsRecoveryAwareComparison(manifest Manifest) bool {
 }
 
 func supportsCacheTokenMetric(manifest Manifest) bool {
-	return supportsDirectCachedInputShare(manifest) || supportsPromptCacheTokenHitRate(manifest)
+	return supportsPromptCacheTokenHitRate(manifest)
 }
 
 func buildDirectCachedInputShare(manifest Manifest, attempts []Attempt) map[string]any {

@@ -64,6 +64,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -93,8 +94,9 @@ type initParsedArgs struct {
 //
 // Behaviour:
 //   - Listens on `event`, normalizes accepted OpenCode model-step events, and
-//     shells out to `ktx telemetry record`. Collection and persistence failures
-//     do not alter runtime events.
+//     shells out to `ktx telemetry record --ack`. Only a matching durable ACK
+//     retires a delivery; failures leave the first payload available for retry
+//     without altering runtime events.
 //   - Listens on `tool.execute.after` and shells out to
 //     `ktx hook` via Bun.spawn, sending the raw callback object
 //     (input + output) tagged with `runtime: "opencode"`. The binary owns
@@ -163,6 +165,32 @@ interface KtxCommandResult {
   stdout: string
   stderr: string
   exitCode: number
+}
+
+// An optional command may exit successfully without storing anything. Only a
+// versioned acknowledgement for the submitted evidence retires its retry.
+const telemetryAcknowledged = (result: KtxCommandResult | null, expected: any): boolean => {
+  if (!result || result.exitCode !== 0) return false
+  try {
+    const ack = JSON.parse(result.stdout)
+    const observation = ack?.observation
+    if (ack?.schema !== "ktx.telemetry-ack.v1" || ack.ok !== true || ack.durable !== true ||
+        !observation || observation.runtime !== "opencode" || observation.runtime_version !== "1.18.5" ||
+        observation.source !== "event_hook") return false
+    for (const key of ["session_id", "message_id", "part_id", "ordinal", "reason"]) {
+      if (observation[key] !== expected[key]) return false
+    }
+    if (observation.provider !== (expected.provider ?? null) || observation.model !== (expected.model ?? null)) return false
+    const sameMeasurement = (actual: any, want: any): boolean =>
+      actual !== null && typeof actual === "object" && actual.state === want.state && actual.value === want.value
+    if (!sameMeasurement(observation.cost, expected.cost)) return false
+    for (const key of ["input", "output", "reasoning", "cache_read", "cache_write"]) {
+      if (!sameMeasurement(observation.tokens?.[key], expected.tokens[key])) return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 const parseSchemaIncompatibility = (
@@ -311,17 +339,23 @@ const requiredAck = (value: unknown, expected: {
   return ordinal as number
 }
 
-const requiredEnvelope = (value: unknown, input: any, sessionID: string): KtxEnvelope => {
+const canonicalID = (value: unknown): value is string =>
+  typeof value === "string" && value.length === 16 && /^[a-z]+$/.test(value)
+
+const hookEnvelope = (value: unknown): KtxEnvelope => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("malformed ktx hook envelope")
   const envelope = value as Record<string, unknown>
   if (typeof envelope.output !== "string" ||
-      !(envelope.compressed_id === null || typeof envelope.compressed_id === "string") ||
-      !nonblank(envelope.source_id) || envelope.ktx_session_id !== sessionID ||
-      !nonblank(input?.sessionID) || envelope.runtime_session_id !== input.sessionID ||
-      !nonblank(input?.callID) || envelope.call_id !== input.callID ||
-      !(envelope.recovery_cue === undefined || typeof envelope.recovery_cue === "boolean")) {
+      !(envelope.compressed_id === null || canonicalID(envelope.compressed_id)) ||
+      !canonicalID(envelope.source_id) ||
+      !(envelope.ktx_session_id === undefined || canonicalID(envelope.ktx_session_id)) ||
+      !(envelope.runtime_session_id === undefined || typeof envelope.runtime_session_id === "string") ||
+      !(envelope.call_id === undefined || typeof envelope.call_id === "string") ||
+      !(envelope.recovery_cue === undefined || typeof envelope.recovery_cue === "boolean") ||
+      (envelope.recovery_cue === true && envelope.compressed_id === null)) {
     throw new Error("ktx hook envelope contract mismatch")
   }
+  // Unknown fields are ignored; only the current delivery contract is projected.
   return {
     output: envelope.output,
     compressed_id: envelope.compressed_id as string | null,
@@ -331,6 +365,16 @@ const requiredEnvelope = (value: unknown, input: any, sessionID: string): KtxEnv
     call_id: envelope.call_id as string,
 	recovery_cue: envelope.recovery_cue as boolean | undefined,
   }
+}
+
+const requiredEnvelope = (value: unknown, input: any, sessionID: string): KtxEnvelope => {
+  const envelope = hookEnvelope(value)
+  if (envelope.ktx_session_id !== sessionID ||
+      !nonblank(input?.sessionID) || envelope.runtime_session_id !== input.sessionID ||
+      !nonblank(input?.callID) || envelope.call_id !== input.callID) {
+    throw new Error("ktx hook envelope contract mismatch")
+  }
+  return envelope
 }
 
 const nonblank = (value: unknown): value is string =>
@@ -355,6 +399,25 @@ const costMeasurement = (value: unknown): Measurement => {
   if (value === undefined || value === null) return { state: "unknown", value: null }
   if (typeof value === "number" && Number.isFinite(value) && value >= 0) return { state: "measured", value }
   return { state: "malformed", value: null }
+}
+
+const requiredEventSnapshot = (event: any): string => {
+  const part = event?.properties?.part
+  if (event?.type !== "message.part.updated" || part?.type !== "step-finish") return JSON.stringify(event)
+  // JSON maps nonfinite numbers to null (unknown). Strings retain the existing
+  // malformed measurement classification without changing unrelated metadata.
+  const number = (value: any): any =>
+    typeof value === "number" && !Number.isFinite(value) ? String(value) : value
+  const tokens = part.tokens
+  const cache = tokens?.cache
+  return JSON.stringify({ ...event, properties: { ...event.properties, part: {
+    ...part, cost: number(part.cost),
+    tokens: objectMeasurementState(tokens) === "measured" ? {
+      ...tokens, input: number(tokens.input), output: number(tokens.output), reasoning: number(tokens.reasoning),
+      cache: objectMeasurementState(cache) === "measured"
+        ? { ...cache, read: number(cache.read), write: number(cache.write) } : number(cache),
+    } : number(tokens),
+  } } })
 }
 
 const KtxPlugin: Plugin = async ({ $ }) => {
@@ -502,12 +565,15 @@ const KtxPlugin: Plugin = async ({ $ }) => {
   }
 
   const identities = new Map<string, { provider: string; model: string }>()
-  const seen = new Set<string>()
+  const observed = new Map<string, { evidence: string } & (
+    { accepted: false; payload: string } | { accepted: true }
+  )>()
   let ordinal = 0
 	let epochOrdinal = 0
+  const pendingRequired = new Map<string, { event: string; payload: string; ordinal: number; after: number; kind: string }>()
   let eventQueue: Promise<void> = Promise.resolve()
 
-  const collectEvent = async (event: any): Promise<void> => {
+  const collectEvent = async (event: any, capturedAt: string): Promise<void> => {
     if (!event || typeof event !== "object") return
     if (event.type === "message.updated") {
       const info = event.properties?.info
@@ -530,9 +596,6 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         !nonblank(part.id) || !nonblank(part.reason)) return
 
     const key = JSON.stringify([part.sessionID, part.messageID, part.id])
-    if (seen.has(key)) return
-    seen.add(key)
-    ordinal++
     const identity = identities.get(JSON.stringify([part.sessionID, part.messageID]))
     const tokensState = objectMeasurementState(tokens)
     const cacheState = tokensState === "measured" ? objectMeasurementState(cache) : tokensState
@@ -540,7 +603,6 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       session_id: part.sessionID,
       message_id: part.messageID,
       part_id: part.id,
-      ordinal,
       reason: part.reason,
       cost: costMeasurement(part.cost),
       tokens: {
@@ -551,12 +613,25 @@ const KtxPlugin: Plugin = async ({ $ }) => {
         cache_write: integerMeasurement(cache?.write, cacheState),
       },
     }
-    if (identity) {
-      observation.provider = identity.provider
-      observation.model = identity.model
+    const evidence = JSON.stringify(observation)
+    let delivery = observed.get(key)
+    if (delivery) {
+      if (delivery.evidence !== evidence) throw new Error("conflicting model-step redelivery")
+      if (delivery.accepted) return
+    } else {
+      observation.ordinal = ++ordinal
+      observation.captured_at = capturedAt
+      if (identity) {
+        observation.provider = identity.provider
+        observation.model = identity.model
+      }
+      delivery = { evidence, payload: JSON.stringify(observation), accepted: false }
+      observed.set(key, delivery)
     }
-		const result = await ordinaryCommand(["telemetry", "record"], JSON.stringify(observation), "telemetry record", "opencode-telemetry")
+		const result = await ordinaryCommand(["telemetry", "record", "--ack"], delivery.payload, "telemetry record", "opencode-telemetry")
 		if (result?.stderr.trim()) console.error(result.stderr.trim())
+    if (telemetryAcknowledged(result, JSON.parse(delivery.payload))) observed.set(key, { evidence: delivery.evidence, accepted: true })
+    else if (result) console.error("[ktx] telemetry persistence not acknowledged; awaiting redelivery")
   }
 
   return {
@@ -564,17 +639,37 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       // An ordinary wrapper owns all evidence when it supplies the session.
       if (process.env.KTX_SESSION_ID && !process.env.KTX_COLLECTION_ID) return
 	  if (required) {
-		epochOrdinal++
-		const acceptedOrdinal = epochOrdinal
+		const snapshot = requiredEventSnapshot(event)
+		const capturedAt = new Date().toISOString()
 		const next = eventQueue.then(async () => {
-		  const ack = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["telemetry", "event-record"]), JSON.stringify({ epoch_id: epochID, epoch_ordinal: acceptedOrdinal, after_ordinal: globalOrdinal, event }))
-		  globalOrdinal = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: acceptedOrdinal, kind: requiredEventKind(event), contract: requiredContract, afterOrdinal: globalOrdinal })
+          const retained = JSON.parse(snapshot)
+          const part = retained?.properties?.part
+          const key = requiredEventKind(retained) === "model_step"
+            ? JSON.stringify([part.sessionID, part.messageID, part.id]) : snapshot
+          let pending = pendingRequired.get(key)
+          if (pending && pending.event !== snapshot) throw new Error("conflicting model-step redelivery")
+          if (!pending) {
+            const ordinal = ++epochOrdinal
+            pending = { event: snapshot, ordinal, after: globalOrdinal, kind: requiredEventKind(retained),
+              payload: JSON.stringify({ epoch_id: epochID, epoch_ordinal: ordinal, after_ordinal: globalOrdinal, captured_at: capturedAt, event: retained }) }
+            pendingRequired.set(key, pending)
+          }
+		  const ack = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["telemetry", "event-record"]), pending.payload)
+		  const acknowledged = requiredAck(ack, { sessionID: requiredSessionID, intervalID: requiredIntervalID, epochID, epochOrdinal: pending.ordinal, kind: pending.kind, contract: requiredContract, afterOrdinal: pending.after })
+          globalOrdinal = Math.max(globalOrdinal, acknowledged)
+          pendingRequired.delete(key)
 		})
 		eventQueue = next.catch(() => undefined)
 		await next
 		return
 	  }
-      const next = eventQueue.then(() => collectEvent(event)).catch((e) => {
+      // Snapshot before queueing: runtime-owned objects may change while an
+      // earlier callback is awaiting persistence.
+      const capturedAt = new Date().toISOString()
+      let snapshot: any
+      try { snapshot = structuredClone(event) }
+      catch (e) { console.error("[ktx] telemetry collector error: " + String(e)); return }
+      const next = eventQueue.then(() => collectEvent(snapshot, capturedAt)).catch((e) => {
         console.error("[ktx] telemetry collector error: " + String(e))
       })
       eventQueue = next
@@ -603,7 +698,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 		  const result = await ordinaryCommand(["hook"], JSON.stringify(record), "hook", "opencode-hook")
 		  if (!result) return null
 		  try {
-			return JSON.parse(result.stdout) as KtxEnvelope
+			return hookEnvelope(JSON.parse(result.stdout))
 		  } catch (e) {
 			console.error("[ktx] hook error: " + String(e))
 			return null
@@ -914,11 +1009,19 @@ func writeShowReport(w io.Writer, primary string, also []string, globalPath, pro
 
 // parseInitDispatchArgs consumes the runtime positional and init flags.
 func parseInitDispatchArgs(args []string) ([]string, any, error) {
-	f, runtime, err := parseInitArgs(args)
+	format, rest, err := extractFormatChecked(args)
 	if err != nil {
 		return nil, nil, err
 	}
-	return nil, initParsedArgs{flags: f, runtime: runtime}, nil
+	f, runtime, err := parseInitArgs(rest)
+	if err != nil {
+		return nil, nil, err
+	}
+	var common []string
+	if format != "" {
+		common = []string{"--format=" + format}
+	}
+	return common, initParsedArgs{flags: f, runtime: runtime}, nil
 }
 
 // initCommandFunc is the dispatch wrapper. The dispatcher already
@@ -954,18 +1057,28 @@ func init() {
 func parseInitArgs(args []string) (initFlags, string, error) {
 	var f initFlags
 	var runtime string
+	escaped := false
 	for _, a := range args {
-		switch a {
+		if a == "--" && !escaped {
+			escaped = true
+			continue
+		}
+		name, value, hasValue := strings.Cut(a, "=")
+		if escaped {
+			name = ""
+		}
+		var target *bool
+		switch name {
 		case "--project":
-			f.project = true
+			target = &f.project
 		case "--uninstall":
-			f.uninstall = true
+			target = &f.uninstall
 		case "--show":
-			f.show = true
+			target = &f.show
 		case "--help", "-h":
-			f.showHelp = true
+			target = &f.showHelp
 		default:
-			if len(a) > 1 && a[0] == '-' {
+			if !escaped && len(a) > 1 && a[0] == '-' {
 				return f, "", fmt.Errorf("unknown flag %q", a)
 			}
 			if runtime == "" {
@@ -973,6 +1086,14 @@ func parseInitArgs(args []string) (initFlags, string, error) {
 				continue
 			}
 			return f, "", fmt.Errorf("unexpected argument %q", a)
+		}
+		*target = true
+		if hasValue {
+			parsed, err := strconv.ParseBool(value)
+			if err != nil {
+				return f, "", fmt.Errorf("invalid %s boolean %q", name, value)
+			}
+			*target = parsed
 		}
 	}
 	return f, runtime, nil
@@ -986,6 +1107,7 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx init <runtime> [flags]")
 	fmt.Fprintln(w)
+	printOwnedArgumentHelp(w)
 	fmt.Fprintln(w, "Supported runtimes:")
 	fmt.Fprintln(w, "  opencode   install the OpenCode TS plugin adapter")
 	fmt.Fprintln(w, "             (a standalone ktx.ts file at $XDG_CONFIG_HOME/opencode/plugins/)")
@@ -1003,6 +1125,7 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "                 codex:    scopes to the target (--project for project scope,")
 	fmt.Fprintln(w, "                           otherwise global); only the ktx PostToolUse entry is removed")
 	fmt.Fprintln(w, "  --show         report whether the adapter is installed and where")
+	fmt.Fprintln(w, "  --format       json or text; boolean action/scope flags also accept =false")
 	fmt.Fprintln(w, "  -h, --help     show this help")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Exit codes:")

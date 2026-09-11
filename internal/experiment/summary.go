@@ -11,7 +11,27 @@ import (
 )
 
 func LoadAttempts(experimentDir string) ([]Attempt, error) {
-	return loadJSONLines[Attempt](filepath.Join(experimentDir, "attempts.jsonl"))
+	a, err := openArchive(experimentDir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer a.Close()
+	return a.loadAttempts()
+}
+
+func (a *archive) loadAttempts() ([]Attempt, error) {
+	f, err := a.open("attempts.jsonl")
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return readJSONLines[Attempt](f)
 }
 
 func AppendAttempt(experimentDir string, attempt Attempt) error {
@@ -327,23 +347,13 @@ func exclusionReasons(attempt Attempt, minimumToolCalls int) []string {
 func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	minimum := manifest.Task.MinimumToolCalls
 	methodologyVersion := manifest.Methodology.Version
-	if methodologyVersion == "" {
-		methodologyVersion = "v4-eval-matrix"
-	}
 	cacheAware := cacheAwareMethodology(methodologyVersion)
 	promptCacheTokenHitRate := supportsPromptCacheTokenHitRate(manifest)
 	recoveryAware := supportsRecoveryAwareComparison(manifest)
 	if promptCacheTokenHitRate {
 		attempts = normalizePipelineCostEstimates(attempts)
 	}
-	// Cache telemetry is optional evidence: a runtime that emits
-	// part.tokens.cache.{read,write} on step_finish produces cache
-	// counts on the attempts; a runtime that does not emits neither
-	// and the summary stays on its legacy v1 shape. The v2 schema
-	// bumps ONLY when at least one attempt under either side carries
-	// cache evidence, so cache-less experiments regenerate their v1
-	// summary byte-for-byte identically (the byte-match contract
-	// ValidateExperiment relies on).
+	// Optional cache telemetry and price availability affect fields, not formats.
 	hasCacheEvidence := false
 	hasEstimatedCost := false
 	for _, attempt := range attempts {
@@ -354,19 +364,8 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 			hasEstimatedCost = true
 		}
 	}
-	v3Required := hasEstimatedCost || cacheAware
-	schemaVersion := 1
-	if hasCacheEvidence {
-		schemaVersion = 2
-	}
-	if v3Required {
-		schemaVersion = 3
-	}
-	directCacheShare := supportsDirectCachedInputShare(manifest)
-	if directCacheShare {
-		schemaVersion = 4
-	}
-	if promptCacheTokenHitRate {
+	schemaVersion := 8
+	if methodologyVersion == promptCacheTokenHitRateMethodologyVersion {
 		schemaVersion = 5
 	}
 	if recoveryAware {
@@ -459,18 +458,10 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 			"mean_fact_score": factScore, "full_pass_rate": passRate, "pass_rate": passRate,
 			"expected_cost_per_correct": expectedCost,
 		}
-		// Self-contained pipeline identity on the cache-bearing v2
-		// summary: pipeline_id, stage_labels, and pipeline_hash are
-		// surfaced per side so a reader of summary.json alone can
-		// attribute cache/token/cost effects to the named strategy
-		// without consulting the manifest. Cache distributions
-		// join the existing token/cost distributions.
-		if hasCacheEvidence || v3Required {
-			pipeline := manifest.Pipelines[side]
-			sideSummary["pipeline_id"] = pipeline.PipelineID
-			sideSummary["stage_labels"] = pipeline.Stages
-			sideSummary["pipeline_hash"] = pipeline.SHA256
-		}
+		pipeline := manifest.Pipelines[side]
+		sideSummary["pipeline_id"] = pipeline.PipelineID
+		sideSummary["stage_labels"] = pipeline.Stages
+		sideSummary["pipeline_hash"] = pipeline.SHA256
 		if hasCacheEvidence {
 			sideSummary["cache_read"] = distribution(cacheReads)
 			sideSummary["cache_write"] = distribution(cacheWrites)
@@ -489,11 +480,9 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 			}
 			sideSummary["estimated_api_cost_per_correct"] = perCorrect
 		}
-		if v3Required {
-			sideSummary["sample_classification"] = sampleClassification(len(evaluated))
-			for _, field := range summaryMetricFields(hasEstimatedCost) {
-				sideSummary[field] = descriptiveDistribution(observationsFor(evaluated, field))
-			}
+		sideSummary["sample_classification"] = sampleClassification(len(evaluated))
+		for _, field := range summaryMetricFields(hasEstimatedCost) {
+			sideSummary[field] = descriptiveDistribution(observationsFor(evaluated, field))
 		}
 		pipelines[side] = sideSummary
 	}
@@ -537,9 +526,7 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 	if recoveryAware {
 		result["recovery_aware_comparison"] = buildRecoveryAwareComparison(manifest, attempts)
 	}
-	if v3Required {
-		result["paired_baseline_minus_candidate"] = pairedSummary(allEvaluated, hasEstimatedCost)
-	}
+	result["paired_baseline_minus_candidate"] = pairedSummary(allEvaluated, hasEstimatedCost)
 	if hasEstimatedCost {
 		result["estimated_api_cost_basis"] = map[string]any{
 			"formula":                "(uncached_input*input_price + cache_read*cache_read_price + cache_write*cache_write_price + output*output_price + reasoning*reasoning_price)/1000000",
@@ -558,15 +545,6 @@ func BuildSummary(manifest Manifest, attempts []Attempt) Summary {
 		result["estimated_api_cost_break_even"] = estimatedCostBreakEven(attempts, minimum, manifest.CacheControl)
 		result["compression_attribution"] = buildCompressionAttribution(manifest, attempts)
 		result["ttft_ms"] = nil
-	}
-	if directCacheShare {
-		direct := buildDirectCachedInputShare(manifest, attempts)
-		secondary := buildSecondaryCacheEstimate(attempts)
-		comparison := buildCachedInputShareComparison(manifest, attempts)
-		result["direct_cached_input_share"] = direct
-		result["estimated_consecutive_step_reuse"] = secondary
-		result["cached_input_share_comparison"] = comparison
-		result["statement_authorization"] = buildCacheStatementAuthorization(direct, secondary, comparison)
 	}
 	if promptCacheTokenHitRate {
 		direct := buildDirectCachedInputShare(manifest, attempts)
@@ -718,36 +696,31 @@ type SummaryRegeneration struct {
 }
 
 func RegenerateSummary(experimentDir string) (SummaryRegeneration, error) {
-	manifestBytes, err := os.ReadFile(filepath.Join(experimentDir, "manifest.json"))
-	if err != nil {
-		return SummaryRegeneration{}, fmt.Errorf("read manifest: %w", err)
-	}
-	var manifest Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return SummaryRegeneration{}, fmt.Errorf("decode manifest: %w", err)
-	}
-	if err := validateInputs(experimentDir, manifest.Inputs); err != nil {
-		return SummaryRegeneration{}, err
-	}
-	attempts, err := LoadAttempts(experimentDir)
+	a, err := openArchive(experimentDir)
 	if err != nil {
 		return SummaryRegeneration{}, err
 	}
-	attempts, divergences, err := materializeAttempts(experimentDir, manifest, attempts)
+	defer a.Close()
+	manifest, attempts, divergences, err := loadExperimentEvidence(a)
 	if err != nil {
 		return SummaryRegeneration{}, err
 	}
-	existingSummary, err := os.ReadFile(filepath.Join(experimentDir, "summary.json"))
+	existingSummary, err := a.open("summary.json")
 	if err != nil && !os.IsNotExist(err) {
 		return SummaryRegeneration{}, err
 	}
-	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, existingSummary)
+	if err == nil {
+		if err := existingSummary.Close(); err != nil {
+			return SummaryRegeneration{}, err
+		}
+	}
+	pricing, err := a.preparePricingEvidence(manifest)
 	if err != nil {
 		return SummaryRegeneration{}, err
 	}
 	attempts = estimateAttempts(attempts, pricing)
 	summary := BuildSummary(manifest, attempts)
-	if err := WriteJSON(filepath.Join(experimentDir, "summary.json"), summary); err != nil {
+	if err := a.writeSummary(summary); err != nil {
 		return SummaryRegeneration{}, err
 	}
 	return SummaryRegeneration{Summary: summary, ProjectionDivergences: divergences}, nil
@@ -798,7 +771,7 @@ func RenderSummary(summary Summary) string {
 			}
 		}
 		logicalInputFormula := "uncached_input+cache_read"
-		if _, ok := summary["direct_cached_input_share"]; ok || summary[promptCacheTokenHitRateField] != nil {
+		if summary[promptCacheTokenHitRateField] != nil {
 			logicalInputFormula = "uncached_input+cache_read+cache_write"
 		}
 		lines = append(lines,
@@ -806,54 +779,6 @@ func RenderSummary(summary Summary) string {
 			"derived estimated_cost_break_even=setup estimated cost plus paired measured turns (cumulative price-derived USD by measured turn)",
 			"unavailable provider cache hits/misses/fills, request count/boundaries, isolation, eviction, prefix composition, runtime-cost billing semantics",
 			"interpretation: correlated delivery and runtime movement does not identify causal shares or provider-internal behavior")
-	}
-	if direct, ok := summary["direct_cached_input_share"].(map[string]any); ok {
-		for _, raw := range direct["attempts"].([]any) {
-			attempt := raw.(map[string]any)
-			identity := attempt["identity_provenance"].(map[string]any)
-			runtime := identity["runtime"].(map[string]any)
-			configured := identity["configured_attempt"].(map[string]any)
-			source := attempt["source"].(map[string]any)
-			lines = append(lines, fmt.Sprintf("direct_cached_input_share attempt=%v state=%v share=%v cache_read=%v logical_input=%v uncached_input=%v cache_write=%v formula=%v unit=%v source=%v runtime=%v/%v configured_identity=%v variant=%v provider=%v source_event_identities=%s configured_identity_backfills_source_events=%v purpose=descriptive_non_ranking",
-				attempt["attempt_id"], attempt["share"].(map[string]any)["state"], attempt["share"].(map[string]any)["value"],
-				attempt["cache_read"].(map[string]any)["value"], attempt["logical_input"].(map[string]any)["value"],
-				attempt["uncached_input"].(map[string]any)["value"], attempt["cache_write"].(map[string]any)["value"],
-				attempt["formula"], attempt["unit"], source["artifact"], runtime["name"], runtime["version"],
-				configured["model"], configured["variant"], configured["provider"], compactJSON(identity["source_events"]),
-				identity["configured_identity_backfills_source_events"]))
-		}
-	}
-	if estimate, ok := summary["estimated_consecutive_step_reuse"].(map[string]any); ok {
-		lines = append(lines, fmt.Sprintf("estimated_consecutive_step_reuse label=%v method=%v eligible=%v ineligible=%v ineligible_counts=%s noise_floor_tokens=%v ranking_effect=%v ttl_cause=%v expiry_cause=%v",
-			estimate["label"], estimate["method"], estimate["eligible_count"], estimate["ineligible_count"], compactJSON(estimate["ineligible_counts"]),
-			estimate["noise_floor_tokens"], estimate["ranking_effect"], estimate["ttl_cause"], estimate["expiry_cause"]))
-		for _, rawAttempt := range estimate["attempts"].([]any) {
-			attempt := rawAttempt.(map[string]any)
-			for _, rawPair := range attempt["pairs"].([]any) {
-				pair := rawPair.(map[string]any)
-				lines = append(lines, fmt.Sprintf("estimated_reuse_pair attempt=%v prior=%v current=%v eligible=%v reason=%v reusable_tokens=%v shortfall=%v reuse_share=%s interpretation=%v source=%v",
-					attempt["attempt_id"], pair["prior_source_event_ordinal"], pair["current_source_event_ordinal"], pair["eligible"], pair["reason"],
-					pair["estimated_reusable_tokens"], pair["shortfall"], compactJSON(pair["reuse_share"]), pair["interpretation"], attempt["source"].(map[string]any)["artifact"]))
-			}
-		}
-	}
-	if comparison, ok := summary["cached_input_share_comparison"].(map[string]any); ok {
-		direct := comparison["direct"].(map[string]any)
-		paired := direct["paired_difference"].(map[string]any)
-		lines = append(lines, fmt.Sprintf("cached_input_share_comparison complete_pairs=%v mean_difference=%s interval=%s direction=%v descriptive_only=%v quality_preserved=%v blocking_reasons=%s",
-			comparison["complete_pair_count"], compactJSON(paired["mean"]), compactJSON(paired["interval"]), paired["direction"], paired["descriptive_only"],
-			comparison["quality"].(map[string]any)["preserved"], compactJSON(comparison["blocking_reasons"])))
-	}
-	if authorization, ok := summary["statement_authorization"].(map[string]any); ok {
-		identity := anyMap(authorization["identity_provenance"])
-		lines = append(lines, fmt.Sprintf("statement_identity configured_context_classification=%v source_identity_classification=%v stable_nonconflicting=%v conflicts=%s configured_identity_backfills_source_events=%v",
-			identity["configured_context_classification"], identity["source_identity_classification"], identity["stable_nonconflicting"], compactJSON(identity["source_identity_conflicts"]), identity["configured_identity_backfills_source_events"]))
-		outcomes := anyMap(authorization["outcomes"])
-		for _, name := range []string{"direct_available", "comparative_descriptive", "candidate_higher_success", "candidate_lower", "inconclusive", "secondary_available"} {
-			outcome := anyMap(outcomes[name])
-			lines = append(lines, fmt.Sprintf("statement_authorization outcome=%s authorized=%v reasons=%s gates=%s evidence=%s scope=%v statement=%s",
-				name, outcome["authorized"], compactJSON(outcome["reasons"]), compactJSON(outcome["gates"]), compactJSON(outcome["evidence"]), outcome["scope"], compactJSON(outcome["statement"])))
-		}
 	}
 	if rate, ok := summary[promptCacheTokenHitRateField].(map[string]any); ok {
 		for _, raw := range rate["attempts"].([]any) {

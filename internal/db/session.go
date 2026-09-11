@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/jgabor/ktx/internal/durablefile"
 )
 
 const (
@@ -65,19 +67,30 @@ func readSessionFile(ppid int) (*SessionFile, error) {
 		}
 		return nil, fmt.Errorf("db: read session file for ppid %d: %w", ppid, err)
 	}
-	var sf SessionFile
-	if err := json.Unmarshal(data, &sf); err != nil {
-		return nil, fmt.Errorf("db: parse session file for ppid %d: %w", ppid, err)
+	var sf struct {
+		SessionID     string `json:"session_id"`
+		PPID          int    `json:"ppid"`
+		PPIDStartTime *int64 `json:"ppid_start_time"`
 	}
-	return &sf, nil
+	if err := json.Unmarshal(data, &sf); err != nil {
+		return nil, sessionCacheError(ppid, err)
+	}
+	if !IDPattern.MatchString(sf.SessionID) || sf.PPID != ppid || sf.PPIDStartTime == nil || *sf.PPIDStartTime < 0 {
+		return nil, sessionCacheError(ppid, errors.New("invalid session identity or parent metadata"))
+	}
+	return &SessionFile{SessionID: sf.SessionID, PPID: sf.PPID, PPIDStartTime: *sf.PPIDStartTime}, nil
+}
+
+func sessionCacheError(ppid int, err error) error {
+	return fmt.Errorf("db: invalid session cache %q: %w; preserve this file and verify ownership in the selected database before retrying with an explicit session_id", sessionFilePath(ppid), err)
 }
 
 // writeSessionFile writes the ppid-keyed session file, creating the directory
 // with private permissions (0o700) if missing. The file is 0o600 because it
 // is private session identity keyed to this user's process tree.
 //
-// Concurrent invocations may race on file creation: both see no file, both
-// open sessions, and the last writer wins. This can leave an orphaned session.
+// Publication replaces the complete file; interrupted writes leave the prior
+// identity intact. Managed callers hold database coordination through publication.
 func writeSessionFile(ppid int, sf *SessionFile) error {
 	dir := sessionDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -88,7 +101,7 @@ func writeSessionFile(ppid int, sf *SessionFile) error {
 		return fmt.Errorf("db: encode session file: %w", err)
 	}
 	path := sessionFilePath(ppid)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if err := durablefile.Write(path, data, 0o600); err != nil {
 		return fmt.Errorf("db: write session file %q: %w", path, err)
 	}
 	return nil
@@ -147,6 +160,14 @@ func ppidStartTime(pid int) (int64, bool) {
 // timestamp is used as started_at and last_seen_at for newly created sessions
 // and as ended_at for sessions closed by the staleness path.
 func (d *DB) ResolveSessionID(hint, timestamp string) (string, error) {
+	if hint == "" && d.writer != nil {
+		var id string
+		err := d.WithHookWriter(func(w *HookWriter) (err error) {
+			id, err = w.ResolveSessionID(hint, timestamp)
+			return err
+		})
+		return id, err
+	}
 	return d.resolveSessionIDWith(hint, timestamp, d.CloseSession, d.openSession)
 }
 
@@ -170,8 +191,14 @@ func (d *DB) resolveSessionIDWith(hint, timestamp string, closeSession func(stri
 		return "", err
 	}
 
-	if sf != nil && d.canReuseWith(ppid, sf, timestamp, closeSession) {
-		return sf.SessionID, nil
+	if sf != nil {
+		reuse, err := d.canReuseWith(ppid, sf, timestamp, closeSession)
+		if err != nil {
+			return "", err
+		}
+		if reuse {
+			return sf.SessionID, nil
+		}
 	}
 
 	return openSession(ppid, timestamp)
@@ -181,27 +208,29 @@ func (d *DB) resolveSessionIDWith(hint, timestamp string, closeSession func(stri
 // side effect, it closes the old session (sets ended_at) when it returns
 // false and the old session still exists in the database — so the caller
 // only has to openSession() on a false result.
-func (d *DB) canReuseWith(ppid int, sf *SessionFile, timestamp string, closeSession func(string, string) error) bool {
+func (d *DB) canReuseWith(ppid int, sf *SessionFile, timestamp string, closeSession func(string, string) error) (bool, error) {
 	exists, err := d.SessionExists(sf.SessionID)
-	if err != nil || !exists {
+	if err != nil {
+		return false, err
+	}
+	if !exists {
 		// File points at a session that's gone from the DB. Nothing to
 		// close; just open a new one.
-		return false
+		return false, nil
 	}
 
 	if !procAvailable() {
 		// Non-Linux: conservative fallback (file exists + session in DB).
-		return true
+		return true, nil
 	}
 
 	startTime, alive := ppidStartTime(ppid)
 	if !alive || startTime != sf.PPIDStartTime {
 		// Parent died or PID was reused. Close the old session so it is not
 		// left open forever; a new one opens on the next line.
-		_ = closeSession(sf.SessionID, timestamp)
-		return false
+		return false, closeSession(sf.SessionID, timestamp)
 	}
-	return true
+	return true, nil
 }
 
 // openSession creates a new session row and writes the ppid session file. The
@@ -235,6 +264,14 @@ func (d *DB) OpenNamedSession(agent string, ppid int, timestamp string) (string,
 // "unknown" agent) and the wrapper path (caller-supplied agent). Splitting
 // it from the public surface keeps the unknown-vs-named choice mechanical.
 func (d *DB) openNamedSession(agent, authority string, ppid int, timestamp string) (string, error) {
+	if d.writer != nil {
+		var id string
+		err := d.WithHookWriter(func(w *HookWriter) (err error) {
+			id, err = d.openNamedSessionWith(agent, authority, ppid, timestamp, w.InsertSession)
+			return err
+		})
+		return id, err
+	}
 	return d.openNamedSessionWith(agent, authority, ppid, timestamp, d.InsertSession)
 }
 

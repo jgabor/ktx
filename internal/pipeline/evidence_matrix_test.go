@@ -202,24 +202,9 @@ func TestTargetedResidualEvidenceMatrix(t *testing.T) {
 			EligibleWhen          string   `json:"eligible_when"`
 			Otherwise             string   `json:"otherwise"`
 		} `json:"routing_contract"`
-		Provenance struct {
-			BehaviorShapes       string `json:"behavior_shapes"`
-			Generator            string `json:"generator"`
-			HistoricalPrevalence struct {
-				Source              string `json:"source"`
-				SourceSHA256        string `json:"source_sha256"`
-				SeventyTwoHourCalls int    `json:"seventy_two_hour_calls"`
-				SevenDayCalls       int    `json:"seven_day_calls"`
-			} `json:"historical_prevalence"`
-			SourceChain []struct {
-				Source   string `json:"source"`
-				SHA256   string `json:"sha256"`
-				Verified string `json:"verified"`
-			} `json:"source_chain"`
-			ClaimBoundary string `json:"claim_boundary"`
-		} `json:"provenance"`
-		EvaluationRules []string     `json:"evaluation_rules"`
-		Cases           []matrixCase `json:"cases"`
+		Provenance      json.RawMessage `json:"provenance"`
+		EvaluationRules []string        `json:"evaluation_rules"`
+		Cases           []matrixCase    `json:"cases"`
 	}
 
 	path := filepath.Join("..", "..", "tools", "bench", "evidence", "targeted-residual-evidence-matrix.json")
@@ -239,13 +224,8 @@ func TestTargetedResidualEvidenceMatrix(t *testing.T) {
 	if strings.Join(matrix.RoutingContract.CandidatePredicates, ",") != "tool=read,exit_status=success" || strings.Join(matrix.RoutingContract.UnsupportedPredicates, ",") != "content,output_size" || matrix.RoutingContract.Precedence != "ordered_first_match" || matrix.RoutingContract.EligibleWhen == "" || matrix.RoutingContract.Otherwise != "byte_exact_passthrough" {
 		t.Fatal("routing contract is incomplete")
 	}
-	if matrix.Provenance.BehaviorShapes != "deterministic_generated" || matrix.Provenance.Generator != "internal/pipeline/evidence_matrix_test.go" || matrix.Provenance.HistoricalPrevalence.Source == "" || len(matrix.Provenance.HistoricalPrevalence.SourceSHA256) != 64 || matrix.Provenance.HistoricalPrevalence.SeventyTwoHourCalls != 4216 || matrix.Provenance.HistoricalPrevalence.SevenDayCalls != 6030 || len(matrix.Provenance.SourceChain) != 3 || matrix.Provenance.ClaimBoundary == "" {
-		t.Fatal("provenance contract is incomplete")
-	}
-	for _, source := range matrix.Provenance.SourceChain {
-		if source.Source == "" || len(source.SHA256) != 64 || source.Verified == "" {
-			t.Fatal("source chain entry is incomplete")
-		}
+	if len(matrix.Provenance) != 0 || digest(b) != "e55c0e979239c4dd80c33f504ef80d40b4d2499bcbd44153d96b45f89af438b6" {
+		t.Fatal("expected the exact provenance-free matrix")
 	}
 
 	categories := map[string]int{}

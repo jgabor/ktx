@@ -44,10 +44,19 @@ func (OSExecutor) Run(ctx context.Context, command Command) (CommandResult, erro
 		ctx, cancel = context.WithTimeout(ctx, command.Timeout)
 		defer cancel()
 	}
+	if err := ctx.Err(); err != nil {
+		return CommandResult{}, err
+	}
+	grace := command.Grace
+	if grace <= 0 {
+		grace = 5 * time.Second
+	}
 	cmd := exec.Command(command.Args[0], command.Args[1:]...)
 	cmd.Dir, cmd.Env = command.Dir, command.Env
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = command.Stdin, command.Stdout, command.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// A descendant can retain a copied-output pipe after its leader exits.
+	cmd.WaitDelay = grace
 	if err := cmd.Start(); err != nil {
 		return CommandResult{}, err
 	}
@@ -55,24 +64,28 @@ func (OSExecutor) Run(ctx context.Context, command Command) (CommandResult, erro
 	go func() { wait <- cmd.Wait() }()
 	select {
 	case err := <-wait:
-		return processResult(err, false)
+		// Leader exit is not proof that the owned group has exited.
+		cleanupErr := killProcessGroup(cmd.Process.Pid, syscall.SIGKILL)
+		result, processErr := processResult(err, false)
+		return result, errors.Join(processErr, cleanupErr)
 	case <-ctx.Done():
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
-		grace := command.Grace
-		if grace <= 0 {
-			grace = 5 * time.Second
-		}
+		termErr := killProcessGroup(cmd.Process.Pid, syscall.SIGTERM)
 		timer := time.NewTimer(grace)
 		defer timer.Stop()
-		select {
-		case <-wait:
-			return CommandResult{ExitCode: 124, TimedOut: true}, nil
-		case <-timer.C:
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			<-wait
-			return CommandResult{ExitCode: 124, TimedOut: true}, nil
-		}
+		// Do not skip escalation when only the leader has exited.
+		<-timer.C
+		killErr := killProcessGroup(cmd.Process.Pid, syscall.SIGKILL)
+		<-wait
+		return CommandResult{ExitCode: 124, TimedOut: true}, errors.Join(termErr, killErr)
 	}
+}
+
+func killProcessGroup(pid int, signal syscall.Signal) error {
+	err := syscall.Kill(-pid, signal)
+	if errors.Is(err, syscall.ESRCH) {
+		return nil
+	}
+	return err
 }
 
 func processResult(err error, timedOut bool) (CommandResult, error) {

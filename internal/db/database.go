@@ -201,7 +201,7 @@ func Open(path string) (*DB, error) {
 		// modernc.org/sqlite reads _pragma query params and applies them per
 		// connection. foreign_keys(1) enforces the tool_calls -> sessions FK on
 		// every pooled connection, not just the first.
-		dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", path, sqliteBusyTimeoutMS)
+		dsn := (&url.URL{Scheme: "file", Path: writer.path}).String() + fmt.Sprintf("?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=synchronous(NORMAL)&_txlock=immediate", sqliteBusyTimeoutMS)
 		var openErr error
 		openStarted := time.Now()
 		database, openErr = openSQLiteWithRetry(dsn, processLocalMaxOpenConns, startupLockRetryPolicy())
@@ -220,6 +220,9 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		if migrationCancel != nil {
 			migrationCancel()
+		}
+		if database != nil {
+			_ = database.Close()
 		}
 		return nil, fmt.Errorf("db: open %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
@@ -277,6 +280,9 @@ func OpenExisting(path string) (*DB, error) {
 	if err != nil {
 		if migrationCancel != nil {
 			migrationCancel()
+		}
+		if database != nil {
+			_ = database.Close()
 		}
 		return nil, fmt.Errorf("db: open existing %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
 	}
@@ -451,11 +457,21 @@ func OpenQuery(path string) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("db: reopen prepared query database %q: %w", path, err)
 		}
-		version = schemaVersion
+		// Readiness released its exclusive lease. A queued newer writer may
+		// have upgraded before this fresh shared lease was acquired.
+		version, err = readSchemaVersionWithRetry(database.db, startupLockRetryPolicy())
+		if err != nil {
+			database.Close()
+			return nil, fmt.Errorf("db: recheck prepared query schema version %q: %w", path, AttributeDatabaseUnavailable(OperationOpen, started, err))
+		}
 	}
 	if version > schemaVersion {
 		database.Close()
 		return nil, newerSchemaError(version)
+	}
+	if version < schemaVersion {
+		database.Close()
+		return nil, fmt.Errorf("db: query schema changed from prepared version %d to %d", schemaVersion, version)
 	}
 	if err := checkRequiredColumns(database.db); err != nil {
 		database.Close()
@@ -641,12 +657,9 @@ func (d *DB) WithHookWriter(fn func(*HookWriter) error) error {
 	defer cancel()
 	started := time.Now()
 	err := d.writer.withLock(ctx, false, func() error {
-		version, err := d.SchemaVersion()
+		version, err := readCompatibleSchemaVersion(ctx, d.db)
 		if err != nil {
-			return fmt.Errorf("db: recheck hook schema version: %w", err)
-		}
-		if version > schemaVersion {
-			return newerSchemaError(version)
+			return err
 		}
 		if version < schemaVersion {
 			return fmt.Errorf("db: hook schema changed from prepared version %d to %d", schemaVersion, version)
@@ -662,9 +675,31 @@ func (d *DB) PrepareToolCall(tc *ToolCall) { d.deriveCost(tc) }
 func (d *DB) withWriteTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	started := time.Now()
 	err := d.writer.withLock(ctx, false, func() error {
-		return withWriteTx(ctx, d.db, fn)
+		return withWriteTx(ctx, d.db, func(tx *sql.Tx) error {
+			// Managed writers must recheck inside both the coordination lease
+			// and each retried transaction, before any evidence callback runs.
+			// Migration uses the raw transaction helper; memory and explicit
+			// unmigrated inspection handles retain their existing contracts.
+			if d.writer != nil {
+				if _, err := readCompatibleSchemaVersion(ctx, tx); err != nil {
+					return err
+				}
+			}
+			return fn(tx)
+		})
 	})
 	return AttributeDeadline(TimeoutOperation, "", started, err)
+}
+
+func readCompatibleSchemaVersion(ctx context.Context, database rowQueryer) (int, error) {
+	var version int
+	if err := database.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+		return 0, fmt.Errorf("db: recheck prepared schema version: %w", err)
+	}
+	if version > schemaVersion {
+		return version, newerSchemaError(version)
+	}
+	return version, nil
 }
 
 // Close closes the database handle, releasing the underlying SQLite

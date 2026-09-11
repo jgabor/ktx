@@ -33,9 +33,22 @@
 
 ### Fixed
 
+- Live-validation uses a provenance-free seven-case matrix at the existing path with a new exact pinned digest; previous matrix identities are no longer accepted.
+- Normal benchmark capture now uses private stdout and stderr spools, aggregate-only usage interpretation, and verified recording publication; failed or over-limit last copies remain owner-recoverable without changing scoring or replay limits.
+- Optional OpenCode telemetry now releases acknowledged persistence payloads while retaining exact evidence for duplicate suppression and conflict detection.
+- Codex hook updates now coordinate shared-document mutations, publish complete replacements, detect observed external edits, and recognize relocated generated commands without deleting unrelated hooks or metadata.
+- Newline-heavy compression avoids whole-input line arrays, empty pipelines skip JSON recognition, and route selection reuses lazily extracted command metadata without changing output or matching behavior.
+- Exact-match experiments now use retained stream/database authority with methodology `v8-exact-match`, attempt schema 3, and summary schema 8. Retired experiment readers and the inactive cache probe are removed; tracked history remains unchanged without current-validation guarantees.
+- Long-lived database writers now reject newer schemas before evidence mutation, and queries recheck schema compatibility after reopening from automatic readiness.
+- Benchmark execution and validation now share captured pipeline configuration identities, and capability probes plus both comparison sides use the full immutable image ID resolved by preflight rather than a mutable tag.
+- Owned command values no longer become help or format flags; namespace options support consistent placement, explicit false help and local format precedence. `ktx write` now reports acknowledgement delivery failure without rolling back committed evidence.
+- `ktx run` now resolves wrapper flags once, honors explicit false values before and after the executable, and preserves literal child arguments after an explicit `--` boundary.
+- `ktx bench run` now binds results to the completed wrapper's explicit session, never substitutes concurrent or historical sessions, and reports startup or interrupted collection failure without recording a false headline or replay.
+- Experiment archive reads now reject traversal and escaping symlinks before access, and SQLite inspection uses private copies of confined database and WAL files without opening or migrating archive originals.
+- Experiment summarization and validation now reject incomplete entry contracts and empty evidence, exclude damaged declared artifacts from target counts, and preserve inspection of incomplete archives.
 - Active cache sequence, estimation, statistics, regeneration, and comparison code now has a separate package boundary from retired direct-provider probes.
 - Recovery-aware validation now accepts target-met archives with unavailable auxiliary outcomes, and live comparisons can pin exact retained pricing bytes before any model attempt.
-- Recovery-aware benchmark summaries now pair stream-derived source identities with persisted rows inside each attempt and expose separate counts, coverage, duplicate/retry observations, and bounded discrepancy reasons; unavailable authority remains null, stream-only failures are not converted into persisted outcomes, and complete schema-6 archives remain byte-exact.
+- Recovery-aware benchmark summaries now pair stream-derived source identities with persisted rows inside each attempt and expose separate counts, coverage, duplicate/retry observations, and bounded discrepancy reasons; unavailable authority remains null and stream-only failures are not converted into persisted outcomes. Schema-6 reports remain static history.
 - Incomplete recovery-aware experiments now retain a structurally valid unavailable comparison and unmet-target reason; validation keeps historical partial summaries immutable and labels derived inspection separately.
 - Required benchmark collection now retains delivered recovery cues and exact linked recovery attempts under the precreated interval owner; older archives without cue authority report recovery as unavailable.
 - Recovery-aware comparison now leaves unavailable outcomes unranked, renders their state and reason, and validates generated schema-7 archives against methodology v7.

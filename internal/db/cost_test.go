@@ -52,7 +52,7 @@ func (f *fakePriceSource) Cold() bool {
 	return f.ColdFn()
 }
 
-func (f *fakePriceSource) Refresh() error {
+func (f *fakePriceSource) RefreshAndWrite() error {
 	f.refreshCalls++
 	if f.RefreshFn == nil {
 		return nil

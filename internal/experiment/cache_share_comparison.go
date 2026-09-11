@@ -328,7 +328,8 @@ func attemptTemporalConfounds(attempt Attempt) []string {
 		return []string{"temporal_coverage_unavailable"}
 	}
 	first, last := sequenceFact(attempt.sequence, 1), sequenceFact(attempt.sequence, uint64(len(steps)))
-	boundaries, err := sequence.AssessAttemptBoundaries(first, last, attempt.sequence.Events, attempt.sequence.Coverage)
+	events := sequence.NewEventIndex(attempt.sequence.Events)
+	boundaries, err := events.AssessAttemptBoundaries(first, last, attempt.sequence.Coverage)
 	if err != nil || boundaries.RetryCoverage == "unavailable" || boundaries.ResetCoverage == "unavailable" ||
 		boundaries.SegmentCoverage != sequence.CoverageCovered || boundaries.ConcurrentCoverage != sequence.CoverageCovered {
 		return []string{"temporal_coverage_unavailable"}
@@ -344,7 +345,7 @@ func attemptTemporalConfounds(attempt Attempt) []string {
 	}
 	for i := 1; i < len(steps); i++ {
 		prior, current := sequenceFact(attempt.sequence, uint64(i)), sequenceFact(attempt.sequence, uint64(i+1))
-		coverage, err := sequence.AssessPair(prior, current, attempt.sequence.Events, attempt.sequence.Coverage)
+		coverage, err := events.AssessPair(prior, current, attempt.sequence.Coverage)
 		if err != nil || coverage.OrderCoverage != sequence.CoverageCovered || !coverage.Adjacent {
 			return []string{"temporal_coverage_unavailable"}
 		}

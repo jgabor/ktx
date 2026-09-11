@@ -1,0 +1,183 @@
+[
+  {
+    "name": "numeric-string",
+    "required": false,
+    "state": "measured",
+    "event": {
+      "type": "message.part.updated",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop",
+          "cost": 0,
+          "tokens": {
+            "input": "1",
+            "output": 2,
+            "reasoning": 0,
+            "cache": { "read": 0, "write": 0 }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "integral-number",
+    "required": true,
+    "state": "measured",
+    "event": {
+      "type": "message.part.updated",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop",
+          "cost": 0,
+          "tokens": {
+            "input": 1.0,
+            "output": 2,
+            "reasoning": 0,
+            "cache": { "read": 0, "write": 0 }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "unknown",
+    "required": false,
+    "state": "unknown",
+    "event": {
+      "type": "message.part.updated",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop"
+        }
+      }
+    }
+  },
+  {
+    "name": "measured-zero",
+    "required": true,
+    "state": "measured",
+    "event": {
+      "type": "message.part.updated",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": { "read": 0, "write": 0 }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "nonzero",
+    "required": true,
+    "state": "measured",
+    "event": {
+      "type": "message.part.updated",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop",
+          "cost": 0.25,
+          "tokens": {
+            "input": 1,
+            "output": 2,
+            "reasoning": 3,
+            "cache": { "read": 4, "write": 5 }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "malformed",
+    "required": false,
+    "state": "malformed",
+    "event": {
+      "type": "message.part.updated",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop",
+          "cost": "bad",
+          "tokens": []
+        }
+      }
+    }
+  },
+  {
+    "name": "malformed-cache",
+    "required": false,
+    "state": "measured",
+    "event": {
+      "type": "message.part.updated",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop",
+          "cost": 0,
+          "tokens": { "input": 1, "output": 2, "reasoning": 0, "cache": [] }
+        }
+      }
+    }
+  },
+  {
+    "name": "untrusted-provenance",
+    "required": true,
+    "state": "measured",
+    "event": {
+      "type": "message.part.updated",
+      "runtime": "forged",
+      "runtime_version": "999",
+      "source": "forged",
+      "properties": {
+        "part": {
+          "type": "step-finish",
+          "sessionID": "runtime",
+          "messageID": "message",
+          "id": "part",
+          "reason": "stop",
+          "runtime": "forged",
+          "runtime_version": "999",
+          "source": "forged",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": { "read": 0, "write": 0 }
+          }
+        }
+      }
+    }
+  }
+]

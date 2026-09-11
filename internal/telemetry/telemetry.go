@@ -121,14 +121,13 @@ func DecodeIntegerMeasurement(raw json.RawMessage, containerState MeasurementSta
 	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return IntegerMeasurement{State: MeasurementUnknown}
 	}
-	var number json.Number
-	if json.Unmarshal(raw, &number) != nil {
+	// Match the runtime's JSON number semantics: numeric strings are not
+	// measurements, while integral decimal/exponent forms are safe integers.
+	var number float64
+	if json.Unmarshal(raw, &number) != nil || number < 0 || number >= 1<<53 || math.Trunc(number) != number {
 		return IntegerMeasurement{State: MeasurementMalformed}
 	}
-	value, err := number.Int64()
-	if err != nil || value < 0 || value >= 1<<53 {
-		return IntegerMeasurement{State: MeasurementMalformed}
-	}
+	value := int64(number)
 	return IntegerMeasurement{State: MeasurementMeasured, Value: &value}
 }
 

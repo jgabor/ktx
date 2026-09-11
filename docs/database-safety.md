@@ -36,6 +36,11 @@ manual migration command. This supersedes the previous read-only/manual-
 migration policy. An absent database remains absent and uses the existing
 logical-empty behavior.
 
+After readiness releases its exclusive lease, the reopened query reads the
+schema version again under its fresh shared lease. An intervening newer upgrade
+returns the typed schema-incompatible error instead of exposing a stale query
+handle. The shared lease remains held for the query handle's lifetime.
+
 An absent database is logically empty for read-only commands. `list`, `stats`,
 and `bench report` return their empty results; record lookup, decompression, and
 session telemetry inspection return their normal not-found result. No parent
@@ -53,10 +58,15 @@ Each failed or interrupted transaction rolls back only its current unit; prior
 committed units remain valid and the next database-backed invocation resumes
 from the durable cursor. Final publication of schema 16 is atomic.
 
-A current-schema hook rechecks `user_version` after it acquires its one
-exclusive evidence-writer window and before it starts source acceptance. If a
-newer binary migrated the database after the hook opened it, the hook returns
-the normal schema-incompatible result and commits no hook evidence.
+Every ordinary managed writer rechecks `user_version` inside its exclusive
+coordination lease and each retried SQLite transaction, before evidence mutation.
+A current-schema hook rechecks it after acquiring its exclusive evidence-writer
+window and before source acceptance. If a newer binary upgraded the database
+after either writer opened it, the stale writer returns the normal typed
+schema-incompatible error and commits no new evidence. Migration's internal
+transactions remain separate so supported automatic upgrades still work;
+in-memory and explicitly caller-owned raw inspection handles keep their existing
+contracts.
 
 Schema 9 adds `compression_dispositions`, a source-keyed operational projection
 containing only selected profile, route provenance, bounded disposition,
@@ -136,12 +146,12 @@ after the cursor, one final transaction removes the cursor and publishes schema 
 select by source and the existing source index narrows candidates before
 timestamp and ID ordering.
 
-Supported ktx readers and writers coordinate on the physical database file with
+Supported Linux ktx readers and writers coordinate on the physical database file with
 writer-preferred admission. Once a writer is waiting, later supported readers
-wait behind it while existing readers finish. Linux and BSD use separate
-locking mechanisms: Linux uses byte-range `fcntl` admission with `flock`
-ownership, while BSD uses two independent `fcntl` byte ranges. Windows also
-uses separate byte ranges. This coordination creates no sidecar or database
+wait behind it while existing readers finish. Linux uses byte-range `fcntl`
+admission with `flock` ownership. Retained BSD and Windows implementations use
+separate byte ranges; they are not current support or native-verification
+promises. This coordination creates no sidecar or database
 state, and genuinely read-only commands remain read-only.
 
 `doctor` remains read-only for a current schema. For a supported older schema,
@@ -177,7 +187,8 @@ collection remains fail-closed and does not suppress failures.
 
 ## Hermetic development and CI verification
 
-`mage test`, `mage check`, and `mage verify` allocate one unique disposable
+`mage test`, `mage check`, `mage verify`, `mage replayFixture`, and
+`mage opencodeTelemetryFixture` allocate one unique disposable
 application root per outer invocation. They unset inherited `KTX_DB` and assign
 distinct `HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`,
 `XDG_STATE_HOME`, and `TMPDIR` directories below that root. Each process in the
@@ -191,6 +202,19 @@ any attempt to touch the captured ambient default database or incoming
 `KTX_DB`. It also rejects database paths outside the disposable root, so every
 resolved database path is beneath that root. It prints a bounded summary with
 `forbidden=0` on success.
+
+The pre-push test hook uses `mage test`, including Go race tests and Mage
+regressions. Its parallel lint and vulnerability checks do not fix or stage
+files; automatic fixes remain in the serial pre-commit hook.
+
+For routine verification, install the Go version declared in `go.mod`, Mage,
+and `golangci-lint`, with Bun and Python 3 on `PATH` (`python3` must resolve).
+`mage check` runs the Python schema-readiness verifier unit tests as well as
+the Go suite and required Bun generated-adapter gate. That gate currently
+requires Linux. `mage verify` adds the retained replay fixture and
+`govulncheck`, which must also be on `PATH`.
+CI explicitly installs these prerequisites. The Python unit tests are offline;
+they do not run the production-scale schema release gate.
 
 Focused manual commands that bypass Mage need an equivalent fresh disposable
 root. Define and use `ktx_verify` for each such command:

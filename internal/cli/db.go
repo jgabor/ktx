@@ -178,6 +178,9 @@ func dbCommandFunc(ctx *DispatchContext) (any, error) {
 	}
 	switch sub {
 	case "path":
+		if len(rest) != 0 {
+			return nil, usageError("ktx db path: unexpected argument %q", rest[0])
+		}
 		return dbPathLogic(parsed.pathOverride, ctx.Stdout)
 	case "report":
 		return dbReportLogic(parsed.pathOverride, rest, ctx.Stdout)
@@ -196,6 +199,10 @@ func parseDBDispatchArgs(args []string) ([]string, any, error) {
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+		if a == "--" {
+			rest = append(rest, args[i:]...)
+			break
+		}
 		if a == "--path" {
 			if i+1 >= len(args) {
 				return nil, nil, fmt.Errorf("--path requires a value")
@@ -234,6 +241,7 @@ func printDBHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx db [--path <file>] <subcommand>")
 	fmt.Fprintln(w)
+	printOwnedArgumentHelp(w)
 	fmt.Fprintln(w, "Global flag (per-invocation, not persisted):")
 	fmt.Fprintln(w, "  --path string   override the database file path for this invocation")
 	fmt.Fprintln(w)

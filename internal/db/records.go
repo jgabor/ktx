@@ -554,7 +554,7 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		model                                       sql.NullString
 		provider                                    sql.NullString
 		exitCode                                    sql.NullInt64
-		isError                                     sql.NullInt64
+		isError                                     any
 		runtime                                     sql.NullString
 		latencyState, latencyUnit, latencyAuthority string
 		producer                                    sql.NullString
@@ -616,8 +616,8 @@ func (d *DB) GetToolCall(id string) (*ToolCall, error) {
 		v := exitCode.Int64
 		tc.ExitCode = &v
 	}
-	if isError.Valid {
-		v := isError.Int64 != 0
+	if outcome, ok := isError.(int64); ok && (outcome == 0 || outcome == 1) {
+		v := outcome == 1
 		tc.IsError = &v
 	}
 	if runtime.Valid {

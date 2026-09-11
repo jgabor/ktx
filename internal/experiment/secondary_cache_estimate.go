@@ -74,8 +74,12 @@ func secondaryEstimateAttempt(attempt Attempt) (map[string]any, int, map[string]
 	pairs := make([]any, 0, len(steps))
 	counts := map[string]int{}
 	eligible := 0
+	var events reusesequence.EventIndex
+	if attempt.sequence != nil && len(steps) > 1 {
+		events = reusesequence.NewEventIndex(attempt.sequence.Events)
+	}
 	for i, current := range steps {
-		input, coverage := estimateInput(attempt.sequence, steps, i)
+		input, coverage := estimateInput(attempt.sequence, events, steps, i)
 		result := reusesequence.EstimatePair(input)
 		row := map[string]any{
 			"current_source_event_ordinal": current.Ordinal, "eligible": result.Eligible,
@@ -111,7 +115,7 @@ func secondaryEstimateAttempt(attempt Attempt) (map[string]any, int, map[string]
 	}, eligible, counts
 }
 
-func estimateInput(sequence *attemptSequence, steps []SourceEvent, index int) (reusesequence.EstimatePairInput, map[string]any) {
+func estimateInput(sequence *attemptSequence, events reusesequence.EventIndex, steps []SourceEvent, index int) (reusesequence.EstimatePairInput, map[string]any) {
 	input := reusesequence.EstimatePairInput{PriorExists: index > 0}
 	coverageView := map[string]any{}
 	if index == 0 {
@@ -125,7 +129,7 @@ func estimateInput(sequence *attemptSequence, steps []SourceEvent, index int) (r
 		SegmentCoverage: reusesequence.CoverageUnavailable, SegmentBoundary: "none", ConcurrentCoverage: reusesequence.CoverageUnavailable,
 	}
 	if priorFact.Ordinal > 0 && currentFact.Ordinal > priorFact.Ordinal && sequence != nil {
-		if assessed, err := reusesequence.AssessPair(priorFact, currentFact, sequence.Events, sequence.Coverage); err == nil {
+		if assessed, err := events.AssessPair(priorFact, currentFact, sequence.Coverage); err == nil {
 			pairCoverage = assessed
 		}
 	}

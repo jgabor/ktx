@@ -187,7 +187,12 @@ type Aggregator struct {
 	reasoningPresent  int
 	hasData           bool
 	modelSteps        []ModelStep
+	aggregateOnly     bool
 }
+
+// NewAggregateOnly accumulates the same usage totals without retaining per-step
+// history. The zero-value Aggregator continues to provide rich evidence.
+func NewAggregateOnly() *Aggregator { return &Aggregator{aggregateOnly: true} }
 
 // AddLine processes one JSONL line and reports whether it was an
 // identifiable step_finish event. Empty lines, malformed JSON, and
@@ -219,7 +224,9 @@ func (a *Aggregator) AddLine(line []byte) bool {
 	a.steps++
 
 	step := parseModelStep(partJSON, uint64(a.steps))
-	a.modelSteps = append(a.modelSteps, step)
+	if !a.aggregateOnly {
+		a.modelSteps = append(a.modelSteps, step)
+	}
 	if v := step.UncachedInput.Value; step.UncachedInput.State == MeasurementMeasured {
 		addInt64(&a.tokensIn, *v)
 		a.tokensInPresent++

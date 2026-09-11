@@ -377,7 +377,7 @@ func TestHookForeignLockDuringDispositionKeepsAcceptedEvidence(t *testing.T) {
 	if envelope.SourceID != sourceID || envelope.CompressedID == nil || *envelope.CompressedID != artifact.ID || envelope.Output != artifact.Output {
 		t.Errorf("retry envelope = %+v, want retained source and artifact", envelope)
 	}
-	assertHookObservations(t, retryObservations, dbpkg.OperationSource, dbpkg.OperationArtifact, dbpkg.OperationDisposition)
+	assertHookObservations(t, retryObservations, dbpkg.OperationSource, dbpkg.OperationDisposition)
 	disposition, err := d.GetCompressionDisposition(sourceID)
 	if err != nil {
 		t.Fatal(err)

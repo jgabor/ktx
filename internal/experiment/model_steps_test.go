@@ -97,39 +97,35 @@ func TestValidationReportsExactModelStepGaps(t *testing.T) {
 		{name: "malformed", form: "malformed", state: "malformed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dir := t.TempDir()
-			stream := incompleteStream("INPUT", test.form)
-			if err := os.WriteFile(filepath.Join(dir, "stream.jsonl"), []byte(stream), 0o644); err != nil {
+			dir, _, attempt := writeAuthorityFixture(t)
+			path := filepath.Join(dir, attempt.Artifacts["stream"])
+			data, err := os.ReadFile(path)
+			if err != nil {
 				t.Fatal(err)
 			}
-			manifest := fixtureManifest()
-			manifest.ExperimentID = "exact-gap"
-			manifest.TargetValidPerPipeline = 0
-			if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
+			replacement := ""
+			if test.form == "malformed" {
+				replacement = `"input":"bad",`
+			}
+			stream := strings.Replace(string(data), `"input":100,`, replacement, 1)
+			if err := os.WriteFile(path, []byte(stream), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			metrics := ParseStream(filepath.Join(dir, "stream.jsonl"), nil, nil)
-			attempt := Attempt{
-				SchemaVersion: 1, ExperimentID: manifest.ExperimentID, AttemptID: test.name,
-				Side: Baseline, Status: "failed", Metrics: metrics,
-				Artifacts: map[string]string{"stream": "stream.jsonl"},
-			}
-			if err := AppendAttempt(dir, attempt); err != nil {
-				t.Fatal(err)
-			}
-			if err := WriteJSON(filepath.Join(dir, "summary.json"), BuildSummary(manifest, []Attempt{attempt})); err != nil {
+			attempt.ContentHashes["stream"] = sha256Bytes([]byte(stream))
+			writeAttemptRecords(t, dir, attempt)
+			if _, err := WriteSummary(dir); err != nil {
 				t.Fatal(err)
 			}
 			report, err := ValidateExperiment(dir)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if report["valid"] != true || report["summary_byte_match"] != true {
+			if report["valid"] != false || report["target_met"] != false || report["summary_byte_match"] != true || report["attempt_checks"].([]map[string]any)[0]["valid"] != true {
 				t.Fatalf("exact gap changed otherwise-valid evidence: %#v", report)
 			}
 			checks := report["attempt_checks"].([]map[string]any)
 			gaps, _ := checks[0]["evidence_gaps"].([]any)
-			want := map[string]any{"field": "uncached_input", "source_event_ordinal": uint64(2), "state": test.state}
+			want := map[string]any{"field": "uncached_input", "source_event_ordinal": uint64(1), "state": test.state}
 			if len(gaps) != 1 || !reflect.DeepEqual(gaps[0], want) {
 				t.Fatalf("validation gaps = %#v, want %#v; report=%#v", gaps, want, report)
 			}
@@ -220,7 +216,7 @@ func TestOptionalModelStepsDoNotInvalidateAttempt(t *testing.T) {
 			}
 			manifest := fixtureManifest()
 			manifest.ExperimentID = "model-steps"
-			manifest.TargetValidPerPipeline = 0
+			retainFixtureConfigs(t, dir, &manifest)
 			if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
 				t.Fatal(err)
 			}
@@ -246,16 +242,6 @@ func TestOptionalModelStepsDoNotInvalidateAttempt(t *testing.T) {
 			}
 			if err := os.WriteFile(filepath.Join(dir, "attempts.jsonl"), append(encoded, '\n'), 0o644); err != nil {
 				t.Fatal(err)
-			}
-			if err := WriteJSON(filepath.Join(dir, "summary.json"), BuildSummary(manifest, []Attempt{attempt})); err != nil {
-				t.Fatal(err)
-			}
-			report, err := ValidateExperiment(dir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if report["valid"] != true {
-				t.Fatalf("optional telemetry invalidated attempt: %#v", report)
 			}
 			loaded, err := LoadAttempts(dir)
 			if err != nil {

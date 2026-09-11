@@ -66,26 +66,19 @@ func headApply(input []byte, n int) []byte {
 		return nil
 	}
 
-	hadTrailingNewline := input[len(input)-1] == '\n'
-	lines := bytes.Split(input, []byte("\n"))
-	if hadTrailingNewline && len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
-		lines = lines[:len(lines)-1]
+	end := 0
+	for range n {
+		i := bytes.IndexByte(input[end:], '\n')
+		if i < 0 {
+			return bytes.Clone(input)
+		}
+		end += i + 1
+		if end == len(input) {
+			return bytes.Clone(input)
+		}
 	}
-
-	if n >= len(lines) {
-		// Input has fewer than n lines — return unchanged.
-		// We must preserve the trailing-newline convention; the
-		// simplest path is to return the input verbatim (it is
-		// already in the right shape).
-		out := make([]byte, len(input))
-		copy(out, input)
-		return out
+	if input[len(input)-1] != '\n' {
+		end--
 	}
-
-	kept := lines[:n]
-	joined := bytes.Join(kept, []byte("\n"))
-	if hadTrailingNewline {
-		joined = append(joined, '\n')
-	}
-	return joined
+	return bytes.Clone(input[:end])
 }

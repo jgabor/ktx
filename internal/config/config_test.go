@@ -67,6 +67,40 @@ func chdirTemp(t *testing.T) string {
 	return dir
 }
 
+func TestLoad_UnknownKeys(t *testing.T) {
+	tests := []struct{ body, key string }{
+		{"exit_staus = \"success\"", "route.exit_staus"},
+		{"command_prefx = \"git\"", "route.command_prefx"},
+		{"subcomand = \"status\"", "route.subcomand"},
+		{"[pipeline.default]\nrecover_foooter = true", "pipeline.default.recover_foooter"},
+		{"[pipeline.custom]\nstgaes = []", "pipeline.custom.stgaes"},
+		{"[[plugin]]\nname = \"custom\"\ncommand = \"cat\"\ndescripton = \"test\"", "plugin.descripton"},
+		{"[unknown]", "unknown"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			writeUserConfig(t, "[pipeline.trim]\nstages = [\"head:1\"]\n[[route]]\nprofile = \"trim\"\n"+tt.body+"\n")
+			path, _ := ConfigPath()
+			for name, load := range map[string]func() (*Config, error){
+				"Load":     Load,
+				"LoadFile": func() (*Config, error) { return LoadFile(path) },
+			} {
+				t.Run(name, func(t *testing.T) {
+					cfg, err := load()
+					var pe *ParseError
+					if cfg != nil || !errors.As(err, &pe) {
+						t.Fatalf("cfg=%+v err=%v, want nil config and ParseError", cfg, err)
+					}
+					if pe.Path != path || !strings.Contains(pe.Msg, tt.key) {
+						t.Fatalf("ParseError=%+v, want path %q and key %q", pe, path, tt.key)
+					}
+				})
+			}
+		})
+	}
+}
+
 // TestLoad_MissingConfig covers the no-config default: when no
 // user-level ktx.toml exists, Load returns an empty stage list and a
 // nil error.
@@ -195,7 +229,7 @@ stages = ["strip-ansi", "head:100"]
 func TestLoad_ProjectRootStagesAbsentQuoted(t *testing.T) {
 	chdirTemp(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	writeUserConfig(t, "[ui]\ntheme = \"dark\"\n")
+	writeUserConfig(t, "[logs]\nlevel = \"off\"\n")
 
 	cfg, err := Load()
 	if err != nil {

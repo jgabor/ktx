@@ -42,6 +42,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
@@ -243,6 +244,11 @@ func runDispatchWithOptions(verb string, args []string, global Options, stdout, 
 // Each step is conditional so a verb that needs nothing (the
 // baseline) does no I/O.
 func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Options, stdout, stderr io.Writer) int {
+	args, normalizeErr := normalizeCommandValues(verb, args)
+	if normalizeErr != nil {
+		printError(stderr, usageError("%v", normalizeErr), FormatJSON)
+		return ExitUsage
+	}
 	// 1. ParseArgs: optional verb-specific parsing.
 	rest := args
 	var parsedArgs any
@@ -265,9 +271,17 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 	// either position (per get_test.go:9, list_test.go:5).
 	formatStr := reg.opts.FormatDefault
 	if !reg.opts.PassthroughStdout {
-		if extracted, afterFormat := extractFormat(rest); extracted != "" {
+		if global.Format != "" {
+			formatStr = global.Format
+		}
+		extracted, afterFormat, err := extractFormatChecked(rest)
+		if err != nil {
+			printError(stderr, usageError("%v", err), FormatJSON)
+			return ExitUsage
+		}
+		rest = afterFormat
+		if extracted != "" {
 			formatStr = extracted
-			rest = afterFormat
 		}
 	}
 	if formatStr != "" && formatStr != FormatJSON && formatStr != FormatText {
@@ -287,29 +301,42 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 	var subQuiet bool
 	fs.BoolVar(&subQuiet, "quiet", false, "suppress non-essential output")
 	fs.BoolVar(&subQuiet, "q", false, "suppress non-essential output (shorthand)")
-	if err := fs.Parse(rest); err != nil {
+	flagArgs := rest
+	if verb == "db" || verb == "stats" || verb == "bench" || verb == "plugin" {
+		// Common booleans are interspersed, but never taken from bound values
+		// or from the escaped tail. Keep explicit false and occurrence order.
+		var common, command []string
+		for i, arg := range rest {
+			if arg == "--" {
+				command = append(command, rest[i:]...)
+				break
+			}
+			name, _, _ := strings.Cut(arg, "=")
+			switch name {
+			case "--help", "-help", "--h", "-h", "--quiet", "-quiet", "--q", "-q":
+				common = append(common, arg)
+			default:
+				command = append(command, arg)
+			}
+		}
+		command = namespaceArgs(command)
+		if verb == "bench" && len(command) > 0 && command[0] == "corpus" {
+			command = append([]string{"corpus"}, namespaceArgs(command[1:])...)
+		}
+		flagArgs = append(common, command...)
+	}
+	if runArgs, ok := parsedArgs.(runParsedArgs); ok {
+		// Run has already resolved all wrapper ownership, including its
+		// escape boundary. The shared parser must not reinterpret child argv.
+		flagArgs = append([]string{"--"}, rest...)
+		showHelp = runArgs.showHelp
+	}
+	if err := fs.Parse(flagArgs); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return renderHelp(reg.opts.Help, stdout)
 		}
 		printError(stderr, usageError("%v", err), formatStr)
 		return ExitUsage
-	}
-	if reg.opts.HelpForArgs != nil {
-		nestedArgs := make([]string, 0, len(fs.Args()))
-		nestedHelp := false
-		for _, arg := range fs.Args() {
-			if arg == "--help" || arg == "-h" {
-				nestedHelp = true
-				continue
-			}
-			nestedArgs = append(nestedArgs, arg)
-		}
-		if nestedHelp {
-			if reg.opts.HelpForArgs(nestedArgs, stdout) {
-				return ExitOK
-			}
-			return renderHelp(reg.opts.Help, stdout)
-		}
 	}
 	if showHelp {
 		if reg.opts.HelpForArgs != nil && reg.opts.HelpForArgs(fs.Args(), stdout) {
@@ -318,6 +345,12 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		return renderHelp(reg.opts.Help, stdout)
 	}
 	// 4. Open the database according to the command's declared access mode.
+	if parsed, ok := parsedArgs.(statsParsedArgs); ok {
+		if err := validateStatsDispatchArgs(fs.Args(), parsed); err != nil {
+			printError(stderr, err, formatStr)
+			return exitCodeOf(err)
+		}
+	}
 	var db *dbpkg.DB
 	var databasePath string
 	if reg.opts.DatabaseAccess != DatabaseNone {
@@ -358,6 +391,12 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 	}
 
 	// 6. Build the context and invoke the verb.
+	quiet := global.Quiet
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "quiet" || f.Name == "q" {
+			quiet = subQuiet
+		}
+	})
 	ctx := &DispatchContext{
 		Args:        fs.Args(),
 		ParsedArgs:  parsedArgs,
@@ -367,7 +406,7 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 		Stderr:      stderr,
 		DB:          db,
 		Passthrough: reg.opts.PassthroughStdout,
-		Quiet:       global.Quiet || subQuiet,
+		Quiet:       quiet,
 	}
 	defer func() {
 		if ctx.DB != nil {

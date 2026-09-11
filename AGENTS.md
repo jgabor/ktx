@@ -2,6 +2,14 @@
 
 ktx is a runtime-agnostic CLI that makes coding agents measurable and cheaper. One Go binary, no library import, no daemon.
 
+Current product support is Linux-only. Retain non-Linux implementations and
+historical reports without presenting them as native qualification. Terminal-mode
+`ktx run` requires readable procfs, subreaper support, `pidfd_open`, and
+`waitid(P_PIDFD)` (normally Linux 5.4+, subject to backports and syscall policy),
+with an explicit pre-spawn error when unavailable. This capability floor does
+not apply to non-terminal runs or unrelated commands. Required Linux gates must
+pass; cross-compilation cannot substitute for native execution.
+
 ## Key documents
 
 | Document                                               | Role                                                           |
@@ -119,8 +127,13 @@ no duplicate callback occurred live in v3.
 
 Current prompt-cache comparisons use methodology v6 and emit summary schema 5
 under `cache-reuse-v2`. Claims about provider-internal behavior remain forbidden.
-Methodology v5, summary schemas 1–4, `cache-reuse-v1`, and the retained v3 result
-remain historical evidence.
+Exact-match now uses methodology `v8-exact-match`, attempt schema 3 and summary
+schema 8; prompt-cache and recovery-aware use attempt schema 3 and summaries
+5 and 7. Methodologies v1/v4/v5, attempt schemas 1–2, summary schemas 1–4 and 6,
+older collector contracts, `cache-reuse-v1`, and the retained v3 result are
+historical evidence without current-validation guarantees. Earlier recorded
+validation results below and in linked reports are historical, not promises
+that the current binary accepts those archives.
 
 ```bash
 ./build/ktx bench compare --preflight --build --spec prompt-cache-token-hit-rate --task crossfile-nav --format json

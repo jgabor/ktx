@@ -3,8 +3,7 @@ package experiment
 import (
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io"
 	"reflect"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
@@ -23,94 +22,100 @@ type ProjectionDivergence struct {
 	Authoritative any    `json:"authoritative"`
 }
 
-// materializeAttempts deduplicates append-only attempt envelopes and, when an
-// attempt declares the cache-aware retained-artifact contract, replaces copied
-// measurements with values from their field authorities.
+// materializeAttempts deduplicates append-only attempt envelopes and replaces
+// copied measurements with values from their retained field authorities.
 func materializeAttempts(experimentDir string, manifest Manifest, attempts []Attempt) ([]Attempt, []ProjectionDivergence, error) {
-	first := make(map[string]Attempt, len(attempts))
-	records := make(map[string][]Attempt, len(attempts))
-	order := make([]string, 0, len(attempts))
-	for _, attempt := range attempts {
+	a, err := openArchive(experimentDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer a.Close()
+	return a.materializeAttempts(manifest, attempts)
+}
+
+func (a *archive) materializeAttempts(manifest Manifest, attempts []Attempt) ([]Attempt, []ProjectionDivergence, error) {
+	first := make(map[string]int)
+	records := make(map[string][]int)
+	order := make([]string, 0)
+	for i, attempt := range attempts {
 		prior, exists := first[attempt.AttemptID]
 		if !exists {
-			first[attempt.AttemptID] = attempt
+			first[attempt.AttemptID] = i
 			order = append(order, attempt.AttemptID)
-		} else if !reflect.DeepEqual(orchestrationOf(prior), orchestrationOf(attempt)) {
+		} else if !reflect.DeepEqual(orchestrationOf(attempts[prior]), orchestrationOf(attempt)) {
 			return nil, nil, fmt.Errorf("conflicting authoritative duplicate attempt %q", attempt.AttemptID)
 		}
-		records[attempt.AttemptID] = append(records[attempt.AttemptID], attempt)
+		records[attempt.AttemptID] = append(records[attempt.AttemptID], i)
 	}
 
 	materialized := make([]Attempt, 0, len(order))
 	divergences := []ProjectionDivergence{}
 	for _, id := range order {
-		authoritative, err := materializeAttempt(experimentDir, manifest, first[id])
+		authoritative, err := a.materializeAttempt(manifest, attempts[first[id]])
 		if err != nil {
 			return nil, nil, err
 		}
 		materialized = append(materialized, authoritative)
-		for ordinal, projection := range records[id] {
-			divergences = append(divergences, metricDivergences(authoritative, projection, ordinal+1)...)
+		for ordinal, index := range records[id] {
+			divergences = append(divergences, metricDivergences(authoritative, attempts[index], ordinal+1)...)
 		}
 	}
 	return materialized, divergences, nil
 }
 
 func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt) (Attempt, error) {
+	a, err := openArchive(experimentDir)
+	if err != nil {
+		return Attempt{}, err
+	}
+	defer a.Close()
+	return a.materializeAttempt(manifest, attempt)
+}
+
+func (a *archive) materializeAttempt(manifest Manifest, attempt Attempt) (Attempt, error) {
 	databaseRel, hasDatabase := attempt.Artifacts["database"]
 	streamRel, hasStream := attempt.Artifacts["stream"]
-	// Legacy attempt schemas did not promise these lower-level authorities.
-	if attempt.SchemaVersion < 3 && (attempt.SchemaVersion < 2 || !hasDatabase || databaseRel == "" || !hasStream || streamRel == "") {
-		return reconcileLegacyStreamProjection(experimentDir, attempt), nil
+	if attempt.SchemaVersion != 3 {
+		return Attempt{}, fmt.Errorf("attempt %q has missing or unsupported schema_version %d", attempt.AttemptID, attempt.SchemaVersion)
 	}
-	if attempt.SchemaVersion >= 3 && (!hasDatabase || databaseRel == "" || !hasStream || streamRel == "") {
+	if !hasDatabase || databaseRel == "" || !hasStream || streamRel == "" {
 		return invalidSchema3Attempt(attempt, Metrics{}, "schema 3 attempt is missing its required database or stream artifact"), nil
 	}
-	streamPath := filepath.Join(experimentDir, filepath.FromSlash(streamRel))
-	if _, err := fileSHA256(streamPath); err != nil {
-		if attempt.SchemaVersion >= 3 {
-			attempt.calls = &callAccounting{Stream: unavailableCallAuthority("stream_authority_unavailable"), Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
-			return invalidSchema3Attempt(attempt, Metrics{}, "schema 3 attempt stream artifact is unavailable"), nil
+	stream, err := a.open(streamRel)
+	if err != nil {
+		if unsafeArchiveAccess(err) {
+			return Attempt{}, err
 		}
-		return Attempt{}, fmt.Errorf("attempt %q read stream authority: %w", attempt.AttemptID, err)
+		attempt.calls = &callAccounting{Stream: unavailableCallAuthority("stream_authority_unavailable"), Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
+		return invalidSchema3Attempt(attempt, Metrics{}, "schema 3 attempt stream artifact is unavailable"), nil
 	}
-	metrics := ParseStream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
-	attempt.calls = &callAccounting{Stream: streamCallAuthority(streamPath), Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
-	if attempt.SchemaVersion >= 3 {
-		metrics = parseSchema3Stream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
+	defer stream.Close()
+	metrics := parseStreamReader(stream, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts, true)
+	if attempt.calls == nil {
+		if _, err := stream.Seek(0, io.SeekStart); err != nil {
+			return Attempt{}, err
+		}
+		attempt.calls = &callAccounting{Stream: readStreamCallAuthority(stream), Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
+	} else {
+		// Each materialized attempt owns its persistence result even if ledger
+		// projections shared the stream observation during entry validation.
+		attempt.calls = &callAccounting{Stream: attempt.calls.Stream, Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
 	}
 	metrics.EstimatedAPICost = nil
 	if attempt.SessionID == nil || *attempt.SessionID == "" {
-		if attempt.SchemaVersion >= 3 {
-			return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt is missing its explicit session owner"), nil
-		}
-		if attempt.Status == "completed" {
-			return Attempt{}, fmt.Errorf("attempt %q requires a session identity for tool-call authority", attempt.AttemptID)
-		}
-		// A non-completed attempt cannot contribute to evaluated aggregates.
-		// With no session identity there is no authoritative tool-call set, so
-		// materialize an explicit zero rather than retaining its copied count.
-		metrics.ToolCallCount = 0
-		attempt.Metrics = metrics
-		return attempt, nil
+		return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt is missing its explicit session owner"), nil
 	}
 
-	databasePath := filepath.Join(experimentDir, filepath.FromSlash(databaseRel))
-	if _, err := os.Stat(databasePath); err != nil {
-		if attempt.SchemaVersion >= 3 {
-			return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt database is unavailable"), nil
-		}
-		return Attempt{}, fmt.Errorf("attempt %q open database authority: %w", attempt.AttemptID, err)
-	}
-	database, err := db.OpenQuery(databasePath)
+	database, cleanup, err := a.openDatabase(databaseRel)
 	if err != nil {
-		if attempt.SchemaVersion >= 3 {
-			return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt database is unavailable"), nil
+		if unsafeArchiveAccess(err) {
+			return Attempt{}, err
 		}
-		return Attempt{}, fmt.Errorf("attempt %q open database authority: %w", attempt.AttemptID, err)
+		return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt database is unavailable"), nil
 	}
+	defer cleanup()
 	defer database.Close()
-	if attempt.SchemaVersion >= 3 {
+	{
 		if attempt.SessionLink.State != "linked" || attempt.SessionLink.NewSessionCount != 1 || len(attempt.SessionLink.NewSessionIDs) != 1 || attempt.SessionLink.NewSessionIDs[0] != *attempt.SessionID {
 			return invalidSchema3Attempt(attempt, metrics, "schema 3 explicit session link does not match its owner"), nil
 		}
@@ -130,17 +135,14 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 		return Attempt{}, fmt.Errorf("attempt %q read session authority: %w", attempt.AttemptID, err)
 	}
 	if sessions != 1 {
-		if attempt.SchemaVersion >= 3 {
-			return invalidSchema3Attempt(attempt, metrics, "schema 3 explicit session owner is missing or replaced"), nil
-		}
-		return Attempt{}, fmt.Errorf("attempt %q session authority is unavailable for %q", attempt.AttemptID, *attempt.SessionID)
+		return invalidSchema3Attempt(attempt, metrics, "schema 3 explicit session owner is missing or replaced"), nil
 	}
 	var count int
 	if err := database.DB().QueryRow("SELECT count(*) FROM tool_calls WHERE session_id = ?", *attempt.SessionID).Scan(&count); err != nil {
 		return Attempt{}, fmt.Errorf("attempt %q read tool-call authority: %w", attempt.AttemptID, err)
 	}
 	metrics.ToolCallCount = count
-	if attempt.SchemaVersion >= 3 {
+	{
 		var reason string
 		metrics.sequence, reason = materializeEventHookSequence(database.DB(), attempt, metrics)
 		if reason != "" {
@@ -175,14 +177,8 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	var intervalID, owner, attemptID, runtime, runtimeVersion, source, contract, state string
 	var first, last sql.NullInt64
 	var closedAt, failureReason sql.NullString
-	classifiedEvents := sqliteColumnExists(database, "runtime_events", "model_step_classification")
-	intervalContradictions := sqliteColumnExists(database, "runtime_event_intervals", "contradiction_count")
-	contradictionColumn := "0"
-	if intervalContradictions {
-		contradictionColumn = "contradiction_count"
-	}
 	var eventCount, epochs, contradictions int
-	err := database.QueryRow(`SELECT id, session_id, attempt_id, runtime, runtime_version, source, contract_version, close_state, closed_at, first_ordinal, last_ordinal, event_count, collector_epoch_count, `+contradictionColumn+`, failure_reason FROM runtime_event_intervals`).Scan(&intervalID, &owner, &attemptID, &runtime, &runtimeVersion, &source, &contract, &state, &closedAt, &first, &last, &eventCount, &epochs, &contradictions, &failureReason)
+	err := database.QueryRow(`SELECT id, session_id, attempt_id, runtime, runtime_version, source, contract_version, close_state, closed_at, first_ordinal, last_ordinal, event_count, collector_epoch_count, contradiction_count, failure_reason FROM runtime_event_intervals`).Scan(&intervalID, &owner, &attemptID, &runtime, &runtimeVersion, &source, &contract, &state, &closedAt, &first, &last, &eventCount, &epochs, &contradictions, &failureReason)
 	if err != nil {
 		return nil, "schema 3 runtime event interval is unreadable"
 	}
@@ -202,23 +198,13 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 	if runtime != sequence.RequiredRuntime || runtimeVersion != sequence.RequiredRuntimeVersion || source != "event_hook" {
 		return nil, "schema 3 runtime event interval provenance does not match the required contract"
 	}
-	classificationColumn := `CASE WHEN kind = 'model_step' THEN 'accepted' ELSE NULL END`
-	acceptedPredicate := "kind = 'model_step'"
-	switch contract {
-	case benchcontract.LegacyContractVersion:
-	case benchcontract.PriorContractVersion, benchcontract.ContractVersion:
-		if !classifiedEvents {
-			return nil, "schema 3 v2 runtime events are missing duplicate classifications"
-		}
-		classificationColumn = "model_step_classification"
-		acceptedPredicate += " AND model_step_classification = 'accepted'"
-	default:
-		return nil, "schema 3 runtime event interval provenance does not match the required contract"
+	if contract != benchcontract.ContractVersion {
+		return nil, "schema 3 runtime event interval has unsupported contract version"
 	}
 	if !first.Valid || first.Int64 != 1 || !last.Valid || last.Int64 != int64(eventCount) || eventCount < 1 || epochs < 1 {
 		return nil, "schema 3 runtime event interval counters are invalid"
 	}
-	rows, err := database.Query(`SELECT ordinal, epoch_id, epoch_ordinal, kind, source_session_id, message_id, part_id, ` + classificationColumn + ` FROM runtime_events ORDER BY ordinal`)
+	rows, err := database.Query(`SELECT ordinal, epoch_id, epoch_ordinal, kind, source_session_id, message_id, part_id, model_step_classification FROM runtime_events ORDER BY ordinal`)
 	if err != nil {
 		return nil, "schema 3 runtime events are unreadable"
 	}
@@ -302,7 +288,7 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		return result, "schema 3 wrapper and event-hook model-step counts do not match"
 	}
 	modelIndex := 0
-	rows, err = database.Query(`SELECT source_session_id, message_id, part_id FROM runtime_events WHERE ` + acceptedPredicate + ` ORDER BY ordinal`)
+	rows, err = database.Query(`SELECT source_session_id, message_id, part_id FROM runtime_events WHERE kind = 'model_step' AND model_step_classification = 'accepted' ORDER BY ordinal`)
 	if err != nil {
 		return result, "schema 3 event-hook model-step identities are unreadable"
 	}
@@ -339,29 +325,6 @@ func materializeEventHookSequence(database *sql.DB, attempt Attempt, metrics Met
 		result.Coverage = append(result.Coverage, sequence.CoverageFact{Class: class, State: sequence.CoverageCovered, Provenance: provenance})
 	}
 	return result, ""
-}
-
-func sqliteColumnExists(database *sql.DB, table, column string) bool {
-	var count int
-	return database.QueryRow(`SELECT count(*) FROM pragma_table_info(?) WHERE name = ?`, table, column).Scan(&count) == nil && count == 1
-}
-
-func reconcileLegacyStreamProjection(experimentDir string, attempt Attempt) Attempt {
-	hasCacheEvidence := attempt.CacheRead != nil || attempt.CacheWrite != nil ||
-		attempt.UsageEvidence.CacheReadEvents > 0 || attempt.UsageEvidence.CacheWriteEvents > 0 ||
-		attempt.Reasoning != nil || attempt.UsageEvidence.ReasoningEvents > 0
-	streamRel := attempt.Artifacts["stream"]
-	if !hasCacheEvidence || streamRel == "" {
-		return attempt
-	}
-	metrics := ParseStream(filepath.Join(experimentDir, filepath.FromSlash(streamRel)), nil, nil)
-	attempt.CacheRead = metrics.CacheRead
-	attempt.CacheWrite = metrics.CacheWrite
-	attempt.UsageEvidence.CacheReadEvents = metrics.UsageEvidence.CacheReadEvents
-	attempt.UsageEvidence.CacheWriteEvents = metrics.UsageEvidence.CacheWriteEvents
-	attempt.Reasoning = metrics.Reasoning
-	attempt.UsageEvidence.ReasoningEvents = metrics.UsageEvidence.ReasoningEvents
-	return attempt
 }
 
 type attemptOrchestration struct {

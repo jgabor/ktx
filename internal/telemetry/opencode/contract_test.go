@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jgabor/ktx/internal/telemetry"
@@ -70,6 +73,80 @@ func TestContractFixtures(t *testing.T) {
 	}
 }
 
+func TestCollectorDurableRetryAndOverlappingCallbacks(t *testing.T) {
+	c := NewCollector()
+	event := modelStep("prt_1", "msg_1", 1, 2)
+	failure := errors.New("uncertain persistence")
+	var first []byte
+	var capturedAt string
+	err := c.Collect(event, func(observation *telemetry.Observation, at string) error {
+		first, _ = json.Marshal(observation)
+		capturedAt = at
+		// A callback does not own the retained first observation.
+		*observation.Tokens.CacheRead.Value = 999
+		return failure
+	})
+	if !errors.Is(err, failure) {
+		t.Fatal(err)
+	}
+	identity := []byte(`{"type":"message.updated","properties":{"info":{"id":"msg_1","sessionID":"ses_1","role":"assistant","providerID":"late","modelID":"late"}}}`)
+	if err := c.Collect(identity, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Collect(modelStep("prt_1", "msg_1", 9, 9), nil); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("conflict = %v", err)
+	}
+	var wg sync.WaitGroup
+	var calls int
+	for range 16 {
+		wg.Go(func() {
+			err := c.Collect(event, func(observation *telemetry.Observation, at string) error {
+				calls++ // Callback serialization is part of the collector contract.
+				data, _ := json.Marshal(observation)
+				if !bytes.Equal(data, first) || at != capturedAt {
+					t.Errorf("retry changed first evidence: %s at %s", data, at)
+				}
+				return nil
+			})
+			if err != nil && !errors.Is(err, ErrDuplicate) {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if calls != 1 {
+		t.Fatalf("persistence calls = %d, want one", calls)
+	}
+}
+
+func TestCollectorRetainsLateAssociationAndPendingRetry(t *testing.T) {
+	c := NewCollector()
+	for n := range 256 {
+		id := fmt.Sprintf("message-%d", n)
+		identity, _ := json.Marshal(map[string]any{"type": "message.updated", "properties": map[string]any{"info": map[string]any{"id": id, "sessionID": "ses_1", "role": "assistant", "providerID": "first", "modelID": "first"}}})
+		if err := c.Collect(identity, nil); err != nil {
+			t.Fatal(err)
+		}
+		err := c.Collect(modelStep(id, id, 1, 2), func(*telemetry.Observation, string) error { return io.ErrClosedPipe })
+		if !errors.Is(err, io.ErrClosedPipe) {
+			t.Fatal(err)
+		}
+	}
+	if err := c.Collect(modelStep("message-0", "message-0", 1, 2), func(o *telemetry.Observation, _ string) error {
+		if o.Provider == nil || *o.Provider != "first" || o.Ordinal != 1 {
+			t.Fatalf("late retry=%+v", o)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var retainedBytes int
+	for _, d := range c.observed {
+		retainedBytes += len(d.evidence) + len(d.payload) + len(d.capturedAt)
+	}
+	t.Logf("256 distinct messages/steps retain %d identities and %d deliveries (%d evidence/payload/time bytes); no safe retirement boundary asserted", len(c.identities), len(c.observed), retainedBytes)
+}
+
 func measurementRule(rule string) bool {
 	switch rule {
 	case "step.cost", "step.tokens", "step.input", "step.output", "step.reasoning", "step.cache", "step.cache_read", "step.cache_write":
@@ -80,7 +157,7 @@ func measurementRule(rule string) bool {
 }
 
 func TestCollectorCorrelatesDeduplicatesAndOrders(t *testing.T) {
-	collector := NewCollector()
+	collector := &testCollector{NewCollector()}
 	identity := []byte(`{"type":"message.updated","properties":{"info":{"id":"msg_1","sessionID":"ses_1","role":"assistant","providerID":"openai","modelID":"gpt-5"}}}`)
 	if observation, err := collector.Add(identity); err != nil || observation != nil {
 		t.Fatalf("identity result = %#v, %v", observation, err)
@@ -116,7 +193,7 @@ func TestCollectorCorrelatesDeduplicatesAndOrders(t *testing.T) {
 }
 
 func TestCollectorKeepsFirstObservationAuthoritative(t *testing.T) {
-	collector := NewCollector()
+	collector := &testCollector{NewCollector()}
 	first, err := collector.Add(modelStep("prt_1", "msg_1", 1, 2))
 	if err != nil {
 		t.Fatal(err)
@@ -128,12 +205,24 @@ func TestCollectorKeepsFirstObservationAuthoritative(t *testing.T) {
 	if _, err := collector.Add(identity); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := collector.Add(modelStep("prt_1", "msg_1", 9, 9)); !errors.Is(err, ErrDuplicate) {
-		t.Fatalf("changed duplicate error = %v, want ErrDuplicate", err)
+	if _, err := collector.Add(modelStep("prt_1", "msg_1", 9, 9)); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("changed duplicate error = %v, want ErrInvalid", err)
 	}
 	if first.Provider != nil || first.Model != nil || first.Tokens.CacheRead.Value == nil || *first.Tokens.CacheRead.Value != 1 || first.Tokens.CacheWrite.Value == nil || *first.Tokens.CacheWrite.Value != 2 {
 		t.Fatalf("first observation changed: %#v", first)
 	}
+}
+
+// Normalization-only tests explicitly acknowledge their in-memory sink.
+type testCollector struct{ *Collector }
+
+func (c *testCollector) Add(data []byte) (*telemetry.Observation, error) {
+	var result *telemetry.Observation
+	err := c.Collect(data, func(observation *telemetry.Observation, _ string) error {
+		result = observation
+		return nil
+	})
+	return result, err
 }
 
 func TestHookAndWrapperModelStepsNormalizeWithParity(t *testing.T) {

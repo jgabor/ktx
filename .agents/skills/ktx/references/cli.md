@@ -39,6 +39,28 @@ may cover those parts more completely.
 
 ## Paths and Precedence
 
+For `init`, `db`, `stats`, `bench`, and `plugin`, owned options may surround
+the runtime or subcommand. Value-taking options consume their next token even
+when it looks like `--help` or `--format`; use `--name=value` for clarity.
+The first standalone `--` ends option handling, and the command still validates
+its remaining operands. Boolean flags such as `--help` accept `=false`.
+Local `--format` overrides the global format, with the last local value winning;
+an empty final format is invalid. Raw I/O and fixed JSON outputs retain their
+command-specific output contracts.
+
+```bash
+ktx init --project=false opencode --show --help=false
+ktx db path --path=--help
+ktx stats --window 30m summary --format json
+ktx bench --spec exact-match report
+ktx plugin add myfilter cat --description=--format
+```
+
+`write` reports exit 4 if it commits evidence but cannot deliver the ID to
+stdout. Its diagnostic identifies the committed record/session; this is not a
+rollback. Inspect that identity before retrying. Do not invent a new ID to
+repeat a committed observation; duplicate tool-call IDs remain rejected.
+
 | Data                    | Default                                                          |
 | ----------------------- | ---------------------------------------------------------------- |
 | Database                | `$XDG_DATA_HOME/ktx/ktx.db`, falling back under `~/.local/share` |
@@ -103,7 +125,29 @@ install, run `/hooks` in Codex to trust the hook. Codex uninstall honors the
 selected scope: global by default or project with `--project`.
 The generated command pins the installing executable's canonical absolute path
 and omits Codex's optional timeout. Regenerate it only to pick up generated
-source changes.
+source changes or to update the pin after moving the executable. Show and
+uninstall also recognize relocated, unmodified generated inner hooks: exactly
+the command type, ktx status message, and a single shell-quoted canonical absolute
+path followed by ` hook`. Copied hooks in that exact generated form are managed
+entries, not proof of an executable's identity. Other programs without that
+generated shape, customized commands, and unrelated sibling fields remain.
+
+On Linux, install and uninstall hold an exclusive `flock` on the resolved parent
+directory across read, merge, and publication (five-second acquisition limit).
+Participating editors must hold the same directory lock for their entire update;
+do not lock the replaceable `hooks.json` inode. Ktx stages and syncs a complete
+replacement, preserves existing permission bits, and rejects malformed documents
+and symlink document targets rather than overwriting them. A symlinked parent
+directory is resolved and checked for replacement. Show remains read-only and
+does not acquire a mutation lock or create directories.
+
+Ktx checks document identity, bytes, permissions, modification time, and parent
+identity before publishing or deleting. Observed external edits abort with retry
+guidance. This is not filesystem compare-and-swap: a noncooperating editor can
+still race the final check-to-rename/remove window. Avoid simultaneous edits from
+such tools. An interrupted update leaves a complete old or new document, not a
+truncated shared file; power-loss durability of the directory entry is not
+guaranteed by this file-sync protocol.
 
 ## Wrapper Collection
 
@@ -118,9 +162,69 @@ ktx --quiet run opencode run --format json "prompt"
   is not byte-exact passthrough.
 - Identifiable tool events become `tool_calls`.
 - Identifiable OpenCode model steps become separate session telemetry.
-- The session closes when the child exits.
-- ktx exits with the child's exit code.
+- The session closes after child/output settlement.
+- On normal completion, ktx exits with the child's exit code.
 - `--record-stream` retains JSONL for `ktx bench run --replay <session-id>`.
+
+Wrapper `--quiet/-q`, `--help/-h`, `--record-stream`, and `--collection=<id>`
+work before or after the executable, up to the first `--`. That separator is
+removed; every later token is literal child argv. To pass a literal `--` to the
+child, supply a second one. For example:
+
+```bash
+ktx run --quiet opencode -- --help
+ktx run /bin/echo -- --record-stream
+ktx run <agent> -- --prompt --quiet
+```
+
+The wrapper does not infer child-option arity: without the escape boundary,
+`--quiet` in `--prompt --quiet` is still a wrapper flag. Attached child values
+such as `--prompt=--quiet` remain intact. `--format` is ktx-owned only before
+`run`; after the executable, both it and its value are child arguments (use the
+boundary if that value looks like a wrapper flag).
+
+Booleans are bare (true) or attached with `=`; they never consume the next
+token, so `ktx run --record-stream false` launches the executable named `false`.
+`--quiet` and `--help` accept Go boolean spellings (`true/false`, `1/0`,
+`t/f`, `T/F`, `TRUE/FALSE`, `True/False`). Recording accepts only
+`true/false/1/0`. Empty or malformed explicit booleans are usage errors. The last
+boolean wins, including false overriding an earlier or global quiet flag.
+Collection retains its `--collection=<16-letter lowercase ID>` form; duplicate,
+empty, or malformed explicit IDs are rejected. These wrapper usage errors and
+wrapper help return before database setup or child execution.
+
+### Terminal cancellation
+
+Terminal-mode `ktx run` is supported on Linux and requires readable procfs,
+subreaper support, `pidfd_open`, and `waitid(P_PIDFD)`. These capabilities are
+normally available on Linux 5.4 or newer, subject to backports and syscall
+policy; ktx checks capabilities, not a kernel-version threshold. If required
+preparation is unavailable, it returns an explicit `prepare descendant ownership`
+error (exit 4) before starting the wrapped child. This is not a DB-free preflight:
+session setup can already have occurred. There is no unsafe cleanup fallback.
+
+Terminal mode includes redirected stdin when a controlling terminal remains
+available through `/dev/tty`. The wrapper keeps inherited stdin and the caller's
+terminal process group, without transferring terminal ownership or changing
+termios. It does not send cancellation signals to the caller's shared group.
+Instead, it signals the wrapped leader and individually kills and reaps owned
+adopted descendants using identity-checked child waits and pidfds. The caller
+and unrelated same-group processes are not cleanup targets.
+
+On SIGINT or SIGTERM cancellation, shutdown offers a one-second SIGTERM grace
+period before SIGKILL and stdout-reader closure. Terminal descendant settlement
+has one additional second; the collector and supervisor settle before session
+and continuity closure. Committed evidence remains available, interruption is
+reported, and an interrupted run is not published as a complete stream recording.
+The wrapper restores its prior subreaper state. These are shutdown budgets, not
+a general runtime deadline or containment guarantee for escaped or
+privilege-changing work, uninterruptible kernel tasks, or indefinitely blocked
+external output sinks.
+
+The terminal capability requirement does not extend to non-terminal runs or
+unrelated commands. Without a controlling terminal, the wrapper retains its
+separate owned-process-group cancellation path. Non-Linux terminal execution
+is unsupported or unverified, not validated portability.
 
 ## Inspection
 

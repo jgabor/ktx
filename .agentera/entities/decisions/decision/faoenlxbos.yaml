@@ -1,0 +1,15 @@
+id: faoenlxbos
+artifact: decisions
+record:
+  date: 2026-09-07
+  question: How should the active live-validation matrix satisfy the project-memory boundary while preserving historical provenance?
+  context: Final task bqnxtbzjou in plan hljjrlykxb passed build, check, verify and native gates but found four project-memory provenance paths in tools/bench/evidence/targeted-residual-evidence-matrix.json. Current stats live-validation requires that matrix's exact digest, so byte-preserving relocation alone cannot retain its active contract. The user explicitly selected "Authorize cutover (Recommended)" for a provenance-free active matrix with identical seven cases, preserved original matrix/hash-chain verification in project memory, and an updated exact active digest.
+  alternatives:
+    - name: Preserve historical bytes in project memory and replace the active matrix identity without weakening validation.
+      status: chosen
+    - name: Keep the existing accepted identity and leave final completion blocked.
+      status: rejected
+  choice: Relocate the original matrix and historical hash-chain verification material byte-for-byte into project memory. Preserve their original hashes and all historical reports and receipts; any executable archival adaptation must remain separately identifiable from the preserved original and retain the historical assertions. Place a provenance-free active matrix containing the identical seven behavioral cases at the existing public path. Update stats live-validation and current behavior tests to require the new exact active digest. Retain current candidate and controlled-comparison behavior coverage. Do not relax exact-hash validation, retain project-memory markers in shipped artifacts, rewrite historical hashes, or add an exception to the marker boundary. Verify archived bytes/hash chain, exact active case equivalence, current CLI rejection/acceptance, marker scans, and the full final gates before completion. This explicitly authorizes the accepted-artifact identity change only; no database schema, provider, paid run, commit, release, or broader compatibility change is selected.
+  reasoning: The user supplied the missing authority for the exact matrix identity change. Keeping archival provenance in project memory and active behavioral cases in the shipped fixture separates their roles while preserving the historical evidence and the strength of current validation.
+  confidence: firm
+  feeds_into: Final plan task bqnxtbzjou, active live-validation fixture and tests, historical integrity verification, and final reconciliation evidence.

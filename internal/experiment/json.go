@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -60,15 +61,7 @@ func appendJSONLine(path string, value any) error {
 	return err
 }
 
-func loadJSONLines[T any](path string) ([]T, error) {
-	file, err := os.Open(path)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+func readJSONLines[T any](file io.Reader) ([]T, error) {
 	var records []T
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
@@ -85,4 +78,24 @@ func loadJSONLines[T any](path string) ([]T, error) {
 		records = append(records, record)
 	}
 	return records, scanner.Err()
+}
+
+func visitJSONLines[T any](file io.Reader, visit func(T) error) error {
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
+	line := 0
+	for scanner.Scan() {
+		line++
+		if len(scanner.Bytes()) == 0 {
+			continue
+		}
+		var record T
+		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+			return fmt.Errorf("invalid JSONL line %d: %w", line, err)
+		}
+		if err := visit(record); err != nil {
+			return err
+		}
+	}
+	return scanner.Err()
 }

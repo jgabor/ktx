@@ -147,8 +147,7 @@ func writeToolCallLogic(tc *dbpkg.ToolCall, db *dbpkg.DB, stdout io.Writer) (any
 		return nil, internalError("ktx write: persist tool_call: %v", err)
 	}
 
-	printID(stdout, tc.ID)
-	return nil, nil
+	return nil, acknowledgeWriteID(stdout, tc.ID)
 }
 
 // writeCloseLogic handles the session_close payload:
@@ -170,8 +169,7 @@ func writeCloseLogic(tc *dbpkg.ToolCall, db *dbpkg.DB, stdout io.Writer) (any, e
 		return nil, internalError("ktx write: close session: %v", err)
 	}
 
-	printID(stdout, tc.SessionID)
-	return nil, nil
+	return nil, acknowledgeWriteID(stdout, tc.SessionID)
 }
 
 // writeCommandFunc is the dispatch wrapper. The dispatcher already
@@ -197,11 +195,26 @@ func init() {
 	}, writeCommandFunc)
 }
 
-// printID writes the record ID as raw JSON (a JSON string) to stdout. ktx
-// write is an I/O primitive: the output is always raw JSON, never
-// text-formatted, regardless of --format.
+// printID writes a raw JSON ID for compression output, independent of --format.
 func printID(w io.Writer, id string) {
 	_ = json.NewEncoder(w).Encode(id)
+}
+
+// acknowledgeWriteID reports delivery failure without undoing committed evidence.
+func acknowledgeWriteID(w io.Writer, id string) error {
+	data, err := json.Marshal(id)
+	if err == nil {
+		data = append(data, '\n')
+		var n int
+		n, err = w.Write(data)
+		if err == nil && n != len(data) {
+			err = io.ErrShortWrite
+		}
+	}
+	if err != nil {
+		return internalError("ktx write: evidence %q committed; acknowledgement delivery failed: %v; inspect the committed identity before retrying; do not resubmit with a new ID", id, err)
+	}
+	return nil
 }
 
 // printWriteHelp writes the `ktx write` help. Used both as the
@@ -214,6 +227,8 @@ func printWriteHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Reads a flat JSON tool_call from stdin and persists it to the database.")
 	fmt.Fprintln(w, "Prints the persisted record ID as raw JSON to stdout.")
+	fmt.Fprintln(w, "If acknowledgement delivery fails, exits 4 with the committed ID on stderr.")
+	fmt.Fprintln(w, "Evidence is not rolled back; inspect that identity before retrying, never submit a new ID.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Input fields:")
 	fmt.Fprintln(w, "  Required:")

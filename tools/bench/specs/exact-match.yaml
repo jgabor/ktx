@@ -1,4 +1,4 @@
-methodology_version: "v1"
+methodology_version: "v8-exact-match"
 inputs:
   agent:
     binary: opencode

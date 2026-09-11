@@ -12,9 +12,9 @@
 // back. Uninstall removes only generated ktx command entries
 // and leaves the rest of the file alone.
 //
-// Identification accepts the generated pinned command and the older literal
-// "ktx hook" form so reinstall replaces stale entries and uninstall remains
-// compatible with existing installations.
+// Identification accepts the current pinned command, or the exact generated
+// shell-word grammar with ktx's command type and status message after relocation.
+// It never runs a command or probes an old executable to establish ownership.
 //
 // Trust model: Codex does not execute a hook until the user has
 // reviewed and trusted it via the /hooks command inside the Codex
@@ -29,6 +29,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -143,16 +144,19 @@ func codexProjectHooksPath() string {
 // order of pre-existing entries may shift on a fresh write — but the
 // content is preserved and Codex reads by key, not by position.
 //
-// The parent directory is created with os.MkdirAll so first-time
-// installs in a fresh ~/.codex tree succeed without a separate setup
-// step. The file is written with 0644 — readable by the agent
-// process, writable by the user.
+// Mutations hold a directory lease across read, merge and checked publication.
+// Existing permissions are retained; new documents use 0644.
 func initCodexInstall(target, format string, stdout io.Writer) error {
 	command, err := codexPinnedHookCommand()
 	if err != nil {
 		return err
 	}
-	doc, exists, err := loadCodexHooks(target)
+	mutation, err := beginCodexMutation(target, true)
+	if err != nil {
+		return internalError("ktx init codex: prepare %q: %v", target, err)
+	}
+	defer mutation.close()
+	doc, exists, err := decodeCodexHooks(mutation.raw, mutation.info != nil)
 	if err != nil {
 		return internalError("ktx init codex: read %q: %v", target, err)
 	}
@@ -163,25 +167,23 @@ func initCodexInstall(target, format string, stdout io.Writer) error {
 	hooksMap := codexHooksObject(doc)
 	postToolUse := codexPostToolUseArray(hooksMap)
 
-	if codexArrayHasCommand(postToolUse, command) {
+	filtered, removed := filterKtxEntries(postToolUse)
+	if removed == 1 && codexArrayHasCommand(postToolUse, command) {
 		writeCodexInstallReport(stdout, target, format, true)
 		return nil
 	}
 
-	postToolUse, _ = filterKtxEntries(postToolUse)
+	postToolUse = filtered
 	postToolUse = append(postToolUse, ktxCodexPostToolUseEntry(command))
 	hooksMap[codexPostToolUseKey] = postToolUse
 	doc["hooks"] = hooksMap
 
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return internalError("ktx init codex: create directory %q: %v", filepath.Dir(target), err)
-	}
 	out, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return internalError("ktx init codex: marshal %q: %v", target, err)
 	}
 	out = append(out, '\n')
-	if err := os.WriteFile(target, out, 0o644); err != nil {
+	if err := mutation.publish(out); err != nil {
 		return internalError("ktx init codex: write %q: %v", target, err)
 	}
 
@@ -205,7 +207,15 @@ func initCodexInstall(target, format string, stdout io.Writer) error {
 // Exit codes: 0 when at least one ktx entry was removed; 2 when the
 // file does not exist or contained no ktx entry (nothing to do).
 func initCodexUninstall(target, format string, stdout, stderr io.Writer) error {
-	doc, exists, err := loadCodexHooks(target)
+	mutation, err := beginCodexMutation(target, false)
+	if os.IsNotExist(err) {
+		return notFoundError("ktx init codex: no ktx hook in %q (file not found)", target)
+	}
+	if err != nil {
+		return internalError("ktx init codex: prepare %q: %v", target, err)
+	}
+	defer mutation.close()
+	doc, exists, err := decodeCodexHooks(mutation.raw, mutation.info != nil)
 	if err != nil {
 		return internalError("ktx init codex: read %q: %v", target, err)
 	}
@@ -233,8 +243,8 @@ func initCodexUninstall(target, format string, stdout, stderr io.Writer) error {
 		delete(doc, "hooks")
 	}
 
-	if len(doc) == 0 || (len(doc) == 1 && doc["hooks"] == nil) {
-		if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+	if len(doc) == 0 {
+		if err := mutation.remove(); err != nil {
 			return internalError("ktx init codex: remove empty %q: %v", target, err)
 		}
 		writeCodexUninstallReport(stdout, target, format, removed)
@@ -246,7 +256,7 @@ func initCodexUninstall(target, format string, stdout, stderr io.Writer) error {
 		return internalError("ktx init codex: marshal %q: %v", target, err)
 	}
 	out = append(out, '\n')
-	if err := os.WriteFile(target, out, 0o644); err != nil {
+	if err := mutation.publish(out); err != nil {
 		return internalError("ktx init codex: write %q: %v", target, err)
 	}
 
@@ -295,21 +305,42 @@ func loadCodexHooks(path string) (map[string]any, bool, error) {
 		}
 		return nil, false, err
 	}
+	return decodeCodexHooks(raw, true)
+}
+
+func decodeCodexHooks(raw []byte, exists bool) (map[string]any, bool, error) {
+	if !exists {
+		return nil, false, nil
+	}
 	var doc map[string]any
-	if err := json.Unmarshal(raw, &doc); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&doc); err != nil {
 		return nil, false, fmt.Errorf("parse hooks.json: %w", err)
 	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, false, fmt.Errorf("parse hooks.json: trailing data")
+	}
 	if doc == nil {
-		doc = map[string]any{}
+		return nil, false, fmt.Errorf("hooks.json must be an object")
+	}
+	if value, exists := doc["hooks"]; exists {
+		hooks, ok := value.(map[string]any)
+		if !ok {
+			return nil, false, fmt.Errorf("hooks must be an object")
+		}
+		if value, exists := hooks[codexPostToolUseKey]; exists {
+			if _, ok := value.([]any); !ok {
+				return nil, false, fmt.Errorf("PostToolUse must be an array")
+			}
+		}
 	}
 	return doc, true, nil
 }
 
 // codexHooksObject returns the "hooks" object from doc, initializing
 // an empty map when absent so callers can append without nil checks.
-// When the existing value is not an object (a malformed file), an
-// empty map is returned — the installer will overwrite the bad value
-// with a well-formed hooks object rather than crash.
+// The document reader rejects a present non-object value before mutation.
 func codexHooksObject(doc map[string]any) map[string]any {
 	v, ok := doc["hooks"]
 	if !ok || v == nil {
@@ -338,9 +369,7 @@ func codexPostToolUseArray(hooksMap map[string]any) []any {
 }
 
 // codexArrayHasKtx reports whether any entry in arr is ktx's, per the
-// command-string predicate. A PostToolUse entry is ktx's when its
-// inner "hooks" array contains any hook object whose "command" field
-// equals ktxHookCommand. Non-map entries and missing fields are
+// generated-hook predicate. Non-map entries and missing fields are
 // skipped rather than treated as errors — a malformed sibling entry
 // from another source should not block install or removal.
 func codexArrayHasKtx(arr []any) bool {
@@ -388,7 +417,7 @@ func codexEntryIsKtx(entry any) bool {
 		if !ok {
 			continue
 		}
-		if cmd, _ := hm["command"].(string); isKtxHookCommand(cmd) {
+		if isKtxCodexHook(hm) {
 			return true
 		}
 	}
@@ -398,6 +427,29 @@ func codexEntryIsKtx(entry any) bool {
 func isKtxHookCommand(command string) bool {
 	expected, err := codexPinnedHookCommand()
 	return err == nil && command == expected
+}
+
+func isKtxCodexHook(hook map[string]any) bool {
+	command, _ := hook["command"].(string)
+	if isKtxHookCommand(command) {
+		return true
+	}
+	// Relocation is recognized only for an otherwise unmodified generated
+	// inner hook. Extra fields may change execution semantics and are user-owned.
+	if len(hook) != 3 || hook["type"] != "command" || hook["statusMessage"] != ktxHookStatusMessage {
+		return false
+	}
+	if !strings.HasPrefix(command, "'") || !strings.HasSuffix(command, "' hook") {
+		return false
+	}
+	path := strings.TrimSuffix(strings.TrimPrefix(command, "'"), "' hook")
+	path = strings.ReplaceAll(path, `'"'"'`, `'`)
+	return filepath.IsAbs(path) && filepath.Clean(path) == path &&
+		!strings.ContainsRune(path, 0) && quoteCodexHookPath(path) == command
+}
+
+func quoteCodexHookPath(path string) string {
+	return `'` + strings.ReplaceAll(path, `'`, `'"'"'`) + `' hook`
 }
 
 func codexPinnedHookCommand() (string, error) {
@@ -413,7 +465,7 @@ func codexPinnedHookCommand() (string, error) {
 	if err != nil {
 		return "", internalError("ktx init codex: make executable path absolute: %v", err)
 	}
-	return `'` + strings.ReplaceAll(filepath.Clean(path), `'`, `'"'"'`) + `' hook`, nil
+	return quoteCodexHookPath(filepath.Clean(path)), nil
 }
 
 // codexFileHasKtxHook reports whether the hooks.json at path exists
@@ -456,8 +508,7 @@ func filterKtxEntries(arr []any) ([]any, int) {
 		removedFromEntry := 0
 		for _, hook := range inner {
 			hookMap, ok := hook.(map[string]any)
-			command, _ := hookMap["command"].(string)
-			if ok && isKtxHookCommand(command) {
+			if ok && isKtxCodexHook(hookMap) {
 				removed++
 				removedFromEntry++
 				continue
@@ -468,7 +519,7 @@ func filterKtxEntries(arr []any) ([]any, int) {
 			out = append(out, entry)
 			continue
 		}
-		if len(filtered) == 0 {
+		if len(filtered) == 0 && len(entryMap) == 2 && entryMap["matcher"] == ".*" {
 			continue
 		}
 		updated := make(map[string]any, len(entryMap))

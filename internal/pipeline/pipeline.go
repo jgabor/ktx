@@ -284,7 +284,7 @@ type Result struct {
 // truncate=4096).
 func (r *Runner) Run(input []byte) Result {
 	res := Result{Out: input, Ran: nil}
-	if r == nil {
+	if r == nil || len(r.Pipeline) == 0 {
 		return res
 	}
 
@@ -421,8 +421,7 @@ func applyStageWithWarn(s Stage, token string, input []byte, r *Runner) (output 
 //
 // Encoding lives in package pipeline (not in db) because the pipeline
 // owns the JSON shape contract; the db layer persists it verbatim as
-// TEXT. We hand-roll the marshal to avoid encoding/json pulling in
-// reflection for a slice of strings — the format is trivial.
+// TEXT. String escaping uses encoding/json so stage arguments remain valid JSON.
 func EncodePipelineJSON(names []string) string {
 	var b bytes.Buffer
 	b.WriteByte('[')
@@ -483,21 +482,8 @@ func StructuredFallbackFromRecord(record string) (structuredFallback, recorded b
 }
 
 // writeJSONString writes s as a JSON string (with surrounding quotes)
-// into b, escaping the two characters JSON requires inside a string:
-// the quote and the backslash. Profile names and stage names are
-// author-chosen (e.g. "head:5", "strip-ansi") and unlikely to need full
-// JSON-string escaping, but correctness is cheap.
+// into b, including escaping control characters in stage arguments.
 func writeJSONString(b *bytes.Buffer, s string) {
-	b.WriteByte('"')
-	for _, c := range []byte(s) {
-		switch c {
-		case '"':
-			b.WriteString(`\"`)
-		case '\\':
-			b.WriteString(`\\`)
-		default:
-			b.WriteByte(c)
-		}
-	}
-	b.WriteByte('"')
+	encoded, _ := json.Marshal(s) // Marshaling a string cannot fail.
+	b.Write(encoded)
 }

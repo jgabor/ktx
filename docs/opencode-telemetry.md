@@ -98,6 +98,12 @@ preserve the first measurement, make the interval non-sealable as complete, and
 fail the callback. A failed callback does not leave the serialized plugin queue
 permanently rejected, so a later callback can expose an epoch or global-order
 gap.
+An unacknowledged callback retains its original payload, observation time, and
+epoch tuple for identical redelivery. A retry does not allocate a second tuple;
+an acknowledged duplicate callback still does. Retries keep strict global-order
+checks: they do not repair an interval after later callbacks expose an ordering
+gap. Missing or malformed required measurements remain stored as evidence but
+fail the callback rather than acknowledging benchmark-ready measurements.
 Acknowledgements and tool envelopes must also match the exact owner, interval,
 epoch, epoch ordinal, normalized kind, native tool-call identity, and contract
 before a callback succeeds or tool output changes. A later, sequential collector
@@ -204,12 +210,26 @@ Those source blobs are byte-identical to the pinned 1.18.4 versions.
   version provenance is reported as a conflict and leaves the first row
   unchanged. A duplicate from the other collection path does not replace the
   first collection provenance. Required benchmark equality is scoped below.
-- Outside required benchmark collection, accepted model steps receive
-  contiguous local ordinals in plugin callback acceptance order, after
+- Outside required benchmark collection, observed model steps receive
+  contiguous local ordinals in first-observation order, after
   duplicates and rejected events are removed.
   OpenCode 1.18.5 supplies no event sequence or event timestamp in this plugin
   event. The ordinal is local capture order, not a provider request number or
   provider timestamp.
+- Observation is not durable acceptance. The plugin sends `telemetry record
+--ack` and requires a versioned `ktx.telemetry-ack.v1` response with `ok: true`,
+  `durable: true`, and matching normalized evidence, including exact runtime,
+  runtime-version, and collection-source provenance. Exit code zero alone is
+  insufficient: optional persistence can fail without failing the agent.
+  `telemetry record` without `--ack` retains its quiet, best-effort interface.
+- Failed or uncertain writes retain the first normalized payload and local
+  capture time in the collector. Identical redelivery retries that payload,
+  including when callbacks overlap; conflicts cannot replace or enrich it.
+  An exact database duplicate also acknowledges persistence without adding a
+  second measurement. There is no automatic retry loop. Pending evidence and
+  late identity associations live only for the collector instance; process
+  restart does not recover unpersisted collector memory. No memory eviction is
+  claimed safe for arbitrarily late callbacks.
 - Concurrent callbacks must be serialized at the collector boundary before an
   ordinal is assigned. No ordering is inferred from lexicographic IDs.
 - Required benchmark collection uses the ledger's global callback ordinal for
@@ -232,6 +252,8 @@ negative, non-finite, fractional token count, or unsafe integer is `malformed`.
 The generated hook sends these states explicitly. A missing or null `tokens` or
 `tokens.cache` container makes its children `unknown`; a non-object container
 makes its children `malformed`, matching wrapper normalization.
+Numeric strings are malformed; integral JSON decimal and exponent forms use
+the same safe-integer measurement rules as the runtime's numeric values.
 Missing provider/model correlation remains absent. A later identity event or
 configured identity does not backfill the accepted source event.
 
@@ -249,7 +271,7 @@ context applies to a benchmark run but is not source-event evidence.
 | Capability                          | Benchmark recorded stream and `model_steps`                                                                                                                                                                                                                                                                                               | Ordinary unwrapped session telemetry plugin                                                                                                                                                                                                                               |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Source and version                  | Source is the OpenCode JSONL `step_finish` stream. OpenCode runtime version is attempt/manifest context (`cache_control.runtime_version` and `manifest.identities.opencode`), not a direct `model_steps` field.                                                                                                                           | The generated plugin and ingestion contract are pinned to OpenCode 1.18.5. Persisted observations directly carry `runtime=opencode` and `runtime_version=1.18.5`, assigned at ingestion.                                                                                  |
-| Ordinal                             | One-based recorded-stream order of identifiable `step_finish` events after malformed JSON and other event types are skipped. An identifiable step with missing or malformed usage still consumes an ordinal.                                                                                                                              | One-based contiguous callback acceptance order after structurally rejected events and duplicates are removed. The wrapper applies the same rule to its OpenCode stream. It is local capture order, not a provider request number or timestamp.                            |
+| Ordinal                             | One-based recorded-stream order of identifiable `step_finish` events after malformed JSON and other event types are skipped. An identifiable step with missing or malformed usage still consumes an ordinal.                                                                                                                              | One-based contiguous first-observation order after structurally rejected events and duplicates are removed. The wrapper applies the same rule. Failed persistence leaves the original ordinal pending for redelivery; it is not a provider request number or timestamp.   |
 | Uncached input and cache tokens     | Direct per-step `tokens.input` and `tokens.cache.{read,write}` fields become `uncached_input`, `cache_read`, and `cache_write`. Explicit zero is `measured`; missing or JSON null is `unknown`; malformed is `malformed`. An attempt total is present only when every model step measured that field.                                     | The normalized database row uses the same per-field states. Missing or malformed one field does not erase measured siblings or the model step. Explicit zero remains measured.                                                                                            |
 | Cache-control metadata              | Not reported on a `step_finish`; each `model_steps[].control` is empty. Mode, namespace hash, phase, execution order, idle gap, and associated model/provider/variant/runtime version live on attempt `cache_control`, with experiment-wide context in manifest `cache_control`.                                                          | Unavailable: the accepted plugin events and persisted observation have no cache-control field, and there is no attempt/manifest context on this path.                                                                                                                     |
 | Provider, runtime, and model        | Optional provider/model are read directly from each stream part. Runtime and runtime version are not direct source-event fields; selected model plus provider/model/runtime-version control context live on the manifest or attempt.                                                                                                      | Runtime/version are assigned directly at ingestion. Provider/model are optional correlated context from a preceding matching assistant `message.updated`; both remain absent if it was not already accepted.                                                              |

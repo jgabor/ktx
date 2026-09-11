@@ -1,0 +1,23 @@
+id: rholpeffdq
+artifact: decisions
+record:
+  date: 2026-09-07
+  question: What remaining shared-boundary cleanup is justified without changing evidence or compatibility contracts?
+  context: Task iefdatbpxu in plan hljjrlykxb uses standing authority yohiahsqjv and verified analysis ses_f82f541daffe8EMThxNT7TXjuF. The scoped evidence is recorded in .agentera/verification/shared-boundary-disposition.md. Historical findings and satisfaction state are not rewritten. Implementation belongs to wxwwonhjgy.
+  alternatives:
+    - name: Release only the optional collector's acknowledged serialized payload; retain exact evidence and accepted membership, with explicit no-change elsewhere.
+      status: chosen
+    - name: Keep acknowledged payload copies despite no remaining reader; simplest mechanically, but retains demonstrated redundant strings.
+      status: rejected
+    - name: Introduce an independent parser/router DTO; adds conversion ownership without demonstrated benefit.
+      status: rejected
+    - name: Extract a shared domain package with compatibility aliases; possible without changing all references, but no measured maintenance benefit warrants it.
+      status: rejected
+    - name: Split large packages, rebuild the already-shared hook flow, or add a third subprocess helper for about eight shared spawn/wait lines.
+      status: rejected
+    - name: Evict identities, replace exact evidence with digests, or introduce a bounded identity protocol/schema; changes retry and late-identity semantics without current justification.
+      status: rejected
+  choice: "Select only deletion/release of the optional observed entry's payload after a valid persistence ACK. Keep the same key, exact evidence and accepted=true. Conflict comparison must remain before the accepted early return. Failed, uncertain and in-flight deliveries retain their first payload, ordinal and capture time. Keep assistant associations and required-collector state unchanged; required pending payloads already disappear after ACK. Do not evict membership, reset order/time, replace exact evidence with a digest, or lose late identities. D1/D2/D3/D5/S9 receive explicit no-change or prior-correctness/conformance dispositions, not new abstractions. Keep runtime-instance-lifetime identity and exact-evidence indices: state remains linear and not restart-durable. This is bounded cleanup scope, not a fully bounded S10 memory claim. No future bounded identity-store feature is selected; any later justification must separately resolve protocol/schema and ordinal compatibility. No product types, dependencies, schema, caps or broad split are authorized by this decision."
+  reasoning: Parser uses db.ToolCall as a business record, not SQL; router reads Tool/Input/IsError. ParseEvent has two production consumers, ParseEventWithCorrelation one runtime consumer, and Resolve three external consumers plus internal Match. The 187 workspace/test ToolCall references are not an alias-extraction migration count. Common hook processing already starts after hook.go:503 and retained artifacts bypass replacement transforms at 556. Two Bun helpers have distinct payload and failure policies. In init.go:615-631 exact evidence is checked before accepted return; payload is read only while unaccepted, after which ordinaryCommand has finished. eventQueue serializes callbacks at 670-674. The supplied 256-pair probe retained 244672 string bytes excluding objects/maps/runtime; payload exceeds associated evidence, implying release greater than 122336 bytes, not a measured post-change result. Keeping indices avoids new ordinals on redelivery conflicting with DB comparison at session_telemetry.go:83-95,129-150. This removes one redundant retention responsibility without weakening exact conflict detection.
+  confidence: firm
+  feeds_into: wxwwonhjgy retains its three existing cleanup/no-change/conformance criteria. Prove valid ACK releases payload, exact redelivery makes no subprocess call, conflicting redelivery still errors, failed/uncertain/in-flight first payload and time stay unchanged, overlap persists one row, and assistant/required state is unchanged. Measure before/after retained strings on the same 256-pair workload or a scoped heap probe; label actual measurement separately from the derived lower bound. Implementation, qualification, lifecycle completion and satisfaction remain pending with their owners.

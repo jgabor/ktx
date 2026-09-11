@@ -25,6 +25,7 @@ const (
 )
 
 type telemetryRecordInput struct {
+	CapturedAt   string          `json:"captured_at"`
 	KtxSessionID string          `json:"ktx_session_id"`
 	SessionID    string          `json:"session_id"`
 	MessageID    string          `json:"message_id"`
@@ -55,7 +56,7 @@ func telemetryLogic(args []string, format string, stdin io.Reader, db *dbpkg.DB,
 	}
 	switch args[0] {
 	case "record":
-		return nil, recordTelemetry(args[1:], stdin, db, stderr)
+		return nil, recordTelemetry(args[1:], stdin, db, stdout, stderr)
 	case "collector-open":
 		return nil, recordCollectorOpen(args[1:], stdin, db, stdout)
 	case "event-record":
@@ -158,6 +159,7 @@ type collectorOpenInput struct {
 }
 
 type runtimeEventRecordInput struct {
+	CapturedAt   string          `json:"captured_at,omitempty"`
 	EpochID      string          `json:"epoch_id"`
 	EpochOrdinal uint64          `json:"epoch_ordinal"`
 	AfterOrdinal *uint64         `json:"after_ordinal"`
@@ -251,13 +253,22 @@ func recordRuntimeEvent(args []string, stdin io.Reader, db *dbpkg.DB, stdout io.
 	}
 	normalized.IntervalID, normalized.SessionID, normalized.EpochID, normalized.EpochOrdinal = env.IntervalID, env.SessionID, input.EpochID, input.EpochOrdinal
 	normalized.AfterOrdinal = input.AfterOrdinal
-	normalized.CapturedAt, normalized.Telemetry = time.Now().UTC().Format(time.RFC3339Nano), observation
+	normalized.CapturedAt, err = telemetryCapturedAt(input.CapturedAt)
+	if err != nil {
+		return usageError("ktx telemetry event-record: %v", err)
+	}
+	normalized.Telemetry = observation
 	event, _, err := db.PersistRuntimeEvent(normalized)
 	if err != nil {
 		return internalError("ktx telemetry event-record: %v", err)
 	}
 	if event.ModelStepClassification != nil && *event.ModelStepClassification == dbpkg.ModelStepConflictingDuplicate {
 		return internalError("ktx telemetry event-record: conflicting duplicate model step retained at callback ordinal %d", event.Ordinal)
+	}
+	if observation != nil {
+		if err := requireMeasuredTelemetry(observation); err != nil {
+			return internalError("ktx telemetry event-record: %v", err)
+		}
 	}
 	return json.NewEncoder(stdout).Encode(runtimeEventAck{OK: true, SessionID: env.SessionID, IntervalID: env.IntervalID, EpochID: input.EpochID, EpochOrdinal: input.EpochOrdinal, Ordinal: event.Ordinal, Kind: event.Kind, Contract: env.Contract, ModelStepClassification: event.ModelStepClassification})
 }
@@ -315,9 +326,17 @@ func normalizeRuntimeEvent(raw json.RawMessage) (dbpkg.RuntimeEventInput, *telem
 	return input, nil, nil
 }
 
-func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Writer) error {
+type telemetryRecordAck struct {
+	Schema      string                 `json:"schema"`
+	OK          bool                   `json:"ok"`
+	Durable     bool                   `json:"durable"`
+	Observation *telemetry.Observation `json:"observation,omitempty"`
+}
+
+func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("ktx telemetry record", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
+	acknowledge := fs.Bool("ack", false, "emit a durable machine acknowledgement")
 	if err := fs.Parse(args); err != nil {
 		return usageError("ktx telemetry record: %v", err)
 	}
@@ -343,7 +362,10 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 		detail := strings.TrimPrefix(err.Error(), telemetry.ErrInvalid.Error())
 		return usageError("ktx telemetry record: %s%s", opencode.ErrInvalid, detail)
 	}
-	capturedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	capturedAt, err := telemetryCapturedAt(input.CapturedAt)
+	if err != nil {
+		return usageError("ktx telemetry record: %v", err)
+	}
 	sessionHint := input.KtxSessionID
 	benchmarkEnv, required, envErr := benchcontract.ReadEnvironment()
 	if required {
@@ -360,6 +382,9 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 	if err == nil {
 		_, err = db.PersistSessionTelemetry(sessionID, capturedAt, observation)
 	}
+	if err == nil && required {
+		err = requireMeasuredTelemetry(observation)
+	}
 	err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, started, err)
 	if err != nil {
 		if required {
@@ -372,6 +397,40 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stderr io.Wri
 			printError(stderr, classified, FormatJSON)
 		} else {
 			fmt.Fprintf(stderr, "ktx: telemetry not recorded: %v\n", err)
+		}
+	}
+	if *acknowledge {
+		ack := telemetryRecordAck{Schema: "ktx.telemetry-ack.v1", OK: err == nil, Durable: err == nil}
+		if err == nil {
+			ack.Observation = observation
+		}
+		return json.NewEncoder(stdout).Encode(ack)
+	}
+	return nil
+}
+
+func telemetryCapturedAt(value string) (string, error) {
+	if value == "" {
+		return time.Now().UTC().Format(time.RFC3339Nano), nil
+	}
+	if _, err := time.Parse(time.RFC3339Nano, value); err != nil {
+		return "", errors.New("invalid captured_at timestamp")
+	}
+	return value, nil
+}
+
+// Required collection retains incomplete evidence but never acknowledges it as
+// benchmark-ready measurement. Ordinary telemetry keeps all three states.
+func requireMeasuredTelemetry(observation *telemetry.Observation) error {
+	if observation.Cost.State != telemetry.MeasurementMeasured {
+		return errors.New("required model-step cost is not measured")
+	}
+	for _, measurement := range []telemetry.IntegerMeasurement{
+		observation.Tokens.Input, observation.Tokens.Output, observation.Tokens.Reasoning,
+		observation.Tokens.CacheRead, observation.Tokens.CacheWrite,
+	} {
+		if measurement.State != telemetry.MeasurementMeasured {
+			return errors.New("required model-step tokens are not measured")
 		}
 	}
 	return nil
@@ -554,11 +613,14 @@ func printTelemetryHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx telemetry — record and inspect optional session telemetry")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  ktx telemetry record < observation.json")
+	fmt.Fprintln(w, "  ktx telemetry record [--ack] < observation.json")
 	fmt.Fprintln(w, "  ktx telemetry list --session ID [--limit N] [--format json|text]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "record accepts one normalized OpenCode model-step observation. Persistence")
 	fmt.Fprintln(w, "is best-effort: failures are reported on stderr without failing the command.")
+	fmt.Fprintln(w, "--ack emits a versioned JSON acknowledgement; only ok=true and durable=true")
+	fmt.Fprintln(w, "with matching observation evidence acknowledge persistence. Exit 0 alone does not.")
+	fmt.Fprintln(w, "Optional captured_at retains the first RFC3339 observation time across retries.")
 	fmt.Fprintf(w, "This is %s: %s.\n", opencodeTelemetryEvidence, opencodeTelemetryClaimBoundary)
 	fmt.Fprintln(w, "list returns at most 100 observations by default; --limit accepts 1 through 1000.")
 	fmt.Fprintln(w, "cue-delivered is an adapter-only acknowledgement used by explicit collection.")

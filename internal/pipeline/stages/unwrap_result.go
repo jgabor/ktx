@@ -92,8 +92,8 @@ func unwrapMCPObject(input, data []byte) ([]byte, error) {
 			return input, nil
 		}
 
-		var isError bool
-		if err := decodeSingleJSON(isErrorRaw, &isError); err != nil || isError {
+		var isError *bool
+		if err := decodeSingleJSON(isErrorRaw, &isError); err != nil || isError == nil || *isError {
 			return input, nil
 		}
 		var meta fastMCPMetadata

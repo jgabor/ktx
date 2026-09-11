@@ -113,11 +113,8 @@ func runBenchScreen(args []string, opts Options, stdout, stderr io.Writer) int {
 		paths = append(paths, anchorPath)
 	}
 
-	b, err := os.ReadFile(populationPath)
-	if err != nil || len(b) > screenMaxBytes {
-		if err == nil {
-			err = fmt.Errorf("population exceeds %d bytes", screenMaxBytes)
-		}
+	b, err := readScreenPopulation(populationPath)
+	if err != nil {
 		printError(stderr, usageError("ktx bench screen: read population: %v", err), opts.Format)
 		return ExitUsage
 	}
@@ -184,6 +181,33 @@ func runBenchScreen(args []string, opts Options, stdout, stderr io.Writer) int {
 		return ExitInternal
 	}
 	return ExitOK
+}
+
+func readScreenPopulation(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode().IsRegular() && info.Size() > screenMaxBytes {
+		return nil, fmt.Errorf("population exceeds %d bytes", screenMaxBytes)
+	}
+	return readScreenPopulationBytes(f)
+}
+
+func readScreenPopulationBytes(r io.Reader) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, screenMaxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > screenMaxBytes {
+		return nil, fmt.Errorf("population exceeds %d bytes", screenMaxBytes)
+	}
+	return b, nil
 }
 
 func generateScreenOutput(c screenCase) ([]byte, error) {

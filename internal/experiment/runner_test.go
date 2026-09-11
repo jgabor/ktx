@@ -76,7 +76,7 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 	}
 	if command.Args[0] == "docker" {
 		if len(command.Args) > 2 && command.Args[1] == "image" {
-			write(command.Stdout, "sha256:image\n")
+			write(command.Stdout, testImageID+"\n")
 			return CommandResult{}, nil
 		}
 		if len(command.Args) > 1 && command.Args[1] == "rm" {
@@ -197,7 +197,7 @@ func TestRunnerCacheAwarePhasesIsolationAndFallback(t *testing.T) {
 	}
 	writeFixture("README.md", "fixture\n")
 	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-	methodology := writeFixture("tools/bench/specs/cache-aware.yaml", "methodology_version: v5-cache-aware\n")
+	methodology := writeFixture("tools/bench/specs/cache-aware.yaml", "methodology_version: v6-prompt-cache-token-hit-rate\n")
 	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -430,7 +430,7 @@ func TestRunnerAlternatesAndCleansContainers(t *testing.T) {
 	}
 	writeFixture("README.md", "fixture\n")
 	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-	writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
+	writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v8-exact-match\n")
 	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -450,7 +450,7 @@ func TestRunnerAlternatesAndCleansContainers(t *testing.T) {
 	if got := strings.Join(fake.sides, ","); got != "baseline,candidate,candidate,baseline" {
 		t.Fatalf("side order = %s", got)
 	}
-	if len(fake.cleanup) != 4 {
+	if len(fake.cleanup) != 5 {
 		t.Fatalf("cleanup calls = %d", len(fake.cleanup))
 	}
 	if summary["tool_call_inflation"] == nil {
@@ -523,7 +523,7 @@ func TestRunnerPinnedPricingIsExactAndMismatchRunsNoCommands(t *testing.T) {
 	}
 	write("README.md", "fixture\n")
 	write("Dockerfile.benchmark", "FROM scratch\n")
-	methodology := write("methodology.yaml", "methodology_version: v4-eval-matrix\n")
+	methodology := write("methodology.yaml", "methodology_version: v8-exact-match\n")
 	baseline := write("baseline.toml", "[pipeline.default]\nstages = []\n")
 	candidate := write("candidate.toml", "[pipeline.default]\nstages = []\n")
 	task := write("task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -607,7 +607,7 @@ func TestRunnerAcceptsNonNeuralwattProviders(t *testing.T) {
 	}
 	writeFixture("README.md", "fixture\n")
 	writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-	writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
+	writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v8-exact-match\n")
 	baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 	task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
@@ -638,7 +638,7 @@ func TestCompareAttestsCapabilitiesBeforeAuthAndArtifacts(t *testing.T) {
 		}
 		return path
 	}
-	methodology := write("tools/bench/specs/cache-aware.yaml", "methodology_version: v5-cache-aware\n")
+	methodology := write("tools/bench/specs/cache-aware.yaml", "methodology_version: v6-prompt-cache-token-hit-rate\n")
 	task := write("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"prompt\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")
 	baseline := write("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 	candidate := write("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = []\n")
@@ -781,7 +781,7 @@ func TestRunnerVariantPropagation(t *testing.T) {
 			}
 			writeFixture("README.md", "fixture\n")
 			writeFixture("Dockerfile.benchmark", "FROM scratch\n")
-			writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v4-eval-matrix\n")
+			writeFixture("tools/bench/specs/eval-matrix.yaml", "methodology_version: v8-exact-match\n")
 			baseline := writeFixture("tools/bench/pipelines/passthrough.toml", "[pipeline.default]\nstages = []\n")
 			candidate := writeFixture("tools/bench/pipelines/candidate.toml", "[pipeline.default]\nstages = [\"head:1\"]\n")
 			task := writeFixture("tools/bench/tasks/task.toml", "id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n")

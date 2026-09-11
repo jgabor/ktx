@@ -305,6 +305,10 @@ func extractDescription(args []string) (description string, rest []string) {
 	rest = make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+		if a == "--" {
+			rest = append(rest, args[i+1:]...)
+			break
+		}
 		if a == "--description" && i+1 < len(args) {
 			description = args[i+1]
 			i++
@@ -436,6 +440,7 @@ func printPluginHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx plugin <subcommand> [args]")
 	fmt.Fprintln(w)
+	printOwnedArgumentHelp(w)
 	fmt.Fprintln(w, "Subcommands:")
 	fmt.Fprintln(w, "  add <name> <command> [--description <text>]  register a new plugin")
 	fmt.Fprintln(w, "  list [--json]                                 list all plugins (builtins + user)")

@@ -16,7 +16,7 @@ func stringPointer(value string) *string  { return &value }
 func fixtureManifest() Manifest {
 	return Manifest{
 		SchemaVersion: 1, ExperimentID: "exp-1", TargetValidPerPipeline: 1,
-		Task: Task{MinimumToolCalls: 1}, Methodology: MethodologyMetadata{Version: "v4-eval-matrix"},
+		Task: Task{MinimumToolCalls: 1, ExpectedOutput: stringPointer("done")}, Methodology: MethodologyMetadata{Version: exactMatchMethodologyVersion},
 	}
 }
 
@@ -36,7 +36,7 @@ func fixtureAttempts() []Attempt {
 func cacheFixtureManifest() Manifest {
 	return Manifest{
 		SchemaVersion: 1, ExperimentID: "exp-cache", TargetValidPerPipeline: 1,
-		Task: Task{MinimumToolCalls: 1}, Methodology: MethodologyMetadata{Version: "v4-eval-matrix"},
+		Task: Task{MinimumToolCalls: 1, ExpectedOutput: stringPointer("done")}, Methodology: MethodologyMetadata{Version: exactMatchMethodologyVersion},
 		Pipelines: map[string]PipelineMetadata{
 			Baseline:  {PipelineID: "passthrough", SHA256: "sha-baseline", Stages: []string{}},
 			Candidate: {PipelineID: "keep-ends-mid", SHA256: "sha-candidate", Stages: []string{"strip-ansi", "dedup-blank", "normalize", "keep-ends:100:50"}},
@@ -59,27 +59,22 @@ func cacheFixtureAttempts() []Attempt {
 }
 
 func TestSummaryGolden(t *testing.T) {
-	actual, err := MarshalJSON(BuildSummary(fixtureManifest(), fixtureAttempts()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertGolden(t, "summary.golden.json", actual)
+	assertHistoricalSummaryUnsupported(t, "summary.golden.json")
 }
 
-// TestSummaryCacheGolden locks the schema-version-2 byte-match contract
-// when any attempt under either side carries cache evidence. The golden
-// carries per-side pipeline_id / stage_labels / pipeline_hash from the
-// manifest, cache_read / cache_write distributions, and the
-// baseline_minus_candidate cache deltas — the additive surface the
-// v1 summary omits. Locking the byte shape catches regressions in the
-// cache aggregation path the same way the fixed-shape golden locks
-// the v1 path.
-func TestSummaryCacheGolden(t *testing.T) {
-	actual, err := MarshalJSON(BuildSummary(cacheFixtureManifest(), cacheFixtureAttempts()))
+func assertHistoricalSummaryUnsupported(t *testing.T, name string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", name))
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertGolden(t, "summary_cache.golden", actual)
+	if _, err := DecodeSummary(data); err == nil || !strings.Contains(err.Error(), "unsupported summary schema_version") {
+		t.Fatalf("historical summary acquired current interpretation: %v", err)
+	}
+}
+
+func TestSummaryCacheGolden(t *testing.T) {
+	assertHistoricalSummaryUnsupported(t, "summary_cache.golden")
 }
 
 func TestParseStreamReasoningCompletenessAndReportedZero(t *testing.T) {
@@ -105,7 +100,7 @@ func TestParseStreamReasoningCompletenessAndReportedZero(t *testing.T) {
 	}
 }
 
-func TestSummaryV3EstimatedAPICostLeavesLegacyGoldensUnchanged(t *testing.T) {
+func TestSummaryEstimatedAPICost(t *testing.T) {
 	manifest := cacheFixtureManifest()
 	manifest.Pricing = &PricingSnapshotMetadata{Path: "pricing.json", SHA256: "abc", SourceURL: "https://models.dev/api.json", Provider: "openai", Model: "gpt"}
 	attempts := cacheFixtureAttempts()
@@ -115,18 +110,14 @@ func TestSummaryV3EstimatedAPICostLeavesLegacyGoldensUnchanged(t *testing.T) {
 		}
 	}
 	summary := BuildSummary(manifest, attempts)
-	if summary["schema_version"] != 3 {
+	if summary["schema_version"] != 8 {
 		t.Fatalf("schema version = %v", summary["schema_version"])
 	}
 	baseline := summary["pipelines"].(map[string]any)[Baseline].(map[string]any)
 	if _, ok := baseline["estimated_api_cost"]; !ok || baseline["estimated_api_cost_per_correct"] == nil {
 		t.Fatalf("baseline estimated cost fields = %#v", baseline)
 	}
-	legacy, err := MarshalJSON(BuildSummary(fixtureManifest(), fixtureAttempts()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertGolden(t, "summary.golden.json", legacy)
+	assertHistoricalSummaryUnsupported(t, "summary.golden.json")
 }
 
 func TestRankingGolden(t *testing.T) {
@@ -135,11 +126,10 @@ func TestRankingGolden(t *testing.T) {
 		TaskFile: "/repo/tools/bench/tasks/example.toml", Model: "neuralwatt/example", Rounds: 3,
 		BaselinePipeline: "passthrough", Candidates: []string{"candidate"},
 	}, []PairResult{{CandidatePipeline: "candidate", ExperimentID: "pair-1", ExitCode: 0, Summary: summary}}, time.Date(2026, 7, 10, 12, 34, 56, 987, time.UTC))
-	actual, err := MarshalJSON(ranking)
-	if err != nil {
-		t.Fatal(err)
+	rows := ranking["ranking"].([]map[string]any)
+	if len(rows) != 2 || rows[0]["pipeline"] != "candidate" || rows[0]["rank"] != 1 {
+		t.Fatalf("ranking = %v", ranking)
 	}
-	assertGolden(t, "ranking.golden.json", actual)
 }
 
 func TestRankingVariantPropagation(t *testing.T) {
@@ -427,24 +417,7 @@ func TestLoadTaskDefaultsMinimumToolCalls(t *testing.T) {
 	}
 }
 
-func assertGolden(t *testing.T, name string, actual []byte) {
-	t.Helper()
-	expected, err := os.ReadFile(filepath.Join("testdata", name))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(actual) != string(expected) {
-		t.Fatalf("%s mismatch\n--- actual ---\n%s", name, actual)
-	}
-}
-
-// TestReconcileCacheFromStream proves that summary regeneration and
-// validation derive cache_read/cache_write SUM from the authoritative
-// raw stream artifact, not from potentially stale attempts.jsonl fields
-// — but ONLY for attempts that already carry cache evidence in
-// attempts.jsonl. Legacy cacheless attempts are left untouched even
-// if their retained raw stream happens to contain cache fields.
-func TestReconcileCacheFromStream(t *testing.T) {
+func TestRetiredStreamProjectionCannotRegenerate(t *testing.T) {
 	writeExperiment := func(t *testing.T, manifest Manifest, attempt Attempt, streamData []byte) string {
 		t.Helper()
 		dir := t.TempDir()
@@ -458,6 +431,7 @@ func TestReconcileCacheFromStream(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		retainFixtureConfigs(t, dir, &manifest, &attempt)
 		attemptJSON, err := json.Marshal(attempt)
 		if err != nil {
 			t.Fatal(err)
@@ -509,32 +483,16 @@ func TestReconcileCacheFromStream(t *testing.T) {
 			},
 			ConfigSHA256:  "abc",
 			Artifacts:     map[string]string{"stream": "attempts/baseline-1/stream.jsonl"},
-			ContentHashes: map[string]string{"stream": "unused"},
+			ContentHashes: map[string]string{"stream": sha256Bytes(cacheStream)},
 		}
 		dir := writeExperiment(t, manifest, attempt, cacheStream)
 
-		summary, err := WriteSummary(dir)
-		if err != nil {
-			t.Fatalf("WriteSummary: %v", err)
-		}
-		pipelines, _ := summary["pipelines"].(map[string]any)
-		baseline, _ := pipelines[Baseline].(map[string]any)
-		cacheReadDist, _ := baseline["cache_read"].(map[string]any)
-		cacheReadMean, _ := cacheReadDist["mean"].(float64)
-		if cacheReadMean != 300 {
-			t.Fatalf("cache_read mean = %v, want 300 (stream SUM: 100+200), not 200 (stale MAX from attempts.jsonl)", cacheReadMean)
-		}
-
-		report, err := ValidateExperiment(dir)
-		if err != nil {
-			t.Fatalf("ValidateExperiment: %v", err)
-		}
-		if byteMatch, _ := report["summary_byte_match"].(bool); !byteMatch {
-			t.Fatal("summary_byte_match = false, want true (validator must agree with stream-derived summary)")
+		if _, err := WriteSummary(dir); err == nil || !strings.Contains(err.Error(), "unsupported schema_version 1") {
+			t.Fatalf("retired cache projection regeneration: %v", err)
 		}
 	})
 
-	t.Run("legacy cacheless with cache-bearing stream stays v1", func(t *testing.T) {
+	t.Run("cacheless projection with cache-bearing stream", func(t *testing.T) {
 		manifest := baseManifest()
 		manifest.ExperimentID = "exp-cacheless"
 		attempt := Attempt{
@@ -555,44 +513,8 @@ func TestReconcileCacheFromStream(t *testing.T) {
 		}
 		dir := writeExperiment(t, manifest, attempt, cacheStream)
 
-		// Generate the "original" summary by writing it once.
-		originalSummary, err := WriteSummary(dir)
-		if err != nil {
-			t.Fatalf("WriteSummary (original): %v", err)
-		}
-		if schemaVersion, _ := originalSummary["schema_version"].(int); schemaVersion != 1 {
-			t.Fatalf("schema_version = %d, want 1 (cacheless attempt must stay v1 even with cache-bearing stream)", schemaVersion)
-		}
-		pipelines, _ := originalSummary["pipelines"].(map[string]any)
-		baseline, _ := pipelines[Baseline].(map[string]any)
-		if _, hasCache := baseline["cache_read"]; hasCache {
-			t.Fatal("cache_read should be absent from summary for cacheless attempt")
-		}
-
-		// Regenerate — must be byte-identical (reconciliation skipped).
-		regeneratedSummary, err := WriteSummary(dir)
-		if err != nil {
-			t.Fatalf("WriteSummary (regenerated): %v", err)
-		}
-		regeneratedBytes, err := MarshalJSON(regeneratedSummary)
-		if err != nil {
-			t.Fatal(err)
-		}
-		originalBytes, err := MarshalJSON(originalSummary)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if string(regeneratedBytes) != string(originalBytes) {
-			t.Fatalf("regenerated summary differs from original (should be byte-identical):\noriginal: %s\nregenerated: %s", originalBytes, regeneratedBytes)
-		}
-
-		// Validator must agree.
-		report, err := ValidateExperiment(dir)
-		if err != nil {
-			t.Fatalf("ValidateExperiment: %v", err)
-		}
-		if byteMatch, _ := report["summary_byte_match"].(bool); !byteMatch {
-			t.Fatal("summary_byte_match = false, want true (cacheless attempt must validate against its original summary)")
+		if _, err := WriteSummary(dir); err == nil || !strings.Contains(err.Error(), "unsupported schema_version 1") {
+			t.Fatalf("retired cacheless projection regeneration: %v", err)
 		}
 	})
 }

@@ -23,13 +23,13 @@ type EstimatedCostResult struct {
 //
 //	(p *Prices) Lookup(provider, model string) (in, out float64, ok bool)
 //	(p *Prices) Cold() bool
-//	(p *Prices) Refresh() error
+//	(p *Prices) RefreshAndWrite() error
 //
-// The source owns persistence; Derive calls Refresh and then retries lookup.
+// The source owns persistence; Derive retries lookup only after publication succeeds.
 type PriceSource interface {
 	Lookup(provider, model string) (in, out float64, ok bool)
 	Cold() bool
-	Refresh() error
+	RefreshAndWrite() error
 }
 
 // CostInputs is the cross-shape input the two write-time callers
@@ -188,12 +188,12 @@ type costDeriver struct{}
 //
 //   - Otherwise: src.Lookup(provider, model) → if ok → formula.
 //
-//   - Lookup miss + Cold() → src.Refresh() → retry Lookup → formula.
+//   - Lookup miss + Cold() → src.RefreshAndWrite() → retry Lookup → formula.
 //
 //   - Lookup miss + !Cold() → return nil (warm-cache miss is silent;
 //     the on-disk cache is the source of truth between fetches).
 //
-//   - Lookup miss + Cold + Refresh fails → return nil (soft-fail;
+//   - Lookup miss + Cold + refresh or publication fails → return nil (soft-fail;
 //     no error propagates from Derive).
 //
 //   - Formula:
@@ -222,7 +222,7 @@ func (cd *costDeriver) Derive(in CostInputs, src PriceSource) *float64 {
 	}
 
 	inPrice, outPrice, ok := src.Lookup(*in.Provider, *in.Model)
-	// Cold-cache lookup miss triggers a fetch.
+	// Cold-cache lookup miss triggers a fetch and atomic publication.
 	// Warm-cache lookup miss is silent: the on-disk
 	// cache is the source of truth between fetches; the user
 	// must run `ktx prices update` to refresh.
@@ -230,7 +230,7 @@ func (cd *costDeriver) Derive(in CostInputs, src PriceSource) *float64 {
 		// Refresh is bounded by the source (Prices caps it at
 		// 5s); the soft-fail contract drops a non-nil error
 		// and leaves cost nil.
-		if err := src.Refresh(); err == nil {
+		if err := src.RefreshAndWrite(); err == nil {
 			inPrice, outPrice, ok = src.Lookup(*in.Provider, *in.Model)
 		}
 	}

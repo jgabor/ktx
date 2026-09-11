@@ -23,13 +23,8 @@ import (
 // lines to a single blank line. A nil error means the transform
 // completed; this stage never errors.
 //
-// The implementation splits the input into lines (preserving the
-// trailing-newline convention), walks the slices tracking whether
-// the previous emitted line was blank, and emits each non-blank
-// line plus the FIRST blank of any run while skipping subsequent
-// blanks. The result is re-joined with \n and the trailing newline
-// (if any) re-applied so the byte shape matches the input's
-// convention.
+// Lines are visited incrementally, emitting the first blank of each run
+// and preserving the input's trailing-newline convention.
 func DedupBlank(input []byte) ([]byte, error) {
 	if len(input) == 0 {
 		return nil, nil
@@ -39,43 +34,27 @@ func DedupBlank(input []byte) ([]byte, error) {
 	// output preserves the convention (a file ending in "\n" after
 	// the last content line vs no trailing newline).
 	hadTrailingNewline := len(input) > 0 && input[len(input)-1] == '\n'
-	// SplitIntoLines preserves empty segments (so blank lines are
-	// visible as "" entries) but drops the final "" that
-	// bytes.Split would emit after a trailing newline. We re-add
-	// the trailing newline below based on hadTrailingNewline.
-	lines := bytes.Split(input, []byte("\n"))
-	// If the input ended with a newline, bytes.Split appended a
-	// trailing "" — drop it so we do not double-count the trailing
-	// newline when re-joining. For input "a\n\n", split yields
-	// ["a", "", ""]; the trailing "" is the post-newline artifact.
-	if hadTrailingNewline && len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
-		lines = lines[:len(lines)-1]
-	}
-
-	out := make([][]byte, 0, len(lines))
+	out := make([]byte, 0, len(input))
 	prevBlank := false
-	for _, line := range lines {
+	emitted := false
+	for len(input) > 0 {
+		line, rest, _ := bytes.Cut(input, []byte{'\n'})
+		input = rest
 		isBlank := isBlankLine(line)
-		if isBlank {
-			if prevBlank {
-				// A run of consecutive blanks: skip this
-				// one (we already emitted one).
-				continue
-			}
-			// First blank of a run: emit it.
-			out = append(out, line)
-			prevBlank = true
+		if isBlank && prevBlank {
 			continue
 		}
-		out = append(out, line)
-		prevBlank = false
+		if emitted {
+			out = append(out, '\n')
+		}
+		out = append(out, line...)
+		emitted = true
+		prevBlank = isBlank
 	}
-
-	joined := bytes.Join(out, []byte("\n"))
 	if hadTrailingNewline {
-		joined = append(joined, '\n')
+		out = append(out, '\n')
 	}
-	return joined, nil
+	return out, nil
 }
 
 // isBlankLine reports whether the line bytes are entirely whitespace

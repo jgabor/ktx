@@ -1,11 +1,136 @@
 package db
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
+
+func TestContinuityChronologicalOrdering(t *testing.T) {
+	type observation struct{ instance, state, at string }
+	const day = "2026-01-01T"
+	tests := []struct {
+		name, opened, from, to, reason string
+		events                         []observation
+	}{
+		{name: "offset", events: []observation{{"a", "started", "10:00:00+02:00"}, {"a", "stopped", "09:00:00Z"}}},
+		{name: "reverse append", events: []observation{{"a", "stopped", "09:00:00Z"}, {"a", "started", "10:00:00+02:00"}}},
+		{name: "whole UTC", events: []observation{{"a", "started", "08:00:00Z"}, {"a", "stopped", "09:00:00Z"}}},
+		{name: "fraction", from: "08:00:00Z", to: "08:00:00.5Z", events: []observation{{"a", "started", "08:00:00Z"}, {"a", "stopped", "08:00:00.5Z"}}},
+		{name: "fraction precision", from: "08:00:00.1Z", to: "08:00:00.11Z", events: []observation{{"a", "started", "08:00:00.1Z"}, {"a", "stopped", "08:00:00.11Z"}}},
+		{name: "offset tie restart", events: []observation{{"a", "started", "08:00:00Z"}, {"a", "stopped", "10:30:00+02:00"}, {"b", "started", "08:30:00Z"}, {"b", "stopped", "09:00:00Z"}}},
+		{name: "fraction tie restart", events: []observation{{"a", "started", "08:00:00Z"}, {"a", "stopped", "08:30:00Z"}, {"b", "started", "08:30:00.000Z"}, {"b", "stopped", "09:00:00Z"}}},
+		{name: "identical tie restart", events: []observation{{"a", "started", "08:00:00Z"}, {"a", "stopped", "08:30:00Z"}, {"b", "started", "08:30:00Z"}, {"b", "stopped", "09:00:00Z"}}},
+		{name: "tie conflict preserves append order", reason: "conflicting_start", events: []observation{{"a", "started", "08:00:00Z"}, {"b", "started", "10:30:00+02:00"}, {"a", "stopped", "08:30:00Z"}, {"b", "stopped", "09:00:00Z"}}},
+		{name: "true gap", reason: "missing", events: []observation{{"a", "started", "10:00:00+02:00"}, {"a", "stopped", "08:20:00Z"}, {"b", "started", "10:30:00+02:00"}, {"b", "stopped", "09:00:00Z"}}},
+		{name: "true overlap", reason: "conflicting_start", events: []observation{{"a", "started", "10:00:00+02:00"}, {"b", "started", "08:20:00Z"}, {"a", "stopped", "10:30:00+02:00"}, {"b", "stopped", "09:00:00Z"}}},
+		{name: "missing", reason: "missing"},
+		{name: "missing closure", reason: "missing_closure", events: []observation{{"a", "started", "10:00:00+02:00"}}},
+		{name: "conflicting stop", reason: "conflicting_stop", events: []observation{{"a", "started", "10:00:00+02:00"}, {"b", "stopped", "08:30:00Z"}}},
+		{name: "interruption inside", reason: "interrupted", events: []observation{{"a", "started", "10:00:00+02:00"}, {"a", "interrupted", "08:30:00Z"}}},
+		{name: "interruption at end", events: []observation{{"a", "started", "10:00:00+02:00"}, {"a", "interrupted", "09:00:00Z"}}},
+		{name: "pre deployment", opened: "10:30:00+02:00", reason: "pre_deployment_unknown", events: []observation{{"a", "started", "08:30:00Z"}, {"a", "stopped", "09:00:00Z"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			database, err := Open(filepath.Join(t.TempDir(), "ktx.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer database.Close()
+			if tt.opened == "" {
+				tt.opened = "08:00:00Z"
+			}
+			if tt.from == "" {
+				tt.from = "08:00:00Z"
+			}
+			if tt.to == "" {
+				tt.to = "09:00:00Z"
+			}
+			interval, err := database.OpenCollectionInterval([]string{"run"}, day+tt.opened)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range tt.events {
+				if err := database.RetainIngressObservation(IngressObservation{IntervalID: interval.ID, Ingress: "run", InstanceID: e.instance, State: e.state, ObservedAt: day + e.at, Authority: IngressProcessAuthority}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			from, err := time.Parse(time.RFC3339Nano, day+tt.from)
+			if err != nil {
+				t.Fatal(err)
+			}
+			to, err := time.Parse(time.RFC3339Nano, day+tt.to)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var first ContinuityResult
+			for i := 0; i < 3; i++ {
+				result, err := database.EvaluateContinuity(interval.ID, from, to)
+				if err != nil || result.Continuous != (tt.reason == "") {
+					t.Fatalf("continuity = %+v, %v; want reason %q", result, err, tt.reason)
+				}
+				if tt.reason != "" && (len(result.Gaps) != 1 || result.Gaps[0].Reason != tt.reason) {
+					t.Fatalf("gaps = %+v; want %s", result.Gaps, tt.reason)
+				}
+				if i > 0 && !reflect.DeepEqual(first, result) {
+					t.Fatalf("nondeterministic: %+v then %+v", first, result)
+				}
+				first = result
+			}
+			var opened string
+			if err := database.db.QueryRow(`SELECT opened_at FROM collection_intervals WHERE id=?`, interval.ID).Scan(&opened); err != nil || opened != day+tt.opened {
+				t.Fatalf("stored opened_at = %q, %v", opened, err)
+			}
+			rows, err := database.db.Query(`SELECT instance_id,state,observed_at FROM ingress_continuity WHERE interval_id=? ORDER BY rowid`, interval.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rows.Close()
+			i := 0
+			for rows.Next() {
+				var got observation
+				if err := rows.Scan(&got.instance, &got.state, &got.at); err != nil {
+					t.Fatal(err)
+				}
+				if i >= len(tt.events) || got != (observation{tt.events[i].instance, tt.events[i].state, day + tt.events[i].at}) {
+					t.Fatalf("stored observation %d changed: %+v", i, got)
+				}
+				i++
+			}
+			if err := rows.Err(); err != nil || i != len(tt.events) {
+				t.Fatalf("stored count = %d, %v", i, err)
+			}
+		})
+	}
+}
+
+func TestContinuityMalformedTimestampDoesNotCover(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "ktx.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	from := time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)
+	interval, err := database.OpenCollectionInterval([]string{"run"}, from.Format(time.RFC3339Nano))
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := IngressObservation{IntervalID: interval.ID, Ingress: "run", InstanceID: "a", State: "started", ObservedAt: "not-a-time", Authority: IngressProcessAuthority}
+	if err := database.RetainIngressObservation(o); !errors.Is(err, ErrContinuityInvalid) {
+		t.Fatalf("malformed write = %v", err)
+	}
+	if _, err := database.db.Exec(`INSERT INTO ingress_continuity (interval_id,ingress,instance_id,state,observed_at,authority) VALUES (?,?,?,?,?,?)`, o.IntervalID, o.Ingress, o.InstanceID, o.State, o.ObservedAt, o.Authority); err != nil {
+		t.Fatal(err)
+	}
+	result, err := database.EvaluateContinuity(interval.ID, from, from.Add(time.Hour))
+	if err == nil || result.Continuous {
+		t.Fatalf("malformed evidence manufactured coverage: %+v, %v", result, err)
+	}
+}
 
 func TestContinuityEvidence(t *testing.T) {
 	database, err := Open(filepath.Join(t.TempDir(), "ktx.db"))

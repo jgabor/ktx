@@ -10,18 +10,14 @@ import (
 
 func authorizationEvidence(t *testing.T, attempts []Attempt) (map[string]any, map[string]any, map[string]any) {
 	t.Helper()
-	summary := BuildSummary(comparisonManifest(), attempts)
-	return summary["direct_cached_input_share"].(map[string]any), summary["estimated_consecutive_step_reuse"].(map[string]any), summary["cached_input_share_comparison"].(map[string]any)
+	manifest := comparisonManifest()
+	return buildDirectCachedInputShare(manifest, attempts), buildSecondaryCacheEstimate(attempts), buildCachedInputShareComparison(manifest, attempts)
 }
 
 func statementAuthorization(t *testing.T, attempts []Attempt) map[string]any {
 	t.Helper()
-	summary := BuildSummary(comparisonManifest(), attempts)
-	authorization, ok := summary["statement_authorization"].(map[string]any)
-	if !ok {
-		t.Fatalf("statement authorization missing: %#v", summary)
-	}
-	return authorization
+	direct, secondary, comparison := authorizationEvidence(t, attempts)
+	return buildCacheStatementAuthorization(direct, secondary, comparison)
 }
 
 func authorizationOutcome(t *testing.T, authorization map[string]any, name string) map[string]any {
@@ -150,15 +146,10 @@ func TestCacheStatementAuthorizationFoundationalBlockersAndPrecedence(t *testing
 			manifest := comparisonManifest()
 			attempts := comparisonPairs(5, 20, 30)
 			tc.mutate(&manifest, attempts)
-			var authorization map[string]any
-			if supportsDirectCachedInputShare(manifest) {
-				authorization = BuildSummary(manifest, attempts)["statement_authorization"].(map[string]any)
-			} else {
-				direct := buildDirectCachedInputShare(manifest, attempts)
-				secondary := buildSecondaryCacheEstimate(attempts)
-				comparison := buildCachedInputShareComparison(manifest, attempts)
-				authorization = buildCacheStatementAuthorization(direct, secondary, comparison)
-			}
+			direct := buildDirectCachedInputShare(manifest, attempts)
+			secondary := buildSecondaryCacheEstimate(attempts)
+			comparison := buildCachedInputShareComparison(manifest, attempts)
+			authorization := buildCacheStatementAuthorization(direct, secondary, comparison)
 			for _, name := range []string{"candidate_higher_success", "candidate_lower", "inconclusive"} {
 				outcome := authorizationOutcome(t, authorization, name)
 				got := outcome["reasons"].([]string)
@@ -266,10 +257,10 @@ func TestCacheStatementAuthorizationDeterministicRenderingAndDescriptiveIndepend
 	}
 	first := BuildSummary(comparisonManifest(), attempts)
 	second := BuildSummary(comparisonManifest(), append([]Attempt(nil), attempts...))
-	if !reflect.DeepEqual(first["statement_authorization"], second["statement_authorization"]) {
+	if !reflect.DeepEqual(first[promptCacheTokenHitRateStatementAuthorizationField], second[promptCacheTokenHitRateStatementAuthorizationField]) {
 		t.Fatal("statement authorization is not deterministic")
 	}
-	authorization := first["statement_authorization"].(map[string]any)
+	authorization := statementAuthorization(t, attempts)
 	assertAuthorized(t, authorizationOutcome(t, authorization, "comparative_descriptive"), true)
 	assertAuthorized(t, authorizationOutcome(t, authorization, "candidate_higher_success"), false, "quality_not_preserved")
 	text := RenderSummary(first)

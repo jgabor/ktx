@@ -15,8 +15,8 @@ func TestDecodeSummaryRejectsMalformedAndConflictingCore(t *testing.T) {
 	}{
 		{name: "malformed", data: `{`, want: "decode summary"},
 		{name: "trailing", data: `{} {}`, want: "trailing JSON value"},
-		{name: "pipelines type", data: `{"schema_version":1,"pipelines":[]}`, want: "invalid summary pipelines"},
-		{name: "conflicting pass rates", data: `{"schema_version":1,"pipelines":{"baseline":{"attempt_count":1,"evaluated_count":1,"valid_count":1,"pass_rate":1,"full_pass_rate":0},"candidate":{"attempt_count":1,"evaluated_count":1,"valid_count":1}}}`, want: "conflicting summary baseline pass rates"},
+		{name: "pipelines type", data: `{"schema_version":8,"pipelines":[]}`, want: "invalid summary pipelines"},
+		{name: "conflicting pass rates", data: `{"schema_version":8,"pipelines":{"baseline":{"attempt_count":1,"evaluated_count":1,"valid_count":1,"pass_rate":1,"full_pass_rate":0},"candidate":{"attempt_count":1,"evaluated_count":1,"valid_count":1}}}`, want: "conflicting summary baseline pass rates"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

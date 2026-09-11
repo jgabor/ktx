@@ -21,6 +21,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Install build tools
         run: |
           go install github.com/magefile/mage@v1.15.0
@@ -28,5 +32,6 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
       - name: Verify repository
         # mage verify allocates and audits its own disposable application root;
+        # includes Go race tests, Python verifier tests, and the Bun adapter gate.
         # docs/database-safety.md is the canonical contract.
         run: mage verify

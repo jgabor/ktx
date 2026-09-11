@@ -19,7 +19,7 @@ func TestLoadIsIndependentOfWorkingDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Version != "v1" || source != "tools/bench/specs/exact-match.yaml" {
+	if spec.Version != "v8-exact-match" || source != "tools/bench/specs/exact-match.yaml" {
 		t.Fatalf("got version=%q source=%q", spec.Version, source)
 	}
 }

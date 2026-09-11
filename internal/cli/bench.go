@@ -126,6 +126,9 @@ func init() {
 		Description:   "benchmark runs, experiments, and reports",
 		FormatDefault: FormatJSON,
 		Help:          printBenchHelp,
+		HelpForArgs: func(args []string, w io.Writer) bool {
+			return len(args) > 0 && printBenchSubcommandHelp(w, args[0])
+		},
 	}, benchCommandFunc)
 }
 
@@ -136,6 +139,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage: ktx bench <subcommand> [args]")
 	fmt.Fprintln(w)
+	printOwnedArgumentHelp(w)
 	fmt.Fprintln(w, "Subcommands:")
 	fmt.Fprintln(w, "  run <agent> <model> <task> --spec <id>")
 	fmt.Fprintln(w, "      Execute the spec-pinned (agent, model, task) triple,")

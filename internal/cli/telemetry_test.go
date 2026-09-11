@@ -238,15 +238,15 @@ func TestTelemetryExplicitStatesPreserveCrossIngressFirstEvidence(t *testing.T) 
 	if _, err := telemetryLogic([]string{"record"}, FormatJSON, strings.NewReader(hookPayload), d, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("record explicit hook states: %v", err)
 	}
-	collector := telemetryopencode.NewCollector()
-	wrapper, err := collector.AddStream([]byte(`{"type":"step_finish","part":{"id":"prt_1","sessionID":"ses_1","messageID":"msg_1","type":"step-finish","reason":"stop","cost":0,"tokens":[]}}`))
+	wrapper, err := telemetryopencode.DecodeStreamModelStep([]byte(`{"type":"step_finish","part":{"id":"prt_1","sessionID":"ses_1","messageID":"msg_1","type":"step-finish","reason":"stop","cost":0,"tokens":[]}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inserted, err := d.PersistSessionTelemetry(sessionID, "later", wrapper); err != nil || inserted {
+	wrapper.Ordinal, wrapper.Source = 1, telemetry.SourceWrapperStream
+	if inserted, err := d.PersistSessionTelemetry(sessionID, "later", &wrapper); err != nil || inserted {
 		t.Fatalf("equivalent wrapper duplicate = %t, %v", inserted, err)
 	}
-	weaker := *wrapper
+	weaker := wrapper
 	weaker.Tokens.Input = telemetry.IntegerMeasurement{State: telemetry.MeasurementUnknown}
 	if inserted, err := d.PersistSessionTelemetry(sessionID, "later-still", &weaker); !errors.Is(err, dbpkg.ErrSessionTelemetryConflict) || inserted {
 		t.Fatalf("weaker conflicting duplicate = %t, %v", inserted, err)

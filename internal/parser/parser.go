@@ -241,6 +241,8 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 		ev := &parsedEvent{}
 		_ = json.Unmarshal(part["tool"], &ev.Tool)
 		_ = json.Unmarshal(part["callID"], &ev.ID)
+		// A legacy/display part ID is not a native tool-call identifier.
+		nativeCallID := ev.ID
 		if ev.ID == "" {
 			_ = json.Unmarshal(part["id"], &ev.ID)
 		}
@@ -254,7 +256,7 @@ func parseToolEvent(line []byte) (*parsedEvent, bool) {
 		ev.native = NativeCorrelation{
 			Runtime:   "opencode",
 			SessionID: topSessionID,
-			CallID:    ev.ID,
+			CallID:    nativeCallID,
 			Trusted:   true,
 		}
 		var state map[string]json.RawMessage

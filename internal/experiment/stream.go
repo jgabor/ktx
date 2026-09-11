@@ -2,6 +2,7 @@ package experiment
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"strings"
 
@@ -24,6 +25,11 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 		return metrics
 	}
 	defer file.Close()
+	return parseStreamReader(file, expectedOutput, expectedFacts, retainModelIdentity)
+}
+
+func parseStreamReader(file io.Reader, expectedOutput *string, expectedFacts []string, retainModelIdentity bool) Metrics {
+	metrics := Metrics{Score: Score{FactsMatched: []string{}, FactsMissed: []string{}}}
 	// Usage-evidence aggregation for step_finish events is shared via
 	// the usage package so the live benchmark path and this experiment
 	// path apply one interpretation to the same recorded stream. The
@@ -39,9 +45,7 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 	usage.ReadDelimitedLines(file, usage.MaxRecordSize, func(line []byte) bool {
 		streamOrdinal++
 		var event struct {
-			Type    string          `json:"type"`
-			Content json.RawMessage `json:"content"`
-			Part    json.RawMessage `json:"part"`
+			Type string `json:"type"`
 		}
 		if json.Unmarshal(line, &event) != nil {
 			return false // skip malformed line (preserves scoring/status)
@@ -50,6 +54,13 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 		case "tool_use":
 			metrics.ToolCallCount++
 		case "step_finish":
+			// Only step metadata needs a retained raw part. Tool output, ignored
+			// events and text must not acquire an extra payload copy merely to
+			// dispatch them. The specialized readers below still own decoding.
+			var step struct {
+				Part json.RawMessage `json:"part"`
+			}
+			_ = json.Unmarshal(line, &step)
 			if !agg.AddLine(line) {
 				return false
 			}
@@ -60,7 +71,7 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 					MessageID string `json:"messageID"`
 					PartID    string `json:"id"`
 				}
-				_ = json.Unmarshal(event.Part, &identity)
+				_ = json.Unmarshal(step.Part, &identity)
 				wrapperIdentities = append(wrapperIdentities, modelStepIdentity{SessionID: identity.SessionID, MessageID: identity.MessageID, PartID: identity.PartID})
 			}
 			if fact, ok := sequence.DecodeOpenCodeSequenceFact(line, "wrapper_stream", streamOrdinal, modelStepOrdinal); ok {
@@ -69,7 +80,7 @@ func parseStream(path string, expectedOutput *string, expectedFacts []string, re
 			var part struct {
 				Reason string `json:"reason"`
 			}
-			if json.Unmarshal(event.Part, &part) == nil && part.Reason == "stop" {
+			if json.Unmarshal(step.Part, &part) == nil && part.Reason == "stop" {
 				metrics.StreamComplete = true
 			}
 		case "text":

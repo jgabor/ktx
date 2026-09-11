@@ -2,8 +2,6 @@ package experiment
 
 import (
 	"math"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -110,7 +108,7 @@ func v3Manifest() Manifest {
 
 func evaluatedAttempt(id, side string, cycle int, tokensIn, cacheRead, cacheWrite, tokensOut, reasoning, cost, estimated, tools, score float64) Attempt {
 	return Attempt{
-		AttemptID: id, Side: side, Cycle: cycle, Status: "completed", SessionID: stringPointer("session-" + id),
+		SchemaVersion: 1, AttemptID: id, Side: side, Cycle: cycle, Status: "completed", SessionID: stringPointer("session-" + id),
 		Metrics: Metrics{
 			StreamComplete: true, Score: Score{Score: score, FullPass: score == 1, AnswerMatchesExpected: score == 1},
 			ToolCallCount: int(tools), TokensIn: floatPointer(tokensIn), CacheRead: floatPointer(cacheRead),
@@ -138,7 +136,7 @@ func v3Attempts() []Attempt {
 
 func TestSummaryV3PairedCyclesOutliersAndClassifications(t *testing.T) {
 	summary := BuildSummary(v3Manifest(), v3Attempts())
-	if summary["schema_version"] != 3 {
+	if summary["schema_version"] != 8 {
 		t.Fatalf("schema_version = %v", summary["schema_version"])
 	}
 	pipelines := summary["pipelines"].(map[string]any)
@@ -180,28 +178,9 @@ func TestSummaryV3PairedCyclesOutliersAndClassifications(t *testing.T) {
 }
 
 func TestSummaryV3GoldenAndLegacyBytes(t *testing.T) {
-	actual, err := MarshalJSON(BuildSummary(v3Manifest(), v3Attempts()))
-	if err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"summary_v3.golden", "summary.golden.json", "summary_cache.golden"} {
+		assertHistoricalSummaryUnsupported(t, name)
 	}
-	if os.Getenv("UPDATE_GOLDEN") == "1" {
-		if err := os.WriteFile(filepath.Join("testdata", "summary_v3.golden"), actual, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	} else {
-		assertGolden(t, "summary_v3.golden", actual)
-	}
-
-	legacyV1, err := MarshalJSON(BuildSummary(fixtureManifest(), fixtureAttempts()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertGolden(t, "summary.golden.json", legacyV1)
-	legacyV2, err := MarshalJSON(BuildSummary(cacheFixtureManifest(), cacheFixtureAttempts()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertGolden(t, "summary_cache.golden", legacyV2)
 }
 
 func TestRankingSurfacesV3PairedEvidenceOnly(t *testing.T) {
@@ -234,34 +213,10 @@ func TestRankingSurfacesV3PairedEvidenceOnly(t *testing.T) {
 	if text := RenderSummary(pair.Summary); !strings.Contains(text, "outlier candidate.tool_call_count attempt=candidate-4 cycle=4 value=52") {
 		t.Fatalf("v3 summary text does not surface outlier:\n%s", text)
 	}
-
-	legacy := BuildRanking(options, []PairResult{{CandidatePipeline: "candidate", Summary: BuildSummary(fixtureManifest(), fixtureAttempts())}}, time.Unix(0, 0))
-	for _, row := range legacy["ranking"].([]map[string]any) {
-		if _, ok := row["sample_classification"]; ok {
-			t.Fatalf("legacy ranking gained v3 field: %#v", row)
-		}
-	}
 }
 
 func TestSummaryV3ValidationRegeneration(t *testing.T) {
-	dir := t.TempDir()
-	rate := .5
-	pricing, err := writePricingSnapshot(dir, "openai", "gpt-5.6-luna", db.Price{
-		Input: 1, Output: 2, CacheRead: &rate, CacheWrite: &rate, InputSet: true, OutputSet: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest := v3Manifest()
-	manifest.Pricing = pricing
-	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
-		t.Fatal(err)
-	}
-	for _, attempt := range v3Attempts() {
-		if err := AppendAttempt(dir, attempt); err != nil {
-			t.Fatal(err)
-		}
-	}
+	dir := produceEntryArchive(t, "exact-match", true, true)
 	if _, err := WriteSummary(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -293,12 +248,12 @@ func TestPricingSnapshotReasoningRoundTrip(t *testing.T) {
 	}
 }
 
-func TestPricingSnapshotWithoutEstimateDoesNotEnableV3(t *testing.T) {
+func TestPricingSnapshotWithoutEstimateDoesNotChangeFormat(t *testing.T) {
 	manifest := cacheFixtureManifest()
 	manifest.Pricing = &PricingSnapshotMetadata{Path: "pricing.json", SHA256: "sha", SourceURL: db.ModelsDevURL, Provider: "openai", Model: "gpt"}
 	summary := BuildSummary(manifest, cacheFixtureAttempts())
-	if summary["schema_version"] != 2 {
-		t.Fatalf("schema_version = %v, want 2 without estimated observations", summary["schema_version"])
+	if summary["schema_version"] != 8 {
+		t.Fatalf("schema_version = %v, want 8 without estimated observations", summary["schema_version"])
 	}
 	baseline := summary["pipelines"].(map[string]any)[Baseline].(map[string]any)
 	if _, ok := baseline["estimated_api_cost"]; ok {
@@ -306,10 +261,5 @@ func TestPricingSnapshotWithoutEstimateDoesNotEnableV3(t *testing.T) {
 	}
 	if _, ok := summary["estimated_api_cost_basis"]; ok {
 		t.Fatalf("unexpected estimated basis: %#v", summary)
-	}
-
-	manifest.Methodology.Version = "v5-cache-aware"
-	if got := BuildSummary(manifest, cacheFixtureAttempts())["schema_version"]; got != 3 {
-		t.Fatalf("v5 schema_version = %v, want 3", got)
 	}
 }

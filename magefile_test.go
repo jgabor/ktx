@@ -180,6 +180,51 @@ func TestHermeticTargetsUseSingleBoundary(t *testing.T) {
 	}
 }
 
+func TestOpencodeTelemetryFixtureRejectsInvalidBoundaryBeforeTools(t *testing.T) {
+	t.Setenv(hermeticMarkerEnv, "1")
+	t.Setenv(hermeticBoundaryIDEnv, "")
+	t.Setenv("PATH", t.TempDir())
+	if err := OpencodeTelemetryFixture(); err == nil || !strings.Contains(err.Error(), "invalid hermetic reentry") {
+		t.Fatalf("fixture must validate isolation before looking up Bun or running tests: %v", err)
+	}
+}
+
+func TestMaintainedVerificationEntrypointWiring(t *testing.T) {
+	read := func(path string) string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	t.Run("pre-push", func(t *testing.T) {
+		_, hook, ok := strings.Cut(read(".lefthook.yml"), "pre-push:")
+		if !ok || !strings.Contains(hook, "run: mage test") {
+			t.Error("pre-push must use the audited race-enabled Mage test target")
+		}
+		if strings.Contains(hook, "--fix") || strings.Contains(hook, "stage_fixed:") {
+			t.Error("parallel pre-push verification must not fix or stage its inputs")
+		}
+	})
+	t.Run("CI prerequisites", func(t *testing.T) {
+		workflow := read(".github/workflows/ci.yml")
+		for _, required := range []string{"oven-sh/setup-bun@", "actions/setup-python@", "run: mage verify"} {
+			if !strings.Contains(workflow, required) {
+				t.Errorf("CI lacks %q", required)
+			}
+		}
+	})
+	t.Run("Python verifier in check", func(t *testing.T) {
+		source := read("magefile.go")
+		_, body, _ := strings.Cut(source, "func check() error {")
+		body, _, _ = strings.Cut(body, "\n}\n")
+		if !strings.Contains(body, "run: schemaReadinessVerifierTest") {
+			t.Error("check must execute Python verifier tests (verify inherits check)")
+		}
+	})
+}
+
 func TestGeneratedAdapterGateRequiresBinaryAndBun(t *testing.T) {
 	directory := t.TempDir()
 	binary := filepath.Join(directory, "ktx")

@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	dbpkg "github.com/jgabor/ktx/internal/db"
 )
 
 func TestAuthoritativeRegenerationIgnoresProjectionDriftAndDuplicates(t *testing.T) {
@@ -68,7 +66,11 @@ func TestRegenerationUsesRetainedInputsAfterSourceDisappears(t *testing.T) {
 	if err := os.WriteFile(retained, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	manifest.Inputs = []InputMetadata{{ID: "crossfile-nav", Kind: "task", Format: "toml", Path: "inputs/task/crossfile-nav.toml", SHA256: sha256Bytes(content)}}
+	for i := range manifest.Inputs {
+		if manifest.Inputs[i].Kind == "task" {
+			manifest.Inputs[i] = InputMetadata{ID: "crossfile-nav", Kind: "task", Format: "toml", Path: "inputs/task/crossfile-nav.toml", SHA256: sha256Bytes(content)}
+		}
+	}
 	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +85,7 @@ func TestRegenerationUsesRetainedInputsAfterSourceDisappears(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if valid, _ := report["valid"].(bool); !valid {
+	if report["valid"] != false || report["target_met"] != false || report["summary_byte_match"] != true || report["attempt_checks"].([]map[string]any)[0]["valid"] != true {
 		t.Fatalf("validation report = %#v", report)
 	}
 	manifestBytes, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
@@ -122,8 +124,11 @@ func TestAuthoritativeRegenerationRejectsMalformedAuthorityLink(t *testing.T) {
 	}
 	attempt.Artifacts["stream"] = "attempts/baseline-001/missing-stream.jsonl"
 	writeAttemptRecords(t, dir, attempt)
-	if _, err := RegenerateSummary(dir); err == nil || !strings.Contains(err.Error(), "read stream authority") {
-		t.Fatalf("error = %v, want malformed authority-link failure", err)
+	if _, err := RegenerateSummary(dir); err != nil {
+		t.Fatal(err)
+	}
+	if report, err := ValidateExperiment(dir); err != nil || report["valid"] != false || report["target_met"] != false {
+		t.Fatalf("malformed authority acquired credit: %v %v", report, err)
 	}
 }
 
@@ -180,74 +185,47 @@ func TestAuthoritativeRegenerationRejectsUnavailableContributingAuthority(t *tes
 			}
 			test.mutate(dir, &attempt)
 			writeAttemptRecords(t, dir, attempt)
-			if _, err := RegenerateSummary(dir); err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("error = %v, want %q", err, test.want)
+			if _, err := RegenerateSummary(dir); err != nil {
+				t.Fatal(err)
+			}
+			if report, err := ValidateExperiment(dir); err != nil || report["valid"] != false || report["target_met"] != false {
+				t.Fatalf("unavailable authority acquired credit: %v %v", report, err)
 			}
 		})
 	}
 }
 
-func TestLegacyRegenerationPreservesSerializedBytes(t *testing.T) {
+func TestLegacyRegenerationRejected(t *testing.T) {
 	dir := t.TempDir()
-	manifest := Manifest{ExperimentID: "legacy", Methodology: MethodologyMetadata{Version: "v4"}, Task: Task{MinimumToolCalls: 1}}
+	manifest := Manifest{SchemaVersion: 1, ExperimentID: "legacy", TargetValidPerPipeline: 1, Methodology: MethodologyMetadata{Version: "v4"}, Task: Task{MinimumToolCalls: 1, ExpectedOutput: stringPointer("done")}}
+	retainFixtureConfigs(t, dir, &manifest)
 	session := "legacy-session"
 	attempt := Attempt{SchemaVersion: 1, ExperimentID: "legacy", AttemptID: "baseline-001", Side: Baseline, Status: "completed", SessionID: &session, Metrics: Metrics{StreamComplete: true, ToolCallCount: 1}}
 	if err := WriteJSON(filepath.Join(dir, "manifest.json"), manifest); err != nil {
 		t.Fatal(err)
 	}
 	writeAttemptRecords(t, dir, attempt)
-	if _, err := WriteSummary(dir); err != nil {
-		t.Fatal(err)
-	}
-	first, _ := os.ReadFile(filepath.Join(dir, "summary.json"))
-	if _, err := WriteSummary(dir); err != nil {
-		t.Fatal(err)
-	}
-	second, _ := os.ReadFile(filepath.Join(dir, "summary.json"))
-	if !bytes.Equal(first, second) {
-		t.Fatal("legacy summary regeneration was not byte-identical")
+	if _, err := WriteSummary(dir); err == nil || !strings.Contains(err.Error(), "unsupported methodology version") {
+		t.Fatalf("legacy regeneration error = %v", err)
 	}
 }
 
 func writeAuthorityFixture(t *testing.T) (string, Manifest, Attempt) {
 	t.Helper()
-	dir := t.TempDir()
-	attemptDir := filepath.Join(dir, "attempts", "baseline-001")
-	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	databasePath := filepath.Join(attemptDir, "ktx.db")
-	database, err := dbpkg.Open(databasePath)
+	dir := produceEntryArchive(t, "exact-match", true, true)
+	data, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	session := "abcdefghijklmnop"
-	if err := database.InsertSession(&dbpkg.Session{ID: session, Agent: "test"}); err != nil {
+	var manifest Manifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	tool := &dbpkg.ToolCall{ID: "qrstuvwxyzabcdef", SessionID: session, Tool: "bash", Output: "first", ContentHash: dbpkg.ContentHash("first")}
-	if _, err := database.PersistToolCallOnce(tool); err != nil {
-		t.Fatal(err)
+	attempts, err := LoadAttempts(dir)
+	if err != nil || len(attempts) != 2 {
+		t.Fatalf("attempts=%v err=%v", attempts, err)
 	}
-	if err := database.Close(); err != nil {
-		t.Fatal(err)
-	}
-	stream := "" +
-		`{"type":"tool_use"}` + "\n" +
-		`{"type":"step_finish","part":{"reason":"tool-calls","tokens":{"input":503,"output":10,"reasoning":3,"cache":{"read":5632,"write":0}},"cost":0}}` + "\n" +
-		`{"type":"text","part":{"text":"FACT=ok"}}` + "\n" +
-		`{"type":"step_finish","part":{"reason":"stop","tokens":{"input":20883,"output":20,"reasoning":4,"cache":{"read":5632,"write":0}},"cost":0}}` + "\n"
-	if err := os.WriteFile(filepath.Join(attemptDir, "stream.jsonl"), []byte(stream), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	manifest := Manifest{ExperimentID: "authority", Methodology: MethodologyMetadata{Version: "v4"}, Task: Task{ExpectedFacts: []string{"FACT=ok"}, MinimumToolCalls: 1}}
-	attempt := Attempt{
-		SchemaVersion: 2, ExperimentID: "authority", AttemptID: "baseline-001", Side: Baseline,
-		Status: "completed", SessionID: &session, SessionLink: SessionLink{State: "linked", NewSessionCount: 9},
-		Metrics:   Metrics{ToolCallCount: 9, TokensIn: float64Pointer(1), CacheRead: float64Pointer(1)},
-		Artifacts: map[string]string{"database": "attempts/baseline-001/ktx.db", "stream": "attempts/baseline-001/stream.jsonl"},
-	}
-	return dir, manifest, attempt
+	return dir, manifest, attempts[0]
 }
 
 func writeAttemptRecords(t *testing.T, dir string, attempts ...Attempt) {

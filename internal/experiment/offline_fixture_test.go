@@ -1,6 +1,7 @@
 package experiment
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -11,7 +12,7 @@ import (
 func TestSemanticIDOfflineExperimentFixture(t *testing.T) {
 	work := os.Getenv("KTX_OFFLINE_FIXTURE_ROOT")
 	if work == "" {
-		t.Skip("KTX_OFFLINE_FIXTURE_ROOT is unset")
+		work = t.TempDir()
 	}
 	source := filepath.Join(work, "source")
 	write := func(name string, content []byte) string {
@@ -43,7 +44,7 @@ func TestSemanticIDOfflineExperimentFixture(t *testing.T) {
 	expected := "done"
 	task := Task{ID: "crossfile-nav", Prompt: "do work", MinimumToolCalls: 1, ExpectedOutput: &expected, WorkspaceMode: "repo"}
 	runner := &Runner{Executor: &fakeExecutor{sessions: map[string]string{}, opencodeIdentity: "1.18.5"}, Now: func() time.Time { return time.Date(2026, 8, 28, 20, 0, 0, 0, time.UTC) }, PID: 56, ResolvePrice: testPriceResolver}
-	_, _, code, err := runner.Compare(context.Background(), CompareOptions{
+	dir, _, code, err := runner.Compare(context.Background(), CompareOptions{
 		Model: "opencode/gpt-5.6-luna", Variant: "high", Task: task, TaskID: "crossfile-nav", TargetValid: 1, MaxAttempts: 2,
 		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "semantic-cutover-offline",
 		DataDir: filepath.Join(work, ".ktx", "experiments"), Image: "image", AuthPath: auth, RepoRoot: source,
@@ -52,5 +53,30 @@ func TestSemanticIDOfflineExperimentFixture(t *testing.T) {
 	})
 	if err != nil || code != 0 {
 		t.Fatalf("Compare code=%d err=%v", code, err)
+	}
+	original, err := os.ReadFile(filepath.Join(dir, "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		summary, err := WriteSummary(dir)
+		if err != nil || summary.SchemaVersion() != 8 {
+			t.Fatalf("summary=%v err=%v", summary, err)
+		}
+		report, err := ValidateExperiment(dir)
+		if err != nil || report["valid"] != true || report["target_met"] != true {
+			t.Fatalf("report=%v err=%v", report, err)
+		}
+		regenerated, _ := os.ReadFile(filepath.Join(dir, "summary.json"))
+		if !bytes.Equal(original, regenerated) {
+			t.Fatal("inline producer/regenerator summary bytes differ")
+		}
+		if os.Getenv("KTX_ENTRY_CONTRACT_BINARY") != "" {
+			for _, verb := range []string{"list", "show", "summarize", "validate"} {
+				if out, err := entryCLI(t, dir, verb); err != nil {
+					t.Fatalf("inline %s: %v %s", verb, err, out)
+				}
+			}
+		}
 	}
 }

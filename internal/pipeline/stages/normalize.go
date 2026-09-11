@@ -32,43 +32,20 @@ func Normalize(input []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	hadTrailingNewline := input[len(input)-1] == '\n'
-	// First normalize standalone \r\n → \n and lone \r → \n, so the
-	// subsequent per-line splitting sees only \n line endings.
-	// bytes.Map would allocate per-byte; a manual scan with a fresh
-	// buffer is both faster and easier to reason about.
-	normalized := make([]byte, 0, len(input))
+	out := make([]byte, 0, len(input))
+	start := 0
 	for i := 0; i < len(input); i++ {
 		c := input[i]
-		if c == '\r' {
-			// Either \r\n → \n, or lone \r → \n.
-			if i+1 < len(input) && input[i+1] == '\n' {
-				normalized = append(normalized, '\n')
-				i++ // consume the \n
-				continue
-			}
-			normalized = append(normalized, '\n')
+		if c != '\r' && c != '\n' {
 			continue
 		}
-		normalized = append(normalized, c)
+		out = append(out, bytes.TrimRight(input[start:i], " \t")...)
+		out = append(out, '\n')
+		if c == '\r' && i+1 < len(input) && input[i+1] == '\n' {
+			i++
+		}
+		start = i + 1
 	}
-
-	// Now split on \n, trim trailing whitespace from each line,
-	// and rejoin. The trailing-newline convention is re-applied
-	// below based on hadTrailingNewline.
-	lines := bytes.Split(normalized, []byte("\n"))
-	if hadTrailingNewline && len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
-		lines = lines[:len(lines)-1]
-	}
-
-	out := make([][]byte, 0, len(lines))
-	for _, line := range lines {
-		out = append(out, bytes.TrimRight(line, " \t"))
-	}
-
-	joined := bytes.Join(out, []byte("\n"))
-	if hadTrailingNewline {
-		joined = append(joined, '\n')
-	}
-	return joined, nil
+	out = append(out, bytes.TrimRight(input[start:], " \t")...)
+	return out, nil
 }

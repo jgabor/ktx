@@ -26,10 +26,14 @@ func writeContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), writeTimeout)
 }
 
+type transactionStarter interface {
+	BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
+}
+
 // withWriteTx retries only transactions that definitely did not commit. The
 // pinned modernc driver rolls back after a failed Commit; that makes its
 // BUSY/LOCKED commit errors safe to retry without duplicating writes.
-func withWriteTx(ctx context.Context, database *sql.DB, fn func(*sql.Tx) error) error {
+func withWriteTx(ctx context.Context, database transactionStarter, fn func(*sql.Tx) error) error {
 	var lastErr error
 	for attempt := 0; attempt < writeMaxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {

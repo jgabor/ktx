@@ -218,6 +218,9 @@ func TestLiveValidationRejectsArtifactHashMismatch(t *testing.T) {
 		load       func(string) bool
 	}{{"matrix", "../../tools/bench/evidence/targeted-residual-evidence-matrix.json", func(path string) bool { _, a, err := loadLiveMatrix(path); return err == nil && a.Accepted }}, {"receipt", "../../tools/bench/evidence/targeted-residual-controlled-comparison.json", func(path string) bool { _, a, err := loadLiveReceipt(path); return err == nil && a.Accepted }}} {
 		t.Run(fixture.name, func(t *testing.T) {
+			if !fixture.load(fixture.path) {
+				t.Fatal("accepted artifact rejected")
+			}
 			b, err := os.ReadFile(fixture.path)
 			if err != nil {
 				t.Fatal(err)

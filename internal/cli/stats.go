@@ -85,6 +85,10 @@ func parseStatsArgs(args []string) ([]string, any, error) {
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+		if a == "--" {
+			rest = append(rest, args[i:]...)
+			break
+		}
 		if a == "--limit" && i+1 < len(args) {
 			parsed, err := strconv.Atoi(args[i+1])
 			if err != nil {
@@ -141,6 +145,38 @@ func parseStatsWindow(value string) (time.Duration, error) {
 		return 0, fmt.Errorf("ktx stats: --window must be positive, got %q", value)
 	}
 	return window, nil
+}
+
+// validateStatsDispatchArgs rejects malformed operands before query readiness.
+// In particular, a consumed --help value must not turn a DB-free request into
+// a migration attempt merely because it is no longer mistaken for help.
+func validateStatsDispatchArgs(args []string, parsed statsParsedArgs) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "summary", "breakdown":
+			if parsed.LimitSet {
+				return usageError("ktx stats %s: --limit is only valid for grouped stats", args[0])
+			}
+			_, err := validateStatsWindowCommand("ktx stats "+args[0], args[1:], FormatJSON, parsed.Window, io.Discard, func(io.Writer) {})
+			return err
+		case "live-validation":
+			if parsed.LimitSet || parsed.WindowSet {
+				return usageError("ktx stats live-validation: --limit and --window are not supported")
+			}
+			_, err := parseStatsLiveArgs(args[1:])
+			return err
+		}
+	}
+	if parsed.WindowSet {
+		return usageError("ktx stats: --window requires the summary or breakdown subcommand")
+	}
+	if len(args) > 0 {
+		return usageError("ktx stats: unexpected argument %q", args[0])
+	}
+	if parsed.Limit <= 0 {
+		return usageError("ktx stats: --limit must be positive, got %d", parsed.Limit)
+	}
+	return nil
 }
 
 func init() {
@@ -984,6 +1020,7 @@ func printStatsNestedHelp(args []string, w io.Writer) bool {
 func printStatsHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx stats — per-tool-call statistics ranked by delivered tokens")
 	fmt.Fprintln(w)
+	printOwnedArgumentHelp(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  ktx stats [--format text|json] [--limit N]")
 	fmt.Fprintln(w, "  ktx stats summary [--window DURATION] [--format text|json]")

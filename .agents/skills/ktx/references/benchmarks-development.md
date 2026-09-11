@@ -51,8 +51,14 @@ Named methodologies, tasks, pipelines, and corpus fixtures live under
 Run offline preflight before paid work. Normal comparison runs preflight too.
 Current prompt-cache comparisons use methodology v6 and emit summary schema 5
 under `cache-reuse-v2`. Claims about provider-internal behavior remain forbidden.
-Methodology v5, summary schemas 1–4, and `cache-reuse-v1` remain historical
-evidence rather than the current entry point.
+Exact-match uses methodology `v8-exact-match` and summary schema 8; recovery-aware
+comparison uses methodology v7 and summary schema 7. All current experiment
+producers retain manifest schema 1 and attempt schema 3 with explicit owner,
+stream, database, and collector authority. Copied attempt/session counters and
+old summaries are not regeneration inputs. Methodologies v1/v4/v5, attempt
+schemas 1–2, summary schemas 1–4 and 6, and older collector contracts are
+unsupported. Tracked history is unchanged without a current-validation guarantee;
+list/show inspection is not validation. Do not delete user-owned archives.
 
 ```bash
 ./build/ktx bench compare --preflight --spec prompt-cache-token-hit-rate --task crossfile-nav --format json
@@ -169,6 +175,11 @@ machine identifiers, and repository content before sharing or committing.
 - Do not pool incompatible tasks, runtime versions, or invalid archives.
 
 ## Build and Verification
+
+Current product support and required native gates are Linux-only. Retained
+non-Linux source and historical cross-compilation do not qualify native behavior.
+Missing or failed required Linux evidence blocks qualification; do not replace
+execution with compilation or remove non-Linux implementations to pass a gate.
 
 ```bash
 mage build      # build build/ktx

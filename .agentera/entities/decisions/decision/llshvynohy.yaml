@@ -1,0 +1,17 @@
+id: llshvynohy
+artifact: decisions
+record:
+  date: 2026-09-05
+  question: What capability minimum is accepted for safe terminal-mode wrapper cancellation on Linux?
+  context: Plan hljjrlykxb task dwndsjjdkx now preserves terminal input and stops owned descendants without signaling the caller group. The focused audit passed lifecycle behavior but reproduced a pre-spawn error when pidfd_open returned ENOSYS. At the next approval checkpoint, the user explicitly selected "Approve capability floor (Recommended)" for readable procfs, subreaper support, pidfd_open, and waitid(P_PIDFD), normally available on Linux 5.4 or newer subject to backports and syscall policy.
+  alternatives:
+    - name: Accept and document the scoped capability floor; fail before spawning when unavailable.
+      status: chosen
+    - name: Preserve older or restricted environments through a separately scoped compatibility design.
+      status: rejected
+    - name: Defer the support decision while independent tasks continue.
+      status: rejected
+  choice: Terminal-mode ktx run may require readable procfs, subreaper support, pidfd_open, and waitid(P_PIDFD) for owned descendant cleanup. Describe this as a capability requirement, normally Linux 5.4 or newer, with backport and syscall-policy qualifications, rather than an unconditional kernel-version test. If required preparation is unavailable, return an explicit error before starting the wrapped child. Do not silently restore orphaned descendants, signal the caller's shared group, or restrict supported terminal input. Non-terminal runs and unrelated commands are outside this new requirement. Document the scope and error behavior before closing the support-contract blocker. Preserve prior failed evaluations and evidence. This amends Linux-only support decision ygcysqxcfr solely for this terminal capability boundary; standing authority yohiahsqjv otherwise remains. Approval supplies missing support authority, not a claim of implementation completion or final decision satisfaction.
+  reasoning: The user explicitly accepted the newly demonstrated compatibility boundary after being informed that unsupported environments reject before spawn and that safe cleanup must not signal the caller group. This permits the verified ownership correction without a speculative compatibility mechanism or unsafe fallback.
+  confidence: firm
+  feeds_into: Plan hljjrlykxb task dwndsjjdkx, blocker bsmwmkibuo, Linux support task zcvdpwllcs, and current wrapper documentation.

@@ -66,7 +66,7 @@ func cacheComparison(t *testing.T, attempts []Attempt) map[string]any {
 
 func cacheComparisonWithManifest(t *testing.T, manifest Manifest, attempts []Attempt) map[string]any {
 	t.Helper()
-	return BuildSummary(manifest, attempts)["cached_input_share_comparison"].(map[string]any)
+	return buildCachedInputShareComparison(manifest, attempts)
 }
 
 func TestCachedInputShareComparisonExcludesSetupAndPairsOnlyUniqueMeasuredCycles(t *testing.T) {
@@ -529,7 +529,7 @@ func TestCachedInputShareComparisonAndValidationAgreeOnIsolationAuthority(t *tes
 		}
 		counts := CountValidForMethodology(attempts, manifest.Task.MinimumToolCalls, manifest.Methodology.Version)
 		reasons := validateCacheAwareEvidence(manifest, attempts, &pricingSnapshot{Provider: "openai", Model: "test"}, summaryData, counts)
-		return summary["cached_input_share_comparison"].(map[string]any), reasons
+		return buildCachedInputShareComparison(manifest, attempts), reasons
 	}
 
 	t.Run("runtime adapter rejected by both", func(t *testing.T) {

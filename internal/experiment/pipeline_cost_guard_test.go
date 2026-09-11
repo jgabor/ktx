@@ -214,16 +214,15 @@ func TestPipelineCostGuardRankRetainsRejectedCandidateWithoutCrowningIt(t *testi
 	}
 }
 
-func TestPipelineCostGuardDoesNotChangeHistoricalSummarySchemas(t *testing.T) {
+func TestPipelineCostGuardIsNotUsedForExactMatch(t *testing.T) {
 	tests := []struct {
 		name     string
 		manifest Manifest
 		attempts []Attempt
 	}{
-		{name: "schema 1", manifest: fixtureManifest(), attempts: fixtureAttempts()},
-		{name: "schema 2", manifest: cacheFixtureManifest(), attempts: cacheFixtureAttempts()},
-		{name: "schema 3", manifest: v3Manifest(), attempts: v3Attempts()},
-		{name: "schema 4", manifest: comparisonManifest(), attempts: comparisonPairs(5, 20, 30)},
+		{name: "cacheless", manifest: fixtureManifest(), attempts: fixtureAttempts()},
+		{name: "cache", manifest: cacheFixtureManifest(), attempts: cacheFixtureAttempts()},
+		{name: "priced", manifest: v3Manifest(), attempts: v3Attempts()},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

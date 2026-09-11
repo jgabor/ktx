@@ -212,16 +212,17 @@ content never supply or repair a label. Linux coordinator-timeout diagnostics
 emit the verified label, or explicit `unknown`, beside each observed holder's
 PID and held mode.
 
-Supported processes use a writer-preferred admission lock and an independent
+Supported Linux processes use a writer-preferred admission lock and an independent
 ownership lock on the same physical database file. Linux uses a byte-range
-admission lock with `flock` ownership; BSD systems use separate byte ranges for
-admission and ownership; Windows uses separate byte ranges. A waiting writer
+admission lock with `flock` ownership. A waiting writer
 holds admission closed until existing readers finish and it acquires exclusive
 ownership, so later readers cannot pass it. Admission does not create a sidecar
 file or database state, hard-link aliases use the same kernel lock identity,
 and process exit releases abandoned admission and ownership. Linux ordering is
-verified by deterministic contention tests. BSD behavior is backed by lock
-semantics tests and cross-compilation, not native BSD execution.
+verified by deterministic contention tests. Retained BSD and Windows implementations
+use separate byte ranges for admission and ownership. Historical BSD lock-semantics
+tests and cross-compilation are not native BSD execution or current support;
+non-Linux execution remains unsupported or unverified.
 
 ## Hook acceptance
 

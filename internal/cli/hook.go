@@ -15,6 +15,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/evidence"
 	"github.com/jgabor/ktx/internal/pipeline"
+	"github.com/jgabor/ktx/internal/router"
 )
 
 // hookEnvelope is the JSON response written by `ktx hook` to stdout.
@@ -109,7 +110,7 @@ type openCodeInput struct {
 // openCodeOutputObject is the OpenCode callback output shape when the
 // output is an object carrying an output field (string).
 type openCodeOutputObject struct {
-	Output   string                     `json:"output"`
+	Output   *string                    `json:"output"`
 	Metadata map[string]json.RawMessage `json:"metadata"`
 }
 
@@ -118,8 +119,9 @@ type openCodeOutputObject struct {
 // callback input and output JSON values. The input is an object with a tool
 // (string), sessionID, callID, and args (object); the output is either a bare
 // string or an object with an output field. An empty tool name falls back to
-// "unknown". An output object without an output field falls back to the
-// stringified object. The native sessionID and callID are empty when absent
+// "unknown". A present string output, including empty, is retained; an object
+// without a usable string output falls back to the stringified object.
+// The native sessionID and callID are empty when absent
 // from the input; the caller uses them to resolve deterministic identity.
 func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, output, sessionID, callID string) {
 	tool = "unknown"
@@ -142,8 +144,8 @@ func extractOpenCodeFields(inputRaw, outputRaw json.RawMessage) (tool, input, ou
 			output = s
 		} else {
 			var out openCodeOutputObject
-			if err := json.Unmarshal(outputRaw, &out); err == nil && out.Output != "" {
-				output = out.Output
+			if err := json.Unmarshal(outputRaw, &out); err == nil && out.Output != nil {
+				output = *out.Output
 			} else {
 				output = string(outputRaw)
 			}
@@ -180,9 +182,9 @@ func extractOpenCodeOutcome(tool string, outputRaw json.RawMessage) (exitCode *i
 // an object carrying aggregated_output, output, or text (checked in
 // that order before falling back to the stringified object).
 type codexToolResponseObject struct {
-	AggregatedOutput string `json:"aggregated_output"`
-	Output           string `json:"output"`
-	Text             string `json:"text"`
+	AggregatedOutput *string `json:"aggregated_output"`
+	Output           *string `json:"output"`
+	Text             *string `json:"text"`
 }
 
 var codexPostToolUseFields = map[string]bool{
@@ -280,12 +282,12 @@ func extractCodexFields(toolName string, toolInputRaw, toolResponseRaw json.RawM
 			var resp codexToolResponseObject
 			if err := json.Unmarshal(toolResponseRaw, &resp); err == nil {
 				switch {
-				case resp.AggregatedOutput != "":
-					output = resp.AggregatedOutput
-				case resp.Output != "":
-					output = resp.Output
-				case resp.Text != "":
-					output = resp.Text
+				case resp.AggregatedOutput != nil:
+					output = *resp.AggregatedOutput
+				case resp.Output != nil:
+					output = *resp.Output
+				case resp.Text != nil:
+					output = *resp.Text
 				default:
 					output = string(toolResponseRaw)
 				}
@@ -551,9 +553,16 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	var execution pipelineExecution
 	var pipelineErr error
 	if configErr == nil {
-		// Route selection and transformation stay outside exclusive database
-		// coordination.
-		execution, pipelineErr = compressPipelineWithConfig(&tc, cfg, nil, stderr, true)
+		if preflight.result.Transformed {
+			// Retained artifacts need only the current recovery-cue policy,
+			// never construction or execution of a replacement pipeline.
+			selection := router.Resolve(&tc, cfg.Routes, "default")
+			execution.recoverFooter = config.ResolveRecoverFooter(cfg, selection.Profile)
+		} else {
+			// Route selection and transformation stay outside exclusive database
+			// coordination. Source-only retries can still produce their first artifact.
+			execution, pipelineErr = compressPipelineWithConfig(&tc, cfg, nil, stderr, true)
+		}
 	}
 	execution = applyRecoveryCueGate(execution, sourceID, tc.Output)
 	compressedOutput := execution.output
@@ -765,6 +774,9 @@ func preflightHookRetry(database *dbpkg.DB, trusted bool, tc *dbpkg.ToolCall) (h
 	}
 	state := hookRetryPreflight{sourceExists: true, sessionID: sessionID}
 	artifact, artifactErr := database.GetCompressedBySource(tc.ID)
+	if artifactErr == nil {
+		state.result = evidence.Result{SourceID: tc.ID, Output: artifact.Output, CompressedID: artifact.ID, ArtifactPipeline: artifact.Pipeline, Transformed: true}
+	}
 	disposition, dispositionErr := database.GetCompressionDisposition(tc.ID)
 	if dispositionErr != nil {
 		if errors.Is(dispositionErr, dbpkg.ErrNotFound) {
@@ -774,7 +786,6 @@ func preflightHookRetry(database *dbpkg.DB, trusted bool, tc *dbpkg.ToolCall) (h
 	}
 	if artifactErr == nil && disposition.Disposition == dbpkg.CompressionDispositionArtifactPersisted && disposition.ArtifactID == artifact.ID {
 		state.complete = true
-		state.result = evidence.Result{SourceID: tc.ID, Output: artifact.Output, CompressedID: artifact.ID, ArtifactPipeline: artifact.Pipeline, Transformed: true}
 		return state, nil
 	}
 	if errors.Is(artifactErr, dbpkg.ErrNotFound) && disposition.Disposition != dbpkg.CompressionDispositionArtifactPersisted {

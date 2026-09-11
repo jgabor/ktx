@@ -1,33 +1,20 @@
 package experiment
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 )
 
 func ValidateExperiment(experimentDir string) (map[string]any, error) {
-	manifestData, err := os.ReadFile(filepath.Join(experimentDir, "manifest.json"))
+	a, err := openArchive(experimentDir)
 	if err != nil {
 		return nil, err
 	}
-	var manifest Manifest
-	if err := json.Unmarshal(manifestData, &manifest); err != nil {
-		return nil, err
-	}
-	if err := validateInputs(experimentDir, manifest.Inputs); err != nil {
-		return nil, err
-	}
-	attempts, err := LoadAttempts(experimentDir)
+	defer a.Close()
+	manifest, attempts, divergences, err := loadExperimentEvidence(a)
 	if err != nil {
 		return nil, err
 	}
-	attempts, divergences, err := materializeAttempts(experimentDir, manifest, attempts)
-	if err != nil {
-		return nil, err
-	}
-	actualSummary, err := os.ReadFile(filepath.Join(experimentDir, "summary.json"))
+	actualSummary, err := a.readFile("summary.json")
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +22,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	pricing, err := preparePricingEvidence(experimentDir, manifest, attempts, actualSummary)
+	pricing, err := a.preparePricingEvidence(manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -59,29 +46,6 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		if attempt.Side != Baseline && attempt.Side != Candidate {
 			attemptValid = false
 			reasons = append(reasons, "invalid side")
-		}
-		for name, relative := range attempt.Artifacts {
-			path := filepath.Join(experimentDir, filepath.FromSlash(relative))
-			if _, err := os.Stat(path); err != nil {
-				attemptValid = false
-				reasons = append(reasons, "missing artifact "+name)
-			}
-		}
-		for name, expected := range attempt.ContentHashes {
-			relative := attempt.Artifacts[name]
-			if name == "workspace" {
-				hash, _, err := directorySHA256(filepath.Join(experimentDir, filepath.FromSlash(relative)))
-				if err != nil || hash != expected {
-					attemptValid = false
-					reasons = append(reasons, "content hash mismatch "+name)
-				}
-			} else if relative != "" {
-				hash, err := fileSHA256(filepath.Join(experimentDir, filepath.FromSlash(relative)))
-				if err != nil || hash != expected {
-					attemptValid = false
-					reasons = append(reasons, "content hash mismatch "+name)
-				}
-			}
 		}
 		if len(reasons) > 0 {
 			attemptValid = false
@@ -129,12 +93,6 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	if cacheAware {
 		report["methodology_reasons"] = methodologyReasons
 	}
-	if supportsDirectCachedInputShare(manifest) {
-		report["direct_cached_input_share"] = expectedSummaryValue["direct_cached_input_share"]
-		report["estimated_consecutive_step_reuse"] = expectedSummaryValue["estimated_consecutive_step_reuse"]
-		report["cached_input_share_comparison"] = expectedSummaryValue["cached_input_share_comparison"]
-		report["statement_authorization"] = expectedSummaryValue["statement_authorization"]
-	}
 	if supportsPromptCacheTokenHitRate(manifest) {
 		report[promptCacheTokenHitRateField] = expectedSummaryValue[promptCacheTokenHitRateField]
 		report[promptCacheTokenHitRateComparisonField] = expectedSummaryValue[promptCacheTokenHitRateComparisonField]
@@ -146,7 +104,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 	return report, nil
 }
 
-func validateInputs(experimentDir string, inputs []InputMetadata) error {
+func (a *archive) validateInputs(inputs []InputMetadata) error {
 	seen := make(map[string]bool)
 	for _, input := range inputs {
 		key := input.Kind + "\x00" + input.ID
@@ -154,10 +112,10 @@ func validateInputs(experimentDir string, inputs []InputMetadata) error {
 			return fmt.Errorf("invalid or duplicate retained input %q", input.ID)
 		}
 		seen[key] = true
-		if filepath.IsAbs(input.Path) || filepath.Clean(input.Path) == ".." || len(input.Path) >= 3 && filepath.Clean(input.Path)[:3] == ".."+string(filepath.Separator) {
-			return fmt.Errorf("retained input path must be archive-relative: %q", input.Path)
+		hash, err := a.hash(input.Path)
+		if unsafeArchiveAccess(err) {
+			return err
 		}
-		hash, err := fileSHA256(filepath.Join(experimentDir, filepath.FromSlash(input.Path)))
 		if err != nil || hash != input.SHA256 {
 			return fmt.Errorf("retained input hash mismatch %s %q", input.Kind, input.ID)
 		}
@@ -172,16 +130,10 @@ func validateCacheAwareEvidence(manifest Manifest, attempts []Attempt, pricing *
 		return append(reasons, err.Error())
 	}
 	methodologyLabel := manifest.Methodology.Version
-	if methodologyLabel == "v5-cache-aware" {
-		methodologyLabel = "v5"
+	if methodologyLabel == promptCacheTokenHitRateMethodologyVersion && !supportsPromptCacheTokenHitRate(manifest) {
+		reasons = append(reasons, "prompt-cache methodology requires its pinned runtime identity")
 	}
-	expectedSchema := float64(3)
-	if supportsDirectCachedInputShare(manifest) {
-		expectedSchema = 4
-	}
-	if supportsPromptCacheTokenHitRate(manifest) {
-		expectedSchema = 5
-	}
+	expectedSchema := float64(5)
 	if supportsRecoveryAwareComparison(manifest) {
 		expectedSchema = 7
 	}

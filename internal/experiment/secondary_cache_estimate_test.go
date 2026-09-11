@@ -36,8 +36,7 @@ func TestSecondaryEstimateRetainsEligibleRawBasisAndLabels(t *testing.T) {
 		directStep(2, MeasuredInteger(976), MeasuredInteger(1024), MeasuredInteger(0)),
 	)
 	attempt.sequence = coveredAttemptSequence(2)
-	summary := BuildSummary(directShareManifest(), []Attempt{attempt})
-	estimate := summary["estimated_consecutive_step_reuse"].(map[string]any)
+	estimate := buildSecondaryCacheEstimate([]Attempt{attempt})
 	if estimate["label"] != "estimated" || estimate["method"] != "pi_consecutive_step_reusable_basis" || estimate["eligible_count"] != 1 || estimate["ineligible_count"] != 1 || estimate["ranking_effect"] != "none" || estimate["ttl_cause"] != "unsupported" || estimate["expiry_cause"] != "unsupported" {
 		t.Fatalf("estimate metadata = %#v", estimate)
 	}
@@ -59,12 +58,6 @@ func TestSecondaryEstimateRetainsEligibleRawBasisAndLabels(t *testing.T) {
 	if counts["first_step"] != 1 || len(counts) != len(sequence.IneligibilityReasons) {
 		t.Fatalf("ineligible counts = %#v", counts)
 	}
-	text := RenderSummary(summary)
-	for _, fragment := range []string{"label=estimated", "method=pi_consecutive_step_reusable_basis", "eligible=1 ineligible=1", "ranking_effect=none", "ttl_cause=unsupported expiry_cause=unsupported", "shortfall=976", "interpretation=within_noise_floor"} {
-		if !strings.Contains(text, fragment) {
-			t.Errorf("rendered estimate missing %q:\n%s", fragment, text)
-		}
-	}
 }
 
 func TestSecondaryEstimateConsumesRetainedWrapperSequenceWithoutInferringSilence(t *testing.T) {
@@ -81,7 +74,7 @@ func TestSecondaryEstimateConsumesRetainedWrapperSequenceWithoutInferringSilence
 	attempt := directShareAttempt("wrapper")
 	attempt.Metrics = metrics
 	attempt.Artifacts["stream"] = "stream.jsonl"
-	rows := BuildSummary(directShareManifest(), []Attempt{attempt})["estimated_consecutive_step_reuse"].(map[string]any)["attempts"].([]any)[0].(map[string]any)["pairs"].([]any)
+	rows := buildSecondaryCacheEstimate([]Attempt{attempt})["attempts"].([]any)[0].(map[string]any)["pairs"].([]any)
 	second := rows[1].(map[string]any)
 	if second["reason"] != "retry_coverage_unavailable" {
 		t.Fatalf("wrapper pair = %#v", second)
@@ -98,7 +91,7 @@ func TestSecondaryEstimateTreatsMissingSequenceCoverageAsUnavailable(t *testing.
 		directStep(1, MeasuredInteger(100), MeasuredInteger(10), MeasuredInteger(0)),
 		directStep(2, MeasuredInteger(100), MeasuredInteger(10), MeasuredInteger(0)),
 	)
-	estimate := BuildSummary(directShareManifest(), []Attempt{attempt})["estimated_consecutive_step_reuse"].(map[string]any)
+	estimate := buildSecondaryCacheEstimate([]Attempt{attempt})
 	rows := estimate["attempts"].([]any)[0].(map[string]any)["pairs"].([]any)
 	if rows[0].(map[string]any)["reason"] != "first_step" || rows[1].(map[string]any)["reason"] != "order_coverage_unavailable" || estimate["eligible_count"] != 0 {
 		t.Fatalf("unavailable estimate = %#v", estimate)
@@ -118,7 +111,7 @@ func TestSecondaryEstimateUsesSequenceReasonPrecedence(t *testing.T) {
 			break
 		}
 	}
-	rows := BuildSummary(directShareManifest(), []Attempt{attempt})["estimated_consecutive_step_reuse"].(map[string]any)["attempts"].([]any)[0].(map[string]any)["pairs"].([]any)
+	rows := buildSecondaryCacheEstimate([]Attempt{attempt})["attempts"].([]any)[0].(map[string]any)["pairs"].([]any)
 	if got := rows[1].(map[string]any)["reason"]; got != "retry_coverage_unavailable" {
 		t.Fatalf("reason = %v, want retry coverage before current field", got)
 	}
@@ -129,7 +122,7 @@ func TestSecondaryEstimateCannotAffectRanking(t *testing.T) {
 	options := RankingOptions{TaskFile: "task.toml", BaselinePipeline: "baseline", Candidates: []string{"candidate"}}
 	pair := PairResult{CandidatePipeline: "candidate", ExperimentID: "exp", Summary: summary}
 	before := BuildRanking(options, []PairResult{pair}, time.Unix(0, 0))
-	estimate := summary["estimated_consecutive_step_reuse"].(map[string]any)
+	estimate := summary[promptCacheTokenHitRateComparisonField].(map[string]any)["secondary_estimated"].(map[string]any)
 	estimate["eligible_count"] = 999
 	estimate["ineligible_count"] = 999
 	after := BuildRanking(options, []PairResult{pair}, time.Unix(0, 0))

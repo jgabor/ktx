@@ -16,6 +16,10 @@ observes coding-agent tool calls, stores evidence in SQLite, optionally reduces
 tool output through deterministic pipelines, preserves originals for recovery,
 and reports live or benchmark measurements.
 
+Linux is the supported operating system. Non-Linux execution is unsupported or
+unverified; platform-specific source and historical compilation results do not
+establish native qualification. The terminal-only capability floor is below.
+
 ## Operating Method
 
 1. Classify the request before running a command:
@@ -94,10 +98,22 @@ ktx list --format text
 ktx get <session-id> --format json
 ```
 
-Add `--record-stream` when later database replay is required. `ktx run` scans
-child stdout line by line, forwards each scanned line, and writes a newline
-after it; output that lacked a final newline can gain one. This is not
-byte-exact passthrough. The wrapper exits with the child's exit code.
+Add `--record-stream` when later database replay is required. `ktx run` forwards
+child stdout in chunks with ScanLines-compatible normalization: CRLF becomes
+LF, a trailing CR is removed, and output without a final newline gains one.
+This is not byte-exact passthrough. Lines above 64 MiB are fully forwarded but
+skipped for event parsing with a warning. The wrapper exits with the child's
+exit code unless forwarding or collection fails. Forwarding failure returns
+exit 4, stops the direct child, and publishes no incomplete stream recording;
+already persisted evidence remains.
+
+Terminal-mode wrapping on Linux requires readable procfs, subreaper support,
+`pidfd_open`, and `waitid(P_PIDFD)` (normally Linux 5.4+, subject to backports and
+syscall policy). Unavailable preparation returns an explicit error before the
+child starts, including with redirected stdin and a controlling terminal.
+Non-terminal runs and unrelated commands do not acquire this requirement.
+See [terminal cancellation](references/cli.md#terminal-cancellation) for owned
+descendant cleanup, caller preservation, and interrupted evidence behavior.
 
 ### Inspect live context reduction
 

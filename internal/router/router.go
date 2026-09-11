@@ -39,8 +39,9 @@ type Resolution struct {
 // default-fallback provenance.
 func Resolve(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) Resolution {
 	if tc != nil {
+		command := commandMetadata{input: tc.Input}
 		for _, r := range routes {
-			if ruleMatches(tc, r) {
+			if ruleMatchesCommand(tc, r, &command) {
 				return Resolution{Profile: r.Profile, Route: RouteMatched}
 			}
 		}
@@ -63,26 +64,46 @@ func Match(tc *db.ToolCall, routes []config.RouteRule, defaultProfile string) st
 	return Resolve(tc, routes, defaultProfile).Profile
 }
 
-// ruleMatches reports whether every non-empty condition on r holds
-// against tc. Empty fields are wildcards. CommandPrefix requires the
-// command string to start with the prefix; Subcommand requires the
-// first non-flag token after the binary name to equal the value.
-// ExitStatus "success" requires explicit IsError=false; "failure" requires
-// explicit IsError=true; "any" matches explicit and unknown states. ExitCode is
-// diagnostic and does not participate. The config loader rejects every other
-// non-empty value.
-func ruleMatches(tc *db.ToolCall, r config.RouteRule) bool {
+// commandMetadata is private to one resolution and only interprets fields
+// when a surviving rule needs them. It never retains input across calls.
+type commandMetadata struct {
+	input                          string
+	command, subcommand            string
+	parsed, valid, split, subValid bool
+}
+
+func (c *commandMetadata) getCommand() (string, bool) {
+	if !c.parsed {
+		c.command, c.valid = commandFromInput(c.input)
+		c.parsed = true
+	}
+	return c.command, c.valid
+}
+
+func (c *commandMetadata) getSubcommand() (string, bool) {
+	if !c.split {
+		if cmd, ok := c.getCommand(); ok {
+			c.subcommand, c.subValid = subcommandFromCommand(cmd)
+		}
+		c.split = true
+	}
+	return c.subcommand, c.subValid
+}
+
+// ruleMatchesCommand reports whether all non-empty conditions hold. ExitCode
+// remains diagnostic; only explicit IsError values match success or failure.
+func ruleMatchesCommand(tc *db.ToolCall, r config.RouteRule, command *commandMetadata) bool {
 	if r.Tool != "" && tc.Tool != r.Tool {
 		return false
 	}
 	if r.CommandPrefix != "" {
-		cmd, ok := commandFromInput(tc.Input)
+		cmd, ok := command.getCommand()
 		if !ok || !strings.HasPrefix(cmd, r.CommandPrefix) {
 			return false
 		}
 	}
 	if r.Subcommand != "" {
-		sub, ok := subcommandFromInput(tc.Input)
+		sub, ok := command.getSubcommand()
 		if !ok || sub != r.Subcommand {
 			return false
 		}
@@ -143,16 +164,8 @@ func BinaryFromInput(input string) string {
 	return fields[0]
 }
 
-// subcommandFromInput parses the tool-call input JSON, extracts the
-// "command" field, and returns the first non-flag token after the
-// binary name. Tokens starting with "-" are treated as flags and
-// skipped. Returns ok=false when the input is malformed, the command
-// has fewer than two tokens, or no non-flag token follows the binary.
-func subcommandFromInput(input string) (string, bool) {
-	cmd, ok := commandFromInput(input)
-	if !ok {
-		return "", false
-	}
+// subcommandFromCommand returns the first non-flag token after the binary.
+func subcommandFromCommand(cmd string) (string, bool) {
 	fields := strings.Fields(cmd)
 	if len(fields) < 2 {
 		return "", false

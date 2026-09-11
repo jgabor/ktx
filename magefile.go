@@ -534,6 +534,10 @@ func replayFixture() error {
 
 // OpencodeTelemetryFixture runs the offline OpenCode telemetry matrix.
 func OpencodeTelemetryFixture() error {
+	return hermeticTarget("opencodeTelemetryFixture", opencodeTelemetryFixture)
+}
+
+func opencodeTelemetryFixture() error {
 	if _, err := exec.LookPath("bun"); err != nil {
 		return errors.New("bun not found; it is required to execute the generated OpenCode plugin fixture")
 	}
@@ -574,6 +578,7 @@ func check() error {
 	}{
 		{name: "build", run: Build},
 		{name: "test", run: test},
+		{name: "schema-readiness-verifier", run: schemaReadinessVerifierTest},
 		{name: "generated-adapter", run: generatedAdapterGate},
 		{name: "vet", run: Vet},
 		{name: "lint", run: Lint},
@@ -585,6 +590,10 @@ func check() error {
 		}
 	}
 	return nil
+}
+
+func schemaReadinessVerifierTest() error {
+	return run("python3", "-m", "unittest", "-v", "tools.test_schema_readiness_evidence")
 }
 
 // GeneratedAdapterGate builds KTX and runs the required generated-adapter

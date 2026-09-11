@@ -1,9 +1,12 @@
 package durablefile
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -58,5 +61,49 @@ func TestWriteInterruptedBeforeRenameLeavesLastArtifact(t *testing.T) {
 	data, err := os.ReadFile(path)
 	if err != nil || string(data) != "last successful" {
 		t.Fatalf("read = %q, %v", data, err)
+	}
+}
+
+func TestWriteCheckedConflictAndRenameFailure(t *testing.T) {
+	for _, failRename := range []bool{false, true} {
+		t.Run(fmt.Sprint(failRename), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "hooks.json")
+			original := []byte(`{"hooks":{"SessionStart":[{"hooks":[{"command":"keep"}]}]}}`)
+			if err := os.WriteFile(path, original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			previous := renameFile
+			t.Cleanup(func() { renameFile = previous })
+			checked, renamed := false, false
+			renameFile = func(staged, target string) error {
+				renamed = true
+				if !checked {
+					t.Error("rename preceded check")
+				}
+				data, err := os.ReadFile(staged)
+				if err != nil || string(data) != `{"complete":true}` {
+					t.Errorf("incomplete staged file: %s %v", data, err)
+				}
+				return syscall.EINTR
+			}
+			err := WriteChecked(path, []byte(`{"complete":true}`), 0o644, func() error {
+				checked = true
+				if !failRename {
+					return errors.New("observed external edit")
+				}
+				return nil
+			})
+			if err == nil || !checked || renamed != failRename {
+				t.Fatalf("checks bypassed: err=%v checked=%v renamed=%v", err, checked, renamed)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(got, original) {
+				t.Fatalf("shared hooks changed: %s %v", got, err)
+			}
+			staged, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".ktx-write-*"))
+			if err != nil || len(staged) != 0 {
+				t.Fatalf("staging leaked: %v %v", staged, err)
+			}
+		})
 	}
 }

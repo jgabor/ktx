@@ -1,0 +1,54 @@
+[
+  {
+    "name": "nan",
+    "json": "NaN",
+    "javascript": "NaN",
+    "state": "malformed",
+    "cost_state": "malformed"
+  },
+  {
+    "name": "positive-infinity",
+    "json": 1e309,
+    "javascript": "Infinity",
+    "state": "malformed",
+    "cost_state": "malformed"
+  },
+  {
+    "name": "negative-infinity",
+    "json": -1e309,
+    "javascript": "-Infinity",
+    "state": "malformed",
+    "cost_state": "malformed"
+  },
+  {
+    "name": "positive-overflow",
+    "json": 1e309,
+    "state": "malformed",
+    "cost_state": "malformed"
+  },
+  {
+    "name": "negative-overflow",
+    "json": -1e309,
+    "state": "malformed",
+    "cost_state": "malformed"
+  },
+  { "name": "null", "json": null, "state": "unknown", "cost_state": "unknown" },
+  {
+    "name": "large-finite",
+    "json": 1e308,
+    "state": "malformed",
+    "cost_state": "measured"
+  },
+  {
+    "name": "safe-integer",
+    "json": 9007199254740991,
+    "state": "measured",
+    "cost_state": "measured"
+  },
+  {
+    "name": "numeric-string",
+    "json": "1e309",
+    "state": "malformed",
+    "cost_state": "malformed"
+  }
+]

@@ -8,7 +8,7 @@
 // live in the runner, not in stage-author convention.
 //
 // Built-ins cover strict structured-result projection (unwrap-result),
-// lexical JSON compaction (json-compact), cleanup (strip-ansi, dedup-blank,
+// lexical JSON compaction (json-compact, json-block), cleanup (strip-ansi, dedup-blank,
 // normalize), bounded rendering (head,
 // truncate, keep-ends, token-budget), and deterministic filtering (grep,
 // grep-v, replace). BuiltinStageNames is the authoritative enumeration.
@@ -37,6 +37,7 @@ import (
 var builtinStageNames = []string{
 	"unwrap-result",
 	"json-compact",
+	"json-block",
 	"strip-ansi",
 	"dedup-blank",
 	"normalize",
@@ -61,7 +62,7 @@ func BuiltinStageNames() []string {
 // reg is a no-op (defensive; the caller passes a fresh
 // pipeline.NewRegistry() in normal use).
 //
-// The simple stages (unwrap-result, json-compact, strip-ansi, dedup-blank,
+// The simple stages (unwrap-result, json-compact, json-block, strip-ansi, dedup-blank,
 // normalize) are
 // registered via Register — their token form is the bare name and
 // they ignore any `:arg` portion. The two parameterised stages (head,
@@ -79,6 +80,7 @@ func RegisterBuiltins(reg *pipeline.Registry) {
 	// Simple stages — bytes-in, bytes-out, no configuration token.
 	reg.Register("unwrap-result", pipeline.StageFunc(UnwrapResult))
 	reg.Register("json-compact", pipeline.StageFunc(JSONCompact))
+	reg.Register("json-block", pipeline.StageFunc(JSONBlock))
 	reg.Register("strip-ansi", pipeline.StageFunc(StripANSI))
 	reg.Register("dedup-blank", pipeline.StageFunc(DedupBlank))
 	reg.Register("normalize", pipeline.StageFunc(Normalize))

@@ -129,6 +129,41 @@ database; current databases are inspected read-only, while supported older
 schemas are still prepared automatically. See the
 [database safety contract](database-safety.md) before development verification.
 
+### JSON blocks in mixed output
+
+`json-block` compacts complete JSON objects and arrays embedded in mixed text.
+The opening `{` or `[` must be the first non-space/tab byte on a physical
+line. After the closing delimiter, only spaces, tabs, or carriage returns may
+precede the newline or end of input. A block may span multiple lines. Inline
+JSON with a text prefix or suffix, and standalone JSON scalars, pass through.
+
+The stage uses `json.Compact` without decoding and re-marshaling. It preserves
+object member order, duplicate members, number spelling, and string escapes.
+Every byte outside the JSON value, including indentation, notices, trailing
+whitespace, and final newlines, remains unchanged. Invalid UTF-8 passes through
+unchanged. Balanced but invalid candidates are skipped as a unit; an unclosed
+candidate leaves the remaining input unchanged. Thus an unmatched line-start
+brace in prose can prevent later JSON blocks from being compacted. Candidate
+spans are scanned once, avoiding repeated scans of malformed suffixes.
+
+Use an explicit profile for commands that emit these blocks:
+
+```toml
+[pipeline.json-block]
+stages = ["json-block"]
+recover_footer = false
+
+[[route]]
+tool = "bash"
+command_prefix = "example-tool report"
+profile = "json-block"
+```
+
+This profile preserves content, so it needs no recovery footer. Other routes
+can reuse it. The stage is independent of command names and does not activate
+automatically or alter `json-compact`. Tool names in routes remain case
+sensitive. Do not suppress recovery footers if adding content-dropping stages.
+
 ### JSON compaction
 
 `json-compact` removes only insignificant whitespace using Go's standard

@@ -107,6 +107,11 @@ recover_footer = true
 #                       blank NDJSON records are rejected, while one final
 #                       newline is retained. Other input passes through.
 #
+#   json-block          Compact complete JSON objects/arrays on their own lines
+#                       within mixed text. Preserve surrounding text, JSON
+#                       tokens, indentation, and trailing newlines. Inline,
+#                       malformed, or unclosed candidates pass through.
+#
 #   strip-ansi          Strip ANSI escape sequences (colors, cursor moves)
 #
 #   dedup-blank         Collapse 2+ consecutive blank lines to one
@@ -191,7 +196,13 @@ profile = "passthrough"
 stages = ["json-compact"]
 recover_footer = false
 
-# Route todowrite payloads through that semantic-preserving profile.
+# Opt-in profile for commands that emit JSON blocks alongside plain text.
+# Select it with a command-specific route; no default route is added here.
+[pipeline.json-block]
+stages = ["json-block"]
+recover_footer = false
+
+# Route todowrite payloads through the json-compact profile.
 [[route]]
 tool = "todowrite"
 profile = "json-compact"

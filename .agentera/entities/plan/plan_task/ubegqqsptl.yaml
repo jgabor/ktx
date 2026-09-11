@@ -1,0 +1,24 @@
+id: ubegqqsptl
+artifact: plan
+record:
+  name: Retire superseded compatibility
+  depends_on:
+    - sgqaoojspr
+    - tqmgzzesya
+    - czzdcnqozn
+  status: complete
+  acceptance:
+    - GIVEN the producer matrix WHEN retiring readers THEN all active producers are converted first.
+    - GIVEN the firm cutover choice WHEN applied THEN retired readers, paths, and probes disappear.
+    - GIVEN tracked historical reports WHEN retiring compatibility THEN their bytes remain unchanged.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: compatibility-cutover-audit-1
+      source: audit ses_f83aaa1d2ffedmm1Ra11fEie5V; progress cboljpsdor; active producer conversion/current matrix PASS; 106 historical files independently unchanged
+      recorded_at: 2026-09-07 16:51
+      writer_command: agentera state plan record-evaluation

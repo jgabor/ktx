@@ -1,0 +1,16 @@
+id: xfqwiuhzro
+artifact: progress
+record:
+  timestamp: 2026-09-06 10:07
+  type: fix
+  phase: build
+  what: Confined archive reads, workspace traversal, and summary replacement through a pinned os.Root. SQLite now queries private copies of confined database/WAL files; list/show retain permissive discovery.
+  context:
+    intent: Implement only plan hljjrlykxb task bqpenkdmho, Confine archive access.
+    constraints: Preserve the entry-contract repair, current-producer matrix, historical bytes, and prior uncommitted work. Leave configuration/image attestation and archive performance tasks untouched.
+    unknowns: State summaries are degraded; exact gets work. Profile is absent. Satisfaction is user-owned. Confinement does not assert coherent snapshots of concurrently edited content or general process sandboxing.
+    scope: Archive consumers, confinement regressions, scoped product documentation, finding 8 disposition, and this canonical progress record; no lifecycle mutation.
+  discovered: "Before implementation, actual summarize/validate regressions failed in 15/18 path cases and observed external opens/reads on test-owned targets. SQLite sidecars need their own boundary: nonzero rollback-journal headers are rejected because recovery can follow embedded super-journal paths; committed WAL and cold journals remain supported."
+  verified: "go test ./internal/experiment ./internal/cli -count=1 passed. go test -race ./internal/experiment ./internal/cli -run 'TestArchiveConfinement|TestEntry|TestBenchLifecycle' -count=1 passed. After mage build, KTX_ENTRY_CONTRACT_BINARY=~/git/ktx/build/ktx go test ./internal/experiment -run 'TestArchiveConfinement|TestEntryProducerRegenerationMatrix' -count=1 -v passed: 18 escape cases reject without external events and all five current-producer rows pass. Final mage check passed tests/race, vet, zero-issue lint, build, 14 Python checks, and adapter overlap; DB verification recorded 12608 operations, forbidden=0. Every verification and child CLI used fresh HOME/XDG and unset KTX_DB with test-owned databases. Finding 8 in .agentera/verification/review-remediation-coverage.md retains commands, prior failures, fixture correction, and boundary limits."
+  next: Coordinator owns task evaluation and completion for bqpenkdmho; it remains in_progress. No implementation blocker for supported completed owner archives. No schema change, caps, durable deletion, provider call, real archive, staging, commit, or push.
+  publication_order: 230

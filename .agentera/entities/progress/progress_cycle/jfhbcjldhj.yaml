@@ -1,0 +1,15 @@
+id: jfhbcjldhj
+artifact: progress
+record:
+  timestamp: 2026-09-07 18:06
+  type: fix
+  phase: build
+  what: Implemented runtime OpenCode response-envelope validation for luwgmsjiin in plan hljjrlykxb; task remains in_progress. Shared validation checks current field types, canonical persisted IDs, nullability and cue artifact presence before delivery. Ordinary malformed zero-exit responses preserve original output/title/metadata with stderr diagnostics; required collection retains rejection and existing identity bindings. Empty string delivery and unknown future fields remain accepted.
+  context:
+    intent: Prevent malformed successful adapter responses from corrupting delivery without changing existing identity authority.
+    constraints: "Standing decision yohiahsqjv exact get: bounded contract-preserving repair authorized; no new caps, durable-evidence deletion, schema, provider, daemon or release work. Linux decision ygcysqxcfr exact get: Linux is supported verification scope; no non-Linux validation claim. Fresh HOME/XDG/TMP roots and KTX_DB unset at verification invocation boundaries; disposable offline databases only. Preserve prior dirty init/CLI-flag work; no commits, staging, status completion, evaluation or satisfaction updates."
+    unknowns: Profile grounding status absent, validity absent, content null; recovery is Profile generation then report profile-grounding, not performed. Prime caveats retain unavailable profile-derived state, incomplete changelog boundary and unspecified source allowlist; no unrelated repair.
+    scope: Only init.go envelope boundary, generated Bun tests, local-built CLI regression, and ledger finding 11. Telemetry dedup ogjqsbptji and Codex installation mebgweiffm excluded. No executable hash, protocol version, dependency or framework added.
+  verified: New generated-adapter Bun regressions failed before repair for object/array/missing/nonstring output and malformed IDs; pass afterward for malformed JSON and valid-but-wrong shapes, missing fields, types, canonical IDs, cue-without-artifact, valid empty/nonempty and passthrough/transformed envelopes. Required collector tests and existing acknowledgement/pinned-path negative controls pass. mage build preceded local product calls; TestOpencodeEnvelopeLocalCLI used the installed generated adapter with build/ktx for empty, nonempty passthrough and transformed JSON. Focused go test -race passed. Full isolated mage check passed, including 14 Python tests, required generated-adapter overlap gate, vet/lint/build, zero lint issues and forbidden=0. Initial 120-second shell timeout was not a pass; fresh longer rerun passed. git diff --check passed.
+  next: Assigned owner retains task completion and lifecycle review. No implementation hard blocker found.
+  publication_order: 248

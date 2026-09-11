@@ -1,0 +1,22 @@
+id: momdpkraiq
+artifact: plan
+record:
+  name: Align remaining command arguments
+  depends_on:
+    - kxklkicklv
+  status: complete
+  acceptance:
+    - GIVEN related CLI surfaces WHEN parsing THEN owned flags and values behave consistently.
+    - GIVEN existing formats and failures WHEN invoked THEN supported contracts remain compatible.
+    - GIVEN command documentation WHEN followed THEN tested ownership examples match behavior.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: remaining-cli-audit-20260906-1
+      source: audit ses_f89e35fc9ffeH191ayFRptKE6W; progress bgmqnrqhff; argument/validation/write-ack and focused race independently PASS; mage check recorded PASS
+      recorded_at: 2026-09-06 11:51
+      writer_command: agentera state plan record-evaluation

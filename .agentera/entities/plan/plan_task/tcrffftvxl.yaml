@@ -1,0 +1,22 @@
+id: tcrffftvxl
+artifact: plan
+record:
+  name: Align safe verification entrypoints
+  depends_on:
+    - chdzwfbxaz
+  status: complete
+  acceptance:
+    - GIVEN maintained test entrypoints WHEN invoked THEN isolated audited roots and required race tests apply.
+    - GIVEN verification WHEN running THEN automatic fixing cannot mutate concurrent inputs.
+    - GIVEN CI WHEN checking THEN Bun prerequisites and Python verifier tests are explicit.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: entrypoints-audit-20260905-1
+      source: audit ses_f8dc5bcc1ffeiuceL4TNwzQ6W2; progress ostkavhhpi; regression-first focused tests and isolated mage check PASS; forbidden database accesses zero
+      recorded_at: 2026-09-05 17:44
+      writer_command: agentera state plan record-evaluation

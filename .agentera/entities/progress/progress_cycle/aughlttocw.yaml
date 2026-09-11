@@ -1,0 +1,16 @@
+id: aughlttocw
+artifact: progress
+record:
+  timestamp: 2026-09-07 17:45
+  type: refactor
+  phase: build
+  what: "Implemented only itocjemrfw in plan hljjrlykxb: incremental pipeline line processing, empty-runner recognition bypass, and private lazy per-Resolve command extraction. PERF2 and the router portion of PERF4 have scoped implementation evidence; task status remains in_progress."
+  context:
+    intent: Reduce actual newline allocation amplification and repeated router interpretation while preserving exact supported behavior.
+    constraints: Standing authority yohiahsqjv; Linux scope; no new caps, schema, dependencies, cache framework or stage semantics. Preserve existing dirty work, overflow/provenance/null-unwrap/retry fixes, input bytes and JSON fallback ordering.
+    unknowns: Decision summary detail remains degraded; exact task and standing-authority reads succeeded. Profile grounding absent and not regenerated. Timings are descriptive Go benchmark elapsed measurements, not production CPU or latency guarantees.
+    scope: PERF2 and router-only PERF4; other ledger owners and dispositions unchanged. Plan task remains in progress.
+  discovered: "Fixed before/after medians: 1 MiB newline/head 55,594,253 to 5,246,091 B/op and 11.604 to 1.323 ms; newline/dedup 80,760,002 to 6,294,563 B/op; empty runner 30,419,872 to zero B/op. Sixty-four prefix/subcommand rules with a 1 MiB ignored JSON field: 128 to one JSON interpretation, 135,556,728 to 1,059,106 B/op and 91.547 to 0.730 ms. Irrelevant-tool routing remains zero allocation. Full table, budgets and limitations: .agentera/verification/pipeline-allocation.md."
+  verified: "Fresh HOME/XDG/TMP roots, KTX_DB unset, offline cached toolchain, temporary test-owned databases. Targeted package/oracle tests and allocation gates passed (8 MiB staged newline budget, zero empty-runner budget, 2 MiB many-route budget). Focused race tests passed, including provenance/retry/keep-ends/unwrap. mage build and full mage check passed: race tests, vet, lint zero issues, build, 14 offline Python tests, adapter gate, forbidden database accesses zero across 17,284 attempts. Built CLI help passed; no end-to-end CLI equivalence claim. Frozen characterization files/digests untouched; live behavior assertions remain enabled."
+  next: Assigned owner retains evaluation, satisfaction, lifecycle completion and final commits. No hard implementation blocker; no staging, commits, push or task-status completion performed.
+  publication_order: 247

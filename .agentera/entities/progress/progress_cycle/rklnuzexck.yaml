@@ -1,0 +1,16 @@
+id: rklnuzexck
+artifact: progress
+record:
+  timestamp: 2026-09-07 22:25
+  type: chore
+  phase: build
+  what: "Final verification for bqnxtbzjou/hljjrlykxb reached a concrete acceptance conflict, not completion. Added .agentera/verification/final-reconciliation-2026-09-07.md and linked the original ledger; preserved baseline and owner history. Exact plan retrieval shows 35 other active tasks complete/PASS and dwndsjjdkx superseded with both failed evaluations retained. All 48 owner-backed dispositions are mapped: 40 repaired/implemented, 2 qualification/evidence, 5 approved no-change/prior-conformance/mapped-owner, 1 scoped payload release. No final closures issued."
+  context:
+    intent: Execute final verification and reconciliation only, stopping solely at a concrete hard block.
+    constraints: Fresh HOME/XDG/TMP and unset KTX_DB per invocation; local build before CLI; entity writers only; preserve history and ignored scratch.
+    unknowns: Full acceptance remains blocked. No marker exception, historical rewrite or satisfaction approval inferred. Startup shared-skill drift remains a caveat; exact retrieval works.
+    scope: S10 releases optional acknowledged payload but retains linear instance-lifetime indices, not restart durability or constant memory. D10 coverage and fuzz claims remain scoped. Unselected architecture questions remain open.
+  discovered: Immutable tools/bench/evidence/targeted-residual-evidence-matrix.json contains four project-memory provenance paths; internal/pipeline/evidence_integrity_test.go binds those paths and hashes. Zero shipped markers and immutable historical bytes cannot both be satisfied without an explicit boundary decision. The dated 106-file inventory has three approved mutable support-guide changes; the other 103 files remain byte-equal. Canonical TODO repair synchronized two stale projections without changing public Markdown or satisfaction status.
+  verified: "Fresh isolated mage build PASS; mage check PASS (17937 audited attempts, forbidden=0); mage verify PASS (17954 attempts, forbidden=0), including vulnerability lookup: no vulnerabilities found, 14 Python checks and required Bun adapter. Earlier 120-second outer check timeout is not passing evidence. Exact commands, roots and optional local-binary selectors are in the report: go test -race -count=1 ./internal/cli ./internal/experiment ./internal/db -timeout=300s PASS. Fresh coverage command with -tags=mage -coverpkg=./... and exactly the three documented coverage-only exclusions PASS: 15932/20288 = 78.5292%, 344 selected Go files, repeated matching fingerprint retained. Unfiltered Mage gates include all three excluded coverage tests. Two native fuzz targets/16 seeds passed; prior bounded mutation campaigns remain historical. git diff --check PASS. No new gigabyte/OOM campaign, schema-release gate, provider, paid call, ambient DB, archive deletion, stage, commit or lifecycle publication."
+  next: Coordinator/user must resolve the immutable-provenance versus marker condition. Then finish canonical TODO/editorial reconciliation, exhaustive progress-reference and marker audits, schema-diff review and remaining targeted-gate inventory. Keep task/plan in progress; coordinator owns evaluation and closure. Decision satisfaction remains user-owned.
+  publication_order: 256

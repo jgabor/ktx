@@ -1,0 +1,16 @@
+id: absisndpqx
+artifact: progress
+record:
+  timestamp: 2026-09-07 14:49
+  type: fix
+  phase: build
+  what: Implemented bounded recording capture and normal benchmark interpretation for plan hljjrlykxb task mljcarlewi under exact decision zyeasphydk. One private stdout spool serves recording and scoring; aggregate-only usage drops unused step history. Reserved-connection publication preserves SQLite limits and only verified committed identity permits cleanup. Task remains in_progress for coordinator-owned completion.
+  context:
+    intent: Bound approved recording behavior without changing accepted output, scoring, completion authority or last-copy ownership.
+    constraints: Preserved all prior uncommitted work, wrapper normalization/cancellation, private completion receipt, schema/writer/retry guards and archive confinement. No new CLI, schema, input cap, unsafe SQLite access, pruning, staging, commit, evaluation, audit or satisfaction update.
+    unknowns: Profile grounding remains absent; exact entity retrieval governs degraded summaries. Resource samples are not worst-case or whole-host proofs; publication/replay remain L-proportional and failed-history storage has no global bound.
+    scope: run.go, bench_run.go, private spool implementation, usage aggregation, recorded_streams publication, focused regressions and PERF1 disposition/evidence documents only.
+  discovered: A direct large-record measurement launch inherited a 1,614,270,464-byte initial RSS high-water before fixture work. Clean Go-test child launches qualified the same code; the contaminated launch is disclosed as failed evidence. Initial full-check formatting failure was corrected.
+  verified: Regression-first aggregate test failed before implementation, then passed. mage build preceded normal, lowered-L and fault-instrumented local CLI tests; instrumentation was removed and the normal binary rebuilt. Six normal and six lowered-L 1/8/16 MiB bench cases preserved exact metrics and scoring; required capture/read failures published no headline or row. Standalone empty/nonzero/publication-failure, private receipt/interruption, actual deferred-FK commit failure, uncertain identity reconciliation, cleanup failure, confinement and SIGKILL retention checks passed. Focused go test -race ./internal/usage ./internal/db ./internal/cli passed with local CLI selectors; separate crash race checks passed. Fifteen fresh resource phases and four large-record cases passed their scoped budgets. Full mage check on the final combined source/test tree passed with zero lint issues and forbidden=0 across 13,915 verification attempts. Every product verification used fresh HOME/XDG/TMP, KTX_DB unset, owned disposable databases and offline Go dependencies. Exact commands, measurements, failure disclosures and limitations are appended in .agentera/verification/recording-resource-lifecycle.md; only PERF1 disposition documentation was updated.
+  next: Coordinator retains task lifecycle completion and final commit ownership. Stop after this task; no other implementation selected.
+  publication_order: 241

@@ -1,0 +1,22 @@
+id: atbnjovpeu
+artifact: plan
+record:
+  name: Reject unknown configuration keys
+  depends_on:
+    - tcrffftvxl
+  status: complete
+  acceptance:
+    - GIVEN selector or footer typos WHEN loaded THEN configuration fails without broader routing.
+    - GIVEN supported configuration WHEN loaded THEN intentional stage-name compatibility remains unchanged.
+    - GIVEN invalid configuration WHEN processing THEN destructive transformation cannot occur.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: config-audit-20260905-1
+      source: audit ses_f8db58b84ffeDrcQ0VlvhJaOl6; progress lyjcnvlneg; loader/hook regressions, local CLI smoke, mage check PASS; historical evidence unchanged
+      recorded_at: 2026-09-05 18:00
+      writer_command: agentera state plan record-evaluation

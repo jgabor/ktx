@@ -1,0 +1,26 @@
+id: zcvdpwllcs
+artifact: plan
+record:
+  name: Verify supported Linux platform
+  depends_on:
+    - xyhknqphfs
+    - pzztseunxc
+    - dwndsjjdkx
+    - mebgweiffm
+    - momdpkraiq
+  status: complete
+  acceptance:
+    - GIVEN Linux-only support WHEN documented THEN current promises exclude unverified non-Linux support without rewriting history.
+    - GIVEN Linux WHEN tested THEN database coordination and process lifecycle have native evidence.
+    - GIVEN required Linux gates WHEN evaluated THEN missing or failed evidence blocks completion without removing non-Linux code gratuitously.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: linux-qualification-audit-1
+      source: audit ses_f828fda3fffeISLiMcpYuhkxzS; progress kojcwmvbfa; native Linux qualification, capability scope, current support docs and preserved history PASS
+      recorded_at: 2026-09-07 22:07
+      writer_command: agentera state plan record-evaluation

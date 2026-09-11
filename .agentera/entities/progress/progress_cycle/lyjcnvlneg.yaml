@@ -1,0 +1,16 @@
+id: lyjcnvlneg
+artifact: progress
+record:
+  timestamp: 2026-09-05 17:56
+  type: fix
+  phase: build
+  what: Implemented strict unknown-key rejection for plan hljjrlykxb task atbnjovpeu; remains in_progress for coordinator audit/evaluation. Finding 12 disposition updated with original source references preserved.
+  context:
+    intent: Prevent selector/footer typos from broadening routing or suppressing recovery cues.
+    constraints: Only assigned task; preserve prior verification edits and untracked state. No schema changes, ambient DB, provider calls, staging, commits, task completion, satisfaction confirmation or audit delegation.
+    unknowns: State lists degrade under byte budgets; exact task get works. Profile grounding absent; not refreshed. Satisfaction remains user-owned. Coordinator owns audit and lifecycle closeout.
+    scope: Shared config parser, loader/hook regressions, pipeline documentation, historical-reference test maintenance and own finding disposition. Router implementation unchanged.
+  discovered: parse discarded TOML metadata; exit_staus normalized to any and command_prefx became empty. Both Load and LoadFile converge here. Undecoded keys now yield nil Config and path-bearing ParseError before profile/route construction. Existing compress/hook error boundaries prevent transformation. Logs intentionally retain separate fail-soft validation; unknown stage values and arbitrary profile names remain supported. A no-stages fixture used unsupported ui settings and now uses supported logs. Full check exposed frozen July config-source fingerprint coupling; extended existing historical-source treatment without rewriting captured hashes or findings.
+  verified: "Every Go/Mage invocation used root=$(mktemp -d /tmp/opencode/ktx-config-<label>.XXXXXX) and env -u KTX_DB HOME=$root/home XDG_DATA_HOME=$root/data XDG_CONFIG_HOME=$root/config XDG_CACHE_HOME=$root/cache XDG_STATE_HOME=$root/state GOCACHE=~/.cache/go-build GOMODCACHE=~/.local/share/go/pkg/mod. Before: go test ./internal/config -run '^TestLoad_UnknownKeys$' -count=1 failed all 14 loader cases; go test ./internal/cli -run '^TestHook_Codex_UnknownConfigKeysPreventTransform$' -count=1 failed all three hook cases. After: go test -race ./internal/config ./internal/cli -run '^(TestLoad_.*|TestNoFileDefaults|TestUserConfigIsNotAugmented|TestNamedBenchmarkPipelines|TestHook_Codex_UnknownConfigKeysPreventTransform|TestHook_Codex_MalformedConfigRecordsConservativePassthrough|TestPluginCommandsRejectMalformedConfigWithoutMutation)$' -count=1 passed. First mage check failed only frozen config hash; final mage check passed race tests, vet, lint (0 issues), 14 Python tests, required Bun overlap gate and build: 7549 audited attempts, forbidden=0. Explicit mage build passed. python3 /tmp/opencode/ktx-config-smoke.py passed: each local ./build/ktx invocation gets fresh HOME/XDG roots and KTX_DB unset; config show --format json and hook reject three selector/footer typos (exit 1, named key, empty stdout), twelve shipped configs plus missing config/unknown stage/custom plugin load, and valid hook control compresses 100 lines to one. git diff --check passed."
+  next: Coordinator review/evaluation only. No production-scale schema gate or provider validation required or run. Existing verification edits and other ledger rows retained.
+  publication_order: 217

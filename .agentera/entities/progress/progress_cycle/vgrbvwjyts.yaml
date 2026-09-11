@@ -1,0 +1,16 @@
+id: vgrbvwjyts
+artifact: progress
+record:
+  timestamp: 2026-09-05 19:51
+  type: fix
+  phase: build
+  what: Implemented the user-approved remaining preflight response bound for hljjrlykxb/otiqrxtwkw, continuing shnqqxdudb. Canonical decision bjqvkvgenm records the supplied answer 'Approve 64 KiB (Recommended)', alternatives 64 KiB/1 MiB/defer, and fixture rationale. Only image-ID inspection and capability JSON stdout reject above 65,536 raw bytes before parsing; one sentinel byte is retained. Overflow cancels the producer and waits for existing process/container cleanup. Size errors remain explicit through preflight, including concurrent cleanup failure.
+  context:
+    intent: Finish only the approved preflight/screen resource task without changing task lifecycle state.
+    constraints: Preserve previous screening, diagnostic, lifecycle and unrelated uncommitted work. No generic output cap, public flags, schema, framework, redaction policy, daemon or provider calls.
+    unknowns: Archive materialization remains open with its separate owner. Lists are degraded; exact gets work; profile grounding is absent. Startup verification-recipe/changelog metadata remains incomplete. Satisfaction remains user-owned.
+    scope: Response capture helper and two runner call sites, resource/lifecycle tests, local signal-test grace argument, pipelines documentation, own S7 ledger portion, canonical decision and this progress entry.
+  discovered: The earlier partial work correctly left a new acceptance restriction gated on approval. Fresh regressions also exposed preflight hiding the new size error. Opt-in local signal tests assumed completion within eight seconds while using the now-inherited 30-second grace; set the existing test argument to 50ms rather than changing production lifecycle behavior.
+  verified: "Fail-before: both probes accepted 65,537 bytes; 32 MiB inputs retained all bytes and allocated 67,126,656/33,568,976 bytes. After: exact 65,536 accepted, 65,537 rejected, retention at 65,537 and allocation below 2 MiB for the same huge input; malformed within-limit responses, uncapped generic output, cleanup-error preservation, infinite noisy TERM/PIPE-ignoring writers and owned leader/descendant/container cleanup pass. Focused tests and race pass. Fresh mage build and eight local CLI response checks pass; overflow errors return in 0.023–0.035s with no DB creation. Four configured-grace compare/rank SIGINT/SIGTERM cases pass in 0.294s total. Final mage check with local CLI tests enabled passes: 14 Python tests, adapter overlap, zero lint issues, build, 7,678 DB operations, forbidden=0. Every verification used fresh HOME/XDG and unset KTX_DB; DB tests use disposable targets; GOPROXY=off and only offline fake Docker."
+  next: Coordinator owns evaluation, task completion and the requested later audit. otiqrxtwkw remains in_progress; S7 archive portion stays open. No satisfaction confirmation, evaluation, audit, staging, commit, push or publication performed.
+  publication_order: 223

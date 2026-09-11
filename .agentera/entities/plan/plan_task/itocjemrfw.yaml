@@ -1,0 +1,24 @@
+id: itocjemrfw
+artifact: plan
+record:
+  name: Reduce pipeline allocation work
+  depends_on:
+    - atbnjovpeu
+    - btxcvatnmt
+    - hlzmkuhsht
+  status: complete
+  acceptance:
+    - GIVEN newline-heavy and passthrough workloads WHEN measured THEN allocation meets recorded improvement budgets.
+    - GIVEN large inputs and many routes WHEN selected THEN repeated interpretation work decreases.
+    - GIVEN equivalent supported inputs WHEN transformed THEN routing and output remain identical.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: pipeline-allocation-audit-1
+      source: audit ses_f8372870bffe9YqF1znv2ztGP9; progress aughlttocw; byte/routing oracles and fresh allocation gates PASS; full check recorded PASS
+      recorded_at: 2026-09-07 17:52
+      writer_command: agentera state plan record-evaluation

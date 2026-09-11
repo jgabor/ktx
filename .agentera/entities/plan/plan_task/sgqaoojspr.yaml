@@ -1,0 +1,22 @@
+id: sgqaoojspr
+artifact: plan
+record:
+  name: Validate experiment entry contracts
+  depends_on:
+    - tcrffftvxl
+  status: complete
+  acceptance:
+    - GIVEN empty or incomplete evidence WHEN validated THEN target-met success is impossible.
+    - GIVEN missing or unsupported versions WHEN interpreted THEN legacy authority is not inferred.
+    - GIVEN current producers WHEN inventoried THEN their supported regeneration matrix passes.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: experiment-entry-audit-20260905-1
+      source: audit ses_f8c7ed172ffe4vMsZdz9j2uggV; progress rtyakjcilg; entry regressions/producer matrix independently PASS; mage check evidence PASS; historical bytes preserved
+      recorded_at: 2026-09-05 23:42
+      writer_command: agentera state plan record-evaluation

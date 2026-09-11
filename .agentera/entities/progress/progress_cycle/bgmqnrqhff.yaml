@@ -1,0 +1,16 @@
+id: bgmqnrqhff
+artifact: progress
+record:
+  timestamp: 2026-09-06 11:45
+  type: fix
+  phase: build
+  what: Implemented plan hljjrlykxb task momdpkraiq remaining argument ownership and assigned write acknowledgement failure handling; lifecycle remains in_progress.
+  context:
+    intent: Align only remaining command argument ownership and post-commit write acknowledgement delivery.
+    constraints: Preserve run boundary and private receipt, public semantic IDs, format/failure contracts, query read-only behavior, prior uncommitted work/state/pycache; no schema, cap, framework, alias or Git lifecycle action.
+    unknowns: List summaries remain degraded while exact gets work; profile grounding is absent. Startup recipe/changelog-summary caveats remain, without replacing directly run checks.
+    scope: init/db/stats/bench/plugin/shared format, write acknowledgement, focused regression tests/help/reference/changelog, and only A8/S6 ledger evidence. No task status, evaluation, audit or satisfaction mutation. Recording-resource branch is unchanged.
+  discovered: Independent scanners reinterpreted consumed flag-like values and lost global/empty format intent. Both write acknowledgements ignored sink errors. Duplicate tool-call retries already fail on the retained ID; that contract is preserved. Compression's separate legacy printID caller remains outside this assigned write scope.
+  verified: "Initial go test ./internal/cli -run 'TestRemainingOwnedArguments|TestWriteAcknowledgementFailureKeepsCommit' -count=1 failed 14 argument cases and four sink cases before implementation. Expanded focused tests passed. mage build passed before final CLI verification. With KTX_TEST_RUN_BINARY and KTX_BENCH_OWNER_CLI selecting build/ktx, go test -race ./internal/cli -run 'TestRemaining|TestWriteAcknowledgementFailureKeepsCommit|TestRunArgumentOwnership|TestBenchOwnedSessionLocalCLI' -count=1 passed: 47 dispatch/47 built-CLI argument cases, four post-commit sink cases, six validation-before-readiness cases, three byte-preserving owned-DB queries, help checks, existing 52/52 wrapper cases and private receipt checks. Full mage check passed Go race tests, 14 Python tests, adapter gate, vet, zero-issue lint and build; boundary d9908fbde4ea074a reported 13019 attempts, forbidden=0, ktx_db=unset. Earlier full-check lint findings were corrected. git diff --check passed. Each verification invocation had fresh HOME/XDG and unset KTX_DB; tests used explicitly disposable databases. No provider/paid/daemon operation."
+  next: Assigned owner retains completion/evaluation and commits. Ledger A8/S6 records scoped implementation versus residual output-error handling. Existing TODO jytspihtzs remains the seven-surface umbrella, open and not duplicated. No decision satisfaction or recording-resource implementation.
+  publication_order: 234

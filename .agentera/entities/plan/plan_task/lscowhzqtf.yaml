@@ -1,0 +1,22 @@
+id: lscowhzqtf
+artifact: plan
+record:
+  name: Preserve reporting authority
+  depends_on:
+    - xyhknqphfs
+  status: complete
+  acceptance:
+    - GIVEN unknown numeric latency WHEN aggregated THEN measured coverage excludes it.
+    - GIVEN invalid stored outcomes WHEN retrieved or reported THEN they remain unknown.
+    - GIVEN interrupted integrity scans WHEN reporting THEN incomplete counts cannot indicate success.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: reporting-authority-recovery-audit-1
+      source: audit ses_f84baa061ffezYBIPXR4649hBF; recovered progress pyfgddgpzr; storage authority/iteration failure and focused race independently PASS; interrupted verification remains unknown
+      recorded_at: 2026-09-07 11:52
+      writer_command: agentera state plan record-evaluation

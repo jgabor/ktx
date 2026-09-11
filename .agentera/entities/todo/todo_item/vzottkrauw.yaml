@@ -20,4 +20,4 @@ record:
       description: "**Evidence maintenance boundary** — Run a structured discussion and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)"
       severity: normal
       status: open
-      order: 14
+      order: 12

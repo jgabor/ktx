@@ -1,0 +1,16 @@
+id: ivkophbxat
+artifact: progress
+record:
+  timestamp: 2026-09-05 19:10
+  type: fix
+  phase: build
+  what: Implemented benchmark process ownership for plan hljjrlykxb task pzztseunxc; task remains in_progress for its assigned lifecycle owner.
+  context:
+    intent: Bound benchmark cancellation and owned execution without a lifecycle framework or evidence-contract redesign.
+    constraints: Preserved prior changes/untracked memory, public CLI, paid-attempt evidence, cache methodology and schema. No staging, commit, publication, task completion, evaluation or audit.
+    unknowns: Linux-only subprocess evidence; native BSD/Windows remain later work. Non-cancelled preflight resource budgets and uncatchable SIGKILL/host-failure recovery are not claimed. State summaries degraded; exact get works; profile absent; recipe/changelog startup caveats persist; satisfaction remains user-owned.
+    scope: Benchmark CLI contexts, experiment executor/container cleanup, focused regressions, benchmark lifecycle guidance, and this owner's ledger disposition. No wrapper changes.
+  discovered: Baseline regressions reproduced SIGINT/SIGTERM orphaning in locally built compare/rank, four attempts continuing after cleanup failure or cancellation, maximum-length container-name collision, and a live descendant after leader exit. Existing tests require bounded per-attempt timeout retries; those evidence and scheduling contracts were preserved. Capability probes also require owned container cleanup on cancellation.
+  verified: mage build passed before baseline and repaired CLI tests. go test ./internal/experiment -count=1 passed. KTX_LIFECYCLE_CLI=$PWD/build/ktx go test ./internal/cli -run '^TestBenchLocalCLISignals$' -count=1 failed before and passed after for compare/rank SIGINT/SIGTERM (four cases, exact cleanup owner checked). Focused go test -race ./internal/experiment ./internal/cli passed lifecycle, ownership, cancellation, cleanup failure, timeout-retry and preflight fixtures; exact selectors and timings are in .agentera/verification/review-remediation-coverage.md. Full mage check initially exposed a fake-Docker fixture missing cleanup support; the fixture correction and targeted rerun passed, then full mage check passed Go tests, 14 Python tests, adapter gate, vet/lint/build, zero lint issues, database audit 7678 attempts/forbidden=0/ktx_db=unset. Every verification invocation used fresh HOME/XDG roots and unset KTX_DB; database fixtures were explicit temporary targets. No daemon/provider/paid calls.
+  next: Assigned owner retains evaluation, completion and final commit. Findings 3, 4 and S8 have scoped repair evidence in the ledger with original references preserved; no other finding disposition changed.
+  publication_order: 221

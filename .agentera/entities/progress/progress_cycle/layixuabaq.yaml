@@ -1,0 +1,16 @@
+id: layixuabaq
+artifact: progress
+record:
+  timestamp: 2026-09-05 22:05
+  type: fix
+  phase: build
+  what: Partial candidate for dwndsjjdkx in plan hljjrlykxb; paused on a reproduced terminal-stdin contract regression. Linux signal cancellation now uses owned group TERM, one-second grace, KILL, reader settlement and completion-only recording. Finding 5 descendant disposition is partial/blocked, not repaired. Prior qlhcdoeyhr work and sxvzdoznys remain intact.
+  context:
+    intent: Bound wrapper cancellation without losing committed evidence or changing accepted inputs.
+    constraints: Only wrapper lifecycle and finding 5 disposition; preserve prior checkout changes. Linux-only scope ygcysqxcfr and internal-budget authority yohiahsqjv. No schema, public flags, benchmark overhaul, providers, paid runs, ambient DB access, staging or commits.
+    unknowns: New Setpgid breaks inherited foreground terminal stdin. User required pausing on real contract risk; no foreground/restore or Ctrl-C semantics selected. Exact gets work; summaries degraded, profile absent, startup recipe/changelog caveats retained. Satisfaction remains user-owned.
+    scope: internal/cli/run.go, new run_process.go/run_process_linux.go/run_process_other.go, new run_signal_linux_test.go, own ledger finding 5 section. Candidate is uncommitted and not ready to ship.
+  discovered: Before repair, graceful TERM returned 255, skipped the TERM trap and published one recording; leader-first SIGINT exceeded five seconds. WNOWAIT now keeps the leader unreaped until all group signals finish, avoiding reused group IDs. Both incoming signals send TERM, not identical-signal forwarding. Local PTY probe then printed READY, echoed hello and left the reader stopped (process state T) past three seconds; durable TestRunForegroundStdin reproduces SIGTTIN caused by moving the reader out of the foreground group.
+  verified: Every verification used fresh disposable HOME/XDG roots with KTX_DB unset; child DBs remained in owned temporary application roots. Final mage build passes. Final local build/ktx tests pass eight INT/TERM cases (graceful trap, resistant descendant, leader-first, closed stdout), shutdown 1.001-1.003s, unrelated process alive, owned descendants stopped, session closed, continuity interrupted, one committed tool call and zero recordings. Normal exit 7 regression remains passing; graceful cancellation returns 37; forced reader closure returns 4. Focused race selection fails only TestRunForegroundStdin (14.976s), with no race diagnostic. Local CLI selection also fails that regression (12.161s). Full mage check fails at Go tests on that same regression; boundary 5de1975515520bf7 has 7754 attempts, forbidden=0, KTX_DB unset. Later check stages were not reached. git diff --check passes.
+  next: Keep dwndsjjdkx in progress. Resolve foreground terminal ownership and Ctrl-C contract before continuing or shipping the candidate, then rerun focused race, local CLI and full check. Escaped groups, indefinitely blocked output sinks, and non-Linux native behavior remain unproven; existing recording memory remains separately owned. Coordinator owns evaluation/completion; no audit or satisfaction confirmation performed.
+  publication_order: 225

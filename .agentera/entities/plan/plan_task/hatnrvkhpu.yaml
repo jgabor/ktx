@@ -1,0 +1,22 @@
+id: hatnrvkhpu
+artifact: plan
+record:
+  name: Persist cold pricing discovery
+  depends_on:
+    - htbcyjluxa
+  status: complete
+  acceptance:
+    - GIVEN successful cold discovery WHEN another process starts THEN redundant fetching is unnecessary.
+    - GIVEN warm missing-model lookup WHEN deriving THEN the no-refetch contract remains intact.
+    - GIVEN refresh or publication failure WHEN deriving THEN cache recovery and unknown costs remain truthful.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: prices-audit-20260905-1
+      source: audit ses_f8d8b2083ffeJ75wqjf1XNB6Rn; progress nvzlcdvfxh; persisted reuse/failure regressions and focused race independently PASS; mage check recorded PASS
+      recorded_at: 2026-09-05 18:47
+      writer_command: agentera state plan record-evaluation

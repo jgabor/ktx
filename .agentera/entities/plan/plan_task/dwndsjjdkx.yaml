@@ -1,0 +1,25 @@
+id: dwndsjjdkx
+artifact: plan
+record:
+  name: Bound wrapper cancellation
+  depends_on:
+    - qlhcdoeyhr
+  status: superseded
+  acceptance:
+    - GIVEN termination signals WHEN received THEN graceful child shutdown is exercised.
+    - GIVEN descendants retaining stdout WHEN cancelled THEN wrapper exit cannot hang.
+    - GIVEN escalation WHEN necessary THEN shutdown and evidence closure obey bounded ownership.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 2
+    failure_count: 2
+    last_verdict: fail
+    last_failure_evidence: Original descendant ownership P1 is repaired, but terminal startup now requires procfs/subreaper/pidfd_open/waitid(P_PIDFD), normally Linux >=5.4. ENOSYS fault injection rejects normal foreground stdin before spawn. Explicit capability-floor approval and support documentation are missing; no unsafe fallback authorized.
+    provenance:
+      attempt_id: wrapper-cancel-audit-20260905-2
+      source: targeted audit continuation ses_f8cbe912fffeP1TTHhSdaW6k7S; progress fxjcqsvqgw; lifecycle PASS, support-contract gate unresolved after one bounded correction
+      recorded_at: 2026-09-05 23:06
+      writer_command: agentera state plan record-evaluation
+  superseded_by:
+    - rmbdxwfguf
+  superseded_reason: User-approved support amendment llshvynohy resolved the capability-floor gate. Completed replacement rmbdxwfguf passed docs/native verification; both earlier failed evaluations remain intact.

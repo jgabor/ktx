@@ -16,10 +16,10 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[task] Recorded-decision satisfaction review"
+      description: "[task] Recorded-decision satisfaction review — Preserve existing review state; `rholpeffdq` records shared-boundary disposition, not satisfaction or implementation completion. → [Scoped evidence](.agentera/verification/shared-boundary-disposition.md)"
       severity: normal
       status: open
-      order: 5
+      order: 4
   kind: task
   target_version: null
   requirements:
@@ -30,4 +30,4 @@ record:
   acceptance:
     []
   release_blocker: false
-  title: Recorded-decision satisfaction review
+  title: Recorded-decision satisfaction review — Preserve existing review state; `rholpeffdq` records shared-boundary disposition, not satisfaction or implementation completion. → [Scoped evidence](.agentera/verification/shared-boundary-disposition.md)

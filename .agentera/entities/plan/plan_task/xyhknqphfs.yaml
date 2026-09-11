@@ -1,0 +1,22 @@
+id: xyhknqphfs
+artifact: plan
+record:
+  name: Recheck managed schema leases
+  depends_on:
+    - htbcyjluxa
+  status: complete
+  acceptance:
+    - GIVEN an upgraded database WHEN stale writers mutate THEN rejection precedes writes.
+    - GIVEN readiness reopening WHEN another upgrade intervenes THEN incompatible queries reject.
+    - GIVEN supported schemas WHEN accessed THEN readiness, retries, and read-only behavior remain intact.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: managed-schema-audit-20260906-1
+      source: audit ses_f89abdf26ffediboXr6qCVsUxo; progress vkfixtazox; coordinated write/reopen schema checks and focused race independently PASS; mage check recorded PASS
+      recorded_at: 2026-09-06 12:51
+      writer_command: agentera state plan record-evaluation

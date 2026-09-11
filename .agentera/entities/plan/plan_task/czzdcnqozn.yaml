@@ -1,0 +1,25 @@
+id: czzdcnqozn
+artifact: plan
+record:
+  name: Bound archive materialization work
+  depends_on:
+    - sgqaoojspr
+    - bqpenkdmho
+    - tqmgzzesya
+    - mljcarlewi
+  status: complete
+  acceptance:
+    - GIVEN supported archives WHEN regenerated THEN accepted bytes and evidence authority remain identical.
+    - GIVEN large streams WHEN measured THEN repeated passes and allocations decrease.
+    - GIVEN aggregate ledger growth WHEN bounded THEN approved input contracts remain intact.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: archive-materialization-audit-1
+      source: audit ses_f83f1fac4ffen9HhsjYKrPjF62; progress kfawtcedqh; exact-byte/evidence and fresh resource probes PASS; full check recorded PASS
+      recorded_at: 2026-09-07 15:32
+      writer_command: agentera state plan record-evaluation

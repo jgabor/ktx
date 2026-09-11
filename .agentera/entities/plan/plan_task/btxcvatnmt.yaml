@@ -1,0 +1,22 @@
+id: btxcvatnmt
+artifact: plan
+record:
+  name: Preserve stage evidence validity
+  depends_on:
+    - atbnjovpeu
+  status: complete
+  acceptance:
+    - GIVEN control-character arguments WHEN provenance persists THEN its representation remains readable and valid.
+    - GIVEN null outcome flags WHEN unwrapped THEN success is not inferred.
+    - GIVEN extreme counts WHEN stages execute THEN controlled behavior replaces panic.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: stages-audit-20260905-1
+      source: audit ses_f8da6e7deffeKeZ8eImziYsZvU; progress peheyiedmc; three regression-first behavioral fixes and isolated mage check PASS
+      recorded_at: 2026-09-05 18:17
+      writer_command: agentera state plan record-evaluation

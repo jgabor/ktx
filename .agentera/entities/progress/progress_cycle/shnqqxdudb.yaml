@@ -1,0 +1,16 @@
+id: shnqqxdudb
+artifact: progress
+record:
+  timestamp: 2026-09-05 19:30
+  type: fix
+  phase: build
+  what: "Verified partial resource repair for hljjrlykxb/otiqrxtwkw: screening enforces the existing 64 MiB limit before oversized regular-file payload allocation and bounds all reads with a one-byte sentinel. Preflight builds/probes inherit existing timeout/grace options. Build diagnostics and command stderr retain 64 KiB plus a truncation notice while draining excess. Existing owned-group and random-container cleanup is preserved. S7 remains open; archive materialization is untouched."
+  context:
+    intent: Execute only Bound preflight and screening resources, preserving existing accepted input contracts.
+    constraints: No new flags/framework/schema/paid evidence changes; preserve prior lifecycle changes and all untracked project memory. Resource code and own S7 ledger evidence only, plus documentation of changed preflight behavior.
+    unknowns: No existing accepted stdout-size ceiling was found. Await explicit approval of a ceiling before introducing one; this is a partial result, not full resource boundedness.
+    scope: internal/cli/bench_screen.go and new resource tests; internal/experiment/runner.go, diagnostics.go and new resource tests; docs/pipelines.md; only own coverage-ledger portion. No archive materialization changes.
+  discovered: Parsed stdout remains unbounded. Image inspection and capability JSON accept arbitrary response bytes, including whitespace/unknown fields. A stdout byte cap or truncated parse would introduce a new acceptance restriction; none was implemented. Lists remain degraded, exact gets work, profile grounding is absent, and startup verification/changelog metadata remains incomplete. Satisfaction remains user-owned.
+  verified: "Before: resource regressions failed with 268,488,280 allocated bytes for a 256 MiB sparse population, zero probe deadlines, and 2,097,192 diagnostic bytes. After: focused tests and focused race passed, including infinite-reader consumption, exact boundary, hung/noisy fake commands, successful noisy build/output, and concurrent diagnostic draining. Local mage build passed. Local CLI smoke rejected 256 MiB in 0.002 s, accepted exactly 64 MiB in 0.097 s, and bounded fake hung/noisy preflight to 0.114 s; none created a database. Final isolated mage check passed including 14 Python tests and adapter overlap; 7,678 database operations, forbidden=0. Initial lint failure was octal formatting and was fixed; initial smoke-driver exit-code/spec assumptions were corrected. Each verification used fresh HOME/XDG and unset KTX_DB; no Docker daemon/provider/real-network experiment. Evidence: new resource Go tests and own ledger section."
+  next: "Approval required before further restrictive implementation: may image-inspect and capability-response stdout have an explicit maximum accepted byte size, and what size? General output/session-list materialization remains unchanged for later archive work. Keep otiqrxtwkw in_progress; coordinator owns evaluation/completion/audit and user owns satisfaction. No staging, commits or publication performed."
+  publication_order: 222

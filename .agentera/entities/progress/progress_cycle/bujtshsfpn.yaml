@@ -1,0 +1,16 @@
+id: bujtshsfpn
+artifact: progress
+record:
+  timestamp: 2026-09-06 13:49
+  type: fix
+  phase: build
+  what: Implemented only plan hljjrlykxb task linrevynph, Preserve session cache ownership; left task in_progress and lifecycle completion owner-assigned. Updated only ledger A2 disposition.
+  context:
+    intent: Prevent interrupted publication and concurrent parent resolution from changing accepted session ownership.
+    constraints: Standing yohiahsqjv contract-preserving authority and ygcysqxcfr Linux scope. Preserve prior uncommitted work. No new dependencies, framework, schema, lockfiles, lifecycle redesign, staging, commits, evaluation or audit. Canonical entities written only through CLI.
+    unknowns: Bounded state summaries remain degraded/inconsistent; exact task get confirms in_progress. Profile absent; satisfaction user-owned. Recording choice zyeasphydk is unrelated and its implementation remains pending. Existing durable publication covers process interruption, not a new whole-system power-loss guarantee. Non-Linux runtime behavior unverified.
+    scope: internal/db/session.go; internal/db/session_cache_linux_test.go; review-remediation coverage ledger A2.
+  discovered: Before repair, RLIMIT_FSIZE partial publication left only 16 bytes of the original cache; null/empty/invalid identity shapes silently created replacement sessions; six actual same-parent processes accepted six owners. Reused durablefile.Write and the managed database coordination lease through cache read/create/publication. HookWriter callbacks avoid nested lease acquisition. Malformed cache evidence stays untouched with explicit verified-session recovery guidance. Database lookup/close failures now propagate rather than silently allocate ownership.
+  verified: "All verification invocations unset KTX_DB with fresh HOME/XDG and explicit disposable offline databases. Before: go test ./internal/db -run '^TestSessionCache' -count=1 -timeout=60s failed for partial publication, malformed recovery and concurrent ownership. After: targeted db/durablefile tests passed. go test -race ./internal/db ./internal/durablefile ./internal/cli -run 'TestSessionCache|TestResolveSessionID|TestOpenNamedSession|TestWriteInterrupted|TestManagedSchema|TestSchema15Partial|TestSessionAttribution|TestIdentifySession|TestHook.*(Retry|Session|Source)|Test.*KTX_SESSION' -count=1 -timeout=120s passed. mage build passed before local CLI invocation. mage check passed, zero lint issues, generated-adapter gate passed; verification boundary e86809340c69dd81 recorded 13797 attempts, forbidden=0. python3 /tmp/opencode/session-cache-smoke.py passed against ./build/ktx: seven sources, one owner, unchanged historical source rows, malformed exit 4 with byte-exact cache evidence, explicit recovery succeeds, missing hint exit 2. git diff --check passed. Existing injected rename-failure test preserves prior bytes; new tests also cover private permissions, fresh/stale/missing-session/selected-DB semantics and managed schema rejection."
+  next: Assigned owner reviews and performs any evaluation, task completion and final commit. No genuine implementation blocker remains. No satisfaction confirmation or unrelated recording implementation performed.
+  publication_order: 239

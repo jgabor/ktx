@@ -1,0 +1,16 @@
+id: ycxcvjhsor
+artifact: progress
+record:
+  timestamp: 2026-09-07 18:39
+  type: fix
+  phase: build
+  what: "Implemented mebgweiffm in plan hljjrlykxb: Codex shared-hook mutations now hold a Linux directory lease across read/merge/checked durable publication or removal, preserve unknown fields and exact JSON numbers, reject malformed documents, and recognize relocated generated hooks without losing siblings or leaving duplicate owned commands. Task status remains in_progress."
+  context:
+    intent: Preserve Codex shared-hook ownership and document integrity for ledger A3 and S5 only.
+    constraints: Preserved unrelated uncommitted work, scope/show contracts and canonical executable pinning. No new configuration fields, caps, schema, runtime execution, executable hashing, unsupported ownership fields or aliases. No commits, staging, task completion, evaluation, audit or satisfaction changes.
+    unknowns: Noncooperating editors can race the final check-to-rename/remove window; syntax and generated metadata identify owned hooks, not authenticated executable identity. No filesystem CAS, power-loss directory durability or non-Linux execution guarantee.
+    scope: internal/cli/init_codex*.go, internal/durablefile/write*.go, Codex reference guidance, changelog, scoped verification note and ledger A3/S5. Canonical progress written only through the typed CLI.
+  discovered: Uninstall also deleted a document containing only one unrelated top-level field. Initial regressions reproduced truncation, missing coordination, relocation leftovers and malformed-container rewrites. Negative controls restoring direct write/remove and bypassing coordination lost seven of eight multiprocess updates, overwrote/deleted external edits and truncated both install/removal documents; all controls were restored before final checks.
+  verified: "Fresh disposable HOME/XDG/TMP per verification and local CLI invocation, KTX_DB unset, offline Go toolchain and external tool caches. Focused tests passed; fresh mage build followed by KTX_CODEX_CLI=<checkout>/build/ktx focused go test -race passed, including nine CLI invocations with two actual executable paths, symlink pinning, relocated uninstall/show and merged siblings. Final mage check passed all gates and lint 0 issues, forbidden=0, boundary 380d1cde66cd1a97. The first full check's sole new-test style issue was corrected. Details: .agentera/verification/codex-shared-hooks.md. No live database, Codex runtime or provider was used."
+  next: No hard blocker remains. Assigned owner retains task lifecycle completion, evaluation and final commit; mebgweiffm stays in_progress.
+  publication_order: 249

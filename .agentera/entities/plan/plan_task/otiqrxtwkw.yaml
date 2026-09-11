@@ -1,0 +1,22 @@
+id: otiqrxtwkw
+artifact: plan
+record:
+  name: Bound preflight and screening resources
+  depends_on:
+    - pzztseunxc
+  status: complete
+  acceptance:
+    - GIVEN hung or noisy preflight WHEN executed THEN time and diagnostics remain bounded.
+    - GIVEN oversized screening input WHEN read THEN existing limits reject before full allocation.
+    - GIVEN proposed acceptance restrictions WHEN considered THEN approval precedes implementation.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: preflight-resources-audit-20260905-1
+      source: audit ses_f8d499f31ffeBTp1b75Tx0q5GL; progress shnqqxdudb and vgrbvwjyts; approved decision bjqvkvgenm; existing/new boundary regressions, local CLI, mage check PASS
+      recorded_at: 2026-09-05 19:58
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,22 @@
+id: bqpenkdmho
+artifact: plan
+record:
+  name: Confine archive access
+  depends_on:
+    - sgqaoojspr
+  status: complete
+  acceptance:
+    - GIVEN traversal or symlink escapes WHEN requested THEN rejection precedes external access.
+    - GIVEN archived database references WHEN inspected THEN unrelated databases remain unopened.
+    - GIVEN an owned archive WHEN validated THEN legitimate artifacts remain accessible.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: archive-confinement-audit-20260906-1
+      source: audit ses_f8a3bf4e3ffevZbDPYZAEaadwa; progress xfqwiuhzro; confined access/SQLite sidecars and current producer tests PASS; isolated mage check recorded PASS
+      recorded_at: 2026-09-06 10:16
+      writer_command: agentera state plan record-evaluation

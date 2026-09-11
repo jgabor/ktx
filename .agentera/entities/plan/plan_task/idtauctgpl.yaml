@@ -1,0 +1,22 @@
+id: idtauctgpl
+artifact: plan
+record:
+  name: Reduce cache-sequence repeated work
+  depends_on:
+    - czzdcnqozn
+  status: complete
+  acceptance:
+    - GIVEN identical events and gaps WHEN assessed THEN estimates remain identical.
+    - GIVEN many adjacent pairs WHEN measured THEN repeated full-event sorting and copying decrease.
+    - GIVEN concurrent evaluations WHEN repeated THEN outcomes remain deterministic.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: sequence-ordering-audit-1
+      source: audit ses_f83df4142ffe4fiaabj2FWR3Nn; progress wprbkdxlta; exact estimate/concurrency and measured operation-local reuse PASS
+      recorded_at: 2026-09-07 15:53
+      writer_command: agentera state plan record-evaluation

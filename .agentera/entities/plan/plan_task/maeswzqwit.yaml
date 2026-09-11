@@ -1,0 +1,29 @@
+id: maeswzqwit
+artifact: plan
+record:
+  name: Audit coverage and boundary tests
+  depends_on:
+    - xyhknqphfs
+    - sgqaoojspr
+    - bqpenkdmho
+    - yawngvokny
+    - atbnjovpeu
+    - btxcvatnmt
+    - momdpkraiq
+    - ubegqqsptl
+  status: complete
+  acceptance:
+    - GIVEN current sources WHEN coverage runs THEN a fresh workspace baseline is retained.
+    - GIVEN owning-task regressions WHEN audited THEN malformed-input fuzz coverage and residual gaps are explicit.
+    - GIVEN routine verification WHEN repeated THEN isolation and bounded runtime remain enforced.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: coverage-boundaries-audit-1
+      source: audit ses_f82c0f7c9ffeMH6hIvqPIEqdXJ; progress qccufskrwz; weighted profile/fingerprints/exclusions independently verified; fuzz seeds PASS; baseline point-in-time
+      recorded_at: 2026-09-07 21:09
+      writer_command: agentera state plan record-evaluation

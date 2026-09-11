@@ -1,0 +1,16 @@
+id: rtyakjcilg
+artifact: progress
+record:
+  timestamp: 2026-09-05 23:36
+  type: fix
+  phase: build
+  what: Repaired experiment summarization/validation entry contracts for sgqaoojspr; recorded finding 2 evidence and the producer/regeneration gate for ubegqqsptl.
+  context:
+    intent: Implement only Validate experiment entry contracts in plan hljjrlykxb.
+    constraints: Preserved prior uncommitted work, explicit compatibility and tracked fixture bytes. Fresh HOME/XDG roots per verification, unset KTX_DB, disposable archives/explicit owner databases; no provider, daemon, ambient database or schema change. No extraneous hard caps. Archive confinement, execution configuration identity and wrapper code untouched.
+    unknowns: State summaries remain degraded/incomplete; exact reads work. Profile grounding is absent; decision satisfaction remains user-owned. dwndsjjdkx remains separately blocked on kernel-capability approval despite recorded passing host checks.
+    scope: Shared experiment entry loader, existing artifact-check placement, regressions/fixture declarations, changelog, finding 2 ledger and durable producer/consumer compatibility matrix. Canonical task remains in_progress.
+  discovered: Local CLI reproduced manifest-only/no-ledger valid=true, target_met=true, zero counts. A missing exact-match stream also retained target credit. Shared entry loading now rejects missing/unsupported versions, nonpositive targets, missing scoring/registered inputs, and empty or malformed ledgers. Existing artifact/hash checks exclude damaged attempts before aggregation. List/show remain permissive. Active exact-match still uses attempt schema 1 and summary schemas 1–3; removing those readers now would break current production.
+  verified: "Linux local mage build passed before public CLI invocation. Thirty entry-rejection cases, one missing-contract case, nine incomplete-evidence cases, and five actual-runner producer/regeneration rows pass offline through API and local CLI. Focused go test -race ./internal/experiment -count=1 passed with local CLI and inline offline fixture enabled. Full mage check passed after one test-only formatting correction: tests, generated-adapter overlap, Python checks, vet/lint/build; 8712 audited operations, forbidden=0, KTX_DB unset. git diff --check passed. Evidence: .agentera/verification/experiment-entry-contract-matrix.md; finding 2 in review-remediation-coverage.md preserves prior history."
+  next: Owner evaluates sgqaoojspr; no status completion, audit, staging, commit or push performed. ubegqqsptl must consume the recorded matrix before retiring readers. No implementation blocker remains for this task.
+  publication_order: 228

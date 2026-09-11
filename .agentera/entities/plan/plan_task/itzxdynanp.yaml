@@ -1,0 +1,22 @@
+id: itzxdynanp
+artifact: plan
+record:
+  name: Order continuity chronologically
+  depends_on:
+    - xyhknqphfs
+  status: complete
+  acceptance:
+    - GIVEN offset and fractional timestamps WHEN evaluated THEN actual chronological order governs.
+    - GIVEN equal instants WHEN ordered THEN results remain deterministic.
+    - GIVEN missing or conflicting observations WHEN evaluated THEN unavailable coverage remains explicit.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: continuity-order-audit-20260906-1
+      source: audit ses_f8999f67fffeeu5S7aAbWFNk3P; progress kfuwiotqyx; chronological/tie/gap tests independently PASS; live-validation byte-preserving smoke and mage check recorded PASS
+      recorded_at: 2026-09-06 13:10
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,16 @@
+id: eulaveyybg
+artifact: progress
+record:
+  timestamp: 2026-09-05 17:24
+  type: docs
+  phase: build
+  what: Established durable finding coverage for plan hljjrlykxb task chdzwfbxaz in .agentera/verification/review-remediation-coverage.md; no remediation or lifecycle completion.
+  context:
+    intent: Execute only Establish finding coverage and preserve review evidence distinctions for future workers.
+    constraints: Docs-only project memory; canonical progress through CLI writer; no shipped code or historical REVIEW edits, staging, commits, pushes, task evaluation/completion, decision satisfaction or untracked plan changes.
+    unknowns: Profile unavailable and list summaries degraded; exact retrieval works. Startup recipe metadata/changelog caveats remain outside scope. Recording, accepted-size limits, boundary selection and native-runner gates remain unresolved. Satisfaction is user-owned.
+    scope: One coverage ledger plus this progress record; source checks limited to needed path resolution and shared-hook evidence. Reproduction outputs are prior-review observations, not rerun proof.
+  discovered: Mapped all 48 inventory entries and reconstructed 36 ordinal-to-bare-ID/name gates from exact plan retrieval. Linked existing argument todo jytspihtzs, user-owned satisfaction todo lejmjmiqzt, and overstated unified-hook todo tafkrzkqbh without duplicate work. Common hook flow exists at internal/cli/hook.go:503 and source persistence at :607. Resolved screen.go shorthand to internal/cli/bench_screen.go:116.
+  verified: "N/A: docs-only. Read-only structural checker passed: 48 unique rows (4 prior reproduced, 30 source-confirmed, 4 source-derived cost, 10 architectural/verification), 36 exact ordinal/ID/name matches, 34 finding owners plus ledger/final reconciliation owners, 111 unique source path:line references existing and in bounds. Exact plan retrieval confirms chdzwfbxaz remains in_progress. Exact todo and decision gets verified referenced IDs; public TODO links inspected. git diff --check and tracked REVIEW.md/plan diff checks passed. No tests, build, database, Docker, provider, fresh reproduction, coverage or native-platform gate run; prior metrics are not new evidence."
+  next: Coordinator owns evaluation/completion and subsequent tasks. All 48 findings remain unremediated; require repair or approved no-change evidence before disposition.
+  publication_order: 215

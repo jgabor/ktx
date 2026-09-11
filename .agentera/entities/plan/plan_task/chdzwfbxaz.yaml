@@ -1,0 +1,22 @@
+id: chdzwfbxaz
+artifact: plan
+record:
+  name: Establish finding coverage
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN all findings WHEN catalogued THEN each has an owner and source reference.
+    - GIVEN review evidence WHEN recorded THEN reproduced and source-confirmed states remain distinct.
+    - GIVEN existing backlog WHEN linked THEN duplicates and overstated hook work are identified.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: coverage-audit-20260905-1
+      source: audit ses_f8dd29e4effekxxtwVAsutZXOf; progress eulaveyybg; 48 findings, 36 task mappings, 111 references; docs-only evidence audit PASS
+      recorded_at: 2026-09-05 17:29
+      writer_command: agentera state plan record-evaluation

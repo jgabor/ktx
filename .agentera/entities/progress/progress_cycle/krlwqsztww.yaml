@@ -1,0 +1,15 @@
+id: krlwqsztww
+artifact: progress
+record:
+  timestamp: 2026-09-07 17:07
+  type: fix
+  phase: build
+  what: Implemented yawngvokny in plan hljjrlykxb without changing its in_progress status. Hook output extraction now preserves present empty strings at their existing priority; wrapper correlation no longer promotes display part IDs into native call IDs. Updated only ledger finding 9 and A4.
+  context:
+    intent: Preserve ingress output and native identity under firm yxlsglvpof.
+    constraints: Preserve all prior uncommitted work, existing nonstring/null fallback and generic-flat contracts; no alias, schema, new flag, source-history rewrite, commit, staging, status completion, evaluation, audit or satisfaction mutation.
+    unknowns: State list summaries remain degraded; exact task and decision retrieval worked. Profile-derived state is absent. Existing changelog/verification-recipe metadata caveats were not repaired. No implementation hard block remains for this scoped change.
+    scope: internal/cli/hook.go, internal/parser/parser.go, internal/cli/ingress_fields_test.go; ledger 9/A4 only. Adapter response-envelope validation luwgmsjiin and completed-artifact retry bypass hlzmkuhsht remain deferred. Lifecycle completion belongs to the assigned owner.
+  verified: "Fail-before/pass-after regressions exercised actual hook/wrapper persistence and mage-built build/ktx. The 25-case OpenCode/Codex output matrix covers absent, null, empty, nonempty, malformed and conflicting secondary fields. Repeated incomplete tuples with absent/empty/null/numeric/object call IDs failed before (one source) and pass after (two fresh IDs); whitespace remains a control. Empty complete tuples converge in both ingress orders with byte-identical forwarded streams, unchanged first source metadata/producer/session and one rollup. mage build passed before each local CLI phase. Focused go tests passed; go test -race ./internal/cli ./internal/parser ./internal/correlation ./internal/identity ./internal/evidence -count=1 passed, including existing malformed-schema, flat provenance, conflicts and concurrent retries. Full mage check passed: generated-adapter overlap, 14 Python tests, vet/lint/build, zero lint issues; verification audit 84471a039f7ceac7 recorded 17597 attempts and forbidden=0. git diff --check passed. Verification used fresh HOME/XDG/TMP roots, KTX_DB unset, explicit disposable databases and offline fixtures; no provider or daemon calls."
+  next: Assigned owner may review the scoped implementation and verification; task remains in progress.
+  publication_order: 245

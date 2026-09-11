@@ -1,0 +1,22 @@
+id: kxklkicklv
+artifact: plan
+record:
+  name: Consolidate wrapper argument ownership
+  depends_on:
+    - dwndsjjdkx
+  status: complete
+  acceptance:
+    - GIVEN documented flag positions WHEN parsed THEN ownership remains compatible.
+    - GIVEN explicit false values WHEN supplied THEN their boolean meaning is honored.
+    - GIVEN escaped or consumed child values WHEN forwarded THEN literal arguments remain intact.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: wrapper-arguments-audit-20260906-1
+      source: audit ses_f89ff04ecffeemmr7ZO99eGB9N; progress tqcdnveppy; 52 dispatch and 52 local CLI argv cases, focused race and mage check PASS
+      recorded_at: 2026-09-06 11:19
+      writer_command: agentera state plan record-evaluation

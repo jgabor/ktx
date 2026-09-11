@@ -1,0 +1,16 @@
+id: jhbelyrpxj
+artifact: progress
+record:
+  timestamp: 2026-09-05 18:27
+  type: fix
+  phase: build
+  what: Repaired database target lifecycle for plan hljjrlykxb task htbcyjluxa only. Open escapes the coordinator's absolute literal path; Open/OpenExisting close allocated pools on initial readiness failure. Ledger finding 1 and S2 now carry scoped repair evidence without replacing historical observations.
+  context:
+    intent: Make SQLite and coordination address one literal physical target and release resources after failed initial readiness.
+    constraints: Only finding 1 and S2; preserve existing verification/config/stage edits and untracked memory. No schema change, general database rewrite, live database or provider access.
+    unknowns: State summaries are degraded; exact gets work. Profile grounding is absent. Startup recipe metadata/changelog caveats remain out of scope. Decision satisfaction is user-owned; direct resource-release proof is Linux-only.
+    scope: internal/db/database.go, two additive lifecycle regression files, own ledger disposition and this progress record. No task completion/evaluation/audit.
+  discovered: Regression-first execution reproduced sibling URI targets and growing leaked descriptors. Literal filename, same-file lock/FK, reopen, and Linux descriptor regressions now pass. No schema or migration algorithm change was necessary.
+  verified: "Fresh disposable HOME/XDG roots and unset KTX_DB for each invocation; external Go caches only. Focused regressions failed before and passed after. Focused database Open/Migration/resource race tests passed. mage build passed before rebuilt CLI smoke. mage check passed: 14 Python tests, adapter overlap gate, vet/lint/build, database audit 7634 attempts forbidden=0. Rebuilt CLI creation under a special-character data path returned expected missing-source exit 2; explicitly seeded special-filename migration passed integrity_check. git diff --check passed. Existing compatibility tests/immutable historical fixtures unchanged. Native non-Linux and production-scale schema release gate not run."
+  next: Coordinator owns review and lifecycle completion; leave htbcyjluxa in_progress. Stale-writer rechecks remain solely xyhknqphfs. No evaluation, audit, staging, commit, or push performed.
+  publication_order: 219

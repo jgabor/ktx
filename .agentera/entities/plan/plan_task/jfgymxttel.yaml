@@ -1,0 +1,24 @@
+id: jfgymxttel
+artifact: plan
+record:
+  name: Decide recording resource lifecycle
+  depends_on:
+    - qlhcdoeyhr
+    - dwndsjjdkx
+    - jgvodxuxul
+  status: complete
+  acceptance:
+    - GIVEN recording tradeoffs WHEN deliberated THEN budgets and interruption outcomes receive a recorded choice.
+    - GIVEN that choice WHEN approved THEN publication, recovery, retention, and cleanup ownership are explicit.
+    - GIVEN unresolved questions WHEN tracked THEN reciprocal architecture/backlog links gate implementation.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: recording-decision-audit-20260906-1
+      source: audit ses_f89872d0fffe0kCF49aUz840L0; progress vrcmswcope; complete decision zyeasphydk; scoped measurement/contract/ownership evidence PASS, runtime implementation still pending
+      recorded_at: 2026-09-06 13:32
+      writer_command: agentera state plan record-evaluation

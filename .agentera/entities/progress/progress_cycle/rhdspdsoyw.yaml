@@ -1,0 +1,16 @@
+id: rhdspdsoyw
+artifact: progress
+record:
+  timestamp: 2026-09-07 21:24
+  type: fix
+  phase: build
+  what: "Implemented only optional acknowledged-payload release for wxwwonhjgy in plan hljjrlykxb under decision rholpeffdq. The generated collector uses an inline accepted/pending union: validated durable ACK retains the same key, exact evidence and accepted=true without payload. Conflict comparison still precedes accepted retry suppression. Added real generated-Bun/local-CLI retention regressions and paired measurement; qualified S10 and the unchanged D1/D2/D3/D5/S9 dispositions in the shared-boundary evidence document and coverage ledger."
+  context:
+    intent: Remove redundant acknowledged payload retention without weakening exact retry/conflict evidence.
+    constraints: No membership or assistant eviction, digest substitution, new ordinal/time, required-path change, helper/package extraction, protocol/schema/cap change, staging, commit, task status, evaluation, audit or satisfaction mutation. Preserve prior work and point-in-time coverage baseline.
+    unknowns: The inherited 244672-byte probe has no retained executable fixture in the supplied artifacts or temporary probes checked. Its exact baseline was not reproduced; its greater-than-122336 release bound remains derived, not measured. Startup TODO reconciliation and changelog metadata caveats remain outside scope.
+    scope: internal/cli/init.go; telemetry adapter regression tests; CHANGELOG; shared-boundary qualification and S10 ledger entry. Final source metadata refresh remains with bqnxtbzjou.
+  discovered: "Actual same-fixture 256-pair control comparison measured 222098 to 108506 summed retained UTF-8 string-field bytes: 113592 released. Exact evidence, map keys and assistant strings were unchanged; both variants persisted 256 rows with ordinals 1–256. These counts exclude map/object overhead, unique allocation accounting, heap and RSS. S10 assessment is closed under the selected tradeoff, not a fully bounded fix: exact-evidence and identity state remains linear, runtime-instance-local and not restart-durable."
+  verified: "mage build, focused generated-Bun/local-CLI regressions, focused race across CLI/telemetry/DB, and final full mage check passed. Preserved both 160-case measurement suites, nonfinite snapshot regression, all 14 ACK cases, canonical pinning, envelopes and runtime controls. New assertions prove in-flight/uncertain first payload retention, ACK payload absence, accepted exact retry without any spawn, accepted conflict diagnostic, one-row overlap and late identity without first-row enrichment. Required pending retention/deletion remains verified. Final gate: build, Go tests, 14 Python tests, required generated-adapter overlap, vet and lint (0 issues); 22724 DB attempts, forbidden=0, KTX_DB unset. Fresh HOME/XDG/TMP per verification, owned offline DBs, no provider or daemon. No-local-binary skip contract and git diff --check passed."
+  next: Leave wxwwonhjgy in_progress and lifecycle/evaluation/satisfaction with the assigned owner. Exact historical-fixture reproduction remains unavailable; current paired-fixture qualification is explicit in .agentera/verification/shared-boundary-disposition.md.
+  publication_order: 254

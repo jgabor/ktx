@@ -1,0 +1,16 @@
+id: wkgewofnxj
+artifact: progress
+record:
+  timestamp: 2026-09-06 00:22
+  type: docs
+  phase: build
+  what: Documented and verified approved terminal cancellation support for replacement rmbdxwfguf in plan hljjrlykxb. No runtime implementation retry; original dwndsjjdkx remains blocked with two failed evaluations.
+  context:
+    intent: Apply user-approved terminal capability amendment llshvynohy through documentation and verification only.
+    constraints: Preserved existing runtime/tests and all other uncommitted work. No unsafe fallback, new runtime check, schema, provider, paid run, ambient database, staging, commit, lifecycle, evaluation, audit or satisfaction mutation. Linux-only ygcysqxcfr and standing yohiahsqjv remain applicable.
+    unknowns: No older/restricted-host compatibility claim. Procfs/subreaper/waitid failures were not individually fault-injected. Existing escaped-process, uninterruptible-task and indefinitely blocked output-sink limits remain. Startup summaries are caveated; exact task/decision/progress retrieval works.
+    scope: README.md; .agents/skills/ktx/SKILL.md; .agents/skills/ktx/references/cli.md; finding 5/current mapping in .agentera/verification/review-remediation-coverage.md. This progress is the only entity write.
+  discovered: Approval accepts readable procfs, subreaper, pidfd_open and waitid(P_PIDFD), normally Linux 5.4+ with backport/syscall-policy qualifications, and explicit preparation failure before spawn. Docs cover redirected stdin with a controlling terminal, exclude non-terminal/unrelated commands, and describe bounded grace/owned descendant settlement, caller preservation and interruption evidence. Four acceptance mappings are recorded in the ledger. Exact old-task retrieval retains blocked, attempt_count=2, failure_count=2, last_verdict=fail; prior audit/progress remain historical authority.
+  verified: "N/A: docs-only for runnable behavior change; existing behavior reverified against local mage build. Fresh HOME/XDG roots per build/runtime invocation, KTX_DB unset, owned temporary DBs, explicit Go caches with GOPROXY=off/GOSUMDB=off. KTX_RUN_SIGNAL_CLI=$PWD/build/ktx go test ./internal/cli -run '^TestRun(Signals|ForegroundStdin|TerminalLifecycle)$' -count=1 -v passed (12.314s): eight signal cases, foreground stdin and six PTY cases; terminal cancellation 1.012-1.013s with caller/sibling, termios/group and evidence assertions. Disposable strace PTY probe injected pidfd_open=ENOSYS: explicit preparation error, exit 4, child-start marker absent. Docs scope/links/source ordering reviewed; git diff --check passed. Full suite not repeated: retained fxjcqsvqgw records 7884 audited operations/0 forbidden; later independent combined-tree rtyakjcilg records 8712/0 forbidden. These are cited prior checks, not new runs."
+  next: Coordinator evaluates replacement rmbdxwfguf and owns PASS/completion; only then may it supersede blocked dwndsjjdkx. No old-task reopening/reset/completion, TODO resolution or decision satisfaction performed. Documentation/verification handoff ready; stop this task here.
+  publication_order: 229

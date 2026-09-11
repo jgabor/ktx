@@ -1,0 +1,22 @@
+id: htbcyjluxa
+artifact: plan
+record:
+  name: Correct database target lifecycle
+  depends_on:
+    - tcrffftvxl
+  status: complete
+  acceptance:
+    - GIVEN special filenames WHEN opened THEN only the requested physical database changes.
+    - GIVEN that database WHEN coordinated THEN locking and foreign-key enforcement protect it.
+    - GIVEN failed initial readiness WHEN returning THEN opened resources are released.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: dbtarget-audit-20260905-1
+      source: audit ses_f8d994cd1ffenZiLsAFDhx26O9; progress jhbelyrpxj; physical target/FK/coordination and resource regressions PASS; isolated mage check PASS
+      recorded_at: 2026-09-05 18:30
+      writer_command: agentera state plan record-evaluation

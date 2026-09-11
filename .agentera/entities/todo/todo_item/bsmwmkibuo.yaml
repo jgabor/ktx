@@ -1,0 +1,29 @@
+id: bsmwmkibuo
+artifact: todo
+record:
+  kind: task
+  severity: normal
+  title: Resolve terminal process capability support before accepting wrapper cancellation
+  target_version: null
+  requirements:
+    - Resolve the support-contract blocker on plan hljjrlykxb task dwndsjjdkx; do not duplicate its repaired implementation.
+    - "Explicitly accept or replace the terminal cleanup capability floor: readable procfs, subreaper support, pidfd_open, and waitid(P_PIDFD), normally Linux 5.4 or newer with backport and syscall-policy qualifications."
+    - Retain the repaired owned-descendant shutdown and foreground-terminal behavior; do not restore survivor acceptance or unsafe signaling of the caller group.
+    - Audit continuation ses_f8cbe912fffeP1TTHhSdaW6k7S passed lifecycle behavior but reproduced pre-spawn rejection with pidfd_open ENOSYS. Progress fxjcqsvqgw retains passing checks; failed evaluations remain authoritative history.
+  acceptance:
+    - GIVEN explicit support authority WHEN documented and evaluated THEN the capability floor is truthful and the blocked task can receive a new evidence-backed disposition.
+    - GIVEN a rejected support restriction WHEN reconsidered THEN any compatibility correction receives separate scope approval rather than another unbounded retry.
+  release_blocker: true
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Resolve terminal process capability support before accepting wrapper cancellation"
+      status: resolved
+      order: 21
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: User approved capability floor in llshvynohy; replacement rmbdxwfguf passed scoped audit and completed. Terminal requirements documented and verified; old dwndsjjdkx superseded with both failed evaluations retained.
+    date: 2026-09-05

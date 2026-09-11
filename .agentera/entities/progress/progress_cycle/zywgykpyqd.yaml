@@ -1,0 +1,16 @@
+id: zywgykpyqd
+artifact: progress
+record:
+  timestamp: 2026-09-07 19:46
+  type: fix
+  phase: build
+  what: "Bounded post-audit correction for ogjqsbptji in plan hljjrlykxb: required OpenCode snapshots preserve malformed nonfinite measurements before JSON serialization. Existing durable ACK, retry, ordering and authority policies remain unchanged; task stays in_progress."
+  context:
+    intent: Correct only the persisted malformed-versus-unknown discrepancy accepted in telemetry-ack-audit-1 after progress phveyhldcx.
+    constraints: Preserved prior dirty work. No schema, public fields, framework, provider calls, ambient DB access, staging, commits, evaluation, audit, satisfaction or completion mutation.
+    unknowns: Collector-memory growth and crash/restart loss remain unchanged for the next boundary assessment; no S10 retirement implementation. Existing startup metadata caveats remain outside scope.
+    scope: Required snapshot helper in internal/cli/init.go, shared numeric fixtures and real Go/Bun conformance tests, and current-task ledger appendix. Other normalization and ACK implementations unchanged.
+  discovered: JSON.stringify converted NaN, infinities and overflow to null before Go normalization. Required collection still failed closed but persisted unknown. Snapshot serialization now uses existing malformed string forms only at measurement leaves and containers; true null, finite numbers, numeric strings and unrelated metadata retain their contracts. No Go normalization change was necessary.
+  verified: Fresh HOME/XDG/runtime/TMP roots and unset KTX_DB per verification invocation; explicitly owned offline fixture DBs; GOPROXY=off. mage build preceded real generated-adapter/local-CLI tests. Before repair, TestTelemetryAdapterLocalConformance failed all 40 nonfinite value/path combinations in required mode; Go, optional and controls passed. After repair, both conformance suites pass 160 policy cases each (16 original plus 144 new), including eight measurement/container paths and NaN, +/-Infinity, +/-overflow, null, large finite, safe integer and numeric-string values. NaN uses the existing malformed string form on Go's JSON-only boundary. Snapshot/metadata/mutation/first-time/payload checks and all 14 ACK/redelivery scenarios pass. Focused telemetry/collector/wrapper/DB race checks pass. Full mage check passes tests, vet, generated-adapter gate, lint (0 issues) and build; boundary 7d96f91b58aad4c1 recorded 20101 DB attempts, forbidden=0. Earlier check invocation exceeded the 120-second tool timeout; the next reached lint and required one test-formatting correction before the full passing run.
+  next: "Owner performs the next assessment. Preserve telemetry-ack-audit-1 and failure_count=1; this correction does not record a new evaluation or complete the task. Ledger: .agentera/verification/review-remediation-coverage.md."
+  publication_order: 251

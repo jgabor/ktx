@@ -1,0 +1,57 @@
+id: bqnxtbzjou
+artifact: plan
+record:
+  name: Verify completion and synchronize state
+  depends_on:
+    - chdzwfbxaz
+    - tcrffftvxl
+    - htbcyjluxa
+    - xyhknqphfs
+    - sgqaoojspr
+    - bqpenkdmho
+    - tqmgzzesya
+    - pzztseunxc
+    - qlhcdoeyhr
+    - dwndsjjdkx
+    - yawngvokny
+    - luwgmsjiin
+    - ogjqsbptji
+    - atbnjovpeu
+    - btxcvatnmt
+    - lscowhzqtf
+    - itzxdynanp
+    - linrevynph
+    - mebgweiffm
+    - hlzmkuhsht
+    - kxklkicklv
+    - momdpkraiq
+    - jgvodxuxul
+    - hatnrvkhpu
+    - jfgymxttel
+    - mljcarlewi
+    - itocjemrfw
+    - otiqrxtwkw
+    - czzdcnqozn
+    - idtauctgpl
+    - ubegqqsptl
+    - iefdatbpxu
+    - wxwwonhjgy
+    - zcvdpwllcs
+    - maeswzqwit
+    - rmbdxwfguf
+  status: complete
+  acceptance:
+    - GIVEN completed work WHEN isolated mage build/check/verify and required targeted gates run THEN all pass.
+    - GIVEN the finding ledger WHEN reconciled THEN every disposition has evidence and unresolved risks block completion.
+    - GIVEN verified outcomes WHEN synchronized THEN project state and docs agree without altering historical evidence or shipping tracking markers.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Four canonical documentation inventory records retain July last_updated dates despite reconciled September content: emwrzjdrwq, xdeumykzit, vzwrfbicwp, msdwplqwby lines 6-7. Product gates, all48 dispositions, cutover/history/markers PASS. Update only these records through typed writer."
+    provenance:
+      attempt_id: final-reconciliation-audit-2
+      source: focused audit ses_f821e86a1ffeidDXplK4R872t3; progress trcrsfoyir and wnqyrtdynf; four inventory dates corrected, source/evidence identity unchanged; all final AC PASS
+      recorded_at: 2026-09-08 00:19
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,16 @@
+id: tqcdnveppy
+artifact: progress
+record:
+  timestamp: 2026-09-06 11:14
+  type: fix
+  phase: build
+  what: "Implemented plan hljjrlykxb task kxklkicklv: one run-owned argument pass with literal child escape boundary and ordered explicit booleans. Task remains in_progress for its lifecycle owner; A8 remains partial for remaining CLI surfaces."
+  context:
+    intent: Consolidate only run argument ownership while preserving documented positions and child passthrough.
+    constraints: Fresh disposable HOME/XDG and KTX_DB unset for each verification; offline dependencies, owned temporary databases and fake children. No provider calls, schema or size-limit changes, framework, public aliases, staging, commits, pushes, audit, evaluation or completion mutation. Preserve prior uncommitted and untracked work.
+    unknowns: List summaries degraded; exact gets work. Profile absent; no refresh. Startup verification-recipe and changelog-summary caveats remain. Satisfaction is user-owned. Unrelated recording unknowns do not block this independent implementation.
+    scope: internal/cli/run.go, internal/cli/dispatch.go, new internal/cli/run_args_test.go, CLI skill reference, CHANGELOG.md and own A8 ledger evidence. Existing process/output and private receipt implementation unchanged. Linux evidence only.
+  discovered: "The initial dispatcher regression table reproduced ten failures: false/help handling, escape boundaries and empty/malformed booleans. Wrapper flags remain recognized before and after the executable until --. Boolean values are attached, collection retains =id, and arbitrary child-option arity is not inferred. Flag-like child values require the documented escape or an attached child value. Named-value executables and existing global format consumption remain compatible."
+  verified: "mage build passed before local CLI tests. Expanded real-child argv table passed 52 dispatch plus 52 build/ktx cases, checking recording/collection rows, literal argv, DB-free help/errors, machine output and child exit 23. Focused go test -race ./internal/cli -run 'TestRun|TestExecuteRun|TestDispatch|TestBenchOwnedSessionLocalCLI' -count=1 passed with local binary selectors, including Linux signal/TTY and private owner-receipt tests. Full mage check passed: Go race tests, 14 Python tests, generated-adapter gate, vet, lint zero issues and build; database boundary reported 12907 attempts, forbidden=0, ktx_db=unset. Built echo reproduction now prints literal --record-stream; built help documents the boundary. git diff --check passed. Baseline failures were in-process, not a baseline built-binary claim."
+  next: Assigned owner retains evaluation, task completion and commits. momdpkraiq retains remaining A8 surfaces; recording resource work jfgymxttel remains unrelated and unchanged. See the A8 scoped implementation section in .agentera/verification/review-remediation-coverage.md.
+  publication_order: 233

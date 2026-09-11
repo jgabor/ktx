@@ -1,0 +1,16 @@
+id: wprbkdxlta
+artifact: progress
+record:
+  timestamp: 2026-09-07 15:47
+  type: refactor
+  phase: build
+  what: Implemented operation-local sequence event ordering for plan hljjrlykxb task idtauctgpl, PERF4 sequence portion only. Both actual callers reuse a private copied/sorted event index across adjacent pairs; temporal assessment also reuses it for the attempt prefix. One-shot functions and all coverage, tuple, session, order, gap, missing/unknown, endpoint, tie and rich-result contracts remain.
+  context:
+    intent: Remove repeated full-event copy/sort work without changing estimates or current-methodology result bytes.
+    constraints: Preserve prior archive work kfawtcedqh and all other checkout changes. No global mutable cache, framework, dependency, schema, new input cap, historical-fixture rewrite or provider-internal inference. Standing yohiahsqjv authority does not change accepted contracts.
+    unknowns: Agentera lists degraded; exact gets work. Profile absent and startup recipe/changelog/optimization-report summaries incomplete. No unrelated repair or lifecycle inference.
+    scope: "idtauctgpl under hljjrlykxb; only PERF4 sequence ledger evidence. Coordinator owns evaluation, completion and final commits. Detailed evidence: .agentera/verification/sequence-ordering.md."
+  discovered: "Fixed actual-caller workload: 256 steps, 2826 seed-73 shuffled events. Three-run median secondary elapsed 68128121 to 910333 ns/op; allocated bytes 82617657 to 1420493; allocations 17877 to 16860. Temporal elapsed 64887163 to 434470 ns/op; allocated bytes 82224639 to 708249; allocations 1546 to 526. Exercised call-path full copies/sorts fall 255 to 1 and 256 to 1. Pre-edit secondary JSON SHA-256 remains e00b2fa98b2f11902c68dcf275829cc49fa4c5f7b5c83c61605eadcc23560363. Measurements are elapsed benchmark time and cumulative allocations, not sampled CPU or peak RSS. Index memory remains proportional; rich metadata, linear fact lookup and coverage scans remain."
+  verified: Fresh HOME/XDG/TMP roots and unset KTX_DB per invocation; explicit disposable database owners; offline native Linux. Passed focused and full sequence/experiment package tests, focused race, final mage check (0 lint issues, 13911 boundary attempts, forbidden=0), mage build and latest-local-binary TestEntry/TestExecution/TestArchive controls. All five current producer rows pass exact regeneration and evidence validation; historical goldens remain unchanged. Independent legacy full-scan oracle covers shuffled/tied/outside-window/unknown events and missing/partial coverage. Shared-index and actual-caller concurrent checks preserve results and input immutability. First full check found a staticcheck test-only switch suggestion, fixed before passing rerun. git diff --check passed.
+  next: No implementation hardblock. Task remains in_progress; no staging, commit, push, status completion, evaluation, audit or satisfaction mutation. Only PERF4 sequence evidence disposition updated; other ledger owners unchanged.
+  publication_order: 243

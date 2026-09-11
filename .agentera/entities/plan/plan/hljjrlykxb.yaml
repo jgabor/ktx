@@ -1,0 +1,47 @@
+id: hljjrlykxb
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-09-05
+    status: complete
+    reviewed: 2026-09-05
+    critic_issues: 9 found, 8 addressed, 1 dismissed
+    title: "Plan: Review remediation — trustworthy evidence and bounded execution"
+  what: Resolve all review findings with evidence.
+  why: Incorrect targets, false validation, and uncontrolled execution violate product promises.
+  constraints: Preserve originals, first-evidence ownership, unknown states, supported interfaces, optional fail-open and required fail-closed behavior. Use disposable HOME/XDG roots, unset KTX_DB, and invoke only locally built product binaries. No ambient databases, providers, paid runs, commits, releases, executable hashing, or speculative frameworks. Schema changes stop this plan for a separately approved migration plan and production-scale gate. Each implementation requires regression, verification, one audit, and one bounded correction maximum. Parallelize independent work only; serialize shared-file writes. Unresolved acceptance risks remain open.
+  overall_acceptance: GIVEN evaluated tasks WHEN completing THEN findings have verified repairs or approved architectural no-change evidence; required gates pass and unresolved risks block completion.
+  scope:
+    included:
+      - "Coverage: findings 1–16, eight additional gaps, four performance categories, all architectural/verification observations, and scoped supplemental review faults."
+      - "Test proportionality: one normal/failure pair per unit, plus required bounded concurrency, interruption, malformed-input fuzz, and resource cases. Prior passes are not remediation evidence."
+      - Task 1 records references and coverage, distinguishing four reproduced scenarios from source-confirmed findings.
+      - Reconcile argument-handling and decision-satisfaction backlog without duplicates. Satisfaction remains user-owned; tracked history remains unchanged.
+    excluded:
+      - Unrelated features, trust/redaction or stage-semantics redesign, Layer 5, automatic archive deletion, and line-count-driven package splitting.
+      - Implementation during planning; forced version bumps without a declared policy.
+    deferred:
+      - Recording implementation awaits its decision; new accepted-size restrictions require approval; shared-boundary cleanup requires demonstrated need.
+  design: Repair verification, acceptance, and ownership first. Bound resources and remove proven duplication next. Architectural changes follow decisions. Reconcile behavior, evidence, and state last.
+  unknowns:
+    - question: Which active producers require retiring representations?
+      affects_task: 31
+      resolve_by: Task 5 inventories producers/consumers; task 31 converts active producers before reader removal.
+    - question: Which recording budgets preserve recovery?
+      affects_task: 26
+      resolve_by: Task 25 records the decision before dependent recording implementation.
+    - question: Would resource limits narrow currently accepted inputs?
+      affects_task: 29
+      resolve_by: Tasks 28–29 preserve accepted sizes or obtain approval before restriction.
+    - question: Does remaining coupling justify extraction?
+      affects_task: 33
+      resolve_by: Task 32 records bounded cleanup or evidence-backed no-change before task 33.
+    - question: Which promised platforms have runners?
+      affects_task: 34
+      resolve_by: Inventory promises/runners; missing required native evidence blocks completion; compilation cannot substitute.
+  rejected:
+    - issue: Remove domain-boundary assessment and selected cleanup from scope.
+      rationale: Requested debt coverage requires decision-gated assessment, allowing no-change but excluding speculation.
+  surprises:
+    []

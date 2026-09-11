@@ -1,0 +1,16 @@
+id: pyfgddgpzr
+artifact: progress
+record:
+  timestamp: 2026-09-07 11:47
+  type: fix
+  phase: build
+  what: Recovered only hljjrlykxb/lscowhzqtf, Preserve reporting authority, after the reported OpenCode crash. Preserved both partial production fixes and strengthened authority_test.go. Updated only ledger 13/S1/A7 dispositions; task remains in_progress.
+  context:
+    intent: Preserve unknown versus measured latency, typed outcome authority and complete integrity reporting.
+    constraints: Standing yohiahsqjv contract-preserving authority; approved Linux scope and terminal capability boundary unchanged. Preserve unrelated uncommitted work, canonical entities and pycache. No schema/backfill, pricing, caps, framework, audit/evaluation, lifecycle completion, satisfaction, staging or commits.
+    unknowns: Interrupted verification remains unknown; no previous pass/failure or audit verdict is inferred. Exact progress bujtshsfpn belongs to the preceding cache task. State lists remain degraded, exact gets work; profile absent, satisfaction user-owned. Startup recipe/changelog summary caveats remain unrelated.
+    scope: internal/db/records.go, internal/dbreport/report.go, internal/dbreport/authority_test.go; coverage ledger findings 13/S1/A7 only. Ignored interrupted-build scratch isolated locally without deleting its contents.
+  discovered: Recovered SQL/getter/Rows.Err repairs were correct and needed no production expansion. Reports previously counted non-NULL historical latency, the getter coerced invalid outcomes or failed scanning them, and integrity iteration errors allowed partial success. Expanded tests enforce known nonnegative integer runtime milliseconds, finite distributions, null unknown-only versus measured zero, integer-only 0/1 outcomes with other fields preserved, unchanged database bytes, and an iteration error after a valid hash row.
+  verified: "Fresh HOME/XDG/TMP and unset KTX_DB for every verification; explicit temporary databases, offline Go dependencies, no provider/daemon. Three recovered tests passed on first new run. A temporary Go overlay of only the two pre-repair production blobs reproduced all four expanded regression failures; no checkout reset/revert. Current regressions and targeted race passed: go test -race ./internal/dbreport ./internal/db -run 'TestReport|TestEmptyReport|TestStoredOutcome|TestIntegrityIteration|TestLatencyEvidence|TestToolCall|TestGetToolCall' -count=1 -timeout=120s. mage build passed before ./build/ktx smoke: twelve independently seeded report/get/failure invocations passed with database bytes unchanged and no WAL/SHM. First new mage check failed on abandoned generated Go packages under ignored build/tmp/report-check.m94NRl; adding a local ignored go.mod at that scratch root excluded only compiler debris. Rerun mage check passed Go race, 14 Python tests, generated-adapter gate, vet, lint zero issues and build; boundary e3aa33e092f1d747, 13813 attempts, forbidden=0. git diff --check and gofmt -d passed. Detailed new baseline evidence is retained in the ledger."
+  next: Coordinator owns review, evaluation and task completion; no implementation blocker remains for this scope. No audit verdict, retry-budget change or satisfaction claim was written.
+  publication_order: 240

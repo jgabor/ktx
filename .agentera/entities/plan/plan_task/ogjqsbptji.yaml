@@ -1,0 +1,23 @@
+id: ogjqsbptji
+artifact: plan
+record:
+  name: Acknowledge durable telemetry
+  depends_on:
+    - xyhknqphfs
+    - luwgmsjiin
+  status: complete
+  acceptance:
+    - GIVEN failed persistence WHEN identical delivery retries THEN one durable observation results.
+    - GIVEN conflicting retries WHEN received THEN first evidence remains authoritative.
+    - GIVEN shared conformance cases WHEN collectors run THEN measurement and failure policies agree.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Required adapter JSON.stringify(event) converts nonfinite cost/input (1e309) to null: Go and optional classify malformed, required persists unknown. init.go:621,625,633. Real Bun/local CLI reproduction; preserve malformed classification before serialization."
+    provenance:
+      attempt_id: telemetry-ack-audit-2
+      source: focused audit continuation ses_f8318504dffeQFwyOVQ0fKpzJh; progress zywgykpyqd; 160-case nonfinite/parity and 14 ACK scenarios independently PASS; original failure retained
+      recorded_at: 2026-09-07 20:02
+      writer_command: agentera state plan record-evaluation

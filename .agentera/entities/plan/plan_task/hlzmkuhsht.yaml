@@ -1,0 +1,23 @@
+id: hlzmkuhsht
+artifact: plan
+record:
+  name: Bypass complete retry stages
+  depends_on:
+    - yawngvokny
+    - atbnjovpeu
+  status: complete
+  acceptance:
+    - GIVEN retained artifacts WHEN exact retries arrive THEN stages never execute again.
+    - GIVEN incomplete artifact state WHEN retried THEN permitted transformation remains available.
+    - GIVEN changed configuration WHEN returning retries THEN artifact authority and recovery cues remain correct.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: retained-retry-audit-1
+      source: audit ses_f8387e9a4ffeB7rticiTEfqEGZ; progress pvnsatvoyz; no-stage retry/authority/footer and focused race PASS
+      recorded_at: 2026-09-07 17:31
+      writer_command: agentera state plan record-evaluation

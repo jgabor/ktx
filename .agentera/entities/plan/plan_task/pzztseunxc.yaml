@@ -1,0 +1,22 @@
+id: pzztseunxc
+artifact: plan
+record:
+  name: Own benchmark process lifecycle
+  depends_on:
+    - tcrffftvxl
+  status: complete
+  acceptance:
+    - GIVEN cancellation or timeout WHEN received THEN scheduling and owned execution terminate boundedly.
+    - GIVEN distinct maximum-length identities WHEN concurrent THEN cleanup cannot affect another owner.
+    - GIVEN cleanup failure WHEN detected THEN diagnostics report it and further attempts stop.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: benchmark-lifecycle-audit-20260905-1
+      source: audit ses_f8d71c430ffeM2VaOFG6RwdwUB; progress ivkophbxat; focused lifecycle race independently PASS; local CLI signal and mage check evidence PASS
+      recorded_at: 2026-09-05 19:16
+      writer_command: agentera state plan record-evaluation

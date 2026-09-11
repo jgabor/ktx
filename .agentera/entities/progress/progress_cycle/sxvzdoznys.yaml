@@ -1,0 +1,16 @@
+id: sxvzdoznys
+artifact: progress
+record:
+  timestamp: 2026-09-05 21:43
+  type: fix
+  phase: build
+  what: "Implemented qlhcdoeyhr (plan hljjrlykxb): bounded-chunk wrapper forwarding preserves oversized output and ScanLines normalization; event parsing alone retains the existing 64 MiB budget. Short/erroring sinks and real fd-1 EPIPE report exit 4 and settle the direct child/session without publishing incomplete recordings. Ledger finding 5 scanner portion and S6 wrapper portion have scoped repair evidence; neither whole finding is closed."
+  context:
+    intent: Forward oversized wrapper output completely with bounded parsing and observable sink failure.
+    constraints: Preserve accepted sizes, newline/exit contracts on success, committed evidence, all previous checkout changes and untracked memory. Apply only direct-child cleanup necessary for forwarding failures. Linux-only scope per ygcysqxcfr; internal budgets authorized by yohiahsqjv.
+    unknowns: Bounded summaries remain degraded while exact gets work. Profile grounding absent; startup recipe/changelog caveats retained. Decision satisfaction remains user-owned. Recording buffer is still unbounded; inherited stdout under signal cancellation is not repaired here.
+    scope: internal/cli/run.go, internal/cli/run_output_test.go, .agents/skills/ktx/SKILL.md, and relevant ledger partial finding 5/S6 evidence. No unrelated cleanup.
+  discovered: "Before repair, a real 64 MiB + 64 KiB line lost following sentinels and stalled until the 10-second watchdog; error/short sinks also waited for the watchdog. A separate broken-pipe regression reproduced default Go SIGPIPE exit without cleanup. Scoped SIGPIPE notification now exposes EPIPE to the forwarding error path. 65/130 MiB forwarding benchmarks allocate 134223568/134218008 bytes per operation: bounded independently of oversized-line length, excluding recording."
+  verified: "Fresh disposable HOME/XDG and KTX_DB unset for every verification invocation. New regressions fail before/pass after. Focused go test -race ./internal/cli -run 'TestRunOutput|TestExecuteRun|TestWrapper|TestRunRun' -count=1 -timeout=120s passes (3.382s), including existing telemetry authority. mage build passes before local build/ktx smoke: full 67174455-byte normalized stream SHA256 062d93415c6c7b8fa807666f17a341aacbf724473b52f9837715beaad419682d, exit 7, following control persisted; /dev/full and broken-pipe sinks return 4, direct child absent, session closed, continuity interrupted, no recording. Full mage check passes (Go tests, 14 Python tests, adapter gate, vet/lint/build, 0 issues); boundary 388d14bd2bb0c2fd has 7719 attempts, forbidden=0, ktx_db=unset."
+  next: Coordinator owns task evaluation/completion. dwndsjjdkx still owns full SIGINT/SIGTERM descendant cancellation; recording memory remains for its separately gated owners; momdpkraiq owns non-wrapper acknowledgements. No grandchild-signal claim, lifecycle completion, audit, staging, commit, push, provider call, schema change, or ambient database access.
+  publication_order: 224

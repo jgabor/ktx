@@ -1,0 +1,16 @@
+id: nvzlcdvfxh
+artifact: progress
+record:
+  timestamp: 2026-09-05 18:43
+  type: fix
+  phase: build
+  what: "Implemented plan hljjrlykxb task hatnrvkhpu (PERF3): cold cost discovery now uses existing RefreshAndWrite to persist prices and clear cold state. Task remains in_progress; no lifecycle completion or evaluation."
+  context:
+    intent: Persist successful cold pricing discovery without changing financial authority or warm-cache no-refetch behavior.
+    constraints: Only task hatnrvkhpu; existing Refresh and atomic-file mechanics unchanged. No real pricing endpoint or provider calls. Existing changes and untracked project memory preserved.
+    unknowns: State summaries degraded; exact task/decision gets work. Profile grounding absent; recovery is Profile generation then retry, not authorized here. Satisfaction remains user-owned; recipe/changelog startup metadata caveats remain. No separate multi-OS-process pricing smoke or measured five-second latency claim; fresh Prices and process-singleton reset provide reuse evidence. No production-scale schema release gate.
+    scope: internal/db/cost.go, internal/db/cost_test.go, internal/db/prices.go, new internal/db/cost_cache_test.go, own PERF3 ledger evidence and this progress record. Built ./build/ktx through mage check; no installed binary invoked.
+  discovered: In-memory-only Refresh lost pricing across process-cache resets. The repair reuses existing atomic publication; refresh/publication failures soft-fail the triggering derivation, retain recoverable cache state, and never invent prices. Warm missing-model lookups still do not fetch. Only this task's ledger row and evidence section were updated, preserving history.
+  verified: Fresh HOME and all XDG roots, KTX_DB unset, disposable test databases and GOPROXY=off per verification invocation. Before repair, go test ./internal/db -run '^TestCostDeriverColdDiscovery' -count=1 failed both discovery cases and all five failure/recovery cases; restoring original executable behavior made go test ./internal/db -run '^TestPersistToolCallColdDiscoveryReload$' -count=1 fail with reloaded known cost NULL. After repair, go test ./internal/db -run 'Test(CostDeriver|Prices|PersistToolCall_CostDerivation)' -count=1 passed. Final go test -race ./internal/db -run 'Test(CostDeriver|Prices|PersistToolCall.*(Cost|ColdDiscovery))' -count=1 passed (1.481s). Controlled fixture transport proves one fetch across fresh Prices/process-singleton state, full pricing/provenance reuse, unchanged warm file identity/mtime, unknown missing prices, simulated timeout/502/malformed JSON, mkdir/rename failures and recovery. Full mage check passed build, race-enabled Go tests, 14 Python tests, generated-adapter overlap, vet and lint (0 issues); audit attempts=7634 forbidden=0 ktx_db=unset. Full check additionally blocked external HTTP proxies while allowing loopback. git diff --check passed; gofmt -l on the four changed Go files returned no paths. Detailed commands and isolation prefix are retained in .agentera/verification/review-remediation-coverage.md.
+  next: Assigned owner retains evaluation, satisfaction and completion. No schema/stale-writer work, other tasks, staging, commit or push.
+  publication_order: 220

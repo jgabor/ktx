@@ -1,0 +1,22 @@
+id: luwgmsjiin
+artifact: plan
+record:
+  name: Validate adapter response envelopes
+  depends_on:
+    - yawngvokny
+  status: complete
+  acceptance:
+    - GIVEN valid string envelopes WHEN returned THEN delivery replaces output correctly.
+    - GIVEN malformed successful responses WHEN received THEN ordinary adapters preserve original output.
+    - GIVEN required collection WHEN responses fail THEN rejection and canonical-path pinning remain intact.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: adapter-envelope-audit-1
+      source: audit ses_f835f21d4ffeLp45u62DFpjoJV; progress jfhbcjldhj; generated adapter envelope/fail-open/native-binding and fresh race PASS
+      recorded_at: 2026-09-07 18:16
+      writer_command: agentera state plan record-evaluation

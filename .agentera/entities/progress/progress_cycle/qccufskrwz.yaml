@@ -1,0 +1,16 @@
+id: qccufskrwz
+artifact: progress
+record:
+  timestamp: 2026-09-07 20:55
+  type: test
+  phase: build
+  what: Retained the Linux point-in-time workspace coverage baseline for hljjrlykxb/maeswzqwit and updated ledger D10. Added only two pure-boundary native Go fuzz targets, preserving owning-task regressions and all runtime contracts. Task remains in_progress; no evaluation, satisfaction, lifecycle completion, staging or commit.
+  context:
+    intent: Execute only maeswzqwit test/evidence acceptance, retaining weighted coverage and honest malformed-input and verification boundaries.
+    constraints: Fresh HOME/XDG/TMP per verification invocation; KTX_DB unset; offline disposable DBs only, external tool caches, no provider/daemon. Fuzz caps test input only at 4096 bytes, never dispatches CLI/filesystem/stages. No runtime changes, quotas or broad framework.
+    unknowns: Linux only; child counters not merged; 4356 uncovered Go statements; no language coverage for Python/Bun, hosted CI or production-scale schema gate. Agentera startup blocked on unsafe_active TODO reconciliation and fresh-HOME skill path; exact retrieval works, supplied profile-absent caveat preserved without unrelated repair.
+    scope: Two new fuzz test files, retained workspace baseline, ledger D10 and this typed progress only. Existing repair proofs remain primary. Final source sync and lifecycle actions remain owner-assigned.
+  discovered: D10's no-native-fuzzer/no-current-workspace-baseline observation now has scoped evidence, not blanket malformed-input safety or a routine coverage gate. Initial coverage failed on two genuine-Mage-context assertions and file-size-limited child coverage metadata; documented rerun excludes only those tests, with production denominator retained. No runtime correctness bug exposed. Generated/oracle cases are not native fuzzing; full provenance/config/argument/archive mutation remains a residual gap.
+  verified: "Weighted union: 15932/20288 Go statements = 78.5292%, 33 packages including Mage/tools, 31 with statements. Fresh -count=1 coverage passed with exactly three documented coverage-only test exclusions; all three passed unfiltered mage check. mage check built build/ktx, passed race-enabled workspace tests, 14 Python tests, required Bun adapter gate, vet and lint; audit a5bed8582d69490d recorded 17937 attempts and zero forbidden DB accesses. Two 5s fuzz campaigns, parallel=1, GOMAXPROCS=2, 60s test/120s outer limits, passed 50619 total executions including seeds/repeats; all 16 seeds also passed routine checks. Selected Go fingerprint: 343 files, 3732ea5ddf0c1f43d6877c4c0e80cfd0e093157d4e51e82798f2dca05fa3802d; broader non-memory fingerprint: 528 files, 123a86f049f64d7173feae396b5d821849d85488a89038f1396e24c5e6ac501d. Counts are source declarations: 1057 Test, 5 Benchmark, 2 Fuzz. Exact commands, package weights, platform/child boundaries and source method retained in .agentera/verification/workspace-coverage-2026-09-07.md."
+  next: Coordinator retains lifecycle disposition. wxwwonhjgy small JavaScript accepted-payload cleanup remains pending; bqnxtbzjou owns final source-state synchronization. This baseline cannot establish final whole-plan completion.
+  publication_order: 253

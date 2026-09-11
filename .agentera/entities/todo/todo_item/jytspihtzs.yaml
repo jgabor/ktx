@@ -2,8 +2,8 @@ id: jytspihtzs
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Consolidated CLI argument handling** — Give run, init, db, stats, bench, plugin, and shared format handling one consistent interpretation of owned flags, consumed values, and passthrough arguments. Cover flags before and after a wrapped executable. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)"
+  status: resolved
+  description: "**Consolidated CLI argument handling** — Wrapper and remaining command owners now preserve consumed values, explicit booleans, namespace option placement, and literal child arguments after `--`. Local argv/dispatch and acknowledgement-failure regressions passed. Evidence: progress `tqcdnveppy` and `bgmqnrqhff`. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)"
   readiness:
     capability: build
     reason: Give every CLI surface one consistent argument-ownership contract.
@@ -17,7 +17,11 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Consolidated CLI argument handling** — Give run, init, db, stats, bench, plugin, and shared format handling one consistent interpretation of owned flags, consumed values, and passthrough arguments. Cover flags before and after a wrapped executable. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)"
+      description: "**Consolidated CLI argument handling** — Wrapper and remaining command owners now preserve consumed values, explicit booleans, namespace option placement, and literal child arguments after `--`. Local argv/dispatch and acknowledgement-failure regressions passed. Evidence: progress `tqcdnveppy` and `bgmqnrqhff`. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)"
+      status: resolved
+      order: 22
       severity: normal
-      status: open
-      order: 4
+  lifecycle:
+    operation: resolve
+    reason: Both argument owners are complete/PASS; progress tqcdnveppy and bgmqnrqhff verify wrapper and remaining command ownership.
+    date: 2026-09-07

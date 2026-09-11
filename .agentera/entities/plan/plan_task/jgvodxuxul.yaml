@@ -1,0 +1,22 @@
+id: jgvodxuxul
+artifact: plan
+record:
+  name: Bind benchmark session ownership
+  depends_on:
+    - dwndsjjdkx
+  status: complete
+  acceptance:
+    - GIVEN concurrent sessions WHEN benchmarking THEN unrelated sessions cannot receive results.
+    - GIVEN wrapper startup failure WHEN recording THEN historical sessions are never substituted.
+    - GIVEN successful execution WHEN reconciled THEN owned stream, score, and counts agree.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: benchmark-owner-audit-20260906-1
+      source: audit ses_f8a295c5dffeyTiZG8MC9x0iGC; progress vjwekaemvb; exact-owner/error/interrupt regressions independently PASS; mage check recorded PASS
+      recorded_at: 2026-09-06 10:34
+      writer_command: agentera state plan record-evaluation

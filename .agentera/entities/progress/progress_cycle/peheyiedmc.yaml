@@ -1,0 +1,16 @@
+id: peheyiedmc
+artifact: progress
+record:
+  timestamp: 2026-09-05 18:12
+  type: fix
+  phase: build
+  what: "Implemented only hljjrlykxb/btxcvatnmt Preserve stage evidence validity: stdlib JSON provenance escaping, explicit non-null false for Kagi unwrap, and overflow-safe keep-ends comparison. Updated only A5/S3/S4 ledger dispositions, retaining original names/references. Task remains in_progress; coordinator owns completion/evaluation/audit."
+  context:
+    intent: Preserve stage evidence validity without new stage semantics or JSON-guard redesign.
+    constraints: Only A5/S3/S4; preserve prior config/verification edits and untracked memory. No schema changes or lifecycle completion.
+    unknowns: State summaries degraded/stale; exact task get works. Profile grounding absent. Startup verification recipe/changelog metadata caveats remain outside scope. Decision satisfaction remains user-owned; no final satisfaction inferred.
+    scope: internal/pipeline/pipeline.go; internal/pipeline/stages/{unwrap_result.go,keep_ends.go,evidence_validity_test.go}; internal/cli/compress_provenance_test.go; scoped coverage ledger; this CLI-owned progress record. Existing ordinary behavior tests and new normal/negative regressions pass. No architectural uncertainty encountered.
+  discovered: Behavioral fail-before run proved invalid persisted JSON for TOML tab/control replacements, isError:null projecting valid JSON text 42 through the runner, and max-int keep-ends causing both recovered and direct panics. An earlier test draft had runner API compile errors, corrected before that reproduction. Compress is not DB-free; isolated persistence/recovery tests cover its real provenance path. Portable replay is config-independent compatibility evidence, not changed-stage proof.
+  verified: "Each verification used fresh root=$(mktemp -d /tmp/opencode/ktx-stage-<label>.XXXXXX) with env -u KTX_DB HOME=$root/home XDG_DATA_HOME=$root/data XDG_CONFIG_HOME=$root/config XDG_CACHE_HOME=$root/cache XDG_STATE_HOME=$root/state; Go/Mage additionally used GOCACHE=~/.cache/go-build GOMODCACHE=~/go/pkg/mod. Before repair: go test ./internal/pipeline/stages ./internal/cli -run 'Test(UnwrapResultOutcomeValidity|KeepEndsExtremeCounts|CompressControlCharacterProvenance)$' -count=1 failed for all three faults. After repair: go test ./internal/pipeline/... ./internal/cli -run 'Test(UnwrapResult|KeepEnds|CompressControlCharacterProvenance|EncodePipeline|EncodeArtifactPipeline|RunCompressWith_PipelineModifiesOutput)' -count=1 passed; same command with -race before package arguments passed. mage check passed full tests, vet, lint (0 issues), build and audit attempts=7582 forbidden=0 ktx_db=unset. mage build passed before ./build/ktx compress --help and ./build/ktx bench run --replay-file internal/cli/testdata/portable-replay-v1.json; replay PASS, 2/2 calls, 70 to 56 bytes. git diff --check passed. Durable exact commands and case evidence: .agentera/verification/review-remediation-coverage.md, Scoped stage evidence section."
+  next: "Coordinator review only: preserve task in_progress and own lifecycle/evaluation/audit/final commits. No staging, commit, push, schema release gate, or provider/ambient database access performed."
+  publication_order: 218

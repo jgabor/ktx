@@ -1,0 +1,16 @@
+id: kfuwiotqyx
+artifact: progress
+record:
+  timestamp: 2026-09-06 13:04
+  type: fix
+  phase: build
+  what: Implemented chronological continuity ordering for plan hljjrlykxb task itzxdynanp, ledger A6 only. Read events in existing rowid append order, parse each timestamp once, then stable-sort by actual instant. Equal instants retain append order regardless of lexical offset or fraction spelling. No persisted normalization, schema, backfill, recording or readiness changes; task remains in_progress for its assigned lifecycle owner.
+  context:
+    intent: Actual instants govern continuity without converting missing or conflicting evidence into coverage.
+    constraints: Only itzxdynanp. Preserve completed xyhknqphfs managed-schema and schema15-partial contracts. No staging, commit, push, status completion, evaluation, audit or satisfaction mutation. Standing engineering authority yohiahsqjv and Linux scope ygcysqxcfr remain unchanged.
+    unknowns: Bounded state summaries remain degraded/inconsistent with exact task get, which works; profile grounding is absent and was not refreshed. Satisfaction remains user-owned. CLI smoke proves continuity reporting, not qualification or production-scale schema release readiness.
+    scope: internal/db/continuity.go, internal/db/continuity_test.go, ledger A6 current disposition and this own canonical progress record. No shared writes with the read-only recording worker.
+  discovered: "Real on-disk DB.EvaluateContinuity regressions reproduced 11 before-repair failures: offset 10:00+02 start before 09Z stop, reverse append, fractional seconds/precision, equivalent-instant restart/conflict ties, true gap/overlap and interruption boundaries. Existing lexical ordering could report false gaps or misclassify actual conflicts. Seventeen table cases now exercise these boundaries, whole-second UTC, missing closure and pre-deployment unknown; an additional malformed observation test preserves rejection and errors rather than manufacturing coverage."
+  verified: "Before repair, go test ./internal/db -run TestContinuity -count=1 failed in 11 new subtests; after repair all continuity tests pass. Repeated evaluations prove deterministic results and exact stored opened_at/observed_at strings and event order unchanged. mage build passed before and after local build/ktx stats live-validation smoke: the seeded offset fixture changed from a false missing hour to 3600/3600 covered seconds and no gaps, preserving DB bytes. Exit3 stays blocked because this one-hour fixture is not qualified three-day evidence. Focused race passed: go test -race ./internal/db ./internal/cli -run 'TestContinuity|Test.*LiveValidation|TestManagedSchema|TestSchema15Partial' -count=1 -timeout=180s. Full mage check passed Go race tests, 14 Python checks, required generated-adapter overlap, vet, zero-issue lint and build; verification audit ee6c3dddd705fca1 recorded 13693 attempts, forbidden=0, KTX_DB unset. git diff --check passed. Every verification used fresh HOME/XDG roots, unset KTX_DB and disposable offline databases; no ambient database or provider calls."
+  next: No implementation blocker remains. Assigned owner retains evaluation, task completion, audit and final commits. Only ledger A6 current disposition was updated; historical findings and prior uncommitted work are preserved.
+  publication_order: 237

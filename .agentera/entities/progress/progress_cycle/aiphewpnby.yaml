@@ -1,0 +1,16 @@
+id: aiphewpnby
+artifact: progress
+record:
+  timestamp: 2026-09-06 12:13
+  type: fix
+  phase: build
+  what: "Implemented only tqmgzzesya in plan hljjrlykxb: pipeline input copies derive from one execution capture, rooted validation hashes the actual mounted configs, and capability probes plus both comparison sides use the complete preflight image ID. Ledger findings 7/14 contain scoped implementation evidence; task stays in_progress."
+  context:
+    intent: Bind attested execution inputs without changing archive formats or rewriting historical evidence.
+    constraints: Preserve prior changes, current producer/regeneration matrix, rooted archive reads/private SQLite copies, stable preflight errors and accepted inputs. No real Docker/provider/paid calls, new dependencies/framework/schema, executable hashing, recording or performance work, staging/commit, evaluation/audit/completion or satisfaction mutation. Linux scope ygcysqxcfr; internal choices yohiahsqjv.
+    unknowns: No implementation blocker remains. State list summaries are degraded but exact gets work; profile grounding is absent. Startup recipe/changelog summary caveats persist. Satisfaction and lifecycle completion remain assigned-owner/user authority. Offline fakes prove command selection, not live image/runtime provenance.
+    scope: runner.go, shared entry_contract.go, execution identity and confinement regressions, synthetic config/image fixtures, docs/pipelines.md, CHANGELOG.md, existing entry matrix and only ledger findings 7/14. Tracked historical bytes and archive schemas unchanged.
+  discovered: Before repair, changed/deleted Docker-mounted config files passed validation/regeneration while their input copy stayed intact; source edits between snapshots changed attested identity; capability and both-side attempt commands used mutable tags. Invalid image IDs reached capability execution. After repair these fail closed; legitimate independent copies still validate, captured source permissions remain, and unavailable/invalid image identity creates no archive or attempts.
+  verified: Every verification invocation used fresh disposable HOME/XDG and unset KTX_DB; databases were explicit temporary owners. Initial go test ./internal/experiment -run '^TestExecution' -count=1 reproduced failures; repaired regressions and go test ./internal/experiment -count=1 passed. mage build passed before local CLI use. With KTX_ENTRY_CONTRACT_BINARY=~/git/ktx/build/ktx, go test -race ./internal/experiment ./internal/cli -run 'Test(Execution|Entry|ArchiveConfinement|InspectionResponse|PreflightProbeResources|BenchComparePreflight)' -count=1 passed, including local CLI mutation/deletion rejection, five byte-exact producer rows, invalid-entry/damaged-target controls and inotify-proven config confinement. Final mage check passed Go race tests, 14 Python evidence checks, generated-adapter overlap, vet, lint (0 issues), build; boundary 0aa8ed191d9498e1, 13523 attempts, forbidden=0. First full check failed on one abbreviated CLI fake image ID; fixture corrected before final pass. git diff --check passed.
+  next: Assigned owner retains task evaluation, audit, lifecycle completion and final commits. No other ledger finding or decision satisfaction is closed.
+  publication_order: 235

@@ -1,0 +1,23 @@
+id: rmbdxwfguf
+artifact: plan
+record:
+  plan: hljjrlykxb
+  name: Finalize approved terminal cancellation support
+  status: complete
+  depends_on:
+    - qlhcdoeyhr
+  acceptance:
+    - GIVEN termination WHEN escalating THEN graceful shutdown, owned-descendant settlement, and evidence closure are bounded.
+    - GIVEN terminal input WHEN wrapping THEN caller state and unrelated processes remain intact without stdout hangs.
+    - GIVEN the approved capability floor WHEN documented THEN unavailable preparation fails before spawn; non-terminal scope is unchanged.
+    - GIVEN amendment llshvynohy WHEN replacing blocked dwndsjjdkx THEN failed history remains; scope is documentation and verification only.
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: approved-support-audit-20260905-1
+      source: scoped audit ses_f8cbe912fffeP1TTHhSdaW6k7S; progress wkgewofnxj; explicit approval llshvynohy; docs and native CLI evidence PASS; prior failures preserved
+      recorded_at: 2026-09-06 00:25
+      writer_command: agentera state plan record-evaluation

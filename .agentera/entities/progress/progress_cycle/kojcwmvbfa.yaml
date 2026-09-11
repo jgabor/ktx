@@ -1,0 +1,16 @@
+id: kojcwmvbfa
+artifact: progress
+record:
+  timestamp: 2026-09-07 21:51
+  type: docs
+  phase: build
+  what: Qualified Linux-only support for zcvdpwllcs; synchronized current promises and recorded native evidence plus scoped ledger D9 disposition.
+  context:
+    intent: Execute only zcvdpwllcs in hljjrlykxb under ygcysqxcfr and llshvynohy.
+    constraints: Fresh HOME/XDG/TMP, KTX_DB unset, owned offline fixtures and local build only. Preserve other work, non-Linux source and historical evidence. No schema change, provider, daemon, lifecycle/evaluation/audit/satisfaction mutation or commit.
+    unknowns: Only Arch Linux/amd64 kernel 7.2.2-1-cachyos ran; no other architecture, older kernel, WSL, container or non-Linux proof. Procfs denial not injected. Agentera prime blocked by isolated skill path and TODO summary; exact plan get worked.
+    scope: Current support docs, one stale fake-Docker image ID in an opt-in test, docs/native-linux-qualification.md and scoped remediation ledger. Existing coverage baseline retained; bqnxtbzjou owns final refresh.
+  discovered: Local benchmark signal checks initially stopped before cancellation at image_capability_unavailable. Replacing sha256:offline with a valid synthetic identity restored all four offline ownership cases; no production change was needed.
+  verified: "Fresh go test -race -count=1 selections passed DB admission/aliases/read-only/schema reopen/newer rejection, signals/TTY/descendants/caller preservation, output failures, fake-container cleanup and Bun ACK/conformance. Final mage check passed Go/Mage tests, 14 Python tests, required generated adapter, vet, lint (0 issues): 17,949 attempts, forbidden=0. mage build then local CLI process/probe reruns passed. Injected pidfd/waitid/prctl denials failed pre-spawn; nonterminal pidfd denial succeeded. Broken pipe exited 4 without recording; seeded schema 0 migrated to 16; schema 999 rejected byte-unchanged. Documentation checks and git diff --check passed. Exact commands/results and limits: docs/native-linux-qualification.md."
+  next: No required Linux hardblock remains. Leave zcvdpwllcs in progress for its owner; no completion, evaluation, audit, satisfaction or release authority. No mage verify, hosted CI, schema release gate or fresh coverage claim.
+  publication_order: 255

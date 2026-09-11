@@ -1,0 +1,22 @@
+id: yawngvokny
+artifact: plan
+record:
+  name: Preserve ingress output and identity
+  depends_on:
+    - tcrffftvxl
+  status: complete
+  acceptance:
+    - GIVEN absent, empty, or malformed outputs WHEN extracted THEN their distinctions are preserved.
+    - GIVEN incomplete native tuples WHEN correlated THEN unrelated part identifiers cannot grant convergence.
+    - GIVEN complete tuples WHEN retried THEN source authority and rollups remain stable.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: ingress-fields-audit-1
+      source: audit ses_f83969befffe2I4KXOdZcuVUbg; progress krlwqsztww; empty-output/native identity and first-evidence regressions PASS
+      recorded_at: 2026-09-07 17:11
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,22 @@
+id: mebgweiffm
+artifact: plan
+record:
+  name: Preserve Codex shared-hook ownership
+  depends_on:
+    - luwgmsjiin
+  status: complete
+  acceptance:
+    - GIVEN interrupted installation or removal WHEN reopened THEN unrelated hooks remain complete.
+    - GIVEN concurrent document edits WHEN publishing THEN changes are not silently overwritten.
+    - GIVEN relocated generated executables WHEN managed THEN owned entries remain unique and removable.
+  plan: hljjrlykxb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: codex-hooks-audit-1
+      source: audit ses_f833fb15fffeZ4gzBFFmS7s5CG; progress ycxcvjhsor; shared-hook durability/concurrency/relocation and fresh CLI race PASS
+      recorded_at: 2026-09-07 18:53
+      writer_command: agentera state plan record-evaluation

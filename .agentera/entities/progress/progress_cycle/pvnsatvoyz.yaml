@@ -1,0 +1,16 @@
+id: pvnsatvoyz
+artifact: progress
+record:
+  timestamp: 2026-09-07 17:22
+  type: fix
+  phase: build
+  what: "Implemented hlzmkuhsht in plan hljjrlykxb: retained hook artifacts bypass stage construction/execution; only current route/footer policy is resolved. Source-only retries still transform, and missing dispositions reconcile through the existing writer flow. Updated finding 16 only; task remains in progress."
+  context:
+    intent: Remove repeat stage side effects without changing first-artifact authority or recovery policy.
+    constraints: Only hlzmkuhsht and ledger 16; existing common hook flow, no schema/framework/flags, no provider or daemon, preserve prior uncommitted work. Standing authority yohiahsqjv, Linux scope ygcysqxcfr, identity authority yxlsglvpof.
+    unknowns: No implementation blocker. Exact task and decision gets work; list summaries remain degraded, profile grounding is absent, and startup verification-recipe/changelog metadata is incomplete. No repair or satisfaction inference attempted.
+    scope: internal/cli/hook.go, new hook_retry_stages_test.go, one obsolete observation expectation in hook_foreign_lock_test.go, finding 16 and this progress entity.
+  discovered: Preflight previously recognized complete artifacts but ran current stages anyway. The external-marker regression observed xx instead of x. One disposition-lock test expected the now-removed candidate artifact observation and was updated. Initial CLI smoke omitted required Codex native fields; correcting the fixture restored deterministic retry eligibility without a product change.
+  verified: "Fail-before external-marker regression reproduced duplicate execution. After repair, all TestHook tests passed; go test -race ./internal/cli ./internal/evidence ./internal/db -run 'Hook|Retry|Concurrent' -count=1 passed. New OpenCode/Codex regressions cover source-only promotion, conflicting input before stages, unchanged source/artifact/disposition metadata, same/changed/bad stages, routed inherited footer and retained-output size gate, malformed config, missing-disposition reconciliation, evidence counts and zero complete-retry writer observations. Existing structured/legacy footer, first-insertion concurrency and dispatch coordination tests passed. mage build passed before local CLI smoke: four invocations per runtime, one external stage execution, identical envelopes and 1/1/1 source/artifact/disposition counts. Full mage check passed: Go tests/race, 14 Python tests, adapter overlap, vet/lint/build, zero lint issues; audit a2f888a05cd97e13 recorded 17272 attempts and forbidden=0. Verification used fresh HOME/XDG/TMP roots, KTX_DB unset at invocation boundaries, disposable offline DB fixtures and disabled Go dependency fetching. git diff --check passed; prior ingress-empty/native-ID changes remain intact."
+  next: Owner retains evaluation, audit, satisfaction and lifecycle completion; no task status change, staging, commit or push performed.
+  publication_order: 246

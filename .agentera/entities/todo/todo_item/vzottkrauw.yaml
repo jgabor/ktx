@@ -2,8 +2,8 @@ id: vzottkrauw
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Evidence maintenance boundary** — Run a structured discussion and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)"
+  status: resolved
+  description: "**Evidence maintenance boundary** — Resolved: doctor file sizes plus a `ktx db report` pointer; conservative derived/index/orchestration boundaries, no new mutation, and owner-managed temporary copies. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
   readiness:
     capability: discuss
     reason: Resolve the explicit maintenance boundary before adding mutating evidence maintenance.
@@ -17,7 +17,11 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Evidence maintenance boundary** — Run a structured discussion and record the choice for explicit maintenance of non-authoritative artifacts while retained originals and authoritative first evidence remain immutable and `ktx doctor` remains read-only. → [Question](ARCHITECTURE.md#evidence-maintenance-boundary)"
+      description: "**Evidence maintenance boundary** — Resolved: doctor file sizes plus a `ktx db report` pointer; conservative derived/index/orchestration boundaries, no new mutation, and owner-managed temporary copies. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
+      status: resolved
+      order: 26
       severity: normal
-      status: open
-      order: 11
+  lifecycle:
+    operation: resolve
+    reason: "User-approved decision davnqzeaps resolves the broader maintenance boundary: select doctor file sizes and a db report pointer; preserve authoritative evidence and require operation-specific authority for future maintenance. No new mutation or current snapshot deletion. Add one diagnostic implementation task; prior history and satisfaction remain unchanged."
+    date: 2026-09-13

@@ -288,12 +288,6 @@ The CLI surface stays narrow. The space behind the router stays wide.
 
 These questions do not select an implementation. Each has one executable discussion task in [`TODO.md`](TODO.md#architectural-discussions). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
-### Evidence maintenance boundary
-
-Given that originals are append-only and retained, the first compressed artifact and retry evidence remain authoritative, and `ktx doctor` is read-only, which non-authoritative derived, index, or orchestration artifacts may be compacted, reconciled, or pruned? If maintenance is permitted, what explicit command boundary keeps mutation outside `ktx doctor`?
-
-→ [Discussion task](TODO.md#discuss-evidence-maintenance-boundary)
-
 ### Pipeline stage semantics
 
 What stage metadata, ordering guarantees, and terminal-versus-continuable semantics are needed beyond the established bytes-in, bytes-out, error-or-nil runner contract?

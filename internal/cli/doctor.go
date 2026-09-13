@@ -266,6 +266,7 @@ func buildDoctorReport() *doctorReport {
 		return report
 	}
 	report.Checks = append(report.Checks, doctorPipelineChecks()...)
+	report.Checks = append(report.Checks, doctorStorageChecks(report.Path)...)
 	for _, check := range report.Checks {
 		if check.Status == doctorStatusError {
 			report.Status = doctorStatusError
@@ -663,6 +664,9 @@ func printDoctorHelp(w io.Writer) {
 	fmt.Fprintln(w, "read-only after readiness; a missing database is not created, and Doctor")
 	fmt.Fprintln(w, "does not repair it.")
 	fmt.Fprintln(w, "Configuration inspection never writes config files or creates config directories.")
+	fmt.Fprintln(w, "Storage diagnostics report observed file sizes in bytes, absent files, or unavailable measurements.")
+	fmt.Fprintln(w, "They are informational, not an atomic snapshot, payload totals, allocated storage, or reclaimable space.")
+	fmt.Fprintln(w, "Run 'ktx db report' separately for record totals and logical payload bytes; doctor runs no aggregates or cleanup.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
 }

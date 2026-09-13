@@ -1,0 +1,15 @@
+id: yhcdofrazh
+artifact: progress
+record:
+  timestamp: 2026-09-13 14:41
+  type: feat
+  phase: build
+  what: Implemented doctor storage diagnostics for opxocukkaj under davnqzeaps. Existing JSON status/path/checks and text rendering append informational main database, WAL and SHM file-size checks plus a db report pointer. Observed zero, absent files and unavailable measurements remain distinct. Help, database-safety documentation and the Unreleased changelog describe the scope.
+  context:
+    intent: Expose file footprint without duplicating database aggregates or selecting maintenance.
+    constraints: Preserve database selection, readiness, classified failures, existing exit behavior and prior work. No aggregate queries, cleanup, directory scans, health thresholds, schema changes or satisfaction mutation.
+    unknowns: Independent stat observations are not an atomic SQLite snapshot or allocated/reclaimable-space measurement. The pre-existing prerelease changelog scanner caveat and absent profile grounding remain; no release or profile refresh was selected.
+    scope: internal/cli/doctor.go, doctor_storage.go, doctor_storage_test.go, docs/database-safety.md and CHANGELOG.md; coordinator-owned completion state.
+  verified: mage build preceded local CLI observation. Native Linux mage check passed, including generated-adapter overlap, 14 Python verifier tests, vet and zero lint issues; the database audit reported 18,021 attempts and zero forbidden accesses. Focused doctor, terminal lifecycle and generated-adapter integration regressions passed without skips. New tests prove exactly three filesystem stat observations, zero/absent/error/nonregular states, JSON/text output and unchanged filesystem contents. Existing schema/readiness and security regressions passed. Disposable local-binary smoke verified missing exit 4 without creation, current exit 0 with unchanged database bytes, a working db report pointer in both formats, and older-version/newer-version readiness branches; newer exit 5 preserved the classified envelope and database. All verification invocations used fresh HOME/XDG/TMP roots and KTX_DB unset. Coordinator inspected the harnesses and logs; audit ses_f653805b1ffevXbJOPVBRqFa3l returned PASS with no findings. git diff --check passed.
+  next: Resolve opxocukkaj and stop. Changes remain uncommitted and uninstalled. No additional maintenance, live database access, deletion, release qualification or decision satisfaction is authorized.
+  publication_order: 260

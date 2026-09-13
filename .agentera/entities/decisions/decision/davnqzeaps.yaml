@@ -1,0 +1,24 @@
+id: davnqzeaps
+artifact: decisions
+record:
+  date: 2026-09-13
+  question: What storage diagnostics and evidence-maintenance boundary should KTX provide?
+  context: "Resolves discussion vzottkrauw. The June retention/orphan-session questions became the broader evidence-maintenance question in July; temporary analysis copies are only one subcase. A metadata-only snapshot on 2026-09-13 measured 9,148,071,310 logical bytes under the selected application-data root: ktx.db 4,540,080,128 bytes and analysis/ 4,606,891,802 bytes, including a 4,382,183,424-byte analysis snapshot. Project experiments were empty and no adjacent recording spools were found. This establishes footprint, not growth rate, database composition or reclaimable space. No database was opened. Current doctor lacks size reporting; db report already exposes record totals and logical payload bytes. The user selected sizes plus a report pointer, conservative maintenance rules without new mutations, and approved recording this outcome and its follow-through."
+  alternatives:
+    - name: Add doctor file-size diagnostics and a db report pointer; retain conservative maintenance boundaries without a new mutation.
+      status: chosen
+    - name: Include record totals in default doctor checks or add a detailed doctor mode.
+      status: rejected
+    - name: Select a generic cleanup command, physical-space reclamation, or session reconciliation now.
+      status: rejected
+    - name: Resolve the entire maintenance question solely through temporary analysis-copy ownership.
+      status: rejected
+  choice: |-
+    Add a read-only doctor storage section for the selected main database file and associated WAL/SHM file sizes when present. Label observations as file sizes, not logical payload totals, allocated physical storage or reclaimable space. Distinguish absent files from unavailable measurements. Point to ktx db report for record totals and logical-byte breakdowns; do not add default aggregate queries. Preserve existing database readiness, failure and output contracts. Select no size-based health threshold. Inspection remains read-only after readiness; schema readiness is not discretionary maintenance.
+
+    Select no new cleanup, compaction, index-maintenance or session-reconciliation operation. Preserve append-only retained originals, first compressed-artifact authority, retry/conflict evidence and last recovery copies. Future derived-artifact maintenance must establish non-authority and retained dependencies; index work must preserve lookup and retry/conflict semantics; session reconciliation requires authoritative lifecycle evidence rather than age or an open flag. These are prerequisites for selecting a specific operation, not blanket permission to mutate those categories. Discretionary mutation remains explicitly outside doctor. Existing narrowly approved cleanup and regeneration contracts remain unchanged.
+
+    Temporary analysis copies remain owner-managed. Their owner may explicitly dispose of them only after verifying that the analysis is finished and no active work, retained evidence claim, reproducibility or recovery requirement depends on the copy. Age, size and filename do not establish disposability. No current snapshot deletion is authorized. Revisit additional maintenance only when a concrete operation and supporting evidence justify it.
+  reasoning: File-size visibility addresses an observed footprint without duplicating db report aggregates or implying safe deletion. The inventory cannot justify physical reclamation or orphan repair. Explicit category constraints settle the broader boundary while preserving the ability to select a narrowly justified operation later. Temporary-copy ownership alone would not resolve the original question.
+  confidence: firm
+  feeds_into: Close vzottkrauw and remove its resolved architecture question. Create one normal-priority doctor storage-diagnostics implementation task covering file sizes, availability labels, the db report pointer and preservation of existing contracts, with focused tests and native Linux verification. No maintenance implementation, deletion, schema change, paid execution or satisfaction confirmation is selected. Existing snapshots remain unqualified for disposal.

@@ -1,0 +1,40 @@
+id: opxocukkaj
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: "Doctor storage diagnostics — Doctor now reports informational database/WAL/SHM file sizes with observed, absent and unavailable states, plus a `ktx db report` pointer. Existing readiness and failure contracts are preserved; no aggregates or maintenance were added. Focused tests, native Linux check, local-binary smoke and implementation audit passed. Evidence: progress `yhcdofrazh`. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
+  requirements:
+    - "Implement the diagnostic scope selected by davnqzeaps: observe file sizes for the selected main database and associated WAL/SHM files, without default record-count or payload-aggregate queries."
+    - Label file sizes distinctly from logical payload totals, allocated physical storage and reclaimable space. Represent absent files separately from unavailable measurements; do not interpret measurement failure as zero or invent size-based health thresholds.
+    - Point to ktx db report for record totals and logical-byte breakdowns. Preserve existing database selection, readiness, failure and output contracts; inspection remains read-only after readiness.
+    - Do not add cleanup, compaction, index maintenance, session reconciliation, retention policy, directory-wide analysis-copy scanning, schema changes or snapshot deletion. Existing approved operations remain unchanged.
+  acceptance:
+    - Focused tests cover main database and WAL/SHM size observations, absent and unavailable files, and a valid db report pointer in supported doctor output formats without changing existing fields or failure behavior.
+    - Tests establish that storage reporting adds no default aggregate queries and no discretionary filesystem or database mutation; preserve existing missing/current/older/newer-schema readiness contracts.
+    - Build the local binary before CLI verification. Run focused regressions, native Linux mage check and a local-binary smoke against disposable application roots with KTX_DB unset; do not access the ambient live database.
+    - Document the diagnostic scope and limits, including file-size observations versus record/logical-byte reports and the absence of any reclaimability or cleanup claim.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Implement the approved read-only file-size diagnostics without adding evidence maintenance.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 14
+    order_reason: Engineering follow-through selected by the resolved evidence-maintenance discussion.
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Doctor storage diagnostics — Doctor now reports informational database/WAL/SHM file sizes with observed, absent and unavailable states, plus a `ktx db report` pointer. Existing readiness and failure contracts are preserved; no aggregates or maintenance were added. Focused tests, native Linux check, local-binary smoke and implementation audit passed. Evidence: progress `yhcdofrazh`. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
+      status: resolved
+      order: 27
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: Implemented doctor database/WAL/SHM size observations and db report pointer with existing output/readiness/failure contracts preserved. No aggregates or maintenance added. Focused regressions, mage build, native Linux mage check, disposable local-binary smoke and independent audit passed. Progress yhcdofrazh records evidence and limits; no install, commit or satisfaction change.
+    date: 2026-09-13

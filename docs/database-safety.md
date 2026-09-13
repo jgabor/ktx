@@ -158,6 +158,23 @@ state, and genuinely read-only commands remain read-only.
 readiness prepares the database automatically before inspection. It no longer
 reports a manual migration prerequisite.
 
+Doctor appends informational `database_file_size`, `database_wal_file_size`,
+and `database_shm_file_size` checks in both JSON and text. They stat only the
+selected database path and its `-wal`/`-shm` companions: `observed` gives file
+size in bytes (including zero), `absent` means the file was not found, and
+`unavailable` means stat failed or the path was not a regular file. Missing or
+unavailable measurements are not zero and do not introduce health thresholds
+or change existing failure behavior. Classified readiness/security failures
+still return their existing error envelope instead of these checks.
+
+These independent observations may change concurrently; they are not an atomic
+SQLite snapshot, logical payload totals, allocated physical storage, or an
+estimate of reclaimable space. The `database_storage_scope` check points to
+`ktx db report`, run separately with the same database selection, for record
+totals and logical payload bytes. Doctor does not invoke that report, run
+aggregate queries, scan directories, or perform cleanup or discretionary
+maintenance. Readiness behavior is unchanged.
+
 Doctor also performs static pipeline configuration diagnostics without writing
 configuration or creating config directories. It reports the active config
 path, ordered routes and stages, and warnings for runtime-skipped stages or

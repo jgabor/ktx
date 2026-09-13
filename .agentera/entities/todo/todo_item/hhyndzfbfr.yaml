@@ -1,0 +1,37 @@
+id: hhyndzfbfr
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Allow verified wrapper extraction with inner JSON protection
+  requirements:
+    - Implement the extraction scope selected in [the pipeline stage semantics decision](.agentera/entities/decisions/decision/hhdcvandfi.yaml); see [Pipeline](ARCHITECTURE.md#pipeline).
+    - Permit an intentional output-format change only after verifying text extraction from wrapper shapes already recognized by unwrap-result. A stage assertion or overriding plugin name must not grant permission. Rejected, unknown, ambiguous, malformed, and error wrappers retain conservative handling.
+    - Apply existing JSON-recognition rules to verified extracted content so recognized inner JSON remains protected against subsequent structural damage. Ordinary extracted text retains ordinary pipeline safeguards; neither format validity nor smaller size proves fact preservation.
+    - Preserve configured order, stage-error and empty-output fallback, recoverable original bytes, and the final size check against the original pipeline input. Do not introduce general format-conversion permissions, automatic ordering, or stage-controlled stop signals.
+  acceptance:
+    - Regression tests distinguish verified recognized extraction from rejected or ambiguous wrappers and plugin overrides; cover extraction alone and followed by existing stages.
+    - Tests cover extracted recognized JSON, NDJSON, and JSON with a text trailer under existing recognition rules, structural damage from later stages, ordinary text, subsequent errors and empty outputs, and final size rejection.
+    - Integration tests preserve byte-exact original recovery and existing delivery-size safeguards; update documentation without claiming live outcome improvements.
+    - Run focused pipeline and integration tests, the repository check, and rebuilt local-binary verification under disposable HOME/XDG roots with ambient KTX_DB unset; retain verification evidence.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Implement the approved verified extraction exception while retaining inner JSON and boundary safeguards.
+    dependencies:
+      - artifact: todo
+        id: mvnbhuotkn
+    blocked: null
+    gate: null
+    queue_rank: 16
+    order_reason: Follow the completed pipeline stage semantics discussion.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Allow verified wrapper extraction with inner JSON protection"
+      severity: normal
+      status: open
+      order: 10

@@ -288,12 +288,6 @@ The CLI surface stays narrow. The space behind the router stays wide.
 
 These questions do not select an implementation. Each has one executable discussion task in [`TODO.md`](TODO.md#architectural-discussions). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
-### Pipeline stage semantics
-
-What stage metadata, ordering guarantees, and terminal-versus-continuable semantics are needed beyond the established bytes-in, bytes-out, error-or-nil runner contract?
-
-→ [Discussion task](TODO.md#discuss-pipeline-stage-semantics)
-
 ### Universal preprocessing and filter-pack composition
 
 Should universal preprocessing exist, and if so, how should it compose with profile stages, command-aware routing, recovery cues, and the pipeline gate? Are wildcard stage lists, declarative filter packs, or explicit duplication the appropriate configuration model, and how are precedence and inspection defined?

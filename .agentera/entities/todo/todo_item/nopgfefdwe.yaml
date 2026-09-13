@@ -20,4 +20,4 @@ record:
       description: "**Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)"
       severity: normal
       status: open
-      order: 6
+      order: 5

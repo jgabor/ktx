@@ -2,8 +2,7 @@ id: mvnbhuotkn
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Pipeline stage semantics** — Run a structured discussion and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)"
+  status: resolved
   readiness:
     capability: discuss
     reason: Resolve stage metadata and continuation semantics before expanding the runner contract.
@@ -17,7 +16,19 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Pipeline stage semantics** — Run a structured discussion and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)"
+      description: "[discussion] Pipeline stage semantics"
+      status: resolved
+      order: 28
       severity: normal
-      status: open
-      order: 4
+  kind: discussion
+  requirements:
+    - "Record the metadata, ordering, and continuation choice beyond the existing runner contract. Outcome: [provisional pipeline stage semantics decision](.agentera/entities/decisions/decision/hhdcvandfi.yaml), approved for recording and backlog connection on 2026-09-13."
+    - "Follow-up implementation remains open: [ordering warnings](.agentera/entities/todo/todo_item/jysdmwlfvx.yaml) and [verified wrapper extraction with inner JSON protection](.agentera/entities/todo/todo_item/hhyndzfbfr.yaml). No general stop signals, automatic reordering, or arbitrary format-change permissions were selected."
+  acceptance:
+    - Discussion concluded with user approval to record the provisional decision, remove the resolved architectural question, and add the two bounded implementation tasks. This completes deliberation, not implementation or decision-satisfaction confirmation.
+  release_blocker: false
+  title: Pipeline stage semantics
+  lifecycle:
+    operation: resolve
+    reason: User approved provisional decision hhdcvandfi and backlog connection. Deliberation complete; implementation remains open in jysdmwlfvx and hhyndzfbfr, with no satisfaction confirmation.
+    date: 2026-09-13

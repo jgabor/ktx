@@ -65,7 +65,7 @@ Each task must run a structured discussion, append the resulting choice to the r
 
 <a id="discuss-pipeline-stage-semantics"></a>
 
-- [ ] **Pipeline stage semantics** — Run a structured discussion and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)
+- [x] **Pipeline stage semantics** — Provisionally select narrow read-only warnings for truncation before JSON-block compaction and verified wrapper extraction with inner JSON protection. Preserve configured order, plugin boundaries, fallback, recovery, and final size checks; no general ordering checker or stop signals. Deliberation is complete; implementation and verification remain open. → [Recorded decision](.agentera/entities/decisions/decision/hhdcvandfi.yaml) · [Ordering warnings](.agentera/entities/todo/todo_item/jysdmwlfvx.yaml) · [Verified extraction](.agentera/entities/todo/todo_item/hhyndzfbfr.yaml)
 
 <a id="discuss-universal-preprocessing-and-filter-pack-composition"></a>
 
@@ -98,12 +98,13 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [ ] [id:askdmcbmqv] **Layer 5 boundary** — Run a structured discussion and record the history/memory boundary, lifecycle, storage, consumption, and external-tool choice. → [Question](ARCHITECTURE.md#layer-5-boundary)
 - [ ] [id:davupgqrtc] **Structured parsers for high-volume tools** — Trigger only when the representative residual-delivery study shows that one recurring command or output shape dominates safely addressable raw-delivered volume and existing stages cannot represent it faithfully. Validate the parser through the targeted residual-delivery experiment; preserve failure blocks, exact occurrence counts, and the smallest faithful representation before the global gate. → [Pipeline](ARCHITECTURE.md#pipeline)
 - [ ] [id:ehouglitex] **Wrapper `step_finish` enrichment** — Trigger only if a concrete use case requires per-tool cost evidence. Runtime-emitted model-step cache and cost fields remain benchmark/recorded-stream evidence and must not be attached to `tool_calls`; missing fields remain unavailable. → [Measurement](ARCHITECTURE.md#measurement)
-- [ ] [id:mvnbhuotkn] **Pipeline stage semantics** — Run a structured discussion and record the choice for metadata, ordering, and terminal-versus-continuable behavior beyond the existing runner contract. → [Question](ARCHITECTURE.md#pipeline-stage-semantics)
 - [ ] [id:nnsfvbazjh] **SkillsBench delivered-byte investigation** — Before any new SkillsBench spending, investigate why candidate delivered bytes were lower in only 2/5 quality-preserving pairs. Separate changes in generated original-output volume between arms from within-arm compression reduction; use retained evidence to identify causes without prescribing a compression redesign.
 - [ ] [id:nopgfefdwe] **Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)
 - [ ] [id:nshlhrlqbv] **Universal preprocessing and filter-pack composition** — Run a structured discussion and record the composition, precedence, and inspection choice, considering wildcard preprocessors and declarative filter packs only as alternatives. → [Question](ARCHITECTURE.md#universal-preprocessing-and-filter-pack-composition)
 - [ ] [id:rnyddtdowi] **Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)
 - [ ] [id:symvxmfbwz] **Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)
+- [ ] [id:jysdmwlfvx] [feature] Warn about truncation before JSON-block compaction
+- [ ] [id:hhyndzfbfr] [feature] Allow verified wrapper extraction with inner JSON protection
 
 ## ✓ Resolved
 
@@ -134,3 +135,4 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [x] [id:lejmjmiqzt] [task] Recorded-decision satisfaction review — Surface review supports all six completed engineering follow-through implementations; no implementation blocker found. Audit `uvbracebbl` retains scope and evidence limits. Prior choices and decision satisfaction remain unchanged.
 - [x] [id:vzottkrauw] **Evidence maintenance boundary** — Resolved: doctor file sizes plus a `ktx db report` pointer; conservative derived/index/orchestration boundaries, no new mutation, and owner-managed temporary copies. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)
 - [x] [id:opxocukkaj] [task] Doctor storage diagnostics — Doctor now reports informational database/WAL/SHM file sizes with observed, absent and unavailable states, plus a `ktx db report` pointer. Existing readiness and failure contracts are preserved; no aggregates or maintenance were added. Focused tests, native Linux check, local-binary smoke and implementation audit passed. Evidence: progress `yhcdofrazh`. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)
+- [x] [id:mvnbhuotkn] [discussion] Pipeline stage semantics
